@@ -192,7 +192,22 @@ function formatDistanceLabel(metres) {
   if (!Number.isFinite(metres)) return "";
   if (metres < 1000) return `${Math.round(metres)} m`;
   const km = metres / 1000;
-  return `${km.toFixed(km < 10 ? 1 : 0)} km`;
+  const kmStr = km.toFixed(km < 10 ? 1 : 0).replace(/\.0$/, "");
+  return `${kmStr} km`;
+}
+
+// bearingDegrees (js/app.js), from the no-fix origin the live list measures from. The live arrow
+// spins from this same bearing (updateOverviewDirectionArrows with no compass heading), so the
+// static arrow starts pointing exactly where the live one will.
+function bearingFromDefaultLocation(lat, lon) {
+  const toRad = (d) => (d * Math.PI) / 180;
+  const phi1 = toRad(DEFAULT_LOCATION.latitude);
+  const phi2 = toRad(lat);
+  const lambda1 = toRad(DEFAULT_LOCATION.longitude);
+  const lambda2 = toRad(lon);
+  const y = Math.sin(lambda2 - lambda1) * Math.cos(phi2);
+  const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(lambda2 - lambda1);
+  return Math.round((((Math.atan2(y, x) * 180) / Math.PI + 360) % 360) * 10) / 10;
 }
 
 function walkTimeLabel(metres) {
@@ -229,11 +244,25 @@ function nearestWithinWalkingRadius(items, getLatLon) {
 // instant JS replaced it with the live Nearby list; now the static page already looks like the
 // screen it's showing. metres is optional -- omitted entirely (no footer) rather than shown as
 // 0/blank when a caller has no distance to give.
-function nearestItemCardHtml(href, iconHtml, name, metres) {
-  const footer = Number.isFinite(metres)
-    ? `<div class="nearest-footer"><span class="nearest-meta"><span class="walk-chip">${formatDistanceLabel(metres)} · ${walkTimeLabel(metres)}</span></span></div>`
+// The footer mirrors the live row (renderNearestItemsHtml, js/app.js): walk chip with its walking
+// icon, the type label ("Pubs & bars", "Ponds & streams"), an optional tree tag, and the direction
+// arrow. Each part is optional so a caller with no distance, type or position just omits it.
+function nearestItemCardHtml(href, iconHtml, name, metres, { typeLabel = "", walkIcon = "", treeTag = null, lat, lon } = {}) {
+  const walkChip = Number.isFinite(metres)
+    ? `<span class="walk-chip">${formatDistanceLabel(metres)} · ${walkTimeLabel(metres)}${walkIcon ? ` ${walkIcon}` : ""}</span> · `
     : "";
+  const treeTagChip = treeTag ? ` · #${escapeHtml(treeTag)}` : "";
+  const hasPosition = Number.isFinite(lat) && Number.isFinite(lon);
+  const bearing = hasPosition ? bearingFromDefaultLocation(lat, lon) : null;
+  const arrowAttrs = hasPosition
+    ? ` data-item-lat="${lat}" data-item-lon="${lon}" data-current-angle="${bearing}" style="transform: rotate(${bearing}deg)"`
+    : "";
+  const footer = `<div class="nearest-footer"><span class="nearest-meta">${walkChip}${escapeHtml(typeLabel)}${treeTagChip}</span><span class="nearest-arrow"${arrowAttrs} aria-hidden="true">↑</span></div>`;
   return `<a class="nearest-item" href="${escapeHtml(href)}"><span class="nearest-icon">${iconHtml || ""}</span><div class="nearest-content"><div class="nearest-header"><span class="nearest-name">${escapeHtml(name)}</span></div>${footer}</div></a>`;
+}
+
+function walkIconHtml(rules) {
+  return rules.appIconHtml("walking", "app-icon walk-icon");
 }
 
 function nearestListHtml(cards) {
@@ -267,12 +296,24 @@ function natureNearestListHtml(filterKeys, enrichment, rules) {
   if (!entries.length) return "";
   entries.sort((a, b) => a.metres - b.metres);
   const cards = entries.slice(0, NEAREST_ITEMS_COUNT).map(({ type, item, metres }) => {
+    const walkIcon = walkIconHtml(rules);
     if (type === "tree") {
       const icon = rules.treeSpeciesIconHtml(item.commonName, item.latinName) || rules.filterKindEmoji("trees");
-      return nearestItemCardHtml(`/nearby/trees/#tree=${encodeURIComponent(treeHashKey(item))}`, icon, treeDisplayName(item), metres);
+      return nearestItemCardHtml(`/nearby/trees/#tree=${encodeURIComponent(treeHashKey(item))}`, icon, treeDisplayName(item), metres, {
+        typeLabel: subfilterByKey(rules, "trees")?.label || "Tree",
+        walkIcon,
+        treeTag: treeTagLabel(item),
+        lat: item.latitude,
+        lon: item.longitude,
+      });
     }
     const icon = rules.filterKindEmoji("ponds_streams");
-    return nearestItemCardHtml(`/nearby/ponds-streams/#water=${encodeURIComponent(item.key)}`, icon, item.name, metres);
+    return nearestItemCardHtml(`/nearby/ponds-streams/#water=${encodeURIComponent(item.key)}`, icon, item.name, metres, {
+      typeLabel: subfilterByKey(rules, "ponds_streams")?.label || "Water",
+      walkIcon,
+      lat: item.latitude,
+      lon: item.longitude,
+    });
   });
   return nearestListHtml(cards);
 }
@@ -300,13 +341,16 @@ function subfilterByKey(rules, key) {
   return null;
 }
 
+// The same class and markup categoryLandingLinksHtml (js/app.js) gives every chip live, so the
+// forest-green "navigate into the map" styling (css/inspector.css, .detail-map-link.nearby-link)
+// shows on the static page too, not only after JS boots.
 function chipHtml(rules, href, icon, label) {
-  return `<a class="detail-map-link" href="${href}">${rules.appIconHtml(icon)}${escapeHtml(label)}</a>`;
+  return `<a class="detail-map-link nearby-link" href="${href}">${rules.appIconHtml(icon)}${escapeHtml(label)}</a>`;
 }
 
 function breadcrumbChipsHtml(rules, group) {
   const groupChip = group ? chipHtml(rules, `/nearby/${slugFor(group.key)}/`, group.icon, group.label) : "";
-  return groupChip + chipHtml(rules, "/nearby", "nearby", "Everything nearby");
+  return groupChip + chipHtml(rules, "/nearby?filters=false", "nearby", "Everything nearby");
 }
 
 // A group page's own members ("Browse by type") -- cows is excluded the same way collectPages'
@@ -480,8 +524,13 @@ function renderPage(page, appHtml, enrichment = {}) {
   const businesses = listBusinessesForFilterKey(page.key);
   const nearestBusinesses = nearestWithinWalkingRadius(businesses, (b) => ({ latitude: b.lat, longitude: b.lon }));
   const businessListHtml = businesses.length
-    ? nearestListHtml(nearestBusinesses.map(({ item: b, metres }) =>
-        nearestItemCardHtml(`/find/${b.slug}/`, rules.filterKindEmoji(b.key), b.name, metres)
+    ? nearestListHtml(nearestBusinesses.slice(0, NEAREST_ITEMS_COUNT).map(({ item: b, metres }) =>
+        nearestItemCardHtml(`/find/${b.slug}/`, rules.filterKindEmoji(b.key), b.name, metres, {
+          typeLabel: page.label,
+          walkIcon: walkIconHtml(rules),
+          lat: b.lat,
+          lon: b.lon,
+        })
       ))
     : "";
 

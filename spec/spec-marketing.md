@@ -412,6 +412,16 @@ generated report links back to the homepage. This is what lifts both.
 
 ### 6.6 Category pages (`/nearby/<slug>`)
 
+**Parity is tested, not just intended.** `test/e2e/30-find-pages.spec.js` loads a
+category page with JS disabled, then forces the live Nearby renderer on the same
+page, and asserts the heading, type line, chip row (hrefs, labels, `nearby-link`
+class), each card's name and footer text, and each arrow's starting angle match.
+Nearest-card footers carry the same parts as the live row: walk chip with its
+walking icon, type label, optional tree tag, and direction arrow. The static
+business list is capped at the same 10-item display limit as the live list, while
+the type line's count stays uncapped. The unit suite (`test/find-pages.test.js`)
+covers the card markup directly.
+
 **Governing principle: progressive enhancement, with the static and live
 renders matching as closely as possible.** Every one of these pages must work
 and read as real, specific content with no JS at all — a crawler or a

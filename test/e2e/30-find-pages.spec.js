@@ -51,6 +51,65 @@ test.describe("generated find/nearby pages", () => {
     generateBusinessPages(REPO_ROOT);
   });
 
+  test.describe("no-JS render matches the JS render", () => {
+    // Reads the content both renders share -- heading, type line, chip row and each Nearby card's
+    // name, footer and direction arrow -- from whatever is in #inspectorBody, so the same reader
+    // serves the static DOM (JS disabled) and the live one.
+    const readInspector = (page) =>
+      page.evaluate(() => {
+        const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
+        const body = document.querySelector("#inspectorBody");
+        return {
+          title: text(document.querySelector("#inspectorTitle")),
+          type: text(document.querySelector("#inspectorType")),
+          chips: [...body.querySelectorAll(".related-chips a")].map((a) => ({
+            href: a.getAttribute("href"),
+            label: text(a),
+            classes: a.className,
+          })),
+          cards: [...body.querySelectorAll(".nearest-item")].map((card) => ({
+            name: text(card.querySelector(".nearest-name")),
+            meta: text(card.querySelector(".nearest-meta")),
+            angle: parseFloat(card.querySelector(".nearest-arrow")?.style.transform.match(/rotate\((-?[\d.]+)deg\)/)?.[1]),
+          })),
+        };
+      });
+
+    for (const landing of ["/nearby/pubs/", "/nearby/nature/"]) {
+      test(`${landing}: the static page's heading, type line, chips and nearest cards are the ones the live Nearby screen renders`, async ({ browser, baseURL, page }) => {
+        const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
+        const noJsPage = await context.newPage();
+        await noJsPage.goto(landing);
+        const staticRender = await readInspector(noJsPage);
+        await context.close();
+        expect(staticRender.cards.length).toBeGreaterThan(0);
+
+        await gotoAndWaitForMap(page, landing);
+        await expect.poll(() => page.evaluate(() => state.userLocation && state.userLocation.isDefault === true)).toBe(true);
+        // The landing keeps its server-rendered list until a real fix (_serverRenderedNearbyList),
+        // so force the live renderer to run against the same High Beach stand-in the static page used.
+        await page.evaluate(() => {
+          _serverRenderedNearbyList = false;
+          selectOverview();
+          updateOverviewDirectionArrows();
+        });
+        const liveRender = await readInspector(page);
+
+        expect(liveRender.title).toBe(staticRender.title);
+        expect(liveRender.type).toBe(staticRender.type);
+        expect(liveRender.chips.map(({ href, label }) => ({ href, label }))).toEqual(
+          staticRender.chips.map(({ href, label }) => ({ href, label }))
+        );
+        expect(staticRender.chips.every((chip) => chip.classes.includes("nearby-link"))).toBe(true);
+        expect(liveRender.cards.map(({ name }) => name)).toEqual(staticRender.cards.map(({ name }) => name));
+        expect(liveRender.cards.map(({ meta }) => meta)).toEqual(staticRender.cards.map(({ meta }) => meta));
+        staticRender.cards.forEach((card, i) => {
+          expect(Math.abs(card.angle - liveRender.cards[i].angle), `arrow angle for ${card.name}`).toBeLessThan(0.5);
+        });
+      });
+    }
+  });
+
   test.describe("raw HTML, no JS required", () => {
     test("a category page's real content is server-rendered: count-prefixed title and a linked list of every place in it", async ({ request }) => {
       const response = await request.get("/nearby/pubs/");
@@ -65,14 +124,14 @@ test.describe("generated find/nearby pages", () => {
       // Every category/subcategory page links onward to veteran trees and grazing cattle as
       // pills in the top chip row, the same up-link every /find/<slug>/ business page already
       // carries.
-      expect(html).toMatch(/<a class="detail-map-link" href="\/nearby\/trees\/">[\s\S]*?Trees<\/a>/);
-      expect(html).toMatch(/<a class="detail-map-link" href="\/nearby\/cows\/">[\s\S]*?Cows<\/a>/);
+      expect(html).toMatch(/<a class="detail-map-link nearby-link" href="\/nearby\/trees\/">[\s\S]*?Trees<\/a>/);
+      expect(html).toMatch(/<a class="detail-map-link nearby-link" href="\/nearby\/cows\/">[\s\S]*?Cows<\/a>/);
     });
 
     test("the trees category page links onward to the cows pill but never links to itself", async ({ request }) => {
       const html = await (await request.get("/nearby/trees/")).text();
       expect(html).not.toContain('href="/nearby/trees/"');
-      expect(html).toMatch(/<a class="detail-map-link" href="\/nearby\/cows\/">[\s\S]*?Cows<\/a>/);
+      expect(html).toMatch(/<a class="detail-map-link nearby-link" href="\/nearby\/cows\/">[\s\S]*?Cows<\/a>/);
     });
 
     test("/nearby/trees/ server-renders a real nearest-tree list (no species breakdown -- dropped as not meaningful for a High Beach stand-in), and /nearby/ponds-streams/ still gets a real water list", async ({ request }) => {
@@ -464,7 +523,7 @@ test.describe("generated find/nearby pages", () => {
 
       const body = page.locator("#inspectorBody");
       await expect(body.locator('a.detail-map-link[href="/nearby/food/"]')).toHaveCount(1);
-      await expect(body.locator('a.detail-map-link[href="/nearby"]')).toHaveCount(1);
+      await expect(body.locator('a.detail-map-link[href="/nearby?filters=false"]')).toHaveCount(1);
 
       await page.evaluate(() => { window.__noReloadMarker = "still-here"; });
       await body.locator('a.detail-map-link[href="/nearby/food/"]').click();
@@ -477,7 +536,7 @@ test.describe("generated find/nearby pages", () => {
       await skipOnboarding(page);
       await gotoAndWaitForMap(page, "/nearby/trees/");
       await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
-      await expect(page.locator('#inspectorBody a.detail-map-link[href="/nearby"]')).toHaveCount(1);
+      await expect(page.locator('#inspectorBody a.detail-map-link[href="/nearby?filters=false"]')).toHaveCount(1);
     });
   });
 });

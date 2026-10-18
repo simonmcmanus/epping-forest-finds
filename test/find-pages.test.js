@@ -142,7 +142,7 @@ test("renderPage renders a group page's own title, count and member pills, promo
   // js/app.js), so it survives selectOverview() replacing the rest of the body the instant JS
   // boots instead of vanishing with it.
   const topRow = /<div class="detail-top-row related-chips">([\s\S]*?)<\/div>/.exec(html)[1];
-  assert.match(topRow, /<a class="detail-map-link" href="\/nearby\/pubs\/">[\s\S]*?Pubs &amp; bars[\s\S]*?<\/a>/, "a pill per member, not a comma-separated sentence");
+  assert.match(topRow, /<a class="detail-map-link nearby-link" href="\/nearby\/pubs\/">[\s\S]*?Pubs &amp; bars[\s\S]*?<\/a>/, "a pill per member, not a comma-separated sentence");
   assert.match(topRow, /Cafés/);
 });
 
@@ -150,15 +150,15 @@ test("renderPage links out to veteran trees and grazing cattle as pills in the t
   const [pubs] = collectPages(FAKE_RULES, FAKE_INVENTORY);
   const html = renderPage(pubs, APP_HTML);
   const topRow = /<div class="detail-top-row related-chips">([\s\S]*?)<\/div>/.exec(html)[1];
-  assert.match(topRow, /<a class="detail-map-link" href="\/nearby\/trees\/">[\s\S]*?Trees<\/a>/);
-  assert.match(topRow, /<a class="detail-map-link" href="\/nearby\/cows\/">[\s\S]*?Cows<\/a>/);
+  assert.match(topRow, /<a class="detail-map-link nearby-link" href="\/nearby\/trees\/">[\s\S]*?Trees<\/a>/);
+  assert.match(topRow, /<a class="detail-map-link nearby-link" href="\/nearby\/cows\/">[\s\S]*?Cows<\/a>/);
 });
 
 test("renderPage's own trees pill omits a self-link when the page itself is /nearby/trees/, and never doubles up with the nature group's own type pill", () => {
   const treesPage = { key: "trees", slug: "trees", label: "Trees", title: "trees", count: 24906, groupLabel: "Nature", groupSlug: "nature", siblings: [] };
   const html = renderPage(treesPage, APP_HTML);
   assert.ok(!html.includes('href="/nearby/trees/">'), "the trees page never links to itself, not even as a pill");
-  assert.match(html, /<a class="detail-map-link" href="\/nearby\/cows\/">[\s\S]*?Cows<\/a>/);
+  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\/cows\/">[\s\S]*?Cows<\/a>/);
 
   const naturePage = { key: "nature", slug: "nature", label: "Nature", title: "trees and water features", count: 25017, isGroup: true, members: [{ key: "trees", slug: "trees", label: "Trees" }, { key: "ponds_streams", slug: "ponds-streams", label: "Ponds & streams" }] };
   const natureHtml = renderPage(naturePage, APP_HTML);
@@ -175,8 +175,8 @@ test("renderEventsPage lists real event titles/dates, links to the fuller /find/
   assert.match(html, /Autumn Fair \(2026-10-13\)/);
   assert.match(html, /Recurring litter pick<\/li>/, "an event with no date still lists, just without a parenthetical");
   assert.match(html, /href="\/find\/events\/"/);
-  assert.match(html, /<a class="detail-map-link" href="\/nearby\/trees\/">[\s\S]*?Trees<\/a>/);
-  assert.match(html, /<a class="detail-map-link" href="\/nearby\/cows\/">[\s\S]*?Cows<\/a>/);
+  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\/trees\/">[\s\S]*?Trees<\/a>/);
+  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\/cows\/">[\s\S]*?Cows<\/a>/);
 });
 
 test("renderCowsPage has no fixed count (live-tracked data) but is a real, linkable page", () => {
@@ -185,7 +185,7 @@ test("renderCowsPage has no fixed count (live-tracked data) but is a real, linka
   assert.match(html, /<link rel="canonical" href="https:\/\/www\.eppingforestfinds\.uk\/nearby\/cows\/">/);
   assert.match(html, /GPS collar/);
   assert.ok(!html.includes('"numberOfItems"'), "no fixed count to quote for live-tracked positions");
-  assert.match(html, /<a class="detail-map-link" href="\/nearby\/trees\/">[\s\S]*?Trees<\/a>/, "links onward to trees");
+  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\/trees\/">[\s\S]*?Trees<\/a>/, "links onward to trees");
   assert.ok(!html.includes('href="/nearby/cows/"'), "but never to itself, not even as a pill");
 });
 
@@ -269,7 +269,8 @@ test("renderPage's trees/ponds-streams/nature pages show a real nearest-item lis
   const waterHtml = renderPage(waterPage, APP_HTML, enrichment);
   assert.match(waterHtml, /class="nearest-item" href="\/nearby\/ponds-streams\/#water=way%2F1"/);
   assert.match(waterHtml, /<span class="nearest-name">Aldersbrook<\/span>/);
-  assert.match(waterHtml, /<span class="walk-chip">\d+ m · < 1 min<\/span>/);
+  assert.match(waterHtml, /<span class="walk-chip">\d+ m · < 1 min <img class="app-icon walk-icon"/, "the walk chip carries its walking icon, as the live row does");
+  assert.match(waterHtml, /<span class="nearest-meta">.*Ponds &amp; streams/, "the footer names the place's type, as the live row does");
   assert.ok(!waterHtml.includes("/nearby/trees/#tree="), "the water-only page never pulls in trees");
 
   // The nature GROUP page mixes trees and water together, exactly like overviewItemsForActiveFilter
@@ -295,6 +296,14 @@ test("natureNearestListHtml caps the combined, distance-sorted list to the live 
   const html = natureNearestListHtml(["trees"], { trees, waterFeatures: [] }, loadAppRules());
   const count = (html.match(/class="nearest-item"/g) || []).length;
   assert.equal(count, 10, "state.nearestItemsCount (js/app.js) caps the live list to 10 -- the static one must match");
+});
+
+test("a nearest card's footer names its type and carries a direction arrow pointing at the place, from the same bearing the live arrow starts at", () => {
+  const { natureNearestListHtml } = require("../scripts/generate-find-pages.js");
+  const tree = treeFixture({ recordNumber: 1, commonName: "English Oak", tagNumber: "42", latitude: 51.67, longitude: 0.04 });
+  const html = natureNearestListHtml(["trees"], { trees: [tree], waterFeatures: [] }, loadAppRules());
+  assert.match(html, /<span class="nearest-meta"><span class="walk-chip">[^<]+ · [^<]+ <img class="app-icon walk-icon"[^>]*><\/span> · Trees · #42<\/span>/, "walk chip with its walking icon, then the type label and tag");
+  assert.match(html, /<span class="nearest-arrow" data-item-lat="51\.67" data-item-lon="0\.04" data-current-angle="-?[\d.]+" style="transform: rotate\(-?[\d.]+deg\)" aria-hidden="true">↑<\/span>/);
 });
 
 test("nearestWithinWalkingRadius keeps only items within the walking radius, nearest first, and falls back to the nearest 3 overall when none are within it", () => {
