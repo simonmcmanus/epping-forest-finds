@@ -1121,7 +1121,7 @@ function nearbyWithinWalkHtml(lat, lon, name = null) {
   // The count covers every category, the same set the card browses -- "342 locations within 30 min
   // walk of The Foresters" -- so the number matches what the Nearby list shows once it is opened.
   const { within } = countNearbyEntries(Array.from(ALL_OVERVIEW_FILTER_KEYS), Number(lat), Number(lon));
-  const copy = `${within} locations within ${minutes} min walk of ${name || "this spot"}`;
+  const copy = `${formatCount(within)} locations within ${minutes} min walk of ${name || "this spot"}`;
   return `<li><button class="nearest-item" type="button" data-action="walk-radius" data-lat="${Number(lat)}" data-lon="${Number(lon)}"${nameAttr}>` +
     `<span class="nearest-icon" aria-hidden="true">${appIconHtml("walking")}</span>` +
     `<div class="nearest-content"><div class="nearest-header"><span class="nearest-name">Everything</span></div>` +
@@ -1183,6 +1183,10 @@ function countNearbyEntries(filterKeys, latitude, longitude) {
 // One plain sentence for a category: "43 trees within 30 min walk of The Foresters. 20 further away."
 // or, with none close enough, "No cows within 30 min walk of The Foresters. 11 further away." The
 // noun is the category's own label in lower case; a count of exactly one drops a trailing "s".
+function formatCount(count) {
+  return count.toLocaleString("en-GB");
+}
+
 function nearbyCountCopy(noun, { within, beyond }, placeName) {
   const minutes = state.walkingDistanceMinutes;
   const where = `within ${minutes} min walk of ${placeName}`;
@@ -1191,9 +1195,9 @@ function nearbyCountCopy(noun, { within, beyond }, placeName) {
     sentence = beyond === 0 ? `No ${noun} nearby.` : `No ${noun} ${where}.`;
   } else {
     const word = within === 1 ? noun.replace(/s$/, "") : noun;
-    sentence = `${within} ${word} ${where}.`;
+    sentence = `${formatCount(within)} ${word} ${where}.`;
   }
-  return beyond ? `${sentence} ${beyond} further away.` : sentence;
+  return beyond ? `${sentence} ${formatCount(beyond)} further away.` : sentence;
 }
 
 function relatedCategoryLinksHtml(place) {
@@ -1209,7 +1213,7 @@ function relatedCategoryLinksHtml(place) {
   // that class also requires the data-overview-type attribute in its own selector, per js/nav.js)
   // and gets the same hover lift and arrow-key list navigation for free.
   const cardHtml = (href, icon, name, copy) =>
-    `<li><a class="nearest-item" href="${href}">` +
+    `<li><a class="nearest-item nearby-link" href="${href}">` +
     `<span class="nearest-icon" aria-hidden="true">${appIconHtml(icon)}</span>` +
     `<div class="nearest-content"><div class="nearest-header"><span class="nearest-name">${escapeHtml(name)}</span></div>` +
     (copy ? `<div class="nearest-footer"><span class="nearest-meta">${escapeHtml(copy)}</span></div>` : "") +

@@ -1906,6 +1906,7 @@ test("nearbyCountCopy reads as a plain count from the place, in the reader's own
   assert.equal(app.nearbyCountCopy("cows", { within: 0, beyond: 11 }, "The Foresters"), "No cows within 30 min walk of The Foresters. 11 further away.");
   assert.equal(app.nearbyCountCopy("cows", { within: 0, beyond: 0 }, "The Foresters"), "No cows nearby.");
   assert.equal(app.nearbyCountCopy("cows", { within: 1, beyond: 0 }, "The Foresters"), "1 cow within 30 min walk of The Foresters.", "a single match drops the plural");
+  assert.equal(app.nearbyCountCopy("trees", { within: 3032, beyond: 21864 }, "Bald Faced Stag"), "3,032 trees within 30 min walk of Bald Faced Stag. 21,864 further away.", "large counts get thousands separators");
   app.state.walkingDistanceMinutes = saved;
 });
 
@@ -1996,8 +1997,8 @@ test("isLandingPageArrival also recognises a /find/<slug>/ business page as a la
 test("categoryLandingLinksHtml links a subfilter page up to its group and back to the full Nearby list", () => {
   app.location.pathname = "/nearby/pubs/";
   const html = app.categoryLandingLinksHtml();
-  assert.match(html, /<a class="detail-map-link" href="\/nearby\/food\/">[\s\S]*?Food<\/a>/);
-  assert.match(html, /<a class="detail-map-link" href="\/nearby\?filters=false">[\s\S]*?Everything nearby<\/a>/);
+  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\/food\/">[\s\S]*?Food<\/a>/);
+  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\?filters=false">[\s\S]*?Everything nearby<\/a>/);
   app.location.pathname = "/";
 });
 
@@ -2005,7 +2006,7 @@ test("categoryLandingLinksHtml links a group page only back to the full Nearby l
   app.location.pathname = "/nearby/food/";
   const html = app.categoryLandingLinksHtml();
   assert.ok(!html.includes("Food</a>"), "the food group page does not link to itself");
-  assert.match(html, /<a class="detail-map-link" href="\/nearby\?filters=false">[\s\S]*?Everything nearby<\/a>/);
+  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\?filters=false">[\s\S]*?Everything nearby<\/a>/);
   app.location.pathname = "/";
 });
 
@@ -10715,9 +10716,9 @@ test("relatedCategoryLinksHtml renders a headed Nearby section (tree/cow, the wa
   // Both the tree and cows links carry this pub's own position via the target page's existing
   // "near=<lat>,<lon>" anchor route, so landing there re-centres on the pub rather than the
   // reader's own GPS fix.
-  assert.match(html, /<a class="nearest-item" href="\/nearby\/trees\/#near=51\.650000%2C0\.050000[^"]*">[\s\S]*?nearest-meta[\s\S]*?<\/a>/);
-  assert.match(html, /<a class="nearest-item" href="\/nearby\/cows\/#near=51\.650000%2C0\.050000">[\s\S]*?nearest-meta[\s\S]*?<\/a>/);
-  assert.match(html, /nearest-meta">(No |\d+ )[^<]*within \d+ min walk of/, "each category card says how many sit within the walking radius");
+  assert.match(html, /<a class="nearest-item nearby-link" href="\/nearby\/trees\/#near=51\.650000%2C0\.050000[^"]*">[\s\S]*?nearest-meta[\s\S]*?<\/a>/);
+  assert.match(html, /<a class="nearest-item nearby-link" href="\/nearby\/cows\/#near=51\.650000%2C0\.050000">[\s\S]*?nearest-meta[\s\S]*?<\/a>/);
+  assert.match(html, /nearest-meta">(No |[\d,]+ )[^<]*within \d+ min walk of/, "each category card says how many sit within the walking radius");
 
   // The walk-radius card lives in this same Nearby section, as a <button> sharing the .nearest-item
   // card shape, between where it comes out of the Nearby heading and before Related begins.
@@ -10726,8 +10727,8 @@ test("relatedCategoryLinksHtml renders a headed Nearby section (tree/cow, the wa
   assert.match(html, /<button class="nearest-item" type="button" data-action="walk-radius" data-lat="51\.65" data-lon="0\.05">[\s\S]*?locations within \d+ min walk[\s\S]*?<\/button>/);
 
   // Category/group links are the same .nearest-item card as Nearby, not a different pill style.
-  assert.match(html, /<a class="nearest-item" href="\/nearby\/pubs\/">[\s\S]*?Pubs &amp; bars[\s\S]*?<\/a>/);
-  assert.match(html, /<a class="nearest-item" href="\/nearby\/food\/">[\s\S]*?Food[\s\S]*?<\/a>/);
+  assert.match(html, /<a class="nearest-item nearby-link" href="\/nearby\/pubs\/">[\s\S]*?Pubs &amp; bars[\s\S]*?<\/a>/);
+  assert.match(html, /<a class="nearest-item nearby-link" href="\/nearby\/food\/">[\s\S]*?Food[\s\S]*?<\/a>/);
   assert.ok(!html.includes("detail-map-link"), "related links no longer use the pill style -- same card as Nearby");
 
   // No mention of the data's source attached to these distances -- they're computed live, not
