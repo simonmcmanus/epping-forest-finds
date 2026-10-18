@@ -644,6 +644,7 @@ function showNearbyLocatingState() {
 
 function selectOverview(animate = false) {
   if (state.filterScreenOpen || state.searchScreenOpen) return;
+  if (typeof updateDocumentTitle === "function") updateDocumentTitle();
   if (findLandingAwaitingPlace()) return;
   // A landing's server-rendered list already shows the High Beach default it would otherwise
   // rebuild here (default location, no real fix yet), so keep it. Every early caller -- boot's own
@@ -828,6 +829,7 @@ function transitionInspectorBody(newHtml, direction, onDone) {
   // Replacing the initial Nearby content invalidates its server-rendered stand-in.
   _serverRenderedNearbyList = false;
   els.inspectorBody.innerHTML = newHtml;
+  if (typeof updateDocumentTitle === "function") updateDocumentTitle();
   applyScreenTransition(direction, onDone);
 }
 

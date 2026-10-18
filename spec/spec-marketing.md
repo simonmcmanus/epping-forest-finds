@@ -476,6 +476,10 @@ writing a standalone page. Only two things are swapped:
   below), Open Graph `title`/`description`/`url` (app.html's own `og:image`
   is left as-is), and an inserted `CollectionPage`/`ItemList` JSON-LD block
   with `numberOfItems` set to the live count.
+- The static `<title>` remains specific to the category or business for crawlers and no-JS
+  visitors. After the shared app shell boots, `document.title` is updated for the live screen
+  (`Nearby <Category> in Epping Forest` for category landings and `<name> near Epping Forest`
+  for individual locations), including in-app navigation without a document reload.
 - The app's own "nothing selected yet" placeholder inside `#inspectorBody`
   (the one static, pre-boot paragraph `app.html` ships) is replaced with real,
   specific, crawlable text — the category's count and description, plus

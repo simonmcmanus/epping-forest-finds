@@ -3984,6 +3984,47 @@ function landingPageCategoryLabel() {
   return group ? group.label : null;
 }
 
+const DOCUMENT_TITLE_SITE_NAME = "Epping Forest Finds";
+
+// The static SEO pages have their own richer titles in the generated HTML. Once the shared app
+// shell boots, the browser title follows the screen the reader is actually looking at, including
+// SPA transitions where no document navigation occurs. Keep this in app.js rather than deriving
+// it from the visible heading: the heading is deliberately shorter for selected locations and
+// category landings have a meaningful URL label even while their list is still server-rendered.
+function updateDocumentTitle() {
+  let title;
+  const selected = state.selected;
+
+  if (selected) {
+    const item = selected.item || {};
+    if (selected.type === "settings") {
+      title = "Settings";
+    } else if (selected.type === "report") {
+      title = "Feedback";
+    } else {
+      const name = selected.type === "tree"
+        ? treeDisplayName(item)
+        : selected.type === "cow"
+          ? `Cow ${displayValue(item.serialNo)}`
+          : selected.type === "railway"
+            ? (item.properties?.name || item.properties?.ref || "Unnamed railway line")
+            : (item.name || item.ref || item.commonName || "Map location");
+      title = `${name} near Epping Forest`;
+    }
+  } else if (state.filterScreenOpen) {
+    title = "Filters for Epping Forest";
+  } else if (state.searchScreenOpen) {
+    title = "Search Epping Forest Finds";
+  } else {
+    const landingLabel = landingPageCategoryLabel();
+    title = landingLabel ? `Nearby ${landingLabel} in Epping Forest` : "Nearby in Epping Forest";
+  }
+
+  const nextTitle = `${title} | ${DOCUMENT_TITLE_SITE_NAME}`;
+  if (typeof document !== "undefined" && document.title !== nextTitle) document.title = nextTitle;
+  return nextTitle;
+}
+
 // True when the active filter set should be shown in full even without a location fix: either
 // exactly one filter -- a subfilter's own /nearby/<slug> page, or a reader's own deliberate single
 // choice, both reading better as "show me everything in this one category" than a generic
