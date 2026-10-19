@@ -229,8 +229,9 @@ test.describe("Community place checks", () => {
     if (await nearest.count()) {
       expect((await nearest.first().boundingBox()).y).toBeLessThan((await box.boundingBox()).y);
     }
-    // nothing but the small "Noticed a problem" link follows it
-    await expect(page.locator(".community-check-place ~ *:not(.report-issue)")).toHaveCount(0);
+    // nothing but the small "Noticed a problem" link follows it (and the "issues raised on this place"
+    // line, which stays hidden unless GitHub reports some)
+    await expect(page.locator(".community-check-place ~ *:not(.report-issue):not(.community-place-issues)")).toHaveCount(0);
     await expect(box.locator(".community-or")).toContainText("Something not right?");
     await expect(box.locator("[data-action='community-place-choose']")).toHaveCount(6);
   });
