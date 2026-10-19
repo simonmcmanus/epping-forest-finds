@@ -3,6 +3,10 @@ name: CI
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, labeled]
+    # A baseline-only commit (from the update-snapshots label run) is not a code change, so it
+    # starts no CI run. The label run already checked that render.
+    paths-ignore:
+      - "test/e2e/__screenshots__/**"
   push:
     branches: [main]
   # Manual "Run workflow" button. The weekly-ledger workflow no longer needs
@@ -14,6 +18,8 @@ on:
 jobs:
   unit:
     name: Unit tests
+    # Skipped on the label event: applying update-snapshots only runs the visual job.
+    if: github.event.action != 'labeled'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -53,6 +59,8 @@ jobs:
     # dependency on cdn.playwright.dev/the apt mirrors that added nothing but risk. Bump this
     # tag only in lockstep with the @playwright/test version in package.json.
     name: E2E tests (${{ matrix.project }}, shard ${{ matrix.shard }})
+    # Skipped on the label event (see the unit job).
+    if: github.event.action != 'labeled'
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.61.1-noble
