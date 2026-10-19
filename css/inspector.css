@@ -1630,3 +1630,14 @@ dd {
 @keyframes community-nudge-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes community-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(47, 107, 58, 0); } 50% { box-shadow: 0 0 0 6px rgba(47, 107, 58, .28); } }
 @media (prefers-reduced-motion: reduce) { .community-nudge { animation: none; } .community-check.community-nudge-pulse { animation: none; outline: 2px solid #2f6b3a; } }
+
+/* Recovery code: back up or restore the device id that owns your points. */
+.community-recover { margin: 12px 0; padding: 10px 12px; border: 1px solid var(--line, #d9ddd0); border-radius: 12px; background: #fff; }
+.community-recover summary { display: flex; align-items: center; gap: 8px; font-weight: 700; cursor: pointer; }
+.community-recover summary svg { width: 20px; height: 20px; color: #2f6b3a; }
+.community-recover-text { margin: 8px 0; color: #5b665b; font-size: .85rem; line-height: 1.4; }
+.community-recover-code, .community-recover-row { display: flex; gap: 8px; align-items: center; }
+.community-recover-code code { flex: 1; min-width: 0; padding: 8px 10px; border-radius: 8px; background: #f1f4ec; font-size: .9rem; overflow-wrap: anywhere; }
+.community-recover-label { display: block; margin: 12px 0 4px; font-size: .8rem; font-weight: 700; }
+.community-recover-row input { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--line, #d9ddd0); border-radius: 8px; font: inherit; font-size: .9rem; }
+.community-recover-status { min-height: 1.2em; margin: 8px 0 0; color: #2f6b3a; font-size: .85rem; }

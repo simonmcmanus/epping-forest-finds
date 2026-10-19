@@ -386,3 +386,33 @@ test.describe("Nudges to check a tree you are standing next to", () => {
     await expect(page.locator("#communityNudge")).toHaveCount(0);
   });
 });
+
+test.describe("Recovery code", () => {
+  test("the code can be copied, and restoring brings back the score and reports of that code", async ({ page }) => {
+    await page.route(/\/api\/community\/overlay\?me=restoredid1234567890abcd&list=1/, (route) =>
+      route.fulfill({
+        status: 200, contentType: "application/json",
+        body: JSON.stringify({ generatedAt: 1, reports: [{ id: "r-old-1", kind: "tree", target: "tree:77", status: "VERIFIED", ts: 1, outcome: "confirmed" }] }),
+      }));
+    await page.route(/\/api\/community\/overlay\?me=restoredid1234567890abcd$/, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ points: 12, reports: 1, verified: 1, confirmed: 1, validated: 0, fixed: 0 }) }));
+    await page.route(OVERLAY_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {} }) }));
+    await setup(page, "/community");
+    await page.click(".community-recover summary");
+    const shown = (await page.locator("#communityRecoveryCode").innerText()).trim();
+    expect(shown).toMatch(/^([a-z0-9]{4}-){5}[a-z0-9]{4}$/);
+    expect(await page.evaluate(() => localStorage.getItem("ff-community-device-v1"))).toBe(shown.replace(/-/g, ""));
+
+    await page.fill("#communityRestoreInput", "nonsense!");
+    await page.click("[data-action='community-restore']");
+    await expect(page.locator("#communityRecoveryStatus")).toContainText("doesn't look like a recovery code");
+
+    await page.fill("#communityRestoreInput", "restoredid1234567890abcd");
+    await page.click("[data-action='community-restore']");
+    await expect(page.locator("#communityRecoveryStatus")).toContainText("Restored. 1 report found");
+    expect(await page.evaluate(() => localStorage.getItem("ff-community-device-v1"))).toBe("restoredid1234567890abcd");
+    await expect(page.locator(".community-log-item")).toHaveCount(1);
+    await expect(page.locator(".community-rank-points")).toContainText("12 points");
+  });
+});

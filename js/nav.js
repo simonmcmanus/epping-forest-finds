@@ -796,6 +796,12 @@ function setupSearchAndNavHandlers() {
     }
     const addStart = event.target.closest("[data-action='community-add-start']");
     if (addStart) { communityStartAddTree(); return; }
+    const recoveryAction = event.target.closest("[data-action='community-copy-code'], [data-action='community-restore']");
+    if (recoveryAction) {
+      event.preventDefault();
+      if (recoveryAction.dataset.action === "community-restore") communityRestore(); else communityCopyCode();
+      return;
+    }
     const addCancel = event.target.closest("[data-action='community-add-cancel']");
     if (addCancel) { communityCancelAddTree(); return; }
     const placeChoice = event.target.closest("[data-action='community-place-choose']");

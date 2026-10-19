@@ -573,6 +573,7 @@ globalThis.__forestFindsTest = {
   recoverWedgedAnimationFrames,
   communityRank,
   communityNudgeDecision,
+  communityParseRecoveryCode,
   HEADING_SOURCE_NONE,
   HEADING_SOURCE_RELATIVE,
   HEADING_SOURCE_ABSOLUTE,
@@ -11065,6 +11066,17 @@ test("nudges: a card on the overview, a pulse on the tree's own page, and quiet 
   assert.equal(decide({ lastCardAt: now - 60 * 1000 }), "none", "at most one card every ten minutes");
   assert.equal(decide({ overviewActive: false }), "none", "never over another screen");
   assert.equal(decide({ onThisTree: true, lastCardAt: now - 60 * 1000, overviewActive: false }), "pulse", "the pulse ignores the card limits");
+});
+
+test("a recovery code is accepted as shown, in any case or spacing, and anything else is refused", () => {
+  const id = "abcd1234efgh5678ijkl9012";
+  assert.equal(app.communityParseRecoveryCode(id), id);
+  assert.equal(app.communityParseRecoveryCode("abcd-1234-efgh-5678-ijkl-9012"), id);
+  assert.equal(app.communityParseRecoveryCode("  ABCD-1234-EFGH-5678-IJKL-9012 "), id);
+  assert.equal(app.communityParseRecoveryCode("abcd 1234 efgh 5678 ijkl 9012"), id);
+  assert.equal(app.communityParseRecoveryCode("short"), null);
+  assert.equal(app.communityParseRecoveryCode("has spaces/and$symbols!!"), null);
+  assert.equal(app.communityParseRecoveryCode(""), null);
 });
 
 // --- Place checks go to GitHub issues for manual review (netlify/functions/report-missing-data.js) ---

@@ -54,7 +54,7 @@ exports.handler = async (event) => {
   // Per-device index so a contributor can read their own log back without scanning the ledger.
   const mineKey = `mine/${report.deviceId}`;
   const mine = (await store.get(mineKey)) || [];
-  mine.push({ id: report.id, kind: report.kind, target: report.target, status: report.status, ts: report.ts, lat: report.lat, lon: report.lon });
+  mine.push({ id: report.id, kind: report.kind, target: report.target, status: report.status, ts: report.ts, lat: report.lat, lon: report.lon, tagNumber: report.tagNumber });
   await store.put(mineKey, mine.slice(-300));
   return respond(200, { ok: true });
 };

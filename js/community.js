@@ -308,6 +308,78 @@ async function communityRefreshScore(force = true) {
   } catch {}
 }
 
+// --- Recovery code: the device id is the whole identity, so show it and let it be restored ---
+const COMMUNITY_RECOVERY_RE = /^[A-Za-z0-9_-]{8,64}$/;
+
+function communityRecoveryCode() {
+  return communityDeviceId().replace(/(.{4})(?=.)/g, "$1-");
+}
+
+// Accepts the code as shown (grouped with dashes, any case or spacing) or a raw id.
+function communityParseRecoveryCode(input) {
+  const text = String(input || "").trim().replace(/\s+/g, "");
+  if (COMMUNITY_RECOVERY_RE.test(text) && !text.includes("-")) return text;
+  const compact = text.replace(/-/g, "").toLowerCase();
+  if (/^[a-z0-9]{24}$/.test(compact)) return compact;
+  return COMMUNITY_RECOVERY_RE.test(text) ? text : null;
+}
+
+function communityRecoveryHtml() {
+  return `<details class="community-recover">
+      <summary>${communityIcon("shield")}<span>Back up or restore your progress</span></summary>
+      <p class="community-recover-text">Your points belong to a code kept on this device. Save it somewhere safe and you can get them back on a new phone or after clearing your browser. Anyone with the code can act as you, so keep it private.</p>
+      <div class="community-recover-code"><code id="communityRecoveryCode">${escapeHtml(communityRecoveryCode())}</code><button type="button" class="community-chip" data-action="community-copy-code">Copy</button></div>
+      <label class="community-recover-label" for="communityRestoreInput">Restore from a code</label>
+      <div class="community-recover-row"><input id="communityRestoreInput" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="xxxx-xxxx-xxxx-xxxx-xxxx-xxxx"><button type="button" class="community-chip" data-action="community-restore">Restore</button></div>
+      <p class="community-recover-status" id="communityRecoveryStatus" role="status"></p>
+    </details>`;
+}
+
+// Adopt the reports the server holds for the restored id, so the log shows them again.
+async function communityAdoptServerReports(deviceId) {
+  const response = await fetch(`${COMMUNITY_OVERLAY_URL}?me=${encodeURIComponent(deviceId)}&list=1`);
+  if (!response.ok) return 0;
+  const data = await response.json();
+  const local = {};
+  for (const r of data.reports || []) {
+    const key = r.target || (r.tagNumber ? `new:${r.tagNumber}` : null);
+    if (!key || local[key]) continue;
+    local[key] = { id: r.id, status: r.status, ts: r.ts, lat: r.lat, lon: r.lon, ...(r.kind === "place" ? { kind: "place" } : {}), ...(r.tagNumber ? { name: `Tree ${r.tagNumber}` } : {}) };
+  }
+  communityWriteLocal({ ...local, ...communityReadLocal() });
+  return Object.keys(local).length;
+}
+
+async function communityRestore() {
+  const status = document.getElementById("communityRecoveryStatus");
+  const say = (text) => { if (status) status.textContent = text; };
+  const code = communityParseRecoveryCode((document.getElementById("communityRestoreInput") || {}).value);
+  if (!code) return say("That doesn't look like a recovery code. It has 24 letters and numbers.");
+  if (!navigator.onLine) return say("Connect to the internet to restore your progress.");
+  try {
+    const adopted = await communityAdoptServerReports(code);
+    localStorage.setItem(COMMUNITY_DEVICE_KEY, code);
+    localStorage.removeItem(COMMUNITY_SCORE_KEY);
+    localStorage.removeItem(COMMUNITY_LOG_KEY);
+    say(adopted ? `Restored. ${adopted} ${adopted === 1 ? "report" : "reports"} found.` : "Restored. This code has no reports yet.");
+    const shown = document.getElementById("communityRecoveryCode");
+    if (shown) shown.textContent = communityRecoveryCode();
+    communityOpenContributions();
+  } catch {
+    say("Couldn't restore right now. Please try again.");
+  }
+}
+
+async function communityCopyCode() {
+  const status = document.getElementById("communityRecoveryStatus");
+  try {
+    await navigator.clipboard.writeText(communityRecoveryCode());
+    if (status) status.textContent = "Copied.";
+  } catch {
+    if (status) status.textContent = "Select the code and copy it.";
+  }
+}
+
 // --- Nudges: when you are standing next to an unchecked tree ---
 const COMMUNITY_NUDGE_OFF_KEY = "ff-community-nudges-off-v1";
 const COMMUNITY_NUDGE_SEEN_KEY = "ff-community-nudge-seen-v1";

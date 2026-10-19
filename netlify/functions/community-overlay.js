@@ -54,7 +54,7 @@ exports.handler = async (event) => {
       const entry = r.target ? computed.overlay[r.target] : null;
       let outcome = reportOutcome({ ...r, deviceId: me }, entry, computed.conflicts || [], validatedKeys);
       if (r.issue && issueRewards.has(r.issue)) outcome = issueRewards.get(r.issue) === "fix" ? "fixed" : "confirmed";
-      return { id: r.id, kind: r.kind, target: r.target || null, status: r.status, ts: r.ts, lat: r.lat, lon: r.lon, outcome };
+      return { id: r.id, kind: r.kind, target: r.target || null, status: r.status, ts: r.ts, lat: r.lat, lon: r.lon, tagNumber: r.tagNumber, outcome };
     });
     return {
       statusCode: 200,
