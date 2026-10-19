@@ -3066,10 +3066,11 @@ function reportFormHtml() {
       </label>
       ${reportPhotoFieldHtml("reportPhoto")}
       <p id="reportStatus" class="report-status" aria-live="polite"></p>
-      <p id="reportOfflineNote" class="report-note report-offline-note"${online ? " hidden" : ""}>Submission requires an internet connection. Your report is saved and will be ready to submit when you\'re back online.</p>
+      <p id="reportOutboxNote" class="report-note" aria-live="polite" hidden></p>
+      <p id="reportOfflineNote" class="report-note report-offline-note"${online ? " hidden" : ""}>You're offline. Your report will be saved and sent automatically when you're back online.</p>
       <div class="report-form-actions">
         <button id="reportCancel" class="button button-ghost" type="button">Cancel</button>
-        <button id="reportSubmit" class="button" type="submit"${online ? "" : " disabled"}>Submit</button>
+        <button id="reportSubmit" class="button" type="submit">Submit</button>
       </div>
     </form>`;
 }
@@ -3124,17 +3125,25 @@ function bindReportFormHandlers() {
     detailsInput.scrollIntoView({ block: "nearest", inline: "nearest" });
   });
 
-  // Disable/enable submit when connectivity changes
+  // Show or hide the offline note when connectivity changes (submitting stays possible: it queues)
   function updateOnlineState() {
-    const submitBtn = document.getElementById("reportSubmit");
     const offlineNote = document.getElementById("reportOfflineNote");
-    if (!submitBtn) return; // form has been removed from DOM
+    if (!offlineNote) return; // form has been removed from DOM
     const online = navigator.onLine;
-    submitBtn.disabled = !online;
     if (offlineNote) offlineNote.hidden = online;
   }
   window.addEventListener("online", updateOnlineState);
   window.addEventListener("offline", updateOnlineState);
+
+  // "N waiting to send" for anything parked in the outbox (js/outbox.js).
+  function showOutboxPending(pending) {
+    const note = document.getElementById("reportOutboxNote");
+    if (!note) return;
+    note.hidden = !pending;
+    note.textContent = pending ? `${pending} report${pending === 1 ? "" : "s"} waiting to send` : "";
+  }
+  window.addEventListener("outbox:change", (event) => showOutboxPending(event.detail.pending));
+  outboxList().then((items) => showOutboxPending(items.length));
 }
 
 function bindReportPhotoInput(input) {
@@ -3265,6 +3274,30 @@ function getOrCreateReportRequestId() {
   return id;
 }
 
+// Sends a feedback/report payload; if the device is offline or the request cannot reach the
+// server, it is parked in the outbox (js/outbox.js) and re-sent automatically, so the user is
+// never asked to come back later. Resolves {queued:true} or {response, data}.
+async function sendOrQueueReport(payload) {
+  const url = "/.netlify/functions/report-missing-data";
+  const queue = async () => {
+    await outboxAdd({ id: payload.requestId, url, payload });
+    return { queued: true };
+  };
+  if (!navigator.onLine) return queue();
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return { response, data: await response.json().catch(() => ({})) };
+  } catch {
+    return queue();
+  }
+}
+
+const REPORT_QUEUED_MESSAGE = "Saved. It will be sent automatically when you're back online.";
+
 async function submitReportForm() {
   // Guard against duplicate GitHub issues from double-taps or a submit
   // firing again while the previous request is still in flight.
@@ -3272,11 +3305,6 @@ async function submitReportForm() {
 
   const reportDetailsInput = document.getElementById("reportDetails");
   if (!reportDetailsInput) return;
-
-  if (!navigator.onLine) {
-    setReportStatus("No internet connection. Your report is saved and ready to submit when you\'re back online.", "error");
-    return;
-  }
 
   const details = String(reportDetailsInput.value || "").trim();
   if (!details) {
@@ -3314,22 +3342,15 @@ async function submitReportForm() {
   setReportStatus("Submitting report…");
 
   try {
-    const response = await fetch("/.netlify/functions/report-missing-data", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
+    const { queued, response, data } = await sendOrQueueReport(payload);
+    if (!queued && !response.ok) {
       const errorText = data && data.error ? data.error : `Request failed (${response.status})`;
       setReportStatus(errorText, "error");
       return;
     }
 
-    setReportStatus("Report submitted successfully.", "success", data && data.issueUrl);
+    if (queued) setReportStatus(REPORT_QUEUED_MESSAGE, "success");
+    else setReportStatus("Report submitted successfully.", "success", data && data.issueUrl);
     reportDetailsInput.value = "";
     const photoInput = document.getElementById("reportPhoto");
     if (photoInput) {
@@ -3345,7 +3366,7 @@ async function submitReportForm() {
     setReportStatus("Could not submit report. Please try again.", "error");
   } finally {
     state.reportSubmitting = false;
-    if (submitButton) submitButton.disabled = !navigator.onLine;
+    if (submitButton) submitButton.disabled = false;
   }
 }
 
@@ -3367,10 +3388,10 @@ function locationIssueFormHtml() {
       <textarea class="report-textarea" placeholder="Describe the problem…"></textarea>
       ${reportPhotoFieldHtml("locationIssuePhoto")}
       <p class="report-status" aria-live="polite"></p>
-      <p class="report-note report-offline-note"${online ? " hidden" : ""}>Submission requires an internet connection. Try again once you\'re back online.</p>
+      <p class="report-note report-offline-note"${online ? " hidden" : ""}>You're offline. Your report will be saved and sent automatically when you're back online.</p>
       <div class="report-form-actions">
         <button class="button button-ghost" type="button" data-action="cancel-location-issue">Cancel</button>
-        <button class="button" type="button" data-action="submit-location-issue"${online ? "" : " disabled"}>Submit</button>
+        <button class="button" type="button" data-action="submit-location-issue">Submit</button>
       </div>
     </div>`;
 }
@@ -3399,12 +3420,6 @@ async function submitLocationIssueReport(wrapper) {
   const statusEl = wrapper.querySelector(".report-status");
   const submitButton = wrapper.querySelector("[data-action='submit-location-issue']");
   if (!textarea || !statusEl) return;
-
-  if (!navigator.onLine) {
-    statusEl.textContent = "No internet connection. Try again once you\'re back online.";
-    statusEl.className = "report-status error";
-    return;
-  }
 
   const details = String(textarea.value || "").trim();
   if (!details) {
@@ -3449,21 +3464,16 @@ async function submitLocationIssueReport(wrapper) {
   statusEl.className = "report-status";
 
   try {
-    const response = await fetch("/.netlify/functions/report-missing-data", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
+    const { queued, response, data } = await sendOrQueueReport(payload);
+    if (!queued && !response.ok) {
       const errorText = data && data.error ? data.error : `Request failed (${response.status})`;
       statusEl.textContent = errorText;
       statusEl.className = "report-status error";
       return;
     }
 
-    applyReportStatusContent(statusEl, "Report submitted successfully.", "success", data && data.issueUrl);
+    if (queued) applyReportStatusContent(statusEl, REPORT_QUEUED_MESSAGE, "success");
+    else applyReportStatusContent(statusEl, "Report submitted successfully.", "success", data && data.issueUrl);
     textarea.value = "";
     const photoInput = wrapper.querySelector(".report-photo-input");
     if (photoInput) photoInput.value = "";
@@ -3472,7 +3482,7 @@ async function submitLocationIssueReport(wrapper) {
     statusEl.className = "report-status error";
   } finally {
     wrapper.dataset.submitting = "false";
-    if (submitButton) submitButton.disabled = !navigator.onLine;
+    if (submitButton) submitButton.disabled = false;
   }
 }
 

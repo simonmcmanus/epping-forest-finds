@@ -40,6 +40,7 @@ const APP_SHELL = [
   "./js/nav.js",
   "./js/onboarding.js",
   "./js/tracker.js",
+  "./js/outbox.js",
   "./js/app.js",
 ];
 

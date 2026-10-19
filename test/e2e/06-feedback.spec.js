@@ -84,6 +84,27 @@ test.describe("Feedback / Report screen", () => {
     expect(requestCount).toBe(1);
   });
 
+  test("a report written offline is saved and sent automatically when the connection returns", async ({ page, context }) => {
+    const posted = [];
+    await page.route("**/.netlify/functions/report-missing-data", async (route) => {
+      posted.push(route.request().postDataJSON());
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+    });
+
+    await context.setOffline(true);
+    await page.fill("#reportDetails", "Written with no signal");
+    await expect(page.locator("#reportSubmit")).toBeEnabled();
+    await page.click("#reportSubmit");
+    await expect(page.locator("#reportStatus")).toContainText("sent automatically");
+    await expect(page.locator("#reportOutboxNote")).toContainText("1 report waiting to send");
+    expect(posted).toHaveLength(0);
+
+    await context.setOffline(false);
+    await expect.poll(() => posted.length).toBe(1);
+    expect(posted[0].details).toBe("Written with no signal");
+    await expect(page.locator("#reportOutboxNote")).toBeHidden();
+  });
+
   test("a submitted report's filed issue is a real clickable link", async ({ page }) => {
     await page.route("**/.netlify/functions/report-missing-data", (route) =>
       route.fulfill({

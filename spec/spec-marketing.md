@@ -1234,3 +1234,8 @@ anything that depends on the gate's state must be exercised through
 - No pricing, testimonials, or team page.
 - No app store badges until the native builds in
   [spec-native.md](spec-native.md) actually ship.
+
+
+## Tree verification explainer
+
+`/reports/tree-report/` is a static public page explaining community tree verification (rules, statuses, scoring, roadmap). Marketing surface: independent styles, no app imports.

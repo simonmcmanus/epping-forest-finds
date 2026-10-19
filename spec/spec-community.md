@@ -1,4 +1,6 @@
-# Community Verification (proposed — not yet implemented)
+# Community Verification (phase 1 built: offline outbox + feedback; the rest proposed)
+
+A public, plain-language summary is published at `/reports/tree-report/` (`reports/tree-report/index.html`, static, no app code). Update it when the rules below change.
 
 Lets users verify, question and add trees (and, with a different status set, businesses). Reports are an **annotation layer**; they never edit the shipped dataset.
 
@@ -13,6 +15,7 @@ Lets users verify, question and add trees (and, with a different status set, bus
 - `GET /api/community/overlay`: served outside `data/**`, so it never moves `data-cache-version.js`. The service worker caches it in its own `COMMUNITY_CACHE` with an independent version, stale-while-revalidate, ETag, refreshed at most daily, fetched after first paint.
 
 ## Client
+- **Built (phase 1):** `js/outbox.js` — IndexedDB outbox (in-memory fallback), items `{id,url,payload}` keyed by the report's `requestId` (server already de-duplicates on it). Flushes on `online`, `visibilitychange`, boot, and with backoff (5s/30s/2m/10m) after a network or 5xx/408/429 failure; other 4xx are dropped. Fires `outbox:change`/`outbox:sent` on `window`. Both feedback forms (Feedback screen and the per-location form) send via `sendOrQueueReport` (`js/app.js`): offline or unreachable → queued, status reads "Saved. It will be sent automatically when you're back online."; Submit is never disabled for being offline; the Feedback screen shows "N reports waiting to send". Cached in `APP_SHELL`.
 - One offline **outbox** (reports and feedback), flushed on `online`, `visibilitychange`, app start and Background Sync where available; exponential backoff; "N waiting to send" chip.
 - **Optimistic UI**: a submitted report is merged over the feature locally at once, with the note "Saved. Other people may take up to a day to see this." The local copy is dropped when the daily overlay includes it.
 - Anonymous device identity (random id + secret) with an optional recovery code. No login in v1.

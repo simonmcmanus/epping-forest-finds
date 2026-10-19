@@ -1454,3 +1454,8 @@ The full routing model — the URL for each screen, history entries, back/forwar
 - Batch emoji draws
 - Roads gated by zoom threshold
 - Animation uses `requestAnimationFrame` scheduling (not timers)
+
+
+## Feedback while offline
+
+The Feedback screen and the per-location "Noticed a problem" form no longer require a connection: submitting offline (or when the request cannot reach the server) saves the report to the outbox (`js/outbox.js`, see `spec-community.md`) and sends it automatically later. The Feedback screen shows how many are waiting.
