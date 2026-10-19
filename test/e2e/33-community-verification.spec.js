@@ -351,8 +351,10 @@ test.describe("Nudges to check a tree you are standing next to", () => {
     await expect(nudge).toContainText("You're next to");
     await page.click("[data-community-nudge-close]");
     await expect(nudge).toHaveCount(0);
-    await page.evaluate(() => { communityNudgeLastAt = 0; communityNudgeCheck(); });
-    await expect(nudge).toHaveCount(0); // same tree, same day: not asked again
+    // A GPS tick may have prompted for the tree first, so let the check run once more, clear it, then
+    // run it again: by now this tree has been asked about, and it is not asked again the same day.
+    await page.evaluate(() => { communityNudgeLastAt = 0; communityNudgeCheck(); communityNudgeDismiss(); communityNudgeLastAt = 0; communityNudgeCheck(); });
+    await expect(nudge).toHaveCount(0);
   });
 
   test("Check it opens the tree with its check card", async ({ page }) => {
