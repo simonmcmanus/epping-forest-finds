@@ -531,6 +531,11 @@ if (typeof document !== "undefined" && document.addEventListener) {
 if (typeof window !== "undefined" && window.addEventListener) {
   // Fetched after first paint so it never competes with the map's own data.
   window.addEventListener("load", () => setTimeout(() => { communityLoadOverlay(); communityRefreshScore(false); }, 1000));
+  // The log shows "Waiting to send" while a report is queued, so redraw it whenever the queue changes
+  // (a send finishing included); otherwise it keeps saying so until the screen is reopened.
+  window.addEventListener("outbox:change", () => {
+    if (document.getElementById("communityContributions") && typeof communityRenderContributions === "function") communityRenderContributions();
+  });
   window.addEventListener("outbox:sent", (event) => {
     const detail = event.detail;
     if (!detail || !detail.item) return;
