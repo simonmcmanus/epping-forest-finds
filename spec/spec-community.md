@@ -55,7 +55,7 @@ A form, never a one-tap action: **Start** reveals the form; nothing is saved or 
 
 ## Place checks (pubs, cafes, shops and other places)
 A boxed **Help check this place** card sits at the **bottom** of a place's detail screen, after its Nearest/Related sections and above the small "Noticed a problem" link (not on events). Only trees get their check at the top of the panel, because for a tree the check is the main action. Choices: *Yes, it's still here and correct*, *It's closed*, *It has moved*, *The name has changed*, *Details are wrong*, *Wrong type of place*.
-- A **confirmation** is a quiet check-in: it goes to the community ledger (`kind: "place"`, counts towards the score) and never opens an issue.
+- A **confirmation** is a local-only check-in: it scores nothing, never opens an issue, and hides that place's check card on this device.
 - Any **change** opens a short note step (required for rename and wrong details, optional otherwise) and is filed as a **GitHub issue for manual review** via `report-missing-data` (`reportType: "place-check"`, labels `place-check` + `user-report`). Nothing is applied to the data or shown to other users automatically; a person decides. A further report about the same place (matched by a `place-key:` marker) is added as a comment on its open issue instead of a new issue. Requests carry the usual de-duplicating request id and travel through the offline outbox.
 - No community overlay or "questioned" badge exists for places.
 
@@ -69,7 +69,10 @@ Latest report per device per target. Reports from a device more than 60 m from t
 Independent devices only. Verify + independent verify = confirmed. Two agreeing change reports = "questioned". Conflicts, and `NEW_TREE` without a second sighting, escalate to an issue. Reports within ~40 m of the feature are trusted fully; others are flagged and score less.
 
 ## Scoring
-+1 on verify, +1 when independently confirmed. `NEW_TREE` +1, +3 when found by a second device. Accepted correction +2. Points show as pending until the server accepts them. Rank, badges, quests and area progress are follow-ups. Leaderboard is private in v1.
++1 on verify, +1 when independently confirmed. `NEW_TREE` +1, +3 when found by a second device. Accepted correction +2. Points show as pending until the server accepts them. 
+**Rewards after the fact** (`REWARD_POINTS` in `lib/community-consensus.js`): +10 when a later City of London register validates a report (a reported new tree's tag now exists, a "not here" tree is gone, a moved tree's register position changed towards the report; `lib/community-validation.js`), +1 when a feedback or bug issue is closed as completed, +3 when a place-check issue is closed as completed. The first validation run only records a baseline, so existing differences never pay out. Reporters are matched through an HMAC `reporter-ref` stored in the issue; the device id is never in the issue. A daily scheduled function (`community-validate-scheduled`) and an admin `/api/community/validate` run the check, idempotently. Place confirmations earn nothing.
+
+Rank, badges, quests and area progress are follow-ups. Leaderboard is private in v1.
 
 ## Upstream loop
 A scheduled export (e.g. monthly) writes the questioned/confirmed discrepancies as CSV + GeoJSON (feature id, status, count, last reported, position) to send to the City of London so they can issue a corrected dataset. After a new dataset is ingested, the daily job clears resolved overlay entries.

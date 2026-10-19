@@ -231,7 +231,7 @@ test.describe("Feedback / Report screen — keyboard avoidance (VisualViewport)"
     await page.click(".community-feedback-link");
     await expect(page.locator("#reportDetails")).toBeVisible();
 
-    const beforeBox = await page.locator("#reportDetails").boundingBox();
+    const beforeBox = await waitForStableBoundingBox(page.locator("#reportDetails"));
     const insetPx = 260;
     await simulateKeyboardInset(page, insetPx);
 
@@ -270,7 +270,7 @@ test.describe("Feedback / Report screen — keyboard avoidance (VisualViewport)"
     await page.click(".community-feedback-link");
     await expect(page.locator("#reportDetails")).toBeVisible();
 
-    const beforeBox = await page.locator("#reportDetails").boundingBox();
+    const beforeBox = await waitForStableBoundingBox(page.locator("#reportDetails"));
     const insetPx = 180;
     await simulateKeyboardInset(page, insetPx);
 

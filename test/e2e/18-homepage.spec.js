@@ -429,7 +429,7 @@ test.describe("the marketing homepage", () => {
 
     const faq = page.locator(".faq-list");
     await expect(faq).toHaveCSS("border-radius", "14px");
-    await expect(faq.locator(".faq-item")).toHaveCount(5);
+    await expect(faq.locator(".faq-item")).toHaveCount(6);
     await expect(faq.locator(".faq-item + .faq-item").first()).toHaveCSS("border-top-style", "solid");
   });
 
@@ -733,7 +733,11 @@ for (const [label, url] of [["homepage", "/"], ["ledger", "/reports/epping-fores
       // The picture wrapper must preserve the existing full-width crop.
       expect(await photo.evaluate(img => Math.abs(img.getBoundingClientRect().width - img.closest("figure").getBoundingClientRect().width))).toBeLessThan(1);
       await context.close();
-    
+    });
+  }
+}
+
+test.describe("homepage community section", () => {
   test("the homepage explains community checks briefly and links to the full explanation", async ({ page }) => {
     await page.goto("/");
     const section = page.locator("#community");
@@ -750,5 +754,3 @@ for (const [label, url] of [["homepage", "/"], ["ledger", "/reports/epping-fores
     expect((await faq.locator("dd").innerText()).replace(/\s+/g, " ").trim()).toBe(entry.acceptedAnswer.text);
   });
 });
-  }
-}
