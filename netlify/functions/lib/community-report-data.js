@@ -115,68 +115,94 @@ const place = (lat, lon) => (lat === "" || lon === "" || lat == null || lon == n
 
 function renderReportHtml(report, { csvUrl = "?format=csv", geoJsonUrl = "?format=geojson" } = {}) {
   const treeName = (t) => [t.tagNumber && `Tag ${esc(t.tagNumber)}`, esc(t.commonName)].filter(Boolean).join(" · ") || `Record ${esc(t.recordNumber)}`;
+  const treeLink = (t) => (t.mapUrl ? `<a href="${esc(t.mapUrl)}">${treeName(t)}</a>` : treeName(t));
+  // Cells carry data-label so home.css can lay each row out as a card on a phone.
+  const cell = (label, value, cls = "") => `<td data-label="${esc(label)}"${cls ? ` class="${cls}"` : ""}>${value}</td>`;
   const table = (head, rows, empty) => rows.length
-    ? `<div class="scroll"><table><thead><tr>${head.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div>`
-    : `<p class="empty">${empty}</p>`;
+    ? `<div class="report-card"><div class="report-scroll"><table class="report-table"><thead><tr>${head.map((h) => `<th scope="col">${h}</th>`).join("")}</tr></thead><tbody>${rows.join("")}</tbody></table></div></div>`
+    : `<div class="note-card"><p>${empty}</p></div>`;
   const questioned = table(["Tree", "Record no.", "Finding", "People", "Last reported", "Listed position", "Reported position"], report.questioned.map((t) =>
-    `<tr><td>${t.mapUrl ? `<a href="${esc(t.mapUrl)}">${treeName(t)}</a>` : treeName(t)}</td><td>${esc(t.recordNumber)}</td><td>${esc(t.finding)}</td><td>${esc(t.reporters)}</td><td>${esc(t.lastReported)}</td><td>${place(t.listedLat, t.listedLon)}</td><td>${place(t.reportedLat, t.reportedLon)}</td></tr>`),
+    `<tr>${cell("Tree", treeLink(t))}${cell("Record no.", esc(t.recordNumber), "mono")}${cell("Finding", esc(t.finding))}${cell("People", esc(t.reporters), "mono")}${cell("Last reported", esc(t.lastReported), "mono")}${cell("Listed position", place(t.listedLat, t.listedLon), "mono")}${cell("Reported position", place(t.reportedLat, t.reportedLon), "mono")}</tr>`),
     "No trees have been questioned by two or more people yet.");
   const added = table(["Tag number", "Position", "People", "Status", "Last reported"], report.newTrees.map((t) =>
-    `<tr><td>${esc(t.tagNumber)}</td><td>${place(t.lat, t.lon)}</td><td>${esc(t.reporters)}</td><td>${t.confirmed ? "Found by two or more people" : "Found by one person, awaiting a second"}</td><td>${esc(t.lastReported)}</td></tr>`),
+    `<tr>${cell("Tag number", esc(t.tagNumber), "mono")}${cell("Position", place(t.lat, t.lon), "mono")}${cell("People", esc(t.reporters), "mono")}${cell("Status", t.confirmed ? "Found by two or more people" : "Found by one person, awaiting a second")}${cell("Last reported", esc(t.lastReported), "mono")}</tr>`),
     "No missing trees have been reported yet.");
   const conflicting = table(["Tree", "Record no.", "Reports", "Last reported", "Listed position"], report.conflicts.map((t) =>
-    `<tr><td>${t.mapUrl ? `<a href="${esc(t.mapUrl)}">${treeName(t)}</a>` : treeName(t)}</td><td>${esc(t.recordNumber)}</td><td>${esc(Object.entries(t.counts || {}).map(([s, n]) => `${s}: ${n}`).join("; "))}</td><td>${esc(t.lastReported)}</td><td>${place(t.listedLat, t.listedLon)}</td></tr>`),
+    `<tr>${cell("Tree", treeLink(t))}${cell("Record no.", esc(t.recordNumber), "mono")}${cell("Reports", esc(Object.entries(t.counts || {}).map(([s, n]) => `${s}: ${n}`).join("; ")))}${cell("Last reported", esc(t.lastReported), "mono")}${cell("Listed position", place(t.listedLat, t.listedLon), "mono")}</tr>`),
     "No conflicting reports.");
   return `<!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<title>Community-reported tree discrepancies — Epping Forest Finds</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
-<style>
-  :root { --bg:#fbfaf6; --fg:#1f2a1f; --muted:#5b665b; --line:#d9ddd0; --accent:#2f6b3a; --card:#fff; }
-  * { box-sizing: border-box; }
-  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.55 system-ui,-apple-system,Segoe UI,sans-serif; }
-  main { max-width:1000px; margin:0 auto; padding:24px 16px 64px; }
-  h1 { font-size:1.7rem; line-height:1.2; margin:.2em 0; }
-  h2 { font-size:1.2rem; margin:2em 0 .4em; border-bottom:1px solid var(--line); padding-bottom:.2em; }
-  a { color:var(--accent); }
-  .scroll { overflow-x:auto; }
-  table { border-collapse:collapse; width:100%; background:var(--card); font-size:.92rem; }
-  th, td { text-align:left; padding:7px 9px; border:1px solid var(--line); vertical-align:top; }
-  th { background:#f1f4ec; }
-  .empty { color:var(--muted); }
-  .stats { display:flex; flex-wrap:wrap; gap:10px; margin:16px 0; padding:0; list-style:none; }
-  .stats li { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:8px 14px; }
-  .stats strong { display:block; font-size:1.4rem; }
-  .actions a { margin-right:14px; }
-  @media print { .actions, nav { display:none; } body { background:#fff; } }
-</style>
+  <meta charset="utf-8">
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-M9NL06G2JB"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag(){dataLayer.push(arguments);}
+    gtag('consent', 'default', { analytics_storage: 'denied' });
+    gtag('js', new Date());
+    gtag('config', 'G-M9NL06G2JB');
+  </script>
+  <script src="/cookie-consent.js" defer></script>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#24382f">
+  <meta name="robots" content="noindex">
+  <title>Community-reported tree discrepancies | Epping Forest Finds</title>
+  <link rel="icon" href="/assets/home/favicon.png" type="image/png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/assets/home/home.css">
 </head>
 <body>
-<main>
-  <nav><a href="/">Home</a> · <a href="/contribute">How community checks work</a></nav>
-  <h1>Community-reported tree discrepancies</h1>
-  <p>Differences between the City of London’s Veteran Tree Register and what walkers have found on the ground, collected through Epping Forest Finds. Generated ${esc(report.generatedDay)} from ${esc(report.reportCount)} reports.</p>
-  <ul class="stats">
-    <li><strong>${report.questioned.length}</strong>trees questioned</li>
-    <li><strong>${report.newTrees.length}</strong>possible new trees</li>
-    <li><strong>${report.conflicts.length}</strong>conflicting reports</li>
-    <li><strong>${report.verifiedTrees}</strong>trees verified</li>
-  </ul>
-  <p class="actions"><a href="${esc(csvUrl)}">Download CSV</a><a href="${esc(geoJsonUrl)}">Download GeoJSON</a><a href="javascript:window.print()">Print</a></p>
-  <h2>How to read this</h2>
-  <p>Each report comes from someone standing at the tree. A tree appears below as <em>questioned</em> only when at least two different people report the same problem, and reports made from more than 60 metres away are ignored. Nothing here has been checked by us on site, and none of it changes the register: it is a list of places worth a second look. Positions are WGS84 latitude and longitude.</p>
-  <h2>Questioned trees</h2>
-  ${questioned}
-  <h2>Possible new trees</h2>
-  <p>Reported with their tag number from a GPS fix accurate to 30 metres or better.</p>
-  ${added}
-  <h2>Conflicting reports</h2>
-  <p>Some people confirmed these trees and others questioned them, so no finding is shown. They need a look on site.</p>
-  ${conflicting}
-</main>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-head">
+    <a class="brand" href="/">
+      <img class="brand-mark" src="/assets/home/map-icons/oak.png" alt="" width="44" height="44">
+      <span>Epping Forest Finds</span>
+    </a>
+    <a class="head-link" href="/contribute">How community checks work</a>
+  </header>
+  <main id="main" tabindex="-1">
+    <section class="hero page-hero">
+      <div class="hero-copy">
+        <h1>Community-reported tree discrepancies</h1>
+        <p class="page-lede">Differences between the City of London’s Veteran Tree Register and what walkers have found on the ground. Generated ${esc(report.generatedDay)} from ${esc(report.reportCount)} reports.</p>
+        <ul class="hero-stats">
+          <li><strong>${report.questioned.length}</strong>trees questioned</li>
+          <li><strong>${report.newTrees.length}</strong>possible new trees</li>
+          <li><strong>${report.conflicts.length}</strong>conflicting reports</li>
+          <li><strong>${report.verifiedTrees}</strong>trees verified</li>
+        </ul>
+        <div class="hero-actions">
+          <a class="cta-btn" href="${esc(csvUrl)}">Download CSV</a>
+          <a class="cta-btn cta-ghost" href="${esc(geoJsonUrl)}">Download GeoJSON</a>
+          <a class="cta-btn cta-ghost" href="javascript:window.print()">Print</a>
+        </div>
+      </div>
+    </section>
+    <section aria-labelledby="how-heading">
+      <h2 id="how-heading">How to read this</h2>
+      <div class="note-card"><p>Each report comes from someone standing at the tree. A tree appears below as <em>questioned</em> only when at least two different people report the same problem, and reports made from more than 60 metres away are ignored. Nothing here has been checked by us on site, and none of it changes the register: it is a list of places worth a second look. Positions are WGS84 latitude and longitude.</p></div>
+    </section>
+    <section aria-labelledby="questioned-heading">
+      <h2 id="questioned-heading">Questioned trees</h2>
+      ${questioned}
+    </section>
+    <section aria-labelledby="new-heading">
+      <h2 id="new-heading">Possible new trees</h2>
+      <p class="section-lede">Reported with their tag number from a GPS fix accurate to 30 metres or better.</p>
+      ${added}
+    </section>
+    <section aria-labelledby="conflict-heading">
+      <h2 id="conflict-heading">Conflicting reports</h2>
+      <p class="section-lede">Some people confirmed these trees and others questioned them, so no finding is shown. They need a look on site.</p>
+      ${conflicting}
+    </section>
+  </main>
+  <footer class="site-foot">
+    <p>Created and curated by AI with oversight from <a href="https://simonmcmanus.com">Simon McManus</a>. AI can make mistakes, please <a href="https://github.com/simonmcmanus/epping-forest-finds/issues">report them here</a>.</p>
+    <p><a href="/terms.html">Privacy &amp; terms</a></p>
+  </footer>
 </body>
 </html>
 `;
