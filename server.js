@@ -258,7 +258,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (["/nearby/search", "/nearby/filter", "/settings", "/feedback", "/contribute"].includes(url.pathname)) {
+  if (["/nearby/search", "/nearby/filter", "/settings", "/feedback", "/community"].includes(url.pathname)) {
     const appFile = path.join(ROOT, "app.html");
     if (!fs.existsSync(appFile)) { send(res, 404, "App not found"); return; }
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
@@ -279,7 +279,8 @@ const server = http.createServer((req, res) => {
   const COMMUNITY_FUNCTION_ROUTES = {
     "/api/community/report": "community-report",
     "/api/community/overlay": "community-overlay",
-    "/tree-report": "tree-report",
+    "/reports/tree-report": "tree-report",
+    "/reports/tree-report/": "tree-report",
   };
   if (COMMUNITY_FUNCTION_ROUTES[url.pathname]) {
     const fnName = COMMUNITY_FUNCTION_ROUTES[url.pathname];

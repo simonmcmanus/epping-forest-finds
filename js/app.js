@@ -487,7 +487,7 @@ const ROUTE_PATHS = {
   [ROUTE_SEARCH]: "/nearby/search",
   [ROUTE_SETTINGS]: "/settings",
   [ROUTE_REPORT]: "/feedback",
-  [ROUTE_COMMUNITY]: "/contribute",
+  [ROUTE_COMMUNITY]: "/community",
 };
 const NEARBY_PATH = "/nearby";
 
@@ -6527,7 +6527,8 @@ function nearbyCameraFitPoints(useFinalBrowseState = false) {
   const ring = walkingRadiusCirclePoints(64, useFinalBrowseState);
   const reach = ring.concat(outOfRadiusFitPoints());
   if (!secondaryScreenActive()) return reach;
-  return reach.concat(nearestSelectedFilterPoints());
+  const base = reach.concat(nearestSelectedFilterPoints());
+  return state.selected?.type === "community" && typeof communityFitPoints === "function" ? base.concat(communityFitPoints()) : base;
 }
 
 // How far past the walking radius the Nearby camera will reach for an out-of-radius match,

@@ -112,7 +112,7 @@ test.describe("Community tree verification", () => {
       posted.push(route.request().postDataJSON());
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
     });
-    await setup(page, "/contribute");
+    await setup(page, "/community");
     await page.click("[data-action='community-add-start']");
     await expect(page.locator("#communityAddTreeForm")).toBeVisible();
     await expect(page.locator("#communityLocationStatus")).toContainText("Turn on location");
@@ -134,7 +134,7 @@ test.describe("Community tree verification with location shared", () => {
       posted.push(route.request().postDataJSON());
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
     });
-    await setup(page, "/contribute");
+    await setup(page, "/community");
     await page.click("[data-action='community-add-start']");
     await expect(page.locator("#communityLocationStatus")).toContainText("accurate to");
     await expect(page.locator("#communityAddTreeSubmit")).toBeDisabled();
@@ -150,10 +150,54 @@ test.describe("Community tree verification with location shared", () => {
     await expect(page.locator(".community-log-item")).toContainText("Tree T-9001");
   });
 
+  test("the Community screen highlights what the user has marked on the map, and only there", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("ff-community-local-v1", JSON.stringify({
+        "tree:900001": { id: "m1", status: "VERIFIED", ts: Date.now(), lat: 51.6663, lon: 0.045 },
+        "tree:900002": { id: "m2", status: "NOT_HERE", ts: Date.now(), lat: 51.6637, lon: 0.045 },
+        "new:T-1": { id: "m3", status: "NEW_TREE", ts: Date.now(), lat: 51.665, lon: 0.0473, name: "Tree T-1" },
+      }));
+    });
+    await page.route(OVERLAY_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {}, reports: [] }) })
+    );
+    await page.route(REPORT_URL, (route) => route.fulfill({ status: 200, body: "{}" }));
+    await setup(page, "/community");
+    const legend = page.locator(".community-legend");
+    await expect(legend).toContainText("Verified");
+    await expect(legend).toContainText("Reported wrong");
+    await expect(legend).toContainText("Added by you");
+    expect(await page.evaluate(() => communityMapMarks().map((m) => m.kind).sort())).toEqual(["added", "questioned", "verified"]);
+
+    // The verified mark is a green disc on the overlay canvas; sample just beside its tick. Only that
+    // mark is drawn for this check, so a neighbour's disc can never sit over the sampled pixel.
+    await page.evaluate(() => {
+      const verified = communityMapMarks().filter((m) => m.kind === "verified");
+      window.communityMapMarks = () => verified;
+      requestDraw();
+    });
+    const sampleVerified = () => page.evaluate(() => {
+      const mark = communityMapMarks().find((m) => m.kind === "verified");
+      const toScreen = typeof worldToScreenForOverlay === "function" ? worldToScreenForOverlay : worldToScreen;
+      const p = toScreen(projectLonLat(mark.lon, mark.lat));
+      const dpr = pixelRatio();
+      const data = els.overlayCanvas.getContext("2d").getImageData(Math.round(p.x + 7 * dpr), Math.round(p.y), 1, 1).data;
+      return { r: data[0], g: data[1], b: data[2], a: data[3] };
+    });
+    await expect.poll(async () => {
+      const c = await sampleVerified();
+      return c.a > 200 && c.g > c.r + 30 && c.g > c.b + 30;
+    }).toBe(true);
+
+    // ...and it is gone again once the user leaves the Community screen.
+    await page.click("#nearbyToggle");
+    await expect.poll(async () => (await sampleVerified()).a).toBeLessThan(40);
+  });
+
   test("a tag that is already on the map is not added again", async ({ page }) => {
     const posted = [];
     await page.route(REPORT_URL, (route) => { posted.push(1); route.fulfill({ status: 200, body: "{}" }); });
-    await setup(page, "/contribute");
+    await setup(page, "/community");
     await page.click("[data-action='community-add-start']");
     await page.fill("#communityTagInput", FIXTURE_TREE.tagNumber);
     await page.click("#communityAddTreeSubmit");
@@ -214,30 +258,33 @@ test.describe("Community place checks", () => {
     expect(issues).toHaveLength(0);
   });
 
-  test("confirming a place never opens an issue", async ({ page }) => {
-    const issues = [];
-    const confirmations = [];
-    await page.route(ISSUE_URL, (route) => { issues.push(1); route.fulfill({ status: 200, body: "{}" }); });
-    await page.route(REPORT_URL, async (route) => {
-      confirmations.push(route.request().postDataJSON());
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
-    });
+  test("confirming a place earns nothing, sends nothing and hides its check card", async ({ page }) => {
+    const sent = [];
+    await page.route(ISSUE_URL, (route) => { sent.push("issue"); route.fulfill({ status: 200, body: "{}" }); });
+    await page.route(REPORT_URL, (route) => { sent.push("report"); route.fulfill({ status: 200, body: "{}" }); });
     await page.click("[data-action='community-place-choose'][data-status='OPEN_CONFIRMED']");
-    await expect(page.locator(".community-mine")).toContainText("counts towards your score");
-    await expect.poll(() => confirmations.length).toBe(1);
-    expect(confirmations[0]).toMatchObject({ kind: "place", status: "OPEN_CONFIRMED" });
-    expect(issues).toHaveLength(0);
+    await expect(page.locator(".community-check-place")).toHaveCount(0);
+    await page.waitForTimeout(500);
+    expect(sent).toHaveLength(0);
+    // and it stays hidden when the place is opened again
+    await page.click("#nearbyToggle");
+    await page.click("#searchToggle");
+    await page.fill("#mapSearchInput", "Railway Bell");
+    await page.locator("#mapSearchResults .nearest-item").first().click();
+    await expect(page.locator("[data-action='report-issue']")).toBeVisible();
+    await expect(page.locator(".community-check-place")).toHaveCount(0);
   });
 });
 
 test.describe("Community screen layout", () => {
-  test("opens with a short summary that links to the full explanation", async ({ page }) => {
-    await setup(page, "/contribute");
-    const intro = page.locator(".community-intro");
+  test("opens with a one-row summary that links out to the full explanation", async ({ page }) => {
+    await setup(page, "/community");
+    const intro = page.locator("a.community-intro");
     await expect(intro).toContainText("Help keep the map right");
-    const link = intro.locator("a.community-intro-link");
-    await expect(link).toHaveAttribute("href", "/community");
-    await expect(link).toHaveAttribute("target", "_blank");
+    await expect(intro).toHaveAttribute("href", "/contribute");
+    await expect(intro).toHaveAttribute("target", "_blank");
+    // minimal space: a single compact row, not a paragraph
+    expect((await intro.boundingBox()).height).toBeLessThan(70);
   });
 
   test("the sheet opens taller than on other screens, leaving less map", async ({ page }) => {
@@ -252,23 +299,23 @@ test.describe("Community screen layout", () => {
 });
 
 test.describe("Public community pages", () => {
-  test("/community explains how checks work and links to the report and the app", async ({ page }) => {
-    await page.goto("/community");
+  test("/contribute explains how checks work and links to the report and the app", async ({ page }) => {
+    await page.goto("/contribute");
     await expect(page.locator("h1")).toHaveText("How community checks work");
-    await expect(page.locator('a[href="/tree-report"]')).toHaveCount(1);
-    await expect(page.locator('a[href="/contribute"]')).toHaveCount(1);
+    await expect(page.locator('a[href="/reports/tree-report"]').first()).toBeVisible();
+    await expect(page.locator('a[href="/community"]').first()).toBeVisible();
   });
 
-  test("/tree-report is a public report with CSV and GeoJSON downloads", async ({ page, request }) => {
-    await page.goto("/tree-report");
+  test("/reports/tree-report is a public report with CSV and GeoJSON downloads", async ({ page, request }) => {
+    await page.goto("/reports/tree-report");
     await expect(page.locator("h1")).toHaveText("Community-reported tree discrepancies");
     await expect(page.locator("h2", { hasText: "Questioned trees" })).toBeVisible();
     await expect(page.locator('a[href="?format=csv"]')).toBeVisible();
-    const csv = await request.get("/tree-report?format=csv");
+    const csv = await request.get("/reports/tree-report?format=csv");
     expect(csv.status()).toBe(200);
     expect(csv.headers()["content-type"]).toContain("text/csv");
     expect(await csv.text()).toMatch(/^section,record_number,tag_number/);
-    const geo = await request.get("/tree-report?format=geojson");
+    const geo = await request.get("/reports/tree-report?format=geojson");
     expect((await geo.json()).type).toBe("FeatureCollection");
   });
 });

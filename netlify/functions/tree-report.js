@@ -1,6 +1,6 @@
-// GET /tree-report                 — printable report of community-reported tree discrepancies,
+// GET /reports/tree-report                 — printable report of community-reported tree discrepancies,
 //                                    for the City of London.
-// GET /tree-report?format=csv|geojson|json — the same findings as data.
+// GET /reports/tree-report?format=csv|geojson|json — the same findings as data.
 //
 // Built from the same daily snapshot as the public overlay (community-computed.js), so it never
 // shows anything the app does not. No device ids are ever included.

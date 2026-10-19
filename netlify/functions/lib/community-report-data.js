@@ -156,7 +156,7 @@ function renderReportHtml(report, { csvUrl = "?format=csv", geoJsonUrl = "?forma
 </head>
 <body>
 <main>
-  <nav><a href="/">Home</a> · <a href="/community">How community checks work</a></nav>
+  <nav><a href="/">Home</a> · <a href="/contribute">How community checks work</a></nav>
   <h1>Community-reported tree discrepancies</h1>
   <p>Differences between the City of London’s Veteran Tree Register and what walkers have found on the ground, collected through Epping Forest Finds. Generated ${esc(report.generatedDay)} from ${esc(report.reportCount)} reports.</p>
   <ul class="stats">

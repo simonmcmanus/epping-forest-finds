@@ -739,7 +739,7 @@ for (const [label, url] of [["homepage", "/"], ["ledger", "/reports/epping-fores
     const section = page.locator("#community");
     await expect(section.locator("h2")).toHaveText("Help keep the map right");
     await expect(section.locator(".community-points li")).toHaveCount(3);
-    await expect(section.locator("a.cta-btn")).toHaveAttribute("href", "/community");
+    await expect(section.locator("a.cta-btn")).toHaveAttribute("href", "/contribute");
     // the visible FAQ answer and its JSON-LD say the same thing
     const faq = page.locator("#faq-correct");
     await expect(faq.locator("dt")).toContainText("Can I correct something that’s wrong?");

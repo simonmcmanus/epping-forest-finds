@@ -35,7 +35,7 @@
 
 [[edge_functions]]
   function = "alpha-gate"
-  path = "/contribute"
+  path = "/community"
 
 [[edge_functions]]
   function = "alpha-gate"
@@ -96,14 +96,20 @@
   status = 200
 
 [[redirects]]
-  from = "/contribute"
+  from = "/community"
   to = "/app.html"
   status = 200
 
 # Public, ungated: the City of London discrepancy report (rendered by a function from the daily
-# community snapshot) and, as a static page, /community (community/index.html).
+# community snapshot) and, as a static page, /contribute (contribute/index.html).
 [[redirects]]
-  from = "/tree-report"
+  from = "/reports/tree-report"
+  to = "/.netlify/functions/tree-report"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/reports/tree-report/"
   to = "/.netlify/functions/tree-report"
   status = 200
   force = true

@@ -173,7 +173,9 @@ function computeCommunityState(reports) {
       score.reports += 1;
       if (!isNear(r)) continue; // no points for a report made from far away
       const cls = statusClass(r.kind, r.status);
-      if (cls === "confirm") {
+      if (cls === "confirm" && r.kind === "place") {
+        continue; // confirming a place scores nothing; only a confirmed report of a wrong business does
+      } else if (cls === "confirm") {
         score.verified += 1;
         score.points += 1;
         if (near.some((o) => o.deviceId !== r.deviceId && statusClass(o.kind, o.status) === "confirm")) {

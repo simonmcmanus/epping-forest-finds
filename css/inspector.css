@@ -1297,24 +1297,20 @@ button.settings-toggle.has-update::after {
 .community-empty p { margin: 0; display: grid; gap: 2px; font-size: 0.9rem; }
 .community-empty span { font-size: 0.82rem; color: var(--muted); line-height: 1.35; }
 
-/* Community screen: summary card and the link on to the feedback page */
+/* Community screen: one-row summary linking to the full explanation, and the link on to the feedback page */
 .community-intro {
-  display: flex; gap: 12px; align-items: flex-start; padding: 14px; border-radius: 14px;
-  background: #f6f9f5; border: 1px solid rgba(47, 111, 78, 0.22);
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 12px;
+  background: #f6f9f5; border: 1px solid rgba(47, 111, 78, 0.22); color: var(--ink); text-decoration: none;
 }
+.community-intro:hover { background: #eef5ee; }
 .community-intro-icon {
-  width: 40px; height: 40px; flex-shrink: 0; border-radius: 12px;
+  width: 32px; height: 32px; flex-shrink: 0; border-radius: 10px;
   display: grid; place-items: center; color: var(--tree); background: rgba(47, 111, 78, 0.12);
 }
-.community-intro-icon .community-icon { width: 22px; height: 22px; }
-.community-intro-title { margin: 0 0 4px; font-size: 1.02rem; font-weight: 800; color: var(--ink); }
-.community-intro-text { margin: 0; font-size: 0.88rem; line-height: 1.45; color: var(--muted); }
-.community-intro-link {
-  display: inline-flex; align-items: center; gap: 2px; margin-top: 8px;
-  font-size: 0.9rem; font-weight: 800; color: var(--tree); text-decoration: none;
-}
-.community-intro-link .community-icon { width: 16px; height: 16px; }
-.community-intro-link:hover { text-decoration: underline; }
+.community-intro-icon .community-icon { width: 18px; height: 18px; }
+.community-intro-text { flex: 1; min-width: 0; display: grid; gap: 1px; font-size: 0.78rem; color: var(--muted); line-height: 1.25; }
+.community-intro-text strong { font-size: 0.92rem; color: var(--ink); }
+.community-intro > .community-icon { width: 18px; height: 18px; color: var(--muted); }
 .community-feedback-link {
   display: flex; align-items: center; gap: 12px; margin-top: 16px; padding: 12px; border-radius: 12px;
   border: 1px solid rgba(0, 0, 0, 0.08); background: #fff; color: var(--ink); text-decoration: none;
@@ -1325,6 +1321,9 @@ button.settings-toggle.has-update::after {
 .community-feedback-text span { font-size: 0.8rem; color: var(--muted); }
 .community-feedback-link > .community-icon { width: 18px; height: 18px; color: var(--muted); }
 .community-intro + .community-contributions { margin-top: 16px; }
+.community-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 0 0; font-size: 0.8rem; color: var(--muted); }
+.community-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.community-dot { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(0, 0, 0, 0.12); }
 
 /* Place check note step, add-a-tree form, Community screen sections */
 .community-note { display: grid; gap: 10px; }

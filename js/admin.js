@@ -1373,7 +1373,7 @@ function renderCommunityStats(stats) {
   const days = Object.entries(stats.perDay || {}).sort().slice(-7)
     .map(([day, n]) => row(day, n)).join("");
   return `<h3>Community verification</h3>
-    <p><a href="/tree-report" target="_blank" rel="noopener">City of London discrepancy report</a> · <a href="/tree-report?format=csv">CSV</a></p>
+    <p><a href="/reports/tree-report" target="_blank" rel="noopener">City of London discrepancy report</a> · <a href="/reports/tree-report?format=csv">CSV</a></p>
     <table>
       ${row("People reporting (all time)", stats.devices)}
       ${row("Active, last 24 h / 7 days", `${stats.activeDevices1d} / ${stats.activeDevices7d}`)}

@@ -83,8 +83,9 @@ const COMMUNITY_OUTCOME_TEXT = {
   confirmed: "Confirmed by others",
   review: "Being reviewed",
   sent: "Sent for review",
+  checked: "Checked",
 };
-const COMMUNITY_OUTCOME_ICON = { waiting: "upload", pending: "clock", confirmed: "check", review: "alert", sent: "check" };
+const COMMUNITY_OUTCOME_ICON = { waiting: "upload", pending: "clock", confirmed: "check", review: "alert", sent: "check", checked: "check" };
 
 // Places (pubs, cafes, shops...): confirmations are a quiet check-in; any change is filed as a
 // GitHub issue for a person to review -- never applied automatically.
@@ -160,10 +161,16 @@ async function communitySubmitReport({ kind = "tree", target, status, targetLat,
   };
   const local = communityReadLocal();
   const key = target || `new:${tagNumber || `${payload.lat},${payload.lon}`}`;
-  local[key] = { id, status, ts: Date.now(), ...(tagNumber ? { name: `Tree ${tagNumber}` } : {}) };
+  const markLat = Number.isFinite(Number(targetLat)) ? Number(targetLat) : payload.lat;
+  const markLon = Number.isFinite(Number(targetLon)) ? Number(targetLon) : payload.lon;
+  local[key] = { id, status, ts: Date.now(), lat: markLat, lon: markLon, ...(tagNumber ? { name: `Tree ${tagNumber}` } : {}) };
   communityWriteLocal(local);
-  await outboxAdd({ id, url: COMMUNITY_REPORT_URL, payload });
-  if (navigator.onLine) outboxFlush();
+  // The local record above is what the screen shows; queueing (an IndexedDB write) can be slow, so it
+  // never holds the optimistic state back.
+  outboxAdd({ id, url: COMMUNITY_REPORT_URL, payload })
+    .then(() => { if (navigator.onLine) outboxFlush(); })
+    .catch(() => {});
+  if (typeof requestDraw === "function") requestDraw();
   return local[key];
 }
 
@@ -303,17 +310,14 @@ if (typeof window !== "undefined" && window.addEventListener) {
 
 // The short summary at the top of the Community screen, linking on to the full explainer page
 // (community/index.html, a static public page).
-const COMMUNITY_EXPLAINER_URL = "/community";
+const COMMUNITY_EXPLAINER_URL = "/contribute";
 
 function communityIntroHtml() {
-  return `<section class="community-intro">
+  return `<a class="community-intro" href="${COMMUNITY_EXPLAINER_URL}" target="_blank" rel="noopener">
       <span class="community-intro-icon">${communityIcon("shield")}</span>
-      <div>
-        <p class="community-intro-title">Help keep the map right</p>
-        <p class="community-intro-text">Check trees and places as you walk, add trees that are missing, and earn points. Your reports never overwrite the official record: trees get a note once others agree, and changes to places are checked by a person.</p>
-        <a class="community-intro-link" href="${COMMUNITY_EXPLAINER_URL}" target="_blank" rel="noopener">How it works ${communityIcon("chevron")}</a>
-      </div>
-    </section>`;
+      <span class="community-intro-text"><strong>Help keep the map right</strong><span>Check, add and fix data to earn points</span></span>
+      ${communityIcon("chevron")}
+    </a>`;
 }
 
 // --- "Add a missing tree" on the Community screen ---
@@ -459,11 +463,10 @@ function communityPlaceInnerHtml(section) {
   }
   const local = communityReadLocal()[target];
   if (local && section.dataset.editing !== "1") {
-    const confirmed = local.status === "OPEN_CONFIRMED";
     return `<div class="community-mine">
         <span class="community-mine-icon">${communityIcon("check")}</span>
         <p><strong>You reported: ${escapeHtml(COMMUNITY_STATUS_TEXT[local.status] || local.status)}</strong>
-          <span>${confirmed ? "Thank you! Your check counts towards your score." : "Thank you! A person will review this."}</span></p>
+          <span>Thank you! A person will review this. You earn points if it's confirmed.</span></p>
         <button class="community-link" type="button" data-action="community-change">Change</button>
       </div>`;
   }
@@ -477,6 +480,8 @@ function communityPlaceInnerHtml(section) {
 function communityPlaceSectionHtml(place) {
   if (!place || !place.name || place.latitude == null || place.longitude == null) return "";
   const target = `place:${placeHashKey(place)}`;
+  const earlier = communityReadLocal()[target];
+  if (earlier && earlier.status === "OPEN_CONFIRMED") return ""; // already confirmed on this device: no card
   const category = place.categoryLabel || "Local place";
   return `<section class="community-check community-check-place" data-kind="place" data-community-target="${escapeHtml(target)}" data-lat="${place.latitude}" data-lon="${place.longitude}" data-name="${escapeHtml(place.name)}" data-category="${escapeHtml(category)}">
       <div class="community-head">
@@ -495,18 +500,13 @@ async function communitySubmitPlace(section, status, note) {
   const category = section.dataset.category || "";
   const id = communityRandomId();
   const local = communityReadLocal();
-  local[target] = { id, status, ts: Date.now(), kind: "place", name };
+  local[target] = { id, status, ts: Date.now(), kind: "place", name, lat, lon };
   communityWriteLocal(local);
-  if (status === "OPEN_CONFIRMED") {
-    // A confirmation is not actionable, so it never opens an issue: it only counts towards the score.
-    const here = typeof hasRealLocation === "function" && hasRealLocation() ? state.userLocation : null;
-    await outboxAdd({ id, url: COMMUNITY_REPORT_URL, payload: {
-      id, deviceId: communityDeviceId(), kind: "place", target, status, targetLat: lat, targetLon: lon,
-      lat: here ? Number(here.latitude.toFixed(6)) : undefined,
-      lon: here ? Number(here.longitude.toFixed(6)) : undefined,
-    } });
-  } else {
-    await outboxAdd({ id, url: COMMUNITY_ISSUE_URL, payload: {
+  // Confirming a place scores nothing and is not actionable, so it never leaves the device: it only
+  // hides the check card for that place. Only a report that something is wrong is filed (as an issue,
+  // for a person to review) and can score, once it is confirmed.
+  if (status !== "OPEN_CONFIRMED") {
+    outboxAdd({ id, url: COMMUNITY_ISSUE_URL, payload: {
       reportType: "place-check",
       placeCheck: { status, key: target, name, category },
       details: note || "",
@@ -516,9 +516,9 @@ async function communitySubmitPlace(section, status, note) {
       userAgent: navigator.userAgent,
       pageUrl: window.location.href,
       requestId: id,
-    } });
+    } }).then(() => { if (navigator.onLine) outboxFlush(); }).catch(() => {});
   }
-  if (navigator.onLine) outboxFlush();
+  if (typeof requestDraw === "function") requestDraw();
 }
 
 async function communityHandlePlaceChoice(button) {
@@ -527,7 +527,8 @@ async function communityHandlePlaceChoice(button) {
   const status = button.dataset.status;
   if (status === "OPEN_CONFIRMED") {
     await communitySubmitPlace(section, status, "");
-    delete section.dataset.editing;
+    section.remove(); // checked: nothing more to ask about this place
+    return;
   } else {
     section.dataset.pending = status;
   }
@@ -559,6 +560,67 @@ function communityCancelNote(button) {
   if (!section) return;
   delete section.dataset.pending;
   communityRefreshSections();
+}
+
+// --- Highlights on the map: everything the user has marked, drawn while the Community screen is open ---
+// (drawCommunityMarks, js/renderer.js). Green: verified or confirmed. Amber: reported as wrong, closed,
+// moved or changed. Blue: a tree the user added.
+const COMMUNITY_MARK_STYLE = {
+  verified: { color: "#2f8a4f", halo: "rgba(47, 138, 79, 0.25)", label: "Verified" },
+  questioned: { color: "#d68a0c", halo: "rgba(214, 138, 12, 0.28)", label: "Reported wrong" },
+  added: { color: "#2b6cb0", halo: "rgba(43, 108, 176, 0.25)", label: "Added by you" },
+};
+let communityTreeByRecord = null;
+
+function communityRecordCoords(record) {
+  if (!communityTreeByRecord || communityTreeByRecord.size === 0) {
+    communityTreeByRecord = new Map();
+    for (const tree of (typeof state !== "undefined" && state.trees) || []) {
+      const rn = tree.recordNumber ?? tree.id;
+      if (rn != null) communityTreeByRecord.set(String(rn), tree);
+    }
+  }
+  const tree = communityTreeByRecord.get(String(record));
+  return tree ? { lat: tree.latitude, lon: tree.longitude } : null;
+}
+
+function communityMarkKind(entry) {
+  if (entry.status === "NEW_TREE") return "added";
+  return entry.status === "VERIFIED" || entry.status === "OPEN_CONFIRMED" ? "verified" : "questioned";
+}
+
+// [{ lat, lon, kind, status, key }] for every report this device has made that has a position.
+function communityMapMarks() {
+  const marks = [];
+  for (const [key, entry] of Object.entries(communityReadLocal())) {
+    let lat = Number(entry.lat);
+    let lon = Number(entry.lon);
+    if (!(Number.isFinite(lat) && Number.isFinite(lon)) && key.startsWith("tree:")) {
+      const found = communityRecordCoords(key.slice(5));
+      if (found) { lat = Number(found.lat); lon = Number(found.lon); }
+    }
+    if (!(Number.isFinite(lat) && Number.isFinite(lon))) continue;
+    marks.push({ lat, lon, kind: communityMarkKind(entry), status: entry.status, key });
+  }
+  return marks;
+}
+
+// World points the Community screen's camera should keep in view: marks within reach of the walking
+// radius, the same limit the Nearby camera applies to far-off matches, so one mark across the country
+// cannot shrink the map to a speck.
+function communityFitPoints() {
+  const origin = typeof nearbyOrigin === "function" ? nearbyOrigin() : null;
+  const ratio = typeof NEARBY_OUT_OF_RADIUS_FIT_MAX_RATIO === "number" ? NEARBY_OUT_OF_RADIUS_FIT_MAX_RATIO : 12;
+  const reach = typeof walkingDistanceToMetres === "function" ? walkingDistanceToMetres(state.walkingDistanceMinutes) * ratio : Infinity;
+  return communityMapMarks()
+    .filter((mark) => !origin || distanceMetres(origin.latitude, origin.longitude, mark.lat, mark.lon) <= reach)
+    .map((mark) => projectLonLat(mark.lon, mark.lat));
+}
+
+function communityLegendHtml(marks) {
+  const kinds = ["verified", "questioned", "added"].filter((kind) => marks.some((m) => m.kind === kind));
+  if (!kinds.length) return "";
+  return `<p class="community-legend" aria-label="Highlighted on the map">On the map: ${kinds.map((kind) => `<span class="community-legend-item"><span class="community-dot" style="background:${COMMUNITY_MARK_STYLE[kind].color}"></span>${COMMUNITY_MARK_STYLE[kind].label}</span>`).join("")}</p>`;
 }
 
 // --- "Your contributions": rank, score and a log of the user's own reports (Settings screen) ---
@@ -604,8 +666,11 @@ async function communityRenderContributions() {
   const toNext = rank.next ? `${rank.next.min - score.points} to ${escapeHtml(rank.next.name)}` : "Top rank";
   const rows = entries.map(([key, entry]) => {
     const label = communityTargetLabel(key, entry);
-    const sentForReview = entry.kind === "place" && entry.status !== "OPEN_CONFIRMED";
-    const outcome = waitingIds.has(entry.id) ? "waiting" : sentForReview ? "sent" : (outcomes[entry.id] || "pending");
+    const isPlace = entry.kind === "place";
+    const outcome = waitingIds.has(entry.id) ? "waiting"
+      : isPlace && entry.status === "OPEN_CONFIRMED" ? "checked"
+      : isPlace ? (outcomes[entry.id] === "confirmed" ? "confirmed" : "sent")
+      : (outcomes[entry.id] || "pending");
     const name = label.href ? `<a href="${escapeHtml(label.href)}">${escapeHtml(label.text)}</a>` : escapeHtml(label.text);
     return `<li class="community-log-item">
         <span class="community-log-icon">${communityIcon(COMMUNITY_STATUS_ICON[entry.status] || "check")}</span>
@@ -621,6 +686,7 @@ async function communityRenderContributions() {
         </div>
       </div>
       <div class="community-progress" role="progressbar" aria-label="Progress to the next rank" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><span style="width:${progress}%"></span></div>
+      ${communityLegendHtml(communityMapMarks())}
       <div class="community-stats">
         <div><strong>${score.verified}</strong><span>Verified</span></div>
         <div><strong>${score.confirmed}</strong><span>Confirmed by others</span></div>

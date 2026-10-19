@@ -237,7 +237,7 @@ test.describe("generated find/nearby pages", () => {
       const page = await context.newPage();
       await page.goto("/nearby");
       const hrefs = await page.locator("nav.inspector-actions > a").evaluateAll((els) => els.map((el) => el.getAttribute("href")));
-      expect(hrefs).toEqual(["/nearby", "/nearby/search", "/contribute", "/settings"]);
+      expect(hrefs).toEqual(["/nearby", "/nearby/search", "/community", "/settings"]);
       await page.locator("#settingsToggle").click();
       await expect(page).toHaveURL(/\/settings$/);
       await context.close();
