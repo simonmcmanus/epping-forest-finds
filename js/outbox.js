@@ -10,6 +10,7 @@ const OUTBOX_BACKOFF_MS = [5000, 30000, 120000, 600000];
 const outboxMemory = []; // fallback when IndexedDB is unavailable (private window etc.)
 let outboxDbPromise = null;
 let outboxFlushing = false;
+let outboxFlushAgain = false; // something was added (or a flush asked for) while one was already running
 let outboxRetryTimer = null;
 let outboxFailures = 0;
 
@@ -76,7 +77,8 @@ function outboxScheduleRetry() {
 }
 
 async function outboxFlush() {
-  if (outboxFlushing || !navigator.onLine) return;
+  if (!navigator.onLine) return;
+  if (outboxFlushing) { outboxFlushAgain = true; return; } // run again once this pass is done, so a late add is never stranded
   outboxFlushing = true;
   try {
     for (const item of await outboxList()) {
@@ -107,6 +109,7 @@ async function outboxFlush() {
     outboxFlushing = false;
     await outboxNotify();
   }
+  if (outboxFlushAgain) { outboxFlushAgain = false; await outboxFlush(); }
 }
 
 if (typeof window !== "undefined" && window.addEventListener) {

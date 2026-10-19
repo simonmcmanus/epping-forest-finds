@@ -60,6 +60,8 @@ A boxed **Help check this place** card sits at the **bottom** of a place's detai
 - No community overlay or "questioned" badge exists for places.
 
 ## When the server refuses a report
+The outbox never strands a late addition: a flush requested while one is already running is remembered and run again as soon as the first finishes (`outboxFlushAgain`, `js/outbox.js`).
+
 The outbox drops a report the server refused with a 4xx (other than 408/429) because retrying cannot fix it. For place changes and feedback (`report-missing-data`) the app records the server's message on the local entry (`failed`, plus the payload to retry) from the `outbox:sent` event when `ok` is false. The log row then shows a **Couldn't send** pill, the reason, and a **Send again** link (`communityRetry`) that puts the same request back on the outbox (same request id, so it is never filed twice). It never claims "Sent for review" for a report the server rejected.
 
 ## Reporting from too far away
