@@ -11,6 +11,7 @@ const COMMUNITY_OVERLAY_URL = "/api/community/overlay";
 
 // Line icons in the same style as the main nav (24px grid, 2px round stroke, currentColor).
 const COMMUNITY_ICONS = {
+  x: '<path d="M6 6l12 12M18 6 6 18"/>',
   check: '<circle cx="12" cy="12" r="9"/><path d="m8.5 12.5 2.5 2.5 4.5-5"/>',
   tag: '<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8Z"/><circle cx="7.5" cy="7.5" r="1.2"/>',
   help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 0 1 4.8.8c0 1.7-2.3 2-2.3 3.4"/><path d="M12 17h.01"/>',
@@ -295,6 +296,89 @@ async function communityRefreshScore() {
     const score = await response.json();
     localStorage.setItem(COMMUNITY_SCORE_KEY, JSON.stringify(score));
   } catch {}
+}
+
+// --- Nudges: when you are standing next to an unchecked tree ---
+const COMMUNITY_NUDGE_OFF_KEY = "ff-community-nudges-off-v1";
+const COMMUNITY_NUDGE_SEEN_KEY = "ff-community-nudge-seen-v1";
+const COMMUNITY_NUDGE_METRES = 25;           // close enough to be next to the tree
+const COMMUNITY_NUDGE_TREE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
+const COMMUNITY_NUDGE_GLOBAL_GAP_MS = 10 * 60 * 1000; // at most one prompt in this time
+let communityNudgeLastAt = 0;
+let communityNudgeTimer = null;
+
+function communityNudgesOn() {
+  try { return localStorage.getItem(COMMUNITY_NUDGE_OFF_KEY) !== "1"; } catch { return true; }
+}
+
+function communityNudgeSeen() {
+  try { return JSON.parse(localStorage.getItem(COMMUNITY_NUDGE_SEEN_KEY)) || {}; } catch { return {}; }
+}
+
+function communityNudgeDismiss() {
+  clearTimeout(communityNudgeTimer);
+  const el = document.getElementById("communityNudge");
+  if (el) el.remove();
+}
+
+// Called with every fresh GPS fix. Quiet unless the fix is real and accurate, the tree is close,
+// and this device has not already checked it or been nudged about it today.
+function communityNudgeCheck(now = Date.now()) {
+  if (!communityNudgesOn()) return;
+  const fix = communityCurrentFix();
+  if (!fix.ok || (state.userLocation && state.userLocation.isDefault)) return;
+  const nearest = state.nearestTree;
+  const tree = nearest && nearest.tree;
+  if (!tree || !(nearest.metres <= COMMUNITY_NUDGE_METRES)) return;
+  const target = communityTreeTarget(tree);
+  if (!target || communityReadLocal()[target]) return;
+  const seen = communityNudgeSeen();
+  if (seen[target] && now - seen[target] < COMMUNITY_NUDGE_TREE_COOLDOWN_MS) return;
+  const onThisTree = state.selected && state.selected.type === "tree" && state.selected.item === tree;
+  if (onThisTree) {
+    // Already on the page: just draw the eye to the check, once.
+    const section = document.querySelector(".community-check");
+    if (!section || section.dataset.communityTarget !== target) return;
+    section.classList.add("community-nudge-pulse");
+    setTimeout(() => section.classList.remove("community-nudge-pulse"), 2600);
+  } else {
+    if (now - communityNudgeLastAt < COMMUNITY_NUDGE_GLOBAL_GAP_MS) return;
+    if (typeof isOverviewScreenActive === "function" && !isOverviewScreenActive()) return;
+    communityNudgeShow(tree, nearest.metres);
+    communityNudgeLastAt = now;
+  }
+  seen[target] = now;
+  try { localStorage.setItem(COMMUNITY_NUDGE_SEEN_KEY, JSON.stringify(seen)); } catch {}
+}
+
+function communityNudgeShow(tree, metres) {
+  communityNudgeDismiss();
+  const tag = typeof treeTagLabel === "function" ? treeTagLabel(tree) : null;
+  const name = tag ? `tree ${escapeHtml(tag)}` : "a veteran tree";
+  const el = document.createElement("div");
+  el.id = "communityNudge";
+  el.className = "community-nudge";
+  el.setAttribute("role", "status");
+  el.innerHTML = `<span class="community-nudge-icon">${communityIcon("shield")}</span>
+    <div class="community-nudge-text"><strong>You're next to ${name}</strong><span>Is it where the map says? About ${Math.max(1, Math.round(metres))} m away.</span></div>
+    <button type="button" class="community-nudge-go" data-community-nudge-go>Check it</button>
+    <button type="button" class="community-nudge-close" data-community-nudge-close aria-label="Not now">${communityIcon("x")}</button>`;
+  el.querySelector("[data-community-nudge-go]").addEventListener("click", () => {
+    communityNudgeDismiss();
+    focusOverviewItem("tree", treeHashKey(tree));
+  });
+  el.querySelector("[data-community-nudge-close]").addEventListener("click", communityNudgeDismiss);
+  document.body.appendChild(el);
+  communityNudgeTimer = setTimeout(communityNudgeDismiss, 20000);
+}
+
+if (typeof document !== "undefined" && document.addEventListener) {
+  document.addEventListener("change", (event) => {
+    const box = event.target && event.target.id === "communityNudgeToggle" ? event.target : null;
+    if (!box) return;
+    try { localStorage.setItem(COMMUNITY_NUDGE_OFF_KEY, box.checked ? "0" : "1"); } catch {}
+    if (!box.checked) communityNudgeDismiss();
+  });
 }
 
 if (typeof window !== "undefined" && window.addEventListener) {

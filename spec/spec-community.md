@@ -59,6 +59,9 @@ A boxed **Help check this place** card sits at the **bottom** of a place's detai
 - Any **change** opens a short note step (required for rename and wrong details, optional otherwise) and is filed as a **GitHub issue for manual review** via `report-missing-data` (`reportType: "place-check"`, labels `place-check` + `user-report`). Nothing is applied to the data or shown to other users automatically; a person decides. A further report about the same place (matched by a `place-key:` marker) is added as a comment on its open issue instead of a new issue. Requests carry the usual de-duplicating request id and travel through the offline outbox.
 - No community overlay or "questioned" badge exists for places.
 
+## Nudges
+With a real, accurate fix (30 m or better) and a tree within 25 m that this device has not yet checked, the app prompts once per tree per day (`communityNudgeCheck`, `js/community.js`, called with every GPS fix). On the Nearby overview it shows a dismissible card ("You're next to tree N" with **Check it** and a close button, auto-dismissed after 20 s) and at most one such card every 10 minutes. If that tree's own page is already open there is no card: the check card pulses twice (a static outline under `prefers-reduced-motion`). Users can turn nudges off with a checkbox on the Community screen (`ff-community-nudges-off-v1`). Nothing is shown for the stand-in location or inaccurate fixes. Constants are at the top of the Nudges block in `js/community.js`.
+
 ## Tree statuses
 `VERIFIED`, `NO_TAG_LIKELY_SAME`, `NO_TAG_UNSURE`, `DIFFERENT_TREE`, `NOT_HERE`, `MOVED` (carries a dragged pin position), `NEW_TREE` (GPS position, optional tag/species). Businesses: `OPEN_CONFIRMED`, `CLOSED`, `MOVED`, `RENAMED`, `DETAILS_CHANGED`, `WRONG_CATEGORY`, `NEW_PLACE`. Statuses live in a registry keyed by feature kind.
 

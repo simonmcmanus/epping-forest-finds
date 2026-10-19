@@ -319,3 +319,65 @@ test.describe("Public community pages", () => {
     expect((await geo.json()).type).toBe("FeatureCollection");
   });
 });
+
+test.describe("Nudges to check a tree you are standing next to", () => {
+  test.use({ geolocation: { latitude: 51.5, longitude: -0.5, accuracy: 10 }, permissions: ["geolocation"] });
+
+  // Puts the user right next to the first tree in the data, with a good real fix.
+  async function standNextToATree(page) {
+    await page.evaluate(() => {
+      localStorage.removeItem("ff-community-nudge-seen-v1");
+      localStorage.removeItem("ff-community-nudges-off-v1");
+      localStorage.removeItem("ff-community-local-v1");
+      const tree = state.trees[0];
+      state.userLocation = { ...state.userLocation, accuracy: 8, isDefault: false };
+      state.nearestTree = { tree, metres: 6 };
+    });
+  }
+
+  test.beforeEach(async ({ page }) => {
+    await page.route(OVERLAY_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {} }) }));
+  });
+
+  test("on the Nearby screen a dismissible prompt offers to check the tree, once", async ({ page }) => {
+    await setup(page);
+    await standNextToATree(page);
+    await page.evaluate(() => communityNudgeCheck());
+    const nudge = page.locator("#communityNudge");
+    await expect(nudge).toContainText("You're next to");
+    await page.click("[data-community-nudge-close]");
+    await expect(nudge).toHaveCount(0);
+    await page.evaluate(() => { communityNudgeLastAt = 0; communityNudgeCheck(); });
+    await expect(nudge).toHaveCount(0); // same tree, same day: not asked again
+  });
+
+  test("Check it opens the tree with its check card", async ({ page }) => {
+    await setup(page);
+    await standNextToATree(page);
+    await page.evaluate(() => communityNudgeCheck());
+    await page.click("[data-community-nudge-go]");
+    await expect(page.locator("#communityNudge")).toHaveCount(0);
+    await expect(page.locator(".community-check")).toHaveCount(1);
+    await expect(page.locator("#communityNudge")).toHaveCount(0);
+  });
+
+  test("already on the tree's page there is no prompt, only a pulse on the check card", async ({ page }) => {
+    await setup(page);
+    await standNextToATree(page);
+    await page.evaluate(() => { focusOverviewItem("tree", treeHashKey(state.trees[0])); });
+    await expect(page.locator(".community-check")).toHaveCount(1);
+    await standNextToATree(page);
+    await page.evaluate(() => communityNudgeCheck());
+    await expect(page.locator(".community-check.community-nudge-pulse")).toHaveCount(1);
+    await expect(page.locator("#communityNudge")).toHaveCount(0);
+  });
+
+  test("nudges stay quiet when turned off on the Community screen", async ({ page }) => {
+    await setup(page, "/community");
+    await page.uncheck("#communityNudgeToggle");
+    await standNextToATree(page);
+    await page.evaluate(() => { localStorage.setItem("ff-community-nudges-off-v1", "1"); communityNudgeCheck(); });
+    await expect(page.locator("#communityNudge")).toHaveCount(0);
+  });
+});

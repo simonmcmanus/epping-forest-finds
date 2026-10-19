@@ -1804,6 +1804,7 @@ function applyLocationFix(position) {
   state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isRestaurantCategory(place) && !isCafeCategory(place) && !isShopCategory(place) && !isTransportCategory(place));
   state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
   state.selected = null;
+  if (typeof communityNudgeCheck === "function") setTimeout(communityNudgeCheck, 0);
   return { latitude, longitude, previousPoint };
 }
 
@@ -3058,6 +3059,7 @@ function communityScreenHtml() {
   return `${communityIntroHtml()}
     ${communityContributionsHtml()}
     ${communityAddTreeHtml()}
+    <label class="community-nudge-setting"><input type="checkbox" id="communityNudgeToggle"${communityNudgesOn() ? " checked" : ""}> Remind me to check trees I'm standing next to</label>
     <a class="community-feedback-link" href="/feedback">
       <span class="community-feedback-icon">${communityIcon("help")}</span>
       <span class="community-feedback-text"><strong>Send feedback</strong><span>Report a bug, missing data or anything strange</span></span>
@@ -5133,6 +5135,7 @@ function ensureLocationWatch() {
       state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isRestaurantCategory(place) && !isCafeCategory(place) && !isShopCategory(place) && !isTransportCategory(place));
       state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
       checkEventProximityAlert(latitude, longitude);
+      if (typeof communityNudgeCheck === "function") communityNudgeCheck();
       // Walked out of a radius that was framing one nearby find? Grow it back to whatever is
       // still in reach before the list and camera are re-derived below (js/nav.js).
       ensureWalkingRadiusCoversNearest();
