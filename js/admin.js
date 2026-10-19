@@ -1359,6 +1359,34 @@ async function loadData(password) {
   return data;
 }
 
+// Community verification usage (netlify/functions/community-overlay.js ?admin=1).
+async function loadCommunityStats(password) {
+  const resp = await fetch("/api/community/overlay?admin=1", { headers: { Authorization: `Bearer ${password}` } });
+  if (!resp.ok) throw new Error(`Server error ${resp.status}`);
+  return resp.json();
+}
+
+function renderCommunityStats(stats) {
+  const row = (label, value) => `<tr><th scope="row">${label}</th><td>${value}</td></tr>`;
+  const statusRows = Object.entries(stats.byStatus || {}).sort((a, b) => b[1] - a[1])
+    .map(([status, n]) => row(status, n)).join("");
+  const days = Object.entries(stats.perDay || {}).sort().slice(-7)
+    .map(([day, n]) => row(day, n)).join("");
+  return `<h3>Community verification</h3>
+    <table>
+      ${row("People reporting (all time)", stats.devices)}
+      ${row("Active, last 24 h / 7 days", `${stats.activeDevices1d} / ${stats.activeDevices7d}`)}
+      ${row("Reports", stats.reports)}
+      ${row("Trees questioned", stats.questioned)}
+      ${row("Trees verified", stats.verified)}
+      ${row("New trees (unconfirmed / confirmed)", `${stats.newTreesUnconfirmed} / ${stats.newTreesConfirmed}`)}
+      ${row("Conflicts awaiting review", stats.conflicts)}
+      ${row("Points awarded", stats.totalPoints)}
+    </table>
+    <h4>By report type</h4><table>${statusRows || row("None yet", "")}</table>
+    <h4>Last 7 days with reports</h4><table>${days || row("None yet", "")}</table>`;
+}
+
 function readSessionPassword() {
   try {
     return sessionStorage.getItem(ADMIN_SESSION_KEY) || "";
@@ -1396,6 +1424,9 @@ async function adminBoot() {
   const zoomOutBtn = document.getElementById("zoomOutBtn");
   const resetMapBtn = document.getElementById("resetMapBtn");
   const clickDetailsClose = document.getElementById("adminClickDetailsClose");
+  const communityBtn = document.getElementById("communityBtn");
+  const communityPanel = document.getElementById("adminCommunity");
+  const communityBody = document.getElementById("adminCommunityBody");
 
   let password = "";
   readSavedViewport();
@@ -1489,6 +1520,17 @@ async function adminBoot() {
     tracksBtn.classList.remove("active");
     render();
   });
+
+  communityBtn.addEventListener("click", async () => {
+    communityPanel.hidden = false;
+    communityBody.textContent = "Loading…";
+    try {
+      communityBody.innerHTML = renderCommunityStats(await loadCommunityStats(password));
+    } catch (error) {
+      communityBody.textContent = `Could not load community stats (${error.message}).`;
+    }
+  });
+  document.getElementById("adminCommunityClose").addEventListener("click", () => { communityPanel.hidden = true; });
 
   tracksBtn.addEventListener("click", () => {
     viewMode = "tracks";

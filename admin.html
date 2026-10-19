@@ -42,6 +42,7 @@
       <span id="adminEnvBadge" class="admin-env-badge" hidden></span>
       <button id="tracksBtn" class="admin-btn active" type="button">Tracks</button>
       <button id="heatmapBtn" class="admin-btn" type="button">Heatmap</button>
+      <button id="communityBtn" class="admin-btn" type="button">Community</button>
       <button id="refreshBtn" class="admin-btn" type="button">Refresh</button>
       <button id="logoutBtn" class="admin-btn" type="button">Log out</button>
     </header>
@@ -68,6 +69,10 @@
         </div>
 
         <div id="adminStats" class="admin-stats"></div>
+        <section id="adminCommunity" class="admin-click-details" aria-live="polite" hidden>
+          <button id="adminCommunityClose" class="admin-click-details-close" type="button" aria-label="Close community stats">×</button>
+          <div id="adminCommunityBody"></div>
+        </section>
         <section id="adminClickDetails" class="admin-click-details" aria-live="polite" hidden>
           <button id="adminClickDetailsClose" class="admin-click-details-close" type="button" aria-label="Close click details">×</button>
           <div id="adminClickDetailsBody"></div>

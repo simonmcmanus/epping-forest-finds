@@ -5,7 +5,9 @@
 // (default a day), which is what makes other users' reports take up to a day to appear. It lives
 // outside data/**, so it never moves the data cache version.
 const { openStore } = require("./lib/community-store");
-const { computeCommunityState } = require("./lib/community-consensus");
+const { computeCommunityState, communityAdminStats } = require("./lib/community-consensus");
+
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 
 const DEFAULT_TTL_MINUTES = 24 * 60;
 
@@ -29,8 +31,25 @@ async function loadComputed(store) {
   return computed;
 }
 
+// Admin stats are computed fresh from the ledger (not the daily snapshot) so the dashboard is live.
+async function adminStats(event) {
+  const auth = (event.headers && (event.headers.authorization || event.headers.Authorization)) || "";
+  if (!ADMIN_PASSWORD || auth !== `Bearer ${ADMIN_PASSWORD}`) {
+    return { statusCode: 401, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ error: "Unauthorized" }) };
+  }
+  const store = openStore(event);
+  const reports = (await Promise.all((await store.list("reports/")).map((k) => store.get(k)))).filter(Boolean);
+  const stats = communityAdminStats(reports, computeCommunityState(reports));
+  return {
+    statusCode: 200,
+    headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
+    body: JSON.stringify(stats),
+  };
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod !== "GET") return { statusCode: 405, body: "GET only" };
+  if (queryParam(event, "admin")) return adminStats(event);
   const computed = await loadComputed(openStore(event));
   const me = queryParam(event, "me");
   if (me) {

@@ -282,7 +282,7 @@ const server = http.createServer((req, res) => {
     req.on("data", (chunk) => { body += chunk; });
     req.on("end", () => {
       const fn = require(path.join(ROOT, "netlify", "functions", fnName + ".js"));
-      fn.handler({ httpMethod: req.method, queryStringParameters: Object.fromEntries(url.searchParams), body })
+      fn.handler({ httpMethod: req.method, headers: req.headers, queryStringParameters: Object.fromEntries(url.searchParams), body })
         .then((result) => {
           res.writeHead(result.statusCode, result.headers || { "Content-Type": "application/json" });
           res.end(result.body || "");

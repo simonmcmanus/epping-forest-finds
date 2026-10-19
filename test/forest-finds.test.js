@@ -10909,6 +10909,21 @@ test("a MOVED report must carry the new position", () => {
   assert.equal(communityConsensus.validateReport(communityReport({ status: "MOVED" })), "MOVED needs newLat/newLon");
 });
 
+test("admin community stats count people, reports and flagged trees", () => {
+  const reports = [
+    communityReport({ status: "NOT_HERE", deviceId: "device-aaaa", ts: Date.now() }),
+    communityReport({ status: "NOT_HERE", deviceId: "device-bbbb", ts: Date.now() }),
+    communityReport({ status: "VERIFIED", deviceId: "device-cccc", target: "tree:2", ts: Date.now() }),
+  ];
+  const stats = communityConsensus.communityAdminStats(reports, communityConsensus.computeCommunityState(reports));
+  assert.equal(stats.devices, 3);
+  assert.equal(stats.reports, 3);
+  assert.equal(stats.questioned, 1);
+  assert.equal(stats.verified, 1);
+  assert.equal(stats.byStatus.NOT_HERE, 2);
+  assert.equal(stats.activeDevices1d, 3);
+});
+
 runRegisteredTests().catch((error) => {
   console.error(error);
   process.exitCode = 1;

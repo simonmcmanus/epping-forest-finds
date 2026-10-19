@@ -244,3 +244,7 @@ Colours are assigned from a fixed 15-colour palette in the order users are first
 - Per-user route replay (animated playback)
 - Export to CSV / GeoJSON
 - Date/time filters for click-detail aggregation
+
+## Community verification usage
+
+A **Community** button in the admin top bar opens a panel (`#adminCommunity`) of live usage numbers for community reports: people reporting (all time, active in the last 24 h / 7 days), report count, trees questioned / verified, new trees (unconfirmed / confirmed), conflicts awaiting review, points awarded, reports by type and per day for the last 7 days. Data comes from `GET /api/community/overlay?admin=1` with `Authorization: Bearer <ADMIN_PASSWORD>` (401 otherwise), computed fresh from the report ledger by `communityAdminStats` (`netlify/functions/lib/community-consensus.js`). Individual device ids and scores are not shown. See `spec-community.md`.

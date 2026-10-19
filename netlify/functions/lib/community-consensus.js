@@ -175,4 +175,35 @@ function computeCommunityState(reports) {
   return { overlay, conflicts, scores };
 }
 
-module.exports = { STATUSES, NEAR_METRES, statusClass, validateReport, computeCommunityState, distanceMetres };
+// Admin usage numbers (spec-admin.md): how many people are using the feature and what they say.
+function communityAdminStats(reports, state, now = Date.now()) {
+  const valid = reports.filter((r) => !validateReport(r));
+  const devices = new Set(valid.map((r) => r.deviceId));
+  const dayMs = 24 * 60 * 60 * 1000;
+  const activeSince = (days) => new Set(valid.filter((r) => now - (r.ts || 0) <= days * dayMs).map((r) => r.deviceId)).size;
+  const byStatus = {};
+  const perDay = {};
+  for (const r of valid) {
+    byStatus[r.status] = (byStatus[r.status] || 0) + 1;
+    const day = new Date(r.ts || 0).toISOString().slice(0, 10);
+    perDay[day] = (perDay[day] || 0) + 1;
+  }
+  const entries = Object.values(state.overlay);
+  const points = Object.values(state.scores).map((s) => s.points);
+  return {
+    reports: valid.length,
+    devices: devices.size,
+    activeDevices7d: activeSince(7),
+    activeDevices1d: activeSince(1),
+    byStatus,
+    perDay,
+    questioned: entries.filter((e) => e.s === "questioned").length,
+    verified: entries.filter((e) => e.s === "verified" || e.s === "confirmed").length,
+    newTreesUnconfirmed: entries.filter((e) => e.s === "new").length,
+    newTreesConfirmed: entries.filter((e) => e.s === "new-confirmed").length,
+    conflicts: state.conflicts.length,
+    totalPoints: points.reduce((a, b) => a + b, 0),
+  };
+}
+
+module.exports = { communityAdminStats, STATUSES, NEAR_METRES, statusClass, validateReport, computeCommunityState, distanceMetres };
