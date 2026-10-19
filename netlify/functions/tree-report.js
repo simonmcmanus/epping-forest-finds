@@ -6,17 +6,12 @@
 // shows anything the app does not. No device ids are ever included.
 const { openStore } = require("./lib/community-store");
 const { loadComputed } = require("./lib/community-computed");
+const { makeFetchJson } = require("./lib/community-fetch");
+const { originOf } = require("./lib/community-fetch");
 const { buildReportData, reportToCsv, reportToGeoJson, renderReportHtml, lookupRegisterRecords } = require("./lib/community-report-data");
 
 function queryParam(event, name) {
   return event.queryStringParameters?.[name] || new URLSearchParams(event.rawQuery || "").get(name);
-}
-
-function originOf(event) {
-  const configured = process.env.DEPLOY_PRIME_URL || process.env.URL;
-  if (configured) return configured.replace(/\/$/, "");
-  const host = (event.headers && (event.headers.host || event.headers.Host)) || "localhost:8080";
-  return `${/^localhost|^127\./.test(host) ? "http" : "https"}://${host}`;
 }
 
 exports.handler = async (event) => {
@@ -28,11 +23,7 @@ exports.handler = async (event) => {
     ...Object.entries(computed.overlay || {}).filter(([k, e]) => k.startsWith("tree:") && e.s === "questioned").map(([k, e]) => ({ recordNumber: k.slice(5), tlat: e.tlat, tlon: e.tlon })),
     ...(computed.conflictDetails || []).map((c) => ({ recordNumber: String(c.target).replace(/^tree:/, ""), tlat: c.tlat, tlon: c.tlon })),
   ];
-  const fetchJson = async (path) => {
-    const response = await fetch(`${origin}/${path}`, { signal: AbortSignal.timeout(8000) });
-    if (!response.ok) throw new Error(`fetch ${path}: ${response.status}`);
-    return response.json();
-  };
+  const fetchJson = makeFetchJson(event);
   const lookup = await lookupRegisterRecords(rows, fetchJson);
   const report = buildReportData(computed, lookup, origin);
 

@@ -50,6 +50,7 @@ const COMMUNITY_STATUS_TEXT = {
   NOT_HERE: "No tree found here",
   MOVED: "Tag found at a different spot",
   NEW_TREE: "Added from your location",
+  FEEDBACK: "Feedback sent",
   OPEN_CONFIRMED: "Confirmed still right",
   CLOSED: "Reported closed",
   RENAMED: "Reported renamed",
@@ -64,6 +65,7 @@ const COMMUNITY_STATUS_ICON = {
   NOT_HERE: "cross",
   MOVED: "locate",
   NEW_TREE: "plus",
+  FEEDBACK: "edit",
   OPEN_CONFIRMED: "check",
   CLOSED: "cross",
   RENAMED: "tag",
@@ -84,8 +86,10 @@ const COMMUNITY_OUTCOME_TEXT = {
   review: "Being reviewed",
   sent: "Sent for review",
   checked: "Checked",
+  validated: "Confirmed by the City of London",
+  fixed: "Fixed",
 };
-const COMMUNITY_OUTCOME_ICON = { waiting: "upload", pending: "clock", confirmed: "check", review: "alert", sent: "check", checked: "check" };
+const COMMUNITY_OUTCOME_ICON = { waiting: "upload", pending: "clock", confirmed: "check", review: "alert", sent: "check", checked: "check", validated: "shield", fixed: "check" };
 
 // Places (pubs, cafes, shops...): confirmations are a quiet check-in; any change is filed as a
 // GitHub issue for a person to review -- never applied automatically.
@@ -512,6 +516,7 @@ async function communitySubmitPlace(section, status, note) {
       details: note || "",
       location: { latitude: Number(lat.toFixed(6)), longitude: Number(lon.toFixed(6)) },
       locationContext: { type: category, name },
+      deviceId: communityDeviceId(),
       appVersion: (typeof state !== "undefined" && state.swVersion) || (typeof APP_VERSION !== "undefined" ? APP_VERSION : "unknown"),
       userAgent: navigator.userAgent,
       pageUrl: window.location.href,
@@ -560,6 +565,15 @@ function communityCancelNote(button) {
   if (!section) return;
   delete section.dataset.pending;
   communityRefreshSections();
+}
+
+// Feedback and bug reports are part of the log too: they earn a point once they are fixed.
+function communityNoteFeedback(payload) {
+  if (!payload || !payload.requestId || payload.reportType === "place-check") return;
+  const local = communityReadLocal();
+  const text = String(payload.details || "").trim().replace(/\s+/g, " ");
+  local[`feedback:${payload.requestId}`] = { id: payload.requestId, status: "FEEDBACK", ts: Date.now(), kind: "feedback", name: text.length > 42 ? `${text.slice(0, 41)}…` : text || "Feedback" };
+  communityWriteLocal(local);
 }
 
 // --- Highlights on the map: everything the user has marked, drawn while the Community screen is open ---
@@ -637,6 +651,7 @@ function communityReadLog() {
 }
 
 function communityTargetLabel(key, entry) {
+  if (key.startsWith("feedback:")) return { text: (entry && entry.name) || "Feedback", href: null };
   if (key.startsWith("place:")) return { text: (entry && entry.name) || "Place", href: null, issueUrl: entry && entry.issueUrl };
   if (key.startsWith("tree:") && typeof findTreeByHashKey === "function") {
     const tree = findTreeByHashKey(`r${key.slice(5)}`);
@@ -668,6 +683,7 @@ async function communityRenderContributions() {
     const label = communityTargetLabel(key, entry);
     const isPlace = entry.kind === "place";
     const outcome = waitingIds.has(entry.id) ? "waiting"
+      : entry.kind === "feedback" ? (outcomes[entry.id] === "fixed" ? "fixed" : "sent")
       : isPlace && entry.status === "OPEN_CONFIRMED" ? "checked"
       : isPlace ? (outcomes[entry.id] === "confirmed" ? "confirmed" : "sent")
       : (outcomes[entry.id] || "pending");

@@ -36,10 +36,16 @@ exports.handler = async (event) => {
   const computed = await loadComputed(openStore(event));
   const me = queryParam(event, "me");
   if (me && queryParam(event, "list")) {
-    const mine = (await openStore(event).get(`mine/${me}`)) || [];
+    const store = openStore(event);
+    const mine = (await store.get(`mine/${me}`)) || [];
+    const items = ((await store.get("validations")) || {}).items || [];
+    const validatedKeys = new Set(items.filter((i) => i.kind === "register").map((i) => `${i.deviceId}|${i.target}|${i.status}`));
+    const issueRewards = new Map(items.filter((i) => i.kind !== "register" && i.deviceId === me).map((i) => [i.issue, i.kind]));
     const reports = mine.slice().reverse().map((r) => {
       const entry = r.target ? computed.overlay[r.target] : null;
-      return { id: r.id, kind: r.kind, target: r.target || null, status: r.status, ts: r.ts, lat: r.lat, lon: r.lon, outcome: reportOutcome(r, entry, computed.conflicts || []) };
+      let outcome = reportOutcome({ ...r, deviceId: me }, entry, computed.conflicts || [], validatedKeys);
+      if (r.issue && issueRewards.has(r.issue)) outcome = issueRewards.get(r.issue) === "fix" ? "fixed" : "confirmed";
+      return { id: r.id, kind: r.kind, target: r.target || null, status: r.status, ts: r.ts, lat: r.lat, lon: r.lon, outcome };
     });
     return {
       statusCode: 200,
@@ -48,7 +54,7 @@ exports.handler = async (event) => {
     };
   }
   if (me) {
-    const score = computed.scores[me] || { points: 0, reports: 0, verified: 0, confirmed: 0 };
+    const score = computed.scores[me] || { points: 0, reports: 0, verified: 0, confirmed: 0, validated: 0, fixed: 0 };
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },

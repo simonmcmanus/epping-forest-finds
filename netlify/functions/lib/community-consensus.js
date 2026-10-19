@@ -25,6 +25,11 @@ const STATUSES = {
   },
 };
 
+// Points that arrive after the fact (community-validation.js): a City of London register update that
+// agrees with a report, a feedback / bug report that gets fixed, and a report that a business is
+// wrong once a person has confirmed it.
+const REWARD_POINTS = { register: 10, fix: 1, placeConfirmed: 3 };
+
 const NEAR_METRES = 60; // a reporter further than this from the thing they report is not an independent check
 const NEW_MATCH_DECIMALS = 4; // ~11 m grid for "the same new place"
 const NEW_TREE_MAX_ACCURACY_METRES = 30; // a new tree is only as good as the GPS fix it was reported from
@@ -105,7 +110,7 @@ function mostCommon(values) {
 }
 
 // -> { overlay: { [target]: {s,st,n,t,...} }, conflicts: [target], scores: { [deviceId]: {...} } }
-function computeCommunityState(reports) {
+function computeCommunityState(reports, validations = []) {
   const valid = reports.filter((r) => !validateReport(r));
   const latest = latestPerDevice(valid);
   const byTarget = new Map();
@@ -165,7 +170,7 @@ function computeCommunityState(reports) {
   // Scores. Verify = 1 point at once; +1 when an independent device agrees. New find = 1,
   // +3 once a second device finds it. A question that the community upheld = 2.
   const scores = {};
-  const ensure = (id) => (scores[id] ||= { points: 0, reports: 0, verified: 0, confirmed: 0 });
+  const ensure = (id) => (scores[id] ||= { points: 0, reports: 0, verified: 0, confirmed: 0, validated: 0, fixed: 0 });
   for (const [target, list] of byTarget) {
     const near = list.filter(isNear);
     for (const r of list) {
@@ -197,11 +202,29 @@ function computeCommunityState(reports) {
       }
     }
   }
-  return { overlay, conflicts, conflictDetails, scores };
+  // Rewards that arrived later. A register update that agrees with a report also resolves it: the
+  // register now says what walkers found, so the "questioned" note and the pending new tree go.
+  const rewards = { register: 0, fix: 0, placeConfirmed: 0 };
+  for (const item of validations) {
+    const points = REWARD_POINTS[item.kind];
+    if (!points || !item.deviceId) continue;
+    const score = ensure(item.deviceId);
+    score.points += points;
+    rewards[item.kind] += 1;
+    if (item.kind === "register") {
+      score.validated += 1;
+      const entry = overlay[item.target];
+      if (entry && (entry.s === "new" || entry.s === "new-confirmed" || entry.st === item.status)) delete overlay[item.target];
+    } else {
+      score.fixed += 1;
+    }
+  }
+  return { overlay, conflicts, conflictDetails, scores, rewards };
 }
 
 // What a contributor sees against one of their own reports, from the daily overlay.
-function reportOutcome(report, entry, conflicts) {
+function reportOutcome(report, entry, conflicts, validatedKeys) {
+  if (validatedKeys && validatedKeys.has(`${report.deviceId}|${report.target}|${report.status}`)) return "validated";
   if (conflicts.includes(report.target)) return "review";
   const cls = statusClass(report.kind, report.status);
   if (!entry) return "pending";
@@ -241,4 +264,4 @@ function communityAdminStats(reports, state, now = Date.now()) {
   };
 }
 
-module.exports = { normalizeTag, reportOutcome, communityAdminStats, STATUSES, NEAR_METRES, statusClass, validateReport, computeCommunityState, distanceMetres };
+module.exports = { REWARD_POINTS, normalizeTag, reportOutcome, communityAdminStats, STATUSES, NEAR_METRES, statusClass, validateReport, computeCommunityState, distanceMetres };

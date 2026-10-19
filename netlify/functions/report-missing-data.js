@@ -1,5 +1,6 @@
 const DEFAULT_REPO = "simonmcmanus/epping-forest-finds";
-const { randomUUID } = require("crypto");
+const { randomUUID, createHmac } = require("crypto");
+const { openStore } = require("./lib/community-store");
 const { connectLambda, getStore } = require("@netlify/blobs");
 const REPORT_PHOTO_MAX_BYTES = 3 * 1024 * 1024;
 const REPORT_PHOTO_STORE = "report-photos";
@@ -85,6 +86,26 @@ function parsePlaceCheck(raw) {
   };
 }
 
+// A reporter is credited later (spec-community.md, Rewards) when their issue is closed as completed.
+// The public issue carries only an opaque reference; the server keeps the reference -> device id
+// mapping, so nobody can read a device id off GitHub.
+function reporterRef(deviceId, secret) {
+  return createHmac("sha256", secret || "forest-finds").update(deviceId).digest("hex").slice(0, 24);
+}
+
+async function recordReporter(event, deviceId, ref, entry) {
+  try {
+    const store = openStore(event);
+    await store.put(`refs/${ref}`, { deviceId });
+    const mineKey = `mine/${deviceId}`;
+    const mine = (await store.get(mineKey)) || [];
+    mine.push({ ...entry, ts: Date.now() });
+    await store.put(mineKey, mine.slice(-300));
+  } catch {
+    // Rewards are a bonus: a storage hiccup must never fail the report itself.
+  }
+}
+
 function normalizedToken(value) {
   if (typeof value !== "string") return "";
   return value.trim().replace(/^['\"]|['\"]$/g, "");
@@ -143,6 +164,8 @@ exports.handler = async (event) => {
   const appVersion = String(payload.appVersion || "unknown").trim();
   const pageUrl = String(payload.pageUrl || "").trim();
   const userAgent = String(payload.userAgent || "").trim();
+  const rawDeviceId = String(payload.deviceId || "").trim();
+  const deviceId = /^[A-Za-z0-9_-]{8,64}$/.test(rawDeviceId) ? rawDeviceId : "";
   const rawRequestId = String(payload.requestId || "").trim().slice(0, 100);
   const requestId = /^[a-zA-Z0-9-]+$/.test(rawRequestId) ? rawRequestId : "";
   let photo;
@@ -217,6 +240,8 @@ exports.handler = async (event) => {
   if (requestId) {
     issueBodyLines.push(`- Request ID: request-id:${requestId}`);
   }
+  const ref = deviceId ? reporterRef(deviceId, process.env.COMMUNITY_REF_SECRET || githubToken) : "";
+  if (ref) issueBodyLines.push(`- Reporter ref: reporter-ref:${ref}`);
 
   const issuePayload = {
     title,
@@ -271,12 +296,14 @@ exports.handler = async (event) => {
             commentLines.push("", `- Reported location: ${Number(location.latitude)}, ${Number(location.longitude)}`);
           }
           if (requestId) commentLines.push(`- Request ID: request-id:${requestId}`);
+          if (ref) commentLines.push(`- Reporter ref: reporter-ref:${ref}`);
           const commentResponse = await fetch(`https://api.github.com/repos/${githubRepo}/issues/${openIssue.number}/comments`, {
             method: "POST",
             headers: { ...apiHeaders, "Content-Type": "application/json" },
             body: JSON.stringify({ body: commentLines.join("\n") }),
           });
           if (commentResponse.ok) {
+            if (ref) await recordReporter(event, deviceId, ref, { id: requestId, kind: "place", status: placeCheck.status, target: placeCheck.key, issue: openIssue.number });
             return response(200, { ok: true, merged: true, issueNumber: openIssue.number, issueUrl: openIssue.html_url });
           }
         }
@@ -312,6 +339,11 @@ exports.handler = async (event) => {
       });
     }
 
+    if (ref) {
+      await recordReporter(event, deviceId, ref, isPlaceCheck
+        ? { id: requestId, kind: "place", status: placeCheck.status, target: placeCheck.key, issue: issueData.number }
+        : { id: requestId, kind: "feedback", status: "FEEDBACK", issue: issueData.number });
+    }
     return response(200, {
       ok: true,
       issueNumber: issueData.number,

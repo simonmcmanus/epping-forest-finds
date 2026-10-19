@@ -3322,6 +3322,10 @@ function getOrCreateReportRequestId() {
 // never asked to come back later. Resolves {queued:true} or {response, data}.
 async function sendOrQueueReport(payload) {
   const url = "/.netlify/functions/report-missing-data";
+  if (typeof communityDeviceId === "function") {
+    payload.deviceId = communityDeviceId();
+    if (typeof communityNoteFeedback === "function") communityNoteFeedback(payload);
+  }
   const queue = async () => {
     await outboxAdd({ id: payload.requestId, url, payload });
     return { queued: true };

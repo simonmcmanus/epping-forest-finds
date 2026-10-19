@@ -1373,6 +1373,7 @@ function renderCommunityStats(stats) {
   const days = Object.entries(stats.perDay || {}).sort().slice(-7)
     .map(([day, n]) => row(day, n)).join("");
   return `<h3>Community verification</h3>
+    <p><button type="button" class="admin-btn" id="communityValidateBtn">Run reward check now</button> <span id="communityValidateResult"></span></p>
     <p><a href="/reports/tree-report" target="_blank" rel="noopener">City of London discrepancy report</a> · <a href="/reports/tree-report?format=csv">CSV</a></p>
     <table>
       ${row("People reporting (all time)", stats.devices)}
@@ -1527,6 +1528,23 @@ async function adminBoot() {
     communityBody.textContent = "Loading…";
     try {
       communityBody.innerHTML = renderCommunityStats(await loadCommunityStats(password));
+      const validateBtn = document.getElementById("communityValidateBtn");
+      if (validateBtn) {
+        validateBtn.addEventListener("click", async () => {
+          validateBtn.disabled = true;
+          const result = document.getElementById("communityValidateResult");
+          try {
+            const resp = await fetch("/api/community/validate", { headers: { Authorization: `Bearer ${password}` } });
+            const data = await resp.json();
+            result.textContent = resp.ok
+              ? `Register checked: ${data.registerChecked ? "yes" : "no"}${data.baseline ? " (baseline recorded)" : ""}. New register rewards: ${data.newRegisterRewards}. Issue rewards: ${data.issueRewards}.${data.issueError ? " GitHub: " + data.issueError : ""}`
+              : `Failed (${resp.status})`;
+          } catch (error) {
+            result.textContent = "Could not run the check.";
+          }
+          validateBtn.disabled = false;
+        });
+      }
     } catch (error) {
       communityBody.textContent = `Could not load community stats (${error.message}).`;
     }

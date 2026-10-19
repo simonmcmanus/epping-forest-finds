@@ -279,6 +279,7 @@ const server = http.createServer((req, res) => {
   const COMMUNITY_FUNCTION_ROUTES = {
     "/api/community/report": "community-report",
     "/api/community/overlay": "community-overlay",
+    "/api/community/validate": "community-validate",
     "/reports/tree-report": "tree-report",
     "/reports/tree-report/": "tree-report",
   };

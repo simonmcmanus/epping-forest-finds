@@ -145,6 +145,15 @@
   status = 200
   force = true
 
+[functions."community-validate-scheduled"]
+  schedule = "@daily"
+
+[[redirects]]
+  from = "/api/community/validate"
+  to = "/.netlify/functions/community-validate"
+  status = 200
+  force = true
+
 [[redirects]]
   from = "/api/community/report"
   to = "/.netlify/functions/community-report"

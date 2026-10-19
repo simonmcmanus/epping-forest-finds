@@ -15,8 +15,9 @@ async function loadComputed(store) {
   if (cached && Date.now() - cached.generatedAt < ttlMs()) return cached;
   const keys = await store.list("reports/");
   const reports = (await Promise.all(keys.map((k) => store.get(k)))).filter(Boolean);
-  const { overlay, conflicts, conflictDetails, scores } = computeCommunityState(reports);
-  const computed = { generatedAt: Date.now(), overlay, conflicts, conflictDetails, scores, reportCount: reports.length };
+  const validations = ((await store.get("validations")) || {}).items || [];
+  const { overlay, conflicts, conflictDetails, scores, rewards } = computeCommunityState(reports, validations);
+  const computed = { generatedAt: Date.now(), overlay, conflicts, conflictDetails, scores, rewards, reportCount: reports.length };
   await store.put("computed", computed);
   return computed;
 }
