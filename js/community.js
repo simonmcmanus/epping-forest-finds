@@ -157,7 +157,7 @@ const COMMUNITY_POINTS = { verify: 1, newTree: 1 };
 function communityPendingScore(local, generatedAt = 0, waitingIds = new Set()) {
   const pending = { points: 0, verified: 0 };
   for (const entry of Object.values(local || {})) {
-    if (!entry || entry.far || entry.failed || entry.kind === "place" || entry.kind === "feedback") continue;
+    if (!entry || entry.counted || entry.far || entry.failed || entry.kind === "place" || entry.kind === "feedback") continue;
     if (!(Number(entry.ts) > generatedAt || waitingIds.has(entry.id))) continue;
     if (entry.status === "VERIFIED") {
       pending.points += COMMUNITY_POINTS.verify;
@@ -489,7 +489,7 @@ async function communityAdoptServerReports(deviceId) {
   for (const r of data.reports || []) {
     const key = r.target || (r.tagNumber ? `new:${r.tagNumber}` : null);
     if (!key || local[key]) continue;
-    local[key] = { id: r.id, status: r.status, ts: r.ts, lat: r.lat, lon: r.lon, ...(r.kind === "place" ? { kind: "place" } : {}), ...(r.tagNumber ? { name: `Tree ${r.tagNumber}` } : {}) };
+    local[key] = { id: r.id, status: r.status, ts: r.ts, lat: r.lat, lon: r.lon, counted: true, ...(r.kind === "place" ? { kind: "place" } : {}), ...(r.tagNumber ? { name: `Tree ${r.tagNumber}` } : {}) };
   }
   communityWriteLocal({ ...local, ...communityReadLocal() });
   return Object.keys(local).length;

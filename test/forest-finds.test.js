@@ -11307,6 +11307,11 @@ test("far, failed, place and feedback reports and unconfirmed corrections add no
   assert.equal(JSON.stringify(app.communityPendingScore(local, 0)), JSON.stringify({ points: 0, verified: 0 }));
 });
 
+test("a report adopted from the server on restore is already in its score and adds nothing", () => {
+  const local = { "tree:1": { id: "a", status: "VERIFIED", ts: 9e12, counted: true } };
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 0)), JSON.stringify({ points: 0, verified: 0 }));
+});
+
 test("several fresh reports add up, and an empty or missing record adds nothing", () => {
   const local = { "tree:1": { id: "a", status: "VERIFIED", ts: 10 }, "tree:2": { id: "b", status: "VERIFIED", ts: 20 }, "new:T": { id: "c", status: "NEW_TREE", ts: 30 } };
   assert.equal(JSON.stringify(app.communityPendingScore(local, 0)), JSON.stringify({ points: 3, verified: 2 }));
