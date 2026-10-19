@@ -20,6 +20,18 @@ test.describe("Community tree verification", () => {
     await expect(page.locator("[data-action='community-report']")).toHaveCount(6);
   });
 
+  test("a cold load of /community never flashes the Nearby list", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__sawNearby = false;
+      new MutationObserver(() => {
+        if (document.querySelector("[data-overview-type]") && !document.querySelector(".community-intro")) window.__sawNearby = true;
+      }).observe(document, { childList: true, subtree: true });
+    });
+    await setup(page, "/community");
+    await expect(page.locator(".community-intro")).toBeVisible();
+    expect(await page.evaluate(() => window.__sawNearby)).toBe(false);
+  });
+
   test("the check block is one box and sits above the Nearest section", async ({ page }) => {
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     const box = page.locator(".community-check");
