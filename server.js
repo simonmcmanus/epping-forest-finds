@@ -280,6 +280,7 @@ const server = http.createServer((req, res) => {
     "/api/community/report": "community-report",
     "/api/community/overlay": "community-overlay",
     "/api/community/validate": "community-validate",
+    "/api/community/rebuild": "community-rebuild",
     "/reports/tree-report": "tree-report",
     "/reports/tree-report/": "tree-report",
   };

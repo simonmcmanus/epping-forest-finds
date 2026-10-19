@@ -89,6 +89,7 @@ Rank, badges, quests and area progress are follow-ups. Leaderboard is private in
 
 ## Scaling
 - The snapshot (overlay, conflicts, score shards) is rebuilt **hourly** by `community-rebuild-scheduled` (`COMMUNITY_TTL_MINUTES`, default 60); in production a request serves a snapshot up to 3 TTLs old rather than rebuild inline, and rebuilds itself only if the schedule has stopped. Previews and local dev rebuild on request after the TTL (scheduled functions do not run there).
+- To force a rebuild while testing, use **Rebuild snapshot now** on the admin Community panel (`/api/community/rebuild`, admin password); it also runs at the end of every reward check.
 - The public overlay is cached 5 minutes in browsers and at Netlify's edge (`Netlify-CDN-Cache-Control`, with stale-while-revalidate), so request cost does not grow with the number of users.
 - "My score" reads one of 256 small shard blobs (`scores/<xx>`). The app keeps the score on the device and only re-asks the server when it is over an hour old, after a send, or when the Community screen opens.
 - Others' reports therefore show up roughly an hour after being made, plus up to the cache time; the reporter sees their own immediately. If the report volume reaches tens of thousands, move the ledger to a database.

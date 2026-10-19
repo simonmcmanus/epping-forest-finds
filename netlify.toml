@@ -152,6 +152,12 @@
   schedule = "@daily"
 
 [[redirects]]
+  from = "/api/community/rebuild"
+  to = "/.netlify/functions/community-rebuild"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/community/validate"
   to = "/.netlify/functions/community-validate"
   status = 200

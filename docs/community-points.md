@@ -38,6 +38,9 @@ The first register check only records a baseline, so differences that already ex
 
 Config key: `RANKS` in the same file (the Community screen mirrors it in `COMMUNITY_RANKS`, `js/community.js`; a unit test fails if they drift).
 
+## Forcing a rebuild while testing
+The overlay and scores are rebuilt hourly. To see a change at once: admin, Community panel, **Rebuild snapshot now** (needs `ADMIN_PASSWORD`). On previews you can also set `COMMUNITY_TTL_MINUTES=1`. The public overlay is then cached for up to 5 minutes, so add `?x=1` to the URL or hard-refresh to bypass your browser's copy.
+
 ## Running the reward check
 
 It runs daily (`community-validate-scheduled`). To run it now: the **Run reward check now** button on the admin Community panel. It is safe to run twice. Issue rewards need a GitHub token in the Netlify environment (`GITHUB_TOKEN`); without one, only register rewards are paid.

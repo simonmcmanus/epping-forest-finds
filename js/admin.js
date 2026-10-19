@@ -1373,7 +1373,7 @@ function renderCommunityStats(stats) {
   const days = Object.entries(stats.perDay || {}).sort().slice(-7)
     .map(([day, n]) => row(day, n)).join("");
   return `<h3>Community verification</h3>
-    <p><button type="button" class="admin-btn" id="communityValidateBtn">Run reward check now</button> <span id="communityValidateResult"></span></p>
+    <p><button type="button" class="admin-btn" id="communityRebuildBtn">Rebuild snapshot now</button> <button type="button" class="admin-btn" id="communityValidateBtn">Run reward check now</button> <span id="communityValidateResult"></span></p>
     <p><a href="/reports/tree-report" target="_blank" rel="noopener">City of London discrepancy report</a> · <a href="/reports/tree-report?format=csv">CSV</a></p>
     <table>
       ${row("People reporting (all time)", stats.devices)}
@@ -1528,6 +1528,21 @@ async function adminBoot() {
     communityBody.textContent = "Loading…";
     try {
       communityBody.innerHTML = renderCommunityStats(await loadCommunityStats(password));
+      const rebuildBtn = document.getElementById("communityRebuildBtn");
+      if (rebuildBtn) {
+        rebuildBtn.addEventListener("click", async () => {
+          rebuildBtn.disabled = true;
+          const result = document.getElementById("communityValidateResult");
+          try {
+            const resp = await fetch("/api/community/rebuild", { headers: { Authorization: `Bearer ${password}` } });
+            const data = await resp.json();
+            result.textContent = resp.ok ? `Rebuilt from ${data.reports} reports (${data.targets} trees on the overlay).` : `Failed (${resp.status})`;
+          } catch (error) {
+            result.textContent = "Could not rebuild.";
+          }
+          rebuildBtn.disabled = false;
+        });
+      }
       const validateBtn = document.getElementById("communityValidateBtn");
       if (validateBtn) {
         validateBtn.addEventListener("click", async () => {
