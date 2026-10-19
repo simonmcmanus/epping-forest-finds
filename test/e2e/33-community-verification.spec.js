@@ -549,3 +549,18 @@ test.describe("Verified badge on a tree", () => {
     await expect(detail).toContainText("1 person has confirmed this tree is where the map says it is");
   });
 });
+
+test.describe("Community log links to places", () => {
+  test("a reported place in the contributions log opens that place on the map", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("ff-community-local-v1", JSON.stringify({
+        "place:id:manual/onest": { id: "onestreport01", status: "DETAILS_CHANGED", ts: Date.now(), kind: "place", name: "Onest", lat: 51.6552041, lon: 0.0657308 },
+      }));
+    });
+    await setup(page, "/community");
+    const link = page.locator(".community-log-item a", { hasText: "Onest" });
+    await expect(link).toHaveAttribute("href", "/nearby#place=id:manual/onest");
+    await link.click();
+    await expect(page.locator("#inspectorTitle")).toContainText("Onest");
+  });
+});

@@ -1017,7 +1017,12 @@ function communityReadLog() {
 
 function communityTargetLabel(key, entry) {
   if (key.startsWith("feedback:")) return { text: (entry && entry.name) || "Feedback", href: null };
-  if (key.startsWith("place:")) return { text: (entry && entry.name) || "Place", href: null, issueUrl: entry && entry.issueUrl };
+  if (key.startsWith("place:")) {
+    // "place:id:<osm or manual id>" selects the place on the map (the same route as #place=id:...).
+    // Coordinate-only keys have no id to select by, so they stay plain text.
+    const placeId = key.startsWith("place:id:") ? key.slice("place:".length) : null;
+    return { text: (entry && entry.name) || "Place", href: placeId ? `/nearby#place=${placeId}` : null, issueUrl: entry && entry.issueUrl };
+  }
   if (key.startsWith("tree:") && typeof findTreeByHashKey === "function") {
     const tree = findTreeByHashKey(`r${key.slice(5)}`);
     if (tree) return { text: treeDisplayName(tree), href: `/nearby#tree=r${key.slice(5)}` };
