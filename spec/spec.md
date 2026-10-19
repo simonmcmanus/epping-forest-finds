@@ -265,7 +265,8 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
 | `/nearby/search` | Search — carries the typed text as a live `?q=<text>` query string (see below) |
 | `/nearby/filter` | Filters — carries the active set as a live `?show=<key>,<key>` query string (see below) |
 | `/settings` | Settings |
-| `/feedback` | Community (feedback form, contributions, add a missing tree) |
+| `/feedback` | Feedback form (a sub-page of Community) |
+| `/contribute` | Community (contributions, add a missing tree) |
 | `/nearby#tree=<key>` | a selected tree; likewise `cow`, `path`, `water`, `road`, `railway`, on top of whichever screen's path it was selected from. A selected `place` (landmark) does this too, *unless* it has its own `/find/<slug>/` page (below), in which case selecting it navigates there instead — see that row |
 | `/nearby#near=<lat>,<lon>` | the Nearby view's browse anchor (tap-to-relocate, or an expanded cluster's centre) — shareable and restored on a fresh load, same as a selection |
 | `/nearby/<slug>` | The same app, served at its own URL and pre-filtered to one category (a subfilter's own slug, e.g. `pubs`, or a whole top-level group's, e.g. `food`) — a `/nearby/<slug>` category page (`spec-marketing.md` § "Category pages") is itself an instance of this app, not a separate page linking to it. `<slug>` is never `filter` or `search`: those two are the screens below, not categories |
@@ -391,7 +392,7 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
 - **A URL naming something the dataset does not have** (a stale share link) falls back to Nearby
   and corrects the entry in place with `replaceState`, rather than leaving the app on a screen
   its URL does not describe.
-- `/feedback` opens the Community screen (formerly Feedback) directly (the old `/report` path 301-redirects to it, keeping the hash, so published ledger links still work). `/feedback#report=<text>` also pre-fills the form with that text followed by `": "`, so a link can say what the reader was looking at when they found the problem — this is how the weekly reports link back for corrections. A saved draft of the reader's own always wins: the pre-fill only applies to an empty field.
+- `/feedback` opens the Feedback form page directly (`/contribute` is the Community screen it hangs off) (the old `/report` path 301-redirects to it, keeping the hash, so published ledger links still work). `/feedback#report=<text>` also pre-fills the form with that text followed by `": "`, so a link can say what the reader was looking at when they found the problem — this is how the weekly reports link back for corrections. A saved draft of the reader's own always wins: the pre-fill only applies to an empty field.
 
 ### Camera behavior
 

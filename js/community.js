@@ -302,8 +302,8 @@ if (typeof window !== "undefined" && window.addEventListener) {
 }
 
 // The short summary at the top of the Community screen, linking on to the full explainer page
-// (reports/tree-report/index.html, a static marketing-surface page).
-const COMMUNITY_EXPLAINER_URL = "/reports/tree-report/";
+// (community/index.html, a static public page).
+const COMMUNITY_EXPLAINER_URL = "/community";
 
 function communityIntroHtml() {
   return `<section class="community-intro">

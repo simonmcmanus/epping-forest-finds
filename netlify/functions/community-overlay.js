@@ -6,29 +6,12 @@
 // outside data/**, so it never moves the data cache version.
 const { openStore } = require("./lib/community-store");
 const { computeCommunityState, communityAdminStats, reportOutcome } = require("./lib/community-consensus");
+const { loadComputed } = require("./lib/community-computed");
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 
-const DEFAULT_TTL_MINUTES = 24 * 60;
-
-function ttlMs() {
-  const minutes = Number(process.env.COMMUNITY_TTL_MINUTES);
-  return (Number.isFinite(minutes) && minutes > 0 ? minutes : DEFAULT_TTL_MINUTES) * 60 * 1000;
-}
-
 function queryParam(event, name) {
   return event.queryStringParameters?.[name] || new URLSearchParams(event.rawQuery || "").get(name);
-}
-
-async function loadComputed(store) {
-  const cached = await store.get("computed");
-  if (cached && Date.now() - cached.generatedAt < ttlMs()) return cached;
-  const keys = await store.list("reports/");
-  const reports = (await Promise.all(keys.map((k) => store.get(k)))).filter(Boolean);
-  const { overlay, conflicts, scores } = computeCommunityState(reports);
-  const computed = { generatedAt: Date.now(), overlay, conflicts, scores, reportCount: reports.length };
-  await store.put("computed", computed);
-  return computed;
 }
 
 // Admin stats are computed fresh from the ledger (not the daily snapshot) so the dashboard is live.

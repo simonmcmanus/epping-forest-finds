@@ -258,7 +258,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (["/nearby/search", "/nearby/filter", "/settings", "/feedback", "/community"].includes(url.pathname)) {
+  if (["/nearby/search", "/nearby/filter", "/settings", "/feedback", "/contribute"].includes(url.pathname)) {
     const appFile = path.join(ROOT, "app.html");
     if (!fs.existsSync(appFile)) { send(res, 404, "App not found"); return; }
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
@@ -276,8 +276,13 @@ const server = http.createServer((req, res) => {
 
   // Community reports/overlay: same function modules Netlify runs, with the request body passed
   // through (the generic proxy below only forwards the query string).
-  if (url.pathname === "/api/community/report" || url.pathname === "/api/community/overlay") {
-    const fnName = url.pathname === "/api/community/report" ? "community-report" : "community-overlay";
+  const COMMUNITY_FUNCTION_ROUTES = {
+    "/api/community/report": "community-report",
+    "/api/community/overlay": "community-overlay",
+    "/tree-report": "tree-report",
+  };
+  if (COMMUNITY_FUNCTION_ROUTES[url.pathname]) {
+    const fnName = COMMUNITY_FUNCTION_ROUTES[url.pathname];
     let body = "";
     req.on("data", (chunk) => { body += chunk; });
     req.on("end", () => {

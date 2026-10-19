@@ -11038,6 +11038,68 @@ test("a place check with an unknown status or an unsafe key is rejected", async 
   });
 });
 
+// --- The City of London discrepancy report (netlify/functions/lib/community-report-data.js) ---
+const communityReportData = require("../netlify/functions/lib/community-report-data");
+const reportSnapshot = () => communityConsensus.computeCommunityState([
+  communityReport({ status: "NOT_HERE", deviceId: "device-aaaa", target: "tree:77", ts: Date.UTC(2026, 9, 1) }),
+  communityReport({ status: "NOT_HERE", deviceId: "device-bbbb", target: "tree:77", ts: Date.UTC(2026, 9, 2) }),
+  communityReport({ status: "VERIFIED", deviceId: "device-cccc", target: "tree:88", ts: Date.UTC(2026, 9, 2) }),
+  communityReport({ status: "NEW_TREE", deviceId: "device-aaaa", target: undefined, kind: "tree", lat: 51.7, lon: 0.03, targetLat: undefined, targetLon: undefined, tagNumber: "T-5", accuracy: 9, ts: Date.UTC(2026, 9, 3) }),
+  communityReport({ status: "VERIFIED", deviceId: "device-aaaa", target: "tree:99", ts: 5 }),
+  communityReport({ status: "NOT_HERE", deviceId: "device-bbbb", target: "tree:99", ts: 6 }),
+]);
+
+test("the discrepancy report lists questioned trees, possible new trees and conflicts, without device ids", () => {
+  const state = reportSnapshot();
+  const report = communityReportData.buildReportData({ ...state, generatedAt: Date.UTC(2026, 9, 5), reportCount: 6 }, { 77: { tagNumber: "11383", commonName: "English Oak", latinName: "Quercus robur" } }, "https://example.test");
+  assert.equal(report.questioned.length, 1);
+  assert.equal(report.questioned[0].tagNumber, "11383");
+  assert.equal(report.questioned[0].reporters, 2);
+  assert.equal(report.questioned[0].lastReported, "2026-10-02");
+  assert.equal(report.questioned[0].mapUrl, "https://example.test/nearby#tree=r77");
+  assert.equal(report.newTrees.length, 1);
+  assert.equal(report.newTrees[0].tagNumber, "T-5");
+  assert.equal(report.newTrees[0].confirmed, false);
+  assert.equal(report.conflicts.length, 1);
+  assert.equal(report.verifiedTrees, 1);
+  assert.doesNotMatch(JSON.stringify(report), /device-/);
+});
+
+test("the report downloads as CSV and GeoJSON, quoting what needs quoting", () => {
+  const state = reportSnapshot();
+  const report = communityReportData.buildReportData({ ...state, generatedAt: 1, reportCount: 6 }, { 77: { tagNumber: "11,383", commonName: 'Oak "Old"', latinName: "Quercus" } }, "");
+  const csv = communityReportData.reportToCsv(report);
+  const lines = csv.trim().split("\r\n");
+  assert.match(lines[0], /^section,record_number,tag_number/);
+  assert.ok(lines.some((line) => line.startsWith('questioned,77,"11,383","Oak ""Old"""')));
+  assert.ok(lines.some((line) => line.startsWith("new_tree,,T-5")));
+  const geo = communityReportData.reportToGeoJson(report);
+  assert.equal(geo.type, "FeatureCollection");
+  assert.ok(geo.features.some((f) => f.properties.section === "new_tree" && f.geometry.coordinates[0] === 0.03));
+});
+
+test("the report page escapes what it prints and explains an empty report", () => {
+  const empty = communityReportData.buildReportData({ overlay: {}, conflictDetails: [], generatedAt: 1, reportCount: 0 }, {}, "");
+  const html = communityReportData.renderReportHtml(empty);
+  assert.match(html, /No trees have been questioned by two or more people yet/);
+  const hostile = communityReportData.buildReportData({ overlay: { "tree:1": { s: "questioned", st: "NOT_HERE", n: 2, t: 1, tlat: 51.6, tlon: 0.1 } }, conflictDetails: [], generatedAt: 1, reportCount: 2 }, { 1: { tagNumber: "<script>x</script>", commonName: "Oak" } }, "");
+  const page = communityReportData.renderReportHtml(hostile);
+  assert.doesNotMatch(page, /<script>x<\/script>/);
+  assert.match(page, /&lt;script&gt;/);
+});
+
+test("register records are found by position in the public tree chunks, and a failed fetch just leaves them out", async () => {
+  const files = {
+    "data/trees/index.json": { chunks: [{ url: "data/trees/a.json", bounds: { minLat: 51.5, maxLat: 51.7, minLon: 0, maxLon: 0.2 } }] },
+    "data/trees/a.json": { trees: [{ recordNumber: 77, tagNumber: "11383", commonName: "English Oak", latinName: "Quercus robur", girthMetres: 3.1 }, { recordNumber: 78, tagNumber: "1" }] },
+  };
+  const found = await communityReportData.lookupRegisterRecords([{ recordNumber: "77", tlat: 51.6, tlon: 0.1 }], async (path) => files[path]);
+  assert.equal(found["77"].tagNumber, "11383");
+  assert.equal(found["78"], undefined);
+  const none = await communityReportData.lookupRegisterRecords([{ recordNumber: "77", tlat: 51.6, tlon: 0.1 }], async () => { throw new Error("offline"); });
+  assert.deepEqual(none, {});
+});
+
 runRegisteredTests().catch((error) => {
   console.error(error);
   process.exitCode = 1;

@@ -117,6 +117,7 @@ function computeCommunityState(reports) {
 
   const overlay = {};
   const conflicts = [];
+  const conflictDetails = [];
   const resolved = new Map(); // target -> {s, st}
   for (const [target, list] of byTarget) {
     const near = list.filter(isNear);
@@ -140,6 +141,8 @@ function computeCommunityState(reports) {
     const [topStatus, topCount] = mostCommon(questions.map((r) => r.status));
     if (questions.length >= 2 && topCount >= 2 && questions.length > confirms.length) {
       const entry = { s: "questioned", st: topStatus, n: topCount, t };
+      const at = list.find((r) => Number.isFinite(r.targetLat) && Number.isFinite(r.targetLon));
+      if (at) { entry.tlat = Number(at.targetLat.toFixed(6)); entry.tlon = Number(at.targetLon.toFixed(6)); }
       if (topStatus === "MOVED") {
         const moved = questions.filter((r) => r.status === "MOVED");
         entry.lat = Number((moved.reduce((a, r) => a + r.newLat, 0) / moved.length).toFixed(6));
@@ -149,6 +152,10 @@ function computeCommunityState(reports) {
       resolved.set(target, { s: "questioned", st: topStatus });
     } else if (confirms.length && questions.length) {
       conflicts.push(target);
+      const counts = {};
+      for (const r of near) counts[r.status] = (counts[r.status] || 0) + 1;
+      const at = list.find((r) => Number.isFinite(r.targetLat) && Number.isFinite(r.targetLon));
+      conflictDetails.push({ target, counts, t, ...(at ? { tlat: Number(at.targetLat.toFixed(6)), tlon: Number(at.targetLon.toFixed(6)) } : {}) });
     } else if (confirms.length) {
       overlay[target] = { s: confirms.length >= 2 ? "confirmed" : "verified", n: confirms.length, t };
       resolved.set(target, { s: "verified" });
@@ -188,7 +195,7 @@ function computeCommunityState(reports) {
       }
     }
   }
-  return { overlay, conflicts, scores };
+  return { overlay, conflicts, conflictDetails, scores };
 }
 
 // What a contributor sees against one of their own reports, from the daily overlay.

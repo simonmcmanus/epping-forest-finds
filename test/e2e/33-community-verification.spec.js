@@ -112,7 +112,7 @@ test.describe("Community tree verification", () => {
       posted.push(route.request().postDataJSON());
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
     });
-    await setup(page, "/community");
+    await setup(page, "/contribute");
     await page.click("[data-action='community-add-start']");
     await expect(page.locator("#communityAddTreeForm")).toBeVisible();
     await expect(page.locator("#communityLocationStatus")).toContainText("Turn on location");
@@ -134,7 +134,7 @@ test.describe("Community tree verification with location shared", () => {
       posted.push(route.request().postDataJSON());
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
     });
-    await setup(page, "/community");
+    await setup(page, "/contribute");
     await page.click("[data-action='community-add-start']");
     await expect(page.locator("#communityLocationStatus")).toContainText("accurate to");
     await expect(page.locator("#communityAddTreeSubmit")).toBeDisabled();
@@ -153,7 +153,7 @@ test.describe("Community tree verification with location shared", () => {
   test("a tag that is already on the map is not added again", async ({ page }) => {
     const posted = [];
     await page.route(REPORT_URL, (route) => { posted.push(1); route.fulfill({ status: 200, body: "{}" }); });
-    await setup(page, "/community");
+    await setup(page, "/contribute");
     await page.click("[data-action='community-add-start']");
     await page.fill("#communityTagInput", FIXTURE_TREE.tagNumber);
     await page.click("#communityAddTreeSubmit");
@@ -232,11 +232,11 @@ test.describe("Community place checks", () => {
 
 test.describe("Community screen layout", () => {
   test("opens with a short summary that links to the full explanation", async ({ page }) => {
-    await setup(page, "/community");
+    await setup(page, "/contribute");
     const intro = page.locator(".community-intro");
     await expect(intro).toContainText("Help keep the map right");
     const link = intro.locator("a.community-intro-link");
-    await expect(link).toHaveAttribute("href", "/reports/tree-report/");
+    await expect(link).toHaveAttribute("href", "/community");
     await expect(link).toHaveAttribute("target", "_blank");
   });
 
@@ -248,5 +248,27 @@ test.describe("Community screen layout", () => {
     await page.click("#reportToggle");
     await expect(page.locator(".community-intro")).toBeVisible();
     await expect.poll(async () => (await page.locator("#inspector").boundingBox()).height).toBeGreaterThan(settingsHeight);
+  });
+});
+
+test.describe("Public community pages", () => {
+  test("/community explains how checks work and links to the report and the app", async ({ page }) => {
+    await page.goto("/community");
+    await expect(page.locator("h1")).toHaveText("How community checks work");
+    await expect(page.locator('a[href="/tree-report"]')).toHaveCount(1);
+    await expect(page.locator('a[href="/contribute"]')).toHaveCount(1);
+  });
+
+  test("/tree-report is a public report with CSV and GeoJSON downloads", async ({ page, request }) => {
+    await page.goto("/tree-report");
+    await expect(page.locator("h1")).toHaveText("Community-reported tree discrepancies");
+    await expect(page.locator("h2", { hasText: "Questioned trees" })).toBeVisible();
+    await expect(page.locator('a[href="?format=csv"]')).toBeVisible();
+    const csv = await request.get("/tree-report?format=csv");
+    expect(csv.status()).toBe(200);
+    expect(csv.headers()["content-type"]).toContain("text/csv");
+    expect(await csv.text()).toMatch(/^section,record_number,tag_number/);
+    const geo = await request.get("/tree-report?format=geojson");
+    expect((await geo.json()).type).toBe("FeatureCollection");
   });
 });

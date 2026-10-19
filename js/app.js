@@ -487,7 +487,7 @@ const ROUTE_PATHS = {
   [ROUTE_SEARCH]: "/nearby/search",
   [ROUTE_SETTINGS]: "/settings",
   [ROUTE_REPORT]: "/feedback",
-  [ROUTE_COMMUNITY]: "/community",
+  [ROUTE_COMMUNITY]: "/contribute",
 };
 const NEARBY_PATH = "/nearby";
 

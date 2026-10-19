@@ -107,4 +107,4 @@ export default async (request, context) => {
   });
 };
 
-export const config = { path: ["/nearby", "/nearby/search", "/nearby/filter", "/settings", "/feedback", "/community", "/app.html"] };
+export const config = { path: ["/nearby", "/nearby/search", "/nearby/filter", "/settings", "/feedback", "/contribute", "/app.html"] };
