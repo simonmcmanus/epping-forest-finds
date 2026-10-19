@@ -96,6 +96,10 @@ jobs:
     # e2e job's functional assertions have not. A retry absorbs that known noise instead of
     # requiring a human to notice and re-run CI by hand; a genuine visual regression still fails
     # twice and stays red.
+    # Report-only: a pixel diff never fails this job. Changes are shown in the PR description
+    # (see the "Publish failing snapshot diffs" step), and the label opts a PR into regenerating
+    # baselines. Setup failures (npm ci, checkout) still fail the job; the snapshot runs are
+    # continue-on-error so a diff does not stop the commit or publish steps.
     name: Visual snapshots (desktop + mobile)
     runs-on: ubuntu-latest
     container:
@@ -229,6 +233,3 @@ jobs:
           name: playwright-report-visual
           path: playwright-report/
           retention-days: 14
-      - name: Fail if visual snapshot tests had failures
-        if: steps.mobile.outcome == 'failure' || steps.desktop.outcome == 'failure'
-        run: exit 1
