@@ -572,6 +572,7 @@ globalThis.__forestFindsTest = {
   animationLoopsWedged,
   recoverWedgedAnimationFrames,
   communityRank,
+  communityNudgeDecision,
   HEADING_SOURCE_NONE,
   HEADING_SOURCE_RELATIVE,
   HEADING_SOURCE_ABSOLUTE,
@@ -11045,6 +11046,25 @@ test("in production a request serves a slightly old snapshot instead of rebuildi
   } finally {
     if (original === undefined) delete process.env.CONTEXT; else process.env.CONTEXT = original;
   }
+});
+
+test("nudges: a card on the overview, a pulse on the tree's own page, and quiet otherwise", () => {
+  const now = 10 * 60 * 60 * 1000;
+  const base = { on: true, fixOk: true, isDefault: false, nearest: { metres: 6 }, target: "tree:1", alreadyReported: false, seenAt: 0, now, onThisTree: false, lastCardAt: 0, overviewActive: true };
+  const decide = (over) => app.communityNudgeDecision({ ...base, ...over });
+  assert.equal(decide({}), "card");
+  assert.equal(decide({ onThisTree: true }), "pulse");
+  assert.equal(decide({ on: false }), "none", "turned off");
+  assert.equal(decide({ fixOk: false }), "none", "no accurate fix");
+  assert.equal(decide({ isDefault: true }), "none", "the stand-in location is not a real position");
+  assert.equal(decide({ nearest: { metres: 11 } }), "none", "further than 10 m");
+  assert.equal(decide({ nearest: null }), "none");
+  assert.equal(decide({ alreadyReported: true }), "none", "already checked on this device");
+  assert.equal(decide({ seenAt: now - 60 * 1000 }), "none", "asked about this tree within the day");
+  assert.equal(decide({ seenAt: now - 25 * 60 * 60 * 1000 }), "card", "a day later it may ask again");
+  assert.equal(decide({ lastCardAt: now - 60 * 1000 }), "none", "at most one card every ten minutes");
+  assert.equal(decide({ overviewActive: false }), "none", "never over another screen");
+  assert.equal(decide({ onThisTree: true, lastCardAt: now - 60 * 1000, overviewActive: false }), "pulse", "the pulse ignores the card limits");
 });
 
 // --- Place checks go to GitHub issues for manual review (netlify/functions/report-missing-data.js) ---

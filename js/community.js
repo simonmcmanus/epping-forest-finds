@@ -331,30 +331,44 @@ function communityNudgeDismiss() {
   if (el) el.remove();
 }
 
+// The decision, with no DOM: what should happen for this GPS fix? Returns "card" (offer on the
+// overview), "pulse" (draw the eye on the tree's own page) or "none".
+function communityNudgeDecision({ on, fixOk, isDefault, nearest, target, alreadyReported, seenAt, now, onThisTree, lastCardAt, overviewActive }) {
+  if (!on || !fixOk || isDefault) return "none";
+  if (!nearest || !(nearest.metres <= COMMUNITY_NUDGE_METRES) || !target || alreadyReported) return "none";
+  if (seenAt && now - seenAt < COMMUNITY_NUDGE_TREE_COOLDOWN_MS) return "none";
+  if (onThisTree) return "pulse";
+  if (now - lastCardAt < COMMUNITY_NUDGE_GLOBAL_GAP_MS || !overviewActive) return "none";
+  return "card";
+}
+
 // Called with every fresh GPS fix. Quiet unless the fix is real and accurate, the tree is close,
 // and this device has not already checked it or been nudged about it today.
 function communityNudgeCheck(now = Date.now()) {
-  if (!communityNudgesOn()) return;
-  const fix = communityCurrentFix();
-  if (!fix.ok || (state.userLocation && state.userLocation.isDefault)) return;
   const nearest = state.nearestTree;
   const tree = nearest && nearest.tree;
-  if (!tree || !(nearest.metres <= COMMUNITY_NUDGE_METRES)) return;
-  const target = communityTreeTarget(tree);
-  if (!target || communityReadLocal()[target]) return;
+  const target = tree ? communityTreeTarget(tree) : null;
   const seen = communityNudgeSeen();
-  if (seen[target] && now - seen[target] < COMMUNITY_NUDGE_TREE_COOLDOWN_MS) return;
-  const onThisTree = state.selected && state.selected.type === "tree" && state.selected.item === tree;
-  if (onThisTree) {
+  const onThisTree = Boolean(tree && state.selected && state.selected.type === "tree" && state.selected.item === tree);
+  const decision = communityNudgeDecision({
+    on: communityNudgesOn(),
+    fixOk: communityCurrentFix().ok,
+    isDefault: Boolean(state.userLocation && state.userLocation.isDefault),
+    nearest, target,
+    alreadyReported: Boolean(target && communityReadLocal()[target]),
+    seenAt: target ? seen[target] : 0,
+    now, onThisTree,
+    lastCardAt: communityNudgeLastAt,
+    overviewActive: typeof isOverviewScreenActive !== "function" || isOverviewScreenActive(),
+  });
+  if (decision === "none") return;
+  if (decision === "pulse") {
     communityNudgeDismiss(); // a card from the overview is moot once you are on the tree itself
-    // Already on the page: just draw the eye to the check, once.
     const section = document.querySelector(".community-check");
     if (!section || section.dataset.communityTarget !== target) return;
     section.classList.add("community-nudge-pulse");
     setTimeout(() => section.classList.remove("community-nudge-pulse"), 2600);
   } else {
-    if (now - communityNudgeLastAt < COMMUNITY_NUDGE_GLOBAL_GAP_MS) return;
-    if (typeof isOverviewScreenActive === "function" && !isOverviewScreenActive()) return;
     communityNudgeShow(tree, nearest.metres);
     communityNudgeLastAt = now;
   }
