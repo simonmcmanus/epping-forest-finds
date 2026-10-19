@@ -571,6 +571,7 @@ globalThis.__forestFindsTest = {
   orientationHeadingSource,
   animationLoopsWedged,
   recoverWedgedAnimationFrames,
+  communityRank,
   HEADING_SOURCE_NONE,
   HEADING_SOURCE_RELATIVE,
   HEADING_SOURCE_ABSOLUTE,
