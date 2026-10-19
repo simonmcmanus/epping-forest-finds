@@ -13,7 +13,7 @@ const { formatCount } = require("../../scripts/count-datasets.js");
 test.describe("the marketing homepage", () => {
   test("links homepage feedback prompts to the feedback screen", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("link", { name: "noticed something missing?" })).toHaveAttribute("href", "/feedback");
+    await expect(page.getByRole("link", { name: "Something missing?" })).toHaveAttribute("href", "/feedback");
     await expect(page.getByRole("link", { name: "report any issues you find" })).toHaveAttribute("href", "/feedback");
     await expect(page.getByRole("link", { name: "report them here" })).toHaveAttribute("href", "/feedback");
   });

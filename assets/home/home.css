@@ -75,11 +75,11 @@ section { padding: 52px 0; border-top: 1px solid var(--line); }
 
 .counts-intro { margin: -4px 0 24px; color: var(--muted); font-size: 1rem; }
 .map-inventory { overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); }
-.inventory-total { position: relative; display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: baseline; padding: 22px 132px 22px 20px; background: var(--surface-alt); }
+.inventory-total { display: flex; flex-wrap: wrap; gap: 6px 16px; align-items: baseline; padding: 22px 20px; background: var(--surface-alt); }
 .inventory-total strong { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: clamp(2rem, 8vw, 3rem); letter-spacing: -.06em; line-height: 1; }
 .inventory-total span { color: var(--muted); font-size: .94rem; font-weight: 700; }
 .inventory-total img { align-self: center; width: 44px; height: 44px; object-fit: contain; }
-.inventory-feedback { position: absolute; top: 16px; right: 20px; font-size: .86rem; font-weight: 700; }
+.inventory-feedback { flex-basis: 100%; font-size: .9rem; font-weight: 700; }
 .inventory-groups { display: grid; }
 .inventory-group { padding: 20px; border-top: 1px solid var(--line); }
 .inventory-group h3 { margin: 0 0 13px; font-size: 1rem; }
@@ -233,8 +233,8 @@ section { padding: 52px 0; border-top: 1px solid var(--line); }
   .offline-note { padding: 16px 24px; }
   .faq-item { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); gap: 32px; padding: 24px 28px; }
   .faq-item dd { margin: 0; }
-  .inventory-total { padding: 26px 148px 26px 24px; }
-  .inventory-feedback { top: 18px; right: 24px; }
+  .inventory-total { padding: 26px 24px; }
+  .inventory-feedback { flex-basis: auto; margin-left: auto; align-self: center; }
   .inventory-groups { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .inventory-group { min-height: 190px; padding: 20px; }
   .inventory-group:nth-child(3n + 2), .inventory-group:nth-child(3n + 3) { border-left: 1px solid var(--line); }

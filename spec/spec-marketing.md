@@ -213,8 +213,9 @@ Sections, in order:
    image. Preserve the full-width crop and intrinsic 4:3 dimensions.
 2. **What's on the map** — directly after the hero, one neutral inventory card, matching the Ledger's
    categorisation: a headline total with a 44px map-pin icon
-   (`map-icons/all-finds.png`) to its left, a top-right “noticed something
-   missing?” link to `/feedback`, the six app filter groups (Nature, Food,
+   (`map-icons/all-finds.png`) to its left, a “Something missing?”
+   link to `/feedback` (own row under the total on mobile, right-aligned beside it on wider
+   screens), the six app filter groups (Nature, Food,
    Transport, History, Locations and Stories), every subfilter and count, then
    a full-width row for always-shown facilities. Each group heading uses an
    independent homepage copy of the corresponding app category icon, with a
