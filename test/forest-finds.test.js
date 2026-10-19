@@ -11135,7 +11135,7 @@ test("a place check is filed as a labelled GitHub issue for manual review, with 
       assert.equal(result.statusCode, 200);
       const created = calls.find((c) => c.method === "POST" && c.url.endsWith("/issues"));
       assert.ok(created, "an issue is created");
-      assert.deepEqual(created.body.labels, ["place-check", "user-report"]);
+      assert.deepEqual(created.body.labels, ["place-check", "user-report", "place:123"]);
       assert.match(created.body.title, /^Place check: The Test Arms: It's closed/);
       assert.match(created.body.body, /place-key:place:id:123/);
       assert.match(created.body.body, /Reported status: CLOSED/);
@@ -11174,6 +11174,22 @@ test("a place check keyed by a real OSM or manual place id is accepted", async (
       assert.equal(calls.filter((c) => c.method === "POST" && c.url.endsWith("/issues")).length, 2);
     }
   );
+});
+
+test("a place-check issue is labelled with the place so all its issues can be listed", async () => {
+  await withStubbedGithub(
+    (url) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 9, html_url: "https://github.com/x/y/issues/9" })),
+    async (handler, calls) => {
+      const result = await handler(placeCheckEvent({ placeCheck: { status: "CLOSED", key: "place:id:node/5903400322", name: "Onest" } }));
+      assert.equal(result.statusCode, 200);
+      const created = calls.find((c) => c.method === "POST" && c.url.endsWith("/issues"));
+      const labels = created.body.labels;
+      assert.deepEqual(labels, ["place-check", "user-report", "place:node/5903400322"]);
+    }
+  );
+  const reportFunction = require("../netlify/functions/report-missing-data");
+  assert.equal(reportFunction.placeLabelName("place:id:manual/onest"), "place:manual/onest");
+  assert.ok(reportFunction.placeLabelName(`place:id:${"x".repeat(100)}`).length <= 50, "GitHub label names are capped at 50 characters");
 });
 
 test("a place check with an unknown status or an unsafe key is rejected", async () => {
