@@ -134,8 +134,8 @@ jobs:
     # requiring a human to notice and re-run CI by hand; a genuine visual regression still fails
     # twice and stays red.
     # A pixel diff fails this job, after the diff table has been published to the PR description.
-    # The update-snapshots label regenerates the baselines on that run, so the job passes once
-    # the baseline commit is on the branch. The snapshot runs are continue-on-error so a diff
+    # The update-snapshots label copies the failing renders over their baselines on that run, so the
+    # job passes once the baseline commit is on the branch. The snapshot runs are continue-on-error so a diff
     # still reaches the commit and publish steps.
     name: Visual snapshots (desktop + mobile)
     runs-on: ubuntu-latest
@@ -160,12 +160,12 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Choose baseline mode
-        # Default: only missing baselines are written, so a mismatch fails the check.
-        # With the `update-snapshots` label on the PR, mismatches are written over instead, so the
-        # run regenerates baselines. Apply the label only when the visual change is intended.
+      - name: Check for the update-snapshots label
+        # Both runs only write missing baselines, so a mismatch fails and leaves its render in
+        # test-results. With the label, the 'Apply failing renders' step copies those renders over
+        # their baselines, so only snapshots that differ by more than the tolerance are committed.
         id: mode
-        run: echo "value=${{ contains(github.event.pull_request.labels.*.name, 'update-snapshots') && 'all' || 'missing' }}" >> "$GITHUB_OUTPUT"
+        run: echo "value=${{ contains(github.event.pull_request.labels.*.name, 'update-snapshots') && 'apply' || 'report' }}" >> "$GITHUB_OUTPUT"
       - name: Run visual snapshot tests (mobile)
         id: mobile
         # continue-on-error so the commit step always runs even when baselines are missing.
@@ -173,17 +173,17 @@ jobs:
         # the explicit fail step below re-surfaces any genuine failures.
         run: >
           npx playwright test --project=mobile --grep "snapshot:"
-          --update-snapshots=${{ steps.mode.outputs.value }} --retries=1
+          --update-snapshots=missing --retries=1
         continue-on-error: true
       - name: Run visual snapshot tests (desktop)
         id: desktop
         run: >
           npx playwright test --project=desktop --grep "snapshot:"
-          --update-snapshots=${{ steps.mode.outputs.value }} --retries=1
+          --update-snapshots=missing --retries=1
         continue-on-error: true
       - name: Clear the update-snapshots label
         # Removed before the commit below, so the push's own CI run is not regenerating again.
-        if: github.event_name == 'pull_request' && steps.mode.outputs.value == 'all'
+        if: github.event_name == 'pull_request' && steps.mode.outputs.value == 'apply'
         uses: actions/github-script@v7
         with:
           script: |
@@ -195,6 +195,17 @@ jobs:
             }).catch((error) => {
               if (error.status !== 404) throw error;
             });
+      - name: Apply failing renders to their baselines
+        # Each *-actual.png is a render that differs from its baseline by more than the tolerance,
+        # so copying it over the baseline is the regeneration the label asks for. Passing snapshots
+        # produce no actual file and keep their committed baseline.
+        if: steps.mode.outputs.value == 'apply'
+        run: |
+          find test-results -name '*-actual.png' | sort | while read -r actual; do
+            stem=$(basename "$actual" -actual.png)
+            project=$(basename "$(dirname "$actual")" | grep -oE 'desktop|mobile' | tail -n 1 || true)
+            cp "$actual" "test/e2e/__screenshots__/$stem-$project-linux.png"
+          done
       - name: Commit new snapshot baselines
         # Runs even after test failure. git add only touches test/e2e/__screenshots__/, so
         # regression diffs (written to test-results/ as "actual") are never committed.
@@ -225,7 +236,7 @@ jobs:
       - name: Publish failing snapshot diffs
         # Fork PRs have no PAT, so they skip publishing. Their diffs stay in the Playwright report.
         if: >
-          github.event_name == 'pull_request' && steps.mode.outputs.value == 'missing' &&
+          github.event_name == 'pull_request' &&
           github.event.pull_request.head.repo.full_name == github.repository
         env:
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -233,7 +244,7 @@ jobs:
           PAT: ${{ secrets.WEEKLY_LEDGER_PAT }}
         run: bash .github/scripts/publish-visual-diffs.sh
       - name: Write failing snapshots into the PR description
-        if: github.event_name == 'pull_request' && steps.mode.outputs.value == 'missing'
+        if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
