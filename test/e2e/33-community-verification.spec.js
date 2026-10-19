@@ -325,6 +325,7 @@ test.describe("Nudges to check a tree you are standing next to", () => {
 
   // Puts the user right next to the first tree in the data, with a good real fix.
   async function standNextToATree(page) {
+    await page.waitForFunction(() => state.userLocation && !state.userLocation.isDefault && state.trees.length > 0);
     await page.evaluate(() => {
       localStorage.removeItem("ff-community-nudge-seen-v1");
       localStorage.removeItem("ff-community-nudges-off-v1");

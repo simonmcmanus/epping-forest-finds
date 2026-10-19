@@ -336,6 +336,7 @@ function communityNudgeCheck(now = Date.now()) {
   if (seen[target] && now - seen[target] < COMMUNITY_NUDGE_TREE_COOLDOWN_MS) return;
   const onThisTree = state.selected && state.selected.type === "tree" && state.selected.item === tree;
   if (onThisTree) {
+    communityNudgeDismiss(); // a card from the overview is moot once you are on the tree itself
     // Already on the page: just draw the eye to the check, once.
     const section = document.querySelector(".community-check");
     if (!section || section.dataset.communityTarget !== target) return;
