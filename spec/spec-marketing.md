@@ -878,7 +878,7 @@ use for the homepage's counts.
   the same inspector panel the live page does, with the same classes: header
   (name, category, category icon), the icon-only "Open in Maps" and Share buttons the live top
   row uses (Share is inert until JS boots; the walking-time pill also appears only with JS), detail rows, and
-  `Nearby` / `Related` `<h3 class="detail-section-heading">` sections of
+  `Places close by` (for a `/find/` business), `Nearby` / `Related` `<h3 class="detail-section-heading">` sections of
   `.nearest-item` cards. Its cards are real links even with no JS, but carry
   no distance for the trees/cattle (a build-time figure would be wrong for
   live-tracked cattle positions by the time anyone reads it).

@@ -10765,6 +10765,18 @@ test("nearbySectionsHtml omits the cows link when no cow positions are currently
   assert.ok(!html.includes("nearby/cows/"), "no cow data loaded -- no cows link to show");
 });
 
+test("nearbySectionsHtml puts Places close by above Nearest on a /find/ business", () => {
+  resetData(app);
+  const pub = { findSlug: "the-forresters", latitude: 51.65, longitude: 0.05, category: "pub" };
+  app.state.landmarks.push({ id: "node/2", name: "The Neighbour", findSlug: "the-neighbour", latitude: 51.652, longitude: 0.05, category: "cafe" });
+
+  const html = app.nearbySectionsHtml({ latitude: pub.latitude, longitude: pub.longitude, name: "The Forresters", findSlug: pub.findSlug });
+  const placesIndex = html.indexOf('<h3 class="detail-section-heading">Places close by</h3>');
+  const nearestIndex = html.indexOf('<h3 class="detail-section-heading">Nearest</h3>');
+  assert.ok(placesIndex >= 0, "the nearby business is listed");
+  assert.ok(placesIndex < nearestIndex, "Places close by comes before Nearest");
+});
+
 test("nearbySectionsHtml gives a place with no /find/ page of its own the same Nearest section, so no location is a dead end", () => {
   resetData(app);
   const busStop = { findSlug: null, latitude: 51.65, longitude: 0.05, category: "bus_stop" };

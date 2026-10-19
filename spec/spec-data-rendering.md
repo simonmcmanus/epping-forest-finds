@@ -950,7 +950,7 @@ is never moved by this -- only the browse anchor, exactly as any other anchor mo
   counted line for each) follows, both rendered as the same
   `.nearest-item` card — see `spec-marketing.md` § 6.7, "Related-content links, both
   server-rendered and live, as two headed sections". A `/find/` business also gets a headed
-  **Places close by** section (`nearbyPlacesSectionHtml`, js/inspector.js): up to six other
+  **Places close by** section, placed above **Nearest** (`nearbyPlacesSectionHtml`, js/inspector.js): up to six other
   places with their own `/find/<slug>/` page within 1 km straight-line, nearest first, each a
   `.nearest-item` link with its distance. A `/find/<slug>/` landing keeps its server-rendered
   panel on screen until its own place is selected: `selectOverview()` does not paint the Nearby
