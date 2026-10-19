@@ -551,16 +551,23 @@ test.describe("Verified badge on a tree", () => {
 });
 
 test.describe("Community log links to places", () => {
-  test("a reported place in the contributions log opens that place on the map", async ({ page }) => {
+  test("a reported place in the contributions log links to its own /find/ page", async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem("ff-community-local-v1", JSON.stringify({
-        "place:id:manual/onest": { id: "onestreport01", status: "DETAILS_CHANGED", ts: Date.now(), kind: "place", name: "Onest", lat: 51.6552041, lon: 0.0657308 },
+        "place:id:manual/onest": { id: "onestreport01", status: "DETAILS_CHANGED", ts: Date.now(), kind: "place", name: "Onest", lat: 51.6552041, lon: 0.0657308, slug: "onest" },
       }));
     });
     await setup(page, "/community");
-    const link = page.locator(".community-log-item a", { hasText: "Onest" });
-    await expect(link).toHaveAttribute("href", "/nearby#place=id:manual/onest");
-    await link.click();
-    await expect(page.locator("#inspectorTitle")).toContainText("Onest");
+    await expect(page.locator(".community-log-item a", { hasText: "Onest" })).toHaveAttribute("href", "/find/onest/");
+  });
+
+  test("an older place entry without a slug links to the place on the map", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("ff-community-local-v1", JSON.stringify({
+        "place:id:manual/onest": { id: "onestreport02", status: "DETAILS_CHANGED", ts: Date.now(), kind: "place", name: "Onest", lat: 51.6552041, lon: 0.0657308 },
+      }));
+    });
+    await setup(page, "/community");
+    await expect(page.locator(".community-log-item a", { hasText: "Onest" })).toHaveAttribute("href", "/nearby#place=id:manual/onest");
   });
 });

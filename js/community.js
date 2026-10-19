@@ -841,7 +841,7 @@ function communityPlaceSectionHtml(place) {
   const earlier = communityReadLocal()[target];
   if (earlier && earlier.status === "OPEN_CONFIRMED") return ""; // already confirmed on this device: no card
   const category = place.categoryLabel || "Local place";
-  return `<section class="community-check community-check-place" data-kind="place" data-community-target="${escapeHtml(target)}" data-lat="${place.latitude}" data-lon="${place.longitude}" data-name="${escapeHtml(place.name)}" data-category="${escapeHtml(category)}">
+  return `<section class="community-check community-check-place" data-kind="place" data-community-target="${escapeHtml(target)}" data-lat="${place.latitude}" data-lon="${place.longitude}" data-name="${escapeHtml(place.name)}" data-category="${escapeHtml(category)}" data-slug="${escapeHtml(place.findSlug || "")}">
       <div class="community-head">
         <span class="community-head-icon">${communityIcon("shield")}</span>
         <div><h3 class="community-title">Help check this place</h3><p class="community-sub">Is this listing still right?</p></div>
@@ -858,7 +858,9 @@ async function communitySubmitPlace(section, status, note) {
   const category = section.dataset.category || "";
   const id = communityRandomId();
   const local = communityReadLocal();
-  local[target] = { id, status, ts: Date.now(), kind: "place", name, lat, lon };
+  // The place's own /find/<slug>/ page is what the log links to; kept with the report so it survives a reload.
+  const slug = section.dataset.slug || "";
+  local[target] = { id, status, ts: Date.now(), kind: "place", name, lat, lon, ...(slug ? { slug } : {}) };
   communityWriteLocal(local);
   // Confirming a place scores nothing and is not actionable, so it never leaves the device: it only
   // hides the check card for that place. Only a report that something is wrong is filed (as an issue,
@@ -1020,8 +1022,11 @@ function communityTargetLabel(key, entry) {
   if (key.startsWith("place:")) {
     // "place:id:<osm or manual id>" selects the place on the map (the same route as #place=id:...).
     // Coordinate-only keys have no id to select by, so they stay plain text.
+    // A place with its own /find/<slug>/ page links there, the same as the rest of the app; older entries
+    // without a slug fall back to the map selection.
     const placeId = key.startsWith("place:id:") ? key.slice("place:".length) : null;
-    return { text: (entry && entry.name) || "Place", href: placeId ? `/nearby#place=${placeId}` : null, issueUrl: entry && entry.issueUrl };
+    const href = entry && entry.slug ? `/find/${entry.slug}/` : placeId ? `/nearby#place=${placeId}` : null;
+    return { text: (entry && entry.name) || "Place", href, issueUrl: entry && entry.issueUrl };
   }
   if (key.startsWith("tree:") && typeof findTreeByHashKey === "function") {
     const tree = findTreeByHashKey(`r${key.slice(5)}`);
