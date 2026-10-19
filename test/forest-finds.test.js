@@ -10795,6 +10795,24 @@ test("detailsHtml renders Opening hours as plain text like any other detail row"
   assert.match(html, /<dt>Opening hours<\/dt><dd>Mo-Su 09:00-17:00<\/dd>/);
 });
 
+const trackFunction = require("../netlify/functions/track");
+
+test("an admin read of a big tracking store returns the newest blobs and says it is partial when time runs out", async () => {
+  const blobs = Array.from({ length: 10 }, (_, i) => ({ key: `location/${1000 + i}_abc` }));
+  let clock = 0;
+  const now = () => clock;
+  const fastStore = { get: async (key) => [{ key }] };
+  const slowStore = { get: async (key) => { clock += 1500; return [{ key }]; } };
+  const full = await trackFunction.readBlobsWithinBudget(fastStore, blobs, { budgetMs: 7000, batch: 3, now });
+  assert.equal(full.partial, false);
+  assert.equal(full.items.length, 10);
+  clock = 0;
+  const partial = await trackFunction.readBlobsWithinBudget(slowStore, blobs, { budgetMs: 7000, batch: 3, now });
+  assert.equal(partial.partial, true);
+  assert.equal(partial.items.length, 6, "two batches fit in the budget, a third does not");
+  assert.equal(partial.items[0].key, "location/1009_abc", "the newest blob is read first");
+});
+
 runRegisteredTests().catch((error) => {
   console.error(error);
   process.exitCode = 1;

@@ -102,6 +102,22 @@ async function listAllBlobs(store, prefix) {
   return results;
 }
 
+// Reads blobs newest first in small batches and stops when the time budget is spent, so an admin read
+// of a big store returns what it has (flagged `partial`) instead of running into the function time limit.
+async function readBlobsWithinBudget(store, blobs, { budgetMs = 7000, batch = 40, now = Date.now } = {}) {
+  const started = now();
+  const sorted = [...blobs].sort((a, b) => (blobKeyTimestampMs(b.key) || 0) - (blobKeyTimestampMs(a.key) || 0));
+  const arrays = [];
+  let read = 0;
+  for (let i = 0; i < sorted.length; i += batch) {
+    if (now() - started > budgetMs) return { items: arrays.flat(), partial: true, read, total: sorted.length };
+    const chunk = sorted.slice(i, i + batch);
+    arrays.push(...await Promise.all(chunk.map((b) => store.get(b.key, { type: "json" }).catch(() => []))));
+    read += chunk.length;
+  }
+  return { items: arrays.flat(), partial: false, read, total: sorted.length };
+}
+
 // ---- Shared helpers ----
 
 function logTrack(action, details = {}) {
@@ -214,12 +230,13 @@ exports.handler = async (event) => {
       ]);
       const locBlobsInWindow = locBlobs.filter((b) => blobKeyWithinWindow(b.key, sinceMs));
       const clickBlobsInWindow = clickBlobs.filter((b) => blobKeyWithinWindow(b.key, sinceMs));
-      const [locationArrays, clickArrays] = await Promise.all([
-        Promise.all(locBlobsInWindow.map((b) => store.get(b.key, { type: "json" }).catch(() => []))),
-        Promise.all(clickBlobsInWindow.map((b) => store.get(b.key, { type: "json" }).catch(() => []))),
+      const [locRead, clickRead] = await Promise.all([
+        readBlobsWithinBudget(store, locBlobsInWindow),
+        readBlobsWithinBudget(store, clickBlobsInWindow),
       ]);
-      const locations = locationArrays.flat();
-      const clicks = clickArrays.flat();
+      const locations = locRead.items;
+      const clicks = clickRead.items;
+      const partial = locRead.partial || clickRead.partial;
       logTrack("blob-read-ok", {
         windowDays,
         locationBlobCount: locBlobsInWindow.length,
@@ -236,6 +253,7 @@ exports.handler = async (event) => {
           storeName: getTrackingStoreName(),
           context: process.env.CONTEXT || "local",
           windowDays,
+          ...(partial ? { partial: true, locationBlobsRead: locRead.read, clickBlobsRead: clickRead.read } : {}),
           ...(debug ? {
             storage: "blobs",
             locationBlobCount: locBlobsInWindow.length,
@@ -350,5 +368,6 @@ exports.DEFAULT_WINDOW_DAYS = DEFAULT_WINDOW_DAYS;
 exports.parseWindowDays = parseWindowDays;
 exports.windowSinceMs = windowSinceMs;
 exports.blobKeyTimestampMs = blobKeyTimestampMs;
+exports.readBlobsWithinBudget = readBlobsWithinBudget;
 exports.blobKeyWithinWindow = blobKeyWithinWindow;
 exports.eventWithinWindow = eventWithinWindow;
