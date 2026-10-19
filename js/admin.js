@@ -1217,9 +1217,8 @@ function updateStats() {
   const locs = filteredLocations();
   const clicks = filteredClicks();
   const uids = new Set([...locs, ...clicks].map((e) => e.uid));
-  const windowLabel = Number.isFinite(lastMeta?.windowDays)
-    ? ` &nbsp;·&nbsp; last ${lastMeta.windowDays} days`
-    : "";
+  const windowLabel = (Number.isFinite(lastMeta?.windowDays) ? ` &nbsp;·&nbsp; last ${lastMeta.windowDays} days` : "")
+    + (lastMeta?.partial ? " &nbsp;·&nbsp; <em>partial: too much data to read in time, newest shown</em>" : "");
   el.innerHTML = `<strong>${uids.size}</strong> user${uids.size !== 1 ? "s" : ""} &nbsp;·&nbsp; <strong>${locs.length}</strong> location pings &nbsp;·&nbsp; <strong>${clicks.length}</strong> taps${windowLabel}`;
 }
 
@@ -1330,13 +1329,26 @@ function updateEnvBadge(meta) {
   badge.hidden = false;
 }
 
+// The function reads every tracking blob in the window; when there is too much for one response it
+// fails with a 5xx. Fall back to shorter windows (7 days, then 1) so the dashboard still opens, and
+// say which window it ended up with (the stats bar shows it).
+const ADMIN_WINDOW_FALLBACKS = [null, 7, 1];
+
 async function loadData(password) {
-  const url = "/api/admin/tracks";
-  console.log("[admin] fetching", url);
-  const resp = await fetch(url, { headers: { "Authorization": `Bearer ${password}` } });
-  console.log("[admin] response status", resp.status);
-  if (resp.status === 401) throw new Error("wrong-password");
-  if (!resp.ok) throw new Error(`Server error ${resp.status}`);
+  let resp;
+  let url;
+  for (const days of ADMIN_WINDOW_FALLBACKS) {
+    url = days ? `/api/admin/tracks?days=${days}` : "/api/admin/tracks";
+    console.log("[admin] fetching", url);
+    resp = await fetch(url, { headers: { "Authorization": `Bearer ${password}` } });
+    console.log("[admin] response status", resp.status);
+    if (resp.status === 401) throw new Error("wrong-password");
+    if (resp.ok || resp.status < 500) break;
+  }
+  if (!resp.ok) {
+    const detail = await resp.text().catch(() => "");
+    throw new Error(`Server error ${resp.status}${detail ? `: ${detail.slice(0, 160)}` : ""}`);
+  }
   const data = await resp.json();
   console.log("[admin] data received", {
     locations: Array.isArray(data.locations) ? data.locations.length : 0,

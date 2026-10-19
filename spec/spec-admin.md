@@ -156,7 +156,7 @@ Returns stored events from a recent time window. Requires authentication.
   "meta": { "storeName": "...", "context": "...", "windowDays": 30 }
 }
 ```
-`meta.windowDays` is `null` when `days=all` was requested. The admin stats bar shows the active window (e.g. "last 30 days") next to the event counts.
+If the full-window request fails with a 5xx (too much data for one response), the dashboard retries with `days=7`, then `days=1`, and shows the window it ended up with; if every attempt fails the login error includes the server's status and message. The function reads blobs newest first in batches and stops after about 7 seconds (`readBlobsWithinBudget`), returning what it has with `meta.partial: true` (the stats bar then says "partial") instead of timing out. `meta.windowDays` is `null` when `days=all` was requested. The admin stats bar shows the active window (e.g. "last 30 days") next to the event counts.
 
 ## Storage
 
