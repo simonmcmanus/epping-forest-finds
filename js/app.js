@@ -2858,7 +2858,6 @@ function openSettings() {
   els.inspectorType.textContent = "App preferences";
   transitionInspectorBody(settingsFormHtml(), "forward");
   bindSettingsHandlers();
-  communityOpenContributions();
   setInspectorMinimized(false);
   updateCompassOverlay();
   syncHashFromSelection();
@@ -2908,7 +2907,6 @@ function settingsFormHtml() {
     })
     .join("");
   return `<div class="settings-form">
-    ${communityContributionsHtml()}
     <section class="settings-section">
       <h3 class="settings-section-title">Walking radius</h3>
       <p class="settings-description">How far to walk when listing nearby places. A circle is drawn on the map at this distance.</p>
@@ -3032,16 +3030,13 @@ function openReportModal() {
   setInspectorSelectionChrome({ emoji: appIconHtml("feedback", "app-icon title-icon"), showBack: true });
   setNavScreenActive(els.reportToggle);
   els.inspectorTools.hidden = true;
-  els.inspectorTitle.textContent = "Feedback";
+  els.inspectorTitle.textContent = "Community";
   els.inspectorType.textContent = "Help improve the data for everyone";
-  transitionInspectorBody(reportFormHtml(), "forward", () => {
-    const detailsInput = document.getElementById("reportDetails");
-    if (detailsInput) {
-      detailsInput.focus();
-      detailsInput.scrollIntoView({ block: "nearest" });
-    }
-  });
+  // No autofocus: the form sits below the contributions and add-a-tree sections, and focusing it
+  // would open the screen scrolled past them with the keyboard up.
+  transitionInspectorBody(reportFormHtml(), "forward");
   bindReportFormHandlers();
+  communityOpenContributions();
   setReportStatus("");
   updateReportLocationLabel();
   setInspectorMinimized(false);
@@ -3061,9 +3056,11 @@ function reportFormHtml() {
   } catch {}
   const detailsValue = draft.details || "";
   const online = navigator.onLine;
-  return `<form id="reportForm" class="report-form">
+  return `${communityContributionsHtml()}
+    ${communityAddTreeHtml()}
+    <section class="settings-section community-feedback"><h3 class="settings-section-title">Send feedback</h3></section>
+    <form id="reportForm" class="report-form">
       <p class="report-intro">We welcome feedback, bug reports, and anything strange you have noticed. It helps us improve the data for everyone.</p>
-      ${communityAddTreeHtml()}
       <label for="reportDetails">What did you notice?
         <textarea id="reportDetails" class="report-textarea" placeholder="Describe what's missing or what you'd like to see…" required>${escapeHtml(detailsValue)}</textarea>
       </label>
@@ -3100,9 +3097,6 @@ function bindReportFormHandlers() {
       goToInitialView();
     });
   }
-
-  const addTreeButton = document.getElementById("communityAddTree");
-  if (addTreeButton) addTreeButton.addEventListener("click", communityAddTreeHere);
 
   const form = document.getElementById("reportForm");
   if (form) {
@@ -4032,7 +4026,7 @@ function updateDocumentTitle() {
     if (selected.type === "settings") {
       title = "Settings";
     } else if (selected.type === "report") {
-      title = "Feedback";
+      title = "Community";
     } else {
       const name = selected.type === "tree"
         ? treeDisplayName(item)

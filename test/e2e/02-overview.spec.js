@@ -44,7 +44,7 @@ test.describe("Overview / Nearby screen", () => {
   test("labelled navigation stays readable and separate from the inspector panel at narrow widths", async ({ page }) => {
     await page.click("#settingsToggle");
     await expect(page.locator("#inspectorBack")).toBeVisible();
-    await expect(page.locator(".inspector-actions .nav-label")).toHaveText(["Nearby", "Search", "Feedback", "Settings"]);
+    await expect(page.locator(".inspector-actions .nav-label")).toHaveText(["Nearby", "Search", "Community", "Settings"]);
     await page.locator(".inspector-actions").evaluate(nav => nav.getAnimations({ subtree: true }).forEach(animation => animation.finish()));
     for (const width of [320, 390, 1280]) {
       await page.setViewportSize({ width, height: 844 });
@@ -103,7 +103,7 @@ test.describe("Overview / Nearby screen", () => {
 
   test("navigation announces the current screen with a gold highlight and keeps filter status separate", async ({ page }) => {
     const nav = page.getByRole("navigation", { name: "Main navigation" });
-    for (const [id, title] of [["searchToggle", "Search"], ["reportToggle", "Feedback"], ["settingsToggle", "Settings"], ["nearbyToggle", "Nearby"]]) {
+    for (const [id, title] of [["searchToggle", "Search"], ["reportToggle", "Community"], ["settingsToggle", "Settings"], ["nearbyToggle", "Nearby"]]) {
       await page.locator(`#${id}`).click();
       await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
       await expect(page.locator(`#${id}`)).toHaveAttribute("aria-current", "page");

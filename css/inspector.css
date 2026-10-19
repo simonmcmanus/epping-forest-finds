@@ -1256,7 +1256,7 @@ button.settings-toggle.has-update::after {
 .community-add .community-icon { width: 18px; height: 18px; }
 
 /* Settings: your contributions */
-.community-contributions { padding-bottom: 14px; border-bottom: 1px solid #edf0eb; margin-bottom: 6px; }
+.community-contributions { padding-bottom: 6px; }
 .community-rank-card { display: flex; align-items: center; gap: 12px; }
 .community-rank-icon {
   width: 48px; height: 48px; flex-shrink: 0; border-radius: 14px; display: grid; place-items: center;
@@ -1296,6 +1296,34 @@ button.settings-toggle.has-update::after {
 .community-empty-art { width: 44px; height: 44px; flex-shrink: 0; opacity: 0.9; }
 .community-empty p { margin: 0; display: grid; gap: 2px; font-size: 0.9rem; }
 .community-empty span { font-size: 0.82rem; color: var(--muted); line-height: 1.35; }
+
+/* Place check note step, add-a-tree form, Community screen sections */
+.community-note { display: grid; gap: 10px; }
+.community-note-title { margin: 0; display: flex; align-items: center; gap: 8px; font-weight: 800; color: var(--ink); }
+.community-note-title .community-icon { color: var(--tree); }
+.community-note-input { min-height: 0; }
+.community-note-actions { display: flex; align-items: center; justify-content: flex-end; gap: 10px; }
+.community-send {
+  min-height: 44px; padding: 0 16px; border: 0; border-radius: 10px;
+  font: inherit; font-weight: 800; color: #fff; background: var(--tree); cursor: pointer;
+  box-shadow: 0 6px 14px rgba(20, 36, 28, 0.16);
+}
+.community-send:disabled { background: #b9c7be; box-shadow: none; cursor: not-allowed; }
+.community-send:focus-visible { outline: 2px solid var(--tree); outline-offset: 2px; }
+
+.community-add-tree, .community-feedback { padding-top: 14px; border-top: 1px solid #edf0eb; margin-top: 6px; }
+.community-new-form { display: grid; gap: 12px; padding: 14px; border-radius: 14px; background: #f6f9f5; border: 1px solid rgba(47, 111, 78, 0.22); }
+.community-location {
+  display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 10px;
+  font-size: 0.86rem; font-weight: 700; line-height: 1.3;
+}
+.community-location .community-icon { width: 18px; height: 18px; }
+.community-location.is-good { background: #e3f1e6; color: #1f4d29; }
+.community-location.is-wait { background: var(--gold-tint); color: #6b4a00; }
+.community-field { display: grid; gap: 6px; font-size: 0.9rem; font-weight: 800; color: var(--ink); }
+.community-optional { font-weight: 400; color: var(--muted); }
+.community-input { min-height: 44px; resize: none; }
+.community-issue-link { grid-column: 2; justify-self: start; font-size: 0.78rem; font-weight: 700; color: var(--tree); }
 
 .report-issue {
   margin-top: 16px;

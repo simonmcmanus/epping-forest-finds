@@ -10891,13 +10891,31 @@ test("a report made from far away earns no points and does not count towards con
 });
 
 test("a new tree found by a second device is confirmed and earns the finder 4 points", () => {
-  const found = (deviceId, lat) => communityReport({ kind: "tree", status: "NEW_TREE", target: undefined, deviceId, lat, lon: 0.02, targetLat: undefined, targetLon: undefined });
+  const found = (deviceId, lat) => communityReport({ kind: "tree", status: "NEW_TREE", target: undefined, deviceId, lat, lon: 0.02, targetLat: undefined, targetLon: undefined, tagNumber: "T-9001", accuracy: 8 });
   const one = communityConsensus.computeCommunityState([found("device-aaaa", 51.65)]);
   assert.equal(Object.values(one.overlay)[0].s, "new");
   assert.equal(one.scores["device-aaaa"].points, 1);
   const two = communityConsensus.computeCommunityState([found("device-aaaa", 51.65), found("device-bbbb", 51.65001)]);
   assert.equal(Object.values(two.overlay)[0].s, "new-confirmed");
   assert.equal(two.scores["device-aaaa"].points, 4);
+});
+
+test("a new tree needs its tag number and a close, accurate location", () => {
+  const base = { kind: "tree", status: "NEW_TREE", target: undefined, lat: 51.65, lon: 0.02, targetLat: undefined, targetLon: undefined };
+  assert.equal(communityConsensus.validateReport(communityReport({ ...base, accuracy: 8 })), "a new tree needs its tag number");
+  assert.equal(communityConsensus.validateReport(communityReport({ ...base, tagNumber: "0", accuracy: 8 })), "a new tree needs its tag number");
+  assert.equal(communityConsensus.validateReport(communityReport({ ...base, tagNumber: "7001" })), "location is not accurate enough");
+  assert.equal(communityConsensus.validateReport(communityReport({ ...base, tagNumber: "7001", accuracy: 80 })), "location is not accurate enough");
+  assert.equal(communityConsensus.validateReport(communityReport({ ...base, tagNumber: "7001", accuracy: 12 })), null);
+});
+
+test("two people reporting the same new tag number are the same new tree, wherever the dot fell", () => {
+  const found = (deviceId, lat) => communityReport({ kind: "tree", status: "NEW_TREE", target: undefined, deviceId, lat, lon: 0.02, targetLat: undefined, targetLon: undefined, tagNumber: "t 7001", accuracy: 10 });
+  const { overlay } = communityConsensus.computeCommunityState([found("device-aaaa", 51.65), found("device-bbbb", 51.6503)]);
+  const entries = Object.values(overlay);
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].s, "new-confirmed");
+  assert.equal(entries[0].tag, "t 7001");
 });
 
 test("business reports use their own status set", () => {
@@ -10944,6 +10962,80 @@ test("contributors move up from Seedling to Warden by points", () => {
   assert.equal(app.communityRank(50).name, "Warden");
   assert.equal(app.communityRank(50).next, null);
   assert.equal(app.communityRank(3).next.name, "Sapling");
+});
+
+// --- Place checks go to GitHub issues for manual review (netlify/functions/report-missing-data.js) ---
+async function withStubbedGithub(responder, run) {
+  const reportFunction = require("../netlify/functions/report-missing-data");
+  const originalFetch = global.fetch;
+  const originalToken = process.env.GITHUB_TOKEN;
+  const calls = [];
+  process.env.GITHUB_TOKEN = "test-token";
+  global.fetch = async (url, options = {}) => {
+    calls.push({ url: String(url), method: options.method || "GET", body: options.body ? JSON.parse(options.body) : null });
+    return responder(String(url), options.method || "GET");
+  };
+  try {
+    return await run(reportFunction.handler, calls);
+  } finally {
+    global.fetch = originalFetch;
+    if (originalToken === undefined) delete process.env.GITHUB_TOKEN; else process.env.GITHUB_TOKEN = originalToken;
+  }
+}
+const jsonResponse = (status, body) => ({ ok: status < 300, status, json: async () => body });
+const placeCheckEvent = (overrides = {}) => ({
+  httpMethod: "POST",
+  body: JSON.stringify({
+    reportType: "place-check",
+    placeCheck: { status: "CLOSED", key: "place:id:123", name: "The Test Arms", category: "Pubs" },
+    details: "",
+    location: { latitude: 51.66, longitude: 0.04 },
+    requestId: "req-1234",
+    ...overrides,
+  }),
+});
+
+test("a place check is filed as a labelled GitHub issue for manual review, with no free text required", async () => {
+  await withStubbedGithub(
+    (url, method) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 7, html_url: "https://github.com/x/y/issues/7" })),
+    async (handler, calls) => {
+      const result = await handler(placeCheckEvent());
+      assert.equal(result.statusCode, 200);
+      const created = calls.find((c) => c.method === "POST" && c.url.endsWith("/issues"));
+      assert.ok(created, "an issue is created");
+      assert.deepEqual(created.body.labels, ["place-check", "user-report"]);
+      assert.match(created.body.title, /^Place check: The Test Arms: It's closed/);
+      assert.match(created.body.body, /place-key:place:id:123/);
+      assert.match(created.body.body, /Reported status: CLOSED/);
+    }
+  );
+});
+
+test("a second report about the same place is added to its open issue instead of a new one", async () => {
+  await withStubbedGithub(
+    (url, method) => {
+      if (url.includes("/search/issues") && decodeURIComponent(url).includes("place-key:")) return jsonResponse(200, { items: [{ number: 7, html_url: "https://github.com/x/y/issues/7" }] });
+      if (url.includes("/search/issues")) return jsonResponse(200, { items: [] });
+      return jsonResponse(201, { id: 1 });
+    },
+    async (handler, calls) => {
+      const result = await handler(placeCheckEvent({ requestId: "req-5678", details: "Sign says closed down" }));
+      const body = JSON.parse(result.body);
+      assert.equal(body.merged, true);
+      assert.equal(body.issueNumber, 7);
+      assert.equal(calls.filter((c) => c.method === "POST" && c.url.endsWith("/issues")).length, 0, "no new issue");
+      const comment = calls.find((c) => c.url.endsWith("/issues/7/comments"));
+      assert.ok(comment, "a comment is added");
+      assert.match(comment.body.body, /Sign says closed down/);
+    }
+  );
+});
+
+test("a place check with an unknown status or an unsafe key is rejected", async () => {
+  await withStubbedGithub(() => jsonResponse(200, { items: [] }), async (handler) => {
+    assert.equal((await handler(placeCheckEvent({ placeCheck: { status: "OPEN_CONFIRMED", key: "place:id:1", name: "x" } }))).statusCode, 400);
+    assert.equal((await handler(placeCheckEvent({ placeCheck: { status: "CLOSED", key: 'place:" OR is:private', name: "x" } }))).statusCode, 400);
+  });
 });
 
 runRegisteredTests().catch((error) => {

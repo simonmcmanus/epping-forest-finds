@@ -26,7 +26,8 @@ const STATUSES = {
 };
 
 const NEAR_METRES = 60; // a reporter further than this from the thing they report is not an independent check
-const NEW_MATCH_DECIMALS = 4; // ~11 m grid for "the same new tree"
+const NEW_MATCH_DECIMALS = 4; // ~11 m grid for "the same new place"
+const NEW_TREE_MAX_ACCURACY_METRES = 30; // a new tree is only as good as the GPS fix it was reported from
 
 function statusClass(kind, status) {
   return (STATUSES[kind] || {})[status] || null;
@@ -49,6 +50,11 @@ function validateReport(r) {
   if (!cls) return "unknown kind/status";
   if (cls === "new") {
     if (!Number.isFinite(r.lat) || !Number.isFinite(r.lon)) return "new reports need a position";
+    if (r.kind === "tree") {
+      // The tag number identifies a new tree; the reporter must be standing at it with a good fix.
+      if (!normalizeTag(r.tagNumber)) return "a new tree needs its tag number";
+      if (!Number.isFinite(r.accuracy) || r.accuracy > NEW_TREE_MAX_ACCURACY_METRES) return "location is not accurate enough";
+    }
   } else if (typeof r.target !== "string" || !r.target || r.target.length > 80) {
     return "bad target";
   }
@@ -64,7 +70,16 @@ function isNear(r) {
   return distanceMetres(r.lat, r.lon, r.targetLat, r.targetLon) <= NEAR_METRES;
 }
 
+// "0" is the placeholder tag on thousands of untagged register entries, so it names nothing.
+function normalizeTag(value) {
+  const tag = String(value == null ? "" : value).trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+  return tag && tag !== "0" && tag.length <= 20 ? tag : "";
+}
+
+// A new tree is the same tree when its tag number matches; other new places match on position.
 function newKey(r) {
+  const tag = r.kind === "tree" ? normalizeTag(r.tagNumber) : "";
+  if (tag) return `new:tree:tag:${tag}`;
   return `new:${r.kind}:${r.lat.toFixed(NEW_MATCH_DECIMALS)},${r.lon.toFixed(NEW_MATCH_DECIMALS)}`;
 }
 
@@ -112,6 +127,7 @@ function computeCommunityState(reports) {
         s: near.length >= 2 ? "new-confirmed" : "new",
         st: sample.status,
         n: near.length,
+        ...(sample.tagNumber ? { tag: String(sample.tagNumber).trim().slice(0, 20) } : {}),
         lat: Number(sample.lat.toFixed(6)),
         lon: Number(sample.lon.toFixed(6)),
         t,
@@ -216,4 +232,4 @@ function communityAdminStats(reports, state, now = Date.now()) {
   };
 }
 
-module.exports = { reportOutcome, communityAdminStats, STATUSES, NEAR_METRES, statusClass, validateReport, computeCommunityState, distanceMetres };
+module.exports = { normalizeTag, reportOutcome, communityAdminStats, STATUSES, NEAR_METRES, statusClass, validateReport, computeCommunityState, distanceMetres };

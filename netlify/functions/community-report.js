@@ -31,6 +31,8 @@ exports.handler = async (event) => {
     targetLon: Number(input.targetLon),
     lat: input.lat == null ? undefined : Number(input.lat),
     lon: input.lon == null ? undefined : Number(input.lon),
+    tagNumber: typeof input.tagNumber === "string" || typeof input.tagNumber === "number" ? String(input.tagNumber).trim().slice(0, 20) : undefined,
+    accuracy: input.accuracy == null ? undefined : Number(input.accuracy),
     newLat: input.newLat == null ? undefined : Number(input.newLat),
     newLon: input.newLon == null ? undefined : Number(input.newLon),
     note: typeof input.note === "string" ? input.note.slice(0, 500) : undefined,

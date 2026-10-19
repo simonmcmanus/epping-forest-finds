@@ -59,6 +59,32 @@ async function sendPhoto(event, photoId) {
   }
 }
 
+// Place checks (spec-community.md): a person says a listed place has closed / moved / changed.
+// They are never applied automatically: each becomes a GitHub issue for manual review, and a
+// second report about the same place is added to that open issue as a comment instead.
+const PLACE_CHECK_LABELS = {
+  CLOSED: "It's closed",
+  MOVED: "It has moved",
+  RENAMED: "The name has changed",
+  DETAILS_CHANGED: "The details are wrong",
+  WRONG_CATEGORY: "Wrong type of place",
+};
+const PLACE_KEY_PATTERN = /^[A-Za-z0-9:_.,-]{1,120}$/;
+
+function parsePlaceCheck(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const status = String(raw.status || "");
+  const key = String(raw.key || "");
+  if (!PLACE_CHECK_LABELS[status] || !PLACE_KEY_PATTERN.test(key)) return null;
+  return {
+    status,
+    key,
+    label: PLACE_CHECK_LABELS[status],
+    name: String(raw.name || "").trim().slice(0, 120),
+    category: String(raw.category || "").trim().slice(0, 60),
+  };
+}
+
 function normalizedToken(value) {
   if (typeof value !== "string") return "";
   return value.trim().replace(/^['\"]|['\"]$/g, "");
@@ -126,7 +152,13 @@ exports.handler = async (event) => {
     return response(400, { error: error.message });
   }
 
-  if (!details) {
+  const isPlaceCheck = reportType === "place-check";
+  const placeCheck = isPlaceCheck ? parsePlaceCheck(payload.placeCheck) : null;
+  if (isPlaceCheck && !placeCheck) {
+    return response(400, { error: "Invalid place check" });
+  }
+  // A place check's status is the report; the free text is an optional note on top of it.
+  if (!isPlaceCheck && !details) {
     return response(400, { error: "Details are required" });
   }
 
@@ -146,17 +178,26 @@ exports.handler = async (event) => {
 
   const isFeature = reportType === "feature-request";
   const isLocationIssue = reportType === "location-issue";
-  const titlePrefix = isFeature ? "Feature request" : isLocationIssue ? "Location issue" : "Missing map data";
-  const titleSubject = isLocationIssue && locationContext && locationContext.name ? `${locationContext.name}: ` : "";
-  const title = `${titlePrefix}: ${titleSubject}${details.slice(0, 80)}`;
+  const titlePrefix = isPlaceCheck ? "Place check" : isFeature ? "Feature request" : isLocationIssue ? "Location issue" : "Missing map data";
+  const titleSubject = isPlaceCheck
+    ? `${placeCheck.name || "Unnamed place"}: `
+    : isLocationIssue && locationContext && locationContext.name ? `${locationContext.name}: ` : "";
+  const title = `${titlePrefix}: ${titleSubject}${isPlaceCheck ? placeCheck.label : details.slice(0, 80)}`;
 
   const issueBodyLines = [
     "## Report",
-    details,
+    isPlaceCheck ? `**${placeCheck.label}**${details ? `\n\n${details}` : ""}` : details,
     "",
     "## Metadata",
     `- Type: ${reportType}`,
   ];
+  if (isPlaceCheck) {
+    issueBodyLines.push(
+      `- Place: ${[placeCheck.name, placeCheck.category && `(${placeCheck.category})`].filter(Boolean).join(" ")}`,
+      `- Reported status: ${placeCheck.status}`,
+      `- Place key: place-key:${placeCheck.key}`
+    );
+  }
 
   if (locationContext && (locationContext.type || locationContext.name)) {
     issueBodyLines.push(`- Reported item: ${[locationContext.type, locationContext.name].filter(Boolean).join(" — ")}`);
@@ -180,7 +221,7 @@ exports.handler = async (event) => {
   const issuePayload = {
     title,
     body: issueBodyLines.join("\n"),
-    labels: [isFeature ? "feature-request" : isLocationIssue ? "location-issue" : "missing-data", "user-report"],
+    labels: [isPlaceCheck ? "place-check" : isFeature ? "feature-request" : isLocationIssue ? "location-issue" : "missing-data", "user-report"],
   };
 
   const apiHeaders = {
@@ -194,7 +235,7 @@ exports.handler = async (event) => {
     // that slipped past the client-side guard) carries the same requestId.
     // Look for an issue we already filed for it before creating another.
     if (requestId) {
-      const searchQuery = `repo:${githubRepo} in:body "request-id:${requestId}"`;
+      const searchQuery = `repo:${githubRepo} in:body,comments "request-id:${requestId}"`;
       const searchResponse = await fetch(
         `https://api.github.com/search/issues?q=${encodeURIComponent(searchQuery)}`,
         { headers: apiHeaders }
@@ -209,6 +250,35 @@ exports.handler = async (event) => {
             issueNumber: existingIssue.number,
             issueUrl: existingIssue.html_url,
           });
+        }
+      }
+    }
+
+    // One open issue per place: a further report about the same place is added to it.
+    if (isPlaceCheck) {
+      const placeQuery = `repo:${githubRepo} is:issue is:open label:place-check in:body "place-key:${placeCheck.key}"`;
+      const placeSearch = await fetch(
+        `https://api.github.com/search/issues?q=${encodeURIComponent(placeQuery)}`,
+        { headers: apiHeaders }
+      );
+      if (placeSearch.ok) {
+        const placeData = await placeSearch.json().catch(() => ({}));
+        const openIssue = Array.isArray(placeData.items) ? placeData.items[0] : null;
+        if (openIssue) {
+          const commentLines = [`Another report: **${placeCheck.label}** (${placeCheck.status})`];
+          if (details) commentLines.push("", details);
+          if (location && Number.isFinite(Number(location.latitude)) && Number.isFinite(Number(location.longitude))) {
+            commentLines.push("", `- Reported location: ${Number(location.latitude)}, ${Number(location.longitude)}`);
+          }
+          if (requestId) commentLines.push(`- Request ID: request-id:${requestId}`);
+          const commentResponse = await fetch(`https://api.github.com/repos/${githubRepo}/issues/${openIssue.number}/comments`, {
+            method: "POST",
+            headers: { ...apiHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({ body: commentLines.join("\n") }),
+          });
+          if (commentResponse.ok) {
+            return response(200, { ok: true, merged: true, issueNumber: openIssue.number, issueUrl: openIssue.html_url });
+          }
         }
       }
     }
@@ -254,4 +324,5 @@ exports.handler = async (event) => {
 
 exports.REPORT_PHOTO_MAX_BYTES = REPORT_PHOTO_MAX_BYTES;
 exports.parsePhoto = parsePhoto;
+exports.parsePlaceCheck = parsePlaceCheck;
 exports.reportPhotoUrl = reportPhotoUrl;

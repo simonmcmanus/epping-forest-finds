@@ -792,6 +792,16 @@ function setupSearchAndNavHandlers() {
       }
       return;
     }
+    const addStart = event.target.closest("[data-action='community-add-start']");
+    if (addStart) { communityStartAddTree(); return; }
+    const addCancel = event.target.closest("[data-action='community-add-cancel']");
+    if (addCancel) { communityCancelAddTree(); return; }
+    const placeChoice = event.target.closest("[data-action='community-place-choose']");
+    if (placeChoice) { communityHandlePlaceChoice(placeChoice); return; }
+    const placeSend = event.target.closest("[data-action='community-send-place']");
+    if (placeSend) { communitySendPlace(placeSend); return; }
+    const placeCancel = event.target.closest("[data-action='community-cancel-note']");
+    if (placeCancel) { communityCancelNote(placeCancel); return; }
     const communityChange = event.target.closest("[data-action='community-change']");
     if (communityChange) { communityHandleChange(communityChange); return; }
     const communityChoice = event.target.closest("[data-action='community-report']");

@@ -420,7 +420,7 @@ function showLandmarkDetails(place, distance) {
   // Every location with coordinates gets the same Nearest and Related sections (nearbySectionsHtml),
   // keyed to whichever category the place belongs to for its Related links.
   const relatedLinksHtml = nearbySectionsHtml({ latitude: place.latitude, longitude: place.longitude, name: place.name, subfilterKey: placePrimaryFilterKey(place), findSlug: place.findSlug });
-  const landmarkHtml = topRow + descriptionHtml + ledgerHtml + detailsHtml(rows, { labels: isEvent }) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + relatedLinksHtml + issueHtml;
+  const landmarkHtml = topRow + descriptionHtml + ledgerHtml + detailsHtml(rows, { labels: isEvent }) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + (isEvent ? "" : communityPlaceSectionHtml(place)) + relatedLinksHtml + issueHtml;
   // A /find/ landing's place replaces its server-rendered panel in place: no slide-in from the side.
   transitionInspectorBody(landmarkHtml, findLandingSlug() ? null : "forward");
   if (navigator.onLine && (isBusCategory(place) || isTrainCategory(place))) {

@@ -9,9 +9,9 @@ test.describe("Feedback / Report screen", () => {
     await expect(page.locator("#reportDetails")).toBeVisible();
   });
 
-  test("feedback button opens a clearly labelled feedback form", async ({ page }) => {
+  test("the Community tab opens a screen with a clearly labelled feedback form", async ({ page }) => {
     await expect(page.locator("#reportToggle")).toHaveClass(/screen-active/);
-    await expect(page.locator("#inspectorTitle")).toHaveText("Feedback");
+    await expect(page.locator("#inspectorTitle")).toHaveText("Community");
     await expect(page.locator("#reportForm")).toBeVisible();
     await expect(page.locator(".report-intro")).toHaveText(
       "We welcome feedback, bug reports, and anything strange you have noticed. It helps us improve the data for everyone."

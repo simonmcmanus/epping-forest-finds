@@ -59,14 +59,15 @@ test.describe("Community tree verification", () => {
     expect(posted[0].status).toBe("NOT_HERE");
   });
 
-  test("Settings shows a log of the user's own contributions with their state", async ({ page }) => {
+  test("the Community screen shows a log of the user's own contributions with their state", async ({ page }) => {
     await page.route(REPORT_URL, (route) =>
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) })
     );
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     await page.click("[data-action='community-report'][data-status='VERIFIED']");
     await expect(page.locator(".community-mine")).toBeVisible();
-    await page.click("#settingsToggle");
+    await page.click("#reportToggle");
+    await expect(page.locator("#inspectorTitle").last()).toContainText("Community");
     await expect(page.locator(".community-contributions")).toContainText("Your contributions");
     await expect(page.locator(".community-rank")).toContainText("Seedling");
     await expect(page.locator(".community-log-item")).toHaveCount(1);
@@ -99,18 +100,32 @@ test.describe("Community tree verification", () => {
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
   });
 
-  test("adding a missing tree needs a real location and sends a NEW_TREE report", async ({ page, context }) => {
-    // no location granted: the app answers "denied", so the button explains what is needed
+  test("Settings no longer carries the contributions card", async ({ page }) => {
+    await setup(page, "/settings");
+    await expect(page.locator(".settings-form")).toBeVisible();
+    await expect(page.locator(".community-contributions")).toHaveCount(0);
+  });
+
+  test("adding a missing tree is a form: nothing is sent or logged until the user submits it", async ({ page }) => {
+    const posted = [];
+    await page.route(REPORT_URL, async (route) => {
+      posted.push(route.request().postDataJSON());
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+    });
     await setup(page, "/feedback");
-    await page.click("#communityAddTree");
-    await expect(page.locator("#communityAddTreeStatus")).toContainText("Turn on location");
+    await page.click("[data-action='community-add-start']");
+    await expect(page.locator("#communityAddTreeForm")).toBeVisible();
+    await expect(page.locator("#communityLocationStatus")).toContainText("Turn on location");
+    await expect(page.locator("#communityAddTreeSubmit")).toBeDisabled();
+    expect(posted).toHaveLength(0);
+    await expect(page.locator(".community-log-item")).toHaveCount(0);
   });
 });
 
 test.describe("Community tree verification with location shared", () => {
   test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ["geolocation"] });
 
-  test("a missing tree is reported from the user's own position", async ({ page }) => {
+  test("a missing tree needs its tag number, then goes off with the user's own accurate position", async ({ page }) => {
     await page.route(OVERLAY_URL, (route) =>
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {} }) })
     );
@@ -120,10 +135,91 @@ test.describe("Community tree verification with location shared", () => {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
     });
     await setup(page, "/feedback");
-    await page.click("#communityAddTree");
-    await expect(page.locator("#communityAddTreeStatus")).toContainText("second person finds it too");
+    await page.click("[data-action='community-add-start']");
+    await expect(page.locator("#communityLocationStatus")).toContainText("accurate to");
+    await expect(page.locator("#communityAddTreeSubmit")).toBeDisabled();
+    await page.fill("#communityTagInput", "T-9001");
+    await expect(page.locator("#communityAddTreeSubmit")).toBeEnabled();
+    expect(posted).toHaveLength(0);
+    await page.click("#communityAddTreeSubmit");
+    await expect(page.locator(".community-add-tree .community-mine")).toContainText("Tree T-9001 saved");
     await expect.poll(() => posted.length).toBe(1);
-    expect(posted[0]).toMatchObject({ kind: "tree", status: "NEW_TREE" });
+    expect(posted[0]).toMatchObject({ kind: "tree", status: "NEW_TREE", tagNumber: "T-9001" });
     expect(posted[0].lat).toBeCloseTo(51.665, 2);
+    expect(posted[0].accuracy).toBeLessThanOrEqual(30);
+    await expect(page.locator(".community-log-item")).toContainText("Tree T-9001");
+  });
+
+  test("a tag that is already on the map is not added again", async ({ page }) => {
+    const posted = [];
+    await page.route(REPORT_URL, (route) => { posted.push(1); route.fulfill({ status: 200, body: "{}" }); });
+    await setup(page, "/feedback");
+    await page.click("[data-action='community-add-start']");
+    await page.fill("#communityTagInput", FIXTURE_TREE.tagNumber);
+    await page.click("#communityAddTreeSubmit");
+    await expect(page.locator("#communityAddTreeStatus")).toContainText("already on the map");
+    expect(posted).toHaveLength(0);
+  });
+});
+
+test.describe("Community place checks", () => {
+  const ISSUE_URL = "**/.netlify/functions/report-missing-data";
+
+  test.beforeEach(async ({ page }) => {
+    await page.route(OVERLAY_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {} }) })
+    );
+    await setup(page);
+    await page.click("#searchToggle");
+    await page.fill("#mapSearchInput", "Railway Bell");
+    await page.locator("#mapSearchResults .nearest-item").first().click();
+    await expect(page.locator(".community-check-place")).toBeVisible();
+  });
+
+  test("a place's detail screen has the boxed check, above Nearest", async ({ page }) => {
+    const box = page.locator(".community-check-place");
+    await expect(box).toContainText("Help check this place");
+    await expect(box.locator(".community-or")).toContainText("Something not right?");
+    await expect(box.locator("[data-action='community-place-choose']")).toHaveCount(6);
+  });
+
+  test("reporting a closure is filed as an issue for manual review, with an optional note", async ({ page }) => {
+    const issues = [];
+    await page.route(ISSUE_URL, async (route) => {
+      issues.push(route.request().postDataJSON());
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, issueUrl: "https://github.com/simonmcmanus/epping-forest-finds/issues/42" }) });
+    });
+    await page.click("[data-action='community-place-choose'][data-status='CLOSED']");
+    await expect(page.locator(".community-note-input")).toBeVisible();
+    expect(issues).toHaveLength(0);
+    await page.fill(".community-note-input", "Shutters down since September");
+    await page.click("[data-action='community-send-place']");
+    await expect(page.locator(".community-mine")).toContainText("A person will review this");
+    await expect.poll(() => issues.length).toBe(1);
+    expect(issues[0]).toMatchObject({ reportType: "place-check", placeCheck: { status: "CLOSED" }, details: "Shutters down since September" });
+  });
+
+  test("a rename needs a few words before it can be sent", async ({ page }) => {
+    const issues = [];
+    await page.route(ISSUE_URL, (route) => { issues.push(1); route.fulfill({ status: 200, body: "{}" }); });
+    await page.click("[data-action='community-place-choose'][data-status='RENAMED']");
+    await page.click("[data-action='community-send-place']");
+    await expect(page.locator(".community-status")).toContainText("Please add a few words");
+    expect(issues).toHaveLength(0);
+  });
+
+  test("confirming a place never opens an issue", async ({ page }) => {
+    const issues = [];
+    const confirmations = [];
+    await page.route(ISSUE_URL, (route) => { issues.push(1); route.fulfill({ status: 200, body: "{}" }); });
+    await page.route(REPORT_URL, async (route) => {
+      confirmations.push(route.request().postDataJSON());
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+    });
+    await page.click("[data-action='community-place-choose'][data-status='OPEN_CONFIRMED']");
+    await expect(page.locator(".community-mine")).toContainText("counts towards your score");
+    await expect.poll(() => confirmations.length).toBe(1);
+    expect(confirmations[0]).toMatchObject({ kind: "place", status: "OPEN_CONFIRMED" });
+    expect(issues).toHaveLength(0);
   });
 });
