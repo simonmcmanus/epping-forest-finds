@@ -142,8 +142,37 @@ function communityReadScore() {
   try {
     const raw = JSON.parse(localStorage.getItem(COMMUNITY_SCORE_KEY));
     if (!raw || typeof raw !== "object") return null;
-    return { points: Number(raw.points) || 0, verified: Number(raw.verified) || 0, confirmed: Number(raw.confirmed) || 0 };
+    return { points: Number(raw.points) || 0, verified: Number(raw.verified) || 0, confirmed: Number(raw.confirmed) || 0, generatedAt: Number(raw.generatedAt) || 0 };
   } catch { return null; }
+}
+
+// Points the user has earned on this device that the server's score does not include yet. Only what
+// is certain at the moment of reporting is counted (a verify, a new tree); corrections and second
+// opinions pay out only when others agree, so they wait for the server. A report stops counting
+// once a score computed after it (generatedAt) arrives, unless it is still in the outbox, because
+// that score cannot have seen it. Reports made from too far away or refused never count.
+// Mirrors POINTS in netlify/functions/lib/community-points.js (a unit test keeps them equal).
+const COMMUNITY_POINTS = { verify: 1, newTree: 1 };
+
+function communityPendingScore(local, generatedAt = 0, waitingIds = new Set()) {
+  const pending = { points: 0, verified: 0 };
+  for (const entry of Object.values(local || {})) {
+    if (!entry || entry.far || entry.failed || entry.kind === "place" || entry.kind === "feedback") continue;
+    if (!(Number(entry.ts) > generatedAt || waitingIds.has(entry.id))) continue;
+    if (entry.status === "VERIFIED") {
+      pending.points += COMMUNITY_POINTS.verify;
+      pending.verified += 1;
+    } else if (entry.status === "NEW_TREE") {
+      pending.points += COMMUNITY_POINTS.newTree;
+    }
+  }
+  return pending;
+}
+
+function communityDisplayScore(score, local, waitingIds) {
+  const base = score || { points: 0, verified: 0, confirmed: 0, generatedAt: 0 };
+  const pending = communityPendingScore(local, base.generatedAt || 0, waitingIds);
+  return { ...base, points: base.points + pending.points, verified: base.verified + pending.verified, pendingPoints: pending.points };
 }
 
 // Builds, saves locally (optimistic) and queues one report. Resolves the stored local record.
@@ -174,6 +203,7 @@ async function communitySubmitReport({ kind = "tree", target, status, targetLat,
   const far = kind === "tree" && Number.isFinite(Number(targetLat)) && Number.isFinite(Number(targetLon)) && communityRange(Number(targetLat), Number(targetLon)).state !== "near";
   local[key] = { id, status, ts: Date.now(), lat: markLat, lon: markLon, ...(far ? { far: true } : {}), ...(tagNumber ? { name: `Tree ${tagNumber}` } : {}) };
   communityWriteLocal(local);
+  communityRefreshVerifiedSlots();
   // The local record above is what the screen shows; queueing (an IndexedDB write) can be slow, so it
   // never holds the optimistic state back.
   outboxAdd({ id, url: COMMUNITY_REPORT_URL, payload })
@@ -199,7 +229,12 @@ function communityBadgeHtml(entry) {
 // communityRefreshVerifiedSlots() fills once the overlay arrives.
 function communityVerifiedEntry(target) {
   const entry = target && communityOverlay.entries[target];
-  return entry && (entry.s === "verified" || entry.s === "confirmed") ? entry : null;
+  const shared = entry && (entry.s === "verified" || entry.s === "confirmed") ? entry : null;
+  // The user's own verify counts at once: until a snapshot newer than it arrives, add it on top.
+  const mine = target && communityReadLocal()[target];
+  const pending = mine && mine.status === "VERIFIED" && !mine.far && mine.ts > (communityOverlay.generatedAt || 0);
+  if (!pending || (entry && !shared)) return shared;
+  return { ...(shared || { s: "verified" }), n: (shared ? shared.n : 0) + 1 };
 }
 
 function communityVerifiedChipHtml(target) {
@@ -1041,9 +1076,9 @@ function communityContributionsHtml() {
 async function communityRenderContributions() {
   const host = document.getElementById("communityContributions");
   if (!host) return;
-  const score = communityReadScore() || { points: 0, verified: 0, confirmed: 0 };
-  const rank = communityRank(score.points);
   const waitingIds = new Set((await outboxList()).map((item) => item.id));
+  const score = communityDisplayScore(communityReadScore(), communityReadLocal(), waitingIds);
+  const rank = communityRank(score.points);
   const outcomes = communityReadLog();
   const entries = Object.entries(communityReadLocal()).sort((a, b) => b[1].ts - a[1].ts);
   const span = rank.next ? rank.next.min - rank.min : 1;

@@ -57,6 +57,18 @@ test.describe("Community tree verification", () => {
     expect(posted[0]).toMatchObject({ kind: "tree", target: `tree:${FIXTURE_TREE.recordNumber}`, status: "VERIFIED" });
   });
 
+  test("verifying a tree bumps the verified count at the top of its page straight away", async ({ page }) => {
+    await page.route(REPORT_URL, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) }));
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await expect(page.locator(".detail-top-row .community-verified-chip")).toHaveCount(0);
+    await page.evaluate((rn) => {
+      const tree = state.trees.find((t) => String(t.recordNumber ?? t.id) === rn);
+      state.userLocation = { latitude: tree.lat ?? tree.latitude, longitude: tree.lon ?? tree.longitude, accuracy: 5, isDefault: false };
+    }, FIXTURE_TREE.recordNumber);
+    await page.click("[data-action='community-report'][data-status='VERIFIED']");
+    await expect(page.locator(".detail-top-row .community-verified-chip")).toContainText("1");
+  });
+
   test("a report made offline is kept and sent when the connection returns", async ({ page, context }) => {
     const posted = [];
     await page.route(REPORT_URL, async (route) => {
@@ -559,6 +571,45 @@ test.describe("Verified badge on a tree", () => {
     await expect(detail).toBeHidden();
     await chip.click();
     await expect(detail).toContainText("1 person has confirmed this tree is where the map says it is");
+  });
+});
+
+test.describe("Optimistic score", () => {
+  const seed = async (page, { local, score }) => {
+    await page.addInitScript(({ local, score }) => {
+      if (localStorage.getItem("seeded")) return;
+      localStorage.setItem("seeded", "1");
+      localStorage.setItem("ff-community-local-v1", JSON.stringify(local));
+      localStorage.setItem("ff-community-score-v1", JSON.stringify(score));
+    }, { local, score });
+    await page.route(/\/api\/community\/overlay\?me=[^&]*$/, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(score) }));
+  };
+
+  test("a report newer than the server's score is added to the points and verified count", async ({ page }) => {
+    const score = { points: 4, verified: 3, confirmed: 0, generatedAt: 1 };
+    await seed(page, { local: { "tree:1": { id: "a", status: "VERIFIED", ts: Date.now() } }, score });
+    await setup(page, "/community");
+    await expect(page.locator(".community-rank-points")).toContainText("5 points");
+    await expect(page.locator(".community-stats div").first().locator("strong")).toHaveText("4");
+  });
+
+  test("once the server's score is newer than the report it is not counted twice", async ({ page }) => {
+    const score = { points: 5, verified: 4, confirmed: 0, generatedAt: Date.now() + 60000 };
+    await seed(page, { local: { "tree:1": { id: "a", status: "VERIFIED", ts: Date.now() } }, score });
+    await setup(page, "/community");
+    await expect(page.locator(".community-rank-points")).toContainText("5 points");
+    await expect(page.locator(".community-stats div").first().locator("strong")).toHaveText("4");
+  });
+
+  test("a correction or a report from too far away adds nothing until the server says so", async ({ page }) => {
+    const score = { points: 0, verified: 0, confirmed: 0, generatedAt: 1 };
+    await seed(page, { local: {
+      "tree:1": { id: "a", status: "NOT_HERE", ts: Date.now() },
+      "tree:2": { id: "b", status: "VERIFIED", ts: Date.now(), far: true },
+    }, score });
+    await setup(page, "/community");
+    await expect(page.locator(".community-rank-points")).toContainText("0 points");
   });
 });
 
