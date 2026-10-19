@@ -427,3 +427,35 @@ test.describe("Recovery code", () => {
     await expect(page.locator(".community-rank-points")).toContainText("12 points");
   });
 });
+
+test.describe("Reporting from too far away", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.route(OVERLAY_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {} }) }));
+    await page.route(REPORT_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) }));
+  });
+
+  test.describe("with location shared but not at the tree", () => {
+    test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 8 }, permissions: ["geolocation"] });
+
+    test("it says how far away you are, still lets you report, and notes that it will not earn points", async ({ page }) => {
+      await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+      const note = page.locator(".community-range");
+      await expect(note).toContainText(/You're about \d+ m away/);
+      await expect(note).toContainText("within 10 m of the tree to earn points");
+      await page.click("[data-action='community-report'][data-status='VERIFIED']");
+      await expect(page.locator(".community-mine")).toContainText("It only earns points when you report within 10 m of the tree");
+      await page.click("#reportToggle");
+      await expect(page.locator(".community-log-item .community-pill")).toContainText("Not close enough for points");
+    });
+  });
+
+  test("with no location it says you can report from anywhere but need to be close for points", async ({ page }) => {
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await expect(page.locator(".community-range")).toContainText("You can report this from anywhere");
+    await expect(page.locator(".community-range")).toContainText("within 10 m of the tree");
+    await page.click("[data-action='community-report'][data-status='VERIFIED']");
+    await expect(page.locator(".community-mine")).toContainText("Thank you");
+  });
+});

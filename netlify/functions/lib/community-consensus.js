@@ -67,11 +67,13 @@ function validateReport(r) {
   return null;
 }
 
-// A report counts as an independent check only if the reporter was near the thing (when we can
-// tell). Reports with no reporter position are kept: GPS can be off, and one device is only ever
-// one voice regardless.
+// A report counts as a check (points, consensus) only if the reporter was near the thing. A report
+// with no reporter position cannot show that, so it does not count; it is still recorded and still
+// reaches the admin and the City of London report's raw counts as feedback. Where the thing itself
+// has no position (nothing to measure against) the report is kept.
 function isNear(r) {
-  if (![r.lat, r.lon, r.targetLat, r.targetLon].every(Number.isFinite)) return true;
+  if (!Number.isFinite(r.targetLat) || !Number.isFinite(r.targetLon)) return true;
+  if (!Number.isFinite(r.lat) || !Number.isFinite(r.lon)) return false;
   return distanceMetres(r.lat, r.lon, r.targetLat, r.targetLon) <= NEAR_METRES;
 }
 
@@ -224,6 +226,7 @@ function computeCommunityState(reports, validations = []) {
 
 // What a contributor sees against one of their own reports, from the hourly snapshot.
 function reportOutcome(report, entry, conflicts, validatedKeys) {
+  if (report.kind === "tree" && !isNear(report)) return "far";
   if (validatedKeys && validatedKeys.has(`${report.deviceId}|${report.target}|${report.status}`)) return "validated";
   if (conflicts.includes(report.target)) return "review";
   const cls = statusClass(report.kind, report.status);
@@ -264,4 +267,4 @@ function communityAdminStats(reports, state, now = Date.now()) {
   };
 }
 
-module.exports = { REWARD_POINTS, normalizeTag, reportOutcome, communityAdminStats, STATUSES, NEAR_METRES, statusClass, validateReport, computeCommunityState, distanceMetres };
+module.exports = { isNear, REWARD_POINTS, normalizeTag, reportOutcome, communityAdminStats, STATUSES, NEAR_METRES, statusClass, validateReport, computeCommunityState, distanceMetres };

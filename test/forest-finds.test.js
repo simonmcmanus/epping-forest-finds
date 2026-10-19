@@ -11079,6 +11079,23 @@ test("a recovery code is accepted as shown, in any case or spacing, and anything
   assert.equal(app.communityParseRecoveryCode(""), null);
 });
 
+test("a tree report only counts when it was made close to the tree, and says so when it was not", () => {
+  const near = communityReport({ id: "report-near00001" });
+  const far = communityReport({ id: "report-far000001", deviceId: "device-bbbb", lat: 51.7, lon: 0.1 });
+  const noFix = communityReport({ id: "report-nofix0001", deviceId: "device-cccc", lat: undefined, lon: undefined });
+  assert.equal(communityConsensus.isNear(near), true);
+  assert.equal(communityConsensus.isNear(far), false);
+  assert.equal(communityConsensus.isNear(noFix), false, "no reporter position cannot show the reporter was there");
+  assert.equal(communityConsensus.reportOutcome(far, undefined, []), "far");
+  assert.equal(communityConsensus.reportOutcome(noFix, undefined, []), "far");
+  assert.equal(communityConsensus.reportOutcome(near, undefined, []), "pending");
+  const state = communityConsensus.computeCommunityState([near, far, noFix]);
+  assert.equal(state.scores["device-bbbb"].points, 0, "a far report earns nothing");
+  assert.equal(state.scores["device-cccc"].points, 0, "a report with no position earns nothing");
+  assert.equal(state.scores["device-bbbb"].reports, 1, "but it is still counted as a report");
+  assert.equal(state.scores["device-aaaa"].points, communityPointsConfig.POINTS.verify, "the close report earns its point, and the far one does not confirm it");
+});
+
 // --- Place checks go to GitHub issues for manual review (netlify/functions/report-missing-data.js) ---
 async function withStubbedGithub(responder, run) {
   const reportFunction = require("../netlify/functions/report-missing-data");

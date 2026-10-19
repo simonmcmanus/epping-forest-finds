@@ -1641,3 +1641,10 @@ dd {
 .community-recover-label { display: block; margin: 12px 0 4px; font-size: .8rem; font-weight: 700; }
 .community-recover-row input { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--line, #d9ddd0); border-radius: 8px; font: inherit; font-size: .9rem; }
 .community-recover-status { min-height: 1.2em; margin: 8px 0 0; color: #2f6b3a; font-size: .85rem; }
+
+/* "You need to be close to earn points" note on the tree check card. */
+.community-range { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0 0; padding: 8px 10px; border-radius: 8px; background: #f1f4ec; color: #4b574b; font-size: .82rem; line-height: 1.35; }
+.community-range svg { flex: none; width: 16px; height: 16px; margin-top: 1px; }
+.community-range-near { background: #e3f1e6; color: #1f4d29; }
+.community-range-far, .community-range-none { background: var(--gold-tint, #fbf6e3); color: #6b4a00; }
+.community-outcome-far { background: var(--gold-tint, #fbf6e3); color: #6b4a00; }

@@ -89,8 +89,9 @@ const COMMUNITY_OUTCOME_TEXT = {
   checked: "Checked",
   validated: "Confirmed by the City of London",
   fixed: "Fixed",
+  far: "Not close enough for points",
 };
-const COMMUNITY_OUTCOME_ICON = { waiting: "upload", pending: "clock", confirmed: "check", review: "alert", sent: "check", checked: "check", validated: "shield", fixed: "check" };
+const COMMUNITY_OUTCOME_ICON = { waiting: "upload", pending: "clock", confirmed: "check", review: "alert", sent: "check", checked: "check", validated: "shield", fixed: "check", far: "alert" };
 
 // Places (pubs, cafes, shops...): confirmations are a quiet check-in; any change is filed as a
 // GitHub issue for a person to review -- never applied automatically.
@@ -168,7 +169,9 @@ async function communitySubmitReport({ kind = "tree", target, status, targetLat,
   const key = target || `new:${tagNumber || `${payload.lat},${payload.lon}`}`;
   const markLat = Number.isFinite(Number(targetLat)) ? Number(targetLat) : payload.lat;
   const markLon = Number.isFinite(Number(targetLon)) ? Number(targetLon) : payload.lon;
-  local[key] = { id, status, ts: Date.now(), lat: markLat, lon: markLon, ...(tagNumber ? { name: `Tree ${tagNumber}` } : {}) };
+  // Made from too far away (or with no position), it is still saved, but it will not score.
+  const far = kind === "tree" && Number.isFinite(Number(targetLat)) && Number.isFinite(Number(targetLon)) && communityRange(Number(targetLat), Number(targetLon)).state !== "near";
+  local[key] = { id, status, ts: Date.now(), lat: markLat, lon: markLon, ...(far ? { far: true } : {}), ...(tagNumber ? { name: `Tree ${tagNumber}` } : {}) };
   communityWriteLocal(local);
   // The local record above is what the screen shows; queueing (an IndexedDB write) can be slow, so it
   // never holds the optimistic state back.
@@ -202,7 +205,35 @@ function communityChoiceHtml(choice, chosen) {
   return `<button class="community-chip${chosen ? " is-chosen" : ""}" type="button" ${attrs}><span class="community-chip-icon">${communityIcon(choice.icon)}</span><span class="community-chip-label">${escapeHtml(choice.label)}</span></button>`;
 }
 
-function communitySectionInnerHtml(target, editing) {
+// How far the reader is from a tree, for the "you need to be close to earn points" note. A check only
+// earns points when it is made within COMMUNITY_NEAR_METRES (the server's NEAR_METRES) of the tree, but
+// reporting from anywhere is allowed.
+const COMMUNITY_NEAR_METRES = 10;
+
+function communityRange(lat, lon) {
+  if (!(typeof hasRealLocation === "function" && hasRealLocation()) || !Number.isFinite(lat) || !Number.isFinite(lon)) return { state: "none" };
+  const metres = distanceMetres(state.userLocation.latitude, state.userLocation.longitude, lat, lon);
+  return { state: metres <= COMMUNITY_NEAR_METRES ? "near" : "far", metres };
+}
+
+function communityRangeNoteHtml(lat, lon) {
+  const range = communityRange(lat, lon);
+  const text = range.state === "near" ? "You're close enough for this to earn points."
+    : range.state === "far" ? `You're about ${Math.round(range.metres)} m away. You can still report this, but you need to be within ${COMMUNITY_NEAR_METRES} m of the tree to earn points.`
+    : `You can report this from anywhere. To earn points, turn on location and stand within ${COMMUNITY_NEAR_METRES} m of the tree.`;
+  return `<p class="community-range community-range-${range.state}">${communityIcon(range.state === "near" ? "check" : "locate")}<span>${escapeHtml(text)}</span></p>`;
+}
+
+// Called with each GPS fix so the note follows the reader as they walk up to the tree.
+function communityUpdateRangeNotes() {
+  document.querySelectorAll(".community-check[data-community-target]").forEach((section) => {
+    const note = section.querySelector(".community-range");
+    if (!note || section.dataset.kind === "place") return;
+    note.outerHTML = communityRangeNoteHtml(Number(section.dataset.lat), Number(section.dataset.lon));
+  });
+}
+
+function communitySectionInnerHtml(target, editing, lat, lon) {
   const local = communityReadLocal()[target];
   const remote = communityOverlay.entries[target];
   if (local && !editing) {
@@ -210,7 +241,7 @@ function communitySectionInnerHtml(target, editing) {
       <div class="community-mine">
         <span class="community-mine-icon">${communityIcon("check")}</span>
         <p><strong>You reported: ${escapeHtml(COMMUNITY_STATUS_TEXT[local.status] || local.status)}</strong>
-          <span>Thank you! Other people may take an hour or two to see this.</span></p>
+          <span>Thank you! Other people may take an hour or two to see this.${local.far ? ` It only earns points when you report within ${COMMUNITY_NEAR_METRES} m of the tree.` : ""}</span></p>
         <button class="community-link" type="button" data-action="community-change">Change</button>
       </div>`;
   }
@@ -220,6 +251,7 @@ function communitySectionInnerHtml(target, editing) {
       ${communityChoiceHtml(primary, chosen === primary.status)}
       <p class="community-or">Something not right?</p>
       <div class="community-choices">${others.map((c) => communityChoiceHtml(c, chosen === c.status)).join("")}</div>
+      ${communityRangeNoteHtml(lat, lon)}
       <p class="report-note community-status" aria-live="polite"></p>`;
 }
 
@@ -232,7 +264,7 @@ function communitySectionHtml(tree) {
         <span class="community-head-icon">${communityIcon("shield")}</span>
         <div><h3 class="community-title">Help check this tree</h3><p class="community-sub">Is it where the map says it is?</p></div>
       </div>
-      <div class="community-body">${communitySectionInnerHtml(target, false)}</div>
+      <div class="community-body">${communitySectionInnerHtml(target, false, Number(tree.latitude), Number(tree.longitude))}</div>
     </section>`;
 }
 
@@ -242,7 +274,7 @@ function communityRefreshSections() {
     if (!body) return;
     body.innerHTML = section.dataset.kind === "place"
       ? communityPlaceInnerHtml(section)
-      : communitySectionInnerHtml(section.dataset.communityTarget, section.dataset.editing === "1");
+      : communitySectionInnerHtml(section.dataset.communityTarget, section.dataset.editing === "1", Number(section.dataset.lat), Number(section.dataset.lon));
   });
 }
 
@@ -418,6 +450,7 @@ function communityNudgeDecision({ on, fixOk, isDefault, nearest, target, already
 // and this device has not already checked it or been nudged about it today.
 function communityNudgeCheck(now = Date.now()) {
   // A card is only an offer on the Nearby overview; once you have gone to another screen, drop it.
+  communityUpdateRangeNotes();
   if (document.getElementById("communityNudge") && typeof isOverviewScreenActive === "function" && !isOverviewScreenActive()) communityNudgeDismiss();
   const nearest = state.nearestTree;
   const tree = nearest && nearest.tree;
@@ -869,7 +902,7 @@ async function communityRenderContributions() {
       : entry.kind === "feedback" ? (outcomes[entry.id] === "fixed" ? "fixed" : "sent")
       : isPlace && entry.status === "OPEN_CONFIRMED" ? "checked"
       : isPlace ? (outcomes[entry.id] === "confirmed" ? "confirmed" : "sent")
-      : (outcomes[entry.id] || "pending");
+      : (outcomes[entry.id] || (entry.far ? "far" : "pending"));
     const name = label.href ? `<a href="${escapeHtml(label.href)}">${escapeHtml(label.text)}</a>` : escapeHtml(label.text);
     return `<li class="community-log-item">
         <span class="community-log-icon">${communityIcon(COMMUNITY_STATUS_ICON[entry.status] || "check")}</span>

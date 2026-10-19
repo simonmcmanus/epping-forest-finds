@@ -25,7 +25,7 @@ The first register check only records a baseline, so differences that already ex
 ## Points you do not earn
 
 - Confirming a place is still right earns nothing. It only hides that place's check card on your device.
-- Reports made from more than 10 m away, and your own repeat reports about the same thing.
+- Reports made from more than 10 m away (or with location off; you can still send them, the app says they won't earn points), and your own repeat reports about the same thing.
 
 ## Ranks
 
