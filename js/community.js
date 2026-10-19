@@ -417,6 +417,8 @@ function communityNudgeDecision({ on, fixOk, isDefault, nearest, target, already
 // Called with every fresh GPS fix. Quiet unless the fix is real and accurate, the tree is close,
 // and this device has not already checked it or been nudged about it today.
 function communityNudgeCheck(now = Date.now()) {
+  // A card is only an offer on the Nearby overview; once you have gone to another screen, drop it.
+  if (document.getElementById("communityNudge") && typeof isOverviewScreenActive === "function" && !isOverviewScreenActive()) communityNudgeDismiss();
   const nearest = state.nearestTree;
   const tree = nearest && nearest.tree;
   const target = tree ? communityTreeTarget(tree) : null;

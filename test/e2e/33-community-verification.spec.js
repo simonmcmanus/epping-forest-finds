@@ -357,6 +357,17 @@ test.describe("Nudges to check a tree you are standing next to", () => {
     await expect(nudge).toHaveCount(0);
   });
 
+  test("the prompt goes away once you leave the Nearby screen", async ({ page }) => {
+    await setup(page);
+    await standNextToATree(page);
+    await page.evaluate(() => communityNudgeCheck());
+    await expect(page.locator("#communityNudge")).toHaveCount(1);
+    await page.click("#reportToggle");
+    await expect(page.locator(".community-contributions")).toBeVisible();
+    await page.evaluate(() => communityNudgeCheck());
+    await expect(page.locator("#communityNudge")).toHaveCount(0);
+  });
+
   test("Check it opens the tree with its check card", async ({ page }) => {
     await setup(page);
     await standNextToATree(page);
