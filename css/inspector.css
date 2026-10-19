@@ -1159,6 +1159,15 @@ button.settings-toggle.has-update::after {
   line-height: 1.4;
 }
 
+.community-check { margin-top: 4px; }
+.community-choices { display: grid; gap: 8px; margin-top: 8px; }
+.community-choice { text-align: left; justify-content: flex-start; }
+.community-choice.is-chosen { border-color: var(--green, #2f6b3a); font-weight: 800; }
+.community-badge { margin: 8px 0; padding: 8px 10px; border-radius: 8px; font-size: 0.86rem; line-height: 1.4; }
+.community-badge-questioned { background: #fff4e0; color: #6b4a00; }
+.community-badge-verified { background: #e8f3ea; color: #1f4d29; }
+.community-mine { margin: 8px 0 0; font-size: 0.86rem; }
+
 .report-issue {
   margin-top: 16px;
   padding-top: 14px;
