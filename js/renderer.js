@@ -342,9 +342,13 @@ function drawOverlay() {
 // (verified), a cross (reported wrong) or a plus (a tree they added), over a soft halo so it reads
 // against any pin or footpath underneath. communityMapMarks() (js/community.js) says what and where.
 function drawCommunityMarks(ctx, toScreen) {
-  if (!state.selected || typeof communityMapMarks !== "function") return;
-  const onCommunityScreen = state.selected.type === "community";
-  const marks = onCommunityScreen ? communityMapMarks() : (state.selected.type === "tree" && typeof communitySelectedTreeMarks === "function" ? communitySelectedTreeMarks() : []);
+  if (typeof communityMapMarks !== "function") return;
+  const onCommunityScreen = Boolean(state.selected) && state.selected.type === "community";
+  // Trees walkers have added show for everyone on every other screen; the Community screen
+  // shows only the user's own reports.
+  const shared = onCommunityScreen ? [] : communityOverlayNewTreeMarks();
+  const own = onCommunityScreen ? communityMapMarks() : (state.selected && state.selected.type === "tree" && typeof communitySelectedTreeMarks === "function" ? communitySelectedTreeMarks() : []);
+  const marks = shared.concat(own);
   if (!marks.length) return;
   if (!toScreen) toScreen = worldToScreen;
   const dpr = pixelRatio();

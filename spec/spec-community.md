@@ -91,6 +91,9 @@ All values and rank thresholds are configured in `netlify/functions/lib/communit
 
 Rank, badges, quests and area progress are follow-ups. Leaderboard is private in v1.
 
+### Trees added by walkers on the map
+Entries `new:tree:*` in the shared overlay (a walker's added tree, `new` or `new-confirmed`) are drawn as blue plus marks (`communityOverlayNewTreeMarks`, `drawCommunityMarks`) on every screen except Community, which shows only the user's own reports. They disappear when the register gains the tag (validation drops the overlay entry). They are not yet tappable.
+
 ### Optimistic score
 Points and the verified count shown on the Community screen are the server's score plus what the device has earned that the server cannot have seen yet (`communityPendingScore`, `js/community.js`): a verify (+verify point, +1 verified) and a new tree (+new-tree point) from a report made near the tree. Corrections, second opinions, far reports, refused reports, reports adopted from the server on restore (already in its score), places and feedback add nothing until the server scores them. The score response carries `generatedAt`; a local report stops counting once a score with `generatedAt` ≥ its timestamp arrives, but keeps counting while it is still in the outbox. `COMMUNITY_POINTS` mirrors the server config (unit-tested).
 

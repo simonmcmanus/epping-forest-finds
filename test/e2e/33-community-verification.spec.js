@@ -613,6 +613,22 @@ test.describe("Optimistic score", () => {
   });
 });
 
+test.describe("Trees added by walkers", () => {
+  test("a tree another walker added is marked on the ordinary map", async ({ page }) => {
+    const entries = {
+      "new:tree:tag:T-77": { s: "new-confirmed", st: "NEW_TREE", n: 2, tag: "T-77", lat: 51.665, lon: 0.045, t: 1 },
+      "tree:1": { s: "verified", n: 1, t: 1 },
+    };
+    await page.route(OVERLAY_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries }) }));
+    await setup(page, "/nearby");
+    await expect.poll(() => page.evaluate(() => communityOverlayNewTreeMarks().length)).toBe(1);
+    expect(await page.evaluate(() => communityOverlayNewTreeMarks()[0].kind)).toBe("added");
+    // Drawing with the mark present must not throw
+    await page.evaluate(() => draw());
+  });
+});
+
 test.describe("Community log links to places", () => {
   test("a reported place in the contributions log links to its own /find/ page", async ({ page }) => {
     await page.addInitScript(() => {

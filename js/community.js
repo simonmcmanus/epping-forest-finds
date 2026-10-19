@@ -415,6 +415,7 @@ async function communityLoadOverlay() {
       communityOverlay = { generatedAt: data.generatedAt || 0, entries: data.entries };
       communityRefreshSections();
       communityRefreshVerifiedSlots();
+      if (typeof requestDraw === "function") requestDraw();
     }
   } catch {}
 }
@@ -1017,6 +1018,20 @@ function communityMapMarks() {
     }
     if (!(Number.isFinite(lat) && Number.isFinite(lon))) continue;
     marks.push({ lat, lon, kind: communityMarkKind(entry), status: entry.status, key });
+  }
+  return marks;
+}
+
+// Trees other walkers have added (not in the City of London register yet), from the shared overlay.
+// Drawn as "added" marks on the ordinary map so everyone can see them.
+function communityOverlayNewTreeMarks() {
+  const marks = [];
+  for (const [key, entry] of Object.entries(communityOverlay.entries || {})) {
+    if (!key.startsWith("new:tree:") || !entry || (entry.s !== "new" && entry.s !== "new-confirmed")) continue;
+    const lat = Number(entry.lat);
+    const lon = Number(entry.lon);
+    if (!(Number.isFinite(lat) && Number.isFinite(lon))) continue;
+    marks.push({ lat, lon, kind: "added", status: entry.st || "NEW_TREE", key });
   }
   return marks;
 }
