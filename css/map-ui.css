@@ -254,6 +254,12 @@ a.nearest-item {
     transition: height 120ms ease-out;
   }
 
+  /* The Community screen is all content and has no use for a big map behind it, so its sheet
+     opens taller (js/app.js syncHashFromSelection toggles this class). The class only sets the
+     variable the height above already reads, so a height the user has dragged to (an inline
+     --inspector-height) still wins. */
+  .inspector.inspector-tall { --inspector-height: 88%; }
+
   .inspector-drag-handle { display: flex; }
 
   /* With an explicit (not just max-) height on the sheet, .inspector-scroll's default

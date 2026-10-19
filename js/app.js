@@ -473,6 +473,7 @@ const ROUTE_FILTERS = "filters";
 const ROUTE_SEARCH = "search";
 const ROUTE_SETTINGS = "settings";
 const ROUTE_REPORT = "report";
+const ROUTE_COMMUNITY = "community";
 
 // Each of the four screens above now has a real path of its own (netlify.toml, server.js --
 // all rewrite these to app.html, same as /app used to). Nearby (no screen name, "" in the
@@ -486,6 +487,7 @@ const ROUTE_PATHS = {
   [ROUTE_SEARCH]: "/nearby/search",
   [ROUTE_SETTINGS]: "/settings",
   [ROUTE_REPORT]: "/feedback",
+  [ROUTE_COMMUNITY]: "/community",
 };
 const NEARBY_PATH = "/nearby";
 
@@ -680,6 +682,7 @@ function currentScreenRoute() {
   }
   if (selection.type === "settings") return ROUTE_SETTINGS;
   if (selection.type === "report") return ROUTE_REPORT;
+  if (selection.type === "community") return ROUTE_COMMUNITY;
   if (!selection.item) return "";
   const route = SELECTION_ROUTES.find((entry) => entry.type === selection.type);
   if (!route) return "";
@@ -795,6 +798,9 @@ function routeValueFromLocation() {
 }
 
 function syncHashFromSelection(options) {
+  // The Community screen has little use for a big map, so its bottom sheet opens taller
+  // (css/map-ui.css .inspector-tall). A height the user has dragged to still wins.
+  if (els.inspector) els.inspector.classList.toggle("inspector-tall", state.selected?.type === "community");
   setHashFromSelection(currentScreenRoute(), options);
 }
 
@@ -952,6 +958,10 @@ function applyRouteToScreen(raw, announceMissing) {
   }
   if (value === ROUTE_SETTINGS) {
     openSettings();
+    return true;
+  }
+  if (value === ROUTE_COMMUNITY) {
+    openCommunity();
     return true;
   }
 
@@ -3022,6 +3032,39 @@ function bindSettingsHandlers() {
   updateRefreshButtonsOnlineState();
 }
 
+// The Community tab's own screen: what community checks are, your contributions, add a missing
+// tree, and a link on to the feedback form (openReportModal, a page of its own).
+function openCommunity() {
+  if (typeof trackGaScreenView === "function") trackGaScreenView("Community");
+  exitClusterExpansion();
+  state.selected = { type: "community", item: null };
+  setInspectorSelectionChrome({ emoji: appIconHtml("tree", "app-icon title-icon"), showBack: true });
+  setNavScreenActive(els.reportToggle);
+  els.inspectorTools.hidden = true;
+  els.inspectorTitle.textContent = "Community";
+  els.inspectorType.textContent = "Checks, points and new trees";
+  transitionInspectorBody(communityScreenHtml(), "forward");
+  communityOpenContributions();
+  setInspectorMinimized(false);
+  updateCompassOverlay();
+  syncHashFromSelection();
+  requestDraw();
+  if (state.userLocation) {
+    ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
+  }
+}
+
+function communityScreenHtml() {
+  return `${communityIntroHtml()}
+    ${communityContributionsHtml()}
+    ${communityAddTreeHtml()}
+    <a class="community-feedback-link" href="/feedback">
+      <span class="community-feedback-icon">${communityIcon("help")}</span>
+      <span class="community-feedback-text"><strong>Send feedback</strong><span>Report a bug, missing data or anything strange</span></span>
+      ${communityIcon("chevron")}
+    </a>`;
+}
+
 function openReportModal() {
   if (typeof trackGaScreenView === "function") trackGaScreenView("Report");
   // See the matching comment in openFiltersScreen.
@@ -3030,13 +3073,16 @@ function openReportModal() {
   setInspectorSelectionChrome({ emoji: appIconHtml("feedback", "app-icon title-icon"), showBack: true });
   setNavScreenActive(els.reportToggle);
   els.inspectorTools.hidden = true;
-  els.inspectorTitle.textContent = "Community";
-  els.inspectorType.textContent = "Help improve the data for everyone";
-  // No autofocus: the form sits below the contributions and add-a-tree sections, and focusing it
-  // would open the screen scrolled past them with the keyboard up.
-  transitionInspectorBody(reportFormHtml(), "forward");
+  els.inspectorTitle.textContent = "Feedback";
+  els.inspectorType.textContent = "Tell us what is wrong or missing";
+  transitionInspectorBody(reportFormHtml(), "forward", () => {
+    const detailsInput = document.getElementById("reportDetails");
+    if (detailsInput) {
+      detailsInput.focus();
+      detailsInput.scrollIntoView({ block: "nearest" });
+    }
+  });
   bindReportFormHandlers();
-  communityOpenContributions();
   setReportStatus("");
   updateReportLocationLabel();
   setInspectorMinimized(false);
@@ -3056,10 +3102,7 @@ function reportFormHtml() {
   } catch {}
   const detailsValue = draft.details || "";
   const online = navigator.onLine;
-  return `${communityContributionsHtml()}
-    ${communityAddTreeHtml()}
-    <section class="settings-section community-feedback"><h3 class="settings-section-title">Send feedback</h3></section>
-    <form id="reportForm" class="report-form">
+  return `<form id="reportForm" class="report-form">
       <p class="report-intro">We welcome feedback, bug reports, and anything strange you have noticed. It helps us improve the data for everyone.</p>
       <label for="reportDetails">What did you notice?
         <textarea id="reportDetails" class="report-textarea" placeholder="Describe what's missing or what you'd like to see…" required>${escapeHtml(detailsValue)}</textarea>
@@ -4025,8 +4068,10 @@ function updateDocumentTitle() {
     const item = selected.item || {};
     if (selected.type === "settings") {
       title = "Settings";
-    } else if (selected.type === "report") {
+    } else if (selected.type === "community") {
       title = "Community";
+    } else if (selected.type === "report") {
+      title = "Feedback";
     } else {
       const name = selected.type === "tree"
         ? treeDisplayName(item)

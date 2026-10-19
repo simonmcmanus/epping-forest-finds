@@ -2,9 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Community Tree Verification — Proposal</title>
+<title>How community checks work — Epping Forest Finds</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="How Epping Forest Finds will let walkers verify trees, report missing tags and add missing trees, and how reports reach the City of London.">
+<meta name="description" content="How walkers can check trees and places on the Epping Forest Finds map, add missing trees, earn points, and how reports reach the City of London.">
 <link rel="canonical" href="https://www.eppingforestfinds.uk/reports/tree-report/">
 <link rel="icon" href="https://www.eppingforestfinds.uk/data/icons/trees/logo.png" type="image/png">
 <style>
@@ -22,57 +22,70 @@
   th, td { text-align:left; padding:8px 10px; border:1px solid var(--line); vertical-align:top; }
   code { font-size:.9em; }
   nav a { margin-right:12px; }
+  .steps { padding-left: 1.2em; }
+  .note { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; }
 </style>
 </head>
 <body>
 <main>
-  <nav><a href="/">Home</a><a href="/app">Open the map</a><a href="/reports/">The Ledger</a></nav>
-  <h1>Community tree verification</h1>
-  <p><span class="status">Status: in development — phase 1 (offline reporting) under way</span></p>
-  <p>Walkers will be able to confirm that a tree is where the map says it is, flag a missing tag, correct a position, or add a tree that is not on the map. The same system will later cover businesses and other places. Read on to see exactly how it will work, and tell us what we have got wrong using the Feedback screen in the app.</p>
+  <nav><a href="/">Home</a><a href="/community">Open Community in the app</a><a href="/reports/">The Ledger</a></nav>
+  <h1>How community checks work</h1>
+  <p>The map is only as good as the data behind it, and people walking the forest can see things the data can’t. Community checks let you confirm what’s right, flag what’s wrong and add what’s missing. This page explains what happens to your reports.</p>
 
-  <h2>The City of London data stays the source of truth</h2>
+  <h2>The short version</h2>
   <ul>
-    <li>Community reports <strong>never edit, hide or move</strong> a tree. They sit on top of the City of London dataset.</li>
-    <li>When two or more independent people agree something is wrong, the tree shows a <strong>“Questioned by the community”</strong> note. It stays on the map.</li>
-    <li>We collect confirmed discrepancies and send them to the City of London, asking for a corrected dataset. When a new dataset arrives, resolved notes are cleared.</li>
+    <li>The City of London’s Veteran Tree Register stays the record. Your reports sit alongside it and never overwrite it.</li>
+    <li>When two or more different people agree a tree is wrong, it shows a “Questioned by the community” note. It stays on the map.</li>
+    <li>Changes to places such as pubs, cafés and shops are always checked by a person before anything is touched.</li>
+    <li>We collect what people find and pass it on to the City of London so the register can be corrected at source.</li>
+    <li>You earn points. No account is needed.</li>
   </ul>
 
-  <h2>What you can report</h2>
+  <h2>Checking a tree</h2>
+  <p>Open any tree in the app and use <strong>Help check this tree</strong>. Standing next to it, you can say:</p>
   <div class="scroll"><table>
     <tr><th>Report</th><th>Meaning</th></tr>
-    <tr><td>Verified</td><td>The tree is here and the tag matches.</td></tr>
-    <tr><td>No tag — probably the right tree</td><td>There is a tree here but no tag; it looks correct.</td></tr>
-    <tr><td>No tag — probably wrong</td><td>No tag, and the tree does not look like the one listed.</td></tr>
-    <tr><td>Different tree here</td><td>A different tree is at this spot.</td></tr>
-    <tr><td>Not here</td><td>There is no tree at the reported location.</td></tr>
-    <tr><td>Wrong position</td><td>You found the tag, but at a different point on the map. You drag a pin to the right place.</td></tr>
-    <tr><td>New tree</td><td>A tree that is not in the dataset. Your GPS position is recorded.</td></tr>
+    <tr><td>It’s here, and the tag matches</td><td>The tree is where the map says, with the right tag.</td></tr>
+    <tr><td>No tag, but it looks right</td><td>A tree is here but has no tag, and it looks like the one listed.</td></tr>
+    <tr><td>No tag, and I doubt it</td><td>No tag, and it doesn’t look like the tree listed.</td></tr>
+    <tr><td>A different tree is here</td><td>A different tree stands at this spot.</td></tr>
+    <tr><td>There’s no tree here</td><td>Nothing is at the reported location.</td></tr>
+    <tr><td>Tag found, map is wrong</td><td>You’re at the tag, but the map shows it somewhere else. We record where you’re standing.</td></tr>
   </table></div>
-  <p>Businesses and other places will use the same mechanism with their own report types (open, closed, moved, renamed, details changed, wrong category, new place).</p>
+  <p>Your own report shows straight away. Other people see the result after the next daily update, so it can take up to a day.</p>
 
-  <h2>Works offline</h2>
-  <p>Reports and feedback are saved on your device when there is no signal and sent automatically when you are back online. You will see “N waiting to send” until they go. Your own report shows straight away; other people may take up to a day to see it.</p>
+  <h2>Adding a missing tree</h2>
+  <p>Found a tagged tree that isn’t on the map? On the Community screen, choose <strong>Add a missing tree</strong>. You’ll need:</p>
+  <ul>
+    <li><strong>Its tag number</strong>, printed on the tag. This is what identifies the tree.</li>
+    <li><strong>To be standing right next to it</strong> with a good GPS fix (accurate to 30 metres or better), because your position becomes the tree’s position. The form shows the current accuracy and won’t submit until it’s good enough.</li>
+  </ul>
+  <p>If the tag is already on the map, we’ll point you to that tree instead. A new tree is shown to everyone once a second person has found it too.</p>
+
+  <h2>Checking a place</h2>
+  <p>Pubs, cafés, shops and other places have a <strong>Help check this place</strong> card at the bottom of their screen. You can confirm a place is still right, or say it has closed, moved, changed name, has wrong details or is the wrong type of place.</p>
+  <p class="note">Reports about places are never applied automatically. Each change becomes a report that a person reviews, and further reports about the same place are added to it.</p>
+
+  <h2>What happens to the reports</h2>
+  <ol class="steps">
+    <li>You report from the app. If you’re offline, it’s saved on your device and sent when you’re back online.</li>
+    <li>Reports from different people are compared once a day. The same device repeating itself counts once, and reports made from far away from the tree don’t count.</li>
+    <li>Where people agree, the tree is marked. Where they disagree, it’s held for a person to look at.</li>
+    <li>We pass confirmed differences to the City of London and ask for a corrected dataset. Once a new dataset arrives, resolved notes are cleared.</li>
+  </ol>
 
   <h2>Points</h2>
   <ul>
-    <li>1 point when you verify a tree, and 1 more when another person independently confirms it.</li>
-    <li>New tree: 1 point, plus 3 when a second person finds it.</li>
-    <li>Accepted correction: 2 points.</li>
+    <li>1 point when you verify a tree, and 1 more when someone else independently confirms it.</li>
+    <li>A new tree earns 1 point, and 3 more once a second person finds it.</li>
+    <li>A correction that others agree with earns 2 points.</li>
   </ul>
-  <p>No account is needed. Your score is tied to your device, with an optional recovery code. Scores are private for now.</p>
+  <p>Points build up through four ranks: Seedling, Sapling, Woodward and Warden. Your score and a log of everything you’ve reported are on the Community screen. Scores are private for now.</p>
 
-  <h2>Privacy and checks</h2>
-  <p>Reports close to the tree count most. Several reports from one device never count as independent. Conflicting reports are reviewed by a person before anything is flagged.</p>
+  <h2>Privacy</h2>
+  <p>You don’t need an account. Your reports are tied to a random identifier stored on your device, which you can clear at any time by clearing the site’s data. Your location is used to check you’re close to what you’re reporting. See the <a href="/terms.html">privacy and terms</a> page for the full details.</p>
 
-  <h2>Roadmap</h2>
-  <ol>
-    <li><strong>Offline reporting for feedback</strong> — in progress.</li>
-    <li>Tree reports, instant local display, daily community update.</li>
-    <li>Scores, ranks and “last verified” shading on the map.</li>
-    <li>Businesses, nearby quests, area progress.</li>
-  </ol>
-  <p>Full specification: <a href="https://github.com/simonmcmanus/epping-forest-finds/blob/main/spec/spec-community.md">spec-community.md</a>.</p>
+  <p>Spotted a problem with this page or the app itself? Use <strong>Send feedback</strong> on the Community screen.</p>
 </main>
 </body>
 </html>

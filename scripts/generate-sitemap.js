@@ -37,6 +37,7 @@ const ROBOTS_FILE_NAME = "robots.txt";
 const STATIC_PAGES = [
   { loc: "/", changefreq: "weekly", priority: "1.0" },
   { loc: "/reports/", changefreq: "weekly", priority: "0.8" },
+  { loc: "/reports/tree-report/", changefreq: "monthly", priority: "0.6" },
   { loc: "/terms.html", changefreq: "yearly", priority: "0.2" },
 ];
 
@@ -52,7 +53,7 @@ const STATIC_PAGES = [
 // pages (scripts/generate-find-pages.js) live under that same /nearby/ prefix and must stay
 // crawlable, so "Disallow: /nearby" alone would silently swallow every one of them too.
 // /admin.html, /api/ and /.netlify/ have no such children to protect, so they stay bare.
-const DISALLOWED_PATHS = ["/admin.html", "/nearby$", "/nearby/search$", "/nearby/filter$", "/settings$", "/feedback$", "/api/", "/.netlify/"];
+const DISALLOWED_PATHS = ["/admin.html", "/nearby$", "/nearby/search$", "/nearby/filter$", "/settings$", "/feedback$", "/community$", "/api/", "/.netlify/"];
 
 function isoDate(ms) {
   return new Date(ms).toISOString().slice(0, 10);

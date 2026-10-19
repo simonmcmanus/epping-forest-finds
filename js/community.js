@@ -23,6 +23,7 @@ const COMMUNITY_ICONS = {
   clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
   upload: '<path d="M17.5 18a4 4 0 0 0 .5-7.97A6 6 0 0 0 6.4 9.04 4.5 4.5 0 0 0 7 18"/><path d="M12 12v7m0-7-2.5 2.5M12 12l2.5 2.5"/>',
   sprout: '<path d="M12 21v-9"/><path d="M12 12C12 8 9 6 4 6c0 4 3 6 8 6Z"/><path d="M12 14c0-3 2.5-5 8-5 0 3.5-3 5-8 5Z"/>',
+  chevron: '<path d="m9 6 6 6-6 6"/>',
   edit: '<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16Z"/><path d="m13.5 6.5 4 4"/>',
   leaf: '<path d="M5 19C5 10 10 5 20 4c0 10-5 15-14 15Z"/><path d="M5 19c2-5 5-8 9-10"/>',
   tree: '<path d="M12 21v-6"/><path d="M12 15a5.5 5.5 0 0 0 4-9.3A5 5 0 0 0 7.5 5 5 5 0 0 0 8 15Z"/>',
@@ -298,6 +299,21 @@ if (typeof window !== "undefined" && window.addEventListener) {
       if (key) { local[key].issueUrl = detail.response.issueUrl; communityWriteLocal(local); }
     }
   });
+}
+
+// The short summary at the top of the Community screen, linking on to the full explainer page
+// (reports/tree-report/index.html, a static marketing-surface page).
+const COMMUNITY_EXPLAINER_URL = "/reports/tree-report/";
+
+function communityIntroHtml() {
+  return `<section class="community-intro">
+      <span class="community-intro-icon">${communityIcon("shield")}</span>
+      <div>
+        <p class="community-intro-title">Help keep the map right</p>
+        <p class="community-intro-text">Check trees and places as you walk, add trees that are missing, and earn points. Your reports never overwrite the official record: trees get a note once others agree, and changes to places are checked by a person.</p>
+        <a class="community-intro-link" href="${COMMUNITY_EXPLAINER_URL}" target="_blank" rel="noopener">How it works ${communityIcon("chevron")}</a>
+      </div>
+    </section>`;
 }
 
 // --- "Add a missing tree" on the Community screen ---

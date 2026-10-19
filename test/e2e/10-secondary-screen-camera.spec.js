@@ -42,6 +42,7 @@ test.describe("Secondary screens (Filter, Settings, Feedback) show a consistent 
     const settingsViewport = await readViewport(page);
 
     await page.click("#reportToggle");
+    await page.click(".community-feedback-link");
     await expect(page.locator("#reportDetails")).toBeVisible();
     const feedbackViewport = await readViewport(page);
 

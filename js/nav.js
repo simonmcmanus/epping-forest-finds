@@ -129,6 +129,7 @@ function secondaryScreenActive() {
     || state.searchScreenOpen
     || state.selected?.type === "settings"
     || state.selected?.type === "report"
+    || state.selected?.type === "community"
   );
 }
 
@@ -140,7 +141,7 @@ function secondaryScreenActive() {
 // drift out of sync with each other again (they did: the old ambient route lines used to check
 // `state.selected` directly and hid themselves on Settings/Report).
 function hasRealSelection() {
-  return Boolean(state.selected && !["settings", "report"].includes(state.selected.type));
+  return Boolean(state.selected && !["settings", "report", "community"].includes(state.selected.type));
 }
 
 function refreshSettingsVersionDisplay() {
@@ -447,7 +448,7 @@ function setupReportKeyboardAvoidance() {
 
 function handleReportViewportChange() {
   if (!els.inspector) return;
-  const isReport = state.selected?.type === "report";
+  const isReport = state.selected?.type === "report" || state.selected?.type === "community";
   if (!isReport && !state.searchScreenOpen) {
     clearReportKeyboardInset();
     return;
@@ -611,11 +612,12 @@ function setupFilterPanelHandlers() {
   if (els.reportToggle) {
     els.reportToggle.addEventListener("click", (event) => {
       event.preventDefault();
-      if (els.reportToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
+      // The tab is lit on its Feedback sub-page too, but tapping it there goes back up to Community.
+      if (state.selected?.type === "community" && !els.inspector.classList.contains("minimized")) {
         pulseNavButton(els.reportToggle);
         return;
       }
-      openReportModal();
+      openCommunity();
     });
   }
 
@@ -1165,7 +1167,7 @@ function focusNearbyOnClusterGroup(cluster) {
   // what lets its own `if (!secondaryScreenActive()) selectOverview()` actually fire.
   state.filterScreenOpen = false;
   state.searchScreenOpen = false;
-  if (state.selected && (state.selected.type === "settings" || state.selected.type === "report")) {
+  if (state.selected && ["settings", "report", "community"].includes(state.selected.type)) {
     state.selected = null;
   }
   // Same slide restoreNearbyAnchorFromHistory/setNearbyAnchor use for any other anchor move --

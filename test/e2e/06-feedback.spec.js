@@ -4,14 +4,25 @@ const { setup, FIXTURE_TREE, waitForStableBoundingBox } = require("./helpers");
 
 test.describe("Feedback / Report screen", () => {
   test.beforeEach(async ({ page }) => {
-    await setup(page);
-    await page.click("#reportToggle");
+    await setup(page, "/feedback");
     await expect(page.locator("#reportDetails")).toBeVisible();
   });
 
-  test("the Community tab opens a screen with a clearly labelled feedback form", async ({ page }) => {
+  test("the feedback form is its own page, reached from the Community screen", async ({ page }) => {
+    await page.click("#nearbyToggle");
+    await page.click("#reportToggle");
+    await expect(page.locator("#inspectorTitle").last()).toContainText("Community");
+    await expect(page.locator("#reportForm")).toHaveCount(0);
+    await page.click(".community-feedback-link");
+    await expect(page).toHaveURL(/\/feedback$/);
+    await expect(page.locator("#reportDetails")).toBeVisible();
+    // the Community tab stays lit on its Feedback page
     await expect(page.locator("#reportToggle")).toHaveClass(/screen-active/);
-    await expect(page.locator("#inspectorTitle")).toHaveText("Community");
+  });
+
+  test("the feedback page opens with a clearly labelled form", async ({ page }) => {
+    await expect(page.locator("#reportToggle")).toHaveClass(/screen-active/);
+    await expect(page.locator("#inspectorTitle")).toHaveText("Feedback");
     await expect(page.locator("#reportForm")).toBeVisible();
     await expect(page.locator(".report-intro")).toHaveText(
       "We welcome feedback, bug reports, and anything strange you have noticed. It helps us improve the data for everyone."
@@ -217,6 +228,7 @@ test.describe("Feedback / Report screen — keyboard avoidance (VisualViewport)"
   test("portrait bottom sheet: repositions above the simulated keyboard and keeps the textarea visible", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.click("#reportToggle");
+    await page.click(".community-feedback-link");
     await expect(page.locator("#reportDetails")).toBeVisible();
 
     const beforeBox = await page.locator("#reportDetails").boundingBox();
@@ -255,6 +267,7 @@ test.describe("Feedback / Report screen — keyboard avoidance (VisualViewport)"
     await installFakeVisualViewport(page);
     await setup(page);
     await page.click("#reportToggle");
+    await page.click(".community-feedback-link");
     await expect(page.locator("#reportDetails")).toBeVisible();
 
     const beforeBox = await page.locator("#reportDetails").boundingBox();

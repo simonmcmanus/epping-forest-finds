@@ -35,6 +35,10 @@
 
 [[edge_functions]]
   function = "alpha-gate"
+  path = "/community"
+
+[[edge_functions]]
+  function = "alpha-gate"
   path = "/app.html"
 
 # /app is retired to a permanent redirect to /nearby, the app's new
@@ -88,6 +92,11 @@
 
 [[redirects]]
   from = "/feedback"
+  to = "/app.html"
+  status = 200
+
+[[redirects]]
+  from = "/community"
   to = "/app.html"
   status = 200
 

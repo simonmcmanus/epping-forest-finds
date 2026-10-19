@@ -112,7 +112,7 @@ test.describe("Community tree verification", () => {
       posted.push(route.request().postDataJSON());
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
     });
-    await setup(page, "/feedback");
+    await setup(page, "/community");
     await page.click("[data-action='community-add-start']");
     await expect(page.locator("#communityAddTreeForm")).toBeVisible();
     await expect(page.locator("#communityLocationStatus")).toContainText("Turn on location");
@@ -134,7 +134,7 @@ test.describe("Community tree verification with location shared", () => {
       posted.push(route.request().postDataJSON());
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
     });
-    await setup(page, "/feedback");
+    await setup(page, "/community");
     await page.click("[data-action='community-add-start']");
     await expect(page.locator("#communityLocationStatus")).toContainText("accurate to");
     await expect(page.locator("#communityAddTreeSubmit")).toBeDisabled();
@@ -153,7 +153,7 @@ test.describe("Community tree verification with location shared", () => {
   test("a tag that is already on the map is not added again", async ({ page }) => {
     const posted = [];
     await page.route(REPORT_URL, (route) => { posted.push(1); route.fulfill({ status: 200, body: "{}" }); });
-    await setup(page, "/feedback");
+    await setup(page, "/community");
     await page.click("[data-action='community-add-start']");
     await page.fill("#communityTagInput", FIXTURE_TREE.tagNumber);
     await page.click("#communityAddTreeSubmit");
@@ -176,9 +176,15 @@ test.describe("Community place checks", () => {
     await expect(page.locator(".community-check-place")).toBeVisible();
   });
 
-  test("a place's detail screen has the boxed check, above Nearest", async ({ page }) => {
+  test("a place's detail screen has the boxed check at the bottom, below its Nearest and Related sections", async ({ page }) => {
     const box = page.locator(".community-check-place");
     await expect(box).toContainText("Help check this place");
+    const nearest = page.locator('h3.detail-section-heading:has-text("Nearest")');
+    if (await nearest.count()) {
+      expect((await nearest.first().boundingBox()).y).toBeLessThan((await box.boundingBox()).y);
+    }
+    // nothing but the small "Noticed a problem" link follows it
+    await expect(page.locator(".community-check-place ~ *:not(.report-issue)")).toHaveCount(0);
     await expect(box.locator(".community-or")).toContainText("Something not right?");
     await expect(box.locator("[data-action='community-place-choose']")).toHaveCount(6);
   });
@@ -221,5 +227,26 @@ test.describe("Community place checks", () => {
     await expect.poll(() => confirmations.length).toBe(1);
     expect(confirmations[0]).toMatchObject({ kind: "place", status: "OPEN_CONFIRMED" });
     expect(issues).toHaveLength(0);
+  });
+});
+
+test.describe("Community screen layout", () => {
+  test("opens with a short summary that links to the full explanation", async ({ page }) => {
+    await setup(page, "/community");
+    const intro = page.locator(".community-intro");
+    await expect(intro).toContainText("Help keep the map right");
+    const link = intro.locator("a.community-intro-link");
+    await expect(link).toHaveAttribute("href", "/reports/tree-report/");
+    await expect(link).toHaveAttribute("target", "_blank");
+  });
+
+  test("the sheet opens taller than on other screens, leaving less map", async ({ page }) => {
+    // The bottom sheet only exists in the phone layout; on desktop the inspector is a side panel.
+    test.skip(page.viewportSize().width > 760, "phone layout only");
+    await setup(page, "/settings");
+    const settingsHeight = (await page.locator("#inspector").boundingBox()).height;
+    await page.click("#reportToggle");
+    await expect(page.locator(".community-intro")).toBeVisible();
+    await expect.poll(async () => (await page.locator("#inspector").boundingBox()).height).toBeGreaterThan(settingsHeight);
   });
 });
