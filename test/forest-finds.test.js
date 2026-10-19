@@ -573,6 +573,9 @@ globalThis.__forestFindsTest = {
   recoverWedgedAnimationFrames,
   communityRank,
   communityNudgeDecision,
+  communityPendingScore,
+  communityDisplayScore,
+  COMMUNITY_POINTS,
   communityParseRecoveryCode,
   HEADING_SOURCE_NONE,
   HEADING_SOURCE_RELATIVE,
@@ -11259,6 +11262,57 @@ test("register records are found by position in the public tree chunks, and a fa
   assert.equal(found["78"], undefined);
   const none = await communityReportData.lookupRegisterRecords([{ recordNumber: "77", tlat: 51.6, tlon: 0.1 }], async () => { throw new Error("offline"); });
   assert.deepEqual(none, {});
+});
+
+test("optimistic points mirror the server's configured values for a verify and a new tree", () => {
+  assert.equal(app.COMMUNITY_POINTS.verify, communityPointsConfig.POINTS.verify);
+  assert.equal(app.COMMUNITY_POINTS.newTree, communityPointsConfig.POINTS.newTree);
+});
+
+test("a fresh verify adds a point and a verified count before the server knows", () => {
+  const local = { "tree:1": { id: "a", status: "VERIFIED", ts: 1000 } };
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 0)), JSON.stringify({ points: 1, verified: 1 }));
+  const shown = app.communityDisplayScore({ points: 4, verified: 3, confirmed: 1, generatedAt: 500 }, local, new Set());
+  assert.equal(shown.points, 5);
+  assert.equal(shown.verified, 4);
+  assert.equal(shown.confirmed, 1);
+  assert.equal(shown.pendingPoints, 1);
+});
+
+test("a new tree adds its point at once, without a verified count", () => {
+  assert.equal(JSON.stringify(app.communityPendingScore({ "new:T1": { id: "n", status: "NEW_TREE", ts: 2000 } }, 0)), JSON.stringify({ points: 1, verified: 0 }));
+});
+
+test("the optimistic points clear once a score computed after the report arrives", () => {
+  const local = { "tree:1": { id: "a", status: "VERIFIED", ts: 1000 } };
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 999)), JSON.stringify({ points: 1, verified: 1 }));
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 1000)), JSON.stringify({ points: 0, verified: 0 }));
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 5000)), JSON.stringify({ points: 0, verified: 0 }));
+});
+
+test("a report still in the outbox keeps counting even under a newer score", () => {
+  const local = { "tree:1": { id: "a", status: "VERIFIED", ts: 1000 } };
+  assert.equal(app.communityPendingScore(local, 5000, new Set(["a"])).points, 1);
+});
+
+test("far, failed, place and feedback reports and unconfirmed corrections add no optimistic points", () => {
+  const local = {
+    "tree:1": { id: "a", status: "VERIFIED", ts: 1000, far: true },
+    "tree:2": { id: "b", status: "VERIFIED", ts: 1000, failed: "refused" },
+    "place:x": { id: "c", status: "OPEN_CONFIRMED", ts: 1000, kind: "place" },
+    "feedback:1": { id: "d", status: "FEEDBACK", ts: 1000, kind: "feedback" },
+    "tree:3": { id: "e", status: "NOT_HERE", ts: 1000 },
+    "tree:4": { id: "f", status: "MOVED", ts: 1000 },
+  };
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 0)), JSON.stringify({ points: 0, verified: 0 }));
+});
+
+test("several fresh reports add up, and an empty or missing record adds nothing", () => {
+  const local = { "tree:1": { id: "a", status: "VERIFIED", ts: 10 }, "tree:2": { id: "b", status: "VERIFIED", ts: 20 }, "new:T": { id: "c", status: "NEW_TREE", ts: 30 } };
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 0)), JSON.stringify({ points: 3, verified: 2 }));
+  assert.equal(JSON.stringify(app.communityPendingScore({}, 0)), JSON.stringify({ points: 0, verified: 0 }));
+  assert.equal(JSON.stringify(app.communityPendingScore(null, 0)), JSON.stringify({ points: 0, verified: 0 }));
+  assert.equal(app.communityDisplayScore(null, {}, new Set()).points, 0);
 });
 
 runRegisteredTests().catch((error) => {

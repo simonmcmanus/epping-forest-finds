@@ -1236,7 +1236,7 @@ function applyRadiusFromQuery() {
 async function revealMapCenteredOnUser() {
   // A /find/ landing's place is selected by applySelectionFromHash below, so the Nearby list is not
   // painted over the server-rendered panel first.
-  if (!findLandingSlug()) selectOverview();
+  if (!findLandingSlug() && !communityScreenOpen()) selectOverview();
   draw();
 
   // Snap the camera onto the walking-radius circle before the reveal animation -- the same
@@ -1255,7 +1255,7 @@ async function revealMapCenteredOnUser() {
 
   // Apply the launch URL's own screen after the wait so it overrides the overview snap. A /find/
   // landing the loader has already selected keeps its panel rather than re-rendering the same one.
-  if (!findLandingSlug() || !state.selected) applySelectionFromHash();
+  if ((!findLandingSlug() || !state.selected) && !communityScreenOpen()) applySelectionFromHash();
 
   // Fade overlay and animate camera to final position simultaneously.
   // Use fresh points (not stale pre-wait revealPoints) to avoid animating back
@@ -1297,12 +1297,12 @@ async function revealMapCenteredOnUser() {
 async function revealNoRealLocation({ locationAlreadyAsked }) {
   if (!hasRealLocation()) applyDefaultLocation();
 
-  if (!findLandingSlug()) selectOverview();
+  if (!findLandingSlug() && !communityScreenOpen()) selectOverview();
   // A static index's arrows point north until there is a bearing to rotate them by -- the default
   // origin applyDefaultLocation() just set. Only the arrows change; the list itself stays as drawn.
   if (_staticNearbyIndex) updateOverviewDirectionArrows();
   draw();
-  applySelectionFromHash();
+  if (!communityScreenOpen()) applySelectionFromHash();
   await revealMapCenteredOnUser();
 
   if (locationAlreadyAsked) return;
@@ -1485,6 +1485,12 @@ async function boot() {
   const onboardsFirst = !hasCompletedOnboarding() && !isLandingPageArrival();
   const showsCombinedConsentBanner = Boolean(navigator.geolocation) && !onboardsFirst && (isLandingPageArrival() || _staticNearbyIndex) && cookieConsentIsUndecided();
   if (els.consentBanner && !showsCombinedConsentBanner) els.consentBanner.hidden = true;
+
+  // A cold load of /community paints the Community screen straight away: it needs no map data,
+  // and the Nearby list would otherwise show first and be swapped out once data and location land.
+  if (routeValueFromLocation() === ROUTE_COMMUNITY) {
+    try { openCommunity(); } catch (error) { console.error(error); }
+  }
 
   // Start data loading immediately so it runs in parallel with location and onboarding
   const hasCachedCowData = applyCachedCowData();
@@ -3035,6 +3041,10 @@ function bindSettingsHandlers() {
 
 // The Community tab's own screen: what community checks are, your contributions, add a missing
 // tree, and a link on to the feedback form (openReportModal, a page of its own).
+function communityScreenOpen() {
+  return Boolean(state.selected && state.selected.type === "community");
+}
+
 function openCommunity() {
   if (typeof trackGaScreenView === "function") trackGaScreenView("Community");
   exitClusterExpansion();
