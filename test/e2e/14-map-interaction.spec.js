@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, tapCanvasPoint, FIXTURE_TREE, skipOnboarding, mockCowApi, denyGeolocationUnlessGranted } = require("./helpers");
+const { setup, tapCanvasPoint, FIXTURE_TREE, skipOnboarding, mockCowApi, denyGeolocationUnlessGranted, waitForViewportToSettle } = require("./helpers");
 
 // Lands on a linked Nearby URL and waits until the app has booted AND applied the link's own
 // browse anchor, rather than trusting setup()'s overlay check: on a direct #near= load the
@@ -213,7 +213,7 @@ test.describe("Map interaction", () => {
     test("repeated taps outside the nearest area keep moving it, at a steady zoom", async ({ page }) => {
       await setup(page);
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
-      await page.waitForTimeout(1000);
+      await waitForViewportToSettle(page);
 
       // How big the ring is drawn and where its centre sits on screen are what "still in nearby
       // mode" means visually -- both must survive relocation, or the view walks out to
@@ -364,7 +364,7 @@ test.describe("Map interaction", () => {
     test("the radius circle holds still on screen while the map slides behind it", async ({ page }) => {
       await setup(page);
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
-      await page.waitForTimeout(1000);
+      await waitForViewportToSettle(page);
 
       const sample = () => page.evaluate(() => {
         // prepareCanvasForDraw is the frame boundary: it advances the slide, re-derives the
@@ -408,7 +408,7 @@ test.describe("Map interaction", () => {
     test("the new nearby set is held back until the map lands, then fades in", async ({ page }) => {
       await setup(page);
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
-      await page.waitForTimeout(1000);
+      await waitForViewportToSettle(page);
 
       // Both read in one round trip: sampled separately, the slide can finish between them and
       // the pair no longer describes the same instant.
