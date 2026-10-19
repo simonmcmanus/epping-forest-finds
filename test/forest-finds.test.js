@@ -10964,6 +10964,48 @@ test("contributors move up from Seedling to Warden by points", () => {
   assert.equal(app.communityRank(3).next.name, "Sapling");
 });
 
+const communityPointsConfig = require("../netlify/functions/lib/community-points");
+const communityValidation = require("../netlify/functions/lib/community-validation");
+
+test("the Community screen's ranks match the server's configured ranks", () => {
+  for (const rank of communityPointsConfig.RANKS) {
+    assert.equal(app.communityRank(rank.min).name, rank.name);
+    assert.equal(app.communityRank(rank.min).icon, rank.icon);
+  }
+});
+
+test("every point value comes from the one configuration file", () => {
+  const verify = communityReport({ deviceId: "device-aaaa" });
+  const second = communityReport({ deviceId: "device-bbbb" });
+  const state = communityConsensus.computeCommunityState([verify, second]);
+  assert.equal(state.scores["device-aaaa"].points, communityPointsConfig.POINTS.verify + communityPointsConfig.POINTS.verifyConfirmed);
+  assert.equal(communityConsensus.REWARD_POINTS.register, communityPointsConfig.POINTS.register);
+});
+
+test("a City of London register update that agrees with a report earns the reporter the register reward", () => {
+  const newTree = communityReport({ status: "NEW_TREE", target: undefined, tagNumber: "4821", accuracy: 8 });
+  const notHere = communityReport({ target: "tree:77", status: "NOT_HERE" });
+  const register = { hasTag: (t) => t === "4821", hasRecord: (rn) => rn !== "77", record: () => null };
+  const found = communityValidation.validateAgainstRegister([newTree, notHere], register, 1000);
+  assert.deepEqual(found.map((f) => f.status).sort(), ["NEW_TREE", "NOT_HERE"]);
+  const state = communityConsensus.computeCommunityState([newTree, notHere], found);
+  assert.equal(state.scores["device-aaaa"].points >= 2 * communityPointsConfig.POINTS.register, true);
+  assert.equal(state.scores["device-aaaa"].validated, 2);
+});
+
+test("a report made after the register was first seen cannot claim a register reward", () => {
+  const late = communityReport({ target: "tree:77", status: "NOT_HERE", ts: 5000 });
+  const register = { hasTag: () => false, hasRecord: () => false, record: () => null };
+  assert.deepEqual(communityValidation.validateAgainstRegister([late], register, 1000), []);
+});
+
+test("confirming a place scores nothing and a fixed feedback report earns the fix reward", () => {
+  const place = communityReport({ kind: "place", target: "place:9", status: "OPEN_CONFIRMED" });
+  const state = communityConsensus.computeCommunityState([place], [{ kind: "fix", deviceId: "device-cccc" }]);
+  assert.equal((state.scores["device-aaaa"] || { points: 0 }).points, 0);
+  assert.equal(state.scores["device-cccc"].points, communityPointsConfig.POINTS.fix);
+});
+
 // --- Place checks go to GitHub issues for manual review (netlify/functions/report-missing-data.js) ---
 async function withStubbedGithub(responder, run) {
   const reportFunction = require("../netlify/functions/report-missing-data");

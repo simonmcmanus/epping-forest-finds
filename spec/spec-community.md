@@ -69,6 +69,7 @@ Latest report per device per target. Reports from a device more than 60 m from t
 Independent devices only. Verify + independent verify = confirmed. Two agreeing change reports = "questioned". Conflicts, and `NEW_TREE` without a second sighting, escalate to an issue. Reports within ~40 m of the feature are trusted fully; others are flagged and score less.
 
 ## Scoring
+All values and rank thresholds are configured in `netlify/functions/lib/community-points.js` and explained in `docs/community-points.md`.
 +1 on verify, +1 when independently confirmed. `NEW_TREE` +1, +3 when found by a second device. Accepted correction +2. Points show as pending until the server accepts them. 
 **Rewards after the fact** (`REWARD_POINTS` in `lib/community-consensus.js`): +10 when a later City of London register validates a report (a reported new tree's tag now exists, a "not here" tree is gone, a moved tree's register position changed towards the report; `lib/community-validation.js`), +1 when a feedback or bug issue is closed as completed, +3 when a place-check issue is closed as completed. The first validation run only records a baseline, so existing differences never pay out. Reporters are matched through an HMAC `reporter-ref` stored in the issue; the device id is never in the issue. A daily scheduled function (`community-validate-scheduled`) and an admin `/api/community/validate` run the check, idempotently. Place confirmations earn nothing.
 

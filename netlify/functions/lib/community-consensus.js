@@ -28,9 +28,9 @@ const STATUSES = {
 // Points that arrive after the fact (community-validation.js): a City of London register update that
 // agrees with a report, a feedback / bug report that gets fixed, and a report that a business is
 // wrong once a person has confirmed it.
-const REWARD_POINTS = { register: 10, fix: 1, placeConfirmed: 3 };
+const { POINTS, NEAR_METRES } = require("./community-points");
+const REWARD_POINTS = { register: POINTS.register, fix: POINTS.fix, placeConfirmed: POINTS.placeConfirmed };
 
-const NEAR_METRES = 60; // a reporter further than this from the thing they report is not an independent check
 const NEW_MATCH_DECIMALS = 4; // ~11 m grid for "the same new place"
 const NEW_TREE_MAX_ACCURACY_METRES = 30; // a new tree is only as good as the GPS fix it was reported from
 
@@ -182,22 +182,22 @@ function computeCommunityState(reports, validations = []) {
         continue; // confirming a place scores nothing; only a confirmed report of a wrong business does
       } else if (cls === "confirm") {
         score.verified += 1;
-        score.points += 1;
+        score.points += POINTS.verify;
         if (near.some((o) => o.deviceId !== r.deviceId && statusClass(o.kind, o.status) === "confirm")) {
           score.confirmed += 1;
-          score.points += 1;
+          score.points += POINTS.verifyConfirmed;
         }
       } else if (cls === "new") {
-        score.points += 1;
+        score.points += POINTS.newTree;
         if (near.some((o) => o.deviceId !== r.deviceId)) {
           score.confirmed += 1;
-          score.points += 3;
+          score.points += POINTS.newTreeSecondFinder;
         }
       } else if (cls === "question") {
         const res = resolved.get(target);
         if (res && res.s === "questioned" && res.st === r.status) {
           score.confirmed += 1;
-          score.points += 2;
+          score.points += POINTS.correction;
         }
       }
     }
