@@ -321,7 +321,7 @@ test.describe("Public community pages", () => {
 });
 
 test.describe("Nudges to check a tree you are standing next to", () => {
-  test.use({ geolocation: { latitude: 51.5, longitude: -0.5, accuracy: 10 }, permissions: ["geolocation"] });
+  test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ["geolocation"] });
 
   // Puts the user right next to the first tree in the data, with a good real fix.
   async function standNextToATree(page) {
@@ -332,6 +332,8 @@ test.describe("Nudges to check a tree you are standing next to", () => {
       const tree = state.trees[0];
       state.userLocation = { ...state.userLocation, accuracy: 8, isDefault: false };
       state.nearestTree = { tree, metres: 6 };
+      // Later GPS ticks recompute the nearest tree from the real mock position; keep it this one.
+      window.nearestTreesTo = () => [{ tree, metres: 6 }];
     });
   }
 
