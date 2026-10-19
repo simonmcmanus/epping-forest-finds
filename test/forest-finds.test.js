@@ -10813,6 +10813,102 @@ test("an admin read of a big tracking store returns the newest blobs and says it
   assert.equal(partial.items[0].key, "location/1009_abc", "the newest blob is read first");
 });
 
+// --- Community verification consensus (netlify/functions/lib/community-consensus.js) ---
+const communityConsensus = require("../netlify/functions/lib/community-consensus");
+let communityReportSeq = 0;
+function communityReport(overrides) {
+  communityReportSeq += 1;
+  return {
+    id: `report-${String(communityReportSeq).padStart(4, "0")}`,
+    deviceId: "device-aaaa",
+    kind: "tree",
+    target: "tree:1",
+    status: "VERIFIED",
+    targetLat: 51.64,
+    targetLon: 0.01,
+    lat: 51.64,
+    lon: 0.01,
+    ts: communityReportSeq,
+    ...overrides,
+  };
+}
+
+test("a single missing-tree report does not change what other users see", () => {
+  const { overlay } = communityConsensus.computeCommunityState([
+    communityReport({ status: "NOT_HERE", deviceId: "device-aaaa" }),
+  ]);
+  assert.deepEqual(overlay, {});
+});
+
+test("two independent devices reporting a tree missing mark it questioned, not removed", () => {
+  const { overlay } = communityConsensus.computeCommunityState([
+    communityReport({ status: "NOT_HERE", deviceId: "device-aaaa" }),
+    communityReport({ status: "NOT_HERE", deviceId: "device-bbbb" }),
+  ]);
+  assert.equal(overlay["tree:1"].s, "questioned");
+  assert.equal(overlay["tree:1"].st, "NOT_HERE");
+  assert.equal(overlay["tree:1"].n, 2);
+});
+
+test("one device repeating a report still counts as one voice", () => {
+  const { overlay } = communityConsensus.computeCommunityState([
+    communityReport({ status: "NOT_HERE" }),
+    communityReport({ status: "NOT_HERE" }),
+    communityReport({ status: "NOT_HERE" }),
+  ]);
+  assert.deepEqual(overlay, {});
+});
+
+test("a verified tree scores 1 point, and 1 more when another device independently confirms it", () => {
+  const first = communityConsensus.computeCommunityState([communityReport({ deviceId: "device-aaaa" })]);
+  assert.equal(first.scores["device-aaaa"].points, 1);
+  const both = communityConsensus.computeCommunityState([
+    communityReport({ deviceId: "device-aaaa" }),
+    communityReport({ deviceId: "device-bbbb" }),
+  ]);
+  assert.equal(both.scores["device-aaaa"].points, 2);
+  assert.equal(both.scores["device-bbbb"].points, 2);
+  assert.equal(both.overlay["tree:1"].s, "confirmed");
+});
+
+test("conflicting reports are held for review rather than shown", () => {
+  const { overlay, conflicts } = communityConsensus.computeCommunityState([
+    communityReport({ status: "VERIFIED", deviceId: "device-aaaa" }),
+    communityReport({ status: "NOT_HERE", deviceId: "device-bbbb" }),
+  ]);
+  assert.deepEqual(conflicts, ["tree:1"]);
+  assert.equal(overlay["tree:1"], undefined);
+});
+
+test("a report made from far away earns no points and does not count towards consensus", () => {
+  const { overlay, scores } = communityConsensus.computeCommunityState([
+    communityReport({ status: "NOT_HERE", deviceId: "device-aaaa", lat: 51.7, lon: 0.1 }),
+    communityReport({ status: "NOT_HERE", deviceId: "device-bbbb" }),
+  ]);
+  assert.deepEqual(overlay, {});
+  assert.equal(scores["device-aaaa"].points, 0);
+});
+
+test("a new tree found by a second device is confirmed and earns the finder 4 points", () => {
+  const found = (deviceId, lat) => communityReport({ kind: "tree", status: "NEW_TREE", target: undefined, deviceId, lat, lon: 0.02, targetLat: undefined, targetLon: undefined });
+  const one = communityConsensus.computeCommunityState([found("device-aaaa", 51.65)]);
+  assert.equal(Object.values(one.overlay)[0].s, "new");
+  assert.equal(one.scores["device-aaaa"].points, 1);
+  const two = communityConsensus.computeCommunityState([found("device-aaaa", 51.65), found("device-bbbb", 51.65001)]);
+  assert.equal(Object.values(two.overlay)[0].s, "new-confirmed");
+  assert.equal(two.scores["device-aaaa"].points, 4);
+});
+
+test("business reports use their own status set", () => {
+  assert.equal(communityConsensus.statusClass("place", "CLOSED"), "question");
+  assert.equal(communityConsensus.statusClass("place", "NOT_HERE"), null);
+  assert.equal(communityConsensus.validateReport(communityReport({ kind: "place", status: "NOT_HERE" })), "unknown kind/status");
+});
+
+test("a MOVED report must carry the new position", () => {
+  assert.equal(communityConsensus.validateReport(communityReport({ status: "MOVED" })), "MOVED needs newLat/newLon");
+});
+
 runRegisteredTests().catch((error) => {
   console.error(error);
   process.exitCode = 1;

@@ -274,6 +274,24 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Community reports/overlay: same function modules Netlify runs, with the request body passed
+  // through (the generic proxy below only forwards the query string).
+  if (url.pathname === "/api/community/report" || url.pathname === "/api/community/overlay") {
+    const fnName = url.pathname === "/api/community/report" ? "community-report" : "community-overlay";
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", () => {
+      const fn = require(path.join(ROOT, "netlify", "functions", fnName + ".js"));
+      fn.handler({ httpMethod: req.method, queryStringParameters: Object.fromEntries(url.searchParams), body })
+        .then((result) => {
+          res.writeHead(result.statusCode, result.headers || { "Content-Type": "application/json" });
+          res.end(result.body || "");
+        })
+        .catch((err) => send(res, 500, JSON.stringify({ error: String(err.message) }), "application/json; charset=utf-8"));
+    });
+    return;
+  }
+
   // Proxy Netlify functions locally
   if (url.pathname.startsWith("/.netlify/functions/")) {
     const fnName = url.pathname.replace("/.netlify/functions/", "");

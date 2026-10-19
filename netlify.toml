@@ -121,3 +121,15 @@
   to = "/.netlify/functions/subscribe"
   status = 200
   force = true
+
+[[redirects]]
+  from = "/api/community/report"
+  to = "/.netlify/functions/community-report"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/community/overlay"
+  to = "/.netlify/functions/community-overlay"
+  status = 200
+  force = true
