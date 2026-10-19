@@ -70,8 +70,8 @@ jobs:
     # 2 vCPUs; running the whole suite on a single one meant 4 workers sharing them, which
     # starved the app's boot-and-draw cycle and failed whole spec files in `beforeEach`. Two
     # runners at 2 workers each (see playwright.config.js) gives every worker a full core for
-    # the same total parallelism. Each project is additionally split into three shards so the
-    # six resulting jobs run concurrently and cut this job's wall-clock well below one shard
+    # the same total parallelism. Each project is additionally split into five shards so the
+    # ten resulting jobs run concurrently and cut this job's wall-clock well below one shard
     # per project -- a public repo on the free plan has no Actions-minutes cost and a generous
     # concurrent-job budget, so there is no reason to leave this parallelism on the table.
     # fail-fast is off so one shard's failure still lets the others report.
@@ -97,7 +97,7 @@ jobs:
       fail-fast: false
       matrix:
         project: [desktop, mobile]
-        shard: [1, 2, 3]
+        shard: [1, 2, 3, 4, 5]
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -110,7 +110,7 @@ jobs:
       - name: Run E2E tests
         run: >
           npx playwright test --project=${{ matrix.project }}
-          --grep-invert "snapshot:" --shard=${{ matrix.shard }}/3
+          --grep-invert "snapshot:" --shard=${{ matrix.shard }}/5
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
         if: always()
