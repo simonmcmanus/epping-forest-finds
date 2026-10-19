@@ -192,8 +192,11 @@ function communityBadgeHtml(entry) {
         <p><strong>Questioned by the community</strong><span>${escapeHtml(COMMUNITY_STATUS_TEXT[entry.st] || "Needs checking")} (${entry.n} people). The official record is unchanged.</span></p></div>`;
   }
   if (entry.s === "verified" || entry.s === "confirmed") {
-    return `<div class="community-badge community-badge-verified">${communityIcon("shield")}
-        <p><strong>Verified by the community</strong><span>${entry.n} ${entry.n === 1 ? "person has" : "people have"} confirmed this tree is here.</span></p></div>`;
+    // A summary the reader can see at a glance, with the detail behind a tap.
+    const people = `${entry.n} ${entry.n === 1 ? "person has" : "people have"}`;
+    return `<details class="community-badge community-badge-verified">
+        <summary>${communityIcon("shield")}<strong>Verified by ${entry.n === 1 ? "1 person" : `${entry.n} people`}</strong><span class="community-badge-more">Tap for details</span></summary>
+        <p>${people} confirmed this tree is where the map says it is. Community checks never change the official record.</p></details>`;
   }
   return "";
 }
@@ -217,12 +220,25 @@ function communityRange(lat, lon) {
   return { state: metres <= COMMUNITY_NEAR_METRES ? "near" : "far", metres };
 }
 
-function communityRangeNoteHtml(lat, lon) {
+// The points a check earns, given where it was made (server rules: community-points.js). A verify
+// earns 1 now and 1 more when someone else confirms; a "this is wrong" report earns 2 only if others
+// agree; nothing counts from outside the zone.
+function communityPointsText(status, rangeState) {
+  if (rangeState === "none") return "Points need your location";
+  if (rangeState === "far") return "Points: 0 from this check";
+  if (!status || status === "VERIFIED") return "Points: +1 now, +1 more if someone else confirms";
+  return "Points: up to +2 if others agree";
+}
+
+function communityRangeNoteHtml(lat, lon, status) {
   const range = communityRange(lat, lon);
+  const heading = range.state === "near" ? "Inside the 10 m check zone"
+    : range.state === "far" ? "Outside the 10 m check zone"
+    : "Location is off";
   const text = range.state === "near" ? "You're close enough for this to earn points."
     : range.state === "far" ? `You're about ${Math.round(range.metres)} m away. You can still report this, but you need to be within ${COMMUNITY_NEAR_METRES} m of the tree to earn points.`
     : `You can report this from anywhere. To earn points, turn on location and stand within ${COMMUNITY_NEAR_METRES} m of the tree.`;
-  return `<p class="community-range community-range-${range.state}">${communityIcon(range.state === "near" ? "check" : "locate")}<span>${escapeHtml(text)}</span></p>`;
+  return `<div class="community-range community-range-${range.state}">${communityIcon(range.state === "near" ? "check" : "locate")}<div><strong>${heading}</strong><span>${escapeHtml(text)}</span><span class="community-range-points">${escapeHtml(communityPointsText(status, range.state))}</span></div></div>`;
 }
 
 // Called with each GPS fix so the note follows the reader as they walk up to the tree.
@@ -230,7 +246,8 @@ function communityUpdateRangeNotes() {
   document.querySelectorAll(".community-check[data-community-target]").forEach((section) => {
     const note = section.querySelector(".community-range");
     if (!note || section.dataset.kind === "place") return;
-    note.outerHTML = communityRangeNoteHtml(Number(section.dataset.lat), Number(section.dataset.lon));
+    const chosen = section.querySelector(".is-chosen");
+    note.outerHTML = communityRangeNoteHtml(Number(section.dataset.lat), Number(section.dataset.lon), chosen ? chosen.dataset.status : null);
   });
 }
 
@@ -242,7 +259,8 @@ function communitySectionInnerHtml(target, editing, lat, lon) {
       <div class="community-mine">
         <span class="community-mine-icon">${communityIcon("check")}</span>
         <p><strong>You reported: ${escapeHtml(COMMUNITY_STATUS_TEXT[local.status] || local.status)}</strong>
-          <span>Thank you! Other people may take an hour or two to see this.${local.far ? ` It only earns points when you report within ${COMMUNITY_NEAR_METRES} m of the tree.` : ""}</span></p>
+          <span>Thank you! Other people may take an hour or two to see this.${local.far ? ` It only earns points when you report within ${COMMUNITY_NEAR_METRES} m of the tree.` : ""}</span>
+          <span class="community-range-points community-earned-${local.far ? "far" : "near"}">${escapeHtml(communityPointsText(local.status, local.far ? "far" : "near"))}</span></p>
         <button class="community-link" type="button" data-action="community-change">Change</button>
       </div>`;
   }
@@ -252,7 +270,7 @@ function communitySectionInnerHtml(target, editing, lat, lon) {
       ${communityChoiceHtml(primary, chosen === primary.status)}
       <p class="community-or">Something not right?</p>
       <div class="community-choices">${others.map((c) => communityChoiceHtml(c, chosen === c.status)).join("")}</div>
-      ${communityRangeNoteHtml(lat, lon)}
+      ${communityRangeNoteHtml(lat, lon, chosen)}
       <p class="report-note community-status" aria-live="polite"></p>`;
 }
 
@@ -727,6 +745,51 @@ function communityPlaceInnerHtml(section) {
       <p class="report-note community-status" aria-live="polite"></p>`;
 }
 
+// --- Community reports on a place: the open and closed GitHub issues people have filed about it ---
+
+const COMMUNITY_REPO = "simonmcmanus/epping-forest-finds";
+const communityPlaceIssueCache = new Map();
+
+function communityPlaceIssuesUrl(placeKey) {
+  return `https://github.com/${COMMUNITY_REPO}/issues?q=${encodeURIComponent(`is:issue label:place-check "place-key:${placeKey}"`)}`;
+}
+
+// A hidden line under the place's card, filled in by loadCommunityPlaceIssues once GitHub answers.
+function communityPlaceIssuesHtml(place) {
+  if (!place || place.latitude == null) return "";
+  const key = `place:${placeHashKey(place)}`;
+  return `<p class="community-place-issues" data-place-key="${escapeHtml(key)}" hidden></p>`;
+}
+
+// Public repo, so the search needs no token. Any failure leaves the line hidden: it is extra
+// information, never something the place page should wait on or report as an error.
+async function loadCommunityPlaceIssues(place) {
+  const key = `place:${placeHashKey(place)}`;
+  const host = document.querySelector(`.community-place-issues[data-place-key="${CSS.escape(key)}"]`);
+  if (!host) return;
+  let found = communityPlaceIssueCache.get(key);
+  if (!found) {
+    try {
+      const query = `repo:${COMMUNITY_REPO} is:issue label:place-check in:body "place-key:${key}"`;
+      const response = await fetch(`https://api.github.com/search/issues?q=${encodeURIComponent(query)}&per_page=30`, {
+        headers: { Accept: "application/vnd.github+json" },
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      const items = Array.isArray(data.items) ? data.items : [];
+      found = { total: data.total_count || 0, open: items.filter((item) => item.state === "open").length };
+      communityPlaceIssueCache.set(key, found);
+    } catch {
+      return;
+    }
+  }
+  if (!found.total) return;
+  const count = `${found.total} ${found.total === 1 ? "issue" : "issues"}`;
+  const openText = found.open ? `${found.open} still open` : "all closed";
+  host.innerHTML = `${communityIcon("alert")}<span><strong>The community has raised ${count} about this place</strong> (${openText}).</span> <a class="community-link" href="${escapeHtml(communityPlaceIssuesUrl(key))}" target="_blank" rel="noopener">See them on GitHub</a>`;
+  host.hidden = false;
+}
+
 function communityPlaceSectionHtml(place) {
   if (!place || !place.name || place.latitude == null || place.longitude == null) return "";
   const target = `place:${placeHashKey(place)}`;
@@ -847,6 +910,17 @@ function communityRecordCoords(record) {
 function communityMarkKind(entry) {
   if (entry.status === "NEW_TREE") return "added";
   return entry.status === "VERIFIED" || entry.status === "OPEN_CONFIRMED" ? "verified" : "questioned";
+}
+
+// The shared verdict on the tree whose page is open (from the overlay, so everyone's reports show), drawn
+// on its own pin. Questioned and verified only: a tree with no community entry gets no mark.
+function communitySelectedTreeMarks() {
+  const item = state.selected && state.selected.item;
+  if (!item || item.latitude == null || item.longitude == null) return [];
+  const key = communityTreeTarget(item);
+  const entry = key && communityOverlay.entries[key];
+  if (!entry || !["verified", "confirmed", "questioned"].includes(entry.s)) return [];
+  return [{ lat: Number(item.latitude), lon: Number(item.longitude), kind: entry.s === "questioned" ? "questioned" : "verified", key }];
 }
 
 // [{ lat, lon, kind, status, key }] for every report this device has made that has a position.

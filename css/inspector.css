@@ -508,6 +508,15 @@ button.search-screen-toggle {
   place-items: center;
 }
 
+/* The tabs sit edge to edge, so the browser's default outline (2px out, dark blue) spills onto
+   the next tab. Keep the keyboard ring inside its own tab instead. */
+a.search-screen-toggle:focus-visible,
+a.report-toggle:focus-visible,
+a.settings-toggle:focus-visible {
+  outline: 2px solid var(--nav);
+  outline-offset: -4px;
+}
+
 a.settings-toggle,
 button.settings-toggle {
   width: calc(36px * var(--icon-scale));
@@ -1233,6 +1242,14 @@ button.settings-toggle.has-update::after {
   margin-bottom: 10px; padding: 10px 12px; border-radius: 12px; border-left: 4px solid;
 }
 .community-badge .community-icon { margin-top: 1px; }
+details.community-badge { display: block; }
+.community-badge summary { display: flex; gap: 10px; align-items: center; cursor: pointer; list-style: none; font-size: 0.95rem; }
+.community-badge summary::-webkit-details-marker { display: none; }
+.community-badge summary svg { flex: none; width: 20px; height: 20px; }
+.community-badge summary strong { flex: 1; }
+.community-badge-more { font-size: 0.78rem; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
+.community-badge details[open] > summary .community-badge-more { text-decoration: none; }
+.community-badge details p, details.community-badge > p { margin: 6px 0 0 30px; font-size: 0.85rem; line-height: 1.35; color: var(--muted); }
 .community-badge-questioned { background: var(--gold-tint); border-color: #d9a21b; color: #5c4600; }
 .community-badge-verified { background: #e8f3ea; border-color: var(--tree); color: #1f4d29; }
 
@@ -1643,10 +1660,18 @@ dd {
 .community-recover-status { min-height: 1.2em; margin: 8px 0 0; color: #2f6b3a; font-size: .85rem; }
 
 /* "You need to be close to earn points" note on the tree check card. */
-.community-range { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0 0; padding: 8px 10px; border-radius: 8px; background: #f1f4ec; color: #4b574b; font-size: .82rem; line-height: 1.35; }
-.community-range svg { flex: none; width: 16px; height: 16px; margin-top: 1px; }
-.community-range-near { background: #e3f1e6; color: #1f4d29; }
-.community-range-far, .community-range-none { background: var(--gold-tint, #fbf6e3); color: #6b4a00; }
+.community-range { display: flex; gap: 10px; align-items: flex-start; margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; border-left: 4px solid #8a9a8a; background: #f1f4ec; color: #4b574b; font-size: .82rem; line-height: 1.35; }
+.community-range > div { display: grid; gap: 3px; min-width: 0; }
+.community-range strong { font-size: .9rem; }
+.community-range svg { flex: none; width: 18px; height: 18px; margin-top: 1px; }
+.community-range-points { justify-self: start; margin-top: 4px; padding: 2px 8px; border-radius: 999px; background: rgba(255, 255, 255, .7); font-weight: 600; }
+.community-range-near { border-left-color: var(--tree, #2f8a4f); background: #e3f1e6; color: #1f4d29; }
+.community-range-far, .community-range-none { border-left-color: #c58b00; background: var(--gold-tint, #fbf6e3); color: #6b4a00; }
+.community-place-issues { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--gold-tint, #fbf6e3); color: #6b4a00; font-size: .82rem; line-height: 1.35; }
+.community-place-issues[hidden] { display: none; }
+.community-place-issues svg { flex: none; width: 16px; height: 16px; margin-top: 1px; }
+.community-earned-near { color: #1f4d29; }
+.community-earned-far { color: #6b4a00; }
 .community-outcome-far { background: var(--gold-tint, #fbf6e3); color: #6b4a00; }
 
 /* A report the server refused: say why, and offer to send it again. */

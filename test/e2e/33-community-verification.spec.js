@@ -1,6 +1,8 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, FIXTURE_TREE } = require("./helpers");
+const { setup, FIXTURE_TREE, skipOnboarding, mockCowApi, gotoAndWaitForMap } = require("./helpers");
+const businessIndex = require("../../data/business-slugs.json");
+const PLACE = businessIndex.entries.find((e) => e.key === "pubs" && e.lat != null);
 
 const REPORT_URL = "**/api/community/report";
 const OVERLAY_URL = "**/api/community/overlay";
@@ -485,8 +487,11 @@ test.describe("Reporting from too far away", () => {
       const note = page.locator(".community-range");
       await expect(note).toContainText(/You're about \d+ m away/);
       await expect(note).toContainText("within 10 m of the tree to earn points");
+      await expect(note).toContainText("Outside the 10 m check zone");
+      await expect(note.locator(".community-range-points")).toContainText("Points: 0 from this check");
       await page.click("[data-action='community-report'][data-status='VERIFIED']");
       await expect(page.locator(".community-mine")).toContainText("It only earns points when you report within 10 m of the tree");
+      await expect(page.locator(".community-mine .community-range-points")).toContainText("Points: 0 from this check");
       await page.click("#reportToggle");
       await expect(page.locator(".community-log-item .community-pill")).toContainText("Not close enough for points");
     });
@@ -496,7 +501,48 @@ test.describe("Reporting from too far away", () => {
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     await expect(page.locator(".community-range")).toContainText("You can report this from anywhere");
     await expect(page.locator(".community-range")).toContainText("within 10 m of the tree");
+    await expect(page.locator(".community-range")).toContainText("Location is off");
     await page.click("[data-action='community-report'][data-status='VERIFIED']");
     await expect(page.locator(".community-mine")).toContainText("Thank you");
+  });
+});
+
+test.describe("Community reports on a place", () => {
+  test("a place that people have raised issues about links to them, filtered by label", async ({ page }) => {
+    await page.route("https://api.github.com/search/issues**", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ total_count: 2, items: [{ state: "open" }, { state: "closed" }] }) }));
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await gotoAndWaitForMap(page, `/nearby#place=id:${PLACE.id}`);
+    const line = page.locator(".community-place-issues");
+    await expect(line).toBeVisible();
+    await expect(line).toContainText("The community has raised 2 issues about this place");
+    await expect(line).toContainText("1 still open");
+    const href = await line.locator("a").getAttribute("href");
+    expect(decodeURIComponent(href)).toContain("label:place-check");
+    expect(decodeURIComponent(href)).toContain(`place-key:place:id:${PLACE.id}`);
+  });
+
+  test("a place with no issues shows nothing extra", async ({ page }) => {
+    await page.route("https://api.github.com/search/issues**", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ total_count: 0, items: [] }) }));
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await gotoAndWaitForMap(page, `/nearby#place=id:${PLACE.id}`);
+    await expect(page.locator(".community-place-issues")).toHaveCount(1);
+    await expect(page.locator(".community-place-issues")).toBeHidden();
+  });
+});
+
+test.describe("Verified badge on a tree", () => {
+  test("one person verifying a tree shows a tappable badge on its page", async ({ page }) => {
+    await page.route(OVERLAY_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: { [`tree:${FIXTURE_TREE.recordNumber}`]: { s: "verified", n: 1, t: 1 } } }) }));
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    const badge = page.locator(".community-badge-verified");
+    await expect(badge.locator("summary")).toContainText("Verified by 1 person");
+    await expect(badge.locator("p")).toBeHidden();
+    await badge.locator("summary").click();
+    await expect(badge.locator("p")).toContainText("1 person has confirmed this tree is where the map says it is");
   });
 });

@@ -342,8 +342,9 @@ function drawOverlay() {
 // (verified), a cross (reported wrong) or a plus (a tree they added), over a soft halo so it reads
 // against any pin or footpath underneath. communityMapMarks() (js/community.js) says what and where.
 function drawCommunityMarks(ctx, toScreen) {
-  if (!state.selected || state.selected.type !== "community" || typeof communityMapMarks !== "function") return;
-  const marks = communityMapMarks();
+  if (!state.selected || typeof communityMapMarks !== "function") return;
+  const onCommunityScreen = state.selected.type === "community";
+  const marks = onCommunityScreen ? communityMapMarks() : (state.selected.type === "tree" && typeof communitySelectedTreeMarks === "function" ? communitySelectedTreeMarks() : []);
   if (!marks.length) return;
   if (!toScreen) toScreen = worldToScreen;
   const dpr = pixelRatio();
