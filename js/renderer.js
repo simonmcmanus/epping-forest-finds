@@ -2253,7 +2253,14 @@ function buildSearchIconLookup() {
 // while it has matches to show, the ordinary Nearby/Filter/Settings/Report set otherwise (an
 // open Search screen with no query yet, or too short a query, falls back to this too -- see
 // searchResultsHtml/updateSearchHighlight, js/app.js).
+// On the Community screen the map shows only what the user has marked (drawCommunityMarks), so no
+// ordinary pins are drawn or tappable underneath.
+const COMMUNITY_EMPTY_ICON_LOOKUP = Object.freeze({
+  tree: new Set(), landmark: new Set(), cow: new Set(), path: new Set(), water: new Set(), outOfRadius: new Set(),
+});
+
 function activeIconLookup() {
+  if (state.selected && state.selected.type === "community") return COMMUNITY_EMPTY_ICON_LOOKUP;
   if (state.searchScreenOpen && state.searchHighlightResults.length) return buildSearchIconLookup();
   return buildNearbyIconLookup();
 }

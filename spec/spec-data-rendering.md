@@ -1460,4 +1460,4 @@ The full routing model — the URL for each screen, history entries, back/forwar
 
 The Community screen's feedback form and the per-location "Noticed a problem" form no longer require a connection: submitting offline (or when the request cannot reach the server) saves the report to the outbox (`js/outbox.js`, see `spec-community.md`) and sends it automatically later. The Feedback screen shows how many are waiting.
 
-The Community screen (formerly Feedback) opens with "Your contributions" (rank, points, log of the user's community reports) and "Add a missing tree" above the feedback form; see `spec-community.md`.
+On the Community screen the map draws only what the user has marked (`drawCommunityMarks`): `activeIconLookup()` (`js/renderer.js`) returns an empty lookup while `state.selected.type === "community"`, so no ordinary tree, place, cow, path or water pins are drawn or tappable underneath, and they return on Nearby. The Community screen (formerly Feedback) opens with "Your contributions" (rank, points, log of the user's community reports) and "Add a missing tree" above the feedback form; see `spec-community.md`.

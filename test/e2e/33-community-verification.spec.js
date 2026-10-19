@@ -300,6 +300,23 @@ test.describe("Community place checks", () => {
   });
 });
 
+test.describe("Community screen map", () => {
+  test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 8 }, permissions: ["geolocation"] });
+
+  test("shows only what the user has marked: no ordinary pins are drawn underneath, and they come back on Nearby", async ({ page }) => {
+    await page.route(OVERLAY_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {} }) }));
+    await setup(page);
+    const pinCount = () => page.evaluate(() => { const l = activeIconLookup(); return l.tree.size + l.landmark.size + l.cow.size + l.path.size + l.water.size; });
+    await expect.poll(pinCount).toBeGreaterThan(0);
+    await page.click("#reportToggle");
+    await expect(page.locator(".community-contributions")).toBeVisible();
+    expect(await pinCount()).toBe(0);
+    await page.click("#nearbyToggle");
+    await expect.poll(pinCount).toBeGreaterThan(0);
+  });
+});
+
 test.describe("Community screen layout", () => {
   test("opens with a one-row summary that links out to the full explanation", async ({ page }) => {
     await setup(page, "/community");
