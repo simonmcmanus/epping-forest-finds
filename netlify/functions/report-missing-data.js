@@ -70,7 +70,9 @@ const PLACE_CHECK_LABELS = {
   DETAILS_CHANGED: "The details are wrong",
   WRONG_CATEGORY: "Wrong type of place",
 };
-const PLACE_KEY_PATTERN = /^[A-Za-z0-9:_.,-]{1,120}$/;
+// Real place ids carry a slash ("node/123", "manual/onest"). A slash is safe inside the quoted
+// place-key search term; quotes and spaces stay out, so the term can't break out of its quotes.
+const PLACE_KEY_PATTERN = /^[A-Za-z0-9:_./,-]{1,120}$/;
 
 function parsePlaceCheck(raw) {
   if (!raw || typeof raw !== "object") return null;

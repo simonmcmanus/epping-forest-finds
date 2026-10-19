@@ -11163,6 +11163,19 @@ test("a second report about the same place is added to its open issue instead of
   );
 });
 
+test("a place check keyed by a real OSM or manual place id is accepted", async () => {
+  await withStubbedGithub(
+    (url, method) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 8, html_url: "https://github.com/x/y/issues/8" })),
+    async (handler, calls) => {
+      for (const key of ["place:id:node/5903400322", "place:id:manual/onest"]) {
+        const result = await handler(placeCheckEvent({ placeCheck: { status: "DETAILS_CHANGED", key, name: "Onest" } }));
+        assert.equal(result.statusCode, 200, key);
+      }
+      assert.equal(calls.filter((c) => c.method === "POST" && c.url.endsWith("/issues")).length, 2);
+    }
+  );
+});
+
 test("a place check with an unknown status or an unsafe key is rejected", async () => {
   await withStubbedGithub(() => jsonResponse(200, { items: [] }), async (handler) => {
     assert.equal((await handler(placeCheckEvent({ placeCheck: { status: "OPEN_CONFIRMED", key: "place:id:1", name: "x" } }))).statusCode, 400);
