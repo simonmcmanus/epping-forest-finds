@@ -50,7 +50,14 @@ jobs:
               : "";
 
             const marker = /<!-- visual-diffs:start -->[\s\S]*?<!-- visual-diffs:end -->/;
-            const body = pr.body || "";
+            // Read the current body: the visual job edits the description too, and the event
+            // payload is from when this run started.
+            const { data: current } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+            });
+            const body = current.body || "";
             const replacement = `<!-- visual-diffs:start -->\n${section}\n<!-- visual-diffs:end -->`;
             let nextBody;
             if (marker.test(body)) {
