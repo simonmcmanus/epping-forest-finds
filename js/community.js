@@ -90,8 +90,9 @@ const COMMUNITY_OUTCOME_TEXT = {
   validated: "Confirmed by the City of London",
   fixed: "Fixed",
   far: "Not close enough for points",
+  failed: "Couldn't send",
 };
-const COMMUNITY_OUTCOME_ICON = { waiting: "upload", pending: "clock", confirmed: "check", review: "alert", sent: "check", checked: "check", validated: "shield", fixed: "check", far: "alert" };
+const COMMUNITY_OUTCOME_ICON = { waiting: "upload", pending: "clock", confirmed: "check", review: "alert", sent: "check", checked: "check", validated: "shield", fixed: "check", far: "alert", failed: "alert" };
 
 // Places (pubs, cafes, shops...): confirmations are a quiet check-in; any change is filed as a
 // GitHub issue for a person to review -- never applied automatically.
@@ -340,6 +341,20 @@ async function communityRefreshScore(force = true) {
   } catch {}
 }
 
+// Put a refused report back on the outbox and try it again.
+async function communityRetry(button) {
+  const local = communityReadLocal();
+  const key = Object.keys(local).find((k) => local[k].id === button.dataset.id);
+  if (!key || !local[key].retry) return;
+  const item = local[key].retry;
+  delete local[key].failed;
+  delete local[key].retry;
+  communityWriteLocal(local);
+  await outboxAdd(item);
+  communityOpenContributions();
+  if (navigator.onLine) outboxFlush();
+}
+
 // --- Recovery code: the device id is the whole identity, so show it and let it be restored ---
 const COMMUNITY_RECOVERY_RE = /^[A-Za-z0-9_-]{8,64}$/;
 
@@ -520,10 +535,20 @@ if (typeof window !== "undefined" && window.addEventListener) {
     const detail = event.detail;
     if (!detail || !detail.item) return;
     if (detail.item.url === COMMUNITY_REPORT_URL) communityRefreshScore();
-    if (detail.item.url === COMMUNITY_ISSUE_URL && detail.ok && detail.response && detail.response.issueUrl) {
+    if (detail.item.url === COMMUNITY_ISSUE_URL) {
       const local = communityReadLocal();
       const key = Object.keys(local).find((k) => local[k].id === detail.item.id);
-      if (key) { local[key].issueUrl = detail.response.issueUrl; communityWriteLocal(local); }
+      if (key && detail.ok && detail.response && detail.response.issueUrl) {
+        local[key].issueUrl = detail.response.issueUrl;
+        delete local[key].failed;
+        delete local[key].retry;
+        communityWriteLocal(local);
+      } else if (key && !detail.ok) {
+        // The server refused it (not just offline): say so instead of claiming it was sent.
+        local[key].failed = String((detail.response && detail.response.error) || "The server refused the report.").slice(0, 200);
+        local[key].retry = { id: detail.item.id, url: detail.item.url, payload: detail.item.payload };
+        communityWriteLocal(local);
+      }
     }
   });
 }
@@ -899,6 +924,7 @@ async function communityRenderContributions() {
     const label = communityTargetLabel(key, entry);
     const isPlace = entry.kind === "place";
     const outcome = waitingIds.has(entry.id) ? "waiting"
+      : entry.failed ? "failed"
       : entry.kind === "feedback" ? (outcomes[entry.id] === "fixed" ? "fixed" : "sent")
       : isPlace && entry.status === "OPEN_CONFIRMED" ? "checked"
       : isPlace ? (outcomes[entry.id] === "confirmed" ? "confirmed" : "sent")
@@ -907,7 +933,7 @@ async function communityRenderContributions() {
     return `<li class="community-log-item">
         <span class="community-log-icon">${communityIcon(COMMUNITY_STATUS_ICON[entry.status] || "check")}</span>
         <span class="community-log-main"><span class="community-log-name">${name}</span><span class="community-log-status">${escapeHtml(COMMUNITY_STATUS_TEXT[entry.status] || entry.status)}</span></span>
-        <span class="community-pill community-outcome-${outcome}">${communityIcon(COMMUNITY_OUTCOME_ICON[outcome])}${escapeHtml(COMMUNITY_OUTCOME_TEXT[outcome])}</span>${label.issueUrl && /^https:\/\/github\.com\//.test(label.issueUrl) ? `<a class="community-issue-link" href="${escapeHtml(label.issueUrl)}" target="_blank" rel="noopener">View on GitHub</a>` : ""}
+        <span class="community-pill community-outcome-${outcome}">${communityIcon(COMMUNITY_OUTCOME_ICON[outcome])}${escapeHtml(COMMUNITY_OUTCOME_TEXT[outcome])}</span>${label.issueUrl && /^https:\/\/github\.com\//.test(label.issueUrl) ? `<a class="community-issue-link" href="${escapeHtml(label.issueUrl)}" target="_blank" rel="noopener">View on GitHub</a>` : ""}${entry.failed ? `<span class="community-log-error"><span>${escapeHtml(entry.failed)}</span> <button type="button" class="community-link" data-action="community-retry" data-id="${escapeHtml(entry.id)}">Send again</button></span>` : ""}
       </li>`;
   }).join("");
   host.innerHTML = `<div class="community-rank-card">

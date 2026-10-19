@@ -1648,3 +1648,7 @@ dd {
 .community-range-near { background: #e3f1e6; color: #1f4d29; }
 .community-range-far, .community-range-none { background: var(--gold-tint, #fbf6e3); color: #6b4a00; }
 .community-outcome-far { background: var(--gold-tint, #fbf6e3); color: #6b4a00; }
+
+/* A report the server refused: say why, and offer to send it again. */
+.community-log-error { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; margin-top: 6px; color: #8a2c0d; font-size: .8rem; line-height: 1.35; }
+.community-outcome-failed { background: #fbe9e4; color: #8a2c0d; }

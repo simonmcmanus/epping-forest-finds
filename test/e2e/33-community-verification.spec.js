@@ -249,6 +249,30 @@ test.describe("Community place checks", () => {
     expect(issues[0]).toMatchObject({ reportType: "place-check", placeCheck: { status: "CLOSED" }, details: "Shutters down since September" });
   });
 
+  test("a report the server refuses is shown as not sent, with the reason, and can be sent again", async ({ page }) => {
+    let refuse = true;
+    const calls = [];
+    await page.route(ISSUE_URL, (route) => {
+      calls.push(route.request().postDataJSON());
+      return refuse
+        ? route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ error: "Resource not accessible by personal access token" }) })
+        : route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, issueNumber: 9, issueUrl: "https://github.com/example/repo/issues/9" }) });
+    });
+    await page.click("[data-action='community-place-choose'][data-status='CLOSED']");
+    await page.fill(".community-note-input", "Shut for good");
+    await page.click("[data-action='community-send-place']");
+    await expect.poll(() => calls.length).toBe(1);
+    await page.click("#reportToggle");
+    await expect(page.locator(".community-log-item .community-pill")).toContainText("Couldn't send");
+    await expect(page.locator(".community-log-error")).toContainText("Resource not accessible");
+    refuse = false;
+    await page.click("[data-action='community-retry']");
+    await expect(page.locator(".community-log-item .community-pill")).toContainText("Sent for review");
+    await expect(page.locator(".community-issue-link")).toHaveAttribute("href", "https://github.com/example/repo/issues/9");
+    expect(calls.length).toBe(2);
+    expect(calls[0].requestId).toBe(calls[1].requestId);
+  });
+
   test("a rename needs a few words before it can be sent", async ({ page }) => {
     const issues = [];
     await page.route(ISSUE_URL, (route) => { issues.push(1); route.fulfill({ status: 200, body: "{}" }); });
