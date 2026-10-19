@@ -187,3 +187,29 @@ if (typeof window !== "undefined" && window.addEventListener) {
     if (event.detail && event.detail.item && event.detail.item.url === COMMUNITY_REPORT_URL) communityRefreshScore();
   });
 }
+
+// "Add a tree that's missing from the map" on the Feedback screen: the reporter's own GPS is the
+// tree's position, so it needs a real location. It only appears for other people once a second
+// device has found it too (spec-community.md, Consensus).
+function communityAddTreeHtml() {
+  const score = communityReadScore();
+  const scoreLine = score
+    ? `<p class="report-note community-score">Your community score: <strong>${score.points}</strong> ${score.points === 1 ? "point" : "points"} · ${score.verified} verified</p>`
+    : "";
+  return `<div class="community-new-tree">
+      <button id="communityAddTree" class="button button-ghost" type="button">Add a tree that's missing from the map</button>
+      <p id="communityAddTreeStatus" class="report-note" aria-live="polite">Stand next to the tree first: we use your location.</p>${scoreLine}
+    </div>`;
+}
+
+async function communityAddTreeHere() {
+  const statusEl = document.getElementById("communityAddTreeStatus");
+  if (!(typeof hasRealLocation === "function" && hasRealLocation())) {
+    if (statusEl) statusEl.textContent = "Turn on location and stand next to the tree, so we can record where it is.";
+    return;
+  }
+  const lat = Number(state.userLocation.latitude.toFixed(6));
+  const lon = Number(state.userLocation.longitude.toFixed(6));
+  await communitySubmitReport({ kind: "tree", status: "NEW_TREE", target: undefined, targetLat: lat, targetLon: lon });
+  if (statusEl) statusEl.textContent = "Saved. Thank you! It will be added to the community layer once a second person finds it too, and may take up to a day to show for others.";
+}

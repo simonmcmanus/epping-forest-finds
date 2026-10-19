@@ -3061,6 +3061,7 @@ function reportFormHtml() {
   const online = navigator.onLine;
   return `<form id="reportForm" class="report-form">
       <p class="report-intro">We welcome feedback, bug reports, and anything strange you have noticed. It helps us improve the data for everyone.</p>
+      ${communityAddTreeHtml()}
       <label for="reportDetails">What did you notice?
         <textarea id="reportDetails" class="report-textarea" placeholder="Describe what's missing or what you'd like to see…" required>${escapeHtml(detailsValue)}</textarea>
       </label>
@@ -3097,6 +3098,9 @@ function bindReportFormHandlers() {
       goToInitialView();
     });
   }
+
+  const addTreeButton = document.getElementById("communityAddTree");
+  if (addTreeButton) addTreeButton.addEventListener("click", communityAddTreeHere);
 
   const form = document.getElementById("reportForm");
   if (form) {

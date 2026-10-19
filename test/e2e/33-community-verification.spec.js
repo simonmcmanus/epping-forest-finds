@@ -60,4 +60,32 @@ test.describe("Community tree verification", () => {
     await expect(page.locator(".community-badge-questioned")).toContainText("Questioned by the community");
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
   });
+
+  test("adding a missing tree needs a real location and sends a NEW_TREE report", async ({ page, context }) => {
+    // no location granted: the app answers "denied", so the button explains what is needed
+    await setup(page, "/feedback");
+    await page.click("#communityAddTree");
+    await expect(page.locator("#communityAddTreeStatus")).toContainText("Turn on location");
+  });
+});
+
+test.describe("Community tree verification with location shared", () => {
+  test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ["geolocation"] });
+
+  test("a missing tree is reported from the user's own position", async ({ page }) => {
+    await page.route(OVERLAY_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {} }) })
+    );
+    const posted = [];
+    await page.route(REPORT_URL, async (route) => {
+      posted.push(route.request().postDataJSON());
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+    });
+    await setup(page, "/feedback");
+    await page.click("#communityAddTree");
+    await expect(page.locator("#communityAddTreeStatus")).toContainText("second person finds it too");
+    await expect.poll(() => posted.length).toBe(1);
+    expect(posted[0]).toMatchObject({ kind: "tree", status: "NEW_TREE" });
+    expect(posted[0].lat).toBeCloseTo(51.665, 2);
+  });
 });
