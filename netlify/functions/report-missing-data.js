@@ -88,6 +88,12 @@ function parsePlaceCheck(raw) {
   };
 }
 
+// Every place-check issue also carries a label naming the place ("place:node/123"), so GitHub's label
+// filter lists everything reported about one location. GitHub caps a label name at 50 characters.
+function placeLabelName(key) {
+  return `place:${String(key).replace(/^place:(id:)?/, "")}`.slice(0, 50);
+}
+
 // A reporter is credited later (spec-community.md, Rewards) when their issue is closed as completed.
 // The public issue carries only an opaque reference; the server keeps the reference -> device id
 // mapping, so nobody can read a device id off GitHub.
@@ -248,7 +254,7 @@ exports.handler = async (event) => {
   const issuePayload = {
     title,
     body: issueBodyLines.join("\n"),
-    labels: [isPlaceCheck ? "place-check" : isFeature ? "feature-request" : isLocationIssue ? "location-issue" : "missing-data", "user-report"],
+    labels: [isPlaceCheck ? "place-check" : isFeature ? "feature-request" : isLocationIssue ? "location-issue" : "missing-data", "user-report", ...(isPlaceCheck ? [placeLabelName(placeCheck.key)] : [])],
   };
 
   const apiHeaders = {
@@ -359,4 +365,5 @@ exports.handler = async (event) => {
 exports.REPORT_PHOTO_MAX_BYTES = REPORT_PHOTO_MAX_BYTES;
 exports.parsePhoto = parsePhoto;
 exports.parsePlaceCheck = parsePlaceCheck;
+exports.placeLabelName = placeLabelName;
 exports.reportPhotoUrl = reportPhotoUrl;
