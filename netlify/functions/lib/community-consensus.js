@@ -175,6 +175,16 @@ function computeCommunityState(reports) {
   return { overlay, conflicts, scores };
 }
 
+// What a contributor sees against one of their own reports, from the daily overlay.
+function reportOutcome(report, entry, conflicts) {
+  if (conflicts.includes(report.target)) return "review";
+  const cls = statusClass(report.kind, report.status);
+  if (!entry) return "pending";
+  if (cls === "confirm") return entry.s === "confirmed" ? "confirmed" : "pending";
+  if (cls === "question") return entry.s === "questioned" && entry.st === report.status ? "confirmed" : "pending";
+  return "pending";
+}
+
 // Admin usage numbers (spec-admin.md): how many people are using the feature and what they say.
 function communityAdminStats(reports, state, now = Date.now()) {
   const valid = reports.filter((r) => !validateReport(r));
@@ -206,4 +216,4 @@ function communityAdminStats(reports, state, now = Date.now()) {
   };
 }
 
-module.exports = { communityAdminStats, STATUSES, NEAR_METRES, statusClass, validateReport, computeCommunityState, distanceMetres };
+module.exports = { reportOutcome, communityAdminStats, STATUSES, NEAR_METRES, statusClass, validateReport, computeCommunityState, distanceMetres };

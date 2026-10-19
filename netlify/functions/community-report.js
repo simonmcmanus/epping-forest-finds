@@ -49,5 +49,10 @@ exports.handler = async (event) => {
   if (day.n >= MAX_REPORTS_PER_DEVICE_PER_DAY) return respond(429, { error: "Too many reports today" });
   await store.put(dayKey, { n: day.n + 1 });
   await store.put(key, report);
+  // Per-device index so a contributor can read their own log back without scanning the ledger.
+  const mineKey = `mine/${report.deviceId}`;
+  const mine = (await store.get(mineKey)) || [];
+  mine.push({ id: report.id, kind: report.kind, target: report.target, status: report.status, ts: report.ts, lat: report.lat, lon: report.lon });
+  await store.put(mineKey, mine.slice(-300));
   return respond(200, { ok: true });
 };

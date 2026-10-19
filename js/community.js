@@ -27,6 +27,20 @@ const COMMUNITY_STATUS_TEXT = {
   NEW_TREE: "New tree",
 };
 
+const COMMUNITY_LOG_KEY = "ff-community-log-v1";
+const COMMUNITY_RANKS = [
+  { min: 0, name: "Seedling" },
+  { min: 5, name: "Sapling" },
+  { min: 20, name: "Woodward" },
+  { min: 50, name: "Warden" },
+];
+const COMMUNITY_OUTCOME_TEXT = {
+  waiting: "Waiting to send",
+  pending: "Waiting for a second opinion",
+  confirmed: "Confirmed by others",
+  review: "Being reviewed",
+};
+
 let communityOverlay = { generatedAt: 0, entries: {} };
 
 function communityRandomId(length = 24) {
@@ -212,4 +226,73 @@ async function communityAddTreeHere() {
   const lon = Number(state.userLocation.longitude.toFixed(6));
   await communitySubmitReport({ kind: "tree", status: "NEW_TREE", target: undefined, targetLat: lat, targetLon: lon });
   if (statusEl) statusEl.textContent = "Saved. Thank you! It will be added to the community layer once a second person finds it too, and may take up to a day to show for others.";
+}
+
+// --- "Your contributions": score, rank and a log of the user's own reports (Settings screen) ---
+
+function communityRank(points) {
+  let current = COMMUNITY_RANKS[0];
+  for (const rank of COMMUNITY_RANKS) if (points >= rank.min) current = rank;
+  const next = COMMUNITY_RANKS.find((rank) => rank.min > points) || null;
+  return { name: current.name, next };
+}
+
+function communityReadLog() {
+  try { return JSON.parse(localStorage.getItem(COMMUNITY_LOG_KEY)) || {}; } catch { return {}; }
+}
+
+function communityTargetLabel(entry, key) {
+  if (key.startsWith("tree:") && typeof findTreeByHashKey === "function") {
+    const tree = findTreeByHashKey(`r${key.slice(5)}`);
+    if (tree) return { text: treeDisplayName(tree), href: `/nearby#tree=r${key.slice(5)}` };
+    return { text: `Tree #${key.slice(5)}`, href: null };
+  }
+  return { text: "New tree", href: null };
+}
+
+function communityContributionsHtml() {
+  return `<section class="settings-section community-contributions">
+      <h3 class="settings-section-title">Your contributions</h3>
+      <div id="communityContributions"><p class="settings-description">Loading…</p></div>
+    </section>`;
+}
+
+async function communityRenderContributions() {
+  const host = document.getElementById("communityContributions");
+  if (!host) return;
+  const score = communityReadScore() || { points: 0, verified: 0, confirmed: 0 };
+  const rank = communityRank(score.points);
+  const waitingIds = new Set((await outboxList()).map((item) => item.id));
+  const outcomes = communityReadLog();
+  const entries = Object.entries(communityReadLocal()).sort((a, b) => b[1].ts - a[1].ts);
+  const next = rank.next ? ` · ${rank.next.min - score.points} to ${escapeHtml(rank.next.name)}` : "";
+  const rows = entries.map(([key, entry]) => {
+    const label = communityTargetLabel(entry, key);
+    const outcome = waitingIds.has(entry.id) ? "waiting" : (outcomes[entry.id] || "pending");
+    const name = label.href ? `<a href="${escapeHtml(label.href)}">${escapeHtml(label.text)}</a>` : escapeHtml(label.text);
+    return `<li class="community-log-item"><span class="community-log-name">${name}</span>
+        <span class="community-log-status">${escapeHtml(COMMUNITY_STATUS_TEXT[entry.status] || entry.status)}</span>
+        <span class="community-log-outcome community-outcome-${outcome}">${escapeHtml(COMMUNITY_OUTCOME_TEXT[outcome])}</span></li>`;
+  }).join("");
+  host.innerHTML = `<p class="community-rank"><strong>${escapeHtml(rank.name)}</strong> · ${score.points} ${score.points === 1 ? "point" : "points"}${next}</p>
+      <p class="settings-description">${score.verified} verified · ${score.confirmed} confirmed by others. You get a point when you verify, and another when someone else confirms it.</p>
+      ${rows ? `<ul class="community-log">${rows}</ul>` : '<p class="settings-description">Nothing yet. Open a tree and tap "Help check this tree".</p>'}`;
+}
+
+async function communityRefreshLog() {
+  if (!navigator.onLine) return;
+  try {
+    const response = await fetch(`${COMMUNITY_OVERLAY_URL}?me=${encodeURIComponent(communityDeviceId())}&list=1`);
+    if (!response.ok) return;
+    const data = await response.json();
+    const outcomes = {};
+    for (const report of data.reports || []) outcomes[report.id] = report.outcome;
+    localStorage.setItem(COMMUNITY_LOG_KEY, JSON.stringify(outcomes));
+  } catch {}
+}
+
+async function communityOpenContributions() {
+  await communityRenderContributions();
+  await Promise.all([communityRefreshScore(), communityRefreshLog()]);
+  await communityRenderContributions();
 }

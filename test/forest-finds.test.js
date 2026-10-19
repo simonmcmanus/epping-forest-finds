@@ -10924,6 +10924,27 @@ test("admin community stats count people, reports and flagged trees", () => {
   assert.equal(stats.activeDevices1d, 3);
 });
 
+test("a contributor's own report is Confirmed once others agree and stays Pending until then", () => {
+  const mine = communityReport({ status: "VERIFIED" });
+  assert.equal(communityConsensus.reportOutcome(mine, undefined, []), "pending");
+  assert.equal(communityConsensus.reportOutcome(mine, { s: "verified", n: 1 }, []), "pending");
+  assert.equal(communityConsensus.reportOutcome(mine, { s: "confirmed", n: 2 }, []), "confirmed");
+  const doubt = communityReport({ status: "NOT_HERE" });
+  assert.equal(communityConsensus.reportOutcome(doubt, { s: "questioned", st: "NOT_HERE", n: 2 }, []), "confirmed");
+  assert.equal(communityConsensus.reportOutcome(doubt, { s: "questioned", st: "DIFFERENT_TREE", n: 2 }, []), "pending");
+  assert.equal(communityConsensus.reportOutcome(doubt, undefined, [doubt.target]), "review");
+});
+
+test("contributors move up from Seedling to Warden by points", () => {
+  assert.equal(app.communityRank(0).name, "Seedling");
+  assert.equal(app.communityRank(5).name, "Sapling");
+  assert.equal(app.communityRank(19).name, "Sapling");
+  assert.equal(app.communityRank(20).name, "Woodward");
+  assert.equal(app.communityRank(50).name, "Warden");
+  assert.equal(app.communityRank(50).next, null);
+  assert.equal(app.communityRank(3).next.name, "Sapling");
+});
+
 runRegisteredTests().catch((error) => {
   console.error(error);
   process.exitCode = 1;

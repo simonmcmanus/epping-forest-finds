@@ -5,7 +5,7 @@
 // (default a day), which is what makes other users' reports take up to a day to appear. It lives
 // outside data/**, so it never moves the data cache version.
 const { openStore } = require("./lib/community-store");
-const { computeCommunityState, communityAdminStats } = require("./lib/community-consensus");
+const { computeCommunityState, communityAdminStats, reportOutcome } = require("./lib/community-consensus");
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 
@@ -52,6 +52,18 @@ exports.handler = async (event) => {
   if (queryParam(event, "admin")) return adminStats(event);
   const computed = await loadComputed(openStore(event));
   const me = queryParam(event, "me");
+  if (me && queryParam(event, "list")) {
+    const mine = (await openStore(event).get(`mine/${me}`)) || [];
+    const reports = mine.slice().reverse().map((r) => {
+      const entry = r.target ? computed.overlay[r.target] : null;
+      return { id: r.id, kind: r.kind, target: r.target || null, status: r.status, ts: r.ts, lat: r.lat, lon: r.lon, outcome: reportOutcome(r, entry, computed.conflicts || []) };
+    });
+    return {
+      statusCode: 200,
+      headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
+      body: JSON.stringify({ generatedAt: computed.generatedAt, reports }),
+    };
+  }
   if (me) {
     const score = computed.scores[me] || { points: 0, reports: 0, verified: 0, confirmed: 0 };
     return {

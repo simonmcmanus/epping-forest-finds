@@ -28,6 +28,9 @@ Lets users verify, question and add trees (and, with a different status set, bus
 - `sw.js`: `/api/community/overlay` is stale-while-revalidate in its own `COMMUNITY_CACHE_NAME` (`forest-finds-community-v1`, separate version, kept by the activate cleanup); the `?me=` query is never cached. `js/community.js` is in `APP_SHELL`.
 - A questioned tree shows "Questioned by the community: … The official record is unchanged."; a verified one shows "Verified by N people". Nothing is hidden or moved.
 
+## Your contributions (Settings screen)
+The Settings screen opens with a **Your contributions** section (`communityContributionsHtml`, `js/community.js`): rank (Seedling 0, Sapling 5, Woodward 20, Warden 50 points, with points to the next), points, verified / confirmed counts, and a log of the user's reports, newest first, each linking to its tree and showing one of *Waiting to send* (still in the outbox), *Waiting for a second opinion*, *Confirmed by others* or *Being reviewed* (conflict). The log is built from the local record, so it works offline; outcomes come from `GET /api/community/overlay?me=<id>&list=1` (backed by a per-device `mine/<deviceId>` index written by `community-report.js` and `reportOutcome` in the consensus module) and are cached in `ff-community-log-v1`. Outcomes update with the daily overlay. A fuller rename of the nav tab (Settings → "You") and a separate Contribute tab are not built; routes and element ids are unchanged.
+
 ## Tree statuses
 `VERIFIED`, `NO_TAG_LIKELY_SAME`, `NO_TAG_UNSURE`, `DIFFERENT_TREE`, `NOT_HERE`, `MOVED` (carries a dragged pin position), `NEW_TREE` (GPS position, optional tag/species). Businesses: `OPEN_CONFIRMED`, `CLOSED`, `MOVED`, `RENAMED`, `DETAILS_CHANGED`, `WRONG_CATEGORY`, `NEW_PLACE`. Statuses live in a registry keyed by feature kind.
 

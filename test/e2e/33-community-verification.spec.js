@@ -47,6 +47,20 @@ test.describe("Community tree verification", () => {
     expect(posted[0].status).toBe("NOT_HERE");
   });
 
+  test("Settings shows a log of the user's own contributions with their state", async ({ page }) => {
+    await page.route(REPORT_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) })
+    );
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await page.click("[data-action='community-report'][data-status='VERIFIED']");
+    await expect(page.locator(".community-mine")).toBeVisible();
+    await page.click("#settingsToggle");
+    await expect(page.locator(".community-contributions")).toContainText("Your contributions");
+    await expect(page.locator(".community-rank")).toContainText("Seedling");
+    await expect(page.locator(".community-log-item")).toHaveCount(1);
+    await expect(page.locator(".community-log-item")).toContainText("Verified here");
+  });
+
   test("a tree the community has questioned is flagged but keeps its official details", async ({ page }) => {
     await page.unroute(OVERLAY_URL);
     await page.route(OVERLAY_URL, (route) =>

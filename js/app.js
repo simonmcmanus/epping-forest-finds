@@ -2858,6 +2858,7 @@ function openSettings() {
   els.inspectorType.textContent = "App preferences";
   transitionInspectorBody(settingsFormHtml(), "forward");
   bindSettingsHandlers();
+  communityOpenContributions();
   setInspectorMinimized(false);
   updateCompassOverlay();
   syncHashFromSelection();
@@ -2907,6 +2908,7 @@ function settingsFormHtml() {
     })
     .join("");
   return `<div class="settings-form">
+    ${communityContributionsHtml()}
     <section class="settings-section">
       <h3 class="settings-section-title">Walking radius</h3>
       <p class="settings-description">How far to walk when listing nearby places. A circle is drawn on the map at this distance.</p>
