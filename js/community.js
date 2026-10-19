@@ -191,14 +191,58 @@ function communityBadgeHtml(entry) {
     return `<div class="community-badge community-badge-questioned">${communityIcon("alert")}
         <p><strong>Questioned by the community</strong><span>${escapeHtml(COMMUNITY_STATUS_TEXT[entry.st] || "Needs checking")} (${entry.n} people). The official record is unchanged.</span></p></div>`;
   }
-  if (entry.s === "verified" || entry.s === "confirmed") {
-    // A summary the reader can see at a glance, with the detail behind a tap.
-    const people = `${entry.n} ${entry.n === 1 ? "person has" : "people have"}`;
-    return `<details class="community-badge community-badge-verified">
-        <summary>${communityIcon("shield")}<strong>Verified by ${entry.n === 1 ? "1 person" : `${entry.n} people`}</strong><span class="community-badge-more">Tap for details</span></summary>
-        <p>${people} confirmed this tree is where the map says it is. Community checks never change the official record.</p></details>`;
-  }
   return "";
+}
+
+// The verified marker for a tree sits in its top row, beside the walking-distance pill. Its detail
+// opens in flow under that row when tapped (never over the page). Both are rendered into slots that
+// communityRefreshVerifiedSlots() fills once the overlay arrives.
+function communityVerifiedEntry(target) {
+  const entry = target && communityOverlay.entries[target];
+  return entry && (entry.s === "verified" || entry.s === "confirmed") ? entry : null;
+}
+
+function communityVerifiedChipHtml(target) {
+  const entry = communityVerifiedEntry(target);
+  if (!entry) return "";
+  const label = `Verified by ${entry.n} ${entry.n === 1 ? "person" : "people"}`;
+  return `<button type="button" class="community-verified-chip" aria-expanded="false" aria-label="${escapeHtml(label)}">${communityIcon("shield")}<strong>${entry.n}</strong></button>`;
+}
+
+function communityVerifiedDetailHtml(target) {
+  const entry = communityVerifiedEntry(target);
+  if (!entry) return "";
+  return `<p class="community-verified-detail" hidden>${entry.n} ${entry.n === 1 ? "person has" : "people have"} confirmed this tree is where the map says it is. Community checks never change the official record.</p>`;
+}
+
+function communityVerifiedSlotsHtml(tree) {
+  const target = communityTreeTarget(tree);
+  if (!target) return { chip: "", detail: "" };
+  return {
+    chip: `<span class="community-verified-slot" data-verified-target="${escapeHtml(target)}">${communityVerifiedChipHtml(target)}</span>`,
+    detail: `<div class="community-verified-detail-slot" data-verified-target="${escapeHtml(target)}">${communityVerifiedDetailHtml(target)}</div>`,
+  };
+}
+
+function communityRefreshVerifiedSlots() {
+  document.querySelectorAll(".community-verified-slot").forEach((slot) => {
+    slot.innerHTML = communityVerifiedChipHtml(slot.dataset.verifiedTarget);
+  });
+  document.querySelectorAll(".community-verified-detail-slot").forEach((slot) => {
+    slot.innerHTML = communityVerifiedDetailHtml(slot.dataset.verifiedTarget);
+  });
+}
+
+if (typeof document !== "undefined" && document.addEventListener) {
+  document.addEventListener("click", (event) => {
+    const chip = event.target && event.target.closest ? event.target.closest(".community-verified-chip") : null;
+    if (!chip) return;
+    const detail = chip.closest(".detail-top-row").parentElement.querySelector(".community-verified-detail-slot .community-verified-detail");
+    if (!detail) return;
+    const open = chip.getAttribute("aria-expanded") !== "true";
+    chip.setAttribute("aria-expanded", String(open));
+    detail.hidden = !open;
+  });
 }
 
 function communityChoiceHtml(choice, chosen) {
@@ -335,6 +379,7 @@ async function communityLoadOverlay() {
     if (data && typeof data.entries === "object") {
       communityOverlay = { generatedAt: data.generatedAt || 0, entries: data.entries };
       communityRefreshSections();
+      communityRefreshVerifiedSlots();
     }
   } catch {}
 }

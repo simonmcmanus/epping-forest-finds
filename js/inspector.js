@@ -365,14 +365,15 @@ function showTreeDetails(tree, distance, label) {
   ].filter(([, value]) => value != null && value !== "");
   const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const mapsLink = openInMapsHtml(tree.latitude, tree.longitude, tree.commonName || "Veteran tree");
-  const topRow = `<div class="detail-top-row">${distancePill}${mapsLink}${shareLocationHtml()}</div>`;
+  const verified = communityVerifiedSlotsHtml(tree);
+  const topRow = `<div class="detail-top-row">${distancePill}${verified.chip}${mapsLink}${shareLocationHtml()}</div>`;
   const technicalHtml = technicalRows.length
     ? `<details class="technical-details"><summary>Technical data</summary>${detailsHtml(technicalRows)}</details>`
     : "";
   const namedTreeHtml = namedTreeDetailsHtml(tree);
   const nearbySectionHtml = nearbySectionsHtml({ latitude: tree.latitude, longitude: tree.longitude, name: tree.commonName || null, subfilterKey: "trees" });
   const issueHtml = reportIssueHtml({ type: "Veteran tree", name: treeDisplayName(tree), latitude: tree.latitude, longitude: tree.longitude });
-  transitionInspectorBody(topRow + detailsHtml(primaryRows) + technicalHtml + namedTreeHtml + communitySectionHtml(tree) + nearbySectionHtml + issueHtml, "forward");
+  transitionInspectorBody(topRow + verified.detail + detailsHtml(primaryRows) + technicalHtml + namedTreeHtml + communitySectionHtml(tree) + nearbySectionHtml + issueHtml, "forward");
 }
 
 function showLandmarkDetails(place, distance) {

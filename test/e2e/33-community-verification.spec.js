@@ -535,14 +535,16 @@ test.describe("Community reports on a place", () => {
 });
 
 test.describe("Verified badge on a tree", () => {
-  test("one person verifying a tree shows a tappable badge on its page", async ({ page }) => {
+  test("one person verifying a tree shows a tappable count beside the walking distance", async ({ page }) => {
     await page.route(OVERLAY_URL, (route) =>
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: { [`tree:${FIXTURE_TREE.recordNumber}`]: { s: "verified", n: 1, t: 1 } } }) }));
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
-    const badge = page.locator(".community-badge-verified");
-    await expect(badge.locator("summary")).toContainText("Verified by 1 person");
-    await expect(badge.locator("p")).toBeHidden();
-    await badge.locator("summary").click();
-    await expect(badge.locator("p")).toContainText("1 person has confirmed this tree is where the map says it is");
+    const chip = page.locator(".detail-top-row .community-verified-chip");
+    await expect(chip).toHaveAttribute("aria-label", "Verified by 1 person");
+    await expect(chip).toContainText("1");
+    const detail = page.locator(".community-verified-detail");
+    await expect(detail).toBeHidden();
+    await chip.click();
+    await expect(detail).toContainText("1 person has confirmed this tree is where the map says it is");
   });
 });

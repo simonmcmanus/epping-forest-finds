@@ -1242,16 +1242,13 @@ button.settings-toggle.has-update::after {
   margin-bottom: 10px; padding: 10px 12px; border-radius: 12px; border-left: 4px solid;
 }
 .community-badge .community-icon { margin-top: 1px; }
-details.community-badge { display: block; }
-.community-badge summary { display: flex; gap: 10px; align-items: center; cursor: pointer; list-style: none; font-size: 0.95rem; }
-.community-badge summary::-webkit-details-marker { display: none; }
-.community-badge summary svg { flex: none; width: 20px; height: 20px; }
-.community-badge summary strong { flex: 1; }
-.community-badge-more { font-size: 0.78rem; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }
-.community-badge details[open] > summary .community-badge-more { text-decoration: none; }
-.community-badge details p, details.community-badge > p { margin: 6px 0 0 30px; font-size: 0.85rem; line-height: 1.35; color: var(--muted); }
+.community-verified-chip { display: inline-flex; align-items: center; gap: 4px; flex: none; margin-left: auto; padding: 3px 10px 3px 7px; border-radius: 999px; border: 1px solid var(--tree); background: #e8f3ea; color: #1f4d29; font: inherit; cursor: pointer; }
+.community-verified-chip svg { width: 16px; height: 16px; }
+.community-verified-chip strong { font-size: 0.85rem; }
+.community-verified-chip:focus-visible { outline: 2px solid var(--nav); outline-offset: 2px; }
+.community-verified-detail { margin: 0 0 10px; padding: 8px 10px; border-radius: 8px; background: #e8f3ea; color: #1f4d29; font-size: 0.82rem; line-height: 1.35; }
+.community-verified-detail[hidden] { display: none; }
 .community-badge-questioned { background: var(--gold-tint); border-color: #d9a21b; color: #5c4600; }
-.community-badge-verified { background: #e8f3ea; border-color: var(--tree); color: #1f4d29; }
 
 @keyframes community-pop { from { opacity: 0; transform: translateY(4px) scale(0.98); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .community-mine { animation: none; } .community-verify, .community-chip { transition: none; } }
