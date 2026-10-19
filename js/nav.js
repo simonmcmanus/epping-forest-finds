@@ -1203,6 +1203,37 @@ function clearNearbyAnchor() {
   pushNearbyAnchorHistory();
 }
 
+// Hides the bar with the entry animation played backwards (css/inspector.css): the card fades
+// out first, then the space collapses, and only when that finishes is `hidden` set. Falls back to
+// hiding at once when animation is unavailable or reduced motion is requested.
+function hideNearbyAnchorBar(bar) {
+  if (bar.classList && bar.classList.contains("is-leaving")) return;
+  const animates = bar.classList && typeof bar.getAnimations === "function"
+    && !(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  if (!animates) {
+    bar.hidden = true;
+    return;
+  }
+  const finish = () => {
+    cancelNearbyAnchorBarExit(bar);
+    bar.hidden = true;
+  };
+  bar.classList.add("is-leaving");
+  bar._leaveHandler = (event) => {
+    if (event.animationName === "nearby-anchor-space-out") finish();
+  };
+  bar.addEventListener("animationend", bar._leaveHandler);
+  bar._leaveTimer = setTimeout(finish, 1200);
+}
+
+function cancelNearbyAnchorBarExit(bar) {
+  if (bar._leaveHandler) bar.removeEventListener("animationend", bar._leaveHandler);
+  clearTimeout(bar._leaveTimer);
+  bar._leaveHandler = null;
+  bar._leaveTimer = null;
+  if (bar.classList) bar.classList.remove("is-leaving");
+}
+
 // Shows/hides #nearbyAnchorBar, the way back from a browsed spot. It lives in the inspector
 // chrome rather than inside the Nearby list's own HTML because Filters, Settings and Report all
 // keep drawing the walking-radius circle around the browse anchor behind them (see
@@ -1212,7 +1243,15 @@ function clearNearbyAnchor() {
 function updateNearbyAnchorBar() {
   const bar = els.nearbyAnchorBar;
   if (!bar) return;
-  bar.hidden = !(state.nearbyAnchor && !hasRealSelection());
+  const show = !!(state.nearbyAnchor && !hasRealSelection());
+  if (show) {
+    cancelNearbyAnchorBarExit(bar);
+    bar.hidden = false;
+  } else if (!bar.hidden) {
+    hideNearbyAnchorBar(bar);
+  }
+  // Mid-exit the card keeps its old wording; the generic fallback would flash in as it fades out.
+  if (bar.classList && bar.classList.contains("is-leaving")) return;
   // Names the spot when the browse point came from a place (its own inspector's walk card or a
   // related link), so the reader sees whose neighbourhood they are looking at; a bare map tap
   // keeps the generic wording.
