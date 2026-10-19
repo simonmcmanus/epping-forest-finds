@@ -210,7 +210,7 @@ function communitySectionInnerHtml(target, editing) {
       <div class="community-mine">
         <span class="community-mine-icon">${communityIcon("check")}</span>
         <p><strong>You reported: ${escapeHtml(COMMUNITY_STATUS_TEXT[local.status] || local.status)}</strong>
-          <span>Thank you! Other people may take up to a day to see this.</span></p>
+          <span>Thank you! Other people may take an hour or two to see this.</span></p>
         <button class="community-link" type="button" data-action="community-change">Change</button>
       </div>`;
   }
@@ -288,9 +288,19 @@ async function communityLoadOverlay() {
   } catch {}
 }
 
-async function communityRefreshScore() {
+// The score is kept on the device; opening the app only re-asks the server if it is over an hour
+// old. Sending a report and opening the Community screen always refresh it (force).
+const COMMUNITY_SCORE_AT_KEY = "ff-community-score-at-v1";
+const COMMUNITY_SCORE_MAX_AGE_MS = 60 * 60 * 1000;
+
+async function communityRefreshScore(force = true) {
   if (!navigator.onLine) return;
   try {
+    if (!force) {
+      const at = Number(localStorage.getItem(COMMUNITY_SCORE_AT_KEY)) || 0;
+      if (Date.now() - at < COMMUNITY_SCORE_MAX_AGE_MS) return;
+    }
+    localStorage.setItem(COMMUNITY_SCORE_AT_KEY, String(Date.now()));
     const response = await fetch(`${COMMUNITY_OVERLAY_URL}?me=${encodeURIComponent(communityDeviceId())}`);
     if (!response.ok) return;
     const score = await response.json();
@@ -384,7 +394,7 @@ if (typeof document !== "undefined" && document.addEventListener) {
 
 if (typeof window !== "undefined" && window.addEventListener) {
   // Fetched after first paint so it never competes with the map's own data.
-  window.addEventListener("load", () => setTimeout(() => { communityLoadOverlay(); communityRefreshScore(); }, 1000));
+  window.addEventListener("load", () => setTimeout(() => { communityLoadOverlay(); communityRefreshScore(false); }, 1000));
   window.addEventListener("outbox:sent", (event) => {
     const detail = event.detail;
     if (!detail || !detail.item) return;
@@ -520,7 +530,7 @@ async function communitySubmitNewTree() {
   if (body) {
     body.innerHTML = `<div class="community-mine">
         <span class="community-mine-icon">${communityIcon("check")}</span>
-        <p><strong>Tree ${escapeHtml(tag)} saved</strong><span>Thank you! It shows for everyone once a second person finds it too, which can take up to a day.</span></p>
+        <p><strong>Tree ${escapeHtml(tag)} saved</strong><span>Thank you! It shows for everyone once a second person finds it too, which can take an hour or two.</span></p>
       </div>`;
   }
   communityOpenContributions();

@@ -11006,6 +11006,47 @@ test("confirming a place scores nothing and a fixed feedback report earns the fi
   assert.equal(state.scores["device-cccc"].points, communityPointsConfig.POINTS.fix);
 });
 
+const communityComputed = require("../netlify/functions/lib/community-computed");
+
+function memoryStore(initial = {}) {
+  const data = new Map(Object.entries(initial));
+  return {
+    data,
+    async get(key) { return data.has(key) ? JSON.parse(JSON.stringify(data.get(key))) : null; },
+    async put(key, value) { data.set(key, JSON.parse(JSON.stringify(value))); },
+    async list(prefix) { return [...data.keys()].filter((k) => k.startsWith(prefix)); },
+  };
+}
+
+test("a rebuild stores each person's score in a small shard that one lookup can read", async () => {
+  const store = memoryStore();
+  const a = communityReport({ id: "report-aaaa1111", deviceId: "device-aaaa" });
+  const b = communityReport({ id: "report-bbbb2222", deviceId: "device-bbbb" });
+  await store.put("reports/1", a);
+  await store.put("reports/2", b);
+  const computed = await communityComputed.rebuildComputed(store);
+  assert.equal(computed.scores, undefined, "the snapshot itself no longer carries every score");
+  const score = await communityComputed.loadScore(store, "device-aaaa");
+  assert.equal(score.points, communityPointsConfig.POINTS.verify + communityPointsConfig.POINTS.verifyConfirmed);
+  assert.equal((await communityComputed.loadScore(store, "device-nobody")).points, 0);
+  assert.match(communityComputed.scoreShard("device-aaaa"), /^[0-9a-f]{2}$/);
+});
+
+test("in production a request serves a slightly old snapshot instead of rebuilding inline", async () => {
+  const store = memoryStore({ computed: { generatedAt: Date.now() - 90 * 60 * 1000, overlay: { "tree:1": { s: "verified" } }, conflicts: [] } });
+  const original = process.env.CONTEXT;
+  try {
+    process.env.CONTEXT = "production";
+    const stale = await communityComputed.loadComputed(store);
+    assert.deepEqual(Object.keys(stale.overlay), ["tree:1"]);
+    process.env.CONTEXT = "deploy-preview";
+    const fresh = await communityComputed.loadComputed(store);
+    assert.deepEqual(Object.keys(fresh.overlay), [], "previews and local dev rebuild once the snapshot is past its TTL");
+  } finally {
+    if (original === undefined) delete process.env.CONTEXT; else process.env.CONTEXT = original;
+  }
+});
+
 // --- Place checks go to GitHub issues for manual review (netlify/functions/report-missing-data.js) ---
 async function withStubbedGithub(responder, run) {
   const reportFunction = require("../netlify/functions/report-missing-data");

@@ -2,7 +2,7 @@
 //                                    for the City of London.
 // GET /reports/tree-report?format=csv|geojson|json — the same findings as data.
 //
-// Built from the same daily snapshot as the public overlay (community-computed.js), so it never
+// Built from the same hourly snapshot as the public overlay (community-computed.js), so it never
 // shows anything the app does not. No device ids are ever included.
 const { openStore } = require("./lib/community-store");
 const { loadComputed } = require("./lib/community-computed");

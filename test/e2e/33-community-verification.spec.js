@@ -38,7 +38,7 @@ test.describe("Community tree verification", () => {
     });
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     await page.click("[data-action='community-report'][data-status='VERIFIED']");
-    await expect(page.locator(".community-mine")).toContainText("Other people may take up to a day to see this");
+    await expect(page.locator(".community-mine")).toContainText("Other people may take an hour or two to see this");
     await expect.poll(() => posted.length).toBe(1);
     expect(posted[0]).toMatchObject({ kind: "tree", target: `tree:${FIXTURE_TREE.recordNumber}`, status: "VERIFIED" });
   });

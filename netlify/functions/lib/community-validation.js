@@ -4,6 +4,7 @@
 //  - placeConfirmed: a report that a business is wrong is closed as completed after review -> 3 points
 // Pure checks live here; runValidation() wires them to the register, the report ledger and GitHub.
 const { validateReport, normalizeTag, distanceMetres, REWARD_POINTS } = require("./community-consensus");
+const { rebuildComputed } = require("./community-computed");
 
 const POINTS = REWARD_POINTS;
 const MOVED_FROM_LISTED_METRES = 10; // the register's position must have changed by at least this...
@@ -136,7 +137,7 @@ async function runValidation(deps) {
 
   state.lastRunAt = now;
   await store.put("validations", state);
-  await store.put("computed", { generatedAt: 0 }); // so the next read recomputes with the rewards
+  await rebuildComputed(store); // so the overlay and scores include the new rewards at once
   return summary;
 }
 

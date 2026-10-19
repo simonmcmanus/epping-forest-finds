@@ -222,7 +222,7 @@ function computeCommunityState(reports, validations = []) {
   return { overlay, conflicts, conflictDetails, scores, rewards };
 }
 
-// What a contributor sees against one of their own reports, from the daily overlay.
+// What a contributor sees against one of their own reports, from the hourly snapshot.
 function reportOutcome(report, entry, conflicts, validatedKeys) {
   if (validatedKeys && validatedKeys.has(`${report.deviceId}|${report.target}|${report.status}`)) return "validated";
   if (conflicts.includes(report.target)) return "review";

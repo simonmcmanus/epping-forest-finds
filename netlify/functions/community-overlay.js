@@ -1,12 +1,12 @@
 // GET /api/community/overlay        — the public delta of community findings (cacheable).
 // GET /api/community/overlay?me=<deviceId> — that device's score (small, per-user).
 //
-// The overlay is recomputed from the report ledger at most once per COMMUNITY_TTL_MINUTES
-// (default a day), which is what makes other users' reports take up to a day to appear. It lives
+// The overlay is rebuilt from the report ledger hourly (COMMUNITY_TTL_MINUTES, default 60) by
+// community-rebuild-scheduled.js, which is what makes other users' reports take about an hour to appear. It lives
 // outside data/**, so it never moves the data cache version.
 const { openStore } = require("./lib/community-store");
 const { computeCommunityState, communityAdminStats, reportOutcome } = require("./lib/community-consensus");
-const { loadComputed } = require("./lib/community-computed");
+const { loadComputed, loadScore } = require("./lib/community-computed");
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 
@@ -14,7 +14,7 @@ function queryParam(event, name) {
   return event.queryStringParameters?.[name] || new URLSearchParams(event.rawQuery || "").get(name);
 }
 
-// Admin stats are computed fresh from the ledger (not the daily snapshot) so the dashboard is live.
+// Admin stats are computed fresh from the ledger (not the hourly snapshot) so the dashboard is live.
 async function adminStats(event) {
   const auth = (event.headers && (event.headers.authorization || event.headers.Authorization)) || "";
   if (!ADMIN_PASSWORD || auth !== `Bearer ${ADMIN_PASSWORD}`) {
@@ -33,8 +33,17 @@ async function adminStats(event) {
 exports.handler = async (event) => {
   if (event.httpMethod !== "GET") return { statusCode: 405, body: "GET only" };
   if (queryParam(event, "admin")) return adminStats(event);
-  const computed = await loadComputed(openStore(event));
   const me = queryParam(event, "me");
+  // "My score" reads one small shard; only the other views need the whole snapshot.
+  if (me && !queryParam(event, "list")) {
+    const score = await loadScore(openStore(event), me);
+    return {
+      statusCode: 200,
+      headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
+      body: JSON.stringify(score),
+    };
+  }
+  const computed = await loadComputed(openStore(event));
   if (me && queryParam(event, "list")) {
     const store = openStore(event);
     const mine = (await store.get(`mine/${me}`)) || [];
@@ -53,19 +62,14 @@ exports.handler = async (event) => {
       body: JSON.stringify({ generatedAt: computed.generatedAt, reports }),
     };
   }
-  if (me) {
-    const score = computed.scores[me] || { points: 0, reports: 0, verified: 0, confirmed: 0, validated: 0, fixed: 0 };
-    return {
-      statusCode: 200,
-      headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
-      body: JSON.stringify({ ...score, generatedAt: computed.generatedAt }),
-    };
-  }
   return {
     statusCode: 200,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      "Cache-Control": "public, max-age=3600",
+      // Browsers keep it 5 minutes; Netlify's edge shares one copy between everyone for 5 minutes
+      // and may serve it a while longer while it refreshes, so cost does not grow with users.
+      "Cache-Control": "public, max-age=300",
+      "Netlify-CDN-Cache-Control": "public, s-maxage=300, stale-while-revalidate=3600",
       ETag: `"c${computed.generatedAt}"`,
     },
     body: JSON.stringify({ generatedAt: computed.generatedAt, entries: computed.overlay }),
