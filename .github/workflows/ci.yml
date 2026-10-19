@@ -3,10 +3,6 @@ name: CI
 on:
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review, labeled]
-    # A baseline-only commit (from the update-snapshots label run) is not a code change, so it
-    # starts no CI run. The label run already checked that render.
-    paths-ignore:
-      - "test/e2e/__screenshots__/**"
   push:
     branches: [main]
   # Manual "Run workflow" button. The weekly-ledger workflow no longer needs
@@ -16,10 +12,43 @@ on:
   workflow_dispatch: {}
 
 jobs:
+  changes:
+    # Decides whether unit and E2E run. They are skipped for a label event, and for a push that
+    # only touches test/e2e/__screenshots__/ (the update-snapshots baseline commit). The visual
+    # job always runs, so a baseline commit is checked by it alone.
+    name: Changed files
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.check.outputs.code }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Check for non-snapshot changes
+        id: check
+        env:
+          EVENT: ${{ github.event_name }}
+          ACTION: ${{ github.event.action }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT" != "pull_request" ]; then
+            code=true
+          elif [ "$ACTION" = "labeled" ]; then
+            code=false
+          else
+            files=$(git diff --name-only "$BEFORE" HEAD 2>/dev/null) || files=""
+            if [ -z "$files" ] || echo "$files" | grep -qv '^test/e2e/__screenshots__/'; then
+              code=true
+            else
+              code=false
+            fi
+          fi
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
   unit:
     name: Unit tests
-    # Skipped on the label event: applying update-snapshots only runs the visual job.
-    if: github.event.action != 'labeled'
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -59,8 +88,8 @@ jobs:
     # dependency on cdn.playwright.dev/the apt mirrors that added nothing but risk. Bump this
     # tag only in lockstep with the @playwright/test version in package.json.
     name: E2E tests (${{ matrix.project }}, shard ${{ matrix.shard }})
-    # Skipped on the label event (see the unit job).
-    if: github.event.action != 'labeled'
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.61.1-noble
@@ -104,10 +133,10 @@ jobs:
     # e2e job's functional assertions have not. A retry absorbs that known noise instead of
     # requiring a human to notice and re-run CI by hand; a genuine visual regression still fails
     # twice and stays red.
-    # Report-only: a pixel diff never fails this job. Changes are shown in the PR description
-    # (see the "Publish failing snapshot diffs" step), and the label opts a PR into regenerating
-    # baselines. Setup failures (npm ci, checkout) still fail the job; the snapshot runs are
-    # continue-on-error so a diff does not stop the commit or publish steps.
+    # A pixel diff fails this job, after the diff table has been published to the PR description.
+    # The update-snapshots label regenerates the baselines on that run, so the job passes once
+    # the baseline commit is on the branch. The snapshot runs are continue-on-error so a diff
+    # still reaches the commit and publish steps.
     name: Visual snapshots (desktop + mobile)
     runs-on: ubuntu-latest
     container:
@@ -241,3 +270,6 @@ jobs:
           name: playwright-report-visual
           path: playwright-report/
           retention-days: 14
+      - name: Fail if visual snapshot tests had failures
+        if: steps.mobile.outcome == 'failure' || steps.desktop.outcome == 'failure'
+        run: exit 1
