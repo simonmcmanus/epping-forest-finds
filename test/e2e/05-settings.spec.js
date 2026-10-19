@@ -234,3 +234,56 @@ test.describe("Settings screen", () => {
     await expect(page).toHaveScreenshot("settings-screen.png", { fullPage: false });
   });
 });
+
+test.describe("?nuke=true URL parameter", () => {
+  // Stubbed before the app boots, so the first load is the one that clears. The log lives in
+  // sessionStorage and therefore survives the reload that the clear ends with.
+  test.beforeEach(async ({ page }) => {
+    await page.addInitScript(() => {
+      const record = (entry) => {
+        const log = JSON.parse(sessionStorage.getItem("refresh-log") || "[]");
+        log.push(entry);
+        sessionStorage.setItem("refresh-log", JSON.stringify(log));
+      };
+      const names = ["forest-finds-app-v99", "forest-finds-data-v9", "another-apps-cache-v1"];
+      Object.defineProperty(window, "caches", {
+        configurable: true,
+        value: {
+          keys: async () => names.slice(),
+          delete: async (name) => { record(`deleted:${name}`); return true; },
+          match: async () => undefined,
+        },
+      });
+      if (navigator.serviceWorker) {
+        Object.defineProperty(navigator.serviceWorker, "getRegistrations", {
+          configurable: true,
+          value: async () => [{ unregister: async () => { record("unregistered"); return true; } }],
+        });
+      }
+      Object.defineProperty(navigator, "onLine", { configurable: true, get: () => true });
+    });
+  });
+
+  test("clears the same caches as Refresh both, then returns to the URL without the flag", async ({ page }) => {
+    await page.goto("/nearby?nuke=true&show=trees");
+    await page.waitForFunction(
+      () => JSON.parse(sessionStorage.getItem("refresh-log") || "[]").length > 0,
+      null,
+      { timeout: 20_000 }
+    );
+    await expect.poll(() => new URL(page.url()).searchParams.has("nuke")).toBe(false);
+    const log = await page.evaluate(() => JSON.parse(sessionStorage.getItem("refresh-log") || "[]"));
+    expect(log).toContain("deleted:forest-finds-app-v99");
+    expect(log).toContain("deleted:forest-finds-data-v9");
+    expect(log).toContain("unregistered");
+    expect(log).not.toContain("deleted:another-apps-cache-v1");
+    expect(new URL(page.url()).searchParams.get("show")).toBe("trees");
+  });
+
+  test("a page without the flag clears nothing", async ({ page }) => {
+    await page.goto("/nearby");
+    await expect(page.locator("#settingsToggle")).toBeVisible();
+    const log = await page.evaluate(() => JSON.parse(sessionStorage.getItem("refresh-log") || "[]"));
+    expect(log).toEqual([]);
+  });
+});
