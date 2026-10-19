@@ -18,6 +18,18 @@ test.describe("Community tree verification", () => {
     await expect(page.locator("[data-action='community-report']")).toHaveCount(6);
   });
 
+  test("the check block is one box and sits above the Nearest section", async ({ page }) => {
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    const box = page.locator(".community-check");
+    await expect(box.locator("[data-action='community-report'][data-status='VERIFIED']")).toBeVisible();
+    // "Something not right?" and its choices live inside the same box as the heading and verify action
+    await expect(box.locator(".community-or")).toContainText("Something not right?");
+    await expect(box.locator(".community-choices")).toBeVisible();
+    const boxTop = (await box.boundingBox()).y;
+    const nearestTop = (await page.locator('h3.detail-section-heading:has-text("Nearest")').boundingBox()).y;
+    expect(boxTop).toBeLessThan(nearestTop);
+  });
+
   test("verifying a tree shows the user's report at once and sends it to the server", async ({ page }) => {
     const posted = [];
     await page.route(REPORT_URL, async (route) => {
