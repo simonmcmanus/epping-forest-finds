@@ -1242,7 +1242,8 @@ button.settings-toggle.has-update::after {
   margin-bottom: 10px; padding: 10px 12px; border-radius: 12px; border-left: 4px solid;
 }
 .community-badge .community-icon { margin-top: 1px; }
-.community-verified-chip { display: inline-flex; align-items: center; gap: 4px; flex: none; margin-left: auto; padding: 3px 10px 3px 7px; border-radius: 999px; border: 1px solid var(--tree); background: #e8f3ea; color: #1f4d29; font: inherit; cursor: pointer; }
+/* Same 30px height and 5px corner radius as the map and share icon buttons beside it. */
+.community-verified-chip { display: inline-flex; align-items: center; justify-content: center; gap: 3px; height: 30px; box-sizing: border-box; flex: none; padding: 0 8px; border-radius: 5px; border: 1px solid var(--tree); background: #e8f3ea; color: #1f4d29; font: inherit; cursor: pointer; }
 .community-verified-chip svg { width: 16px; height: 16px; }
 .community-verified-chip strong { font-size: 0.85rem; }
 .community-verified-chip:focus-visible { outline: 2px solid var(--nav); outline-offset: 2px; }

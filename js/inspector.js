@@ -366,7 +366,7 @@ function showTreeDetails(tree, distance, label) {
   const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const mapsLink = openInMapsHtml(tree.latitude, tree.longitude, tree.commonName || "Veteran tree");
   const verified = communityVerifiedSlotsHtml(tree);
-  const topRow = `<div class="detail-top-row">${distancePill}${verified.chip}${mapsLink}${shareLocationHtml()}</div>`;
+  const topRow = `<div class="detail-top-row">${distancePill}<span class="detail-top-actions">${verified.chip}${mapsLink}${shareLocationHtml()}</span></div>`;
   const technicalHtml = technicalRows.length
     ? `<details class="technical-details"><summary>Technical data</summary>${detailsHtml(technicalRows)}</details>`
     : "";
