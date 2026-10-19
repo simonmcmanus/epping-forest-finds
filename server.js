@@ -233,7 +233,7 @@ const server = http.createServer((req, res) => {
   // Mirrors the /app -> /nearby redirect in netlify.toml. /app carries no content of its
   // own any more, so this is an ordinary redirect, not a rewrite.
   if (url.pathname === "/app") {
-    res.writeHead(301, { Location: "/nearby", "Cache-Control": "no-store" });
+    res.writeHead(301, { Location: `/nearby${url.search}`, "Cache-Control": "no-store" });
     res.end();
     return;
   }

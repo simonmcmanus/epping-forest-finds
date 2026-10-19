@@ -1424,7 +1424,23 @@ function showCombinedConsentBanner() {
   banner.hidden = false;
 }
 
+// ?nuke=true clears exactly what Settings' "Refresh both" clears, then returns to the same URL
+// without the flag. The flag is stripped before refreshCachedState reloads the page: otherwise the
+// reload would land back on ?nuke=true and wipe everything again, forever. Offline, the clear
+// can't run, so the flag is still dropped and boot carries on as normal.
+function nukeIfRequested() {
+  const url = new URL(window.location.href);
+  if (url.searchParams.get("nuke") !== "true") return false;
+  url.searchParams.delete("nuke");
+  window.history.replaceState(null, "", url);
+  if (!navigator.onLine) return false;
+  refreshCachedState("all");
+  return true;
+}
+
 async function boot() {
+  if (nukeIfRequested()) return;
+
   // A /nearby/<slug>/ landing already shows its server-rendered list (see
   // _serverRenderedNearbyList, js/inspector.js); keep it there until a real fix or the reveal.
   _staticNearbyIndex = Boolean(document.querySelector("[data-server-rendered-nearby]"));
