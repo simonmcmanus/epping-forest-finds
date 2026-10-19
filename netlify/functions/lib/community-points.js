@@ -21,6 +21,6 @@ const RANKS = [
 ];
 
 // A reporter further than this from the thing they report is not counted as an independent check.
-const NEAR_METRES = 60;
+const NEAR_METRES = 10;
 
 module.exports = { POINTS, RANKS, NEAR_METRES };

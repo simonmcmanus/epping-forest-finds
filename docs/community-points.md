@@ -6,7 +6,7 @@ Every number below lives in one file: `netlify/functions/lib/community-points.js
 
 | Action | Points | Config key | Notes |
 |---|---|---|---|
-| Verify a tree you are standing next to | 1 | `verify` | Must be within 60 m (`NEAR_METRES`). |
+| Verify a tree you are standing next to | 1 | `verify` | Must be within 10 m (`NEAR_METRES`). |
 | ...and a different person independently confirms the same tree | +1 | `verifyConfirmed` | Paid to the first verifier. |
 | Add a missing tree (tag number and an accurate GPS fix, 30 m or better) | 1 | `newTree` | Tag "0" is not valid. |
 | ...and a second person finds the same new tree | +3 | `newTreeSecondFinder` | |
@@ -25,7 +25,7 @@ The first register check only records a baseline, so differences that already ex
 ## Points you do not earn
 
 - Confirming a place is still right earns nothing. It only hides that place's check card on your device.
-- Reports made from more than 60 m away, and your own repeat reports about the same thing.
+- Reports made from more than 10 m away, and your own repeat reports about the same thing.
 
 ## Ranks
 

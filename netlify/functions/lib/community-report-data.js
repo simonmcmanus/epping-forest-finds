@@ -182,7 +182,7 @@ function renderReportHtml(report, { csvUrl = "?format=csv", geoJsonUrl = "?forma
     </section>
     <section aria-labelledby="how-heading">
       <h2 id="how-heading">How to read this</h2>
-      <div class="note-card"><p>Each report comes from someone standing at the tree. A tree appears below as <em>questioned</em> only when at least two different people report the same problem, and reports made from more than 60 metres away are ignored. Nothing here has been checked by us on site, and none of it changes the register: it is a list of places worth a second look. Positions are WGS84 latitude and longitude.</p></div>
+      <div class="note-card"><p>Each report comes from someone standing at the tree. A tree appears below as <em>questioned</em> only when at least two different people report the same problem, and reports made from more than 10 metres from the tree are ignored. Nothing here has been checked by us on site, and none of it changes the register: it is a list of places worth a second look. Positions are WGS84 latitude and longitude.</p></div>
     </section>
     <section aria-labelledby="questioned-heading">
       <h2 id="questioned-heading">Questioned trees</h2>

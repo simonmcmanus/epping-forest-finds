@@ -301,7 +301,7 @@ async function communityRefreshScore() {
 // --- Nudges: when you are standing next to an unchecked tree ---
 const COMMUNITY_NUDGE_OFF_KEY = "ff-community-nudges-off-v1";
 const COMMUNITY_NUDGE_SEEN_KEY = "ff-community-nudge-seen-v1";
-const COMMUNITY_NUDGE_METRES = 25;           // close enough to be next to the tree
+const COMMUNITY_NUDGE_METRES = 10;          // same as the server's NEAR_METRES (community-points.js): closer than this counts as a check
 const COMMUNITY_NUDGE_TREE_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const COMMUNITY_NUDGE_GLOBAL_GAP_MS = 10 * 60 * 1000; // at most one prompt in this time
 let communityNudgeLastAt = 0;
