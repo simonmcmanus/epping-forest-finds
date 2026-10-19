@@ -792,6 +792,8 @@ function setupSearchAndNavHandlers() {
       }
       return;
     }
+    const communityChange = event.target.closest("[data-action='community-change']");
+    if (communityChange) { communityHandleChange(communityChange); return; }
     const communityChoice = event.target.closest("[data-action='community-report']");
     if (communityChoice) { communityHandleChoice(communityChoice); return; }
     const reportIssueToggle = event.target.closest("[data-action='report-issue']");

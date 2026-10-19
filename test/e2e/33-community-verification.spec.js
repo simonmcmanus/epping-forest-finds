@@ -61,6 +61,18 @@ test.describe("Community tree verification", () => {
     await expect(page.locator(".community-log-item")).toContainText("Verified here");
   });
 
+  test("a reported tree can be changed, which brings the choices back with the current one marked", async ({ page }) => {
+    await page.route(REPORT_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) })
+    );
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await page.click("[data-action='community-report'][data-status='NOT_HERE']");
+    await expect(page.locator("[data-action='community-report']")).toHaveCount(0);
+    await page.click("[data-action='community-change']");
+    await expect(page.locator("[data-action='community-report']")).toHaveCount(6);
+    await expect(page.locator("[data-action='community-report'][data-status='NOT_HERE']")).toHaveClass(/is-chosen/);
+  });
+
   test("a tree the community has questioned is flagged but keeps its official details", async ({ page }) => {
     await page.unroute(OVERLAY_URL);
     await page.route(OVERLAY_URL, (route) =>
