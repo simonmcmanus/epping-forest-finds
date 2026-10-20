@@ -843,7 +843,8 @@ function setupSearchAndNavHandlers() {
     // external link (Open in Maps, a website row, OSM attribution) always opens target="_blank"
     // and is left to the browser untouched; so is a modified click (open in new tab/window),
     // same as any ordinary link.
-    const internalLink = event.target.closest("a[href^='/']");
+    // API routes (sign-in, sign-out) are server redirects, not app screens: leave them to the browser.
+    const internalLink = event.target.closest("a[href^='/']:not([href^='/api/'])");
     if (internalLink && internalLink.target !== "_blank"
       && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
       event.preventDefault();
