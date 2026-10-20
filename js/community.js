@@ -1526,8 +1526,21 @@ async function communityRefreshLog() {
     localStorage.setItem(communityScoped(COMMUNITY_LOG_KEY), JSON.stringify(outcomes));
     const waiting = new Set((await outboxList()).map((item) => item.id));
     const merged = communityMergeRemoteReports(communityReadLocal(), data.reports, waiting);
-    if (merged.changed) communityWriteLocal(merged.local);
+    if (merged.changed) {
+      communityWriteLocal(merged.local);
+      communityMarksChanged();
+    }
   } catch {}
+}
+
+// Marks arrived after the screen opened (another device's history): draw them, and for someone away from the
+// forest, whose camera frames only their own marks, frame the new ones.
+function communityMarksChanged() {
+  if (!(state.selected && state.selected.type === "community")) return;
+  if (typeof communityFramesOwnMarksOnly === "function" && communityFramesOwnMarksOnly() && typeof fitCommunityOwnMarks === "function") {
+    fitCommunityOwnMarks({ animate: true });
+  }
+  if (typeof requestDraw === "function") requestDraw();
 }
 
 // --- Sign-in: optional. Points work anonymously; an account lets them follow the person across devices ---

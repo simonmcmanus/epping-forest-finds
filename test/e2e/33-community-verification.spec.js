@@ -899,4 +899,32 @@ test.describe("Community screen when the user is away from the forest", () => {
       return marks.length === 2 && marks.every(onScreen) && !onScreen(worldToScreen(state.userLocation.point));
     })).toBe(true);
   });
+
+  test("remote history that arrives after the screen opened is drawn and framed", async ({ page }) => {
+    // Nothing saved on this device; the account's other device reported a tree at the forest.
+    await page.route(OVERLAY_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {}, reports: [] }) }));
+    await page.route("**/api/auth/me", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: true, name: "Sam", account: "acct-aaaa" }) }));
+    await page.route("**/api/auth/link", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "{\"ok\":true}" }));
+    let release;
+    const held = new Promise((resolve) => { release = resolve; });
+    await page.route(/\/api\/community\/overlay\?me=[^&]*&list=1/, async (route) => {
+      await held;
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, reports: [
+        { id: "other-device-0001", kind: "tree", target: "tree:900001", status: "VERIFIED", ts: Date.now() - 1000, lat: 51.6663, lon: 0.045, outcome: "pending" },
+      ] }) });
+    });
+    await setup(page, "/community");
+    await page.waitForFunction(() => state.userLocation && !state.userLocation.isDefault);
+    // The first framing has happened with no marks; only now does the other device's history arrive.
+    await page.waitForTimeout(1500);
+    expect(await page.evaluate(() => communityMapMarks().length)).toBe(0);
+    // With no marks the camera shows the whole forest.
+    expect(await page.evaluate(() => state.viewport.scale / state.baseFitScale)).toBeLessThan(1.5);
+    release();
+    await expect.poll(() => page.evaluate(() => communityMapMarks().length)).toBe(1);
+    // ...and once the history lands the camera moves in on it.
+    await expect.poll(() => page.evaluate(() => !state.userInMapArea && state.viewport.scale / state.baseFitScale > 1.5)).toBe(true);
+  });
 });
