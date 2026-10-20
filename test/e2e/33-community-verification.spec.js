@@ -801,7 +801,8 @@ test.describe("Badges and streaks", () => {
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {} }) }));
     await setup(page, "/community");
     // Couldn't-send rows come first even though they are the newest or oldest.
-    await page.click("#communityReportsDetails summary");
+    // A report that needs attention opens the section by itself.
+    await expect(page.locator("#communityReportsDetails")).toHaveJSProperty("open", true);
     await expect(page.locator(".community-log-item").first()).toContainText("Couldn't send");
     await expect(page.locator(".community-log-status").first()).toContainText("Today");
     await page.click("[data-action='community-log-filter'][data-filter='attention']");
