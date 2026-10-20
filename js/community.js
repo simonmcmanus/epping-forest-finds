@@ -59,6 +59,7 @@ const COMMUNITY_STATUS_TEXT = {
   RENAMED: "Reported renamed",
   DETAILS_CHANGED: "Reported wrong details",
   WRONG_CATEGORY: "Reported wrong type",
+  NEW_PLACE: "Reported a missing place",
 };
 const COMMUNITY_STATUS_ICON = {
   VERIFIED: "check",
@@ -74,6 +75,7 @@ const COMMUNITY_STATUS_ICON = {
   RENAMED: "tag",
   DETAILS_CHANGED: "edit",
   WRONG_CATEGORY: "swap",
+  NEW_PLACE: "plus",
 };
 
 const COMMUNITY_RANKS = [
@@ -144,8 +146,95 @@ function communityReadScore() {
   try {
     const raw = JSON.parse(localStorage.getItem(COMMUNITY_SCORE_KEY));
     if (!raw || typeof raw !== "object") return null;
-    return { points: Number(raw.points) || 0, verified: Number(raw.verified) || 0, confirmed: Number(raw.confirmed) || 0 };
+    return { points: Number(raw.points) || 0, verified: Number(raw.verified) || 0, confirmed: Number(raw.confirmed) || 0, generatedAt: Number(raw.generatedAt) || 0 };
   } catch { return null; }
+}
+
+// Points the user has earned on this device that the server's score does not include yet. Only what
+// is certain at the moment of reporting is counted (a verify, a new tree); corrections and second
+// opinions pay out only when others agree, so they wait for the server. A report stops counting
+// once a score computed after it (generatedAt) arrives, unless it is still in the outbox, because
+// that score cannot have seen it. Reports made from too far away or refused never count.
+// Mirrors POINTS in netlify/functions/lib/community-points.js (a unit test keeps them equal).
+const COMMUNITY_POINTS = { verify: 1, newTree: 1 };
+
+function communityPendingScore(local, generatedAt = 0, waitingIds = new Set()) {
+  const pending = { points: 0, verified: 0 };
+  for (const entry of Object.values(local || {})) {
+    if (!entry || entry.counted || entry.far || entry.failed || entry.kind === "place" || entry.kind === "feedback") continue;
+    if (!(Number(entry.ts) > generatedAt || waitingIds.has(entry.id))) continue;
+    if (entry.status === "VERIFIED") {
+      pending.points += COMMUNITY_POINTS.verify;
+      pending.verified += 1;
+    } else if (entry.status === "NEW_TREE") {
+      pending.points += COMMUNITY_POINTS.newTree;
+    }
+  }
+  return pending;
+}
+
+// --- Badges and streaks: derived on the device from the score and the local log, nothing stored ---
+// Thresholds are the only configuration (documented in docs/community-points.md).
+const COMMUNITY_BADGES = [
+  { id: "first-check", name: "First check", icon: "check", test: (m) => m.verified >= 1 },
+  { id: "ten-checks", name: "Ten checks", icon: "shield", test: (m) => m.verified >= 10 },
+  { id: "fifty-checks", name: "Fifty checks", icon: "shield", test: (m) => m.verified >= 50 },
+  { id: "second-opinion", name: "Second opinion", icon: "swap", test: (m) => m.confirmed >= 1 },
+  { id: "tree-finder", name: "Tree finder", icon: "plus", test: (m) => m.treesAdded >= 1 },
+  { id: "place-spotter", name: "Place spotter", icon: "locate", test: (m) => m.placesReported >= 1 },
+  { id: "week-streak", name: "Week streak", icon: "clock", test: (m) => m.bestStreak >= 7 },
+];
+
+function communityLocalDay(ts) {
+  const d = new Date(ts);
+  return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000);
+}
+
+// Days in a row (local time) with at least one report on this device. The streak is still alive
+// when the last report was yesterday, so it only breaks after a full day with nothing.
+function communityStreaks(local, now = Date.now()) {
+  const days = [...new Set(Object.values(local || {}).filter((e) => e && Number(e.ts) > 0 && !e.counted && e.kind !== "feedback").map((e) => communityLocalDay(e.ts)))].sort((a, b) => a - b);
+  let best = 0;
+  let run = 0;
+  for (let i = 0; i < days.length; i += 1) {
+    run = i > 0 && days[i] === days[i - 1] + 1 ? run + 1 : 1;
+    best = Math.max(best, run);
+  }
+  const today = communityLocalDay(now);
+  let current = 0;
+  if (days.length && days[days.length - 1] >= today - 1) {
+    current = 1;
+    for (let i = days.length - 1; i > 0 && days[i - 1] === days[i] - 1; i -= 1) current += 1;
+  }
+  return { current, best };
+}
+
+function communityBadges(score, local, now = Date.now()) {
+  const entries = Object.values(local || {}).filter(Boolean);
+  const streaks = communityStreaks(local, now);
+  const metrics = {
+    verified: Number(score && score.verified) || 0,
+    confirmed: Number(score && score.confirmed) || 0,
+    treesAdded: entries.filter((e) => e.status === "NEW_TREE" && !e.far && !e.failed).length,
+    placesReported: entries.filter((e) => e.kind === "place" && e.status !== "OPEN_CONFIRMED" && !e.failed).length,
+    bestStreak: streaks.best,
+  };
+  return { earned: COMMUNITY_BADGES.filter((b) => b.test(metrics)), locked: COMMUNITY_BADGES.filter((b) => !b.test(metrics)), streak: streaks.current };
+}
+
+function communityBadgesHtml(score, local) {
+  const { earned, locked, streak } = communityBadges(score, local);
+  const badge = (b, on) => `<li class="community-badge-item${on ? " is-earned" : ""}" title="${escapeHtml(b.name)}${on ? "" : " (not yet earned)"}"><span class="community-badge-icon">${communityIcon(b.icon)}</span><span>${escapeHtml(b.name)}</span></li>`;
+  return `<div class="community-badges">
+      <p class="community-streak">${streak > 0 ? `<strong>${streak}-day streak</strong> · keep it going by checking something today` : "Check something today to start a streak"}</p>
+      <ul class="community-badge-list" aria-label="Badges">${earned.map((b) => badge(b, true)).join("")}${locked.map((b) => badge(b, false)).join("")}</ul>
+    </div>`;
+}
+
+function communityDisplayScore(score, local, waitingIds) {
+  const base = score || { points: 0, verified: 0, confirmed: 0, generatedAt: 0 };
+  const pending = communityPendingScore(local, base.generatedAt || 0, waitingIds);
+  return { ...base, points: base.points + pending.points, verified: base.verified + pending.verified, pendingPoints: pending.points };
 }
 
 // Builds, saves locally (optimistic) and queues one report. Resolves the stored local record.
@@ -176,6 +265,7 @@ async function communitySubmitReport({ kind = "tree", target, status, targetLat,
   const far = kind === "tree" && Number.isFinite(Number(targetLat)) && Number.isFinite(Number(targetLon)) && communityRange(Number(targetLat), Number(targetLon)).state !== "near";
   local[key] = { id, status, ts: Date.now(), lat: markLat, lon: markLon, ...(far ? { far: true } : {}), ...(tagNumber ? { name: `Tree ${tagNumber}` } : {}) };
   communityWriteLocal(local);
+  communityRefreshVerifiedSlots();
   // The local record above is what the screen shows; queueing (an IndexedDB write) can be slow, so it
   // never holds the optimistic state back.
   outboxAdd({ id, url: COMMUNITY_REPORT_URL, payload })
@@ -193,11 +283,63 @@ function communityBadgeHtml(entry) {
     return `<div class="community-badge community-badge-questioned">${communityIcon("alert")}
         <p><strong>Questioned by the community</strong><span>${escapeHtml(COMMUNITY_STATUS_TEXT[entry.st] || "Needs checking")} (${entry.n} people). The official record is unchanged.</span></p></div>`;
   }
-  if (entry.s === "verified" || entry.s === "confirmed") {
-    return `<div class="community-badge community-badge-verified">${communityIcon("shield")}
-        <p><strong>Verified by the community</strong><span>${entry.n} ${entry.n === 1 ? "person has" : "people have"} confirmed this tree is here.</span></p></div>`;
-  }
   return "";
+}
+
+// The verified marker for a tree sits in its top row, beside the walking-distance pill. Its detail
+// opens in flow under that row when tapped (never over the page). Both are rendered into slots that
+// communityRefreshVerifiedSlots() fills once the overlay arrives.
+function communityVerifiedEntry(target) {
+  const entry = target && communityOverlay.entries[target];
+  const shared = entry && (entry.s === "verified" || entry.s === "confirmed") ? entry : null;
+  // The user's own verify counts at once: until a snapshot newer than it arrives, add it on top.
+  const mine = target && communityReadLocal()[target];
+  const pending = mine && mine.status === "VERIFIED" && !mine.far && mine.ts > (communityOverlay.generatedAt || 0);
+  if (!pending || (entry && !shared)) return shared;
+  return { ...(shared || { s: "verified" }), n: (shared ? shared.n : 0) + 1 };
+}
+
+function communityVerifiedChipHtml(target) {
+  const entry = communityVerifiedEntry(target);
+  if (!entry) return "";
+  const label = `Verified by ${entry.n} ${entry.n === 1 ? "person" : "people"}`;
+  return `<button type="button" class="community-verified-chip" aria-expanded="false" aria-label="${escapeHtml(label)}">${communityIcon("shield")}<strong>${entry.n}</strong></button>`;
+}
+
+function communityVerifiedDetailHtml(target) {
+  const entry = communityVerifiedEntry(target);
+  if (!entry) return "";
+  return `<p class="community-verified-detail" hidden>${entry.n} ${entry.n === 1 ? "person has" : "people have"} confirmed this tree is where the map says it is. Community checks never change the official record.</p>`;
+}
+
+function communityVerifiedSlotsHtml(tree) {
+  const target = communityTreeTarget(tree);
+  if (!target) return { chip: "", detail: "" };
+  return {
+    chip: `<span class="community-verified-slot" data-verified-target="${escapeHtml(target)}">${communityVerifiedChipHtml(target)}</span>`,
+    detail: `<div class="community-verified-detail-slot" data-verified-target="${escapeHtml(target)}">${communityVerifiedDetailHtml(target)}</div>`,
+  };
+}
+
+function communityRefreshVerifiedSlots() {
+  document.querySelectorAll(".community-verified-slot").forEach((slot) => {
+    slot.innerHTML = communityVerifiedChipHtml(slot.dataset.verifiedTarget);
+  });
+  document.querySelectorAll(".community-verified-detail-slot").forEach((slot) => {
+    slot.innerHTML = communityVerifiedDetailHtml(slot.dataset.verifiedTarget);
+  });
+}
+
+if (typeof document !== "undefined" && document.addEventListener) {
+  document.addEventListener("click", (event) => {
+    const chip = event.target && event.target.closest ? event.target.closest(".community-verified-chip") : null;
+    if (!chip) return;
+    const detail = chip.closest(".detail-top-row").parentElement.querySelector(".community-verified-detail-slot .community-verified-detail");
+    if (!detail) return;
+    const open = chip.getAttribute("aria-expanded") !== "true";
+    chip.setAttribute("aria-expanded", String(open));
+    detail.hidden = !open;
+  });
 }
 
 function communityChoiceHtml(choice, chosen) {
@@ -219,12 +361,25 @@ function communityRange(lat, lon) {
   return { state: metres <= COMMUNITY_NEAR_METRES ? "near" : "far", metres };
 }
 
-function communityRangeNoteHtml(lat, lon) {
+// The points a check earns, given where it was made (server rules: community-points.js). A verify
+// earns 1 now and 1 more when someone else confirms; a "this is wrong" report earns 2 only if others
+// agree; nothing counts from outside the zone.
+function communityPointsText(status, rangeState) {
+  if (rangeState === "none") return "Points need your location";
+  if (rangeState === "far") return "Points: 0 from this check";
+  if (!status || status === "VERIFIED") return "Points: +1 now, +1 more if someone else confirms";
+  return "Points: up to +2 if others agree";
+}
+
+function communityRangeNoteHtml(lat, lon, status) {
   const range = communityRange(lat, lon);
+  const heading = range.state === "near" ? "Inside the 10 m check zone"
+    : range.state === "far" ? "Outside the 10 m check zone"
+    : "Location is off";
   const text = range.state === "near" ? "You're close enough for this to earn points."
     : range.state === "far" ? `You're about ${Math.round(range.metres)} m away. You can still report this, but you need to be within ${COMMUNITY_NEAR_METRES} m of the tree to earn points.`
     : `You can report this from anywhere. To earn points, turn on location and stand within ${COMMUNITY_NEAR_METRES} m of the tree.`;
-  return `<p class="community-range community-range-${range.state}">${communityIcon(range.state === "near" ? "check" : "locate")}<span>${escapeHtml(text)}</span></p>`;
+  return `<div class="community-range community-range-${range.state}">${communityIcon(range.state === "near" ? "check" : "locate")}<div><strong>${heading}</strong><span>${escapeHtml(text)}</span><span class="community-range-points">${escapeHtml(communityPointsText(status, range.state))}</span></div></div>`;
 }
 
 // Called with each GPS fix so the note follows the reader as they walk up to the tree.
@@ -232,7 +387,8 @@ function communityUpdateRangeNotes() {
   document.querySelectorAll(".community-check[data-community-target]").forEach((section) => {
     const note = section.querySelector(".community-range");
     if (!note || section.dataset.kind === "place") return;
-    note.outerHTML = communityRangeNoteHtml(Number(section.dataset.lat), Number(section.dataset.lon));
+    const chosen = section.querySelector(".is-chosen");
+    note.outerHTML = communityRangeNoteHtml(Number(section.dataset.lat), Number(section.dataset.lon), chosen ? chosen.dataset.status : null);
   });
 }
 
@@ -244,7 +400,8 @@ function communitySectionInnerHtml(target, editing, lat, lon) {
       <div class="community-mine">
         <span class="community-mine-icon">${communityIcon("check")}</span>
         <p><strong>You reported: ${escapeHtml(COMMUNITY_STATUS_TEXT[local.status] || local.status)}</strong>
-          <span>Thank you! Other people may take an hour or two to see this.${local.far ? ` It only earns points when you report within ${COMMUNITY_NEAR_METRES} m of the tree.` : ""}</span></p>
+          <span>Thank you! Other people may take an hour or two to see this.${local.far ? ` It only earns points when you report within ${COMMUNITY_NEAR_METRES} m of the tree.` : ""}</span>
+          <span class="community-range-points community-earned-${local.far ? "far" : "near"}">${escapeHtml(communityPointsText(local.status, local.far ? "far" : "near"))}</span></p>
         <button class="community-link" type="button" data-action="community-change">Change</button>
       </div>`;
   }
@@ -254,7 +411,7 @@ function communitySectionInnerHtml(target, editing, lat, lon) {
       ${communityChoiceHtml(primary, chosen === primary.status)}
       <p class="community-or">Something not right?</p>
       <div class="community-choices">${others.map((c) => communityChoiceHtml(c, chosen === c.status)).join("")}</div>
-      ${communityRangeNoteHtml(lat, lon)}
+      ${communityRangeNoteHtml(lat, lon, chosen)}
       <p class="report-note community-status" aria-live="polite"></p>`;
 }
 
@@ -311,16 +468,31 @@ function communityHandleChange(button) {
   communityRefreshSections();
 }
 
-async function communityLoadOverlay() {
-  try {
-    const response = await fetch(COMMUNITY_OVERLAY_URL);
-    if (!response.ok) return;
-    const data = await response.json();
-    if (data && typeof data.entries === "object") {
-      communityOverlay = { generatedAt: data.generatedAt || 0, entries: data.entries };
-      communityRefreshSections();
-    }
-  } catch {}
+let communityOverlayInflight = null;
+
+function communityLoadOverlay() {
+  if (communityOverlayInflight) return communityOverlayInflight;
+  communityOverlayInflight = (async () => {
+    try {
+      const response = await fetch(COMMUNITY_OVERLAY_URL);
+      if (!response.ok) return;
+      const data = await response.json();
+      if (data && typeof data.entries === "object") {
+        communityOverlay = { generatedAt: data.generatedAt || 0, entries: data.entries };
+        communityRefreshSections();
+        communityRefreshVerifiedSlots();
+        if (typeof requestDraw === "function") requestDraw();
+      }
+    } catch {}
+  })().finally(() => { communityOverlayInflight = null; });
+  return communityOverlayInflight;
+}
+
+// A shared #addedtree=<tag> link can only be resolved once the overlay is here, so boot waits for it
+// (bounded: a slow or missing overlay must never hold up the map).
+async function communityEnsureOverlay(timeoutMs = 4000) {
+  if (communityOverlay.generatedAt) return;
+  await Promise.race([communityLoadOverlay(), new Promise((resolve) => setTimeout(resolve, timeoutMs))]);
 }
 
 // The score is kept on the device; opening the app only re-asks the server if it is over an hour
@@ -364,13 +536,11 @@ function communityRecoveryCode() {
   return communityDeviceId().replace(/(.{4})(?=.)/g, "$1-");
 }
 
-// Accepts the code as shown (grouped with dashes, any case or spacing) or a raw id.
+// Accepts the code as shown (grouped with dashes, any case or spacing) or as a raw id. Device ids
+// are always 24 lowercase letters and digits (communityRandomId), so anything else is not a code.
 function communityParseRecoveryCode(input) {
-  const text = String(input || "").trim().replace(/\s+/g, "");
-  if (COMMUNITY_RECOVERY_RE.test(text) && !text.includes("-")) return text;
-  const compact = text.replace(/-/g, "").toLowerCase();
-  if (/^[a-z0-9]{24}$/.test(compact)) return compact;
-  return COMMUNITY_RECOVERY_RE.test(text) ? text : null;
+  const compact = String(input || "").replace(/[\s-]+/g, "").toLowerCase();
+  return /^[a-z0-9]{24}$/.test(compact) ? compact : null;
 }
 
 function communityRecoveryHtml() {
@@ -393,7 +563,7 @@ async function communityAdoptServerReports(deviceId) {
   for (const r of data.reports || []) {
     const key = r.target || (r.tagNumber ? `new:${r.tagNumber}` : null);
     if (!key || local[key]) continue;
-    local[key] = { id: r.id, status: r.status, ts: r.ts, lat: r.lat, lon: r.lon, ...(r.kind === "place" ? { kind: "place" } : {}), ...(r.tagNumber ? { name: `Tree ${r.tagNumber}` } : {}) };
+    local[key] = { id: r.id, status: r.status, ts: r.ts, lat: r.lat, lon: r.lon, counted: true, ...(r.kind === "place" ? { kind: "place" } : {}), ...(r.tagNumber ? { name: `Tree ${r.tagNumber}` } : {}) };
   }
   communityWriteLocal({ ...local, ...communityReadLocal() });
   return Object.keys(local).length;
@@ -542,20 +712,21 @@ if (typeof window !== "undefined" && window.addEventListener) {
     const detail = event.detail;
     if (!detail || !detail.item) return;
     if (detail.item.url === COMMUNITY_REPORT_URL) communityRefreshScore();
-    if (detail.item.url === COMMUNITY_ISSUE_URL) {
-      const local = communityReadLocal();
-      const key = Object.keys(local).find((k) => local[k].id === detail.item.id);
-      if (key && detail.ok && detail.response && detail.response.issueUrl) {
-        local[key].issueUrl = detail.response.issueUrl;
-        delete local[key].failed;
-        delete local[key].retry;
-        communityWriteLocal(local);
-      } else if (key && !detail.ok) {
-        // The server refused it (not just offline): say so instead of claiming it was sent.
-        local[key].failed = String((detail.response && detail.response.error) || "The server refused the report.").slice(0, 200);
-        local[key].retry = { id: detail.item.id, url: detail.item.url, payload: detail.item.payload };
-        communityWriteLocal(local);
-      }
+    // Every queued report type (tree report, place check, feedback) is in the log under its own id.
+    const local = communityReadLocal();
+    const key = Object.keys(local).find((k) => local[k].id === detail.item.id);
+    if (!key) return;
+    if (detail.ok) {
+      if (detail.response && detail.response.issueUrl) local[key].issueUrl = detail.response.issueUrl;
+      delete local[key].failed;
+      delete local[key].retry;
+      communityWriteLocal(local);
+    } else {
+      // The server refused it (not just offline): say so instead of claiming it was sent, and keep
+      // the payload so "Send again" can queue it once more.
+      local[key].failed = String((detail.response && detail.response.error) || "The server refused the report.").slice(0, 200);
+      local[key].retry = { id: detail.item.id, url: detail.item.url, payload: detail.item.payload };
+      communityWriteLocal(local);
     }
   });
 }
@@ -689,6 +860,128 @@ async function communitySubmitNewTree() {
   communityOpenContributions();
 }
 
+// --- Add a missing place: a form like "Add a missing tree", filed as a place-check issue for review ---
+const COMMUNITY_NEW_PLACE_TYPES = ["Pub", "Café", "Restaurant", "Shop", "Toilets", "Car park", "Visitor attraction", "Other"];
+
+function communityAddPlaceHtml() {
+  return `<section class="settings-section community-add-place">
+      <h3 class="settings-section-title">Add a missing place</h3>
+      <div id="communityAddPlaceBody">${communityAddPlaceIdleHtml()}</div>
+    </section>`;
+}
+
+function communityAddPlaceIdleHtml() {
+  return `<div class="community-new-tree">
+      <span class="community-new-icon">${communityIcon("plus")}</span>
+      <div class="community-new-text">
+        <p class="community-new-title">Is a pub, café or shop missing?</p>
+        <p class="report-note">Stand at the place. A person checks every new place before it goes on the map.</p>
+      </div>
+      <button class="community-add" type="button" data-action="community-addplace-start">${communityIcon("plus")}<span>Start</span></button>
+    </div>`;
+}
+
+function communityAddPlaceFormHtml() {
+  return `<form class="community-new-form" id="communityAddPlaceForm" novalidate>
+      <div id="communityPlaceLocationStatus" class="community-location" aria-live="polite"></div>
+      <label class="community-field"><span class="community-field-label">Name</span>
+        <input id="communityPlaceName" class="report-textarea community-input" type="text" autocomplete="off" maxlength="120" placeholder="What is it called?" required>
+      </label>
+      <label class="community-field"><span class="community-field-label">Type of place</span>
+        <select id="communityPlaceType" class="report-textarea community-input">${COMMUNITY_NEW_PLACE_TYPES.map((t) => `<option>${escapeHtml(t)}</option>`).join("")}</select>
+      </label>
+      <label class="community-field"><span class="community-field-label">Anything else? <span class="community-optional">(optional)</span></span>
+        <input id="communityPlaceNote" class="report-textarea community-input" type="text" autocomplete="off" maxlength="200" placeholder="Opening hours, website, what's nearby…">
+      </label>
+      <p id="communityAddPlaceStatus" class="report-note community-status" aria-live="polite"></p>
+      <div class="community-note-actions">
+        <button class="community-link" type="button" data-action="community-addplace-cancel">Cancel</button>
+        <button id="communityAddPlaceSubmit" class="community-send" type="submit" disabled>Submit place</button>
+      </div>
+    </form>`;
+}
+
+let communityPlaceLocationTimer = null;
+
+function communityUpdateAddPlaceState() {
+  const status = document.getElementById("communityPlaceLocationStatus");
+  const submit = document.getElementById("communityAddPlaceSubmit");
+  if (!status || !submit) { clearInterval(communityPlaceLocationTimer); communityPlaceLocationTimer = null; return; }
+  const fix = communityCurrentFix();
+  const messages = {
+    none: "Turn on location, then stand at the place.",
+    unknown: "Waiting for a GPS fix…",
+    poor: `GPS is only accurate to ${fix.accuracy ? Math.round(fix.accuracy) : "?"} m. Step into the open and wait a moment.`,
+  };
+  status.className = `community-location ${fix.ok ? "is-good" : "is-wait"}`;
+  status.innerHTML = fix.ok
+    ? `${communityIcon("check")}<span>Using your location · accurate to ${Math.round(fix.accuracy)} m</span>`
+    : `${communityIcon("locate")}<span>${messages[fix.reason]}</span>`;
+  const name = (document.getElementById("communityPlaceName") || {}).value || "";
+  submit.disabled = !(fix.ok && name.trim());
+}
+
+function communityStartAddPlace() {
+  const body = document.getElementById("communityAddPlaceBody");
+  if (!body) return;
+  body.innerHTML = communityAddPlaceFormHtml();
+  communityUpdateAddPlaceState();
+  clearInterval(communityPlaceLocationTimer);
+  communityPlaceLocationTimer = setInterval(communityUpdateAddPlaceState, 1500);
+  const input = document.getElementById("communityPlaceName");
+  if (input) input.addEventListener("input", communityUpdateAddPlaceState);
+  const form = document.getElementById("communityAddPlaceForm");
+  if (form) form.addEventListener("submit", (event) => { event.preventDefault(); communitySubmitNewPlace(); });
+}
+
+function communityCancelAddPlace() {
+  clearInterval(communityPlaceLocationTimer);
+  communityPlaceLocationTimer = null;
+  const body = document.getElementById("communityAddPlaceBody");
+  if (body) body.innerHTML = communityAddPlaceIdleHtml();
+}
+
+async function communitySubmitNewPlace() {
+  const statusEl = document.getElementById("communityAddPlaceStatus");
+  const say = (text) => { if (statusEl) statusEl.textContent = text; };
+  const name = ((document.getElementById("communityPlaceName") || {}).value || "").trim();
+  const category = ((document.getElementById("communityPlaceType") || {}).value || "Other").trim();
+  const note = ((document.getElementById("communityPlaceNote") || {}).value || "").trim();
+  const fix = communityCurrentFix();
+  if (!name) return say("Please enter the place's name.");
+  if (!fix.ok) return say("We need a close, accurate location. Stand at the place and wait for a better GPS fix.");
+  const lat = Number(state.userLocation.latitude.toFixed(6));
+  const lon = Number(state.userLocation.longitude.toFixed(6));
+  const key = `new:${lat.toFixed(5)},${lon.toFixed(5)}`;
+  const id = communityRandomId();
+  const local = communityReadLocal();
+  local[key] = { id, status: "NEW_PLACE", ts: Date.now(), kind: "place", name, lat, lon };
+  communityWriteLocal(local);
+  outboxAdd({ id, url: COMMUNITY_ISSUE_URL, payload: {
+    reportType: "place-check",
+    placeCheck: { status: "NEW_PLACE", key, name, category },
+    details: note,
+    location: { latitude: lat, longitude: lon },
+    locationContext: { type: category, name },
+    deviceId: communityDeviceId(),
+    appVersion: (typeof state !== "undefined" && state.swVersion) || (typeof APP_VERSION !== "undefined" ? APP_VERSION : "unknown"),
+    userAgent: navigator.userAgent,
+    pageUrl: window.location.href,
+    requestId: id,
+  } }).then(() => { if (navigator.onLine) outboxFlush(); }).catch(() => {});
+  clearInterval(communityPlaceLocationTimer);
+  communityPlaceLocationTimer = null;
+  const body = document.getElementById("communityAddPlaceBody");
+  if (body) {
+    body.innerHTML = `<div class="community-mine">
+        <span class="community-mine-icon">${communityIcon("check")}</span>
+        <p><strong>${escapeHtml(name)} sent for review</strong><span>Thank you! A person will check it before it goes on the map.</span></p>
+      </div>`;
+  }
+  if (typeof requestDraw === "function") requestDraw();
+  communityOpenContributions();
+}
+
 // --- "Help check this place" on a place's detail screen (js/inspector.js showLandmarkDetails) ---
 
 function communityPlaceChoiceHtml(choice) {
@@ -729,13 +1022,58 @@ function communityPlaceInnerHtml(section) {
       <p class="report-note community-status" aria-live="polite"></p>`;
 }
 
+// --- Community reports on a place: the open and closed GitHub issues people have filed about it ---
+
+const COMMUNITY_REPO = "simonmcmanus/epping-forest-finds";
+const communityPlaceIssueCache = new Map();
+
+function communityPlaceIssuesUrl(placeKey) {
+  return `https://github.com/${COMMUNITY_REPO}/issues?q=${encodeURIComponent(`is:issue label:place-check "place-key:${placeKey}"`)}`;
+}
+
+// A hidden line under the place's card, filled in by loadCommunityPlaceIssues once GitHub answers.
+function communityPlaceIssuesHtml(place) {
+  if (!place || place.latitude == null) return "";
+  const key = `place:${placeHashKey(place)}`;
+  return `<p class="community-place-issues" data-place-key="${escapeHtml(key)}" hidden></p>`;
+}
+
+// Public repo, so the search needs no token. Any failure leaves the line hidden: it is extra
+// information, never something the place page should wait on or report as an error.
+async function loadCommunityPlaceIssues(place) {
+  const key = `place:${placeHashKey(place)}`;
+  const host = document.querySelector(`.community-place-issues[data-place-key="${CSS.escape(key)}"]`);
+  if (!host) return;
+  let found = communityPlaceIssueCache.get(key);
+  if (!found) {
+    try {
+      const query = `repo:${COMMUNITY_REPO} is:issue label:place-check in:body "place-key:${key}"`;
+      const response = await fetch(`https://api.github.com/search/issues?q=${encodeURIComponent(query)}&per_page=30`, {
+        headers: { Accept: "application/vnd.github+json" },
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      const items = Array.isArray(data.items) ? data.items : [];
+      found = { total: data.total_count || 0, open: items.filter((item) => item.state === "open").length };
+      communityPlaceIssueCache.set(key, found);
+    } catch {
+      return;
+    }
+  }
+  if (!found.total) return;
+  const count = `${found.total} ${found.total === 1 ? "issue" : "issues"}`;
+  const openText = found.open ? `${found.open} still open` : "all closed";
+  host.innerHTML = `${communityIcon("alert")}<span><strong>The community has raised ${count} about this place</strong> (${openText}).</span> <a class="community-link" href="${escapeHtml(communityPlaceIssuesUrl(key))}" target="_blank" rel="noopener">See them on GitHub</a>`;
+  host.hidden = false;
+}
+
 function communityPlaceSectionHtml(place) {
   if (!place || !place.name || place.latitude == null || place.longitude == null) return "";
   const target = `place:${placeHashKey(place)}`;
   const earlier = communityReadLocal()[target];
   if (earlier && earlier.status === "OPEN_CONFIRMED") return ""; // already confirmed on this device: no card
   const category = place.categoryLabel || "Local place";
-  return `<section class="community-check community-check-place" data-kind="place" data-community-target="${escapeHtml(target)}" data-lat="${place.latitude}" data-lon="${place.longitude}" data-name="${escapeHtml(place.name)}" data-category="${escapeHtml(category)}">
+  return `<section class="community-check community-check-place" data-kind="place" data-community-target="${escapeHtml(target)}" data-lat="${place.latitude}" data-lon="${place.longitude}" data-name="${escapeHtml(place.name)}" data-category="${escapeHtml(category)}" data-slug="${escapeHtml(place.findSlug || "")}">
       <div class="community-head">
         <span class="community-head-icon">${communityIcon("shield")}</span>
         <div><h3 class="community-title">Help check this place</h3><p class="community-sub">Is this listing still right?</p></div>
@@ -752,7 +1090,9 @@ async function communitySubmitPlace(section, status, note) {
   const category = section.dataset.category || "";
   const id = communityRandomId();
   const local = communityReadLocal();
-  local[target] = { id, status, ts: Date.now(), kind: "place", name, lat, lon };
+  // The place's own /find/<slug>/ page is what the log links to; kept with the report so it survives a reload.
+  const slug = section.dataset.slug || "";
+  local[target] = { id, status, ts: Date.now(), kind: "place", name, lat, lon, ...(slug ? { slug } : {}) };
   communityWriteLocal(local);
   // Confirming a place scores nothing and is not actionable, so it never leaves the device: it only
   // hides the check card for that place. Only a report that something is wrong is filed (as an issue,
@@ -851,6 +1191,17 @@ function communityMarkKind(entry) {
   return entry.status === "VERIFIED" || entry.status === "OPEN_CONFIRMED" ? "verified" : "questioned";
 }
 
+// The shared verdict on the tree whose page is open (from the overlay, so everyone's reports show), drawn
+// on its own pin. Questioned and verified only: a tree with no community entry gets no mark.
+function communitySelectedTreeMarks() {
+  const item = state.selected && state.selected.item;
+  if (!item || item.latitude == null || item.longitude == null) return [];
+  const key = communityTreeTarget(item);
+  const entry = key && communityOverlay.entries[key];
+  if (!entry || !["verified", "confirmed", "questioned"].includes(entry.s)) return [];
+  return [{ lat: Number(item.latitude), lon: Number(item.longitude), kind: entry.s === "questioned" ? "questioned" : "verified", key }];
+}
+
 // [{ lat, lon, kind, status, key }] for every report this device has made that has a position.
 function communityMapMarks() {
   const marks = [];
@@ -865,6 +1216,73 @@ function communityMapMarks() {
     marks.push({ lat, lon, kind: communityMarkKind(entry), status: entry.status, key });
   }
   return marks;
+}
+
+// Trees other walkers have added (not in the City of London register yet), from the shared overlay.
+// Drawn as "added" marks on the ordinary map so everyone can see them.
+function communityOverlayNewTreeMarks() {
+  const marks = [];
+  for (const [key, entry] of Object.entries(communityOverlay.entries || {})) {
+    if (!key.startsWith("new:tree:") || !entry || (entry.s !== "new" && entry.s !== "new-confirmed")) continue;
+    const lat = Number(entry.lat);
+    const lon = Number(entry.lon);
+    if (!(Number.isFinite(lat) && Number.isFinite(lon))) continue;
+    marks.push({ lat, lon, kind: "added", status: entry.st || "NEW_TREE", key, tag: entry.tag || "", n: Number(entry.n) || 0, confirmed: entry.s === "new-confirmed" });
+  }
+  return marks;
+}
+
+// A walker-added tree as a selectable item (same fields as a register tree where it matters:
+// latitude/longitude/point), for the map tap, the #addedtree=<tag> route and its detail screen.
+function communityAddedTreeItem(mark) {
+  return {
+    tag: mark.tag,
+    name: `Tree ${mark.tag}`,
+    latitude: mark.lat,
+    longitude: mark.lon,
+    point: projectLonLat(mark.lon, mark.lat),
+    people: mark.n,
+    confirmed: mark.confirmed,
+  };
+}
+
+function communityFindAddedTree(tag) {
+  const wanted = String(tag || "").trim().toLowerCase();
+  const mark = communityOverlayNewTreeMarks().find((m) => m.tag && String(m.tag).toLowerCase() === wanted);
+  return mark ? communityAddedTreeItem(mark) : null;
+}
+
+function showAddedTreeDetails(item) {
+  setInspectorSelectionChrome({ emoji: appIconHtml("tree", "app-icon title-icon"), showBack: true });
+  els.inspectorTools.hidden = true;
+  els.inspectorTitle.textContent = item.name;
+  els.inspectorType.textContent = "Added by walkers";
+  const distance = typeof distanceFromUser === "function" ? distanceFromUser(item) : null;
+  const pill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
+  const topRow = `<div class="detail-top-row">${pill}${openInMapsHtml(item.latitude, item.longitude, item.name)}</div>`;
+  const seen = item.confirmed ? `Found by ${item.people} people` : "Found by 1 person";
+  const rows = [["Tag number", item.tag], ["Status", item.confirmed ? "Confirmed by a second walker" : "Waiting for a second walker"], ["Seen", seen], ["Official register", "Not on the City of London register yet"]];
+  const cta = `<div class="community-new-tree community-added-tree-cta">
+      <span class="community-new-icon">${communityIcon("plus")}</span>
+      <div class="community-new-text">
+        <p class="community-new-title">Found this tree too?</p>
+        <p class="report-note">Stand next to it and add it from where you are. A second sighting confirms it.</p>
+      </div>
+      <button class="community-add" type="button" data-action="community-confirm-added" data-tag="${escapeHtml(item.tag)}">${communityIcon("plus")}<span>I found it</span></button>
+    </div>`;
+  transitionInspectorBody(topRow + detailsHtml(rows) + cta, "forward");
+}
+
+// "I found it too": the Community screen's add-a-tree form, with the tag filled in.
+function communityConfirmAddedTree(tag) {
+  openCommunity();
+  communityStartAddTree();
+  const input = document.getElementById("communityTagInput");
+  if (input) {
+    input.value = tag;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.scrollIntoView({ block: "center" });
+  }
 }
 
 // World points the Community screen's camera should keep in view: marks within reach of the walking
@@ -900,7 +1318,15 @@ function communityReadLog() {
 
 function communityTargetLabel(key, entry) {
   if (key.startsWith("feedback:")) return { text: (entry && entry.name) || "Feedback", href: null };
-  if (key.startsWith("place:")) return { text: (entry && entry.name) || "Place", href: null, issueUrl: entry && entry.issueUrl };
+  if (key.startsWith("place:")) {
+    // "place:id:<osm or manual id>" selects the place on the map (the same route as #place=id:...).
+    // Coordinate-only keys have no id to select by, so they stay plain text.
+    // A place with its own /find/<slug>/ page links there, the same as the rest of the app; older entries
+    // without a slug fall back to the map selection.
+    const placeId = key.startsWith("place:id:") ? key.slice("place:".length) : null;
+    const href = entry && entry.slug ? `/find/${entry.slug}/` : placeId ? `/nearby#place=${placeId}` : null;
+    return { text: (entry && entry.name) || "Place", href, issueUrl: entry && entry.issueUrl };
+  }
   if (key.startsWith("tree:") && typeof findTreeByHashKey === "function") {
     const tree = findTreeByHashKey(`r${key.slice(5)}`);
     if (tree) return { text: treeDisplayName(tree), href: `/nearby#tree=r${key.slice(5)}` };
@@ -919,9 +1345,9 @@ function communityContributionsHtml() {
 async function communityRenderContributions() {
   const host = document.getElementById("communityContributions");
   if (!host) return;
-  const score = communityReadScore() || { points: 0, verified: 0, confirmed: 0 };
-  const rank = communityRank(score.points);
   const waitingIds = new Set((await outboxList()).map((item) => item.id));
+  const score = communityDisplayScore(communityReadScore(), communityReadLocal(), waitingIds);
+  const rank = communityRank(score.points);
   const outcomes = communityReadLog();
   const entries = Object.entries(communityReadLocal()).sort((a, b) => b[1].ts - a[1].ts);
   const span = rank.next ? rank.next.min - rank.min : 1;
@@ -943,7 +1369,10 @@ async function communityRenderContributions() {
         <span class="community-pill community-outcome-${outcome}">${communityIcon(COMMUNITY_OUTCOME_ICON[outcome])}${escapeHtml(COMMUNITY_OUTCOME_TEXT[outcome])}</span>${label.issueUrl && /^https:\/\/github\.com\//.test(label.issueUrl) ? `<a class="community-issue-link" href="${escapeHtml(label.issueUrl)}" target="_blank" rel="noopener">View on GitHub</a>` : ""}${entry.failed ? `<span class="community-log-error"><span>${escapeHtml(entry.failed)}</span> <button type="button" class="community-link" data-action="community-retry" data-id="${escapeHtml(entry.id)}">Send again</button></span>` : ""}
       </li>`;
   }).join("");
-  host.innerHTML = `<div class="community-rank-card">
+  const volatileNote = waitingIds.size && typeof outboxIsDurable === "function" && !outboxIsDurable()
+    ? `<p class="community-log-error">This browser can't save waiting reports. Keep the app open until they are sent.</p>`
+    : "";
+  host.innerHTML = `${volatileNote}<div class="community-rank-card">
         <span class="community-rank-icon">${communityIcon(rank.icon)}</span>
         <div class="community-rank-text">
           <p class="community-rank"><strong>${escapeHtml(rank.name)}</strong></p>
@@ -952,6 +1381,7 @@ async function communityRenderContributions() {
       </div>
       <div class="community-progress" role="progressbar" aria-label="Progress to the next rank" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><span style="width:${progress}%"></span></div>
       ${communityLegendHtml(communityMapMarks())}
+      ${communityBadgesHtml(score, communityReadLocal())}
       <div class="community-stats">
         <div><strong>${score.verified}</strong><span>Verified</span></div>
         <div><strong>${score.confirmed}</strong><span>Confirmed by others</span></div>

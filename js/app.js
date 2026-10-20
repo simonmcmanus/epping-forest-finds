@@ -562,6 +562,13 @@ const SELECTION_ROUTES = [
     show: (item) => showLandmarkDetails(item, distanceFromUser(item)),
   },
   {
+    type: "addedtree",
+    param: "addedtree",
+    toKey: (item) => item.tag,
+    find: (key) => communityFindAddedTree(key),
+    show: (item) => showAddedTreeDetails(item),
+  },
+  {
     type: "cow",
     param: "cow",
     toKey: (item) => cowKey(item),
@@ -1236,7 +1243,7 @@ function applyRadiusFromQuery() {
 async function revealMapCenteredOnUser() {
   // A /find/ landing's place is selected by applySelectionFromHash below, so the Nearby list is not
   // painted over the server-rendered panel first.
-  if (!findLandingSlug()) selectOverview();
+  if (!findLandingSlug() && !communityScreenOpen()) selectOverview();
   draw();
 
   // Snap the camera onto the walking-radius circle before the reveal animation -- the same
@@ -1255,7 +1262,7 @@ async function revealMapCenteredOnUser() {
 
   // Apply the launch URL's own screen after the wait so it overrides the overview snap. A /find/
   // landing the loader has already selected keeps its panel rather than re-rendering the same one.
-  if (!findLandingSlug() || !state.selected) applySelectionFromHash();
+  if ((!findLandingSlug() || !state.selected) && !communityScreenOpen()) applySelectionFromHash();
 
   // Fade overlay and animate camera to final position simultaneously.
   // Use fresh points (not stale pre-wait revealPoints) to avoid animating back
@@ -1297,12 +1304,12 @@ async function revealMapCenteredOnUser() {
 async function revealNoRealLocation({ locationAlreadyAsked }) {
   if (!hasRealLocation()) applyDefaultLocation();
 
-  if (!findLandingSlug()) selectOverview();
+  if (!findLandingSlug() && !communityScreenOpen()) selectOverview();
   // A static index's arrows point north until there is a bearing to rotate them by -- the default
   // origin applyDefaultLocation() just set. Only the arrows change; the list itself stays as drawn.
   if (_staticNearbyIndex) updateOverviewDirectionArrows();
   draw();
-  applySelectionFromHash();
+  if (!communityScreenOpen()) applySelectionFromHash();
   await revealMapCenteredOnUser();
 
   if (locationAlreadyAsked) return;
@@ -1486,6 +1493,15 @@ async function boot() {
   const showsCombinedConsentBanner = Boolean(navigator.geolocation) && !onboardsFirst && (isLandingPageArrival() || _staticNearbyIndex) && cookieConsentIsUndecided();
   if (els.consentBanner && !showsCombinedConsentBanner) els.consentBanner.hidden = true;
 
+  // A cold load of /community paints the Community screen straight away: it needs no map data,
+  // and the Nearby list would otherwise show first and be swapped out once data and location land.
+  if (routeValueFromLocation() === ROUTE_COMMUNITY) {
+    // boot() is called mid-script: wait one microtask so the declarations below it (the document
+    // title constants openCommunity() uses) have initialised before the screen is built.
+    await Promise.resolve();
+    try { openCommunity(); } catch (error) { console.error(error); }
+  }
+
   // Start data loading immediately so it runs in parallel with location and onboarding
   const hasCachedCowData = applyCachedCowData();
   setLoadStep("cows", "loading");
@@ -1564,6 +1580,10 @@ async function boot() {
     // downloading in the background.
     if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("tree")) {
       await mapData.treePromise;
+    }
+    // Likewise a walker-added tree link needs the community overlay it is looked up in.
+    if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("addedtree") && typeof communityEnsureOverlay === "function") {
+      await communityEnsureOverlay();
     }
 
     state.bounds = calculateBounds();
@@ -1803,7 +1823,8 @@ function applyLocationFix(position) {
   state.nearestRestaurant = nearestPlaceByFilter(latitude, longitude, (place) => isRestaurantCategory(place));
   state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isRestaurantCategory(place) && !isCafeCategory(place) && !isShopCategory(place) && !isTransportCategory(place));
   state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
-  state.selected = null;
+  // A cold load of /community has already opened its screen (boot); a fix must not wipe it.
+  if (!communityScreenOpen()) state.selected = null;
   if (typeof communityNudgeCheck === "function") setTimeout(communityNudgeCheck, 0);
   return { latitude, longitude, previousPoint };
 }
@@ -3035,6 +3056,10 @@ function bindSettingsHandlers() {
 
 // The Community tab's own screen: what community checks are, your contributions, add a missing
 // tree, and a link on to the feedback form (openReportModal, a page of its own).
+function communityScreenOpen() {
+  return Boolean(state.selected && state.selected.type === "community");
+}
+
 function openCommunity() {
   if (typeof trackGaScreenView === "function") trackGaScreenView("Community");
   exitClusterExpansion();
@@ -3060,6 +3085,7 @@ function communityScreenHtml() {
     ${communityAccountHtml()}
     ${communityContributionsHtml()}
     ${communityAddTreeHtml()}
+    ${communityAddPlaceHtml()}
     ${communityRecoveryHtml()}
     <label class="community-nudge-setting"><input type="checkbox" id="communityNudgeToggle"${communityNudgesOn() ? " checked" : ""}> Remind me to check trees I'm standing next to</label>
     <a class="community-feedback-link" href="/feedback">
@@ -3348,6 +3374,12 @@ async function sendOrQueueReport(payload) {
 }
 
 const REPORT_QUEUED_MESSAGE = "Saved. It will be sent automatically when you're back online.";
+// This browser could not keep the report on disk (private window, storage blocked), so it only survives
+// while the app stays open.
+const REPORT_QUEUED_VOLATILE_MESSAGE = "Not sent yet. This browser can't save it, so keep the app open and it will send when you're back online.";
+function reportQueuedMessage() {
+  return typeof outboxIsDurable === "function" && !outboxIsDurable() ? REPORT_QUEUED_VOLATILE_MESSAGE : REPORT_QUEUED_MESSAGE;
+}
 
 async function submitReportForm() {
   // Guard against duplicate GitHub issues from double-taps or a submit
@@ -3400,7 +3432,7 @@ async function submitReportForm() {
       return;
     }
 
-    if (queued) setReportStatus(REPORT_QUEUED_MESSAGE, "success");
+    if (queued) setReportStatus(reportQueuedMessage(), "success");
     else setReportStatus("Report submitted successfully.", "success", data && data.issueUrl);
     reportDetailsInput.value = "";
     const photoInput = document.getElementById("reportPhoto");
@@ -3523,11 +3555,14 @@ async function submitLocationIssueReport(wrapper) {
       return;
     }
 
-    if (queued) applyReportStatusContent(statusEl, REPORT_QUEUED_MESSAGE, "success");
+    if (queued) applyReportStatusContent(statusEl, reportQueuedMessage(), "success");
     else applyReportStatusContent(statusEl, "Report submitted successfully.", "success", data && data.issueUrl);
     textarea.value = "";
     const photoInput = wrapper.querySelector(".report-photo-input");
     if (photoInput) photoInput.value = "";
+    // The form stays open, so the next report in it is a new one: it needs its own id (the same id
+    // would be answered as a duplicate of this one, or replace it in the outbox).
+    delete wrapper.dataset.requestId;
   } catch (error) {
     statusEl.textContent = "Could not submit report. Please try again.";
     statusEl.className = "report-status error";

@@ -508,6 +508,15 @@ button.search-screen-toggle {
   place-items: center;
 }
 
+/* The tabs sit edge to edge, so the browser's default outline (2px out, dark blue) spills onto
+   the next tab. Keep the keyboard ring inside its own tab instead. */
+a.search-screen-toggle:focus-visible,
+a.report-toggle:focus-visible,
+a.settings-toggle:focus-visible {
+  outline: 2px solid var(--nav);
+  outline-offset: -4px;
+}
+
 a.settings-toggle,
 button.settings-toggle {
   width: calc(36px * var(--icon-scale));
@@ -1233,8 +1242,14 @@ button.settings-toggle.has-update::after {
   margin-bottom: 10px; padding: 10px 12px; border-radius: 12px; border-left: 4px solid;
 }
 .community-badge .community-icon { margin-top: 1px; }
+/* Same 30px height and 5px corner radius as the map and share icon buttons beside it. */
+.community-verified-chip { display: inline-flex; align-items: center; justify-content: center; gap: 3px; height: 30px; box-sizing: border-box; flex: none; padding: 0 8px; border-radius: 5px; border: 1px solid var(--tree); background: #e8f3ea; color: #1f4d29; font: inherit; cursor: pointer; }
+.community-verified-chip svg { width: 16px; height: 16px; }
+.community-verified-chip strong { font-size: 0.85rem; }
+.community-verified-chip:focus-visible { outline: 2px solid var(--nav); outline-offset: 2px; }
+.community-verified-detail { margin: 0 0 10px; padding: 8px 10px; border-radius: 8px; background: #e8f3ea; color: #1f4d29; font-size: 0.82rem; line-height: 1.35; }
+.community-verified-detail[hidden] { display: none; }
 .community-badge-questioned { background: var(--gold-tint); border-color: #d9a21b; color: #5c4600; }
-.community-badge-verified { background: #e8f3ea; border-color: var(--tree); color: #1f4d29; }
 
 @keyframes community-pop { from { opacity: 0; transform: translateY(4px) scale(0.98); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .community-mine { animation: none; } .community-verify, .community-chip { transition: none; } }
@@ -1268,6 +1283,13 @@ button.settings-toggle.has-update::after {
 .community-rank-points { font-size: 0.86rem; color: var(--muted); }
 .community-progress { height: 8px; border-radius: 999px; background: #e7ece6; overflow: hidden; margin-top: 12px; }
 .community-progress span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--tree), #6fae83); transition: width 300ms ease; }
+.community-streak { margin: 12px 0 6px; font-size: 0.85rem; color: var(--muted, #555); }
+.community-streak strong { color: var(--ink); }
+.community-badge-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.community-badge-item { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px 4px 6px; border-radius: 999px; font-size: 0.75rem; border: 1px dashed rgba(0, 0, 0, 0.2); color: #888; background: transparent; }
+.community-badge-item.is-earned { border: 1px solid #2f8a4f; color: #1f6a3a; background: rgba(47, 138, 79, 0.1); }
+.community-badge-icon { display: inline-flex; width: 16px; height: 16px; }
+.community-badge-icon svg { width: 16px; height: 16px; }
 .community-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
 .community-stats div { display: grid; gap: 2px; padding: 10px 8px; text-align: center; border: 1px solid rgba(0, 0, 0, 0.08); border-radius: 12px; background: #fff; }
 .community-stats strong { font-size: 1.2rem; color: var(--ink); }
@@ -1643,10 +1665,18 @@ dd {
 .community-recover-status { min-height: 1.2em; margin: 8px 0 0; color: #2f6b3a; font-size: .85rem; }
 
 /* "You need to be close to earn points" note on the tree check card. */
-.community-range { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0 0; padding: 8px 10px; border-radius: 8px; background: #f1f4ec; color: #4b574b; font-size: .82rem; line-height: 1.35; }
-.community-range svg { flex: none; width: 16px; height: 16px; margin-top: 1px; }
-.community-range-near { background: #e3f1e6; color: #1f4d29; }
-.community-range-far, .community-range-none { background: var(--gold-tint, #fbf6e3); color: #6b4a00; }
+.community-range { display: flex; gap: 10px; align-items: flex-start; margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; border-left: 4px solid #8a9a8a; background: #f1f4ec; color: #4b574b; font-size: .82rem; line-height: 1.35; }
+.community-range > div { display: grid; gap: 3px; min-width: 0; }
+.community-range strong { font-size: .9rem; }
+.community-range svg { flex: none; width: 18px; height: 18px; margin-top: 1px; }
+.community-range-points { justify-self: start; margin-top: 4px; padding: 2px 8px; border-radius: 999px; background: rgba(255, 255, 255, .7); font-weight: 600; }
+.community-range-near { border-left-color: var(--tree, #2f8a4f); background: #e3f1e6; color: #1f4d29; }
+.community-range-far, .community-range-none { border-left-color: #c58b00; background: var(--gold-tint, #fbf6e3); color: #6b4a00; }
+.community-place-issues { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--gold-tint, #fbf6e3); color: #6b4a00; font-size: .82rem; line-height: 1.35; }
+.community-place-issues[hidden] { display: none; }
+.community-place-issues svg { flex: none; width: 16px; height: 16px; margin-top: 1px; }
+.community-earned-near { color: #1f4d29; }
+.community-earned-far { color: #6b4a00; }
 .community-outcome-far { background: var(--gold-tint, #fbf6e3); color: #6b4a00; }
 
 /* A report the server refused: say why, and offer to send it again. */

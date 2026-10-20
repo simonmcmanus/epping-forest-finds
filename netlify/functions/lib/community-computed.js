@@ -31,7 +31,7 @@ async function rebuildComputed(store) {
   const { overlay, conflicts, conflictDetails, scores, rewards } = computeCommunityState(reports, validations);
   const generatedAt = Date.now();
   const shards = {};
-  for (const [id, score] of Object.entries(scores)) (shards[scoreShard(id)] ||= {})[id] = score;
+  for (const [id, score] of Object.entries(scores)) (shards[scoreShard(id)] ||= Object.create(null))[id] = score;
   await Promise.all(Object.entries(shards).map(([shard, map]) => store.put(`scores/${shard}`, { generatedAt, scores: map })));
   const computed = { generatedAt, overlay, conflicts, conflictDetails, rewards, reportCount: reports.length };
   await store.put("computed", computed);

@@ -573,6 +573,11 @@ globalThis.__forestFindsTest = {
   recoverWedgedAnimationFrames,
   communityRank,
   communityNudgeDecision,
+  communityPendingScore,
+  communityBadges,
+  communityStreaks,
+  communityDisplayScore,
+  COMMUNITY_POINTS,
   communityParseRecoveryCode,
   HEADING_SOURCE_NONE,
   HEADING_SOURCE_RELATIVE,
@@ -10840,7 +10845,7 @@ test("a single missing-tree report does not change what other users see", () => 
   const { overlay } = communityConsensus.computeCommunityState([
     communityReport({ status: "NOT_HERE", deviceId: "device-aaaa" }),
   ]);
-  assert.deepEqual(overlay, {});
+  assert.equal(Object.keys(overlay).length, 0);
 });
 
 test("two independent devices reporting a tree missing mark it questioned, not removed", () => {
@@ -10859,7 +10864,7 @@ test("one device repeating a report still counts as one voice", () => {
     communityReport({ status: "NOT_HERE" }),
     communityReport({ status: "NOT_HERE" }),
   ]);
-  assert.deepEqual(overlay, {});
+  assert.equal(Object.keys(overlay).length, 0);
 });
 
 test("a verified tree scores 1 point, and 1 more when another device independently confirms it", () => {
@@ -10888,7 +10893,7 @@ test("a report made from far away earns no points and does not count towards con
     communityReport({ status: "NOT_HERE", deviceId: "device-aaaa", lat: 51.7, lon: 0.1 }),
     communityReport({ status: "NOT_HERE", deviceId: "device-bbbb" }),
   ]);
-  assert.deepEqual(overlay, {});
+  assert.equal(Object.keys(overlay).length, 0);
   assert.equal(scores["device-aaaa"].points, 0);
 });
 
@@ -11074,6 +11079,9 @@ test("a recovery code is accepted as shown, in any case or spacing, and anything
   assert.equal(app.communityParseRecoveryCode("abcd-1234-efgh-5678-ijkl-9012"), id);
   assert.equal(app.communityParseRecoveryCode("  ABCD-1234-EFGH-5678-IJKL-9012 "), id);
   assert.equal(app.communityParseRecoveryCode("abcd 1234 efgh 5678 ijkl 9012"), id);
+  assert.equal(app.communityParseRecoveryCode(id.toUpperCase()), id, "an unhyphenated uppercase code is lowercased");
+  assert.equal(app.communityParseRecoveryCode(`${id}x`), null, "25 characters is not a code");
+  assert.equal(app.communityParseRecoveryCode(id.slice(0, 23)), null, "23 characters is not a code");
   assert.equal(app.communityParseRecoveryCode("short"), null);
   assert.equal(app.communityParseRecoveryCode("has spaces/and$symbols!!"), null);
   assert.equal(app.communityParseRecoveryCode(""), null);
@@ -11097,12 +11105,17 @@ test("a tree report only counts when it was made close to the tree, and says so 
 });
 
 // --- Place checks go to GitHub issues for manual review (netlify/functions/report-missing-data.js) ---
+function escalationStoreForReports() {
+  const data = new Map();
+  return { async get(k) { return data.has(k) ? JSON.parse(JSON.stringify(data.get(k))) : null; }, async put(k, v) { data.set(k, JSON.parse(JSON.stringify(v))); } };
+}
 async function withStubbedGithub(responder, run) {
   const reportFunction = require("../netlify/functions/report-missing-data");
   const originalFetch = global.fetch;
   const originalToken = process.env.GITHUB_TOKEN;
   const calls = [];
   process.env.GITHUB_TOKEN = "test-token";
+  reportFunction.setRateLimitStore(escalationStoreForReports());
   global.fetch = async (url, options = {}) => {
     calls.push({ url: String(url), method: options.method || "GET", body: options.body ? JSON.parse(options.body) : null });
     return responder(String(url), options.method || "GET");
@@ -11110,6 +11123,7 @@ async function withStubbedGithub(responder, run) {
   try {
     return await run(reportFunction.handler, calls);
   } finally {
+    reportFunction.setRateLimitStore(null);
     global.fetch = originalFetch;
     if (originalToken === undefined) delete process.env.GITHUB_TOKEN; else process.env.GITHUB_TOKEN = originalToken;
   }
@@ -11135,7 +11149,7 @@ test("a place check is filed as a labelled GitHub issue for manual review, with 
       assert.equal(result.statusCode, 200);
       const created = calls.find((c) => c.method === "POST" && c.url.endsWith("/issues"));
       assert.ok(created, "an issue is created");
-      assert.deepEqual(created.body.labels, ["place-check", "user-report"]);
+      assert.deepEqual(created.body.labels, ["place-check", "user-report", "place:123"]);
       assert.match(created.body.title, /^Place check: The Test Arms: It's closed/);
       assert.match(created.body.body, /place-key:place:id:123/);
       assert.match(created.body.body, /Reported status: CLOSED/);
@@ -11163,11 +11177,213 @@ test("a second report about the same place is added to its open issue instead of
   );
 });
 
+test("a place check keyed by a real OSM or manual place id is accepted", async () => {
+  await withStubbedGithub(
+    (url, method) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 8, html_url: "https://github.com/x/y/issues/8" })),
+    async (handler, calls) => {
+      for (const key of ["place:id:node/5903400322", "place:id:manual/onest"]) {
+        const result = await handler(placeCheckEvent({ placeCheck: { status: "DETAILS_CHANGED", key, name: "Onest" } }));
+        assert.equal(result.statusCode, 200, key);
+      }
+      assert.equal(calls.filter((c) => c.method === "POST" && c.url.endsWith("/issues")).length, 2);
+    }
+  );
+});
+
+test("a place-check issue is labelled with the place so all its issues can be listed", async () => {
+  await withStubbedGithub(
+    (url) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 9, html_url: "https://github.com/x/y/issues/9" })),
+    async (handler, calls) => {
+      const result = await handler(placeCheckEvent({ placeCheck: { status: "CLOSED", key: "place:id:node/5903400322", name: "Onest" } }));
+      assert.equal(result.statusCode, 200);
+      const created = calls.find((c) => c.method === "POST" && c.url.endsWith("/issues"));
+      const labels = created.body.labels;
+      assert.deepEqual(labels, ["place-check", "user-report", "place:node/5903400322"]);
+    }
+  );
+  const reportFunction = require("../netlify/functions/report-missing-data");
+  assert.equal(reportFunction.placeLabelName("place:id:manual/onest"), "place:manual/onest");
+  assert.ok(reportFunction.placeLabelName(`place:id:${"x".repeat(100)}`).length <= 50, "GitHub label names are capped at 50 characters");
+});
+
 test("a place check with an unknown status or an unsafe key is rejected", async () => {
   await withStubbedGithub(() => jsonResponse(200, { items: [] }), async (handler) => {
     assert.equal((await handler(placeCheckEvent({ placeCheck: { status: "OPEN_CONFIRMED", key: "place:id:1", name: "x" } }))).statusCode, 400);
     assert.equal((await handler(placeCheckEvent({ placeCheck: { status: "CLOSED", key: 'place:" OR is:private', name: "x" } }))).statusCode, 400);
   });
+});
+
+test("a missing place is filed as a place-check issue keyed on its position, and needs a name", async () => {
+  await withStubbedGithub(
+    (url) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 8, html_url: "https://github.com/x/y/issues/8" })),
+    async (handler, calls) => {
+      const key = "new:51.66512,0.04512";
+      const ok = await handler(placeCheckEvent({ placeCheck: { status: "NEW_PLACE", key, name: "The New Arms", category: "Pub" }, details: "Opened last week" }));
+      assert.equal(ok.statusCode, 200);
+      const created = calls.find((c) => c.method === "POST" && c.url.endsWith("/issues"));
+      assert.match(created.body.title, /^Place check: The New Arms: A place is missing from the map/);
+      assert.ok(created.body.labels.includes("place:new:51.66512,0.04512"));
+      assert.match(created.body.body, /Reported status: NEW_PLACE/);
+      assert.match(created.body.body, /Opened last week/);
+      const nameless = await handler(placeCheckEvent({ placeCheck: { status: "NEW_PLACE", key, name: "  " } }));
+      assert.equal(nameless.statusCode, 400);
+    }
+  );
+});
+
+const reportRateLimit = require("../netlify/functions/lib/report-rate-limit");
+
+test("a device that sends too many reports in an hour is refused with 429 and a Retry-After", async () => {
+  await withStubbedGithub(
+    (url) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 1, html_url: "https://github.com/x/y/issues/1" })),
+    async (handler, calls) => {
+      const send = (n) => handler({ ...placeCheckEvent({ deviceId: "device-flood-0001", requestId: `req-flood-${n}`, placeCheck: { status: "CLOSED", key: `place:id:${n}`, name: "x" } }), headers: {} });
+      for (let n = 0; n < reportRateLimit.DEFAULT_LIMITS.perDevice; n += 1) assert.equal((await send(n)).statusCode, 200);
+      const refused = await send(99);
+      assert.equal(refused.statusCode, 429);
+      assert.ok(Number(refused.headers["Retry-After"]) > 0);
+      const issuesBefore = calls.filter((c) => c.method === "POST" && c.url.endsWith("/issues")).length;
+      await send(100);
+      assert.equal(calls.filter((c) => c.method === "POST" && c.url.endsWith("/issues")).length, issuesBefore, "a refused report creates no issue");
+    }
+  );
+});
+
+test("a network is capped by its address however many device ids it invents, and the whole site by the global cap", async () => {
+  await withStubbedGithub(
+    (url) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 1, html_url: "u" })),
+    async (handler) => {
+      const fromIp = (ip, n) => handler({ ...placeCheckEvent({ deviceId: `device-${ip.replace(/\./g, "")}-${String(n).padStart(4, "0")}`, requestId: `req-ip-${ip}-${n}`, placeCheck: { status: "CLOSED", key: `place:id:${n}`, name: "x" } }), headers: { "x-nf-client-connection-ip": ip } });
+      for (let n = 0; n < reportRateLimit.DEFAULT_LIMITS.perIp; n += 1) assert.equal((await fromIp("203.0.113.9", n)).statusCode, 200);
+      assert.equal((await fromIp("203.0.113.9", 500)).statusCode, 429, "fresh device ids do not get past the address cap");
+      assert.equal((await fromIp("203.0.113.10", 0)).statusCode, 200, "another address is unaffected");
+    }
+  );
+  const original = process.env.REPORT_LIMIT_GLOBAL;
+  process.env.REPORT_LIMIT_GLOBAL = "2";
+  try {
+    await withStubbedGithub(
+      (url) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 1, html_url: "u" })),
+      async (handler) => {
+        const one = (ip, n) => handler({ ...placeCheckEvent({ deviceId: `device-glob-${n}-aaaa`, requestId: `req-glob-${n}`, placeCheck: { status: "CLOSED", key: `place:id:${n}`, name: "x" } }), headers: { "x-nf-client-connection-ip": ip } });
+        assert.equal((await one("198.51.100.1", 1)).statusCode, 200);
+        assert.equal((await one("198.51.100.2", 2)).statusCode, 200);
+        assert.equal((await one("198.51.100.3", 3)).statusCode, 429, "the site-wide cap stops new addresses too");
+      }
+    );
+  } finally {
+    if (original === undefined) delete process.env.REPORT_LIMIT_GLOBAL; else process.env.REPORT_LIMIT_GLOBAL = original;
+  }
+});
+
+test("the rate limit resets each hour, ignores a missing ip or device, and lets reports through if the store fails", async () => {
+  const store = escalationStoreForReports();
+  const limits = { perIp: 1, perDevice: 1, global: 5 };
+  const hour = 3600000;
+  assert.equal((await reportRateLimit.checkRateLimit(store, { ip: "1.1.1.1", deviceId: "d1", now: 10 * hour, limits })).ok, true);
+  assert.equal((await reportRateLimit.checkRateLimit(store, { ip: "1.1.1.1", deviceId: "d2", now: 10 * hour + 5, limits })).ok, false);
+  assert.equal((await reportRateLimit.checkRateLimit(store, { ip: "1.1.1.1", deviceId: "d1", now: 11 * hour, limits })).ok, true, "a new hour starts clean");
+  assert.equal((await reportRateLimit.checkRateLimit(store, { now: 12 * hour, limits })).ok, true, "no ip and no device: only the global cap applies");
+  const broken = { async get() { throw new Error("down"); }, async put() { throw new Error("down"); } };
+  assert.equal((await reportRateLimit.checkRateLimit(broken, { ip: "1.1.1.1", deviceId: "d1", limits })).ok, true);
+  assert.equal(reportRateLimit.clientIp({ headers: { "X-Nf-Client-Connection-Ip": "9.9.9.9", "x-forwarded-for": "1.2.3.4" } }), "9.9.9.9");
+  assert.equal(reportRateLimit.clientIp({ headers: { "x-forwarded-for": "1.2.3.4, 5.6.7.8" } }), "1.2.3.4");
+  assert.equal(reportRateLimit.clientIp({}), "");
+});
+
+test("the per-place label is created before the issue, and a label that fails does not stop the report", async () => {
+  await withStubbedGithub(
+    (url, method) => {
+      if (url.includes("/search/issues")) return jsonResponse(200, { items: [] });
+      if (url.endsWith("/labels")) return jsonResponse(500, {});
+      return jsonResponse(201, { number: 5, html_url: "https://github.com/x/y/issues/5" });
+    },
+    async (handler, calls) => {
+      const result = await handler(placeCheckEvent({ placeCheck: { status: "CLOSED", key: "place:id:manual/onest", name: "Onest" } }));
+      assert.equal(result.statusCode, 200);
+      const labelAt = calls.findIndex((c) => c.method === "POST" && c.url.endsWith("/labels"));
+      const issueAt = calls.findIndex((c) => c.method === "POST" && c.url.endsWith("/issues"));
+      assert.ok(labelAt >= 0 && labelAt < issueAt, "the label is created first");
+      assert.equal(calls[labelAt].body.name, "place:manual/onest");
+    }
+  );
+});
+
+test("ids that mean something to JavaScript are refused, and cannot reach Object.prototype", async () => {
+  for (const bad of ["__proto__", "constructor", "prototype"]) {
+    assert.ok(communityConsensus.validateReport(communityReport({ deviceId: bad })), `deviceId ${bad} is refused`);
+    assert.ok(communityConsensus.validateReport(communityReport({ id: bad })), `id ${bad} is refused`);
+  }
+  assert.ok(communityConsensus.validateReport(communityReport({ kind: "__proto__" })));
+  assert.ok(communityConsensus.validateReport(communityReport({ status: "constructor" })));
+  assert.ok(communityConsensus.validateReport(communityReport({ target: "__proto__" })));
+  assert.ok(communityConsensus.validateReport(communityReport({ target: "tree:1 and more" })), "a target has no spaces");
+  assert.equal(communityConsensus.validateReport(communityReport({ target: "place:id:node/1" })), null);
+  assert.equal(communityConsensus.statusClass("tree", "toString"), null);
+  const state = communityConsensus.computeCommunityState([communityReport({ deviceId: "__proto__" }), communityReport({ deviceId: "device-aaaa" })]);
+  assert.equal({}.reports, undefined, "Object.prototype is untouched");
+  assert.equal(Object.keys(state.scores).includes("__proto__"), false);
+  const handler = require("../netlify/functions/community-report").handler;
+  const result = await handler({ httpMethod: "POST", body: JSON.stringify({ id: "report-proto-1", deviceId: "__proto__", kind: "tree", target: "tree:1", status: "VERIFIED", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01 }) });
+  assert.equal(result.statusCode, 400);
+});
+
+test("a new tree's outcome is found under its tag, so a register reward shows as validated", () => {
+  const tree = communityReport({ status: "NEW_TREE", target: undefined, tagNumber: "4821", accuracy: 8, lat: 51.65, lon: 0.04, targetLat: 51.65, targetLon: 0.04 });
+  assert.equal(communityConsensus.canonicalTarget(tree), "new:tree:tag:4821");
+  assert.equal(communityConsensus.canonicalTarget(communityReport({ target: "tree:7" })), "tree:7");
+  const validated = new Set(["device-aaaa|new:tree:tag:4821|NEW_TREE"]);
+  assert.equal(communityConsensus.reportOutcome(tree, { s: "new" }, [], validated), "validated");
+  assert.equal(communityConsensus.reportOutcome(tree, { s: "new" }, [], new Set()), "pending");
+  assert.equal(communityConsensus.reportOutcome(tree, { s: "new-confirmed" }, [], new Set()), "confirmed", "a second finder confirms it");
+  assert.equal(communityConsensus.reportOutcome(tree, undefined, [], new Set()), "pending");
+});
+
+test("a register reward only counts reports made before the last run that still saw the old register", async () => {
+  const store = memoryStore();
+  const register = (records, generatedAt) => async (path) => {
+    if (path.endsWith("index.json")) return { generatedAt, sourceGeneratedAt: generatedAt, recordCount: records.length, chunks: [{ url: "chunk.json" }] };
+    return { trees: records.map((r) => ({ recordNumber: r, latitude: 51.64, longitude: 0.01 })) };
+  };
+  await communityValidation.runValidation({ store, fetchJson: register(["77", "78"], 1), now: 1000 }); // baseline
+  const early = communityReport({ id: "report-early-1", target: "tree:77", status: "NOT_HERE", ts: 900 });
+  const late = communityReport({ id: "report-late-01", target: "tree:78", status: "NOT_HERE", ts: 2000 });
+  await store.put("reports/early", early);
+  await store.put("reports/late", late);
+  // The register drops both records some time between the runs at 1000 and 3000.
+  const summary = await communityValidation.runValidation({ store, fetchJson: register([], 2), now: 3000 });
+  assert.equal(summary.newRegisterRewards, 1, "only the report made before the previous run counts");
+  const items = (await store.get("validations")).items;
+  assert.equal(JSON.stringify(items.map((i) => i.target)), JSON.stringify(["tree:77"]));
+});
+
+test("one network cannot mint endless device ids to confirm its own reports: community reports are capped per address and site-wide", async () => {
+  const reportEndpoint = require("../netlify/functions/community-report");
+  const original = { ip: process.env.COMMUNITY_LIMIT_PER_IP, global: process.env.COMMUNITY_LIMIT_GLOBAL };
+  process.env.COMMUNITY_LIMIT_PER_IP = "3";
+  process.env.COMMUNITY_LIMIT_GLOBAL = "5";
+  reportEndpoint.setStore(memoryStore());
+  try {
+    const send = (ip, n) => reportEndpoint.handler({
+      httpMethod: "POST",
+      headers: { "x-nf-client-connection-ip": ip },
+      body: JSON.stringify({ id: `report-sybil-${ip}-${n}`.replace(/\./g, ""), deviceId: `device-sybil-${n}-x`, kind: "tree", target: "tree:5", status: "VERIFIED", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01 }),
+    });
+    for (let n = 0; n < 3; n += 1) assert.equal((await send("203.0.113.7", n)).statusCode, 200);
+    const refused = await send("203.0.113.7", 99);
+    assert.equal(refused.statusCode, 429, "fresh device ids from the same address do not get past the cap");
+    assert.ok(Number(refused.headers["Retry-After"]) > 0);
+    assert.equal((await send("203.0.113.8", 1)).statusCode, 200, "another address is unaffected");
+    assert.equal((await send("203.0.113.9", 1)).statusCode, 200);
+    assert.equal((await send("203.0.113.10", 1)).statusCode, 429, "the site-wide cap stops new addresses too");
+    const retry = await send("203.0.113.8", 1);
+    assert.equal(retry.statusCode, 200, "a repeat of an accepted report is answered as a duplicate without counting again");
+  } finally {
+    reportEndpoint.setStore(null);
+    for (const [name, value] of [["COMMUNITY_LIMIT_PER_IP", original.ip], ["COMMUNITY_LIMIT_GLOBAL", original.global]]) {
+      if (value === undefined) delete process.env[name]; else process.env[name] = value;
+    }
+  }
 });
 
 // --- The City of London discrepancy report (netlify/functions/lib/community-report-data.js) ---
@@ -11230,6 +11446,128 @@ test("register records are found by position in the public tree chunks, and a fa
   assert.equal(found["78"], undefined);
   const none = await communityReportData.lookupRegisterRecords([{ recordNumber: "77", tlat: 51.6, tlon: 0.1 }], async () => { throw new Error("offline"); });
   assert.deepEqual(none, {});
+});
+
+test("optimistic points mirror the server's configured values for a verify and a new tree", () => {
+  assert.equal(app.COMMUNITY_POINTS.verify, communityPointsConfig.POINTS.verify);
+  assert.equal(app.COMMUNITY_POINTS.newTree, communityPointsConfig.POINTS.newTree);
+});
+
+test("a fresh verify adds a point and a verified count before the server knows", () => {
+  const local = { "tree:1": { id: "a", status: "VERIFIED", ts: 1000 } };
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 0)), JSON.stringify({ points: 1, verified: 1 }));
+  const shown = app.communityDisplayScore({ points: 4, verified: 3, confirmed: 1, generatedAt: 500 }, local, new Set());
+  assert.equal(shown.points, 5);
+  assert.equal(shown.verified, 4);
+  assert.equal(shown.confirmed, 1);
+  assert.equal(shown.pendingPoints, 1);
+});
+
+test("a new tree adds its point at once, without a verified count", () => {
+  assert.equal(JSON.stringify(app.communityPendingScore({ "new:T1": { id: "n", status: "NEW_TREE", ts: 2000 } }, 0)), JSON.stringify({ points: 1, verified: 0 }));
+});
+
+test("the optimistic points clear once a score computed after the report arrives", () => {
+  const local = { "tree:1": { id: "a", status: "VERIFIED", ts: 1000 } };
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 999)), JSON.stringify({ points: 1, verified: 1 }));
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 1000)), JSON.stringify({ points: 0, verified: 0 }));
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 5000)), JSON.stringify({ points: 0, verified: 0 }));
+});
+
+test("a report still in the outbox keeps counting even under a newer score", () => {
+  const local = { "tree:1": { id: "a", status: "VERIFIED", ts: 1000 } };
+  assert.equal(app.communityPendingScore(local, 5000, new Set(["a"])).points, 1);
+});
+
+test("far, failed, place and feedback reports and unconfirmed corrections add no optimistic points", () => {
+  const local = {
+    "tree:1": { id: "a", status: "VERIFIED", ts: 1000, far: true },
+    "tree:2": { id: "b", status: "VERIFIED", ts: 1000, failed: "refused" },
+    "place:x": { id: "c", status: "OPEN_CONFIRMED", ts: 1000, kind: "place" },
+    "feedback:1": { id: "d", status: "FEEDBACK", ts: 1000, kind: "feedback" },
+    "tree:3": { id: "e", status: "NOT_HERE", ts: 1000 },
+    "tree:4": { id: "f", status: "MOVED", ts: 1000 },
+  };
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 0)), JSON.stringify({ points: 0, verified: 0 }));
+});
+
+test("a report adopted from the server on restore is already in its score and adds nothing", () => {
+  const local = { "tree:1": { id: "a", status: "VERIFIED", ts: 9e12, counted: true } };
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 0)), JSON.stringify({ points: 0, verified: 0 }));
+});
+
+test("several fresh reports add up, and an empty or missing record adds nothing", () => {
+  const local = { "tree:1": { id: "a", status: "VERIFIED", ts: 10 }, "tree:2": { id: "b", status: "VERIFIED", ts: 20 }, "new:T": { id: "c", status: "NEW_TREE", ts: 30 } };
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 0)), JSON.stringify({ points: 3, verified: 2 }));
+  assert.equal(JSON.stringify(app.communityPendingScore({}, 0)), JSON.stringify({ points: 0, verified: 0 }));
+  assert.equal(JSON.stringify(app.communityPendingScore(null, 0)), JSON.stringify({ points: 0, verified: 0 }));
+  assert.equal(app.communityDisplayScore(null, {}, new Set()).points, 0);
+});
+
+test("badges are earned from the score and the local log, and the rest stay locked", () => {
+  const day = (n) => new Date(2026, 9, n, 12).getTime();
+  const local = { "tree:1": { id: "a", status: "VERIFIED", ts: day(1) }, "new:T": { id: "b", status: "NEW_TREE", ts: day(2) }, "place:x": { id: "c", status: "CLOSED", kind: "place", ts: day(3) } };
+  const names = (score) => app.communityBadges(score, local, day(3)).earned.map((b) => b.id);
+  assert.equal(JSON.stringify(names({ verified: 0, confirmed: 0 })), JSON.stringify(["tree-finder", "place-spotter"]));
+  assert.equal(JSON.stringify(names({ verified: 10, confirmed: 1 })), JSON.stringify(["first-check", "ten-checks", "second-opinion", "tree-finder", "place-spotter"]));
+  assert.ok(app.communityBadges({ verified: 1, confirmed: 0 }, {}, day(3)).locked.length > 0);
+});
+
+test("a streak counts days in a row, stays alive until a full day is missed, and ignores restored and feedback entries", () => {
+  const day = (n, h = 12) => new Date(2026, 9, n, h).getTime();
+  const at = (...days) => Object.fromEntries(days.map((d, i) => [`t${i}`, { id: `r${i}`, status: "VERIFIED", ts: day(d) }]));
+  const s = (local, now) => JSON.stringify(app.communityStreaks(local, now));
+  assert.equal(s(at(1, 2, 3), day(3, 20)), JSON.stringify({ current: 3, best: 3 }));
+  assert.equal(s(at(1, 2, 3), day(4, 8)), JSON.stringify({ current: 3, best: 3 }), "still alive the day after");
+  assert.equal(s(at(1, 2, 3), day(5, 8)), JSON.stringify({ current: 0, best: 3 }), "broken after a missed day");
+  assert.equal(s(at(1, 2, 5, 6, 7), day(7)), JSON.stringify({ current: 3, best: 3 }));
+  assert.equal(s(at(3, 3, 3), day(3)), JSON.stringify({ current: 1, best: 1 }), "many reports on one day are one day");
+  assert.equal(s({ a: { id: "x", status: "VERIFIED", ts: day(3), counted: true }, b: { id: "y", status: "FEEDBACK", kind: "feedback", ts: day(3) } }, day(3)), JSON.stringify({ current: 0, best: 0 }));
+  assert.equal(s({}, day(3)), JSON.stringify({ current: 0, best: 0 }));
+});
+
+const communityEscalation = require("../netlify/functions/lib/community-escalation");
+const escalationStore = () => {
+  const data = new Map();
+  return { async get(k) { return data.has(k) ? JSON.parse(JSON.stringify(data.get(k))) : null; }, async put(k, v) { data.set(k, JSON.parse(JSON.stringify(v))); } };
+};
+const conflictComputed = (...targets) => ({ conflictDetails: targets.map((t) => ({ target: `tree:${t}`, counts: { VERIFIED: 1, NOT_HERE: 2 }, tlat: 51.66, tlon: 0.04 })) });
+
+test("a conflicting tree is filed once as a labelled issue, with the counts and a link to the tree", async () => {
+  const store = escalationStore();
+  const posted = [];
+  const post = async (issue) => { posted.push(issue); return { number: 40 + posted.length, html_url: `https://github.com/x/y/issues/${40 + posted.length}` }; };
+  const first = await communityEscalation.escalateConflicts(store, conflictComputed(7), { post, siteUrl: "https://example.test" });
+  assert.equal(first.filed, 1);
+  assert.equal(posted[0].title, "Community conflict: tree 7");
+  assert.deepEqual(posted[0].labels, ["community-conflict", "user-report", "tree:7"]);
+  assert.match(posted[0].body, /1 × verified it is right/);
+  assert.match(posted[0].body, /2 × found no tree/);
+  assert.match(posted[0].body, /https:\/\/example\.test\/nearby#tree=r7/);
+  assert.match(posted[0].body, /community-conflict-key:tree:7/);
+  const again = await communityEscalation.escalateConflicts(store, conflictComputed(7), { post });
+  assert.equal(again.filed, 0);
+  assert.equal(posted.length, 1, "a rebuild never files the same tree twice");
+});
+
+test("conflict escalation files only new trees, caps each run, retries failures, and does nothing without GitHub", async () => {
+  const store = escalationStore();
+  let calls = 0;
+  const post = async () => { calls += 1; if (calls === 2) throw new Error("boom"); return { number: calls, html_url: "u" }; };
+  const run = await communityEscalation.escalateConflicts(store, conflictComputed(1, 2, 3), { post, max: 2 });
+  assert.equal(run.filed, 2);
+  assert.equal(run.failed, 1);
+  assert.equal(run.pending, 1);
+  const capped = await communityEscalation.escalateConflicts(escalationStore(), conflictComputed(4, 5, 6), { post: async () => ({ number: 1, html_url: "u" }), max: 2 });
+  assert.equal(capped.filed, 2, "a run files at most max issues");
+  assert.equal(capped.pending, 1);
+  const next = await communityEscalation.escalateConflicts(store, conflictComputed(1, 2, 3), { post, max: 5 });
+  assert.equal(next.filed, 1, "the one that failed is filed next run");
+  assert.equal(next.pending, 0);
+  const none = await communityEscalation.escalateConflicts(escalationStore(), conflictComputed(9), {});
+  assert.equal(none.filed, 0);
+  assert.equal(none.skipped, "no-github");
+  assert.equal((await communityEscalation.escalateConflicts(escalationStore(), { conflictDetails: [] }, { post })).filed, 0);
 });
 
 runRegisteredTests().catch((error) => {

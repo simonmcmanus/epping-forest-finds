@@ -1,6 +1,7 @@
 const DEFAULT_REPO = "simonmcmanus/epping-forest-finds";
 const { randomUUID, createHmac } = require("crypto");
 const { openStore } = require("./lib/community-store");
+const { checkRateLimit, clientIp } = require("./lib/report-rate-limit");
 const { connectLambda, getStore } = require("@netlify/blobs");
 const REPORT_PHOTO_MAX_BYTES = 3 * 1024 * 1024;
 const REPORT_PHOTO_STORE = "report-photos";
@@ -69,14 +70,19 @@ const PLACE_CHECK_LABELS = {
   RENAMED: "The name has changed",
   DETAILS_CHANGED: "The details are wrong",
   WRONG_CATEGORY: "Wrong type of place",
+  NEW_PLACE: "A place is missing from the map",
 };
-const PLACE_KEY_PATTERN = /^[A-Za-z0-9:_.,-]{1,120}$/;
+// Real place ids carry a slash ("node/123", "manual/onest"). A slash is safe inside the quoted
+// place-key search term; quotes and spaces stay out, so the term can't break out of its quotes.
+const PLACE_KEY_PATTERN = /^[A-Za-z0-9:_./,-]{1,120}$/;
 
 function parsePlaceCheck(raw) {
   if (!raw || typeof raw !== "object") return null;
   const status = String(raw.status || "");
   const key = String(raw.key || "");
   if (!PLACE_CHECK_LABELS[status] || !PLACE_KEY_PATTERN.test(key)) return null;
+  // A missing place has no id yet, so its name is what a reviewer has to go on.
+  if (status === "NEW_PLACE" && !String(raw.name || "").trim()) return null;
   return {
     status,
     key,
@@ -84,6 +90,12 @@ function parsePlaceCheck(raw) {
     name: String(raw.name || "").trim().slice(0, 120),
     category: String(raw.category || "").trim().slice(0, 60),
   };
+}
+
+// Every place-check issue also carries a label naming the place ("place:node/123"), so GitHub's label
+// filter lists everything reported about one location. GitHub caps a label name at 50 characters.
+function placeLabelName(key) {
+  return `place:${String(key).replace(/^place:(id:)?/, "")}`.slice(0, 50);
 }
 
 // A reporter is credited later (spec-community.md, Rewards) when their issue is closed as completed.
@@ -124,6 +136,9 @@ function response(statusCode, body) {
     body: JSON.stringify(body),
   };
 }
+
+// Tests swap the store so a rate-limit document never lands on disk.
+let rateLimitStoreOverride = null;
 
 exports.handler = async (event) => {
   if (event.httpMethod === "GET" && event.queryStringParameters?.photo) {
@@ -199,6 +214,15 @@ exports.handler = async (event) => {
     });
   }
 
+  // Past this point a report costs a GitHub call and may create an issue: cap how many one network,
+  // one device and the whole site can send per hour (lib/report-rate-limit.js).
+  const limited = await checkRateLimit(rateLimitStoreOverride || openStore(event), { ip: clientIp(event), deviceId });
+  if (!limited.ok) {
+    const limitedResponse = response(429, { error: "Too many reports right now. Please try again in a little while." });
+    limitedResponse.headers["Retry-After"] = String(limited.retryAfter);
+    return limitedResponse;
+  }
+
   const isFeature = reportType === "feature-request";
   const isLocationIssue = reportType === "location-issue";
   const titlePrefix = isPlaceCheck ? "Place check" : isFeature ? "Feature request" : isLocationIssue ? "Location issue" : "Missing map data";
@@ -246,7 +270,7 @@ exports.handler = async (event) => {
   const issuePayload = {
     title,
     body: issueBodyLines.join("\n"),
-    labels: [isPlaceCheck ? "place-check" : isFeature ? "feature-request" : isLocationIssue ? "location-issue" : "missing-data", "user-report"],
+    labels: [isPlaceCheck ? "place-check" : isFeature ? "feature-request" : isLocationIssue ? "location-issue" : "missing-data", "user-report", ...(isPlaceCheck ? [placeLabelName(placeCheck.key)] : [])],
   };
 
   const apiHeaders = {
@@ -325,6 +349,16 @@ exports.handler = async (event) => {
       issuePayload.body += `\n\n## Photo\n![Photo attached to report](${photoUrl})`;
     }
 
+    // GitHub drops a label it does not know when an issue is created, so the per-place label has to
+    // exist first. An existing label answers 422, which is fine; any other failure must not stop the report.
+    if (isPlaceCheck) {
+      await fetch(`https://api.github.com/repos/${githubRepo}/labels`, {
+        method: "POST",
+        headers: { ...apiHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ name: placeLabelName(placeCheck.key), color: "c5def5", description: "Reports about one place" }),
+      }).catch(() => {});
+    }
+
     const issueResponse = await fetch(`https://api.github.com/repos/${githubRepo}/issues`, {
       method: "POST",
       headers: { ...apiHeaders, "Content-Type": "application/json" },
@@ -354,7 +388,9 @@ exports.handler = async (event) => {
   }
 };
 
+exports.setRateLimitStore = (store) => { rateLimitStoreOverride = store; };
 exports.REPORT_PHOTO_MAX_BYTES = REPORT_PHOTO_MAX_BYTES;
 exports.parsePhoto = parsePhoto;
 exports.parsePlaceCheck = parsePlaceCheck;
+exports.placeLabelName = placeLabelName;
 exports.reportPhotoUrl = reportPhotoUrl;

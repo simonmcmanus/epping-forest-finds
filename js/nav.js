@@ -804,6 +804,12 @@ function setupSearchAndNavHandlers() {
       if (recoveryAction.dataset.action === "community-restore") communityRestore(); else communityCopyCode();
       return;
     }
+    const confirmAdded = event.target.closest("[data-action='community-confirm-added']");
+    if (confirmAdded) { communityConfirmAddedTree(confirmAdded.dataset.tag); return; }
+    const addPlaceStart = event.target.closest("[data-action='community-addplace-start']");
+    if (addPlaceStart) { communityStartAddPlace(); return; }
+    const addPlaceCancel = event.target.closest("[data-action='community-addplace-cancel']");
+    if (addPlaceCancel) { communityCancelAddPlace(); return; }
     const addCancel = event.target.closest("[data-action='community-add-cancel']");
     if (addCancel) { communityCancelAddTree(); return; }
     const placeChoice = event.target.closest("[data-action='community-place-choose']");

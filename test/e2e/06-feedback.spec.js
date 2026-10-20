@@ -398,6 +398,25 @@ test.describe("Reporting a problem with a selected location", () => {
     await expect(issueLink).toHaveAttribute("target", "_blank");
   });
 
+  test("a second report made in the same open form gets its own request id", async ({ page }) => {
+    const posted = [];
+    await page.route("**/.netlify/functions/report-missing-data", async (route) => {
+      posted.push(route.request().postDataJSON());
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, issueNumber: posted.length, issueUrl: `https://github.com/simonmcmanus/epping-forest-finds/issues/${posted.length}` }) });
+    });
+
+    await page.click("[data-action='report-issue']");
+    await page.fill(".report-issue textarea", "First problem");
+    await page.click("[data-action='submit-location-issue']");
+    await expect(page.locator(".report-issue .report-status")).toContainText("submitted successfully");
+    await page.fill(".report-issue textarea", "A different problem");
+    await page.click("[data-action='submit-location-issue']");
+    await expect.poll(() => posted.length).toBe(2);
+    expect(posted[0].requestId).toBeTruthy();
+    expect(posted[1].requestId).toBeTruthy();
+    expect(posted[1].requestId).not.toBe(posted[0].requestId);
+  });
+
   test("an empty submission is rejected without a network request", async ({ page }) => {
     let requestSent = false;
     await page.route("**/.netlify/functions/report-missing-data", async (route) => {

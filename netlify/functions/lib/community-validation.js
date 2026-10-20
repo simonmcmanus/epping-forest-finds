@@ -13,13 +13,14 @@ const MOVED_TO_REPORTED_METRES = 30; // ...and now be this close to where the re
 const recordOf = (target) => String(target || "").replace(/^tree:/, "");
 
 // register: { hasRecord(rn), record(rn) -> {lat, lon} | null, hasTag(tag) }
-// A report only counts if it was made before the new register was first seen, so nobody can claim a
-// reward by posting what an already-published register says.
-function validateAgainstRegister(reports, register, seenAt) {
+// A report only counts if it was made at or before `cutoff` (runValidation passes the last time the old
+// register was still seen unchanged), so nobody can claim a reward by posting what an already-published
+// register says.
+function validateAgainstRegister(reports, register, cutoff) {
   const found = new Map();
   for (const r of reports) {
     if (validateReport(r)) continue;
-    if (r.kind !== "tree" || !(r.ts <= seenAt)) continue;
+    if (r.kind !== "tree" || !(r.ts <= cutoff)) continue;
     let reason = null;
     if (r.status === "NEW_TREE") {
       if (register.hasTag(normalizeTag(r.tagNumber))) reason = "its tag is now in the register";
@@ -35,7 +36,7 @@ function validateAgainstRegister(reports, register, seenAt) {
     }
     if (!reason) continue;
     const key = `${r.deviceId}|${r.target || `new:${normalizeTag(r.tagNumber)}`}|${r.status}`;
-    if (!found.has(key)) found.set(key, { kind: "register", deviceId: r.deviceId, target: r.target || `new:tree:tag:${normalizeTag(r.tagNumber)}`, status: r.status, reason, at: seenAt });
+    if (!found.has(key)) found.set(key, { kind: "register", deviceId: r.deviceId, target: r.target || `new:tree:tag:${normalizeTag(r.tagNumber)}`, status: r.status, reason, at: cutoff });
   }
   return [...found.values()];
 }
@@ -114,7 +115,12 @@ async function runValidation(deps) {
     } else if (state.register.signature !== register.signature) {
       const keys = await store.list("reports/");
       const reports = (await Promise.all(keys.map((k) => store.get(k)))).filter(Boolean);
-      for (const item of validateAgainstRegister(reports, register, now)) {
+      // Only reports made before the register could have changed count. The change happened somewhere
+      // between the previous run (which still saw the old register) and now, so the previous run is the
+      // safe cutoff: anyone waiting for an update and then posting what it says falls after it. The very
+      // first sighting of a register (`seenAt`) is the fallback for state written before runs were stamped.
+      const cutoff = state.lastRunAt || state.register.seenAt || now;
+      for (const item of validateAgainstRegister(reports, register, cutoff)) {
         if (!has(item)) { state.items.push(item); summary.newRegisterRewards += 1; }
       }
       state.register = { signature: register.signature, seenAt: now };

@@ -73,6 +73,12 @@ function handleMapClick(event) {
     showTreeDetails(hit.item, distanceFromUser(hit.item), "Tree record");
     startCompassNavigation();
     zoomToSelection();
+  } else if (hit.type === "addedtree") {
+    state.selected = { type: "addedtree", item: hit.item };
+    syncHashFromSelection();
+    showAddedTreeDetails(hit.item);
+    startCompassNavigation();
+    zoomToSelection();
   } else if (hit.type === "cow") {
     state.selected = { type: "cow", item: hit.item };
     syncHashFromSelection();
@@ -146,6 +152,21 @@ function findHit(screen, world) {
   const selectedItem = hasRealSelection() ? state.selected.item : null;
   function isTappablePin(type, item) {
     return item === selectedItem || shouldDrawMapIcon(type, item, iconLookup);
+  }
+
+  // Trees other walkers added are drawn as marks (drawCommunityMarks) over everything else, so a tap
+  // on one wins.
+  if (typeof communityOverlayNewTreeMarks === "function" && !(state.selected && state.selected.type === "community")) {
+    let bestAdded = null;
+    for (const mark of communityOverlayNewTreeMarks()) {
+      if (!mark.tag) continue;
+      const point = worldToScreen(projectLonLat(mark.lon, mark.lat));
+      const distance = Math.hypot(point.x - screen.x, point.y - screen.y);
+      if (distance < 22 * dpr && (!bestAdded || distance < bestAdded.distance)) {
+        bestAdded = { type: "addedtree", item: communityAddedTreeItem(mark), distance };
+      }
+    }
+    if (bestAdded) return bestAdded;
   }
 
   let bestPlace = null;
@@ -365,14 +386,15 @@ function showTreeDetails(tree, distance, label) {
   ].filter(([, value]) => value != null && value !== "");
   const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const mapsLink = openInMapsHtml(tree.latitude, tree.longitude, tree.commonName || "Veteran tree");
-  const topRow = `<div class="detail-top-row">${distancePill}${mapsLink}${shareLocationHtml()}</div>`;
+  const verified = communityVerifiedSlotsHtml(tree);
+  const topRow = `<div class="detail-top-row">${distancePill}<span class="detail-top-actions">${verified.chip}${mapsLink}${shareLocationHtml()}</span></div>`;
   const technicalHtml = technicalRows.length
     ? `<details class="technical-details"><summary>Technical data</summary>${detailsHtml(technicalRows)}</details>`
     : "";
   const namedTreeHtml = namedTreeDetailsHtml(tree);
   const nearbySectionHtml = nearbySectionsHtml({ latitude: tree.latitude, longitude: tree.longitude, name: tree.commonName || null, subfilterKey: "trees" });
   const issueHtml = reportIssueHtml({ type: "Veteran tree", name: treeDisplayName(tree), latitude: tree.latitude, longitude: tree.longitude });
-  transitionInspectorBody(topRow + detailsHtml(primaryRows) + technicalHtml + namedTreeHtml + communitySectionHtml(tree) + nearbySectionHtml + issueHtml, "forward");
+  transitionInspectorBody(topRow + verified.detail + detailsHtml(primaryRows) + technicalHtml + namedTreeHtml + communitySectionHtml(tree) + nearbySectionHtml + issueHtml, "forward");
 }
 
 function showLandmarkDetails(place, distance) {
@@ -420,9 +442,10 @@ function showLandmarkDetails(place, distance) {
   // Every location with coordinates gets the same Nearest and Related sections (nearbySectionsHtml),
   // keyed to whichever category the place belongs to for its Related links.
   const relatedLinksHtml = nearbySectionsHtml({ latitude: place.latitude, longitude: place.longitude, name: place.name, subfilterKey: placePrimaryFilterKey(place), findSlug: place.findSlug });
-  const landmarkHtml = topRow + descriptionHtml + ledgerHtml + detailsHtml(rows, { labels: isEvent }) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + relatedLinksHtml + (isEvent ? "" : communityPlaceSectionHtml(place)) + issueHtml;
+  const landmarkHtml = topRow + descriptionHtml + ledgerHtml + detailsHtml(rows, { labels: isEvent }) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + relatedLinksHtml + (isEvent ? "" : communityPlaceSectionHtml(place) + communityPlaceIssuesHtml(place)) + issueHtml;
   // A /find/ landing's place replaces its server-rendered panel in place: no slide-in from the side.
   transitionInspectorBody(landmarkHtml, findLandingSlug() ? null : "forward");
+  if (navigator.onLine && !isEvent && place.latitude != null) loadCommunityPlaceIssues(place);
   if (navigator.onLine && (isBusCategory(place) || isTrainCategory(place))) {
     loadTransportDepartures(place);
   }
