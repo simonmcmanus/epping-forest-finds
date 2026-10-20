@@ -781,13 +781,12 @@ test.describe("Badges and streaks", () => {
     await setup(page, "/community");
     await expect(page.locator(".community-streak")).toContainText("3-day streak");
     await expect(page.locator(".community-badge-item.is-earned")).toContainText(["First check", "Tree finder"]);
-    await expect(page.locator(".community-badge-item:not(.is-earned)").first()).toBeVisible();
-    // Tapping a locked badge says how to earn it and how far along the walker is; tapping again closes it.
-    const tile = page.locator("[data-action='community-badge'][data-badge='ten-checks']");
+    await expect(page.locator(".community-badge-item:not(.is-earned)")).toHaveCount(0);
+    // Tapping an earned badge says how it was earned; tapping again closes it.
+    const tile = page.locator("[data-action='community-badge'][data-badge='first-check']");
     await tile.scrollIntoViewIfNeeded();
-    await expect(tile).toContainText("2/10");
     await tile.click();
-    await expect(page.locator(".community-badge-detail")).toContainText("Verify ten trees. You're at 2 of 10.");
+    await expect(page.locator(".community-badge-detail")).toBeVisible();
     await tile.click();
     await expect(page.locator(".community-badge-detail")).toBeHidden();
     // The scroller scrolls inside itself; it must never widen the screen.
@@ -812,6 +811,7 @@ test.describe("Badges and streaks", () => {
     await expect(page.locator(".community-week-day")).toHaveCount(7);
     await expect(page.locator(".community-week-day.is-today.is-done")).toHaveCount(1);
     // Couldn't-send rows come first even though they are the newest or oldest.
+    await page.click("#communityReportsDetails summary");
     await expect(page.locator(".community-log-item").first()).toContainText("Couldn't send");
     await expect(page.locator(".community-log-status").first()).toContainText("Today");
     await page.click("[data-action='community-log-filter'][data-filter='attention']");
@@ -829,7 +829,8 @@ test.describe("Badges and streaks", () => {
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {} }) }));
     await setup(page, "/community");
     await expect(page.locator(".community-streak")).toContainText("Check something today to start a streak");
-    await expect(page.locator(".community-badge-item.is-earned")).toHaveCount(0);
+    await expect(page.locator(".community-badge-item")).toHaveCount(0);
+    await expect(page.locator(".community-badges-section")).toBeHidden();
   });
 });
 

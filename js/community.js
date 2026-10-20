@@ -330,20 +330,16 @@ function communityBadgeDetailHtml(badge, metrics) {
 }
 
 function communityBadgesHtml(score, local) {
-  const { earned, metrics } = communityBadges(score, local);
-  const earnedIds = new Set(earned.map((b) => b.id));
-  const tile = (b) => {
-    const on = earnedIds.has(b.id);
-    const { have, goal } = communityBadgeProgress(b, metrics);
-    return `<li class="community-badge-item${on ? " is-earned" : ""}"><button type="button" class="community-badge-tile" data-action="community-badge" data-badge="${b.id}" aria-pressed="false" aria-label="${escapeHtml(b.name)}, ${on ? "earned" : `locked, ${have} of ${goal}`}">
+  const { earned } = communityBadges(score, local);
+  if (!earned.length) return "";
+  const tile = (b) => `<li class="community-badge-item is-earned"><button type="button" class="community-badge-tile" data-action="community-badge" data-badge="${b.id}" aria-pressed="false" aria-label="${escapeHtml(b.name)}, earned">
         <span class="community-badge-medal">${communityIcon(b.icon)}</span>
         <span class="community-badge-name">${escapeHtml(b.name)}</span>
-        ${on ? `<span class="community-badge-state">Earned</span>` : `<span class="community-badge-bar" aria-hidden="true"><span style="width:${Math.round((have / goal) * 100)}%"></span></span><span class="community-badge-state">${have}/${goal}</span>`}
+        <span class="community-badge-state">Earned</span>
       </button></li>`;
-  };
   return `<div class="community-badges">
-      <div class="community-badges-head"><h3 class="settings-section-title">Badges</h3><span class="community-badges-count">${earned.length} of ${COMMUNITY_BADGES.length}</span></div>
-      <ul class="community-badge-list" aria-label="Badges">${COMMUNITY_BADGES.map(tile).join("")}</ul>
+      <div class="community-badges-head"><h3 class="settings-section-title">Badges</h3><span class="community-badges-count">${earned.length} earned</span></div>
+      <ul class="community-badge-list" aria-label="Badges">${earned.map(tile).join("")}</ul>
       <p class="community-badge-detail" role="status" hidden></p>
     </div>`;
 }
