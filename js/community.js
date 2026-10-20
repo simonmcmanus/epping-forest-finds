@@ -1626,11 +1626,21 @@ async function communityRefreshAccountOnce() {
 // but the answer is not, a signed-in browser shows no history at all; an anonymous one carries on as normal.
 async function communityOpenContributions() {
   if (!navigator.onLine) communityRenderAccount(communityReadAccount());
+  else {
+    // A screen that is already drawn (reopened, or the account changed in another tab) still shows the last
+    // account until this answers: put it back to a neutral state first.
+    const accountHost = document.getElementById("communityAccount");
+    const listHost = document.getElementById("communityContributions");
+    if (accountHost) accountHost.innerHTML = "";
+    if (listHost) listHost.innerHTML = `<p class="settings-description">Loading…</p>`;
+  }
   const identity = await communityRefreshAccount();
   const known = communityReadAccount();
   if (identity === "failed" && known && known.signedIn) {
     const host = document.getElementById("communityContributions");
     if (host) host.innerHTML = `<p class="settings-description">Couldn't check who is signed in just now. Reload to try again.</p>`;
+    const accountHost = document.getElementById("communityAccount");
+    if (accountHost) accountHost.innerHTML = "";
     return;
   }
   await communityRenderContributions();

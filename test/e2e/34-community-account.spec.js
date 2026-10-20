@@ -296,4 +296,32 @@ test.describe("Community sign-in: history, account switching, storage", () => {
     const ids = await page.evaluate(() => [communityDeviceId(), communityDeviceId()]);
     expect(ids[0]).toBe(ids[1]);
   });
+
+  test("reopening the screen after the account changed elsewhere clears the old account at once", async ({ page }) => {
+    let me = { signedIn: true, name: "Sam", account: "acct-aaaa" };
+    const mine = [{ id: "sams-report-0001", kind: "tree", target: `tree:${FIXTURE_TREE.recordNumber}`, status: "VERIFIED", ts: Date.now() - 1000, outcome: "confirmed" }];
+    const releases = [];
+    let hold = false;
+    await page.route(ME_URL, async (route) => {
+      if (hold) await new Promise((resolve) => { releases.push(resolve); });
+      return route.fulfill(json(me));
+    });
+    await page.route(LINK_URL, (route) => route.fulfill(json({ ok: true })));
+    await page.route(LIST_URL, (route) => route.fulfill(json({ generatedAt: 1, reports: me.account === "acct-aaaa" ? mine : [] })));
+    await setup(page, "/community");
+    await expect(page.locator(".community-log-item")).toHaveCount(1);
+    await expect(page.locator("#communityAccount")).toContainText("Sam");
+
+    // The same page, same DOM: the account changes elsewhere and the screen is opened again.
+    me = { signedIn: true, name: "Alex", account: "acct-bbbb" };
+    hold = true;
+    await page.evaluate(() => { window.__reopen = communityOpenContributions(); });
+    await expect(page.locator(".community-log-item")).toHaveCount(0);
+    await expect(page.locator("#communityAccount")).not.toContainText("Sam");
+    await expect.poll(() => releases.length).toBeGreaterThan(0);
+    hold = false;
+    releases.forEach((release) => release());
+    await expect(page.locator("#communityContributions")).not.toContainText("Couldn't check");
+    await expect(page.locator("#communityAccount")).toContainText("Signed in as Alex");
+  });
 });
