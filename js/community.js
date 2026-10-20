@@ -144,8 +144,29 @@ function communityPrimaryDeviceId() {
 // this browser ({account hash: device id}); an account that finds the browser's own id already linked to
 // someone else is given a new one (see communityRefreshAccountOnce), so two accounts never share a device
 // id, a local history or a score.
+// Mappings that could not be saved (blocked or full storage) are kept for the life of the page, and the account
+// card says that this browser will not remember them.
+let communityAccountDevicesMemory = {};
+let communityAccountDevicesUnsaved = false;
+
 function communityAccountDevices() {
-  try { return JSON.parse(localStorage.getItem(COMMUNITY_ACCOUNT_DEVICES_KEY)) || {}; } catch { return {}; }
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(COMMUNITY_ACCOUNT_DEVICES_KEY)) || {}; } catch {}
+  return { ...saved, ...communityAccountDevicesMemory };
+}
+
+function communitySaveAccountDevice(account, deviceId) {
+  const devices = communityAccountDevices();
+  devices[account] = deviceId;
+  let kept = false;
+  try {
+    localStorage.setItem(COMMUNITY_ACCOUNT_DEVICES_KEY, JSON.stringify(devices));
+    kept = (JSON.parse(localStorage.getItem(COMMUNITY_ACCOUNT_DEVICES_KEY)) || {})[account] === deviceId;
+  } catch {}
+  if (!kept) {
+    communityAccountDevicesMemory[account] = deviceId;
+    communityAccountDevicesUnsaved = true;
+  }
 }
 
 // The id reports and score requests use right now: the signed-in account's own device id on this browser,
@@ -1505,7 +1526,12 @@ function communityAccountHtml() {
   return `<section class="settings-section community-account" id="communityAccount" aria-live="polite"></section>`;
 }
 
+// Who is signed in, as last told by /api/auth/me. Kept in memory as well as in storage: where storage is
+// blocked the page must still know which account it is acting for, or it would file reports under the wrong id.
+let communityAccountMemory;
+
 function communityReadAccount() {
+  if (communityAccountMemory !== undefined) return communityAccountMemory;
   try { return JSON.parse(localStorage.getItem(COMMUNITY_ACCOUNT_KEY)) || null; } catch { return null; }
 }
 
@@ -1544,11 +1570,13 @@ async function communityPostLink(deviceId) {
   return { ok: response.ok, status: response.status, error: response.ok ? "" : (await response.json().catch(() => ({}))).error || "" };
 }
 
+// Resolves "ok" once /api/auth/me has answered (and the device is linked), "offline" when there is no network
+// (the last known account stands), or "failed" when the network is there but who is signed in could not be found out.
 async function communityRefreshAccountOnce() {
-  if (!navigator.onLine) return;
+  if (!navigator.onLine) return "offline";
   try {
-    const response = await fetch("/api/auth/me", { cache: "no-store" });
-    if (!response.ok) return;
+    const response = await fetch("/api/auth/me", { cache: "no-store", signal: AbortSignal.timeout(6000) });
+    if (!response.ok) return "failed";
     const account = await response.json();
     const previous = communityReadAccount();
     // Signed out, or a different account on this browser: nothing of the last account's server history or
@@ -1556,7 +1584,8 @@ async function communityRefreshAccountOnce() {
     // account's own device scope that is cleaned.
     const switched = previous && previous.signedIn && (!account.signedIn || (previous.account && previous.account !== account.account));
     if (switched) communityClearRemoteEntries();
-    localStorage.setItem(COMMUNITY_ACCOUNT_KEY, JSON.stringify(account));
+    communityAccountMemory = account;
+    try { localStorage.setItem(COMMUNITY_ACCOUNT_KEY, JSON.stringify(account)); } catch {}
     if (switched || !account.signedIn) localStorage.removeItem(COMMUNITY_LINKED_KEY);
 
     let note = "";
@@ -1574,24 +1603,37 @@ async function communityRefreshAccountOnce() {
           if (linked.ok) note = "Someone else's account already uses this browser's earlier reports, so you're starting fresh here.";
         }
         if (linked.ok) {
-          devices[account.account] = deviceId;
-          try { localStorage.setItem(COMMUNITY_ACCOUNT_DEVICES_KEY, JSON.stringify(devices)); } catch {}
-          localStorage.setItem(COMMUNITY_LINKED_KEY, `${deviceId}|${account.account}`);
+          communitySaveAccountDevice(account.account, deviceId);
+          try { localStorage.setItem(COMMUNITY_LINKED_KEY, `${deviceId}|${account.account}`); } catch {}
         } else {
           note = linked.error || "Couldn't link this device right now.";
         }
       }
+      if (communityAccountDevicesUnsaved && communityAccountDevices()[account.account]) {
+        note = `${note ? `${note} ` : ""}This browser can't save your sign-in here, so history made on it won't be remembered after you close this page. Your account's other devices are not affected.`;
+      }
     }
     communityRenderAccount(account, note);
-  } catch {}
+    return "ok";
+  } catch {
+    return "failed";
+  }
 }
 
+// Who is signed in decides which device's history and score belong on this screen, so nothing is drawn from
+// storage until that is known: otherwise a second person on a shared browser could see the first person's
+// rows for a moment. Offline there is nothing to ask and the last known account stands. If the network is there
+// but the answer is not, a signed-in browser shows no history at all; an anonymous one carries on as normal.
 async function communityOpenContributions() {
-  communityRenderAccount(communityReadAccount());
-  // Started first: the link must happen before the score is read, and this must not wait behind the outbox read.
-  const account = communityRefreshAccount();
+  if (!navigator.onLine) communityRenderAccount(communityReadAccount());
+  const identity = await communityRefreshAccount();
+  const known = communityReadAccount();
+  if (identity === "failed" && known && known.signedIn) {
+    const host = document.getElementById("communityContributions");
+    if (host) host.innerHTML = `<p class="settings-description">Couldn't check who is signed in just now. Reload to try again.</p>`;
+    return;
+  }
   await communityRenderContributions();
-  await account;
   await Promise.all([communityRefreshScore(), communityRefreshLog()]);
   await communityRenderContributions();
 }

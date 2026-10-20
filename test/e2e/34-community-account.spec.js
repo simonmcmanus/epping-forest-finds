@@ -246,4 +246,54 @@ test.describe("Community sign-in: history, account switching, storage", () => {
     await expect.poll(() => posted.length).toBe(1);
     expect(posted[0].deviceId).toBe(ids[0]);
   });
+
+  test("the previous account's rows and name are never drawn while a new sign-in is still being resolved", async ({ page }) => {
+    let me = { signedIn: true, name: "Sam", account: "acct-aaaa" };
+    const mine = [{ id: "sams-report-0001", kind: "tree", target: `tree:${FIXTURE_TREE.recordNumber}`, status: "VERIFIED", ts: Date.now() - 1000, outcome: "confirmed" }];
+    let release;
+    let hold = false;
+    const seenWhileWaiting = [];
+    await page.route(ME_URL, async (route) => {
+      if (hold) {
+        // The identity answer is still on its way: record what the screen shows right now.
+        seenWhileWaiting.push(await page.evaluate(() => ({
+          rows: document.querySelectorAll(".community-log-item").length,
+          text: (document.getElementById("communityAccount") || {}).textContent || "",
+        })));
+        await new Promise((resolve) => { release = resolve; });
+      }
+      return route.fulfill(json(me));
+    });
+    await page.route(LINK_URL, (route) => route.fulfill(json({ ok: true })));
+    await page.route(LIST_URL, (route) => route.fulfill(json({ generatedAt: 1, reports: me.account === "acct-aaaa" ? mine : [] })));
+    await setup(page, "/community");
+    await expect(page.locator(".community-log-item")).toHaveCount(1);
+
+    me = { signedIn: true, name: "Alex", account: "acct-bbbb" };
+    hold = true;
+    await page.reload();
+    await expect.poll(() => seenWhileWaiting.length).toBe(1);
+    expect(seenWhileWaiting[0].rows).toBe(0);
+    expect(seenWhileWaiting[0].text).not.toContain("Sam");
+    release();
+    await expect(page.locator("#communityAccount")).toContainText("Signed in as Alex");
+    await expect(page.locator(".community-log-item")).toHaveCount(0);
+  });
+
+  test("when the browser cannot save the account's device id the card says history will not be remembered", async ({ page }) => {
+    await page.addInitScript(() => {
+      const set = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key, value) {
+        if (key === "ff-community-account-devices-v1") throw new Error("blocked");
+        return set.call(this, key, value);
+      };
+    });
+    await page.route(ME_URL, (route) => route.fulfill(json({ signedIn: true, name: "Sam", account: "acct-aaaa" })));
+    await page.route(LINK_URL, (route) => route.fulfill(json({ ok: true })));
+    await setup(page, "/community");
+    await expect(page.locator("#communityAccount [role='status']")).toContainText("can't save your sign-in");
+    // Within the page the account's id stays stable.
+    const ids = await page.evaluate(() => [communityDeviceId(), communityDeviceId()]);
+    expect(ids[0]).toBe(ids[1]);
+  });
 });
