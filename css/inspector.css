@@ -1811,3 +1811,7 @@ details[open] > summary > .community-mine-chevron { transform: rotate(90deg); }
 .community-add .community-icon { width: 16px; height: 16px; }
 .community-stats .community-icon { width: 16px; height: 16px; margin: 0 auto; color: var(--tree); }
 .community-badges-section:has(#communityBadgesHost:empty) { display: none; }
+.community-rank { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.community-badge-chips { display: inline-flex; gap: 4px; }
+.community-badge-chip { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; color: var(--gold-ink); background: var(--gold-tint); }
+.community-badge-chip .community-icon { width: 12px; height: 12px; }

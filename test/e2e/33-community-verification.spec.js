@@ -763,7 +763,7 @@ test.describe("Add a missing place", () => {
 });
 
 test.describe("Badges and streaks", () => {
-  test("show earned badges and the day streak from reports on this device", async ({ page }) => {
+  test("streaks are off and earned badges are small icons beside the rank name", async ({ page }) => {
     const now = Date.now();
     const day = 86400000;
     const local = {
@@ -779,21 +779,13 @@ test.describe("Badges and streaks", () => {
     await page.route(OVERLAY_URL, (route) =>
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {} }) }));
     await setup(page, "/community");
-    await expect(page.locator(".community-streak")).toContainText("3-day streak");
-    await expect(page.locator(".community-badge-item.is-earned")).toContainText(["First check", "Tree finder"]);
-    await expect(page.locator(".community-badge-item:not(.is-earned)")).toHaveCount(0);
-    // Tapping an earned badge says how it was earned; tapping again closes it.
-    const tile = page.locator("[data-action='community-badge'][data-badge='first-check']");
-    await tile.scrollIntoViewIfNeeded();
-    await tile.click();
-    await expect(page.locator(".community-badge-detail")).toBeVisible();
-    await tile.click();
-    await expect(page.locator(".community-badge-detail")).toBeHidden();
-    // The scroller scrolls inside itself; it must never widen the screen.
-    expect(await page.evaluate(() => { const s = document.querySelector(".inspector-scroll"); return s.scrollWidth <= s.clientWidth; })).toBe(true);
+    await expect(page.locator(".community-streak-row")).toHaveCount(0);
+    await expect(page.locator(".community-badges-section")).toBeHidden();
+    await expect(page.locator(".community-rank .community-badge-chip")).toHaveCount(2);
+    await expect(page.locator(".community-rank .community-badge-chip").first()).toHaveAttribute("title", "First check");
   });
 
-  test("the week strip, the pinned needs-attention reports and the filter", async ({ page }) => {
+  test("the pinned needs-attention reports and the filter", async ({ page }) => {
     const now = Date.now();
     const local = {
       "tree:1": { id: "a1", status: "VERIFIED", ts: now - 3000 },
@@ -808,8 +800,6 @@ test.describe("Badges and streaks", () => {
     await page.route(OVERLAY_URL, (route) =>
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {} }) }));
     await setup(page, "/community");
-    await expect(page.locator(".community-week-day")).toHaveCount(7);
-    await expect(page.locator(".community-week-day.is-today.is-done")).toHaveCount(1);
     // Couldn't-send rows come first even though they are the newest or oldest.
     await page.click("#communityReportsDetails summary");
     await expect(page.locator(".community-log-item").first()).toContainText("Couldn't send");
@@ -822,15 +812,6 @@ test.describe("Badges and streaks", () => {
     await expect(page.locator(".community-log-item .community-pill", { hasText: /Couldn't send|Waiting to send|Being reviewed/ })).toHaveCount(0);
     await page.click("[data-action='community-log-filter'][data-filter='all']");
     await expect(page.locator(".community-log-item")).toHaveCount(3);
-  });
-
-  test("with nothing reported it invites the first check", async ({ page }) => {
-    await page.route(OVERLAY_URL, (route) =>
-      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {} }) }));
-    await setup(page, "/community");
-    await expect(page.locator(".community-streak")).toContainText("Check something today to start a streak");
-    await expect(page.locator(".community-badge-item")).toHaveCount(0);
-    await expect(page.locator(".community-badges-section")).toBeHidden();
   });
 });
 

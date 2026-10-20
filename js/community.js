@@ -309,6 +309,16 @@ function communityWeekDays(local, now = Date.now()) {
   });
 }
 
+// Streaks are built and tested but switched off for now. Badges show only as small earned icons in the hero.
+const COMMUNITY_GAMIFICATION_ON = false;
+
+// Earned badges as icon-only chips beside the rank name; nothing at all when none are earned.
+function communityBadgeChipsHtml(score, local) {
+  const { earned } = communityBadges(score, local);
+  if (!earned.length) return "";
+  return `<span class="community-badge-chips" aria-label="Badges earned">${earned.map((b) => `<span class="community-badge-chip" title="${escapeHtml(b.name)}" role="img" aria-label="${escapeHtml(b.name)}">${communityIcon(b.icon)}</span>`).join("")}</span>`;
+}
+
 function communityStreakHtml(local) {
   const streak = communityStreaks(local).current;
   const week = communityWeekDays(local);
@@ -1586,7 +1596,7 @@ async function communityRenderContributions() {
   host.innerHTML = `${volatileNote}<div class="community-rank-card">
         <span class="community-rank-icon">${communityMedalHtml(rank)}</span>
         <div class="community-rank-text">
-          <p class="community-rank"><strong>${escapeHtml(rank.name)}</strong></p>
+          <p class="community-rank"><strong>${escapeHtml(rank.name)}</strong>${communityBadgeChipsHtml(score, local)}</p>
           <p class="community-rank-points">${score.points} ${score.points === 1 ? "point" : "points"} · ${toNext}</p>
         </div>
       </div>
@@ -1596,9 +1606,15 @@ async function communityRenderContributions() {
         <div>${communityIcon("swap")}<strong>${score.confirmed}</strong><span>Confirmed by others</span></div>
         <div>${communityIcon("edit")}<strong>${entries.length}</strong><span>Your reports</span></div>
       </div>
-      ${communityStreakHtml(local)}`;
+      ${COMMUNITY_GAMIFICATION_ON ? communityStreakHtml(local) : ""}`;
   const badgesHost = document.getElementById("communityBadgesHost");
-  if (badgesHost) badgesHost.innerHTML = communityBadgesHtml(score, local);
+  if (badgesHost) badgesHost.innerHTML = "";
+  // Reports that need the walker (failed, waiting, in review) open the fold-out once; after that it stays as they left it.
+  const reportsDetails = document.getElementById("communityReportsDetails");
+  if (reportsDetails && attention && !reportsDetails.dataset.autoOpened) {
+    reportsDetails.dataset.autoOpened = "1";
+    reportsDetails.open = true;
+  }
   const countHost = document.getElementById("communityReportsCount");
   if (countHost) countHost.textContent = entries.length ? ` (${entries.length})` : "";
   const logHost = document.getElementById("communityLog");
@@ -1709,10 +1725,16 @@ function communityDismissSignin() {
   communityRenderAccount(communityReadAccount());
 }
 
+// The backup disclosure, held aside while the account card is blanked to a neutral state and redrawn.
+let communityStashedRecover = null;
+
 function communityRenderAccount(account, note = "") {
   const host = document.getElementById("communityAccount");
   if (!host) return;
   const noteHtml = note ? `<p class="community-account-note" role="status">${escapeHtml(note)}</p>` : "";
+  // The backup disclosure keeps its open state, typed code and status across redraws of the card.
+  const keptRecover = host.querySelector(".community-recover") || communityStashedRecover;
+  communityStashedRecover = null;
   host.innerHTML = account && account.signedIn
     ? `<div class="community-account-card">
         <p class="community-account-text">Signed in as <strong>${escapeHtml(account.name)}</strong>. Your points follow you to any device you sign in on.</p>
@@ -1726,6 +1748,8 @@ function communityRenderAccount(account, note = "") {
         <button type="button" class="community-banner-dismiss" data-action="community-signin-dismiss" aria-label="Hide this for now">${communityIcon("x")}</button>${noteHtml}
         ${communityRecoveryHtml()}
       </div>`;
+  const fresh = host.querySelector(".community-recover");
+  if (keptRecover && fresh) fresh.replaceWith(keptRecover);
 }
 
 // Learn who is signed in, and link this device to that account once. A 409 is shown, not retried.
@@ -1824,7 +1848,7 @@ async function communityOpenContributions() {
     // A screen that is already drawn (reopened, or the account changed in another tab) still shows the last
     // account until this answers: put it back to a neutral state first.
     const accountHost = document.getElementById("communityAccount");
-    if (accountHost) accountHost.innerHTML = "";
+    if (accountHost) { communityStashedRecover = accountHost.querySelector(".community-recover") || communityStashedRecover; accountHost.innerHTML = ""; }
     communityResetHosts(`<p class="settings-description">Loading…</p>`);
   }
   const identity = await communityRefreshAccount();
