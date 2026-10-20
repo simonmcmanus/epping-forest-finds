@@ -7,6 +7,8 @@
 const { openStore } = require("./lib/community-store");
 const { computeCommunityState, communityAdminStats, reportOutcome } = require("./lib/community-consensus");
 const { loadComputed, loadScore } = require("./lib/community-computed");
+const { sessionFrom } = require("./lib/auth-session");
+const { devicesForRequest, mergeScores } = require("./lib/community-account");
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 
@@ -36,7 +38,9 @@ exports.handler = async (event) => {
   const me = queryParam(event, "me");
   // "My score" reads one small shard; only the other views need the whole snapshot.
   if (me && !queryParam(event, "list")) {
-    const score = await loadScore(openStore(event), me);
+    const store = openStore(event);
+    const devices = await devicesForRequest(store, me, sessionFrom(event));
+    const score = mergeScores(await Promise.all(devices.map((d) => loadScore(store, d))));
     return {
       statusCode: 200,
       headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
@@ -46,13 +50,14 @@ exports.handler = async (event) => {
   const computed = await loadComputed(openStore(event));
   if (me && queryParam(event, "list")) {
     const store = openStore(event);
-    const mine = (await store.get(`mine/${me}`)) || [];
+    const devices = await devicesForRequest(store, me, sessionFrom(event));
+    const mine = (await Promise.all(devices.map(async (d) => ((await store.get(`mine/${d}`)) || []).map((r) => ({ ...r, deviceId: d }))))).flat().sort((a, b) => b.ts - a.ts);
     const items = ((await store.get("validations")) || {}).items || [];
     const validatedKeys = new Set(items.filter((i) => i.kind === "register").map((i) => `${i.deviceId}|${i.target}|${i.status}`));
-    const issueRewards = new Map(items.filter((i) => i.kind !== "register" && i.deviceId === me).map((i) => [i.issue, i.kind]));
-    const reports = mine.slice().reverse().map((r) => {
+    const issueRewards = new Map(items.filter((i) => i.kind !== "register" && devices.includes(i.deviceId)).map((i) => [i.issue, i.kind]));
+    const reports = mine.map((r) => {
       const entry = r.target ? computed.overlay[r.target] : null;
-      let outcome = reportOutcome({ ...r, deviceId: me }, entry, computed.conflicts || [], validatedKeys);
+      let outcome = reportOutcome(r, entry, computed.conflicts || [], validatedKeys);
       if (r.issue && issueRewards.has(r.issue)) outcome = issueRewards.get(r.issue) === "fix" ? "fixed" : "confirmed";
       return { id: r.id, kind: r.kind, target: r.target || null, status: r.status, ts: r.ts, lat: r.lat, lon: r.lon, tagNumber: r.tagNumber, outcome };
     });

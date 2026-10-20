@@ -8,6 +8,8 @@ const COMMUNITY_SCORE_KEY = "ff-community-score-v1";
 const COMMUNITY_LOG_KEY = "ff-community-log-v1";
 const COMMUNITY_REPORT_URL = "/api/community/report";
 const COMMUNITY_OVERLAY_URL = "/api/community/overlay";
+const COMMUNITY_ACCOUNT_KEY = "ff-community-account-v1";
+const COMMUNITY_LINKED_KEY = "ff-community-linked-v1";
 
 // Line icons in the same style as the main nav (24px grid, 2px round stroke, currentColor).
 const COMMUNITY_ICONS = {
@@ -972,8 +974,58 @@ async function communityRefreshLog() {
   } catch {}
 }
 
+// --- Sign-in: optional. Points work anonymously; an account lets them follow the person across devices ---
+function communityAccountHtml() {
+  return `<section class="settings-section community-account" id="communityAccount" aria-live="polite"></section>`;
+}
+
+function communityReadAccount() {
+  try { return JSON.parse(localStorage.getItem(COMMUNITY_ACCOUNT_KEY)) || null; } catch { return null; }
+}
+
+function communityRenderAccount(account, note = "") {
+  const host = document.getElementById("communityAccount");
+  if (!host) return;
+  const noteHtml = note ? `<p class="community-account-note" role="status">${escapeHtml(note)}</p>` : "";
+  host.innerHTML = account && account.signedIn
+    ? `<div class="community-account-card">
+        <p class="community-account-text">Signed in as <strong>${escapeHtml(account.name)}</strong>. Your points follow you to any device you sign in on.</p>
+        <a class="community-chip" href="/api/auth/logout?return=/community">Sign out</a>${noteHtml}
+      </div>`
+    : `<div class="community-account-card">
+        <p class="community-account-text"><strong>Keep your points on any device</strong> Sign in with a social account or email. You can still check trees without signing in.</p>
+        <a class="community-chip" href="/api/auth/login?return=/community">Sign in</a>${noteHtml}
+      </div>`;
+}
+
+// Learn who is signed in, and link this device to that account once. A 409 is shown, not retried.
+async function communityRefreshAccount() {
+  if (!navigator.onLine) return;
+  try {
+    const response = await fetch("/api/auth/me", { cache: "no-store" });
+    if (!response.ok) return;
+    const account = await response.json();
+    localStorage.setItem(COMMUNITY_ACCOUNT_KEY, JSON.stringify(account));
+    let note = "";
+    if (account.signedIn && localStorage.getItem(COMMUNITY_LINKED_KEY) !== communityDeviceId()) {
+      const linked = await fetch("/api/auth/link", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ deviceId: communityDeviceId() }),
+      });
+      if (linked.ok) localStorage.setItem(COMMUNITY_LINKED_KEY, communityDeviceId());
+      else note = (await linked.json().catch(() => ({}))).error || "Couldn't link this device right now.";
+    }
+    communityRenderAccount(account, note);
+  } catch {}
+}
+
 async function communityOpenContributions() {
+  communityRenderAccount(communityReadAccount());
+  // Started first: the link must happen before the score is read, and this must not wait behind the outbox read.
+  const account = communityRefreshAccount();
   await communityRenderContributions();
+  await account;
   await Promise.all([communityRefreshScore(), communityRefreshLog()]);
   await communityRenderContributions();
 }

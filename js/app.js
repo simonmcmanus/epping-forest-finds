@@ -3057,6 +3057,7 @@ function openCommunity() {
 
 function communityScreenHtml() {
   return `${communityIntroHtml()}
+    ${communityAccountHtml()}
     ${communityContributionsHtml()}
     ${communityAddTreeHtml()}
     ${communityRecoveryHtml()}
