@@ -327,6 +327,10 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
   `showsEverythingFromQuery()`, js/app.js) applies every category ephemerally (`persist:false`), so
   the reader's own saved filters are untouched and return on the next plain visit. The same
   override is applied by the walk-radius card's own button (`focusNearbyWithinWalkMinutes`, js/nav.js).
+- **"Show all nearby" pill on the top-level Nearby list.** While any filter is applied on the plain
+  `/nearby` screen (not a `/nearby/<slug>` landing, which has its own "All nearby" chip), a
+  "Show all nearby" pill sits above the list and links to the same `/nearby?filters=false` override.
+  Built by `showAllNearbyPillHtml()` (js/app.js), prepended in `overviewNearestHtml()`.
 - **Navigating in-app straight from one `/nearby/<slug>` arrival to another never loses the new
   page's own category.** A link out of a selected place's inspector (a business page's own
   "Related" section, `js/inspector.js`) or a bare `near="" ` link like "All nearby"

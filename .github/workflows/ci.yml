@@ -2,7 +2,7 @@ name: CI
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review, labeled]
+    types: [opened, synchronize, reopened, ready_for_review]
   push:
     branches: [main]
   # Manual "Run workflow" button. The weekly-ledger workflow no longer needs
@@ -13,9 +13,8 @@ on:
 
 jobs:
   changes:
-    # Decides whether unit and E2E run. They are skipped for a label event, and for a push that
-    # only touches test/e2e/__screenshots__/ (the update-snapshots baseline commit). The visual
-    # job always runs, so a baseline commit is checked by it alone.
+    # Decides whether unit and functional E2E run. The visual job always runs, so a CI-generated
+    # baseline commit is checked by it alone.
     name: Changed files
     runs-on: ubuntu-latest
     outputs:
@@ -24,19 +23,27 @@ jobs:
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
+          # A pull_request checkout normally points at a synthetic merge commit. For the
+          # snapshot-only commit optimization below we need the PR head and its parent instead.
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
       - name: Check for non-snapshot changes
         id: check
         env:
           EVENT: ${{ github.event_name }}
           ACTION: ${{ github.event.action }}
-          BEFORE: ${{ github.event.before }}
         run: |
           if [ "$EVENT" != "pull_request" ]; then
             code=true
-          elif [ "$ACTION" = "labeled" ]; then
-            code=false
+          elif [ "$ACTION" != "synchronize" ]; then
+            # The first run for a PR (or a re-opened/ready-for-review PR) must not be skipped,
+            # even when its branch already has several commits.
+            code=true
           else
-            files=$(git diff --name-only "$BEFORE" HEAD 2>/dev/null) || files=""
+            # pull_request payloads do not have github.event.before. On synchronize, HEAD is the
+            # new PR head and HEAD^ is the previous head, which is exactly the commit pushed by
+            # the author or by the trusted snapshot publisher.
+            files=$(git diff --name-only HEAD^ HEAD 2>/dev/null) || files=""
             if [ -z "$files" ] || echo "$files" | grep -qv '^test/e2e/__screenshots__/'; then
               code=true
             else
@@ -133,147 +140,63 @@ jobs:
     # e2e job's functional assertions have not. A retry absorbs that known noise instead of
     # requiring a human to notice and re-run CI by hand; a genuine visual regression still fails
     # twice and stays red.
-    # A pixel diff fails this job, after the diff table has been published to the PR description.
-    # The update-snapshots label copies the failing renders over their baselines on that run, so the
-    # job passes once the baseline commit is on the branch. The snapshot runs are continue-on-error so a diff
-    # still reaches the commit and publish steps.
+    # A pixel diff fails this job. The trusted workflow_run publisher consumes the uploaded
+    # renders, updates the PR description, and commits the new baselines to same-repository PRs.
+    # That commit starts a fresh CI run against the exact head that reviewers will merge. Fork PRs
+    # get the same review images but cannot receive an automatic commit into the fork.
     name: Visual snapshots (desktop + mobile)
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.61.1-noble
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
     steps:
       - uses: actions/checkout@v5
-        with:
-          # Must be a PAT, not this job's own GITHUB_TOKEN -- same reason, same fix, as
-          # sw-release.yml's and data-bump.yml's own bump commits (see either header).
-          # GitHub fires no pull_request/push event for anything GITHUB_TOKEN pushed, so a
-          # baseline commit authored by it would become the PR's new head with no CI run ever
-          # against it: this check would read green while having tested a now-stale commit. A
-          # PAT is an ordinary user credential, so this push triggers a real `synchronize`
-          # event and ci.yml runs again against the exact commit that ends up on main.
-          token: ${{ secrets.WEEKLY_LEDGER_PAT }}
       - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Check for the update-snapshots label
-        # Both runs only write missing baselines, so a mismatch fails and leaves its render in
-        # test-results. With the label, the 'Apply failing renders' step copies those renders over
-        # their baselines, so only snapshots that differ by more than the tolerance are committed.
-        id: mode
-        run: echo "value=${{ contains(github.event.pull_request.labels.*.name, 'update-snapshots') && 'apply' || 'report' }}" >> "$GITHUB_OUTPUT"
       - name: Run visual snapshot tests (mobile)
         id: mobile
-        # continue-on-error so the commit step always runs even when baselines are missing.
-        # Playwright's "missing" mode writes new baselines but still exits non-zero --
-        # the explicit fail step below re-surfaces any genuine failures.
-        run: >
-          npx playwright test --project=mobile --grep "snapshot:"
-          --update-snapshots=missing --retries=1
+        # Missing baselines are generated in the workspace and uploaded below. Mismatches leave
+        # *-actual.png and *-diff.png in test-results for the trusted publisher.
+        run: |
+          bash -o pipefail -c '
+            set +e
+            npx playwright test --project=mobile --grep "snapshot:" \
+              --update-snapshots=missing --retries=1
+            status=$?
+            set -e
+            [ ! -d test-results ] || mv test-results test-results-mobile
+            exit $status
+          '
         continue-on-error: true
       - name: Run visual snapshot tests (desktop)
         id: desktop
-        run: >
-          npx playwright test --project=desktop --grep "snapshot:"
-          --update-snapshots=missing --retries=1
+        run: |
+          bash -o pipefail -c '
+            set +e
+            npx playwright test --project=desktop --grep "snapshot:" \
+              --update-snapshots=missing --retries=1
+            status=$?
+            set -e
+            [ ! -d test-results ] || mv test-results test-results-desktop
+            exit $status
+          '
         continue-on-error: true
-      - name: Clear the update-snapshots label
-        # Removed before the commit below, so the push's own CI run is not regenerating again.
-        if: github.event_name == 'pull_request' && steps.mode.outputs.value == 'apply'
-        uses: actions/github-script@v7
+      - name: Upload visual snapshot candidates
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          script: |
-            await github.rest.issues.removeLabel({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
-              name: 'update-snapshots',
-            }).catch((error) => {
-              if (error.status !== 404) throw error;
-            });
-      - name: Apply failing renders to their baselines
-        # Each *-actual.png is a render that differs from its baseline by more than the tolerance,
-        # so copying it over the baseline is the regeneration the label asks for. Passing snapshots
-        # produce no actual file and keep their committed baseline.
-        if: steps.mode.outputs.value == 'apply'
-        run: |
-          find test-results -name '*-actual.png' | sort | while read -r actual; do
-            stem=$(basename "$actual" -actual.png)
-            project=$(basename "$(dirname "$actual")" | grep -oE 'desktop|mobile' | tail -n 1 || true)
-            cp "$actual" "test/e2e/__screenshots__/$stem-$project-linux.png"
-          done
-      - name: Commit new snapshot baselines
-        # Runs even after test failure. git add only touches test/e2e/__screenshots__/, so
-        # regression diffs (written to test-results/ as "actual") are never committed.
-        #
-        # No [skip ci]: a push to a PR branch should always get a real CI run against the exact
-        # commit that ends up on main, same reasoning as sw-release.yml/data-bump.yml. The PAT
-        # above is what actually makes that push fire a `synchronize` event in the first place;
-        # without it this commit would sit as the PR's new head completely unchecked.
-        #
-        # The explicit cd + safe.directory: actions/checkout's own safe.directory registration
-        # happens to run too late to help a mid-job step in this container image -- without
-        # them this step failed outright with "fatal: not in a git directory" the first time
-        # this job ran containerized, before any of the actual git commands below got a chance
-        # to execute.
-        run: |
-          cd "$GITHUB_WORKSPACE"
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add test/e2e/__screenshots__/
-          if ! git diff --staged --quiet; then
-            git commit -m "chore: add CI snapshot baselines"
-            git checkout -- .
-            git clean -fd
-            git pull --rebase origin ${{ github.head_ref || github.ref_name }}
-            git push origin HEAD:${{ github.head_ref || github.ref_name }}
-          fi
-      - name: Publish failing snapshot diffs
-        # Fork PRs have no PAT, so they skip publishing. Their diffs stay in the Playwright report.
-        if: >
-          github.event_name == 'pull_request' &&
-          github.event.pull_request.head.repo.full_name == github.repository
-        env:
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PAT: ${{ secrets.WEEKLY_LEDGER_PAT }}
-        run: bash .github/scripts/publish-visual-diffs.sh
-      - name: Write failing snapshots into the PR description
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const section = fs.existsSync(`${process.env.RUNNER_TEMP}/visual-section.md`)
-              ? fs.readFileSync(`${process.env.RUNNER_TEMP}/visual-section.md`, 'utf8').trim()
-              : '';
-            const start = '<!-- visual-failures:start -->';
-            const end = '<!-- visual-failures:end -->';
-            const block = `${start}\n${section}\n${end}`;
-            const marker = new RegExp(`${start}[\\s\\S]*?${end}`);
-            // Read the current body rather than the event payload, which is stale by now.
-            const { data: pr } = await github.rest.pulls.get({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.payload.pull_request.number,
-            });
-            const body = pr.body || '';
-            let next = body;
-            if (marker.test(body)) next = body.replace(marker, () => block);
-            else if (section) next = `${body.trim()}\n\n${block}\n`;
-            if (next !== body) {
-              await github.rest.pulls.update({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: pr.number,
-                body: next,
-              });
-            }
+          name: playwright-visual-candidates
+          path: |
+            test-results-mobile/
+            test-results-desktop/
+            test/e2e/__screenshots__/
+            playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
         if: always()
