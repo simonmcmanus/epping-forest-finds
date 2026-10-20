@@ -11432,7 +11432,7 @@ test("deletion finds every issue a device filed, even past the 300-entry mine in
   for (let n = 1000; n < 1005; n += 1) await store.put(`issues/phone-device-a1/${n}`, { ts: n });
   await store.put("issues/other-device-b1/2000", { ts: 1 });
   const summary = await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1" });
-  assert.deepEqual([...summary.issues.pending].sort(), [41, 1000, 1001, 1002, 1003, 1004]);
+  assert.deepEqual([...summary.issues.pending].sort((a, b) => a - b), [41, 1000, 1001, 1002, 1003, 1004]);
   assert.deepEqual(keysWith(store, "issues/phone-device-a1/"), []);
   assert.deepEqual(keysWith(store, "issues/other-device-b1/"), ["issues/other-device-b1/2000"]);
 });
