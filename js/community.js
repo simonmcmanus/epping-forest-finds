@@ -1497,7 +1497,17 @@ function communityRenderAccount(account, note = "") {
 }
 
 // Learn who is signed in, and link this device to that account once. A 409 is shown, not retried.
-async function communityRefreshAccount() {
+// One refresh at a time: the Community screen can be opened twice in quick succession, and two refreshes
+// would both see "not linked yet" and post the link twice.
+let communityAccountInflight = null;
+
+function communityRefreshAccount() {
+  if (communityAccountInflight) return communityAccountInflight;
+  communityAccountInflight = communityRefreshAccountOnce().finally(() => { communityAccountInflight = null; });
+  return communityAccountInflight;
+}
+
+async function communityRefreshAccountOnce() {
   if (!navigator.onLine) return;
   try {
     const response = await fetch("/api/auth/me", { cache: "no-store" });

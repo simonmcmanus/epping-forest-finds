@@ -105,7 +105,8 @@ test.describe("Community sign-in: history, account switching, storage", () => {
     const linked = [];
     await page.route(ME_URL, (route) => route.fulfill(json(me)));
     await page.route(LINK_URL, (route) => { linked.push(route.request().postDataJSON().deviceId); return route.fulfill(json({ ok: true })); });
-    await page.route(LIST_URL, (route) => route.fulfill(json({ generatedAt: 1, reports })));
+    // The server only returns the account's other devices' reports to someone who is signed in.
+    await page.route(LIST_URL, (route) => route.fulfill(json({ generatedAt: 1, reports: me.signedIn ? reports : [] })));
     await setup(page, "/community");
     await expect(page.locator(".community-log-item")).toHaveCount(1);
     await expect.poll(() => linked.length).toBe(1);
