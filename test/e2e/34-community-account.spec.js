@@ -60,8 +60,12 @@ test.describe("Community sign-in", () => {
       route.fulfill({ status: 200, contentType: "text/plain", body: "login page" })
     );
     await setup(page, "/community");
+    // The click must reach the server. If the in-app link handler swallowed it, the app would open a screen and
+    // no request for the login route would ever be made. (The redirect hop to the provider is not asserted: whether
+    // a browser lets a mocked cross-origin redirect through differs between Chromium builds.)
+    const login = page.waitForRequest(/\/api\/auth\/login/);
     await page.click("#communityAccount a[href^='/api/auth/login']");
-    await expect(page).toHaveURL("https://auth.example.test/authorize");
+    await login;
   });
 
   test("a device already linked to another account shows why, and the page still works", async ({ page }) => {
