@@ -27,9 +27,13 @@ test.describe("Community tree verification", () => {
         if (document.querySelector("[data-overview-type]") && !document.querySelector(".community-intro")) window.__sawNearby = true;
       }).observe(document, { childList: true, subtree: true });
     });
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    page.on("console", (m) => { if (m.type() === "error" && /initiali[sz]ation/.test(m.text())) errors.push(m.text()); });
     await setup(page, "/community");
     await expect(page.locator(".community-intro")).toBeVisible();
     expect(await page.evaluate(() => window.__sawNearby)).toBe(false);
+    expect(errors).toEqual([]);
   });
 
   test("the check block is one box and sits above the Nearest section", async ({ page }) => {
@@ -150,6 +154,23 @@ test.describe("Community tree verification", () => {
 
 test.describe("Community tree verification with location shared", () => {
   test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ["geolocation"] });
+
+  test("a cold load of /community next to a tree does not put the nudge card over the Community screen", async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__sawNearby = false;
+      new MutationObserver(() => {
+        if (document.querySelector("[data-overview-type]") && !document.querySelector(".community-intro")) window.__sawNearby = true;
+      }).observe(document, { childList: true, subtree: true });
+    });
+    await page.route(OVERLAY_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {} }) }));
+    await setup(page, "/community");
+    await expect(page.locator(".community-intro")).toBeVisible();
+    await page.waitForFunction(() => state.userLocation && !state.userLocation.isDefault && state.nearestTree);
+    await page.waitForTimeout(1800);
+    await expect(page.locator("#communityNudge")).toHaveCount(0);
+    expect(await page.evaluate(() => window.__sawNearby)).toBe(false);
+  });
 
   test("a missing tree needs its tag number, then goes off with the user's own accurate position", async ({ page }) => {
     await page.route(OVERLAY_URL, (route) =>

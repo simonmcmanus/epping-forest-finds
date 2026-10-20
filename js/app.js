@@ -1489,6 +1489,9 @@ async function boot() {
   // A cold load of /community paints the Community screen straight away: it needs no map data,
   // and the Nearby list would otherwise show first and be swapped out once data and location land.
   if (routeValueFromLocation() === ROUTE_COMMUNITY) {
+    // boot() is called mid-script: wait one microtask so the declarations below it (the document
+    // title constants openCommunity() uses) have initialised before the screen is built.
+    await Promise.resolve();
     try { openCommunity(); } catch (error) { console.error(error); }
   }
 
@@ -1809,7 +1812,8 @@ function applyLocationFix(position) {
   state.nearestRestaurant = nearestPlaceByFilter(latitude, longitude, (place) => isRestaurantCategory(place));
   state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isRestaurantCategory(place) && !isCafeCategory(place) && !isShopCategory(place) && !isTransportCategory(place));
   state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
-  state.selected = null;
+  // A cold load of /community has already opened its screen (boot); a fix must not wipe it.
+  if (!communityScreenOpen()) state.selected = null;
   if (typeof communityNudgeCheck === "function") setTimeout(communityNudgeCheck, 0);
   return { latitude, longitude, previousPoint };
 }
