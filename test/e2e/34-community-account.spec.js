@@ -324,4 +324,22 @@ test.describe("Community sign-in: history, account switching, storage", () => {
     await expect(page.locator("#communityContributions")).not.toContainText("Couldn't check");
     await expect(page.locator("#communityAccount")).toContainText("Signed in as Alex");
   });
+
+  test("when /api/auth/me fails and a signed-in account is remembered, no score or log request goes out for it", async ({ page }) => {
+    const requested = [];
+    await page.addInitScript(() => {
+      localStorage.setItem("ff-community-account-v1", JSON.stringify({ signedIn: true, name: "Sam", account: "acct-aaaa" }));
+    });
+    await page.route(ME_URL, (route) => route.fulfill(json({ error: "down" }, 500)));
+    await page.route(/\/api\/community\/overlay\?me=/, (route) => {
+      requested.push(route.request().url());
+      return route.fulfill(json({ generatedAt: 1, reports: [] }));
+    });
+    await setup(page, "/community");
+    await expect(page.locator("#communityContributions")).toContainText("Couldn't check who is signed in");
+    // Give the page's own background refreshes (they run about a second after load) time to fire.
+    await page.evaluate(() => Promise.all([communityRefreshScore(false), communityRefreshLog()]));
+    await page.waitForTimeout(1500);
+    expect(requested).toEqual([]);
+  });
 });
