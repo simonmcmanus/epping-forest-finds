@@ -3080,6 +3080,19 @@ function openCommunity() {
   }
 }
 
+// Frames every mark the user has made (or the whole forest when there are none), not where they stand.
+function fitCommunityOwnMarks(options = {}) {
+  const points = communityMapMarks().map((mark) => projectLonLat(mark.lon, mark.lat));
+  fitToPoints(points, false, {
+    focusVisibleArea: true,
+    assumeInspectorOpen: true,
+    animate: Boolean(options.animate),
+    durationMs: options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
+    minScale: state.baseFitScale > 0 ? state.baseFitScale : undefined,
+    padding: OVERVIEW_FIT_PADDING_PX,
+  });
+}
+
 function communityScreenHtml() {
   return `${communityIntroHtml()}
     ${communityAccountHtml()}
@@ -5398,7 +5411,13 @@ function headingUpActive() {
 // inconsistency in reverse: boot would use one fit and a later GPS update would use
 // another, before a heading ever arrived.
 function nearbyNavigationAnchorActive() {
-  return Boolean(state.userLocation && !selectedCompassTarget());
+  return Boolean(state.userLocation && !selectedCompassTarget() && !communityFramesOwnMarksOnly());
+}
+
+// The Community screen is about what the user has marked, so for someone who is not at the forest the
+// camera ignores where they are (it is nowhere near the map) and frames their own marks instead.
+function communityFramesOwnMarksOnly() {
+  return Boolean(state.selected && state.selected.type === "community" && hasRealLocation() && !state.userInMapArea);
 }
 
 function navigationAnchorActive() {
@@ -7358,6 +7377,7 @@ function keepOverviewCenteredOnUser(previousPoint) {
   if (state.clusterZoomed) return;
   if (els.inspector.classList.contains("minimized")) return;
   if (nearbyNavigationAnchorActive()) return;
+  if (communityFramesOwnMarksOnly()) return;
 
   const previousScreen = previousPoint ? worldToScreen(previousPoint) : null;
   const nextScreen = worldToScreen(state.userLocation.point);
@@ -7436,6 +7456,11 @@ function ensureOverviewTargetsVisible(options = {}) {
   if (state.selected && !secondaryScreenActive()) return;
   if (state.clusterZoomed) return;
   setInspectorMinimized(false);
+
+  if (communityFramesOwnMarksOnly()) {
+    fitCommunityOwnMarks(options);
+    return;
+  }
 
   if (nearbyNavigationAnchorActive()) {
     alignHeadingUpNavigationViewport({
