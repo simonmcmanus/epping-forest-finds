@@ -11023,6 +11023,7 @@ function memoryStore(initial = {}) {
     async get(key) { return data.has(key) ? JSON.parse(JSON.stringify(data.get(key))) : null; },
     async put(key, value) { data.set(key, JSON.parse(JSON.stringify(value))); },
     async list(prefix) { return [...data.keys()].filter((k) => k.startsWith(prefix)); },
+    async delete(key) { data.delete(key); },
   };
 }
 
@@ -11384,6 +11385,120 @@ test("one network cannot mint endless device ids to confirm its own reports: com
     for (const [name, value] of [["COMMUNITY_LIMIT_PER_IP", original.ip], ["COMMUNITY_LIMIT_GLOBAL", original.global]]) {
       if (value === undefined) delete process.env[name]; else process.env[name] = value;
     }
+  }
+});
+
+const communityDelete = require("../netlify/functions/lib/community-delete");
+
+async function deletionFixture() {
+  const store = memoryStore();
+  const day = "2026-10-20";
+  const reportFor = (id, deviceId, target, extra = {}) => communityReport({ id, deviceId, target, ...extra });
+  const reports = [
+    reportFor("report-a1-0001", "phone-device-a1", "tree:1"),
+    reportFor("report-a2-0001", "laptop-device-a2", "tree:2"),
+    reportFor("report-b1-0001", "other-device-b1", "tree:1"),
+    reportFor("report-b1-0002", "other-device-b1", "tree:2"),
+  ];
+  for (const r of reports) await store.put(`reports/${r.id}`, r);
+  await store.put("mine/phone-device-a1", [{ id: "report-a1-0001", kind: "tree", target: "tree:1", status: "VERIFIED", ts: 1 }, { id: "feedback-a1-001", kind: "feedback", status: "FEEDBACK", issue: 41, ts: 2 }]);
+  await store.put("mine/laptop-device-a2", [{ id: "report-a2-0001", kind: "tree", target: "tree:2", status: "VERIFIED", ts: 1 }, { id: "place-a2-00001", kind: "place", status: "CLOSED", issue: 42, ts: 2 }]);
+  await store.put("mine/other-device-b1", [{ id: "report-b1-0001", kind: "tree", target: "tree:1", status: "VERIFIED", ts: 1 }, { id: "place-b1-00001", kind: "place", status: "CLOSED", issue: 43, ts: 2 }]);
+  await store.put("devicelink/phone-device-a1", { account: "acct-a" });
+  await store.put("devicelink/laptop-device-a2", { account: "acct-a" });
+  await store.put("accountdevices/acct-a/phone-device-a1", {});
+  await store.put("accountdevices/acct-a/laptop-device-a2", {});
+  await store.put(`devices/phone-device-a1-${day}`, { n: 1 });
+  await store.put(`devices/other-device-b1-${day}`, { n: 2 });
+  await store.put("refs/ref-of-a1", { deviceId: "phone-device-a1" });
+  await store.put("refs/ref-of-a2", { deviceId: "laptop-device-a2" });
+  await store.put("refs/ref-of-b1", { deviceId: "other-device-b1" });
+  await store.put("validations", { items: [{ kind: "fix", deviceId: "phone-device-a1", issue: 41 }, { kind: "fix", deviceId: "other-device-b1", issue: 43 }], register: null, processedIssues: {} });
+  await communityComputed.rebuildComputed(store);
+  return store;
+}
+
+const keysWith = (store, prefix) => [...store.data.keys()].filter((k) => k.startsWith(prefix)).sort();
+
+test("deleting one device removes its reports, index, link, counters, references, rewards and score, and nobody else's", async () => {
+  const store = await deletionFixture();
+  assert.ok((await communityComputed.loadScore(store, "phone-device-a1")).points > 0, "the score exists before");
+  const summary = await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1" });
+  assert.equal(summary.devices, 1);
+  assert.equal(summary.reports, 1);
+  assert.equal(summary.links, 1);
+  assert.equal(summary.refs, 1);
+  assert.equal(summary.rewards, 1);
+  assert.equal(summary.counters, 1);
+  assert.equal(JSON.stringify(keysWith(store, "reports/")), JSON.stringify(["reports/report-a2-0001", "reports/report-b1-0001", "reports/report-b1-0002"]));
+  assert.equal(store.data.has("mine/phone-device-a1"), false);
+  assert.equal(store.data.has("devicelink/phone-device-a1"), false);
+  assert.equal(store.data.has("accountdevices/acct-a/phone-device-a1"), false);
+  assert.equal(store.data.has("refs/ref-of-a1"), false);
+  assert.equal(JSON.stringify(keysWith(store, "devices/")), JSON.stringify(["devices/other-device-b1-2026-10-20"]));
+  assert.equal(JSON.stringify((store.data.get("validations")).items.map((i) => i.deviceId)), JSON.stringify(["other-device-b1"]));
+  const score = await communityComputed.loadScore(store, "phone-device-a1");
+  assert.equal(score.points, 0, "its score is gone");
+  assert.ok((await communityComputed.loadScore(store, "laptop-device-a2")).points > 0, "the account's other device keeps its score");
+  assert.ok((await communityComputed.loadScore(store, "other-device-b1")).points > 0, "another person keeps theirs");
+  assert.equal(store.data.has("devicelink/laptop-device-a2"), true);
+  assert.equal(store.data.has("refs/ref-of-b1"), true);
+  assert.deepEqual(summary.issues.pending, [41], "the public issue it filed is handed back to be dealt with");
+  const overlay = store.data.get("computed").overlay;
+  assert.equal(overlay["tree:1"].n, 1, "tree 1 is now backed by one person, not two");
+});
+
+test("deleting with the account removes every device on it and the account's records, and nothing of other accounts", async () => {
+  const store = await deletionFixture();
+  const summary = await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1", includeAccount: true });
+  assert.equal(summary.devices, 2);
+  assert.equal(summary.reports, 2);
+  assert.equal(JSON.stringify(keysWith(store, "accountdevices/")), JSON.stringify([]));
+  assert.equal(JSON.stringify(keysWith(store, "devicelink/")), JSON.stringify([]));
+  assert.equal(JSON.stringify(keysWith(store, "mine/")), JSON.stringify(["mine/other-device-b1"]));
+  assert.equal(JSON.stringify(keysWith(store, "refs/")), JSON.stringify(["refs/ref-of-b1"]));
+  assert.equal((await communityComputed.loadScore(store, "laptop-device-a2")).points, 0);
+  assert.equal(JSON.stringify(summary.issues.pending.sort()), JSON.stringify([41, 42]), "both devices' public issues, and not the other person's #43");
+  const again = await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1", includeAccount: true });
+  assert.equal(again.reports, 0, "deleting twice is harmless");
+});
+
+test("public issues are redacted and closed only when an editor is supplied and asked for, and a failure is reported not hidden", async () => {
+  const edits = [];
+  const editor = async (number, changes) => { if (number === 42) throw new Error("boom"); edits.push({ number, changes }); };
+  const store = await deletionFixture();
+  const asked = await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1", includeAccount: true, github: editor, redactIssues: true });
+  assert.equal(JSON.stringify(asked.issues.redacted), JSON.stringify([41]));
+  assert.equal(JSON.stringify(asked.issues.failed), JSON.stringify([42]));
+  assert.equal(edits[0].changes.state, "closed");
+  assert.equal(edits[0].changes.body, communityDelete.REDACTED_BODY);
+  const quiet = await deletionFixture();
+  const notAsked = await communityDelete.deleteCommunityData(quiet, { deviceId: "phone-device-a1", github: editor, redactIssues: false });
+  assert.equal(JSON.stringify(notAsked.issues.pending), JSON.stringify([41]));
+  assert.equal(edits.length, 1, "an editor that was not asked for is never called");
+});
+
+test("deletion refuses a bad device id, and the admin endpoint needs the password, POST and an explicit confirmation", async () => {
+  await assert.rejects(communityDelete.deleteCommunityData(memoryStore(), { deviceId: "short" }), /device id/);
+  await assert.rejects(communityDelete.deleteCommunityData(memoryStore(), {}), /device id/);
+  const original = process.env.ADMIN_PASSWORD;
+  process.env.ADMIN_PASSWORD = "admin-secret-1";
+  try {
+    delete require.cache[require.resolve("../netlify/functions/community-delete")];
+    const endpoint = require("../netlify/functions/community-delete");
+    const asAdmin = { authorization: "Bearer admin-secret-1" };
+    assert.equal((await endpoint.handler({ httpMethod: "POST", headers: {}, body: "{}" })).statusCode, 401);
+    assert.equal((await endpoint.handler({ httpMethod: "POST", headers: { authorization: "Bearer nope" }, body: "{}" })).statusCode, 401);
+    assert.equal((await endpoint.handler({ httpMethod: "GET", headers: asAdmin })).statusCode, 405);
+    assert.equal((await endpoint.handler({ httpMethod: "POST", headers: asAdmin, body: "{nope" })).statusCode, 400);
+    const unconfirmed = await endpoint.handler({ httpMethod: "POST", headers: asAdmin, body: JSON.stringify({ deviceId: "phone-device-a1" }) });
+    assert.equal(unconfirmed.statusCode, 400);
+    assert.match(JSON.parse(unconfirmed.body).error, /confirm/);
+    const badId = await endpoint.handler({ httpMethod: "POST", headers: asAdmin, body: JSON.stringify({ deviceId: "x", confirm: "delete" }) });
+    assert.equal(badId.statusCode, 400);
+  } finally {
+    if (original === undefined) delete process.env.ADMIN_PASSWORD; else process.env.ADMIN_PASSWORD = original;
+    delete require.cache[require.resolve("../netlify/functions/community-delete")];
   }
 });
 

@@ -188,6 +188,12 @@
   force = true
 
 [[redirects]]
+  from = "/api/community/delete"
+  to = "/.netlify/functions/community-delete"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/community/validate"
   to = "/.netlify/functions/community-validate"
   status = 200

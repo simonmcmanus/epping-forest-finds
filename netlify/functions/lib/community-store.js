@@ -28,6 +28,7 @@ function openStore(event) {
     return {
       async get(key) { return store.get(key, { type: "json" }).catch(() => null); },
       async put(key, value) { await store.setJSON(key, value); },
+      async delete(key) { await store.delete(key); },
       async list(prefix) {
         const keys = [];
         let cursor;
@@ -48,6 +49,9 @@ function openStore(event) {
     async put(key, value) {
       fs.mkdirSync(LOCAL_DIR, { recursive: true });
       fs.writeFileSync(file(key), JSON.stringify(value));
+    },
+    async delete(key) {
+      try { fs.unlinkSync(file(key)); } catch { /* already gone */ }
     },
     async list(prefix) {
       try {

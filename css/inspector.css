@@ -1682,3 +1682,12 @@ dd {
 /* A report the server refused: say why, and offer to send it again. */
 .community-log-error { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; margin-top: 6px; color: #8a2c0d; font-size: .8rem; line-height: 1.35; }
 .community-outcome-failed { background: #fbe9e4; color: #8a2c0d; }
+
+/* Optional sign-in card on the Community screen: the text and the button sit together in one card. */
+.community-account { margin-top: 12px; }
+.community-account-card { display: grid; gap: 10px; padding: 12px 14px; border: 1px solid rgba(0, 0, 0, 0.08); border-radius: 12px; background: #fff; }
+.community-account-text { margin: 0; font-size: 0.9rem; line-height: 1.4; color: var(--ink); }
+.community-account-text strong { color: var(--ink); }
+.community-account-text:has(+ a[href^="/api/auth/login"]) strong { display: block; margin-bottom: 2px; }
+.community-account-card .community-chip { background: #f1f7f2; border-color: rgba(47, 111, 78, 0.25); color: var(--tree); justify-self: start; width: auto; min-height: 44px; display: inline-flex; align-items: center; padding: 0 16px; font-weight: 700; text-decoration: none; }
+.community-account-note { margin: 0; padding: 8px 10px; border-radius: 8px; background: var(--gold-tint); font-size: 0.82rem; line-height: 1.35; color: var(--ink); }
