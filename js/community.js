@@ -744,10 +744,15 @@ async function communityRestore() {
     localStorage.setItem(COMMUNITY_DEVICE_KEY, code);
     localStorage.removeItem(COMMUNITY_SCORE_KEY);
     localStorage.removeItem(COMMUNITY_LOG_KEY);
-    say(adopted ? `Restored. ${adopted} ${adopted === 1 ? "report" : "reports"} found.` : "Restored. This code has no reports yet.");
-    const shown = document.getElementById("communityRecoveryCode");
-    if (shown) shown.textContent = communityRecoveryCode();
-    communityOpenContributions();
+    const message = adopted ? `Restored. ${adopted} ${adopted === 1 ? "report" : "reports"} found.` : "Restored. This code has no reports yet.";
+    say(message);
+    // The account card holds this section and is redrawn for the new id, so say it again once it is back
+    // (open, with the new code) or the confirmation would vanish the moment it appeared.
+    await communityOpenContributions();
+    const details = document.querySelector(".community-recover");
+    if (details) details.open = true;
+    const after = document.getElementById("communityRecoveryStatus");
+    if (after) after.textContent = message;
   } catch {
     say("Couldn't restore right now. Please try again.");
   }
@@ -1601,6 +1606,13 @@ async function communityRenderContributions() {
   if (badgesHost) badgesHost.innerHTML = communityBadgesHtml(score, local);
   const countHost = document.getElementById("communityReportsCount");
   if (countHost) countHost.textContent = entries.length ? ` (${entries.length})` : "";
+  // A report that failed to send, is waiting or is under review has an action or an answer in it, so it is
+  // never left behind a closed section: open it once, and leave it however the walker sets it after that.
+  const reportsDetails = document.getElementById("communityReportsDetails");
+  if (reportsDetails && attention > 0 && !reportsDetails.dataset.autoOpened) {
+    reportsDetails.open = true;
+    reportsDetails.dataset.autoOpened = "1";
+  }
   const logHost = document.getElementById("communityLog");
   if (logHost) {
     logHost.innerHTML = `${communityLegendHtml(communityMapMarks())}${filters}${rows ? `<ul class="community-log">${rows}</ul>` : entries.length ? `<p class="community-empty community-empty-filter">${filter === "attention" ? "Nothing needs attention. Reports that fail to send or wait for review show here." : "No completed reports yet. They appear once others agree or a report is fixed."}</p>` : empty}`;
