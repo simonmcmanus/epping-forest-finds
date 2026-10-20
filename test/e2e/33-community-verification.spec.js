@@ -115,8 +115,8 @@ test.describe("Community tree verification", () => {
     await expect(page.locator(".community-log-item .community-pill")).toContainText("Couldn't send");
     refuse = false;
     await page.click("[data-action='community-retry']");
+    await expect.poll(() => calls.length).toBe(2);
     await expect(page.locator(".community-log-item .community-pill")).not.toContainText("Couldn't send");
-    expect(calls.length).toBe(2);
   });
 
   test("a report made offline is kept and sent when the connection returns", async ({ page, context }) => {
