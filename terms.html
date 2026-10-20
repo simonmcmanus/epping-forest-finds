@@ -81,6 +81,7 @@
       margin: 32px 0 10px;
       color: var(--ink);
     }
+    h3 { font-size: 1rem; margin: 1.2em 0 0.4em; color: var(--ink); }
     p, li { font-size: 0.92rem; color: var(--muted); margin: 0 0 10px; }
     ul { padding-left: 20px; margin: 0 0 10px; }
     li { margin-bottom: 6px; }
@@ -103,7 +104,7 @@
     <a class="back-link" href="/">&#8592; Back to map</a>
 
     <h1>Privacy &amp; Terms of Use</h1>
-    <p class="updated">Last updated: September 2026</p>
+    <p class="updated">Last updated: October 2026</p>
 
     <p>Epping Forest Finds ("the app", "we", "us") is a free map application for exploring Epping Forest. These terms explain how we collect and use data when you choose to share your location with the app.</p>
 
@@ -120,7 +121,7 @@
 
     <h2>2. What we do NOT collect</h2>
     <ul>
-      <li>Your name or any account details — there is no account to create</li>
+      <li>Your name or any account details, unless you choose to sign in to the Community features (section 13). The app works fully without signing in</li>
       <li>Device identifiers (IMEI, advertising ID, etc.)</li>
       <li>Photos, contacts, or any other personal files</li>
       <li>Location data when the app is not open</li>
@@ -154,7 +155,7 @@
     <p>If you are located in the UK or EU, you have the right to:</p>
     <ul>
       <li><strong>Access</strong> — request a copy of the data we hold about your anonymous ID</li>
-      <li><strong>Erasure</strong> — request deletion of all data linked to your anonymous ID</li>
+      <li><strong>Erasure</strong> — request deletion of all data linked to your anonymous ID, including your Community reports and any account link (section 13)</li>
       <li><strong>Withdraw consent</strong> — disable tracking at any time via <em>Settings → Privacy</em> in the app; this stops all future data collection immediately</li>
       <li><strong>Portability</strong> — request your data in machine-readable format</li>
       <li><strong>Objection</strong> — object to processing for direct marketing purposes</li>
@@ -189,7 +190,31 @@
     </ul>
     <p><strong>Your mailing list address is never linked to the anonymous usage data in section 1.</strong> Access to the alpha is a single shared link used by everyone who has it, so there is no per-person identifier on the app side that your address could be joined to.</p>
 
-    <h2>13. Who we are</h2>
+    <h2>13. Community checks and optional sign-in</h2>
+    <p>The Community screen lets you check that trees and places on the map are right, add a tree or place that is missing, and send feedback. This is separate from the location and usage tracking in section 1, and does not depend on that consent: it only happens when you choose to send a report.</p>
+    <h3>What a report contains</h3>
+    <ul>
+      <li>What you reported (for example "verified this tree" or "this pub has closed"), the tree or place it is about, any note you typed, and the time.</li>
+      <li>Your device's position at the moment you send a tree report, and its accuracy for a new tree. We use it only to check that you were standing next to the tree; reports sent from further away are kept but earn no points.</li>
+      <li>A random Community ID generated on your device (shown in the app as your recovery code). It is how your score and report history are kept together. Anyone who has the code can act as you, so keep it private. It is not linked to your name unless you sign in.</li>
+    </ul>
+    <h3>Where reports go and who can see them</h3>
+    <ul>
+      <li><strong>Tree checks</strong> are stored on our servers. Other people see only the combined result (for example "verified by 2 people" or "questioned by the community"), never an individual report or its position. The combined results are also published in a public report prepared for the City of London's tree team, to help correct the Veteran Tree Register.</li>
+      <li><strong>Place changes, missing places and feedback</strong> become issues in a <strong>public</strong> GitHub repository (hosted by GitHub), so a person can review them. An issue contains the place name, what you reported, your note, the place's position and a one-way reference used to credit you with points. It never contains your Community ID, your name or your email address. Anything you type in a note is public, so please don't include personal details.</li>
+    </ul>
+    <h3>Optional sign-in</h3>
+    <p>You can sign in to keep your points on any device. Sign-in is provided by <strong>Auth0</strong> (an Okta service), which shows its own login page where you can use a social account or an email address. Auth0 handles your password or social login; we never see it.</p>
+    <ul>
+      <li><strong>What we receive</strong> — the identifier your login provider gives for you and a display name. If the name looks like an email address we ignore it and show "Walker". We do not receive or store your email address.</li>
+      <li><strong>What we store</strong> — a one-way hash of that identifier, and the list of Community IDs (devices) you link to your account. Linking combines the reports from those devices into one score and one history under your account, and the devices count as one person (one reporter) when community checks are tallied.</li>
+      <li><strong>The sign-in cookie</strong> — signing in sets one cookie, <code>ff_session</code>: signed, HttpOnly, Secure, valid for 30 days, holding the provider identifier and your display name. It is strictly necessary for staying signed in and is only set if you sign in. Signing out removes it from that device.</li>
+      <li><strong>Who processes it</strong> — Auth0 processes your login under its own privacy policy. Our servers are hosted by Netlify.</li>
+    </ul>
+    <h3>Keeping and deleting it</h3>
+    <p>We keep Community reports, the Community ID's score and any account link until you ask us to delete them. To have them deleted, email us as described in section 7 with "Privacy request" in the subject and, if you can, your recovery code. Deleting removes your reports, score and account link from our servers, and we will close or edit any public GitHub issue we filed from your report; the combined results already shown to others are recalculated without you. Signing out does not delete anything.</p>
+
+    <h2>14. Who we are</h2>
     <p>Epping Forest Finds is run by Simon McManus, who is the data controller for the purposes of UK GDPR. Contact details are below.</p>
 
     <hr>

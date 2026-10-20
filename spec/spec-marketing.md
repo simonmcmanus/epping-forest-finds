@@ -35,7 +35,7 @@ front door:
 | `/` | Marketing homepage — explains the app, ranks in search, collects sign-ups | Everyone |
 | `/nearby` | The map application's entry point (`/app` redirects here) | Invited alpha users; everyone after launch |
 | `/reports/` | Weekly Epping Forest Ledger | Everyone — the main organic discovery path |
-| `/terms.html` | Privacy & terms | Everyone |
+| `/terms.html` | Privacy & terms (including Community checks and optional sign-in, §13) | Everyone |
 
 At the end of the alpha the homepage stays exactly where it is. Only the
 call-to-action element changes (§8). No URL moves, no redirects are added, and

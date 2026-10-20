@@ -102,10 +102,13 @@ function targetOf(r) {
 }
 
 // Latest report per (device, target): a device can change its mind but only ever counts once.
-function latestPerDevice(reports) {
+// `voterOf` maps a device id to who it counts as: devices linked to one account are one voice, so one
+// person cannot be several independent reporters by signing the same account in on several devices.
+// Anonymous devices stay separate voices (nothing says they belong to one person).
+function latestPerDevice(reports, voterOf = (id) => id) {
   const latest = new Map();
   for (const r of reports) {
-    const key = `${r.deviceId}|${targetOf(r)}`;
+    const key = `${voterOf(r.deviceId)}|${targetOf(r)}`;
     const prev = latest.get(key);
     if (!prev || (r.ts || 0) >= (prev.ts || 0)) latest.set(key, r);
   }
@@ -119,9 +122,11 @@ function mostCommon(values) {
 }
 
 // -> { overlay: { [target]: {s,st,n,t,...} }, conflicts: [target], scores: { [deviceId]: {...} } }
-function computeCommunityState(reports, validations = []) {
+// `owners` (optional): deviceId -> account key for devices linked to an account (lib/community-account.js).
+function computeCommunityState(reports, validations = [], owners = null) {
   const valid = reports.filter((r) => !validateReport(r));
-  const latest = latestPerDevice(valid);
+  const voterOf = (deviceId) => (owners && owners[deviceId]) || deviceId;
+  const latest = latestPerDevice(valid, voterOf);
   const byTarget = new Map();
   for (const r of latest) {
     const key = targetOf(r);
@@ -193,13 +198,13 @@ function computeCommunityState(reports, validations = []) {
       } else if (cls === "confirm") {
         score.verified += 1;
         score.points += POINTS.verify;
-        if (near.some((o) => o.deviceId !== r.deviceId && statusClass(o.kind, o.status) === "confirm")) {
+        if (near.some((o) => voterOf(o.deviceId) !== voterOf(r.deviceId) && statusClass(o.kind, o.status) === "confirm")) {
           score.confirmed += 1;
           score.points += POINTS.verifyConfirmed;
         }
       } else if (cls === "new") {
         score.points += POINTS.newTree;
-        if (near.some((o) => o.deviceId !== r.deviceId)) {
+        if (near.some((o) => voterOf(o.deviceId) !== voterOf(r.deviceId))) {
           score.confirmed += 1;
           score.points += POINTS.newTreeSecondFinder;
         }
