@@ -283,6 +283,11 @@ const server = http.createServer((req, res) => {
     "/api/community/rebuild": "community-rebuild",
     "/reports/tree-report": "tree-report",
     "/reports/tree-report/": "tree-report",
+    "/api/auth/login": "auth-login",
+    "/api/auth/callback": "auth-callback",
+    "/api/auth/me": "auth-me",
+    "/api/auth/link": "auth-link",
+    "/api/auth/logout": "auth-logout",
   };
   if (COMMUNITY_FUNCTION_ROUTES[url.pathname]) {
     const fnName = COMMUNITY_FUNCTION_ROUTES[url.pathname];
@@ -292,7 +297,10 @@ const server = http.createServer((req, res) => {
       const fn = require(path.join(ROOT, "netlify", "functions", fnName + ".js"));
       fn.handler({ httpMethod: req.method, headers: req.headers, queryStringParameters: Object.fromEntries(url.searchParams), body })
         .then((result) => {
-          res.writeHead(result.statusCode, result.headers || { "Content-Type": "application/json" });
+          // Redirects set cookies through multiValueHeaders, which the headers object alone would drop.
+          const headers = { ...(result.headers || { "Content-Type": "application/json" }) };
+          for (const [name, values] of Object.entries(result.multiValueHeaders || {})) headers[name] = values;
+          res.writeHead(result.statusCode, headers);
           res.end(result.body || "");
         })
         .catch((err) => send(res, 500, JSON.stringify({ error: String(err.message) }), "application/json; charset=utf-8"));
