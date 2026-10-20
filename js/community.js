@@ -567,6 +567,7 @@ const COMMUNITY_SCORE_MAX_AGE_MS = 60 * 60 * 1000;
 
 async function communityRefreshScore(force = true) {
   if (!navigator.onLine) return;
+  await communityWhenIdentityKnown();
   try {
     if (!force) {
       const at = Number(localStorage.getItem(communityScoped(COMMUNITY_SCORE_AT_KEY))) || 0;
@@ -1508,6 +1509,7 @@ function communityClearRemoteEntries() {
 
 async function communityRefreshLog() {
   if (!navigator.onLine) return;
+  await communityWhenIdentityKnown();
   try {
     const response = await fetch(`${COMMUNITY_OVERLAY_URL}?me=${encodeURIComponent(communityDeviceId())}&list=1`);
     if (!response.ok) return;
@@ -1557,8 +1559,16 @@ let communityAccountInflight = null;
 
 function communityRefreshAccount() {
   if (communityAccountInflight) return communityAccountInflight;
-  communityAccountInflight = communityRefreshAccountOnce().finally(() => { communityAccountInflight = null; });
+  communityAccountInflight = communityRefreshAccountOnce().finally(() => { communityAccountInflight = null; communityIdentitySettled = true; });
   return communityAccountInflight;
+}
+
+// Until /api/auth/me has answered once on this page, the stored account may be a previous person's, so
+// nothing that names a device on the network goes out yet: a request must never carry the last account's id
+// while someone else is signing in.
+let communityIdentitySettled = false;
+function communityWhenIdentityKnown() {
+  return communityIdentitySettled ? Promise.resolve() : communityRefreshAccount().then(() => {});
 }
 
 async function communityPostLink(deviceId) {
