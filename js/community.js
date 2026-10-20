@@ -253,13 +253,13 @@ function communityPendingScore(local, generatedAt = 0, waitingIds = new Set()) {
 // --- Badges and streaks: derived on the device from the score and the local log, nothing stored ---
 // Thresholds are the only configuration (documented in docs/community-points.md).
 const COMMUNITY_BADGES = [
-  { id: "first-check", name: "First check", icon: "check", test: (m) => m.verified >= 1 },
-  { id: "ten-checks", name: "Ten checks", icon: "shield", test: (m) => m.verified >= 10 },
-  { id: "fifty-checks", name: "Fifty checks", icon: "shield", test: (m) => m.verified >= 50 },
-  { id: "second-opinion", name: "Second opinion", icon: "swap", test: (m) => m.confirmed >= 1 },
-  { id: "tree-finder", name: "Tree finder", icon: "plus", test: (m) => m.treesAdded >= 1 },
-  { id: "place-spotter", name: "Place spotter", icon: "locate", test: (m) => m.placesReported >= 1 },
-  { id: "week-streak", name: "Week streak", icon: "clock", test: (m) => m.bestStreak >= 7 },
+  { id: "first-check", name: "First check", icon: "check", metric: "verified", goal: 1, how: "Verify a tree from within 10 m.", test: (m) => m.verified >= 1 },
+  { id: "ten-checks", name: "Ten checks", icon: "shield", metric: "verified", goal: 10, how: "Verify ten trees.", test: (m) => m.verified >= 10 },
+  { id: "fifty-checks", name: "Fifty checks", icon: "shield", metric: "verified", goal: 50, how: "Verify fifty trees.", test: (m) => m.verified >= 50 },
+  { id: "second-opinion", name: "Second opinion", icon: "swap", metric: "confirmed", goal: 1, how: "Have a check of yours confirmed by someone else.", test: (m) => m.confirmed >= 1 },
+  { id: "tree-finder", name: "Tree finder", icon: "plus", metric: "treesAdded", goal: 1, how: "Add a tree that is missing from the map.", test: (m) => m.treesAdded >= 1 },
+  { id: "place-spotter", name: "Place spotter", icon: "locate", metric: "placesReported", goal: 1, how: "Report a change to a place, or a missing one.", test: (m) => m.placesReported >= 1 },
+  { id: "week-streak", name: "Week streak", icon: "clock", metric: "bestStreak", goal: 7, how: "Check or report something seven days in a row.", test: (m) => m.bestStreak >= 7 },
 ];
 
 function communityLocalDay(ts) {
@@ -296,7 +296,7 @@ function communityBadges(score, local, now = Date.now()) {
     placesReported: entries.filter((e) => e.kind === "place" && e.status !== "OPEN_CONFIRMED" && !e.failed).length,
     bestStreak: streaks.best,
   };
-  return { earned: COMMUNITY_BADGES.filter((b) => b.test(metrics)), locked: COMMUNITY_BADGES.filter((b) => !b.test(metrics)), streak: streaks.current };
+  return { earned: COMMUNITY_BADGES.filter((b) => b.test(metrics)), locked: COMMUNITY_BADGES.filter((b) => !b.test(metrics)), streak: streaks.current, metrics };
 }
 
 // The last seven days (oldest first, today last), each marked when this device made a report that day.
@@ -318,12 +318,51 @@ function communityStreakHtml(local) {
     </div>`;
 }
 
+// Progress towards a badge as { have, goal }, capped at the goal.
+function communityBadgeProgress(badge, metrics) {
+  return { have: Math.min(badge.goal, Number(metrics && metrics[badge.metric]) || 0), goal: badge.goal };
+}
+
+function communityBadgeDetailHtml(badge, metrics) {
+  const { have, goal } = communityBadgeProgress(badge, metrics);
+  const earned = have >= goal;
+  return `<strong>${escapeHtml(badge.name)}${earned ? " · earned" : ""}</strong><span>${escapeHtml(badge.how)}${earned ? "" : ` You're at ${have} of ${goal}.`}</span>`;
+}
+
 function communityBadgesHtml(score, local) {
-  const { earned, locked } = communityBadges(score, local);
-  const badge = (b, on) => `<li class="community-badge-item${on ? " is-earned" : ""}" title="${escapeHtml(b.name)}${on ? "" : " (not yet earned)"}"><span class="community-badge-icon">${communityIcon(b.icon)}</span><span>${escapeHtml(b.name)}</span></li>`;
+  const { earned, metrics } = communityBadges(score, local);
+  const earnedIds = new Set(earned.map((b) => b.id));
+  const tile = (b) => {
+    const on = earnedIds.has(b.id);
+    const { have, goal } = communityBadgeProgress(b, metrics);
+    return `<li class="community-badge-item${on ? " is-earned" : ""}"><button type="button" class="community-badge-tile" data-action="community-badge" data-badge="${b.id}" aria-pressed="false" aria-label="${escapeHtml(b.name)}, ${on ? "earned" : `locked, ${have} of ${goal}`}">
+        <span class="community-badge-medal">${communityIcon(b.icon)}</span>
+        <span class="community-badge-name">${escapeHtml(b.name)}</span>
+        ${on ? `<span class="community-badge-state">Earned</span>` : `<span class="community-badge-bar" aria-hidden="true"><span style="width:${Math.round((have / goal) * 100)}%"></span></span><span class="community-badge-state">${have}/${goal}</span>`}
+      </button></li>`;
+  };
   return `<div class="community-badges">
-      <ul class="community-badge-list" aria-label="Badges">${earned.map((b) => badge(b, true)).join("")}${locked.map((b) => badge(b, false)).join("")}</ul>
+      <div class="community-badges-head"><h3 class="settings-section-title">Badges</h3><span class="community-badges-count">${earned.length} of ${COMMUNITY_BADGES.length}</span></div>
+      <ul class="community-badge-list" aria-label="Badges">${COMMUNITY_BADGES.map(tile).join("")}</ul>
+      <p class="community-badge-detail" role="status" hidden></p>
     </div>`;
+}
+
+// Tapping a badge explains how it is earned, in place under the scroller; tapping it again closes it.
+function communityShowBadgeDetail(button) {
+  const host = button.closest(".community-badges");
+  const detail = host && host.querySelector(".community-badge-detail");
+  const badge = COMMUNITY_BADGES.find((b) => b.id === button.dataset.badge);
+  if (!detail || !badge) return;
+  const open = button.getAttribute("aria-pressed") !== "true";
+  host.querySelectorAll(".community-badge-tile").forEach((b) => b.setAttribute("aria-pressed", "false"));
+  button.setAttribute("aria-pressed", String(open));
+  detail.hidden = !open;
+  if (open) {
+    const local = communityReadLocal();
+    const score = communityDisplayScore(communityReadScore(), local, new Set());
+    detail.innerHTML = communityBadgeDetailHtml(badge, communityBadges(score, local).metrics);
+  }
 }
 
 function communityDisplayScore(score, local, waitingIds) {

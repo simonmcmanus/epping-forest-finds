@@ -745,6 +745,16 @@ test.describe("Badges and streaks", () => {
     await expect(page.locator(".community-streak")).toContainText("3-day streak");
     await expect(page.locator(".community-badge-item.is-earned")).toContainText(["First check", "Tree finder"]);
     await expect(page.locator(".community-badge-item:not(.is-earned)").first()).toBeVisible();
+    // Tapping a locked badge says how to earn it and how far along the walker is; tapping again closes it.
+    const tile = page.locator("[data-action='community-badge'][data-badge='ten-checks']");
+    await tile.scrollIntoViewIfNeeded();
+    await expect(tile).toContainText("2/10");
+    await tile.click();
+    await expect(page.locator(".community-badge-detail")).toContainText("Verify ten trees. You're at 2 of 10.");
+    await tile.click();
+    await expect(page.locator(".community-badge-detail")).toBeHidden();
+    // The scroller scrolls inside itself; it must never widen the screen.
+    expect(await page.evaluate(() => { const s = document.querySelector(".inspector-scroll"); return s.scrollWidth <= s.clientWidth; })).toBe(true);
   });
 
   test("the week strip, the pinned needs-attention reports and the filter", async ({ page }) => {

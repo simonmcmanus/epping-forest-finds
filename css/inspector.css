@@ -1324,11 +1324,26 @@ button.settings-toggle.has-update::after {
 .community-week-day.is-today .community-week-label { font-weight: 800; color: var(--ink); }
 .community-week-day.is-today:not(.is-done) .community-week-dot { box-shadow: inset 0 0 0 2px var(--tree); }
 .community-streak strong { color: var(--ink); }
-.community-badge-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
-.community-badge-item { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px 4px 6px; border-radius: 999px; font-size: 0.75rem; border: 1px dashed rgba(0, 0, 0, 0.2); color: #888; background: transparent; }
-.community-badge-item.is-earned { border: 1px solid #2f8a4f; color: #1f6a3a; background: rgba(47, 138, 79, 0.1); }
-.community-badge-icon { display: inline-flex; width: 16px; height: 16px; }
-.community-badge-icon svg { width: 16px; height: 16px; }
+.community-badges-head { display: flex; align-items: baseline; justify-content: space-between; }
+.community-badges-head .settings-section-title { margin: 0; }
+.community-badges-count { font-size: 0.8rem; font-weight: 700; color: var(--muted); }
+.community-badge-list { display: flex; gap: 10px; margin: 10px -2px 0; padding: 4px 2px 8px; list-style: none; overflow-x: auto; scroll-snap-type: x proximity; -webkit-overflow-scrolling: touch; }
+.community-badge-item { flex: none; scroll-snap-align: start; }
+.community-badge-tile { width: 92px; min-height: 124px; padding: 10px 6px; display: grid; justify-items: center; align-content: start; gap: 6px; border-radius: var(--c-radius); border: var(--c-hairline); background: #fff; font: inherit; cursor: pointer; text-align: center; }
+.community-badge-tile[aria-pressed="true"] { border-color: var(--tree); box-shadow: 0 0 0 2px rgba(47, 111, 78, 0.25); }
+.community-badge-tile:focus-visible { outline: 2px solid var(--tree); outline-offset: 2px; }
+.community-badge-medal { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: #8a948d; background: #eef1ec; box-shadow: inset 0 0 0 1px rgba(23, 34, 30, 0.12); }
+.community-badge-medal .community-icon { width: 22px; height: 22px; }
+.community-badge-item.is-earned .community-badge-medal { color: var(--c-reward-ink); background: radial-gradient(circle at 35% 30%, #fff, var(--c-reward-tint)); box-shadow: inset 0 0 0 2px var(--c-reward), var(--c-lift); }
+.community-badge-name { font-size: 0.74rem; font-weight: 800; line-height: 1.15; color: var(--muted); }
+.community-badge-item.is-earned .community-badge-name { color: var(--ink); }
+.community-badge-bar { width: 100%; height: 5px; border-radius: 999px; background: #e3eae1; overflow: hidden; }
+.community-badge-bar span { display: block; height: 100%; border-radius: inherit; background: var(--tree); }
+.community-badge-state { font-size: 0.72rem; font-weight: 700; color: var(--muted); }
+.community-badge-item.is-earned .community-badge-state { color: var(--c-reward-ink); }
+.community-badge-detail { display: grid; gap: 2px; margin: 4px 0 0; padding: 10px 12px; border-radius: var(--c-radius-sm); background: #f1f7f2; border: 1px solid rgba(47, 111, 78, 0.22); font-size: 0.84rem; color: var(--muted); line-height: 1.35; }
+.community-badge-detail[hidden] { display: none; }
+.community-badge-detail strong { color: var(--ink); }
 .community-stats { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 14px; }
 .community-stats div { display: grid; gap: 2px; padding: 2px 6px; text-align: center; }
 .community-stats div + div { border-left: var(--c-hairline); }
@@ -1754,5 +1769,6 @@ dd {
 .community-banner-dismiss:focus-visible { outline: 2px solid var(--tree); outline-offset: -4px; }
 .community-account-quiet { margin: 10px 0 0; font-size: 0.82rem; }
 .community-account-quiet a { color: var(--tree); font-weight: 700; }
-.community-badges-section { padding-top: 0; }
+.community-badges-section { padding-top: 0; min-width: 0; max-width: 100%; }
+.community-badges-section > div, .community-badges { min-width: 0; max-width: 100%; }
 @media (prefers-reduced-motion: reduce) { .community-progress span { transition: none; } }

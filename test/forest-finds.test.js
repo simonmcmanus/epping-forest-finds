@@ -574,6 +574,9 @@ globalThis.__forestFindsTest = {
   communityRank,
   communityMedalHtml,
   communityWeekDays,
+  communityBadgeProgress,
+  communityBadgeDetailHtml,
+  COMMUNITY_BADGES,
   communityRelativeDay,
   communityPointsChipFor,
   communityNudgeDecision,
@@ -10994,6 +10997,16 @@ test("the streak week strip marks each of the last seven days that has a report,
   assert.equal(week.map((d) => d.done).join(), "false,false,false,false,true,false,true");
   assert.equal(week[6].today, true);
   assert.equal(week.filter((d) => d.today).length, 1);
+});
+
+test("every badge says how to earn it and shows progress towards it, capped at its goal", () => {
+  const metrics = { verified: 4, confirmed: 0, treesAdded: 0, placesReported: 0, bestStreak: 12 };
+  const byId = (id) => app.COMMUNITY_BADGES.find((b) => b.id === id);
+  assert.ok(app.COMMUNITY_BADGES.every((b) => b.how && b.goal > 0 && b.metric));
+  assert.equal(JSON.stringify(app.communityBadgeProgress(byId("ten-checks"), metrics)), '{"have":4,"goal":10}');
+  assert.equal(JSON.stringify(app.communityBadgeProgress(byId("week-streak"), metrics)), '{"have":7,"goal":7}');
+  assert.match(app.communityBadgeDetailHtml(byId("ten-checks"), metrics), /You're at 4 of 10/);
+  assert.match(app.communityBadgeDetailHtml(byId("week-streak"), metrics), /earned/);
 });
 
 test("report dates read as Today, Yesterday, N days ago, then a short date", () => {

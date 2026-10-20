@@ -794,6 +794,8 @@ function setupSearchAndNavHandlers() {
       }
       return;
     }
+    const badgeTile = event.target.closest("[data-action='community-badge']");
+    if (badgeTile) { communityShowBadgeDetail(badgeTile); return; }
     const logFilter = event.target.closest("[data-action='community-log-filter']");
     if (logFilter) { communityLogFilter = logFilter.dataset.filter; communityRenderContributions(); return; }
     const signinDismiss = event.target.closest("[data-action='community-signin-dismiss']");
