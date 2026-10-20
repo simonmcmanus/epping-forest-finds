@@ -19,7 +19,10 @@ const REDACTED_BODY = "_The reporter asked for this report to be removed._";
 
 // A storage failure must stop a deletion, never read as "nothing there": the caller would report `deleted: true`
 // with records left behind. So listing errors propagate (the endpoint answers 503 and the request is retried).
+// Every read that decides what is deleted goes through `strict`, which throws on a storage error (the Blobs
+// wrapper's plain `get` turns one into "not found"). A store without `getStrict` (a test double) is used as is.
 const listAll = (store, prefix) => store.list(prefix);
+const strict = (store, key) => (store.getStrict ? store.getStrict(key) : store.get(key));
 
 async function deleteCommunityData(store, { deviceId, includeAccount = false, github = null, redactIssues = false } = {}) {
   if (typeof deviceId !== "string" || !/^[A-Za-z0-9_-]{8,64}$/.test(deviceId)) throw new Error("a device id is required");
@@ -27,7 +30,7 @@ async function deleteCommunityData(store, { deviceId, includeAccount = false, gi
 
   // 1. Which devices: the one asked about, and (if asked) every device on its account.
   const devices = new Set([deviceId]);
-  const owner = await (store.getStrict ? store.getStrict(`devicelink/${deviceId}`) : store.get(`devicelink/${deviceId}`));
+  const owner = await strict(store, `devicelink/${deviceId}`);
   const account = owner && owner.account ? owner.account : null;
   if (includeAccount && account) {
     const prefix = `accountdevices/${account}/`;
@@ -40,12 +43,12 @@ async function deleteCommunityData(store, { deviceId, includeAccount = false, gi
   for (const device of devices) {
     // The uncapped per-issue records, plus the older capped log for issues filed before those existed.
     for (const key of await listAll(store, `issues/${device}/`)) { const n = /(\d+)$/.exec(key); if (n) issues.add(Number(n[1])); }
-    for (const entry of (await store.get(`mine/${device}`)) || []) if (entry && entry.issue) issues.add(Number(entry.issue));
+    for (const entry of (await strict(store, `mine/${device}`)) || []) if (entry && entry.issue) issues.add(Number(entry.issue));
   }
 
   // 3. Reports in the ledger.
   for (const key of await listAll(store, "reports/")) {
-    const report = await store.get(key);
+    const report = await strict(store, key);
     if (report && devices.has(report.deviceId)) { await store.delete(key); summary.reports += 1; }
   }
 
@@ -53,7 +56,7 @@ async function deleteCommunityData(store, { deviceId, includeAccount = false, gi
   for (const device of devices) {
     await store.delete(`mine/${device}`);
     for (const key of await listAll(store, `issues/${device}/`)) await store.delete(key);
-    const link = await store.get(`devicelink/${device}`);
+    const link = await strict(store, `devicelink/${device}`);
     if (link) { await store.delete(`devicelink/${device}`); summary.links += 1; if (link.account) await store.delete(`accountdevices/${link.account}/${device}`); }
     for (const key of await listAll(store, `devices/${device}-`)) { await store.delete(key); summary.counters += 1; }
   }
@@ -61,10 +64,10 @@ async function deleteCommunityData(store, { deviceId, includeAccount = false, gi
 
   // 5. Reporter references (they credit rewards to a device) and reward records.
   for (const key of await listAll(store, "refs/")) {
-    const record = await store.get(key);
+    const record = await strict(store, key);
     if (record && devices.has(record.deviceId)) { await store.delete(key); summary.refs += 1; }
   }
-  const validations = await store.get("validations");
+  const validations = await strict(store, "validations");
   if (validations && Array.isArray(validations.items)) {
     const kept = validations.items.filter((item) => !devices.has(item.deviceId));
     summary.rewards = validations.items.length - kept.length;
@@ -74,7 +77,7 @@ async function deleteCommunityData(store, { deviceId, includeAccount = false, gi
   // 6. The device's entry in its score shard, which a rebuild would not rewrite if nothing else lives there.
   for (const device of devices) {
     const shardKey = `scores/${scoreShard(device)}`;
-    const shard = await store.get(shardKey);
+    const shard = await strict(store, shardKey);
     if (shard && shard.scores && Object.prototype.hasOwnProperty.call(shard.scores, device)) {
       delete shard.scores[device];
       await store.put(shardKey, shard);
@@ -93,7 +96,7 @@ async function deleteCommunityData(store, { deviceId, includeAccount = false, gi
   }
 
   // 8. The snapshot, so the overlay and scores stop including it.
-  await rebuildComputed(store);
+  await rebuildComputed(store, { strict: true });
   return summary;
 }
 

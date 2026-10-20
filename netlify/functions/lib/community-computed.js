@@ -25,10 +25,13 @@ function scoreShard(deviceId) {
 
 const EMPTY_SCORE = { points: 0, reports: 0, verified: 0, confirmed: 0, validated: 0, fixed: 0 };
 
-async function rebuildComputed(store) {
+// `strict` (used when rebuilding after a data deletion) makes a failed read abort the rebuild, so a snapshot is
+// never published from a partial ledger. The routine hourly rebuild keeps skipping records it cannot read.
+async function rebuildComputed(store, { strict = false } = {}) {
+  const get = strict && store.getStrict ? (k) => store.getStrict(k) : (k) => store.get(k);
   const keys = await store.list("reports/");
-  const reports = (await Promise.all(keys.map((k) => store.get(k)))).filter(Boolean);
-  const validations = ((await store.get("validations")) || {}).items || [];
+  const reports = (await Promise.all(keys.map((k) => get(k)))).filter(Boolean);
+  const validations = ((await get("validations")) || {}).items || [];
   const owners = await loadDeviceOwners(store);
   const { overlay, conflicts, conflictDetails, scores, rewards } = computeCommunityState(reports, validations, owners);
   const generatedAt = Date.now();

@@ -11427,6 +11427,14 @@ test("a storage failure while listing stops a deletion instead of reporting it d
   assert.ok(store.data.has("devicelink/phone-device-a1"), "nothing was removed");
 });
 
+test("a failed read of any record a deletion depends on stops it, and nothing is reported deleted", async () => {
+  for (const failing of ["reports/", "refs/", "validations", "devicelink/phone-device-a1", "mine/phone-device-a1", "scores/"]) {
+    const store = await deletionFixture();
+    const broken = { ...store, getStrict: async (key) => { if (key.startsWith(failing)) throw new Error("read failed"); return store.get(key); } };
+    await assert.rejects(communityDelete.deleteCommunityData(broken, { deviceId: "phone-device-a1" }), /read failed/, failing);
+  }
+});
+
 test("deletion finds every issue a device filed, even past the 300-entry mine index cap", async () => {
   const store = await deletionFixture();
   for (let n = 1000; n < 1005; n += 1) await store.put(`issues/phone-device-a1/${n}`, { ts: n });

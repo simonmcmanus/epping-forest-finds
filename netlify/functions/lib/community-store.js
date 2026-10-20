@@ -48,6 +48,13 @@ function openStore(event) {
     async get(key) {
       try { return JSON.parse(fs.readFileSync(file(key), "utf8")); } catch { return null; }
     },
+    // A missing file is "nothing there"; an unreadable or corrupt one is a failure (used by data deletion).
+    async getStrict(key) {
+      try { return JSON.parse(fs.readFileSync(file(key), "utf8")); } catch (error) {
+        if (error && error.code === "ENOENT") return null;
+        throw error;
+      }
+    },
     async put(key, value) {
       fs.mkdirSync(LOCAL_DIR, { recursive: true });
       fs.writeFileSync(file(key), JSON.stringify(value));
@@ -56,10 +63,13 @@ function openStore(event) {
       try { fs.unlinkSync(file(key)); } catch { /* already gone */ }
     },
     async list(prefix) {
-      try {
-        const p = prefix.replace(/[^A-Za-z0-9._-]/g, "_");
-        return fs.readdirSync(LOCAL_DIR).filter((n) => n.startsWith(p)).map((n) => n.replace(/\.json$/, ""));
-      } catch { return []; }
+      const p = prefix.replace(/[^A-Za-z0-9._-]/g, "_");
+      let names;
+      try { names = fs.readdirSync(LOCAL_DIR); } catch (error) {
+        if (error && error.code === "ENOENT") return []; // nothing written yet
+        throw error;
+      }
+      return names.filter((n) => n.startsWith(p)).map((n) => n.replace(/\.json$/, ""));
     },
   };
 }
