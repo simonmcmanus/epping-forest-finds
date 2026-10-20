@@ -17,9 +17,9 @@ const { rebuildComputed, scoreShard } = require("./community-computed");
 
 const REDACTED_BODY = "_The reporter asked for this report to be removed._";
 
-async function listAll(store, prefix) {
-  try { return await store.list(prefix); } catch { return []; }
-}
+// A storage failure must stop a deletion, never read as "nothing there": the caller would report `deleted: true`
+// with records left behind. So listing errors propagate (the endpoint answers 503 and the request is retried).
+const listAll = (store, prefix) => store.list(prefix);
 
 async function deleteCommunityData(store, { deviceId, includeAccount = false, github = null, redactIssues = false } = {}) {
   if (typeof deviceId !== "string" || !/^[A-Za-z0-9_-]{8,64}$/.test(deviceId)) throw new Error("a device id is required");
@@ -27,7 +27,7 @@ async function deleteCommunityData(store, { deviceId, includeAccount = false, gi
 
   // 1. Which devices: the one asked about, and (if asked) every device on its account.
   const devices = new Set([deviceId]);
-  const owner = await store.get(`devicelink/${deviceId}`);
+  const owner = await (store.getStrict ? store.getStrict(`devicelink/${deviceId}`) : store.get(`devicelink/${deviceId}`));
   const account = owner && owner.account ? owner.account : null;
   if (includeAccount && account) {
     const prefix = `accountdevices/${account}/`;
@@ -38,6 +38,8 @@ async function deleteCommunityData(store, { deviceId, includeAccount = false, gi
   // 2. The issues to deal with, read from the per-device indexes before they are deleted.
   const issues = new Set();
   for (const device of devices) {
+    // The uncapped per-issue records, plus the older capped log for issues filed before those existed.
+    for (const key of await listAll(store, `issues/${device}/`)) { const n = /(\d+)$/.exec(key); if (n) issues.add(Number(n[1])); }
     for (const entry of (await store.get(`mine/${device}`)) || []) if (entry && entry.issue) issues.add(Number(entry.issue));
   }
 
@@ -50,6 +52,7 @@ async function deleteCommunityData(store, { deviceId, includeAccount = false, gi
   // 4. Per-device records, links and counters.
   for (const device of devices) {
     await store.delete(`mine/${device}`);
+    for (const key of await listAll(store, `issues/${device}/`)) await store.delete(key);
     const link = await store.get(`devicelink/${device}`);
     if (link) { await store.delete(`devicelink/${device}`); summary.links += 1; if (link.account) await store.delete(`accountdevices/${link.account}/${device}`); }
     for (const key of await listAll(store, `devices/${device}-`)) { await store.delete(key); summary.counters += 1; }

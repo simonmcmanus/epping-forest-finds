@@ -27,6 +27,8 @@ function openStore(event) {
     const store = getStore(storeName());
     return {
       async get(key) { return store.get(key, { type: "json" }).catch(() => null); },
+      // Unlike get, a storage failure throws instead of reading as "nothing there" (used by data deletion).
+      async getStrict(key) { return store.get(key, { type: "json" }); },
       async put(key, value) { await store.setJSON(key, value); },
       async delete(key) { await store.delete(key); },
       async list(prefix) {

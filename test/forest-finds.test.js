@@ -11420,6 +11420,23 @@ async function deletionFixture() {
 
 const keysWith = (store, prefix) => [...store.data.keys()].filter((k) => k.startsWith(prefix)).sort();
 
+test("a storage failure while listing stops a deletion instead of reporting it done", async () => {
+  const store = await deletionFixture();
+  const failing = { ...store, get: store.get, put: store.put, delete: store.delete, list: async () => { throw new Error("blobs down"); } };
+  await assert.rejects(communityDelete.deleteCommunityData(failing, { deviceId: "phone-device-a1", includeAccount: true }), /blobs down/);
+  assert.ok(store.data.has("devicelink/phone-device-a1"), "nothing was removed");
+});
+
+test("deletion finds every issue a device filed, even past the 300-entry mine index cap", async () => {
+  const store = await deletionFixture();
+  for (let n = 1000; n < 1005; n += 1) await store.put(`issues/phone-device-a1/${n}`, { ts: n });
+  await store.put("issues/other-device-b1/2000", { ts: 1 });
+  const summary = await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1" });
+  assert.deepEqual([...summary.issues.pending].sort(), [41, 1000, 1001, 1002, 1003, 1004]);
+  assert.deepEqual(keysWith(store, "issues/phone-device-a1/"), []);
+  assert.deepEqual(keysWith(store, "issues/other-device-b1/"), ["issues/other-device-b1/2000"]);
+});
+
 test("deleting one device removes its reports, index, link, counters, references, rewards and score, and nobody else's", async () => {
   const store = await deletionFixture();
   assert.ok((await communityComputed.loadScore(store, "phone-device-a1")).points > 0, "the score exists before");

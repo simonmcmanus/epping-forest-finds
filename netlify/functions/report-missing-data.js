@@ -109,6 +109,9 @@ async function recordReporter(event, deviceId, ref, entry) {
   try {
     const store = openStore(event);
     await store.put(`refs/${ref}`, { deviceId });
+    // One record per public issue, outside the capped `mine/` log, so a data-deletion request can always find
+    // every issue filed from this device however many reports it has made.
+    if (Number.isInteger(entry.issue)) await store.put(`issues/${deviceId}/${entry.issue}`, { ts: Date.now() });
     const mineKey = `mine/${deviceId}`;
     const mine = (await store.get(mineKey)) || [];
     mine.push({ ...entry, ts: Date.now() });

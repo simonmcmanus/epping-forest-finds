@@ -32,6 +32,7 @@ exports.handler = async (event) => {
     });
     return respond(200, { deleted: true, ...summary });
   } catch (error) {
-    return respond(400, { error: String(error.message || error) });
+    // A bad request is the caller's to fix; a storage failure is nobody's fault and is simply retried.
+    return /device id/.test(String(error.message)) ? respond(400, { error: String(error.message) }) : respond(503, { error: "Storage unavailable: nothing was confirmed deleted. Try again." });
   }
 };
