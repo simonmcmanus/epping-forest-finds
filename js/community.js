@@ -37,6 +37,18 @@ function communityIcon(name, className = "community-icon") {
   return `<svg class="${className}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${COMMUNITY_ICONS[name] || ""}</svg>`;
 }
 
+// Shared reward vocabulary: a rank medal (one look per rank, drawn in CSS) and a gold "+N" points chip,
+// the only gold on the check UI so that gold always means reward.
+function communityMedalHtml(rank) {
+  const tier = String((rank && rank.name) || "Seedling").toLowerCase().replace(/[^a-z]/g, "");
+  return `<span class="community-medal community-medal-${tier}" aria-hidden="true">${communityIcon((rank && rank.icon) || "sprout", "community-icon community-medal-icon")}</span>`;
+}
+
+function communityPointsChipHtml(points, { upTo = false } = {}) {
+  const n = Math.max(0, Math.floor(Number(points) || 0));
+  return `<span class="community-points-chip${n ? "" : " is-zero"}">${upTo ? "up to " : ""}+${n}</span>`;
+}
+
 // `needsPosition` reports use the reporter's own GPS as the corrected / new spot.
 const COMMUNITY_TREE_CHOICES = [
   { status: "VERIFIED", label: "It's here, and the tag matches", icon: "check" },
@@ -436,6 +448,12 @@ function communityPointsText(status, rangeState) {
   return "Points: up to +2 if others agree";
 }
 
+// The "+N" chip that goes with communityPointsText: what the check earns right now.
+function communityPointsChipFor(status, rangeState) {
+  if (rangeState !== "near") return communityPointsChipHtml(0);
+  return !status || status === "VERIFIED" ? communityPointsChipHtml(1) : communityPointsChipHtml(2, { upTo: true });
+}
+
 function communityRangeNoteHtml(lat, lon, status) {
   const range = communityRange(lat, lon);
   const heading = range.state === "near" ? "Inside the 10 m check zone"
@@ -444,7 +462,7 @@ function communityRangeNoteHtml(lat, lon, status) {
   const text = range.state === "near" ? "You're close enough for this to earn points."
     : range.state === "far" ? `You're about ${Math.round(range.metres)} m away. You can still report this, but you need to be within ${COMMUNITY_NEAR_METRES} m of the tree to earn points.`
     : `You can report this from anywhere. To earn points, turn on location and stand within ${COMMUNITY_NEAR_METRES} m of the tree.`;
-  return `<div class="community-range community-range-${range.state}">${communityIcon(range.state === "near" ? "check" : "locate")}<div><strong>${heading}</strong><span>${escapeHtml(text)}</span><span class="community-range-points">${escapeHtml(communityPointsText(status, range.state))}</span></div></div>`;
+  return `<div class="community-range community-range-${range.state}">${communityIcon(range.state === "near" ? "check" : "locate")}<div><strong>${heading}</strong><span>${escapeHtml(text)}</span><span class="community-range-points">${communityPointsChipFor(status, range.state)}${escapeHtml(communityPointsText(status, range.state))}</span></div></div>`;
 }
 
 // Called with each GPS fix so the note follows the reader as they walk up to the tree.
@@ -1447,7 +1465,7 @@ async function communityRenderContributions() {
     ? `<p class="community-log-error">This browser can't save waiting reports. Keep the app open until they are sent.</p>`
     : "";
   host.innerHTML = `${volatileNote}<div class="community-rank-card">
-        <span class="community-rank-icon">${communityIcon(rank.icon)}</span>
+        <span class="community-rank-icon">${communityMedalHtml(rank)}</span>
         <div class="community-rank-text">
           <p class="community-rank"><strong>${escapeHtml(rank.name)}</strong></p>
           <p class="community-rank-points">${score.points} ${score.points === 1 ? "point" : "points"} · ${toNext}</p>

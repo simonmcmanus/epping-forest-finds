@@ -1173,8 +1173,41 @@ button.settings-toggle.has-update::after {
    accents, 2px line icons in currentColor. */
 .community-icon { width: 20px; height: 20px; flex-shrink: 0; display: block; }
 
+/* Community design tokens: one card radius, one hairline, one elevation, and a reward gold used only for points. */
+:root {
+  --c-radius: 14px;
+  --c-radius-sm: 10px;
+  --c-hairline: 1px solid rgba(23, 34, 30, 0.1);
+  --c-lift: 0 1px 2px rgba(20, 36, 28, 0.06), 0 6px 16px rgba(20, 36, 28, 0.07);
+  --c-reward: #c58b00;
+  --c-reward-ink: #5c4600;
+  --c-reward-tint: #fbf0c8;
+}
+
+/* Rank medal: ring and face per rank, icon in the face. 56px. */
+.community-medal {
+  --medal-ring: #8aa58f; --medal-face: #e7efe6; --medal-ink: #2f6f4e;
+  position: relative; width: 56px; height: 56px; flex-shrink: 0; border-radius: 50%;
+  display: grid; place-items: center; color: var(--medal-ink);
+  background: conic-gradient(from 210deg, var(--medal-ring), #fff 28%, var(--medal-ring) 55%, #fff 80%, var(--medal-ring));
+  box-shadow: var(--c-lift);
+}
+.community-medal::before { content: ""; position: absolute; inset: 5px; border-radius: 50%; background: radial-gradient(circle at 35% 30%, #fff, var(--medal-face)); box-shadow: inset 0 0 0 1px rgba(23, 34, 30, 0.08); }
+.community-medal-icon { position: relative; width: 28px; height: 28px; }
+.community-medal-sapling { --medal-ring: #7fb08e; --medal-face: #dcefe0; --medal-ink: #25663f; }
+.community-medal-woodward { --medal-ring: #d2a53a; --medal-face: #f6e6b4; --medal-ink: #5c4600; }
+.community-medal-warden { --medal-ring: #b8860b; --medal-face: #f2d57a; --medal-ink: #3f2f00; }
+
+/* Points chip: the reward mark. */
+.community-points-chip {
+  display: inline-flex; align-items: center; margin-right: 6px; padding: 1px 8px; border-radius: 999px;
+  font-size: 0.78rem; font-weight: 800; line-height: 1.5; color: var(--c-reward-ink);
+  background: var(--c-reward-tint); box-shadow: inset 0 0 0 1px rgba(197, 139, 0, 0.45);
+}
+.community-points-chip.is-zero { color: var(--muted); background: #eef1ec; box-shadow: inset 0 0 0 1px rgba(23, 34, 30, 0.12); }
+
 .community-check {
-  margin: 16px 0 4px; padding: 14px; border-radius: 16px;
+  margin: 16px 0 4px; padding: 14px; border-radius: var(--c-radius);
   background: #f6f9f5; border: 1px solid rgba(47, 111, 78, 0.22);
 }
 .community-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
@@ -1273,11 +1306,7 @@ button.settings-toggle.has-update::after {
 /* Settings: your contributions */
 .community-contributions { padding-bottom: 6px; }
 .community-rank-card { display: flex; align-items: center; gap: 12px; }
-.community-rank-icon {
-  width: 48px; height: 48px; flex-shrink: 0; border-radius: 14px; display: grid; place-items: center;
-  color: var(--gold-ink); background: var(--gold-tint);
-}
-.community-rank-icon .community-icon { width: 26px; height: 26px; }
+.community-rank-icon { flex-shrink: 0; display: grid; }
 .community-rank-text p { margin: 0; }
 .community-rank { font-size: 1.15rem; color: var(--ink); }
 .community-rank-points { font-size: 0.86rem; color: var(--muted); }
@@ -1291,7 +1320,7 @@ button.settings-toggle.has-update::after {
 .community-badge-icon { display: inline-flex; width: 16px; height: 16px; }
 .community-badge-icon svg { width: 16px; height: 16px; }
 .community-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
-.community-stats div { display: grid; gap: 2px; padding: 10px 8px; text-align: center; border: 1px solid rgba(0, 0, 0, 0.08); border-radius: 12px; background: #fff; }
+.community-stats div { display: grid; gap: 2px; padding: 10px 8px; text-align: center; border: var(--c-hairline); border-radius: var(--c-radius); background: #fff; }
 .community-stats strong { font-size: 1.2rem; color: var(--ink); }
 .community-stats span { font-size: 0.72rem; line-height: 1.2; color: var(--muted); }
 
@@ -1363,7 +1392,7 @@ button.settings-toggle.has-update::after {
 .community-send:focus-visible { outline: 2px solid var(--tree); outline-offset: 2px; }
 
 .community-add-tree, .community-feedback { padding-top: 14px; border-top: 1px solid #edf0eb; margin-top: 6px; }
-.community-new-form { display: grid; gap: 12px; padding: 14px; border-radius: 14px; background: #f6f9f5; border: 1px solid rgba(47, 111, 78, 0.22); }
+.community-new-form { display: grid; gap: 12px; padding: 14px; border-radius: var(--c-radius); background: #f6f9f5; border: 1px solid rgba(47, 111, 78, 0.22); }
 .community-location {
   display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 10px;
   font-size: 0.86rem; font-weight: 700; line-height: 1.3;
@@ -1665,7 +1694,7 @@ dd {
 .community-recover-status { min-height: 1.2em; margin: 8px 0 0; color: #2f6b3a; font-size: .85rem; }
 
 /* "You need to be close to earn points" note on the tree check card. */
-.community-range { display: flex; gap: 10px; align-items: flex-start; margin: 10px 0 0; padding: 10px 12px; border-radius: 10px; border-left: 4px solid #8a9a8a; background: #f1f4ec; color: #4b574b; font-size: .82rem; line-height: 1.35; }
+.community-range { display: flex; gap: 10px; align-items: flex-start; margin: 10px 0 0; padding: 10px 12px; border-radius: var(--c-radius-sm); border-left: 4px solid #8a9a8a; background: #f1f4ec; color: #4b574b; font-size: .82rem; line-height: 1.35; }
 .community-range > div { display: grid; gap: 3px; min-width: 0; }
 .community-range strong { font-size: .9rem; }
 .community-range svg { flex: none; width: 18px; height: 18px; margin-top: 1px; }

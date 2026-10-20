@@ -146,6 +146,7 @@ test.describe("Community tree verification", () => {
     await expect(page.locator("#inspectorTitle").last()).toContainText("Community");
     await expect(page.locator(".community-contributions")).toContainText("Your contributions");
     await expect(page.locator(".community-rank")).toContainText("Seedling");
+    await expect(page.locator(".community-rank-card .community-medal-seedling")).toBeVisible();
     await expect(page.locator(".community-log-item")).toHaveCount(1);
     await expect(page.locator(".community-log-item")).toContainText("Verified here");
   });

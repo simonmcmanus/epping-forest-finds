@@ -572,6 +572,8 @@ globalThis.__forestFindsTest = {
   animationLoopsWedged,
   recoverWedgedAnimationFrames,
   communityRank,
+  communityMedalHtml,
+  communityPointsChipFor,
   communityNudgeDecision,
   communityPendingScore,
   communityBadges,
@@ -10970,6 +10972,16 @@ test("contributors move up from Seedling to Warden by points", () => {
   assert.equal(app.communityRank(50).name, "Warden");
   assert.equal(app.communityRank(50).next, null);
   assert.equal(app.communityRank(3).next.name, "Sapling");
+});
+
+test("each rank gets its own medal and the points chip shows what a check earns", () => {
+  for (const name of ["Seedling", "Sapling", "Woodward", "Warden"]) {
+    assert.match(app.communityMedalHtml(app.communityRank(name === "Seedling" ? 0 : name === "Sapling" ? 5 : name === "Woodward" ? 20 : 50)), new RegExp(`community-medal-${name.toLowerCase()}`));
+  }
+  assert.match(app.communityPointsChipFor("VERIFIED", "near"), />\+1</);
+  assert.match(app.communityPointsChipFor("NOT_HERE", "near"), /up to \+2/);
+  assert.match(app.communityPointsChipFor("VERIFIED", "far"), /is-zero[^>]*>\+0</);
+  assert.match(app.communityPointsChipFor("VERIFIED", "none"), /is-zero/);
 });
 
 const communityPointsConfig = require("../netlify/functions/lib/community-points");
