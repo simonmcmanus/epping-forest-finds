@@ -73,6 +73,52 @@ test.describe("Community tree verification", () => {
     await expect(page.locator(".detail-top-row .community-verified-chip")).toContainText("1");
   });
 
+  test("a tree report the server refuses is shown as not sent and can be sent again", async ({ page }) => {
+    let refuse = true;
+    const calls = [];
+    await page.route(REPORT_URL, (route) => {
+      calls.push(route.request().postDataJSON());
+      return route.fulfill(refuse
+        ? { status: 400, contentType: "application/json", body: JSON.stringify({ error: "that report was not accepted" }) }
+        : { status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+    });
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await page.click("[data-action='community-report'][data-status='VERIFIED']");
+    await expect.poll(() => calls.length).toBe(1);
+    await page.click("#reportToggle");
+    await expect(page.locator(".community-log-item .community-pill")).toContainText("Couldn't send");
+    await expect(page.locator(".community-log-error")).toContainText("not accepted");
+    refuse = false;
+    await page.click("[data-action='community-retry']");
+    await expect(page.locator(".community-log-item .community-pill")).not.toContainText("Couldn't send");
+    expect(calls.length).toBe(2);
+    expect(calls[0].id).toBe(calls[1].id);
+    await expect(page.locator(".community-log-error")).toHaveCount(0);
+  });
+
+  test("queued feedback the server refuses is shown as not sent and can be sent again", async ({ page }) => {
+    let refuse = true;
+    const calls = [];
+    await page.route("**/.netlify/functions/report-missing-data", (route) => {
+      calls.push(route.request().postDataJSON());
+      return route.fulfill(refuse
+        ? { status: 400, contentType: "application/json", body: JSON.stringify({ error: "details are required" }) }
+        : { status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, issueUrl: "https://github.com/example/repo/issues/3" }) });
+    });
+    await setup(page, "/community");
+    await page.evaluate(() => {
+      const payload = { requestId: "fb-test-1", reportType: "bug", details: "The map froze" };
+      communityNoteFeedback(payload);
+      return outboxAdd({ id: "fb-test-1", url: COMMUNITY_ISSUE_URL, payload }).then(() => outboxFlush());
+    });
+    await expect.poll(() => calls.length).toBe(1);
+    await expect(page.locator(".community-log-item .community-pill")).toContainText("Couldn't send");
+    refuse = false;
+    await page.click("[data-action='community-retry']");
+    await expect(page.locator(".community-log-item .community-pill")).not.toContainText("Couldn't send");
+    expect(calls.length).toBe(2);
+  });
+
   test("a report made offline is kept and sent when the connection returns", async ({ page, context }) => {
     const posted = [];
     await page.route(REPORT_URL, async (route) => {

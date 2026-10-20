@@ -11079,6 +11079,9 @@ test("a recovery code is accepted as shown, in any case or spacing, and anything
   assert.equal(app.communityParseRecoveryCode("abcd-1234-efgh-5678-ijkl-9012"), id);
   assert.equal(app.communityParseRecoveryCode("  ABCD-1234-EFGH-5678-IJKL-9012 "), id);
   assert.equal(app.communityParseRecoveryCode("abcd 1234 efgh 5678 ijkl 9012"), id);
+  assert.equal(app.communityParseRecoveryCode(id.toUpperCase()), id, "an unhyphenated uppercase code is lowercased");
+  assert.equal(app.communityParseRecoveryCode(`${id}x`), null, "25 characters is not a code");
+  assert.equal(app.communityParseRecoveryCode(id.slice(0, 23)), null, "23 characters is not a code");
   assert.equal(app.communityParseRecoveryCode("short"), null);
   assert.equal(app.communityParseRecoveryCode("has spaces/and$symbols!!"), null);
   assert.equal(app.communityParseRecoveryCode(""), null);
@@ -11102,12 +11105,17 @@ test("a tree report only counts when it was made close to the tree, and says so 
 });
 
 // --- Place checks go to GitHub issues for manual review (netlify/functions/report-missing-data.js) ---
+function escalationStoreForReports() {
+  const data = new Map();
+  return { async get(k) { return data.has(k) ? JSON.parse(JSON.stringify(data.get(k))) : null; }, async put(k, v) { data.set(k, JSON.parse(JSON.stringify(v))); } };
+}
 async function withStubbedGithub(responder, run) {
   const reportFunction = require("../netlify/functions/report-missing-data");
   const originalFetch = global.fetch;
   const originalToken = process.env.GITHUB_TOKEN;
   const calls = [];
   process.env.GITHUB_TOKEN = "test-token";
+  reportFunction.setRateLimitStore(escalationStoreForReports());
   global.fetch = async (url, options = {}) => {
     calls.push({ url: String(url), method: options.method || "GET", body: options.body ? JSON.parse(options.body) : null });
     return responder(String(url), options.method || "GET");
@@ -11115,6 +11123,7 @@ async function withStubbedGithub(responder, run) {
   try {
     return await run(reportFunction.handler, calls);
   } finally {
+    reportFunction.setRateLimitStore(null);
     global.fetch = originalFetch;
     if (originalToken === undefined) delete process.env.GITHUB_TOKEN; else process.env.GITHUB_TOKEN = originalToken;
   }
@@ -11218,6 +11227,84 @@ test("a missing place is filed as a place-check issue keyed on its position, and
       assert.match(created.body.body, /Opened last week/);
       const nameless = await handler(placeCheckEvent({ placeCheck: { status: "NEW_PLACE", key, name: "  " } }));
       assert.equal(nameless.statusCode, 400);
+    }
+  );
+});
+
+const reportRateLimit = require("../netlify/functions/lib/report-rate-limit");
+
+test("a device that sends too many reports in an hour is refused with 429 and a Retry-After", async () => {
+  await withStubbedGithub(
+    (url) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 1, html_url: "https://github.com/x/y/issues/1" })),
+    async (handler, calls) => {
+      const send = (n) => handler({ ...placeCheckEvent({ deviceId: "device-flood-0001", requestId: `req-flood-${n}`, placeCheck: { status: "CLOSED", key: `place:id:${n}`, name: "x" } }), headers: {} });
+      for (let n = 0; n < reportRateLimit.DEFAULT_LIMITS.perDevice; n += 1) assert.equal((await send(n)).statusCode, 200);
+      const refused = await send(99);
+      assert.equal(refused.statusCode, 429);
+      assert.ok(Number(refused.headers["Retry-After"]) > 0);
+      const issuesBefore = calls.filter((c) => c.method === "POST" && c.url.endsWith("/issues")).length;
+      await send(100);
+      assert.equal(calls.filter((c) => c.method === "POST" && c.url.endsWith("/issues")).length, issuesBefore, "a refused report creates no issue");
+    }
+  );
+});
+
+test("a network is capped by its address however many device ids it invents, and the whole site by the global cap", async () => {
+  await withStubbedGithub(
+    (url) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 1, html_url: "u" })),
+    async (handler) => {
+      const fromIp = (ip, n) => handler({ ...placeCheckEvent({ deviceId: `device-${ip.replace(/\./g, "")}-${String(n).padStart(4, "0")}`, requestId: `req-ip-${ip}-${n}`, placeCheck: { status: "CLOSED", key: `place:id:${n}`, name: "x" } }), headers: { "x-nf-client-connection-ip": ip } });
+      for (let n = 0; n < reportRateLimit.DEFAULT_LIMITS.perIp; n += 1) assert.equal((await fromIp("203.0.113.9", n)).statusCode, 200);
+      assert.equal((await fromIp("203.0.113.9", 500)).statusCode, 429, "fresh device ids do not get past the address cap");
+      assert.equal((await fromIp("203.0.113.10", 0)).statusCode, 200, "another address is unaffected");
+    }
+  );
+  const original = process.env.REPORT_LIMIT_GLOBAL;
+  process.env.REPORT_LIMIT_GLOBAL = "2";
+  try {
+    await withStubbedGithub(
+      (url) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 1, html_url: "u" })),
+      async (handler) => {
+        const one = (ip, n) => handler({ ...placeCheckEvent({ deviceId: `device-glob-${n}-aaaa`, requestId: `req-glob-${n}`, placeCheck: { status: "CLOSED", key: `place:id:${n}`, name: "x" } }), headers: { "x-nf-client-connection-ip": ip } });
+        assert.equal((await one("198.51.100.1", 1)).statusCode, 200);
+        assert.equal((await one("198.51.100.2", 2)).statusCode, 200);
+        assert.equal((await one("198.51.100.3", 3)).statusCode, 429, "the site-wide cap stops new addresses too");
+      }
+    );
+  } finally {
+    if (original === undefined) delete process.env.REPORT_LIMIT_GLOBAL; else process.env.REPORT_LIMIT_GLOBAL = original;
+  }
+});
+
+test("the rate limit resets each hour, ignores a missing ip or device, and lets reports through if the store fails", async () => {
+  const store = escalationStoreForReports();
+  const limits = { perIp: 1, perDevice: 1, global: 5 };
+  const hour = 3600000;
+  assert.equal((await reportRateLimit.checkRateLimit(store, { ip: "1.1.1.1", deviceId: "d1", now: 10 * hour, limits })).ok, true);
+  assert.equal((await reportRateLimit.checkRateLimit(store, { ip: "1.1.1.1", deviceId: "d2", now: 10 * hour + 5, limits })).ok, false);
+  assert.equal((await reportRateLimit.checkRateLimit(store, { ip: "1.1.1.1", deviceId: "d1", now: 11 * hour, limits })).ok, true, "a new hour starts clean");
+  assert.equal((await reportRateLimit.checkRateLimit(store, { now: 12 * hour, limits })).ok, true, "no ip and no device: only the global cap applies");
+  const broken = { async get() { throw new Error("down"); }, async put() { throw new Error("down"); } };
+  assert.equal((await reportRateLimit.checkRateLimit(broken, { ip: "1.1.1.1", deviceId: "d1", limits })).ok, true);
+  assert.equal(reportRateLimit.clientIp({ headers: { "X-Nf-Client-Connection-Ip": "9.9.9.9", "x-forwarded-for": "1.2.3.4" } }), "9.9.9.9");
+  assert.equal(reportRateLimit.clientIp({ headers: { "x-forwarded-for": "1.2.3.4, 5.6.7.8" } }), "1.2.3.4");
+  assert.equal(reportRateLimit.clientIp({}), "");
+});
+
+test("the per-place label is created before the issue, and a label that fails does not stop the report", async () => {
+  await withStubbedGithub(
+    (url, method) => {
+      if (url.includes("/search/issues")) return jsonResponse(200, { items: [] });
+      if (url.endsWith("/labels")) return jsonResponse(500, {});
+      return jsonResponse(201, { number: 5, html_url: "https://github.com/x/y/issues/5" });
+    },
+    async (handler, calls) => {
+      const result = await handler(placeCheckEvent({ placeCheck: { status: "CLOSED", key: "place:id:manual/onest", name: "Onest" } }));
+      assert.equal(result.statusCode, 200);
+      const labelAt = calls.findIndex((c) => c.method === "POST" && c.url.endsWith("/labels"));
+      const issueAt = calls.findIndex((c) => c.method === "POST" && c.url.endsWith("/issues"));
+      assert.ok(labelAt >= 0 && labelAt < issueAt, "the label is created first");
+      assert.equal(calls[labelAt].body.name, "place:manual/onest");
     }
   );
 });

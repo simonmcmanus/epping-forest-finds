@@ -521,13 +521,11 @@ function communityRecoveryCode() {
   return communityDeviceId().replace(/(.{4})(?=.)/g, "$1-");
 }
 
-// Accepts the code as shown (grouped with dashes, any case or spacing) or a raw id.
+// Accepts the code as shown (grouped with dashes, any case or spacing) or as a raw id. Device ids
+// are always 24 lowercase letters and digits (communityRandomId), so anything else is not a code.
 function communityParseRecoveryCode(input) {
-  const text = String(input || "").trim().replace(/\s+/g, "");
-  if (COMMUNITY_RECOVERY_RE.test(text) && !text.includes("-")) return text;
-  const compact = text.replace(/-/g, "").toLowerCase();
-  if (/^[a-z0-9]{24}$/.test(compact)) return compact;
-  return COMMUNITY_RECOVERY_RE.test(text) ? text : null;
+  const compact = String(input || "").replace(/[\s-]+/g, "").toLowerCase();
+  return /^[a-z0-9]{24}$/.test(compact) ? compact : null;
 }
 
 function communityRecoveryHtml() {
@@ -699,20 +697,21 @@ if (typeof window !== "undefined" && window.addEventListener) {
     const detail = event.detail;
     if (!detail || !detail.item) return;
     if (detail.item.url === COMMUNITY_REPORT_URL) communityRefreshScore();
-    if (detail.item.url === COMMUNITY_ISSUE_URL) {
-      const local = communityReadLocal();
-      const key = Object.keys(local).find((k) => local[k].id === detail.item.id);
-      if (key && detail.ok && detail.response && detail.response.issueUrl) {
-        local[key].issueUrl = detail.response.issueUrl;
-        delete local[key].failed;
-        delete local[key].retry;
-        communityWriteLocal(local);
-      } else if (key && !detail.ok) {
-        // The server refused it (not just offline): say so instead of claiming it was sent.
-        local[key].failed = String((detail.response && detail.response.error) || "The server refused the report.").slice(0, 200);
-        local[key].retry = { id: detail.item.id, url: detail.item.url, payload: detail.item.payload };
-        communityWriteLocal(local);
-      }
+    // Every queued report type (tree report, place check, feedback) is in the log under its own id.
+    const local = communityReadLocal();
+    const key = Object.keys(local).find((k) => local[k].id === detail.item.id);
+    if (!key) return;
+    if (detail.ok) {
+      if (detail.response && detail.response.issueUrl) local[key].issueUrl = detail.response.issueUrl;
+      delete local[key].failed;
+      delete local[key].retry;
+      communityWriteLocal(local);
+    } else {
+      // The server refused it (not just offline): say so instead of claiming it was sent, and keep
+      // the payload so "Send again" can queue it once more.
+      local[key].failed = String((detail.response && detail.response.error) || "The server refused the report.").slice(0, 200);
+      local[key].retry = { id: detail.item.id, url: detail.item.url, payload: detail.item.payload };
+      communityWriteLocal(local);
     }
   });
 }

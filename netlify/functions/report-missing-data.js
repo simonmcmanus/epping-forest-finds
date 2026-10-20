@@ -1,6 +1,7 @@
 const DEFAULT_REPO = "simonmcmanus/epping-forest-finds";
 const { randomUUID, createHmac } = require("crypto");
 const { openStore } = require("./lib/community-store");
+const { checkRateLimit, clientIp } = require("./lib/report-rate-limit");
 const { connectLambda, getStore } = require("@netlify/blobs");
 const REPORT_PHOTO_MAX_BYTES = 3 * 1024 * 1024;
 const REPORT_PHOTO_STORE = "report-photos";
@@ -136,6 +137,9 @@ function response(statusCode, body) {
   };
 }
 
+// Tests swap the store so a rate-limit document never lands on disk.
+let rateLimitStoreOverride = null;
+
 exports.handler = async (event) => {
   if (event.httpMethod === "GET" && event.queryStringParameters?.photo) {
     return sendPhoto(event, String(event.queryStringParameters.photo));
@@ -208,6 +212,15 @@ exports.handler = async (event) => {
     return response(501, {
       error: "GitHub issue integration is not configured at runtime. Set GITHUB_TOKEN (or GH_TOKEN / GITHUB_FINE_GRAINED_TOKEN / GITHUB_PAT) in Netlify Site settings → Environment variables for the active deploy context, then redeploy.",
     });
+  }
+
+  // Past this point a report costs a GitHub call and may create an issue: cap how many one network,
+  // one device and the whole site can send per hour (lib/report-rate-limit.js).
+  const limited = await checkRateLimit(rateLimitStoreOverride || openStore(event), { ip: clientIp(event), deviceId });
+  if (!limited.ok) {
+    const limitedResponse = response(429, { error: "Too many reports right now. Please try again in a little while." });
+    limitedResponse.headers["Retry-After"] = String(limited.retryAfter);
+    return limitedResponse;
   }
 
   const isFeature = reportType === "feature-request";
@@ -336,6 +349,16 @@ exports.handler = async (event) => {
       issuePayload.body += `\n\n## Photo\n![Photo attached to report](${photoUrl})`;
     }
 
+    // GitHub drops a label it does not know when an issue is created, so the per-place label has to
+    // exist first. An existing label answers 422, which is fine; any other failure must not stop the report.
+    if (isPlaceCheck) {
+      await fetch(`https://api.github.com/repos/${githubRepo}/labels`, {
+        method: "POST",
+        headers: { ...apiHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ name: placeLabelName(placeCheck.key), color: "c5def5", description: "Reports about one place" }),
+      }).catch(() => {});
+    }
+
     const issueResponse = await fetch(`https://api.github.com/repos/${githubRepo}/issues`, {
       method: "POST",
       headers: { ...apiHeaders, "Content-Type": "application/json" },
@@ -365,6 +388,7 @@ exports.handler = async (event) => {
   }
 };
 
+exports.setRateLimitStore = (store) => { rateLimitStoreOverride = store; };
 exports.REPORT_PHOTO_MAX_BYTES = REPORT_PHOTO_MAX_BYTES;
 exports.parsePhoto = parsePhoto;
 exports.parsePlaceCheck = parsePlaceCheck;
