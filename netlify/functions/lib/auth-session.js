@@ -70,14 +70,21 @@ function baseUrl(event) {
   return `${proto}://${host}`;
 }
 
-function cookie(name, value, maxAgeSeconds) {
-  return `${name}=${value}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${maxAgeSeconds}`;
+// Secure whenever the request came in over https. A browser will not send a Secure cookie back over plain
+// http, so over http (local development on localhost, which baseUrl() treats as http) it is left off or
+// the sign-in could never complete.
+function isSecureRequest(event) {
+  return baseUrl(event).startsWith("https:");
 }
 
-const sessionCookie = (session) => cookie(SESSION_COOKIE, sign(session, authConfig().secret), SESSION_MS / 1000);
-const clearSessionCookie = () => cookie(SESSION_COOKIE, "", 0);
-const stateCookie = (state, key) => cookie(STATE_COOKIE, sign({ ...state, exp: Date.now() + STATE_MS }, key), STATE_MS / 1000);
-const clearStateCookie = () => cookie(STATE_COOKIE, "", 0);
+function cookie(name, value, maxAgeSeconds, secure = true) {
+  return `${name}=${value}; Path=/; HttpOnly;${secure ? " Secure;" : ""} SameSite=Lax; Max-Age=${maxAgeSeconds}`;
+}
+
+const sessionCookie = (session, secure = true) => cookie(SESSION_COOKIE, sign(session, authConfig().secret), SESSION_MS / 1000, secure);
+const clearSessionCookie = (secure = true) => cookie(SESSION_COOKIE, "", 0, secure);
+const stateCookie = (state, key, secure = true) => cookie(STATE_COOKIE, sign({ ...state, exp: Date.now() + STATE_MS }, key), STATE_MS / 1000, secure);
+const clearStateCookie = (secure = true) => cookie(STATE_COOKIE, "", 0, secure);
 const readState = (event, key) => verify(parseCookies(header(event, "cookie"))[STATE_COOKIE], key);
 
 // Providers return the email address as `name` for email logins; never show or store it.
@@ -95,6 +102,7 @@ module.exports = {
   sessionFrom,
   safeReturnPath,
   baseUrl,
+  isSecureRequest,
   header,
   sessionCookie,
   clearSessionCookie,

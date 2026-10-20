@@ -281,6 +281,7 @@ const server = http.createServer((req, res) => {
     "/api/community/overlay": "community-overlay",
     "/api/community/validate": "community-validate",
     "/api/community/rebuild": "community-rebuild",
+    "/api/community/delete": "community-delete",
     "/reports/tree-report": "tree-report",
     "/reports/tree-report/": "tree-report",
     "/api/auth/login": "auth-login",

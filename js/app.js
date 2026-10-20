@@ -3080,6 +3080,19 @@ function openCommunity() {
   }
 }
 
+// Frames every mark the user has made (or the whole forest when there are none), not where they stand.
+function fitCommunityOwnMarks(options = {}) {
+  const points = communityMapMarks().map((mark) => projectLonLat(mark.lon, mark.lat));
+  fitToPoints(points, false, {
+    focusVisibleArea: true,
+    assumeInspectorOpen: true,
+    animate: Boolean(options.animate),
+    durationMs: options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
+    minScale: state.baseFitScale > 0 ? state.baseFitScale : undefined,
+    padding: OVERVIEW_FIT_PADDING_PX,
+  });
+}
+
 function communityScreenHtml() {
   return `${communityIntroHtml()}
     ${communityAccountHtml()}
@@ -4270,6 +4283,15 @@ function categoryLandingLinksHtml() {
   return `<nav class="nearby-category-nav" aria-label="Browse nearby categories"><p class="nearby-category-nav-title">Browse nearby categories</p><div class="detail-top-row related-chips">${currentChip}${groupChip}${allChip}${typeChips}${treesChip}${cowsChip}</div></nav>`;
 }
 
+// The top-level Nearby screen's way back out of a filter: while any filter is applied there, a
+// "Show all nearby" pill links to the same ?filters=false override as the category chip's "All
+// nearby", so it ignores the reader's saved filters for this visit only. Category landings already
+// carry their own "All nearby" chip, so they get no second pill.
+function showAllNearbyPillHtml() {
+  if (isNearbyCategoryLandingPath() || !state.overviewFilters.length) return "";
+  return `<div class="detail-top-row related-chips"><a class="detail-map-link nearby-link show-all-nearby" href="/nearby?filters=false">${appIconHtml("nearby")}Show all nearby</a></div>`;
+}
+
 function overviewCategoryContentHtml(content) {
   const categoryLabel = landingPageCategoryLabel();
   if (!categoryLabel) return content;
@@ -4278,7 +4300,7 @@ function overviewCategoryContentHtml(content) {
 }
 
 function overviewNearestHtml() {
-  const navigationHtml = categoryLandingLinksHtml();
+  const navigationHtml = `${categoryLandingLinksHtml()}${showAllNearbyPillHtml()}`;
   if (!state.userLocation) {
     // A /nearby/<slug> category page -- a subfilter's own, or a whole group's -- lands here with
     // no location yet (no prompt answered, or declined), as does a reader who has deliberately
@@ -5398,7 +5420,13 @@ function headingUpActive() {
 // inconsistency in reverse: boot would use one fit and a later GPS update would use
 // another, before a heading ever arrived.
 function nearbyNavigationAnchorActive() {
-  return Boolean(state.userLocation && !selectedCompassTarget());
+  return Boolean(state.userLocation && !selectedCompassTarget() && !communityFramesOwnMarksOnly());
+}
+
+// The Community screen is about what the user has marked, so for someone who is not at the forest the
+// camera ignores where they are (it is nowhere near the map) and frames their own marks instead.
+function communityFramesOwnMarksOnly() {
+  return Boolean(state.selected && state.selected.type === "community" && hasRealLocation() && !state.userInMapArea);
 }
 
 function navigationAnchorActive() {
@@ -7358,6 +7386,7 @@ function keepOverviewCenteredOnUser(previousPoint) {
   if (state.clusterZoomed) return;
   if (els.inspector.classList.contains("minimized")) return;
   if (nearbyNavigationAnchorActive()) return;
+  if (communityFramesOwnMarksOnly()) return;
 
   const previousScreen = previousPoint ? worldToScreen(previousPoint) : null;
   const nextScreen = worldToScreen(state.userLocation.point);
@@ -7436,6 +7465,11 @@ function ensureOverviewTargetsVisible(options = {}) {
   if (state.selected && !secondaryScreenActive()) return;
   if (state.clusterZoomed) return;
   setInspectorMinimized(false);
+
+  if (communityFramesOwnMarksOnly()) {
+    fitCommunityOwnMarks(options);
+    return;
+  }
 
   if (nearbyNavigationAnchorActive()) {
     alignHeadingUpNavigationViewport({

@@ -53,7 +53,8 @@ exports.handler = async (event) => {
   // The device id is chosen by the caller, so it cannot prove a second report is from a second person.
   // Cap what one network and the whole site can add per hour, so fresh ids cannot be minted without
   // limit to confirm, question or farm points (lib/report-rate-limit.js).
-  const limited = await checkRateLimit(store, { ip: clientIp(event), deviceId: report.deviceId, limits: configuredCommunityLimits(), key: "community-report-rate" });
+  const link = await store.get(`devicelink/${report.deviceId}`);
+  const limited = await checkRateLimit(store, { ip: clientIp(event), deviceId: report.deviceId, account: link && link.account ? link.account : "", limits: configuredCommunityLimits(), key: "community-report-rate" });
   if (!limited.ok) {
     const refused = respond(429, { error: "Too many reports right now. Please try again in a little while." });
     refused.headers["Retry-After"] = String(limited.retryAfter);

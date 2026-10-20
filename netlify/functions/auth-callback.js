@@ -12,7 +12,8 @@ exports.handler = async (event) => {
   if (!config) return { statusCode: 503, body: "Sign-in isn't set up yet." };
   const params = event.queryStringParameters || {};
   const pending = auth.readState(event, config.secret);
-  const cleared = auth.clearStateCookie();
+  const secure = auth.isSecureRequest(event);
+  const cleared = auth.clearStateCookie(secure);
   if (!params.code || !pending || params.state !== pending.state) return back(event, "/community?signin=failed", [cleared]);
   try {
     const token = await fetch(`https://${config.domain}/oauth/token`, {
@@ -33,7 +34,7 @@ exports.handler = async (event) => {
     const user = await profile.json();
     if (!user.sub) throw new Error("no subject");
     const session = { sub: String(user.sub), name: auth.displayName(user), exp: Date.now() + auth.SESSION_MS };
-    return back(event, pending.ret, [auth.sessionCookie(session), cleared]);
+    return back(event, pending.ret, [auth.sessionCookie(session, secure), cleared]);
   } catch {
     return back(event, "/community?signin=failed", [cleared]);
   }

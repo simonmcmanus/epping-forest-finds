@@ -115,8 +115,8 @@ test.describe("Community tree verification", () => {
     await expect(page.locator(".community-log-item .community-pill")).toContainText("Couldn't send");
     refuse = false;
     await page.click("[data-action='community-retry']");
+    await expect.poll(() => calls.length).toBe(2);
     await expect(page.locator(".community-log-item .community-pill")).not.toContainText("Couldn't send");
-    expect(calls.length).toBe(2);
   });
 
   test("a report made offline is kept and sent when the connection returns", async ({ page, context }) => {
@@ -871,5 +871,60 @@ test.describe("Community log links to places", () => {
     });
     await setup(page, "/community");
     await expect(page.locator(".community-log-item a", { hasText: "Onest" })).toHaveAttribute("href", "/nearby#place=id:manual/onest");
+  });
+});
+
+test.describe("Community screen when the user is away from the forest", () => {
+  // Central London: a real fix, but nowhere near the map.
+  test.use({ geolocation: { latitude: 51.5074, longitude: -0.1278, accuracy: 10 }, permissions: ["geolocation"] });
+
+  test("it frames the user's own marks and does not show or follow where they are", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("ff-community-local-v1", JSON.stringify({
+        "tree:900001": { id: "m1", status: "VERIFIED", ts: Date.now(), lat: 51.6663, lon: 0.045 },
+        "new:T-1": { id: "m3", status: "NEW_TREE", ts: Date.now(), lat: 51.665, lon: 0.0473, name: "Tree T-1" },
+      }));
+    });
+    await page.route(OVERLAY_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {}, reports: [] }) }));
+    await setup(page, "/community");
+    await page.waitForFunction(() => state.userLocation && !state.userLocation.isDefault);
+    expect(await page.evaluate(() => state.userInMapArea)).toBe(false);
+    expect(await page.evaluate(() => communityFramesOwnMarksOnly())).toBe(true);
+    // Every mark is on screen, and the user (far off the map) is not what the camera is centred on.
+    await expect.poll(() => page.evaluate(() => {
+      const canvas = els.canvas || els.overlayCanvas;
+      const onScreen = (p) => p.x >= 0 && p.y >= 0 && p.x <= canvas.width && p.y <= canvas.height;
+      const marks = communityMapMarks().map((m) => worldToScreen(projectLonLat(m.lon, m.lat)));
+      return marks.length === 2 && marks.every(onScreen) && !onScreen(worldToScreen(state.userLocation.point));
+    })).toBe(true);
+  });
+
+  test("remote history that arrives after the screen opened is drawn and framed", async ({ page }) => {
+    // Nothing saved on this device; the account's other device reported a tree at the forest.
+    await page.route(OVERLAY_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {}, reports: [] }) }));
+    await page.route("**/api/auth/me", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: true, name: "Sam", account: "acct-aaaa" }) }));
+    await page.route("**/api/auth/link", (route) => route.fulfill({ status: 200, contentType: "application/json", body: "{\"ok\":true}" }));
+    let release;
+    const held = new Promise((resolve) => { release = resolve; });
+    await page.route(/\/api\/community\/overlay\?me=[^&]*&list=1/, async (route) => {
+      await held;
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, reports: [
+        { id: "other-device-0001", kind: "tree", target: "tree:900001", status: "VERIFIED", ts: Date.now() - 1000, lat: 51.6663, lon: 0.045, outcome: "pending" },
+      ] }) });
+    });
+    await setup(page, "/community");
+    await page.waitForFunction(() => state.userLocation && !state.userLocation.isDefault);
+    // The first framing has happened with no marks; only now does the other device's history arrive.
+    await page.waitForTimeout(1500);
+    expect(await page.evaluate(() => communityMapMarks().length)).toBe(0);
+    // With no marks the camera shows the whole forest.
+    expect(await page.evaluate(() => state.viewport.scale / state.baseFitScale)).toBeLessThan(1.5);
+    release();
+    await expect.poll(() => page.evaluate(() => communityMapMarks().length)).toBe(1);
+    // ...and once the history lands the camera moves in on it.
+    await expect.poll(() => page.evaluate(() => !state.userInMapArea && state.viewport.scale / state.baseFitScale > 1.5)).toBe(true);
   });
 });

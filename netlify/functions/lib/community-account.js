@@ -3,6 +3,7 @@
 // device ids, so no reports are moved or rewritten when someone signs in.
 const crypto = require("crypto");
 const { EMPTY_SCORE } = require("./community-computed");
+const { loadDeviceOwners } = require("./community-links");
 
 const MAX_DEVICES_PER_ACCOUNT = 20;
 
@@ -11,26 +12,54 @@ function accountKey(sub) {
   return crypto.createHash("sha256").update(String(sub)).digest("hex").slice(0, 32);
 }
 
-// A device belongs to at most one account. Re-linking the same pair is a no-op.
+// Who owns a device is one record per device: `devicelink/<deviceId>` = { account }. That is the only
+// thing trusted. An account's membership is a set of independent marker records,
+// `accountdevices/<account>/<deviceId>`, written one per device, so two links never read-modify-write
+// a shared list and nothing can be lost to a concurrent update. Every read still checks the owner record
+// (devicesForRequest), so a stray or half-written marker can never expose another account's device.
+//
+// The store has no atomic compare-and-set, so linking claims the owner record first, then re-reads it to
+// see whether a concurrent link won the write, and only then writes the marker. A failure between the two
+// leaves the device owned but not yet a member, which linking the same pair again completes.
+const markerPrefix = (account) => `accountdevices/${account}/`;
+
 async function linkDevice(store, account, deviceId) {
   const owner = await store.get(`devicelink/${deviceId}`);
   if (owner && owner.account !== account) return { ok: false, status: 409, error: "This device is already linked to another account." };
-  const record = (await store.get(`accounts/${account}`)) || { devices: [] };
-  if (!record.devices.includes(deviceId)) {
-    if (record.devices.length >= MAX_DEVICES_PER_ACCOUNT) return { ok: false, status: 409, error: "This account already has the most devices it can link." };
-    record.devices.push(deviceId);
-    await store.put(`accounts/${account}`, record);
+  if (!owner) {
+    // A soft cap: concurrent first links can overshoot it by a few, which is harmless.
+    if ((await store.list(markerPrefix(account))).length >= MAX_DEVICES_PER_ACCOUNT) {
+      return { ok: false, status: 409, error: "This account already has the most devices it can link." };
+    }
+    await store.put(`devicelink/${deviceId}`, { account });
+    const claimed = await store.get(`devicelink/${deviceId}`);
+    if (!claimed || claimed.account !== account) return { ok: false, status: 409, error: "This device is already linked to another account." };
   }
-  if (!owner) await store.put(`devicelink/${deviceId}`, { account });
+  await store.put(`${markerPrefix(account)}${deviceId}`, { at: Date.now() });
   return { ok: true };
 }
 
-// The device ids a request may read as one person: all of the signed-in account's devices when the
-// requested device is one of them, otherwise just the requested device.
+// The device ids a request may read as one person.
+//  - Anonymous (no session): the requested device alone, as before.
+//  - Signed in, and the device is one of the account's: all of the account's devices that it still owns
+//    (checked against each device's owner record).
+//  - Signed in, and the device belongs to a different account: never that device. This account is shown
+//    only its own devices, so a second person on someone else's browser sees none of their data.
+//  - Signed in, and the device has no owner yet: the device alone (it is about to be linked).
 async function devicesForRequest(store, deviceId, session) {
   if (!session || !session.sub) return [deviceId];
-  const record = (await store.get(`accounts/${accountKey(session.sub)}`)) || { devices: [] };
-  return record.devices.includes(deviceId) ? record.devices : [deviceId];
+  const account = accountKey(session.sub);
+  const prefix = markerPrefix(account);
+  const owned = [];
+  for (const key of await store.list(prefix)) {
+    const device = key.slice(prefix.length);
+    const owner = await store.get(`devicelink/${device}`);
+    if (owner && owner.account === account) owned.push(device);
+  }
+  if (owned.includes(deviceId)) return owned;
+  const owner = await store.get(`devicelink/${deviceId}`);
+  if (owner && owner.account !== account) return owned;
+  return [deviceId];
 }
 
 // Sums per-device scores. Each field is a count or points, so adding them is the account's total.
@@ -43,4 +72,4 @@ function mergeScores(scores) {
   return merged;
 }
 
-module.exports = { accountKey, linkDevice, devicesForRequest, mergeScores, MAX_DEVICES_PER_ACCOUNT };
+module.exports = { accountKey, linkDevice, devicesForRequest, loadDeviceOwners, mergeScores, MAX_DEVICES_PER_ACCOUNT };

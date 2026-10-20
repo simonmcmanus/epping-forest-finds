@@ -575,6 +575,7 @@ globalThis.__forestFindsTest = {
   communityNudgeDecision,
   communityPendingScore,
   communityBadges,
+  communityMergeRemoteReports,
   communityStreaks,
   communityDisplayScore,
   COMMUNITY_POINTS,
@@ -11022,6 +11023,7 @@ function memoryStore(initial = {}) {
     async get(key) { return data.has(key) ? JSON.parse(JSON.stringify(data.get(key))) : null; },
     async put(key, value) { data.set(key, JSON.parse(JSON.stringify(value))); },
     async list(prefix) { return [...data.keys()].filter((k) => k.startsWith(prefix)); },
+    async delete(key) { data.delete(key); },
   };
 }
 
@@ -11386,6 +11388,145 @@ test("one network cannot mint endless device ids to confirm its own reports: com
   }
 });
 
+const communityDelete = require("../netlify/functions/lib/community-delete");
+
+async function deletionFixture() {
+  const store = memoryStore();
+  const day = "2026-10-20";
+  const reportFor = (id, deviceId, target, extra = {}) => communityReport({ id, deviceId, target, ...extra });
+  const reports = [
+    reportFor("report-a1-0001", "phone-device-a1", "tree:1"),
+    reportFor("report-a2-0001", "laptop-device-a2", "tree:2"),
+    reportFor("report-b1-0001", "other-device-b1", "tree:1"),
+    reportFor("report-b1-0002", "other-device-b1", "tree:2"),
+  ];
+  for (const r of reports) await store.put(`reports/${r.id}`, r);
+  await store.put("mine/phone-device-a1", [{ id: "report-a1-0001", kind: "tree", target: "tree:1", status: "VERIFIED", ts: 1 }, { id: "feedback-a1-001", kind: "feedback", status: "FEEDBACK", issue: 41, ts: 2 }]);
+  await store.put("mine/laptop-device-a2", [{ id: "report-a2-0001", kind: "tree", target: "tree:2", status: "VERIFIED", ts: 1 }, { id: "place-a2-00001", kind: "place", status: "CLOSED", issue: 42, ts: 2 }]);
+  await store.put("mine/other-device-b1", [{ id: "report-b1-0001", kind: "tree", target: "tree:1", status: "VERIFIED", ts: 1 }, { id: "place-b1-00001", kind: "place", status: "CLOSED", issue: 43, ts: 2 }]);
+  await store.put("devicelink/phone-device-a1", { account: "acct-a" });
+  await store.put("devicelink/laptop-device-a2", { account: "acct-a" });
+  await store.put("accountdevices/acct-a/phone-device-a1", {});
+  await store.put("accountdevices/acct-a/laptop-device-a2", {});
+  await store.put(`devices/phone-device-a1-${day}`, { n: 1 });
+  await store.put(`devices/other-device-b1-${day}`, { n: 2 });
+  await store.put("refs/ref-of-a1", { deviceId: "phone-device-a1" });
+  await store.put("refs/ref-of-a2", { deviceId: "laptop-device-a2" });
+  await store.put("refs/ref-of-b1", { deviceId: "other-device-b1" });
+  await store.put("validations", { items: [{ kind: "fix", deviceId: "phone-device-a1", issue: 41 }, { kind: "fix", deviceId: "other-device-b1", issue: 43 }], register: null, processedIssues: {} });
+  await communityComputed.rebuildComputed(store);
+  return store;
+}
+
+const keysWith = (store, prefix) => [...store.data.keys()].filter((k) => k.startsWith(prefix)).sort();
+
+test("a storage failure while listing stops a deletion instead of reporting it done", async () => {
+  const store = await deletionFixture();
+  const failing = { ...store, get: store.get, put: store.put, delete: store.delete, list: async () => { throw new Error("blobs down"); } };
+  await assert.rejects(communityDelete.deleteCommunityData(failing, { deviceId: "phone-device-a1", includeAccount: true }), /blobs down/);
+  assert.ok(store.data.has("devicelink/phone-device-a1"), "nothing was removed");
+});
+
+test("a failed read of any record a deletion depends on stops it, and nothing is reported deleted", async () => {
+  for (const failing of ["reports/", "refs/", "validations", "devicelink/phone-device-a1", "mine/phone-device-a1", "scores/"]) {
+    const store = await deletionFixture();
+    const broken = { ...store, getStrict: async (key) => { if (key.startsWith(failing)) throw new Error("read failed"); return store.get(key); } };
+    await assert.rejects(communityDelete.deleteCommunityData(broken, { deviceId: "phone-device-a1" }), /read failed/, failing);
+  }
+});
+
+test("deletion finds every issue a device filed, even past the 300-entry mine index cap", async () => {
+  const store = await deletionFixture();
+  for (let n = 1000; n < 1005; n += 1) await store.put(`issues/phone-device-a1/${n}`, { ts: n });
+  await store.put("issues/other-device-b1/2000", { ts: 1 });
+  const summary = await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1" });
+  assert.deepEqual([...summary.issues.pending].sort((a, b) => a - b), [41, 1000, 1001, 1002, 1003, 1004]);
+  assert.deepEqual(keysWith(store, "issues/phone-device-a1/"), []);
+  assert.deepEqual(keysWith(store, "issues/other-device-b1/"), ["issues/other-device-b1/2000"]);
+});
+
+test("deleting one device removes its reports, index, link, counters, references, rewards and score, and nobody else's", async () => {
+  const store = await deletionFixture();
+  assert.ok((await communityComputed.loadScore(store, "phone-device-a1")).points > 0, "the score exists before");
+  const summary = await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1" });
+  assert.equal(summary.devices, 1);
+  assert.equal(summary.reports, 1);
+  assert.equal(summary.links, 1);
+  assert.equal(summary.refs, 1);
+  assert.equal(summary.rewards, 1);
+  assert.equal(summary.counters, 1);
+  assert.equal(JSON.stringify(keysWith(store, "reports/")), JSON.stringify(["reports/report-a2-0001", "reports/report-b1-0001", "reports/report-b1-0002"]));
+  assert.equal(store.data.has("mine/phone-device-a1"), false);
+  assert.equal(store.data.has("devicelink/phone-device-a1"), false);
+  assert.equal(store.data.has("accountdevices/acct-a/phone-device-a1"), false);
+  assert.equal(store.data.has("refs/ref-of-a1"), false);
+  assert.equal(JSON.stringify(keysWith(store, "devices/")), JSON.stringify(["devices/other-device-b1-2026-10-20"]));
+  assert.equal(JSON.stringify((store.data.get("validations")).items.map((i) => i.deviceId)), JSON.stringify(["other-device-b1"]));
+  const score = await communityComputed.loadScore(store, "phone-device-a1");
+  assert.equal(score.points, 0, "its score is gone");
+  assert.ok((await communityComputed.loadScore(store, "laptop-device-a2")).points > 0, "the account's other device keeps its score");
+  assert.ok((await communityComputed.loadScore(store, "other-device-b1")).points > 0, "another person keeps theirs");
+  assert.equal(store.data.has("devicelink/laptop-device-a2"), true);
+  assert.equal(store.data.has("refs/ref-of-b1"), true);
+  assert.deepEqual(summary.issues.pending, [41], "the public issue it filed is handed back to be dealt with");
+  const overlay = store.data.get("computed").overlay;
+  assert.equal(overlay["tree:1"].n, 1, "tree 1 is now backed by one person, not two");
+});
+
+test("deleting with the account removes every device on it and the account's records, and nothing of other accounts", async () => {
+  const store = await deletionFixture();
+  const summary = await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1", includeAccount: true });
+  assert.equal(summary.devices, 2);
+  assert.equal(summary.reports, 2);
+  assert.equal(JSON.stringify(keysWith(store, "accountdevices/")), JSON.stringify([]));
+  assert.equal(JSON.stringify(keysWith(store, "devicelink/")), JSON.stringify([]));
+  assert.equal(JSON.stringify(keysWith(store, "mine/")), JSON.stringify(["mine/other-device-b1"]));
+  assert.equal(JSON.stringify(keysWith(store, "refs/")), JSON.stringify(["refs/ref-of-b1"]));
+  assert.equal((await communityComputed.loadScore(store, "laptop-device-a2")).points, 0);
+  assert.equal(JSON.stringify(summary.issues.pending.sort()), JSON.stringify([41, 42]), "both devices' public issues, and not the other person's #43");
+  const again = await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1", includeAccount: true });
+  assert.equal(again.reports, 0, "deleting twice is harmless");
+});
+
+test("public issues are redacted and closed only when an editor is supplied and asked for, and a failure is reported not hidden", async () => {
+  const edits = [];
+  const editor = async (number, changes) => { if (number === 42) throw new Error("boom"); edits.push({ number, changes }); };
+  const store = await deletionFixture();
+  const asked = await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1", includeAccount: true, github: editor, redactIssues: true });
+  assert.equal(JSON.stringify(asked.issues.redacted), JSON.stringify([41]));
+  assert.equal(JSON.stringify(asked.issues.failed), JSON.stringify([42]));
+  assert.equal(edits[0].changes.state, "closed");
+  assert.equal(edits[0].changes.body, communityDelete.REDACTED_BODY);
+  const quiet = await deletionFixture();
+  const notAsked = await communityDelete.deleteCommunityData(quiet, { deviceId: "phone-device-a1", github: editor, redactIssues: false });
+  assert.equal(JSON.stringify(notAsked.issues.pending), JSON.stringify([41]));
+  assert.equal(edits.length, 1, "an editor that was not asked for is never called");
+});
+
+test("deletion refuses a bad device id, and the admin endpoint needs the password, POST and an explicit confirmation", async () => {
+  await assert.rejects(communityDelete.deleteCommunityData(memoryStore(), { deviceId: "short" }), /device id/);
+  await assert.rejects(communityDelete.deleteCommunityData(memoryStore(), {}), /device id/);
+  const original = process.env.ADMIN_PASSWORD;
+  process.env.ADMIN_PASSWORD = "admin-secret-1";
+  try {
+    delete require.cache[require.resolve("../netlify/functions/community-delete")];
+    const endpoint = require("../netlify/functions/community-delete");
+    const asAdmin = { authorization: "Bearer admin-secret-1" };
+    assert.equal((await endpoint.handler({ httpMethod: "POST", headers: {}, body: "{}" })).statusCode, 401);
+    assert.equal((await endpoint.handler({ httpMethod: "POST", headers: { authorization: "Bearer nope" }, body: "{}" })).statusCode, 401);
+    assert.equal((await endpoint.handler({ httpMethod: "GET", headers: asAdmin })).statusCode, 405);
+    assert.equal((await endpoint.handler({ httpMethod: "POST", headers: asAdmin, body: "{nope" })).statusCode, 400);
+    const unconfirmed = await endpoint.handler({ httpMethod: "POST", headers: asAdmin, body: JSON.stringify({ deviceId: "phone-device-a1" }) });
+    assert.equal(unconfirmed.statusCode, 400);
+    assert.match(JSON.parse(unconfirmed.body).error, /confirm/);
+    const badId = await endpoint.handler({ httpMethod: "POST", headers: asAdmin, body: JSON.stringify({ deviceId: "x", confirm: "delete" }) });
+    assert.equal(badId.statusCode, 400);
+  } finally {
+    if (original === undefined) delete process.env.ADMIN_PASSWORD; else process.env.ADMIN_PASSWORD = original;
+    delete require.cache[require.resolve("../netlify/functions/community-delete")];
+  }
+});
+
 // --- The City of London discrepancy report (netlify/functions/lib/community-report-data.js) ---
 const communityReportData = require("../netlify/functions/lib/community-report-data");
 const reportSnapshot = () => communityConsensus.computeCommunityState([
@@ -11568,6 +11709,56 @@ test("conflict escalation files only new trees, caps each run, retries failures,
   assert.equal(none.filed, 0);
   assert.equal(none.skipped, "no-github");
   assert.equal((await communityEscalation.escalateConflicts(escalationStore(), { conflictDetails: [] }, { post })).filed, 0);
+});
+
+test("reports the server holds for an account are merged into the log without overwriting unsent or newer local entries", () => {
+  const local = {
+    "tree:1": { id: "local-unsent-1", status: "VERIFIED", ts: 100 },
+    "tree:2": { id: "local-sent-0002", status: "VERIFIED", ts: 500 },
+    "tree:3": { id: "local-failed-03", status: "NOT_HERE", ts: 50, failed: "refused" },
+  };
+  const remote = [
+    { id: "remote-aaaa-0001", kind: "tree", target: "tree:1", status: "NOT_HERE", ts: 900 },
+    { id: "remote-bbbb-0002", kind: "tree", target: "tree:2", status: "NOT_HERE", ts: 400 },
+    { id: "remote-cccc-0003", kind: "tree", target: "tree:3", status: "VERIFIED", ts: 900 },
+    { id: "remote-dddd-0004", kind: "tree", target: "tree:4", status: "VERIFIED", ts: 800, lat: 51.6, lon: 0.04 },
+    { id: "remote-eeee-0005", kind: "tree", target: null, status: "NEW_TREE", ts: 700, tagNumber: "T-9", lat: 51.7, lon: 0.05 },
+    { id: "remote-ffff-0006", kind: "place", target: "place:id:node/9", status: "CLOSED", ts: 600 },
+    { id: "remote-gggg-0007", kind: "feedback", target: null, status: "FEEDBACK", ts: 650 },
+  ];
+  const { local: merged, changed } = app.communityMergeRemoteReports(local, remote, new Set(["local-unsent-1"]));
+  assert.equal(changed, true);
+  assert.equal(merged["tree:1"].id, "local-unsent-1", "a report still waiting to send is kept");
+  assert.equal(merged["tree:2"].id, "local-sent-0002", "a newer local report wins");
+  assert.equal(merged["tree:3"].id, "local-failed-03", "a failed local report is kept");
+  assert.equal(merged["tree:4"].id, "remote-dddd-0004");
+  assert.equal(merged["tree:4"].remote, true);
+  assert.equal(merged["tree:4"].counted, true, "already in the server's score, so never counted again");
+  assert.equal(merged["new:T-9"].name, "Tree T-9");
+  assert.equal(merged["place:id:node/9"].kind, "place");
+  assert.equal(merged["feedback:remote-gggg-0007"].kind, "feedback");
+  assert.equal(JSON.stringify(local["tree:4"]), undefined, "the input is not changed");
+});
+
+test("merging remote reports ignores malformed entries and a newer server report replaces an older local one", () => {
+  const bad = [
+    null, "x", { id: "short", kind: "tree", target: "tree:5", status: "VERIFIED", ts: 1 },
+    { id: "remote-hhhh-0008", kind: "tree", target: "tree:5", status: "__proto__", ts: 1 },
+    { id: "remote-iiii-0009", kind: "tree", target: "tree:6", status: "VERIFIED", ts: "soon" },
+    { id: "remote-jjjj-0010", kind: "tree", target: "not a target", status: "VERIFIED", ts: 1 },
+  ];
+  const untouched = app.communityMergeRemoteReports({}, bad, new Set());
+  assert.equal(untouched.changed, false);
+  assert.equal(Object.keys(untouched.local).length, 0);
+  const newer = app.communityMergeRemoteReports({ "tree:7": { id: "local-old-0007", status: "VERIFIED", ts: 10 } }, [{ id: "remote-kkkk-0011", kind: "tree", target: "tree:7", status: "NOT_HERE", ts: 20 }], new Set());
+  assert.equal(newer.local["tree:7"].id, "remote-kkkk-0011", "the account's newer report on another device wins");
+  assert.equal(app.communityMergeRemoteReports({}, undefined, new Set()).changed, false);
+});
+
+test("reports merged from the server never add optimistic points or extend the streak", () => {
+  const { local } = app.communityMergeRemoteReports({}, [{ id: "remote-llll-0012", kind: "tree", target: "tree:8", status: "VERIFIED", ts: Date.now() }], new Set());
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 0)), JSON.stringify({ points: 0, verified: 0 }));
+  assert.equal(app.communityStreaks(local, Date.now()).current, 0);
 });
 
 runRegisteredTests().catch((error) => {

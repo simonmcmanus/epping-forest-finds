@@ -45,7 +45,7 @@ function clientIp(event) {
 const hashed = (value) => createHash("sha256").update(String(value)).digest("hex").slice(0, 16);
 
 // Resolves { ok: true } and counts the report, or { ok: false, retryAfter } (seconds) when a cap is hit.
-async function checkRateLimit(store, { ip = "", deviceId = "", now = Date.now(), limits = configuredLimits(), key = KEY } = {}) {
+async function checkRateLimit(store, { ip = "", deviceId = "", account = "", now = Date.now(), limits = configuredLimits(), key = KEY } = {}) {
   try {
     const hour = Math.floor(now / HOUR_MS);
     let doc = await store.get(key);
@@ -53,6 +53,8 @@ async function checkRateLimit(store, { ip = "", deviceId = "", now = Date.now(),
     const scopes = [["g", limits.global]];
     if (ip) scopes.push([`i:${hashed(ip)}`, limits.perIp]);
     if (deviceId) scopes.push([`d:${deviceId}`, limits.perDevice]);
+    // A signed-in account's linked devices share one allowance, so linking more devices adds no capacity.
+    if (account) scopes.push([`a:${account}`, limits.perDevice]);
     if (scopes.some(([key, max]) => (doc.counts[key] || 0) >= max)) {
       return { ok: false, retryAfter: Math.max(1, Math.ceil(((hour + 1) * HOUR_MS - now) / 1000)) };
     }
