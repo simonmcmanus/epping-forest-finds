@@ -573,6 +573,8 @@ globalThis.__forestFindsTest = {
   recoverWedgedAnimationFrames,
   communityRank,
   communityMedalHtml,
+  communityWeekDays,
+  communityRelativeDay,
   communityPointsChipFor,
   communityNudgeDecision,
   communityPendingScore,
@@ -10982,6 +10984,25 @@ test("each rank gets its own medal and the points chip shows what a check earns"
   assert.match(app.communityPointsChipFor("NOT_HERE", "near"), /up to \+2/);
   assert.match(app.communityPointsChipFor("VERIFIED", "far"), /is-zero[^>]*>\+0</);
   assert.match(app.communityPointsChipFor("VERIFIED", "none"), /is-zero/);
+});
+
+test("the streak week strip marks each of the last seven days that has a report, today last", () => {
+  const now = new Date(2026, 9, 20, 12).getTime();
+  const day = 86400000;
+  const week = app.communityWeekDays({ a: { ts: now }, b: { ts: now - 2 * day }, c: { ts: now - 9 * day }, d: { ts: now - day, kind: "feedback" } }, now);
+  assert.equal(week.length, 7);
+  assert.equal(week.map((d) => d.done).join(), "false,false,false,false,true,false,true");
+  assert.equal(week[6].today, true);
+  assert.equal(week.filter((d) => d.today).length, 1);
+});
+
+test("report dates read as Today, Yesterday, N days ago, then a short date", () => {
+  const now = new Date(2026, 9, 20, 12).getTime();
+  const day = 86400000;
+  assert.equal(app.communityRelativeDay(now - 3600000, now), "Today");
+  assert.equal(app.communityRelativeDay(now - day, now), "Yesterday");
+  assert.equal(app.communityRelativeDay(now - 3 * day, now), "3 days ago");
+  assert.match(app.communityRelativeDay(now - 30 * day, now), /Sep/);
 });
 
 const communityPointsConfig = require("../netlify/functions/lib/community-points");

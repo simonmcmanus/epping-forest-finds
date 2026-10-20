@@ -1304,32 +1304,50 @@ button.settings-toggle.has-update::after {
 .community-add .community-icon { width: 18px; height: 18px; }
 
 /* Settings: your contributions */
-.community-contributions { padding-bottom: 6px; }
-.community-rank-card { display: flex; align-items: center; gap: 12px; }
+.community-contributions { margin-top: 16px; }
+.community-sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.community-hero { padding: 16px; border-radius: var(--c-radius); border: var(--c-hairline); background: linear-gradient(180deg, #f5faf4, #fff 70%); box-shadow: var(--c-lift); }
+.community-rank-card { display: flex; align-items: center; gap: 14px; }
 .community-rank-icon { flex-shrink: 0; display: grid; }
 .community-rank-text p { margin: 0; }
 .community-rank { font-size: 1.15rem; color: var(--ink); }
 .community-rank-points { font-size: 0.86rem; color: var(--muted); }
-.community-progress { height: 8px; border-radius: 999px; background: #e7ece6; overflow: hidden; margin-top: 12px; }
+.community-progress { height: 12px; border-radius: 999px; background: #e3eae1; overflow: hidden; margin-top: 14px; box-shadow: inset 0 1px 2px rgba(20, 36, 28, 0.12); }
 .community-progress span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--tree), #6fae83); transition: width 300ms ease; }
-.community-streak { margin: 12px 0 6px; font-size: 0.85rem; color: var(--muted, #555); }
+.community-streak-row { margin-top: 14px; padding-top: 12px; border-top: var(--c-hairline); display: grid; gap: 8px; }
+.community-streak { margin: 0; font-size: 0.85rem; color: var(--muted, #555); }
+.community-week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin: 0; padding: 0; list-style: none; }
+.community-week-day { display: grid; justify-items: center; gap: 3px; font-size: 0.68rem; color: var(--muted); }
+.community-week-dot { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: #eef1ec; box-shadow: inset 0 0 0 1px rgba(23, 34, 30, 0.1); color: #fff; }
+.community-week-dot .community-icon { width: 16px; height: 16px; }
+.community-week-day.is-done .community-week-dot { background: var(--tree); box-shadow: none; }
+.community-week-day.is-today .community-week-label { font-weight: 800; color: var(--ink); }
+.community-week-day.is-today:not(.is-done) .community-week-dot { box-shadow: inset 0 0 0 2px var(--tree); }
 .community-streak strong { color: var(--ink); }
 .community-badge-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
 .community-badge-item { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px 4px 6px; border-radius: 999px; font-size: 0.75rem; border: 1px dashed rgba(0, 0, 0, 0.2); color: #888; background: transparent; }
 .community-badge-item.is-earned { border: 1px solid #2f8a4f; color: #1f6a3a; background: rgba(47, 138, 79, 0.1); }
 .community-badge-icon { display: inline-flex; width: 16px; height: 16px; }
 .community-badge-icon svg { width: 16px; height: 16px; }
-.community-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 12px; }
-.community-stats div { display: grid; gap: 2px; padding: 10px 8px; text-align: center; border: var(--c-hairline); border-radius: var(--c-radius); background: #fff; }
+.community-stats { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 14px; }
+.community-stats div { display: grid; gap: 2px; padding: 2px 6px; text-align: center; }
+.community-stats div + div { border-left: var(--c-hairline); }
 .community-stats strong { font-size: 1.2rem; color: var(--ink); }
 .community-stats span { font-size: 0.72rem; line-height: 1.2; color: var(--muted); }
 
-.community-log { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+.community-log { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
 .community-log-item {
-  display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; align-items: center;
-  padding: 10px 12px; border: 1px solid rgba(0, 0, 0, 0.08); border-radius: 12px; background: #fff;
+  display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center;
+  padding: 10px 12px; border: var(--c-hairline); border-radius: var(--c-radius); background: #fff;
 }
-.community-log-icon { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; color: var(--tree); background: rgba(47, 111, 78, 0.1); grid-row: span 2; }
+.community-log-item .community-log-main { flex: 1 1 120px; }
+.community-log-item .community-pill { margin-left: auto; }
+.community-log-item .community-log-error, .community-log-item .community-issue-link { flex: 1 0 100%; }
+.community-log-icon { width: 34px; height: 34px; flex-shrink: 0; border-radius: 10px; display: grid; place-items: center; color: var(--tree); background: rgba(47, 111, 78, 0.1); }
+.community-filter { display: flex; gap: 6px; margin-top: 10px; overflow-x: auto; }
+.community-filter-btn { flex: none; min-height: 36px; padding: 0 14px; border-radius: 999px; border: var(--c-hairline); background: #fff; font: inherit; font-size: 0.8rem; font-weight: 700; color: var(--muted); cursor: pointer; }
+.community-filter-btn.is-active { background: var(--tree); border-color: var(--tree); color: #fff; }
+.community-filter-btn:focus-visible { outline: 2px solid var(--tree); outline-offset: 2px; }
 .community-log-main { display: grid; min-width: 0; }
 .community-log-name { font-weight: 800; font-size: 0.92rem; overflow-wrap: anywhere; }
 .community-log-name a { color: var(--ink); text-decoration: none; }
@@ -1372,7 +1390,7 @@ button.settings-toggle.has-update::after {
 .community-feedback-text { flex: 1; min-width: 0; display: grid; gap: 2px; font-size: 0.9rem; }
 .community-feedback-text span { font-size: 0.8rem; color: var(--muted); }
 .community-feedback-link > .community-icon { width: 18px; height: 18px; color: var(--muted); }
-.community-intro + .community-contributions { margin-top: 16px; }
+
 .community-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 10px 0 0; font-size: 0.8rem; color: var(--muted); }
 .community-legend-item { display: inline-flex; align-items: center; gap: 6px; }
 .community-dot { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 2px #fff, 0 0 0 3px rgba(0, 0, 0, 0.12); }
@@ -1391,7 +1409,15 @@ button.settings-toggle.has-update::after {
 .community-send:disabled { background: #b9c7be; box-shadow: none; cursor: not-allowed; }
 .community-send:focus-visible { outline: 2px solid var(--tree); outline-offset: 2px; }
 
-.community-add-tree, .community-feedback { padding-top: 14px; border-top: 1px solid #edf0eb; margin-top: 6px; }
+.community-add-tree, .community-feedback { padding-top: 6px; margin-top: 0; }
+.community-actions { padding-bottom: 0; }
+.community-action-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--c-radius); border: 1px solid rgba(47, 111, 78, 0.3); background: #f1f7f2; color: var(--ink); text-decoration: none; min-height: 56px; box-shadow: var(--c-lift); }
+.community-action-row:hover { background: #e8f1ea; }
+.community-action-row:focus-visible { outline: 2px solid var(--tree); outline-offset: 2px; }
+.community-action-icon { width: 40px; height: 40px; flex-shrink: 0; border-radius: 12px; display: grid; place-items: center; color: #fff; background: var(--tree); }
+.community-action-text { flex: 1; min-width: 0; display: grid; gap: 2px; font-size: 0.82rem; color: var(--muted); line-height: 1.3; }
+.community-action-text strong { font-size: 0.95rem; color: var(--ink); }
+.community-action-row > .community-icon:last-child { color: var(--muted); }
 .community-new-form { display: grid; gap: 12px; padding: 14px; border-radius: var(--c-radius); background: #f6f9f5; border: 1px solid rgba(47, 111, 78, 0.22); }
 .community-location {
   display: flex; align-items: center; gap: 8px; padding: 10px 12px; border-radius: 10px;
@@ -1720,3 +1746,13 @@ dd {
 .community-account-text:has(+ a[href^="/api/auth/login"]) strong { display: block; margin-bottom: 2px; }
 .community-account-card .community-chip { background: #f1f7f2; border-color: rgba(47, 111, 78, 0.25); color: var(--tree); justify-self: start; width: auto; min-height: 44px; display: inline-flex; align-items: center; padding: 0 16px; font-weight: 700; text-decoration: none; }
 .community-account-note { margin: 0; padding: 8px 10px; border-radius: 8px; background: var(--gold-tint); font-size: 0.82rem; line-height: 1.35; color: var(--ink); }
+
+/* Sign-in as a slim banner that can be put away, then a quiet link */
+.community-account-banner { position: relative; padding-right: 44px; margin-top: 14px; }
+.community-banner-dismiss { position: absolute; top: 2px; right: 2px; width: 44px; height: 44px; display: grid; place-items: center; border: 0; background: transparent; color: var(--muted); cursor: pointer; border-radius: 50%; }
+.community-banner-dismiss .community-icon { width: 16px; height: 16px; }
+.community-banner-dismiss:focus-visible { outline: 2px solid var(--tree); outline-offset: -4px; }
+.community-account-quiet { margin: 10px 0 0; font-size: 0.82rem; }
+.community-account-quiet a { color: var(--tree); font-weight: 700; }
+.community-badges-section { padding-top: 0; }
+@media (prefers-reduced-motion: reduce) { .community-progress span { transition: none; } }

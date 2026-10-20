@@ -794,6 +794,10 @@ function setupSearchAndNavHandlers() {
       }
       return;
     }
+    const logFilter = event.target.closest("[data-action='community-log-filter']");
+    if (logFilter) { communityLogFilter = logFilter.dataset.filter; communityRenderContributions(); return; }
+    const signinDismiss = event.target.closest("[data-action='community-signin-dismiss']");
+    if (signinDismiss) { communityDismissSignin(); return; }
     const addStart = event.target.closest("[data-action='community-add-start']");
     if (addStart) { communityStartAddTree(); return; }
     const retryButton = event.target.closest("[data-action='community-retry']");

@@ -299,11 +299,29 @@ function communityBadges(score, local, now = Date.now()) {
   return { earned: COMMUNITY_BADGES.filter((b) => b.test(metrics)), locked: COMMUNITY_BADGES.filter((b) => !b.test(metrics)), streak: streaks.current };
 }
 
+// The last seven days (oldest first, today last), each marked when this device made a report that day.
+function communityWeekDays(local, now = Date.now()) {
+  const reported = new Set(Object.values(local || {}).filter((e) => e && Number(e.ts) > 0 && !e.counted && e.kind !== "feedback").map((e) => communityLocalDay(e.ts)));
+  const today = communityLocalDay(now);
+  return Array.from({ length: 7 }, (_, i) => {
+    const day = today - 6 + i;
+    return { day, done: reported.has(day), today: day === today, label: new Date(now - (6 - i) * 86400000).toLocaleDateString("en-GB", { weekday: "short" }) };
+  });
+}
+
+function communityStreakHtml(local) {
+  const streak = communityStreaks(local).current;
+  const week = communityWeekDays(local);
+  return `<div class="community-streak-row">
+      <p class="community-streak">${streak > 0 ? `<strong>${streak}-day streak</strong> · keep it going by checking something today` : "Check something today to start a streak"}</p>
+      <ol class="community-week" aria-label="Last seven days">${week.map((d) => `<li class="community-week-day${d.done ? " is-done" : ""}${d.today ? " is-today" : ""}"><span class="community-week-dot">${d.done ? communityIcon("check") : ""}</span><span class="community-week-label">${d.label.slice(0, 2)}</span><span class="community-sr">${d.label}${d.done ? ", checked" : ""}</span></li>`).join("")}</ol>
+    </div>`;
+}
+
 function communityBadgesHtml(score, local) {
-  const { earned, locked, streak } = communityBadges(score, local);
+  const { earned, locked } = communityBadges(score, local);
   const badge = (b, on) => `<li class="community-badge-item${on ? " is-earned" : ""}" title="${escapeHtml(b.name)}${on ? "" : " (not yet earned)"}"><span class="community-badge-icon">${communityIcon(b.icon)}</span><span>${escapeHtml(b.name)}</span></li>`;
   return `<div class="community-badges">
-      <p class="community-streak">${streak > 0 ? `<strong>${streak}-day streak</strong> · keep it going by checking something today` : "Check something today to start a streak"}</p>
       <ul class="community-badge-list" aria-label="Badges">${earned.map((b) => badge(b, true)).join("")}${locked.map((b) => badge(b, false)).join("")}</ul>
     </div>`;
 }
@@ -1421,10 +1439,57 @@ function communityTargetLabel(key, entry) {
 }
 
 function communityContributionsHtml() {
-  return `<section class="settings-section community-contributions">
-      <h3 class="settings-section-title">Your contributions</h3>
-      <div id="communityContributions"><p class="settings-description">Loading…</p></div>
+  return `<section class="community-contributions">
+      <h3 class="community-sr">Your contributions</h3>
+      <div id="communityContributions" class="community-hero"><p class="settings-description">Loading…</p></div>
     </section>`;
+}
+
+function communityBadgesSectionHtml() {
+  return `<section class="settings-section community-badges-section"><div id="communityBadgesHost"></div></section>`;
+}
+
+function communityLogSectionHtml() {
+  return `<section class="settings-section community-reports">
+      <h3 class="settings-section-title">Your reports</h3>
+      <div id="communityLog"></div>
+    </section>`;
+}
+
+// What a walker can do right now. The first row goes to the map, where a tree's own page has the check.
+function communityActionsHtml() {
+  const located = typeof hasRealLocation === "function" && hasRealLocation();
+  return `<section class="settings-section community-actions">
+      <h3 class="settings-section-title">Do something now</h3>
+      <a class="community-action-row" href="/nearby">
+        <span class="community-action-icon">${communityIcon("locate")}</span>
+        <span class="community-action-text"><strong>Check trees near you</strong><span>${located ? "Walk up to a tree and tap Verify to earn a point" : "Turn on location to earn points for checks"}</span></span>
+        ${communityIcon("chevron")}
+      </a>
+    </section>`;
+}
+
+// Everything the screen shows from the user's own history is cleared whenever the hero is replaced by a
+// note, so a previous person's rows never show beside "Loading…".
+function communityResetHosts(heroHtml) {
+  const hero = document.getElementById("communityContributions");
+  if (hero) hero.innerHTML = heroHtml;
+  for (const id of ["communityBadgesHost", "communityLog"]) {
+    const host = document.getElementById(id);
+    if (host) host.innerHTML = "";
+  }
+}
+
+let communityLogFilter = "all";
+const COMMUNITY_ATTENTION_OUTCOMES = ["failed", "waiting", "review"];
+const COMMUNITY_DONE_OUTCOMES = ["confirmed", "validated", "fixed", "checked"];
+
+function communityRelativeDay(ts, now = Date.now()) {
+  const days = communityLocalDay(now) - communityLocalDay(ts);
+  if (days <= 0) return "Today";
+  if (days === 1) return "Yesterday";
+  if (days < 7) return `${days} days ago`;
+  return new Date(ts).toLocaleDateString("en-GB", { day: "numeric", month: "short" });
 }
 
 async function communityRenderContributions() {
@@ -1434,36 +1499,45 @@ async function communityRenderContributions() {
   if (!communityIdentitySettled && navigator.onLine && !communityIdentityFailed) return;
   const remembered = communityReadAccount();
   if (communityIdentityFailed && remembered && remembered.signedIn) {
-    host.innerHTML = `<p class="settings-description">Couldn't check who is signed in just now. Reload to try again.</p>`;
+    communityResetHosts(`<p class="settings-description">Couldn't check who is signed in just now. Reload to try again.</p>`);
     return;
   }
   const waitingIds = new Set((await outboxList()).map((item) => item.id));
-  const score = communityDisplayScore(communityReadScore(), communityReadLocal(), waitingIds);
+  const local = communityReadLocal();
+  const score = communityDisplayScore(communityReadScore(), local, waitingIds);
   const rank = communityRank(score.points);
   const outcomes = communityReadLog();
-  const entries = Object.entries(communityReadLocal()).sort((a, b) => b[1].ts - a[1].ts);
   const span = rank.next ? rank.next.min - rank.min : 1;
   const progress = rank.next ? Math.min(100, Math.round(((score.points - rank.min) / span) * 100)) : 100;
   const toNext = rank.next ? `${rank.next.min - score.points} to ${escapeHtml(rank.next.name)}` : "Top rank";
-  const rows = entries.map(([key, entry]) => {
-    const label = communityTargetLabel(key, entry);
-    const isPlace = entry.kind === "place";
+  const entries = Object.entries(local).map(([key, entry]) => {
     const outcome = waitingIds.has(entry.id) ? "waiting"
       : entry.failed ? "failed"
       : entry.kind === "feedback" ? (outcomes[entry.id] === "fixed" ? "fixed" : "sent")
-      : isPlace && entry.status === "OPEN_CONFIRMED" ? "checked"
-      : isPlace ? (outcomes[entry.id] === "confirmed" ? "confirmed" : "sent")
+      : entry.kind === "place" && entry.status === "OPEN_CONFIRMED" ? "checked"
+      : entry.kind === "place" ? (outcomes[entry.id] === "confirmed" ? "confirmed" : "sent")
       : (outcomes[entry.id] || (entry.far ? "far" : "pending"));
+    return { key, entry, outcome };
+  }).sort((a, b) => (COMMUNITY_ATTENTION_OUTCOMES.includes(b.outcome) - COMMUNITY_ATTENTION_OUTCOMES.includes(a.outcome)) || b.entry.ts - a.entry.ts);
+  const attention = entries.filter((e) => COMMUNITY_ATTENTION_OUTCOMES.includes(e.outcome)).length;
+  const filter = ["attention", "done"].includes(communityLogFilter) ? communityLogFilter : "all";
+  const shown = entries.filter((e) => filter === "all" || (filter === "attention" ? COMMUNITY_ATTENTION_OUTCOMES : COMMUNITY_DONE_OUTCOMES).includes(e.outcome));
+  const rows = shown.map(({ key, entry, outcome }) => {
+    const label = communityTargetLabel(key, entry);
     const name = label.href ? `<a href="${escapeHtml(label.href)}">${escapeHtml(label.text)}</a>` : escapeHtml(label.text);
     return `<li class="community-log-item">
         <span class="community-log-icon">${communityIcon(COMMUNITY_STATUS_ICON[entry.status] || "check")}</span>
-        <span class="community-log-main"><span class="community-log-name">${name}</span><span class="community-log-status">${escapeHtml(COMMUNITY_STATUS_TEXT[entry.status] || entry.status)}</span></span>
+        <span class="community-log-main"><span class="community-log-name">${name}</span><span class="community-log-status">${escapeHtml(COMMUNITY_STATUS_TEXT[entry.status] || entry.status)}${entry.ts ? ` · ${escapeHtml(communityRelativeDay(entry.ts))}` : ""}</span></span>
         <span class="community-pill community-outcome-${outcome}">${communityIcon(COMMUNITY_OUTCOME_ICON[outcome])}${escapeHtml(COMMUNITY_OUTCOME_TEXT[outcome])}</span>${label.issueUrl && /^https:\/\/github\.com\//.test(label.issueUrl) ? `<a class="community-issue-link" href="${escapeHtml(label.issueUrl)}" target="_blank" rel="noopener">View on GitHub</a>` : ""}${entry.failed ? `<span class="community-log-error"><span>${escapeHtml(entry.failed)}</span> <button type="button" class="community-link" data-action="community-retry" data-id="${escapeHtml(entry.id)}">Send again</button></span>` : ""}
       </li>`;
   }).join("");
   const volatileNote = waitingIds.size && typeof outboxIsDurable === "function" && !outboxIsDurable()
     ? `<p class="community-log-error">This browser can't save waiting reports. Keep the app open until they are sent.</p>`
     : "";
+  const filters = entries.length >= 3
+    ? `<div class="community-filter" role="group" aria-label="Filter your reports">${[["all", "All"], ["attention", `Needs attention${attention ? ` (${attention})` : ""}`], ["done", "Confirmed"]].map(([id, text]) => `<button type="button" class="community-filter-btn${filter === id ? " is-active" : ""}" data-action="community-log-filter" data-filter="${id}" aria-pressed="${filter === id}">${text}</button>`).join("")}</div>`
+    : "";
+  const empty = `<div class="community-empty">${typeof appIconHtml === "function" ? appIconHtml("tree", "app-icon community-empty-art") : ""}<p><strong>No reports yet</strong><span>Open a tree or a place and tap “Help check”. You get a point for each tree you check, and another when someone else agrees.</span></p></div>`;
   host.innerHTML = `${volatileNote}<div class="community-rank-card">
         <span class="community-rank-icon">${communityMedalHtml(rank)}</span>
         <div class="community-rank-text">
@@ -1471,17 +1545,19 @@ async function communityRenderContributions() {
           <p class="community-rank-points">${score.points} ${score.points === 1 ? "point" : "points"} · ${toNext}</p>
         </div>
       </div>
-      <div class="community-progress" role="progressbar" aria-label="Progress to the next rank" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><span style="width:${progress}%"></span></div>
-      ${communityLegendHtml(communityMapMarks())}
-      ${communityBadgesHtml(score, communityReadLocal())}
+      <div class="community-progress" role="progressbar" aria-label="Progress to the next rank" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}" aria-valuetext="${escapeHtml(rank.name)}, ${progress}% of the way to ${escapeHtml(rank.next ? rank.next.name : "the top rank")}"><span style="width:${progress}%"></span></div>
       <div class="community-stats">
         <div><strong>${score.verified}</strong><span>Verified</span></div>
         <div><strong>${score.confirmed}</strong><span>Confirmed by others</span></div>
         <div><strong>${entries.length}</strong><span>Your reports</span></div>
       </div>
-      ${rows
-        ? `<ul class="community-log">${rows}</ul>`
-        : `<div class="community-empty">${typeof appIconHtml === "function" ? appIconHtml("tree", "app-icon community-empty-art") : ""}<p><strong>No reports yet</strong><span>Open a tree or a place and tap “Help check”. You get a point for each tree you check, and another when someone else agrees.</span></p></div>`}`;
+      ${communityStreakHtml(local)}`;
+  const badgesHost = document.getElementById("communityBadgesHost");
+  if (badgesHost) badgesHost.innerHTML = communityBadgesHtml(score, local);
+  const logHost = document.getElementById("communityLog");
+  if (logHost) {
+    logHost.innerHTML = `${communityLegendHtml(communityMapMarks())}${filters}${rows ? `<ul class="community-log">${rows}</ul>` : entries.length ? `<p class="settings-description">Nothing here yet.</p>` : empty}`;
+  }
 }
 
 // Reports the server holds for this person (this device and, when signed in, every device on the account)
@@ -1575,6 +1651,17 @@ function communityReadAccount() {
   try { return JSON.parse(localStorage.getItem(COMMUNITY_ACCOUNT_KEY)) || null; } catch { return null; }
 }
 
+const COMMUNITY_SIGNIN_DISMISSED_KEY = "ff-community-signin-dismissed-v1";
+
+function communitySigninDismissed() {
+  try { return localStorage.getItem(COMMUNITY_SIGNIN_DISMISSED_KEY) === "1"; } catch { return false; }
+}
+
+function communityDismissSignin() {
+  try { localStorage.setItem(COMMUNITY_SIGNIN_DISMISSED_KEY, "1"); } catch {}
+  communityRenderAccount(communityReadAccount());
+}
+
 function communityRenderAccount(account, note = "") {
   const host = document.getElementById("communityAccount");
   if (!host) return;
@@ -1584,9 +1671,12 @@ function communityRenderAccount(account, note = "") {
         <p class="community-account-text">Signed in as <strong>${escapeHtml(account.name)}</strong>. Your points follow you to any device you sign in on.</p>
         <a class="community-chip" href="/api/auth/logout?return=/community">Sign out</a>${noteHtml}
       </div>`
-    : `<div class="community-account-card">
+    : communitySigninDismissed() && !note
+      ? `<p class="community-account-quiet"><a href="/api/auth/login?return=/community">Sign in to keep your points on any device</a></p>`
+      : `<div class="community-account-card community-account-banner">
         <p class="community-account-text"><strong>Keep your points on any device</strong> Sign in with a social account or email. You can still check trees without signing in.</p>
-        <a class="community-chip" href="/api/auth/login?return=/community">Sign in</a>${noteHtml}
+        <a class="community-chip" href="/api/auth/login?return=/community">Sign in</a>
+        <button type="button" class="community-banner-dismiss" data-action="community-signin-dismiss" aria-label="Hide this for now">${communityIcon("x")}</button>${noteHtml}
       </div>`;
 }
 
@@ -1686,15 +1776,13 @@ async function communityOpenContributions() {
     // A screen that is already drawn (reopened, or the account changed in another tab) still shows the last
     // account until this answers: put it back to a neutral state first.
     const accountHost = document.getElementById("communityAccount");
-    const listHost = document.getElementById("communityContributions");
     if (accountHost) accountHost.innerHTML = "";
-    if (listHost) listHost.innerHTML = `<p class="settings-description">Loading…</p>`;
+    communityResetHosts(`<p class="settings-description">Loading…</p>`);
   }
   const identity = await communityRefreshAccount();
   const known = communityReadAccount();
   if (identity === "failed" && known && known.signedIn) {
-    const host = document.getElementById("communityContributions");
-    if (host) host.innerHTML = `<p class="settings-description">Couldn't check who is signed in just now. Reload to try again.</p>`;
+    communityResetHosts(`<p class="settings-description">Couldn't check who is signed in just now. Reload to try again.</p>`);
     const accountHost = document.getElementById("communityAccount");
     if (accountHost) accountHost.innerHTML = "";
     return;

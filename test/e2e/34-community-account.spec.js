@@ -23,6 +23,17 @@ test.describe("Community sign-in", () => {
     await expect(page.locator(".community-contributions")).toBeVisible();
   });
 
+  test("the sign-in banner can be put away and leaves a quiet link", async ({ page }) => {
+    await page.route(ME_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: false }) })
+    );
+    await setup(page, "/community");
+    await expect(page.locator(".community-account-banner")).toBeVisible();
+    await page.click("[data-action='community-signin-dismiss']");
+    await expect(page.locator(".community-account-banner")).toHaveCount(0);
+    await expect(page.locator(".community-account-quiet a[href^='/api/auth/login']")).toBeVisible();
+  });
+
   test("a signed-in visitor sees their name, can sign out, and their device is linked once", async ({ page }) => {
     await page.route(ME_URL, (route) =>
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: true, name: "Sam Walker", account: "acct-sam" }) })

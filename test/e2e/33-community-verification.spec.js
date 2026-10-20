@@ -747,6 +747,32 @@ test.describe("Badges and streaks", () => {
     await expect(page.locator(".community-badge-item:not(.is-earned)").first()).toBeVisible();
   });
 
+  test("the week strip, the pinned needs-attention reports and the filter", async ({ page }) => {
+    const now = Date.now();
+    const local = {
+      "tree:1": { id: "a1", status: "VERIFIED", ts: now - 3000 },
+      "tree:2": { id: "b2", status: "VERIFIED", ts: now - 2000 },
+      "tree:3": { id: "c3", status: "NOT_HERE", ts: now - 1000, failed: "That report was refused." },
+    };
+    await page.addInitScript((local) => {
+      if (localStorage.getItem("seeded")) return;
+      localStorage.setItem("seeded", "1");
+      localStorage.setItem("ff-community-local-v1", JSON.stringify(local));
+    }, local);
+    await page.route(OVERLAY_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {} }) }));
+    await setup(page, "/community");
+    await expect(page.locator(".community-week-day")).toHaveCount(7);
+    await expect(page.locator(".community-week-day.is-today.is-done")).toHaveCount(1);
+    // Couldn't-send rows come first even though they are the newest or oldest.
+    await expect(page.locator(".community-log-item").first()).toContainText("Couldn't send");
+    await expect(page.locator(".community-log-status").first()).toContainText("Today");
+    await page.click("[data-action='community-log-filter'][data-filter='attention']");
+    await expect(page.locator(".community-log-item")).toHaveCount(1);
+    await page.click("[data-action='community-log-filter'][data-filter='all']");
+    await expect(page.locator(".community-log-item")).toHaveCount(3);
+  });
+
   test("with nothing reported it invites the first check", async ({ page }) => {
     await page.route(OVERLAY_URL, (route) =>
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {} }) }));
