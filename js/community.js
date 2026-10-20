@@ -476,12 +476,29 @@ if (typeof document !== "undefined" && document.addEventListener) {
   });
 }
 
-function communityChoiceHtml(choice, chosen) {
+function communityChoiceHtml(choice, chosen, chipHtml = "") {
   const attrs = `data-action="community-report" data-status="${choice.status}"${choice.needsPosition ? ' data-needs-position="1"' : ""}`;
   if (choice.status === "VERIFIED") {
-    return `<button class="community-verify${chosen ? " is-chosen" : ""}" type="button" ${attrs}>${communityIcon(choice.icon, "community-icon community-verify-icon")}<span>${escapeHtml(choice.label)}</span></button>`;
+    return `<button class="community-verify${chosen ? " is-chosen" : ""}" type="button" ${attrs}>${communityIcon(choice.icon, "community-icon community-verify-icon")}<span>${escapeHtml(choice.label)}</span>${chipHtml}</button>`;
   }
   return `<button class="community-chip${chosen ? " is-chosen" : ""}" type="button" ${attrs}><span class="community-chip-icon">${communityIcon(choice.icon)}</span><span class="community-chip-label">${escapeHtml(choice.label)}</span></button>`;
+}
+
+// "Something not right?" is a disclosure: the alternatives stay folded until asked for (or while changing an
+// earlier answer), so the one-tap verify is the whole card at rest.
+function communityMoreHtml(choicesHtml, open) {
+  return `<button type="button" class="community-or community-more" data-action="community-more" aria-expanded="${open}"><span>Something not right?</span>${communityIcon("chevron")}</button>
+      <div class="community-choices"${open ? "" : " hidden"}>${choicesHtml}</div>`;
+}
+
+function communityToggleMore(button) {
+  const section = button.closest(".community-check");
+  const choices = button.nextElementSibling;
+  if (!section || !choices) return;
+  const open = button.getAttribute("aria-expanded") !== "true";
+  button.setAttribute("aria-expanded", String(open));
+  choices.hidden = !open;
+  if (open) section.dataset.more = "1"; else delete section.dataset.more;
 }
 
 // How far the reader is from a tree, for the "you need to be close to earn points" note. A check only
@@ -528,11 +545,15 @@ function communityUpdateRangeNotes() {
     const note = section.querySelector(".community-range");
     if (!note || section.dataset.kind === "place") return;
     const chosen = section.querySelector(".is-chosen");
-    note.outerHTML = communityRangeNoteHtml(Number(section.dataset.lat), Number(section.dataset.lon), chosen ? chosen.dataset.status : null);
+    const lat = Number(section.dataset.lat);
+    const lon = Number(section.dataset.lon);
+    note.outerHTML = communityRangeNoteHtml(lat, lon, chosen ? chosen.dataset.status : null);
+    const verifyChip = section.querySelector(".community-verify .community-points-chip");
+    if (verifyChip) verifyChip.outerHTML = communityPointsChipFor("VERIFIED", communityRange(lat, lon).state);
   });
 }
 
-function communitySectionInnerHtml(target, editing, lat, lon) {
+function communitySectionInnerHtml(target, editing, lat, lon, more = false) {
   const local = communityReadLocal()[target];
   const remote = communityOverlay.entries[target];
   if (local && !editing) {
@@ -541,16 +562,15 @@ function communitySectionInnerHtml(target, editing, lat, lon) {
         <span class="community-mine-icon">${communityIcon("check")}</span>
         <p><strong>You reported: ${escapeHtml(COMMUNITY_STATUS_TEXT[local.status] || local.status)}</strong>
           <span>Thank you! Other people may take an hour or two to see this.${local.far ? ` It only earns points when you report within ${COMMUNITY_NEAR_METRES} m of the tree.` : ""}</span>
-          <span class="community-range-points community-earned-${local.far ? "far" : "near"}">${escapeHtml(communityPointsText(local.status, local.far ? "far" : "near"))}</span></p>
+          <span class="community-range-points community-earned-${local.far ? "far" : "near"}">${communityPointsChipFor(local.status, local.far ? "far" : "near")}${escapeHtml(communityPointsText(local.status, local.far ? "far" : "near"))}</span></p>
         <button class="community-link" type="button" data-action="community-change">Change</button>
       </div>`;
   }
   const [primary, ...others] = COMMUNITY_TREE_CHOICES;
   const chosen = local ? local.status : null;
   return `${communityBadgeHtml(remote)}
-      ${communityChoiceHtml(primary, chosen === primary.status)}
-      <p class="community-or">Something not right?</p>
-      <div class="community-choices">${others.map((c) => communityChoiceHtml(c, chosen === c.status)).join("")}</div>
+      ${communityChoiceHtml(primary, chosen === primary.status, communityPointsChipFor("VERIFIED", communityRange(lat, lon).state))}
+      ${communityMoreHtml(others.map((c) => communityChoiceHtml(c, chosen === c.status)).join(""), Boolean(local) || more)}
       ${communityRangeNoteHtml(lat, lon, chosen)}
       <p class="report-note community-status" aria-live="polite"></p>`;
 }
@@ -574,7 +594,7 @@ function communityRefreshSections() {
     if (!body) return;
     body.innerHTML = section.dataset.kind === "place"
       ? communityPlaceInnerHtml(section)
-      : communitySectionInnerHtml(section.dataset.communityTarget, section.dataset.editing === "1", Number(section.dataset.lat), Number(section.dataset.lon));
+      : communitySectionInnerHtml(section.dataset.communityTarget, section.dataset.editing === "1", Number(section.dataset.lat), Number(section.dataset.lon), section.dataset.more === "1");
   });
 }
 
@@ -750,6 +770,7 @@ const COMMUNITY_NUDGE_GLOBAL_GAP_MS = 10 * 60 * 1000; // at most one prompt in t
 let communityNudgeLastAt = 0;
 let communityNudgeTimer = null;
 
+
 function communityNudgesOn() {
   try { return localStorage.getItem(COMMUNITY_NUDGE_OFF_KEY) !== "1"; } catch { return true; }
 }
@@ -822,6 +843,7 @@ function communityNudgeShow(tree, metres) {
   el.setAttribute("role", "status");
   el.innerHTML = `<span class="community-nudge-icon">${communityIcon("shield")}</span>
     <div class="community-nudge-text"><strong>You're next to ${name}</strong><span>Is it where the map says? About ${Math.max(1, Math.round(metres))} m away.</span></div>
+    ${communityPointsChipHtml(1)}
     <button type="button" class="community-nudge-go" data-community-nudge-go>Check it</button>
     <button type="button" class="community-nudge-close" data-community-nudge-close aria-label="Not now">${communityIcon("x")}</button>`;
   el.querySelector("[data-community-nudge-go]").addEventListener("click", () => {
@@ -1159,8 +1181,7 @@ function communityPlaceInnerHtml(section) {
   }
   const [primary, ...others] = COMMUNITY_PLACE_CHOICES;
   return `${communityPlaceChoiceHtml(primary)}
-      <p class="community-or">Something not right?</p>
-      <div class="community-choices">${others.map(communityPlaceChoiceHtml).join("")}</div>
+      ${communityMoreHtml(others.map(communityPlaceChoiceHtml).join(""), section.dataset.editing === "1" || section.dataset.more === "1")}
       <p class="report-note community-status" aria-live="polite"></p>`;
 }
 

@@ -42,6 +42,11 @@ test.describe("Community tree verification", () => {
     await expect(box.locator("[data-action='community-report'][data-status='VERIFIED']")).toBeVisible();
     // "Something not right?" and its choices live inside the same box as the heading and verify action
     await expect(box.locator(".community-or")).toContainText("Something not right?");
+    // The verify button carries what it earns (no location in this spec, so +0).
+    await expect(box.locator(".community-verify .community-points-chip")).toHaveText("+0");
+    // The alternatives stay folded until asked for.
+    await expect(box.locator(".community-choices")).toBeHidden();
+    await box.locator(".community-or").click();
     await expect(box.locator(".community-choices")).toBeVisible();
     const boxTop = (await box.boundingBox()).y;
     const nearestTop = (await page.locator('h3.detail-section-heading:has-text("Nearest")').boundingBox()).y;
@@ -127,6 +132,7 @@ test.describe("Community tree verification", () => {
     });
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     await context.setOffline(true);
+    await page.click(".community-or");
     await page.click("[data-action='community-report'][data-status='NOT_HERE']");
     await expect(page.locator(".community-mine")).toContainText("No tree found here");
     expect(posted).toHaveLength(0);
@@ -156,11 +162,14 @@ test.describe("Community tree verification", () => {
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) })
     );
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await page.click(".community-or");
     await page.click("[data-action='community-report'][data-status='NOT_HERE']");
     await expect(page.locator("[data-action='community-report']")).toHaveCount(0);
     await page.click("[data-action='community-change']");
     await expect(page.locator("[data-action='community-report']")).toHaveCount(6);
     await expect(page.locator("[data-action='community-report'][data-status='NOT_HERE']")).toHaveClass(/is-chosen/);
+    // Changing an answer opens the alternatives so the current one is in view.
+    await expect(page.locator(".community-choices")).toBeVisible();
   });
 
   test("a tree the community has questioned is flagged but keeps its official details", async ({ page }) => {
@@ -314,17 +323,17 @@ test.describe("Community place checks", () => {
     await expect(page.locator(".community-check-place")).toBeVisible();
   });
 
-  test("a place's detail screen has the boxed check at the bottom, below its Nearest and Related sections", async ({ page }) => {
+  test("a place's detail screen has the boxed check above its Nearest and Related sections, with the alternatives folded", async ({ page }) => {
     const box = page.locator(".community-check-place");
     await expect(box).toContainText("Help check this place");
     const nearest = page.locator('h3.detail-section-heading:has-text("Nearest")');
     if (await nearest.count()) {
-      expect((await nearest.first().boundingBox()).y).toBeLessThan((await box.boundingBox()).y);
+      expect((await nearest.first().boundingBox()).y).toBeGreaterThan((await box.boundingBox()).y);
     }
-    // nothing but the small "Noticed a problem" link follows it (and the "issues raised on this place"
-    // line, which stays hidden unless GitHub reports some)
-    await expect(page.locator(".community-check-place ~ *:not(.report-issue):not(.community-place-issues)")).toHaveCount(0);
     await expect(box.locator(".community-or")).toContainText("Something not right?");
+    await expect(box.locator(".community-choices")).toBeHidden();
+    await box.locator(".community-or").click();
+    await expect(box.locator(".community-choices")).toBeVisible();
     await expect(box.locator("[data-action='community-place-choose']")).toHaveCount(6);
   });
 
@@ -334,6 +343,7 @@ test.describe("Community place checks", () => {
       issues.push(route.request().postDataJSON());
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, issueUrl: "https://github.com/simonmcmanus/epping-forest-finds/issues/42" }) });
     });
+    await page.click(".community-check-place .community-or");
     await page.click("[data-action='community-place-choose'][data-status='CLOSED']");
     await expect(page.locator(".community-note-input")).toBeVisible();
     expect(issues).toHaveLength(0);
@@ -353,6 +363,7 @@ test.describe("Community place checks", () => {
         ? route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ error: "Resource not accessible by personal access token" }) })
         : route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, issueNumber: 9, issueUrl: "https://github.com/example/repo/issues/9" }) });
     });
+    await page.click(".community-check-place .community-or");
     await page.click("[data-action='community-place-choose'][data-status='CLOSED']");
     await page.fill(".community-note-input", "Shut for good");
     await page.click("[data-action='community-send-place']");
@@ -371,6 +382,7 @@ test.describe("Community place checks", () => {
   test("a rename needs a few words before it can be sent", async ({ page }) => {
     const issues = [];
     await page.route(ISSUE_URL, (route) => { issues.push(1); route.fulfill({ status: 200, body: "{}" }); });
+    await page.click(".community-check-place .community-or");
     await page.click("[data-action='community-place-choose'][data-status='RENAMED']");
     await page.click("[data-action='community-send-place']");
     await expect(page.locator(".community-status")).toContainText("Please add a few words");
