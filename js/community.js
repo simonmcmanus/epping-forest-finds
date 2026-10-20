@@ -466,18 +466,31 @@ function communityHandleChange(button) {
   communityRefreshSections();
 }
 
-async function communityLoadOverlay() {
-  try {
-    const response = await fetch(COMMUNITY_OVERLAY_URL);
-    if (!response.ok) return;
-    const data = await response.json();
-    if (data && typeof data.entries === "object") {
-      communityOverlay = { generatedAt: data.generatedAt || 0, entries: data.entries };
-      communityRefreshSections();
-      communityRefreshVerifiedSlots();
-      if (typeof requestDraw === "function") requestDraw();
-    }
-  } catch {}
+let communityOverlayInflight = null;
+
+function communityLoadOverlay() {
+  if (communityOverlayInflight) return communityOverlayInflight;
+  communityOverlayInflight = (async () => {
+    try {
+      const response = await fetch(COMMUNITY_OVERLAY_URL);
+      if (!response.ok) return;
+      const data = await response.json();
+      if (data && typeof data.entries === "object") {
+        communityOverlay = { generatedAt: data.generatedAt || 0, entries: data.entries };
+        communityRefreshSections();
+        communityRefreshVerifiedSlots();
+        if (typeof requestDraw === "function") requestDraw();
+      }
+    } catch {}
+  })().finally(() => { communityOverlayInflight = null; });
+  return communityOverlayInflight;
+}
+
+// A shared #addedtree=<tag> link can only be resolved once the overlay is here, so boot waits for it
+// (bounded: a slow or missing overlay must never hold up the map).
+async function communityEnsureOverlay(timeoutMs = 4000) {
+  if (communityOverlay.generatedAt) return;
+  await Promise.race([communityLoadOverlay(), new Promise((resolve) => setTimeout(resolve, timeoutMs))]);
 }
 
 // The score is kept on the device; opening the app only re-asks the server if it is over an hour
@@ -1354,7 +1367,10 @@ async function communityRenderContributions() {
         <span class="community-pill community-outcome-${outcome}">${communityIcon(COMMUNITY_OUTCOME_ICON[outcome])}${escapeHtml(COMMUNITY_OUTCOME_TEXT[outcome])}</span>${label.issueUrl && /^https:\/\/github\.com\//.test(label.issueUrl) ? `<a class="community-issue-link" href="${escapeHtml(label.issueUrl)}" target="_blank" rel="noopener">View on GitHub</a>` : ""}${entry.failed ? `<span class="community-log-error"><span>${escapeHtml(entry.failed)}</span> <button type="button" class="community-link" data-action="community-retry" data-id="${escapeHtml(entry.id)}">Send again</button></span>` : ""}
       </li>`;
   }).join("");
-  host.innerHTML = `<div class="community-rank-card">
+  const volatileNote = waitingIds.size && typeof outboxIsDurable === "function" && !outboxIsDurable()
+    ? `<p class="community-log-error">This browser can't save waiting reports. Keep the app open until they are sent.</p>`
+    : "";
+  host.innerHTML = `${volatileNote}<div class="community-rank-card">
         <span class="community-rank-icon">${communityIcon(rank.icon)}</span>
         <div class="community-rank-text">
           <p class="community-rank"><strong>${escapeHtml(rank.name)}</strong></p>

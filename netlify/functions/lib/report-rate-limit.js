@@ -12,6 +12,9 @@ const { createHash } = require("crypto");
 const DEFAULT_LIMITS = { perIp: 20, perDevice: 10, global: 300 };
 const HOUR_MS = 60 * 60 * 1000;
 const KEY = "report-rate";
+// The community-report endpoint (tree checks and new trees) is much chattier than issue creation, so it
+// has its own document and larger caps.
+const COMMUNITY_LIMITS = { perIp: 120, perDevice: 120, global: 5000 };
 
 function positiveInt(value, fallback) {
   const n = Number(value);
@@ -26,6 +29,14 @@ function configuredLimits(env = process.env) {
   };
 }
 
+function configuredCommunityLimits(env = process.env) {
+  return {
+    perIp: positiveInt(env.COMMUNITY_LIMIT_PER_IP, COMMUNITY_LIMITS.perIp),
+    perDevice: positiveInt(env.COMMUNITY_LIMIT_PER_DEVICE, COMMUNITY_LIMITS.perDevice),
+    global: positiveInt(env.COMMUNITY_LIMIT_GLOBAL, COMMUNITY_LIMITS.global),
+  };
+}
+
 function clientIp(event) {
   const headers = Object.fromEntries(Object.entries((event && event.headers) || {}).map(([k, v]) => [k.toLowerCase(), v]));
   return String(headers["x-nf-client-connection-ip"] || String(headers["x-forwarded-for"] || "").split(",")[0] || "").trim();
@@ -34,10 +45,10 @@ function clientIp(event) {
 const hashed = (value) => createHash("sha256").update(String(value)).digest("hex").slice(0, 16);
 
 // Resolves { ok: true } and counts the report, or { ok: false, retryAfter } (seconds) when a cap is hit.
-async function checkRateLimit(store, { ip = "", deviceId = "", now = Date.now(), limits = configuredLimits() } = {}) {
+async function checkRateLimit(store, { ip = "", deviceId = "", now = Date.now(), limits = configuredLimits(), key = KEY } = {}) {
   try {
     const hour = Math.floor(now / HOUR_MS);
-    let doc = await store.get(KEY);
+    let doc = await store.get(key);
     if (!doc || doc.hour !== hour || typeof doc.counts !== "object" || !doc.counts) doc = { hour, counts: {} };
     const scopes = [["g", limits.global]];
     if (ip) scopes.push([`i:${hashed(ip)}`, limits.perIp]);
@@ -46,11 +57,11 @@ async function checkRateLimit(store, { ip = "", deviceId = "", now = Date.now(),
       return { ok: false, retryAfter: Math.max(1, Math.ceil(((hour + 1) * HOUR_MS - now) / 1000)) };
     }
     for (const [key] of scopes) doc.counts[key] = (doc.counts[key] || 0) + 1;
-    await store.put(KEY, doc);
+    await store.put(key, doc);
     return { ok: true };
   } catch {
     return { ok: true, skipped: true };
   }
 }
 
-module.exports = { checkRateLimit, configuredLimits, clientIp, DEFAULT_LIMITS };
+module.exports = { checkRateLimit, configuredLimits, configuredCommunityLimits, clientIp, DEFAULT_LIMITS, COMMUNITY_LIMITS };

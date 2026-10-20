@@ -1581,6 +1581,10 @@ async function boot() {
     if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("tree")) {
       await mapData.treePromise;
     }
+    // Likewise a walker-added tree link needs the community overlay it is looked up in.
+    if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("addedtree") && typeof communityEnsureOverlay === "function") {
+      await communityEnsureOverlay();
+    }
 
     state.bounds = calculateBounds();
     const cowBootstrapOk = await cowPromise;
@@ -3369,6 +3373,12 @@ async function sendOrQueueReport(payload) {
 }
 
 const REPORT_QUEUED_MESSAGE = "Saved. It will be sent automatically when you're back online.";
+// This browser could not keep the report on disk (private window, storage blocked), so it only survives
+// while the app stays open.
+const REPORT_QUEUED_VOLATILE_MESSAGE = "Not sent yet. This browser can't save it, so keep the app open and it will send when you're back online.";
+function reportQueuedMessage() {
+  return typeof outboxIsDurable === "function" && !outboxIsDurable() ? REPORT_QUEUED_VOLATILE_MESSAGE : REPORT_QUEUED_MESSAGE;
+}
 
 async function submitReportForm() {
   // Guard against duplicate GitHub issues from double-taps or a submit
@@ -3421,7 +3431,7 @@ async function submitReportForm() {
       return;
     }
 
-    if (queued) setReportStatus(REPORT_QUEUED_MESSAGE, "success");
+    if (queued) setReportStatus(reportQueuedMessage(), "success");
     else setReportStatus("Report submitted successfully.", "success", data && data.issueUrl);
     reportDetailsInput.value = "";
     const photoInput = document.getElementById("reportPhoto");
@@ -3544,11 +3554,14 @@ async function submitLocationIssueReport(wrapper) {
       return;
     }
 
-    if (queued) applyReportStatusContent(statusEl, REPORT_QUEUED_MESSAGE, "success");
+    if (queued) applyReportStatusContent(statusEl, reportQueuedMessage(), "success");
     else applyReportStatusContent(statusEl, "Report submitted successfully.", "success", data && data.issueUrl);
     textarea.value = "";
     const photoInput = wrapper.querySelector(".report-photo-input");
     if (photoInput) photoInput.value = "";
+    // The form stays open, so the next report in it is a new one: it needs its own id (the same id
+    // would be answered as a duplicate of this one, or replace it in the outbox).
+    delete wrapper.dataset.requestId;
   } catch (error) {
     statusEl.textContent = "Could not submit report. Please try again.";
     statusEl.className = "report-status error";

@@ -8,11 +8,40 @@ const OUTBOX_MAX_ITEMS = 50;
 const OUTBOX_BACKOFF_MS = [5000, 30000, 120000, 600000];
 
 const outboxMemory = []; // fallback when IndexedDB is unavailable (private window etc.)
+// Items held only in outboxMemory are mirrored to localStorage (small payloads only: a photo does not fit)
+// so a reload or an app kill does not lose them. When even that fails, outboxIsDurable() says so and the
+// screens must not promise delivery after the app is closed.
+const OUTBOX_FALLBACK_KEY = "ff-outbox-fallback-v1";
+const OUTBOX_FALLBACK_MAX_CHARS = 400 * 1024;
+let outboxDurable = true;
 let outboxDbPromise = null;
 let outboxFlushing = false;
 let outboxFlushAgain = false; // something was added (or a flush asked for) while one was already running
 let outboxRetryTimer = null;
 let outboxFailures = 0;
+
+function outboxFallbackSave() {
+  try {
+    if (!outboxMemory.length) { localStorage.removeItem(OUTBOX_FALLBACK_KEY); return true; }
+    const text = JSON.stringify(outboxMemory);
+    if (text.length > OUTBOX_FALLBACK_MAX_CHARS) return false;
+    localStorage.setItem(OUTBOX_FALLBACK_KEY, text);
+    return true;
+  } catch { return false; }
+}
+
+function outboxFallbackRestore() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(OUTBOX_FALLBACK_KEY));
+    if (!Array.isArray(saved)) return;
+    for (const item of saved) {
+      if (item && item.id && item.url && !outboxMemory.some((m) => m.id === item.id)) outboxMemory.push(item);
+    }
+  } catch {}
+}
+
+// False when something queued would be lost if the app were closed now.
+function outboxIsDurable() { return outboxDurable; }
 
 function outboxOpen() {
   if (outboxDbPromise) return outboxDbPromise;
@@ -59,6 +88,7 @@ async function outboxAdd(item) {
     if (at >= 0) outboxMemory.splice(at, 1);
     outboxMemory.push(entry);
     if (outboxMemory.length > OUTBOX_MAX_ITEMS) outboxMemory.shift();
+    outboxDurable = outboxFallbackSave();
   }
   await outboxNotify();
   return entry;
@@ -67,7 +97,10 @@ async function outboxAdd(item) {
 async function outboxRemove(id) {
   await outboxTx("readwrite", (store) => store.delete(id));
   const at = outboxMemory.findIndex((m) => m.id === id);
-  if (at >= 0) outboxMemory.splice(at, 1);
+  if (at >= 0) {
+    outboxMemory.splice(at, 1);
+    outboxDurable = outboxFallbackSave();
+  }
 }
 
 function outboxScheduleRetry() {
@@ -113,6 +146,7 @@ async function outboxFlush() {
 }
 
 if (typeof window !== "undefined" && window.addEventListener) {
+  outboxFallbackRestore();
   window.addEventListener("online", outboxFlush);
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") outboxFlush(); });
   outboxFlush();

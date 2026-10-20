@@ -783,6 +783,73 @@ test.describe("Trees added by walkers: tap for details", () => {
     await expect(page.locator(".community-intro")).toBeVisible();
     await expect(page.locator("#communityTagInput")).toHaveValue("T-77");
   });
+
+  test("a shared #addedtree link opens on a cold load, once the overlay is here", async ({ page }) => {
+    const entries = { "new:tree:tag:T-77": { s: "new", st: "NEW_TREE", n: 1, tag: "T-77", lat: 51.6651, lon: 0.0451, t: 1 } };
+    // A slow overlay: the route would be resolved first if boot did not wait for it.
+    await page.route(OVERLAY_URL, async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 3000));
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries }) });
+    });
+    await setup(page, "/nearby#addedtree=T-77");
+    await expect(page.locator("#inspectorTitle")).toHaveText("Tree T-77");
+    await expect(page.locator("#inspectorBody")).toContainText("Waiting for a second walker");
+    expect(await page.evaluate(() => window.location.hash)).toBe("#addedtree=T-77");
+  });
+});
+
+test.describe("Local dev server", () => {
+  test("a POST to a Netlify function reaches it with its body (report-missing-data)", async ({ request }) => {
+    const response = await request.post("/.netlify/functions/report-missing-data", {
+      data: { reportType: "place-check", placeCheck: { status: "OPEN_CONFIRMED", key: "place:id:1", name: "x" } },
+    });
+    // Without the body the function would see an empty report and answer "Details are required".
+    expect(response.status()).toBe(400);
+    expect((await response.json()).error).toBe("Invalid place check");
+  });
+});
+
+test.describe("Outbox when the browser has no IndexedDB", () => {
+  const noIndexedDb = (page, { blockFallback = false } = {}) => page.addInitScript((blockFallback) => {
+    indexedDB.open = () => { throw new Error("IndexedDB unavailable"); };
+    if (blockFallback) {
+      const original = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (key, value) {
+        if (key === "ff-outbox-fallback-v1") throw new Error("quota");
+        return original.call(this, key, value);
+      };
+    }
+  }, blockFallback);
+
+  test("a queued report is kept in local storage and sent after a reload", async ({ page, context }) => {
+    const posted = [];
+    await page.route(REPORT_URL, (route) => { posted.push(route.request().postDataJSON()); route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) }); });
+    await page.route(OVERLAY_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {} }) }));
+    await noIndexedDb(page);
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await context.setOffline(true);
+    await page.click("[data-action='community-report'][data-status='VERIFIED']");
+    await expect.poll(() => page.evaluate(() => (JSON.parse(localStorage.getItem("ff-outbox-fallback-v1")) || []).length)).toBe(1);
+    expect(posted).toHaveLength(0);
+    await context.setOffline(false);
+    await page.reload();
+    await expect.poll(() => posted.length).toBe(1);
+    expect(posted[0]).toMatchObject({ status: "VERIFIED", target: `tree:${FIXTURE_TREE.recordNumber}` });
+    await expect.poll(() => page.evaluate(() => localStorage.getItem("ff-outbox-fallback-v1"))).toBeNull();
+  });
+
+  test("when nothing can keep it, the Community screen says waiting reports will not survive closing the app", async ({ page, context }) => {
+    await page.route(OVERLAY_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {} }) }));
+    await noIndexedDb(page, { blockFallback: true });
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await context.setOffline(true);
+    await page.click("[data-action='community-report'][data-status='VERIFIED']");
+    await page.click("#reportToggle");
+    await expect(page.locator(".community-log-error").first()).toContainText("can't save waiting reports");
+    expect(await page.evaluate(() => outboxIsDurable())).toBe(false);
+  });
 });
 
 test.describe("Community log links to places", () => {

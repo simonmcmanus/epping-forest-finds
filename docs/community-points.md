@@ -20,7 +20,7 @@ Every number below lives in one file: `netlify/functions/lib/community-points.js
 | Feedback or a bug report you sent is fixed | 1 | `fix` | The GitHub issue is closed as completed. |
 | You report a place (pub, cafe, shop...) as wrong and a person confirms it | 3 | `placeConfirmed` | The GitHub issue is closed as completed. |
 
-The first register check only records a baseline, so differences that already exist never pay out. A report made after a register was first seen cannot claim a reward from it.
+The first register check only records a baseline, so differences that already exist never pay out. Only reports made at or before the previous check can earn the reward, so waiting for an update and then reporting what it says does not. A report made after a register was first seen cannot claim a reward from it.
 
 ## Points you do not earn
 

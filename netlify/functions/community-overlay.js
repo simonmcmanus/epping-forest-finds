@@ -5,7 +5,7 @@
 // community-rebuild-scheduled.js, which is what makes other users' reports take about an hour to appear. It lives
 // outside data/**, so it never moves the data cache version.
 const { openStore } = require("./lib/community-store");
-const { computeCommunityState, communityAdminStats, reportOutcome } = require("./lib/community-consensus");
+const { computeCommunityState, communityAdminStats, reportOutcome, canonicalTarget } = require("./lib/community-consensus");
 const { loadComputed, loadScore } = require("./lib/community-computed");
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
@@ -51,7 +51,7 @@ exports.handler = async (event) => {
     const validatedKeys = new Set(items.filter((i) => i.kind === "register").map((i) => `${i.deviceId}|${i.target}|${i.status}`));
     const issueRewards = new Map(items.filter((i) => i.kind !== "register" && i.deviceId === me).map((i) => [i.issue, i.kind]));
     const reports = mine.slice().reverse().map((r) => {
-      const entry = r.target ? computed.overlay[r.target] : null;
+      const entry = canonicalTarget(r) ? computed.overlay[canonicalTarget(r)] : null;
       let outcome = reportOutcome({ ...r, deviceId: me }, entry, computed.conflicts || [], validatedKeys);
       if (r.issue && issueRewards.has(r.issue)) outcome = issueRewards.get(r.issue) === "fix" ? "fixed" : "confirmed";
       return { id: r.id, kind: r.kind, target: r.target || null, status: r.status, ts: r.ts, lat: r.lat, lon: r.lon, tagNumber: r.tagNumber, outcome };

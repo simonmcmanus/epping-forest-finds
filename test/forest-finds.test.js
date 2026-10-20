@@ -10845,7 +10845,7 @@ test("a single missing-tree report does not change what other users see", () => 
   const { overlay } = communityConsensus.computeCommunityState([
     communityReport({ status: "NOT_HERE", deviceId: "device-aaaa" }),
   ]);
-  assert.deepEqual(overlay, {});
+  assert.equal(Object.keys(overlay).length, 0);
 });
 
 test("two independent devices reporting a tree missing mark it questioned, not removed", () => {
@@ -10864,7 +10864,7 @@ test("one device repeating a report still counts as one voice", () => {
     communityReport({ status: "NOT_HERE" }),
     communityReport({ status: "NOT_HERE" }),
   ]);
-  assert.deepEqual(overlay, {});
+  assert.equal(Object.keys(overlay).length, 0);
 });
 
 test("a verified tree scores 1 point, and 1 more when another device independently confirms it", () => {
@@ -10893,7 +10893,7 @@ test("a report made from far away earns no points and does not count towards con
     communityReport({ status: "NOT_HERE", deviceId: "device-aaaa", lat: 51.7, lon: 0.1 }),
     communityReport({ status: "NOT_HERE", deviceId: "device-bbbb" }),
   ]);
-  assert.deepEqual(overlay, {});
+  assert.equal(Object.keys(overlay).length, 0);
   assert.equal(scores["device-aaaa"].points, 0);
 });
 
@@ -11307,6 +11307,83 @@ test("the per-place label is created before the issue, and a label that fails do
       assert.equal(calls[labelAt].body.name, "place:manual/onest");
     }
   );
+});
+
+test("ids that mean something to JavaScript are refused, and cannot reach Object.prototype", async () => {
+  for (const bad of ["__proto__", "constructor", "prototype"]) {
+    assert.ok(communityConsensus.validateReport(communityReport({ deviceId: bad })), `deviceId ${bad} is refused`);
+    assert.ok(communityConsensus.validateReport(communityReport({ id: bad })), `id ${bad} is refused`);
+  }
+  assert.ok(communityConsensus.validateReport(communityReport({ kind: "__proto__" })));
+  assert.ok(communityConsensus.validateReport(communityReport({ status: "constructor" })));
+  assert.ok(communityConsensus.validateReport(communityReport({ target: "__proto__" })));
+  assert.ok(communityConsensus.validateReport(communityReport({ target: "tree:1 and more" })), "a target has no spaces");
+  assert.equal(communityConsensus.validateReport(communityReport({ target: "place:id:node/1" })), null);
+  assert.equal(communityConsensus.statusClass("tree", "toString"), null);
+  const state = communityConsensus.computeCommunityState([communityReport({ deviceId: "__proto__" }), communityReport({ deviceId: "device-aaaa" })]);
+  assert.equal({}.reports, undefined, "Object.prototype is untouched");
+  assert.equal(Object.keys(state.scores).includes("__proto__"), false);
+  const handler = require("../netlify/functions/community-report").handler;
+  const result = await handler({ httpMethod: "POST", body: JSON.stringify({ id: "report-proto-1", deviceId: "__proto__", kind: "tree", target: "tree:1", status: "VERIFIED", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01 }) });
+  assert.equal(result.statusCode, 400);
+});
+
+test("a new tree's outcome is found under its tag, so a register reward shows as validated", () => {
+  const tree = communityReport({ status: "NEW_TREE", target: undefined, tagNumber: "4821", accuracy: 8, lat: 51.65, lon: 0.04, targetLat: 51.65, targetLon: 0.04 });
+  assert.equal(communityConsensus.canonicalTarget(tree), "new:tree:tag:4821");
+  assert.equal(communityConsensus.canonicalTarget(communityReport({ target: "tree:7" })), "tree:7");
+  const validated = new Set(["device-aaaa|new:tree:tag:4821|NEW_TREE"]);
+  assert.equal(communityConsensus.reportOutcome(tree, { s: "new" }, [], validated), "validated");
+  assert.equal(communityConsensus.reportOutcome(tree, { s: "new" }, [], new Set()), "pending");
+  assert.equal(communityConsensus.reportOutcome(tree, { s: "new-confirmed" }, [], new Set()), "confirmed", "a second finder confirms it");
+  assert.equal(communityConsensus.reportOutcome(tree, undefined, [], new Set()), "pending");
+});
+
+test("a register reward only counts reports made before the last run that still saw the old register", async () => {
+  const store = memoryStore();
+  const register = (records, generatedAt) => async (path) => {
+    if (path.endsWith("index.json")) return { generatedAt, sourceGeneratedAt: generatedAt, recordCount: records.length, chunks: [{ url: "chunk.json" }] };
+    return { trees: records.map((r) => ({ recordNumber: r, latitude: 51.64, longitude: 0.01 })) };
+  };
+  await communityValidation.runValidation({ store, fetchJson: register(["77", "78"], 1), now: 1000 }); // baseline
+  const early = communityReport({ id: "report-early-1", target: "tree:77", status: "NOT_HERE", ts: 900 });
+  const late = communityReport({ id: "report-late-01", target: "tree:78", status: "NOT_HERE", ts: 2000 });
+  await store.put("reports/early", early);
+  await store.put("reports/late", late);
+  // The register drops both records some time between the runs at 1000 and 3000.
+  const summary = await communityValidation.runValidation({ store, fetchJson: register([], 2), now: 3000 });
+  assert.equal(summary.newRegisterRewards, 1, "only the report made before the previous run counts");
+  const items = (await store.get("validations")).items;
+  assert.equal(JSON.stringify(items.map((i) => i.target)), JSON.stringify(["tree:77"]));
+});
+
+test("one network cannot mint endless device ids to confirm its own reports: community reports are capped per address and site-wide", async () => {
+  const reportEndpoint = require("../netlify/functions/community-report");
+  const original = { ip: process.env.COMMUNITY_LIMIT_PER_IP, global: process.env.COMMUNITY_LIMIT_GLOBAL };
+  process.env.COMMUNITY_LIMIT_PER_IP = "3";
+  process.env.COMMUNITY_LIMIT_GLOBAL = "5";
+  reportEndpoint.setStore(memoryStore());
+  try {
+    const send = (ip, n) => reportEndpoint.handler({
+      httpMethod: "POST",
+      headers: { "x-nf-client-connection-ip": ip },
+      body: JSON.stringify({ id: `report-sybil-${ip}-${n}`.replace(/\./g, ""), deviceId: `device-sybil-${n}-x`, kind: "tree", target: "tree:5", status: "VERIFIED", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01 }),
+    });
+    for (let n = 0; n < 3; n += 1) assert.equal((await send("203.0.113.7", n)).statusCode, 200);
+    const refused = await send("203.0.113.7", 99);
+    assert.equal(refused.statusCode, 429, "fresh device ids from the same address do not get past the cap");
+    assert.ok(Number(refused.headers["Retry-After"]) > 0);
+    assert.equal((await send("203.0.113.8", 1)).statusCode, 200, "another address is unaffected");
+    assert.equal((await send("203.0.113.9", 1)).statusCode, 200);
+    assert.equal((await send("203.0.113.10", 1)).statusCode, 429, "the site-wide cap stops new addresses too");
+    const retry = await send("203.0.113.8", 1);
+    assert.equal(retry.statusCode, 200, "a repeat of an accepted report is answered as a duplicate without counting again");
+  } finally {
+    reportEndpoint.setStore(null);
+    for (const [name, value] of [["COMMUNITY_LIMIT_PER_IP", original.ip], ["COMMUNITY_LIMIT_GLOBAL", original.global]]) {
+      if (value === undefined) delete process.env[name]; else process.env[name] = value;
+    }
+  }
 });
 
 // --- The City of London discrepancy report (netlify/functions/lib/community-report-data.js) ---

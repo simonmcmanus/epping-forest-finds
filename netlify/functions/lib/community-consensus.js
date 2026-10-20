@@ -34,9 +34,16 @@ const REWARD_POINTS = { register: POINTS.register, fix: POINTS.fix, placeConfirm
 const NEW_MATCH_DECIMALS = 4; // ~11 m grid for "the same new place"
 const NEW_TREE_MAX_ACCURACY_METRES = 30; // a new tree is only as good as the GPS fix it was reported from
 
+// Own properties only: kind and status come from the caller, and "__proto__" or "constructor"
+// must not resolve to something inherited.
+const has = (object, key) => Object.prototype.hasOwnProperty.call(object, key);
 function statusClass(kind, status) {
-  return (STATUSES[kind] || {})[status] || null;
+  if (typeof kind !== "string" || typeof status !== "string" || !has(STATUSES, kind)) return null;
+  return has(STATUSES[kind], status) ? STATUSES[kind][status] : null;
 }
+
+// Ids and targets are used as object keys; refuse the few names that mean something to JavaScript.
+const RESERVED_KEYS = new Set(["__proto__", "constructor", "prototype"]);
 
 function distanceMetres(lat1, lon1, lat2, lon2) {
   const rad = Math.PI / 180;
@@ -49,8 +56,8 @@ function distanceMetres(lat1, lon1, lat2, lon2) {
 // Returns null when the report is acceptable, otherwise a short reason.
 function validateReport(r) {
   if (!r || typeof r !== "object") return "report must be an object";
-  if (!/^[A-Za-z0-9_-]{8,64}$/.test(String(r.id || ""))) return "bad id";
-  if (!/^[A-Za-z0-9_-]{8,64}$/.test(String(r.deviceId || ""))) return "bad deviceId";
+  if (!/^[A-Za-z0-9_-]{8,64}$/.test(String(r.id || "")) || RESERVED_KEYS.has(r.id)) return "bad id";
+  if (!/^[A-Za-z0-9_-]{8,64}$/.test(String(r.deviceId || "")) || RESERVED_KEYS.has(r.deviceId)) return "bad deviceId";
   const cls = statusClass(r.kind, r.status);
   if (!cls) return "unknown kind/status";
   if (cls === "new") {
@@ -60,7 +67,7 @@ function validateReport(r) {
       if (!normalizeTag(r.tagNumber)) return "a new tree needs its tag number";
       if (!Number.isFinite(r.accuracy) || r.accuracy > NEW_TREE_MAX_ACCURACY_METRES) return "location is not accurate enough";
     }
-  } else if (typeof r.target !== "string" || !r.target || r.target.length > 80) {
+  } else if (typeof r.target !== "string" || !/^(tree|place):\S{1,74}$/.test(r.target)) {
     return "bad target";
   }
   if (r.status === "MOVED" && (!Number.isFinite(r.newLat) || !Number.isFinite(r.newLon))) return "MOVED needs newLat/newLon";
@@ -122,7 +129,8 @@ function computeCommunityState(reports, validations = []) {
     byTarget.get(key).push(r);
   }
 
-  const overlay = {};
+  // Null-prototype maps: they are keyed by ids and targets that came from callers.
+  const overlay = Object.create(null);
   const conflicts = [];
   const conflictDetails = [];
   const resolved = new Map(); // target -> {s, st}
@@ -159,7 +167,7 @@ function computeCommunityState(reports, validations = []) {
       resolved.set(target, { s: "questioned", st: topStatus });
     } else if (confirms.length && questions.length) {
       conflicts.push(target);
-      const counts = {};
+      const counts = Object.create(null);
       for (const r of near) counts[r.status] = (counts[r.status] || 0) + 1;
       const at = list.find((r) => Number.isFinite(r.targetLat) && Number.isFinite(r.targetLon));
       conflictDetails.push({ target, counts, t, ...(at ? { tlat: Number(at.targetLat.toFixed(6)), tlon: Number(at.targetLon.toFixed(6)) } : {}) });
@@ -171,7 +179,7 @@ function computeCommunityState(reports, validations = []) {
 
   // Scores. Verify = 1 point at once; +1 when an independent device agrees. New find = 1,
   // +3 once a second device finds it. A question that the community upheld = 2.
-  const scores = {};
+  const scores = Object.create(null);
   const ensure = (id) => (scores[id] ||= { points: 0, reports: 0, verified: 0, confirmed: 0, validated: 0, fixed: 0 });
   for (const [target, list] of byTarget) {
     const near = list.filter(isNear);
@@ -225,12 +233,21 @@ function computeCommunityState(reports, validations = []) {
 }
 
 // What a contributor sees against one of their own reports, from the hourly snapshot.
+// The key a report is filed under in the overlay, the conflict list and the register validations. A new
+// tree has no `target` of its own (it is stored with target undefined), so it is keyed by its tag.
+function canonicalTarget(report) {
+  if (statusClass(report.kind, report.status) === "new" && Number.isFinite(report.lat) && Number.isFinite(report.lon)) return newKey(report);
+  return report.target;
+}
+
 function reportOutcome(report, entry, conflicts, validatedKeys) {
   if (report.kind === "tree" && !isNear(report)) return "far";
-  if (validatedKeys && validatedKeys.has(`${report.deviceId}|${report.target}|${report.status}`)) return "validated";
-  if (conflicts.includes(report.target)) return "review";
+  const target = canonicalTarget(report);
+  if (validatedKeys && validatedKeys.has(`${report.deviceId}|${target}|${report.status}`)) return "validated";
+  if (conflicts.includes(target)) return "review";
   const cls = statusClass(report.kind, report.status);
   if (!entry) return "pending";
+  if (cls === "new") return entry.s === "new-confirmed" ? "confirmed" : "pending";
   if (cls === "confirm") return entry.s === "confirmed" ? "confirmed" : "pending";
   if (cls === "question") return entry.s === "questioned" && entry.st === report.status ? "confirmed" : "pending";
   return "pending";
@@ -242,8 +259,8 @@ function communityAdminStats(reports, state, now = Date.now()) {
   const devices = new Set(valid.map((r) => r.deviceId));
   const dayMs = 24 * 60 * 60 * 1000;
   const activeSince = (days) => new Set(valid.filter((r) => now - (r.ts || 0) <= days * dayMs).map((r) => r.deviceId)).size;
-  const byStatus = {};
-  const perDay = {};
+  const byStatus = Object.create(null);
+  const perDay = Object.create(null);
   for (const r of valid) {
     byStatus[r.status] = (byStatus[r.status] || 0) + 1;
     const day = new Date(r.ts || 0).toISOString().slice(0, 10);
@@ -267,4 +284,4 @@ function communityAdminStats(reports, state, now = Date.now()) {
   };
 }
 
-module.exports = { isNear, REWARD_POINTS, normalizeTag, reportOutcome, communityAdminStats, STATUSES, NEAR_METRES, statusClass, validateReport, computeCommunityState, distanceMetres };
+module.exports = { canonicalTarget, isNear, REWARD_POINTS, normalizeTag, reportOutcome, communityAdminStats, STATUSES, NEAR_METRES, statusClass, validateReport, computeCommunityState, distanceMetres };
