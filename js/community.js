@@ -10,6 +10,7 @@ const COMMUNITY_REPORT_URL = "/api/community/report";
 const COMMUNITY_OVERLAY_URL = "/api/community/overlay";
 const COMMUNITY_ACCOUNT_KEY = "ff-community-account-v1";
 const COMMUNITY_LINKED_KEY = "ff-community-linked-v1";
+const COMMUNITY_ACCOUNT_DEVICES_KEY = "ff-community-account-devices-v1";
 
 // Line icons in the same style as the main nav (24px grid, 2px round stroke, currentColor).
 const COMMUNITY_ICONS = {
@@ -122,7 +123,8 @@ function communityRandomId(length = 24) {
 // split one session across many identities, so the first one is kept for the life of the page.
 let communityVolatileDeviceId = null;
 
-function communityDeviceId() {
+// The id this browser made for itself the first time. Reports made before anyone signs in belong to it.
+function communityPrimaryDeviceId() {
   try {
     const existing = localStorage.getItem(COMMUNITY_DEVICE_KEY);
     if (existing) return existing;
@@ -138,9 +140,35 @@ function communityDeviceId() {
   return id;
 }
 
+// One browser can be used by more than one person. Each signed-in account gets the device id it linked on
+// this browser ({account hash: device id}); an account that finds the browser's own id already linked to
+// someone else is given a new one (see communityRefreshAccountOnce), so two accounts never share a device
+// id, a local history or a score.
+function communityAccountDevices() {
+  try { return JSON.parse(localStorage.getItem(COMMUNITY_ACCOUNT_DEVICES_KEY)) || {}; } catch { return {}; }
+}
+
+// The id reports and score requests use right now: the signed-in account's own device id on this browser,
+// otherwise the browser's primary one.
+function communityDeviceId() {
+  const primary = communityPrimaryDeviceId();
+  const account = communityReadAccount();
+  if (account && account.signedIn && account.account) {
+    const own = communityAccountDevices()[account.account];
+    if (own) return own;
+  }
+  return primary;
+}
+
+// Per-device storage: the primary device keeps the original keys, any other device id its own.
+function communityScoped(key) {
+  const id = communityDeviceId();
+  return id === communityPrimaryDeviceId() ? key : `${key}:${id}`;
+}
+
 // False when the id only lives in this page (nothing was saved), so it is lost when the tab closes.
 function communityDeviceIdIsDurable() {
-  communityDeviceId();
+  communityPrimaryDeviceId();
   return communityVolatileDeviceId === null;
 }
 
@@ -150,17 +178,17 @@ function communityTreeTarget(tree) {
 }
 
 function communityReadLocal() {
-  try { return JSON.parse(localStorage.getItem(COMMUNITY_LOCAL_KEY)) || {}; } catch { return {}; }
+  try { return JSON.parse(localStorage.getItem(communityScoped(COMMUNITY_LOCAL_KEY))) || {}; } catch { return {}; }
 }
 
 function communityWriteLocal(map) {
-  try { localStorage.setItem(COMMUNITY_LOCAL_KEY, JSON.stringify(map)); } catch {}
+  try { localStorage.setItem(communityScoped(COMMUNITY_LOCAL_KEY), JSON.stringify(map)); } catch {}
 }
 
 // Always numbers, whatever was stored: the score comes from the network.
 function communityReadScore() {
   try {
-    const raw = JSON.parse(localStorage.getItem(COMMUNITY_SCORE_KEY));
+    const raw = JSON.parse(localStorage.getItem(communityScoped(COMMUNITY_SCORE_KEY)));
     if (!raw || typeof raw !== "object") return null;
     return { points: Number(raw.points) || 0, verified: Number(raw.verified) || 0, confirmed: Number(raw.confirmed) || 0, generatedAt: Number(raw.generatedAt) || 0 };
   } catch { return null; }
@@ -520,14 +548,14 @@ async function communityRefreshScore(force = true) {
   if (!navigator.onLine) return;
   try {
     if (!force) {
-      const at = Number(localStorage.getItem(COMMUNITY_SCORE_AT_KEY)) || 0;
+      const at = Number(localStorage.getItem(communityScoped(COMMUNITY_SCORE_AT_KEY))) || 0;
       if (Date.now() - at < COMMUNITY_SCORE_MAX_AGE_MS) return;
     }
-    localStorage.setItem(COMMUNITY_SCORE_AT_KEY, String(Date.now()));
+    localStorage.setItem(communityScoped(COMMUNITY_SCORE_AT_KEY), String(Date.now()));
     const response = await fetch(`${COMMUNITY_OVERLAY_URL}?me=${encodeURIComponent(communityDeviceId())}`);
     if (!response.ok) return;
     const score = await response.json();
-    localStorage.setItem(COMMUNITY_SCORE_KEY, JSON.stringify(score));
+    localStorage.setItem(communityScoped(COMMUNITY_SCORE_KEY), JSON.stringify(score));
   } catch {}
 }
 
@@ -1330,7 +1358,7 @@ function communityRank(points) {
 }
 
 function communityReadLog() {
-  try { return JSON.parse(localStorage.getItem(COMMUNITY_LOG_KEY)) || {}; } catch { return {}; }
+  try { return JSON.parse(localStorage.getItem(communityScoped(COMMUNITY_LOG_KEY))) || {}; } catch { return {}; }
 }
 
 function communityTargetLabel(key, entry) {
@@ -1454,7 +1482,7 @@ function communityClearRemoteEntries() {
     if (entry && entry.remote) { delete local[key]; changed = true; }
   }
   if (changed) communityWriteLocal(local);
-  try { localStorage.removeItem(COMMUNITY_LOG_KEY); } catch {}
+  try { localStorage.removeItem(communityScoped(COMMUNITY_LOG_KEY)); } catch {}
 }
 
 async function communityRefreshLog() {
@@ -1465,7 +1493,7 @@ async function communityRefreshLog() {
     const data = await response.json();
     const outcomes = {};
     for (const report of data.reports || []) outcomes[report.id] = report.outcome;
-    localStorage.setItem(COMMUNITY_LOG_KEY, JSON.stringify(outcomes));
+    localStorage.setItem(communityScoped(COMMUNITY_LOG_KEY), JSON.stringify(outcomes));
     const waiting = new Set((await outboxList()).map((item) => item.id));
     const merged = communityMergeRemoteReports(communityReadLocal(), data.reports, waiting);
     if (merged.changed) communityWriteLocal(merged.local);
@@ -1507,6 +1535,15 @@ function communityRefreshAccount() {
   return communityAccountInflight;
 }
 
+async function communityPostLink(deviceId) {
+  const response = await fetch("/api/auth/link", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ deviceId }),
+  });
+  return { ok: response.ok, status: response.status, error: response.ok ? "" : (await response.json().catch(() => ({}))).error || "" };
+}
+
 async function communityRefreshAccountOnce() {
   if (!navigator.onLine) return;
   try {
@@ -1514,24 +1551,36 @@ async function communityRefreshAccountOnce() {
     if (!response.ok) return;
     const account = await response.json();
     const previous = communityReadAccount();
-    localStorage.setItem(COMMUNITY_ACCOUNT_KEY, JSON.stringify(account));
     // Signed out, or a different account on this browser: nothing of the last account's server history or
-    // link stays behind, and the new account links this device for itself.
+    // link stays behind. Cleared while the stored account still names the previous one, so it is that
+    // account's own device scope that is cleaned.
     const switched = previous && previous.signedIn && (!account.signedIn || (previous.account && previous.account !== account.account));
-    if (switched || !account.signedIn) {
-      if (switched) communityClearRemoteEntries();
-      localStorage.removeItem(COMMUNITY_LINKED_KEY);
-    }
+    if (switched) communityClearRemoteEntries();
+    localStorage.setItem(COMMUNITY_ACCOUNT_KEY, JSON.stringify(account));
+    if (switched || !account.signedIn) localStorage.removeItem(COMMUNITY_LINKED_KEY);
+
     let note = "";
-    const linkMarker = `${communityDeviceId()}|${account.account || ""}`;
-    if (account.signedIn && localStorage.getItem(COMMUNITY_LINKED_KEY) !== linkMarker) {
-      const linked = await fetch("/api/auth/link", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ deviceId: communityDeviceId() }),
-      });
-      if (linked.ok) localStorage.setItem(COMMUNITY_LINKED_KEY, linkMarker);
-      else note = (await linked.json().catch(() => ({}))).error || "Couldn't link this device right now.";
+    if (account.signedIn && account.account) {
+      const devices = communityAccountDevices();
+      let deviceId = devices[account.account] || communityPrimaryDeviceId();
+      if (localStorage.getItem(COMMUNITY_LINKED_KEY) !== `${deviceId}|${account.account}`) {
+        let linked = await communityPostLink(deviceId);
+        if (!linked.ok && linked.status === 409 && !devices[account.account]) {
+          // This browser's own id already belongs to another account. Rather than show that account's
+          // history and score to this one (or file this one's reports under it), this account gets a new
+          // device id of its own on this browser, with its own local history.
+          deviceId = communityRandomId();
+          linked = await communityPostLink(deviceId);
+          if (linked.ok) note = "Someone else's account already uses this browser's earlier reports, so you're starting fresh here.";
+        }
+        if (linked.ok) {
+          devices[account.account] = deviceId;
+          try { localStorage.setItem(COMMUNITY_ACCOUNT_DEVICES_KEY, JSON.stringify(devices)); } catch {}
+          localStorage.setItem(COMMUNITY_LINKED_KEY, `${deviceId}|${account.account}`);
+        } else {
+          note = linked.error || "Couldn't link this device right now.";
+        }
+      }
     }
     communityRenderAccount(account, note);
   } catch {}

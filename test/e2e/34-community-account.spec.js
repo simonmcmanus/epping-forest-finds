@@ -25,7 +25,7 @@ test.describe("Community sign-in", () => {
 
   test("a signed-in visitor sees their name, can sign out, and their device is linked once", async ({ page }) => {
     await page.route(ME_URL, (route) =>
-      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: true, name: "Sam Walker" }) })
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: true, name: "Sam Walker", account: "acct-sam" }) })
     );
     let links = 0;
     await page.route(LINK_URL, (route) => {
@@ -40,7 +40,7 @@ test.describe("Community sign-in", () => {
 
   test("a device already linked to another account shows why, and the page still works", async ({ page }) => {
     await page.route(ME_URL, (route) =>
-      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: true, name: "Sam" }) })
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: true, name: "Sam", account: "acct-sam" }) })
     );
     await page.route(LINK_URL, (route) =>
       route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: "This device is already linked to another account." }) })
@@ -135,6 +135,93 @@ test.describe("Community sign-in: history, account switching, storage", () => {
     me = { signedIn: true, name: "Alex", account: "acct-bbbb" };
     await page.reload();
     await expect.poll(() => linked.length).toBe(3);
+  });
+
+  test("a second account on a browser already linked to someone else gets its own identity and sees none of the first account's data", async ({ page }) => {
+    // A small stand-in for the server: device ownership, the 409 on a taken device, and reads limited to what the
+    // signed-in account may see.
+    const owners = {};
+    const serverReports = {};
+    const requested = [];
+    const posted = [];
+    let me = { signedIn: false };
+    const visible = (deviceId) => {
+      if (!me.signedIn) return [deviceId];
+      const own = Object.keys(owners).filter((d) => owners[d] === me.account);
+      if (own.includes(deviceId)) return own;
+      if (owners[deviceId] && owners[deviceId] !== me.account) return own;
+      return [deviceId];
+    };
+    await page.route(ME_URL, (route) => route.fulfill(json(me)));
+    await page.route(LINK_URL, (route) => {
+      const { deviceId } = route.request().postDataJSON();
+      if (owners[deviceId] && owners[deviceId] !== me.account) return route.fulfill(json({ error: "This device is already linked to another account." }, 409));
+      owners[deviceId] = me.account;
+      return route.fulfill(json({ ok: true }));
+    });
+    await page.route(/\/api\/community\/overlay\?me=/, (route) => {
+      const url = new URL(route.request().url());
+      const deviceId = url.searchParams.get("me");
+      requested.push(deviceId);
+      const devices = visible(deviceId);
+      if (url.searchParams.get("list")) {
+        return route.fulfill(json({ generatedAt: 1, reports: devices.flatMap((d) => serverReports[d] || []) }));
+      }
+      return route.fulfill(json({ points: 3 * devices.flatMap((d) => serverReports[d] || []).length, reports: 0, verified: 0, confirmed: 0, validated: 0, fixed: 0, generatedAt: 1 }));
+    });
+    await page.route("**/api/community/report", (route) => {
+      const report = route.request().postDataJSON();
+      posted.push(report);
+      (serverReports[report.deviceId] ||= []).push({ id: report.id, kind: "tree", target: report.target, status: report.status, ts: Date.now(), outcome: "pending" });
+      return route.fulfill(json({ ok: true }));
+    });
+
+    // 1. Nobody is signed in: this browser makes a report under its own id.
+    await setup(page, "/community");
+    const primary = await page.evaluate(() => communityDeviceId());
+    await page.evaluate(() => communitySubmitReport({ kind: "tree", target: "tree:1", status: "VERIFIED", targetLat: 51.66, targetLon: 0.04 }));
+    await expect.poll(() => posted.some((r) => r.target === "tree:1")).toBe(true);
+    expect(posted.find((r) => r.target === "tree:1").deviceId).toBe(primary);
+
+    // 2. Account A signs in: this browser links to A and A's history shows.
+    me = { signedIn: true, name: "Ada", account: "acct-aaaa" };
+    await page.reload();
+    await expect(page.locator("#communityAccount")).toContainText("Signed in as Ada");
+    await expect(page.locator(".community-log-item")).toHaveCount(1);
+    await expect.poll(() => owners[primary]).toBe("acct-aaaa");
+
+    // 3. Account B signs in on the same browser: the link is refused (409), so B gets an identity of its own.
+    me = { signedIn: true, name: "Ben", account: "acct-bbbb" };
+    requested.length = 0;
+    await page.reload();
+    await expect(page.locator("#communityAccount")).toContainText("Signed in as Ben");
+    await expect(page.locator("#communityAccount [role='status']")).toContainText("starting fresh");
+    const bens = await page.evaluate(() => communityDeviceId());
+    expect(bens).not.toBe(primary);
+    expect(owners[bens]).toBe("acct-bbbb");
+    await expect(page.locator(".community-log-item")).toHaveCount(0);
+    await expect(page.locator(".community-rank-points")).toContainText("0 points");
+    expect(requested.includes(primary)).toBe(false);
+    expect(requested.length).toBeGreaterThan(0);
+    expect(requested.every((id) => id === bens)).toBe(true);
+    expect(await page.evaluate((id) => localStorage.getItem(`ff-community-local-v1:${id}`), bens)).toBeNull();
+    expect(await page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem("ff-community-local-v1"))).length)).toBe(1);
+
+    // 4. B reports under B's own id, which the server files under B.
+    await page.evaluate(() => communitySubmitReport({ kind: "tree", target: "tree:2", status: "VERIFIED", targetLat: 51.66, targetLon: 0.04 }));
+    await expect.poll(() => posted.some((r) => r.target === "tree:2")).toBe(true);
+    expect(posted.find((r) => r.target === "tree:2").deviceId).toBe(bens);
+    await page.reload();
+    await expect(page.locator(".community-log-item")).toHaveCount(1);
+
+    // 5. A signs back in: A's own history is back and B's report is not in it.
+    me = { signedIn: true, name: "Ada", account: "acct-aaaa" };
+    await page.reload();
+    await expect(page.locator("#communityAccount")).toContainText("Signed in as Ada");
+    expect(await page.evaluate(() => communityDeviceId())).toBe(primary);
+    await expect(page.locator(".community-log-item")).toHaveCount(1);
+    await expect(page.locator(".community-log-item")).toContainText("Verified here");
+    expect(new Set(posted.filter((r) => r.deviceId === primary).map((r) => r.id)).size).toBe(1);
   });
 
   test("when the browser cannot keep an id, one stable id is used for the whole page and the card says so", async ({ page }) => {

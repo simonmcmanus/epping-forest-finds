@@ -39,9 +39,13 @@ async function linkDevice(store, account, deviceId) {
   return { ok: true };
 }
 
-// The device ids a request may read as one person: the signed-in account's devices that it still owns
-// (checked against each device's owner record) when the requested device is one of them, otherwise just
-// the requested device.
+// The device ids a request may read as one person.
+//  - Anonymous (no session): the requested device alone, as before.
+//  - Signed in, and the device is one of the account's: all of the account's devices that it still owns
+//    (checked against each device's owner record).
+//  - Signed in, and the device belongs to a different account: never that device. This account is shown
+//    only its own devices, so a second person on someone else's browser sees none of their data.
+//  - Signed in, and the device has no owner yet: the device alone (it is about to be linked).
 async function devicesForRequest(store, deviceId, session) {
   if (!session || !session.sub) return [deviceId];
   const account = accountKey(session.sub);
@@ -52,7 +56,10 @@ async function devicesForRequest(store, deviceId, session) {
     const owner = await store.get(`devicelink/${device}`);
     if (owner && owner.account === account) owned.push(device);
   }
-  return owned.includes(deviceId) ? owned : [deviceId];
+  if (owned.includes(deviceId)) return owned;
+  const owner = await store.get(`devicelink/${deviceId}`);
+  if (owner && owner.account !== account) return owned;
+  return [deviceId];
 }
 
 // Sums per-device scores. Each field is a count or points, so adding them is the account's total.

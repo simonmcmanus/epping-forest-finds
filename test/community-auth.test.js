@@ -160,9 +160,9 @@ test("two accounts linking the same device at once end with exactly one owner, a
     const ownerSub = owner === A ? "auth0|a" : "auth0|b";
     const otherSub = owner === A ? "auth0|b" : "auth0|a";
     // Both accounts may hold a marker (a link that lost the race can still write one), but only the owner's
-    // account reads the device as part of its set; the other gets back only the id it supplied itself.
+    // account reads the device as part of its set; the other gets nothing from it.
     assert.deepStrictEqual(await account.devicesForRequest(store, "contested-device", { sub: ownerSub }), ["contested-device"]);
-    assert.deepStrictEqual(await account.devicesForRequest(store, "contested-device", { sub: otherSub }), ["contested-device"]);
+    assert.deepStrictEqual(await account.devicesForRequest(store, "contested-device", { sub: otherSub }), [], "the account that lost the race gets none of that device");
     await store.put(`accountdevices/${account.accountKey(otherSub)}/phantom-device-1`, {});
     const otherSet = await account.devicesForRequest(store, "contested-device", { sub: otherSub });
     assert.ok(!otherSet.includes("phantom-device-1") || otherSet.length === 1, "a marker without the owner record is never trusted");
@@ -179,7 +179,23 @@ test("a stray marker is not trusted: a device owned by someone else is not retur
   await store.put("devicelink/phone-device-1", { account: A });
   await store.put("devicelink/stolen-device-1", { account: "someone-else" });
   assert.deepStrictEqual(await account.devicesForRequest(store, "phone-device-1", { sub: "auth0|a" }), ["phone-device-1"]);
-  assert.deepStrictEqual(await account.devicesForRequest(store, "stolen-device-1", { sub: "auth0|a" }), ["stolen-device-1"]);
+  assert.deepStrictEqual(await account.devicesForRequest(store, "stolen-device-1", { sub: "auth0|a" }), ["phone-device-1"], "someone else's device is never returned; the account sees only its own");
+});
+
+test("a signed-in account never reads a device that belongs to another account, and an anonymous caller still reads the device alone", async () => {
+  const store = slowStore();
+  const A = account.accountKey("auth0|a");
+  const B = account.accountKey("auth0|b");
+  await account.linkDevice(store, A, "shared-browser-1");
+  await account.linkDevice(store, B, "bobs-phone-0001");
+  assert.strictEqual((await account.linkDevice(store, B, "shared-browser-1")).status, 409, "B cannot take A's device");
+  assert.deepStrictEqual(await account.devicesForRequest(store, "shared-browser-1", { sub: "auth0|b" }), ["bobs-phone-0001"], "B asking about A's device gets only B's own devices");
+  assert.deepStrictEqual(await account.devicesForRequest(store, "shared-browser-1", { sub: "auth0|a" }), ["shared-browser-1"], "A still reads it");
+  assert.deepStrictEqual(await account.devicesForRequest(store, "shared-browser-1", null), ["shared-browser-1"], "no session: the device alone, as before");
+  const nobody = account.accountKey("auth0|c");
+  assert.deepStrictEqual(await account.devicesForRequest(store, "shared-browser-1", { sub: "auth0|c" }), [], "an account with no devices of its own gets nothing from someone else's");
+  assert.ok(nobody);
+  assert.deepStrictEqual(await account.devicesForRequest(store, "unowned-device-1", { sub: "auth0|c" }), ["unowned-device-1"], "an unowned device is read alone until it is linked");
 });
 
 test("a failure between the two writes leaves the device owned but not a member, and linking again finishes the job", async () => {
