@@ -49,6 +49,21 @@ test.describe("Community sign-in", () => {
     await expect.poll(() => links).toBe(1);
   });
 
+  test("Sign in leaves the app for the login page instead of opening a screen", async ({ page }) => {
+    await page.route(ME_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: false }) })
+    );
+    await page.route("**/api/auth/login**", (route) =>
+      route.fulfill({ status: 302, headers: { Location: "https://auth.example.test/authorize" }, body: "" })
+    );
+    await page.route("https://auth.example.test/**", (route) =>
+      route.fulfill({ status: 200, contentType: "text/plain", body: "login page" })
+    );
+    await setup(page, "/community");
+    await page.click("#communityAccount a[href^='/api/auth/login']");
+    await expect(page).toHaveURL("https://auth.example.test/authorize");
+  });
+
   test("a device already linked to another account shows why, and the page still works", async ({ page }) => {
     await page.route(ME_URL, (route) =>
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: true, name: "Sam", account: "acct-sam" }) })
