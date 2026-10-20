@@ -3069,6 +3069,7 @@ function communityScreenHtml() {
   return `${communityIntroHtml()}
     ${communityContributionsHtml()}
     ${communityAddTreeHtml()}
+    ${communityAddPlaceHtml()}
     ${communityRecoveryHtml()}
     <label class="community-nudge-setting"><input type="checkbox" id="communityNudgeToggle"${communityNudgesOn() ? " checked" : ""}> Remind me to check trees I'm standing next to</label>
     <a class="community-feedback-link" href="/feedback">

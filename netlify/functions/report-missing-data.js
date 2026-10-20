@@ -69,6 +69,7 @@ const PLACE_CHECK_LABELS = {
   RENAMED: "The name has changed",
   DETAILS_CHANGED: "The details are wrong",
   WRONG_CATEGORY: "Wrong type of place",
+  NEW_PLACE: "A place is missing from the map",
 };
 // Real place ids carry a slash ("node/123", "manual/onest"). A slash is safe inside the quoted
 // place-key search term; quotes and spaces stay out, so the term can't break out of its quotes.
@@ -79,6 +80,8 @@ function parsePlaceCheck(raw) {
   const status = String(raw.status || "");
   const key = String(raw.key || "");
   if (!PLACE_CHECK_LABELS[status] || !PLACE_KEY_PATTERN.test(key)) return null;
+  // A missing place has no id yet, so its name is what a reviewer has to go on.
+  if (status === "NEW_PLACE" && !String(raw.name || "").trim()) return null;
   return {
     status,
     key,

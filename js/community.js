@@ -57,6 +57,7 @@ const COMMUNITY_STATUS_TEXT = {
   RENAMED: "Reported renamed",
   DETAILS_CHANGED: "Reported wrong details",
   WRONG_CATEGORY: "Reported wrong type",
+  NEW_PLACE: "Reported a missing place",
 };
 const COMMUNITY_STATUS_ICON = {
   VERIFIED: "check",
@@ -72,6 +73,7 @@ const COMMUNITY_STATUS_ICON = {
   RENAMED: "tag",
   DETAILS_CHANGED: "edit",
   WRONG_CATEGORY: "swap",
+  NEW_PLACE: "plus",
 };
 
 const COMMUNITY_RANKS = [
@@ -783,6 +785,128 @@ async function communitySubmitNewTree() {
         <p><strong>Tree ${escapeHtml(tag)} saved</strong><span>Thank you! It shows for everyone once a second person finds it too, which can take an hour or two.</span></p>
       </div>`;
   }
+  communityOpenContributions();
+}
+
+// --- Add a missing place: a form like "Add a missing tree", filed as a place-check issue for review ---
+const COMMUNITY_NEW_PLACE_TYPES = ["Pub", "Café", "Restaurant", "Shop", "Toilets", "Car park", "Visitor attraction", "Other"];
+
+function communityAddPlaceHtml() {
+  return `<section class="settings-section community-add-place">
+      <h3 class="settings-section-title">Add a missing place</h3>
+      <div id="communityAddPlaceBody">${communityAddPlaceIdleHtml()}</div>
+    </section>`;
+}
+
+function communityAddPlaceIdleHtml() {
+  return `<div class="community-new-tree">
+      <span class="community-new-icon">${communityIcon("plus")}</span>
+      <div class="community-new-text">
+        <p class="community-new-title">Is a pub, café or shop missing?</p>
+        <p class="report-note">Stand at the place. A person checks every new place before it goes on the map.</p>
+      </div>
+      <button class="community-add" type="button" data-action="community-addplace-start">${communityIcon("plus")}<span>Start</span></button>
+    </div>`;
+}
+
+function communityAddPlaceFormHtml() {
+  return `<form class="community-new-form" id="communityAddPlaceForm" novalidate>
+      <div id="communityPlaceLocationStatus" class="community-location" aria-live="polite"></div>
+      <label class="community-field"><span class="community-field-label">Name</span>
+        <input id="communityPlaceName" class="report-textarea community-input" type="text" autocomplete="off" maxlength="120" placeholder="What is it called?" required>
+      </label>
+      <label class="community-field"><span class="community-field-label">Type of place</span>
+        <select id="communityPlaceType" class="report-textarea community-input">${COMMUNITY_NEW_PLACE_TYPES.map((t) => `<option>${escapeHtml(t)}</option>`).join("")}</select>
+      </label>
+      <label class="community-field"><span class="community-field-label">Anything else? <span class="community-optional">(optional)</span></span>
+        <input id="communityPlaceNote" class="report-textarea community-input" type="text" autocomplete="off" maxlength="200" placeholder="Opening hours, website, what's nearby…">
+      </label>
+      <p id="communityAddPlaceStatus" class="report-note community-status" aria-live="polite"></p>
+      <div class="community-note-actions">
+        <button class="community-link" type="button" data-action="community-addplace-cancel">Cancel</button>
+        <button id="communityAddPlaceSubmit" class="community-send" type="submit" disabled>Submit place</button>
+      </div>
+    </form>`;
+}
+
+let communityPlaceLocationTimer = null;
+
+function communityUpdateAddPlaceState() {
+  const status = document.getElementById("communityPlaceLocationStatus");
+  const submit = document.getElementById("communityAddPlaceSubmit");
+  if (!status || !submit) { clearInterval(communityPlaceLocationTimer); communityPlaceLocationTimer = null; return; }
+  const fix = communityCurrentFix();
+  const messages = {
+    none: "Turn on location, then stand at the place.",
+    unknown: "Waiting for a GPS fix…",
+    poor: `GPS is only accurate to ${fix.accuracy ? Math.round(fix.accuracy) : "?"} m. Step into the open and wait a moment.`,
+  };
+  status.className = `community-location ${fix.ok ? "is-good" : "is-wait"}`;
+  status.innerHTML = fix.ok
+    ? `${communityIcon("check")}<span>Using your location · accurate to ${Math.round(fix.accuracy)} m</span>`
+    : `${communityIcon("locate")}<span>${messages[fix.reason]}</span>`;
+  const name = (document.getElementById("communityPlaceName") || {}).value || "";
+  submit.disabled = !(fix.ok && name.trim());
+}
+
+function communityStartAddPlace() {
+  const body = document.getElementById("communityAddPlaceBody");
+  if (!body) return;
+  body.innerHTML = communityAddPlaceFormHtml();
+  communityUpdateAddPlaceState();
+  clearInterval(communityPlaceLocationTimer);
+  communityPlaceLocationTimer = setInterval(communityUpdateAddPlaceState, 1500);
+  const input = document.getElementById("communityPlaceName");
+  if (input) input.addEventListener("input", communityUpdateAddPlaceState);
+  const form = document.getElementById("communityAddPlaceForm");
+  if (form) form.addEventListener("submit", (event) => { event.preventDefault(); communitySubmitNewPlace(); });
+}
+
+function communityCancelAddPlace() {
+  clearInterval(communityPlaceLocationTimer);
+  communityPlaceLocationTimer = null;
+  const body = document.getElementById("communityAddPlaceBody");
+  if (body) body.innerHTML = communityAddPlaceIdleHtml();
+}
+
+async function communitySubmitNewPlace() {
+  const statusEl = document.getElementById("communityAddPlaceStatus");
+  const say = (text) => { if (statusEl) statusEl.textContent = text; };
+  const name = ((document.getElementById("communityPlaceName") || {}).value || "").trim();
+  const category = ((document.getElementById("communityPlaceType") || {}).value || "Other").trim();
+  const note = ((document.getElementById("communityPlaceNote") || {}).value || "").trim();
+  const fix = communityCurrentFix();
+  if (!name) return say("Please enter the place's name.");
+  if (!fix.ok) return say("We need a close, accurate location. Stand at the place and wait for a better GPS fix.");
+  const lat = Number(state.userLocation.latitude.toFixed(6));
+  const lon = Number(state.userLocation.longitude.toFixed(6));
+  const key = `new:${lat.toFixed(5)},${lon.toFixed(5)}`;
+  const id = communityRandomId();
+  const local = communityReadLocal();
+  local[key] = { id, status: "NEW_PLACE", ts: Date.now(), kind: "place", name, lat, lon };
+  communityWriteLocal(local);
+  outboxAdd({ id, url: COMMUNITY_ISSUE_URL, payload: {
+    reportType: "place-check",
+    placeCheck: { status: "NEW_PLACE", key, name, category },
+    details: note,
+    location: { latitude: lat, longitude: lon },
+    locationContext: { type: category, name },
+    deviceId: communityDeviceId(),
+    appVersion: (typeof state !== "undefined" && state.swVersion) || (typeof APP_VERSION !== "undefined" ? APP_VERSION : "unknown"),
+    userAgent: navigator.userAgent,
+    pageUrl: window.location.href,
+    requestId: id,
+  } }).then(() => { if (navigator.onLine) outboxFlush(); }).catch(() => {});
+  clearInterval(communityPlaceLocationTimer);
+  communityPlaceLocationTimer = null;
+  const body = document.getElementById("communityAddPlaceBody");
+  if (body) {
+    body.innerHTML = `<div class="community-mine">
+        <span class="community-mine-icon">${communityIcon("check")}</span>
+        <p><strong>${escapeHtml(name)} sent for review</strong><span>Thank you! A person will check it before it goes on the map.</span></p>
+      </div>`;
+  }
+  if (typeof requestDraw === "function") requestDraw();
   communityOpenContributions();
 }
 

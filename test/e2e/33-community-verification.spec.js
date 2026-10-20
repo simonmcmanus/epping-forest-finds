@@ -629,6 +629,34 @@ test.describe("Trees added by walkers", () => {
   });
 });
 
+test.describe("Add a missing place", () => {
+  test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ["geolocation"] });
+
+  test("needs a name and a good fix, then files a place report and logs it", async ({ page }) => {
+    await page.route(OVERLAY_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {} }) }));
+    const posted = [];
+    await page.route("**/.netlify/functions/report-missing-data", async (route) => {
+      posted.push(route.request().postDataJSON());
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, issueUrl: "https://github.com/x/y/issues/1" }) });
+    });
+    await setup(page, "/community");
+    await page.click("[data-action='community-addplace-start']");
+    await expect(page.locator("#communityPlaceLocationStatus")).toContainText("accurate to");
+    await expect(page.locator("#communityAddPlaceSubmit")).toBeDisabled();
+    await page.fill("#communityPlaceName", "The Test Tavern");
+    await page.selectOption("#communityPlaceType", "Pub");
+    await expect(page.locator("#communityAddPlaceSubmit")).toBeEnabled();
+    expect(posted).toHaveLength(0);
+    await page.click("#communityAddPlaceSubmit");
+    await expect(page.locator(".community-add-place .community-mine")).toContainText("The Test Tavern sent for review");
+    await expect.poll(() => posted.length).toBe(1);
+    expect(posted[0].placeCheck).toMatchObject({ status: "NEW_PLACE", name: "The Test Tavern", category: "Pub" });
+    expect(posted[0].placeCheck.key).toMatch(/^new:51\.665\d*,0\.045\d*$/);
+    await expect(page.locator(".community-log-item").filter({ hasText: "The Test Tavern" })).toContainText("Reported a missing place");
+  });
+});
+
 test.describe("Community log links to places", () => {
   test("a reported place in the contributions log links to its own /find/ page", async ({ page }) => {
     await page.addInitScript(() => {

@@ -11202,6 +11202,24 @@ test("a place check with an unknown status or an unsafe key is rejected", async 
   });
 });
 
+test("a missing place is filed as a place-check issue keyed on its position, and needs a name", async () => {
+  await withStubbedGithub(
+    (url) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 8, html_url: "https://github.com/x/y/issues/8" })),
+    async (handler, calls) => {
+      const key = "new:51.66512,0.04512";
+      const ok = await handler(placeCheckEvent({ placeCheck: { status: "NEW_PLACE", key, name: "The New Arms", category: "Pub" }, details: "Opened last week" }));
+      assert.equal(ok.statusCode, 200);
+      const created = calls.find((c) => c.method === "POST" && c.url.endsWith("/issues"));
+      assert.match(created.body.title, /^Place check: The New Arms: A place is missing from the map/);
+      assert.ok(created.body.labels.includes("place:new:51.66512,0.04512"));
+      assert.match(created.body.body, /Reported status: NEW_PLACE/);
+      assert.match(created.body.body, /Opened last week/);
+      const nameless = await handler(placeCheckEvent({ placeCheck: { status: "NEW_PLACE", key, name: "  " } }));
+      assert.equal(nameless.statusCode, 400);
+    }
+  );
+});
+
 // --- The City of London discrepancy report (netlify/functions/lib/community-report-data.js) ---
 const communityReportData = require("../netlify/functions/lib/community-report-data");
 const reportSnapshot = () => communityConsensus.computeCommunityState([
