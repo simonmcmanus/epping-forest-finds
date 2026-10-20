@@ -1542,6 +1542,7 @@ function communityResetHosts(heroHtml) {
 
 let communityLogFilter = "all";
 const COMMUNITY_ATTENTION_OUTCOMES = ["failed", "waiting", "review"];
+// "Completed" rather than "Confirmed": it holds every finished outcome (confirmed by others, City-validated, fixed, checked in).
 const COMMUNITY_DONE_OUTCOMES = ["confirmed", "validated", "fixed", "checked"];
 
 function communityRelativeDay(ts, now = Date.now()) {
@@ -1595,7 +1596,7 @@ async function communityRenderContributions() {
     ? `<p class="community-log-error">This browser can't save waiting reports. Keep the app open until they are sent.</p>`
     : "";
   const filters = entries.length >= 3
-    ? `<div class="community-filter" role="group" aria-label="Filter your reports">${[["all", "All"], ["attention", `Needs attention${attention ? ` (${attention})` : ""}`], ["done", "Confirmed"]].map(([id, text]) => `<button type="button" class="community-filter-btn${filter === id ? " is-active" : ""}" data-action="community-log-filter" data-filter="${id}" aria-pressed="${filter === id}">${text}</button>`).join("")}</div>`
+    ? `<div class="community-filter" role="group" aria-label="Filter your reports">${[["all", "All"], ["attention", `Needs attention${attention ? ` (${attention})` : ""}`], ["done", "Completed"]].map(([id, text]) => `<button type="button" class="community-filter-btn${filter === id ? " is-active" : ""}" data-action="community-log-filter" data-filter="${id}" aria-pressed="${filter === id}">${text}</button>`).join("")}</div>`
     : "";
   const empty = `<div class="community-empty">${typeof appIconHtml === "function" ? appIconHtml("tree", "app-icon community-empty-art") : ""}<p><strong>No reports yet</strong><span>Open a tree or a place and tap “Help check”. You get a point for each tree you check, and another when someone else agrees.</span></p></div>`;
   host.innerHTML = `${volatileNote}<div class="community-rank-card">

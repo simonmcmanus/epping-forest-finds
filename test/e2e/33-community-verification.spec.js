@@ -791,6 +791,10 @@ test.describe("Badges and streaks", () => {
     await expect(page.locator(".community-log-status").first()).toContainText("Today");
     await page.click("[data-action='community-log-filter'][data-filter='attention']");
     await expect(page.locator(".community-log-item")).toHaveCount(1);
+    // The third filter is "Completed", not "Confirmed": it also holds City-validated, fixed and checked-in rows.
+    await expect(page.locator("[data-action='community-log-filter'][data-filter='done']")).toHaveText("Completed");
+    await page.click("[data-action='community-log-filter'][data-filter='done']");
+    await expect(page.locator(".community-log-item .community-pill", { hasText: /Couldn't send|Waiting to send|Being reviewed/ })).toHaveCount(0);
     await page.click("[data-action='community-log-filter'][data-filter='all']");
     await expect(page.locator(".community-log-item")).toHaveCount(3);
   });
