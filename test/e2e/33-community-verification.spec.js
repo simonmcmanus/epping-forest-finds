@@ -157,6 +157,31 @@ test.describe("Community tree verification", () => {
     await expect(page.locator(".community-log-item")).toContainText("Verified here");
   });
 
+  test("the reports list is collapsed until opened, and the whole tile opens its tree", async ({ page }) => {
+    await page.route(REPORT_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) })
+    );
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await page.click("[data-action='community-report'][data-status='VERIFIED']");
+    await expect(page.locator(".community-mine")).toBeVisible();
+    await page.click("#reportToggle");
+    await expect(page.locator("#communityReportsDetails")).not.toHaveAttribute("open", "");
+    await expect(page.locator(".community-log-item")).toBeHidden();
+    await page.click("#communityReportsDetails summary");
+    const tile = page.locator(".community-log-item").first();
+    await expect(tile).toBeVisible();
+    const box = await tile.boundingBox();
+    await page.mouse.click(box.x + box.width - 6, box.y + box.height - 6);
+    await expect(page.locator("#inspectorTitle").last()).not.toContainText("Community");
+  });
+
+  test("backup lives in the signed-out account card, add tree and place share one section, trees link to /nearby/trees", async ({ page }) => {
+    await setup(page, "/community");
+    await expect(page.locator("#communityAccount .community-recover")).toBeVisible();
+    await expect(page.locator(".community-add-tree .community-add")).toHaveCount(2);
+    await expect(page.locator(".community-action-row").first()).toHaveAttribute("href", "/nearby/trees");
+  });
+
   test("a reported tree can be changed, which brings the choices back with the current one marked", async ({ page }) => {
     await page.route(REPORT_URL, (route) =>
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) })

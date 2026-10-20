@@ -553,18 +553,24 @@ function communityUpdateRangeNotes() {
   });
 }
 
+// "You reported: ..." as one quiet line; the thank-you and points detail opens on demand.
+function communityMineHtml(title, detailHtml) {
+  return `<div class="community-mine community-mine-compact">
+      <details class="community-mine-details">
+        <summary><span class="community-mine-icon">${communityIcon("check")}</span><strong>You reported: ${escapeHtml(title)}</strong>${communityIcon("chevron", "community-icon community-mine-chevron")}</summary>
+        <p>${detailHtml}</p>
+      </details>
+      <button class="community-link" type="button" data-action="community-change">Change</button>
+    </div>`;
+}
+
 function communitySectionInnerHtml(target, editing, lat, lon, more = false) {
   const local = communityReadLocal()[target];
   const remote = communityOverlay.entries[target];
   if (local && !editing) {
     return `${communityBadgeHtml(remote)}
-      <div class="community-mine">
-        <span class="community-mine-icon">${communityIcon("check")}</span>
-        <p><strong>You reported: ${escapeHtml(COMMUNITY_STATUS_TEXT[local.status] || local.status)}</strong>
-          <span>Thank you! Other people may take an hour or two to see this.${local.far ? ` It only earns points when you report within ${COMMUNITY_NEAR_METRES} m of the tree.` : ""}</span>
-          <span class="community-range-points community-earned-${local.far ? "far" : "near"}">${communityPointsChipFor(local.status, local.far ? "far" : "near")}${escapeHtml(communityPointsText(local.status, local.far ? "far" : "near"))}</span></p>
-        <button class="community-link" type="button" data-action="community-change">Change</button>
-      </div>`;
+      ${communityMineHtml(COMMUNITY_STATUS_TEXT[local.status] || local.status, `<span>Thank you! Other people may take an hour or two to see this.${local.far ? ` It only earns points when you report within ${COMMUNITY_NEAR_METRES} m of the tree.` : ""}</span>
+          <span class="community-range-points community-earned-${local.far ? "far" : "near"}">${communityPointsChipFor(local.status, local.far ? "far" : "near")}${escapeHtml(communityPointsText(local.status, local.far ? "far" : "near"))}</span>`)}`;
   }
   const [primary, ...others] = COMMUNITY_TREE_CHOICES;
   const chosen = local ? local.status : null;
@@ -706,7 +712,7 @@ function communityParseRecoveryCode(input) {
 
 function communityRecoveryHtml() {
   return `<details class="community-recover">
-      <summary>${communityIcon("shield")}<span>Back up or restore your progress</span></summary>
+      <summary>${communityIcon("shield")}<span>Or back up with a code instead</span></summary>
       ${communityDeviceIdIsDurable() ? "" : `<p class="community-log-error">This browser can't save your Community code, so your points are lost when you close this page. Sign in or copy the code below to keep them.</p>`}
       <p class="community-recover-text">Your points belong to a code kept on this device. Save it somewhere safe and you can get them back on a new phone or after clearing your browser. Anyone with the code can act as you, so keep it private.</p>
       <div class="community-recover-code"><code id="communityRecoveryCode">${escapeHtml(communityRecoveryCode())}</code><button type="button" class="community-chip" data-action="community-copy-code">Copy</button></div>
@@ -914,20 +920,23 @@ const COMMUNITY_MAX_ACCURACY_METRES = 30;
 let communityLocationTimer = null;
 
 function communityAddTreeHtml() {
-  return `<section class="settings-section community-add-tree">
-      <h3 class="settings-section-title">Add a missing tree</h3>
-      <div id="communityAddTreeBody">${communityAddTreeIdleHtml()}</div>
+  return `<section class="settings-section community-add-tree community-add-place">
+      <h3 class="settings-section-title">Add something missing</h3>
+      <div id="communityAddBody">${communityAddIdleHtml()}</div>
     </section>`;
 }
 
-function communityAddTreeIdleHtml() {
+// One prompt for both kinds; the matching form replaces it in the same spot.
+function communityAddIdleHtml() {
   return `<div class="community-new-tree">
-      <span class="community-new-icon">${typeof appIconHtml === "function" ? appIconHtml("tree", "app-icon community-new-art") : ""}</span>
       <div class="community-new-text">
-        <p class="community-new-title">Found a tree that's not on the map?</p>
-        <p class="report-note">You'll need its tag number, and to be standing right next to it.</p>
+        <p class="community-new-title">Not on the map?</p>
+        <p class="report-note">Stand right next to it. A tree needs its tag number; a person checks every new place.</p>
       </div>
-      <button class="community-add" type="button" data-action="community-add-start">${communityIcon("plus")}<span>Start</span></button>
+      <div class="community-add-actions">
+        <button class="community-add" type="button" data-action="community-add-start">${communityIcon("tree")}<span>Tree</span></button>
+        <button class="community-add" type="button" data-action="community-addplace-start">${communityIcon("locate")}<span>Place</span></button>
+      </div>
     </div>`;
 }
 
@@ -977,7 +986,7 @@ function communityUpdateAddTreeState() {
 }
 
 function communityStartAddTree() {
-  const body = document.getElementById("communityAddTreeBody");
+  const body = document.getElementById("communityAddBody");
   if (!body) return;
   body.innerHTML = communityAddTreeFormHtml();
   communityUpdateAddTreeState();
@@ -992,8 +1001,8 @@ function communityStartAddTree() {
 function communityCancelAddTree() {
   clearInterval(communityLocationTimer);
   communityLocationTimer = null;
-  const body = document.getElementById("communityAddTreeBody");
-  if (body) body.innerHTML = communityAddTreeIdleHtml();
+  const body = document.getElementById("communityAddBody");
+  if (body) body.innerHTML = communityAddIdleHtml();
 }
 
 async function communitySubmitNewTree() {
@@ -1014,7 +1023,7 @@ async function communitySubmitNewTree() {
   await communitySubmitReport({ kind: "tree", status: "NEW_TREE", target: undefined, targetLat: lat, targetLon: lon, tagNumber: tag, accuracy: Math.round(fix.accuracy), note });
   clearInterval(communityLocationTimer);
   communityLocationTimer = null;
-  const body = document.getElementById("communityAddTreeBody");
+  const body = document.getElementById("communityAddBody");
   if (body) {
     body.innerHTML = `<div class="community-mine">
         <span class="community-mine-icon">${communityIcon("check")}</span>
@@ -1026,24 +1035,6 @@ async function communitySubmitNewTree() {
 
 // --- Add a missing place: a form like "Add a missing tree", filed as a place-check issue for review ---
 const COMMUNITY_NEW_PLACE_TYPES = ["Pub", "Café", "Restaurant", "Shop", "Toilets", "Car park", "Visitor attraction", "Other"];
-
-function communityAddPlaceHtml() {
-  return `<section class="settings-section community-add-place">
-      <h3 class="settings-section-title">Add a missing place</h3>
-      <div id="communityAddPlaceBody">${communityAddPlaceIdleHtml()}</div>
-    </section>`;
-}
-
-function communityAddPlaceIdleHtml() {
-  return `<div class="community-new-tree">
-      <span class="community-new-icon">${communityIcon("plus")}</span>
-      <div class="community-new-text">
-        <p class="community-new-title">Is a pub, café or shop missing?</p>
-        <p class="report-note">Stand at the place. A person checks every new place before it goes on the map.</p>
-      </div>
-      <button class="community-add" type="button" data-action="community-addplace-start">${communityIcon("plus")}<span>Start</span></button>
-    </div>`;
-}
 
 function communityAddPlaceFormHtml() {
   return `<form class="community-new-form" id="communityAddPlaceForm" novalidate>
@@ -1086,7 +1077,7 @@ function communityUpdateAddPlaceState() {
 }
 
 function communityStartAddPlace() {
-  const body = document.getElementById("communityAddPlaceBody");
+  const body = document.getElementById("communityAddBody");
   if (!body) return;
   body.innerHTML = communityAddPlaceFormHtml();
   communityUpdateAddPlaceState();
@@ -1101,8 +1092,8 @@ function communityStartAddPlace() {
 function communityCancelAddPlace() {
   clearInterval(communityPlaceLocationTimer);
   communityPlaceLocationTimer = null;
-  const body = document.getElementById("communityAddPlaceBody");
-  if (body) body.innerHTML = communityAddPlaceIdleHtml();
+  const body = document.getElementById("communityAddBody");
+  if (body) body.innerHTML = communityAddIdleHtml();
 }
 
 async function communitySubmitNewPlace() {
@@ -1135,7 +1126,7 @@ async function communitySubmitNewPlace() {
   } }).then(() => { if (navigator.onLine) outboxFlush(); }).catch(() => {});
   clearInterval(communityPlaceLocationTimer);
   communityPlaceLocationTimer = null;
-  const body = document.getElementById("communityAddPlaceBody");
+  const body = document.getElementById("communityAddBody");
   if (body) {
     body.innerHTML = `<div class="community-mine">
         <span class="community-mine-icon">${communityIcon("check")}</span>
@@ -1172,12 +1163,7 @@ function communityPlaceInnerHtml(section) {
   }
   const local = communityReadLocal()[target];
   if (local && section.dataset.editing !== "1") {
-    return `<div class="community-mine">
-        <span class="community-mine-icon">${communityIcon("check")}</span>
-        <p><strong>You reported: ${escapeHtml(COMMUNITY_STATUS_TEXT[local.status] || local.status)}</strong>
-          <span>Thank you! A person will review this. You earn points if it's confirmed.</span></p>
-        <button class="community-link" type="button" data-action="community-change">Change</button>
-      </div>`;
+    return communityMineHtml(COMMUNITY_STATUS_TEXT[local.status] || local.status, `<span>Thank you! A person will review this. You earn points if it's confirmed.</span>`);
   }
   const [primary, ...others] = COMMUNITY_PLACE_CHOICES;
   return `${communityPlaceChoiceHtml(primary)}
@@ -1511,8 +1497,10 @@ function communityBadgesSectionHtml() {
 
 function communityLogSectionHtml() {
   return `<section class="settings-section community-reports">
-      <h3 class="settings-section-title">Your reports</h3>
-      <div id="communityLog"></div>
+      <details id="communityReportsDetails">
+        <summary class="settings-section-title">Your reports<span id="communityReportsCount"></span>${communityIcon("chevron", "community-icon community-mine-chevron")}</summary>
+        <div id="communityLog"></div>
+      </details>
     </section>`;
 }
 
@@ -1521,7 +1509,7 @@ function communityActionsHtml() {
   const located = typeof hasRealLocation === "function" && hasRealLocation();
   return `<section class="settings-section community-actions">
       <h3 class="settings-section-title">Do something now</h3>
-      <a class="community-action-row" href="/nearby">
+      <a class="community-action-row" href="/nearby/trees">
         <span class="community-action-icon">${communityIcon("locate")}</span>
         <span class="community-action-text"><strong>Check trees near you</strong><span>${located ? "Walk up to a tree and tap Verify to earn a point" : "Turn on location to earn points for checks"}</span></span>
         ${communityIcon("chevron")}
@@ -1608,16 +1596,18 @@ async function communityRenderContributions() {
       </div>
       <div class="community-progress" role="progressbar" aria-label="Progress to the next rank" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}" aria-valuetext="${escapeHtml(rank.name)}, ${progress}% of the way to ${escapeHtml(rank.next ? rank.next.name : "the top rank")}"><span style="width:${progress}%"></span></div>
       <div class="community-stats">
-        <div><strong>${score.verified}</strong><span>Verified</span></div>
-        <div><strong>${score.confirmed}</strong><span>Confirmed by others</span></div>
-        <div><strong>${entries.length}</strong><span>Your reports</span></div>
+        <div>${communityIcon("shield")}<strong>${score.verified}</strong><span>Verified</span></div>
+        <div>${communityIcon("swap")}<strong>${score.confirmed}</strong><span>Confirmed by others</span></div>
+        <div>${communityIcon("edit")}<strong>${entries.length}</strong><span>Your reports</span></div>
       </div>
       ${communityStreakHtml(local)}`;
   const badgesHost = document.getElementById("communityBadgesHost");
   if (badgesHost) badgesHost.innerHTML = communityBadgesHtml(score, local);
+  const countHost = document.getElementById("communityReportsCount");
+  if (countHost) countHost.textContent = entries.length ? ` (${entries.length})` : "";
   const logHost = document.getElementById("communityLog");
   if (logHost) {
-    logHost.innerHTML = `${communityLegendHtml(communityMapMarks())}${filters}${rows ? `<ul class="community-log">${rows}</ul>` : entries.length ? `<p class="settings-description">Nothing here yet.</p>` : empty}`;
+    logHost.innerHTML = `${communityLegendHtml(communityMapMarks())}${filters}${rows ? `<ul class="community-log">${rows}</ul>` : entries.length ? `<p class="community-empty community-empty-filter">${filter === "attention" ? "Nothing needs attention. Reports that fail to send or wait for review show here." : "No completed reports yet. They appear once others agree or a report is fixed."}</p>` : empty}`;
   }
 }
 
@@ -1733,11 +1723,12 @@ function communityRenderAccount(account, note = "") {
         <a class="community-chip" href="/api/auth/logout?return=/community">Sign out</a>${noteHtml}
       </div>`
     : communitySigninDismissed() && !note
-      ? `<p class="community-account-quiet"><a href="/api/auth/login?return=/community">Sign in to keep your points on any device</a></p>`
+      ? `<div class="community-account-card community-account-compact"><p class="community-account-quiet"><a href="/api/auth/login?return=/community">Sign in to keep your points on any device</a></p>${communityRecoveryHtml()}</div>`
       : `<div class="community-account-card community-account-banner">
         <p class="community-account-text"><strong>Keep your points on any device</strong> Sign in with a social account or email. You can still check trees without signing in.</p>
         <a class="community-chip" href="/api/auth/login?return=/community">Sign in</a>
         <button type="button" class="community-banner-dismiss" data-action="community-signin-dismiss" aria-label="Hide this for now">${communityIcon("x")}</button>${noteHtml}
+        ${communityRecoveryHtml()}
       </div>`;
 }
 

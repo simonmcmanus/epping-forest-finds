@@ -1395,10 +1395,10 @@ button.community-more:focus-visible { outline: 2px solid var(--tree); outline-of
 
 /* Community screen: one-row summary linking to the full explanation, and the link on to the feedback page */
 .community-intro {
-  display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: 12px;
-  background: #f6f9f5; border: 1px solid rgba(47, 111, 78, 0.22); color: var(--ink); text-decoration: none;
+  display: flex; align-items: center; gap: 10px; padding: 6px 4px; border-radius: 10px;
+  color: var(--ink); text-decoration: none;
 }
-.community-intro:hover { background: #eef5ee; }
+.community-intro:hover { background: #f3f7f2; }
 .community-intro-icon {
   width: 32px; height: 32px; flex-shrink: 0; border-radius: 10px;
   display: grid; place-items: center; color: var(--tree); background: rgba(47, 111, 78, 0.12);
@@ -1783,3 +1783,30 @@ dd {
 .community-badges-section { padding-top: 0; min-width: 0; max-width: 100%; }
 .community-badges-section > div, .community-badges { min-width: 0; max-width: 100%; }
 @media (prefers-reduced-motion: reduce) { .community-progress span { transition: none; } }
+
+/* Community: compact "You reported" line, collapsed reports, merged account card, small add buttons */
+.community-mine-compact { grid-template-columns: 1fr auto; padding: 8px 12px; }
+.community-mine-details summary { display: flex; align-items: center; gap: 8px; cursor: pointer; list-style: none; font-size: 0.88rem; }
+.community-mine-details summary::-webkit-details-marker { display: none; }
+.community-mine-compact .community-mine-icon { width: 24px; height: 24px; flex: none; }
+.community-mine-compact .community-mine-icon .community-icon { width: 14px; height: 14px; }
+.community-mine-details summary strong { flex: 1; min-width: 0; }
+.community-mine-chevron { width: 16px; height: 16px; flex: none; color: var(--muted); transition: transform 150ms ease; }
+details[open] > summary > .community-mine-chevron { transform: rotate(90deg); }
+.community-mine-details p { margin: 8px 0 2px 32px; }
+#communityReportsDetails > summary { display: flex; align-items: center; gap: 4px; min-height: 40px; cursor: pointer; list-style: none; }
+#communityReportsDetails > summary::-webkit-details-marker { display: none; }
+#communityReportsDetails > summary .community-mine-chevron { margin-left: auto; }
+.community-log-item { position: relative; }
+.community-log-item:hover { background: #f7faf7; }
+.community-log-name a::after { content: ""; position: absolute; inset: 0; border-radius: 12px; }
+.community-issue-link, .community-log-item .community-link { position: relative; z-index: 1; }
+.community-empty-filter { display: block; margin-top: 12px; padding: 18px 16px; text-align: center; font-size: 0.86rem; line-height: 1.4; color: var(--muted); }
+.community-account-card .community-recover { margin: 0; padding: 8px 0 0; border: 0; border-top: 1px solid rgba(0, 0, 0, 0.08); border-radius: 0; background: none; }
+.community-account-card .community-recover summary { font-weight: 600; font-size: 0.86rem; color: var(--muted); }
+.community-account-compact { margin-top: 10px; }
+.community-add-actions { display: flex; gap: 8px; }
+.community-new-tree:has(.community-add-actions) { grid-template-columns: 1fr auto; }
+.community-add { min-height: 34px; padding: 0 12px; border-radius: 8px; font-size: 0.86rem; color: var(--tree); background: #fff; border: 1px solid rgba(47, 111, 78, 0.35); box-shadow: none; }
+.community-add .community-icon { width: 16px; height: 16px; }
+.community-stats .community-icon { width: 16px; height: 16px; margin: 0 auto; color: var(--tree); }
