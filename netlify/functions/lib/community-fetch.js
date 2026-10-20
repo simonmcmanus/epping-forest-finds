@@ -32,4 +32,21 @@ function makeGithub() {
   };
 }
 
-module.exports = { originOf, makeFetchJson, makeGithub };
+// Files one issue; null without a token. Used for conflict escalation.
+function makeGithubIssuePoster() {
+  const token = String(process.env.GITHUB_TOKEN || process.env.GH_TOKEN || process.env.GITHUB_FINE_GRAINED_TOKEN || process.env.GITHUB_PAT || "").trim();
+  if (!token) return null;
+  const repo = process.env.GITHUB_REPO || DEFAULT_REPO;
+  return async (issue) => {
+    const response = await fetch(`https://api.github.com/repos/${repo}/issues`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "Content-Type": "application/json" },
+      body: JSON.stringify(issue),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!response.ok) throw new Error(`GitHub issue: ${response.status}`);
+    return response.json();
+  };
+}
+
+module.exports = { originOf, makeFetchJson, makeGithub, makeGithubIssuePoster };

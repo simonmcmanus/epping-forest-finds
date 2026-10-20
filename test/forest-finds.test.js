@@ -11362,6 +11362,50 @@ test("a streak counts days in a row, stays alive until a full day is missed, and
   assert.equal(s({}, day(3)), JSON.stringify({ current: 0, best: 0 }));
 });
 
+const communityEscalation = require("../netlify/functions/lib/community-escalation");
+const escalationStore = () => {
+  const data = new Map();
+  return { async get(k) { return data.has(k) ? JSON.parse(JSON.stringify(data.get(k))) : null; }, async put(k, v) { data.set(k, JSON.parse(JSON.stringify(v))); } };
+};
+const conflictComputed = (...targets) => ({ conflictDetails: targets.map((t) => ({ target: `tree:${t}`, counts: { VERIFIED: 1, NOT_HERE: 2 }, tlat: 51.66, tlon: 0.04 })) });
+
+test("a conflicting tree is filed once as a labelled issue, with the counts and a link to the tree", async () => {
+  const store = escalationStore();
+  const posted = [];
+  const post = async (issue) => { posted.push(issue); return { number: 40 + posted.length, html_url: `https://github.com/x/y/issues/${40 + posted.length}` }; };
+  const first = await communityEscalation.escalateConflicts(store, conflictComputed(7), { post, siteUrl: "https://example.test" });
+  assert.equal(first.filed, 1);
+  assert.equal(posted[0].title, "Community conflict: tree 7");
+  assert.deepEqual(posted[0].labels, ["community-conflict", "user-report", "tree:7"]);
+  assert.match(posted[0].body, /1 × verified it is right/);
+  assert.match(posted[0].body, /2 × found no tree/);
+  assert.match(posted[0].body, /https:\/\/example\.test\/nearby#tree=r7/);
+  assert.match(posted[0].body, /community-conflict-key:tree:7/);
+  const again = await communityEscalation.escalateConflicts(store, conflictComputed(7), { post });
+  assert.equal(again.filed, 0);
+  assert.equal(posted.length, 1, "a rebuild never files the same tree twice");
+});
+
+test("conflict escalation files only new trees, caps each run, retries failures, and does nothing without GitHub", async () => {
+  const store = escalationStore();
+  let calls = 0;
+  const post = async () => { calls += 1; if (calls === 2) throw new Error("boom"); return { number: calls, html_url: "u" }; };
+  const run = await communityEscalation.escalateConflicts(store, conflictComputed(1, 2, 3), { post, max: 2 });
+  assert.equal(run.filed, 2);
+  assert.equal(run.failed, 1);
+  assert.equal(run.pending, 1);
+  const capped = await communityEscalation.escalateConflicts(escalationStore(), conflictComputed(4, 5, 6), { post: async () => ({ number: 1, html_url: "u" }), max: 2 });
+  assert.equal(capped.filed, 2, "a run files at most max issues");
+  assert.equal(capped.pending, 1);
+  const next = await communityEscalation.escalateConflicts(store, conflictComputed(1, 2, 3), { post, max: 5 });
+  assert.equal(next.filed, 1, "the one that failed is filed next run");
+  assert.equal(next.pending, 0);
+  const none = await communityEscalation.escalateConflicts(escalationStore(), conflictComputed(9), {});
+  assert.equal(none.filed, 0);
+  assert.equal(none.skipped, "no-github");
+  assert.equal((await communityEscalation.escalateConflicts(escalationStore(), { conflictDetails: [] }, { post })).filed, 0);
+});
+
 runRegisteredTests().catch((error) => {
   console.error(error);
   process.exitCode = 1;
