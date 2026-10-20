@@ -18,7 +18,7 @@ exports.handler = async (event) => {
   return {
     statusCode: 302,
     headers: { Location: url.toString(), "Cache-Control": "no-store" },
-    multiValueHeaders: { "Set-Cookie": [auth.stateCookie({ state, ret: returnTo }, config.secret)] },
+    multiValueHeaders: { "Set-Cookie": [auth.stateCookie({ state, ret: returnTo }, config.secret, auth.isSecureRequest(event))] },
     body: "",
   };
 };

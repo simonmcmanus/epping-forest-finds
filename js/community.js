@@ -118,14 +118,30 @@ function communityRandomId(length = 24) {
   return Array.from(bytes, (b) => (b % 36).toString(36)).join("");
 }
 
+// Where this browser cannot keep an id (private window, blocked storage) a fresh one on every call would
+// split one session across many identities, so the first one is kept for the life of the page.
+let communityVolatileDeviceId = null;
+
 function communityDeviceId() {
   try {
     const existing = localStorage.getItem(COMMUNITY_DEVICE_KEY);
     if (existing) return existing;
   } catch {}
+  if (communityVolatileDeviceId) return communityVolatileDeviceId;
   const id = communityRandomId();
-  try { localStorage.setItem(COMMUNITY_DEVICE_KEY, id); } catch {}
+  let kept = false;
+  try {
+    localStorage.setItem(COMMUNITY_DEVICE_KEY, id);
+    kept = localStorage.getItem(COMMUNITY_DEVICE_KEY) === id;
+  } catch {}
+  if (!kept) communityVolatileDeviceId = id;
   return id;
+}
+
+// False when the id only lives in this page (nothing was saved), so it is lost when the tab closes.
+function communityDeviceIdIsDurable() {
+  communityDeviceId();
+  return communityVolatileDeviceId === null;
 }
 
 function communityTreeTarget(tree) {
@@ -546,6 +562,7 @@ function communityParseRecoveryCode(input) {
 function communityRecoveryHtml() {
   return `<details class="community-recover">
       <summary>${communityIcon("shield")}<span>Back up or restore your progress</span></summary>
+      ${communityDeviceIdIsDurable() ? "" : `<p class="community-log-error">This browser can't save your Community code, so your points are lost when you close this page. Sign in or copy the code below to keep them.</p>`}
       <p class="community-recover-text">Your points belong to a code kept on this device. Save it somewhere safe and you can get them back on a new phone or after clearing your browser. Anyone with the code can act as you, so keep it private.</p>
       <div class="community-recover-code"><code id="communityRecoveryCode">${escapeHtml(communityRecoveryCode())}</code><button type="button" class="community-chip" data-action="community-copy-code">Copy</button></div>
       <label class="community-recover-label" for="communityRestoreInput">Restore from a code</label>
@@ -1392,6 +1409,54 @@ async function communityRenderContributions() {
         : `<div class="community-empty">${typeof appIconHtml === "function" ? appIconHtml("tree", "app-icon community-empty-art") : ""}<p><strong>No reports yet</strong><span>Open a tree or a place and tap “Help check”. You get a point for each tree you check, and another when someone else agrees.</span></p></div>`}`;
 }
 
+// Reports the server holds for this person (this device and, when signed in, every device on the account)
+// are shown in the log too. Only well-formed fields are kept; a report still waiting to send, one that failed,
+// or one on this device that is as new or newer always wins over the server's copy.
+const COMMUNITY_REMOTE_ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
+
+function communityMergeRemoteReports(local, remote, waitingIds = new Set()) {
+  const merged = { ...local };
+  let changed = false;
+  for (const r of Array.isArray(remote) ? remote : []) {
+    if (!r || typeof r !== "object" || !COMMUNITY_REMOTE_ID_RE.test(String(r.id || ""))) continue;
+    if (!Object.prototype.hasOwnProperty.call(COMMUNITY_STATUS_TEXT, r.status)) continue;
+    const kind = r.kind === "place" || r.kind === "feedback" ? r.kind : "tree";
+    const target = typeof r.target === "string" && /^(tree|place):\S{1,74}$/.test(r.target) ? r.target : null;
+    const tag = typeof r.tagNumber === "string" || typeof r.tagNumber === "number" ? String(r.tagNumber).trim().slice(0, 20) : "";
+    const key = target || (kind === "feedback" ? `feedback:${r.id}` : tag ? `new:${tag}` : null);
+    const ts = Number(r.ts);
+    if (!key || !Number.isFinite(ts)) continue;
+    const existing = merged[key];
+    if (existing && (existing.id === r.id || waitingIds.has(existing.id) || existing.failed || Number(existing.ts) >= ts)) continue;
+    const lat = Number(r.lat);
+    const lon = Number(r.lon);
+    merged[key] = {
+      id: r.id,
+      status: r.status,
+      ts,
+      ...(Number.isFinite(lat) && Number.isFinite(lon) ? { lat, lon } : {}),
+      ...(kind === "place" ? { kind: "place" } : kind === "feedback" ? { kind: "feedback", name: "Feedback" } : {}),
+      ...(tag && !target ? { name: `Tree ${tag}` } : {}),
+      counted: true,
+      remote: true,
+    };
+    changed = true;
+  }
+  return { local: merged, changed };
+}
+
+// Entries that came from the server rather than from this device. Dropped when the signed-in account
+// changes, so one person's history is never shown to the next person to use the same browser.
+function communityClearRemoteEntries() {
+  const local = communityReadLocal();
+  let changed = false;
+  for (const [key, entry] of Object.entries(local)) {
+    if (entry && entry.remote) { delete local[key]; changed = true; }
+  }
+  if (changed) communityWriteLocal(local);
+  try { localStorage.removeItem(COMMUNITY_LOG_KEY); } catch {}
+}
+
 async function communityRefreshLog() {
   if (!navigator.onLine) return;
   try {
@@ -1401,6 +1466,9 @@ async function communityRefreshLog() {
     const outcomes = {};
     for (const report of data.reports || []) outcomes[report.id] = report.outcome;
     localStorage.setItem(COMMUNITY_LOG_KEY, JSON.stringify(outcomes));
+    const waiting = new Set((await outboxList()).map((item) => item.id));
+    const merged = communityMergeRemoteReports(communityReadLocal(), data.reports, waiting);
+    if (merged.changed) communityWriteLocal(merged.local);
   } catch {}
 }
 
@@ -1435,15 +1503,24 @@ async function communityRefreshAccount() {
     const response = await fetch("/api/auth/me", { cache: "no-store" });
     if (!response.ok) return;
     const account = await response.json();
+    const previous = communityReadAccount();
     localStorage.setItem(COMMUNITY_ACCOUNT_KEY, JSON.stringify(account));
+    // Signed out, or a different account on this browser: nothing of the last account's server history or
+    // link stays behind, and the new account links this device for itself.
+    const switched = previous && previous.signedIn && (!account.signedIn || (previous.account && previous.account !== account.account));
+    if (switched || !account.signedIn) {
+      if (switched) communityClearRemoteEntries();
+      localStorage.removeItem(COMMUNITY_LINKED_KEY);
+    }
     let note = "";
-    if (account.signedIn && localStorage.getItem(COMMUNITY_LINKED_KEY) !== communityDeviceId()) {
+    const linkMarker = `${communityDeviceId()}|${account.account || ""}`;
+    if (account.signedIn && localStorage.getItem(COMMUNITY_LINKED_KEY) !== linkMarker) {
       const linked = await fetch("/api/auth/link", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ deviceId: communityDeviceId() }),
       });
-      if (linked.ok) localStorage.setItem(COMMUNITY_LINKED_KEY, communityDeviceId());
+      if (linked.ok) localStorage.setItem(COMMUNITY_LINKED_KEY, linkMarker);
       else note = (await linked.json().catch(() => ({}))).error || "Couldn't link this device right now.";
     }
     communityRenderAccount(account, note);

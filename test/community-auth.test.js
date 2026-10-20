@@ -449,7 +449,7 @@ test("me reports who is signed in and never an error for a visitor; link refuses
   await withAuthEnv(async () => {
     const token = auth.sign({ sub: "auth0|9", name: "Sam", exp: Date.now() + 60000 }, KEY);
     const signedIn = await meHandler.handler({ headers: { cookie: `ff_session=${encodeURIComponent(token)}` } });
-    assert.deepStrictEqual(JSON.parse(signedIn.body), { signedIn: true, name: "Sam" });
+    assert.deepStrictEqual(JSON.parse(signedIn.body), { signedIn: true, name: "Sam", account: account.accountKey("auth0|9") });
     assert.strictEqual(signedIn.body.includes("auth0|9"), false, "the provider id is not sent to the page");
     const anonymous = await meHandler.handler({ headers: {} });
     assert.strictEqual(anonymous.statusCode, 200);
@@ -462,5 +462,34 @@ test("me reports who is signed in and never an error for a visitor; link refuses
     assert.strictEqual((await linkHandler.handler({ httpMethod: "POST", headers: { cookie }, body: JSON.stringify({ deviceId: "x" }) })).statusCode, 400);
     assert.strictEqual((await linkHandler.handler({ httpMethod: "POST", headers: { cookie }, body: "{not json" })).statusCode, 400);
   });
+});
+test("cookies are Secure over https and not over plain http on localhost, where a Secure cookie could never come back", async () => {
+  await withAuthEnv(async () => {
+    const local = { host: "localhost:8888" };
+    const attributesOf = (cookie) => cookie.split(";").map((p) => p.trim());
+    // Over https (a deploy): Secure on every cookie.
+    const https = await startLogin();
+    assert.ok(attributesOf(https.stateCookie).includes("Secure"));
+    // Over http on localhost: no Secure, but still HttpOnly and SameSite=Lax.
+    const started = await login.handler({ queryStringParameters: {}, headers: local });
+    const stateCookie = cookieNamed(started, "ff_auth_state");
+    const stateAttrs = attributesOf(stateCookie);
+    assert.ok(!stateAttrs.includes("Secure"), "the state cookie is not Secure over http");
+    assert.ok(stateAttrs.includes("HttpOnly") && stateAttrs.includes("SameSite=Lax"));
+    assert.strictEqual(new URL(started.headers.Location).searchParams.get("redirect_uri"), "http://localhost:8888/api/auth/callback");
+    const state = new URL(started.headers.Location).searchParams.get("state");
+    const done = await callback.handler({ queryStringParameters: { code: "c", state }, headers: { ...local, cookie: `ff_auth_state=${encodeURIComponent(cookieValue(stateCookie))}` } });
+    assert.strictEqual(done.headers.Location, "/community");
+    const sessionAttrs = attributesOf(cookieNamed(done, "ff_session"));
+    assert.ok(!sessionAttrs.includes("Secure") && sessionAttrs.includes("HttpOnly"), "the session cookie works over http on localhost");
+    assert.ok(!attributesOf(cookieNamed(done, "ff_auth_state")).includes("Secure"));
+    const out = await logout.handler({ queryStringParameters: {}, headers: local });
+    assert.ok(!attributesOf(cookieNamed(out, "ff_session")).includes("Secure"));
+    // A deployed host behind a proxy that says it is https stays Secure, and so does an unknown host with no hint.
+    const proxied = await logout.handler({ queryStringParameters: {}, headers: { host: "preview.example.test", "x-forwarded-proto": "https" } });
+    assert.ok(attributesOf(cookieNamed(proxied, "ff_session")).includes("Secure"));
+    const bare = await logout.handler({ queryStringParameters: {}, headers: { host: "preview.example.test" } });
+    assert.ok(attributesOf(cookieNamed(bare, "ff_session")).includes("Secure"), "https is assumed for a real host");
+  }, { fetchImpl: providerOk() });
 });
 

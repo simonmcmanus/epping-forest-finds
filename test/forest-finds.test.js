@@ -575,6 +575,7 @@ globalThis.__forestFindsTest = {
   communityNudgeDecision,
   communityPendingScore,
   communityBadges,
+  communityMergeRemoteReports,
   communityStreaks,
   communityDisplayScore,
   COMMUNITY_POINTS,
@@ -11568,6 +11569,56 @@ test("conflict escalation files only new trees, caps each run, retries failures,
   assert.equal(none.filed, 0);
   assert.equal(none.skipped, "no-github");
   assert.equal((await communityEscalation.escalateConflicts(escalationStore(), { conflictDetails: [] }, { post })).filed, 0);
+});
+
+test("reports the server holds for an account are merged into the log without overwriting unsent or newer local entries", () => {
+  const local = {
+    "tree:1": { id: "local-unsent-1", status: "VERIFIED", ts: 100 },
+    "tree:2": { id: "local-sent-0002", status: "VERIFIED", ts: 500 },
+    "tree:3": { id: "local-failed-03", status: "NOT_HERE", ts: 50, failed: "refused" },
+  };
+  const remote = [
+    { id: "remote-aaaa-0001", kind: "tree", target: "tree:1", status: "NOT_HERE", ts: 900 },
+    { id: "remote-bbbb-0002", kind: "tree", target: "tree:2", status: "NOT_HERE", ts: 400 },
+    { id: "remote-cccc-0003", kind: "tree", target: "tree:3", status: "VERIFIED", ts: 900 },
+    { id: "remote-dddd-0004", kind: "tree", target: "tree:4", status: "VERIFIED", ts: 800, lat: 51.6, lon: 0.04 },
+    { id: "remote-eeee-0005", kind: "tree", target: null, status: "NEW_TREE", ts: 700, tagNumber: "T-9", lat: 51.7, lon: 0.05 },
+    { id: "remote-ffff-0006", kind: "place", target: "place:id:node/9", status: "CLOSED", ts: 600 },
+    { id: "remote-gggg-0007", kind: "feedback", target: null, status: "FEEDBACK", ts: 650 },
+  ];
+  const { local: merged, changed } = app.communityMergeRemoteReports(local, remote, new Set(["local-unsent-1"]));
+  assert.equal(changed, true);
+  assert.equal(merged["tree:1"].id, "local-unsent-1", "a report still waiting to send is kept");
+  assert.equal(merged["tree:2"].id, "local-sent-0002", "a newer local report wins");
+  assert.equal(merged["tree:3"].id, "local-failed-03", "a failed local report is kept");
+  assert.equal(merged["tree:4"].id, "remote-dddd-0004");
+  assert.equal(merged["tree:4"].remote, true);
+  assert.equal(merged["tree:4"].counted, true, "already in the server's score, so never counted again");
+  assert.equal(merged["new:T-9"].name, "Tree T-9");
+  assert.equal(merged["place:id:node/9"].kind, "place");
+  assert.equal(merged["feedback:remote-gggg-0007"].kind, "feedback");
+  assert.equal(JSON.stringify(local["tree:4"]), undefined, "the input is not changed");
+});
+
+test("merging remote reports ignores malformed entries and a newer server report replaces an older local one", () => {
+  const bad = [
+    null, "x", { id: "short", kind: "tree", target: "tree:5", status: "VERIFIED", ts: 1 },
+    { id: "remote-hhhh-0008", kind: "tree", target: "tree:5", status: "__proto__", ts: 1 },
+    { id: "remote-iiii-0009", kind: "tree", target: "tree:6", status: "VERIFIED", ts: "soon" },
+    { id: "remote-jjjj-0010", kind: "tree", target: "not a target", status: "VERIFIED", ts: 1 },
+  ];
+  const untouched = app.communityMergeRemoteReports({}, bad, new Set());
+  assert.equal(untouched.changed, false);
+  assert.equal(Object.keys(untouched.local).length, 0);
+  const newer = app.communityMergeRemoteReports({ "tree:7": { id: "local-old-0007", status: "VERIFIED", ts: 10 } }, [{ id: "remote-kkkk-0011", kind: "tree", target: "tree:7", status: "NOT_HERE", ts: 20 }], new Set());
+  assert.equal(newer.local["tree:7"].id, "remote-kkkk-0011", "the account's newer report on another device wins");
+  assert.equal(app.communityMergeRemoteReports({}, undefined, new Set()).changed, false);
+});
+
+test("reports merged from the server never add optimistic points or extend the streak", () => {
+  const { local } = app.communityMergeRemoteReports({}, [{ id: "remote-llll-0012", kind: "tree", target: "tree:8", status: "VERIFIED", ts: Date.now() }], new Set());
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 0)), JSON.stringify({ points: 0, verified: 0 }));
+  assert.equal(app.communityStreaks(local, Date.now()).current, 0);
 });
 
 runRegisteredTests().catch((error) => {

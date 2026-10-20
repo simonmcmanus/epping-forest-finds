@@ -4,6 +4,6 @@ const auth = require("./lib/auth-session");
 exports.handler = async (event) => ({
   statusCode: 302,
   headers: { Location: auth.safeReturnPath(event.queryStringParameters?.return), "Cache-Control": "no-store" },
-  multiValueHeaders: { "Set-Cookie": [auth.clearSessionCookie()] },
+  multiValueHeaders: { "Set-Cookie": [auth.clearSessionCookie(auth.isSecureRequest(event))] },
   body: "",
 });
