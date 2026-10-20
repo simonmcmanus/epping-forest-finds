@@ -1412,6 +1412,13 @@ function communityContributionsHtml() {
 async function communityRenderContributions() {
   const host = document.getElementById("communityContributions");
   if (!host) return;
+  // Not drawn from storage until we know whose it is (see communityOpenContributions), whoever asks.
+  if (!communityIdentitySettled && navigator.onLine && !communityIdentityFailed) return;
+  const remembered = communityReadAccount();
+  if (communityIdentityFailed && remembered && remembered.signedIn) {
+    host.innerHTML = `<p class="settings-description">Couldn't check who is signed in just now. Reload to try again.</p>`;
+    return;
+  }
   const waitingIds = new Set((await outboxList()).map((item) => item.id));
   const score = communityDisplayScore(communityReadScore(), communityReadLocal(), waitingIds);
   const rank = communityRank(score.points);
