@@ -1213,9 +1213,62 @@ function communityOverlayNewTreeMarks() {
     const lat = Number(entry.lat);
     const lon = Number(entry.lon);
     if (!(Number.isFinite(lat) && Number.isFinite(lon))) continue;
-    marks.push({ lat, lon, kind: "added", status: entry.st || "NEW_TREE", key });
+    marks.push({ lat, lon, kind: "added", status: entry.st || "NEW_TREE", key, tag: entry.tag || "", n: Number(entry.n) || 0, confirmed: entry.s === "new-confirmed" });
   }
   return marks;
+}
+
+// A walker-added tree as a selectable item (same fields as a register tree where it matters:
+// latitude/longitude/point), for the map tap, the #addedtree=<tag> route and its detail screen.
+function communityAddedTreeItem(mark) {
+  return {
+    tag: mark.tag,
+    name: `Tree ${mark.tag}`,
+    latitude: mark.lat,
+    longitude: mark.lon,
+    point: projectLonLat(mark.lon, mark.lat),
+    people: mark.n,
+    confirmed: mark.confirmed,
+  };
+}
+
+function communityFindAddedTree(tag) {
+  const wanted = String(tag || "").trim().toLowerCase();
+  const mark = communityOverlayNewTreeMarks().find((m) => m.tag && String(m.tag).toLowerCase() === wanted);
+  return mark ? communityAddedTreeItem(mark) : null;
+}
+
+function showAddedTreeDetails(item) {
+  setInspectorSelectionChrome({ emoji: appIconHtml("tree", "app-icon title-icon"), showBack: true });
+  els.inspectorTools.hidden = true;
+  els.inspectorTitle.textContent = item.name;
+  els.inspectorType.textContent = "Added by walkers";
+  const distance = typeof distanceFromUser === "function" ? distanceFromUser(item) : null;
+  const pill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
+  const topRow = `<div class="detail-top-row">${pill}${openInMapsHtml(item.latitude, item.longitude, item.name)}</div>`;
+  const seen = item.confirmed ? `Found by ${item.people} people` : "Found by 1 person";
+  const rows = [["Tag number", item.tag], ["Status", item.confirmed ? "Confirmed by a second walker" : "Waiting for a second walker"], ["Seen", seen], ["Official register", "Not on the City of London register yet"]];
+  const cta = `<div class="community-new-tree community-added-tree-cta">
+      <span class="community-new-icon">${communityIcon("plus")}</span>
+      <div class="community-new-text">
+        <p class="community-new-title">Found this tree too?</p>
+        <p class="report-note">Stand next to it and add it from where you are. A second sighting confirms it.</p>
+      </div>
+      <button class="community-add" type="button" data-action="community-confirm-added" data-tag="${escapeHtml(item.tag)}">${communityIcon("plus")}<span>I found it</span></button>
+    </div>`;
+  transitionInspectorBody(topRow + detailsHtml(rows) + cta, "forward");
+}
+
+// "I found it too": the Community screen's add-a-tree form, with the tag filled in.
+function communityConfirmAddedTree(tag) {
+  openCommunity();
+  communityStartAddTree();
+  const input = document.getElementById("communityTagInput");
+  if (input) {
+    input.value = tag;
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.scrollIntoView({ block: "center" });
+  }
 }
 
 // World points the Community screen's camera should keep in view: marks within reach of the walking

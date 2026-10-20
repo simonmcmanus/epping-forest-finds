@@ -562,6 +562,13 @@ const SELECTION_ROUTES = [
     show: (item) => showLandmarkDetails(item, distanceFromUser(item)),
   },
   {
+    type: "addedtree",
+    param: "addedtree",
+    toKey: (item) => item.tag,
+    find: (key) => communityFindAddedTree(key),
+    show: (item) => showAddedTreeDetails(item),
+  },
+  {
     type: "cow",
     param: "cow",
     toKey: (item) => cowKey(item),

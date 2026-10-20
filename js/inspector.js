@@ -73,6 +73,12 @@ function handleMapClick(event) {
     showTreeDetails(hit.item, distanceFromUser(hit.item), "Tree record");
     startCompassNavigation();
     zoomToSelection();
+  } else if (hit.type === "addedtree") {
+    state.selected = { type: "addedtree", item: hit.item };
+    syncHashFromSelection();
+    showAddedTreeDetails(hit.item);
+    startCompassNavigation();
+    zoomToSelection();
   } else if (hit.type === "cow") {
     state.selected = { type: "cow", item: hit.item };
     syncHashFromSelection();
@@ -146,6 +152,21 @@ function findHit(screen, world) {
   const selectedItem = hasRealSelection() ? state.selected.item : null;
   function isTappablePin(type, item) {
     return item === selectedItem || shouldDrawMapIcon(type, item, iconLookup);
+  }
+
+  // Trees other walkers added are drawn as marks (drawCommunityMarks) over everything else, so a tap
+  // on one wins.
+  if (typeof communityOverlayNewTreeMarks === "function" && !(state.selected && state.selected.type === "community")) {
+    let bestAdded = null;
+    for (const mark of communityOverlayNewTreeMarks()) {
+      if (!mark.tag) continue;
+      const point = worldToScreen(projectLonLat(mark.lon, mark.lat));
+      const distance = Math.hypot(point.x - screen.x, point.y - screen.y);
+      if (distance < 22 * dpr && (!bestAdded || distance < bestAdded.distance)) {
+        bestAdded = { type: "addedtree", item: communityAddedTreeItem(mark), distance };
+      }
+    }
+    if (bestAdded) return bestAdded;
   }
 
   let bestPlace = null;
