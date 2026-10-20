@@ -164,7 +164,7 @@ jobs:
         run: |
           bash -o pipefail -c '
             set +e
-            npx playwright test --project=mobile --grep "snapshot:"
+            npx playwright test --project=mobile --grep "snapshot:" \
               --update-snapshots=missing --retries=1
             status=$?
             set -e
@@ -177,7 +177,7 @@ jobs:
         run: |
           bash -o pipefail -c '
             set +e
-            npx playwright test --project=desktop --grep "snapshot:"
+            npx playwright test --project=desktop --grep "snapshot:" \
               --update-snapshots=missing --retries=1
             status=$?
             set -e
