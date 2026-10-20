@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Publishes the failing visual snapshots of one PR to the `visual-diffs` branch and writes a
 # table into a marked section of the PR description. The table links each snapshot's committed
-# baseline, this run's actual render and the diff. Runs on every pull_request run of the visual
-# job, so a green run clears the table and removes the PR's images.
+# baseline, this run's actual render and the diff. Runs in the trusted workflow_run publisher after
+# every PR visual job, so a green run clears the table and removes the PR's images.
 #
-# Needs in the environment: PR_NUMBER, HEAD_SHA (the PR head, where the baselines live) and PAT
+# Needs in the environment: PR_NUMBER, HEAD_SHA (the PR head, where the baselines live),
+# HEAD_REPOSITORY (the repository containing that head, which may be a fork), and PAT
 # (WEEKLY_LEDGER_PAT: a user push, so nothing here relies on GITHUB_TOKEN's no-event rule).
 # Writes the section to $RUNNER_TEMP/visual-section.md for the PR-body step to read.
 set -euo pipefail
@@ -13,6 +14,7 @@ work=$(mktemp -d)
 section="$RUNNER_TEMP/visual-section.md"
 remote="https://github.com/$GITHUB_REPOSITORY.git"
 raw="https://raw.githubusercontent.com/$GITHUB_REPOSITORY"
+raw_head="https://raw.githubusercontent.com/${HEAD_REPOSITORY:-$GITHUB_REPOSITORY}"
 
 if git ls-remote --exit-code --heads "$remote" visual-diffs > /dev/null 2>&1; then
   git clone --quiet --depth 1 --branch visual-diffs "$remote" "$work/w"
@@ -68,7 +70,7 @@ rows=$(
     project=${key%%-*}
     stem=${key#*-}
     baseline="test/e2e/__screenshots__/$stem-$project-linux.png"
-    if [[ -f "$baseline" ]]; then before="![baseline]($raw/$HEAD_SHA/$baseline)"; else before="_new_"; fi
+    if [[ -f "$baseline" ]]; then before="![baseline]($raw_head/$HEAD_SHA/$baseline)"; else before="_new_"; fi
     if [[ -f "$dest/$key-diff.png" ]]; then diff="![diff]($raw/$vd/pr-$PR_NUMBER/$key-diff.png)"; else diff="_none_"; fi
     echo "| \`$stem\` | $project | $before | ![actual]($raw/$vd/pr-$PR_NUMBER/$key-actual.png) | $diff |"
   done

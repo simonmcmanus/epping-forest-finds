@@ -9,7 +9,7 @@
      | Before | After |
      | --- | --- |
      | ![before](https://raw.githubusercontent.com/<owner>/<repo>/<before-sha>/test/e2e/__screenshots__/<name>.png) | ![after](https://raw.githubusercontent.com/<owner>/<repo>/<after-sha>/test/e2e/__screenshots__/<name>.png) |
-     Regenerate baselines only with the Update Snapshots workflow. Delete this section if nothing visual changed. -->
+     CI fills this section automatically. Delete it only if nothing visual changed. -->
 
 ## Verification
 
