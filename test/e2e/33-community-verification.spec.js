@@ -657,6 +657,37 @@ test.describe("Add a missing place", () => {
   });
 });
 
+test.describe("Badges and streaks", () => {
+  test("show earned badges and the day streak from reports on this device", async ({ page }) => {
+    const now = Date.now();
+    const day = 86400000;
+    const local = {
+      "tree:1": { id: "a", status: "VERIFIED", ts: now },
+      "tree:2": { id: "b", status: "VERIFIED", ts: now - day },
+      "new:T": { id: "c", status: "NEW_TREE", ts: now - 2 * day },
+    };
+    await page.addInitScript((local) => {
+      if (localStorage.getItem("seeded")) return;
+      localStorage.setItem("seeded", "1");
+      localStorage.setItem("ff-community-local-v1", JSON.stringify(local));
+    }, local);
+    await page.route(OVERLAY_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {} }) }));
+    await setup(page, "/community");
+    await expect(page.locator(".community-streak")).toContainText("3-day streak");
+    await expect(page.locator(".community-badge-item.is-earned")).toContainText(["First check", "Tree finder"]);
+    await expect(page.locator(".community-badge-item:not(.is-earned)").first()).toBeVisible();
+  });
+
+  test("with nothing reported it invites the first check", async ({ page }) => {
+    await page.route(OVERLAY_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {} }) }));
+    await setup(page, "/community");
+    await expect(page.locator(".community-streak")).toContainText("Check something today to start a streak");
+    await expect(page.locator(".community-badge-item.is-earned")).toHaveCount(0);
+  });
+});
+
 test.describe("Community log links to places", () => {
   test("a reported place in the contributions log links to its own /find/ page", async ({ page }) => {
     await page.addInitScript(() => {

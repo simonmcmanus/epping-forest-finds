@@ -27,6 +27,10 @@ The first register check only records a baseline, so differences that already ex
 - Confirming a place is still right earns nothing. It only hides that place's check card on your device.
 - Reports made from more than 10 m away (or with location off; you can still send them, the app says they won't earn points), and your own repeat reports about the same thing.
 
+## Badges and streaks
+
+Badges and the streak are worked out on the device from the score and the reports kept there; no points attach to them. The list is `COMMUNITY_BADGES` in `js/community.js` (first check, ten checks, fifty checks, second opinion, tree finder, place spotter, week streak). A streak is days in a row (local time) with at least one report on this device; it stays alive until a full day passes with nothing. Reports restored from a recovery code do not count towards it.
+
 ## Ranks
 
 | Rank | From |

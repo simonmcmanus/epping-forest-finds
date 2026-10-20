@@ -574,6 +574,8 @@ globalThis.__forestFindsTest = {
   communityRank,
   communityNudgeDecision,
   communityPendingScore,
+  communityBadges,
+  communityStreaks,
   communityDisplayScore,
   COMMUNITY_POINTS,
   communityParseRecoveryCode,
@@ -11336,6 +11338,28 @@ test("several fresh reports add up, and an empty or missing record adds nothing"
   assert.equal(JSON.stringify(app.communityPendingScore({}, 0)), JSON.stringify({ points: 0, verified: 0 }));
   assert.equal(JSON.stringify(app.communityPendingScore(null, 0)), JSON.stringify({ points: 0, verified: 0 }));
   assert.equal(app.communityDisplayScore(null, {}, new Set()).points, 0);
+});
+
+test("badges are earned from the score and the local log, and the rest stay locked", () => {
+  const day = (n) => new Date(2026, 9, n, 12).getTime();
+  const local = { "tree:1": { id: "a", status: "VERIFIED", ts: day(1) }, "new:T": { id: "b", status: "NEW_TREE", ts: day(2) }, "place:x": { id: "c", status: "CLOSED", kind: "place", ts: day(3) } };
+  const names = (score) => app.communityBadges(score, local, day(3)).earned.map((b) => b.id);
+  assert.equal(JSON.stringify(names({ verified: 0, confirmed: 0 })), JSON.stringify(["tree-finder", "place-spotter"]));
+  assert.equal(JSON.stringify(names({ verified: 10, confirmed: 1 })), JSON.stringify(["first-check", "ten-checks", "second-opinion", "tree-finder", "place-spotter"]));
+  assert.ok(app.communityBadges({ verified: 1, confirmed: 0 }, {}, day(3)).locked.length > 0);
+});
+
+test("a streak counts days in a row, stays alive until a full day is missed, and ignores restored and feedback entries", () => {
+  const day = (n, h = 12) => new Date(2026, 9, n, h).getTime();
+  const at = (...days) => Object.fromEntries(days.map((d, i) => [`t${i}`, { id: `r${i}`, status: "VERIFIED", ts: day(d) }]));
+  const s = (local, now) => JSON.stringify(app.communityStreaks(local, now));
+  assert.equal(s(at(1, 2, 3), day(3, 20)), JSON.stringify({ current: 3, best: 3 }));
+  assert.equal(s(at(1, 2, 3), day(4, 8)), JSON.stringify({ current: 3, best: 3 }), "still alive the day after");
+  assert.equal(s(at(1, 2, 3), day(5, 8)), JSON.stringify({ current: 0, best: 3 }), "broken after a missed day");
+  assert.equal(s(at(1, 2, 5, 6, 7), day(7)), JSON.stringify({ current: 3, best: 3 }));
+  assert.equal(s(at(3, 3, 3), day(3)), JSON.stringify({ current: 1, best: 1 }), "many reports on one day are one day");
+  assert.equal(s({ a: { id: "x", status: "VERIFIED", ts: day(3), counted: true }, b: { id: "y", status: "FEEDBACK", kind: "feedback", ts: day(3) } }, day(3)), JSON.stringify({ current: 0, best: 0 }));
+  assert.equal(s({}, day(3)), JSON.stringify({ current: 0, best: 0 }));
 });
 
 runRegisteredTests().catch((error) => {

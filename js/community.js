@@ -171,6 +171,64 @@ function communityPendingScore(local, generatedAt = 0, waitingIds = new Set()) {
   return pending;
 }
 
+// --- Badges and streaks: derived on the device from the score and the local log, nothing stored ---
+// Thresholds are the only configuration (documented in docs/community-points.md).
+const COMMUNITY_BADGES = [
+  { id: "first-check", name: "First check", icon: "check", test: (m) => m.verified >= 1 },
+  { id: "ten-checks", name: "Ten checks", icon: "shield", test: (m) => m.verified >= 10 },
+  { id: "fifty-checks", name: "Fifty checks", icon: "shield", test: (m) => m.verified >= 50 },
+  { id: "second-opinion", name: "Second opinion", icon: "swap", test: (m) => m.confirmed >= 1 },
+  { id: "tree-finder", name: "Tree finder", icon: "plus", test: (m) => m.treesAdded >= 1 },
+  { id: "place-spotter", name: "Place spotter", icon: "locate", test: (m) => m.placesReported >= 1 },
+  { id: "week-streak", name: "Week streak", icon: "clock", test: (m) => m.bestStreak >= 7 },
+];
+
+function communityLocalDay(ts) {
+  const d = new Date(ts);
+  return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000);
+}
+
+// Days in a row (local time) with at least one report on this device. The streak is still alive
+// when the last report was yesterday, so it only breaks after a full day with nothing.
+function communityStreaks(local, now = Date.now()) {
+  const days = [...new Set(Object.values(local || {}).filter((e) => e && Number(e.ts) > 0 && !e.counted && e.kind !== "feedback").map((e) => communityLocalDay(e.ts)))].sort((a, b) => a - b);
+  let best = 0;
+  let run = 0;
+  for (let i = 0; i < days.length; i += 1) {
+    run = i > 0 && days[i] === days[i - 1] + 1 ? run + 1 : 1;
+    best = Math.max(best, run);
+  }
+  const today = communityLocalDay(now);
+  let current = 0;
+  if (days.length && days[days.length - 1] >= today - 1) {
+    current = 1;
+    for (let i = days.length - 1; i > 0 && days[i - 1] === days[i] - 1; i -= 1) current += 1;
+  }
+  return { current, best };
+}
+
+function communityBadges(score, local, now = Date.now()) {
+  const entries = Object.values(local || {}).filter(Boolean);
+  const streaks = communityStreaks(local, now);
+  const metrics = {
+    verified: Number(score && score.verified) || 0,
+    confirmed: Number(score && score.confirmed) || 0,
+    treesAdded: entries.filter((e) => e.status === "NEW_TREE" && !e.far && !e.failed).length,
+    placesReported: entries.filter((e) => e.kind === "place" && e.status !== "OPEN_CONFIRMED" && !e.failed).length,
+    bestStreak: streaks.best,
+  };
+  return { earned: COMMUNITY_BADGES.filter((b) => b.test(metrics)), locked: COMMUNITY_BADGES.filter((b) => !b.test(metrics)), streak: streaks.current };
+}
+
+function communityBadgesHtml(score, local) {
+  const { earned, locked, streak } = communityBadges(score, local);
+  const badge = (b, on) => `<li class="community-badge-item${on ? " is-earned" : ""}" title="${escapeHtml(b.name)}${on ? "" : " (not yet earned)"}"><span class="community-badge-icon">${communityIcon(b.icon)}</span><span>${escapeHtml(b.name)}</span></li>`;
+  return `<div class="community-badges">
+      <p class="community-streak">${streak > 0 ? `<strong>${streak}-day streak</strong> · keep it going by checking something today` : "Check something today to start a streak"}</p>
+      <ul class="community-badge-list" aria-label="Badges">${earned.map((b) => badge(b, true)).join("")}${locked.map((b) => badge(b, false)).join("")}</ul>
+    </div>`;
+}
+
 function communityDisplayScore(score, local, waitingIds) {
   const base = score || { points: 0, verified: 0, confirmed: 0, generatedAt: 0 };
   const pending = communityPendingScore(local, base.generatedAt || 0, waitingIds);
@@ -1253,6 +1311,7 @@ async function communityRenderContributions() {
       </div>
       <div class="community-progress" role="progressbar" aria-label="Progress to the next rank" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}"><span style="width:${progress}%"></span></div>
       ${communityLegendHtml(communityMapMarks())}
+      ${communityBadgesHtml(score, communityReadLocal())}
       <div class="community-stats">
         <div><strong>${score.verified}</strong><span>Verified</span></div>
         <div><strong>${score.confirmed}</strong><span>Confirmed by others</span></div>
