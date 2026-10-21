@@ -410,11 +410,6 @@ const els = {
   nearbyToggle: document.getElementById("nearbyToggle"),
   installButton: document.getElementById("installButton"),
   loadingOverlay: document.getElementById("loadingOverlay"),
-  locationGate: document.getElementById("locationGate"),
-  locationGateTitle: document.getElementById("locationGateTitle"),
-  locationGateMessage: document.getElementById("locationGateMessage"),
-  locationGateButton: document.getElementById("locationGateButton"),
-  locationGateDismiss: document.getElementById("locationGateDismiss"),
   consentBanner: document.getElementById("consentBanner"),
   consentBannerAccept: document.getElementById("consentBannerAccept"),
   consentBannerDecline: document.getElementById("consentBannerDecline"),
@@ -1320,9 +1315,8 @@ async function revealNoRealLocation({ locationAlreadyAsked }) {
 }
 
 // Non-blocking "get a more custom experience" nudge shown after revealNoRealLocation() -- the
-// map and Nearby list behind it are already usable, so unlike #locationGate's hard-stop prompts
-// elsewhere on this page (permission required to continue, compass access), this was never a
-// reason to cover the whole screen. Same inline, dismissible treatment as
+// map and Nearby list behind it are already usable, so this never covers the whole screen. Same
+// inline, dismissible treatment as
 // showCombinedConsentBanner()'s own banner, in the same inspector-chrome slot (never shown at
 // the same time -- locationAlreadyAsked above is exactly what keeps them from overlapping).
 function showLocationInviteBanner(message) {
@@ -1382,9 +1376,8 @@ function cookieConsentIsUndecided() {
 // consent is still undecided -- the SEO landing-page counterpart to onboarding's own merged
 // .ob-location step, but shown as an inline notice card (#consentBanner, in the inspector
 // chrome right under #earlyTestingNoticeSlot's "still a work in progress" notice -- app.html,
-// css/loading.css) rather than a blocking modal: unlike #locationGate (a full-screen,
-// opaque-background dialog used for hard-stop/retry prompts elsewhere), this leaves the map
-// fully visible and interactive underneath, and boot() doesn't wait for an answer before
+// css/loading.css), this leaves the map fully visible and interactive underneath, and boot() doesn't
+// wait for an answer before
 // revealing it -- see its call site. A reader who ignores the banner just keeps browsing with
 // the map's existing no-location view (DEFAULT_LOCATION's High Beach stand-in, same as any other
 // no-fix arrival -- see "No real location fix" in spec.md).
@@ -1612,7 +1605,6 @@ async function boot() {
       if (locResult.ok) {
         const { latitude, longitude } = applyLocationFix(locResult.position);
         setLoadStep("location", "done");
-        setLocationGateVisible(false);
         checkDistanceToForest(latitude, longitude);
         ensureLocationWatch();
 
@@ -1874,8 +1866,7 @@ function withBootLocationTimeout(locationPromise) {
 
 function locateUser({ initial }) {
   if (!navigator.geolocation) {
-    setLocationGateVisible(true, "You need to enable location to continue.");
-    if (!initial) setStatus("This browser does not support location access.");
+    setStatus("This browser does not support location access.");
     return;
   }
 
@@ -1895,7 +1886,6 @@ function locateUser({ initial }) {
     (position) => {
       setLocationRequestPending(false);
       const { latitude, longitude, previousPoint } = applyLocationFix(position);
-      setLocationGateVisible(false);
       ensureLocationWatch();
       if (!compassPermissionCanBeRequested()) {
         // Non-iOS: no user gesture required; auto-grant if not already set.
@@ -1935,18 +1925,10 @@ function locateUser({ initial }) {
         selectOverview();
       }
       const denied = error && error.code === 1;
-      if (denied) {
-        const gateMessage = "Location permission was blocked. Use the browser site settings to allow location for this page, then tap Enable location again.";
-        setLocationGateVisible(true, gateMessage);
-      } else {
-        setLocationGateVisible(
-          true,
-          "Location was not available yet. Check that location services are on, then tap below to try again.",
-          "Try location again"
-        );
-      }
       setStatus(initial
-        ? "Location was not available yet. Use the button when you are ready."
+        ? (denied
+          ? "Location access was denied. You can allow it in your browser settings."
+          : "Location was not available yet.")
         : error.message || "Location access was not available.");
     },
     { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
@@ -4575,7 +4557,7 @@ async function requestCompassPermissionIfNeeded({ fromGesture = false } = {}) {
   if (typeof DeviceOrientationEvent === "undefined") {
     if (fromGesture && state.userLocation) {
       const message = "Compass is not available on this device or browser. You can still use the map and tap any tree to see its distance.";
-      setLocationGateVisible(true, message, "Continue without compass", "Compass unavailable");
+      setStatus(message);
     }
     return;
   }
