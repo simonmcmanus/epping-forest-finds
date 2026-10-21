@@ -538,6 +538,32 @@ function communityVerifiedSlotsHtml(tree) {
 }
 
 function communityRefreshVerifiedSlots() {
+  // A tree detail can be rendered before the optimistic report has been written (or while the
+  // feature gate is finishing). Keep the header slot in sync with the place flow so a newly
+  // reported tree never leaves its status stranded in the check card.
+  document.querySelectorAll(".community-check:not(.community-check-place)[data-community-target]").forEach((section) => {
+    const target = section.dataset.communityTarget;
+    if (!communityVerifiedChipHtml(target)) return;
+    const detailHost = section.parentElement;
+    const topActions = detailHost && detailHost.querySelector(".detail-top-row .detail-top-actions");
+    if (!topActions) return;
+    let chipSlot = [...topActions.querySelectorAll(".community-verified-slot")]
+      .find((slot) => slot.dataset.verifiedTarget === target);
+    if (!chipSlot) {
+      chipSlot = document.createElement("span");
+      chipSlot.className = "community-verified-slot";
+      chipSlot.dataset.verifiedTarget = target;
+      topActions.insertBefore(chipSlot, topActions.firstChild);
+    }
+    let detailSlot = [...detailHost.querySelectorAll(".community-verified-detail-slot")]
+      .find((slot) => slot.dataset.verifiedTarget === target);
+    if (!detailSlot) {
+      detailSlot = document.createElement("div");
+      detailSlot.className = "community-verified-detail-slot";
+      detailSlot.dataset.verifiedTarget = target;
+      detailHost.insertBefore(detailSlot, section);
+    }
+  });
   document.querySelectorAll(".community-verified-slot").forEach((slot) => {
     slot.innerHTML = communityVerifiedChipHtml(slot.dataset.verifiedTarget);
   });
