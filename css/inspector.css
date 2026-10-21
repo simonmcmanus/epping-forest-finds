@@ -1835,3 +1835,33 @@ details[open] > summary > .community-mine-chevron { transform: rotate(90deg); }
 .community-action-card .community-intro { display: block; padding: 0 14px 10px 66px; font-size: 0.78rem; line-height: 1.35; color: var(--muted); }
 .community-action-card .community-intro:hover { background: none; }
 .community-action-card .community-intro u { color: var(--tree); font-weight: 700; }
+
+/* Community skeleton: the screen is drawn once; empty values shimmer until the data arrives */
+@keyframes community-shimmer { from { background-position: 120% 0; } to { background-position: -120% 0; } }
+.community-hero.is-loading [data-hero="rank"], .community-hero.is-loading [data-hero="rank-points"], .community-hero.is-loading [data-hero="points"],
+.community-hero.is-loading [data-hero="points-label"], .community-hero.is-loading [data-hero="verified"], .community-hero.is-loading [data-hero="confirmed"],
+.community-hero.is-loading [data-hero="reports"], .community-skel-text, .community-skel-rows span {
+  display: block; border-radius: 6px; color: transparent;
+  background: linear-gradient(100deg, #e9eee8 30%, #f7faf6 50%, #e9eee8 70%) 120% 0 / 240% 100%;
+  animation: community-shimmer 1.3s linear infinite;
+}
+.community-hero.is-loading [data-hero="rank"] { width: 96px; height: 1.2em; }
+.community-hero.is-loading [data-hero="rank-points"] { width: 150px; height: 0.9em; margin-top: 6px; }
+.community-hero.is-loading [data-hero="points"] { width: 52px; height: 2.1rem; }
+.community-hero.is-loading [data-hero="points-label"] { width: 38px; height: 0.72rem; margin-top: 4px; margin-left: auto; }
+.community-hero.is-loading [data-hero="verified"], .community-hero.is-loading [data-hero="confirmed"], .community-hero.is-loading [data-hero="reports"] { width: 26px; height: 1.2em; margin: 0 auto; }
+.community-hero.is-loading [data-hero="medal"] { opacity: 0.35; }
+.community-hero.is-loading [data-hero="bar"] > span { width: 0 !important; }
+.community-hero.has-note .community-rank-card, .community-hero.has-note .community-progress, .community-hero.has-note .community-stats { display: none; }
+[data-hero][hidden], [data-account][hidden] { display: none; }
+.community-skel-text { width: 220px; height: 0.9em; }
+.community-account-line.is-loading { min-height: 1.3em; }
+.community-skel-rows span { height: 56px; border-radius: 12px; margin-top: 8px; }
+@media (prefers-reduced-motion: reduce) { .community-hero.is-loading [data-hero], .community-skel-text, .community-skel-rows span { animation: none; } }
+.community-hero-badges { margin-top: 12px; }
+.community-hero-badges .community-badge-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+button.community-badge-chip { border: 0; padding: 0; cursor: pointer; font: inherit; }
+button.community-badge-chip[aria-pressed="true"] { outline: 2px solid var(--tree); outline-offset: 2px; }
+button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outline-offset: 2px; }
+.community-hero-badges .community-badge-detail { margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--gold-tint); color: var(--gold-ink); font-size: 0.82rem; line-height: 1.35; display: grid; gap: 2px; }
+.community-hero-badges .community-badge-detail[hidden] { display: none; }

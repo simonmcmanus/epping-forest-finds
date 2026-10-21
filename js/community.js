@@ -316,7 +316,7 @@ const COMMUNITY_GAMIFICATION_ON = false;
 function communityBadgeChipsHtml(score, local) {
   const { earned } = communityBadges(score, local);
   if (!earned.length) return "";
-  return `<span class="community-badge-chips" aria-label="Badges earned">${earned.map((b) => `<span class="community-badge-chip" title="${escapeHtml(b.name)}" role="img" aria-label="${escapeHtml(b.name)}">${communityIcon(b.icon)}</span>`).join("")}</span>`;
+  return `<span class="community-badge-chips" role="group" aria-label="Badges earned">${earned.map((b) => `<button type="button" class="community-badge-chip" data-action="community-badge" data-badge="${b.id}" aria-pressed="false" aria-label="${escapeHtml(b.name)}" title="${escapeHtml(b.name)}">${communityIcon(b.icon)}</button>`).join("")}</span>`;
 }
 
 function communityStreakHtml(local) {
@@ -361,7 +361,7 @@ function communityShowBadgeDetail(button) {
   const badge = COMMUNITY_BADGES.find((b) => b.id === button.dataset.badge);
   if (!detail || !badge) return;
   const open = button.getAttribute("aria-pressed") !== "true";
-  host.querySelectorAll(".community-badge-tile").forEach((b) => b.setAttribute("aria-pressed", "false"));
+  host.querySelectorAll("[data-action='community-badge']").forEach((b) => b.setAttribute("aria-pressed", "false"));
   button.setAttribute("aria-pressed", String(open));
   detail.hidden = !open;
   if (open) {
@@ -1495,10 +1495,34 @@ function communityTargetLabel(key, entry) {
   return { text: (entry && entry.name) || "New tree", href: null };
 }
 
+// The whole screen is drawn once, as a skeleton with every element in place and empty values that shimmer
+// while `is-loading`. The functions below only write text, attributes and classes into it, so nothing
+// moves when the data arrives.
 function communityContributionsHtml() {
   return `<section class="community-contributions">
       <h3 class="community-sr">Your contributions</h3>
-      <div id="communityContributions" class="community-hero"><p class="settings-description">Loading…</p></div>
+      <div id="communityContributions" class="community-hero is-loading" aria-busy="true">
+        <p class="community-log-error" data-hero="volatile" hidden>This browser can't save waiting reports. Keep the app open until they are sent.</p>
+        <p class="settings-description" data-hero="note" hidden></p>
+        <div class="community-rank-card">
+          <span class="community-rank-icon" data-hero="medal">${communityMedalHtml(COMMUNITY_RANKS[0])}</span>
+          <div class="community-rank-text">
+            <p class="community-rank"><strong data-hero="rank"></strong></p>
+            <p class="community-rank-points" data-hero="rank-points"></p>
+          </div>
+          <div class="community-points-big" aria-hidden="true"><strong data-hero="points"></strong><span data-hero="points-label"></span></div>
+        </div>
+        <div class="community-badges community-hero-badges" data-hero="badges" hidden>
+          <div data-hero="chips"></div>
+          <p class="community-badge-detail" role="status" hidden></p>
+        </div>
+        <div class="community-progress" role="progressbar" aria-label="Progress to the next rank" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" data-hero="bar"><span style="width:0%"></span></div>
+        <div class="community-stats">
+          <div>${communityIcon("shield")}<strong data-hero="verified"></strong><span>Verified</span></div>
+          <div>${communityIcon("swap")}<strong data-hero="confirmed"></strong><span>Confirmed by others</span></div>
+          <div>${communityIcon("edit")}<strong data-hero="reports"></strong><span>Your reports</span></div>
+        </div>
+      </div>
     </section>`;
 }
 
@@ -1510,7 +1534,11 @@ function communityLogSectionHtml() {
   return `<section class="settings-section community-reports">
       <details id="communityReportsDetails">
         <summary class="settings-section-title">Your reports<span id="communityReportsCount"></span>${communityIcon("chevron", "community-icon community-mine-chevron")}</summary>
-        <div id="communityLog"></div>
+        <div id="communityLog" class="is-loading">
+          <div data-log="legend"></div>
+          <div data-log="filters"></div>
+          <div data-log="body"><div class="community-skel-rows" aria-hidden="true"><span></span><span></span></div></div>
+        </div>
       </details>
     </section>`;
 }
@@ -1530,15 +1558,38 @@ function communityActionsHtml() {
     </section>`;
 }
 
-// Everything the screen shows from the user's own history is cleared whenever the hero is replaced by a
-// note, so a previous person's rows never show beside "Loading…".
-function communityResetHosts(heroHtml) {
+// Everything the screen shows from the user's own history is cleared whenever the hero goes back to its
+// loading skeleton (or shows a note), so a previous person's rows never show beside "Loading".
+function communityHeroEl(name) {
+  return document.querySelector(`#communityContributions [data-hero="${name}"]`);
+}
+
+function communityResetHosts(note = "") {
   const hero = document.getElementById("communityContributions");
-  if (hero) hero.innerHTML = heroHtml;
-  for (const id of ["communityBadgesHost", "communityLog"]) {
-    const host = document.getElementById(id);
-    if (host) host.innerHTML = "";
+  if (hero) {
+    hero.classList.add("is-loading");
+    hero.classList.toggle("has-note", Boolean(note));
+    hero.setAttribute("aria-busy", note ? "false" : "true");
+    for (const name of ["rank", "rank-points", "points", "points-label", "verified", "confirmed", "reports", "chips"]) {
+      const el = communityHeroEl(name);
+      if (el) el.textContent = "";
+    }
+    const noteEl = communityHeroEl("note");
+    if (noteEl) { noteEl.textContent = note; noteEl.hidden = !note; }
+    const volatile = communityHeroEl("volatile");
+    if (volatile) volatile.hidden = true;
+    const badgesEl = communityHeroEl("badges");
+    if (badgesEl) badgesEl.hidden = true;
   }
+  const log = document.getElementById("communityLog");
+  if (log) {
+    log.classList.add("is-loading");
+    log.querySelector('[data-log="legend"]').innerHTML = "";
+    log.querySelector('[data-log="filters"]').innerHTML = "";
+    log.querySelector('[data-log="body"]').innerHTML = `<div class="community-skel-rows" aria-hidden="true"><span></span><span></span></div>`;
+  }
+  const badgesHost = document.getElementById("communityBadgesHost");
+  if (badgesHost) badgesHost.innerHTML = "";
 }
 
 let communityLogFilter = "all";
@@ -1561,7 +1612,7 @@ async function communityRenderContributions() {
   if (!communityIdentitySettled && navigator.onLine && !communityIdentityFailed) return;
   const remembered = communityReadAccount();
   if (communityIdentityFailed && remembered && remembered.signedIn) {
-    communityResetHosts(`<p class="settings-description">Couldn't check who is signed in just now. Reload to try again.</p>`);
+    communityResetHosts("Couldn't check who is signed in just now. Reload to try again.");
     return;
   }
   const waitingIds = new Set((await outboxList()).map((item) => item.id));
@@ -1593,28 +1644,45 @@ async function communityRenderContributions() {
         <span class="community-pill community-outcome-${outcome}">${communityIcon(COMMUNITY_OUTCOME_ICON[outcome])}${escapeHtml(COMMUNITY_OUTCOME_TEXT[outcome])}</span>${label.issueUrl && /^https:\/\/github\.com\//.test(label.issueUrl) ? `<a class="community-issue-link" href="${escapeHtml(label.issueUrl)}" target="_blank" rel="noopener">View on GitHub</a>` : ""}${entry.failed ? `<span class="community-log-error"><span>${escapeHtml(entry.failed)}</span> <button type="button" class="community-link" data-action="community-retry" data-id="${escapeHtml(entry.id)}">Send again</button></span>` : ""}
       </li>`;
   }).join("");
-  const volatileNote = waitingIds.size && typeof outboxIsDurable === "function" && !outboxIsDurable()
-    ? `<p class="community-log-error">This browser can't save waiting reports. Keep the app open until they are sent.</p>`
-    : "";
+  const volatileNote = waitingIds.size && typeof outboxIsDurable === "function" && !outboxIsDurable();
   const filters = entries.length >= 3
     ? `<div class="community-filter" role="group" aria-label="Filter your reports">${[["all", "All"], ["attention", `Needs attention${attention ? ` (${attention})` : ""}`], ["done", "Completed"]].map(([id, text]) => `<button type="button" class="community-filter-btn${filter === id ? " is-active" : ""}" data-action="community-log-filter" data-filter="${id}" aria-pressed="${filter === id}">${text}</button>`).join("")}</div>`
     : "";
   const empty = `<div class="community-empty">${typeof appIconHtml === "function" ? appIconHtml("tree", "app-icon community-empty-art") : ""}<p><strong>No reports yet</strong><span>Open a tree or a place and tap “Help check”. You get a point for each tree you check, and another when someone else agrees.</span></p></div>`;
-  host.innerHTML = `${volatileNote}<div class="community-rank-card">
-        <span class="community-rank-icon">${communityMedalHtml(rank)}</span>
-        <div class="community-rank-text">
-          <p class="community-rank"><strong>${escapeHtml(rank.name)}</strong>${communityBadgeChipsHtml(score, local)}</p>
-          <p class="community-rank-points">${score.points} ${score.points === 1 ? "point" : "points"} · ${toNext}</p>
-        </div>
-        <div class="community-points-big" aria-hidden="true"><strong>${score.points}</strong><span>${score.points === 1 ? "point" : "points"}</span></div>
-      </div>
-      <div class="community-progress" role="progressbar" aria-label="Progress to the next rank" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}" aria-valuetext="${escapeHtml(rank.name)}, ${progress}% of the way to ${escapeHtml(rank.next ? rank.next.name : "the top rank")}"><span style="width:${progress}%"></span></div>
-      <div class="community-stats">
-        <div>${communityIcon("shield")}<strong>${score.verified}</strong><span>Verified</span></div>
-        <div>${communityIcon("swap")}<strong>${score.confirmed}</strong><span>Confirmed by others</span></div>
-        <div>${communityIcon("edit")}<strong>${entries.length}</strong><span>Your reports</span></div>
-      </div>
-      ${COMMUNITY_GAMIFICATION_ON ? communityStreakHtml(local) : ""}`;
+  const setHero = (name, value) => { const el = communityHeroEl(name); if (el) el.textContent = value; };
+  const pointsWord = score.points === 1 ? "point" : "points";
+  host.classList.remove("is-loading", "has-note");
+  host.setAttribute("aria-busy", "false");
+  setHero("note", "");
+  const noteEl = communityHeroEl("note");
+  if (noteEl) noteEl.hidden = true;
+  const volatileEl = communityHeroEl("volatile");
+  if (volatileEl) volatileEl.hidden = !volatileNote;
+  const medalEl = communityHeroEl("medal");
+  if (medalEl) medalEl.innerHTML = communityMedalHtml(rank);
+  setHero("rank", rank.name);
+  const chipsEl = communityHeroEl("chips");
+  if (chipsEl) {
+    chipsEl.innerHTML = communityBadgeChipsHtml(score, local);
+    const badgesEl = communityHeroEl("badges");
+    if (badgesEl) {
+      badgesEl.hidden = !chipsEl.innerHTML;
+      const detail = badgesEl.querySelector(".community-badge-detail");
+      if (detail) detail.hidden = true;
+    }
+  }
+  setHero("rank-points", `${score.points} ${pointsWord} · ${rank.next ? `${rank.next.min - score.points} to ${rank.next.name}` : "Top rank"}`);
+  setHero("points", String(score.points));
+  setHero("points-label", pointsWord);
+  setHero("verified", String(score.verified));
+  setHero("confirmed", String(score.confirmed));
+  setHero("reports", String(entries.length));
+  const bar = communityHeroEl("bar");
+  if (bar) {
+    bar.setAttribute("aria-valuenow", String(progress));
+    bar.setAttribute("aria-valuetext", `${rank.name}, ${progress}% of the way to ${rank.next ? rank.next.name : "the top rank"}`);
+    bar.firstElementChild.style.width = `${progress}%`;
+  }
   const badgesHost = document.getElementById("communityBadgesHost");
   if (badgesHost) badgesHost.innerHTML = "";
   const countHost = document.getElementById("communityReportsCount");
@@ -1628,7 +1696,10 @@ async function communityRenderContributions() {
   }
   const logHost = document.getElementById("communityLog");
   if (logHost) {
-    logHost.innerHTML = `${communityLegendHtml(communityMapMarks())}${filters}${rows ? `<ul class="community-log">${rows}</ul>` : entries.length ? `<p class="community-empty community-empty-filter">${filter === "attention" ? "Nothing needs attention. Reports that fail to send or wait for review show here." : "No completed reports yet. They appear once others agree or a report is fixed."}</p>` : empty}`;
+    logHost.classList.remove("is-loading");
+    logHost.querySelector('[data-log="legend"]').innerHTML = communityLegendHtml(communityMapMarks());
+    logHost.querySelector('[data-log="filters"]').innerHTML = filters;
+    logHost.querySelector('[data-log="body"]').innerHTML = rows ? `<ul class="community-log">${rows}</ul>` : entries.length ? `<p class="community-empty community-empty-filter">${filter === "attention" ? "Nothing needs attention. Reports that fail to send or wait for review show here." : "No completed reports yet. They appear once others agree or a report is fixed."}</p>` : empty;
   }
 }
 
@@ -1711,7 +1782,11 @@ function communityMarksChanged() {
 
 // --- Sign-in: optional. Points work anonymously; an account lets them follow the person across devices ---
 function communityAccountHtml() {
-  return `<section class="settings-section community-account" id="communityAccount" aria-live="polite"></section>`;
+  return `<section class="community-account" id="communityAccount" aria-live="polite">
+      <p class="community-account-line is-loading" data-account="line"><span class="community-skel-text" aria-hidden="true"></span></p>
+      <div data-account="note"></div>
+      <div data-account="recover" hidden>${communityRecoveryHtml()}</div>
+    </section>`;
 }
 
 // Who is signed in, as last told by /api/auth/me. Kept in memory as well as in storage: where storage is
@@ -1734,23 +1809,32 @@ function communityDismissSignin() {
   communityRenderAccount(communityReadAccount());
 }
 
-// The backup disclosure, held aside while the account card is blanked to a neutral state and redrawn.
-let communityStashedRecover = null;
-
+// Writes into the account section drawn once by communityAccountHtml: the sentence, any note, and whether the
+// backup disclosure applies (signed out only). `null` puts it back to its loading state.
 function communityRenderAccount(account, note = "") {
   const host = document.getElementById("communityAccount");
   if (!host) return;
-  const noteHtml = note ? `<p class="community-account-note" role="status">${escapeHtml(note)}</p>` : "";
-  // The backup disclosure keeps its open state, typed code and status across redraws of the card.
-  const keptRecover = host.querySelector(".community-recover") || communityStashedRecover;
-  communityStashedRecover = null;
-  // One quiet line at the top of the screen; the backup disclosure only exists while signed out.
-  host.innerHTML = account && account.signedIn
-    ? `<p class="community-account-line">Signed in as <strong>${escapeHtml(account.name)}</strong>. <a href="/api/auth/logout?return=/community">Sign out</a></p>${noteHtml}`
-    : `<p class="community-account-line community-account-quiet"><a href="/api/auth/login?return=/community">Sign in to take your points with you</a></p>${noteHtml}
-      ${communityRecoveryHtml()}`;
-  const fresh = host.querySelector(".community-recover");
-  if (keptRecover && fresh) fresh.replaceWith(keptRecover);
+  const line = host.querySelector('[data-account="line"]');
+  const noteEl = host.querySelector('[data-account="note"]');
+  const recover = host.querySelector('[data-account="recover"]');
+  noteEl.innerHTML = note ? `<p class="community-account-note" role="status">${escapeHtml(note)}</p>` : "";
+  line.classList.remove("is-loading");
+  line.classList.toggle("community-account-quiet", !(account && account.signedIn));
+  line.innerHTML = account && account.signedIn
+    ? `Signed in as <strong>${escapeHtml(account.name)}</strong>. <a href="/api/auth/logout?return=/community">Sign out</a>`
+    : `<a href="/api/auth/login?return=/community">Sign in to take your points with you</a>`;
+  recover.hidden = Boolean(account && account.signedIn);
+}
+
+function communityResetAccount() {
+  const host = document.getElementById("communityAccount");
+  if (!host) return;
+  const line = host.querySelector('[data-account="line"]');
+  line.classList.add("is-loading");
+  line.classList.remove("community-account-quiet");
+  line.innerHTML = `<span class="community-skel-text" aria-hidden="true"></span>`;
+  host.querySelector('[data-account="note"]').innerHTML = "";
+  host.querySelector('[data-account="recover"]').hidden = true;
 }
 
 // Learn who is signed in, and link this device to that account once. A 409 is shown, not retried.
@@ -1848,16 +1932,14 @@ async function communityOpenContributions() {
   else {
     // A screen that is already drawn (reopened, or the account changed in another tab) still shows the last
     // account until this answers: put it back to a neutral state first.
-    const accountHost = document.getElementById("communityAccount");
-    if (accountHost) { communityStashedRecover = accountHost.querySelector(".community-recover") || communityStashedRecover; accountHost.innerHTML = ""; }
-    communityResetHosts(`<p class="settings-description">Loading…</p>`);
+    communityResetAccount();
+    communityResetHosts();
   }
   const identity = await communityRefreshAccount();
   const known = communityReadAccount();
   if (identity === "failed" && known && known.signedIn) {
-    communityResetHosts(`<p class="settings-description">Couldn't check who is signed in just now. Reload to try again.</p>`);
-    const accountHost = document.getElementById("communityAccount");
-    if (accountHost) accountHost.innerHTML = "";
+    communityResetHosts("Couldn't check who is signed in just now. Reload to try again.");
+    communityResetAccount();
     return;
   }
   await communityRenderContributions();

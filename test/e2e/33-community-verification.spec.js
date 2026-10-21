@@ -782,9 +782,14 @@ test.describe("Badges and streaks", () => {
     await setup(page, "/community");
     await expect(page.locator(".community-streak-row")).toHaveCount(0);
     await expect(page.locator(".community-badges-section")).toBeHidden();
-    await expect(page.locator(".community-rank .community-badge-chip")).toHaveCount(2);
-    await expect(page.locator(".community-rank .community-badge-chip").first()).toHaveAttribute("title", "First check");
+    await expect(page.locator(".community-badge-chip")).toHaveCount(2);
+    await expect(page.locator(".community-badge-chip").first()).toHaveAttribute("title", "First check");
     expect((await page.locator(".community-badge-chip").first().boundingBox()).width).toBeGreaterThanOrEqual(36);
+    // The badges sit on a line of their own under the rank row, and tapping one names it.
+    const rankBox = await page.locator(".community-rank-card").boundingBox();
+    expect((await page.locator(".community-badge-chip").first().boundingBox()).y).toBeGreaterThan(rankBox.y + rankBox.height - 2);
+    await page.locator(".community-badge-chip").first().click();
+    await expect(page.locator(".community-hero-badges .community-badge-detail")).toContainText("First check");
   });
 
   test("the pinned needs-attention reports and the filter", async ({ page }) => {

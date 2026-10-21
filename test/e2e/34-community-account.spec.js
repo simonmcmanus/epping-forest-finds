@@ -31,6 +31,35 @@ test.describe("Community sign-in", () => {
     await expect(page.locator(".community-account-quiet a[href^='/api/auth/login']")).toBeVisible();
   });
 
+  test("the screen is drawn once as a skeleton and later renders only update values in place", async ({ page }) => {
+    await page.route(ME_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: true, name: "Sam Walker", account: "acct-sam" }) })
+    );
+    await page.route(LINK_URL, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) }));
+    await setup(page, "/community");
+    // The skeleton as first drawn: every slot is there, empty, and the hero is marked as loading.
+    const skeleton = await page.evaluate(() => {
+      const box = document.createElement("div");
+      box.innerHTML = communityScreenHtml();
+      const hero = box.querySelector("#communityContributions");
+      return {
+        loading: hero.classList.contains("is-loading"),
+        slots: [...hero.querySelectorAll("[data-hero]")].map((el) => el.dataset.hero),
+        filled: [...hero.querySelectorAll("[data-hero='rank'], [data-hero='points']")].map((el) => el.textContent),
+      };
+    });
+    expect(skeleton.loading).toBe(true);
+    expect(skeleton.slots).toEqual(expect.arrayContaining(["rank", "points", "verified", "confirmed", "reports", "bar", "chips"]));
+    expect(skeleton.filled).toEqual(["", ""]);
+    await expect(page.locator("#communityAccount")).toContainText("Signed in as Sam Walker");
+    await expect(page.locator("#communityContributions")).not.toHaveClass(/is-loading/);
+    await expect(page.locator("#communityContributions [data-hero='rank']")).toHaveText("Seedling");
+    // Rendering again writes into the same elements rather than replacing them.
+    await page.evaluate(() => { document.querySelector("#communityContributions [data-hero='points']").dataset.kept = "1"; });
+    await page.evaluate(() => communityRenderContributions());
+    await expect(page.locator("#communityContributions [data-hero='points'][data-kept='1']")).toHaveCount(1);
+  });
+
   test("a signed-in visitor sees their name, can sign out, and their device is linked once", async ({ page }) => {
     await page.route(ME_URL, (route) =>
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: true, name: "Sam Walker", account: "acct-sam" }) })
@@ -73,7 +102,7 @@ test.describe("Community sign-in", () => {
       route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: "This device is already linked to another account." }) })
     );
     await setup(page, "/community");
-    await expect(page.locator("#communityAccount [role='status']")).toContainText("already linked to another account");
+    await expect(page.locator("#communityAccount .community-account-note")).toContainText("already linked to another account");
     await expect(page.locator(".community-contributions")).toBeVisible();
   });
 });
@@ -222,7 +251,7 @@ test.describe("Community sign-in: history, account switching, storage", () => {
     requested.length = 0;
     await page.reload();
     await expect(page.locator("#communityAccount")).toContainText("Signed in as Ben");
-    await expect(page.locator("#communityAccount [role='status']")).toContainText("starting fresh");
+    await expect(page.locator("#communityAccount .community-account-note")).toContainText("starting fresh");
     const bens = await page.evaluate(() => communityDeviceId());
     expect(bens).not.toBe(primary);
     expect(owners[bens]).toBe("acct-bbbb");
@@ -318,7 +347,7 @@ test.describe("Community sign-in: history, account switching, storage", () => {
     await page.route(ME_URL, (route) => route.fulfill(json({ signedIn: true, name: "Sam", account: "acct-aaaa" })));
     await page.route(LINK_URL, (route) => route.fulfill(json({ ok: true })));
     await setup(page, "/community");
-    await expect(page.locator("#communityAccount [role='status']")).toContainText("can't save your sign-in");
+    await expect(page.locator("#communityAccount .community-account-note")).toContainText("can't save your sign-in");
     // Within the page the account's id stays stable.
     const ids = await page.evaluate(() => [communityDeviceId(), communityDeviceId()]);
     expect(ids[0]).toBe(ids[1]);
