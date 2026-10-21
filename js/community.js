@@ -1308,14 +1308,14 @@ function communityPlaceSectionHtml(place) {
 function communityPlaceConfirmedChipHtml(target) {
   const local = target && communityReadLocal()[target];
   if (!local || local.status !== "OPEN_CONFIRMED") return "";
-  const attention = Date.now() - Number(local.ts || 0) < 4000 ? " community-place-confirmed-chip-attention" : "";
-  return `<span class="community-verified-chip community-place-confirmed-chip${attention}" role="status" title="You confirmed this place is still here and correct">${communityIcon("check")}<strong>Checked</strong></span>`;
+  const attention = Date.now() - Number(local.ts || 0) < 4000 ? " community-place-confirmed-marker-attention" : "";
+  return `<p class="community-place-confirmed-marker${attention}" role="status">${communityIcon("check")}<span>You have verified this location</span></p>`;
 }
 
 function communityPlaceConfirmationHtml(place) {
   if (!communityEnabled() || !place || place.latitude == null || place.longitude == null) return "";
   const target = `place:${placeHashKey(place)}`;
-  return `<span class="community-place-confirmed-slot" data-place-target="${escapeHtml(target)}">${communityPlaceConfirmedChipHtml(target)}</span>`;
+  return `<div class="community-place-confirmed-slot" data-place-target="${escapeHtml(target)}">${communityPlaceConfirmedChipHtml(target)}</div>`;
 }
 
 function communityRefreshPlaceConfirmation(target) {

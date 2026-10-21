@@ -433,16 +433,16 @@ function showLandmarkDetails(place, distance) {
   }
   const mapsLink = place.latitude != null ? openInMapsHtml(place.latitude, place.longitude, place.name) : "";
   const shareBtn = shareLocationHtml();
-  const communityPlaceChip = isEvent ? "" : communityPlaceConfirmationHtml(place);
-  const actionsHtml = `<span class="detail-top-actions">${communityPlaceChip}${mapsLink}${shareBtn}</span>`;
+  const actionsHtml = `<span class="detail-top-actions">${mapsLink}${shareBtn}</span>`;
   const topRow = `<div class="detail-top-row">${distancePill}${actionsHtml}</div>`;
+  const communityPlaceMarker = isEvent ? "" : communityPlaceConfirmationHtml(place);
   const descriptionHtml = description ? `<p class="details-description">${escapeHtml(description)}</p>` : "";
   const ledgerHtml = ledgerMentionHtml(place);
   const issueHtml = place.latitude != null ? reportIssueHtml({ type: place.categoryLabel || "Local place", name: place.name || "Local place", latitude: place.latitude, longitude: place.longitude }) : "";
   // Every location with coordinates gets the same Nearest and Related sections (nearbySectionsHtml),
   // keyed to whichever category the place belongs to for its Related links.
   const relatedLinksHtml = nearbySectionsHtml({ latitude: place.latitude, longitude: place.longitude, name: place.name, subfilterKey: placePrimaryFilterKey(place), findSlug: place.findSlug });
-  const landmarkHtml = topRow + descriptionHtml + ledgerHtml + detailsHtml(rows, { labels: isEvent }) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + (isEvent ? "" : communityPlaceSectionHtml(place)) + relatedLinksHtml + (isEvent ? "" : communityPlaceIssuesHtml(place)) + issueHtml;
+  const landmarkHtml = topRow + communityPlaceMarker + descriptionHtml + ledgerHtml + detailsHtml(rows, { labels: isEvent }) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + (isEvent ? "" : communityPlaceSectionHtml(place)) + relatedLinksHtml + (isEvent ? "" : communityPlaceIssuesHtml(place)) + issueHtml;
   // A /find/ landing's place replaces its server-rendered panel in place: no slide-in from the side.
   transitionInspectorBody(landmarkHtml, findLandingSlug() ? null : "forward");
   if (navigator.onLine && !isEvent && place.latitude != null) loadCommunityPlaceIssues(place);

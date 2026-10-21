@@ -1298,15 +1298,16 @@ button.community-more:focus-visible { outline: 2px solid var(--tree); outline-of
 .community-verified-chip svg { width: 16px; height: 16px; }
 .community-verified-chip strong { font-size: 0.85rem; }
 .community-verified-chip:focus-visible { outline: 2px solid var(--nav); outline-offset: 2px; }
-.community-place-confirmed-chip { cursor: default; }
-.community-place-confirmed-chip-attention { animation: community-place-confirmed-attention 900ms ease-out 2; }
+.community-place-confirmed-marker { display: flex; align-items: center; gap: 7px; margin: 6px 0 12px; padding: 7px 9px; border: 1px solid rgba(47, 111, 78, 0.18); border-radius: 8px; background: #f1f7f2; color: #2f6f4e; font-size: 0.78rem; font-weight: 700; line-height: 1.25; }
+.community-place-confirmed-marker .community-icon { width: 16px; height: 16px; flex: none; }
+.community-place-confirmed-marker-attention { animation: community-place-confirmed-attention 900ms ease-out 2; }
 @keyframes community-place-confirmed-attention { 0%, 100% { box-shadow: 0 0 0 0 rgba(47, 111, 78, 0); } 35% { box-shadow: 0 0 0 4px rgba(47, 111, 78, 0.18); } }
 .community-verified-detail { max-height: 0; overflow: hidden; margin: 0; padding: 0 10px; border-radius: 8px; background: #e8f3ea; color: #1f4d29; font-size: 0.82rem; line-height: 1.35; opacity: 0; transition: max-height 220ms ease, margin 220ms ease, padding 220ms ease, opacity 160ms ease; }
 .community-verified-detail.is-open { max-height: 4rem; margin: 0 0 10px; padding: 8px 10px; opacity: 1; }
 .community-badge-questioned { background: var(--gold-tint); border-color: #d9a21b; color: #5c4600; }
 
 @keyframes community-pop { from { opacity: 0; transform: translateY(4px) scale(0.98); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .community-mine, .community-mine .community-points-chip { animation: none; } button.community-more > .community-icon { transition: none; } .community-verify, .community-chip, .community-verified-detail, .community-place-confirmed-chip-attention { animation: none; transition: none; } }
+@media (prefers-reduced-motion: reduce) { .community-mine, .community-mine .community-points-chip { animation: none; } button.community-more > .community-icon { transition: none; } .community-verify, .community-chip, .community-verified-detail, .community-place-confirmed-marker-attention { animation: none; transition: none; } }
 
 /* Feedback screen: add a missing tree */
 .community-new-tree {
