@@ -3097,7 +3097,7 @@ function communityScreenHtml() {
   return `${communityAccountHtml()}
     ${communityContributionsHtml()}
     ${communityActionsHtml()}
-    ${communityAddTreeHtml()}
+    ${communityAddMissingHtml()}
     ${communityLogSectionHtml()}
     <label class="community-nudge-setting"><input type="checkbox" id="communityNudgeToggle"${communityNudgesOn() ? " checked" : ""}> Remind me to check trees I'm standing next to</label>
     <a class="community-feedback-link" href="/feedback">
@@ -3144,7 +3144,16 @@ function reportFormHtml() {
   } catch {}
   const detailsValue = draft.details || "";
   const online = navigator.onLine;
-  return `<form id="reportForm" class="report-form">
+  return `<div class="report-type-field">
+      <label for="reportType">What would you like to tell us?
+        <select id="reportType" class="report-textarea community-input">
+          <option value="feedback">Feedback, a bug or something strange</option>
+          <option value="tree">A tree that's missing from the map</option>
+          <option value="place">A place that's missing from the map</option>
+        </select>
+      </label>
+    </div>
+    <form id="reportForm" class="report-form">
       <p class="report-intro">We welcome feedback, bug reports, and anything strange you have noticed. It helps us improve the data for everyone.</p>
       <label for="reportDetails">What did you notice?
         <textarea id="reportDetails" class="report-textarea" placeholder="Describe what's missing or what you'd like to see…" required>${escapeHtml(detailsValue)}</textarea>
@@ -3157,7 +3166,8 @@ function reportFormHtml() {
         <button id="reportCancel" class="button button-ghost" type="button">Cancel</button>
         <button id="reportSubmit" class="button" type="submit">Submit</button>
       </div>
-    </form>`;
+    </form>
+    ${communityAddFormHostHtml()}`;
 }
 
 // `capture="environment"` asks a phone for its rear camera, where supported. Browsers which
@@ -3182,6 +3192,9 @@ function bindReportFormHandlers() {
       goToInitialView();
     });
   }
+
+  const typeSelect = document.getElementById("reportType");
+  if (typeSelect) typeSelect.addEventListener("change", () => communitySetReportType(typeSelect.value));
 
   const form = document.getElementById("reportForm");
   if (form) {

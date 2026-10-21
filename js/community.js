@@ -930,25 +930,40 @@ function communityIntroHtml() {
 const COMMUNITY_MAX_ACCURACY_METRES = 30;
 let communityLocationTimer = null;
 
-function communityAddTreeHtml() {
-  return `<section class="settings-section community-add-tree community-add-place">
-      <h3 class="settings-section-title">Add something missing</h3>
-      <div id="communityAddBody">${communityAddIdleHtml()}</div>
+// The Community screen only points at the form: one card linking to the combined Feedback screen.
+function communityAddMissingHtml() {
+  return `<section class="settings-section community-add-missing-section">
+      <a class="community-feedback-link community-add-missing" href="/feedback">
+        <span class="community-feedback-icon">${communityIcon("plus")}</span>
+        <span class="community-feedback-text"><strong>Not on the map?</strong><span>Add a missing tree or place, or report a problem</span></span>
+        ${communityIcon("chevron")}
+      </a>
     </section>`;
 }
 
-// One prompt for both kinds; the matching form replaces it in the same spot.
-function communityAddIdleHtml() {
-  return `<div class="community-new-tree">
-      <div class="community-new-text">
-        <p class="community-new-title">Not on the map?</p>
-        <p class="report-note">Stand right next to it. A tree needs its tag number; a person checks every new place.</p>
-      </div>
-      <div class="community-add-actions">
-        <button class="community-add" type="button" data-action="community-add-start">${communityIcon("tree")}<span>Tree</span></button>
-        <button class="community-add" type="button" data-action="community-addplace-start">${communityIcon("locate")}<span>Place</span></button>
-      </div>
-    </div>`;
+// Where the Feedback screen shows the add-a-tree / add-a-place forms once their type is picked.
+function communityAddFormHostHtml() {
+  return `<section class="community-add-tree community-add-place"><div id="communityAddBody" hidden></div></section>`;
+}
+
+// The Feedback screen's type picker: the type decides which form is shown (the ordinary feedback form, or
+// the tree or place form with its own location check).
+function communitySetReportType(type) {
+  clearInterval(communityLocationTimer);
+  communityLocationTimer = null;
+  clearInterval(communityPlaceLocationTimer);
+  communityPlaceLocationTimer = null;
+  const select = document.getElementById("reportType");
+  if (select) select.value = type;
+  const form = document.getElementById("reportForm");
+  const body = document.getElementById("communityAddBody");
+  if (form) form.hidden = type !== "feedback";
+  if (body) {
+    body.hidden = type === "feedback";
+    if (type === "feedback") body.innerHTML = "";
+  }
+  if (type === "tree") communityStartAddTree();
+  else if (type === "place") communityStartAddPlace();
 }
 
 function communityAddTreeFormHtml() {
@@ -1010,10 +1025,7 @@ function communityStartAddTree() {
 }
 
 function communityCancelAddTree() {
-  clearInterval(communityLocationTimer);
-  communityLocationTimer = null;
-  const body = document.getElementById("communityAddBody");
-  if (body) body.innerHTML = communityAddIdleHtml();
+  communitySetReportType("feedback");
 }
 
 async function communitySubmitNewTree() {
@@ -1101,10 +1113,7 @@ function communityStartAddPlace() {
 }
 
 function communityCancelAddPlace() {
-  clearInterval(communityPlaceLocationTimer);
-  communityPlaceLocationTimer = null;
-  const body = document.getElementById("communityAddBody");
-  if (body) body.innerHTML = communityAddIdleHtml();
+  communitySetReportType("feedback");
 }
 
 async function communitySubmitNewPlace() {
@@ -1433,10 +1442,10 @@ function showAddedTreeDetails(item) {
   transitionInspectorBody(topRow + detailsHtml(rows) + cta, "forward");
 }
 
-// "I found it too": the Community screen's add-a-tree form, with the tag filled in.
+// "I found it too": the Feedback screen's add-a-tree form, with the tag filled in.
 function communityConfirmAddedTree(tag) {
-  openCommunity();
-  communityStartAddTree();
+  openReportModal();
+  communitySetReportType("tree");
   const input = document.getElementById("communityTagInput");
   if (input) {
     input.value = tag;

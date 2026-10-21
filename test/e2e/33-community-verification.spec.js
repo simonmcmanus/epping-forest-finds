@@ -175,10 +175,10 @@ test.describe("Community tree verification", () => {
     await expect(page.locator("#inspectorTitle").last()).not.toContainText("Community");
   });
 
-  test("backup lives in the signed-out account card, add tree and place share one section, trees link to /nearby/trees", async ({ page }) => {
+  test("backup lives in the signed-out account card, one Not-on-the-map link opens the feedback form, trees link to /nearby/trees", async ({ page }) => {
     await setup(page, "/community");
     await expect(page.locator("#communityAccount .community-recover")).toBeVisible();
-    await expect(page.locator(".community-add-tree .community-add")).toHaveCount(2);
+    await expect(page.locator("a.community-add-missing")).toHaveAttribute("href", "/feedback");
     await expect(page.locator(".community-action-row").first()).toHaveAttribute("href", "/nearby/trees");
   });
 
@@ -223,8 +223,8 @@ test.describe("Community tree verification", () => {
       posted.push(route.request().postDataJSON());
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
     });
-    await setup(page, "/community");
-    await page.click("[data-action='community-add-start']");
+    await setup(page, "/feedback");
+    await page.selectOption("#reportType", "tree");
     await expect(page.locator("#communityAddTreeForm")).toBeVisible();
     await expect(page.locator("#communityLocationStatus")).toContainText("Turn on location");
     await expect(page.locator("#communityAddTreeSubmit")).toBeDisabled();
@@ -262,8 +262,8 @@ test.describe("Community tree verification with location shared", () => {
       posted.push(route.request().postDataJSON());
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
     });
-    await setup(page, "/community");
-    await page.click("[data-action='community-add-start']");
+    await setup(page, "/feedback");
+    await page.selectOption("#reportType", "tree");
     await expect(page.locator("#communityLocationStatus")).toContainText("accurate to");
     await expect(page.locator("#communityAddTreeSubmit")).toBeDisabled();
     await page.fill("#communityTagInput", "T-9001");
@@ -325,8 +325,8 @@ test.describe("Community tree verification with location shared", () => {
   test("a tag that is already on the map is not added again", async ({ page }) => {
     const posted = [];
     await page.route(REPORT_URL, (route) => { posted.push(1); route.fulfill({ status: 200, body: "{}" }); });
-    await setup(page, "/community");
-    await page.click("[data-action='community-add-start']");
+    await setup(page, "/feedback");
+    await page.selectOption("#reportType", "tree");
     await page.fill("#communityTagInput", FIXTURE_TREE.tagNumber);
     await page.click("#communityAddTreeSubmit");
     await expect(page.locator("#communityAddTreeStatus")).toContainText("already on the map");
@@ -746,8 +746,8 @@ test.describe("Add a missing place", () => {
       posted.push(route.request().postDataJSON());
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, issueUrl: "https://github.com/x/y/issues/1" }) });
     });
-    await setup(page, "/community");
-    await page.click("[data-action='community-addplace-start']");
+    await setup(page, "/feedback");
+    await page.selectOption("#reportType", "place");
     await expect(page.locator("#communityPlaceLocationStatus")).toContainText("accurate to");
     await expect(page.locator("#communityAddPlaceSubmit")).toBeDisabled();
     await page.fill("#communityPlaceName", "The Test Tavern");
@@ -848,7 +848,7 @@ test.describe("Trees added by walkers: tap for details", () => {
     await expect(page.locator("#inspectorBody")).toContainText("Not on the City of London register yet");
     expect(await page.evaluate(() => window.location.hash)).toBe("#addedtree=T-77");
     await page.click("[data-action='community-confirm-added']");
-    await expect(page.locator(".community-action-card")).toBeVisible();
+    await expect(page.locator("#reportType")).toHaveValue("tree");
     await expect(page.locator("#communityTagInput")).toHaveValue("T-77");
   });
 
