@@ -100,19 +100,6 @@
         <div id="sw-version" class="version" aria-hidden="true"></div>
       </div>
 
-      <div id="locationGate" class="location-gate" role="dialog" aria-modal="true" aria-labelledby="locationGateTitle" aria-describedby="locationGateMessage" hidden>
-        <div class="location-gate-card">
-          <div class="location-gate-icon" aria-hidden="true">
-            <img class="app-icon" src="data/icons/pin.png" alt="" loading="lazy" decoding="async">
-          </div>
-          <h2 id="locationGateTitle" class="location-gate-title">Allow location access</h2>
-          <p id="locationGateMessage" class="location-gate-text">Epping Forest Finds uses your location to show nearby trees and point you toward them with compass directions.</p>
-          <button id="locationGateButton" class="button" type="button">Enable location to continue</button>
-          <button id="locationGateDismiss" class="onboarding-skip-btn" type="button" hidden>Maybe later</button>
-          <p class="privacy-note">We collect anonymous usage data (GPS position, navigation, interactions) to improve the app. You can withdraw anytime via Settings → Privacy. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
-        </div>
-      </div>
-
       <div id="distanceWarning" class="location-gate" role="dialog" aria-modal="true" aria-labelledby="distanceWarningTitle" aria-describedby="distanceWarningMessage" hidden>
         <div class="location-gate-card">
           <div class="location-gate-icon" aria-hidden="true"><img class="app-icon" src="data/icons/distance.png" alt=""></div>
@@ -216,9 +203,7 @@
         </div>
         <!-- The dismissible "get a more custom experience" invite shown after a boot with no real
              location fix (revealNoRealLocation, js/app.js). Non-blocking, same inline treatment as
-             #consentBanner above -- not the opaque, full-screen #locationGate modal the hard-stop
-             prompts elsewhere on this page use, which this invite used to reuse too even though it
-             was never a hard stop: the map and list behind it were already usable the whole time. -->
+             #consentBanner above. The map and list behind it are already usable the whole time. -->
         <div id="locationInviteBanner" class="consent-banner" role="group" aria-label="Location access" hidden>
           <div class="consent-banner-copy">
             <strong id="locationInviteTitle">Get a more custom experience</strong>
