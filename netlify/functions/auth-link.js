@@ -2,7 +2,7 @@
 // towards the account's score and log.
 const auth = require("./lib/auth-session");
 const { openStore } = require("./lib/community-store");
-const { accountKey, linkDevice } = require("./lib/community-account");
+const { accountOf, linkDevice } = require("./lib/community-account");
 
 const DEVICE_ID_RE = /^[A-Za-z0-9_-]{8,64}$/;
 
@@ -17,7 +17,8 @@ exports.handler = async (event) => {
   let input;
   try { input = JSON.parse(event.body || "{}"); } catch { return respond(400, { error: "Invalid JSON" }); }
   if (typeof input.deviceId !== "string" || !DEVICE_ID_RE.test(input.deviceId)) return respond(400, { error: "Invalid device id" });
-  const result = await linkDevice(openStore(event), accountKey(session.sub), input.deviceId);
+  const store = openStore(event);
+  const result = await linkDevice(store, await accountOf(store, session), input.deviceId);
   if (!result.ok) return respond(result.status, { error: result.error });
   return respond(200, { ok: true });
 };

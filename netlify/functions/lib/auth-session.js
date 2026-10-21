@@ -85,6 +85,9 @@ const sessionCookie = (session, secure = true) => cookie(SESSION_COOKIE, sign(se
 const clearSessionCookie = (secure = true) => cookie(SESSION_COOKIE, "", 0, secure);
 const stateCookie = (state, key, secure = true) => cookie(STATE_COOKIE, sign({ ...state, exp: Date.now() + STATE_MS }, key), STATE_MS / 1000, secure);
 const clearStateCookie = (secure = true) => cookie(STATE_COOKIE, "", 0, secure);
+// How a merge ended (merged | same | failed), for the page to show once. Not HttpOnly on purpose: the page reads
+// it and clears it. It holds no identity, only the outcome word.
+const mergeResultCookie = (outcome, secure = true) => `ff_merge_result=${outcome}; Path=/;${secure ? " Secure;" : ""} SameSite=Lax; Max-Age=120`;
 const readState = (event, key) => verify(parseCookies(header(event, "cookie"))[STATE_COOKIE], key);
 
 // Providers return the email address as `name` for email logins; never show or store it.
@@ -95,6 +98,7 @@ function displayName(user) {
 
 module.exports = {
   SESSION_MS,
+  mergeResultCookie,
   authConfig,
   sign,
   verify,

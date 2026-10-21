@@ -2999,21 +2999,48 @@ function settingsAccountHtml(account, note = "") {
   const noteHtml = note ? `<p class="report-note" role="status">${escapeHtml(note)}</p>` : "";
   if (account && account.signedIn) {
     return `<p class="settings-description">Signed in as <strong>${escapeHtml(account.name)}</strong>. Your points follow you to any device you sign in on.</p>
-      <a id="settingsSignOut" class="settings-btn settings-btn-link" href="/api/auth/logout?return=/settings">Sign out</a>${noteHtml}`;
+      <a id="settingsSignOut" class="settings-btn settings-btn-link" href="/api/auth/logout?return=/settings">Sign out</a>
+      <p class="settings-description">Used a different login on another device? Sign in with it here to bring its points and devices into this account.</p>
+      <a id="settingsMerge" class="settings-btn settings-btn-link" href="/api/auth/login?return=/settings&amp;merge=1">Merge another sign-in</a>${noteHtml}`;
   }
   return `<p class="settings-description">Sign in to keep your Community points on any device. You can still use the app without signing in.</p>
     <a id="settingsSignIn" class="settings-btn settings-btn-link" href="/api/auth/login?return=/settings">Sign in</a>${noteHtml}`;
 }
 
+const SETTINGS_MERGE_MESSAGES = {
+  merged: "Done: the other sign-in's points and devices are now in this account.",
+  same: "That sign-in is already part of this account, so there was nothing to merge.",
+  failed: "Couldn't merge those sign-ins. Make sure you are still signed in here, then try again.",
+};
+
+// The outcome of a merge arrives in a short-lived cookie set by the sign-in callback. It is read and cleared
+// once, then kept in memory for this page load: Settings can be drawn more than once while the app starts,
+// and every draw must show it. A reload no longer has it.
+let settingsMergeOutcome = "";
+function takeMergeOutcome() {
+  try {
+    const match = /(?:^|;\s*)ff_merge_result=([a-z]+)/.exec(document.cookie || "");
+    if (match) {
+      document.cookie = "ff_merge_result=; Path=/; Max-Age=0";
+      if (SETTINGS_MERGE_MESSAGES[match[1]]) settingsMergeOutcome = match[1];
+    }
+  } catch {}
+  return settingsMergeOutcome;
+}
+
 async function fillSettingsAccount() {
   if (!document.getElementById("settingsAccountBody") || typeof communityRefreshAccount !== "function") return;
+  const merge = takeMergeOutcome();
   let result = "failed";
   try { result = await communityRefreshAccount(); } catch {}
   const body = document.getElementById("settingsAccountBody");
   if (!body) return; // the screen was left while we waited
   const account = communityReadAccount();
-  const note = result === "failed" && account && account.signedIn ? "Couldn't check who is signed in just now." : "";
+  let note = result === "failed" && account && account.signedIn ? "Couldn't check who is signed in just now." : "";
+  if (merge) note = SETTINGS_MERGE_MESSAGES[merge];
   body.innerHTML = settingsAccountHtml(account, note);
+  // Merged devices change the points: bring this device's score and log up to date.
+  if (merge === "merged") { try { await Promise.all([communityRefreshScore(true), communityRefreshLog()]); } catch {} }
 }
 
 async function fillTesterId() {

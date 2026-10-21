@@ -48,8 +48,8 @@ async function writeList(event, list) {
 async function vouchedIds(store, deviceHash, session) {
   const ids = [String(deviceHash || "").toLowerCase()];
   if (session && session.sub) {
-    const { accountKey, devicesOfAccount } = require("./community-account");
-    ids.push(testerHash(accountKey(session.sub)));
+    const { accountKey, accountOf, devicesOfAccount } = require("./community-account");
+    ids.push(testerHash(accountKey(session.sub)), testerHash(await accountOf(store, session)));
     for (const device of await devicesOfAccount(store, session)) ids.push(testerHash(device));
   }
   return ids;

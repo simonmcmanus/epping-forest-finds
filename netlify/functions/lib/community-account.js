@@ -39,11 +39,55 @@ async function linkDevice(store, account, deviceId) {
   return { ok: true };
 }
 
+// Merging two sign-ins leaves an alias behind: a login that was merged away still works, but as the account it
+// was merged into. Followed a few hops so a chain of merges resolves, with a cap so a cycle cannot loop.
+const ALIAS_PREFIX = "accountalias/";
+
+async function canonicalAccount(store, key) {
+  let current = key;
+  for (let hop = 0; hop < 5; hop += 1) {
+    const alias = await store.get(`${ALIAS_PREFIX}${current}`);
+    if (!alias || !alias.to || alias.to === current) return current;
+    current = alias.to;
+  }
+  return current;
+}
+
+// The account a signed-in session acts for, after any merges.
+const accountOf = (store, session) => canonicalAccount(store, accountKey(session.sub));
+
+// Brings every device of one account under another, and aliases the first to the second. The caller is
+// responsible for having proved control of both logins. Order matters: devices are re-pointed and the alias
+// written before the old markers go, so a failure part-way never leaves a device without an owner.
+async function mergeAccounts(store, fromKey, intoKey) {
+  const from = await canonicalAccount(store, fromKey);
+  const into = await canonicalAccount(store, intoKey);
+  if (from === into) return { ok: true, same: true, moved: 0 };
+  const prefix = markerPrefix(from);
+  const devices = [];
+  for (const key of await store.list(prefix)) {
+    const device = key.slice(prefix.length);
+    const owner = await store.get(`devicelink/${device}`);
+    if (owner && owner.account === from) devices.push(device);
+  }
+  const existing = (await store.list(markerPrefix(into))).length;
+  if (existing + devices.length > MAX_DEVICES_PER_ACCOUNT) {
+    return { ok: false, status: 409, error: "Together these sign-ins would have more devices than one account can hold." };
+  }
+  for (const device of devices) {
+    await store.put(`devicelink/${device}`, { account: into });
+    await store.put(`${markerPrefix(into)}${device}`, { at: Date.now() });
+  }
+  await store.put(`${ALIAS_PREFIX}${from}`, { to: into, at: Date.now() });
+  for (const device of devices) await store.delete(`${prefix}${device}`);
+  return { ok: true, same: false, moved: devices.length };
+}
+
 // The devices that really belong to the signed-in account: each marker is checked against the authoritative
 // owner record, so a stray or stale marker never counts.
 async function devicesOfAccount(store, session) {
   if (!session || !session.sub) return [];
-  const account = accountKey(session.sub);
+  const account = await accountOf(store, session);
   const prefix = markerPrefix(account);
   const owned = [];
   for (const key of await store.list(prefix)) {
@@ -63,7 +107,7 @@ async function devicesOfAccount(store, session) {
 //  - Signed in, and the device has no owner yet: the device alone (it is about to be linked).
 async function devicesForRequest(store, deviceId, session) {
   if (!session || !session.sub) return [deviceId];
-  const account = accountKey(session.sub);
+  const account = await accountOf(store, session);
   const owned = await devicesOfAccount(store, session);
   if (owned.includes(deviceId)) return owned;
   const owner = await store.get(`devicelink/${deviceId}`);
@@ -81,4 +125,4 @@ function mergeScores(scores) {
   return merged;
 }
 
-module.exports = { accountKey, linkDevice, devicesOfAccount, devicesForRequest, loadDeviceOwners, mergeScores, MAX_DEVICES_PER_ACCOUNT };
+module.exports = { accountKey, canonicalAccount, accountOf, mergeAccounts, linkDevice, devicesOfAccount, devicesForRequest, loadDeviceOwners, mergeScores, MAX_DEVICES_PER_ACCOUNT };

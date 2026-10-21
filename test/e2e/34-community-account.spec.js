@@ -425,4 +425,19 @@ test.describe("Community sign-in: history, account switching, storage", () => {
     await expect(page.locator("#settingsSignOut")).toHaveAttribute("href", "/api/auth/logout?return=/settings");
     await expect(page.locator("#settingsSignIn")).toHaveCount(0);
   });
+
+  test("Settings offers to merge another sign-in, and says how the merge went once", async ({ page, context }) => {
+    await page.route(ME_URL, (route) => route.fulfill(json({ signedIn: true, name: "Sam", account: "acct-bbbb" })));
+    await page.route(LINK_URL, (route) => route.fulfill(json({ ok: true })));
+    await context.addCookies([{ name: "ff_merge_result", value: "merged", url: "http://localhost:8080" }]);
+    await setup(page, "/settings");
+    const merge = page.locator("#settingsMerge");
+    await expect(merge).toHaveText("Merge another sign-in");
+    await expect(merge).toHaveAttribute("href", "/api/auth/login?return=/settings&merge=1");
+    await expect(page.locator("#settingsAccount")).toContainText("points and devices are now in this account");
+    // Shown once: the outcome cookie is cleared as soon as it has been read.
+    expect((await context.cookies()).some((c) => c.name === "ff_merge_result")).toBe(false);
+    await page.reload();
+    await expect(page.locator("#settingsAccount")).not.toContainText("points and devices are now in this account");
+  });
 });

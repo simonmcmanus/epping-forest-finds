@@ -215,6 +215,7 @@
       <li><strong>What we receive</strong> — the identifier your login provider gives for you and a display name. If the name looks like an email address we ignore it and show "Walker". We do not receive or store your email address.</li>
       <li><strong>What we store</strong> — a one-way hash of that identifier, and the list of Community IDs (devices) you link to your account. Linking combines the reports from those devices into one score and one history under your account, and the devices count as one person (one reporter) when community checks are tallied.</li>
       <li><strong>The sign-in cookie</strong> — signing in sets one cookie, <code>ff_session</code>: signed, HttpOnly, Secure, valid for 30 days, holding the provider identifier and your display name. It is strictly necessary for staying signed in and is only set if you sign in. Signing out removes it from that device.</li>
+      <li><strong>Merging sign-ins</strong> — if you use more than one login you can merge them from <em>Settings → Account</em>, after proving you control both. We then keep a record that the second login belongs to the first account, and the devices and points of both are combined under one account. Merging cannot be undone.</li>
       <li><strong>Who processes it</strong> — Auth0 processes your login under its own privacy policy. Our servers are hosted by Netlify.</li>
     </ul>
     <h3>Keeping and deleting it</h3>

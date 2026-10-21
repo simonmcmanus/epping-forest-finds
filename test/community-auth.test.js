@@ -22,6 +22,8 @@ function memoryStore() {
     async get(key) { return data.has(key) ? JSON.parse(JSON.stringify(data.get(key))) : null; },
     async put(key, value) { data.set(key, JSON.parse(JSON.stringify(value))); },
     async list(prefix) { return [...data.keys()].filter((k) => k.startsWith(prefix)); },
+    async delete(key) { data.delete(key); },
+    has: (key) => data.has(key),
   };
 }
 
@@ -545,4 +547,111 @@ test("a person is also let in when the admin names their account's Tester ID", a
   const list = gate.normalizeList({ community: [{ id: gate.testerHash(account.accountKey(session.sub)), note: "Sam" }] });
   const ids = await gate.vouchedIds(store, gate.testerHash("brand-new-device-1"), session);
   assert.strictEqual(gate.enabledFor(list, ids).community, true);
+});
+
+// --- Merging two sign-ins ---
+const sessionCookieFor = (sub) => `ff_session=${auth.sign({ sub, name: "Sam", exp: Date.now() + 60000 }, KEY)}`;
+
+test("merging moves the old sign-in's devices into the account and both logins then see all of them", async () => {
+  const store = memoryStore();
+  const a = account.accountKey("auth0|a");
+  const b = account.accountKey("auth0|b");
+  await account.linkDevice(store, a, "device-of-a-0001");
+  await account.linkDevice(store, b, "device-of-b-0001");
+  await account.linkDevice(store, b, "device-of-b-0002");
+  // B is the account the person is signed in as; A is the second sign-in being brought in.
+  assert.deepStrictEqual(await account.mergeAccounts(store, a, b), { ok: true, same: false, moved: 1 });
+  const together = ["device-of-a-0001", "device-of-b-0001", "device-of-b-0002"];
+  assert.deepStrictEqual((await account.devicesForRequest(store, "device-of-b-0001", { sub: "auth0|b" })).sort(), together);
+  // The merged-away login still signs in, as the same account, and sees the same devices (so the same points).
+  assert.strictEqual(await account.accountOf(store, { sub: "auth0|a" }), b);
+  assert.deepStrictEqual((await account.devicesForRequest(store, "device-of-a-0001", { sub: "auth0|a" })).sort(), together);
+  assert.strictEqual(store.has(`accountdevices/${a}/device-of-a-0001`), false, "the old marker is gone");
+  // Linking a device for the merged-away login lands on the surviving account, not a 409.
+  assert.deepStrictEqual(await account.linkDevice(store, await account.accountOf(store, { sub: "auth0|a" }), "device-of-a-0002"), { ok: true });
+  assert.ok((await account.devicesOfAccount(store, { sub: "auth0|b" })).includes("device-of-a-0002"));
+});
+
+test("merging an account into itself, or twice, changes nothing", async () => {
+  const store = memoryStore();
+  const a = account.accountKey("auth0|a");
+  const b = account.accountKey("auth0|b");
+  await account.linkDevice(store, a, "device-of-a-0001");
+  assert.deepStrictEqual(await account.mergeAccounts(store, a, a), { ok: true, same: true, moved: 0 });
+  await account.mergeAccounts(store, a, b);
+  assert.deepStrictEqual(await account.mergeAccounts(store, a, b), { ok: true, same: true, moved: 0 });
+});
+
+test("a merge that would put more devices in one account than it can hold is refused and moves nothing", async () => {
+  const store = memoryStore();
+  const a = account.accountKey("auth0|a");
+  const b = account.accountKey("auth0|b");
+  for (let i = 0; i < 12; i++) await account.linkDevice(store, a, `a-device-${i}-xxxx`);
+  for (let i = 0; i < 12; i++) await account.linkDevice(store, b, `b-device-${i}-xxxx`);
+  const result = await account.mergeAccounts(store, a, b);
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.status, 409);
+  assert.strictEqual((await store.get("devicelink/a-device-0-xxxx")).account, a);
+  assert.strictEqual(await account.canonicalAccount(store, a), a, "no alias was written");
+});
+
+test("a merge another login starts only when signed in, and the account is sealed into the state cookie", async () => {
+  await withAuthEnv(async () => {
+    const store = memoryStore();
+    login.setStore(store);
+    try {
+      const signedOut = await login.handler({ queryStringParameters: { return: "/settings", merge: "1" }, headers: HOST });
+      assert.strictEqual(auth.verify(cookieValue(cookieNamed(signedOut, "ff_auth_state")), KEY).merge, undefined, "no session, no merge");
+      const signedIn = await login.handler({ queryStringParameters: { return: "/settings", merge: "1" }, headers: { ...HOST, cookie: sessionCookieFor("auth0|b") } });
+      assert.strictEqual(auth.verify(cookieValue(cookieNamed(signedIn, "ff_auth_state")), KEY).merge, account.accountKey("auth0|b"));
+      const plain = await login.handler({ queryStringParameters: { return: "/settings" }, headers: { ...HOST, cookie: sessionCookieFor("auth0|b") } });
+      assert.strictEqual(auth.verify(cookieValue(cookieNamed(plain, "ff_auth_state")), KEY).merge, undefined, "an ordinary sign-in never merges");
+    } finally { login.setStore(null); }
+  });
+});
+
+test("the callback merges the second login into the signed-in account and leaves the session as it was", async () => {
+  const store = memoryStore();
+  const a = account.accountKey("auth0|a");
+  const b = account.accountKey("auth0|b");
+  await account.linkDevice(store, a, "device-of-a-0001");
+  await account.linkDevice(store, b, "device-of-b-0001");
+  await withAuthEnv(async () => {
+    login.setStore(store);
+    callback.setStore(store);
+    try {
+      const started = await login.handler({ queryStringParameters: { return: "/settings", merge: "1" }, headers: { ...HOST, cookie: sessionCookieFor("auth0|b") } });
+      const state = new URL(started.headers.Location).searchParams.get("state");
+      const stateCookie = cookieNamed(started, "ff_auth_state");
+      const cookie = `${stateCookie.split(";")[0]}; ${sessionCookieFor("auth0|b")}`;
+      const result = await callback.handler(callbackEvent({ code: "c", state }, cookie));
+      assert.strictEqual(result.headers.Location, "/settings");
+      assert.ok(cookieNamed(result, "ff_merge_result").startsWith("ff_merge_result=merged;"));
+      assert.strictEqual(cookieNamed(result, "ff_session"), undefined, "the session is not replaced by the second login");
+      assert.strictEqual(await account.canonicalAccount(store, a), b);
+      assert.strictEqual((await store.get("devicelink/device-of-a-0001")).account, b);
+    } finally { login.setStore(null); callback.setStore(null); }
+  }, { fetchImpl: providerOk({ sub: "auth0|a", name: "Sam" }) });
+});
+
+test("the callback refuses to merge when the person is no longer signed in as the account the merge began from", async () => {
+  const store = memoryStore();
+  const a = account.accountKey("auth0|a");
+  await account.linkDevice(store, a, "device-of-a-0001");
+  await withAuthEnv(async () => {
+    login.setStore(store);
+    callback.setStore(store);
+    try {
+      const started = await login.handler({ queryStringParameters: { return: "/settings", merge: "1" }, headers: { ...HOST, cookie: sessionCookieFor("auth0|b") } });
+      const state = new URL(started.headers.Location).searchParams.get("state");
+      const stateCookie = cookieNamed(started, "ff_auth_state").split(";")[0];
+      // Signed out by the time the provider sends them back, then signed in as someone else entirely.
+      for (const cookie of [stateCookie, `${stateCookie}; ${sessionCookieFor("auth0|someone-else")}`]) {
+        const result = await callback.handler(callbackEvent({ code: "c", state }, cookie));
+        assert.ok(cookieNamed(result, "ff_merge_result").startsWith("ff_merge_result=failed;"));
+        assert.strictEqual(await account.canonicalAccount(store, a), a, "nothing was merged");
+        assert.strictEqual((await store.get("devicelink/device-of-a-0001")).account, a);
+      }
+    } finally { login.setStore(null); callback.setStore(null); }
+  }, { fetchImpl: providerOk({ sub: "auth0|a", name: "Sam" }) });
 });
