@@ -657,15 +657,19 @@ test.describe("Reporting from too far away", () => {
 test.describe("Community reports on a place", () => {
   test("a place that people have raised issues about links to them, filtered by label", async ({ page }) => {
     await page.route("https://api.github.com/search/issues**", (route) =>
-      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ total_count: 2, items: [{ state: "open" }, { state: "closed" }] }) }));
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ total_count: 2, items: [{ state: "open", title: "The place may have closed" }, { state: "closed", title: "Opening hours need checking" }] }) }));
     await skipOnboarding(page);
     await mockCowApi(page);
     await gotoAndWaitForMap(page, `/nearby#place=id:${PLACE.id}`);
-    const line = page.locator(".community-place-issues");
-    await expect(line).toBeVisible();
-    await expect(line).toContainText("The community has raised 2 issues about this place");
-    await expect(line).toContainText("1 still open");
-    const href = await line.locator("a").getAttribute("href");
+    const status = page.locator(".community-place-status");
+    await expect(status).toBeVisible();
+    await expect(status).toContainText("Community reports");
+    await expect(status).toContainText("2 reports");
+    await expect(status).toContainText("1 open");
+    await status.locator("summary").click();
+    await expect(status).toContainText("The place may have closed");
+    await expect(status).toContainText("Opening hours need checking");
+    const href = await status.locator("a").getAttribute("href");
     expect(decodeURIComponent(href)).toContain("label:place-check");
     expect(decodeURIComponent(href)).toContain(`place-key:place:id:${PLACE.id}`);
   });
@@ -676,8 +680,8 @@ test.describe("Community reports on a place", () => {
     await skipOnboarding(page);
     await mockCowApi(page);
     await gotoAndWaitForMap(page, `/nearby#place=id:${PLACE.id}`);
-    await expect(page.locator(".community-place-issues")).toHaveCount(1);
-    await expect(page.locator(".community-place-issues")).toBeHidden();
+    await expect(page.locator(".community-place-status-slot")).toHaveCount(1);
+    await expect(page.locator(".community-place-status")).toHaveCount(0);
   });
 });
 

@@ -1253,18 +1253,30 @@ function communityPlaceIssuesUrl(placeKey) {
   return `https://github.com/${COMMUNITY_REPO}/issues?q=${encodeURIComponent(`is:issue label:place-check "place-key:${placeKey}"`)}`;
 }
 
-// A hidden line under the place's card, filled in by loadCommunityPlaceIssues once GitHub answers.
-function communityPlaceIssuesHtml(place) {
-  if (!place || place.latitude == null) return "";
-  const key = `place:${placeHashKey(place)}`;
-  return `<p class="community-place-issues" data-place-key="${escapeHtml(key)}" hidden></p>`;
+function communityPlaceIssueStatusHtml(key, found) {
+  const count = `${found.total} ${found.total === 1 ? "report" : "reports"}`;
+  const openText = found.open ? `${found.open} open` : "none open";
+  const titles = (found.items || []).map((item) => item.title).filter(Boolean).slice(0, 3);
+  const reportsHtml = titles.length
+    ? `<ul>${titles.map((title) => `<li>${escapeHtml(title)}</li>`).join("")}</ul>`
+    : `<p>The community has raised ${escapeHtml(count)} about this place.</p>`;
+  return `<details class="community-place-status community-place-issues">
+      <summary class="community-place-status-summary">${communityIcon("alert")}<span class="community-place-status-copy"><strong>Community reports</strong><small>${escapeHtml(`${count} · ${openText}`)}</small></span>${communityIcon("chevron")}</summary>
+      <div class="community-place-status-detail">${reportsHtml}<a class="community-link" href="${escapeHtml(communityPlaceIssuesUrl(key))}" target="_blank" rel="noopener">View reports</a></div>
+    </details>`;
+}
+
+function communityPlaceStatusHtml(target) {
+  const found = communityPlaceIssueCache.get(target);
+  if (found && found.total) return communityPlaceIssueStatusHtml(target, found);
+  return communityPlaceConfirmedChipHtml(target);
 }
 
 // Public repo, so the search needs no token. Any failure leaves the line hidden: it is extra
 // information, never something the place page should wait on or report as an error.
 async function loadCommunityPlaceIssues(place) {
   const key = `place:${placeHashKey(place)}`;
-  const host = document.querySelector(`.community-place-issues[data-place-key="${CSS.escape(key)}"]`);
+  const host = document.querySelector(`.community-place-status-slot[data-place-key="${CSS.escape(key)}"]`);
   if (!host) return;
   let found = communityPlaceIssueCache.get(key);
   if (!found) {
@@ -1276,17 +1288,13 @@ async function loadCommunityPlaceIssues(place) {
       if (!response.ok) return;
       const data = await response.json();
       const items = Array.isArray(data.items) ? data.items : [];
-      found = { total: data.total_count || 0, open: items.filter((item) => item.state === "open").length };
+      found = { total: data.total_count || 0, open: items.filter((item) => item.state === "open").length, items };
       communityPlaceIssueCache.set(key, found);
     } catch {
       return;
     }
   }
-  if (!found.total) return;
-  const count = `${found.total} ${found.total === 1 ? "issue" : "issues"}`;
-  const openText = found.open ? `${found.open} still open` : "all closed";
-  host.innerHTML = `${communityIcon("alert")}<span><strong>The community has raised ${count} about this place</strong> (${openText}).</span> <a class="community-link" href="${escapeHtml(communityPlaceIssuesUrl(key))}" target="_blank" rel="noopener">See them on GitHub</a>`;
-  host.hidden = false;
+  host.innerHTML = communityPlaceStatusHtml(key);
 }
 
 function communityPlaceSectionHtml(place) {
@@ -1315,12 +1323,12 @@ function communityPlaceConfirmedChipHtml(target) {
 function communityPlaceConfirmationHtml(place) {
   if (!communityEnabled() || !place || place.latitude == null || place.longitude == null) return "";
   const target = `place:${placeHashKey(place)}`;
-  return `<div class="community-place-confirmed-slot" data-place-target="${escapeHtml(target)}">${communityPlaceConfirmedChipHtml(target)}</div>`;
+  return `<div class="community-place-status-slot" data-place-key="${escapeHtml(target)}">${communityPlaceStatusHtml(target)}</div>`;
 }
 
 function communityRefreshPlaceConfirmation(target) {
-  document.querySelectorAll(".community-place-confirmed-slot").forEach((slot) => {
-    if (slot.dataset.placeTarget === target) slot.innerHTML = communityPlaceConfirmedChipHtml(target);
+  document.querySelectorAll(".community-place-status-slot").forEach((slot) => {
+    if (slot.dataset.placeKey === target) slot.innerHTML = communityPlaceStatusHtml(target);
   });
 }
 

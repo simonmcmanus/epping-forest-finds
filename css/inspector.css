@@ -1764,9 +1764,21 @@ dd {
 .community-range-points { justify-self: start; margin-top: 4px; padding: 2px 8px; border-radius: 999px; background: rgba(255, 255, 255, .7); font-weight: 600; }
 .community-range-near { border-left-color: var(--tree, #2f8a4f); background: #e3f1e6; color: #1f4d29; }
 .community-range-far, .community-range-none { border-left-color: #c58b00; background: var(--gold-tint, #fbf6e3); color: #6b4a00; }
-.community-place-issues { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--gold-tint, #fbf6e3); color: #6b4a00; font-size: .82rem; line-height: 1.35; }
-.community-place-issues[hidden] { display: none; }
-.community-place-issues svg { flex: none; width: 16px; height: 16px; margin-top: 1px; }
+.community-place-status-slot:empty { display: none; }
+.community-place-status { margin: 6px 0 12px; border: 1px solid rgba(197, 139, 0, 0.38); border-radius: 8px; background: var(--gold-tint, #fbf6e3); color: #6b4a00; font-size: .82rem; line-height: 1.35; }
+.community-place-status > summary { display: flex; align-items: center; gap: 8px; min-height: 38px; padding: 5px 9px; cursor: pointer; list-style: none; }
+.community-place-status > summary::-webkit-details-marker { display: none; }
+.community-place-status-summary > .community-icon:first-child { width: 18px; height: 18px; flex: none; }
+.community-place-status-copy { display: grid; gap: 1px; min-width: 0; }
+.community-place-status-copy strong { font-size: .8rem; }
+.community-place-status-copy small { font-size: .74rem; font-weight: 500; }
+.community-place-status-summary > .community-icon:last-child { width: 16px; height: 16px; flex: none; margin-left: auto; transition: transform 160ms ease; }
+.community-place-status[open] .community-place-status-summary > .community-icon:last-child { transform: rotate(90deg); }
+.community-place-status-detail { padding: 0 10px 10px 35px; }
+.community-place-status-detail p { margin: 0 0 8px; }
+.community-place-status-detail ul { margin: 0 0 8px; padding-left: 18px; }
+.community-place-status-detail li + li { margin-top: 4px; }
+.community-place-status-detail .community-link { display: inline-block; padding: 0; font-size: .78rem; }
 .community-earned-near { color: #1f4d29; }
 .community-earned-far { color: #6b4a00; }
 .community-outcome-far { background: var(--gold-tint, #fbf6e3); color: #6b4a00; }
