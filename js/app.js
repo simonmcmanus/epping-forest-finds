@@ -2945,6 +2945,10 @@ function settingsFormHtml() {
       <p class="source-note walk-radius-floor-note" id="settingsWalkMinsFloorNote" aria-live="polite"${sliderValue > floorMinutes ? " hidden" : ""}>This is as close as it gets — nothing closer to show nearby.</p>
     </section>
     <section class="settings-section">
+      <h3 class="settings-section-title">Reminders</h3>
+      <label class="community-nudge-setting"><input type="checkbox" id="communityNudgeToggle"${communityNudgesOn() ? " checked" : ""}> Remind me to check trees I'm standing next to</label>
+    </section>
+    <section class="settings-section">
       <h3 class="settings-section-title">About</h3>
       <p class="settings-description">App version: <span id="appVersionDisplay" class="app-version-display${state.swUpdateAvailable ? " sw-update-available" : ""}">${state.swVersion || APP_VERSION}</span></p>
       <p class="settings-description">Tester ID: <code id="testerIdDisplay" class="tester-id">…</code> <button type="button" id="testerIdCopy" class="settings-btn" hidden>Copy</button><br><span class="report-note">Give this to Simon to try early features.</span></p>
@@ -3181,7 +3185,6 @@ function communityScreenHtml() {
     ${communityContributionsHtml()}
     ${communityActionsHtml()}
     ${communityLogSectionHtml()}
-    <label class="community-nudge-setting"><input type="checkbox" id="communityNudgeToggle"${communityNudgesOn() ? " checked" : ""}> Remind me to check trees I'm standing next to</label>
     <a class="community-feedback-link" href="/feedback">
       <span class="community-feedback-icon">${communityIcon("help")}</span>
       <span class="community-feedback-text"><strong>Feedback</strong><span>Report a bug, add a missing tree or place, or tell us anything</span></span>
