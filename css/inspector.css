@@ -1255,7 +1255,7 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   font-size: 0.74rem; font-weight: 600; letter-spacing: 0.025em; text-transform: uppercase; color: var(--muted);
 }
 .community-or::before, .community-or::after { content: ""; flex: 1; height: 1px; background: rgba(47, 111, 78, 0.2); }
-.community-choices { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.community-choices { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .community-choices[hidden] { display: none; }
 /* "Something not right?" as a disclosure button: same rule-line look, 44px target, chevron turns when open. */
 button.community-more { width: 100%; min-height: 44px; margin: 6px 0 6px; padding: 0; border: 0; background: none; font-family: inherit; cursor: pointer; }
