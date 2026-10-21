@@ -783,6 +783,9 @@ button.settings-toggle.has-update::after {
   transition: all 140ms ease;
 }
 
+/* An anchor that looks like the pill button (sign in / sign out are full page loads). */
+a.settings-btn-link { display: inline-block; text-decoration: none; text-align: center; }
+
 .settings-btn:active {
   transform: scale(0.97);
 }

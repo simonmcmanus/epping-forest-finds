@@ -400,4 +400,29 @@ test.describe("Community sign-in: history, account switching, storage", () => {
     await page.waitForTimeout(1500);
     expect(requested).toEqual([]);
   });
+
+  test("Settings has an Account section: Sign in goes to the login page and returns to Settings", async ({ page }) => {
+    await page.route(ME_URL, (route) => route.fulfill(json({ signedIn: false })));
+    let loginUrl = "";
+    await page.route("**/api/auth/login**", (route) => {
+      loginUrl = route.request().url();
+      return route.fulfill({ status: 200, contentType: "text/html", body: "<h1>provider login</h1>" });
+    });
+    await setup(page, "/settings");
+    const link = page.locator("#settingsAccount #settingsSignIn");
+    await expect(link).toBeVisible();
+    await expect(link).toHaveText("Sign in");
+    await link.click();
+    await expect(page.locator("h1")).toHaveText("provider login");
+    expect(new URL(loginUrl).searchParams.get("return")).toBe("/settings");
+  });
+
+  test("Settings shows who is signed in, with Sign out", async ({ page }) => {
+    await page.route(ME_URL, (route) => route.fulfill(json({ signedIn: true, name: "Sam", account: "acct-aaaa" })));
+    await page.route(LINK_URL, (route) => route.fulfill(json({ ok: true })));
+    await setup(page, "/settings");
+    await expect(page.locator("#settingsAccount")).toContainText("Signed in as Sam");
+    await expect(page.locator("#settingsSignOut")).toHaveAttribute("href", "/api/auth/logout?return=/settings");
+    await expect(page.locator("#settingsSignIn")).toHaveCount(0);
+  });
 });

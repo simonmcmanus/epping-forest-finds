@@ -2895,6 +2895,7 @@ function openSettings() {
   transitionInspectorBody(settingsFormHtml(), "forward");
   bindSettingsHandlers();
   fillTesterId();
+  fillSettingsAccount();
   setInspectorMinimized(false);
   updateCompassOverlay();
   syncHashFromSelection();
@@ -2977,6 +2978,10 @@ function settingsFormHtml() {
         <p id="refreshOfflineNote" class="report-note report-offline-note"${online ? " hidden" : ""}>Refreshing needs an internet connection — you\'re offline right now.</p>
       </div>
     </section>
+    <section class="settings-section" id="settingsAccount">
+      <h3 class="settings-section-title">Account</h3>
+      <div id="settingsAccountBody">${settingsAccountHtml(typeof communityReadAccount === "function" ? communityReadAccount() : null)}</div>
+    </section>
     <section class="settings-section">
       <h3 class="settings-section-title">Privacy</h3>
       <p class="settings-description">Location &amp; usage tracking: <strong id="privacyConsentStatus">${hasTrackingConsent() ? "enabled" : "not enabled"}</strong>. We collect anonymous GPS position, navigation and interaction data to improve the app. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
@@ -2985,6 +2990,30 @@ function settingsFormHtml() {
       <button id="cookieConsentManageBtn" class="settings-btn" type="button">Manage cookie preferences</button>
     </section>
   </div>`;
+}
+
+// The Settings sign-in control. Drawn at once from the last known account (so the screen never flashes an
+// empty section), then corrected once /api/auth/me has answered. A sign-in is a full page load through the
+// provider and comes back to Settings.
+function settingsAccountHtml(account, note = "") {
+  const noteHtml = note ? `<p class="report-note" role="status">${escapeHtml(note)}</p>` : "";
+  if (account && account.signedIn) {
+    return `<p class="settings-description">Signed in as <strong>${escapeHtml(account.name)}</strong>. Your points follow you to any device you sign in on.</p>
+      <a id="settingsSignOut" class="settings-btn settings-btn-link" href="/api/auth/logout?return=/settings">Sign out</a>${noteHtml}`;
+  }
+  return `<p class="settings-description">Sign in to keep your Community points on any device. You can still use the app without signing in.</p>
+    <a id="settingsSignIn" class="settings-btn settings-btn-link" href="/api/auth/login?return=/settings">Sign in</a>${noteHtml}`;
+}
+
+async function fillSettingsAccount() {
+  if (!document.getElementById("settingsAccountBody") || typeof communityRefreshAccount !== "function") return;
+  let result = "failed";
+  try { result = await communityRefreshAccount(); } catch {}
+  const body = document.getElementById("settingsAccountBody");
+  if (!body) return; // the screen was left while we waited
+  const account = communityReadAccount();
+  const note = result === "failed" && account && account.signedIn ? "Couldn't check who is signed in just now." : "";
+  body.innerHTML = settingsAccountHtml(account, note);
 }
 
 async function fillTesterId() {
