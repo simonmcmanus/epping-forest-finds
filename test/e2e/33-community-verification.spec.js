@@ -275,6 +275,9 @@ test.describe("Community tree verification with location shared", () => {
     expect(posted[0]).toMatchObject({ kind: "tree", status: "NEW_TREE", tagNumber: "T-9001" });
     expect(posted[0].lat).toBeCloseTo(51.665, 2);
     expect(posted[0].accuracy).toBeLessThanOrEqual(30);
+    // The report shows in the log on the Community screen.
+    await page.click("#reportToggle");
+    await page.click("#communityReportsDetails summary");
     await expect(page.locator(".community-log-item")).toContainText("Tree T-9001");
   });
 
@@ -759,6 +762,9 @@ test.describe("Add a missing place", () => {
     await expect.poll(() => posted.length).toBe(1);
     expect(posted[0].placeCheck).toMatchObject({ status: "NEW_PLACE", name: "The Test Tavern", category: "Pub" });
     expect(posted[0].placeCheck.key).toMatch(/^new:51\.665\d*,0\.045\d*$/);
+    // The report shows in the log on the Community screen.
+    await page.click("#reportToggle");
+    await page.click("#communityReportsDetails summary");
     await expect(page.locator(".community-log-item").filter({ hasText: "The Test Tavern" })).toContainText("Reported a missing place");
   });
 });

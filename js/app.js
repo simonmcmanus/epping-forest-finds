@@ -968,7 +968,7 @@ function applyRouteToScreen(raw, announceMissing) {
     return true;
   }
   if (value === ROUTE_COMMUNITY) {
-    openCommunity();
+    openCommunityOrFeedback();
     return true;
   }
 
@@ -1499,8 +1499,12 @@ async function boot() {
     // boot() is called mid-script: wait one microtask so the declarations below it (the document
     // title constants openCommunity() uses) have initialised before the screen is built.
     await Promise.resolve();
-    try { openCommunity(); } catch (error) { console.error(error); }
+    // Not yet told whether Community is on for this person: ask, briefly, rather than flash the wrong screen.
+    if (!communityFeaturesKnown()) await Promise.race([communityRefreshFeatures(), new Promise((resolve) => setTimeout(resolve, 2500))]);
+    try { openCommunityOrFeedback(); } catch (error) { console.error(error); }
   }
+  applyFeatureGates();
+  communityRefreshFeatures();
 
   // Start data loading immediately so it runs in parallel with location and onboarding
   const hasCachedCowData = applyCachedCowData();
@@ -2890,6 +2894,7 @@ function openSettings() {
   els.inspectorType.textContent = "App preferences";
   transitionInspectorBody(settingsFormHtml(), "forward");
   bindSettingsHandlers();
+  fillTesterId();
   setInspectorMinimized(false);
   updateCompassOverlay();
   syncHashFromSelection();
@@ -2959,6 +2964,7 @@ function settingsFormHtml() {
     <section class="settings-section">
       <h3 class="settings-section-title">About</h3>
       <p class="settings-description">App version: <span id="appVersionDisplay" class="app-version-display${state.swUpdateAvailable ? " sw-update-available" : ""}">${state.swVersion || APP_VERSION}</span></p>
+      <p class="settings-description">Tester ID: <code id="testerIdDisplay" class="tester-id">…</code> <button type="button" id="testerIdCopy" class="settings-btn" hidden>Copy</button><br><span class="report-note">Give this to Simon to try early features.</span></p>
       <p class="settings-description">Vibe coded by <a href="https://simonmcmanus.com" target="_blank" rel="noopener noreferrer">Simon McManus</a></p>
       <p id="dataUpdateNote" class="report-note"${state.dataUpdateAvailable ? "" : " hidden"}>New map data has been downloaded. <button id="dataUpdateReloadButton" class="inline-text-button" type="button">Reload now</button> to see it.</p>
       <div class="settings-refresh">
@@ -2979,6 +2985,21 @@ function settingsFormHtml() {
       <button id="cookieConsentManageBtn" class="settings-btn" type="button">Manage cookie preferences</button>
     </section>
   </div>`;
+}
+
+async function fillTesterId() {
+  const display = document.getElementById("testerIdDisplay");
+  if (!display) return;
+  let id = "";
+  try { id = await communityTesterId(communityPrimaryDeviceId()); } catch {}
+  if (!id) { display.textContent = "unavailable"; return; }
+  display.textContent = id;
+  const copy = document.getElementById("testerIdCopy");
+  if (!copy) return;
+  copy.hidden = false;
+  copy.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(id); copy.textContent = "Copied"; } catch { copy.textContent = "Select and copy it"; }
+  });
 }
 
 function bindSettingsHandlers() {
@@ -3060,6 +3081,30 @@ function communityScreenOpen() {
   return Boolean(state.selected && state.selected.type === "community");
 }
 
+// Community is gated (see communityEnabled): people without it get the Feedback page in its place, and the
+// nav tab becomes the Feedback tab.
+function openCommunityOrFeedback() {
+  if (communityEnabled()) openCommunity(); else openReportModal();
+}
+
+// Declared inside: boot() calls this mid-script, before top-level constants further down have initialised.
+function applyFeatureGates() {
+  const NAV_COMMUNITY_ICON = '<path d="M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20"/><circle cx="10" cy="8" r="3.5"/><path d="M20 20v-1.5a3.5 3.5 0 0 0-2.5-3.35M15.5 4.7a3.5 3.5 0 0 1 0 6.6"/>';
+  const NAV_FEEDBACK_ICON = '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z"/>';
+  const tab = els.reportToggle;
+  if (!tab) return;
+  const on = communityEnabled();
+  const label = on ? "Community" : "Feedback";
+  tab.setAttribute("href", on ? "/community" : "/feedback");
+  tab.setAttribute("aria-label", label);
+  const icon = tab.querySelector("svg");
+  if (icon) icon.innerHTML = on ? NAV_COMMUNITY_ICON : NAV_FEEDBACK_ICON;
+  const text = tab.querySelector(".nav-label");
+  if (text) text.textContent = label;
+  // The Community screen is open for someone who no longer has it (the list changed): show Feedback instead.
+  if (!on && communityScreenOpen()) openReportModal();
+}
+
 function openCommunity() {
   if (typeof trackGaScreenView === "function") trackGaScreenView("Community");
   exitClusterExpansion();
@@ -3097,12 +3142,11 @@ function communityScreenHtml() {
   return `${communityAccountHtml()}
     ${communityContributionsHtml()}
     ${communityActionsHtml()}
-    ${communityAddMissingHtml()}
     ${communityLogSectionHtml()}
     <label class="community-nudge-setting"><input type="checkbox" id="communityNudgeToggle"${communityNudgesOn() ? " checked" : ""}> Remind me to check trees I'm standing next to</label>
     <a class="community-feedback-link" href="/feedback">
       <span class="community-feedback-icon">${communityIcon("help")}</span>
-      <span class="community-feedback-text"><strong>Send feedback</strong><span>Report a bug, missing data or anything strange</span></span>
+      <span class="community-feedback-text"><strong>Feedback</strong><span>Report a bug, add a missing tree or place, or tell us anything</span></span>
       ${communityIcon("chevron")}
     </a>`;
 }

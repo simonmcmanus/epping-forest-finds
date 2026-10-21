@@ -78,7 +78,7 @@ function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
   assert.ok(appSource.trim(), "js/app.js should contain the app script");
 
   const elements = new Map();
-  const storage = new Map(Object.entries(initialLocalStorage));
+  const storage = new Map(Object.entries({ "ff-features-v1": JSON.stringify({ community: true }), ...initialLocalStorage }));
   const localStorage = {
     getItem(key) {
       return storage.get(String(key)) ?? null;
@@ -11805,6 +11805,45 @@ test("reports merged from the server never add optimistic points or extend the s
   const { local } = app.communityMergeRemoteReports({}, [{ id: "remote-llll-0012", kind: "tree", target: "tree:8", status: "VERIFIED", ts: Date.now() }], new Set());
   assert.equal(JSON.stringify(app.communityPendingScore(local, 0)), JSON.stringify({ points: 0, verified: 0 }));
   assert.equal(app.communityStreaks(local, Date.now()).current, 0);
+});
+
+// --- Feature gate: who sees Community ---
+const featureGate = require("../netlify/functions/lib/feature-gate");
+
+test("Community is on for everyone while the early-access list is empty", () => {
+  assert.equal(featureGate.enabledFor(featureGate.normalizeList({}), ["0123456789"]).community, true);
+  assert.equal(featureGate.enabledFor(featureGate.normalizeList({ community: [{ id: "not-an-id" }] }), []).community, true);
+});
+
+test("once anyone is listed, only the listed testers (by device or account hash) have Community", () => {
+  const list = featureGate.normalizeList({ community: [{ id: "A1B2C3D4E5", note: "Simon" }, { id: "a1b2c3d4e5" }] });
+  assert.equal(list.community.length, 1, "ids are lower-cased and de-duplicated");
+  assert.equal(featureGate.enabledFor(list, ["a1b2c3d4e5"]).community, true);
+  assert.equal(featureGate.enabledFor(list, ["ffffffffff", "a1b2c3d4e5"]).community, true, "either hash may match");
+  assert.equal(featureGate.enabledFor(list, ["ffffffffff"]).community, false);
+  assert.equal(featureGate.enabledFor(list, []).community, false);
+});
+
+test("the tester id is a short hash, never the device id itself", () => {
+  const id = featureGate.testerHash("some-device-id-1234567890");
+  assert.match(id, /^[a-f0-9]{10}$/);
+  assert.equal(id, featureGate.testerHash("some-device-id-1234567890"));
+  assert.notEqual(id, featureGate.testerHash("another-device-id"));
+});
+
+test("the features endpoint answers the public check and keeps the list admin-only", async () => {
+  const features = require("../netlify/functions/features");
+  const previous = process.env.ADMIN_PASSWORD;
+  process.env.ADMIN_PASSWORD = "secret-pw";
+  try {
+    const open = await features.handler({ httpMethod: "GET", headers: {}, queryStringParameters: { id: "0123456789" } });
+    assert.equal(open.statusCode, 200);
+    assert.equal(typeof JSON.parse(open.body).community, "boolean");
+    assert.equal((await features.handler({ httpMethod: "GET", headers: {}, queryStringParameters: { admin: "1" } })).statusCode, 401);
+    assert.equal((await features.handler({ httpMethod: "POST", headers: {}, body: "{}" })).statusCode, 401);
+  } finally {
+    if (previous === undefined) delete process.env.ADMIN_PASSWORD; else process.env.ADMIN_PASSWORD = previous;
+  }
 });
 
 runRegisteredTests().catch((error) => {

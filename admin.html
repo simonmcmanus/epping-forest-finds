@@ -43,6 +43,7 @@
       <button id="tracksBtn" class="admin-btn active" type="button">Tracks</button>
       <button id="heatmapBtn" class="admin-btn" type="button">Heatmap</button>
       <button id="communityBtn" class="admin-btn" type="button">Community</button>
+      <button id="accessBtn" class="admin-btn" type="button">Access</button>
       <button id="refreshBtn" class="admin-btn" type="button">Refresh</button>
       <button id="logoutBtn" class="admin-btn" type="button">Log out</button>
     </header>
@@ -72,6 +73,13 @@
         <section id="adminCommunity" class="admin-click-details" aria-live="polite" hidden>
           <button id="adminCommunityClose" class="admin-click-details-close" type="button" aria-label="Close community stats">×</button>
           <div id="adminCommunityBody"></div>
+        </section>
+        <section id="adminAccess" class="admin-click-details" aria-live="polite" hidden>
+          <button id="adminAccessClose" class="admin-click-details-close" type="button" aria-label="Close access list">×</button>
+          <h3>Early access: Community</h3>
+          <p>One tester per line: the Tester ID from their Settings screen, then an optional note. While the list is empty everyone has Community; once it has anyone in it, only they do. Changes apply the next time an app starts; no deploy needed.</p>
+          <textarea id="adminAccessList" rows="10" spellcheck="false" placeholder="a1b2c3d4e5 Simon"></textarea>
+          <p><button id="adminAccessSave" class="admin-btn" type="button">Save</button> <span id="adminAccessStatus" role="status"></span></p>
         </section>
         <section id="adminClickDetails" class="admin-click-details" aria-live="polite" hidden>
           <button id="adminClickDetailsClose" class="admin-click-details-close" type="button" aria-label="Close click details">×</button>

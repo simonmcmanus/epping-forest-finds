@@ -613,11 +613,12 @@ function setupFilterPanelHandlers() {
     els.reportToggle.addEventListener("click", (event) => {
       event.preventDefault();
       // The tab is lit on its Feedback sub-page too, but tapping it there goes back up to Community.
-      if (state.selected?.type === "community" && !els.inspector.classList.contains("minimized")) {
+      const here = communityEnabled() ? "community" : "report";
+      if (state.selected?.type === here && !els.inspector.classList.contains("minimized")) {
         pulseNavButton(els.reportToggle);
         return;
       }
-      openCommunity();
+      openCommunityOrFeedback();
     });
   }
 

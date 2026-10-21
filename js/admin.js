@@ -1566,6 +1566,41 @@ async function adminBoot() {
   });
   document.getElementById("adminCommunityClose").addEventListener("click", () => { communityPanel.hidden = true; });
 
+  // Early-access list: who sees the gated Community features. Stored server-side, so no deploy to change it.
+  const accessPanel = document.getElementById("adminAccess");
+  const accessList = document.getElementById("adminAccessList");
+  const accessStatus = document.getElementById("adminAccessStatus");
+  document.getElementById("accessBtn").addEventListener("click", async () => {
+    accessPanel.hidden = false;
+    accessStatus.textContent = "Loading…";
+    try {
+      const resp = await fetch("/api/features?admin=1", { headers: { Authorization: `Bearer ${password}` } });
+      if (!resp.ok) throw new Error(resp.status);
+      const data = await resp.json();
+      accessList.value = (data.community || []).map((e) => `${e.id}${e.note ? ` ${e.note}` : ""}`).join("\n");
+      accessStatus.textContent = "";
+    } catch (error) {
+      accessStatus.textContent = `Could not load (${error.message}).`;
+    }
+  });
+  document.getElementById("adminAccessSave").addEventListener("click", async () => {
+    const community = accessList.value.split("\n").map((line) => line.trim()).filter(Boolean).map((line) => {
+      const [id, ...rest] = line.split(/\s+/);
+      return { id, note: rest.join(" ") };
+    });
+    accessStatus.textContent = "Saving…";
+    try {
+      const resp = await fetch("/api/features", { method: "POST", headers: { Authorization: `Bearer ${password}`, "Content-Type": "application/json" }, body: JSON.stringify({ community }) });
+      if (!resp.ok) throw new Error(resp.status);
+      const saved = await resp.json();
+      accessList.value = saved.community.map((e) => `${e.id}${e.note ? ` ${e.note}` : ""}`).join("\n");
+      accessStatus.textContent = `Saved ${saved.community.length} tester${saved.community.length === 1 ? "" : "s"}. Lines that are not a 10-character ID were dropped.`;
+    } catch (error) {
+      accessStatus.textContent = `Could not save (${error.message}).`;
+    }
+  });
+  document.getElementById("adminAccessClose").addEventListener("click", () => { accessPanel.hidden = true; });
+
   tracksBtn.addEventListener("click", () => {
     viewMode = "tracks";
     tracksBtn.classList.add("active");

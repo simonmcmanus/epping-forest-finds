@@ -289,6 +289,7 @@ const server = http.createServer((req, res) => {
     "/api/auth/me": "auth-me",
     "/api/auth/link": "auth-link",
     "/api/auth/logout": "auth-logout",
+    "/api/features": "features",
   };
   if (COMMUNITY_FUNCTION_ROUTES[url.pathname]) {
     const fnName = COMMUNITY_FUNCTION_ROUTES[url.pathname];

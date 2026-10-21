@@ -140,6 +140,12 @@
   force = true
 
 [[redirects]]
+  from = "/api/features"
+  to = "/.netlify/functions/features"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/subscribe"
   to = "/.netlify/functions/subscribe"
   status = 200

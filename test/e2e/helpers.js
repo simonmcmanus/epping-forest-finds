@@ -21,6 +21,8 @@ const FIXTURE_TREE = {
 async function skipOnboarding(page) {
   await page.addInitScript(() => {
     localStorage.setItem("forest-finds-onboarding-v1", "done");
+    // Community is gated per person (js/community.js communityEnabled); specs run with it on unless they say otherwise.
+    if (!localStorage.getItem("ff-features-v1")) localStorage.setItem("ff-features-v1", JSON.stringify({ community: true }));
   });
 }
 

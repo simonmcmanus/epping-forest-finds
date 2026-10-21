@@ -193,6 +193,54 @@ function communityDeviceId() {
   return primary;
 }
 
+// --- Feature gate: Community is shown to the testers on the server's list (everyone while it is empty) ---
+// The answer is kept on the device so the app works offline; until the first answer arrives it is off.
+const COMMUNITY_FEATURES_KEY = "ff-features-v1";
+let communityFeaturesMemory;
+
+function communityFeatureCache() {
+  if (communityFeaturesMemory !== undefined) return communityFeaturesMemory;
+  try { return JSON.parse(localStorage.getItem(COMMUNITY_FEATURES_KEY)) || null; } catch { return null; }
+}
+
+function communityEnabled() {
+  const cache = communityFeatureCache();
+  return Boolean(cache && cache.community);
+}
+
+function communityFeaturesKnown() {
+  return Boolean(communityFeatureCache());
+}
+
+// The short, non-secret name a tester gives the admin: a hash, so the device id (which is also the points
+// recovery code) never has to be shared.
+async function communityTesterId(value) {
+  try {
+    const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(value)));
+    return [...new Uint8Array(bytes)].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 10);
+  } catch { return ""; }
+}
+
+let communityFeaturesInflight = null;
+
+function communityRefreshFeatures() {
+  if (communityFeaturesInflight) return communityFeaturesInflight;
+  communityFeaturesInflight = (async () => {
+    try {
+      if (!navigator.onLine) return communityEnabled();
+      const id = await communityTesterId(communityPrimaryDeviceId());
+      const response = await fetch(`/api/features?id=${encodeURIComponent(id)}`, { cache: "no-store", signal: AbortSignal.timeout(6000) });
+      if (!response.ok) return communityEnabled();
+      const data = await response.json();
+      communityFeaturesMemory = { community: Boolean(data && data.community), at: Date.now() };
+      try { localStorage.setItem(COMMUNITY_FEATURES_KEY, JSON.stringify(communityFeaturesMemory)); } catch {}
+      if (typeof applyFeatureGates === "function") applyFeatureGates();
+    } catch {}
+    return communityEnabled();
+  })().finally(() => { communityFeaturesInflight = null; });
+  return communityFeaturesInflight;
+}
+
 // Per-device storage: the primary device keeps the original keys, any other device id its own.
 function communityScoped(key) {
   const id = communityDeviceId();
@@ -454,7 +502,7 @@ function communityVerifiedDetailHtml(target) {
 
 function communityVerifiedSlotsHtml(tree) {
   const target = communityTreeTarget(tree);
-  if (!target) return { chip: "", detail: "" };
+  if (!target || !communityEnabled()) return { chip: "", detail: "" };
   return {
     chip: `<span class="community-verified-slot" data-verified-target="${escapeHtml(target)}">${communityVerifiedChipHtml(target)}</span>`,
     detail: `<div class="community-verified-detail-slot" data-verified-target="${escapeHtml(target)}">${communityVerifiedDetailHtml(target)}</div>`,
@@ -589,6 +637,7 @@ function communitySectionInnerHtml(target, editing, lat, lon, more = false) {
 
 // The block on a tree's detail screen (js/inspector.js showTreeDetails).
 function communitySectionHtml(tree) {
+  if (!communityEnabled()) return "";
   const target = communityTreeTarget(tree);
   if (!target || tree.latitude == null || tree.longitude == null) return "";
   return `<section class="community-check" data-community-target="${escapeHtml(target)}" data-lat="${tree.latitude}" data-lon="${tree.longitude}">
@@ -816,6 +865,7 @@ function communityNudgeDecision({ on, fixOk, isDefault, nearest, target, already
 // Called with every fresh GPS fix. Quiet unless the fix is real and accurate, the tree is close,
 // and this device has not already checked it or been nudged about it today.
 function communityNudgeCheck(now = Date.now()) {
+  if (!communityEnabled()) return;
   // A card is only an offer on the Nearby overview; once you have gone to another screen, drop it.
   communityUpdateRangeNotes();
   if (document.getElementById("communityNudge") && typeof isOverviewScreenActive === "function" && !isOverviewScreenActive()) communityNudgeDismiss();
@@ -929,17 +979,6 @@ function communityIntroHtml() {
 // so the form says so, shows the live accuracy, and only enables Submit once both are true.
 const COMMUNITY_MAX_ACCURACY_METRES = 30;
 let communityLocationTimer = null;
-
-// The Community screen only points at the form: one card linking to the combined Feedback screen.
-function communityAddMissingHtml() {
-  return `<section class="settings-section community-add-missing-section">
-      <a class="community-feedback-link community-add-missing" href="/feedback">
-        <span class="community-feedback-icon">${communityIcon("plus")}</span>
-        <span class="community-feedback-text"><strong>Not on the map?</strong><span>Add a missing tree or place, or report a problem</span></span>
-        ${communityIcon("chevron")}
-      </a>
-    </section>`;
-}
 
 // Where the Feedback screen shows the add-a-tree / add-a-place forms once their type is picked.
 function communityAddFormHostHtml() {
@@ -1237,6 +1276,7 @@ async function loadCommunityPlaceIssues(place) {
 }
 
 function communityPlaceSectionHtml(place) {
+  if (!communityEnabled()) return "";
   if (!place || !place.name || place.latitude == null || place.longitude == null) return "";
   const target = `place:${placeHashKey(place)}`;
   const earlier = communityReadLocal()[target];
