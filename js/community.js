@@ -490,7 +490,23 @@ function communityVerifiedEntry(target) {
   return { ...(shared || { s: "verified" }), n: (shared ? shared.n : 0) + 1, optimistic: true };
 }
 
+function communityProblemEntry(target) {
+  const entry = target && communityOverlay.entries[target];
+  const shared = entry && entry.s === "questioned" ? entry : null;
+  const mine = target && communityReadLocal()[target];
+  const pending = mine && mine.status && mine.status !== "VERIFIED" && mine.ts > (communityOverlay.generatedAt || 0);
+  if (pending) return { s: "questioned", st: mine.status, n: 1, optimistic: true };
+  return shared;
+}
+
 function communityVerifiedChipHtml(target) {
+  const problem = communityProblemEntry(target);
+  if (problem) {
+    const label = problem.optimistic
+      ? "You reported a problem with this tree"
+      : `Problem reported by ${problem.n} ${problem.n === 1 ? "person" : "people"}`;
+    return `<button type="button" class="community-verified-chip community-status-problem-chip" aria-expanded="false" aria-controls="communityVerifiedDetail" aria-label="${escapeHtml(label)}">${communityIcon("alert")}<strong>${problem.n}</strong></button>`;
+  }
   const entry = communityVerifiedEntry(target);
   if (!entry) return "";
   const label = entry.optimistic
@@ -500,6 +516,12 @@ function communityVerifiedChipHtml(target) {
 }
 
 function communityVerifiedDetailHtml(target) {
+  const problem = communityProblemEntry(target);
+  if (problem) {
+    if (problem.optimistic) return `<p class="community-verified-detail" id="communityVerifiedDetail">Your problem report is saved. Other people will see it once the server has processed it.</p>`;
+    const status = COMMUNITY_STATUS_TEXT[problem.st] || "a possible problem";
+    return `<p class="community-verified-detail" id="communityVerifiedDetail">${problem.n} ${problem.n === 1 ? "person has" : "people have"} reported ${escapeHtml(status.toLowerCase())}. The official record is unchanged.</p>`;
+  }
   const entry = communityVerifiedEntry(target);
   if (!entry) return "";
   if (entry.optimistic) return `<p class="community-verified-detail" id="communityVerifiedDetail">Your check is saved. It will count for the community once the server has processed it.</p>`;

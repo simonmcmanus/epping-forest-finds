@@ -201,6 +201,7 @@ test.describe("Community tree verification", () => {
     await page.click(".community-or");
     await page.click("[data-action='community-report'][data-status='NOT_HERE']");
     await expect(page.locator("[data-action='community-report']")).toHaveCount(0);
+    await expect(page.locator(".detail-top-row .community-status-problem-chip")).toContainText("1");
     await page.click("[data-action='community-change']");
     await expect(page.locator("[data-action='community-report']")).toHaveCount(6);
     await expect(page.locator("[data-action='community-report'][data-status='NOT_HERE']")).toHaveClass(/is-chosen/);
@@ -219,6 +220,7 @@ test.describe("Community tree verification", () => {
     );
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     await expect(page.locator(".community-badge-questioned")).toContainText("Questioned by the community");
+    await expect(page.locator(".detail-top-row .community-status-problem-chip")).toContainText("2");
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
   });
 

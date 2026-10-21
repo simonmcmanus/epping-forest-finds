@@ -1298,6 +1298,7 @@ button.community-more:focus-visible { outline: 2px solid var(--tree); outline-of
 .community-verified-chip svg { width: 16px; height: 16px; }
 .community-verified-chip strong { font-size: 0.85rem; }
 .community-verified-chip:focus-visible { outline: 2px solid var(--nav); outline-offset: 2px; }
+.community-status-problem-chip { border-color: #d9a21b; background: var(--gold-tint); color: #5c4600; }
 .community-place-confirmed-marker { display: flex; align-items: center; gap: 7px; margin: 6px 0 12px; padding: 7px 9px; border: 1px solid rgba(47, 111, 78, 0.18); border-radius: 8px; background: #f1f7f2; color: #2f6f4e; font-size: 0.78rem; font-weight: 700; line-height: 1.25; }
 .community-place-confirmed-marker .community-icon { width: 16px; height: 16px; flex: none; }
 .community-place-confirmed-marker-attention { animation: community-place-confirmed-attention 900ms ease-out 2; }
