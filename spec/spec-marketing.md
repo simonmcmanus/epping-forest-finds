@@ -926,8 +926,8 @@ use for the homepage's counts.
   general, but not of the one card linking to it, which does quote a single
   distance to a single nearest tree the same way the cows card does).
 - **Every in-app link rendered into the inspector is a real SPA transition,
-  not a full page reload.** A plain `<a href="/...">` (every link above,
-  plus `fullDetailsLinkHtml`'s own "Full details") used to fall straight
+  not a full page reload.** A plain `<a href="/...">` (every link above)
+  used to fall straight
   through to the browser's own navigation — re-downloading and re-booting
   the whole app shell for content already sitting in memory, the one thing
   this whole feature's internal linking was supposed to avoid. A delegated
@@ -957,19 +957,12 @@ use for the homepage's counts.
   the bottom rather than a pill — it isn't reproduced live, the same gap
   this whole bullet used to describe for everything else before the pill
   row existed.
-- **Linked everywhere a business is mentioned, not only from its own page**:
-  `js/loader.js` fetches `data/business-slugs.json` alongside the other
-  datasets and attaches `findSlug` to each matching place; `showLandmarkDetails`
-  (`js/inspector.js`) renders a "Full details" link to it when present — so
-  tapping the pin on the map, or finding it through in-app search, links to
-  the same page. Suppressed only when the page already showing *is* that
-  business's own `/find/` page (landing there already selects it, per above),
-  where the link would otherwise be a dead end pointing at itself. The weekly
-  Ledger (`scripts/report/business_links.py`) resolves a finding's name (and,
-  for a name shared by more than one branch, its coordinate) against the
-  same index and links the business's name in the rendered report —
-  conservatively: an unresolvable or still-ambiguous name links to nothing
-  rather than risking a wrong link.
+- **Business pages remain linked from marketing surfaces and the weekly Ledger**:
+  `js/loader.js` still attaches `findSlug` to matching places for landing-page
+  and nearby-link lookups, while `scripts/report/business_links.py` resolves a
+  finding's name (and, for a name shared by more than one branch, its
+  coordinate) against the same index. An unresolvable or still-ambiguous name
+  links to nothing rather than risking a wrong link.
 - **Selecting such a business anywhere in the app navigates the address bar
   to this same URL** — see "Routing" in `spec.md`.
 - **Events get one index page, not individual pages**: `/find/events/`

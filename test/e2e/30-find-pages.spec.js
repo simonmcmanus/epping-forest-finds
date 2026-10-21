@@ -411,11 +411,11 @@ test.describe("generated find/nearby pages", () => {
       await expect(page.locator("#inspectorTitle")).toHaveText(EXAMPLE_PUB.name);
     });
 
-    test("the inspector's Full details link is suppressed when already on that business's own /find/ page", async ({ page }) => {
+    test("the inspector does not show a Full details link", async ({ page }) => {
       await skipOnboarding(page);
       await gotoAndWaitForMap(page, `/find/${EXAMPLE_PUB.slug}/`);
       await expect.poll(() => page.evaluate(() => state.selected != null)).toBe(true);
-      await expect(page.locator(`#inspectorBody a[href="/find/${EXAMPLE_PUB.slug}/"]`)).toHaveCount(0);
+      await expect(page.getByText("Full details", { exact: true })).toHaveCount(0);
     });
 
     test("the live inspector shows the same opening hours and phone tel: link as the static page", async ({ page }) => {

@@ -42,8 +42,9 @@ test.describe("Community tree verification", () => {
     await expect(box.locator("[data-action='community-report'][data-status='VERIFIED']")).toBeVisible();
     // "Something not right?" and its choices live inside the same box as the heading and verify action
     await expect(box.locator(".community-or")).toContainText("Something not right?");
-    // The verify button carries what it earns (no location in this spec, so +0).
-    await expect(box.locator(".community-verify .community-points-chip")).toHaveText("+0");
+    // The verify action stays focused on the decision; the range note explains points separately.
+    await expect(box.locator(".community-verify")).toContainText("Verify");
+    await expect(box.locator(".community-verify .community-points-chip")).toHaveCount(0);
     // The alternatives stay folded until asked for.
     await expect(box.locator(".community-choices")).toBeHidden();
     await box.locator(".community-or").click();
@@ -61,7 +62,9 @@ test.describe("Community tree verification", () => {
     });
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     await page.click("[data-action='community-report'][data-status='VERIFIED']");
-    await expect(page.locator(".community-mine")).toContainText("Other people may take an hour or two to see this");
+    await expect(page.locator(".community-mine")).toContainText("You reported: Verified here");
+    await expect(page.locator(".community-head")).toHaveClass(/community-head-reported/);
+    await expect(page.locator(".detail-top-row .community-verified-chip")).toContainText("1");
     await expect.poll(() => posted.length).toBe(1);
     expect(posted[0]).toMatchObject({ kind: "tree", target: `tree:${FIXTURE_TREE.recordNumber}`, status: "VERIFIED" });
   });
@@ -76,6 +79,13 @@ test.describe("Community tree verification", () => {
     }, FIXTURE_TREE.recordNumber);
     await page.click("[data-action='community-report'][data-status='VERIFIED']");
     await expect(page.locator(".detail-top-row .community-verified-chip")).toContainText("1");
+  });
+
+  test("a local verify shows at the top before the server confirms it", async ({ page }) => {
+    await page.route(REPORT_URL, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) }));
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await page.click("[data-action='community-report'][data-status='VERIFIED']");
+    await expect(page.locator(".detail-top-row .community-verified-chip")).toHaveAttribute("aria-label", "You verified this tree");
   });
 
   test("a tree report the server refuses is shown as not sent and can be sent again", async ({ page }) => {
@@ -192,11 +202,42 @@ test.describe("Community tree verification", () => {
     await page.click(".community-or");
     await page.click("[data-action='community-report'][data-status='NOT_HERE']");
     await expect(page.locator("[data-action='community-report']")).toHaveCount(0);
+    await expect(page.locator(".detail-top-row .community-status-problem-chip")).toContainText("1");
     await page.click("[data-action='community-change']");
     await expect(page.locator("[data-action='community-report']")).toHaveCount(6);
     await expect(page.locator("[data-action='community-report'][data-status='NOT_HERE']")).toHaveClass(/is-chosen/);
     // Changing an answer opens the alternatives so the current one is in view.
     await expect(page.locator(".community-choices")).toBeVisible();
+  });
+
+  test("a local tree problem stays visible in the header after a newer snapshot", async ({ page }) => {
+    const target = `tree:${FIXTURE_TREE.recordNumber}`;
+    await page.addInitScript((localTarget) => {
+      localStorage.setItem("ff-community-local-v1", JSON.stringify({
+        [localTarget]: { id: "local-tree-problem", status: "NOT_HERE", ts: Date.now() - 60_000 },
+      }));
+    }, target);
+    await page.route(OVERLAY_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: Date.now(), entries: {} }) })
+    );
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await expect(page.locator(".detail-top-row .community-status-problem-chip")).toContainText("1");
+    await expect(page.locator(".community-mine")).toContainText("No tree found here");
+  });
+
+  test("a local tree verification stays visible in the header after a newer snapshot", async ({ page }) => {
+    const target = `tree:${FIXTURE_TREE.recordNumber}`;
+    await page.addInitScript((localTarget) => {
+      localStorage.setItem("ff-community-local-v1", JSON.stringify({
+        [localTarget]: { id: "local-tree-verified", status: "VERIFIED", ts: Date.now() - 60_000 },
+      }));
+    }, target);
+    await page.route(OVERLAY_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: Date.now(), entries: {} }) })
+    );
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await expect(page.locator(".detail-top-row .community-verified-chip")).toContainText("1");
+    await expect(page.locator(".community-mine")).toContainText("Verified here");
   });
 
   test("a tree the community has questioned is flagged but keeps its official details", async ({ page }) => {
@@ -210,6 +251,7 @@ test.describe("Community tree verification", () => {
     );
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     await expect(page.locator(".community-badge-questioned")).toContainText("Questioned by the community");
+    await expect(page.locator(".detail-top-row .community-status-problem-chip")).toContainText("2");
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
   });
 
@@ -426,7 +468,15 @@ test.describe("Community place checks", () => {
     await page.route(ISSUE_URL, (route) => { sent.push("issue"); route.fulfill({ status: 200, body: "{}" }); });
     await page.route(REPORT_URL, (route) => { sent.push("report"); route.fulfill({ status: 200, body: "{}" }); });
     await page.click("[data-action='community-place-choose'][data-status='OPEN_CONFIRMED']");
-    await expect(page.locator(".community-check-place")).toHaveCount(0);
+    await expect(page.locator(".community-check-place")).toHaveCount(1);
+    await expect(page.locator(".community-check-place .community-mine")).toContainText("You reported: Confirmed still right");
+    await expect(page.locator(".community-place-confirmed-marker")).toContainText("You have verified this location");
+    await page.click(".community-check-place [data-action='community-change']");
+    await expect(page.locator(".community-check-place [data-action='community-place-choose'][data-status='OPEN_CONFIRMED']")).toBeVisible();
+    await page.click(".community-check-place [data-action='community-place-choose'][data-status='OPEN_CONFIRMED']");
+    await expect(page.locator(".community-check-place .community-mine")).toContainText("You reported: Confirmed still right");
+    await expect(page.locator(".community-check-place [data-action='community-place-choose']")).toHaveCount(0);
+    await expect(page.locator(".detail-top-row .community-verified-chip")).toContainText("1");
     await page.waitForTimeout(500);
     expect(sent).toHaveLength(0);
     // and it stays hidden when the place is opened again
@@ -435,7 +485,7 @@ test.describe("Community place checks", () => {
     await page.fill("#mapSearchInput", "Railway Bell");
     await page.locator("#mapSearchResults .nearest-item").first().click();
     await expect(page.locator("[data-action='report-issue']")).toBeVisible();
-    await expect(page.locator(".community-check-place")).toHaveCount(0);
+    await expect(page.locator(".community-check-place")).toHaveCount(1);
   });
 });
 
@@ -628,8 +678,7 @@ test.describe("Reporting from too far away", () => {
       await expect(note).toContainText("Outside the 10 m check zone");
       await expect(note.locator(".community-range-points")).toContainText("Points: 0 from this check");
       await page.click("[data-action='community-report'][data-status='VERIFIED']");
-      await expect(page.locator(".community-mine")).toContainText("It only earns points when you report within 10 m of the tree");
-      await expect(page.locator(".community-mine .community-range-points")).toContainText("Points: 0 from this check");
+      await expect(page.locator(".community-mine")).toContainText("You reported: Verified here");
       await page.click("#reportToggle");
       await expect(page.locator(".community-log-item .community-pill")).toContainText("Not close enough for points");
     });
@@ -641,22 +690,26 @@ test.describe("Reporting from too far away", () => {
     await expect(page.locator(".community-range")).toContainText("within 10 m of the tree");
     await expect(page.locator(".community-range")).toContainText("Location is off");
     await page.click("[data-action='community-report'][data-status='VERIFIED']");
-    await expect(page.locator(".community-mine")).toContainText("Thank you");
+    await expect(page.locator(".community-mine")).toContainText("You reported: Verified here");
   });
 });
 
 test.describe("Community reports on a place", () => {
   test("a place that people have raised issues about links to them, filtered by label", async ({ page }) => {
     await page.route("https://api.github.com/search/issues**", (route) =>
-      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ total_count: 2, items: [{ state: "open" }, { state: "closed" }] }) }));
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ total_count: 2, items: [{ state: "open", title: "The place may have closed" }, { state: "closed", title: "Opening hours need checking" }] }) }));
     await skipOnboarding(page);
     await mockCowApi(page);
     await gotoAndWaitForMap(page, `/nearby#place=id:${PLACE.id}`);
-    const line = page.locator(".community-place-issues");
-    await expect(line).toBeVisible();
-    await expect(line).toContainText("The community has raised 2 issues about this place");
-    await expect(line).toContainText("1 still open");
-    const href = await line.locator("a").getAttribute("href");
+    const status = page.locator(".community-place-status");
+    await expect(status).toBeVisible();
+    await expect(status).toContainText("Community reports");
+    await expect(status).toContainText("2 reports");
+    await expect(status).toContainText("1 open");
+    await status.locator("summary").click();
+    await expect(status).toContainText("The place may have closed");
+    await expect(status).toContainText("Opening hours need checking");
+    const href = await status.locator("a").getAttribute("href");
     expect(decodeURIComponent(href)).toContain("label:place-check");
     expect(decodeURIComponent(href)).toContain(`place-key:place:id:${PLACE.id}`);
   });
@@ -667,8 +720,8 @@ test.describe("Community reports on a place", () => {
     await skipOnboarding(page);
     await mockCowApi(page);
     await gotoAndWaitForMap(page, `/nearby#place=id:${PLACE.id}`);
-    await expect(page.locator(".community-place-issues")).toHaveCount(1);
-    await expect(page.locator(".community-place-issues")).toBeHidden();
+    await expect(page.locator(".community-place-status-slot")).toHaveCount(1);
+    await expect(page.locator(".community-place-status")).toHaveCount(0);
   });
 });
 
