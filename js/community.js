@@ -480,22 +480,27 @@ function communityBadgeHtml(entry) {
 function communityVerifiedEntry(target) {
   const entry = target && communityOverlay.entries[target];
   const shared = entry && (entry.s === "verified" || entry.s === "confirmed") ? entry : null;
-  // The user's own verify counts at once: until a snapshot newer than it arrives, add it on top.
-  // Keep this optimistic even without a GPS fix; the report is saved immediately, while the
-  // range note explains separately whether it can earn points. A questioned/mixed server result
-  // still wins, so one local check cannot hide a real community disagreement.
   const mine = target && communityReadLocal()[target];
-  const pending = mine && mine.status === "VERIFIED" && mine.ts > (communityOverlay.generatedAt || 0);
-  if (!pending || (entry && !shared)) return shared;
-  return { ...(shared || { s: "verified" }), n: (shared ? shared.n : 0) + 1, optimistic: true };
+  // A local report remains visible until the matching community status exists. The snapshot can
+  // be newer than the report without containing it yet (for example, one report is not consensus).
+  // A questioned/mixed server result still wins, so one local check cannot hide disagreement.
+  if (entry && !shared) return null;
+  if (!mine || mine.status !== "VERIFIED") return shared;
+  if (!shared) return { s: "verified", n: 1, optimistic: true };
+  const pending = mine.ts > (communityOverlay.generatedAt || 0);
+  return pending ? { ...shared, n: shared.n + 1, optimistic: true } : shared;
 }
 
 function communityProblemEntry(target) {
   const entry = target && communityOverlay.entries[target];
   const shared = entry && entry.s === "questioned" ? entry : null;
   const mine = target && communityReadLocal()[target];
-  const pending = mine && mine.status && mine.status !== "VERIFIED" && mine.ts > (communityOverlay.generatedAt || 0);
-  if (pending) return { s: "questioned", st: mine.status, n: 1, optimistic: true };
+  // Keep the reporter's own problem visible even after a newer snapshot that has not reached
+  // consensus. If the server has a shared result, use its count and status.
+  if (entry && !shared) return null;
+  if (!shared && mine && mine.status && mine.status !== "VERIFIED") {
+    return { s: "questioned", st: mine.status, n: 1, optimistic: true };
+  }
   return shared;
 }
 
