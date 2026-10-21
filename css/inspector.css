@@ -1210,12 +1210,12 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
 .community-points-chip.is-zero { color: var(--muted); background: #eef1ec; box-shadow: inset 0 0 0 1px rgba(23, 34, 30, 0.12); }
 
 .community-check {
-  margin: 16px 0 4px; padding: 14px; border-radius: var(--c-radius);
-  background: #f6f9f5; border: 1px solid rgba(47, 111, 78, 0.22);
+  margin: 16px 0 4px; padding: 16px; border-radius: var(--c-radius);
+  background: #fbfcfa; border: 1px solid rgba(47, 111, 78, 0.18);
 }
-.community-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.community-head { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
 .community-head-icon {
-  width: 40px; height: 40px; flex-shrink: 0; border-radius: 12px;
+  width: 38px; height: 38px; flex-shrink: 0; border-radius: 11px;
   display: grid; place-items: center; color: var(--tree); background: rgba(47, 111, 78, 0.1);
 }
 .community-head-icon .community-icon { width: 22px; height: 22px; }
@@ -1223,16 +1223,18 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
 .community-sub { margin: 2px 0 0; font-size: 0.84rem; color: var(--muted); }
 
 .community-verify {
-  width: 100%; min-height: 52px; padding: 0 16px; border: 0; border-radius: 12px;
-  display: flex; align-items: center; justify-content: center; gap: 10px;
-  font: inherit; font-weight: 800; color: #fff; background: var(--tree); cursor: pointer;
-  box-shadow: 0 8px 18px rgba(20, 36, 28, 0.18);
-  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+  width: 100%; min-height: 48px; padding: 8px 12px; border: 1px solid rgba(47, 111, 78, 0.42); border-radius: 10px;
+  display: flex; align-items: center; justify-content: flex-start; gap: 9px;
+  font: inherit; font-size: 0.94rem; font-weight: 750; line-height: 1.25; text-align: left;
+  color: #205b3c; background: #edf5ef; cursor: pointer;
+  box-shadow: none;
+  transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
 }
-.community-verify:hover { background: #276043; }
-.community-verify:active { transform: translateY(1px); box-shadow: 0 3px 8px rgba(20, 36, 28, 0.18); }
-.community-verify-icon { width: 22px; height: 22px; }
-.community-verify.is-chosen { outline: 3px solid rgba(47, 111, 78, 0.35); outline-offset: 2px; }
+.community-verify:hover { background: #e3efe7; border-color: rgba(47, 111, 78, 0.62); }
+.community-verify:active { transform: translateY(1px); background: #dcebe1; }
+.community-verify-icon { width: 20px; height: 20px; flex: none; }
+.community-verify > span:not(.community-points-chip) { flex: 1; }
+.community-verify.is-chosen { outline: 2px solid rgba(47, 111, 78, 0.28); outline-offset: 2px; }
 
 .community-or {
   display: flex; align-items: center; gap: 10px; margin: 14px 0 10px;
@@ -1246,8 +1248,8 @@ button.community-more { width: 100%; min-height: 44px; margin: 6px 0 6px; paddin
 button.community-more > .community-icon { width: 16px; height: 16px; transition: transform 160ms ease; }
 button.community-more[aria-expanded="true"] > .community-icon { transform: rotate(90deg); }
 button.community-more:focus-visible { outline: 2px solid var(--tree); outline-offset: 2px; border-radius: 8px; }
-.community-verify .community-points-chip { margin: 0 0 0 4px; color: var(--c-reward-ink); background: var(--c-reward-tint); box-shadow: none; }
-.community-verify .community-points-chip.is-zero { color: #4b574b; background: rgba(255, 255, 255, 0.85); }
+.community-verify .community-points-chip { margin: 0 0 0 auto; color: #4b574b; background: #fff; box-shadow: inset 0 0 0 1px rgba(47, 111, 78, 0.18); }
+.community-verify .community-points-chip.is-zero { color: #59655e; background: rgba(255, 255, 255, 0.72); }
 .community-mine .community-points-chip { animation: community-chip-rise 520ms ease-out; }
 @keyframes community-chip-rise { 0% { opacity: 0; transform: translateY(8px) scale(0.8); } 60% { opacity: 1; transform: translateY(-3px) scale(1.08); } 100% { transform: none; } }
 .community-nudge > .community-points-chip { flex: none; margin: 0; }
