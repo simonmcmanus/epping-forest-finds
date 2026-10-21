@@ -2044,7 +2044,9 @@ function hasRealLocation() {
 
 function syncInspectorToolsVisibility() {
   if (!els.inspectorTools || els.inspectorTools.hidden) return;
-  const hasContent = els.installButton && getComputedStyle(els.installButton).display !== "none";
+  const hasContent = els.installButton
+    && !els.installButton.hidden
+    && (typeof getComputedStyle !== "function" || getComputedStyle(els.installButton).display !== "none");
   els.inspectorTools.classList.toggle("tools-empty", !hasContent);
 }
 

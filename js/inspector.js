@@ -694,6 +694,10 @@ function selectOverview(animate = false) {
   setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: Boolean(state.nearbyAnchor) || canGoBackInApp(), captureSnapshot: animate });
   setNavScreenActive(els.nearbyToggle);
   els.inspectorTools.hidden = false;
+  // The overview keeps the tools row in the shared shell, but it is normally empty because the
+  // install prompt is hidden. Collapse that empty row so the Nearby heading starts immediately
+  // below the sheet chrome instead of leaving a blank band above it.
+  syncInspectorToolsVisibility();
   const landingLabel = landingPageCategoryLabel();
   els.inspectorTitle.textContent = landingLabel ? `Nearby ${landingLabel}` : "Nearby";
   const nearestSummary = overviewNearestHtml();

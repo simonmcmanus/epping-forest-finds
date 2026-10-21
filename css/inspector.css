@@ -1114,28 +1114,31 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   color: var(--tree);
 }
 
-/* The category navigation chips at the top of a /nearby/<slug> page carry icons twice the size
-   of the inline app-icon used in running text. */
+/* The category navigation chips at the top of a /nearby/<slug> page carry compact icons and a
+   smaller, softer rectangle so a row of them reads as navigation rather than a run of oversized
+   pills. */
 .related-chips .app-icon {
-  width: 2em;
-  height: 2em;
+  width: 1.7em;
+  height: 1.7em;
 }
 
-/* Room for those larger icons without making the navigation feel heavier than the results below. */
+/* Keep the category row easy to scan without spending the vertical space of the old pills. */
 .related-chips .detail-map-link {
-  min-height: 44px;
-  padding: 4px 14px;
-  gap: 7px;
+  min-height: 38px;
+  padding: 3px 10px;
+  border-radius: 10px;
+  gap: 5px;
+  font-size: 0.82rem;
 }
 
 .nearby-category-nav {
-  margin-bottom: 18px;
-  padding-bottom: 16px;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
 }
 
 .nearby-category-nav-title {
-  margin: 0 0 8px;
+  margin: 0 0 6px;
   color: var(--muted);
   font-size: 0.78rem;
   font-weight: 800;
