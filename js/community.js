@@ -106,7 +106,7 @@ const COMMUNITY_OUTCOME_TEXT = {
   checked: "Checked",
   validated: "Confirmed by the City of London",
   fixed: "Fixed",
-  far: "Not close enough for points",
+  far: "0 points: outside the 10 m check zone",
   failed: "Couldn't send",
 };
 const COMMUNITY_OUTCOME_ICON = { waiting: "upload", pending: "clock", confirmed: "check", review: "alert", sent: "check", checked: "check", validated: "shield", fixed: "check", far: "alert", failed: "alert" };
@@ -634,10 +634,9 @@ function communityRange(lat, lon) {
 // earns 1 now and 1 more when someone else confirms; a "this is wrong" report earns 2 only if others
 // agree; nothing counts from outside the zone.
 function communityPointsText(status, rangeState) {
-  if (rangeState === "none") return "Points need your location";
-  if (rangeState === "far") return "Points: 0 from this check";
-  if (!status || status === "VERIFIED") return "Points: +1 now, +1 more if someone else confirms";
-  return "Points: up to +2 if others agree";
+  if (rangeState !== "near") return "You'll get 0 points from this check";
+  if (!status || status === "VERIFIED") return "You'll get 1 point from this check";
+  return "You'll get up to 2 points from this check";
 }
 
 // The "+N" chip that goes with communityPointsText: what the check earns right now.
@@ -648,13 +647,7 @@ function communityPointsChipFor(status, rangeState) {
 
 function communityRangeNoteHtml(lat, lon, status) {
   const range = communityRange(lat, lon);
-  const heading = range.state === "near" ? "Inside the 10 m check zone"
-    : range.state === "far" ? "Outside the 10 m check zone"
-    : "Location is off";
-  const text = range.state === "near" ? "You're close enough for this to earn points."
-    : range.state === "far" ? `You're about ${Math.round(range.metres)} m away. You can still report this, but you need to be within ${COMMUNITY_NEAR_METRES} m of the tree to earn points.`
-    : `You can report this from anywhere. To earn points, turn on location and stand within ${COMMUNITY_NEAR_METRES} m of the tree.`;
-  return `<div class="community-range community-range-${range.state}">${communityIcon(range.state === "near" ? "check" : "locate")}<div><strong>${heading}</strong><span>${escapeHtml(text)}</span><span class="community-range-points">${communityPointsChipFor(status, range.state)}${escapeHtml(communityPointsText(status, range.state))}</span></div></div>`;
+  return `<div class="community-range community-range-${range.state}">${communityIcon(range.state === "near" ? "check" : "locate")}<div><strong>${escapeHtml(communityPointsText(status, range.state))}</strong></div></div>`;
 }
 
 // Called with each GPS fix so the note follows the reader as they walk up to the tree.
@@ -1842,8 +1835,6 @@ async function communityRenderContributions() {
   const empty = `<div class="community-empty">${typeof appIconHtml === "function" ? appIconHtml("tree", "app-icon community-empty-art") : ""}<p><strong>No reports yet</strong><span>Open a tree or a place and tap “Help check”. You get a point for each tree you check, and another when someone else agrees.</span></p></div>`;
   const setHero = (name, value) => { const el = communityHeroEl(name); if (el) el.textContent = value; };
   const pointsWord = score.points === 1 ? "point" : "points";
-  host.classList.remove("is-loading", "has-note");
-  host.setAttribute("aria-busy", "false");
   setHero("note", "");
   const noteEl = communityHeroEl("note");
   if (noteEl) noteEl.hidden = true;
@@ -1862,6 +1853,8 @@ async function communityRenderContributions() {
       if (detail) detail.hidden = true;
     }
   }
+  host.classList.remove("is-loading", "has-note");
+  host.setAttribute("aria-busy", "false");
   setHero("rank-points", `${score.points} ${pointsWord} · ${rank.next ? `${rank.next.min - score.points} to ${rank.next.name}` : "Top rank"}`);
   setHero("points", String(score.points));
   setHero("points-label", pointsWord);
@@ -2012,7 +2005,7 @@ function communityRenderAccount(account, note = "") {
   line.classList.remove("is-loading");
   line.classList.toggle("community-account-quiet", !(account && account.signedIn));
   line.innerHTML = account && account.signedIn
-    ? `Signed in as <strong>${escapeHtml(account.name)}</strong>. <a href="/api/auth/logout?return=/community">Sign out</a>`
+    ? `<span class="community-account-copy">Signed in as <strong>${escapeHtml(account.name)}</strong>.</span><a href="/api/auth/logout?return=/community">Sign out</a>`
     : `<a href="/api/auth/login?return=/community">Sign in to take your points with you</a>`;
   recover.hidden = Boolean(account && account.signedIn);
 }

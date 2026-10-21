@@ -620,8 +620,8 @@ test.describe("Nudges to check a tree you are standing next to", () => {
     await expect(page.locator("#communityNudge")).toHaveCount(0);
   });
 
-  test("nudges stay quiet when turned off on the Community screen", async ({ page }) => {
-    await setup(page, "/community");
+  test("nudges stay quiet when turned off in Settings", async ({ page }) => {
+    await setup(page, "/settings");
     await page.uncheck("#communityNudgeToggle");
     await standNextToATree(page);
     await page.evaluate(() => { localStorage.setItem("ff-community-nudges-off-v1", "1"); communityNudgeCheck(); });
@@ -673,22 +673,17 @@ test.describe("Reporting from too far away", () => {
     test("it says how far away you are, still lets you report, and notes that it will not earn points", async ({ page }) => {
       await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
       const note = page.locator(".community-range");
-      await expect(note).toContainText(/You're about \d+ m away/);
-      await expect(note).toContainText("within 10 m of the tree to earn points");
-      await expect(note).toContainText("Outside the 10 m check zone");
-      await expect(note.locator(".community-range-points")).toContainText("Points: 0 from this check");
+      await expect(note).toContainText("You'll get 0 points from this check");
       await page.click("[data-action='community-report'][data-status='VERIFIED']");
       await expect(page.locator(".community-mine")).toContainText("You reported: Verified here");
       await page.click("#reportToggle");
-      await expect(page.locator(".community-log-item .community-pill")).toContainText("Not close enough for points");
+      await expect(page.locator(".community-log-item .community-pill")).toContainText("0 points: outside the 10 m check zone");
     });
   });
 
-  test("with no location it says you can report from anywhere but need to be close for points", async ({ page }) => {
+  test("with no location it shows zero points until location is available", async ({ page }) => {
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
-    await expect(page.locator(".community-range")).toContainText("You can report this from anywhere");
-    await expect(page.locator(".community-range")).toContainText("within 10 m of the tree");
-    await expect(page.locator(".community-range")).toContainText("Location is off");
+    await expect(page.locator(".community-range")).toContainText("You'll get 0 points from this check");
     await page.click("[data-action='community-report'][data-status='VERIFIED']");
     await expect(page.locator(".community-mine")).toContainText("You reported: Verified here");
   });

@@ -1276,10 +1276,11 @@ button.community-more:focus-visible { outline: 2px solid var(--tree); outline-of
 .community-chip:active { transform: scale(0.985); background: #eff5ee; }
 .community-chip.is-chosen { border-color: var(--tree); background: #f1f7f2; }
 .community-chip-icon {
-  width: 32px; height: 32px; flex-shrink: 0; border-radius: 10px;
+  width: 16px; height: 16px; flex-shrink: 0; border-radius: 6px;
   display: grid; place-items: center; color: var(--tree); background: rgba(47, 111, 78, 0.1);
 }
-.community-chip-label { min-width: 0; overflow-wrap: anywhere; display: grid; gap: 1px; }
+.community-chip-icon .community-icon { width: 16px; height: 16px; }
+.community-chip-label { flex: 1; min-width: 0; overflow-wrap: anywhere; display: grid; gap: 1px; }
 .community-chip-label strong { font-size: 0.8rem; font-weight: 650; }
 .community-chip-label small { color: var(--muted); font-size: 0.72rem; font-weight: 500; line-height: 1.2; }
 .community-verify:focus-visible, .community-chip:focus-visible, .community-add:focus-visible, .community-link:focus-visible {
@@ -1382,10 +1383,10 @@ button.community-more:focus-visible { outline: 2px solid var(--tree); outline-of
 .community-badge-detail[hidden] { display: none; }
 .community-badge-detail strong { color: var(--ink); }
 .community-stats { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 14px; }
-.community-stats div { display: grid; gap: 2px; padding: 2px 6px; text-align: center; }
+.community-stats div { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 8px; align-items: center; padding: 2px 10px; text-align: left; }
 .community-stats div + div { border-left: var(--c-hairline); }
-.community-stats strong { font-size: 1.2rem; color: var(--ink); }
-.community-stats span { font-size: 0.72rem; line-height: 1.2; color: var(--muted); }
+.community-stats strong { font-size: 1.35rem; line-height: 1.1; color: var(--ink); }
+.community-stats span { grid-column: 2; font-size: 0.72rem; line-height: 1.2; color: var(--muted); }
 
 .community-log { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
 .community-log-item {
@@ -1859,6 +1860,7 @@ dd {
 .community-badges-section { padding-top: 0; min-width: 0; max-width: 100%; }
 .community-badges-section > div, .community-badges { min-width: 0; max-width: 100%; }
 @media (prefers-reduced-motion: reduce) { .community-progress span { transition: none; } }
+@media (prefers-reduced-motion: reduce) { .community-hero-badges:not([hidden]) .community-badge-chip { animation: none; } }
 
 /* Community: compact "You reported" line, collapsed reports, merged account card, small add buttons */
 .community-mine-compact { grid-template-columns: 1fr auto; padding: 8px 12px; }
@@ -1875,6 +1877,12 @@ details[open] > summary > .community-mine-chevron { transform: rotate(90deg); }
 #communityReportsDetails > summary { display: flex; align-items: center; gap: 4px; min-height: 40px; cursor: pointer; list-style: none; }
 #communityReportsDetails > summary::-webkit-details-marker { display: none; }
 #communityReportsDetails > summary .community-mine-chevron { margin-left: auto; }
+#communityReportsDetails { overflow: hidden; border: var(--c-hairline); border-radius: var(--c-radius); background: #fff; box-shadow: var(--c-lift); }
+#communityReportsDetails > summary { min-height: 52px; padding: 10px 14px; font-size: 1.05rem; font-weight: 800; color: var(--ink); background: #f6f9f5; transition: background 120ms ease; }
+#communityReportsDetails > summary:hover { background: #eef5ef; }
+#communityReportsDetails > summary:focus-visible { outline: 2px solid var(--tree); outline-offset: -3px; }
+#communityReportsDetails[open] > summary { border-bottom: var(--c-hairline); }
+#communityReportsDetails > #communityLog { padding: 0 14px 14px; }
 .community-log-item { position: relative; }
 .community-log-item:hover { background: #f7faf7; }
 .community-log-name a::after { content: ""; position: absolute; inset: 0; border-radius: 12px; }
@@ -1887,7 +1895,7 @@ details[open] > summary > .community-mine-chevron { transform: rotate(90deg); }
 .community-new-tree:has(.community-add-actions) { grid-template-columns: 1fr auto; }
 .community-add { min-height: 34px; padding: 0 12px; border-radius: 8px; font-size: 0.86rem; color: var(--tree); background: #fff; border: 1px solid rgba(47, 111, 78, 0.35); box-shadow: none; }
 .community-add .community-icon { width: 16px; height: 16px; }
-.community-stats .community-icon { width: 16px; height: 16px; margin: 0 auto; color: var(--tree); }
+.community-stats .community-icon { grid-row: 1 / span 2; align-self: start; width: 22px; height: 22px; margin: 2px 0 0; color: var(--tree); }
 .community-badges-section:has(#communityBadgesHost:empty) { display: none; }
 .community-rank { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .community-badge-chips { display: inline-flex; gap: 4px; }
@@ -1895,8 +1903,10 @@ details[open] > summary > .community-mine-chevron { transform: rotate(90deg); }
 .community-badge-chip .community-icon { width: 12px; height: 12px; }
 
 /* Community top: quiet account line, prominent points, bigger medal-style badge chips, merged CTA card */
-.community-account-line { margin: 0 0 10px; font-size: 0.86rem; color: var(--muted); }
+.community-account-line { display: flex; align-items: center; gap: 12px; margin: 0 0 10px; font-size: 0.86rem; color: var(--muted); }
+.community-account-copy { min-width: 0; }
 .community-account-line a { color: var(--tree); font-weight: 700; }
+.community-account-copy + a { margin-left: auto; white-space: nowrap; }
 .community-account { margin-top: 0; }
 .community-account .community-recover { margin: 0 0 10px; }
 .community-rank-text { flex: 1; min-width: 0; }
@@ -1910,7 +1920,7 @@ details[open] > summary > .community-mine-chevron { transform: rotate(90deg); }
 .community-action-card { border-radius: var(--c-radius); border: 1px solid rgba(47, 111, 78, 0.3); background: #f1f7f2; overflow: hidden; }
 .community-action-card .community-action-row { border: 0; border-radius: 0; background: none; }
 .community-action-card .community-action-row:hover { background: #e8f1ea; }
-.community-action-card .community-intro { display: block; padding: 0 14px 10px 66px; font-size: 0.78rem; line-height: 1.35; color: var(--muted); }
+.community-action-card .community-intro { display: block; padding: 10px 14px 14px 66px; font-size: 0.78rem; line-height: 1.35; color: var(--muted); }
 .community-action-card .community-intro:hover { background: none; }
 .community-action-card .community-intro u { color: var(--tree); font-weight: 700; }
 
@@ -1932,12 +1942,15 @@ details[open] > summary > .community-mine-chevron { transform: rotate(90deg); }
 .community-hero.is-loading [data-hero="bar"] > span { width: 0 !important; }
 .community-hero.has-note .community-rank-card, .community-hero.has-note .community-progress, .community-hero.has-note .community-stats { display: none; }
 [data-hero][hidden], [data-account][hidden] { display: none; }
+.community-hero.is-loading .community-hero-badges[data-hero="badges"][hidden] { display: block; min-height: 40px; visibility: hidden; }
 .community-skel-text { width: 220px; height: 0.9em; }
 .community-account-line.is-loading { min-height: 1.3em; }
 .community-skel-rows span { height: 56px; border-radius: 12px; margin-top: 8px; }
 @media (prefers-reduced-motion: reduce) { .community-hero.is-loading [data-hero], .community-skel-text, .community-skel-rows span { animation: none; } }
 .community-hero-badges { margin-top: 12px; }
 .community-hero-badges .community-badge-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.community-hero-badges:not([hidden]) .community-badge-chip { animation: community-badge-in 260ms ease-out both; }
+@keyframes community-badge-in { from { opacity: 0; transform: translateY(5px) scale(0.86); } to { opacity: 1; transform: none; } }
 button.community-badge-chip { border: 0; padding: 0; cursor: pointer; font: inherit; }
 button.community-badge-chip[aria-pressed="true"] { outline: 2px solid var(--tree); outline-offset: 2px; }
 button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outline-offset: 2px; }
