@@ -63,6 +63,7 @@ test.describe("Community tree verification", () => {
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     await page.click("[data-action='community-report'][data-status='VERIFIED']");
     await expect(page.locator(".community-mine")).toContainText("Other people may take an hour or two to see this");
+    await expect(page.locator(".detail-top-row .community-verified-chip")).toContainText("1");
     await expect.poll(() => posted.length).toBe(1);
     expect(posted[0]).toMatchObject({ kind: "tree", target: `tree:${FIXTURE_TREE.recordNumber}`, status: "VERIFIED" });
   });
@@ -434,7 +435,8 @@ test.describe("Community place checks", () => {
     await page.route(ISSUE_URL, (route) => { sent.push("issue"); route.fulfill({ status: 200, body: "{}" }); });
     await page.route(REPORT_URL, (route) => { sent.push("report"); route.fulfill({ status: 200, body: "{}" }); });
     await page.click("[data-action='community-place-choose'][data-status='OPEN_CONFIRMED']");
-    await expect(page.locator(".community-check-place")).toHaveCount(0);
+    await expect(page.locator(".community-check-place")).toHaveCount(1);
+    await expect(page.locator(".community-check-place .community-mine")).toContainText("You reported: Confirmed still right");
     await expect(page.locator(".community-place-confirmed-marker")).toContainText("You have verified this location");
     await page.waitForTimeout(500);
     expect(sent).toHaveLength(0);
@@ -444,7 +446,7 @@ test.describe("Community place checks", () => {
     await page.fill("#mapSearchInput", "Railway Bell");
     await page.locator("#mapSearchResults .nearest-item").first().click();
     await expect(page.locator("[data-action='report-issue']")).toBeVisible();
-    await expect(page.locator(".community-check-place")).toHaveCount(0);
+    await expect(page.locator(".community-check-place")).toHaveCount(1);
   });
 });
 

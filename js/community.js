@@ -685,6 +685,7 @@ async function communityHandleChoice(button) {
   await communitySubmitReport({ kind: "tree", target, status, targetLat, targetLon, newLat, newLon });
   delete section.dataset.editing;
   communityRefreshSections();
+  communityRefreshVerifiedSlots();
 }
 
 function communityHandleChange(button) {
@@ -1301,8 +1302,6 @@ function communityPlaceSectionHtml(place) {
   if (!communityEnabled()) return "";
   if (!place || !place.name || place.latitude == null || place.longitude == null) return "";
   const target = `place:${placeHashKey(place)}`;
-  const earlier = communityReadLocal()[target];
-  if (earlier && earlier.status === "OPEN_CONFIRMED") return ""; // already confirmed on this device: no card
   const category = place.categoryLabel || "Local place";
   return `<section class="community-check community-check-place" data-kind="place" data-community-target="${escapeHtml(target)}" data-lat="${place.latitude}" data-lon="${place.longitude}" data-name="${escapeHtml(place.name)}" data-category="${escapeHtml(category)}" data-slug="${escapeHtml(place.findSlug || "")}">
       <div class="community-head">
@@ -1370,8 +1369,8 @@ async function communityHandlePlaceChoice(button) {
   const status = button.dataset.status;
   if (status === "OPEN_CONFIRMED") {
     await communitySubmitPlace(section, status, "");
+    communityRefreshSections();
     communityRefreshPlaceConfirmation(section.dataset.communityTarget);
-    section.remove(); // checked: nothing more to ask about this place
     return;
   } else {
     section.dataset.pending = status;
