@@ -435,6 +435,7 @@ test.describe("Community place checks", () => {
     await page.route(REPORT_URL, (route) => { sent.push("report"); route.fulfill({ status: 200, body: "{}" }); });
     await page.click("[data-action='community-place-choose'][data-status='OPEN_CONFIRMED']");
     await expect(page.locator(".community-check-place")).toHaveCount(0);
+    await expect(page.locator(".detail-top-row .community-place-confirmed-chip")).toContainText("Checked");
     await page.waitForTimeout(500);
     expect(sent).toHaveLength(0);
     // and it stays hidden when the place is opened again

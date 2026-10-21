@@ -433,7 +433,8 @@ function showLandmarkDetails(place, distance) {
   }
   const mapsLink = place.latitude != null ? openInMapsHtml(place.latitude, place.longitude, place.name) : "";
   const shareBtn = shareLocationHtml();
-  const actionsHtml = `<span class="detail-top-actions">${mapsLink}${shareBtn}</span>`;
+  const communityPlaceChip = isEvent ? "" : communityPlaceConfirmationHtml(place);
+  const actionsHtml = `<span class="detail-top-actions">${communityPlaceChip}${mapsLink}${shareBtn}</span>`;
   const topRow = `<div class="detail-top-row">${distancePill}${actionsHtml}</div>`;
   const descriptionHtml = description ? `<p class="details-description">${escapeHtml(description)}</p>` : "";
   const ledgerHtml = ledgerMentionHtml(place);

@@ -1305,6 +1305,25 @@ function communityPlaceSectionHtml(place) {
     </section>`;
 }
 
+function communityPlaceConfirmedChipHtml(target) {
+  const local = target && communityReadLocal()[target];
+  if (!local || local.status !== "OPEN_CONFIRMED") return "";
+  const attention = Date.now() - Number(local.ts || 0) < 4000 ? " community-place-confirmed-chip-attention" : "";
+  return `<span class="community-verified-chip community-place-confirmed-chip${attention}" role="status" title="You confirmed this place is still here and correct">${communityIcon("check")}<strong>Checked</strong></span>`;
+}
+
+function communityPlaceConfirmationHtml(place) {
+  if (!communityEnabled() || !place || place.latitude == null || place.longitude == null) return "";
+  const target = `place:${placeHashKey(place)}`;
+  return `<span class="community-place-confirmed-slot" data-place-target="${escapeHtml(target)}">${communityPlaceConfirmedChipHtml(target)}</span>`;
+}
+
+function communityRefreshPlaceConfirmation(target) {
+  document.querySelectorAll(".community-place-confirmed-slot").forEach((slot) => {
+    if (slot.dataset.placeTarget === target) slot.innerHTML = communityPlaceConfirmedChipHtml(target);
+  });
+}
+
 async function communitySubmitPlace(section, status, note) {
   const target = section.dataset.communityTarget;
   const lat = Number(section.dataset.lat);
@@ -1343,6 +1362,7 @@ async function communityHandlePlaceChoice(button) {
   const status = button.dataset.status;
   if (status === "OPEN_CONFIRMED") {
     await communitySubmitPlace(section, status, "");
+    communityRefreshPlaceConfirmation(section.dataset.communityTarget);
     section.remove(); // checked: nothing more to ask about this place
     return;
   } else {
