@@ -1430,6 +1430,10 @@ async function communityHandlePlaceChoice(button) {
   const status = button.dataset.status;
   if (status === "OPEN_CONFIRMED") {
     await communitySubmitPlace(section, status, "");
+    // Confirming again from Change is idempotent: replace the local record, then leave edit mode
+    // so the form closes back to the compact confirmed state rather than staying open.
+    delete section.dataset.pending;
+    delete section.dataset.editing;
     communityRefreshSections();
     communityRefreshPlaceConfirmation(section.dataset.communityTarget);
     return;

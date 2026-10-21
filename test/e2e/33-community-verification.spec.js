@@ -441,6 +441,12 @@ test.describe("Community place checks", () => {
     await expect(page.locator(".community-check-place")).toHaveCount(1);
     await expect(page.locator(".community-check-place .community-mine")).toContainText("You reported: Confirmed still right");
     await expect(page.locator(".community-place-confirmed-marker")).toContainText("You have verified this location");
+    await page.click(".community-check-place [data-action='community-change']");
+    await expect(page.locator(".community-check-place [data-action='community-place-choose'][data-status='OPEN_CONFIRMED']")).toBeVisible();
+    await page.click(".community-check-place [data-action='community-place-choose'][data-status='OPEN_CONFIRMED']");
+    await expect(page.locator(".community-check-place .community-mine")).toContainText("You reported: Confirmed still right");
+    await expect(page.locator(".community-check-place [data-action='community-place-choose']")).toHaveCount(0);
+    await expect(page.locator(".detail-top-row .community-verified-chip")).toContainText("1");
     await page.waitForTimeout(500);
     expect(sent).toHaveLength(0);
     // and it stays hidden when the place is opened again
