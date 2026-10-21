@@ -1434,22 +1434,20 @@ function showCombinedConsentBanner() {
   banner.hidden = false;
 }
 
-// ?nuke=true clears exactly what Settings' "Refresh both" clears, then returns to the same URL
-// without the flag. The flag is stripped before refreshCachedState reloads the page: otherwise the
-// reload would land back on ?nuke=true and wipe everything again, forever. Offline, the clear
-// can't run, so the flag is still dropped and boot carries on as normal.
-function nukeIfRequested() {
+// ?nuke=true requests the same safe update check as Settings' "Refresh both", then returns to the
+// same URL without the flag. It no longer deletes caches: a failed update must leave the current
+// offline app usable. The parameter is retained as a troubleshooting alias for old shared links.
+async function nukeIfRequested() {
   const url = new URL(window.location.href);
   if (url.searchParams.get("nuke") !== "true") return false;
   url.searchParams.delete("nuke");
   window.history.replaceState(null, "", url);
   if (!navigator.onLine) return false;
-  refreshCachedState("all");
-  return true;
+  return await refreshCachedState("all");
 }
 
 async function boot() {
-  if (nukeIfRequested()) return;
+  if (await nukeIfRequested()) return;
 
   // A /nearby/<slug>/ landing already shows its server-rendered list (see
   // _serverRenderedNearbyList, js/inspector.js); keep it there until a real fix or the reveal.
@@ -2960,8 +2958,9 @@ function settingsFormHtml() {
           <button id="refreshAppButton" class="settings-btn" type="button"${online ? "" : " disabled"}>Refresh app</button>
           <button id="refreshAllButton" class="settings-btn" type="button"${online ? "" : " disabled"}>Refresh both</button>
         </div>
-        <p class="settings-description">Map missing or out of date? <strong>Refresh data</strong> re-downloads the trees, paths and places. Not seeing the latest version? <strong>Refresh app</strong> clears the cached app. <strong>Refresh both</strong> starts completely cold.</p>
+        <p class="settings-description">Map missing or out of date? <strong>Refresh data</strong> downloads a complete replacement before reloading. Not seeing the latest version? <strong>Refresh app</strong> checks for and downloads the next app version before restarting. <strong>Refresh both</strong> requires both downloads and never removes the working offline copy first.</p>
         <p id="refreshOfflineNote" class="report-note report-offline-note"${online ? " hidden" : ""}>Refreshing needs an internet connection — you\'re offline right now.</p>
+        <p id="refreshStatus" class="report-note" role="status" hidden></p>
       </div>
     </section>
     <section class="settings-section" id="settingsAccount">
