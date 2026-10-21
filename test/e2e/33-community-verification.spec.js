@@ -175,10 +175,10 @@ test.describe("Community tree verification", () => {
     await expect(page.locator("#inspectorTitle").last()).not.toContainText("Community");
   });
 
-  test("backup lives in the signed-out account card, one Not-on-the-map link opens the feedback form, trees link to /nearby/trees", async ({ page }) => {
+  test("backup lives in the signed-out account card, one Feedback card links to the feedback form, trees link to /nearby/trees", async ({ page }) => {
     await setup(page, "/community");
     await expect(page.locator("#communityAccount .community-recover")).toBeVisible();
-    await expect(page.locator("a.community-add-missing")).toHaveAttribute("href", "/feedback");
+    await expect(page.locator("a.community-feedback-link")).toHaveAttribute("href", "/feedback");
     await expect(page.locator(".community-action-row").first()).toHaveAttribute("href", "/nearby/trees");
   });
 

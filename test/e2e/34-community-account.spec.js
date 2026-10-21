@@ -372,8 +372,10 @@ test.describe("Community sign-in: history, account switching, storage", () => {
     me = { signedIn: true, name: "Alex", account: "acct-bbbb" };
     hold = true;
     await page.evaluate(() => { window.__reopen = communityOpenContributions(); });
-    await expect(page.locator(".community-log-item")).toHaveCount(0);
-    await expect(page.locator("#communityAccount")).not.toContainText("Sam");
+    // Read the DOM in one step: the held request is aborted by the app after 6 s, so slow assertions here would race it.
+    const whileHeld = await page.evaluate(() => ({ rows: document.querySelectorAll(".community-log-item").length, account: document.getElementById("communityAccount").textContent }));
+    expect(whileHeld.rows).toBe(0);
+    expect(whileHeld.account).not.toContain("Sam");
     await expect.poll(() => releases.length).toBeGreaterThan(0);
     hold = false;
     releases.forEach((release) => release());

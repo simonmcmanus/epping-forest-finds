@@ -1551,7 +1551,7 @@ function communityContributionsHtml() {
   return `<section class="community-contributions">
       <h3 class="community-sr">Your contributions</h3>
       <div id="communityContributions" class="community-hero is-loading" aria-busy="true">
-        <p class="community-log-error" data-hero="volatile" hidden>This browser can't save waiting reports. Keep the app open until they are sent.</p>
+        <div data-hero="volatile"></div>
         <p class="settings-description" data-hero="note" hidden></p>
         <div class="community-rank-card">
           <span class="community-rank-icon" data-hero="medal">${communityMedalHtml(COMMUNITY_RANKS[0])}</span>
@@ -1626,7 +1626,7 @@ function communityResetHosts(note = "") {
     const noteEl = communityHeroEl("note");
     if (noteEl) { noteEl.textContent = note; noteEl.hidden = !note; }
     const volatile = communityHeroEl("volatile");
-    if (volatile) volatile.hidden = true;
+    if (volatile) volatile.innerHTML = "";
     const badgesEl = communityHeroEl("badges");
     if (badgesEl) badgesEl.hidden = true;
   }
@@ -1706,7 +1706,7 @@ async function communityRenderContributions() {
   const noteEl = communityHeroEl("note");
   if (noteEl) noteEl.hidden = true;
   const volatileEl = communityHeroEl("volatile");
-  if (volatileEl) volatileEl.hidden = !volatileNote;
+  if (volatileEl) volatileEl.innerHTML = volatileNote ? `<p class="community-log-error">This browser can't save waiting reports. Keep the app open until they are sent.</p>` : "";
   const medalEl = communityHeroEl("medal");
   if (medalEl) medalEl.innerHTML = communityMedalHtml(rank);
   setHero("rank", rank.name);
