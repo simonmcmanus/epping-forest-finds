@@ -225,6 +225,21 @@ test.describe("Community tree verification", () => {
     await expect(page.locator(".community-mine")).toContainText("No tree found here");
   });
 
+  test("a local tree verification stays visible in the header after a newer snapshot", async ({ page }) => {
+    const target = `tree:${FIXTURE_TREE.recordNumber}`;
+    await page.addInitScript((localTarget) => {
+      localStorage.setItem("ff-community-local-v1", JSON.stringify({
+        [localTarget]: { id: "local-tree-verified", status: "VERIFIED", ts: Date.now() - 60_000 },
+      }));
+    }, target);
+    await page.route(OVERLAY_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: Date.now(), entries: {} }) })
+    );
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await expect(page.locator(".detail-top-row .community-verified-chip")).toContainText("1");
+    await expect(page.locator(".community-mine")).toContainText("Verified here");
+  });
+
   test("a tree the community has questioned is flagged but keeps its official details", async ({ page }) => {
     await page.unroute(OVERLAY_URL);
     await page.route(OVERLAY_URL, (route) =>

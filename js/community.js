@@ -484,7 +484,9 @@ function communityVerifiedEntry(target) {
   // A local report remains visible until the matching community status exists. The snapshot can
   // be newer than the report without containing it yet (for example, one report is not consensus).
   // A questioned/mixed server result still wins, so one local check cannot hide disagreement.
-  if (entry && !shared) return null;
+  // A recognised questioned entry is rendered by communityProblemEntry() first. For any other
+  // stale or unfamiliar entry, keep the reporter's own optimistic confirmation visible.
+  if (entry && !shared && entry.s === "questioned") return null;
   if (!mine || mine.status !== "VERIFIED") return shared;
   if (!shared) return { s: "verified", n: 1, optimistic: true };
   const pending = mine.ts > (communityOverlay.generatedAt || 0);
@@ -497,7 +499,9 @@ function communityProblemEntry(target) {
   const mine = target && communityReadLocal()[target];
   // Keep the reporter's own problem visible even after a newer snapshot that has not reached
   // consensus. If the server has a shared result, use its count and status.
-  if (entry && !shared) return null;
+  // A recognised verified entry is rendered by communityVerifiedEntry() after this check. For
+  // any other stale or unfamiliar entry, keep the reporter's own optimistic problem visible.
+  if (entry && !shared && (entry.s === "verified" || entry.s === "confirmed")) return null;
   if (!shared && mine && mine.status && mine.status !== "VERIFIED") {
     return { s: "questioned", st: mine.status, n: 1, optimistic: true };
   }
