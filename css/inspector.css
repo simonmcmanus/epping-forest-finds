@@ -1865,3 +1865,20 @@ button.community-badge-chip[aria-pressed="true"] { outline: 2px solid var(--tree
 button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outline-offset: 2px; }
 .community-hero-badges .community-badge-detail { margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; background: var(--gold-tint); color: var(--gold-ink); font-size: 0.82rem; line-height: 1.35; display: grid; gap: 2px; }
 .community-hero-badges .community-badge-detail[hidden] { display: none; }
+
+/* Feedback screen: roomier spacing; one column with clear groups */
+.report-screen { display: grid; gap: 18px; padding: 4px 2px 12px; }
+.report-type-field label { display: grid; gap: 8px; font-size: 0.95rem; font-weight: 800; color: var(--ink); }
+.report-type-field select { min-height: 48px; padding: 0 12px; }
+.report-screen .report-form { gap: 18px; padding: 16px; border-radius: var(--c-radius); border: var(--c-hairline); background: #fff; }
+.report-screen .report-form label { gap: 8px; font-size: 0.95rem; }
+.report-screen .report-intro { margin: 0; font-size: 0.9rem; line-height: 1.5; color: var(--muted); }
+.report-screen .report-textarea { min-height: 150px; padding: 12px; }
+.report-screen .report-photo-field { padding: 12px; border-radius: 10px; border: 1px dashed rgba(36, 56, 47, 0.3); background: #f8faf7; gap: 8px; }
+.report-screen .report-form-actions { gap: 10px; padding-top: 2px; }
+.report-screen .report-form-actions .button { min-height: 46px; padding: 0 20px; }
+.report-screen .community-new-form { gap: 16px; padding: 16px; }
+.report-screen .community-field { gap: 8px; }
+.report-screen .community-note-actions { gap: 12px; padding-top: 2px; }
+@media (max-width: 600px) { .report-screen .report-form-actions .button { flex: 1 1 0; } }
+.report-screen .report-type-field select.report-textarea { min-height: 48px; height: 48px; padding: 0 12px; resize: none; }

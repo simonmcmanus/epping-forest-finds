@@ -3188,7 +3188,8 @@ function reportFormHtml() {
   } catch {}
   const detailsValue = draft.details || "";
   const online = navigator.onLine;
-  return `<div class="report-type-field">
+  return `<div class="report-screen">
+    <div class="report-type-field">
       <label for="reportType">What would you like to tell us?
         <select id="reportType" class="report-textarea community-input">
           <option value="feedback">Feedback, a bug or something strange</option>
@@ -3211,7 +3212,8 @@ function reportFormHtml() {
         <button id="reportSubmit" class="button" type="submit">Submit</button>
       </div>
     </form>
-    ${communityAddFormHostHtml()}`;
+    ${communityAddFormHostHtml()}
+    </div>`;
 }
 
 // `capture="environment"` asks a phone for its rear camera, where supported. Browsers which

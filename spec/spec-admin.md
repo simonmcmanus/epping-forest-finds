@@ -238,6 +238,9 @@ Colours are assigned from a fixed 15-colour palette in the order users are first
 - All events contain only anonymous IDs — no PII is stored or returned
 - The admin UI keeps the password in same-tab `sessionStorage`, not persistent `localStorage`
 
+## Early access (feature gate)
+The **Access** top-bar button opens a panel with one tester per line (Tester ID from the person's Settings screen, then an optional note). Save posts the list to `POST /api/features`; no deploy is needed. An empty list means the gate is off and everyone has Community. See `spec/spec-community.md` (Feature gate). `/api/features` is routed in `netlify.toml`.
+
 ## Planned future features
 
 - UI control to change the window (currently fixed to the last 30 days, or all history via `?days=N`/`?days=all` on the API directly)
