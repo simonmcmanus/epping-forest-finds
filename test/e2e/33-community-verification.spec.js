@@ -24,14 +24,14 @@ test.describe("Community tree verification", () => {
     await page.addInitScript(() => {
       window.__sawNearby = false;
       new MutationObserver(() => {
-        if (document.querySelector("[data-overview-type]") && !document.querySelector(".community-intro")) window.__sawNearby = true;
+        if (document.querySelector("[data-overview-type]") && !document.querySelector(".community-action-card")) window.__sawNearby = true;
       }).observe(document, { childList: true, subtree: true });
     });
     const errors = [];
     page.on("pageerror", (error) => errors.push(error.message));
     page.on("console", (m) => { if (m.type() === "error" && /initiali[sz]ation/.test(m.text())) errors.push(m.text()); });
     await setup(page, "/community");
-    await expect(page.locator(".community-intro")).toBeVisible();
+    await expect(page.locator(".community-action-card")).toBeVisible();
     expect(await page.evaluate(() => window.__sawNearby)).toBe(false);
     expect(errors).toEqual([]);
   });
@@ -240,13 +240,13 @@ test.describe("Community tree verification with location shared", () => {
     await page.addInitScript(() => {
       window.__sawNearby = false;
       new MutationObserver(() => {
-        if (document.querySelector("[data-overview-type]") && !document.querySelector(".community-intro")) window.__sawNearby = true;
+        if (document.querySelector("[data-overview-type]") && !document.querySelector(".community-action-card")) window.__sawNearby = true;
       }).observe(document, { childList: true, subtree: true });
     });
     await page.route(OVERLAY_URL, (route) =>
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {} }) }));
     await setup(page, "/community");
-    await expect(page.locator(".community-intro")).toBeVisible();
+    await expect(page.locator(".community-action-card")).toBeVisible();
     await page.waitForFunction(() => state.userLocation && !state.userLocation.isDefault && state.nearestTree);
     await page.waitForTimeout(1800);
     await expect(page.locator("#communityNudge")).toHaveCount(0);
@@ -450,7 +450,7 @@ test.describe("Community screen map", () => {
 });
 
 test.describe("Community screen layout", () => {
-  test("opens with a one-row summary that links out to the full explanation", async ({ page }) => {
+  test("the check-trees card carries a short line that links out to the full explanation", async ({ page }) => {
     await setup(page, "/community");
     const intro = page.locator("a.community-intro");
     await expect(intro).toContainText("Help keep the map right");
@@ -458,6 +458,7 @@ test.describe("Community screen layout", () => {
     await expect(intro).toHaveAttribute("target", "_blank");
     // minimal space: a single compact row, not a paragraph
     expect((await intro.boundingBox()).height).toBeLessThan(70);
+    await expect(page.locator(".community-action-card .community-action-row")).toHaveAttribute("href", "/nearby/trees");
   });
 
   test("the sheet opens taller than on other screens, leaving less map", async ({ page }) => {
@@ -466,7 +467,7 @@ test.describe("Community screen layout", () => {
     await setup(page, "/settings");
     const settingsHeight = (await page.locator("#inspector").boundingBox()).height;
     await page.click("#reportToggle");
-    await expect(page.locator(".community-intro")).toBeVisible();
+    await expect(page.locator(".community-action-card")).toBeVisible();
     await expect.poll(async () => (await page.locator("#inspector").boundingBox()).height).toBeGreaterThan(settingsHeight);
   });
 });
@@ -783,6 +784,7 @@ test.describe("Badges and streaks", () => {
     await expect(page.locator(".community-badges-section")).toBeHidden();
     await expect(page.locator(".community-rank .community-badge-chip")).toHaveCount(2);
     await expect(page.locator(".community-rank .community-badge-chip").first()).toHaveAttribute("title", "First check");
+    expect((await page.locator(".community-badge-chip").first().boundingBox()).width).toBeGreaterThanOrEqual(36);
   });
 
   test("the pinned needs-attention reports and the filter", async ({ page }) => {
@@ -841,7 +843,7 @@ test.describe("Trees added by walkers: tap for details", () => {
     await expect(page.locator("#inspectorBody")).toContainText("Not on the City of London register yet");
     expect(await page.evaluate(() => window.location.hash)).toBe("#addedtree=T-77");
     await page.click("[data-action='community-confirm-added']");
-    await expect(page.locator(".community-intro")).toBeVisible();
+    await expect(page.locator(".community-action-card")).toBeVisible();
     await expect(page.locator("#communityTagInput")).toHaveValue("T-77");
   });
 

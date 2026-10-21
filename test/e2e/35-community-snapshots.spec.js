@@ -36,7 +36,7 @@ test.describe("Community screen snapshots", () => {
   test("snapshot: community screen, signed out", async ({ page }) => {
     await mockCommunity(page, { me: { signedIn: false } });
     await setup(page, "/community");
-    await expect(page.locator("#communityAccount")).toContainText("Keep your points on any device");
+    await expect(page.locator("#communityAccount")).toContainText("Sign in to take your points with you");
     await expect(page.locator(".community-empty")).toBeVisible();
     await settle(page);
     await expect(page).toHaveScreenshot("community-signed-out.png", { fullPage: false });

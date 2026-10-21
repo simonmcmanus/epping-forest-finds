@@ -1815,3 +1815,23 @@ details[open] > summary > .community-mine-chevron { transform: rotate(90deg); }
 .community-badge-chips { display: inline-flex; gap: 4px; }
 .community-badge-chip { width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; color: var(--gold-ink); background: var(--gold-tint); }
 .community-badge-chip .community-icon { width: 12px; height: 12px; }
+
+/* Community top: quiet account line, prominent points, bigger medal-style badge chips, merged CTA card */
+.community-account-line { margin: 0 0 10px; font-size: 0.86rem; color: var(--muted); }
+.community-account-line a { color: var(--tree); font-weight: 700; }
+.community-account { margin-top: 0; }
+.community-account .community-recover { margin: 0 0 10px; }
+.community-rank-text { flex: 1; min-width: 0; }
+.community-points-big { display: grid; justify-items: end; line-height: 1; }
+.community-points-big strong { font-size: 2.1rem; font-weight: 800; color: var(--tree); }
+.community-points-big span { margin-top: 3px; font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.community-badge-chip { width: 40px; height: 40px; color: var(--c-reward-ink); background: radial-gradient(circle at 35% 30%, #fff, var(--c-reward-tint)); box-shadow: inset 0 0 0 2px var(--c-reward), var(--c-lift); }
+.community-badge-chip .community-icon { width: 22px; height: 22px; }
+.community-badge-chips { gap: 6px; }
+.community-actions { margin: 12px 0; }
+.community-action-card { border-radius: var(--c-radius); border: 1px solid rgba(47, 111, 78, 0.3); background: #f1f7f2; overflow: hidden; }
+.community-action-card .community-action-row { border: 0; border-radius: 0; background: none; }
+.community-action-card .community-action-row:hover { background: #e8f1ea; }
+.community-action-card .community-intro { display: block; padding: 0 14px 10px 66px; font-size: 0.78rem; line-height: 1.35; color: var(--muted); }
+.community-action-card .community-intro:hover { background: none; }
+.community-action-card .community-intro u { color: var(--tree); font-weight: 700; }

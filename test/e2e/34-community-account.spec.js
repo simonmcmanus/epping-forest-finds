@@ -18,7 +18,7 @@ test.describe("Community sign-in", () => {
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: false }) })
     );
     await setup(page, "/community");
-    await expect(page.locator("#communityAccount")).toContainText("Keep your points on any device");
+    await expect(page.locator("#communityAccount")).toContainText("Sign in to take your points with you");
     await expect(page.locator("#communityAccount a[href^='/api/auth/login']")).toBeVisible();
     await expect(page.locator(".community-contributions")).toBeVisible();
   });
@@ -28,9 +28,6 @@ test.describe("Community sign-in", () => {
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: false }) })
     );
     await setup(page, "/community");
-    await expect(page.locator(".community-account-banner")).toBeVisible();
-    await page.click("[data-action='community-signin-dismiss']");
-    await expect(page.locator(".community-account-banner")).toHaveCount(0);
     await expect(page.locator(".community-account-quiet a[href^='/api/auth/login']")).toBeVisible();
   });
 
@@ -160,7 +157,7 @@ test.describe("Community sign-in: history, account switching, storage", () => {
     await expect(page.locator(".community-log-item")).toHaveCount(1);
     me = { signedIn: false };
     await page.reload();
-    await expect(page.locator("#communityAccount")).toContainText("Keep your points on any device");
+    await expect(page.locator("#communityAccount")).toContainText("Sign in to take your points with you");
     await expect(page.locator(".community-log-item")).toHaveCount(0);
     me = { signedIn: true, name: "Alex", account: "acct-bbbb" };
     await page.reload();

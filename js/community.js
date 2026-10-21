@@ -1518,13 +1518,15 @@ function communityLogSectionHtml() {
 // What a walker can do right now. The first row goes to the map, where a tree's own page has the check.
 function communityActionsHtml() {
   const located = typeof hasRealLocation === "function" && hasRealLocation();
-  return `<section class="settings-section community-actions">
-      <h3 class="settings-section-title">Do something now</h3>
-      <a class="community-action-row" href="/nearby/trees">
-        <span class="community-action-icon">${communityIcon("locate")}</span>
-        <span class="community-action-text"><strong>Check trees near you</strong><span>${located ? "Walk up to a tree and tap Verify to earn a point" : "Turn on location to earn points for checks"}</span></span>
-        ${communityIcon("chevron")}
-      </a>
+  return `<section class="community-actions">
+      <div class="community-action-card">
+        <a class="community-action-row" href="/nearby/trees">
+          <span class="community-action-icon">${communityIcon("locate")}</span>
+          <span class="community-action-text"><strong>Check trees near you</strong><span>${located ? "Walk up to a tree and tap Verify to earn a point" : "Turn on location to earn points for checks"}</span></span>
+          ${communityIcon("chevron")}
+        </a>
+        <a class="community-intro" href="${COMMUNITY_EXPLAINER_URL}" target="_blank" rel="noopener"><span>Help keep the map right: check, add and fix data to earn points.</span> <u>How it works</u></a>
+      </div>
     </section>`;
 }
 
@@ -1604,6 +1606,7 @@ async function communityRenderContributions() {
           <p class="community-rank"><strong>${escapeHtml(rank.name)}</strong>${communityBadgeChipsHtml(score, local)}</p>
           <p class="community-rank-points">${score.points} ${score.points === 1 ? "point" : "points"} · ${toNext}</p>
         </div>
+        <div class="community-points-big" aria-hidden="true"><strong>${score.points}</strong><span>${score.points === 1 ? "point" : "points"}</span></div>
       </div>
       <div class="community-progress" role="progressbar" aria-label="Progress to the next rank" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${progress}" aria-valuetext="${escapeHtml(rank.name)}, ${progress}% of the way to ${escapeHtml(rank.next ? rank.next.name : "the top rank")}"><span style="width:${progress}%"></span></div>
       <div class="community-stats">
@@ -1741,19 +1744,11 @@ function communityRenderAccount(account, note = "") {
   // The backup disclosure keeps its open state, typed code and status across redraws of the card.
   const keptRecover = host.querySelector(".community-recover") || communityStashedRecover;
   communityStashedRecover = null;
+  // One quiet line at the top of the screen; the backup disclosure only exists while signed out.
   host.innerHTML = account && account.signedIn
-    ? `<div class="community-account-card">
-        <p class="community-account-text">Signed in as <strong>${escapeHtml(account.name)}</strong>. Your points follow you to any device you sign in on.</p>
-        <a class="community-chip" href="/api/auth/logout?return=/community">Sign out</a>${noteHtml}
-      </div>`
-    : communitySigninDismissed() && !note
-      ? `<div class="community-account-card community-account-compact"><p class="community-account-quiet"><a href="/api/auth/login?return=/community">Sign in to keep your points on any device</a></p>${communityRecoveryHtml()}</div>`
-      : `<div class="community-account-card community-account-banner">
-        <p class="community-account-text"><strong>Keep your points on any device</strong> Sign in with a social account or email. You can still check trees without signing in.</p>
-        <a class="community-chip" href="/api/auth/login?return=/community">Sign in</a>
-        <button type="button" class="community-banner-dismiss" data-action="community-signin-dismiss" aria-label="Hide this for now">${communityIcon("x")}</button>${noteHtml}
-        ${communityRecoveryHtml()}
-      </div>`;
+    ? `<p class="community-account-line">Signed in as <strong>${escapeHtml(account.name)}</strong>. <a href="/api/auth/logout?return=/community">Sign out</a></p>${noteHtml}`
+    : `<p class="community-account-line community-account-quiet"><a href="/api/auth/login?return=/community">Sign in to take your points with you</a></p>${noteHtml}
+      ${communityRecoveryHtml()}`;
   const fresh = host.querySelector(".community-recover");
   if (keptRecover && fresh) fresh.replaceWith(keptRecover);
 }
