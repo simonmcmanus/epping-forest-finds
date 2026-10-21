@@ -521,34 +521,6 @@ function setupInspectorHandlers() {
     setInspectorMinimized(false);
   });
 
-  if (els.locationGateButton) {
-    els.locationGateButton.addEventListener("click", async () => {
-      els.locationGateButton.disabled = true;
-      if (!hasRealLocation()) {
-        ensureTrackingConsent();
-        locateUser({ initial: false });
-        // Button re-enabled by setLocationGateVisible(true) when locateUser's callbacks
-        // re-show the gate (error message or compass prompt), or stays disabled if gate hides.
-      } else {
-        await requestCompassPermissionIfNeeded({ fromGesture: true });
-        if (state.compassPermission === "granted") {
-          setLocationGateVisible(false);
-          updateCompassOverlay();
-        } else {
-          // A refused compass no longer opens the gate, so the button never needs re-enabling
-          // here -- kept as a guard in case the gate was left disabled by an earlier tap.
-          if (els.locationGateButton.disabled) els.locationGateButton.disabled = false;
-        }
-      }
-    });
-  }
-
-  if (els.locationGateDismiss) {
-    els.locationGateDismiss.addEventListener("click", () => {
-      setLocationGateVisible(false);
-    });
-  }
-
   if (els.distanceWarningButton) {
     els.distanceWarningButton.addEventListener("click", () => {
       state.distanceWarningShown = true;
@@ -2109,43 +2081,3 @@ function activateModalFocus(container, { onEscape } = {}) {
   };
 }
 if (typeof globalThis !== "undefined") globalThis.activateModalFocus = activateModalFocus;
-
-// dismissible (js/app.js's revealNoRealLocation) shows the "Maybe later" button and answers
-// Escape the same way, for the invite-only prompts shown once DEFAULT_LOCATION's High Beach
-// stand-in has already made the map usable. Every hard-stop case (blocked permission, no
-// geolocation support at all, the compass-only prompt) still omits it, since there the map
-// has nothing of its own to fall back on and the button is the only way forward.
-function setLocationGateVisible(visible, message, buttonLabel, title, { dismissible = false } = {}) {
-  if (!els.locationGate) return;
-  if (visible) {
-    els.locationGate.classList.remove("fading-out");
-    els.locationGate.hidden = false;
-    if (els.locationGateButton) els.locationGateButton.disabled = false;
-    if (els.locationGateDismiss) els.locationGateDismiss.hidden = !dismissible;
-    if (!els.locationGate._deactivateFocus) {
-      els.locationGate._deactivateFocus = activateModalFocus(
-        els.locationGate,
-        dismissible ? { onEscape: () => setLocationGateVisible(false) } : undefined
-      );
-    }
-  } else {
-    if (els.locationGate._deactivateFocus) {
-      els.locationGate._deactivateFocus();
-      els.locationGate._deactivateFocus = null;
-    }
-    // When the gate is dismissed (all permissions granted), show loading overlay if data isn't ready yet
-    if (!state.dataLoaded && els.loadingOverlay) {
-      els.loadingOverlay.hidden = false;
-    }
-    hideWithFade(els.locationGate);
-  }
-  if (title && els.locationGateTitle) {
-    els.locationGateTitle.textContent = title;
-  }
-  if (message && els.locationGateMessage) {
-    els.locationGateMessage.textContent = message;
-  }
-  if (els.locationGateButton) {
-    els.locationGateButton.textContent = buttonLabel || "Enable location to continue";
-  }
-}

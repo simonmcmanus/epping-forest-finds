@@ -308,7 +308,6 @@ globalThis.__forestFindsTest = {
   DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES,
   applyDefaultLocation,
   hasRealLocation,
-  setLocationGateVisible,
   ROUTE_PATHS,
   NEARBY_PATH,
   applyWalkingRadiusChange,
@@ -2391,28 +2390,13 @@ test("the inspector has no standalone location button", () => {
   assert.equal(app.els.locateButton, undefined, "location permission is requested from the focused gate, not a second Nearby control");
 });
 
-test("setLocationGateVisible shows its dismiss button only when told the prompt is dismissible", () => {
-  const localApp = loadAppForTests();
-
-  localApp.setLocationGateVisible(true, "Permission was blocked.", "Enable location");
-  assert.equal(localApp.els.locationGateDismiss.hidden, true, "a hard-stop prompt offers no way to brush it off");
-
-  localApp.setLocationGateVisible(true, "Compass access was blocked.", "Allow compass access", "Compass unavailable", { dismissible: true });
-  assert.equal(localApp.els.locationGateDismiss.hidden, false, "a dismissible call shows the way to brush it off");
-
-  localApp.setLocationGateVisible(true, "Permission was blocked again.", "Enable location");
-  assert.equal(localApp.els.locationGateDismiss.hidden, true, "a later hard-stop call hides it again rather than leaking the previous call's flag");
-});
-
-test("the location gate button asks for location whenever there is no real fix, default location included", () => {
+test("the blocking location gate has been removed", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
   const nav = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
-  const handlerMatch = /locationGateButton\.addEventListener\("click", async \(\) => \{[\s\S]{0,400}/.exec(nav);
-  assert.ok(handlerMatch, "locationGateButton's click handler must exist");
-  assert.match(
-    handlerMatch[0],
-    /hasRealLocation\(\)/,
-    "the handler must branch on hasRealLocation(), not state.userLocation's bare truthiness -- otherwise the default location's own stand-in would be mistaken for a real fix and the button would try to request compass permission instead of location"
-  );
+  const app = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
+  assert.doesNotMatch(html, /locationGate|Allow location access/);
+  assert.doesNotMatch(nav, /locationGate|setLocationGateVisible/);
+  assert.doesNotMatch(app, /locationGate|setLocationGateVisible/);
 });
 
 test("drawUser never draws the \"You\" dot for the default location, only for a real fix", () => {
@@ -4889,28 +4873,16 @@ test("select_map_item GA event carries a specific venue category for landmarks, 
   }
 });
 
-test("the location gate and onboarding's location step disclose the same location/usage tracking, but onboarding also covers the merged cookie choice", () => {
-  const appHtml = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
+test("onboarding's location step discloses location, usage tracking, and the merged cookie choice", () => {
   const onboardingSource = fs.readFileSync(path.join(__dirname, "..", "js", "onboarding.js"), "utf8");
 
-  const gateNoteMatch = appHtml.match(/<p class="privacy-note">([\s\S]*?)<\/p>/);
   const onboardingNoteMatch = onboardingSource.match(/<p class="privacy-note">([\s\S]*?)<\/p>/);
 
-  assert.ok(gateNoteMatch, "the location gate should show a .privacy-note disclosure");
   assert.ok(onboardingNoteMatch, "the onboarding location step should show a .privacy-note disclosure");
-  // Both still disclose the same first-party location/usage tracking and the same withdrawal
-  // path -- the location gate has no decline option, so it never took on the cookie-banner's
-  // job and keeps the original single-purpose wording. Onboarding's location step does have a
-  // real "Skip for now" alternative, so it stands in for the independent cookie-consent banner
-  // (suppressed while onboarding is open -- see cookie-consent.js) and its note says so.
-  assert.match(gateNoteMatch[1], /We collect anonymous usage data \(GPS position, navigation, interactions\)/);
   assert.match(onboardingNoteMatch[1], /We collect anonymous usage data \(GPS position, navigation, interactions\)/);
   assert.match(onboardingNoteMatch[1], /analytics cookies/, "onboarding's note must disclose the merged cookie consent");
-  assert.doesNotMatch(gateNoteMatch[1], /analytics cookies/, "the location gate never decides cookie consent, so it should not claim to");
-  for (const note of [gateNoteMatch[1], onboardingNoteMatch[1]]) {
-    assert.match(note, /Settings → Privacy/);
-    assert.match(note, /<a href="\/terms\.html" target="_blank" rel="noopener">Privacy Policy<\/a>/);
-  }
+  assert.match(onboardingNoteMatch[1], /Settings → Privacy/);
+  assert.match(onboardingNoteMatch[1], /<a href="\/terms\.html" target="_blank" rel="noopener">Privacy Policy<\/a>/);
 });
 
 test("settings form offers separate data, app and combined refresh buttons", () => {
@@ -6027,50 +5999,19 @@ test("local dev server serves sw.js with its own dev-flagging route, not the gen
   assert.match(serverSource, /injectDevFlag\(/, "server.js must run sw.js through injectDevFlag before responding");
 });
 
-test("location gate button is re-enabled when the gate is made visible", () => {
-  const localApp = loadAppForTests();
-  const btn = localApp.els.locationGateButton;
-
-  // Simulate the button being disabled (e.g. from a previous click)
-  btn.disabled = true;
-
-  // setLocationGateVisible(true) must re-enable it so the user can tap again
-  // after the gate reappears with a new message (compass prompt, error, etc.)
-  localApp.els.locationGate.hidden = false;
-  // Call via the nav module — it's exposed on app context via the same VM
-  // We test the contract by verifying setLocationGateVisible resets disabled state.
-  // We exercise this by showing the gate and checking the button is re-enabled.
-  // The function is not directly exported, so we verify the behaviour through the
-  // observable state after the gate is shown from nav.js internals.
-  // The simplest proxy: locationGate is currently visible; calling the function
-  // with visible=true should always ensure the button is not disabled.
-
-  // Re-use the hideWithFade helper to put gate into fading state, then show it again
-  localApp.els.locationGate.hidden = false;
-  localApp.els.locationGate.classList.add("fading-out");
-  btn.disabled = true;
-
-  // Force the gate back to visible (mimics setLocationGateVisible(true, ...))
-  localApp.els.locationGate.classList.remove("fading-out");
-  localApp.els.locationGate.hidden = false;
-  // setLocationGateVisible does: if (els.locationGateButton) els.locationGateButton.disabled = false;
-  btn.disabled = false;
-
-  assert.equal(btn.disabled, false, "button must be re-enabled whenever the gate becomes visible");
+test("location gate button is no longer present", () => {
+  const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
+  assert.doesNotMatch(html, /locationGate|Allow location access/);
 });
 
 test("nav.js setLocationGateVisible re-enables button on show via source code check", () => {
   const nav = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
-  assert.match(
-    nav,
-    /setLocationGateVisible[\s\S]{0,500}locationGateButton\.disabled\s*=\s*false/,
-    "setLocationGateVisible must re-enable locationGateButton when gate is shown"
-  );
+  assert.doesNotMatch(nav, /setLocationGateVisible|locationGateButton/);
 });
 
 test("nav.js locationGateButton handler disables button immediately on click for visual feedback", () => {
   const nav = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
-  assert.match(
+  assert.doesNotMatch(
     nav,
     /locationGateButton\.addEventListener[\s\S]{0,100}locationGateButton\.disabled\s*=\s*true/,
     "locationGateButton click handler must disable the button immediately to give visual feedback"
@@ -10427,7 +10368,6 @@ test("the map inventory counts far more than the food places alone", () => {
 test("the app's modal overlays declare dialog role, modal state and an accessible name", () => {
   const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
 
-  assert.match(html, /id="locationGate"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-labelledby="locationGateTitle"/);
   assert.match(html, /id="distanceWarning"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-labelledby="distanceWarningTitle"/);
   assert.match(html, /id="onboardingOverlay"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-label="[^"]+"/);
 });
