@@ -35,6 +35,10 @@
 
 [[edge_functions]]
   function = "alpha-gate"
+  path = "/community"
+
+[[edge_functions]]
+  function = "alpha-gate"
   path = "/app.html"
 
 # /app is retired to a permanent redirect to /nearby, the app's new
@@ -91,6 +95,25 @@
   to = "/app.html"
   status = 200
 
+[[redirects]]
+  from = "/community"
+  to = "/app.html"
+  status = 200
+
+# Public, ungated: the City of London discrepancy report (rendered by a function from the daily
+# community snapshot) and, as a static page, /contribute (contribute/index.html).
+[[redirects]]
+  from = "/reports/tree-report"
+  to = "/.netlify/functions/tree-report"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/reports/tree-report/"
+  to = "/.netlify/functions/tree-report"
+  status = 200
+  force = true
+
 # /report is the screen's old path; published ledgers still link to it.
 [[redirects]]
   from = "/report"
@@ -117,7 +140,79 @@
   force = true
 
 [[redirects]]
+  from = "/api/features"
+  to = "/.netlify/functions/features"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/subscribe"
   to = "/.netlify/functions/subscribe"
+  status = 200
+  force = true
+
+[functions."community-rebuild-scheduled"]
+  schedule = "@hourly"
+
+[functions."community-validate-scheduled"]
+  schedule = "@daily"
+
+[[redirects]]
+  from = "/api/community/rebuild"
+  to = "/.netlify/functions/community-rebuild"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/auth/login"
+  to = "/.netlify/functions/auth-login"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/auth/callback"
+  to = "/.netlify/functions/auth-callback"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/auth/me"
+  to = "/.netlify/functions/auth-me"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/auth/link"
+  to = "/.netlify/functions/auth-link"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/auth/logout"
+  to = "/.netlify/functions/auth-logout"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/community/delete"
+  to = "/.netlify/functions/community-delete"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/community/validate"
+  to = "/.netlify/functions/community-validate"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/community/report"
+  to = "/.netlify/functions/community-report"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/community/overlay"
+  to = "/.netlify/functions/community-overlay"
   status = 200
   force = true

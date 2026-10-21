@@ -21,6 +21,16 @@ test.describe("URL navigation", () => {
       await expect(page.locator("#settingsWalkMins")).toBeVisible();
     });
 
+    test("navigating to /community opens the Community screen on load", async ({ page }) => {
+      await skipOnboarding(page);
+      await mockCowApi(page);
+      await gotoAndWaitForMap(page, "/community");
+      await expect(page).toHaveURL(/\/community$/);
+      await expect(page.locator("#reportToggle")).toHaveClass(/screen-active/);
+      await expect(page.locator("#inspectorTitle").last()).toContainText("Community");
+      await expect(page.locator(".community-intro")).toContainText("Help keep the map right");
+    });
+
     test("navigating to /feedback opens the feedback screen on load", async ({ page }) => {
       await skipOnboarding(page);
       await mockCowApi(page);

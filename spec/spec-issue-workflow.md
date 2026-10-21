@@ -14,6 +14,10 @@
 - The job guards against re-triggering on its own comments/edits by skipping events where `sender.login` is `claude[bot]`. This workflow never implements anything or opens a PR itself — for a confirmed simple data correction it only applies the `claude` label; everything else needs a human to label it or otherwise act.
 - The job has a 10-minute `timeout-minutes` so a hung run fails visibly instead of leaving the tracking comment stuck on "🤔 Thinking…" indefinitely — the next retrigger posts a fresh comment regardless.
 
+## Place checks
+
+Issues labelled `place-check` are structured community reports (a place is closed / moved / renamed / has wrong details), created by `netlify/functions/report-missing-data.js` (see `spec-community.md`). They are for manual review only: `issue-clarify.yml` skips any issue carrying that label (including on later comments), so the clarification bot never asks the reporter questions about them. They are not auto-labelled `claude`. A repeat report about the same place is added as a comment on the open issue (matched by the `place-key:` marker in the body).
+
 ## PR Assistant Workflow
 
 - `.github/workflows/claude-pr.yml` runs `anthropics/claude-code-action@v1` (same `CLAUDE_CODE_OAUTH_TOKEN` secret) on `issue_comment: created`, gated to only pull request threads (`github.event.issue.pull_request`) containing `@claude`, and skipping the bot's own comments.

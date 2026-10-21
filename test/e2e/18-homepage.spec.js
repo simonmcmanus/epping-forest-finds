@@ -224,6 +224,7 @@ test.describe("the marketing homepage", () => {
     await expect(page.getByRole("heading", { name: /Get to know the old trees/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Follow the longhorns/i })).toBeVisible();
     await expect(page.locator(".hero + .ledger + .counts + .signup + .pillars + #find-trees")).toHaveCount(1);
+    await expect(page.locator("#find-trees + #community")).toHaveCount(1);
     for (const card of await page.locator(".pillars article").all()) {
       await expect(card).toHaveCSS("border-radius", "14px");
       await expect(card).not.toHaveCSS("box-shadow", "none");
@@ -428,7 +429,7 @@ test.describe("the marketing homepage", () => {
 
     const faq = page.locator(".faq-list");
     await expect(faq).toHaveCSS("border-radius", "14px");
-    await expect(faq.locator(".faq-item")).toHaveCount(5);
+    await expect(faq.locator(".faq-item")).toHaveCount(6);
     await expect(faq.locator(".faq-item + .faq-item").first()).toHaveCSS("border-top-style", "solid");
   });
 
@@ -735,3 +736,21 @@ for (const [label, url] of [["homepage", "/"], ["ledger", "/reports/epping-fores
     });
   }
 }
+
+test.describe("homepage community section", () => {
+  test("the homepage explains community checks briefly and links to the full explanation", async ({ page }) => {
+    await page.goto("/");
+    const section = page.locator("#community");
+    await expect(section.locator("h2")).toHaveText("Help keep the map right");
+    await expect(section.locator(".community-points li")).toHaveCount(3);
+    await expect(section.locator("a.cta-btn")).toHaveAttribute("href", "/contribute");
+    // the visible FAQ answer and its JSON-LD say the same thing
+    const faq = page.locator("#faq-correct");
+    await expect(faq.locator("dt")).toContainText("Can I correct something that’s wrong?");
+    const data = JSON.parse(await page.locator('script[type="application/ld+json"]').textContent());
+    const entries = (data["@graph"] || [data]).flatMap((node) => node.mainEntity || []);
+    const entry = entries.find((q) => q.name === "Can I correct something that’s wrong?");
+    expect(entry).toBeTruthy();
+    expect((await faq.locator("dd").innerText()).replace(/\s+/g, " ").trim()).toBe(entry.acceptedAnswer.text);
+  });
+});

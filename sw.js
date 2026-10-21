@@ -12,6 +12,12 @@ const IS_DEV = self.__DEV__ === true;
 importScripts("./js/app-cache-version.js", "./js/data-cache-version.js");
 const APP_CACHE_NAME = `forest-finds-app-${APP_CACHE_VERSION}`;
 const DATA_CACHE_NAME = `forest-finds-data-${DATA_CACHE_VERSION}`;
+// Community findings (/api/community/overlay) change daily and are not part of data/**, so they
+// live in a cache of their own with its own version: bumping it never touches the app or data
+// caches (and vice versa). Bump COMMUNITY_CACHE_VERSION only if the overlay's shape changes.
+const COMMUNITY_CACHE_VERSION = 1;
+const COMMUNITY_CACHE_NAME = `forest-finds-community-v${COMMUNITY_CACHE_VERSION}`;
+const COMMUNITY_OVERLAY_PATH = "/api/community/overlay";
 
 // APP_SHELL: Critical app code only — install blocks until all succeed
 // "./" is deliberately absent: after the alpha URL split it resolves to the
@@ -40,6 +46,8 @@ const APP_SHELL = [
   "./js/nav.js",
   "./js/onboarding.js",
   "./js/tracker.js",
+  "./js/outbox.js",
+  "./js/community.js",
   "./js/app.js",
 ];
 
@@ -211,7 +219,7 @@ const DATA_CACHE_OPPORTUNISTIC = [
 // server.js), so it is deliberately left to the network like any other unrecognised path.
 // Anything else -- the homepage, the reports, the terms page -- is a network page the app
 // cache must not answer for.
-const APP_SCREEN_PATHS = new Set(["/nearby", "/nearby/search", "/nearby/filter", "/settings", "/feedback"]);
+const APP_SCREEN_PATHS = new Set(["/nearby", "/nearby/search", "/nearby/filter", "/settings", "/feedback", "/community"]);
 // Every one of these five (plus app.html itself) returns byte-identical content -- they're the
 // same static file, reached by different client-side routes layered on top of it -- so caching
 // "whatever was last fetched" under the one shared "./app.html" key (see the navigate branch in
@@ -358,7 +366,7 @@ self.addEventListener("activate", (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((key) => key !== APP_CACHE_NAME && key !== DATA_CACHE_NAME)
+          .filter((key) => key !== APP_CACHE_NAME && key !== DATA_CACHE_NAME && key !== COMMUNITY_CACHE_NAME)
           .map((key) => caches.delete(key))
       )
     ).then(() => self.clients.claim())
@@ -479,6 +487,32 @@ self.addEventListener("fetch", (event) => {
 
   // Marketing ships independently: never read or write its assets in app caches.
   if (requestUrl.pathname.startsWith("/assets/home/")) return;
+
+  // The community overlay is served stale-while-revalidate from its own cache: instant (and
+  // available offline) from the last copy, refreshed from the network in the background. The
+  // per-user score query (?me=) is not cached.
+  if (
+    requestUrl.origin === self.location.origin &&
+    requestUrl.pathname === COMMUNITY_OVERLAY_PATH &&
+    !requestUrl.search &&
+    event.request.method === "GET"
+  ) {
+    event.respondWith(
+      caches.open(COMMUNITY_CACHE_NAME).then(async (cache) => {
+        const cached = await cache.match(event.request);
+        const fromNetwork = fetch(event.request).then((response) => {
+          if (response.ok) cache.put(event.request, response.clone());
+          return response;
+        });
+        if (cached) {
+          fromNetwork.catch(() => {});
+          return cached;
+        }
+        return fromNetwork;
+      })
+    );
+    return;
+  }
 
   // Always bypass cache for API and admin requests
   if (

@@ -35,7 +35,7 @@ front door:
 | `/` | Marketing homepage — explains the app, ranks in search, collects sign-ups | Everyone |
 | `/nearby` | The map application's entry point (`/app` redirects here) | Invited alpha users; everyone after launch |
 | `/reports/` | Weekly Epping Forest Ledger | Everyone — the main organic discovery path |
-| `/terms.html` | Privacy & terms | Everyone |
+| `/terms.html` | Privacy & terms (including Community checks and optional sign-in, §13) | Everyone |
 
 At the end of the alpha the homepage stays exactly where it is. Only the
 call-to-action element changes (§8). No URL moves, no redirects are added, and
@@ -1234,3 +1234,10 @@ anything that depends on the gate's state must be exercised through
 - No pricing, testimonials, or team page.
 - No app store badges until the native builds in
   [spec-native.md](spec-native.md) actually ship.
+
+
+## Community checks: homepage section and explainer
+
+- **Homepage section** (`#community`, "Help keep the map right"): sits directly after the tree-tags section (`#find-trees`) and before the offline section. A short lead, three points (check a tree, add a missing tree, flag a place), and a closing paragraph saying the City of London's register stays the record, that enough agreement marks a tree as questioned, that findings are passed to the City of London, and that points are earned. One call to action to `/contribute`. No counts, no claims about timing beyond what the explainer says.
+- **FAQ**: an extra "Can I correct something that's wrong?" item (`#faq-correct`, between the free and cattle items) with matching JSON-LD wording and a link to the explainer.
+- **Explainer** `/contribute` (`contribute/index.html`): a static public page, linked from the homepage and from the Community screen's "How it works" link. It covers the short version, checking a tree, adding a missing tree (tag number and an accurate close location are required), checking a place (a person reviews every change), what happens to reports (daily comparison, the City of London export), points and ranks, and privacy. Marketing surface: independent styles, no app imports. Listed in the sitemap. It must be updated whenever the community rules in `spec-community.md` change.

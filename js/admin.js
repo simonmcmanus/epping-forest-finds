@@ -1359,6 +1359,36 @@ async function loadData(password) {
   return data;
 }
 
+// Community verification usage (netlify/functions/community-overlay.js ?admin=1).
+async function loadCommunityStats(password) {
+  const resp = await fetch("/api/community/overlay?admin=1", { headers: { Authorization: `Bearer ${password}` } });
+  if (!resp.ok) throw new Error(`Server error ${resp.status}`);
+  return resp.json();
+}
+
+function renderCommunityStats(stats) {
+  const row = (label, value) => `<tr><th scope="row">${label}</th><td>${value}</td></tr>`;
+  const statusRows = Object.entries(stats.byStatus || {}).sort((a, b) => b[1] - a[1])
+    .map(([status, n]) => row(status, n)).join("");
+  const days = Object.entries(stats.perDay || {}).sort().slice(-7)
+    .map(([day, n]) => row(day, n)).join("");
+  return `<h3>Community verification</h3>
+    <p><button type="button" class="admin-btn" id="communityRebuildBtn">Rebuild snapshot now</button> <button type="button" class="admin-btn" id="communityValidateBtn">Run reward check now</button> <span id="communityValidateResult"></span></p>
+    <p><a href="/reports/tree-report" target="_blank" rel="noopener">City of London discrepancy report</a> · <a href="/reports/tree-report?format=csv">CSV</a></p>
+    <table>
+      ${row("People reporting (all time)", stats.devices)}
+      ${row("Active, last 24 h / 7 days", `${stats.activeDevices1d} / ${stats.activeDevices7d}`)}
+      ${row("Reports", stats.reports)}
+      ${row("Trees questioned", stats.questioned)}
+      ${row("Trees verified", stats.verified)}
+      ${row("New trees (unconfirmed / confirmed)", `${stats.newTreesUnconfirmed} / ${stats.newTreesConfirmed}`)}
+      ${row("Conflicts awaiting review", stats.conflicts)}
+      ${row("Points awarded", stats.totalPoints)}
+    </table>
+    <h4>By report type</h4><table>${statusRows || row("None yet", "")}</table>
+    <h4>Last 7 days with reports</h4><table>${days || row("None yet", "")}</table>`;
+}
+
 function readSessionPassword() {
   try {
     return sessionStorage.getItem(ADMIN_SESSION_KEY) || "";
@@ -1396,6 +1426,9 @@ async function adminBoot() {
   const zoomOutBtn = document.getElementById("zoomOutBtn");
   const resetMapBtn = document.getElementById("resetMapBtn");
   const clickDetailsClose = document.getElementById("adminClickDetailsClose");
+  const communityBtn = document.getElementById("communityBtn");
+  const communityPanel = document.getElementById("adminCommunity");
+  const communityBody = document.getElementById("adminCommunityBody");
 
   let password = "";
   readSavedViewport();
@@ -1489,6 +1522,84 @@ async function adminBoot() {
     tracksBtn.classList.remove("active");
     render();
   });
+
+  communityBtn.addEventListener("click", async () => {
+    communityPanel.hidden = false;
+    communityBody.textContent = "Loading…";
+    try {
+      communityBody.innerHTML = renderCommunityStats(await loadCommunityStats(password));
+      const rebuildBtn = document.getElementById("communityRebuildBtn");
+      if (rebuildBtn) {
+        rebuildBtn.addEventListener("click", async () => {
+          rebuildBtn.disabled = true;
+          const result = document.getElementById("communityValidateResult");
+          try {
+            const resp = await fetch("/api/community/rebuild", { headers: { Authorization: `Bearer ${password}` } });
+            const data = await resp.json();
+            result.textContent = resp.ok ? `Rebuilt from ${data.reports} reports (${data.targets} trees on the overlay).` : `Failed (${resp.status})`;
+          } catch (error) {
+            result.textContent = "Could not rebuild.";
+          }
+          rebuildBtn.disabled = false;
+        });
+      }
+      const validateBtn = document.getElementById("communityValidateBtn");
+      if (validateBtn) {
+        validateBtn.addEventListener("click", async () => {
+          validateBtn.disabled = true;
+          const result = document.getElementById("communityValidateResult");
+          try {
+            const resp = await fetch("/api/community/validate", { headers: { Authorization: `Bearer ${password}` } });
+            const data = await resp.json();
+            result.textContent = resp.ok
+              ? `Register checked: ${data.registerChecked ? "yes" : "no"}${data.baseline ? " (baseline recorded)" : ""}. New register rewards: ${data.newRegisterRewards}. Issue rewards: ${data.issueRewards}.${data.issueError ? " GitHub: " + data.issueError : ""}`
+              : `Failed (${resp.status})`;
+          } catch (error) {
+            result.textContent = "Could not run the check.";
+          }
+          validateBtn.disabled = false;
+        });
+      }
+    } catch (error) {
+      communityBody.textContent = `Could not load community stats (${error.message}).`;
+    }
+  });
+  document.getElementById("adminCommunityClose").addEventListener("click", () => { communityPanel.hidden = true; });
+
+  // Early-access list: who sees the gated Community features. Stored server-side, so no deploy to change it.
+  const accessPanel = document.getElementById("adminAccess");
+  const accessList = document.getElementById("adminAccessList");
+  const accessStatus = document.getElementById("adminAccessStatus");
+  document.getElementById("accessBtn").addEventListener("click", async () => {
+    accessPanel.hidden = false;
+    accessStatus.textContent = "Loading…";
+    try {
+      const resp = await fetch("/api/features?admin=1", { headers: { Authorization: `Bearer ${password}` } });
+      if (!resp.ok) throw new Error(resp.status);
+      const data = await resp.json();
+      accessList.value = (data.community || []).map((e) => `${e.id}${e.note ? ` ${e.note}` : ""}`).join("\n");
+      accessStatus.textContent = "";
+    } catch (error) {
+      accessStatus.textContent = `Could not load (${error.message}).`;
+    }
+  });
+  document.getElementById("adminAccessSave").addEventListener("click", async () => {
+    const community = accessList.value.split("\n").map((line) => line.trim()).filter(Boolean).map((line) => {
+      const [id, ...rest] = line.split(/\s+/);
+      return { id, note: rest.join(" ") };
+    });
+    accessStatus.textContent = "Saving…";
+    try {
+      const resp = await fetch("/api/features", { method: "POST", headers: { Authorization: `Bearer ${password}`, "Content-Type": "application/json" }, body: JSON.stringify({ community }) });
+      if (!resp.ok) throw new Error(resp.status);
+      const saved = await resp.json();
+      accessList.value = saved.community.map((e) => `${e.id}${e.note ? ` ${e.note}` : ""}`).join("\n");
+      accessStatus.textContent = `Saved ${saved.community.length} tester${saved.community.length === 1 ? "" : "s"}. Lines that are not a 10-character ID were dropped.`;
+    } catch (error) {
+      accessStatus.textContent = `Could not save (${error.message}).`;
+    }
+  });
+  document.getElementById("adminAccessClose").addEventListener("click", () => { accessPanel.hidden = true; });
 
   tracksBtn.addEventListener("click", () => {
     viewMode = "tracks";

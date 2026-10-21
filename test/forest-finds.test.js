@@ -78,7 +78,7 @@ function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
   assert.ok(appSource.trim(), "js/app.js should contain the app script");
 
   const elements = new Map();
-  const storage = new Map(Object.entries(initialLocalStorage));
+  const storage = new Map(Object.entries({ "ff-features-v1": JSON.stringify({ community: true }), ...initialLocalStorage }));
   const localStorage = {
     getItem(key) {
       return storage.get(String(key)) ?? null;
@@ -571,6 +571,22 @@ globalThis.__forestFindsTest = {
   orientationHeadingSource,
   animationLoopsWedged,
   recoverWedgedAnimationFrames,
+  communityRank,
+  communityMedalHtml,
+  communityWeekDays,
+  communityBadgeProgress,
+  communityBadgeDetailHtml,
+  COMMUNITY_BADGES,
+  communityRelativeDay,
+  communityPointsChipFor,
+  communityNudgeDecision,
+  communityPendingScore,
+  communityBadges,
+  communityMergeRemoteReports,
+  communityStreaks,
+  communityDisplayScore,
+  COMMUNITY_POINTS,
+  communityParseRecoveryCode,
   HEADING_SOURCE_NONE,
   HEADING_SOURCE_RELATIVE,
   HEADING_SOURCE_ABSOLUTE,
@@ -589,7 +605,7 @@ globalThis.__forestFindsTest = {
   vm.createContext(context);
 
   const rootDir = path.join(__dirname, "..");
-  const externalScripts = ["js/app-cache-version.js", "js/data-cache-version.js", "js/categories.js", "js/normalize.js", "js/tracker.js", "js/onboarding.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/icon-motion.js", "js/renderer.js", "js/inspector.js"];
+  const externalScripts = ["js/app-cache-version.js", "js/data-cache-version.js", "js/categories.js", "js/normalize.js", "js/tracker.js", "js/outbox.js", "js/community.js", "js/onboarding.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/icon-motion.js", "js/renderer.js", "js/inspector.js"];
   for (const externalSrc of externalScripts) {
     const externalPath = path.join(rootDir, externalSrc);
     if (fs.existsSync(externalPath)) {
@@ -10811,6 +10827,1023 @@ test("an admin read of a big tracking store returns the newest blobs and says it
   assert.equal(partial.partial, true);
   assert.equal(partial.items.length, 6, "two batches fit in the budget, a third does not");
   assert.equal(partial.items[0].key, "location/1009_abc", "the newest blob is read first");
+});
+
+// --- Community verification consensus (netlify/functions/lib/community-consensus.js) ---
+const communityConsensus = require("../netlify/functions/lib/community-consensus");
+let communityReportSeq = 0;
+function communityReport(overrides) {
+  communityReportSeq += 1;
+  return {
+    id: `report-${String(communityReportSeq).padStart(4, "0")}`,
+    deviceId: "device-aaaa",
+    kind: "tree",
+    target: "tree:1",
+    status: "VERIFIED",
+    targetLat: 51.64,
+    targetLon: 0.01,
+    lat: 51.64,
+    lon: 0.01,
+    ts: communityReportSeq,
+    ...overrides,
+  };
+}
+
+test("a single missing-tree report does not change what other users see", () => {
+  const { overlay } = communityConsensus.computeCommunityState([
+    communityReport({ status: "NOT_HERE", deviceId: "device-aaaa" }),
+  ]);
+  assert.equal(Object.keys(overlay).length, 0);
+});
+
+test("two independent devices reporting a tree missing mark it questioned, not removed", () => {
+  const { overlay } = communityConsensus.computeCommunityState([
+    communityReport({ status: "NOT_HERE", deviceId: "device-aaaa" }),
+    communityReport({ status: "NOT_HERE", deviceId: "device-bbbb" }),
+  ]);
+  assert.equal(overlay["tree:1"].s, "questioned");
+  assert.equal(overlay["tree:1"].st, "NOT_HERE");
+  assert.equal(overlay["tree:1"].n, 2);
+});
+
+test("one device repeating a report still counts as one voice", () => {
+  const { overlay } = communityConsensus.computeCommunityState([
+    communityReport({ status: "NOT_HERE" }),
+    communityReport({ status: "NOT_HERE" }),
+    communityReport({ status: "NOT_HERE" }),
+  ]);
+  assert.equal(Object.keys(overlay).length, 0);
+});
+
+test("a verified tree scores 1 point, and 1 more when another device independently confirms it", () => {
+  const first = communityConsensus.computeCommunityState([communityReport({ deviceId: "device-aaaa" })]);
+  assert.equal(first.scores["device-aaaa"].points, 1);
+  const both = communityConsensus.computeCommunityState([
+    communityReport({ deviceId: "device-aaaa" }),
+    communityReport({ deviceId: "device-bbbb" }),
+  ]);
+  assert.equal(both.scores["device-aaaa"].points, 2);
+  assert.equal(both.scores["device-bbbb"].points, 2);
+  assert.equal(both.overlay["tree:1"].s, "confirmed");
+});
+
+test("conflicting reports are held for review rather than shown", () => {
+  const { overlay, conflicts } = communityConsensus.computeCommunityState([
+    communityReport({ status: "VERIFIED", deviceId: "device-aaaa" }),
+    communityReport({ status: "NOT_HERE", deviceId: "device-bbbb" }),
+  ]);
+  assert.deepEqual(conflicts, ["tree:1"]);
+  assert.equal(overlay["tree:1"], undefined);
+});
+
+test("a report made from far away earns no points and does not count towards consensus", () => {
+  const { overlay, scores } = communityConsensus.computeCommunityState([
+    communityReport({ status: "NOT_HERE", deviceId: "device-aaaa", lat: 51.7, lon: 0.1 }),
+    communityReport({ status: "NOT_HERE", deviceId: "device-bbbb" }),
+  ]);
+  assert.equal(Object.keys(overlay).length, 0);
+  assert.equal(scores["device-aaaa"].points, 0);
+});
+
+test("a new tree found by a second device is confirmed and earns the finder 4 points", () => {
+  const found = (deviceId, lat) => communityReport({ kind: "tree", status: "NEW_TREE", target: undefined, deviceId, lat, lon: 0.02, targetLat: undefined, targetLon: undefined, tagNumber: "T-9001", accuracy: 8 });
+  const one = communityConsensus.computeCommunityState([found("device-aaaa", 51.65)]);
+  assert.equal(Object.values(one.overlay)[0].s, "new");
+  assert.equal(one.scores["device-aaaa"].points, 1);
+  const two = communityConsensus.computeCommunityState([found("device-aaaa", 51.65), found("device-bbbb", 51.65001)]);
+  assert.equal(Object.values(two.overlay)[0].s, "new-confirmed");
+  assert.equal(two.scores["device-aaaa"].points, 4);
+});
+
+test("a new tree needs its tag number and a close, accurate location", () => {
+  const base = { kind: "tree", status: "NEW_TREE", target: undefined, lat: 51.65, lon: 0.02, targetLat: undefined, targetLon: undefined };
+  assert.equal(communityConsensus.validateReport(communityReport({ ...base, accuracy: 8 })), "a new tree needs its tag number");
+  assert.equal(communityConsensus.validateReport(communityReport({ ...base, tagNumber: "0", accuracy: 8 })), "a new tree needs its tag number");
+  assert.equal(communityConsensus.validateReport(communityReport({ ...base, tagNumber: "7001" })), "location is not accurate enough");
+  assert.equal(communityConsensus.validateReport(communityReport({ ...base, tagNumber: "7001", accuracy: 80 })), "location is not accurate enough");
+  assert.equal(communityConsensus.validateReport(communityReport({ ...base, tagNumber: "7001", accuracy: 12 })), null);
+});
+
+test("two people reporting the same new tag number are the same new tree, wherever the dot fell", () => {
+  const found = (deviceId, lat) => communityReport({ kind: "tree", status: "NEW_TREE", target: undefined, deviceId, lat, lon: 0.02, targetLat: undefined, targetLon: undefined, tagNumber: "t 7001", accuracy: 10 });
+  const { overlay } = communityConsensus.computeCommunityState([found("device-aaaa", 51.65), found("device-bbbb", 51.6503)]);
+  const entries = Object.values(overlay);
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].s, "new-confirmed");
+  assert.equal(entries[0].tag, "t 7001");
+});
+
+test("business reports use their own status set", () => {
+  assert.equal(communityConsensus.statusClass("place", "CLOSED"), "question");
+  assert.equal(communityConsensus.statusClass("place", "NOT_HERE"), null);
+  assert.equal(communityConsensus.validateReport(communityReport({ kind: "place", status: "NOT_HERE" })), "unknown kind/status");
+});
+
+test("a MOVED report must carry the new position", () => {
+  assert.equal(communityConsensus.validateReport(communityReport({ status: "MOVED" })), "MOVED needs newLat/newLon");
+});
+
+test("admin community stats count people, reports and flagged trees", () => {
+  const reports = [
+    communityReport({ status: "NOT_HERE", deviceId: "device-aaaa", ts: Date.now() }),
+    communityReport({ status: "NOT_HERE", deviceId: "device-bbbb", ts: Date.now() }),
+    communityReport({ status: "VERIFIED", deviceId: "device-cccc", target: "tree:2", ts: Date.now() }),
+  ];
+  const stats = communityConsensus.communityAdminStats(reports, communityConsensus.computeCommunityState(reports));
+  assert.equal(stats.devices, 3);
+  assert.equal(stats.reports, 3);
+  assert.equal(stats.questioned, 1);
+  assert.equal(stats.verified, 1);
+  assert.equal(stats.byStatus.NOT_HERE, 2);
+  assert.equal(stats.activeDevices1d, 3);
+});
+
+test("a contributor's own report is Confirmed once others agree and stays Pending until then", () => {
+  const mine = communityReport({ status: "VERIFIED" });
+  assert.equal(communityConsensus.reportOutcome(mine, undefined, []), "pending");
+  assert.equal(communityConsensus.reportOutcome(mine, { s: "verified", n: 1 }, []), "pending");
+  assert.equal(communityConsensus.reportOutcome(mine, { s: "confirmed", n: 2 }, []), "confirmed");
+  const doubt = communityReport({ status: "NOT_HERE" });
+  assert.equal(communityConsensus.reportOutcome(doubt, { s: "questioned", st: "NOT_HERE", n: 2 }, []), "confirmed");
+  assert.equal(communityConsensus.reportOutcome(doubt, { s: "questioned", st: "DIFFERENT_TREE", n: 2 }, []), "pending");
+  assert.equal(communityConsensus.reportOutcome(doubt, undefined, [doubt.target]), "review");
+});
+
+test("contributors move up from Seedling to Warden by points", () => {
+  assert.equal(app.communityRank(0).name, "Seedling");
+  assert.equal(app.communityRank(5).name, "Sapling");
+  assert.equal(app.communityRank(19).name, "Sapling");
+  assert.equal(app.communityRank(20).name, "Woodward");
+  assert.equal(app.communityRank(50).name, "Warden");
+  assert.equal(app.communityRank(50).next, null);
+  assert.equal(app.communityRank(3).next.name, "Sapling");
+});
+
+test("each rank gets its own medal and the points chip shows what a check earns", () => {
+  for (const name of ["Seedling", "Sapling", "Woodward", "Warden"]) {
+    assert.match(app.communityMedalHtml(app.communityRank(name === "Seedling" ? 0 : name === "Sapling" ? 5 : name === "Woodward" ? 20 : 50)), new RegExp(`community-medal-${name.toLowerCase()}`));
+  }
+  assert.match(app.communityPointsChipFor("VERIFIED", "near"), />\+1</);
+  assert.match(app.communityPointsChipFor("NOT_HERE", "near"), /up to \+2/);
+  assert.match(app.communityPointsChipFor("VERIFIED", "far"), /is-zero[^>]*>\+0</);
+  assert.match(app.communityPointsChipFor("VERIFIED", "none"), /is-zero/);
+});
+
+test("the streak week strip marks each of the last seven days that has a report, today last", () => {
+  const now = new Date(2026, 9, 20, 12).getTime();
+  const day = 86400000;
+  const week = app.communityWeekDays({ a: { ts: now }, b: { ts: now - 2 * day }, c: { ts: now - 9 * day }, d: { ts: now - day, kind: "feedback" } }, now);
+  assert.equal(week.length, 7);
+  assert.equal(week.map((d) => d.done).join(), "false,false,false,false,true,false,true");
+  assert.equal(week[6].today, true);
+  assert.equal(week.filter((d) => d.today).length, 1);
+});
+
+test("every badge says how to earn it and shows progress towards it, capped at its goal", () => {
+  const metrics = { verified: 4, confirmed: 0, treesAdded: 0, placesReported: 0, bestStreak: 12 };
+  const byId = (id) => app.COMMUNITY_BADGES.find((b) => b.id === id);
+  assert.ok(app.COMMUNITY_BADGES.every((b) => b.how && b.goal > 0 && b.metric));
+  assert.equal(JSON.stringify(app.communityBadgeProgress(byId("ten-checks"), metrics)), '{"have":4,"goal":10}');
+  assert.equal(JSON.stringify(app.communityBadgeProgress(byId("week-streak"), metrics)), '{"have":7,"goal":7}');
+  assert.match(app.communityBadgeDetailHtml(byId("ten-checks"), metrics), /You're at 4 of 10/);
+  assert.match(app.communityBadgeDetailHtml(byId("week-streak"), metrics), /earned/);
+});
+
+test("report dates read as Today, Yesterday, N days ago, then a short date", () => {
+  const now = new Date(2026, 9, 20, 12).getTime();
+  const day = 86400000;
+  assert.equal(app.communityRelativeDay(now - 3600000, now), "Today");
+  assert.equal(app.communityRelativeDay(now - day, now), "Yesterday");
+  assert.equal(app.communityRelativeDay(now - 3 * day, now), "3 days ago");
+  assert.match(app.communityRelativeDay(now - 30 * day, now), /Sep/);
+});
+
+const communityPointsConfig = require("../netlify/functions/lib/community-points");
+const communityValidation = require("../netlify/functions/lib/community-validation");
+
+test("the Community screen's ranks match the server's configured ranks", () => {
+  for (const rank of communityPointsConfig.RANKS) {
+    assert.equal(app.communityRank(rank.min).name, rank.name);
+    assert.equal(app.communityRank(rank.min).icon, rank.icon);
+  }
+});
+
+test("every point value comes from the one configuration file", () => {
+  const verify = communityReport({ deviceId: "device-aaaa" });
+  const second = communityReport({ deviceId: "device-bbbb" });
+  const state = communityConsensus.computeCommunityState([verify, second]);
+  assert.equal(state.scores["device-aaaa"].points, communityPointsConfig.POINTS.verify + communityPointsConfig.POINTS.verifyConfirmed);
+  assert.equal(communityConsensus.REWARD_POINTS.register, communityPointsConfig.POINTS.register);
+});
+
+test("a City of London register update that agrees with a report earns the reporter the register reward", () => {
+  const newTree = communityReport({ status: "NEW_TREE", target: undefined, tagNumber: "4821", accuracy: 8 });
+  const notHere = communityReport({ target: "tree:77", status: "NOT_HERE" });
+  const register = { hasTag: (t) => t === "4821", hasRecord: (rn) => rn !== "77", record: () => null };
+  const found = communityValidation.validateAgainstRegister([newTree, notHere], register, 1000);
+  assert.deepEqual(found.map((f) => f.status).sort(), ["NEW_TREE", "NOT_HERE"]);
+  const state = communityConsensus.computeCommunityState([newTree, notHere], found);
+  assert.equal(state.scores["device-aaaa"].points >= 2 * communityPointsConfig.POINTS.register, true);
+  assert.equal(state.scores["device-aaaa"].validated, 2);
+});
+
+test("a report made after the register was first seen cannot claim a register reward", () => {
+  const late = communityReport({ target: "tree:77", status: "NOT_HERE", ts: 5000 });
+  const register = { hasTag: () => false, hasRecord: () => false, record: () => null };
+  assert.deepEqual(communityValidation.validateAgainstRegister([late], register, 1000), []);
+});
+
+test("confirming a place scores nothing and a fixed feedback report earns the fix reward", () => {
+  const place = communityReport({ kind: "place", target: "place:9", status: "OPEN_CONFIRMED" });
+  const state = communityConsensus.computeCommunityState([place], [{ kind: "fix", deviceId: "device-cccc" }]);
+  assert.equal((state.scores["device-aaaa"] || { points: 0 }).points, 0);
+  assert.equal(state.scores["device-cccc"].points, communityPointsConfig.POINTS.fix);
+});
+
+const communityComputed = require("../netlify/functions/lib/community-computed");
+
+function memoryStore(initial = {}) {
+  const data = new Map(Object.entries(initial));
+  return {
+    data,
+    async get(key) { return data.has(key) ? JSON.parse(JSON.stringify(data.get(key))) : null; },
+    async put(key, value) { data.set(key, JSON.parse(JSON.stringify(value))); },
+    async list(prefix) { return [...data.keys()].filter((k) => k.startsWith(prefix)); },
+    async delete(key) { data.delete(key); },
+  };
+}
+
+test("a rebuild stores each person's score in a small shard that one lookup can read", async () => {
+  const store = memoryStore();
+  const a = communityReport({ id: "report-aaaa1111", deviceId: "device-aaaa" });
+  const b = communityReport({ id: "report-bbbb2222", deviceId: "device-bbbb" });
+  await store.put("reports/1", a);
+  await store.put("reports/2", b);
+  const computed = await communityComputed.rebuildComputed(store);
+  assert.equal(computed.scores, undefined, "the snapshot itself no longer carries every score");
+  const score = await communityComputed.loadScore(store, "device-aaaa");
+  assert.equal(score.points, communityPointsConfig.POINTS.verify + communityPointsConfig.POINTS.verifyConfirmed);
+  assert.equal((await communityComputed.loadScore(store, "device-nobody")).points, 0);
+  assert.match(communityComputed.scoreShard("device-aaaa"), /^[0-9a-f]{2}$/);
+});
+
+test("in production a request serves a slightly old snapshot instead of rebuilding inline", async () => {
+  const store = memoryStore({ computed: { generatedAt: Date.now() - 90 * 60 * 1000, overlay: { "tree:1": { s: "verified" } }, conflicts: [] } });
+  const original = process.env.CONTEXT;
+  try {
+    process.env.CONTEXT = "production";
+    const stale = await communityComputed.loadComputed(store);
+    assert.deepEqual(Object.keys(stale.overlay), ["tree:1"]);
+    process.env.CONTEXT = "deploy-preview";
+    const fresh = await communityComputed.loadComputed(store);
+    assert.deepEqual(Object.keys(fresh.overlay), [], "previews and local dev rebuild once the snapshot is past its TTL");
+  } finally {
+    if (original === undefined) delete process.env.CONTEXT; else process.env.CONTEXT = original;
+  }
+});
+
+test("nudges: a card on the overview, a pulse on the tree's own page, and quiet otherwise", () => {
+  const now = 10 * 60 * 60 * 1000;
+  const base = { on: true, fixOk: true, isDefault: false, nearest: { metres: 6 }, target: "tree:1", alreadyReported: false, seenAt: 0, now, onThisTree: false, lastCardAt: 0, overviewActive: true };
+  const decide = (over) => app.communityNudgeDecision({ ...base, ...over });
+  assert.equal(decide({}), "card");
+  assert.equal(decide({ onThisTree: true }), "pulse");
+  assert.equal(decide({ on: false }), "none", "turned off");
+  assert.equal(decide({ fixOk: false }), "none", "no accurate fix");
+  assert.equal(decide({ isDefault: true }), "none", "the stand-in location is not a real position");
+  assert.equal(decide({ nearest: { metres: 11 } }), "none", "further than 10 m");
+  assert.equal(decide({ nearest: null }), "none");
+  assert.equal(decide({ alreadyReported: true }), "none", "already checked on this device");
+  assert.equal(decide({ seenAt: now - 60 * 1000 }), "none", "asked about this tree within the day");
+  assert.equal(decide({ seenAt: now - 25 * 60 * 60 * 1000 }), "card", "a day later it may ask again");
+  assert.equal(decide({ lastCardAt: now - 60 * 1000 }), "none", "at most one card every ten minutes");
+  assert.equal(decide({ overviewActive: false }), "none", "never over another screen");
+  assert.equal(decide({ onThisTree: true, lastCardAt: now - 60 * 1000, overviewActive: false }), "pulse", "the pulse ignores the card limits");
+});
+
+test("a recovery code is accepted as shown, in any case or spacing, and anything else is refused", () => {
+  const id = "abcd1234efgh5678ijkl9012";
+  assert.equal(app.communityParseRecoveryCode(id), id);
+  assert.equal(app.communityParseRecoveryCode("abcd-1234-efgh-5678-ijkl-9012"), id);
+  assert.equal(app.communityParseRecoveryCode("  ABCD-1234-EFGH-5678-IJKL-9012 "), id);
+  assert.equal(app.communityParseRecoveryCode("abcd 1234 efgh 5678 ijkl 9012"), id);
+  assert.equal(app.communityParseRecoveryCode(id.toUpperCase()), id, "an unhyphenated uppercase code is lowercased");
+  assert.equal(app.communityParseRecoveryCode(`${id}x`), null, "25 characters is not a code");
+  assert.equal(app.communityParseRecoveryCode(id.slice(0, 23)), null, "23 characters is not a code");
+  assert.equal(app.communityParseRecoveryCode("short"), null);
+  assert.equal(app.communityParseRecoveryCode("has spaces/and$symbols!!"), null);
+  assert.equal(app.communityParseRecoveryCode(""), null);
+});
+
+test("a tree report only counts when it was made close to the tree, and says so when it was not", () => {
+  const near = communityReport({ id: "report-near00001" });
+  const far = communityReport({ id: "report-far000001", deviceId: "device-bbbb", lat: 51.7, lon: 0.1 });
+  const noFix = communityReport({ id: "report-nofix0001", deviceId: "device-cccc", lat: undefined, lon: undefined });
+  assert.equal(communityConsensus.isNear(near), true);
+  assert.equal(communityConsensus.isNear(far), false);
+  assert.equal(communityConsensus.isNear(noFix), false, "no reporter position cannot show the reporter was there");
+  assert.equal(communityConsensus.reportOutcome(far, undefined, []), "far");
+  assert.equal(communityConsensus.reportOutcome(noFix, undefined, []), "far");
+  assert.equal(communityConsensus.reportOutcome(near, undefined, []), "pending");
+  const state = communityConsensus.computeCommunityState([near, far, noFix]);
+  assert.equal(state.scores["device-bbbb"].points, 0, "a far report earns nothing");
+  assert.equal(state.scores["device-cccc"].points, 0, "a report with no position earns nothing");
+  assert.equal(state.scores["device-bbbb"].reports, 1, "but it is still counted as a report");
+  assert.equal(state.scores["device-aaaa"].points, communityPointsConfig.POINTS.verify, "the close report earns its point, and the far one does not confirm it");
+});
+
+// --- Place checks go to GitHub issues for manual review (netlify/functions/report-missing-data.js) ---
+function escalationStoreForReports() {
+  const data = new Map();
+  return { async get(k) { return data.has(k) ? JSON.parse(JSON.stringify(data.get(k))) : null; }, async put(k, v) { data.set(k, JSON.parse(JSON.stringify(v))); } };
+}
+async function withStubbedGithub(responder, run) {
+  const reportFunction = require("../netlify/functions/report-missing-data");
+  const originalFetch = global.fetch;
+  const originalToken = process.env.GITHUB_TOKEN;
+  const calls = [];
+  process.env.GITHUB_TOKEN = "test-token";
+  reportFunction.setRateLimitStore(escalationStoreForReports());
+  global.fetch = async (url, options = {}) => {
+    calls.push({ url: String(url), method: options.method || "GET", body: options.body ? JSON.parse(options.body) : null });
+    return responder(String(url), options.method || "GET");
+  };
+  try {
+    return await run(reportFunction.handler, calls);
+  } finally {
+    reportFunction.setRateLimitStore(null);
+    global.fetch = originalFetch;
+    if (originalToken === undefined) delete process.env.GITHUB_TOKEN; else process.env.GITHUB_TOKEN = originalToken;
+  }
+}
+const jsonResponse = (status, body) => ({ ok: status < 300, status, json: async () => body });
+const placeCheckEvent = (overrides = {}) => ({
+  httpMethod: "POST",
+  body: JSON.stringify({
+    reportType: "place-check",
+    placeCheck: { status: "CLOSED", key: "place:id:123", name: "The Test Arms", category: "Pubs" },
+    details: "",
+    location: { latitude: 51.66, longitude: 0.04 },
+    requestId: "req-1234",
+    ...overrides,
+  }),
+});
+
+test("a place check is filed as a labelled GitHub issue for manual review, with no free text required", async () => {
+  await withStubbedGithub(
+    (url, method) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 7, html_url: "https://github.com/x/y/issues/7" })),
+    async (handler, calls) => {
+      const result = await handler(placeCheckEvent());
+      assert.equal(result.statusCode, 200);
+      const created = calls.find((c) => c.method === "POST" && c.url.endsWith("/issues"));
+      assert.ok(created, "an issue is created");
+      assert.deepEqual(created.body.labels, ["place-check", "user-report", "place:123"]);
+      assert.match(created.body.title, /^Place check: The Test Arms: It's closed/);
+      assert.match(created.body.body, /place-key:place:id:123/);
+      assert.match(created.body.body, /Reported status: CLOSED/);
+    }
+  );
+});
+
+test("a second report about the same place is added to its open issue instead of a new one", async () => {
+  await withStubbedGithub(
+    (url, method) => {
+      if (url.includes("/search/issues") && decodeURIComponent(url).includes("place-key:")) return jsonResponse(200, { items: [{ number: 7, html_url: "https://github.com/x/y/issues/7" }] });
+      if (url.includes("/search/issues")) return jsonResponse(200, { items: [] });
+      return jsonResponse(201, { id: 1 });
+    },
+    async (handler, calls) => {
+      const result = await handler(placeCheckEvent({ requestId: "req-5678", details: "Sign says closed down" }));
+      const body = JSON.parse(result.body);
+      assert.equal(body.merged, true);
+      assert.equal(body.issueNumber, 7);
+      assert.equal(calls.filter((c) => c.method === "POST" && c.url.endsWith("/issues")).length, 0, "no new issue");
+      const comment = calls.find((c) => c.url.endsWith("/issues/7/comments"));
+      assert.ok(comment, "a comment is added");
+      assert.match(comment.body.body, /Sign says closed down/);
+    }
+  );
+});
+
+test("a place check keyed by a real OSM or manual place id is accepted", async () => {
+  await withStubbedGithub(
+    (url, method) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 8, html_url: "https://github.com/x/y/issues/8" })),
+    async (handler, calls) => {
+      for (const key of ["place:id:node/5903400322", "place:id:manual/onest"]) {
+        const result = await handler(placeCheckEvent({ placeCheck: { status: "DETAILS_CHANGED", key, name: "Onest" } }));
+        assert.equal(result.statusCode, 200, key);
+      }
+      assert.equal(calls.filter((c) => c.method === "POST" && c.url.endsWith("/issues")).length, 2);
+    }
+  );
+});
+
+test("a place-check issue is labelled with the place so all its issues can be listed", async () => {
+  await withStubbedGithub(
+    (url) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 9, html_url: "https://github.com/x/y/issues/9" })),
+    async (handler, calls) => {
+      const result = await handler(placeCheckEvent({ placeCheck: { status: "CLOSED", key: "place:id:node/5903400322", name: "Onest" } }));
+      assert.equal(result.statusCode, 200);
+      const created = calls.find((c) => c.method === "POST" && c.url.endsWith("/issues"));
+      const labels = created.body.labels;
+      assert.deepEqual(labels, ["place-check", "user-report", "place:node/5903400322"]);
+    }
+  );
+  const reportFunction = require("../netlify/functions/report-missing-data");
+  assert.equal(reportFunction.placeLabelName("place:id:manual/onest"), "place:manual/onest");
+  assert.ok(reportFunction.placeLabelName(`place:id:${"x".repeat(100)}`).length <= 50, "GitHub label names are capped at 50 characters");
+});
+
+test("a place check with an unknown status or an unsafe key is rejected", async () => {
+  await withStubbedGithub(() => jsonResponse(200, { items: [] }), async (handler) => {
+    assert.equal((await handler(placeCheckEvent({ placeCheck: { status: "OPEN_CONFIRMED", key: "place:id:1", name: "x" } }))).statusCode, 400);
+    assert.equal((await handler(placeCheckEvent({ placeCheck: { status: "CLOSED", key: 'place:" OR is:private', name: "x" } }))).statusCode, 400);
+  });
+});
+
+test("a missing place is filed as a place-check issue keyed on its position, and needs a name", async () => {
+  await withStubbedGithub(
+    (url) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 8, html_url: "https://github.com/x/y/issues/8" })),
+    async (handler, calls) => {
+      const key = "new:51.66512,0.04512";
+      const ok = await handler(placeCheckEvent({ placeCheck: { status: "NEW_PLACE", key, name: "The New Arms", category: "Pub" }, details: "Opened last week" }));
+      assert.equal(ok.statusCode, 200);
+      const created = calls.find((c) => c.method === "POST" && c.url.endsWith("/issues"));
+      assert.match(created.body.title, /^Place check: The New Arms: A place is missing from the map/);
+      assert.ok(created.body.labels.includes("place:new:51.66512,0.04512"));
+      assert.match(created.body.body, /Reported status: NEW_PLACE/);
+      assert.match(created.body.body, /Opened last week/);
+      const nameless = await handler(placeCheckEvent({ placeCheck: { status: "NEW_PLACE", key, name: "  " } }));
+      assert.equal(nameless.statusCode, 400);
+    }
+  );
+});
+
+const reportRateLimit = require("../netlify/functions/lib/report-rate-limit");
+
+test("a device that sends too many reports in an hour is refused with 429 and a Retry-After", async () => {
+  await withStubbedGithub(
+    (url) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 1, html_url: "https://github.com/x/y/issues/1" })),
+    async (handler, calls) => {
+      const send = (n) => handler({ ...placeCheckEvent({ deviceId: "device-flood-0001", requestId: `req-flood-${n}`, placeCheck: { status: "CLOSED", key: `place:id:${n}`, name: "x" } }), headers: {} });
+      for (let n = 0; n < reportRateLimit.DEFAULT_LIMITS.perDevice; n += 1) assert.equal((await send(n)).statusCode, 200);
+      const refused = await send(99);
+      assert.equal(refused.statusCode, 429);
+      assert.ok(Number(refused.headers["Retry-After"]) > 0);
+      const issuesBefore = calls.filter((c) => c.method === "POST" && c.url.endsWith("/issues")).length;
+      await send(100);
+      assert.equal(calls.filter((c) => c.method === "POST" && c.url.endsWith("/issues")).length, issuesBefore, "a refused report creates no issue");
+    }
+  );
+});
+
+test("a network is capped by its address however many device ids it invents, and the whole site by the global cap", async () => {
+  await withStubbedGithub(
+    (url) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 1, html_url: "u" })),
+    async (handler) => {
+      const fromIp = (ip, n) => handler({ ...placeCheckEvent({ deviceId: `device-${ip.replace(/\./g, "")}-${String(n).padStart(4, "0")}`, requestId: `req-ip-${ip}-${n}`, placeCheck: { status: "CLOSED", key: `place:id:${n}`, name: "x" } }), headers: { "x-nf-client-connection-ip": ip } });
+      for (let n = 0; n < reportRateLimit.DEFAULT_LIMITS.perIp; n += 1) assert.equal((await fromIp("203.0.113.9", n)).statusCode, 200);
+      assert.equal((await fromIp("203.0.113.9", 500)).statusCode, 429, "fresh device ids do not get past the address cap");
+      assert.equal((await fromIp("203.0.113.10", 0)).statusCode, 200, "another address is unaffected");
+    }
+  );
+  const original = process.env.REPORT_LIMIT_GLOBAL;
+  process.env.REPORT_LIMIT_GLOBAL = "2";
+  try {
+    await withStubbedGithub(
+      (url) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 1, html_url: "u" })),
+      async (handler) => {
+        const one = (ip, n) => handler({ ...placeCheckEvent({ deviceId: `device-glob-${n}-aaaa`, requestId: `req-glob-${n}`, placeCheck: { status: "CLOSED", key: `place:id:${n}`, name: "x" } }), headers: { "x-nf-client-connection-ip": ip } });
+        assert.equal((await one("198.51.100.1", 1)).statusCode, 200);
+        assert.equal((await one("198.51.100.2", 2)).statusCode, 200);
+        assert.equal((await one("198.51.100.3", 3)).statusCode, 429, "the site-wide cap stops new addresses too");
+      }
+    );
+  } finally {
+    if (original === undefined) delete process.env.REPORT_LIMIT_GLOBAL; else process.env.REPORT_LIMIT_GLOBAL = original;
+  }
+});
+
+test("the rate limit resets each hour, ignores a missing ip or device, and lets reports through if the store fails", async () => {
+  const store = escalationStoreForReports();
+  const limits = { perIp: 1, perDevice: 1, global: 5 };
+  const hour = 3600000;
+  assert.equal((await reportRateLimit.checkRateLimit(store, { ip: "1.1.1.1", deviceId: "d1", now: 10 * hour, limits })).ok, true);
+  assert.equal((await reportRateLimit.checkRateLimit(store, { ip: "1.1.1.1", deviceId: "d2", now: 10 * hour + 5, limits })).ok, false);
+  assert.equal((await reportRateLimit.checkRateLimit(store, { ip: "1.1.1.1", deviceId: "d1", now: 11 * hour, limits })).ok, true, "a new hour starts clean");
+  assert.equal((await reportRateLimit.checkRateLimit(store, { now: 12 * hour, limits })).ok, true, "no ip and no device: only the global cap applies");
+  const broken = { async get() { throw new Error("down"); }, async put() { throw new Error("down"); } };
+  assert.equal((await reportRateLimit.checkRateLimit(broken, { ip: "1.1.1.1", deviceId: "d1", limits })).ok, true);
+  assert.equal(reportRateLimit.clientIp({ headers: { "X-Nf-Client-Connection-Ip": "9.9.9.9", "x-forwarded-for": "1.2.3.4" } }), "9.9.9.9");
+  assert.equal(reportRateLimit.clientIp({ headers: { "x-forwarded-for": "1.2.3.4, 5.6.7.8" } }), "1.2.3.4");
+  assert.equal(reportRateLimit.clientIp({}), "");
+});
+
+test("the per-place label is created before the issue, and a label that fails does not stop the report", async () => {
+  await withStubbedGithub(
+    (url, method) => {
+      if (url.includes("/search/issues")) return jsonResponse(200, { items: [] });
+      if (url.endsWith("/labels")) return jsonResponse(500, {});
+      return jsonResponse(201, { number: 5, html_url: "https://github.com/x/y/issues/5" });
+    },
+    async (handler, calls) => {
+      const result = await handler(placeCheckEvent({ placeCheck: { status: "CLOSED", key: "place:id:manual/onest", name: "Onest" } }));
+      assert.equal(result.statusCode, 200);
+      const labelAt = calls.findIndex((c) => c.method === "POST" && c.url.endsWith("/labels"));
+      const issueAt = calls.findIndex((c) => c.method === "POST" && c.url.endsWith("/issues"));
+      assert.ok(labelAt >= 0 && labelAt < issueAt, "the label is created first");
+      assert.equal(calls[labelAt].body.name, "place:manual/onest");
+    }
+  );
+});
+
+test("ids that mean something to JavaScript are refused, and cannot reach Object.prototype", async () => {
+  for (const bad of ["__proto__", "constructor", "prototype"]) {
+    assert.ok(communityConsensus.validateReport(communityReport({ deviceId: bad })), `deviceId ${bad} is refused`);
+    assert.ok(communityConsensus.validateReport(communityReport({ id: bad })), `id ${bad} is refused`);
+  }
+  assert.ok(communityConsensus.validateReport(communityReport({ kind: "__proto__" })));
+  assert.ok(communityConsensus.validateReport(communityReport({ status: "constructor" })));
+  assert.ok(communityConsensus.validateReport(communityReport({ target: "__proto__" })));
+  assert.ok(communityConsensus.validateReport(communityReport({ target: "tree:1 and more" })), "a target has no spaces");
+  assert.equal(communityConsensus.validateReport(communityReport({ target: "place:id:node/1" })), null);
+  assert.equal(communityConsensus.statusClass("tree", "toString"), null);
+  const state = communityConsensus.computeCommunityState([communityReport({ deviceId: "__proto__" }), communityReport({ deviceId: "device-aaaa" })]);
+  assert.equal({}.reports, undefined, "Object.prototype is untouched");
+  assert.equal(Object.keys(state.scores).includes("__proto__"), false);
+  const handler = require("../netlify/functions/community-report").handler;
+  const result = await handler({ httpMethod: "POST", body: JSON.stringify({ id: "report-proto-1", deviceId: "__proto__", kind: "tree", target: "tree:1", status: "VERIFIED", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01 }) });
+  assert.equal(result.statusCode, 400);
+});
+
+test("a new tree's outcome is found under its tag, so a register reward shows as validated", () => {
+  const tree = communityReport({ status: "NEW_TREE", target: undefined, tagNumber: "4821", accuracy: 8, lat: 51.65, lon: 0.04, targetLat: 51.65, targetLon: 0.04 });
+  assert.equal(communityConsensus.canonicalTarget(tree), "new:tree:tag:4821");
+  assert.equal(communityConsensus.canonicalTarget(communityReport({ target: "tree:7" })), "tree:7");
+  const validated = new Set(["device-aaaa|new:tree:tag:4821|NEW_TREE"]);
+  assert.equal(communityConsensus.reportOutcome(tree, { s: "new" }, [], validated), "validated");
+  assert.equal(communityConsensus.reportOutcome(tree, { s: "new" }, [], new Set()), "pending");
+  assert.equal(communityConsensus.reportOutcome(tree, { s: "new-confirmed" }, [], new Set()), "confirmed", "a second finder confirms it");
+  assert.equal(communityConsensus.reportOutcome(tree, undefined, [], new Set()), "pending");
+});
+
+test("a register reward only counts reports made before the last run that still saw the old register", async () => {
+  const store = memoryStore();
+  const register = (records, generatedAt) => async (path) => {
+    if (path.endsWith("index.json")) return { generatedAt, sourceGeneratedAt: generatedAt, recordCount: records.length, chunks: [{ url: "chunk.json" }] };
+    return { trees: records.map((r) => ({ recordNumber: r, latitude: 51.64, longitude: 0.01 })) };
+  };
+  await communityValidation.runValidation({ store, fetchJson: register(["77", "78"], 1), now: 1000 }); // baseline
+  const early = communityReport({ id: "report-early-1", target: "tree:77", status: "NOT_HERE", ts: 900 });
+  const late = communityReport({ id: "report-late-01", target: "tree:78", status: "NOT_HERE", ts: 2000 });
+  await store.put("reports/early", early);
+  await store.put("reports/late", late);
+  // The register drops both records some time between the runs at 1000 and 3000.
+  const summary = await communityValidation.runValidation({ store, fetchJson: register([], 2), now: 3000 });
+  assert.equal(summary.newRegisterRewards, 1, "only the report made before the previous run counts");
+  const items = (await store.get("validations")).items;
+  assert.equal(JSON.stringify(items.map((i) => i.target)), JSON.stringify(["tree:77"]));
+});
+
+test("one network cannot mint endless device ids to confirm its own reports: community reports are capped per address and site-wide", async () => {
+  const reportEndpoint = require("../netlify/functions/community-report");
+  const original = { ip: process.env.COMMUNITY_LIMIT_PER_IP, global: process.env.COMMUNITY_LIMIT_GLOBAL };
+  process.env.COMMUNITY_LIMIT_PER_IP = "3";
+  process.env.COMMUNITY_LIMIT_GLOBAL = "5";
+  reportEndpoint.setStore(memoryStore());
+  try {
+    const send = (ip, n) => reportEndpoint.handler({
+      httpMethod: "POST",
+      headers: { "x-nf-client-connection-ip": ip },
+      body: JSON.stringify({ id: `report-sybil-${ip}-${n}`.replace(/\./g, ""), deviceId: `device-sybil-${n}-x`, kind: "tree", target: "tree:5", status: "VERIFIED", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01 }),
+    });
+    for (let n = 0; n < 3; n += 1) assert.equal((await send("203.0.113.7", n)).statusCode, 200);
+    const refused = await send("203.0.113.7", 99);
+    assert.equal(refused.statusCode, 429, "fresh device ids from the same address do not get past the cap");
+    assert.ok(Number(refused.headers["Retry-After"]) > 0);
+    assert.equal((await send("203.0.113.8", 1)).statusCode, 200, "another address is unaffected");
+    assert.equal((await send("203.0.113.9", 1)).statusCode, 200);
+    assert.equal((await send("203.0.113.10", 1)).statusCode, 429, "the site-wide cap stops new addresses too");
+    const retry = await send("203.0.113.8", 1);
+    assert.equal(retry.statusCode, 200, "a repeat of an accepted report is answered as a duplicate without counting again");
+  } finally {
+    reportEndpoint.setStore(null);
+    for (const [name, value] of [["COMMUNITY_LIMIT_PER_IP", original.ip], ["COMMUNITY_LIMIT_GLOBAL", original.global]]) {
+      if (value === undefined) delete process.env[name]; else process.env[name] = value;
+    }
+  }
+});
+
+const communityDelete = require("../netlify/functions/lib/community-delete");
+
+async function deletionFixture() {
+  const store = memoryStore();
+  const day = "2026-10-20";
+  const reportFor = (id, deviceId, target, extra = {}) => communityReport({ id, deviceId, target, ...extra });
+  const reports = [
+    reportFor("report-a1-0001", "phone-device-a1", "tree:1"),
+    reportFor("report-a2-0001", "laptop-device-a2", "tree:2"),
+    reportFor("report-b1-0001", "other-device-b1", "tree:1"),
+    reportFor("report-b1-0002", "other-device-b1", "tree:2"),
+  ];
+  for (const r of reports) await store.put(`reports/${r.id}`, r);
+  await store.put("mine/phone-device-a1", [{ id: "report-a1-0001", kind: "tree", target: "tree:1", status: "VERIFIED", ts: 1 }, { id: "feedback-a1-001", kind: "feedback", status: "FEEDBACK", issue: 41, ts: 2 }]);
+  await store.put("mine/laptop-device-a2", [{ id: "report-a2-0001", kind: "tree", target: "tree:2", status: "VERIFIED", ts: 1 }, { id: "place-a2-00001", kind: "place", status: "CLOSED", issue: 42, ts: 2 }]);
+  await store.put("mine/other-device-b1", [{ id: "report-b1-0001", kind: "tree", target: "tree:1", status: "VERIFIED", ts: 1 }, { id: "place-b1-00001", kind: "place", status: "CLOSED", issue: 43, ts: 2 }]);
+  await store.put("devicelink/phone-device-a1", { account: "acct-a" });
+  await store.put("devicelink/laptop-device-a2", { account: "acct-a" });
+  await store.put("accountdevices/acct-a/phone-device-a1", {});
+  await store.put("accountdevices/acct-a/laptop-device-a2", {});
+  await store.put(`devices/phone-device-a1-${day}`, { n: 1 });
+  await store.put(`devices/other-device-b1-${day}`, { n: 2 });
+  await store.put("refs/ref-of-a1", { deviceId: "phone-device-a1" });
+  await store.put("refs/ref-of-a2", { deviceId: "laptop-device-a2" });
+  await store.put("refs/ref-of-b1", { deviceId: "other-device-b1" });
+  await store.put("validations", { items: [{ kind: "fix", deviceId: "phone-device-a1", issue: 41 }, { kind: "fix", deviceId: "other-device-b1", issue: 43 }], register: null, processedIssues: {} });
+  await communityComputed.rebuildComputed(store);
+  return store;
+}
+
+const keysWith = (store, prefix) => [...store.data.keys()].filter((k) => k.startsWith(prefix)).sort();
+
+test("a storage failure while listing stops a deletion instead of reporting it done", async () => {
+  const store = await deletionFixture();
+  const failing = { ...store, get: store.get, put: store.put, delete: store.delete, list: async () => { throw new Error("blobs down"); } };
+  await assert.rejects(communityDelete.deleteCommunityData(failing, { deviceId: "phone-device-a1", includeAccount: true }), /blobs down/);
+  assert.ok(store.data.has("devicelink/phone-device-a1"), "nothing was removed");
+});
+
+test("a failed read of any record a deletion depends on stops it, and nothing is reported deleted", async () => {
+  for (const failing of ["reports/", "refs/", "validations", "devicelink/phone-device-a1", "mine/phone-device-a1", "scores/"]) {
+    const store = await deletionFixture();
+    const broken = { ...store, getStrict: async (key) => { if (key.startsWith(failing)) throw new Error("read failed"); return store.get(key); } };
+    await assert.rejects(communityDelete.deleteCommunityData(broken, { deviceId: "phone-device-a1" }), /read failed/, failing);
+  }
+});
+
+test("deletion finds every issue a device filed, even past the 300-entry mine index cap", async () => {
+  const store = await deletionFixture();
+  for (let n = 1000; n < 1005; n += 1) await store.put(`issues/phone-device-a1/${n}`, { ts: n });
+  await store.put("issues/other-device-b1/2000", { ts: 1 });
+  const summary = await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1" });
+  assert.deepEqual([...summary.issues.pending].sort((a, b) => a - b), [41, 1000, 1001, 1002, 1003, 1004]);
+  assert.deepEqual(keysWith(store, "issues/phone-device-a1/"), []);
+  assert.deepEqual(keysWith(store, "issues/other-device-b1/"), ["issues/other-device-b1/2000"]);
+});
+
+test("deleting one device removes its reports, index, link, counters, references, rewards and score, and nobody else's", async () => {
+  const store = await deletionFixture();
+  assert.ok((await communityComputed.loadScore(store, "phone-device-a1")).points > 0, "the score exists before");
+  const summary = await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1" });
+  assert.equal(summary.devices, 1);
+  assert.equal(summary.reports, 1);
+  assert.equal(summary.links, 1);
+  assert.equal(summary.refs, 1);
+  assert.equal(summary.rewards, 1);
+  assert.equal(summary.counters, 1);
+  assert.equal(JSON.stringify(keysWith(store, "reports/")), JSON.stringify(["reports/report-a2-0001", "reports/report-b1-0001", "reports/report-b1-0002"]));
+  assert.equal(store.data.has("mine/phone-device-a1"), false);
+  assert.equal(store.data.has("devicelink/phone-device-a1"), false);
+  assert.equal(store.data.has("accountdevices/acct-a/phone-device-a1"), false);
+  assert.equal(store.data.has("refs/ref-of-a1"), false);
+  assert.equal(JSON.stringify(keysWith(store, "devices/")), JSON.stringify(["devices/other-device-b1-2026-10-20"]));
+  assert.equal(JSON.stringify((store.data.get("validations")).items.map((i) => i.deviceId)), JSON.stringify(["other-device-b1"]));
+  const score = await communityComputed.loadScore(store, "phone-device-a1");
+  assert.equal(score.points, 0, "its score is gone");
+  assert.ok((await communityComputed.loadScore(store, "laptop-device-a2")).points > 0, "the account's other device keeps its score");
+  assert.ok((await communityComputed.loadScore(store, "other-device-b1")).points > 0, "another person keeps theirs");
+  assert.equal(store.data.has("devicelink/laptop-device-a2"), true);
+  assert.equal(store.data.has("refs/ref-of-b1"), true);
+  assert.deepEqual(summary.issues.pending, [41], "the public issue it filed is handed back to be dealt with");
+  const overlay = store.data.get("computed").overlay;
+  assert.equal(overlay["tree:1"].n, 1, "tree 1 is now backed by one person, not two");
+});
+
+test("deleting with the account removes every device on it and the account's records, and nothing of other accounts", async () => {
+  const store = await deletionFixture();
+  const summary = await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1", includeAccount: true });
+  assert.equal(summary.devices, 2);
+  assert.equal(summary.reports, 2);
+  assert.equal(JSON.stringify(keysWith(store, "accountdevices/")), JSON.stringify([]));
+  assert.equal(JSON.stringify(keysWith(store, "devicelink/")), JSON.stringify([]));
+  assert.equal(JSON.stringify(keysWith(store, "mine/")), JSON.stringify(["mine/other-device-b1"]));
+  assert.equal(JSON.stringify(keysWith(store, "refs/")), JSON.stringify(["refs/ref-of-b1"]));
+  assert.equal((await communityComputed.loadScore(store, "laptop-device-a2")).points, 0);
+  assert.equal(JSON.stringify(summary.issues.pending.sort()), JSON.stringify([41, 42]), "both devices' public issues, and not the other person's #43");
+  const again = await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1", includeAccount: true });
+  assert.equal(again.reports, 0, "deleting twice is harmless");
+});
+
+test("public issues are redacted and closed only when an editor is supplied and asked for, and a failure is reported not hidden", async () => {
+  const edits = [];
+  const editor = async (number, changes) => { if (number === 42) throw new Error("boom"); edits.push({ number, changes }); };
+  const store = await deletionFixture();
+  const asked = await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1", includeAccount: true, github: editor, redactIssues: true });
+  assert.equal(JSON.stringify(asked.issues.redacted), JSON.stringify([41]));
+  assert.equal(JSON.stringify(asked.issues.failed), JSON.stringify([42]));
+  assert.equal(edits[0].changes.state, "closed");
+  assert.equal(edits[0].changes.body, communityDelete.REDACTED_BODY);
+  const quiet = await deletionFixture();
+  const notAsked = await communityDelete.deleteCommunityData(quiet, { deviceId: "phone-device-a1", github: editor, redactIssues: false });
+  assert.equal(JSON.stringify(notAsked.issues.pending), JSON.stringify([41]));
+  assert.equal(edits.length, 1, "an editor that was not asked for is never called");
+});
+
+test("deletion refuses a bad device id, and the admin endpoint needs the password, POST and an explicit confirmation", async () => {
+  await assert.rejects(communityDelete.deleteCommunityData(memoryStore(), { deviceId: "short" }), /device id/);
+  await assert.rejects(communityDelete.deleteCommunityData(memoryStore(), {}), /device id/);
+  const original = process.env.ADMIN_PASSWORD;
+  process.env.ADMIN_PASSWORD = "admin-secret-1";
+  try {
+    delete require.cache[require.resolve("../netlify/functions/community-delete")];
+    const endpoint = require("../netlify/functions/community-delete");
+    const asAdmin = { authorization: "Bearer admin-secret-1" };
+    assert.equal((await endpoint.handler({ httpMethod: "POST", headers: {}, body: "{}" })).statusCode, 401);
+    assert.equal((await endpoint.handler({ httpMethod: "POST", headers: { authorization: "Bearer nope" }, body: "{}" })).statusCode, 401);
+    assert.equal((await endpoint.handler({ httpMethod: "GET", headers: asAdmin })).statusCode, 405);
+    assert.equal((await endpoint.handler({ httpMethod: "POST", headers: asAdmin, body: "{nope" })).statusCode, 400);
+    const unconfirmed = await endpoint.handler({ httpMethod: "POST", headers: asAdmin, body: JSON.stringify({ deviceId: "phone-device-a1" }) });
+    assert.equal(unconfirmed.statusCode, 400);
+    assert.match(JSON.parse(unconfirmed.body).error, /confirm/);
+    const badId = await endpoint.handler({ httpMethod: "POST", headers: asAdmin, body: JSON.stringify({ deviceId: "x", confirm: "delete" }) });
+    assert.equal(badId.statusCode, 400);
+  } finally {
+    if (original === undefined) delete process.env.ADMIN_PASSWORD; else process.env.ADMIN_PASSWORD = original;
+    delete require.cache[require.resolve("../netlify/functions/community-delete")];
+  }
+});
+
+// --- The City of London discrepancy report (netlify/functions/lib/community-report-data.js) ---
+const communityReportData = require("../netlify/functions/lib/community-report-data");
+const reportSnapshot = () => communityConsensus.computeCommunityState([
+  communityReport({ status: "NOT_HERE", deviceId: "device-aaaa", target: "tree:77", ts: Date.UTC(2026, 9, 1) }),
+  communityReport({ status: "NOT_HERE", deviceId: "device-bbbb", target: "tree:77", ts: Date.UTC(2026, 9, 2) }),
+  communityReport({ status: "VERIFIED", deviceId: "device-cccc", target: "tree:88", ts: Date.UTC(2026, 9, 2) }),
+  communityReport({ status: "NEW_TREE", deviceId: "device-aaaa", target: undefined, kind: "tree", lat: 51.7, lon: 0.03, targetLat: undefined, targetLon: undefined, tagNumber: "T-5", accuracy: 9, ts: Date.UTC(2026, 9, 3) }),
+  communityReport({ status: "VERIFIED", deviceId: "device-aaaa", target: "tree:99", ts: 5 }),
+  communityReport({ status: "NOT_HERE", deviceId: "device-bbbb", target: "tree:99", ts: 6 }),
+]);
+
+test("the discrepancy report lists questioned trees, possible new trees and conflicts, without device ids", () => {
+  const state = reportSnapshot();
+  const report = communityReportData.buildReportData({ ...state, generatedAt: Date.UTC(2026, 9, 5), reportCount: 6 }, { 77: { tagNumber: "11383", commonName: "English Oak", latinName: "Quercus robur" } }, "https://example.test");
+  assert.equal(report.questioned.length, 1);
+  assert.equal(report.questioned[0].tagNumber, "11383");
+  assert.equal(report.questioned[0].reporters, 2);
+  assert.equal(report.questioned[0].lastReported, "2026-10-02");
+  assert.equal(report.questioned[0].mapUrl, "https://example.test/nearby#tree=r77");
+  assert.equal(report.newTrees.length, 1);
+  assert.equal(report.newTrees[0].tagNumber, "T-5");
+  assert.equal(report.newTrees[0].confirmed, false);
+  assert.equal(report.conflicts.length, 1);
+  assert.equal(report.verifiedTrees, 1);
+  assert.doesNotMatch(JSON.stringify(report), /device-/);
+});
+
+test("the report downloads as CSV and GeoJSON, quoting what needs quoting", () => {
+  const state = reportSnapshot();
+  const report = communityReportData.buildReportData({ ...state, generatedAt: 1, reportCount: 6 }, { 77: { tagNumber: "11,383", commonName: 'Oak "Old"', latinName: "Quercus" } }, "");
+  const csv = communityReportData.reportToCsv(report);
+  const lines = csv.trim().split("\r\n");
+  assert.match(lines[0], /^section,record_number,tag_number/);
+  assert.ok(lines.some((line) => line.startsWith('questioned,77,"11,383","Oak ""Old"""')));
+  assert.ok(lines.some((line) => line.startsWith("new_tree,,T-5")));
+  const geo = communityReportData.reportToGeoJson(report);
+  assert.equal(geo.type, "FeatureCollection");
+  assert.ok(geo.features.some((f) => f.properties.section === "new_tree" && f.geometry.coordinates[0] === 0.03));
+});
+
+test("the report page escapes what it prints and explains an empty report", () => {
+  const empty = communityReportData.buildReportData({ overlay: {}, conflictDetails: [], generatedAt: 1, reportCount: 0 }, {}, "");
+  const html = communityReportData.renderReportHtml(empty);
+  assert.match(html, /No trees have been questioned by two or more people yet/);
+  const hostile = communityReportData.buildReportData({ overlay: { "tree:1": { s: "questioned", st: "NOT_HERE", n: 2, t: 1, tlat: 51.6, tlon: 0.1 } }, conflictDetails: [], generatedAt: 1, reportCount: 2 }, { 1: { tagNumber: "<script>x</script>", commonName: "Oak" } }, "");
+  const page = communityReportData.renderReportHtml(hostile);
+  assert.doesNotMatch(page, /<script>x<\/script>/);
+  assert.match(page, /&lt;script&gt;/);
+});
+
+test("register records are found by position in the public tree chunks, and a failed fetch just leaves them out", async () => {
+  const files = {
+    "data/trees/index.json": { chunks: [{ url: "data/trees/a.json", bounds: { minLat: 51.5, maxLat: 51.7, minLon: 0, maxLon: 0.2 } }] },
+    "data/trees/a.json": { trees: [{ recordNumber: 77, tagNumber: "11383", commonName: "English Oak", latinName: "Quercus robur", girthMetres: 3.1 }, { recordNumber: 78, tagNumber: "1" }] },
+  };
+  const found = await communityReportData.lookupRegisterRecords([{ recordNumber: "77", tlat: 51.6, tlon: 0.1 }], async (path) => files[path]);
+  assert.equal(found["77"].tagNumber, "11383");
+  assert.equal(found["78"], undefined);
+  const none = await communityReportData.lookupRegisterRecords([{ recordNumber: "77", tlat: 51.6, tlon: 0.1 }], async () => { throw new Error("offline"); });
+  assert.deepEqual(none, {});
+});
+
+test("optimistic points mirror the server's configured values for a verify and a new tree", () => {
+  assert.equal(app.COMMUNITY_POINTS.verify, communityPointsConfig.POINTS.verify);
+  assert.equal(app.COMMUNITY_POINTS.newTree, communityPointsConfig.POINTS.newTree);
+});
+
+test("a fresh verify adds a point and a verified count before the server knows", () => {
+  const local = { "tree:1": { id: "a", status: "VERIFIED", ts: 1000 } };
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 0)), JSON.stringify({ points: 1, verified: 1 }));
+  const shown = app.communityDisplayScore({ points: 4, verified: 3, confirmed: 1, generatedAt: 500 }, local, new Set());
+  assert.equal(shown.points, 5);
+  assert.equal(shown.verified, 4);
+  assert.equal(shown.confirmed, 1);
+  assert.equal(shown.pendingPoints, 1);
+});
+
+test("a new tree adds its point at once, without a verified count", () => {
+  assert.equal(JSON.stringify(app.communityPendingScore({ "new:T1": { id: "n", status: "NEW_TREE", ts: 2000 } }, 0)), JSON.stringify({ points: 1, verified: 0 }));
+});
+
+test("the optimistic points clear once a score computed after the report arrives", () => {
+  const local = { "tree:1": { id: "a", status: "VERIFIED", ts: 1000 } };
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 999)), JSON.stringify({ points: 1, verified: 1 }));
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 1000)), JSON.stringify({ points: 0, verified: 0 }));
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 5000)), JSON.stringify({ points: 0, verified: 0 }));
+});
+
+test("a report still in the outbox keeps counting even under a newer score", () => {
+  const local = { "tree:1": { id: "a", status: "VERIFIED", ts: 1000 } };
+  assert.equal(app.communityPendingScore(local, 5000, new Set(["a"])).points, 1);
+});
+
+test("far, failed, place and feedback reports and unconfirmed corrections add no optimistic points", () => {
+  const local = {
+    "tree:1": { id: "a", status: "VERIFIED", ts: 1000, far: true },
+    "tree:2": { id: "b", status: "VERIFIED", ts: 1000, failed: "refused" },
+    "place:x": { id: "c", status: "OPEN_CONFIRMED", ts: 1000, kind: "place" },
+    "feedback:1": { id: "d", status: "FEEDBACK", ts: 1000, kind: "feedback" },
+    "tree:3": { id: "e", status: "NOT_HERE", ts: 1000 },
+    "tree:4": { id: "f", status: "MOVED", ts: 1000 },
+  };
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 0)), JSON.stringify({ points: 0, verified: 0 }));
+});
+
+test("a report adopted from the server on restore is already in its score and adds nothing", () => {
+  const local = { "tree:1": { id: "a", status: "VERIFIED", ts: 9e12, counted: true } };
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 0)), JSON.stringify({ points: 0, verified: 0 }));
+});
+
+test("several fresh reports add up, and an empty or missing record adds nothing", () => {
+  const local = { "tree:1": { id: "a", status: "VERIFIED", ts: 10 }, "tree:2": { id: "b", status: "VERIFIED", ts: 20 }, "new:T": { id: "c", status: "NEW_TREE", ts: 30 } };
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 0)), JSON.stringify({ points: 3, verified: 2 }));
+  assert.equal(JSON.stringify(app.communityPendingScore({}, 0)), JSON.stringify({ points: 0, verified: 0 }));
+  assert.equal(JSON.stringify(app.communityPendingScore(null, 0)), JSON.stringify({ points: 0, verified: 0 }));
+  assert.equal(app.communityDisplayScore(null, {}, new Set()).points, 0);
+});
+
+test("badges are earned from the score and the local log, and the rest stay locked", () => {
+  const day = (n) => new Date(2026, 9, n, 12).getTime();
+  const local = { "tree:1": { id: "a", status: "VERIFIED", ts: day(1) }, "new:T": { id: "b", status: "NEW_TREE", ts: day(2) }, "place:x": { id: "c", status: "CLOSED", kind: "place", ts: day(3) } };
+  const names = (score) => app.communityBadges(score, local, day(3)).earned.map((b) => b.id);
+  assert.equal(JSON.stringify(names({ verified: 0, confirmed: 0 })), JSON.stringify(["tree-finder", "place-spotter"]));
+  assert.equal(JSON.stringify(names({ verified: 10, confirmed: 1 })), JSON.stringify(["first-check", "ten-checks", "second-opinion", "tree-finder", "place-spotter"]));
+  assert.ok(app.communityBadges({ verified: 1, confirmed: 0 }, {}, day(3)).locked.length > 0);
+});
+
+test("a streak counts days in a row, stays alive until a full day is missed, and ignores restored and feedback entries", () => {
+  const day = (n, h = 12) => new Date(2026, 9, n, h).getTime();
+  const at = (...days) => Object.fromEntries(days.map((d, i) => [`t${i}`, { id: `r${i}`, status: "VERIFIED", ts: day(d) }]));
+  const s = (local, now) => JSON.stringify(app.communityStreaks(local, now));
+  assert.equal(s(at(1, 2, 3), day(3, 20)), JSON.stringify({ current: 3, best: 3 }));
+  assert.equal(s(at(1, 2, 3), day(4, 8)), JSON.stringify({ current: 3, best: 3 }), "still alive the day after");
+  assert.equal(s(at(1, 2, 3), day(5, 8)), JSON.stringify({ current: 0, best: 3 }), "broken after a missed day");
+  assert.equal(s(at(1, 2, 5, 6, 7), day(7)), JSON.stringify({ current: 3, best: 3 }));
+  assert.equal(s(at(3, 3, 3), day(3)), JSON.stringify({ current: 1, best: 1 }), "many reports on one day are one day");
+  assert.equal(s({ a: { id: "x", status: "VERIFIED", ts: day(3), counted: true }, b: { id: "y", status: "FEEDBACK", kind: "feedback", ts: day(3) } }, day(3)), JSON.stringify({ current: 0, best: 0 }));
+  assert.equal(s({}, day(3)), JSON.stringify({ current: 0, best: 0 }));
+});
+
+const communityEscalation = require("../netlify/functions/lib/community-escalation");
+const escalationStore = () => {
+  const data = new Map();
+  return { async get(k) { return data.has(k) ? JSON.parse(JSON.stringify(data.get(k))) : null; }, async put(k, v) { data.set(k, JSON.parse(JSON.stringify(v))); } };
+};
+const conflictComputed = (...targets) => ({ conflictDetails: targets.map((t) => ({ target: `tree:${t}`, counts: { VERIFIED: 1, NOT_HERE: 2 }, tlat: 51.66, tlon: 0.04 })) });
+
+test("a conflicting tree is filed once as a labelled issue, with the counts and a link to the tree", async () => {
+  const store = escalationStore();
+  const posted = [];
+  const post = async (issue) => { posted.push(issue); return { number: 40 + posted.length, html_url: `https://github.com/x/y/issues/${40 + posted.length}` }; };
+  const first = await communityEscalation.escalateConflicts(store, conflictComputed(7), { post, siteUrl: "https://example.test" });
+  assert.equal(first.filed, 1);
+  assert.equal(posted[0].title, "Community conflict: tree 7");
+  assert.deepEqual(posted[0].labels, ["community-conflict", "user-report", "tree:7"]);
+  assert.match(posted[0].body, /1 × verified it is right/);
+  assert.match(posted[0].body, /2 × found no tree/);
+  assert.match(posted[0].body, /https:\/\/example\.test\/nearby#tree=r7/);
+  assert.match(posted[0].body, /community-conflict-key:tree:7/);
+  const again = await communityEscalation.escalateConflicts(store, conflictComputed(7), { post });
+  assert.equal(again.filed, 0);
+  assert.equal(posted.length, 1, "a rebuild never files the same tree twice");
+});
+
+test("conflict escalation files only new trees, caps each run, retries failures, and does nothing without GitHub", async () => {
+  const store = escalationStore();
+  let calls = 0;
+  const post = async () => { calls += 1; if (calls === 2) throw new Error("boom"); return { number: calls, html_url: "u" }; };
+  const run = await communityEscalation.escalateConflicts(store, conflictComputed(1, 2, 3), { post, max: 2 });
+  assert.equal(run.filed, 2);
+  assert.equal(run.failed, 1);
+  assert.equal(run.pending, 1);
+  const capped = await communityEscalation.escalateConflicts(escalationStore(), conflictComputed(4, 5, 6), { post: async () => ({ number: 1, html_url: "u" }), max: 2 });
+  assert.equal(capped.filed, 2, "a run files at most max issues");
+  assert.equal(capped.pending, 1);
+  const next = await communityEscalation.escalateConflicts(store, conflictComputed(1, 2, 3), { post, max: 5 });
+  assert.equal(next.filed, 1, "the one that failed is filed next run");
+  assert.equal(next.pending, 0);
+  const none = await communityEscalation.escalateConflicts(escalationStore(), conflictComputed(9), {});
+  assert.equal(none.filed, 0);
+  assert.equal(none.skipped, "no-github");
+  assert.equal((await communityEscalation.escalateConflicts(escalationStore(), { conflictDetails: [] }, { post })).filed, 0);
+});
+
+test("reports the server holds for an account are merged into the log without overwriting unsent or newer local entries", () => {
+  const local = {
+    "tree:1": { id: "local-unsent-1", status: "VERIFIED", ts: 100 },
+    "tree:2": { id: "local-sent-0002", status: "VERIFIED", ts: 500 },
+    "tree:3": { id: "local-failed-03", status: "NOT_HERE", ts: 50, failed: "refused" },
+  };
+  const remote = [
+    { id: "remote-aaaa-0001", kind: "tree", target: "tree:1", status: "NOT_HERE", ts: 900 },
+    { id: "remote-bbbb-0002", kind: "tree", target: "tree:2", status: "NOT_HERE", ts: 400 },
+    { id: "remote-cccc-0003", kind: "tree", target: "tree:3", status: "VERIFIED", ts: 900 },
+    { id: "remote-dddd-0004", kind: "tree", target: "tree:4", status: "VERIFIED", ts: 800, lat: 51.6, lon: 0.04 },
+    { id: "remote-eeee-0005", kind: "tree", target: null, status: "NEW_TREE", ts: 700, tagNumber: "T-9", lat: 51.7, lon: 0.05 },
+    { id: "remote-ffff-0006", kind: "place", target: "place:id:node/9", status: "CLOSED", ts: 600 },
+    { id: "remote-gggg-0007", kind: "feedback", target: null, status: "FEEDBACK", ts: 650 },
+  ];
+  const { local: merged, changed } = app.communityMergeRemoteReports(local, remote, new Set(["local-unsent-1"]));
+  assert.equal(changed, true);
+  assert.equal(merged["tree:1"].id, "local-unsent-1", "a report still waiting to send is kept");
+  assert.equal(merged["tree:2"].id, "local-sent-0002", "a newer local report wins");
+  assert.equal(merged["tree:3"].id, "local-failed-03", "a failed local report is kept");
+  assert.equal(merged["tree:4"].id, "remote-dddd-0004");
+  assert.equal(merged["tree:4"].remote, true);
+  assert.equal(merged["tree:4"].counted, true, "already in the server's score, so never counted again");
+  assert.equal(merged["new:T-9"].name, "Tree T-9");
+  assert.equal(merged["place:id:node/9"].kind, "place");
+  assert.equal(merged["feedback:remote-gggg-0007"].kind, "feedback");
+  assert.equal(JSON.stringify(local["tree:4"]), undefined, "the input is not changed");
+});
+
+test("merging remote reports ignores malformed entries and a newer server report replaces an older local one", () => {
+  const bad = [
+    null, "x", { id: "short", kind: "tree", target: "tree:5", status: "VERIFIED", ts: 1 },
+    { id: "remote-hhhh-0008", kind: "tree", target: "tree:5", status: "__proto__", ts: 1 },
+    { id: "remote-iiii-0009", kind: "tree", target: "tree:6", status: "VERIFIED", ts: "soon" },
+    { id: "remote-jjjj-0010", kind: "tree", target: "not a target", status: "VERIFIED", ts: 1 },
+  ];
+  const untouched = app.communityMergeRemoteReports({}, bad, new Set());
+  assert.equal(untouched.changed, false);
+  assert.equal(Object.keys(untouched.local).length, 0);
+  const newer = app.communityMergeRemoteReports({ "tree:7": { id: "local-old-0007", status: "VERIFIED", ts: 10 } }, [{ id: "remote-kkkk-0011", kind: "tree", target: "tree:7", status: "NOT_HERE", ts: 20 }], new Set());
+  assert.equal(newer.local["tree:7"].id, "remote-kkkk-0011", "the account's newer report on another device wins");
+  assert.equal(app.communityMergeRemoteReports({}, undefined, new Set()).changed, false);
+});
+
+test("reports merged from the server never add optimistic points or extend the streak", () => {
+  const { local } = app.communityMergeRemoteReports({}, [{ id: "remote-llll-0012", kind: "tree", target: "tree:8", status: "VERIFIED", ts: Date.now() }], new Set());
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 0)), JSON.stringify({ points: 0, verified: 0 }));
+  assert.equal(app.communityStreaks(local, Date.now()).current, 0);
+});
+
+// --- Feature gate: who sees Community ---
+const featureGate = require("../netlify/functions/lib/feature-gate");
+
+test("Community is on for everyone while the early-access list is empty", () => {
+  assert.equal(featureGate.enabledFor(featureGate.normalizeList({}), ["0123456789"]).community, true);
+  assert.equal(featureGate.enabledFor(featureGate.normalizeList({ community: [{ id: "not-an-id" }] }), []).community, true);
+});
+
+test("once anyone is listed, only the listed testers (by device or account hash) have Community", () => {
+  const list = featureGate.normalizeList({ community: [{ id: "A1B2C3D4E5", note: "Simon" }, { id: "a1b2c3d4e5" }] });
+  assert.equal(list.community.length, 1, "ids are lower-cased and de-duplicated");
+  assert.equal(featureGate.enabledFor(list, ["a1b2c3d4e5"]).community, true);
+  assert.equal(featureGate.enabledFor(list, ["ffffffffff", "a1b2c3d4e5"]).community, true, "either hash may match");
+  assert.equal(featureGate.enabledFor(list, ["ffffffffff"]).community, false);
+  assert.equal(featureGate.enabledFor(list, []).community, false);
+});
+
+test("the tester id is a short hash, never the device id itself", () => {
+  const id = featureGate.testerHash("some-device-id-1234567890");
+  assert.match(id, /^[a-f0-9]{10}$/);
+  assert.equal(id, featureGate.testerHash("some-device-id-1234567890"));
+  assert.notEqual(id, featureGate.testerHash("another-device-id"));
+});
+
+test("the features endpoint answers the public check and keeps the list admin-only", async () => {
+  const features = require("../netlify/functions/features");
+  const previous = process.env.ADMIN_PASSWORD;
+  process.env.ADMIN_PASSWORD = "secret-pw";
+  try {
+    const open = await features.handler({ httpMethod: "GET", headers: {}, queryStringParameters: { id: "0123456789" } });
+    assert.equal(open.statusCode, 200);
+    assert.equal(typeof JSON.parse(open.body).community, "boolean");
+    assert.equal((await features.handler({ httpMethod: "GET", headers: {}, queryStringParameters: { admin: "1" } })).statusCode, 401);
+    assert.equal((await features.handler({ httpMethod: "POST", headers: {}, body: "{}" })).statusCode, 401);
+  } finally {
+    if (previous === undefined) delete process.env.ADMIN_PASSWORD; else process.env.ADMIN_PASSWORD = previous;
+  }
 });
 
 runRegisteredTests().catch((error) => {

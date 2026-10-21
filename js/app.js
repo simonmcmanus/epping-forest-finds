@@ -473,6 +473,7 @@ const ROUTE_FILTERS = "filters";
 const ROUTE_SEARCH = "search";
 const ROUTE_SETTINGS = "settings";
 const ROUTE_REPORT = "report";
+const ROUTE_COMMUNITY = "community";
 
 // Each of the four screens above now has a real path of its own (netlify.toml, server.js --
 // all rewrite these to app.html, same as /app used to). Nearby (no screen name, "" in the
@@ -486,6 +487,7 @@ const ROUTE_PATHS = {
   [ROUTE_SEARCH]: "/nearby/search",
   [ROUTE_SETTINGS]: "/settings",
   [ROUTE_REPORT]: "/feedback",
+  [ROUTE_COMMUNITY]: "/community",
 };
 const NEARBY_PATH = "/nearby";
 
@@ -558,6 +560,13 @@ const SELECTION_ROUTES = [
     toKey: (item) => placeHashKey(item),
     find: (key) => findPlaceByHashKey(key),
     show: (item) => showLandmarkDetails(item, distanceFromUser(item)),
+  },
+  {
+    type: "addedtree",
+    param: "addedtree",
+    toKey: (item) => item.tag,
+    find: (key) => communityFindAddedTree(key),
+    show: (item) => showAddedTreeDetails(item),
   },
   {
     type: "cow",
@@ -680,6 +689,7 @@ function currentScreenRoute() {
   }
   if (selection.type === "settings") return ROUTE_SETTINGS;
   if (selection.type === "report") return ROUTE_REPORT;
+  if (selection.type === "community") return ROUTE_COMMUNITY;
   if (!selection.item) return "";
   const route = SELECTION_ROUTES.find((entry) => entry.type === selection.type);
   if (!route) return "";
@@ -795,6 +805,9 @@ function routeValueFromLocation() {
 }
 
 function syncHashFromSelection(options) {
+  // The Community screen has little use for a big map, so its bottom sheet opens taller
+  // (css/map-ui.css .inspector-tall). A height the user has dragged to still wins.
+  if (els.inspector) els.inspector.classList.toggle("inspector-tall", state.selected?.type === "community");
   setHashFromSelection(currentScreenRoute(), options);
 }
 
@@ -952,6 +965,10 @@ function applyRouteToScreen(raw, announceMissing) {
   }
   if (value === ROUTE_SETTINGS) {
     openSettings();
+    return true;
+  }
+  if (value === ROUTE_COMMUNITY) {
+    openCommunityOrFeedback();
     return true;
   }
 
@@ -1226,7 +1243,7 @@ function applyRadiusFromQuery() {
 async function revealMapCenteredOnUser() {
   // A /find/ landing's place is selected by applySelectionFromHash below, so the Nearby list is not
   // painted over the server-rendered panel first.
-  if (!findLandingSlug()) selectOverview();
+  if (!findLandingSlug() && !communityScreenOpen()) selectOverview();
   draw();
 
   // Snap the camera onto the walking-radius circle before the reveal animation -- the same
@@ -1245,7 +1262,7 @@ async function revealMapCenteredOnUser() {
 
   // Apply the launch URL's own screen after the wait so it overrides the overview snap. A /find/
   // landing the loader has already selected keeps its panel rather than re-rendering the same one.
-  if (!findLandingSlug() || !state.selected) applySelectionFromHash();
+  if ((!findLandingSlug() || !state.selected) && !communityScreenOpen()) applySelectionFromHash();
 
   // Fade overlay and animate camera to final position simultaneously.
   // Use fresh points (not stale pre-wait revealPoints) to avoid animating back
@@ -1287,12 +1304,12 @@ async function revealMapCenteredOnUser() {
 async function revealNoRealLocation({ locationAlreadyAsked }) {
   if (!hasRealLocation()) applyDefaultLocation();
 
-  if (!findLandingSlug()) selectOverview();
+  if (!findLandingSlug() && !communityScreenOpen()) selectOverview();
   // A static index's arrows point north until there is a bearing to rotate them by -- the default
   // origin applyDefaultLocation() just set. Only the arrows change; the list itself stays as drawn.
   if (_staticNearbyIndex) updateOverviewDirectionArrows();
   draw();
-  applySelectionFromHash();
+  if (!communityScreenOpen()) applySelectionFromHash();
   await revealMapCenteredOnUser();
 
   if (locationAlreadyAsked) return;
@@ -1476,6 +1493,19 @@ async function boot() {
   const showsCombinedConsentBanner = Boolean(navigator.geolocation) && !onboardsFirst && (isLandingPageArrival() || _staticNearbyIndex) && cookieConsentIsUndecided();
   if (els.consentBanner && !showsCombinedConsentBanner) els.consentBanner.hidden = true;
 
+  // A cold load of /community paints the Community screen straight away: it needs no map data,
+  // and the Nearby list would otherwise show first and be swapped out once data and location land.
+  if (routeValueFromLocation() === ROUTE_COMMUNITY) {
+    // boot() is called mid-script: wait one microtask so the declarations below it (the document
+    // title constants openCommunity() uses) have initialised before the screen is built.
+    await Promise.resolve();
+    // Not yet told whether Community is on for this person: ask, briefly, rather than flash the wrong screen.
+    if (!communityFeaturesKnown()) await Promise.race([communityRefreshFeatures(), new Promise((resolve) => setTimeout(resolve, 2500))]);
+    try { openCommunityOrFeedback(); } catch (error) { console.error(error); }
+  }
+  applyFeatureGates();
+  communityRefreshFeatures();
+
   // Start data loading immediately so it runs in parallel with location and onboarding
   const hasCachedCowData = applyCachedCowData();
   setLoadStep("cows", "loading");
@@ -1554,6 +1584,10 @@ async function boot() {
     // downloading in the background.
     if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("tree")) {
       await mapData.treePromise;
+    }
+    // Likewise a walker-added tree link needs the community overlay it is looked up in.
+    if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("addedtree") && typeof communityEnsureOverlay === "function") {
+      await communityEnsureOverlay();
     }
 
     state.bounds = calculateBounds();
@@ -1793,7 +1827,9 @@ function applyLocationFix(position) {
   state.nearestRestaurant = nearestPlaceByFilter(latitude, longitude, (place) => isRestaurantCategory(place));
   state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isRestaurantCategory(place) && !isCafeCategory(place) && !isShopCategory(place) && !isTransportCategory(place));
   state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
-  state.selected = null;
+  // A cold load of /community has already opened its screen (boot); a fix must not wipe it.
+  if (!communityScreenOpen()) state.selected = null;
+  if (typeof communityNudgeCheck === "function") setTimeout(communityNudgeCheck, 0);
   return { latitude, longitude, previousPoint };
 }
 
@@ -2858,6 +2894,8 @@ function openSettings() {
   els.inspectorType.textContent = "App preferences";
   transitionInspectorBody(settingsFormHtml(), "forward");
   bindSettingsHandlers();
+  fillTesterId();
+  fillSettingsAccount();
   setInspectorMinimized(false);
   updateCompassOverlay();
   syncHashFromSelection();
@@ -2927,6 +2965,7 @@ function settingsFormHtml() {
     <section class="settings-section">
       <h3 class="settings-section-title">About</h3>
       <p class="settings-description">App version: <span id="appVersionDisplay" class="app-version-display${state.swUpdateAvailable ? " sw-update-available" : ""}">${state.swVersion || APP_VERSION}</span></p>
+      <p class="settings-description">Tester ID: <code id="testerIdDisplay" class="tester-id">…</code> <button type="button" id="testerIdCopy" class="settings-btn" hidden>Copy</button><br><span class="report-note">Give this to Simon to try early features.</span></p>
       <p class="settings-description">Vibe coded by <a href="https://simonmcmanus.com" target="_blank" rel="noopener noreferrer">Simon McManus</a></p>
       <p id="dataUpdateNote" class="report-note"${state.dataUpdateAvailable ? "" : " hidden"}>New map data has been downloaded. <button id="dataUpdateReloadButton" class="inline-text-button" type="button">Reload now</button> to see it.</p>
       <div class="settings-refresh">
@@ -2939,6 +2978,10 @@ function settingsFormHtml() {
         <p id="refreshOfflineNote" class="report-note report-offline-note"${online ? " hidden" : ""}>Refreshing needs an internet connection — you\'re offline right now.</p>
       </div>
     </section>
+    <section class="settings-section" id="settingsAccount">
+      <h3 class="settings-section-title">Account</h3>
+      <div id="settingsAccountBody">${settingsAccountHtml(typeof communityReadAccount === "function" ? communityReadAccount() : null)}</div>
+    </section>
     <section class="settings-section">
       <h3 class="settings-section-title">Privacy</h3>
       <p class="settings-description">Location &amp; usage tracking: <strong id="privacyConsentStatus">${hasTrackingConsent() ? "enabled" : "not enabled"}</strong>. We collect anonymous GPS position, navigation and interaction data to improve the app. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
@@ -2947,6 +2990,72 @@ function settingsFormHtml() {
       <button id="cookieConsentManageBtn" class="settings-btn" type="button">Manage cookie preferences</button>
     </section>
   </div>`;
+}
+
+// The Settings sign-in control. Drawn at once from the last known account (so the screen never flashes an
+// empty section), then corrected once /api/auth/me has answered. A sign-in is a full page load through the
+// provider and comes back to Settings.
+function settingsAccountHtml(account, note = "") {
+  const noteHtml = note ? `<p class="report-note" role="status">${escapeHtml(note)}</p>` : "";
+  if (account && account.signedIn) {
+    return `<p class="settings-description">Signed in as <strong>${escapeHtml(account.name)}</strong>. Your points follow you to any device you sign in on.</p>
+      <a id="settingsSignOut" class="settings-btn settings-btn-link" href="/api/auth/logout?return=/settings">Sign out</a>
+      <p class="settings-description">Used a different login on another device? Sign in with it here to bring its points and devices into this account.</p>
+      <a id="settingsMerge" class="settings-btn settings-btn-link" href="/api/auth/login?return=/settings&amp;merge=1">Merge another sign-in</a>${noteHtml}`;
+  }
+  return `<p class="settings-description">Sign in to keep your Community points on any device. You can still use the app without signing in.</p>
+    <a id="settingsSignIn" class="settings-btn settings-btn-link" href="/api/auth/login?return=/settings">Sign in</a>${noteHtml}`;
+}
+
+const SETTINGS_MERGE_MESSAGES = {
+  merged: "Done: the other sign-in's points and devices are now in this account.",
+  same: "That sign-in is already part of this account, so there was nothing to merge.",
+  failed: "Couldn't merge those sign-ins. Make sure you are still signed in here, then try again.",
+};
+
+// The outcome of a merge arrives in a short-lived cookie set by the sign-in callback. It is read and cleared
+// once, then kept in memory for this page load: Settings can be drawn more than once while the app starts,
+// and every draw must show it. A reload no longer has it.
+let settingsMergeOutcome = "";
+function takeMergeOutcome() {
+  try {
+    const match = /(?:^|;\s*)ff_merge_result=([a-z]+)/.exec(document.cookie || "");
+    if (match) {
+      document.cookie = "ff_merge_result=; Path=/; Max-Age=0";
+      if (SETTINGS_MERGE_MESSAGES[match[1]]) settingsMergeOutcome = match[1];
+    }
+  } catch {}
+  return settingsMergeOutcome;
+}
+
+async function fillSettingsAccount() {
+  if (!document.getElementById("settingsAccountBody") || typeof communityRefreshAccount !== "function") return;
+  const merge = takeMergeOutcome();
+  let result = "failed";
+  try { result = await communityRefreshAccount(); } catch {}
+  const body = document.getElementById("settingsAccountBody");
+  if (!body) return; // the screen was left while we waited
+  const account = communityReadAccount();
+  let note = result === "failed" && account && account.signedIn ? "Couldn't check who is signed in just now." : "";
+  if (merge) note = SETTINGS_MERGE_MESSAGES[merge];
+  body.innerHTML = settingsAccountHtml(account, note);
+  // Merged devices change the points: bring this device's score and log up to date.
+  if (merge === "merged") { try { await Promise.all([communityRefreshScore(true), communityRefreshLog()]); } catch {} }
+}
+
+async function fillTesterId() {
+  const display = document.getElementById("testerIdDisplay");
+  if (!display) return;
+  let id = "";
+  try { id = await communityTesterId(communityPrimaryDeviceId()); } catch {}
+  if (!id) { display.textContent = "unavailable"; return; }
+  display.textContent = id;
+  const copy = document.getElementById("testerIdCopy");
+  if (!copy) return;
+  copy.hidden = false;
+  copy.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(id); copy.textContent = "Copied"; } catch { copy.textContent = "Select and copy it"; }
+  });
 }
 
 function bindSettingsHandlers() {
@@ -3022,6 +3131,82 @@ function bindSettingsHandlers() {
   updateRefreshButtonsOnlineState();
 }
 
+// The Community tab's own screen: what community checks are, your contributions, add a missing
+// tree, and a link on to the feedback form (openReportModal, a page of its own).
+function communityScreenOpen() {
+  return Boolean(state.selected && state.selected.type === "community");
+}
+
+// Community is gated (see communityEnabled): people without it get the Feedback page in its place, and the
+// nav tab becomes the Feedback tab.
+function openCommunityOrFeedback() {
+  if (communityEnabled()) openCommunity(); else openReportModal();
+}
+
+// Declared inside: boot() calls this mid-script, before top-level constants further down have initialised.
+function applyFeatureGates() {
+  const NAV_COMMUNITY_ICON = '<path d="M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20"/><circle cx="10" cy="8" r="3.5"/><path d="M20 20v-1.5a3.5 3.5 0 0 0-2.5-3.35M15.5 4.7a3.5 3.5 0 0 1 0 6.6"/>';
+  const NAV_FEEDBACK_ICON = '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12Z"/>';
+  const tab = els.reportToggle;
+  if (!tab) return;
+  const on = communityEnabled();
+  const label = on ? "Community" : "Feedback";
+  tab.setAttribute("href", on ? "/community" : "/feedback");
+  tab.setAttribute("aria-label", label);
+  const icon = tab.querySelector("svg");
+  if (icon) icon.innerHTML = on ? NAV_COMMUNITY_ICON : NAV_FEEDBACK_ICON;
+  const text = tab.querySelector(".nav-label");
+  if (text) text.textContent = label;
+  // The Community screen is open for someone who no longer has it (the list changed): show Feedback instead.
+  if (!on && communityScreenOpen()) openReportModal();
+}
+
+function openCommunity() {
+  if (typeof trackGaScreenView === "function") trackGaScreenView("Community");
+  exitClusterExpansion();
+  state.selected = { type: "community", item: null };
+  setInspectorSelectionChrome({ emoji: appIconHtml("tree", "app-icon title-icon"), showBack: true });
+  setNavScreenActive(els.reportToggle);
+  els.inspectorTools.hidden = true;
+  els.inspectorTitle.textContent = "Community";
+  els.inspectorType.textContent = "Checks, points and new trees";
+  transitionInspectorBody(communityScreenHtml(), "forward");
+  communityOpenContributions();
+  setInspectorMinimized(false);
+  updateCompassOverlay();
+  syncHashFromSelection();
+  requestDraw();
+  if (state.userLocation) {
+    ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
+  }
+}
+
+// Frames every mark the user has made (or the whole forest when there are none), not where they stand.
+function fitCommunityOwnMarks(options = {}) {
+  const points = communityMapMarks().map((mark) => projectLonLat(mark.lon, mark.lat));
+  fitToPoints(points, false, {
+    focusVisibleArea: true,
+    assumeInspectorOpen: true,
+    animate: Boolean(options.animate),
+    durationMs: options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
+    minScale: state.baseFitScale > 0 ? state.baseFitScale : undefined,
+    padding: OVERVIEW_FIT_PADDING_PX,
+  });
+}
+
+function communityScreenHtml() {
+  return `${communityAccountHtml()}
+    ${communityContributionsHtml()}
+    ${communityActionsHtml()}
+    ${communityLogSectionHtml()}
+    <label class="community-nudge-setting"><input type="checkbox" id="communityNudgeToggle"${communityNudgesOn() ? " checked" : ""}> Remind me to check trees I'm standing next to</label>
+    <a class="community-feedback-link" href="/feedback">
+      <span class="community-feedback-icon">${communityIcon("help")}</span>
+      <span class="community-feedback-text"><strong>Feedback</strong><span>Report a bug, add a missing tree or place, or tell us anything</span></span>
+      ${communityIcon("chevron")}
+    </a>`;
+}
+
 function openReportModal() {
   if (typeof trackGaScreenView === "function") trackGaScreenView("Report");
   // See the matching comment in openFiltersScreen.
@@ -3031,7 +3216,7 @@ function openReportModal() {
   setNavScreenActive(els.reportToggle);
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = "Feedback";
-  els.inspectorType.textContent = "Help improve the data for everyone";
+  els.inspectorType.textContent = "Tell us what is wrong or missing";
   transitionInspectorBody(reportFormHtml(), "forward", () => {
     const detailsInput = document.getElementById("reportDetails");
     if (detailsInput) {
@@ -3059,19 +3244,33 @@ function reportFormHtml() {
   } catch {}
   const detailsValue = draft.details || "";
   const online = navigator.onLine;
-  return `<form id="reportForm" class="report-form">
+  return `<div class="report-screen">
+    <div class="report-type-field">
+      <label for="reportType">What would you like to tell us?
+        <select id="reportType" class="report-textarea community-input">
+          <option value="feedback">Feedback, a bug or something strange</option>
+          <option value="tree">A tree that's missing from the map</option>
+          <option value="place">A place that's missing from the map</option>
+        </select>
+      </label>
+    </div>
+    <form id="reportForm" class="report-form">
       <p class="report-intro">We welcome feedback, bug reports, and anything strange you have noticed. It helps us improve the data for everyone.</p>
       <label for="reportDetails">What did you notice?
         <textarea id="reportDetails" class="report-textarea" placeholder="Describe what's missing or what you'd like to see…" required>${escapeHtml(detailsValue)}</textarea>
       </label>
       ${reportPhotoFieldHtml("reportPhoto")}
+      ${communityPublicNoticeHtml()}
       <p id="reportStatus" class="report-status" aria-live="polite"></p>
-      <p id="reportOfflineNote" class="report-note report-offline-note"${online ? " hidden" : ""}>Submission requires an internet connection. Your report is saved and will be ready to submit when you\'re back online.</p>
+      <p id="reportOutboxNote" class="report-note" aria-live="polite" hidden></p>
+      <p id="reportOfflineNote" class="report-note report-offline-note"${online ? " hidden" : ""}>You're offline. Your report will be saved and sent automatically when you're back online.</p>
       <div class="report-form-actions">
         <button id="reportCancel" class="button button-ghost" type="button">Cancel</button>
-        <button id="reportSubmit" class="button" type="submit"${online ? "" : " disabled"}>Submit</button>
+        <button id="reportSubmit" class="button" type="submit">Submit</button>
       </div>
-    </form>`;
+    </form>
+    ${communityAddFormHostHtml()}
+    </div>`;
 }
 
 // `capture="environment"` asks a phone for its rear camera, where supported. Browsers which
@@ -3096,6 +3295,9 @@ function bindReportFormHandlers() {
       goToInitialView();
     });
   }
+
+  const typeSelect = document.getElementById("reportType");
+  if (typeSelect) typeSelect.addEventListener("change", () => communitySetReportType(typeSelect.value));
 
   const form = document.getElementById("reportForm");
   if (form) {
@@ -3124,17 +3326,25 @@ function bindReportFormHandlers() {
     detailsInput.scrollIntoView({ block: "nearest", inline: "nearest" });
   });
 
-  // Disable/enable submit when connectivity changes
+  // Show or hide the offline note when connectivity changes (submitting stays possible: it queues)
   function updateOnlineState() {
-    const submitBtn = document.getElementById("reportSubmit");
     const offlineNote = document.getElementById("reportOfflineNote");
-    if (!submitBtn) return; // form has been removed from DOM
+    if (!offlineNote) return; // form has been removed from DOM
     const online = navigator.onLine;
-    submitBtn.disabled = !online;
     if (offlineNote) offlineNote.hidden = online;
   }
   window.addEventListener("online", updateOnlineState);
   window.addEventListener("offline", updateOnlineState);
+
+  // "N waiting to send" for anything parked in the outbox (js/outbox.js).
+  function showOutboxPending(pending) {
+    const note = document.getElementById("reportOutboxNote");
+    if (!note) return;
+    note.hidden = !pending;
+    note.textContent = pending ? `${pending} report${pending === 1 ? "" : "s"} waiting to send` : "";
+  }
+  window.addEventListener("outbox:change", (event) => showOutboxPending(event.detail.pending));
+  outboxList().then((items) => showOutboxPending(items.length));
 }
 
 function bindReportPhotoInput(input) {
@@ -3265,6 +3475,40 @@ function getOrCreateReportRequestId() {
   return id;
 }
 
+// Sends a feedback/report payload; if the device is offline or the request cannot reach the
+// server, it is parked in the outbox (js/outbox.js) and re-sent automatically, so the user is
+// never asked to come back later. Resolves {queued:true} or {response, data}.
+async function sendOrQueueReport(payload) {
+  const url = "/.netlify/functions/report-missing-data";
+  if (typeof communityDeviceId === "function") {
+    payload.deviceId = communityDeviceId();
+    if (typeof communityNoteFeedback === "function") communityNoteFeedback(payload);
+  }
+  const queue = async () => {
+    await outboxAdd({ id: payload.requestId, url, payload });
+    return { queued: true };
+  };
+  if (!navigator.onLine) return queue();
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    return { response, data: await response.json().catch(() => ({})) };
+  } catch {
+    return queue();
+  }
+}
+
+const REPORT_QUEUED_MESSAGE = "Saved. It will be sent automatically when you're back online.";
+// This browser could not keep the report on disk (private window, storage blocked), so it only survives
+// while the app stays open.
+const REPORT_QUEUED_VOLATILE_MESSAGE = "Not sent yet. This browser can't save it, so keep the app open and it will send when you're back online.";
+function reportQueuedMessage() {
+  return typeof outboxIsDurable === "function" && !outboxIsDurable() ? REPORT_QUEUED_VOLATILE_MESSAGE : REPORT_QUEUED_MESSAGE;
+}
+
 async function submitReportForm() {
   // Guard against duplicate GitHub issues from double-taps or a submit
   // firing again while the previous request is still in flight.
@@ -3272,11 +3516,6 @@ async function submitReportForm() {
 
   const reportDetailsInput = document.getElementById("reportDetails");
   if (!reportDetailsInput) return;
-
-  if (!navigator.onLine) {
-    setReportStatus("No internet connection. Your report is saved and ready to submit when you\'re back online.", "error");
-    return;
-  }
 
   const details = String(reportDetailsInput.value || "").trim();
   if (!details) {
@@ -3314,22 +3553,15 @@ async function submitReportForm() {
   setReportStatus("Submitting report…");
 
   try {
-    const response = await fetch("/.netlify/functions/report-missing-data", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
+    const { queued, response, data } = await sendOrQueueReport(payload);
+    if (!queued && !response.ok) {
       const errorText = data && data.error ? data.error : `Request failed (${response.status})`;
       setReportStatus(errorText, "error");
       return;
     }
 
-    setReportStatus("Report submitted successfully.", "success", data && data.issueUrl);
+    if (queued) setReportStatus(reportQueuedMessage(), "success");
+    else setReportStatus("Report submitted successfully.", "success", data && data.issueUrl);
     reportDetailsInput.value = "";
     const photoInput = document.getElementById("reportPhoto");
     if (photoInput) {
@@ -3345,7 +3577,7 @@ async function submitReportForm() {
     setReportStatus("Could not submit report. Please try again.", "error");
   } finally {
     state.reportSubmitting = false;
-    if (submitButton) submitButton.disabled = !navigator.onLine;
+    if (submitButton) submitButton.disabled = false;
   }
 }
 
@@ -3367,10 +3599,10 @@ function locationIssueFormHtml() {
       <textarea class="report-textarea" placeholder="Describe the problem…"></textarea>
       ${reportPhotoFieldHtml("locationIssuePhoto")}
       <p class="report-status" aria-live="polite"></p>
-      <p class="report-note report-offline-note"${online ? " hidden" : ""}>Submission requires an internet connection. Try again once you\'re back online.</p>
+      <p class="report-note report-offline-note"${online ? " hidden" : ""}>You're offline. Your report will be saved and sent automatically when you're back online.</p>
       <div class="report-form-actions">
         <button class="button button-ghost" type="button" data-action="cancel-location-issue">Cancel</button>
-        <button class="button" type="button" data-action="submit-location-issue"${online ? "" : " disabled"}>Submit</button>
+        <button class="button" type="button" data-action="submit-location-issue">Submit</button>
       </div>
     </div>`;
 }
@@ -3399,12 +3631,6 @@ async function submitLocationIssueReport(wrapper) {
   const statusEl = wrapper.querySelector(".report-status");
   const submitButton = wrapper.querySelector("[data-action='submit-location-issue']");
   if (!textarea || !statusEl) return;
-
-  if (!navigator.onLine) {
-    statusEl.textContent = "No internet connection. Try again once you\'re back online.";
-    statusEl.className = "report-status error";
-    return;
-  }
 
   const details = String(textarea.value || "").trim();
   if (!details) {
@@ -3449,30 +3675,28 @@ async function submitLocationIssueReport(wrapper) {
   statusEl.className = "report-status";
 
   try {
-    const response = await fetch("/.netlify/functions/report-missing-data", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
+    const { queued, response, data } = await sendOrQueueReport(payload);
+    if (!queued && !response.ok) {
       const errorText = data && data.error ? data.error : `Request failed (${response.status})`;
       statusEl.textContent = errorText;
       statusEl.className = "report-status error";
       return;
     }
 
-    applyReportStatusContent(statusEl, "Report submitted successfully.", "success", data && data.issueUrl);
+    if (queued) applyReportStatusContent(statusEl, reportQueuedMessage(), "success");
+    else applyReportStatusContent(statusEl, "Report submitted successfully.", "success", data && data.issueUrl);
     textarea.value = "";
     const photoInput = wrapper.querySelector(".report-photo-input");
     if (photoInput) photoInput.value = "";
+    // The form stays open, so the next report in it is a new one: it needs its own id (the same id
+    // would be answered as a duplicate of this one, or replace it in the outbox).
+    delete wrapper.dataset.requestId;
   } catch (error) {
     statusEl.textContent = "Could not submit report. Please try again.";
     statusEl.className = "report-status error";
   } finally {
     wrapper.dataset.submitting = "false";
-    if (submitButton) submitButton.disabled = !navigator.onLine;
+    if (submitButton) submitButton.disabled = false;
   }
 }
 
@@ -4015,6 +4239,8 @@ function updateDocumentTitle() {
     const item = selected.item || {};
     if (selected.type === "settings") {
       title = "Settings";
+    } else if (selected.type === "community") {
+      title = "Community";
     } else if (selected.type === "report") {
       title = "Feedback";
     } else {
@@ -5083,6 +5309,7 @@ function ensureLocationWatch() {
       state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isRestaurantCategory(place) && !isCafeCategory(place) && !isShopCategory(place) && !isTransportCategory(place));
       state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
       checkEventProximityAlert(latitude, longitude);
+      if (typeof communityNudgeCheck === "function") communityNudgeCheck();
       // Walked out of a radius that was framing one nearby find? Grow it back to whatever is
       // still in reach before the list and camera are re-derived below (js/nav.js).
       ensureWalkingRadiusCoversNearest();
@@ -5308,7 +5535,13 @@ function headingUpActive() {
 // inconsistency in reverse: boot would use one fit and a later GPS update would use
 // another, before a heading ever arrived.
 function nearbyNavigationAnchorActive() {
-  return Boolean(state.userLocation && !selectedCompassTarget());
+  return Boolean(state.userLocation && !selectedCompassTarget() && !communityFramesOwnMarksOnly());
+}
+
+// The Community screen is about what the user has marked, so for someone who is not at the forest the
+// camera ignores where they are (it is nowhere near the map) and frames their own marks instead.
+function communityFramesOwnMarksOnly() {
+  return Boolean(state.selected && state.selected.type === "community" && hasRealLocation() && !state.userInMapArea);
 }
 
 function navigationAnchorActive() {
@@ -6481,7 +6714,8 @@ function nearbyCameraFitPoints(useFinalBrowseState = false) {
   const ring = walkingRadiusCirclePoints(64, useFinalBrowseState);
   const reach = ring.concat(outOfRadiusFitPoints());
   if (!secondaryScreenActive()) return reach;
-  return reach.concat(nearestSelectedFilterPoints());
+  const base = reach.concat(nearestSelectedFilterPoints());
+  return state.selected?.type === "community" && typeof communityFitPoints === "function" ? base.concat(communityFitPoints()) : base;
 }
 
 // How far past the walking radius the Nearby camera will reach for an out-of-radius match,
@@ -7267,6 +7501,7 @@ function keepOverviewCenteredOnUser(previousPoint) {
   if (state.clusterZoomed) return;
   if (els.inspector.classList.contains("minimized")) return;
   if (nearbyNavigationAnchorActive()) return;
+  if (communityFramesOwnMarksOnly()) return;
 
   const previousScreen = previousPoint ? worldToScreen(previousPoint) : null;
   const nextScreen = worldToScreen(state.userLocation.point);
@@ -7345,6 +7580,11 @@ function ensureOverviewTargetsVisible(options = {}) {
   if (state.selected && !secondaryScreenActive()) return;
   if (state.clusterZoomed) return;
   setInspectorMinimized(false);
+
+  if (communityFramesOwnMarksOnly()) {
+    fitCommunityOwnMarks(options);
+    return;
+  }
 
   if (nearbyNavigationAnchorActive()) {
     alignHeadingUpNavigationViewport({

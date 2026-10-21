@@ -258,7 +258,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (["/nearby/search", "/nearby/filter", "/settings", "/feedback"].includes(url.pathname)) {
+  if (["/nearby/search", "/nearby/filter", "/settings", "/feedback", "/community"].includes(url.pathname)) {
     const appFile = path.join(ROOT, "app.html");
     if (!fs.existsSync(appFile)) { send(res, 404, "App not found"); return; }
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
@@ -274,6 +274,42 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Community reports/overlay: same function modules Netlify runs, with the request body passed
+  // through (the generic proxy below only forwards the query string).
+  const COMMUNITY_FUNCTION_ROUTES = {
+    "/api/community/report": "community-report",
+    "/api/community/overlay": "community-overlay",
+    "/api/community/validate": "community-validate",
+    "/api/community/rebuild": "community-rebuild",
+    "/api/community/delete": "community-delete",
+    "/reports/tree-report": "tree-report",
+    "/reports/tree-report/": "tree-report",
+    "/api/auth/login": "auth-login",
+    "/api/auth/callback": "auth-callback",
+    "/api/auth/me": "auth-me",
+    "/api/auth/link": "auth-link",
+    "/api/auth/logout": "auth-logout",
+    "/api/features": "features",
+  };
+  if (COMMUNITY_FUNCTION_ROUTES[url.pathname]) {
+    const fnName = COMMUNITY_FUNCTION_ROUTES[url.pathname];
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", () => {
+      const fn = require(path.join(ROOT, "netlify", "functions", fnName + ".js"));
+      fn.handler({ httpMethod: req.method, headers: req.headers, queryStringParameters: Object.fromEntries(url.searchParams), body })
+        .then((result) => {
+          // Redirects set cookies through multiValueHeaders, which the headers object alone would drop.
+          const headers = { ...(result.headers || { "Content-Type": "application/json" }) };
+          for (const [name, values] of Object.entries(result.multiValueHeaders || {})) headers[name] = values;
+          res.writeHead(result.statusCode, headers);
+          res.end(result.body || "");
+        })
+        .catch((err) => send(res, 500, JSON.stringify({ error: String(err.message) }), "application/json; charset=utf-8"));
+    });
+    return;
+  }
+
   // Proxy Netlify functions locally
   if (url.pathname.startsWith("/.netlify/functions/")) {
     const fnName = url.pathname.replace("/.netlify/functions/", "");
@@ -283,22 +319,28 @@ const server = http.createServer((req, res) => {
       send(res, 403, "Forbidden");
       return;
     }
-    try {
-      // Clear require cache so changes are picked up on restart
-      delete require.cache[require.resolve(resolved)];
-      const fn = require(resolved);
-      const qs = Object.fromEntries(url.searchParams.entries());
-      fn.handler({ httpMethod: req.method, queryStringParameters: qs })
-        .then((result) => {
-          res.writeHead(result.statusCode, result.headers || { "Content-Type": "application/json" });
-          res.end(result.body || "");
-        })
-        .catch((err) => {
-          send(res, 500, JSON.stringify({ error: String(err.message) }), "application/json; charset=utf-8");
-        });
-    } catch (err) {
-      send(res, 500, JSON.stringify({ error: String(err.message) }), "application/json; charset=utf-8");
-    }
+    // Forward the request body and headers like Netlify does (a POST function such as
+    // report-missing-data reads both), once the whole body has arrived.
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", () => {
+      try {
+        // Clear require cache so changes are picked up on restart
+        delete require.cache[require.resolve(resolved)];
+        const fn = require(resolved);
+        const qs = Object.fromEntries(url.searchParams.entries());
+        fn.handler({ httpMethod: req.method, headers: req.headers, queryStringParameters: qs, body })
+          .then((result) => {
+            res.writeHead(result.statusCode, result.headers || { "Content-Type": "application/json" });
+            res.end(result.body || "");
+          })
+          .catch((err) => {
+            send(res, 500, JSON.stringify({ error: String(err.message) }), "application/json; charset=utf-8");
+          });
+      } catch (err) {
+        send(res, 500, JSON.stringify({ error: String(err.message) }), "application/json; charset=utf-8");
+      }
+    });
     return;
   }
 

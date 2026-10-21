@@ -328,12 +328,71 @@ function drawOverlay() {
   }
   drawUser(ctx, toScreen, isTilted);
   drawNearbyAnchorMarker(ctx, toScreen);
+  drawCommunityMarks(ctx, toScreen);
   drawSelectedOverlay(ctx, toScreen);
   if (drawInspectorIconMotion(selectedIconMotionFrame())) _selectedIconMotionDrawn = true;
   if (_selectedIconMotionDrawn) {
     _selectedIconMotionTimer = setTimeout(drawOverlay, SELECTED_ICON_FRAME_MS);
   } else {
     stopSelectedIconMotion();
+  }
+}
+
+// The Community screen highlights everything the user has marked: a coloured ring with a check
+// (verified), a cross (reported wrong) or a plus (a tree they added), over a soft halo so it reads
+// against any pin or footpath underneath. communityMapMarks() (js/community.js) says what and where.
+function drawCommunityMarks(ctx, toScreen) {
+  if (typeof communityMapMarks !== "function") return;
+  const onCommunityScreen = Boolean(state.selected) && state.selected.type === "community";
+  // Trees walkers have added show for everyone on every other screen; the Community screen
+  // shows only the user's own reports.
+  const shared = onCommunityScreen ? [] : communityOverlayNewTreeMarks();
+  const own = onCommunityScreen ? communityMapMarks() : (state.selected && state.selected.type === "tree" && typeof communitySelectedTreeMarks === "function" ? communitySelectedTreeMarks() : []);
+  const marks = shared.concat(own);
+  if (!marks.length) return;
+  if (!toScreen) toScreen = worldToScreen;
+  const dpr = pixelRatio();
+  const w = ctx.canvas.width;
+  const h = ctx.canvas.height;
+  for (const mark of marks) {
+    const p = toScreen(projectLonLat(mark.lon, mark.lat));
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
+    if (p.x < -30 * dpr || p.y < -30 * dpr || p.x > w + 30 * dpr || p.y > h + 30 * dpr) continue;
+    const style = COMMUNITY_MARK_STYLE[mark.kind];
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 18 * dpr, 0, Math.PI * 2);
+    ctx.fillStyle = style.halo;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 10.5 * dpr, 0, Math.PI * 2);
+    ctx.fillStyle = style.color;
+    ctx.fill();
+    ctx.lineWidth = 2 * dpr;
+    ctx.strokeStyle = "#fff";
+    ctx.stroke();
+    ctx.lineWidth = 2 * dpr;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    if (mark.kind === "verified") {
+      ctx.moveTo(p.x - 4.2 * dpr, p.y + 0.4 * dpr);
+      ctx.lineTo(p.x - 1.2 * dpr, p.y + 3.4 * dpr);
+      ctx.lineTo(p.x + 4.4 * dpr, p.y - 3 * dpr);
+    } else if (mark.kind === "added") {
+      ctx.moveTo(p.x - 4 * dpr, p.y);
+      ctx.lineTo(p.x + 4 * dpr, p.y);
+      ctx.moveTo(p.x, p.y - 4 * dpr);
+      ctx.lineTo(p.x, p.y + 4 * dpr);
+    } else {
+      ctx.moveTo(p.x - 3.6 * dpr, p.y - 3.6 * dpr);
+      ctx.lineTo(p.x + 3.6 * dpr, p.y + 3.6 * dpr);
+      ctx.moveTo(p.x + 3.6 * dpr, p.y - 3.6 * dpr);
+      ctx.lineTo(p.x - 3.6 * dpr, p.y + 3.6 * dpr);
+    }
+    ctx.strokeStyle = "#fff";
+    ctx.stroke();
+    ctx.restore();
   }
 }
 
@@ -2199,7 +2258,14 @@ function buildSearchIconLookup() {
 // while it has matches to show, the ordinary Nearby/Filter/Settings/Report set otherwise (an
 // open Search screen with no query yet, or too short a query, falls back to this too -- see
 // searchResultsHtml/updateSearchHighlight, js/app.js).
+// On the Community screen the map shows only what the user has marked (drawCommunityMarks), so no
+// ordinary pins are drawn or tappable underneath.
+const COMMUNITY_EMPTY_ICON_LOOKUP = Object.freeze({
+  tree: new Set(), landmark: new Set(), cow: new Set(), path: new Set(), water: new Set(), outOfRadius: new Set(),
+});
+
 function activeIconLookup() {
+  if (state.selected && state.selected.type === "community") return COMMUNITY_EMPTY_ICON_LOOKUP;
   if (state.searchScreenOpen && state.searchHighlightResults.length) return buildSearchIconLookup();
   return buildNearbyIconLookup();
 }

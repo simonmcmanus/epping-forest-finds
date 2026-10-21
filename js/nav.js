@@ -129,6 +129,7 @@ function secondaryScreenActive() {
     || state.searchScreenOpen
     || state.selected?.type === "settings"
     || state.selected?.type === "report"
+    || state.selected?.type === "community"
   );
 }
 
@@ -140,7 +141,7 @@ function secondaryScreenActive() {
 // drift out of sync with each other again (they did: the old ambient route lines used to check
 // `state.selected` directly and hid themselves on Settings/Report).
 function hasRealSelection() {
-  return Boolean(state.selected && !["settings", "report"].includes(state.selected.type));
+  return Boolean(state.selected && !["settings", "report", "community"].includes(state.selected.type));
 }
 
 function refreshSettingsVersionDisplay() {
@@ -447,7 +448,7 @@ function setupReportKeyboardAvoidance() {
 
 function handleReportViewportChange() {
   if (!els.inspector) return;
-  const isReport = state.selected?.type === "report";
+  const isReport = state.selected?.type === "report" || state.selected?.type === "community";
   if (!isReport && !state.searchScreenOpen) {
     clearReportKeyboardInset();
     return;
@@ -611,11 +612,13 @@ function setupFilterPanelHandlers() {
   if (els.reportToggle) {
     els.reportToggle.addEventListener("click", (event) => {
       event.preventDefault();
-      if (els.reportToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
+      // The tab is lit on its Feedback sub-page too, but tapping it there goes back up to Community.
+      const here = communityEnabled() ? "community" : "report";
+      if (state.selected?.type === here && !els.inspector.classList.contains("minimized")) {
         pulseNavButton(els.reportToggle);
         return;
       }
-      openReportModal();
+      openCommunityOrFeedback();
     });
   }
 
@@ -792,6 +795,42 @@ function setupSearchAndNavHandlers() {
       }
       return;
     }
+    const moreToggle = event.target.closest("[data-action='community-more']");
+    if (moreToggle) { communityToggleMore(moreToggle); return; }
+    const badgeTile = event.target.closest("[data-action='community-badge']");
+    if (badgeTile) { communityShowBadgeDetail(badgeTile); return; }
+    const logFilter = event.target.closest("[data-action='community-log-filter']");
+    if (logFilter) { communityLogFilter = logFilter.dataset.filter; communityRenderContributions(); return; }
+    const signinDismiss = event.target.closest("[data-action='community-signin-dismiss']");
+    if (signinDismiss) { communityDismissSignin(); return; }
+    const addStart = event.target.closest("[data-action='community-add-start']");
+    if (addStart) { communityStartAddTree(); return; }
+    const retryButton = event.target.closest("[data-action='community-retry']");
+    if (retryButton) { event.preventDefault(); communityRetry(retryButton); return; }
+    const recoveryAction = event.target.closest("[data-action='community-copy-code'], [data-action='community-restore']");
+    if (recoveryAction) {
+      event.preventDefault();
+      if (recoveryAction.dataset.action === "community-restore") communityRestore(); else communityCopyCode();
+      return;
+    }
+    const confirmAdded = event.target.closest("[data-action='community-confirm-added']");
+    if (confirmAdded) { communityConfirmAddedTree(confirmAdded.dataset.tag); return; }
+    const addPlaceStart = event.target.closest("[data-action='community-addplace-start']");
+    if (addPlaceStart) { communityStartAddPlace(); return; }
+    const addPlaceCancel = event.target.closest("[data-action='community-addplace-cancel']");
+    if (addPlaceCancel) { communityCancelAddPlace(); return; }
+    const addCancel = event.target.closest("[data-action='community-add-cancel']");
+    if (addCancel) { communityCancelAddTree(); return; }
+    const placeChoice = event.target.closest("[data-action='community-place-choose']");
+    if (placeChoice) { communityHandlePlaceChoice(placeChoice); return; }
+    const placeSend = event.target.closest("[data-action='community-send-place']");
+    if (placeSend) { communitySendPlace(placeSend); return; }
+    const placeCancel = event.target.closest("[data-action='community-cancel-note']");
+    if (placeCancel) { communityCancelNote(placeCancel); return; }
+    const communityChange = event.target.closest("[data-action='community-change']");
+    if (communityChange) { communityHandleChange(communityChange); return; }
+    const communityChoice = event.target.closest("[data-action='community-report']");
+    if (communityChoice) { communityHandleChoice(communityChoice); return; }
     const reportIssueToggle = event.target.closest("[data-action='report-issue']");
     if (reportIssueToggle) { toggleLocationIssueForm(reportIssueToggle); return; }
     const cancelIssueBtn = event.target.closest("[data-action='cancel-location-issue']");
@@ -813,7 +852,8 @@ function setupSearchAndNavHandlers() {
     // external link (Open in Maps, a website row, OSM attribution) always opens target="_blank"
     // and is left to the browser untouched; so is a modified click (open in new tab/window),
     // same as any ordinary link.
-    const internalLink = event.target.closest("a[href^='/']");
+    // API routes (sign-in, sign-out) are server redirects, not app screens: leave them to the browser.
+    const internalLink = event.target.closest("a[href^='/']:not([href^='/api/'])");
     if (internalLink && internalLink.target !== "_blank"
       && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
       event.preventDefault();
@@ -1151,7 +1191,7 @@ function focusNearbyOnClusterGroup(cluster) {
   // what lets its own `if (!secondaryScreenActive()) selectOverview()` actually fire.
   state.filterScreenOpen = false;
   state.searchScreenOpen = false;
-  if (state.selected && (state.selected.type === "settings" || state.selected.type === "report")) {
+  if (state.selected && ["settings", "report", "community"].includes(state.selected.type)) {
     state.selected = null;
   }
   // Same slide restoreNearbyAnchorFromHistory/setNearbyAnchor use for any other anchor move --

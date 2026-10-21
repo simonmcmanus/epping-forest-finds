@@ -238,9 +238,19 @@ Colours are assigned from a fixed 15-colour palette in the order users are first
 - All events contain only anonymous IDs — no PII is stored or returned
 - The admin UI keeps the password in same-tab `sessionStorage`, not persistent `localStorage`
 
+## Early access (feature gate)
+The **Access** top-bar button opens a panel with one tester per line (Tester ID from the person's Settings screen, then an optional note). Save posts the list to `POST /api/features`; no deploy is needed. An empty list means the gate is off and everyone has Community. See `spec/spec-community.md` (Feature gate). `/api/features` is routed in `netlify.toml`.
+
 ## Planned future features
 
 - UI control to change the window (currently fixed to the last 30 days, or all history via `?days=N`/`?days=all` on the API directly)
 - Per-user route replay (animated playback)
 - Export to CSV / GeoJSON
 - Date/time filters for click-detail aggregation
+
+## Community verification usage
+
+A **Community** button in the admin top bar opens a panel (`#adminCommunity`) of live usage numbers for community reports: people reporting (all time, active in the last 24 h / 7 days), report count, trees questioned / verified, new trees (unconfirmed / confirmed), conflicts awaiting review, points awarded, reports by type and per day for the last 7 days. Data comes from `GET /api/community/overlay?admin=1` with `Authorization: Bearer <ADMIN_PASSWORD>` (401 otherwise), computed fresh from the report ledger by `communityAdminStats` (`netlify/functions/lib/community-consensus.js`). Individual device ids and scores are not shown. See `spec-community.md`.
+
+## Community data deletion
+`POST /api/community/delete` (`Authorization: Bearer <ADMIN_PASSWORD>`, routed in `netlify.toml` and `server.js`) deletes one person's Community data on request; it has no button in the dashboard. See `spec-community.md` (Data deletion) and `docs/community-data-deletion.md`.

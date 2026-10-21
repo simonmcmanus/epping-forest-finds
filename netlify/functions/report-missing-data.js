@@ -1,5 +1,7 @@
 const DEFAULT_REPO = "simonmcmanus/epping-forest-finds";
-const { randomUUID } = require("crypto");
+const { randomUUID, createHmac } = require("crypto");
+const { openStore } = require("./lib/community-store");
+const { checkRateLimit, clientIp } = require("./lib/report-rate-limit");
 const { connectLambda, getStore } = require("@netlify/blobs");
 const REPORT_PHOTO_MAX_BYTES = 3 * 1024 * 1024;
 const REPORT_PHOTO_STORE = "report-photos";
@@ -59,6 +61,66 @@ async function sendPhoto(event, photoId) {
   }
 }
 
+// Place checks (spec-community.md): a person says a listed place has closed / moved / changed.
+// They are never applied automatically: each becomes a GitHub issue for manual review, and a
+// second report about the same place is added to that open issue as a comment instead.
+const PLACE_CHECK_LABELS = {
+  CLOSED: "It's closed",
+  MOVED: "It has moved",
+  RENAMED: "The name has changed",
+  DETAILS_CHANGED: "The details are wrong",
+  WRONG_CATEGORY: "Wrong type of place",
+  NEW_PLACE: "A place is missing from the map",
+};
+// Real place ids carry a slash ("node/123", "manual/onest"). A slash is safe inside the quoted
+// place-key search term; quotes and spaces stay out, so the term can't break out of its quotes.
+const PLACE_KEY_PATTERN = /^[A-Za-z0-9:_./,-]{1,120}$/;
+
+function parsePlaceCheck(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const status = String(raw.status || "");
+  const key = String(raw.key || "");
+  if (!PLACE_CHECK_LABELS[status] || !PLACE_KEY_PATTERN.test(key)) return null;
+  // A missing place has no id yet, so its name is what a reviewer has to go on.
+  if (status === "NEW_PLACE" && !String(raw.name || "").trim()) return null;
+  return {
+    status,
+    key,
+    label: PLACE_CHECK_LABELS[status],
+    name: String(raw.name || "").trim().slice(0, 120),
+    category: String(raw.category || "").trim().slice(0, 60),
+  };
+}
+
+// Every place-check issue also carries a label naming the place ("place:node/123"), so GitHub's label
+// filter lists everything reported about one location. GitHub caps a label name at 50 characters.
+function placeLabelName(key) {
+  return `place:${String(key).replace(/^place:(id:)?/, "")}`.slice(0, 50);
+}
+
+// A reporter is credited later (spec-community.md, Rewards) when their issue is closed as completed.
+// The public issue carries only an opaque reference; the server keeps the reference -> device id
+// mapping, so nobody can read a device id off GitHub.
+function reporterRef(deviceId, secret) {
+  return createHmac("sha256", secret || "forest-finds").update(deviceId).digest("hex").slice(0, 24);
+}
+
+async function recordReporter(event, deviceId, ref, entry) {
+  try {
+    const store = openStore(event);
+    await store.put(`refs/${ref}`, { deviceId });
+    // One record per public issue, outside the capped `mine/` log, so a data-deletion request can always find
+    // every issue filed from this device however many reports it has made.
+    if (Number.isInteger(entry.issue)) await store.put(`issues/${deviceId}/${entry.issue}`, { ts: Date.now() });
+    const mineKey = `mine/${deviceId}`;
+    const mine = (await store.get(mineKey)) || [];
+    mine.push({ ...entry, ts: Date.now() });
+    await store.put(mineKey, mine.slice(-300));
+  } catch {
+    // Rewards are a bonus: a storage hiccup must never fail the report itself.
+  }
+}
+
 function normalizedToken(value) {
   if (typeof value !== "string") return "";
   return value.trim().replace(/^['\"]|['\"]$/g, "");
@@ -77,6 +139,9 @@ function response(statusCode, body) {
     body: JSON.stringify(body),
   };
 }
+
+// Tests swap the store so a rate-limit document never lands on disk.
+let rateLimitStoreOverride = null;
 
 exports.handler = async (event) => {
   if (event.httpMethod === "GET" && event.queryStringParameters?.photo) {
@@ -117,6 +182,8 @@ exports.handler = async (event) => {
   const appVersion = String(payload.appVersion || "unknown").trim();
   const pageUrl = String(payload.pageUrl || "").trim();
   const userAgent = String(payload.userAgent || "").trim();
+  const rawDeviceId = String(payload.deviceId || "").trim();
+  const deviceId = /^[A-Za-z0-9_-]{8,64}$/.test(rawDeviceId) ? rawDeviceId : "";
   const rawRequestId = String(payload.requestId || "").trim().slice(0, 100);
   const requestId = /^[a-zA-Z0-9-]+$/.test(rawRequestId) ? rawRequestId : "";
   let photo;
@@ -126,7 +193,13 @@ exports.handler = async (event) => {
     return response(400, { error: error.message });
   }
 
-  if (!details) {
+  const isPlaceCheck = reportType === "place-check";
+  const placeCheck = isPlaceCheck ? parsePlaceCheck(payload.placeCheck) : null;
+  if (isPlaceCheck && !placeCheck) {
+    return response(400, { error: "Invalid place check" });
+  }
+  // A place check's status is the report; the free text is an optional note on top of it.
+  if (!isPlaceCheck && !details) {
     return response(400, { error: "Details are required" });
   }
 
@@ -144,19 +217,37 @@ exports.handler = async (event) => {
     });
   }
 
+  // Past this point a report costs a GitHub call and may create an issue: cap how many one network,
+  // one device and the whole site can send per hour (lib/report-rate-limit.js).
+  const limited = await checkRateLimit(rateLimitStoreOverride || openStore(event), { ip: clientIp(event), deviceId });
+  if (!limited.ok) {
+    const limitedResponse = response(429, { error: "Too many reports right now. Please try again in a little while." });
+    limitedResponse.headers["Retry-After"] = String(limited.retryAfter);
+    return limitedResponse;
+  }
+
   const isFeature = reportType === "feature-request";
   const isLocationIssue = reportType === "location-issue";
-  const titlePrefix = isFeature ? "Feature request" : isLocationIssue ? "Location issue" : "Missing map data";
-  const titleSubject = isLocationIssue && locationContext && locationContext.name ? `${locationContext.name}: ` : "";
-  const title = `${titlePrefix}: ${titleSubject}${details.slice(0, 80)}`;
+  const titlePrefix = isPlaceCheck ? "Place check" : isFeature ? "Feature request" : isLocationIssue ? "Location issue" : "Missing map data";
+  const titleSubject = isPlaceCheck
+    ? `${placeCheck.name || "Unnamed place"}: `
+    : isLocationIssue && locationContext && locationContext.name ? `${locationContext.name}: ` : "";
+  const title = `${titlePrefix}: ${titleSubject}${isPlaceCheck ? placeCheck.label : details.slice(0, 80)}`;
 
   const issueBodyLines = [
     "## Report",
-    details,
+    isPlaceCheck ? `**${placeCheck.label}**${details ? `\n\n${details}` : ""}` : details,
     "",
     "## Metadata",
     `- Type: ${reportType}`,
   ];
+  if (isPlaceCheck) {
+    issueBodyLines.push(
+      `- Place: ${[placeCheck.name, placeCheck.category && `(${placeCheck.category})`].filter(Boolean).join(" ")}`,
+      `- Reported status: ${placeCheck.status}`,
+      `- Place key: place-key:${placeCheck.key}`
+    );
+  }
 
   if (locationContext && (locationContext.type || locationContext.name)) {
     issueBodyLines.push(`- Reported item: ${[locationContext.type, locationContext.name].filter(Boolean).join(" — ")}`);
@@ -176,11 +267,13 @@ exports.handler = async (event) => {
   if (requestId) {
     issueBodyLines.push(`- Request ID: request-id:${requestId}`);
   }
+  const ref = deviceId ? reporterRef(deviceId, process.env.COMMUNITY_REF_SECRET || githubToken) : "";
+  if (ref) issueBodyLines.push(`- Reporter ref: reporter-ref:${ref}`);
 
   const issuePayload = {
     title,
     body: issueBodyLines.join("\n"),
-    labels: [isFeature ? "feature-request" : isLocationIssue ? "location-issue" : "missing-data", "user-report"],
+    labels: [isPlaceCheck ? "place-check" : isFeature ? "feature-request" : isLocationIssue ? "location-issue" : "missing-data", "user-report", ...(isPlaceCheck ? [placeLabelName(placeCheck.key)] : [])],
   };
 
   const apiHeaders = {
@@ -194,7 +287,7 @@ exports.handler = async (event) => {
     // that slipped past the client-side guard) carries the same requestId.
     // Look for an issue we already filed for it before creating another.
     if (requestId) {
-      const searchQuery = `repo:${githubRepo} in:body "request-id:${requestId}"`;
+      const searchQuery = `repo:${githubRepo} in:body,comments "request-id:${requestId}"`;
       const searchResponse = await fetch(
         `https://api.github.com/search/issues?q=${encodeURIComponent(searchQuery)}`,
         { headers: apiHeaders }
@@ -209,6 +302,37 @@ exports.handler = async (event) => {
             issueNumber: existingIssue.number,
             issueUrl: existingIssue.html_url,
           });
+        }
+      }
+    }
+
+    // One open issue per place: a further report about the same place is added to it.
+    if (isPlaceCheck) {
+      const placeQuery = `repo:${githubRepo} is:issue is:open label:place-check in:body "place-key:${placeCheck.key}"`;
+      const placeSearch = await fetch(
+        `https://api.github.com/search/issues?q=${encodeURIComponent(placeQuery)}`,
+        { headers: apiHeaders }
+      );
+      if (placeSearch.ok) {
+        const placeData = await placeSearch.json().catch(() => ({}));
+        const openIssue = Array.isArray(placeData.items) ? placeData.items[0] : null;
+        if (openIssue) {
+          const commentLines = [`Another report: **${placeCheck.label}** (${placeCheck.status})`];
+          if (details) commentLines.push("", details);
+          if (location && Number.isFinite(Number(location.latitude)) && Number.isFinite(Number(location.longitude))) {
+            commentLines.push("", `- Reported location: ${Number(location.latitude)}, ${Number(location.longitude)}`);
+          }
+          if (requestId) commentLines.push(`- Request ID: request-id:${requestId}`);
+          if (ref) commentLines.push(`- Reporter ref: reporter-ref:${ref}`);
+          const commentResponse = await fetch(`https://api.github.com/repos/${githubRepo}/issues/${openIssue.number}/comments`, {
+            method: "POST",
+            headers: { ...apiHeaders, "Content-Type": "application/json" },
+            body: JSON.stringify({ body: commentLines.join("\n") }),
+          });
+          if (commentResponse.ok) {
+            if (ref) await recordReporter(event, deviceId, ref, { id: requestId, kind: "place", status: placeCheck.status, target: placeCheck.key, issue: openIssue.number });
+            return response(200, { ok: true, merged: true, issueNumber: openIssue.number, issueUrl: openIssue.html_url });
+          }
         }
       }
     }
@@ -228,6 +352,16 @@ exports.handler = async (event) => {
       issuePayload.body += `\n\n## Photo\n![Photo attached to report](${photoUrl})`;
     }
 
+    // GitHub drops a label it does not know when an issue is created, so the per-place label has to
+    // exist first. An existing label answers 422, which is fine; any other failure must not stop the report.
+    if (isPlaceCheck) {
+      await fetch(`https://api.github.com/repos/${githubRepo}/labels`, {
+        method: "POST",
+        headers: { ...apiHeaders, "Content-Type": "application/json" },
+        body: JSON.stringify({ name: placeLabelName(placeCheck.key), color: "c5def5", description: "Reports about one place" }),
+      }).catch(() => {});
+    }
+
     const issueResponse = await fetch(`https://api.github.com/repos/${githubRepo}/issues`, {
       method: "POST",
       headers: { ...apiHeaders, "Content-Type": "application/json" },
@@ -242,6 +376,11 @@ exports.handler = async (event) => {
       });
     }
 
+    if (ref) {
+      await recordReporter(event, deviceId, ref, isPlaceCheck
+        ? { id: requestId, kind: "place", status: placeCheck.status, target: placeCheck.key, issue: issueData.number }
+        : { id: requestId, kind: "feedback", status: "FEEDBACK", issue: issueData.number });
+    }
     return response(200, {
       ok: true,
       issueNumber: issueData.number,
@@ -252,6 +391,9 @@ exports.handler = async (event) => {
   }
 };
 
+exports.setRateLimitStore = (store) => { rateLimitStoreOverride = store; };
 exports.REPORT_PHOTO_MAX_BYTES = REPORT_PHOTO_MAX_BYTES;
 exports.parsePhoto = parsePhoto;
+exports.parsePlaceCheck = parsePlaceCheck;
+exports.placeLabelName = placeLabelName;
 exports.reportPhotoUrl = reportPhotoUrl;

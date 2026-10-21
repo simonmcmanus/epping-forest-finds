@@ -265,7 +265,8 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
 | `/nearby/search` | Search — carries the typed text as a live `?q=<text>` query string (see below) |
 | `/nearby/filter` | Filters — carries the active set as a live `?show=<key>,<key>` query string (see below) |
 | `/settings` | Settings |
-| `/feedback` | Feedback |
+| `/feedback` | Feedback form (a sub-page of Community) |
+| `/community` | Community (contributions, add a missing tree) |
 | `/nearby#tree=<key>` | a selected tree; likewise `cow`, `path`, `water`, `road`, `railway`, on top of whichever screen's path it was selected from. A selected `place` (landmark) does this too, *unless* it has its own `/find/<slug>/` page (below), in which case selecting it navigates there instead — see that row |
 | `/nearby#near=<lat>,<lon>` | the Nearby view's browse anchor (tap-to-relocate, or an expanded cluster's centre) — shareable and restored on a fresh load, same as a selection |
 | `/nearby/<slug>` | The same app, served at its own URL and pre-filtered to one category (a subfilter's own slug, e.g. `pubs`, or a whole top-level group's, e.g. `food`) — a `/nearby/<slug>` category page (`spec-marketing.md` § "Category pages") is itself an instance of this app, not a separate page linking to it. `<slug>` is never `filter` or `search`: those two are the screens below, not categories |
@@ -395,7 +396,7 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
 - **A URL naming something the dataset does not have** (a stale share link) falls back to Nearby
   and corrects the entry in place with `replaceState`, rather than leaving the app on a screen
   its URL does not describe.
-- `/feedback` opens the Feedback screen directly (the old `/report` path 301-redirects to it, keeping the hash, so published ledger links still work). `/feedback#report=<text>` also pre-fills the form with that text followed by `": "`, so a link can say what the reader was looking at when they found the problem — this is how the weekly reports link back for corrections. A saved draft of the reader's own always wins: the pre-fill only applies to an empty field.
+- `/feedback` opens the Feedback form page directly (`/community` is the Community screen it hangs off) (the old `/report` path 301-redirects to it, keeping the hash, so published ledger links still work). `/feedback#report=<text>` also pre-fills the form with that text followed by `": "`, so a link can say what the reader was looking at when they found the problem — this is how the weekly reports link back for corrections. A saved draft of the reader's own always wins: the pre-fill only applies to an empty field.
 
 ### Camera behavior
 
@@ -517,6 +518,7 @@ the only one.
 - Accessible via the generated settings icon button in the inspector header.
 - Contains a **Walking radius** control: a slider (its floor to 30 min, half-minute steps — quarter-minute when its floor is under a minute — with tick marks at the old preset stops) choosing how far to walk when listing nearby places. Its lower bound tracks the distance to the nearest real item so it can't be dragged down to a radius with nothing in it; where that is closer than a minute's walk the slider opens up the sub-minute end and shows the value in seconds. Sitting at that floor shows a "nothing closer to show nearby" note. The tick marks are drawn as separate positioned elements (`.walk-radius-tick`), not the input's native `list` rendering: `appearance: none` (needed to restyle the track/thumb) silently discards a browser's own datalist tick marks too, so they have to be reimplemented to be visible at all.
 - Contains an **About** section displaying the current app version (e.g. `v80`; `dev-v80` when served by the local dev server — see "Local dev flag" in `spec/glossary.md`) and three refresh buttons: **Refresh data**, **Refresh app**, and **Refresh both**. Placed before Privacy so the troubleshooting controls people open Settings for aren't the last thing in the sheet.
+- The About section also shows the person's **Tester ID** (a 10-character hash, with a Copy button) to give the admin for early access (see `spec/spec-community.md`, Feature gate).
 - **Refresh buttons**: all three clear cached state and reload, sidestepping the normal update flow — where the open tab's version display can otherwise lag a reload or two behind a service worker that already updated silently in the background. They differ only in scope, because clearing everything to pick up a code change used to also throw away ~67 MB of map data:
   - **Refresh data** — deletes the `forest-finds-(dev-)data-*` caches only. The service worker registration and the cached app shell survive, so the reload re-downloads the trees, paths and places and nothing else.
   - **Refresh app** — unregisters every service worker registration and deletes the `forest-finds-(dev-)app-*` caches, leaving the downloaded map data in place.
