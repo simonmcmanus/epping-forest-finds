@@ -668,7 +668,7 @@ function communitySectionHtml(tree) {
   const target = communityTreeTarget(tree);
   if (!target || tree.latitude == null || tree.longitude == null) return "";
   const reported = Boolean(communityReadLocal()[target]);
-  return `<section class="community-check" data-community-target="${escapeHtml(target)}" data-lat="${tree.latitude}" data-lon="${tree.longitude}">
+  return `<section class="community-check${reported ? " community-check-reported" : ""}" data-community-target="${escapeHtml(target)}" data-lat="${tree.latitude}" data-lon="${tree.longitude}">
       <div class="community-head${reported ? " community-head-reported" : ""}">
         <span class="community-head-icon">${communityIcon("shield")}</span>
         <div><h3 class="community-title">Help check this tree</h3><p class="community-sub">Is it where the map says it is?</p></div>
@@ -683,10 +683,12 @@ function communityRefreshSections() {
     if (!body) return;
     const target = section.dataset.communityTarget;
     const editing = section.dataset.editing === "1";
+    const reported = Boolean(communityReadLocal()[target]) && !editing;
     body.innerHTML = section.dataset.kind === "place"
       ? communityPlaceInnerHtml(section)
       : communitySectionInnerHtml(target, editing, Number(section.dataset.lat), Number(section.dataset.lon), section.dataset.more === "1");
-    section.querySelector(".community-head")?.classList.toggle("community-head-reported", Boolean(communityReadLocal()[target]) && !editing);
+    section.classList.toggle("community-check-reported", reported);
+    section.querySelector(".community-head")?.classList.toggle("community-head-reported", reported);
   });
 }
 
@@ -1363,7 +1365,7 @@ function communityPlaceSectionHtml(place) {
   const target = `place:${placeHashKey(place)}`;
   const reported = Boolean(communityReadLocal()[target]);
   const category = place.categoryLabel || "Local place";
-  return `<section class="community-check community-check-place" data-kind="place" data-community-target="${escapeHtml(target)}" data-lat="${place.latitude}" data-lon="${place.longitude}" data-name="${escapeHtml(place.name)}" data-category="${escapeHtml(category)}" data-slug="${escapeHtml(place.findSlug || "")}">
+  return `<section class="community-check community-check-place${reported ? " community-check-reported" : ""}" data-kind="place" data-community-target="${escapeHtml(target)}" data-lat="${place.latitude}" data-lon="${place.longitude}" data-name="${escapeHtml(place.name)}" data-category="${escapeHtml(category)}" data-slug="${escapeHtml(place.findSlug || "")}">
       <div class="community-head${reported ? " community-head-reported" : ""}">
         <span class="community-head-icon">${communityIcon("shield")}</span>
         <div><h3 class="community-title">Help check this place</h3><p class="community-sub">Is this listing still right?</p></div>

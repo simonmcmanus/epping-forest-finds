@@ -1216,6 +1216,14 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   margin: 16px 0 4px; padding: 16px; border-radius: var(--c-radius);
   background: #fbfcfa; border: 1px solid rgba(47, 111, 78, 0.18);
 }
+.community-check-reported {
+  margin: 6px 0 12px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+.community-check-reported .community-local-status { margin: 0; }
 .community-head { display: flex; align-items: center; gap: 12px; max-height: 80px; margin-bottom: 14px; overflow: hidden; opacity: 1; transform: none; transition: max-height 220ms ease, margin 220ms ease, opacity 180ms ease, transform 220ms ease; }
 .community-head-reported { max-height: 0; margin-bottom: 0; opacity: 0; transform: translateY(-5px); pointer-events: none; }
 .community-head-icon {
