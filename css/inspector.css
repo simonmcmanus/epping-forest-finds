@@ -1253,7 +1253,7 @@ button.community-more:focus-visible { outline: 2px solid var(--tree); outline-of
 .community-nudge > .community-points-chip { flex: none; margin: 0; }
 .community-chip {
   min-height: 58px; padding: 8px 10px; border: 1px solid rgba(0, 0, 0, 0.08); border-radius: 12px;
-  display: flex; align-items: center; gap: 10px; text-align: left;
+  display: flex; flex-direction: column; align-items: flex-start; gap: 7px; text-align: left;
   font: inherit; font-size: 0.84rem; font-weight: 700; line-height: 1.25; color: var(--ink); background: #fff; cursor: pointer;
   transition: background 120ms ease, border-color 120ms ease, transform 120ms ease;
 }
@@ -1264,7 +1264,7 @@ button.community-more:focus-visible { outline: 2px solid var(--tree); outline-of
   width: 32px; height: 32px; flex-shrink: 0; border-radius: 10px;
   display: grid; place-items: center; color: var(--tree); background: rgba(47, 111, 78, 0.1);
 }
-.community-chip-label { min-width: 0; overflow-wrap: anywhere; }
+.community-chip-label { width: 100%; min-width: 0; overflow-wrap: anywhere; }
 .community-verify:focus-visible, .community-chip:focus-visible, .community-add:focus-visible, .community-link:focus-visible {
   outline: 2px solid var(--tree); outline-offset: 2px;
 }
@@ -1359,10 +1359,10 @@ button.community-more:focus-visible { outline: 2px solid var(--tree); outline-of
 .community-badge-detail[hidden] { display: none; }
 .community-badge-detail strong { color: var(--ink); }
 .community-stats { display: grid; grid-template-columns: repeat(3, 1fr); margin-top: 14px; }
-.community-stats div { display: grid; gap: 2px; padding: 2px 6px; text-align: center; }
+.community-stats div { display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto auto; column-gap: 8px; align-items: center; padding: 2px 10px; text-align: left; }
 .community-stats div + div { border-left: var(--c-hairline); }
-.community-stats strong { font-size: 1.2rem; color: var(--ink); }
-.community-stats span { font-size: 0.72rem; line-height: 1.2; color: var(--muted); }
+.community-stats strong { font-size: 1.35rem; line-height: 1.1; color: var(--ink); }
+.community-stats span { grid-column: 2; font-size: 0.72rem; line-height: 1.2; color: var(--muted); }
 
 .community-log { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 8px; }
 .community-log-item {
@@ -1800,6 +1800,12 @@ details[open] > summary > .community-mine-chevron { transform: rotate(90deg); }
 #communityReportsDetails > summary { display: flex; align-items: center; gap: 4px; min-height: 40px; cursor: pointer; list-style: none; }
 #communityReportsDetails > summary::-webkit-details-marker { display: none; }
 #communityReportsDetails > summary .community-mine-chevron { margin-left: auto; }
+#communityReportsDetails { overflow: hidden; border: var(--c-hairline); border-radius: var(--c-radius); background: #fff; box-shadow: var(--c-lift); }
+#communityReportsDetails > summary { min-height: 52px; padding: 10px 14px; font-size: 1.05rem; font-weight: 800; color: var(--ink); background: #f6f9f5; transition: background 120ms ease; }
+#communityReportsDetails > summary:hover { background: #eef5ef; }
+#communityReportsDetails > summary:focus-visible { outline: 2px solid var(--tree); outline-offset: -3px; }
+#communityReportsDetails[open] > summary { border-bottom: var(--c-hairline); }
+#communityReportsDetails > #communityLog { padding: 0 14px 14px; }
 .community-log-item { position: relative; }
 .community-log-item:hover { background: #f7faf7; }
 .community-log-name a::after { content: ""; position: absolute; inset: 0; border-radius: 12px; }
@@ -1812,7 +1818,7 @@ details[open] > summary > .community-mine-chevron { transform: rotate(90deg); }
 .community-new-tree:has(.community-add-actions) { grid-template-columns: 1fr auto; }
 .community-add { min-height: 34px; padding: 0 12px; border-radius: 8px; font-size: 0.86rem; color: var(--tree); background: #fff; border: 1px solid rgba(47, 111, 78, 0.35); box-shadow: none; }
 .community-add .community-icon { width: 16px; height: 16px; }
-.community-stats .community-icon { width: 16px; height: 16px; margin: 0 auto; color: var(--tree); }
+.community-stats .community-icon { grid-row: 1 / span 2; width: 22px; height: 22px; margin: 0; color: var(--tree); }
 .community-badges-section:has(#communityBadgesHost:empty) { display: none; }
 .community-rank { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .community-badge-chips { display: inline-flex; gap: 4px; }
@@ -1835,7 +1841,7 @@ details[open] > summary > .community-mine-chevron { transform: rotate(90deg); }
 .community-action-card { border-radius: var(--c-radius); border: 1px solid rgba(47, 111, 78, 0.3); background: #f1f7f2; overflow: hidden; }
 .community-action-card .community-action-row { border: 0; border-radius: 0; background: none; }
 .community-action-card .community-action-row:hover { background: #e8f1ea; }
-.community-action-card .community-intro { display: block; padding: 0 14px 10px 66px; font-size: 0.78rem; line-height: 1.35; color: var(--muted); }
+.community-action-card .community-intro { display: block; padding: 10px 14px 14px 66px; font-size: 0.78rem; line-height: 1.35; color: var(--muted); }
 .community-action-card .community-intro:hover { background: none; }
 .community-action-card .community-intro u { color: var(--tree); font-weight: 700; }
 

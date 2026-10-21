@@ -570,8 +570,8 @@ test.describe("Nudges to check a tree you are standing next to", () => {
     await expect(page.locator("#communityNudge")).toHaveCount(0);
   });
 
-  test("nudges stay quiet when turned off on the Community screen", async ({ page }) => {
-    await setup(page, "/community");
+  test("nudges stay quiet when turned off in Settings", async ({ page }) => {
+    await setup(page, "/settings");
     await page.uncheck("#communityNudgeToggle");
     await standNextToATree(page);
     await page.evaluate(() => { localStorage.setItem("ff-community-nudges-off-v1", "1"); communityNudgeCheck(); });
