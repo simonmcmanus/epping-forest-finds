@@ -178,9 +178,7 @@ async function loadMapData() {
     .catch(() => ({ locations: [] }));
 
   // Maps a place's OSM/folklore id to its own /find/<slug>/ page (data/business-slugs.json,
-  // scripts/regenerate-business-slugs.js) -- the same slugs that page itself was built with, so
-  // the inspector's "Full details" link (showLandmarkDetails, js/inspector.js) can never point
-  // somewhere that generator didn't also build. Missing or unreachable just means no link.
+  // scripts/regenerate-business-slugs.js) for generated landing-page and nearby-link lookups.
   const businessSlugsPromise = fetch(BUSINESS_SLUGS_URL)
     .then((r) => (r.ok ? r.json() : { entries: [] }))
     .catch(() => ({ entries: [] }));

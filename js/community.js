@@ -491,13 +491,13 @@ function communityVerifiedChipHtml(target) {
   const entry = communityVerifiedEntry(target);
   if (!entry) return "";
   const label = `Verified by ${entry.n} ${entry.n === 1 ? "person" : "people"}`;
-  return `<button type="button" class="community-verified-chip" aria-expanded="false" aria-label="${escapeHtml(label)}">${communityIcon("shield")}<strong>${entry.n}</strong></button>`;
+  return `<button type="button" class="community-verified-chip" aria-expanded="false" aria-controls="communityVerifiedDetail" aria-label="${escapeHtml(label)}">${communityIcon("shield")}<strong>${entry.n}</strong></button>`;
 }
 
 function communityVerifiedDetailHtml(target) {
   const entry = communityVerifiedEntry(target);
   if (!entry) return "";
-  return `<p class="community-verified-detail" hidden>${entry.n} ${entry.n === 1 ? "person has" : "people have"} confirmed this tree is where the map says it is. Community checks never change the official record.</p>`;
+  return `<p class="community-verified-detail" id="communityVerifiedDetail">${entry.n} ${entry.n === 1 ? "person has" : "people have"} confirmed this tree is where the map says it is. Community checks never change the official record.</p>`;
 }
 
 function communityVerifiedSlotsHtml(tree) {
@@ -526,7 +526,7 @@ if (typeof document !== "undefined" && document.addEventListener) {
     if (!detail) return;
     const open = chip.getAttribute("aria-expanded") !== "true";
     chip.setAttribute("aria-expanded", String(open));
-    detail.hidden = !open;
+    detail.classList.toggle("is-open", open);
   });
 }
 

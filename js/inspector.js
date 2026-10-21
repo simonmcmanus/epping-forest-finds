@@ -433,8 +433,7 @@ function showLandmarkDetails(place, distance) {
   }
   const mapsLink = place.latitude != null ? openInMapsHtml(place.latitude, place.longitude, place.name) : "";
   const shareBtn = shareLocationHtml();
-  const fullDetailsLink = fullDetailsLinkHtml(place.findSlug);
-  const actionsHtml = `<span class="detail-top-actions">${mapsLink}${shareBtn}${fullDetailsLink}</span>`;
+  const actionsHtml = `<span class="detail-top-actions">${mapsLink}${shareBtn}</span>`;
   const topRow = `<div class="detail-top-row">${distancePill}${actionsHtml}</div>`;
   const descriptionHtml = description ? `<p class="details-description">${escapeHtml(description)}</p>` : "";
   const ledgerHtml = ledgerMentionHtml(place);
@@ -1359,12 +1358,6 @@ function nearbySectionsHtml({ latitude, longitude, name = null, subfilterKey = n
 // IS that place's own /find/ page (landing there selects it automatically -- see
 // applySelectionFromHash's own routeValueFromLocation resolution, js/app.js): a link to the
 // current page would be a dead end, not a useful action.
-function fullDetailsLinkHtml(findSlug) {
-  if (!findSlug) return "";
-  if (window.location.pathname === `/find/${findSlug}/`) return "";
-  return `<a class="detail-map-link" href="/find/${escapeHtml(findSlug)}/">Full details</a>`;
-}
-
 // A "Noticed a problem with this location?" link on point-feature detail screens (trees,
 // landmarks) that expands into an inline report form in place, rather than navigating to the
 // full Report screen. Submission mechanics mirror that screen (js/app.js), but the location

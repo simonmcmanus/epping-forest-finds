@@ -4722,7 +4722,7 @@ test("choosing a search result opens the location the same way a map tap does", 
   assert.match(app.location.hash, /place=/, "and the selection is linkable like any other");
 });
 
-test("choosing a findSlug business from search updates the URL before rendering, so Full details is correctly suppressed", () => {
+test("choosing a findSlug business from search updates the URL before rendering", () => {
   resetSearchData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   addSearchFixtures(app);
@@ -4732,13 +4732,8 @@ test("choosing a findSlug business from search updates the URL before rendering,
   const [result] = app.searchMapFeatures("the forresters");
   app.openSearchResult(result.type, result.key);
 
-  // openSearchResult used to render the detail view (which decides whether to show "Full
-  // details" by comparing window.location.pathname against this place's own /find/<slug>/ page)
-  // before updating the URL -- so the pathname it checked was still the previous screen's, and
-  // the link always showed even when the reader had just selected this exact business. Clicking
-  // it did nothing either, since by the time of the click the URL had already caught up.
   assert.equal(app.location.pathname, "/find/the-forresters/", "the URL is updated as part of selecting the result");
-  assert.ok(!app.els.inspectorBody.innerHTML.includes("Full details"), "already on this business's own page, so no dead-end link to it");
+  assert.ok(!app.els.inspectorBody.innerHTML.includes("Full details"), "location details no longer include a dead-end link");
 });
 
 test("a road can be navigated to from search, which the nearby list cannot offer", () => {

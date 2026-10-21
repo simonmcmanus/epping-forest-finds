@@ -848,7 +848,7 @@ function setupSearchAndNavHandlers() {
       return;
     }
     // Any plain in-app link rendered into the inspector (nearbySectionsHtml's category/
-    // group chips and nearest-tree/cow cards, fullDetailsLinkHtml's "Full details") -- an
+    // group chips and nearest-tree/cow cards) -- an
     // external link (Open in Maps, a website row, OSM attribution) always opens target="_blank"
     // and is left to the browser untouched; so is a modified click (open in new tab/window),
     // same as any ordinary link.
