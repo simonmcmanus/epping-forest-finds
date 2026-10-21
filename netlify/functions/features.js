@@ -3,7 +3,7 @@
 // POST /api/features                  replace the allow list (admin only), body { community: [{ id, note }] }
 // The list lives in the community store, so adding a tester needs no deploy.
 const auth = require("./lib/auth-session");
-const { accountKey } = require("./lib/community-account");
+const { openStore } = require("./lib/community-store");
 const gate = require("./lib/feature-gate");
 
 const JSON_HEADERS = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
@@ -32,8 +32,7 @@ exports.handler = async (event) => {
       return reply(200, await gate.readList(event));
     }
     const session = auth.sessionFrom(event);
-    const ids = [String(query.id || "").toLowerCase()];
-    if (session) ids.push(gate.testerHash(accountKey(session.sub)));
+    const ids = await gate.vouchedIds(openStore(event), query.id, session);
     return reply(200, gate.enabledFor(await gate.readList(event), ids));
   } catch (error) {
     // A broken store must never switch a feature on.

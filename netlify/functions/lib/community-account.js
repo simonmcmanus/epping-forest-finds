@@ -39,6 +39,21 @@ async function linkDevice(store, account, deviceId) {
   return { ok: true };
 }
 
+// The devices that really belong to the signed-in account: each marker is checked against the authoritative
+// owner record, so a stray or stale marker never counts.
+async function devicesOfAccount(store, session) {
+  if (!session || !session.sub) return [];
+  const account = accountKey(session.sub);
+  const prefix = markerPrefix(account);
+  const owned = [];
+  for (const key of await store.list(prefix)) {
+    const device = key.slice(prefix.length);
+    const owner = await store.get(`devicelink/${device}`);
+    if (owner && owner.account === account) owned.push(device);
+  }
+  return owned;
+}
+
 // The device ids a request may read as one person.
 //  - Anonymous (no session): the requested device alone, as before.
 //  - Signed in, and the device is one of the account's: all of the account's devices that it still owns
@@ -49,13 +64,7 @@ async function linkDevice(store, account, deviceId) {
 async function devicesForRequest(store, deviceId, session) {
   if (!session || !session.sub) return [deviceId];
   const account = accountKey(session.sub);
-  const prefix = markerPrefix(account);
-  const owned = [];
-  for (const key of await store.list(prefix)) {
-    const device = key.slice(prefix.length);
-    const owner = await store.get(`devicelink/${device}`);
-    if (owner && owner.account === account) owned.push(device);
-  }
+  const owned = await devicesOfAccount(store, session);
   if (owned.includes(deviceId)) return owned;
   const owner = await store.get(`devicelink/${deviceId}`);
   if (owner && owner.account !== account) return owned;
@@ -72,4 +81,4 @@ function mergeScores(scores) {
   return merged;
 }
 
-module.exports = { accountKey, linkDevice, devicesForRequest, loadDeviceOwners, mergeScores, MAX_DEVICES_PER_ACCOUNT };
+module.exports = { accountKey, linkDevice, devicesOfAccount, devicesForRequest, loadDeviceOwners, mergeScores, MAX_DEVICES_PER_ACCOUNT };

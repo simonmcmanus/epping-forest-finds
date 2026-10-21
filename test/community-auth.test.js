@@ -509,3 +509,40 @@ test("cookies are Secure over https and not over plain http on localhost, where 
   }, { fetchImpl: providerOk() });
 });
 
+
+// The early-access list names a person by one Tester ID. Signing in on a second device must not lose it.
+test("a person named by one device keeps early access on their other device once both are linked to the account", async () => {
+  const gate = require("../netlify/functions/lib/feature-gate.js");
+  const store = memoryStore();
+  const session = { sub: "auth0|sam" };
+  await account.linkDevice(store, account.accountKey(session.sub), "phone-device-aaaa1");
+  await account.linkDevice(store, account.accountKey(session.sub), "laptop-device-bbbb2");
+  // The admin added what the phone's Settings showed: the phone device's Tester ID.
+  const list = gate.normalizeList({ community: [{ id: gate.testerHash("phone-device-aaaa1"), note: "Sam" }] });
+
+  // On the laptop, signed in: its own hash is not on the list, but its account's other device is.
+  const laptopIds = await gate.vouchedIds(store, gate.testerHash("laptop-device-bbbb2"), session);
+  assert.strictEqual(gate.enabledFor(list, laptopIds).community, true);
+  // Signed out, the laptop alone is still not on the list.
+  const signedOut = await gate.vouchedIds(store, gate.testerHash("laptop-device-bbbb2"), null);
+  assert.strictEqual(gate.enabledFor(list, signedOut).community, false);
+});
+
+test("early access does not leak to a different account, or to a device linked to one", async () => {
+  const gate = require("../netlify/functions/lib/feature-gate.js");
+  const store = memoryStore();
+  await account.linkDevice(store, account.accountKey("auth0|sam"), "phone-device-aaaa1");
+  await account.linkDevice(store, account.accountKey("auth0|alex"), "other-device-cccc3");
+  const list = gate.normalizeList({ community: [{ id: gate.testerHash("phone-device-aaaa1"), note: "Sam" }] });
+  const alexIds = await gate.vouchedIds(store, gate.testerHash("other-device-cccc3"), { sub: "auth0|alex" });
+  assert.strictEqual(gate.enabledFor(list, alexIds).community, false);
+});
+
+test("a person is also let in when the admin names their account's Tester ID", async () => {
+  const gate = require("../netlify/functions/lib/feature-gate.js");
+  const store = memoryStore();
+  const session = { sub: "auth0|sam" };
+  const list = gate.normalizeList({ community: [{ id: gate.testerHash(account.accountKey(session.sub)), note: "Sam" }] });
+  const ids = await gate.vouchedIds(store, gate.testerHash("brand-new-device-1"), session);
+  assert.strictEqual(gate.enabledFor(list, ids).community, true);
+});

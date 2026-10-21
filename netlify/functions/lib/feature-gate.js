@@ -42,6 +42,19 @@ async function writeList(event, list) {
   return clean;
 }
 
+// Every Tester ID this request can vouch for: the device's own, and, when signed in, the account's and that of
+// each device linked to the account. A person is named once (by any one of their devices or by the account)
+// and keeps access on every device they sign in on.
+async function vouchedIds(store, deviceHash, session) {
+  const ids = [String(deviceHash || "").toLowerCase()];
+  if (session && session.sub) {
+    const { accountKey, devicesOfAccount } = require("./community-account");
+    ids.push(testerHash(accountKey(session.sub)));
+    for (const device of await devicesOfAccount(store, session)) ids.push(testerHash(device));
+  }
+  return ids;
+}
+
 // `ids` are the hashes this request can vouch for (the device's own, and the signed-in account's).
 // An empty list means the gate is off: with nobody named, everyone has the feature.
 function enabledFor(list, ids) {
@@ -51,4 +64,4 @@ function enabledFor(list, ids) {
   return result;
 }
 
-module.exports = { testerHash, normalizeList, readList, writeList, enabledFor, FEATURES, ID_RE };
+module.exports = { testerHash, normalizeList, readList, writeList, enabledFor, vouchedIds, FEATURES, ID_RE };
