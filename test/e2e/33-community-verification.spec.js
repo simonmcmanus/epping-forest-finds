@@ -374,6 +374,8 @@ test.describe("Community place checks", () => {
     await page.click(".community-check-place .community-or");
     await page.click("[data-action='community-place-choose'][data-status='CLOSED']");
     await expect(page.locator(".community-note-input")).toBeVisible();
+    // Told before sending that this becomes a public GitHub issue.
+    await expect(page.locator(".community-note .community-public-notice")).toContainText("public GitHub page");
     expect(issues).toHaveLength(0);
     await page.fill(".community-note-input", "Shutters down since September");
     await page.click("[data-action='community-send-place']");
@@ -753,6 +755,7 @@ test.describe("Add a missing place", () => {
     await page.selectOption("#reportType", "place");
     await expect(page.locator("#communityPlaceLocationStatus")).toContainText("accurate to");
     await expect(page.locator("#communityAddPlaceSubmit")).toBeDisabled();
+    await expect(page.locator("#communityAddPlaceForm .community-public-notice")).toContainText("public GitHub page");
     await page.fill("#communityPlaceName", "The Test Tavern");
     await page.selectOption("#communityPlaceType", "Pub");
     await expect(page.locator("#communityAddPlaceSubmit")).toBeEnabled();

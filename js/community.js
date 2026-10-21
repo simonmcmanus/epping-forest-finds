@@ -1095,6 +1095,12 @@ async function communitySubmitNewTree() {
   communityOpenContributions();
 }
 
+// Shown wherever a report is about to become a public GitHub issue (feedback, place changes, new places).
+// Keep the wording in step with "Where reports go" in terms.html (#community-reports).
+function communityPublicNoticeHtml() {
+  return `<p class="report-note community-public-notice">When you send this it is published on a <strong>public GitHub page</strong>: what you write, any photo, a map position, the app version, this page's address and your browser details. Your name and Community ID are never included, so please keep personal details out of your note. <a href="/terms.html#community-reports" target="_blank" rel="noopener">Privacy &amp; Terms</a></p>`;
+}
+
 // --- Add a missing place: a form like "Add a missing tree", filed as a place-check issue for review ---
 const COMMUNITY_NEW_PLACE_TYPES = ["Pub", "Café", "Restaurant", "Shop", "Toilets", "Car park", "Visitor attraction", "Other"];
 
@@ -1110,6 +1116,7 @@ function communityAddPlaceFormHtml() {
       <label class="community-field"><span class="community-field-label">Anything else? <span class="community-optional">(optional)</span></span>
         <input id="communityPlaceNote" class="report-textarea community-input" type="text" autocomplete="off" maxlength="200" placeholder="Opening hours, website, what's nearby…">
       </label>
+      ${communityPublicNoticeHtml()}
       <p id="communityAddPlaceStatus" class="report-note community-status" aria-live="polite"></p>
       <div class="community-note-actions">
         <button class="community-link" type="button" data-action="community-addplace-cancel">Cancel</button>
@@ -1213,6 +1220,7 @@ function communityPlaceInnerHtml(section) {
     return `<div class="community-note">
         <p class="community-note-title">${communityIcon(pending.icon)}<span>${escapeHtml(pending.label)}</span></p>
         <textarea class="report-textarea community-note-input" rows="3" maxlength="400" placeholder="${escapeHtml(pending.notePlaceholder || "")}"></textarea>
+        ${communityPublicNoticeHtml()}
         <p class="report-note community-status" aria-live="polite"></p>
         <div class="community-note-actions">
           <button class="community-link" type="button" data-action="community-cancel-note">Cancel</button>

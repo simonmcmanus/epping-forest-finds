@@ -173,6 +173,27 @@ test.describe("Feedback / Report screen", () => {
   });
 });
 
+test.describe("Public issue notice", () => {
+  test("the Feedback form says the report is published on a public GitHub page, and links to the terms", async ({ page }) => {
+    await setup(page, "/feedback");
+    const notice = page.locator("#reportForm .community-public-notice");
+    await expect(notice).toContainText("public GitHub page");
+    await expect(notice).toContainText("Community ID are never included");
+    await expect(notice.locator("a")).toHaveAttribute("href", "/terms.html#community-reports");
+    await expect(notice.locator("a")).toHaveAttribute("target", "_blank");
+  });
+
+  test("the terms explain what a public issue holds and where the notice links to", async ({ page }) => {
+    await page.goto("/terms.html");
+    const section = page.locator("#community-reports");
+    await expect(section).toBeVisible();
+    const body = page.locator("body");
+    for (const phrase of ["address of the page you were on", "user agent", "a photo", "Tester ID", "no public leaderboard", "keeps the earlier versions"]) {
+      await expect(body).toContainText(phrase);
+    }
+  });
+});
+
 // No Playwright engine here can trigger a genuine iOS on-screen keyboard (playwright.config.js
 // only defines Chromium desktop/mobile projects). `window.visualViewport` is replaced with a
 // small controllable fake before the app boots, so a "keyboard open" can be simulated exactly as

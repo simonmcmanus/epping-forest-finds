@@ -3204,6 +3204,7 @@ function reportFormHtml() {
         <textarea id="reportDetails" class="report-textarea" placeholder="Describe what's missing or what you'd like to see…" required>${escapeHtml(detailsValue)}</textarea>
       </label>
       ${reportPhotoFieldHtml("reportPhoto")}
+      ${communityPublicNoticeHtml()}
       <p id="reportStatus" class="report-status" aria-live="polite"></p>
       <p id="reportOutboxNote" class="report-note" aria-live="polite" hidden></p>
       <p id="reportOfflineNote" class="report-note report-offline-note"${online ? " hidden" : ""}>You're offline. Your report will be saved and sent automatically when you're back online.</p>
