@@ -62,7 +62,8 @@ test.describe("Community tree verification", () => {
     });
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     await page.click("[data-action='community-report'][data-status='VERIFIED']");
-    await expect(page.locator(".community-mine")).toContainText("Other people may take an hour or two to see this");
+    await expect(page.locator(".community-mine")).toContainText("You reported: Verified here");
+    await expect(page.locator(".community-head")).toHaveClass(/community-head-reported/);
     await expect(page.locator(".detail-top-row .community-verified-chip")).toContainText("1");
     await expect.poll(() => posted.length).toBe(1);
     expect(posted[0]).toMatchObject({ kind: "tree", target: `tree:${FIXTURE_TREE.recordNumber}`, status: "VERIFIED" });
@@ -641,8 +642,7 @@ test.describe("Reporting from too far away", () => {
       await expect(note).toContainText("Outside the 10 m check zone");
       await expect(note.locator(".community-range-points")).toContainText("Points: 0 from this check");
       await page.click("[data-action='community-report'][data-status='VERIFIED']");
-      await expect(page.locator(".community-mine")).toContainText("It only earns points when you report within 10 m of the tree");
-      await expect(page.locator(".community-mine .community-range-points")).toContainText("Points: 0 from this check");
+      await expect(page.locator(".community-mine")).toContainText("You reported: Verified here");
       await page.click("#reportToggle");
       await expect(page.locator(".community-log-item .community-pill")).toContainText("Not close enough for points");
     });
@@ -654,7 +654,7 @@ test.describe("Reporting from too far away", () => {
     await expect(page.locator(".community-range")).toContainText("within 10 m of the tree");
     await expect(page.locator(".community-range")).toContainText("Location is off");
     await page.click("[data-action='community-report'][data-status='VERIFIED']");
-    await expect(page.locator(".community-mine")).toContainText("Thank you");
+    await expect(page.locator(".community-mine")).toContainText("You reported: Verified here");
   });
 });
 

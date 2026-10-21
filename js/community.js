@@ -635,12 +635,9 @@ function communityUpdateRangeNotes() {
 }
 
 // "You reported: ..." as one quiet line; the thank-you and points detail opens on demand.
-function communityMineHtml(title, detailHtml) {
+function communityMineHtml(title) {
   return `<div class="community-mine community-mine-compact">
-      <details class="community-mine-details">
-        <summary><span class="community-mine-icon">${communityIcon("check")}</span><strong>You reported: ${escapeHtml(title)}</strong>${communityIcon("chevron", "community-icon community-mine-chevron")}</summary>
-        <p>${detailHtml}</p>
-      </details>
+      <div class="community-mine-summary"><span class="community-mine-icon">${communityIcon("check")}</span><strong>You reported: ${escapeHtml(title)}</strong></div>
       <button class="community-link" type="button" data-action="community-change">Change</button>
     </div>`;
 }
@@ -649,9 +646,7 @@ function communitySectionInnerHtml(target, editing, lat, lon, more = false) {
   const local = communityReadLocal()[target];
   const remote = communityOverlay.entries[target];
   if (local && !editing) {
-    return `${communityBadgeHtml(remote)}
-      ${communityMineHtml(COMMUNITY_STATUS_TEXT[local.status] || local.status, `<span>Thank you! Other people may take an hour or two to see this.${local.far ? ` It only earns points when you report within ${COMMUNITY_NEAR_METRES} m of the tree.` : ""}</span>
-          <span class="community-range-points community-earned-${local.far ? "far" : "near"}">${communityPointsChipFor(local.status, local.far ? "far" : "near")}${escapeHtml(communityPointsText(local.status, local.far ? "far" : "near"))}</span>`)}`;
+    return `${communityBadgeHtml(remote)}${communityMineHtml(COMMUNITY_STATUS_TEXT[local.status] || local.status)}`;
   }
   const [primary, ...others] = COMMUNITY_TREE_CHOICES;
   const chosen = local ? local.status : null;
@@ -667,8 +662,9 @@ function communitySectionHtml(tree) {
   if (!communityEnabled()) return "";
   const target = communityTreeTarget(tree);
   if (!target || tree.latitude == null || tree.longitude == null) return "";
+  const reported = Boolean(communityReadLocal()[target]);
   return `<section class="community-check" data-community-target="${escapeHtml(target)}" data-lat="${tree.latitude}" data-lon="${tree.longitude}">
-      <div class="community-head">
+      <div class="community-head${reported ? " community-head-reported" : ""}">
         <span class="community-head-icon">${communityIcon("shield")}</span>
         <div><h3 class="community-title">Help check this tree</h3><p class="community-sub">Is it where the map says it is?</p></div>
       </div>
@@ -680,9 +676,12 @@ function communityRefreshSections() {
   document.querySelectorAll(".community-check").forEach((section) => {
     const body = section.querySelector(".community-body");
     if (!body) return;
+    const target = section.dataset.communityTarget;
+    const editing = section.dataset.editing === "1";
     body.innerHTML = section.dataset.kind === "place"
       ? communityPlaceInnerHtml(section)
-      : communitySectionInnerHtml(section.dataset.communityTarget, section.dataset.editing === "1", Number(section.dataset.lat), Number(section.dataset.lon), section.dataset.more === "1");
+      : communitySectionInnerHtml(target, editing, Number(section.dataset.lat), Number(section.dataset.lon), section.dataset.more === "1");
+    section.querySelector(".community-head")?.classList.toggle("community-head-reported", Boolean(communityReadLocal()[target]) && !editing);
   });
 }
 
@@ -1259,7 +1258,7 @@ function communityPlaceInnerHtml(section) {
   }
   const local = communityReadLocal()[target];
   if (local && section.dataset.editing !== "1") {
-    return communityMineHtml(COMMUNITY_STATUS_TEXT[local.status] || local.status, `<span>Thank you! A person will review this. You earn points if it's confirmed.</span>`);
+    return communityMineHtml(COMMUNITY_STATUS_TEXT[local.status] || local.status);
   }
   const [primary, ...others] = COMMUNITY_PLACE_CHOICES;
   return `${communityPlaceChoiceHtml(primary)}
@@ -1324,9 +1323,10 @@ function communityPlaceSectionHtml(place) {
   if (!communityEnabled()) return "";
   if (!place || !place.name || place.latitude == null || place.longitude == null) return "";
   const target = `place:${placeHashKey(place)}`;
+  const reported = Boolean(communityReadLocal()[target]);
   const category = place.categoryLabel || "Local place";
   return `<section class="community-check community-check-place" data-kind="place" data-community-target="${escapeHtml(target)}" data-lat="${place.latitude}" data-lon="${place.longitude}" data-name="${escapeHtml(place.name)}" data-category="${escapeHtml(category)}" data-slug="${escapeHtml(place.findSlug || "")}">
-      <div class="community-head">
+      <div class="community-head${reported ? " community-head-reported" : ""}">
         <span class="community-head-icon">${communityIcon("shield")}</span>
         <div><h3 class="community-title">Help check this place</h3><p class="community-sub">Is this listing still right?</p></div>
       </div>
