@@ -170,6 +170,8 @@ test.describe("Community tree verification", () => {
     await page.click("#communityReportsDetails summary");
     const tile = page.locator(".community-log-item").first();
     await expect(tile).toBeVisible();
+    // A raw mouse click needs the tile on screen: on a short desktop viewport it starts below the fold.
+    await tile.scrollIntoViewIfNeeded();
     const box = await tile.boundingBox();
     await page.mouse.click(box.x + box.width - 6, box.y + box.height - 6);
     await expect(page.locator("#inspectorTitle").last()).not.toContainText("Community");

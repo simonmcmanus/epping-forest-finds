@@ -37,7 +37,8 @@ test.describe("Community screen snapshots", () => {
     await mockCommunity(page, { me: { signedIn: false } });
     await setup(page, "/community");
     await expect(page.locator("#communityAccount")).toContainText("Sign in to take your points with you");
-    await expect(page.locator(".community-empty")).toBeVisible();
+    // Reports sit in a disclosure that starts collapsed, so its summary row is what shows.
+    await expect(page.locator("#communityReportsDetails > summary")).toBeVisible();
     await settle(page);
     await expect(page).toHaveScreenshot("community-signed-out.png", { fullPage: false });
   });
@@ -66,7 +67,7 @@ test.describe("Community screen snapshots", () => {
       link: { status: 409, body: { error: "This device is already linked to another account." } },
     });
     await setup(page, "/community");
-    await expect(page.locator("#communityAccount [role='status']")).toContainText("already linked to another account");
+    await expect(page.locator("#communityAccount .community-account-note")).toContainText("already linked to another account");
     await settle(page);
     await expect(page).toHaveScreenshot("community-link-conflict.png", { fullPage: false });
   });
