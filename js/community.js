@@ -51,12 +51,12 @@ function communityPointsChipHtml(points, { upTo = false } = {}) {
 
 // `needsPosition` reports use the reporter's own GPS as the corrected / new spot.
 const COMMUNITY_TREE_CHOICES = [
-  { status: "VERIFIED", label: "It's here, and the tag matches", icon: "check" },
-  { status: "NO_TAG_LIKELY_SAME", label: "No tag, but it looks right", icon: "tag" },
-  { status: "NO_TAG_UNSURE", label: "No tag, and I doubt it", icon: "help" },
-  { status: "DIFFERENT_TREE", label: "A different tree is here", icon: "swap" },
-  { status: "NOT_HERE", label: "There's no tree here", icon: "cross" },
-  { status: "MOVED", label: "Tag found, map is wrong", icon: "locate", needsPosition: true },
+  { status: "VERIFIED", label: "Verify", hint: "The tree and tag match", icon: "check" },
+  { status: "NO_TAG_LIKELY_SAME", label: "No tag", hint: "Looks right", icon: "tag" },
+  { status: "NO_TAG_UNSURE", label: "No tag", hint: "Looks wrong", icon: "help" },
+  { status: "DIFFERENT_TREE", label: "Different tree", hint: "Not the one shown", icon: "swap" },
+  { status: "NOT_HERE", label: "No tree", hint: "Nothing here", icon: "cross" },
+  { status: "MOVED", label: "Tag found", hint: "Map is wrong", icon: "locate", needsPosition: true },
 ];
 const COMMUNITY_STATUS_TEXT = {
   VERIFIED: "Verified here",
@@ -115,12 +115,12 @@ const COMMUNITY_OUTCOME_ICON = { waiting: "upload", pending: "clock", confirmed:
 // GitHub issue for a person to review -- never applied automatically.
 const COMMUNITY_ISSUE_URL = "/.netlify/functions/report-missing-data";
 const COMMUNITY_PLACE_CHOICES = [
-  { status: "OPEN_CONFIRMED", label: "Yes, it's still here and correct", icon: "check" },
-  { status: "CLOSED", label: "It's closed", icon: "cross", notePlaceholder: "Anything we should know? (optional)" },
-  { status: "MOVED", label: "It has moved", icon: "locate", notePlaceholder: "Where is it now? (optional)" },
-  { status: "RENAMED", label: "The name has changed", icon: "tag", noteRequired: true, notePlaceholder: "What is it called now?" },
-  { status: "DETAILS_CHANGED", label: "Details are wrong", icon: "edit", noteRequired: true, notePlaceholder: "What should it say? (hours, website, phone…)" },
-  { status: "WRONG_CATEGORY", label: "Wrong type of place", icon: "swap", notePlaceholder: "What type of place is it? (optional)" },
+  { status: "OPEN_CONFIRMED", label: "Confirm", hint: "Still here and correct", icon: "check" },
+  { status: "CLOSED", label: "Closed", hint: "No longer open", icon: "cross", notePlaceholder: "Anything we should know? (optional)" },
+  { status: "MOVED", label: "Moved", hint: "Different location", icon: "locate", notePlaceholder: "Where is it now? (optional)" },
+  { status: "RENAMED", label: "Name changed", hint: "It has a new name", icon: "tag", noteRequired: true, notePlaceholder: "What is it called now?" },
+  { status: "DETAILS_CHANGED", label: "Wrong details", hint: "Hours, phone, website…", icon: "edit", noteRequired: true, notePlaceholder: "What should it say? (hours, website, phone…)" },
+  { status: "WRONG_CATEGORY", label: "Wrong type", hint: "Different kind of place", icon: "swap", notePlaceholder: "What type of place is it? (optional)" },
 ];
 
 let communityOverlay = { generatedAt: 0, entries: {} };
@@ -481,22 +481,28 @@ function communityVerifiedEntry(target) {
   const entry = target && communityOverlay.entries[target];
   const shared = entry && (entry.s === "verified" || entry.s === "confirmed") ? entry : null;
   // The user's own verify counts at once: until a snapshot newer than it arrives, add it on top.
+  // Keep this optimistic even without a GPS fix; the report is saved immediately, while the
+  // range note explains separately whether it can earn points. A questioned/mixed server result
+  // still wins, so one local check cannot hide a real community disagreement.
   const mine = target && communityReadLocal()[target];
-  const pending = mine && mine.status === "VERIFIED" && !mine.far && mine.ts > (communityOverlay.generatedAt || 0);
+  const pending = mine && mine.status === "VERIFIED" && mine.ts > (communityOverlay.generatedAt || 0);
   if (!pending || (entry && !shared)) return shared;
-  return { ...(shared || { s: "verified" }), n: (shared ? shared.n : 0) + 1 };
+  return { ...(shared || { s: "verified" }), n: (shared ? shared.n : 0) + 1, optimistic: true };
 }
 
 function communityVerifiedChipHtml(target) {
   const entry = communityVerifiedEntry(target);
   if (!entry) return "";
-  const label = `Verified by ${entry.n} ${entry.n === 1 ? "person" : "people"}`;
+  const label = entry.optimistic
+    ? "You verified this tree"
+    : `Verified by ${entry.n} ${entry.n === 1 ? "person" : "people"}`;
   return `<button type="button" class="community-verified-chip" aria-expanded="false" aria-controls="communityVerifiedDetail" aria-label="${escapeHtml(label)}">${communityIcon("shield")}<strong>${entry.n}</strong></button>`;
 }
 
 function communityVerifiedDetailHtml(target) {
   const entry = communityVerifiedEntry(target);
   if (!entry) return "";
+  if (entry.optimistic) return `<p class="community-verified-detail" id="communityVerifiedDetail">Your check is saved. It will count for the community once the server has processed it.</p>`;
   return `<p class="community-verified-detail" id="communityVerifiedDetail">${entry.n} ${entry.n === 1 ? "person has" : "people have"} confirmed this tree is where the map says it is. Community checks never change the official record.</p>`;
 }
 
@@ -530,12 +536,13 @@ if (typeof document !== "undefined" && document.addEventListener) {
   });
 }
 
-function communityChoiceHtml(choice, chosen, chipHtml = "") {
+function communityChoiceHtml(choice, chosen) {
   const attrs = `data-action="community-report" data-status="${choice.status}"${choice.needsPosition ? ' data-needs-position="1"' : ""}`;
+  const copy = `<span class="community-verify-copy"><strong>${escapeHtml(choice.label)}</strong>${choice.hint ? `<small>${escapeHtml(choice.hint)}</small>` : ""}</span>`;
   if (choice.status === "VERIFIED") {
-    return `<button class="community-verify${chosen ? " is-chosen" : ""}" type="button" ${attrs}>${communityIcon(choice.icon, "community-icon community-verify-icon")}<span>${escapeHtml(choice.label)}</span>${chipHtml}</button>`;
+    return `<button class="community-verify${chosen ? " is-chosen" : ""}" type="button" ${attrs}>${communityIcon(choice.icon, "community-icon community-verify-icon")}${copy}</button>`;
   }
-  return `<button class="community-chip${chosen ? " is-chosen" : ""}" type="button" ${attrs}><span class="community-chip-icon">${communityIcon(choice.icon)}</span><span class="community-chip-label">${escapeHtml(choice.label)}</span></button>`;
+  return `<button class="community-chip${chosen ? " is-chosen" : ""}" type="button" ${attrs}><span class="community-chip-icon">${communityIcon(choice.icon)}</span><span class="community-chip-label"><strong>${escapeHtml(choice.label)}</strong>${choice.hint ? `<small>${escapeHtml(choice.hint)}</small>` : ""}</span></button>`;
 }
 
 // "Something not right?" is a disclosure: the alternatives stay folded until asked for (or while changing an
@@ -602,8 +609,6 @@ function communityUpdateRangeNotes() {
     const lat = Number(section.dataset.lat);
     const lon = Number(section.dataset.lon);
     note.outerHTML = communityRangeNoteHtml(lat, lon, chosen ? chosen.dataset.status : null);
-    const verifyChip = section.querySelector(".community-verify .community-points-chip");
-    if (verifyChip) verifyChip.outerHTML = communityPointsChipFor("VERIFIED", communityRange(lat, lon).state);
   });
 }
 
@@ -629,7 +634,7 @@ function communitySectionInnerHtml(target, editing, lat, lon, more = false) {
   const [primary, ...others] = COMMUNITY_TREE_CHOICES;
   const chosen = local ? local.status : null;
   return `${communityBadgeHtml(remote)}
-      ${communityChoiceHtml(primary, chosen === primary.status, communityPointsChipFor("VERIFIED", communityRange(lat, lon).state))}
+      ${communityChoiceHtml(primary, chosen === primary.status)}
       ${communityMoreHtml(others.map((c) => communityChoiceHtml(c, chosen === c.status)).join(""), Boolean(local) || more)}
       ${communityRangeNoteHtml(lat, lon, chosen)}
       <p class="report-note community-status" aria-live="polite"></p>`;
@@ -1207,10 +1212,11 @@ async function communitySubmitNewPlace() {
 
 function communityPlaceChoiceHtml(choice) {
   const attrs = `data-action="community-place-choose" data-status="${choice.status}"`;
+  const copy = `<span class="community-verify-copy"><strong>${escapeHtml(choice.label)}</strong>${choice.hint ? `<small>${escapeHtml(choice.hint)}</small>` : ""}</span>`;
   if (choice.status === "OPEN_CONFIRMED") {
-    return `<button class="community-verify" type="button" ${attrs}>${communityIcon(choice.icon, "community-icon community-verify-icon")}<span>${escapeHtml(choice.label)}</span></button>`;
+    return `<button class="community-verify" type="button" ${attrs}>${communityIcon(choice.icon, "community-icon community-verify-icon")}${copy}</button>`;
   }
-  return `<button class="community-chip" type="button" ${attrs}><span class="community-chip-icon">${communityIcon(choice.icon)}</span><span class="community-chip-label">${escapeHtml(choice.label)}</span></button>`;
+  return `<button class="community-chip" type="button" ${attrs}><span class="community-chip-icon">${communityIcon(choice.icon)}</span><span class="community-chip-label"><strong>${escapeHtml(choice.label)}</strong>${choice.hint ? `<small>${escapeHtml(choice.hint)}</small>` : ""}</span></button>`;
 }
 
 function communityPlaceInnerHtml(section) {

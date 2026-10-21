@@ -42,8 +42,9 @@ test.describe("Community tree verification", () => {
     await expect(box.locator("[data-action='community-report'][data-status='VERIFIED']")).toBeVisible();
     // "Something not right?" and its choices live inside the same box as the heading and verify action
     await expect(box.locator(".community-or")).toContainText("Something not right?");
-    // The verify button carries what it earns (no location in this spec, so +0).
-    await expect(box.locator(".community-verify .community-points-chip")).toHaveText("+0");
+    // The verify action stays focused on the decision; the range note explains points separately.
+    await expect(box.locator(".community-verify")).toContainText("Verify");
+    await expect(box.locator(".community-verify .community-points-chip")).toHaveCount(0);
     // The alternatives stay folded until asked for.
     await expect(box.locator(".community-choices")).toBeHidden();
     await box.locator(".community-or").click();
@@ -76,6 +77,13 @@ test.describe("Community tree verification", () => {
     }, FIXTURE_TREE.recordNumber);
     await page.click("[data-action='community-report'][data-status='VERIFIED']");
     await expect(page.locator(".detail-top-row .community-verified-chip")).toContainText("1");
+  });
+
+  test("a local verify shows at the top before the server confirms it", async ({ page }) => {
+    await page.route(REPORT_URL, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) }));
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await page.click("[data-action='community-report'][data-status='VERIFIED']");
+    await expect(page.locator(".detail-top-row .community-verified-chip")).toHaveAttribute("aria-label", "You verified this tree");
   });
 
   test("a tree report the server refuses is shown as not sent and can be sent again", async ({ page }) => {
