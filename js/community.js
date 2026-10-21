@@ -550,7 +550,7 @@ if (typeof document !== "undefined" && document.addEventListener) {
   document.addEventListener("click", (event) => {
     const chip = event.target && event.target.closest ? event.target.closest(".community-verified-chip") : null;
     if (!chip) return;
-    const detail = chip.closest(".detail-top-row").parentElement.querySelector(".community-verified-detail-slot .community-verified-detail");
+    const detail = chip.closest(".detail-top-row").parentElement.querySelector(".community-verified-detail-slot .community-verified-detail, .community-place-status-detail-slot .community-verified-detail");
     if (!detail) return;
     const open = chip.getAttribute("aria-expanded") !== "true";
     chip.setAttribute("aria-expanded", String(open));
@@ -635,9 +635,14 @@ function communityUpdateRangeNotes() {
 }
 
 // "You reported: ..." as one quiet line; the thank-you and points detail opens on demand.
-function communityMineHtml(title) {
-  return `<div class="community-mine community-mine-compact">
-      <div class="community-mine-summary"><span class="community-mine-icon">${communityIcon("check")}</span><strong>You reported: ${escapeHtml(title)}</strong></div>
+function communityMineHtml(title, status) {
+  const confirmed = status === "VERIFIED" || status === "OPEN_CONFIRMED";
+  const icon = COMMUNITY_STATUS_ICON[status] || (confirmed ? "check" : "alert");
+  const reviewNote = !confirmed && (status === "CLOSED" || status === "MOVED" || status === "RENAMED" || status === "DETAILS_CHANGED" || status === "WRONG_CATEGORY")
+    ? "A person will review this"
+    : "";
+  return `<div class="community-mine community-mine-compact community-local-status${confirmed ? " community-local-status-confirmed" : " community-local-status-problem"}${status === "OPEN_CONFIRMED" ? " community-place-confirmed-marker" : ""}" role="status">
+      <div class="community-place-status-summary"><span class="community-mine-icon">${communityIcon(icon)}</span><span class="community-place-status-copy"><strong>Your report</strong><small>You reported: ${escapeHtml(title)}</small>${reviewNote ? `<small>${reviewNote}</small>` : ""}</span></div>
       <button class="community-link" type="button" data-action="community-change">Change</button>
     </div>`;
 }
@@ -646,7 +651,7 @@ function communitySectionInnerHtml(target, editing, lat, lon, more = false) {
   const local = communityReadLocal()[target];
   const remote = communityOverlay.entries[target];
   if (local && !editing) {
-    return `${communityBadgeHtml(remote)}${communityMineHtml(COMMUNITY_STATUS_TEXT[local.status] || local.status)}`;
+    return `${communityBadgeHtml(remote)}${communityMineHtml(COMMUNITY_STATUS_TEXT[local.status] || local.status, local.status)}`;
   }
   const [primary, ...others] = COMMUNITY_TREE_CHOICES;
   const chosen = local ? local.status : null;
@@ -1258,7 +1263,7 @@ function communityPlaceInnerHtml(section) {
   }
   const local = communityReadLocal()[target];
   if (local && section.dataset.editing !== "1") {
-    return communityMineHtml(COMMUNITY_STATUS_TEXT[local.status] || local.status);
+    return communityMineHtml(COMMUNITY_STATUS_TEXT[local.status] || local.status, local.status);
   }
   const [primary, ...others] = COMMUNITY_PLACE_CHOICES;
   return `${communityPlaceChoiceHtml(primary)}
@@ -1291,7 +1296,39 @@ function communityPlaceIssueStatusHtml(key, found) {
 function communityPlaceStatusHtml(target) {
   const found = communityPlaceIssueCache.get(target);
   if (found && found.total) return communityPlaceIssueStatusHtml(target, found);
-  return communityPlaceConfirmedChipHtml(target);
+  return "";
+}
+
+function communityPlaceStatusChipHtml(target) {
+  const found = communityPlaceIssueCache.get(target);
+  if (found && found.total) {
+    return `<button type="button" class="community-verified-chip community-status-problem-chip" aria-expanded="false" aria-controls="communityPlaceStatusDetail" aria-label="Community reports about this location">${communityIcon("alert")}<strong>${found.total}</strong></button>`;
+  }
+  const local = target && communityReadLocal()[target];
+  if (!local) return "";
+  const confirmed = local.status === "OPEN_CONFIRMED";
+  const label = confirmed ? "You verified this location" : "You reported a problem with this location";
+  return `<button type="button" class="community-verified-chip${confirmed ? "" : " community-status-problem-chip"}" aria-expanded="false" aria-controls="communityPlaceStatusDetail" aria-label="${escapeHtml(label)}">${communityIcon(confirmed ? "shield" : "alert")}<strong>1</strong></button>`;
+}
+
+function communityPlaceStatusDetailHtml(target) {
+  const found = communityPlaceIssueCache.get(target);
+  if (found && found.total) {
+    return `<p class="community-verified-detail" id="communityPlaceStatusDetail">${found.total} ${found.total === 1 ? "person has" : "people have"} reported a problem with this location. The official record is unchanged.</p>`;
+  }
+  const local = target && communityReadLocal()[target];
+  if (!local) return "";
+  const title = COMMUNITY_STATUS_TEXT[local.status] || local.status;
+  return `<p class="community-verified-detail" id="communityPlaceStatusDetail">You reported ${escapeHtml(title.toLowerCase())}. Your report is saved on this device.</p>`;
+}
+
+function communityPlaceStatusSlotsHtml(place) {
+  if (!communityEnabled() || !place || place.latitude == null || place.longitude == null) return { chip: "", detail: "" };
+  const target = `place:${placeHashKey(place)}`;
+  return {
+    chip: `<span class="community-place-status-chip-slot" data-place-key="${escapeHtml(target)}">${communityPlaceStatusChipHtml(target)}</span>`,
+    detail: `<div class="community-place-status-detail-slot" data-place-key="${escapeHtml(target)}">${communityPlaceStatusDetailHtml(target)}</div>`,
+  };
 }
 
 // Public repo, so the search needs no token. Any failure leaves the line hidden: it is extra
@@ -1317,6 +1354,7 @@ async function loadCommunityPlaceIssues(place) {
     }
   }
   host.innerHTML = communityPlaceStatusHtml(key);
+  communityRefreshPlaceConfirmation(key);
 }
 
 function communityPlaceSectionHtml(place) {
@@ -1334,13 +1372,6 @@ function communityPlaceSectionHtml(place) {
     </section>`;
 }
 
-function communityPlaceConfirmedChipHtml(target) {
-  const local = target && communityReadLocal()[target];
-  if (!local || local.status !== "OPEN_CONFIRMED") return "";
-  const attention = Date.now() - Number(local.ts || 0) < 4000 ? " community-place-confirmed-marker-attention" : "";
-  return `<p class="community-place-confirmed-marker${attention}" role="status">${communityIcon("check")}<span>You have verified this location</span></p>`;
-}
-
 function communityPlaceConfirmationHtml(place) {
   if (!communityEnabled() || !place || place.latitude == null || place.longitude == null) return "";
   const target = `place:${placeHashKey(place)}`;
@@ -1350,6 +1381,12 @@ function communityPlaceConfirmationHtml(place) {
 function communityRefreshPlaceConfirmation(target) {
   document.querySelectorAll(".community-place-status-slot").forEach((slot) => {
     if (slot.dataset.placeKey === target) slot.innerHTML = communityPlaceStatusHtml(target);
+  });
+  document.querySelectorAll(".community-place-status-chip-slot").forEach((slot) => {
+    if (slot.dataset.placeKey === target) slot.innerHTML = communityPlaceStatusChipHtml(target);
+  });
+  document.querySelectorAll(".community-place-status-detail-slot").forEach((slot) => {
+    if (slot.dataset.placeKey === target) slot.innerHTML = communityPlaceStatusDetailHtml(target);
   });
 }
 
@@ -1418,6 +1455,7 @@ async function communitySendPlace(button) {
   delete section.dataset.pending;
   delete section.dataset.editing;
   communityRefreshSections();
+  communityRefreshPlaceConfirmation(section.dataset.communityTarget);
 }
 
 function communityCancelNote(button) {

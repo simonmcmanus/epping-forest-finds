@@ -394,7 +394,9 @@ function showTreeDetails(tree, distance, label) {
   const namedTreeHtml = namedTreeDetailsHtml(tree);
   const nearbySectionHtml = nearbySectionsHtml({ latitude: tree.latitude, longitude: tree.longitude, name: tree.commonName || null, subfilterKey: "trees" });
   const issueHtml = reportIssueHtml({ type: "Veteran tree", name: treeDisplayName(tree), latitude: tree.latitude, longitude: tree.longitude });
-  transitionInspectorBody(topRow + verified.detail + detailsHtml(primaryRows) + technicalHtml + namedTreeHtml + communitySectionHtml(tree) + nearbySectionHtml + issueHtml, "forward");
+  // Keep the check form directly below the actions so it can collapse into the local report
+  // status in the same place, just like a place check does.
+  transitionInspectorBody(topRow + verified.detail + communitySectionHtml(tree) + detailsHtml(primaryRows) + technicalHtml + namedTreeHtml + nearbySectionHtml + issueHtml, "forward");
 }
 
 function showLandmarkDetails(place, distance) {
@@ -433,16 +435,21 @@ function showLandmarkDetails(place, distance) {
   }
   const mapsLink = place.latitude != null ? openInMapsHtml(place.latitude, place.longitude, place.name) : "";
   const shareBtn = shareLocationHtml();
-  const actionsHtml = `<span class="detail-top-actions">${mapsLink}${shareBtn}</span>`;
+  const communityPlaceStatus = isEvent ? { chip: "", detail: "" } : communityPlaceStatusSlotsHtml(place);
+  const actionsHtml = `<span class="detail-top-actions">${communityPlaceStatus.chip}${mapsLink}${shareBtn}</span>`;
   const topRow = `<div class="detail-top-row">${distancePill}${actionsHtml}</div>`;
   const communityPlaceMarker = isEvent ? "" : communityPlaceConfirmationHtml(place);
+  const communityPlaceSection = isEvent ? "" : communityPlaceSectionHtml(place);
   const descriptionHtml = description ? `<p class="details-description">${escapeHtml(description)}</p>` : "";
   const ledgerHtml = ledgerMentionHtml(place);
   const issueHtml = place.latitude != null ? reportIssueHtml({ type: place.categoryLabel || "Local place", name: place.name || "Local place", latitude: place.latitude, longitude: place.longitude }) : "";
   // Every location with coordinates gets the same Nearest and Related sections (nearbySectionsHtml),
   // keyed to whichever category the place belongs to for its Related links.
   const relatedLinksHtml = nearbySectionsHtml({ latitude: place.latitude, longitude: place.longitude, name: place.name, subfilterKey: placePrimaryFilterKey(place), findSlug: place.findSlug });
-  const landmarkHtml = topRow + communityPlaceMarker + descriptionHtml + ledgerHtml + detailsHtml(rows, { labels: isEvent }) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + (isEvent ? "" : communityPlaceSectionHtml(place)) + relatedLinksHtml + issueHtml;
+  // The check form belongs to the same top-of-detail stack as the community status, so a
+  // submission can visibly transition into that status instead of leaving a second summary at
+  // the bottom of the location details.
+  const landmarkHtml = topRow + communityPlaceStatus.detail + communityPlaceMarker + communityPlaceSection + descriptionHtml + ledgerHtml + detailsHtml(rows, { labels: isEvent }) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + relatedLinksHtml + issueHtml;
   // A /find/ landing's place replaces its server-rendered panel in place: no slide-in from the side.
   transitionInspectorBody(landmarkHtml, findLandingSlug() ? null : "forward");
   if (navigator.onLine && !isEvent && place.latitude != null) loadCommunityPlaceIssues(place);

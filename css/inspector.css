@@ -1785,6 +1785,44 @@ dd {
 .community-place-status-detail ul { margin: 0 0 8px; padding-left: 18px; }
 .community-place-status-detail li + li { margin-top: 4px; }
 .community-place-status-detail .community-link { display: inline-block; padding: 0; font-size: .78rem; }
+.community-local-status {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 8px;
+  margin: 6px 0 12px;
+  padding: 5px 9px;
+  border: 1px solid rgba(47, 111, 78, 0.26);
+  border-radius: 8px;
+  background: #f1f7f2;
+  color: #2f6f4e;
+  font-size: .82rem;
+  line-height: 1.35;
+}
+.community-local-status-problem {
+  border-color: rgba(197, 139, 0, 0.38);
+  background: var(--gold-tint, #fbf6e3);
+  color: #6b4a00;
+}
+.community-local-status .community-place-status-summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 38px;
+}
+.community-local-status .community-mine-icon {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  color: currentColor;
+  background: none;
+}
+.community-local-status .community-mine-icon .community-icon { width: 20px; height: 20px; }
+.community-local-status .community-link { flex: none; padding: 8px 4px; color: currentColor; }
+.community-local-status .community-place-status-copy { gap: 1px; }
+.community-local-status .community-place-status-copy strong { font-size: .8rem; }
+.community-local-status .community-place-status-copy small { font-size: .74rem; font-weight: 500; }
 .community-earned-near { color: #1f4d29; }
 .community-earned-far { color: #6b4a00; }
 .community-outcome-far { background: var(--gold-tint, #fbf6e3); color: #6b4a00; }
