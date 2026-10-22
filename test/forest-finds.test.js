@@ -2338,16 +2338,12 @@ test("applyDefaultLocation stands in for a real fix at DEFAULT_LOCATION, flagged
   assert.equal(app.hasRealLocation(), true, "a real fix has no isDefault flag at all");
 });
 
-test("applyDefaultLocation widens the plain 5-minute default radius to 30 minutes, but never overrides a deliberate one", () => {
+test("applyDefaultLocation keeps the normal radius, but never overrides a deliberate one", () => {
   resetData(app);
   app.state.userLocation = null;
   app.state.walkingDistanceMinutes = app.DEFAULT_WALKING_DISTANCE_MINUTES;
   app.applyDefaultLocation();
-  assert.equal(
-    app.state.walkingDistanceMinutes,
-    app.DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES,
-    "a High Beach stand-in isn't tied to anywhere real, so it gets the wider net"
-  );
+  assert.equal(app.state.walkingDistanceMinutes, app.DEFAULT_WALKING_DISTANCE_MINUTES, "High Beach starts at the normal walking radius");
 
   resetData(app);
   app.state.userLocation = null;
