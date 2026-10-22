@@ -19,6 +19,24 @@ function setLoadStep(key, status, count) {
   }
 }
 
+async function loadJsonResource(url, timeoutMs = 60000) {
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  try {
+    const response = await fetch(url, controller ? { signal: controller.signal } : undefined);
+    if (!response.ok) throw new Error(`${url} HTTP ${response.status}`);
+    return response.json();
+  } finally {
+    if (timeoutId != null) clearTimeout(timeoutId);
+  }
+}
+
+function featureCollectionOrEmpty(data) {
+  return data && Array.isArray(data.features)
+    ? data
+    : { type: "FeatureCollection", features: [] };
+}
+
 async function loadMapData() {
   setLoadStep("trees", "loading");
   setLoadStep("places", "loading");
@@ -29,26 +47,14 @@ async function loadMapData() {
 
   const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  const loadJson = async (url, timeoutMs = 60000) => {
-    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-    const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
-    try {
-      const response = await fetch(url, controller ? { signal: controller.signal } : undefined);
-      if (!response.ok) throw new Error(`${url} HTTP ${response.status}`);
-      return response.json();
-    } finally {
-      if (timeoutId != null) clearTimeout(timeoutId);
-    }
-  };
-
   const loadTreeDataset = async (url, timeoutMs = 60000) => {
-    const data = await loadJson(url, timeoutMs);
+    const data = await loadJsonResource(url, timeoutMs);
     if (!data || !Array.isArray(data.trees)) throw new Error("Tree data format invalid");
     return data;
   };
 
   const loadTreeChunks = async (indexUrl, timeoutMs = 20000) => {
-    const index = await loadJson(indexUrl, timeoutMs);
+    const index = await loadJsonResource(indexUrl, timeoutMs);
     const chunks = Array.isArray(index && index.chunks) ? index.chunks : [];
     if (chunks.length === 0) throw new Error("Tree chunk index empty");
 
@@ -58,7 +64,7 @@ async function loadMapData() {
     let loadedCount = 0;
 
     const loadChunk = async (chunk) => {
-      const data = await loadJson(chunk.url, 30000);
+      const data = await loadJsonResource(chunk.url, 30000);
       if (!data || !Array.isArray(data.trees)) throw new Error(`Tree chunk invalid: ${chunk.url}`);
       return data.trees;
     };
@@ -157,8 +163,8 @@ async function loadMapData() {
 
   const landmarkPromise = Promise.all(
     LANDMARK_URLS.map(url =>
-      fetch(url)
-        .then(r => r.ok ? r.json() : { features: [] })
+      loadJsonResource(url)
+        .then(featureCollectionOrEmpty)
         .catch(() => ({ features: [] }))
     )
   ).then(datasets => {
@@ -170,30 +176,20 @@ async function loadMapData() {
     return { features: [] };
   });
 
-  const folklorePromise = fetch(FOLKLORE_URL)
-    .then(async (r) => {
-      if (!r.ok) throw new Error(`Folklore data HTTP ${r.status}`);
-      return r.json();
-    })
+  const folklorePromise = loadJsonResource(FOLKLORE_URL)
     .catch(() => ({ locations: [] }));
 
   // Maps a place's OSM/folklore id to its own /find/<slug>/ page (data/business-slugs.json,
   // scripts/regenerate-business-slugs.js) for generated landing-page and nearby-link lookups.
-  const businessSlugsPromise = fetch(BUSINESS_SLUGS_URL)
-    .then((r) => (r.ok ? r.json() : { entries: [] }))
+  const businessSlugsPromise = loadJsonResource(BUSINESS_SLUGS_URL)
     .catch(() => ({ entries: [] }));
 
-  const eventsPromise = fetch(EVENTS_URL)
-    .then(async (r) => {
-      if (!r.ok) throw new Error(`Events data HTTP ${r.status}`);
-      return r.json();
-    })
+  const eventsPromise = loadJsonResource(EVENTS_URL)
     .catch(() => ({ events: [] }));
 
-  const pathsPromise = fetch(PATHS_URL)
-    .then(async (r) => {
-      if (!r.ok) throw new Error(`Paths data HTTP ${r.status}`);
-      const data = await r.json();
+  const pathsPromise = loadJsonResource(PATHS_URL)
+    .then(featureCollectionOrEmpty)
+    .then((data) => {
       setLoadStep("paths", "done", data.features ? data.features.length : 0);
       return data;
     })
@@ -202,8 +198,8 @@ async function loadMapData() {
       return { features: [] };
     });
 
-  const roadsPromise = loadJson(ROADS_URL, 90000)
-    .catch(() => delay(2000).then(() => loadJson(ROADS_URL, 120000)))
+  const roadsPromise = loadJsonResource(ROADS_URL, 90000)
+    .catch(() => delay(2000).then(() => loadJsonResource(ROADS_URL, 120000)))
     .then((data) => {
       setLoadStep("roads", "done", (data.features || []).length);
       return data;
@@ -213,10 +209,9 @@ async function loadMapData() {
       return { features: [] };
     });
 
-  const environmentPromise = fetch(ENVIRONMENT_URL)
-    .then(async (r) => {
-      if (!r.ok) throw new Error(`Environment data HTTP ${r.status}`);
-      const data = await r.json();
+  const environmentPromise = loadJsonResource(ENVIRONMENT_URL)
+    .then(featureCollectionOrEmpty)
+    .then((data) => {
       setLoadStep("environment", "done", data.features ? data.features.length : 0);
       return data;
     })
@@ -226,11 +221,8 @@ async function loadMapData() {
     });
 
   const layerPromises = FEATURE_LAYERS.map((layer) =>
-    fetch(layer.url)
-      .then(async (r) => {
-        if (!r.ok) throw new Error(`${layer.label} HTTP ${r.status}`);
-        return { ...layer, data: await r.json() };
-      })
+    loadJsonResource(layer.url)
+      .then((data) => ({ ...layer, data: featureCollectionOrEmpty(data) }))
       .catch(() => ({ ...layer, data: { type: "FeatureCollection", features: [] } }))
   );
 
@@ -248,7 +240,12 @@ async function loadMapData() {
   // verifiedAt rides along on the same entries as findSlug -- it's already in this payload
   // (scripts/regenerate-business-slugs.js reads data/verification.json once at index-build time),
   // so no second fetch is needed to show "Checked against OpenStreetMap on <date>" live.
-  const businessById = new Map((businessSlugsData.entries || []).map((entry) => [entry.id, entry]));
+  const businessEntries = businessSlugsData && Array.isArray(businessSlugsData.entries)
+    ? businessSlugsData.entries
+    : [];
+  const businessById = new Map(businessEntries
+    .filter((entry) => entry && typeof entry === "object")
+    .map((entry) => [entry.id, entry]));
 
   const layerFeatureCount = resolvedLayers.reduce((sum, layer) => {
     return sum + (layer.data.features ? layer.data.features.length : 0);
@@ -258,7 +255,9 @@ async function loadMapData() {
   state.layers = resolvedLayers;
 
   const osmLandmarks = (landmarkData.features || [])
-    .filter((feature) => feature.geometry && feature.geometry.type === "Point")
+    .filter((feature) => feature && feature.properties && feature.geometry
+      && feature.geometry.type === "Point"
+      && Array.isArray(feature.geometry.coordinates) && feature.geometry.coordinates.length >= 2)
     .map((feature) => {
       const longitude = Number(feature.geometry.coordinates[0]);
       const latitude = Number(feature.geometry.coordinates[1]);
@@ -287,7 +286,7 @@ async function loadMapData() {
     .filter(Boolean);
 
   // Process roads in smaller batches to avoid freezing the main thread
-  const roadFeatures = roadsData.features || [];
+  const roadFeatures = Array.isArray(roadsData.features) ? roadsData.features : [];
   state.roads = [];
   const batchSize = 500;
   for (let i = 0; i < roadFeatures.length; i += batchSize) {
@@ -298,8 +297,9 @@ async function loadMapData() {
     }
   }
 
-  state.environmentFeatures = (environmentData.features || []).filter((feature) => feature && feature.geometry && feature.properties);
-  state.waterFeatures = extractWaterFeatures(environmentData.features || []);
+  const environmentFeatures = Array.isArray(environmentData.features) ? environmentData.features : [];
+  state.environmentFeatures = environmentFeatures.filter((feature) => feature && feature.geometry && feature.properties);
+  state.waterFeatures = extractWaterFeatures(environmentFeatures);
 
   return { treePromise };
 }
@@ -307,10 +307,9 @@ async function loadMapData() {
 function loadBuildingsIfNeeded() {
   if (state.buildingsLoaded || state.buildingsLoading) return;
   state.buildingsLoading = true;
-  fetch(BUILDINGS_URL)
-    .then((r) => r.json())
+  loadJsonResource(BUILDINGS_URL, 30000)
     .then((data) => {
-      state.buildingFeatures = (data.features || [])
+      state.buildingFeatures = (Array.isArray(data.features) ? data.features : [])
         .filter((f) => f && f.geometry && f.properties);
       state.buildingsLoaded = true;
       state.buildingsLoading = false;

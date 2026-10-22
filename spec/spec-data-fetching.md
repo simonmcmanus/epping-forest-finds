@@ -82,8 +82,9 @@ still; labels, counts and the progress bar continue to communicate progress.
 ### Fallback Strategy
 
 - **Trees:** Try `data/trees/index.json` first, then load all listed chunk files with a concurrency limit of 6 and one retry per failed chunk. If chunk loading fails, fall back to the full register. On mobile/touch devices and constrained connections, full-file fallback tries the smaller base URL before the legacy enriched URL; other devices try the legacy enriched URL after the base retry.
+- **Static files:** Each JSON/GeoJSON read checks the HTTP status and has an abort timeout, so a stalled connection cannot leave boot or lazy buildings waiting indefinitely. Failed optional files return their existing empty-data fallback.
 - **Landmarks:** Each category file fetches independently; failed files return empty features.
-- **Roads:** Race against an 8-second timeout to prevent indefinite hang.
+- **Roads:** Use a longer 90-second first timeout for the large file, then retry once after two seconds with a 120-second timeout; a failed retry returns an empty road layer.
 - **Cows:** On localhost, use cached localStorage data; otherwise fetch with 7-second timeout.
 
 ### Service Worker Caching
@@ -479,8 +480,12 @@ interface Bounds {
 
 - Each dataset loads independently; one failure does not block others.
 - Failed datasets populate with empty arrays/collections.
+- Invalid JSON shapes are treated as empty optional layers rather than being allowed to throw during
+  normalisation or rendering.
 - The overall boot only throws if a catastrophic error occurs outside individual fetches.
-- Roads have a timeout (8s) to prevent indefinite blocking.
+- Static reads and lazy buildings have abort timeouts to prevent an unresponsive connection from
+  holding the app indefinitely; roads retain their longer 90s/120s retry timeouts because they are
+  the largest boot-time file.
 - Cow fetch has a timeout (7s) with graceful degradation to cached data.
 
 ---

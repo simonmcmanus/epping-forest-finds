@@ -6,6 +6,7 @@ const OUTBOX_DB = "ff-outbox";
 const OUTBOX_STORE = "items";
 const OUTBOX_MAX_ITEMS = 50;
 const OUTBOX_BACKOFF_MS = [5000, 30000, 120000, 600000];
+const OUTBOX_REQUEST_TIMEOUT_MS = 15000;
 
 const outboxMemory = []; // fallback when IndexedDB is unavailable (private window etc.)
 // Items held only in outboxMemory are mirrored to localStorage (small payloads only: a photo does not fit)
@@ -50,6 +51,7 @@ function outboxOpen() {
       const req = indexedDB.open(OUTBOX_DB, 1);
       req.onupgradeneeded = () => req.result.createObjectStore(OUTBOX_STORE, { keyPath: "id" });
       req.onsuccess = () => resolve(req.result);
+      req.onblocked = () => resolve(null);
       req.onerror = () => resolve(null);
     } catch { resolve(null); }
   });
@@ -117,11 +119,18 @@ async function outboxFlush() {
     for (const item of await outboxList()) {
       let response;
       try {
-        response = await fetch(item.url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(item.payload),
-        });
+        const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+        const timeoutId = controller ? setTimeout(() => controller.abort(), OUTBOX_REQUEST_TIMEOUT_MS) : null;
+        try {
+          response = await fetch(item.url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(item.payload),
+            ...(controller ? { signal: controller.signal } : {}),
+          });
+        } finally {
+          if (timeoutId != null) clearTimeout(timeoutId);
+        }
       } catch {
         outboxFailures += 1;
         outboxScheduleRetry();

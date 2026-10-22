@@ -2542,6 +2542,25 @@ test("tree loading uses chunked register before full-file fallbacks", () => {
   assert.match(loader, /const maxConcurrent = Math\.min\(6, chunks\.length\)/);
 });
 
+test("static and lazy data reads have bounded failure paths", () => {
+  const loader = fs.readFileSync(path.join(__dirname, "..", "js", "loader.js"), "utf8");
+
+  assert.match(loader, /async function loadJsonResource\(url, timeoutMs = 60000\)/);
+  assert.match(loader, /setTimeout\(\(\) => controller\.abort\(\), timeoutMs\)/);
+  assert.match(loader, /if \(!response\.ok\) throw new Error\(`/);
+  assert.match(loader, /const landmarkPromise = Promise\.all\([\s\S]*loadJsonResource\(url\)/);
+  assert.match(loader, /const buildingsPromise|loadJsonResource\(BUILDINGS_URL, 30000\)/);
+});
+
+test("offline report delivery cannot hang on a blocked store or half-connected network", () => {
+  const outbox = fs.readFileSync(path.join(__dirname, "..", "js", "outbox.js"), "utf8");
+
+  assert.match(outbox, /const OUTBOX_REQUEST_TIMEOUT_MS = 15000/);
+  assert.match(outbox, /req\.onblocked = \(\) => resolve\(null\)/);
+  assert.match(outbox, /setTimeout\(\(\) => controller\.abort\(\), OUTBOX_REQUEST_TIMEOUT_MS\)/);
+  assert.match(outbox, /signal: controller\.signal/);
+});
+
 test("generated tree chunks cover the full veteran tree register", () => {
   const index = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "data", "trees", "index.json"), "utf8"));
   const chunkCount = index.chunks.reduce((sum, chunk) => sum + chunk.count, 0);
@@ -5912,6 +5931,16 @@ test("a service worker update waits for an explicit activation request", () => {
   const install = installMatch[0];
   assert.doesNotMatch(install, /self\.skipWaiting\(\)/, "an incomplete or unrequested update must not take over the current app");
   assert.match(sw, /event\.data\?\.type === "SKIP_WAITING"/, "activation must remain an explicit message action");
+});
+
+test("every app update activation path downloads a complete waiting worker first", () => {
+  const nav = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
+  const applyMatch = nav.match(/async function applySwUpdate\(\) \{[\s\S]*?\n\}/);
+  assert.ok(applyMatch, "applySwUpdate must be defined");
+  assert.match(applyMatch[0], /downloadAppUpdate\(\)/, "the indicator path must check for a downloaded worker");
+  assert.match(applyMatch[0], /if \(!waiting\)/, "a missing worker must stop without reloading");
+  assert.doesNotMatch(applyMatch[0], /else \{\s*location\.reload\(\)/, "no-worker state must not reload the current app");
+  assert.match(applyMatch[0], /activateDownloadedAppUpdate\(waiting\)/, "only a waiting worker may be activated");
 });
 
 test("the app asks for a background data sync only after the map is up, never during boot", () => {
