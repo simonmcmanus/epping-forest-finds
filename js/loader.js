@@ -159,27 +159,6 @@ async function loadMapData() {
   // 43 MB environment file or a slow road request held back a shop-only view even though the
   // food landmarks were already available. Fetch every source in parallel, but resolve the
   // interactive bootstrap after the forest outline and the URL's own category data arrive.
-  const requestedFilterKeys = new Set([
-    ...(typeof filterKeysFromFindPath === "function" ? filterKeysFromFindPath(window.location.pathname) : []),
-    ...(typeof filterKeysFromQuery === "function" ? filterKeysFromQuery(window.location.search) : []),
-    ...(Array.isArray(state.overviewFilters) ? state.overviewFilters : []),
-  ]);
-  const landmarkUrlForFilter = {
-    pubs: LANDMARK_URLS[0], restaurants: LANDMARK_URLS[0], cafes: LANDMARK_URLS[0], shops: LANDMARK_URLS[0],
-    bus: LANDMARK_URLS[1], underground: LANDMARK_URLS[1], national_rail: LANDMARK_URLS[1], parking: LANDMARK_URLS[1],
-    churches: LANDMARK_URLS[3], education: LANDMARK_URLS[3], medicine: LANDMARK_URLS[3], campsites: LANDMARK_URLS[3],
-    historic: LANDMARK_URLS[4], plaques: LANDMARK_URLS[4], monuments: LANDMARK_URLS[4], ww2: LANDMARK_URLS[4],
-    legends: LANDMARK_URLS[5], literature: LANDMARK_URLS[5], film_tv: LANDMARK_URLS[5], art: LANDMARK_URLS[5],
-  };
-  const initialLandmarkUrls = new Set(
-    [...requestedFilterKeys].map((key) => landmarkUrlForFilter[key]).filter(Boolean)
-  );
-  const initialAuxiliaryUrls = new Set();
-  if (requestedFilterKeys.has("events")) initialAuxiliaryUrls.add(EVENTS_URL);
-  if (["legends", "literature", "film_tv", "art"].some((key) => requestedFilterKeys.has(key))) {
-    initialAuxiliaryUrls.add(FOLKLORE_URL);
-  }
-
   const notifyInteractiveDataChange = () => {
     if (!state.dataLoaded) return;
     state.bounds = calculateBounds();
@@ -328,11 +307,6 @@ async function loadMapData() {
     }));
 
   const allLandmarkAndAuxiliaryPromises = [...landmarkPromises, folklorePromise, eventsPromise];
-  const initialPromises = [layerPromises[0]];
-  for (const url of initialLandmarkUrls) initialPromises.push(landmarkPromises[LANDMARK_URLS.indexOf(url)]);
-  if (initialAuxiliaryUrls.has(FOLKLORE_URL)) initialPromises.push(folklorePromise);
-  if (initialAuxiliaryUrls.has(EVENTS_URL)) initialPromises.push(eventsPromise);
-
   const backgroundPromise = Promise.all([
     treePromise,
     businessSlugsPromise,
@@ -348,7 +322,11 @@ async function loadMapData() {
     notifyInteractiveDataChange();
   });
 
-  await Promise.all(initialPromises);
+  // Do not wait for any network response here. The canvas can render its fallback viewport
+  // immediately, and every source above updates it as soon as it arrives. Waiting for even the
+  // forest outline made a cold load look stuck behind the splash until a refresh populated the
+  // service-worker cache; it also meant a filtered landing page could not show its own category
+  // while unrelated layers were still downloading.
   state.bounds = calculateBounds();
   return { treePromise, backgroundPromise };
 }
