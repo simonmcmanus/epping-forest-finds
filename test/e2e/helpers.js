@@ -193,6 +193,11 @@ async function setup(page, urlPath = "/nearby") {
     // tab-order baseline on every screen, not just Nearby.
     const invite = document.getElementById("locationInviteBanner");
     if (invite && !invite.hidden) invite.hidden = true;
+    // The real-fix boot path can show the compass calibration prompt over the top edge of the
+    // map. General map-interaction tests intentionally do not exercise that prompt, and it can
+    // intercept their corner taps; the compass-specific spec uses gotoAndWaitForMap directly.
+    const compassBanner = document.getElementById("compassCalibrationBanner");
+    if (compassBanner && !compassBanner.hidden) compassBanner.hidden = true;
     if (state.userLocation && state.userLocation.isDefault) {
       state.userLocation = null;
       // This fixture removes the default location entirely, so its static
