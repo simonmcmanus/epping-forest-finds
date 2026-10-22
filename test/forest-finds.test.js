@@ -5710,7 +5710,7 @@ test("service worker APP_SHELL includes all JS files referenced by app.html", ()
   const shellMatch = sw.match(/const APP_SHELL = \[([\s\S]*?)\];/);
   assert.ok(shellMatch, "APP_SHELL list exists");
 
-  const jsRefs = [...html.matchAll(/src="(js\/[^"]+\.js)"/g)].map((m) => `./${m[1]}`);
+  const jsRefs = [...html.matchAll(/src="(js\/[^"?]+\.js)(?:\?[^"]*)?"/g)].map((m) => `./${m[1]}`);
   assert.ok(jsRefs.length > 0, "app.html should reference JS files");
   for (const jsFile of jsRefs) {
     assert.ok(shellMatch[1].includes(jsFile), `APP_SHELL missing ${jsFile} — app will not boot offline`);
