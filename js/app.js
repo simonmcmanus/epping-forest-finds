@@ -758,7 +758,11 @@ function searchStringForPath(pathname) {
   if (onNearbyFamily && realRadius !== DEFAULT_WALKING_DISTANCE_MINUTES) {
     parts.push(`radius=${realRadius}`);
   }
-  if (pathname === ROUTE_PATHS[ROUTE_FILTERS] && state.overviewFilters.length) {
+  // A shared /nearby?show= link is an ephemeral landing lens just like /nearby/<slug>.
+  // Keep its query visible while that lens is active; otherwise the first selectOverview() during
+  // a cold/nuke refresh rewrites the URL to bare /nearby before the caller can verify the refresh.
+  if ((pathname === ROUTE_PATHS[ROUTE_FILTERS]
+    || (pathname === NEARBY_PATH && state.overviewFiltersEphemeral)) && state.overviewFilters.length) {
     parts.push(`show=${state.overviewFilters.join(",")}`);
   }
   if (pathname === ROUTE_PATHS[ROUTE_SEARCH] && state.searchQuery) {
@@ -1446,8 +1450,9 @@ function showCombinedConsentBanner() {
 
 // ?nuke=true clears exactly what Settings' "Refresh both" clears, then returns to the same URL
 // without the flag. The flag is stripped before refreshCachedState reloads the page: otherwise the
-// reload would land back on ?nuke=true and wipe everything again, forever. Boot continues while
-// the clear is in flight so the page never gets stranded behind its initial loading state.
+// reload would land back on ?nuke=true and wipe everything again, forever. Online, boot must pause
+// while the clear is in flight or the normal route setup can rewrite the URL before reload. Offline
+// there is nothing to clear, so the flag is simply dropped and boot carries on as normal.
 function nukeIfRequested() {
   const url = new URL(window.location.href);
   if (url.searchParams.get("nuke") !== "true") return false;
@@ -1455,7 +1460,7 @@ function nukeIfRequested() {
   window.history.replaceState(null, "", url);
   if (!navigator.onLine) return false;
   refreshCachedState("all");
-  return false;
+  return true;
 }
 
 async function boot() {
