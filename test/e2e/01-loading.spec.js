@@ -24,6 +24,18 @@ test.describe("Loading experience", () => {
     releasePlaces();
   });
 
+  test("shows the High Beach map while location is still being requested", async ({ page }) => {
+    await page.addInitScript(() => {
+      // Leave the browser request unresolved to model an unanswered first-run permission prompt.
+      // The map should still reveal at its fallback origin instead of waiting for the GPS branch.
+      navigator.geolocation.getCurrentPosition = () => {};
+    });
+    await page.goto("/nearby");
+    await page.waitForFunction(() => state.userLocation?.isDefault === true);
+    await expect(page.locator("#mapCanvas")).toBeVisible();
+    await expect(page.locator("#loadingOverlay")).toHaveClass(/inline/);
+  });
+
   test("overlay shows a version badge element", async ({ page }) => {
     await page.goto("/nearby");
     await expect(page.locator("#sw-version")).toBeAttached();
