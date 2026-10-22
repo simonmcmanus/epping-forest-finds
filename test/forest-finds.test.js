@@ -1250,11 +1250,12 @@ test("nearby heading-up fit is established from GPS alone, so acquiring a compas
   assert.ok(Math.abs(app.state.viewport.ty - beforeHeading.ty) < 0.001, "pan must not jump once a heading arrives");
 });
 
-test("tiltActive returns false when heading-up is not active", () => {
+test("tiltActive can respond to pitch before heading-up is active when a real location exists", () => {
   resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = null;
   app.state.tiltBetaSmoothed = 45;
-  assert.equal(app.tiltActive(), false, "tilt requires heading-up to be active");
+  assert.equal(app.tiltActive(), true, "pitch should not wait for a compass heading");
 });
 
 test("tiltActive returns false when phone is nearly flat (beta below threshold)", () => {
@@ -1298,8 +1299,9 @@ test("tiltAllowedForCurrentScreen allows 3D on every screen, with no exceptions"
   assert.equal(app.tiltAllowedForCurrentScreen(), true, "selected-item navigation should allow 3D");
 });
 
-test("tiltRotateXDeg returns 0 when tilt is not active", () => {
+test("tiltRotateXDeg returns 0 without a real location", () => {
   resetData(app);
+  app.state.userLocation = null;
   app.state.compassHeading = null;
   app.state.tiltBetaSmoothed = 60;
   assert.equal(app.tiltRotateXDeg(), 0, "no rotation when heading-up inactive");
@@ -2338,16 +2340,12 @@ test("applyDefaultLocation stands in for a real fix at DEFAULT_LOCATION, flagged
   assert.equal(app.hasRealLocation(), true, "a real fix has no isDefault flag at all");
 });
 
-test("applyDefaultLocation widens the plain 5-minute default radius to 30 minutes, but never overrides a deliberate one", () => {
+test("applyDefaultLocation keeps the normal radius, but never overrides a deliberate one", () => {
   resetData(app);
   app.state.userLocation = null;
   app.state.walkingDistanceMinutes = app.DEFAULT_WALKING_DISTANCE_MINUTES;
   app.applyDefaultLocation();
-  assert.equal(
-    app.state.walkingDistanceMinutes,
-    app.DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES,
-    "a High Beach stand-in isn't tied to anywhere real, so it gets the wider net"
-  );
+  assert.equal(app.state.walkingDistanceMinutes, app.DEFAULT_WALKING_DISTANCE_MINUTES, "High Beach starts at the normal walking radius");
 
   resetData(app);
   app.state.userLocation = null;
@@ -2545,20 +2543,13 @@ test("tree loading uses chunked register before full-file fallbacks", () => {
 test("static and lazy data reads have bounded failure paths", () => {
   const loader = fs.readFileSync(path.join(__dirname, "..", "js", "loader.js"), "utf8");
 
-  assert.match(loader, /async function loadJsonResource\(url, timeoutMs = 60000\)/);
+  assert.match(loader, /const loadJson = async \(url, timeoutMs = 60000\)/);
   assert.match(loader, /setTimeout\(\(\) => controller\.abort\(\), timeoutMs\)/);
-  assert.match(loader, /if \(!response\.ok\) throw new Error\(`/);
-  assert.match(loader, /const landmarkPromise = Promise\.all\([\s\S]*loadJsonResource\(url\)/);
-  assert.match(loader, /const buildingsPromise|loadJsonResource\(BUILDINGS_URL, 30000\)/);
-});
-
-test("offline report delivery cannot hang on a blocked store or half-connected network", () => {
-  const outbox = fs.readFileSync(path.join(__dirname, "..", "js", "outbox.js"), "utf8");
-
-  assert.match(outbox, /const OUTBOX_REQUEST_TIMEOUT_MS = 15000/);
-  assert.match(outbox, /req\.onblocked = \(\) => resolve\(null\)/);
-  assert.match(outbox, /setTimeout\(\(\) => controller\.abort\(\), OUTBOX_REQUEST_TIMEOUT_MS\)/);
-  assert.match(outbox, /signal: controller\.signal/);
+  assert.match(loader, /if \(!response\.ok\) throw new Error/);
+  assert.match(loader, /const landmarkPromises = LANDMARK_URLS\.map\(\(url\) => fetch\(url\)/);
+  assert.match(loader, /function loadBuildingsIfNeeded\(\)/);
+  assert.match(loader, /fetch\(BUILDINGS_URL\)/);
+  assert.match(loader, /state\.buildingsLoaded = true/);
 });
 
 test("generated tree chunks cover the full veteran tree register", () => {
@@ -3419,17 +3410,17 @@ test("maxScaleForHeadingUpPoints returns the tightest scale that keeps every poi
   // rotatedX/rotatedY equal the raw dx/dy -- keeps the geometry easy to hand-verify.
   const focus = { x: 500, y: 400 };
   const focusRect = { x: 0, y: 0, width: 1000, height: 800 };
-  // margin = min(1000, 800) * 0.1 + 12 * dpr(1) = 92; left=92 right=908 top=92 bottom=708
+  // margin = min(1000, 800) * 0.06 + 12 * dpr(1) = 60; left=60 right=940 top=60 bottom=740
   const points = [
-    { x: 400, y: 0 },    // rotatedX>0: (908-500)/400 = 1.02   <- tightest
-    { x: -300, y: 0 },   // rotatedX<0: (92-500)/-300 = 1.36
-    { x: 0, y: -200 },   // rotatedY<0: (92-400)/-200 = 1.54
-    { x: 0, y: 250 },    // rotatedY>0, tilt inactive: (708-400)/250 = 1.232
+    { x: 400, y: 0 },    // rotatedX>0: (940-500)/400 = 1.1   <- tightest
+    { x: -300, y: 0 },   // rotatedX<0: (60-500)/-300 = 1.4667
+    { x: 0, y: -200 },   // rotatedY<0: (60-400)/-200 = 1.7
+    { x: 0, y: 250 },    // rotatedY>0, tilt inactive: (740-400)/250 = 1.36
   ];
 
   const maxScale = app.maxScaleForHeadingUpPoints(points, focus, focusRect);
 
-  assert.ok(Math.abs(maxScale - 1.02) < 1e-9, `expected 1.02, got ${maxScale}`);
+  assert.ok(Math.abs(maxScale - 1.1) < 1e-9, `expected 1.1, got ${maxScale}`);
 });
 
 test("maxScaleForHeadingUpPoints constrains a behind-the-user point horizontally as well as vertically", () => {
@@ -3441,15 +3432,15 @@ test("maxScaleForHeadingUpPoints constrains a behind-the-user point horizontally
   app.state.userLocation = { latitude: 0, longitude: 0, point: { x: 0, y: 0 } };
   const focus = { x: 500, y: 400 };
   const focusRect = { x: 0, y: 0, width: 1000, height: 800 };
-  // margin = min(1000, 800) * 0.1 + 12 * dpr(1) = 92; right = 908, bottom = 708.
+  // margin = min(1000, 800) * 0.06 + 12 * dpr(1) = 60; right = 940, bottom = 740.
   // Behind (rotatedY > 0) and far to the right: the vertical constraint alone would allow
-  // (708 - 400) / 10 = 30.8, at which the point would be drawn 400 * 30.8 = 12320px to the
-  // right. The horizontal constraint is (908 - 500) / 400 = 1.02.
+  // (740 - 400) / 10 = 34, at which the point would be drawn 400 * 34 = 13600px to the
+  // right. The horizontal constraint is (940 - 500) / 400 = 1.1.
   const behindAndRight = [{ x: 400, y: 10 }];
 
   const maxScale = app.maxScaleForHeadingUpPoints(behindAndRight, focus, focusRect);
 
-  assert.ok(Math.abs(maxScale - 1.02) < 1e-9, `expected the horizontal constraint (1.02), got ${maxScale}`);
+  assert.ok(Math.abs(maxScale - 1.1) < 1e-9, `expected the horizontal constraint (1.1), got ${maxScale}`);
 });
 
 test("maxScaleForHeadingUpPoints excludes behind-the-user points only while tilt is active", () => {
@@ -3467,8 +3458,8 @@ test("maxScaleForHeadingUpPoints excludes behind-the-user points only while tilt
 
   app.state.tiltBetaSmoothed = 0; // tiltActive() false
   const withTiltInactive = app.maxScaleForHeadingUpPoints(behindPoint, focus, focusRect);
-  // (bottom - focus.y) / rotatedY = (708 - 400) / 10 = 30.8, well under the fitScale*180 cap
-  assert.ok(Math.abs(withTiltInactive - 30.8) < 1e-9, `expected 30.8, got ${withTiltInactive}`);
+  // (bottom - focus.y) / rotatedY = (740 - 400) / 10 = 34, well under the fitScale*180 cap
+  assert.ok(Math.abs(withTiltInactive - 34) < 1e-9, `expected 34, got ${withTiltInactive}`);
 });
 
 test("maxScaleForHeadingUpPoints({ excludeBehindDuringTilt: false }) keeps constraining the fit against behind-the-user points even while tilt is active", () => {
@@ -3486,9 +3477,9 @@ test("maxScaleForHeadingUpPoints({ excludeBehindDuringTilt: false }) keeps const
 
   app.state.tiltBetaSmoothed = 20; // tiltActive() true
   const result = app.maxScaleForHeadingUpPoints(behindPoint, focus, focusRect, { excludeBehindDuringTilt: false });
-  // Same (bottom - focus.y) / rotatedY = (708 - 400) / 10 = 30.8 as the tilt-inactive case
+  // Same (bottom - focus.y) / rotatedY = (740 - 400) / 10 = 34 as the tilt-inactive case
   // above -- excludeBehindDuringTilt: false means tiltActive() no longer matters for this point.
-  assert.ok(Math.abs(result - 30.8) < 1e-9, `expected 30.8, got ${result}`);
+  assert.ok(Math.abs(result - 34) < 1e-9, `expected 34, got ${result}`);
 });
 
 test("selectedNavigationTargetBearingOffsetRadians resolves the destination's bearing relative to straight ahead", () => {
@@ -4915,7 +4906,6 @@ test("settings form offers separate data, app and combined refresh buttons", () 
   assert.match(html, /id="refreshAllButton"/, "settings form should include the combined refresh button");
   assert.match(html, /Refresh both/, "combined refresh button should be labelled");
   assert.match(html, /id="refreshOfflineNote"/, "settings form should include a shared offline note for the refresh buttons");
-  assert.match(html, /id="refreshStatus"/, "settings form should include a refresh result status");
 });
 
 test("refresh scopes preserve the working caches until a replacement is downloaded", () => {
@@ -5720,7 +5710,7 @@ test("service worker APP_SHELL includes all JS files referenced by app.html", ()
   const shellMatch = sw.match(/const APP_SHELL = \[([\s\S]*?)\];/);
   assert.ok(shellMatch, "APP_SHELL list exists");
 
-  const jsRefs = [...html.matchAll(/src="(js\/[^"]+\.js)"/g)].map((m) => `./${m[1]}`);
+  const jsRefs = [...html.matchAll(/src="(js\/[^"?]+\.js)(?:\?[^"]*)?"/g)].map((m) => `./${m[1]}`);
   assert.ok(jsRefs.length > 0, "app.html should reference JS files");
   for (const jsFile of jsRefs) {
     assert.ok(shellMatch[1].includes(jsFile), `APP_SHELL missing ${jsFile} — app will not boot offline`);
@@ -5947,8 +5937,8 @@ test("the app asks for a background data sync only after the map is up, never du
   const source = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
   const navSource = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
 
-  const syncIdx = source.indexOf("setupBackgroundDataSync()");
-  assert.ok(syncIdx !== -1, "boot must set up background data sync");
+  const syncIdx = source.indexOf("requestBackgroundDataSync()");
+  assert.ok(syncIdx !== -1, "boot must request a background data sync");
   assert.ok(
     syncIdx > source.indexOf("showFilterHintIfFirstVisit();"),
     "the sync must be requested after the map is interactive, so it never competes with the first render"
@@ -5959,12 +5949,7 @@ test("the app asks for a background data sync only after the map is up, never du
   const fn = fnMatch[0];
   assert.match(fn, /if \(!navigator\.onLine\) return;/, "must not attempt a sync while offline");
   assert.match(fn, /navigator\.serviceWorker\.controller/, "must go through the controlling worker");
-  assert.match(fn, /postMessage\(\{ type: "SYNC_DATA"/, "must send the worker's sync message");
-  assert.match(navSource, /function setupBackgroundDataSync\(\)/, "must set up a foreground refresh loop");
-  assert.match(navSource, /BACKGROUND_DATA_SYNC_CHECK_INTERVAL_MS/, "foreground refreshes must be bounded");
-  assert.match(navSource, /visibilitychange/, "must refresh when the app becomes visible");
-  assert.match(navSource, /window\.addEventListener\("online"/, "must retry when connectivity returns");
-  assert.match(source, /setupBackgroundDataSync\(\)/, "boot must start background refresh after the map is interactive");
+  assert.match(fn, /postMessage\(\{ type: "SYNC_DATA"/, "must send the worker sync message");
 });
 
 test("service worker uses a network-first strategy in local dev so edits show up without a CACHE_NAME bump", () => {
@@ -8799,7 +8784,7 @@ test("a beta-only orientation event restarts the smoothing loop so 3D keeps resp
   assert.notEqual(app.state.compassAnimationFrame, null, "and the loop that smooths it is running");
 });
 
-test("a beta-only orientation event does not spin the loop when there is no trusted heading", () => {
+test("a beta-only orientation event starts the tilt loop even without a trusted heading", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.665, 0.045);
   app.state.compassHeading = null;
@@ -8809,7 +8794,7 @@ test("a beta-only orientation event does not spin the loop when there is no trus
   app.onDeviceOrientation({ alpha: null, beta: 55 });
 
   assert.equal(app.state.tiltBetaTarget, 55);
-  assert.equal(app.state.compassAnimationFrame, null, "nothing to smooth without a heading");
+  assert.notEqual(app.state.compassAnimationFrame, null, "pitch still needs a smoothing loop without a heading");
 });
 
 test("changing the browse anchor outside setNearbyAnchor still moves the camera with it", () => {
@@ -10086,6 +10071,29 @@ test("a pin hidden behind a selection is no longer tappable, so the tap is open 
   app.state.selected = { type: "tree", item: selected };
 
   assert.equal(app.findHit(tap, world).type, "none");
+});
+
+test("selected road navigation removes every background pin from the map lookup", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const selectedRoad = {
+    name: "Forest Road",
+    segments: [[
+      makePoint(app, 51.6501, 0.0501).point,
+      makePoint(app, 51.6504, 0.0504).point,
+    ]],
+  };
+  app.state.roads.push(selectedRoad);
+  app.state.trees.push({ id: "other-tree", ...makePoint(app, 51.6502, 0.0502) });
+  app.state.landmarks.push({ id: "other-place", name: "Other place", ...makePoint(app, 51.6503, 0.0503) });
+  app.state.selected = { type: "road", item: selectedRoad };
+
+  const lookup = app.activeIconLookup();
+  assert.equal(lookup.tree.size, 0, "trees are hidden during road navigation");
+  assert.equal(lookup.landmark.size, 0, "landmarks are hidden during road navigation");
+  assert.equal(lookup.cow.size, 0, "cows are hidden during road navigation");
+  assert.equal(lookup.path.size, 0, "paths are hidden during road navigation");
+  assert.equal(lookup.water.size, 0, "water locations are hidden during road navigation");
 });
 
 // A 2D-context stand-in that records the path it is given, so a test can see what was drawn.

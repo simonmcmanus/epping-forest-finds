@@ -35,7 +35,14 @@ function compassStepMarkup({ blocked = false }) {
 }
 
 function hasCompletedOnboarding() {
-  return !!localStorage.getItem(ONBOARDING_KEY);
+  // Safari private browsing and browsers with storage blocked can throw even for a read.
+  // Treat that the same as a first visit so storage policy never aborts app boot before the
+  // map has had a chance to render. The completion write below is guarded for the same reason.
+  try {
+    return !!localStorage.getItem(ONBOARDING_KEY);
+  } catch {
+    return false;
+  }
 }
 
 // Returns a Promise resolving to { filters: string[], locationPromise: Promise|null }
@@ -251,7 +258,7 @@ function showOnboarding() {
     }
 
     function finish() {
-      localStorage.setItem(ONBOARDING_KEY, "1");
+      try { localStorage.setItem(ONBOARDING_KEY, "1"); } catch {}
       if (deactivateFocus) deactivateFocus();
       overlay.classList.add("fading-out");
       overlay.addEventListener("transitionend", () => {

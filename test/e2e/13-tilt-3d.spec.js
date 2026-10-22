@@ -69,6 +69,39 @@ test.describe("3D tilt view", () => {
     });
   });
 
+  test("responds to a phone pitch even before a compass heading is available", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile", "Device orientation is only exercised in the mobile project");
+
+    const result = await page.evaluate(async () => {
+      state.compassHeading = null;
+      state.compassHeadingTarget = null;
+      state.compassLastEventAt = null;
+      state.tiltBetaTarget = 0;
+      state.tiltBetaSmoothed = 0;
+
+      const event = new Event("deviceorientation");
+      event.alpha = null;
+      event.beta = 55;
+      event.gamma = 0;
+      window.dispatchEvent(event);
+
+      for (let frame = 0; frame < 18; frame += 1) {
+        await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+      }
+      return {
+        target: state.tiltBetaTarget,
+        smoothed: state.tiltBetaSmoothed,
+        active: tiltActive(),
+        rendered: state.renderedTiltRotateXDeg,
+      };
+    });
+
+    expect(result.target).toBe(55);
+    expect(result.smoothed, "pitch should ease even while heading is unavailable").toBeGreaterThan(20);
+    expect(result.active, "the lifted-phone 3D view should not wait for a compass heading").toBe(true);
+    expect(result.rendered, "the map should be repainted at a tilted angle").toBeGreaterThan(0);
+  });
+
   test("raising the phone walks you into the walking radius instead of showing it from outside", async ({ page }) => {
     // The "still way too zoomed out in 3D" report, twice over. The Nearby camera frames the
     // radius circle, and the circle's behind half is never drawn in 3D (isBehindTiltHeading

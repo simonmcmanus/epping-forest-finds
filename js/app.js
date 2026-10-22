@@ -46,12 +46,10 @@ const LANDING_PAGE_WALKING_DISTANCE_MINUTES = 30;
 // list, distances, the walking-radius ring -- instead of the bare whole-forest outline, with the
 // location gate inviting a real fix for the same view centred on the user instead.
 const DEFAULT_LOCATION = { latitude: 51.667591, longitude: 0.037454 };
-// Matches LANDING_PAGE_WALKING_DISTANCE_MINUTES's own reasoning (a fair showing without the
-// reader touching the radius control) for the same reason: DEFAULT_LOCATION isn't tied to
-// anywhere the user actually stands, so the ordinary 5-minute default would show very little of
-// it. A separate constant from that one on purpose -- the two features' radii may need to diverge
-// later even though they start at the same number.
-const DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES = 30;
+// Keep the ordinary Nearby radius when the map uses DEFAULT_LOCATION as its temporary origin.
+// Category landing pages still widen themselves to LANDING_PAGE_WALKING_DISTANCE_MINUTES in
+// applyRadiusFromQuery(), before this fallback is applied.
+const DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES = DEFAULT_WALKING_DISTANCE_MINUTES;
 const COW_REFRESH_MS = 5 * 60 * 1000;
 const IS_LOCAL_COW_CACHE_MODE = ["127.0.0.1", "localhost"].includes(window.location.hostname);
 const DEFAULT_COW_CENTER = { longitude: 0.06371428038973509, latitude: 51.656022523996725 };
@@ -76,6 +74,7 @@ const MIN_HEADING_UP_ANIMATION_MS = 200; // floor for animateToHeadingUpNavigati
 const DEFAULT_VIEWPORT_ANIMATION_MS = 480; // generic fallback duration for the low-level viewport animators when nothing else is specified
 const MIN_VIEWPORT_ANIMATION_MS = 180; // floor for animateViewportTo's duration
 const FIRST_LOAD_REVEAL_ANIMATION_MS = 700; // the first-time "reveal the map" animation, in all its variants (fit to user+items, centered-on-user)
+const FIRST_LOCATION_FLY_TO_ANIMATION_MS = 1250; // the High Beach stand-in -> real GPS handoff, with a cinematic fly-to arc
 const HEADING_UP_CANVAS_OVERSCAN_RATIO = 1.5; // sqrt(2)≈1.414 is the 45° corner case minimum; 1.5 keeps safety margin
 const DEFAULT_FIT_PADDING_PX = 54; // default screen-space padding for fitToPoints (around content bounds)
 const OVERVIEW_FIT_PADDING_PX = 28; // tighter padding for overview targets fit
@@ -286,6 +285,7 @@ const state = {
   compassHeadingTarget: null,
   nearbyListHeading: null, // heading the Nearby list is ordered by -- see headsUpSortedEntries
   compassPermission: STORED_COMPASS_PERMISSION,
+  compassPermissionPromptVisible: false,
   compassCalibrationSamples: [],
   compassCalibrationStartedAt: null,
   compassCalibrationPromptVisible: false,
@@ -311,6 +311,10 @@ const state = {
   compassAnimationFrameRequestedAt: null,
   viewportAnimationFrameRequestedAt: null,
   compassAnimationTime: null,
+  // The heading/tilt loop can run at sensor frame rate, but the camera fit is much more
+  // expensive than updating the compass overlay. Keep its last solve so a fast sensor stream
+  // cannot make the viewport chase every tiny heading sample.
+  compassViewportAlignmentAt: null,
   compassArrowAngle: null,
   compassLastEventAt: null,
   orientationLastEventAt: null,
@@ -349,6 +353,7 @@ const state = {
   viewportAnimationFrame: null,
   viewportAnimationFrom: null,
   viewportAnimationTo: null,
+  locationRevealAnimationActive: false,
   viewportAnimationStartTime: null,
   viewportAnimationDuration: 0,
   emojiScaleAnimated: null,
@@ -404,6 +409,8 @@ const els = {
   mapStage: document.querySelector(".map-stage"),
   compassArrow: document.getElementById("compassArrow"),
   compassCalibrationBanner: document.getElementById("compassCalibrationBanner"),
+  compassCalibrationBannerText: document.getElementById("compassCalibrationBannerText"),
+  compassCalibrationBannerEnable: document.getElementById("compassCalibrationBannerEnable"),
   compassCalibrationBannerDismiss: document.getElementById("compassCalibrationBannerDismiss"),
   filterToggle: document.getElementById("filterToggle"),
   filterCount: document.getElementById("filterCount"),
@@ -752,7 +759,11 @@ function searchStringForPath(pathname) {
   if (onNearbyFamily && realRadius !== DEFAULT_WALKING_DISTANCE_MINUTES) {
     parts.push(`radius=${realRadius}`);
   }
-  if (pathname === ROUTE_PATHS[ROUTE_FILTERS] && state.overviewFilters.length) {
+  // A shared /nearby?show= link is an ephemeral landing lens just like /nearby/<slug>.
+  // Keep its query visible while that lens is active; otherwise the first selectOverview() during
+  // a cold/nuke refresh rewrites the URL to bare /nearby before the caller can verify the refresh.
+  if ((pathname === ROUTE_PATHS[ROUTE_FILTERS]
+    || (pathname === NEARBY_PATH && state.overviewFiltersEphemeral)) && state.overviewFilters.length) {
     parts.push(`show=${state.overviewFilters.join(",")}`);
   }
   if (pathname === ROUTE_PATHS[ROUTE_SEARCH] && state.searchQuery) {
@@ -803,6 +814,7 @@ function syncHashFromSelection(options) {
   // The Community screen has little use for a big map, so its bottom sheet opens taller
   // (css/map-ui.css .inspector-tall). A height the user has dragged to still wins.
   if (els.inspector) els.inspector.classList.toggle("inspector-tall", state.selected?.type === "community");
+  if (typeof updateInspectorNavigationHeight === "function") updateInspectorNavigationHeight();
   setHashFromSelection(currentScreenRoute(), options);
 }
 
@@ -1274,8 +1286,11 @@ async function revealMapCenteredOnUser() {
   els.mapStage?.classList.add("map-revealed");
   // The reveal is over, so from here on the list is ordinary live content again -- except bare
   // /nearby's static list, which stays as drawn until a real fix (serverRenderedNearbyListStillValid).
-  _serverRenderedNearbyList = _staticNearbyIndex && serverRenderedNearbyListStillValid();
-  hideWithFade(els.loadingOverlay);
+  // The loading strip stays visible while the remaining datasets arrive; boot hides it once the
+  // background promise has settled, so the user can see that locations and map layers are still
+  // being added without blocking the map they are already using.
+  _serverRenderedNearbyList = (isNearbyCategoryLandingPath() || _staticNearbyIndex)
+    && serverRenderedNearbyListStillValid();
 }
 
 // Boot reached here with no real GPS fix -- denied, timed out, unsupported, or skipped in
@@ -1296,7 +1311,7 @@ async function revealMapCenteredOnUser() {
 // clicks on that banner the way the old full-screen overlay incidentally did, so a fast tap can
 // land a real fix before boot() reaches this fallback. Without the guard, that real fix was
 // overwritten back to the High Beach stand-in the moment boot() got here.
-async function revealNoRealLocation({ locationAlreadyAsked }) {
+async function revealNoRealLocation({ locationAlreadyAsked, deferLocationInvite = false }) {
   if (!hasRealLocation()) applyDefaultLocation();
 
   if (!findLandingSlug() && !communityScreenOpen()) selectOverview();
@@ -1307,10 +1322,11 @@ async function revealNoRealLocation({ locationAlreadyAsked }) {
   if (!communityScreenOpen()) applySelectionFromHash();
   await revealMapCenteredOnUser();
 
-  if (locationAlreadyAsked) return;
+  if (locationAlreadyAsked || deferLocationInvite) return;
+  const fallbackWalk = formatWalkingRadius(state.walkingDistanceMinutes);
   const message = navigator.geolocation
-    ? "You're viewing finds within a 30-minute walk of High Beach. Share your location for a more custom experience — centred on you, with real distances."
-    : "This browser does not support location access, so you're viewing finds within a 30-minute walk of High Beach instead.";
+    ? `You're viewing finds within a ${fallbackWalk} walk of High Beach. Share your location for a more custom experience — centred on you, with real distances.`
+    : `This browser does not support location access, so you're viewing finds within a ${fallbackWalk} walk of High Beach instead.`;
   showLocationInviteBanner(message);
 }
 
@@ -1434,20 +1450,27 @@ function showCombinedConsentBanner() {
   banner.hidden = false;
 }
 
-// ?nuke=true requests the same safe update check as Settings' "Refresh both", then returns to the
-// same URL without the flag. It no longer deletes caches: a failed update must leave the current
-// offline app usable. The parameter is retained as a troubleshooting alias for old shared links.
-async function nukeIfRequested() {
+// ?nuke=true clears exactly what Settings' "Refresh both" clears, then returns to the same URL
+// without the flag. The flag is stripped before refreshCachedState reloads the page: otherwise the
+// reload would land back on ?nuke=true and wipe everything again, forever. Online, boot must pause
+// while the clear is in flight or the normal route setup can rewrite the URL before reload. Offline
+// there is nothing to clear, so the flag is simply dropped and boot carries on as normal.
+function nukeIfRequested() {
   const url = new URL(window.location.href);
   if (url.searchParams.get("nuke") !== "true") return false;
-  url.searchParams.delete("nuke");
-  window.history.replaceState(null, "", url);
-  if (!navigator.onLine) return false;
-  return await refreshCachedState("all");
+
+  // A stale service worker can serve this app shell before the current app code is available.
+  // Hand the request to the uncached recovery page so it can unregister that worker and delete
+  // its caches before returning to the requested route.
+  const recovery = new URL("/nuke.html", window.location.origin);
+  recovery.search = url.search;
+  recovery.hash = url.hash;
+  window.location.replace(recovery.href);
+  return true;
 }
 
 async function boot() {
-  if (await nukeIfRequested()) return;
+  if (nukeIfRequested()) return;
 
   // A /nearby/<slug>/ landing already shows its server-rendered list (see
   // _serverRenderedNearbyList, js/inspector.js); keep it there until a real fix or the reveal.
@@ -1455,20 +1478,26 @@ async function boot() {
   _serverRenderedNearbyList = isNearbyCategoryLandingPath() || (_staticNearbyIndex && staticNearbyIndexFiltersAreDefault());
   initSelectedIconMotion();
   initRouter();
+  // Keep the launch route available while the first GPS fix is arriving. applyLocationFix()
+  // normally clears a live selection because locating from an already-open detail view returns
+  // to Nearby, but a deep link must keep naming the screen the reader opened.
+  const bootRoute = routeValueFromLocation();
   initTracker();
   setupPwa();
   setupUiZoomLock();
   setupInteractions();
   resizeCanvas();
   draw();
+  // The first draw may only contain the fallback/loading canvas, but it is still useful map
+  // surface and must not sit behind the pre-reveal veil while network requests are in flight.
+  // Actual layers and the final camera fit are added incrementally below.
+  els.mapStage?.classList.add("map-revealed");
 
-  // See isInstalledAppContext() above: an installed/native launch gets the full blocking
-  // loading modal exactly as before; an ordinary browser tab gets the same element styled as a
-  // non-blocking top progress bar instead (css/loading.css ".loading-overlay.inline"), with the
-  // map and the page's own static content visible underneath from the very first paint.
-  const blockingLoad = isInstalledAppContext();
+  // Keep loading non-blocking in every context, including installed/native launches. The map
+  // shell and its fallback viewport must be visible while the first network responses arrive;
+  // a full-screen splash here made a cold launch appear stuck until a refresh populated caches.
   if (els.loadingOverlay) {
-    els.loadingOverlay.classList.toggle("inline", !blockingLoad);
+    els.loadingOverlay.classList.add("inline");
     els.loadingOverlay.hidden = false;
   }
 
@@ -1576,17 +1605,59 @@ async function boot() {
     if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("tree")) {
       await mapData.treePromise;
     }
+    // Water features arrive with the environment layer. A water deep link is the one filtered
+    // landing that cannot be applied against the initial interactive map state, so wait for just
+    // that dataset while leaving ordinary category pages map-first and non-blocking.
+    if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("water")) {
+      await mapData.environmentPromise;
+    }
+    // A place deep link is resolved from the landmarks plus business metadata. Wait for just
+    // those sources before the first interactive reveal, otherwise their incremental updates
+    // briefly call selectOverview() and replace the requested detail panel.
+    if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("place")) {
+      await mapData.placesPromise;
+    }
     // Likewise a walker-added tree link needs the community overlay it is looked up in.
     if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("addedtree") && typeof communityEnsureOverlay === "function") {
       await communityEnsureOverlay();
     }
 
     state.bounds = calculateBounds();
-    const cowBootstrapOk = await cowPromise;
-    setLoadStep("cows", cowBootstrapOk || state.cows.length > 0 ? "done" : "error", state.cows.length);
-    scheduleCowRefresh();
     fitToBounds();
     state.dataLoaded = true;
+    // The map must not wait for a first-run location prompt or a GPS timeout. Those are useful
+    // for centring the later reveal, but the forest outline is already drawable now and should
+    // be visible immediately on a cold load as well as on a refresh.
+    els.mapStage?.classList.add("map-revealed");
+    requestDraw();
+    // Once the first useful map data is available, turn even the installed-app splash into the
+    // same non-blocking progress strip used by browser tabs. The map and the requested category
+    // can now be used while roads, water, trees and the other locations continue in the background.
+    if (els.loadingOverlay) {
+      els.loadingOverlay.classList.add("inline");
+      els.loadingOverlay.classList.remove("fading-out");
+      els.loadingOverlay.hidden = false;
+    }
+
+    const cowBootstrapPromise = Promise.resolve(cowPromise)
+      .then((cowBootstrapOk) => {
+        setLoadStep("cows", cowBootstrapOk || state.cows.length > 0 ? "done" : "error", state.cows.length);
+        scheduleCowRefresh();
+        requestDraw();
+        return cowBootstrapOk;
+      })
+      .catch(() => {
+        setLoadStep("cows", state.cows.length > 0 ? "done" : "error", state.cows.length);
+        scheduleCowRefresh();
+        requestDraw();
+        return false;
+      });
+    // This is independent of the GPS request below: the map's progress strip should disappear
+    // when map datasets and cattle are ready, even if a permission prompt or cold GPS fix is
+    // still pending while the camera is sitting at the High Beach fallback.
+    Promise.all([mapData.backgroundPromise, cowBootstrapPromise])
+      .then(() => hideWithFade(els.loadingOverlay))
+      .catch(() => hideWithFade(els.loadingOverlay));
     // render:false -- state.userLocation isn't set yet (the location/default-location branch
     // below hasn't run), so selectOverview() would render the no-location dataset-order list and
     // get thrown away the instant revealMapCenteredOnUser()/revealNoRealLocation() render the
@@ -1596,12 +1667,26 @@ async function boot() {
     applyRadiusFromQuery();
 
     if (locationPromise) {
-      // Await the location request that was started in parallel with data loading,
-      // but never unconditionally -- see withBootLocationTimeout.
+      // Give the map a useful origin immediately while the browser is still asking for GPS. The
+      // first reveal deliberately uses High Beach (the same fallback as a denied request), then
+      // the real fix animates the already-visible camera across to the user below. Starting this
+      // before awaiting the location promise is what keeps an unanswered permission prompt from
+      // turning the whole first render into a loading screen.
+      const fallbackRevealPromise = revealNoRealLocation({
+        locationAlreadyAsked,
+        deferLocationInvite: true,
+      });
+      // Await the location request that was started in parallel with data loading, but never
+      // unconditionally -- see withBootLocationTimeout. The fallback reveal is allowed to finish
+      // first so a quick fix still transitions from the same stable High Beach starting view.
       const locResult = await withBootLocationTimeout(locationPromise);
+      await fallbackRevealPromise;
 
       if (locResult.ok) {
         const { latitude, longitude } = applyLocationFix(locResult.position);
+        if (bootRoute && routeValueFromLocation() === bootRoute && !state.selected) {
+          applyRoute(bootRoute, false);
+        }
         setLoadStep("location", "done");
         checkDistanceToForest(latitude, longitude);
         ensureLocationWatch();
@@ -1611,14 +1696,43 @@ async function boot() {
           requestCompassPermissionIfNeeded({ fromGesture: false });
         }
 
-        // Populate overview list and render map while overlay is still up.
-        await revealMapCenteredOnUser();
+        // The map is already visible at High Beach. Fly to the real origin on a longer, gently
+        // zoomed-out arc so the camera has time to establish the journey instead of jolting
+        // through a one-pass fit from the stand-in to the GPS position.
+        // The fallback reveal may still have its short camera ease in flight: revealMapCenteredOnUser
+        // deliberately starts it without awaiting the animation so the progress strip and the
+        // map can appear together. Retargeting an existing tween is blocked by the navigation-fit
+        // guard, which otherwise leaves the camera at the High Beach framing even though the GPS
+        // fix and the location dot have moved. The fallback view is already painted, so it is safe
+        // to hand the camera to the real-location fly-to now.
+        stopViewportAnimation();
+        if (state.selected) {
+          ensureUserAndSelectionVisible({
+            animate: true,
+            cinematic: true,
+            force: true,
+            durationMs: FIRST_LOCATION_FLY_TO_ANIMATION_MS,
+          });
+        } else {
+          ensureOverviewTargetsVisible({
+            animate: true,
+            cinematic: true,
+            force: true,
+            durationMs: FIRST_LOCATION_FLY_TO_ANIMATION_MS,
+          });
+        }
+        requestDraw();
       } else {
-        // Location denied or timed out. Brief pause so the user sees the completed step list
-        // (here, that it failed) before the fallback reveal below takes over.
+        // Location denied or timed out. The fallback reveal already happened, so only mark the
+        // step and offer the non-blocking invite that a normal failed request would show.
         setLoadStep("location", "error");
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        await revealNoRealLocation({ locationAlreadyAsked });
+        if (!locationAlreadyAsked) {
+          const fallbackWalk = formatWalkingRadius(state.walkingDistanceMinutes);
+          const message = navigator.geolocation
+            ? `You're viewing finds within a ${fallbackWalk} walk of High Beach. Share your location for a more custom experience — centred on you, with real distances.`
+            : `This browser does not support location access, so you're viewing finds within a ${fallbackWalk} walk of High Beach instead.`;
+          showLocationInviteBanner(message);
+        }
       }
     } else {
       // No geolocation support, a first-time user skipped it in onboarding, or the landing-page
@@ -1631,10 +1745,10 @@ async function boot() {
 
     // Everything above was served from the service worker's caches on a return visit, which
     // is what makes the reload instant — but also means nothing here ever noticed newer data
-    // upstream. Now that the map is interactive, start the foreground-visible refresh loop. The
-    // worker throttles network work internally; this also retries after a connection returns while
-    // the app remains open, and community overlay updates are delivered directly to the page.
-    setupBackgroundDataSync();
+    // upstream. Now that the map is interactive, ask the worker to revalidate its cached
+    // datasets in the background (syncData in sw.js); anything that actually changed is
+    // picked up on the next load, and Settings says so.
+    requestBackgroundDataSync();
   } catch (error) {
     console.error(error);
     hideWithFade(els.loadingOverlay);
@@ -1820,6 +1934,10 @@ function applyLocationFix(position) {
   // A cold load of /community has already opened its screen (boot); a fix must not wipe it.
   if (!communityScreenOpen()) state.selected = null;
   if (typeof communityNudgeCheck === "function") setTimeout(communityNudgeCheck, 0);
+  // GPS and motion permissions are separate on iOS. A returning visitor can already have a
+  // location dot without ever having granted DeviceOrientation access, so surface the compass
+  // action as soon as a real fix exists instead of waiting for a destination selection.
+  maybeShowCompassPermissionPrompt();
   return { latitude, longitude, previousPoint };
 }
 
@@ -2186,7 +2304,14 @@ function applyBoundsToViewport(bounds, options = {}) {
   const targetTy = focusRect.y + (viewportHeight - rangeY * targetScale) / 2 - bounds.minY * targetScale;
 
   if (options.animate) {
-    animateViewportTo({ scale: targetScale, tx: targetTx, ty: targetTy }, options.durationMs || DEFAULT_VIEWPORT_ANIMATION_MS);
+    animateViewportTo(
+      { scale: targetScale, tx: targetTx, ty: targetTy },
+      options.durationMs || DEFAULT_VIEWPORT_ANIMATION_MS,
+      undefined,
+      options.cinematic
+        ? { cinematic: true, focusPoint: { x: focusRect.x + viewportWidth / 2, y: focusRect.y + viewportHeight / 2 } }
+        : undefined,
+    );
     return;
   }
 
@@ -2204,6 +2329,7 @@ function stopViewportAnimation() {
   state.viewportAnimationFrameRequestedAt = null;
   state.viewportAnimationFrom = null;
   state.viewportAnimationTo = null;
+  state.locationRevealAnimationActive = false;
   state.viewportAnimationStartTime = null;
   state.viewportAnimationDuration = 0;
   // The camera has just been told "stop, you're done" -- a pin-level cluster-join animation
@@ -2235,9 +2361,10 @@ function viewportAnimationAlreadyHeadedTo(targetViewport) {
     && Math.abs(inFlight.ty - targetViewport.ty) < VIEWPORT_ANIMATION_SAME_TARGET_PX;
 }
 
-function animateViewportTo(targetViewport, durationMs, onComplete) {
+function animateViewportTo(targetViewport, durationMs, onComplete, options = {}) {
   const safeDuration = Math.max(MIN_VIEWPORT_ANIMATION_MS, Number(durationMs) || DEFAULT_VIEWPORT_ANIMATION_MS);
-  if (viewportAnimationAlreadyHeadedTo(targetViewport)) return;
+  const cinematic = Boolean(options.cinematic);
+  if (!cinematic && viewportAnimationAlreadyHeadedTo(targetViewport)) return;
   stopViewportAnimation();
 
   const from = {
@@ -2245,6 +2372,31 @@ function animateViewportTo(targetViewport, durationMs, onComplete) {
     tx: state.viewport.tx,
     ty: state.viewport.ty,
   };
+
+  // A normal viewport tween interpolates the transform components directly. That is right for
+  // small refits, but it makes a High Beach -> GPS handoff feel like a hard yank when both the
+  // camera position and scale change at once. The cinematic path interpolates the camera's world
+  // centre and adds a shallow zoom-out arc, like a restrained map fly-to: the route becomes clear
+  // in the middle of the move, then the camera settles into the final walking-radius fit.
+  const focusPoint = options.focusPoint || { x: 0, y: 0 };
+  const fromCenter = cinematic && from.scale > 0
+    ? { x: (focusPoint.x - from.tx) / from.scale, y: (focusPoint.y - from.ty) / from.scale }
+    : null;
+  const targetCenter = cinematic && targetViewport.scale > 0
+    ? { x: (focusPoint.x - targetViewport.tx) / targetViewport.scale, y: (focusPoint.y - targetViewport.ty) / targetViewport.scale }
+    : null;
+  const centreDistancePx = fromCenter && targetCenter
+    ? Math.hypot(
+      (targetCenter.x - fromCenter.x) * Math.min(from.scale, targetViewport.scale),
+      (targetCenter.y - fromCenter.y) * Math.min(from.scale, targetViewport.scale),
+    )
+    : 0;
+  const zoomOutRatio = cinematic
+    ? clamp(0.10 + (centreDistancePx / 900) * 0.045, 0.10, 0.24)
+    : 0;
+  const cinematicScaleFloor = cinematic && state.baseFitScale > 0
+    ? state.baseFitScale * 0.92
+    : 0;
 
   if (
     Math.abs(from.scale - targetViewport.scale) < 0.000001
@@ -2261,6 +2413,7 @@ function animateViewportTo(targetViewport, durationMs, onComplete) {
 
   state.viewportAnimationFrom = from;
   state.viewportAnimationTo = targetViewport;
+  state.locationRevealAnimationActive = cinematic;
   state.viewportAnimationDuration = safeDuration;
 
   const tick = (timestamp) => {
@@ -2281,9 +2434,19 @@ function animateViewportTo(targetViewport, durationMs, onComplete) {
       ? 4 * progress * progress * progress
       : 1 - Math.pow(-2 * progress + 2, 3) / 2;
 
-    state.viewport.scale = state.viewportAnimationFrom.scale + (state.viewportAnimationTo.scale - state.viewportAnimationFrom.scale) * eased;
-    state.viewport.tx = state.viewportAnimationFrom.tx + (state.viewportAnimationTo.tx - state.viewportAnimationFrom.tx) * eased;
-    state.viewport.ty = state.viewportAnimationFrom.ty + (state.viewportAnimationTo.ty - state.viewportAnimationFrom.ty) * eased;
+    if (cinematic && fromCenter && targetCenter) {
+      const baseScale = from.scale + (targetViewport.scale - from.scale) * eased;
+      const zoomArc = Math.sin(Math.PI * eased) * zoomOutRatio;
+      state.viewport.scale = Math.max(cinematicScaleFloor, baseScale * (1 - zoomArc));
+      const centreX = fromCenter.x + (targetCenter.x - fromCenter.x) * eased;
+      const centreY = fromCenter.y + (targetCenter.y - fromCenter.y) * eased;
+      state.viewport.tx = focusPoint.x - centreX * state.viewport.scale;
+      state.viewport.ty = focusPoint.y - centreY * state.viewport.scale;
+    } else {
+      state.viewport.scale = state.viewportAnimationFrom.scale + (state.viewportAnimationTo.scale - state.viewportAnimationFrom.scale) * eased;
+      state.viewport.tx = state.viewportAnimationFrom.tx + (state.viewportAnimationTo.tx - state.viewportAnimationFrom.tx) * eased;
+      state.viewport.ty = state.viewportAnimationFrom.ty + (state.viewportAnimationTo.ty - state.viewportAnimationFrom.ty) * eased;
+    }
     requestDraw();
 
     if (progress >= 1) {
@@ -2958,9 +3121,9 @@ function settingsFormHtml() {
           <button id="refreshAppButton" class="settings-btn" type="button"${online ? "" : " disabled"}>Refresh app</button>
           <button id="refreshAllButton" class="settings-btn" type="button"${online ? "" : " disabled"}>Refresh both</button>
         </div>
-        <p class="settings-description">Map missing or out of date? <strong>Refresh data</strong> downloads a complete replacement before reloading. Not seeing the latest version? <strong>Refresh app</strong> checks for and downloads the next app version before restarting. <strong>Refresh both</strong> requires both downloads and never removes the working offline copy first.</p>
+        <p class="settings-description">Map missing or out of date? <strong>Refresh data</strong> re-downloads the trees, paths and places. Not seeing the latest version? <strong>Refresh app</strong> clears the cached app. <strong>Refresh both</strong> starts completely cold.</p>
+        <p id="refreshStatus" class="report-note" role="status" aria-live="polite" hidden></p>
         <p id="refreshOfflineNote" class="report-note report-offline-note"${online ? " hidden" : ""}>Refreshing needs an internet connection — you\'re offline right now.</p>
-        <p id="refreshStatus" class="report-note" role="status" hidden></p>
       </div>
     </section>
     <section class="settings-section" id="settingsAccount">
@@ -3204,8 +3367,9 @@ function openReportModal() {
   transitionInspectorBody(reportFormHtml(), "forward", () => {
     const detailsInput = document.getElementById("reportDetails");
     if (detailsInput) {
-      detailsInput.focus();
-      detailsInput.scrollIntoView({ block: "nearest" });
+      // Keep the new Feedback screen at its top. Keyboard avoidance will scroll the
+      // field into view later if the viewport actually shrinks on a phone.
+      detailsInput.focus({ preventScroll: true });
     }
   });
   bindReportFormHandlers();
@@ -4530,7 +4694,7 @@ function bearingForItem(item) {
   return bearingDegrees(state.userLocation.latitude, state.userLocation.longitude, item.latitude, item.longitude);
 }
 
-async function startCompassNavigation() {
+async function startCompassNavigation({ fromGesture = Boolean(navigator.userActivation?.isActive) } = {}) {
   // A default location is only a map-centering stand-in. Do not ask for compass access, or
   // show its blocking permission gate, until the visitor has shared a real position. The
   // no-location view already explains this in its source note and remains fully browseable.
@@ -4545,7 +4709,7 @@ async function startCompassNavigation() {
 
   ensureLocationWatch();
 
-  await requestCompassPermissionIfNeeded();
+  await requestCompassPermissionIfNeeded({ fromGesture });
 
   updateCompassOverlay();
 }
@@ -4553,6 +4717,13 @@ async function startCompassNavigation() {
 function compassPermissionCanBeRequested() {
   return typeof DeviceOrientationEvent !== "undefined"
     && typeof DeviceOrientationEvent.requestPermission === "function";
+}
+
+function maybeShowCompassPermissionPrompt() {
+  if (!hasRealLocation()) return;
+  if (!compassPermissionCanBeRequested()) return;
+  if (state.compassPermission === "granted") return;
+  showCompassPermissionPrompt();
 }
 
 async function requestCompassPermissionIfNeeded({ fromGesture = false } = {}) {
@@ -4579,6 +4750,10 @@ async function requestCompassPermissionIfNeeded({ fromGesture = false } = {}) {
     try {
       localStorage.setItem(COMPASS_PERMISSION_KEY, state.compassPermission);
     } catch {}
+    if (state.compassPermission === "granted") {
+      hideCompassPermissionPrompt();
+      reattachCompassListeners();
+    }
   } catch {
     state.compassPermission = "denied";
     try {
@@ -4710,6 +4885,7 @@ function releaseStrandedAnimationFrames() {
   // A timestamp from before the break would give the first frame back a dt measured in
   // minutes; the loop clamps it, but starting from null is the honest reset.
   state.compassAnimationTime = null;
+  state.compassViewportAlignmentAt = null;
   // Clears state.viewportAnimationTo as well as the frame handle, so a camera ease that was
   // interrupted by the app going away cannot keep the heading-up fit switched off.
   stopViewportAnimation();
@@ -4855,14 +5031,11 @@ function onDeviceOrientation(event) {
   if (Number.isFinite(rawBeta)) {
     state.tiltBetaTarget = clamp(Math.abs(rawBeta), 0, 90);
     // Beta drives the 3D tilt by itself, but only startCompassSmoothing's loop eases
-    // tiltBetaSmoothed toward it. The heading branch below returns early on any event whose
-    // alpha/webkitCompassHeading is missing -- common indoors and on phones with a flaky
-    // magnetometer -- so on a device delivering beta without a heading the target moved and
-    // nothing advanced it: tilting the phone did nothing until some unrelated redraw
-    // happened to restart the loop (the nudge in draw(), js/renderer.js). Restart it here on
-    // the beta alone. The loop's own first guard exits immediately without a trusted
-    // heading, so this cannot spin when there is nothing to smooth.
-    if (Number.isFinite(state.compassHeading)) startCompassSmoothing();
+    // tiltBetaSmoothed toward it. Pitch is useful even while the magnetometer is still
+    // calibrating (or when a browser exposes beta but not a north-referenced heading), so the
+    // smoothing loop is intentionally started from beta alone. The loop keeps the map north-up
+    // until a heading becomes trustworthy, but the Z axis and 3D camera remain responsive.
+    startCompassSmoothing();
   }
   const source = orientationHeadingSource(event);
   if (source === HEADING_SOURCE_NONE) return;
@@ -5020,6 +5193,7 @@ function completeCompassCalibration(heading) {
   state.compassCalibrationSamples = [];
   state.compassCalibrationStartedAt = null;
   stopCalibrationViewportSync();
+  hideCompassPermissionPrompt();
   hideCompassCalibrationPrompt();
   startCompassSmoothing();
 }
@@ -5037,17 +5211,61 @@ function resetCompassCalibration() {
 }
 
 function showCompassCalibrationPrompt() {
+  if (state.compassPermissionPromptVisible) return;
   if (state.compassCalibrationPromptDismissed) return;
   if (state.compassCalibrationPromptVisible) return;
   if (!els.compassCalibrationBanner) return;
   state.compassCalibrationPromptVisible = true;
+  if (els.compassCalibrationBannerText) {
+    els.compassCalibrationBannerText.textContent = "Move your phone in a figure-8 to help it find your direction";
+  }
+  if (els.compassCalibrationBannerEnable) els.compassCalibrationBannerEnable.hidden = true;
   els.compassCalibrationBanner.classList.remove("fading-out");
   els.compassCalibrationBanner.hidden = false;
 }
 
+function showCompassPermissionPrompt() {
+  if (state.compassPermissionPromptVisible) return;
+  if (!els.compassCalibrationBanner) return;
+  state.compassPermissionPromptVisible = true;
+  state.compassCalibrationPromptVisible = false;
+  if (els.compassCalibrationBannerText) {
+    els.compassCalibrationBannerText.textContent = state.compassPermission === "denied"
+      ? "Compass access is blocked. Enable Motion & Orientation access in your browser settings to use map movement."
+      : "Enable compass access to turn the map and use phone movement.";
+  }
+  if (els.compassCalibrationBannerEnable) {
+    els.compassCalibrationBannerEnable.textContent = "Enable compass";
+    els.compassCalibrationBannerEnable.hidden = false;
+  }
+  els.compassCalibrationBanner.classList.remove("fading-out");
+  els.compassCalibrationBanner.hidden = false;
+}
+
+async function enableCompassFromGesture() {
+  await requestCompassPermissionIfNeeded({ fromGesture: true });
+  if (state.compassPermission === "granted") {
+    hideCompassPermissionPrompt();
+    reattachCompassListeners();
+    setStatus("");
+    requestDraw();
+  } else if (state.compassPermissionPromptVisible && els.compassCalibrationBannerText) {
+    els.compassCalibrationBannerText.textContent = "Compass access is still blocked. Enable Motion & Orientation access in your browser settings, then try again.";
+  }
+}
+
 function hideCompassCalibrationPrompt() {
+  if (state.compassPermissionPromptVisible) return;
   state.compassCalibrationPromptVisible = false;
   if (!els.compassCalibrationBanner) return;
+  if (els.compassCalibrationBannerEnable) els.compassCalibrationBannerEnable.hidden = true;
+  hideWithFade(els.compassCalibrationBanner);
+}
+
+function hideCompassPermissionPrompt() {
+  state.compassPermissionPromptVisible = false;
+  if (!els.compassCalibrationBanner) return;
+  if (els.compassCalibrationBannerEnable) els.compassCalibrationBannerEnable.hidden = true;
   hideWithFade(els.compassCalibrationBanner);
 }
 
@@ -5128,7 +5346,9 @@ function startCompassSmoothing() {
     _overlapRectCache = undefined;
     _tiltProjectionCache = undefined;
     _nearbyRenderOriginCache = undefined;
-    if (!Number.isFinite(state.compassHeadingTarget) || !Number.isFinite(state.compassHeading)) {
+    const hasHeading = Number.isFinite(state.compassHeadingTarget) && Number.isFinite(state.compassHeading);
+    const hasBetaWork = Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) >= 0.05;
+    if (!hasHeading && !hasBetaWork) {
       state.compassAnimationFrame = null;
       state.compassAnimationTime = null;
       return;
@@ -5137,11 +5357,14 @@ function startCompassSmoothing() {
     const previousTime = state.compassAnimationTime == null ? timestamp : state.compassAnimationTime;
     const dt = Math.min(0.05, Math.max(0.001, (timestamp - previousTime) / 1000));
     state.compassAnimationTime = timestamp;
+    const previousHeading = state.compassHeading;
 
-    const delta = shortestCompassDelta(state.compassHeading, state.compassHeadingTarget);
-    const smoothing = 1 - Math.exp(-14 * dt);
-    const nextHeading = state.compassHeading + (delta * smoothing);
-    state.compassHeading = nextHeading;
+    if (hasHeading) {
+      const delta = shortestCompassDelta(state.compassHeading, state.compassHeadingTarget);
+      const smoothing = 1 - Math.exp(-14 * dt);
+      const nextHeading = state.compassHeading + (delta * smoothing);
+      state.compassHeading = nextHeading;
+    }
 
     // Slower than the compass heading filter above (rate 14): beta gates pin/pointer
     // collapse (tiltInfluence) as well as the rotateX camera tilt, and a phone lifts
@@ -5150,23 +5373,50 @@ function startCompassSmoothing() {
     const betaDiff = state.tiltBetaTarget - state.tiltBetaSmoothed;
     state.tiltBetaSmoothed += betaDiff * (1 - Math.exp(-4 * dt));
 
-    updateOverviewDirectionArrows();
-    refreshNearbyListForHeading();
-    updateCompassOverlay();
-    const viewportChanged = alignHeadingUpNavigationViewport();
+    const tiltNeedsFullRedraw = tiltRenderStale();
+    if (hasHeading) {
+      updateOverviewDirectionArrows();
+      refreshNearbyListForHeading();
+      updateCompassOverlay();
+    }
+    const alignmentDue = state.compassViewportAlignmentAt == null
+      || timestamp - state.compassViewportAlignmentAt >= 33;
+    // A heading changes the rotation every frame, but the fit only needs solving often enough
+    // to follow meaningful movement. Beta-only tilt needs a solve when the baked perspective
+    // has moved enough to warrant repainting. This keeps the expensive fit math out of the
+    // tight sensor loop without delaying a real camera correction.
+    const shouldAlignViewport = navigationAnchorActive()
+      && ((hasHeading && (alignmentDue || (previousHeading != null
+        && Math.abs(shortestCompassDelta(previousHeading, state.compassHeading)) > 1)))
+        || (!hasHeading && tiltNeedsFullRedraw));
+    let viewportChanged = false;
+    if (shouldAlignViewport) {
+      viewportChanged = alignHeadingUpNavigationViewport();
+      state.compassViewportAlignmentAt = timestamp;
+    }
     if (headingUpActive()) {
       updateHeadingUpCanvasRotationTransform();
-      if (viewportChanged || tiltRenderStale()) requestDraw();
-      else if (typeof drawOverlay === "function") drawOverlay();
-    } else {
-      requestDraw();
     }
+    // In flat heading-up mode the map canvas is already rotated with CSS and the moving
+    // pins/compass live on the overlay. In beta-only tilt mode the same overlay path applies
+    // until the baked terrain projection has moved enough to need a repaint. Repainting the
+    // entire terrain for every heading sample was the main source of the visible step/jitter.
+    if (viewportChanged || tiltNeedsFullRedraw) requestDraw();
+    else if (typeof drawOverlay === "function") drawOverlay();
 
-    const remaining = Math.abs(shortestCompassDelta(state.compassHeading, state.compassHeadingTarget));
+    const remaining = hasHeading
+      ? Math.abs(shortestCompassDelta(state.compassHeading, state.compassHeadingTarget))
+      : 0;
     const lastEventAge = state.compassLastEventAt == null ? Infinity : (timestamp - state.compassLastEventAt);
     const sensorIsActive = lastEventAge < HEADING_UP_SENSOR_ACTIVE_MS;
     const betaSettled = Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) < 0.1;
-    if (remaining < 0.05 && !sensorIsActive && betaSettled) {
+    if (!hasHeading && betaSettled) {
+      if (tiltActive()) requestDraw();
+      state.compassAnimationFrame = null;
+      state.compassAnimationTime = null;
+      return;
+    }
+    if (hasHeading && remaining < 0.05 && !sensorIsActive && betaSettled) {
       state.compassHeading = unwrapAngle(state.compassHeading, state.compassHeadingTarget);
       updateOverviewDirectionArrows();
       refreshNearbyListForHeading();
@@ -5315,7 +5565,12 @@ function ensureLocationWatch() {
         if (vpChanged || tiltRenderStale() || selectedCompassTarget()) requestDraw();
         else if (typeof drawOverlay === "function") drawOverlay();
       } else {
-        ensureUserAndSelectionVisible({ animate: true, durationMs: 200 });
+        // Do not let the first watch callback replace the cinematic High Beach -> GPS fly-to
+        // with its ordinary short GPS-follow refit. The fly-to already targets this fix; later
+        // callbacks resume the normal follow once it has landed.
+        if (!state.locationRevealAnimationActive) {
+          ensureUserAndSelectionVisible({ animate: true, durationMs: 200 });
+        }
         keepOverviewCenteredOnUser(previousPoint);
         updateCompassOverlay();
         requestDraw();
@@ -5744,7 +5999,11 @@ function tiltAllowedForCurrentScreen() {
 }
 
 function tiltActive() {
-  return headingUpActive() && state.tiltBetaSmoothed > TILT_BETA_THRESHOLD;
+  // Pitch is an independent motion axis. A browser may provide beta while its compass is
+  // still waiting for iOS permission or magnetometer calibration, and the map can safely stay
+  // north-up while still responding to the phone being lifted. Once a heading is available the
+  // same path becomes the full heading-up radar view.
+  return Boolean(hasRealLocation()) && state.tiltBetaSmoothed > TILT_BETA_THRESHOLD;
 }
 
 function tiltRotateXDeg() {
@@ -6048,7 +6307,11 @@ function selectionCameraTransitionActive() {
 // anchor and the fit agree on where the usable band actually is -- an anchor placed outside
 // it leaves one side no room at all and collapses the fit (see balancedNavigationAnchorY).
 function headingUpFitMarginPx(focusRect) {
-  return Math.min(focusRect.width, focusRect.height) * 0.1 + 12 * pixelRatio();
+  // Keep a useful edge cushion without making the ordinary Nearby radius occupy only a
+  // little over half of the usable width on a portrait phone. The ring is circular and its
+  // camera is centred, so the larger 10% margin used by the old heading-up fit was needlessly
+  // conservative here; the 12dp floor still protects rotated content from touching the edge.
+  return Math.min(focusRect.width, focusRect.height) * 0.06 + 12 * pixelRatio();
 }
 
 // Where to put the user when the points being fitted lie on BOTH sides of "ahead".
@@ -6963,7 +7226,12 @@ function alignHeadingUpNavigationViewport(options = {}) {
     const zoomMs = Math.max(MIN_VIEWPORT_ANIMATION_MS, totalMs - panMs);
     animateViewportTo(panViewport, panMs, () => animateViewportTo(targetViewport, zoomMs));
   } else if (options.animate) {
-    animateViewportTo(targetViewport, options.durationMs || HEADING_UP_NAV_ANIMATION_MS);
+    animateViewportTo(
+      targetViewport,
+      options.durationMs || HEADING_UP_NAV_ANIMATION_MS,
+      undefined,
+      options.cinematic ? { cinematic: true, focusPoint: { x: focus.x, y: focusY } } : undefined,
+    );
   } else {
     state.viewport.scale = targetScale;
     state.viewport.tx = targetViewport.tx;
@@ -7296,6 +7564,7 @@ function ensureUserAndSelectionVisible(options = {}) {
   fitToPoints(pointsToFit, false, {
     focusVisibleArea: true,
     animate: shouldAnimate,
+    cinematic: Boolean(options.cinematic),
     durationMs: options.durationMs || 800,
     minScale: state.baseFitScale > 0 ? state.baseFitScale : undefined,
     maxScale: maxScale > 0 ? maxScale : undefined,
@@ -7467,7 +7736,14 @@ function centerOverviewOnUserLocation(options = {}) {
   };
 
   if (options.animate) {
-    animateViewportTo(targetViewport, options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS);
+    animateViewportTo(
+      targetViewport,
+      options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
+      undefined,
+      options.cinematic
+        ? { cinematic: true, focusPoint: { x: focusRect.x + focusRect.width / 2, y: focusRect.y + focusRect.height / 2 } }
+        : undefined,
+    );
     return;
   }
 
@@ -7573,6 +7849,7 @@ function ensureOverviewTargetsVisible(options = {}) {
   if (nearbyNavigationAnchorActive()) {
     alignHeadingUpNavigationViewport({
       animate: Boolean(options.animate),
+      cinematic: Boolean(options.cinematic),
       durationMs: options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
       force: Boolean(options.force),
       stagePanThenZoom: Boolean(options.stagePanThenZoom),
@@ -7589,6 +7866,7 @@ function ensureOverviewTargetsVisible(options = {}) {
       focusVisibleArea: true,
       assumeInspectorOpen: true,
       animate: Boolean(options.animate),
+      cinematic: Boolean(options.cinematic),
       durationMs: options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
       minScale: state.baseFitScale > 0 ? state.baseFitScale : undefined,
       padding: OVERVIEW_FIT_PADDING_PX,
@@ -7598,6 +7876,7 @@ function ensureOverviewTargetsVisible(options = {}) {
     // leave the scale alone rather than fitting nothing.
     centerOverviewOnUserLocation({
       animate: Boolean(options.animate),
+      cinematic: Boolean(options.cinematic),
       durationMs: options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
       focusVisibleArea: true,
     });
@@ -9283,6 +9562,7 @@ function walkingDistanceToMetres(minutes) {
 }
 
 function updateSelectedDetailFields() {
+  if (typeof updateInspectorNavigationHeight === "function") updateInspectorNavigationHeight();
   if (!state.selected || !state.userLocation) return;
   const item = selectedCompassTarget();
   if (!item) return;

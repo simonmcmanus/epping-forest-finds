@@ -150,15 +150,16 @@ test.describe("compass reliability", () => {
       requestDraw();
       const handleWhileWedged = state.animationFrame;
 
-      const recovered = recoverWedgedAnimationFrames();
-      const cameraFitBlocked = selectionCameraTransitionActive();
-
       let paints = 0;
       const originalDraw = draw;
       draw = function countingDraw(...args) {
         paints += 1;
         return originalDraw.apply(this, args);
       };
+
+      const recovered = recoverWedgedAnimationFrames();
+      const cameraFitBlocked = selectionCameraTransitionActive();
+
       requestDraw();
       await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
       await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));

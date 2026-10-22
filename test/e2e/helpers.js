@@ -135,22 +135,39 @@ async function settleMapIconsAndDraw(page) {
 }
 
 /**
- * Navigate to the app and wait for the loading overlay to be fully gone.
+ * Navigate to the app and wait for its first stable interactive map state.
  *
- * hideWithFade() fades opacity to 0 (CSS) and then sets el.hidden = true after
- * a 420 ms timer. We must wait for el.hidden === true (not just CSS opacity 0)
- * because the transparent overlay still intercepts pointer events until then.
+ * Browser pages deliberately keep the loading overlay hidden until boot has started, and then
+ * leave it as a non-blocking progress strip while background datasets continue downloading.
+ * Waiting for the hidden flag therefore returns before boot has even created state on a cold load.
+ * The test harness waits for the app's data milestones instead: this keeps map-first production
+ * behaviour intact while preventing a test from racing a late dataset or the first GPS camera fit.
  */
 async function gotoAndWaitForMap(page, path = "/nearby", { timeout = 30_000 } = {}) {
   await denyGeolocationUnlessGranted(page);
   await page.goto(path);
   await page.waitForFunction(
+    () => typeof state !== "undefined" && state.dataLoaded === true,
+    { timeout }
+  );
+  await page.waitForFunction(
+    () => ["trees", "places", "paths", "roads", "environment", "forest"].every((key) => {
+      const step = document.querySelector('[data-load-step="' + key + '"]');
+      return step && (step.classList.contains("done") || step.classList.contains("error"));
+    }),
+    { timeout }
+  );
+  await page.waitForFunction(
     () => {
-      const el = document.getElementById("loadingOverlay");
-      return !el || el.hidden === true;
+      const step = document.querySelector("[data-load-step='location']");
+      return step && (step.classList.contains("done") || step.classList.contains("error"));
     },
     { timeout }
   );
+  await page.waitForFunction(() => state.viewportAnimationFrame == null, { timeout });
+  if (/[#&]tree=/.test(path)) {
+    await page.waitForFunction(() => state.selected?.type === "tree", { timeout });
+  }
 }
 
 /**
@@ -176,6 +193,11 @@ async function setup(page, urlPath = "/nearby") {
     // tab-order baseline on every screen, not just Nearby.
     const invite = document.getElementById("locationInviteBanner");
     if (invite && !invite.hidden) invite.hidden = true;
+    // The real-fix boot path can show the compass calibration prompt over the top edge of the
+    // map. General map-interaction tests intentionally do not exercise that prompt, and it can
+    // intercept their corner taps; the compass-specific spec uses gotoAndWaitForMap directly.
+    const compassBanner = document.getElementById("compassCalibrationBanner");
+    if (compassBanner && !compassBanner.hidden) compassBanner.hidden = true;
     if (state.userLocation && state.userLocation.isDefault) {
       state.userLocation = null;
       // This fixture removes the default location entirely, so its static
