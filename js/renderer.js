@@ -2263,9 +2263,26 @@ function buildSearchIconLookup() {
 const COMMUNITY_EMPTY_ICON_LOOKUP = Object.freeze({
   tree: new Set(), landmark: new Set(), cow: new Set(), path: new Set(), water: new Set(), outOfRadius: new Set(),
 });
+const SELECTED_NAVIGATION_EMPTY_ICON_LOOKUP = Object.freeze({
+  tree: new Set(), landmark: new Set(), cow: new Set(), path: new Set(), water: new Set(), outOfRadius: new Set(),
+});
+
+// Once a real location is selected for navigation, the map is a two-point view: the walker's
+// position and the chosen destination. Nearby pins are useful while browsing, but leaving them
+// underneath a selected route makes it unclear which marker the route is leading to. Use the
+// shared target resolver so this also covers road navigation, whose selected type is not one of
+// the point-pin categories.
+function selectedNavigationMapModeActive() {
+  return Boolean(
+    state.selected?.item
+    && typeof selectedCompassTarget === "function"
+    && selectedCompassTarget(),
+  );
+}
 
 function activeIconLookup() {
   if (state.selected && state.selected.type === "community") return COMMUNITY_EMPTY_ICON_LOOKUP;
+  if (selectedNavigationMapModeActive()) return SELECTED_NAVIGATION_EMPTY_ICON_LOOKUP;
   if (state.searchScreenOpen && state.searchHighlightResults.length) return buildSearchIconLookup();
   return buildNearbyIconLookup();
 }
@@ -2721,7 +2738,7 @@ function drawUserRadarOverlayTilted(ctx) {
 // to the user (higher Y in heading-up mode) paint over distant ones (painter's algorithm),
 // then draws them in a single pass. Selected item is still drawn last via drawSelectedOverlay.
 function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
-  if (state.selected && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type)) return;
+  if (selectedNavigationMapModeActive()) return;
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
   const uScale = MAP_ICON_SCALE_UNSELECTED;
