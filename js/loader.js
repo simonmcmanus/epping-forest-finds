@@ -328,7 +328,7 @@ async function loadMapData() {
   // service-worker cache; it also meant a filtered landing page could not show its own category
   // while unrelated layers were still downloading.
   state.bounds = calculateBounds();
-  return { treePromise, backgroundPromise };
+  return { treePromise, environmentPromise, backgroundPromise };
 }
 
 function loadBuildingsIfNeeded() {
