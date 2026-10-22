@@ -133,6 +133,20 @@ function secondaryScreenActive() {
   );
 }
 
+const INSPECTOR_NAVIGATION_ARRIVAL_METRES = 15;
+
+function updateInspectorNavigationHeight() {
+  if (!els.inspector) return;
+  const target = typeof selectedCompassTarget === "function" ? selectedCompassTarget() : null;
+  const navigating = Boolean(target);
+  const metres = navigating && state.userLocation && typeof distanceFromUser === "function"
+    ? distanceFromUser(target)
+    : null;
+  const arrived = navigating && Number.isFinite(metres) && metres <= INSPECTOR_NAVIGATION_ARRIVAL_METRES;
+  els.inspector.classList.toggle("inspector-navigation", navigating);
+  els.inspector.classList.toggle("inspector-navigation-arrived", arrived);
+}
+
 // state.selected is truthy for the Settings/Report pseudo-selections (type "settings"/
 // "report") as well as for a real tree/landmark/etc selection, but overview-only rendering
 // (the walking-radius ring, the browse-anchor marker and its cone, the off-ring user pointer)
