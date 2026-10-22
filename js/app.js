@@ -1465,14 +1465,16 @@ async function boot() {
   setupInteractions();
   resizeCanvas();
   draw();
+  // The first draw may only contain the fallback/loading canvas, but it is still useful map
+  // surface and must not sit behind the pre-reveal veil while network requests are in flight.
+  // Actual layers and the final camera fit are added incrementally below.
+  els.mapStage?.classList.add("map-revealed");
 
-  // See isInstalledAppContext() above: an installed/native launch gets the full blocking
-  // loading modal exactly as before; an ordinary browser tab gets the same element styled as a
-  // non-blocking top progress bar instead (css/loading.css ".loading-overlay.inline"), with the
-  // map and the page's own static content visible underneath from the very first paint.
-  const blockingLoad = isInstalledAppContext();
+  // Keep loading non-blocking in every context, including installed/native launches. The map
+  // shell and its fallback viewport must be visible while the first network responses arrive;
+  // a full-screen splash here made a cold launch appear stuck until a refresh populated caches.
   if (els.loadingOverlay) {
-    els.loadingOverlay.classList.toggle("inline", !blockingLoad);
+    els.loadingOverlay.classList.add("inline");
     els.loadingOverlay.hidden = false;
   }
 
