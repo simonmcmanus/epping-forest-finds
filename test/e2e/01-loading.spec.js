@@ -9,8 +9,8 @@ test.describe("Loading experience", () => {
   });
 
   test("shows the loading overlay at startup before interactive data arrives", async ({ page }) => {
-    // Places are part of the interactive bootstrap. Trees deliberately are not: they continue
-    // loading after the map is usable, so delaying them must not keep this overlay visible.
+    // The map shell is interactive before the full locations batch completes, so delaying a
+    // location file must leave the progress strip visible without blocking the map underneath.
     let releasePlaces;
     const placesReleased = new Promise((resolve) => { releasePlaces = resolve; });
     await page.route("**/data/local-landmarks-food.geojson", async (route) => {
@@ -73,10 +73,11 @@ test.describe("Loading experience", () => {
     });
     await page.goto("/app#filters");
 
-    await page.waitForFunction(() => document.getElementById("loadingOverlay")?.hidden === true);
+    await page.waitForFunction(() => document.getElementById("loadingOverlay")?.classList.contains("inline"));
     await expect(page.locator("#inspectorTitle")).toHaveText("Filters");
     await expect(page.locator("#inspectorBody")).toContainText("Pubs & bars");
     await expect(page.locator('[data-load-step="trees"]')).toHaveClass(/loading/);
+    await expect(page.locator("#mapCanvas")).toBeVisible();
     releaseTrees();
   });
 
