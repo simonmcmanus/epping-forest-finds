@@ -283,8 +283,6 @@ function draw() {
   drawWalkingRadius(ctx);
   drawSelectedRoute(ctx);
   drawUserRadarMainCanvas(ctx);
-  const useOverlayForPins = (typeof nearbyHeadingUpActive === "function" && nearbyHeadingUpActive())
-    || (typeof tiltActive === "function" && tiltActive());
   if (!useOverlayForPins) {
     drawClusterFootprints(ctx, [...filteredTreeClusters, ...filteredLandmarkClusters, ...filteredCowClusters, ...filteredPathClusters, ...filteredWaterClusters], megaGroups);
     drawTrees(ctx, nearbyIconLookup, undefined, filteredTreeClusters);
