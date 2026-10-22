@@ -1,3 +1,3 @@
 // This is deliberately a tiny, independently-bumped release marker. The
 // post-merge cache-version workflow is the only automation allowed to change it.
-const APP_CACHE_VERSION = `v163`;
+const APP_CACHE_VERSION = `v164`;
