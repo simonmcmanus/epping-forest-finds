@@ -64,6 +64,7 @@ const DATA_SHELL = [
   "./data/local-landmarks-tourism.geojson",
   "./data/local-landmarks-misc.geojson",
   "./data/epping_forest_folklore_locations.json",
+  "./data/business-slugs.json",
   "./data/events.json",
   "./data/local-paths.geojson",
   "./data/local-environment.geojson",
@@ -212,6 +213,11 @@ const DATA_CACHE_OPPORTUNISTIC = [
   "./data/icons/wwII.png",
 ];
 
+// A forced refresh must be able to repair a partially populated data cache as well as
+// revalidate the entries it already has. Keep this derived list next to the two source lists so
+// adding a new offline asset cannot make the refresh path forget to download it.
+const ALL_DATA_URLS = [...new Set([...DATA_SHELL, ...DATA_CACHE_OPPORTUNISTIC])];
+
 // Helper: determine if a path is app code vs data
 // The map application's own navigable URLs -- its five screen paths, each a pretty URL
 // rewritten to /app.html by netlify.toml and server.js, plus the underlying file itself.
@@ -272,7 +278,8 @@ const DATA_SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const DATA_SYNC_CONCURRENCY = 6;
 
 function isDataSyncStateRequest(request) {
-  return request.url.endsWith("__data-sync-state");
+  const url = typeof request === "string" ? request : request && request.url;
+  return Boolean(url && url.endsWith("__data-sync-state"));
 }
 
 // Returns only the URLs that are not already in this cache. Every app release bumps
@@ -340,8 +347,10 @@ self.addEventListener("install", (event) => {
     .then(async (cache) => {
       const missing = await missingFromCache(cache, APP_SHELL);
       if (missing.length > 0) await cache.addAll(missing);
-    })
-    .then(() => self.skipWaiting());
+    });
+    // Deliberately leave this worker waiting. The page only activates a fully downloaded worker
+    // after the person asks for the update, so an interrupted release can never replace the
+    // currently working offline shell.
 
   // Block install on critical data shell -- inheriting whatever a previous data cache already
   // holds first, so only genuinely absent files are fetched.
@@ -420,7 +429,13 @@ async function syncData({ force = false } = {}) {
       Date.now() - syncState.lastSyncAt >= DATA_SYNC_INTERVAL_MS;
     if (!due) return { ran: false, changed: 0 };
 
-    const requests = (await cache.keys()).filter((request) => !isDataSyncStateRequest(request));
+    const cachedRequests = (await cache.keys()).filter((request) => !isDataSyncStateRequest(request));
+    const cachedUrls = new Set(cachedRequests.map((request) => request.url));
+    const missingUrls = ALL_DATA_URLS.filter((url) => {
+      const absolute = new URL(url, self.location.href).href;
+      return !cachedUrls.has(absolute);
+    });
+    const requests = [...cachedRequests, ...missingUrls];
     let next = 0;
     let changed = 0;
     let failed = 0;
@@ -431,11 +446,15 @@ async function syncData({ force = false } = {}) {
         next += 1;
         try {
           const cached = await cache.match(request);
+          const requestUrl = typeof request === "string" ? new URL(request, self.location.href).href : request.url;
           // "no-store" keeps the browser's HTTP cache out of it entirely — the conditional
           // headers above are the whole mechanism, so a 304 here really did cost no bytes.
-          const fresh = await fetch(request.url, { cache: "no-store", headers: conditionalHeaders(cached) });
+          const fresh = await fetch(requestUrl, { cache: "no-store", headers: conditionalHeaders(cached) });
           if (fresh.status === 304) continue;
-          if (!fresh.ok) continue;
+          if (!fresh.ok) {
+            failed += 1;
+            continue;
+          }
           if (cached && !responseChanged(cached, fresh)) continue;
           await cache.put(request, fresh.clone());
           changed += 1;
@@ -451,10 +470,16 @@ async function syncData({ force = false } = {}) {
     // Only record a pass that actually reached the network. Stamping a wholly failed sweep (the
     // connection dropped mid-walk, say) would push the real check six hours out and quietly clear
     // the staleSince flag that a just-migrated cache depends on.
-    if (requests.length > 0 && failed === requests.length) return { ran: false, changed: 0 };
+    if (requests.length > 0 && failed === requests.length) {
+      return { ran: false, changed: 0, failed, complete: false };
+    }
 
-    await writeDataSyncState(cache, { lastSyncAt: Date.now(), staleSince: null });
-    return { ran: true, changed };
+    // A partial pass is useful, but must remain due so a transient outage does not suppress the
+    // next repair attempt for six hours. The cached entries remain the source of truth either way.
+    await writeDataSyncState(cache, failed > 0
+      ? { staleSince: syncState.staleSince || Date.now() }
+      : { lastSyncAt: Date.now(), staleSince: null });
+    return { ran: true, changed, failed, complete: failed === 0 };
   })().finally(() => {
     dataSyncInFlight = null;
   });
@@ -467,6 +492,17 @@ async function notifyDataUpdated(changed) {
   clients.forEach((client) => client.postMessage({ type: "DATA_UPDATED", changed }));
 }
 
+async function communityResponseChanged(cached, fresh) {
+  if (!cached) return true;
+  const [cachedText, freshText] = await Promise.all([cached.clone().text(), fresh.clone().text()]);
+  return cachedText !== freshText;
+}
+
+async function notifyCommunityUpdated(data) {
+  const clients = await self.clients.matchAll({ includeUncontrolled: true });
+  clients.forEach((client) => client.postMessage({ type: "COMMUNITY_UPDATED", data }));
+}
+
 self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") {
     self.skipWaiting();
@@ -476,8 +512,29 @@ self.addEventListener("message", (event) => {
   if (event.data?.type === "SYNC_DATA") {
     event.waitUntil(
       syncData({ force: event.data.force === true })
-        .then((result) => (result.ran && result.changed > 0 ? notifyDataUpdated(result.changed) : undefined))
-        .catch(() => {})
+        .then(async (result) => {
+          if (result.ran && result.changed > 0) await notifyDataUpdated(result.changed);
+          if (event.source) {
+            event.source.postMessage({
+              type: "DATA_SYNC_COMPLETE",
+              requestId: event.data.requestId || null,
+              ok: result.complete === true,
+              changed: result.changed || 0,
+              failed: result.failed || 0,
+            });
+          }
+        })
+        .catch(() => {
+          if (event.source) {
+            event.source.postMessage({
+              type: "DATA_SYNC_COMPLETE",
+              requestId: event.data.requestId || null,
+              ok: false,
+              changed: 0,
+              failed: 1,
+            });
+          }
+        })
     );
   }
 });
@@ -500,8 +557,12 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       caches.open(COMMUNITY_CACHE_NAME).then(async (cache) => {
         const cached = await cache.match(event.request);
-        const fromNetwork = fetch(event.request).then((response) => {
-          if (response.ok) cache.put(event.request, response.clone());
+        const fromNetwork = fetch(event.request).then(async (response) => {
+          if (!response.ok) return response;
+          const changed = !cached || await communityResponseChanged(cached, response);
+          const data = await response.clone().json().catch(() => null);
+          await cache.put(event.request, response.clone());
+          if (changed && data) await notifyCommunityUpdated(data);
           return response;
         });
         if (cached) {

@@ -152,10 +152,9 @@ test.describe("Settings screen", () => {
   });
 
   test.describe("refresh scopes", () => {
-    // Each button reloads the page once it has cleared what it owns, so what was cleared is
-    // recorded into sessionStorage (which survives the reload) rather than asserted in place.
-    // The Cache Storage and service-worker APIs are stubbed in the live page — Settings is
-    // already open at this point, and setupPwa has long since read what it needs.
+    // Refreshes now keep the existing caches until the replacement is ready. The Cache Storage
+    // and service-worker APIs are stubbed in the live page — Settings is already open at this
+    // point, and setupPwa has long since read what it needs.
     async function stubCacheApis(page) {
       await page.evaluate(() => {
         sessionStorage.removeItem("refresh-log");
@@ -174,9 +173,23 @@ test.describe("Settings screen", () => {
           },
         });
         if (navigator.serviceWorker) {
-          Object.defineProperty(navigator.serviceWorker, "getRegistrations", {
+          const serviceWorker = navigator.serviceWorker;
+          const controller = { postMessage: (message) => {
+            record(`message:${message.type}`);
+            if (message.type === "SYNC_DATA") {
+              setTimeout(() => serviceWorker.dispatchEvent(new MessageEvent("message", {
+                data: { type: "DATA_SYNC_COMPLETE", requestId: message.requestId, ok: true, changed: 0, failed: 0 },
+              })), 0);
+            }
+          } };
+          Object.defineProperty(serviceWorker, "controller", { configurable: true, value: controller });
+          Object.defineProperty(serviceWorker, "ready", {
             configurable: true,
-            value: async () => [{ unregister: async () => { record("unregistered"); return true; } }],
+            value: Promise.resolve({ waiting: null, installing: null, update: async () => {} }),
+          });
+          Object.defineProperty(serviceWorker, "getRegistration", {
+            configurable: true,
+            value: async () => ({ waiting: null, installing: null, update: async () => {} }),
           });
         }
         // Nothing was cleared yet, but the buttons only act when the browser reports being
@@ -203,26 +216,44 @@ test.describe("Settings screen", () => {
       return page.evaluate(() => JSON.parse(sessionStorage.getItem("refresh-log") || "[]"));
     }
 
-    test("refreshing the data clears the data cache and keeps the app cached", async ({ page }) => {
+    test("refreshing the data downloads successfully without deleting the offline caches", async ({ page }) => {
       const log = await clickRefreshAndReadLog(page, "#refreshDataButton");
-      expect(log).toContain("deleted:forest-finds-data-v9");
-      expect(log).not.toContain("deleted:forest-finds-app-v99");
+      expect(log).toContain("message:SYNC_DATA");
+      expect(log).not.toContain("deleted:");
       expect(log).not.toContain("unregistered");
       expect(log).not.toContain("deleted:another-apps-cache-v1");
     });
 
-    test("refreshing the app clears the app cache and keeps the downloaded map data", async ({ page }) => {
-      const log = await clickRefreshAndReadLog(page, "#refreshAppButton");
-      expect(log).toContain("deleted:forest-finds-app-v99");
-      expect(log).not.toContain("deleted:forest-finds-data-v9");
-      expect(log).toContain("unregistered");
+    test("refreshing the app does nothing when no replacement version was downloaded", async ({ page }) => {
+      await stubCacheApis(page);
+      await page.click("#refreshAppButton");
+      await expect(page.locator("#refreshStatus")).toContainText("No newer app version was downloaded");
+      const log = await page.evaluate(() => JSON.parse(sessionStorage.getItem("refresh-log") || "[]"));
+      expect(log).not.toContain("deleted:forest-finds-app-v99");
+      expect(log).not.toContain("unregistered");
     });
 
-    test("refreshing both clears every cache this app owns and nobody else's", async ({ page }) => {
-      const log = await clickRefreshAndReadLog(page, "#refreshAllButton");
-      expect(log).toContain("deleted:forest-finds-app-v99");
-      expect(log).toContain("deleted:forest-finds-data-v9");
-      expect(log).toContain("unregistered");
+    test("tapping the app version indicator does nothing without a downloaded replacement", async ({ page }) => {
+      await stubCacheApis(page);
+      await page.evaluate(() => {
+        state.swWaiting = null;
+        state.swUpdateAvailable = true;
+        refreshSettingsVersionDisplay();
+        window.__updateIndicatorMarker = true;
+      });
+      await page.click("#appVersionDisplay");
+      await expect(page.locator("#refreshStatus")).toContainText("No complete app update is ready");
+      expect(await page.evaluate(() => window.__updateIndicatorMarker)).toBe(true);
+    });
+
+    test("refreshing both keeps the working app when no replacement version was downloaded", async ({ page }) => {
+      await stubCacheApis(page);
+      await page.click("#refreshAllButton");
+      await expect(page.locator("#refreshStatus")).toContainText("No newer app version was downloaded");
+      const log = await page.evaluate(() => JSON.parse(sessionStorage.getItem("refresh-log") || "[]"));
+      expect(log).toContain("message:SYNC_DATA");
+      expect(log).not.toContain("deleted:");
+      expect(log).not.toContain("unregistered");
       expect(log).not.toContain("deleted:another-apps-cache-v1");
     });
   });
@@ -236,8 +267,8 @@ test.describe("Settings screen", () => {
 });
 
 test.describe("?nuke=true URL parameter", () => {
-  // Stubbed before the app boots, so the first load is the one that clears. The log lives in
-  // sessionStorage and therefore survives the reload that the clear ends with.
+  // Stubbed before the app boots so the safe update check can be observed. The log lives in
+  // sessionStorage and therefore survives any navigation caused by an applied update.
   test.beforeEach(async ({ page }) => {
     await page.addInitScript(() => {
       const record = (entry) => {
@@ -255,16 +286,26 @@ test.describe("?nuke=true URL parameter", () => {
         },
       });
       if (navigator.serviceWorker) {
-        Object.defineProperty(navigator.serviceWorker, "getRegistrations", {
+        const serviceWorker = navigator.serviceWorker;
+        const controller = { postMessage: (message) => {
+          record(`message:${message.type}`);
+          if (message.type === "SYNC_DATA") {
+            setTimeout(() => serviceWorker.dispatchEvent(new MessageEvent("message", {
+              data: { type: "DATA_SYNC_COMPLETE", requestId: message.requestId, ok: true, changed: 0, failed: 0 },
+            })), 0);
+          }
+        } };
+        Object.defineProperty(serviceWorker, "controller", { configurable: true, value: controller });
+        Object.defineProperty(serviceWorker, "ready", {
           configurable: true,
-          value: async () => [{ unregister: async () => { record("unregistered"); return true; } }],
+          value: Promise.resolve({ waiting: null, installing: null, update: async () => {} }),
         });
       }
       Object.defineProperty(navigator, "onLine", { configurable: true, get: () => true });
     });
   });
 
-  test("clears the same caches as Refresh both, then returns to the URL without the flag", async ({ page }) => {
+  test("runs the safe update check and returns to the URL without the flag", async ({ page }) => {
     await page.goto("/nearby?nuke=true&show=trees");
     await page.waitForFunction(
       () => JSON.parse(sessionStorage.getItem("refresh-log") || "[]").length > 0,
@@ -273,10 +314,9 @@ test.describe("?nuke=true URL parameter", () => {
     );
     await expect.poll(() => new URL(page.url()).searchParams.has("nuke")).toBe(false);
     const log = await page.evaluate(() => JSON.parse(sessionStorage.getItem("refresh-log") || "[]"));
-    expect(log).toContain("deleted:forest-finds-app-v99");
-    expect(log).toContain("deleted:forest-finds-data-v9");
-    expect(log).toContain("unregistered");
-    expect(log).not.toContain("deleted:another-apps-cache-v1");
+    expect(log).toContain("message:SYNC_DATA");
+    expect(log).not.toContain("deleted:");
+    expect(log).not.toContain("unregistered");
     expect(new URL(page.url()).searchParams.get("show")).toBe("trees");
   });
 

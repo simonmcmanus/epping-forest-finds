@@ -11,6 +11,7 @@ const COMMUNITY_OVERLAY_URL = "/api/community/overlay";
 const COMMUNITY_ACCOUNT_KEY = "ff-community-account-v1";
 const COMMUNITY_LINKED_KEY = "ff-community-linked-v1";
 const COMMUNITY_ACCOUNT_DEVICES_KEY = "ff-community-account-devices-v1";
+const COMMUNITY_OVERLAY_REFRESH_INTERVAL_MS = 15 * 60 * 1000;
 
 // Line icons in the same style as the main nav (24px grid, 2px round stroke, currentColor).
 const COMMUNITY_ICONS = {
@@ -669,8 +670,9 @@ function communityMineHtml(title, status) {
   const reviewNote = !confirmed && (status === "CLOSED" || status === "MOVED" || status === "RENAMED" || status === "DETAILS_CHANGED" || status === "WRONG_CATEGORY")
     ? "A person will review this"
     : "";
+  const placeConfirmedNote = status === "OPEN_CONFIRMED" ? "You have verified this location" : "";
   return `<div class="community-mine community-mine-compact community-local-status${confirmed ? " community-local-status-confirmed" : " community-local-status-problem"}${status === "OPEN_CONFIRMED" ? " community-place-confirmed-marker" : ""}" role="status">
-      <div class="community-place-status-summary"><span class="community-mine-icon">${communityIcon(icon)}</span><span class="community-place-status-copy"><strong>Your report</strong><small>You reported: ${escapeHtml(title)}</small>${reviewNote ? `<small>${reviewNote}</small>` : ""}</span></div>
+      <div class="community-place-status-summary"><span class="community-mine-icon">${communityIcon(icon)}</span><span class="community-place-status-copy"><strong>${placeConfirmedNote || "Your report"}</strong><small>You reported: ${escapeHtml(title)}</small>${reviewNote ? `<small>${reviewNote}</small>` : ""}</span></div>
       <button class="community-link" type="button" data-action="community-change">Change</button>
     </div>`;
 }
@@ -752,6 +754,15 @@ function communityHandleChange(button) {
 }
 
 let communityOverlayInflight = null;
+let communityOverlayRefreshBound = false;
+
+function communityApplyOverlay(data) {
+  if (!data || typeof data.entries !== "object") return;
+  communityOverlay = { generatedAt: data.generatedAt || 0, entries: data.entries };
+  communityRefreshSections();
+  communityRefreshVerifiedSlots();
+  if (typeof requestDraw === "function") requestDraw();
+}
 
 function communityLoadOverlay() {
   if (communityOverlayInflight) return communityOverlayInflight;
@@ -760,12 +771,7 @@ function communityLoadOverlay() {
       const response = await fetch(COMMUNITY_OVERLAY_URL);
       if (!response.ok) return;
       const data = await response.json();
-      if (data && typeof data.entries === "object") {
-        communityOverlay = { generatedAt: data.generatedAt || 0, entries: data.entries };
-        communityRefreshSections();
-        communityRefreshVerifiedSlots();
-        if (typeof requestDraw === "function") requestDraw();
-      }
+      communityApplyOverlay(data);
     } catch {}
   })().finally(() => { communityOverlayInflight = null; });
   return communityOverlayInflight;
@@ -776,6 +782,17 @@ function communityLoadOverlay() {
 async function communityEnsureOverlay(timeoutMs = 4000) {
   if (communityOverlay.generatedAt) return;
   await Promise.race([communityLoadOverlay(), new Promise((resolve) => setTimeout(resolve, timeoutMs))]);
+}
+
+function setupCommunityOverlayRefresh() {
+  if (communityOverlayRefreshBound) return;
+  communityOverlayRefreshBound = true;
+  const refreshWhenVisible = () => {
+    if (document.visibilityState !== "hidden" && navigator.onLine) communityLoadOverlay();
+  };
+  document.addEventListener("visibilitychange", refreshWhenVisible);
+  window.addEventListener("online", refreshWhenVisible);
+  setInterval(refreshWhenVisible, COMMUNITY_OVERLAY_REFRESH_INTERVAL_MS);
 }
 
 // The score is kept on the device; opening the app only re-asks the server if it is over an hour
@@ -994,8 +1011,17 @@ if (typeof document !== "undefined" && document.addEventListener) {
 }
 
 if (typeof window !== "undefined" && window.addEventListener) {
+  if (typeof navigator !== "undefined" && navigator.serviceWorker) {
+    navigator.serviceWorker.addEventListener("message", (event) => {
+      if (event.data?.type === "COMMUNITY_UPDATED") communityApplyOverlay(event.data.data);
+    });
+  }
   // Fetched after first paint so it never competes with the map's own data.
-  window.addEventListener("load", () => setTimeout(() => { communityLoadOverlay(); communityRefreshScore(false); }, 1000));
+  window.addEventListener("load", () => setTimeout(() => {
+    setupCommunityOverlayRefresh();
+    communityLoadOverlay();
+    communityRefreshScore(false);
+  }, 1000));
   // The log shows "Waiting to send" while a report is queued, so redraw it whenever the queue changes
   // (a send finishing included); otherwise it keeps saying so until the screen is reopened.
   window.addEventListener("outbox:change", () => {

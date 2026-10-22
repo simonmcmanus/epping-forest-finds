@@ -2542,6 +2542,25 @@ test("tree loading uses chunked register before full-file fallbacks", () => {
   assert.match(loader, /const maxConcurrent = Math\.min\(6, chunks\.length\)/);
 });
 
+test("static and lazy data reads have bounded failure paths", () => {
+  const loader = fs.readFileSync(path.join(__dirname, "..", "js", "loader.js"), "utf8");
+
+  assert.match(loader, /async function loadJsonResource\(url, timeoutMs = 60000\)/);
+  assert.match(loader, /setTimeout\(\(\) => controller\.abort\(\), timeoutMs\)/);
+  assert.match(loader, /if \(!response\.ok\) throw new Error\(`/);
+  assert.match(loader, /const landmarkPromise = Promise\.all\([\s\S]*loadJsonResource\(url\)/);
+  assert.match(loader, /const buildingsPromise|loadJsonResource\(BUILDINGS_URL, 30000\)/);
+});
+
+test("offline report delivery cannot hang on a blocked store or half-connected network", () => {
+  const outbox = fs.readFileSync(path.join(__dirname, "..", "js", "outbox.js"), "utf8");
+
+  assert.match(outbox, /const OUTBOX_REQUEST_TIMEOUT_MS = 15000/);
+  assert.match(outbox, /req\.onblocked = \(\) => resolve\(null\)/);
+  assert.match(outbox, /setTimeout\(\(\) => controller\.abort\(\), OUTBOX_REQUEST_TIMEOUT_MS\)/);
+  assert.match(outbox, /signal: controller\.signal/);
+});
+
 test("generated tree chunks cover the full veteran tree register", () => {
   const index = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "data", "trees", "index.json"), "utf8"));
   const chunkCount = index.chunks.reduce((sum, chunk) => sum + chunk.count, 0);
@@ -4886,8 +4905,8 @@ test("onboarding's location step discloses location, usage tracking, and the mer
 });
 
 test("settings form offers separate data, app and combined refresh buttons", () => {
-  // One "Force refresh" button used to clear everything, so picking up a CSS tweak also meant
-  // re-downloading ~67 MB of map data. The scopes are split so each case costs only its own.
+  // The scopes are split so a data repair does not needlessly check for an app update, while all
+  // three keep the current offline copy until a replacement is ready.
   const html = app.settingsFormHtml();
   assert.match(html, /id="refreshDataButton"/, "settings form should include the data refresh button");
   assert.match(html, /Refresh data/, "data refresh button should be labelled");
@@ -4896,33 +4915,24 @@ test("settings form offers separate data, app and combined refresh buttons", () 
   assert.match(html, /id="refreshAllButton"/, "settings form should include the combined refresh button");
   assert.match(html, /Refresh both/, "combined refresh button should be labelled");
   assert.match(html, /id="refreshOfflineNote"/, "settings form should include a shared offline note for the refresh buttons");
+  assert.match(html, /id="refreshStatus"/, "settings form should include a refresh result status");
 });
 
-test("each refresh scope clears only its own caches, and only the app scopes unregister the worker", () => {
-  // The Node VM test harness doesn't stub navigator.serviceWorker/caches/location.reload,
-  // so this is a source-level check (matching the other service-worker tests above) rather
-  // than an executed one — it pins the contract refreshCachedState must uphold.
+test("refresh scopes preserve the working caches until a replacement is downloaded", () => {
+  // The Node VM test harness doesn't stub navigator.serviceWorker/location.reload, so this is a
+  // source-level check (matching the other service-worker tests above) that pins the safety
+  // contract rather than executing a browser refresh.
   const navSource = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
   const fnMatch = navSource.match(/async function refreshCachedState\(scope\) \{[\s\S]*?\n\}/);
   assert.ok(fnMatch, "refreshCachedState must be defined in nav.js");
   const fn = fnMatch[0];
 
   assert.match(fn, /if \(!navigator\.onLine\)/, "must bail out while offline instead of leaving the app with no cache fallback");
-  assert.match(fn, /scope !== ["']data["'] && ["']serviceWorker["'] in navigator/, "a data-only refresh must leave the service worker registered");
-  assert.match(fn, /navigator\.serviceWorker\.getRegistrations\(\)/, "must look up every registration");
-  assert.match(fn, /registration\.unregister\(\)/, "must unregister every registration, not just the active one");
-  assert.match(fn, /caches\.keys\(\)/, "must enumerate caches rather than assuming a single name");
-  assert.match(fn, /cacheMatchesRefreshScope\(name, scope\)/, "must scope cache deletion to the requested scope");
-  assert.match(fn, /caches\.delete\(name\)/, "must delete the matched caches");
-  assert.match(fn, /location\.reload\(\)/, "must reload after clearing state so the fresh install takes effect immediately");
-
-  const scopeMatch = navSource.match(/function cacheMatchesRefreshScope\(name, scope\) \{[\s\S]*?\n\}/);
-  assert.ok(scopeMatch, "cacheMatchesRefreshScope must be defined in nav.js");
-  const scopeFn = scopeMatch[0];
-  assert.match(scopeFn, /name\.startsWith\(["']forest-finds-["']\)/, "must never touch caches belonging to another app");
-  assert.match(scopeFn, /scope === ["']all["']/, "the combined scope must match every forest-finds cache");
-  // Cache names carry a "dev-" segment under the local dev server (injectDevFlag in server.js).
-  assert.match(scopeFn, /forest-finds-dev-\$\{scope\}-/, "must match the dev-prefixed spelling too");
+  assert.match(fn, /requestDataRefresh\(\)/, "data refresh must download into the existing cache first");
+  assert.match(fn, /downloadAppUpdate\(\)/, "app refresh must check for a downloaded replacement worker");
+  assert.match(fn, /activateDownloadedAppUpdate\(waiting\)/, "only a downloaded worker may be activated");
+  assert.doesNotMatch(fn, /getRegistrations\(\)/, "must not unregister the current worker");
+  assert.doesNotMatch(fn, /caches\.delete\(/, "must not delete the current offline cache");
 });
 
 test("settings refresh listeners are removed before being re-added, so reopening Settings does not leak window listeners", () => {
@@ -5882,12 +5892,14 @@ test("the background data sync revalidates conditionally and only rewrites entri
   assert.ok(syncMatch, "syncData must be defined");
   const sync = syncMatch[0];
 
-  assert.match(sync, /fetch\(request\.url, \{ cache: "no-store", headers: conditionalHeaders\(cached\) \}\)/, "must send its own conditional headers rather than leaning on the browser's HTTP cache");
+  assert.match(sync, /fetch\(requestUrl, \{ cache: "no-store", headers: conditionalHeaders\(cached\) \}\)/, "must send its own conditional headers rather than leaning on the browser's HTTP cache");
   assert.match(sync, /if \(fresh\.status === 304\) continue;/, "an unchanged file must cost a 304 and no bytes");
   assert.match(sync, /responseChanged\(cached, fresh\)/, "must compare validators before writing anything back");
   assert.match(sync, /DATA_SYNC_INTERVAL_MS/, "must throttle so a sync is not run on every single load");
   assert.match(sync, /syncState\.staleSince != null/, "an explicitly stale cache must sync regardless of the throttle");
   assert.match(sync, /failed === requests\.length/, "a sweep where nothing reached the network must not be recorded as a successful check");
+  assert.match(sync, /missingUrls/, "a forced sweep must repair entries missing from a partial cache");
+  assert.match(sync, /staleSince: syncState\.staleSince \|\| Date\.now\(\)/, "partial failures must remain due for a later retry");
 
   const condMatch = sw.match(/function conditionalHeaders\(cached\) \{[\s\S]*?\n\}/);
   assert.ok(condMatch, "conditionalHeaders must be defined");
@@ -5896,14 +5908,47 @@ test("the background data sync revalidates conditionally and only rewrites entri
 
   assert.match(sw, /event\.data\?\.type === "SYNC_DATA"/, "the worker must accept the client's sync request");
   assert.match(sw, /postMessage\(\{ type: "DATA_UPDATED", changed \}\)/, "clients must be told when newer data has landed");
+  assert.match(sw, /type: "DATA_SYNC_COMPLETE"/, "manual refreshes must receive a completion result");
+});
+
+test("community overlay revalidation updates open clients without waiting for a reload", () => {
+  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
+  const community = fs.readFileSync(path.join(__dirname, "..", "js", "community.js"), "utf8");
+
+  assert.match(sw, /async function communityResponseChanged\(cached, fresh\)/, "community responses must be compared before notifying clients");
+  assert.match(sw, /type: "COMMUNITY_UPDATED", data/, "the worker must send fresh community data to open clients");
+  assert.match(community, /event\.data\?\.type === "COMMUNITY_UPDATED"/, "the page must listen for fresh community data");
+  assert.match(community, /communityApplyOverlay\(event\.data\.data\)/, "the page must apply the fresh overlay without a reload");
+  assert.match(community, /function setupCommunityOverlayRefresh\(\)/, "the page must periodically request community updates while open");
+  assert.match(community, /COMMUNITY_OVERLAY_REFRESH_INTERVAL_MS/, "community refreshes must be bounded");
+  assert.match(community, /window\.addEventListener\("online"/, "community refreshes must retry when connectivity returns");
+});
+
+test("a service worker update waits for an explicit activation request", () => {
+  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
+  const installMatch = sw.match(/self\.addEventListener\("install",[\s\S]*?\n\}\);/);
+  assert.ok(installMatch, "install handler exists");
+  const install = installMatch[0];
+  assert.doesNotMatch(install, /self\.skipWaiting\(\)/, "an incomplete or unrequested update must not take over the current app");
+  assert.match(sw, /event\.data\?\.type === "SKIP_WAITING"/, "activation must remain an explicit message action");
+});
+
+test("every app update activation path downloads a complete waiting worker first", () => {
+  const nav = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
+  const applyMatch = nav.match(/async function applySwUpdate\(\) \{[\s\S]*?\n\}/);
+  assert.ok(applyMatch, "applySwUpdate must be defined");
+  assert.match(applyMatch[0], /downloadAppUpdate\(\)/, "the indicator path must check for a downloaded worker");
+  assert.match(applyMatch[0], /if \(!waiting\)/, "a missing worker must stop without reloading");
+  assert.doesNotMatch(applyMatch[0], /else \{\s*location\.reload\(\)/, "no-worker state must not reload the current app");
+  assert.match(applyMatch[0], /activateDownloadedAppUpdate\(waiting\)/, "only a waiting worker may be activated");
 });
 
 test("the app asks for a background data sync only after the map is up, never during boot", () => {
   const source = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
   const navSource = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
 
-  const syncIdx = source.indexOf("requestBackgroundDataSync()");
-  assert.ok(syncIdx !== -1, "boot must request a background data sync");
+  const syncIdx = source.indexOf("setupBackgroundDataSync()");
+  assert.ok(syncIdx !== -1, "boot must set up background data sync");
   assert.ok(
     syncIdx > source.indexOf("showFilterHintIfFirstVisit();"),
     "the sync must be requested after the map is interactive, so it never competes with the first render"
@@ -5915,6 +5960,11 @@ test("the app asks for a background data sync only after the map is up, never du
   assert.match(fn, /if \(!navigator\.onLine\) return;/, "must not attempt a sync while offline");
   assert.match(fn, /navigator\.serviceWorker\.controller/, "must go through the controlling worker");
   assert.match(fn, /postMessage\(\{ type: "SYNC_DATA"/, "must send the worker's sync message");
+  assert.match(navSource, /function setupBackgroundDataSync\(\)/, "must set up a foreground refresh loop");
+  assert.match(navSource, /BACKGROUND_DATA_SYNC_CHECK_INTERVAL_MS/, "foreground refreshes must be bounded");
+  assert.match(navSource, /visibilitychange/, "must refresh when the app becomes visible");
+  assert.match(navSource, /window\.addEventListener\("online"/, "must retry when connectivity returns");
+  assert.match(source, /setupBackgroundDataSync\(\)/, "boot must start background refresh after the map is interactive");
 });
 
 test("service worker uses a network-first strategy in local dev so edits show up without a CACHE_NAME bump", () => {

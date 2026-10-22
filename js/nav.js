@@ -169,25 +169,47 @@ function _markSwUpdateAvailable(waiting) {
   refreshSettingsVersionDisplay();
 }
 
-function applySwUpdate() {
+async function applySwUpdate() {
   if (state.swWaiting) {
     state.swPendingReload = true;
-    state.swWaiting.postMessage({ type: "SKIP_WAITING" });
-    setTimeout(() => location.reload(), 2000);
-  } else {
-    location.reload();
+    try {
+      state.swWaiting.postMessage({ type: "SKIP_WAITING" });
+    } catch {
+      state.swPendingReload = false;
+      return;
+    }
+    // controllerchange normally reloads the page. Keep a long safety net for browsers that do
+    // not deliver controllerchange after a worker has already finished installing; this path is
+    // only reachable after the complete replacement worker was downloaded.
+    setTimeout(() => location.reload(), 10000);
+    return true;
   }
+
+  // The update marker can arrive through controllerchange without carrying the waiting
+  // registration on some browsers. Never turn that marker into an unconditional reload:
+  // downloadAppUpdate() must first produce a fully installed worker, otherwise an offline
+  // refresh could strand the current page without a replacement shell.
+  const waiting = await downloadAppUpdate();
+  if (!waiting) {
+    setRefreshStatus("No complete app update is ready. Your current offline app is still safe.", { error: true });
+    return false;
+  }
+  return activateDownloadedAppUpdate(waiting);
 }
 
-// The three Settings refresh buttons, keyed by the scope of cached state each one throws away.
-// They were one "Force refresh" button that always cleared everything — which on this app means
-// re-downloading ~67 MB of map data just to pick up a CSS tweak. Splitting them lets the common
-// case (a stale build) cost the app shell alone.
+// The three Settings refresh buttons, keyed by the part of the offline release they check.
+// Refreshes keep the current cache until the replacement has been downloaded successfully.
 const REFRESH_SCOPES = {
   data: { buttonId: "refreshDataButton" },
   app: { buttonId: "refreshAppButton" },
   all: { buttonId: "refreshAllButton" },
 };
+
+// The worker throttles actual network work to six hours, so this inexpensive foreground check
+// can run often enough to retry a dropped connection and to notice a connection returning while
+// the app is still open. It never runs while the document is hidden.
+const BACKGROUND_DATA_SYNC_CHECK_INTERVAL_MS = 15 * 60 * 1000;
+let backgroundDataSyncListenersBound = false;
 
 function refreshScopeButtons() {
   return Object.keys(REFRESH_SCOPES)
@@ -209,35 +231,112 @@ function updateRefreshButtonsOnlineState() {
   if (note) note.hidden = online;
 }
 
-// Does this cache name belong to the scope being refreshed? Cache names gain a "dev-" segment
-// when served by the local dev server (injectDevFlag in server.js), so both spellings have to be
-// matched or a local "Refresh data" would silently clear nothing.
-function cacheMatchesRefreshScope(name, scope) {
-  if (!name.startsWith("forest-finds-")) return false;
-  if (scope === "all") return true;
-  return name.startsWith(`forest-finds-${scope}-`) || name.startsWith(`forest-finds-dev-${scope}-`);
+function setRefreshStatus(message, { error = false } = {}) {
+  const status = document.getElementById("refreshStatus");
+  if (!status) return;
+  status.textContent = message || "";
+  status.hidden = !message;
+  status.classList.toggle("error", Boolean(error));
 }
 
-// Manual escape hatch for stale PWA state: the normal update flow (setupPwa below)
-// relies on the browser noticing sw.js changed and silently activating a new worker
-// in the background, which the open tab's own "App version" display only reflects
-// after a full reload — sometimes two, since the reload that triggers the update
-// check can itself still be served by the outgoing worker. Clearing the cached state
-// before reloading sidesteps that timing entirely.
-//
-//   "data" — drops the cached datasets only. The service worker registration and the cached
-//            app shell survive, so the reload re-downloads map data and nothing else.
-//   "app"  — unregisters every service worker and drops the cached app shell, leaving the map
-//            data alone. This is the "I'm not on the latest build" case, and the one that used
-//            to needlessly cost a full data re-download.
-//   "all"  — both, i.e. a completely cold start.
-//
-// Requires connectivity in every scope, since it briefly leaves the app with no offline
-// fallback until the fresh install completes.
+function waitForInstallingWorker(registration, installing) {
+  return new Promise((resolve) => {
+    let timer = setTimeout(() => {
+      installing.removeEventListener("statechange", onStateChange);
+      resolve(null);
+    }, 30000);
+
+    function onStateChange() {
+      if (installing.state === "installed") {
+        clearTimeout(timer);
+        installing.removeEventListener("statechange", onStateChange);
+        resolve(registration.waiting || installing);
+      } else if (installing.state === "redundant") {
+        clearTimeout(timer);
+        installing.removeEventListener("statechange", onStateChange);
+        resolve(null);
+      }
+    }
+
+    installing.addEventListener("statechange", onStateChange);
+    onStateChange();
+  });
+}
+
+// Checks for an app update without touching the current cache. A refresh is allowed to activate
+// an app worker only after registration.update() has produced a fully installed waiting worker;
+// an offline/failed check simply leaves the current app in place.
+async function downloadAppUpdate() {
+  if (!("serviceWorker" in navigator)) return null;
+  let registration;
+  try {
+    // `ready` never resolves for a first install whose worker is still waiting. Refreshing an
+    // old troubleshooting URL must not hang boot in that state, so inspect the registration
+    // directly and treat an absent one as "no downloaded update".
+    registration = await navigator.serviceWorker.getRegistration();
+    if (!registration) return null;
+    if (!registration.waiting) await registration.update();
+  } catch {
+    return null;
+  }
+
+  if (registration.waiting) return registration.waiting;
+  if (registration.installing) return waitForInstallingWorker(registration, registration.installing);
+  return null;
+}
+
+function activateDownloadedAppUpdate(waiting) {
+  if (!waiting) return false;
+  state.swWaiting = waiting;
+  state.swPendingReload = true;
+  try {
+    waiting.postMessage({ type: "SKIP_WAITING" });
+    return true;
+  } catch {
+    state.swWaiting = null;
+    state.swPendingReload = false;
+    return false;
+  }
+}
+
+function requestDataRefresh() {
+  if (!("serviceWorker" in navigator)) return Promise.resolve(false);
+  const controller = navigator.serviceWorker.controller;
+  if (!controller) return Promise.resolve(false);
+
+  const requestId = `refresh-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return new Promise((resolve) => {
+    // A complete repair includes the large road/building files and every tree chunk. Give a
+    // healthy but mobile connection enough time, while still returning control if it disappears.
+    let timer;
+    const finish = (ok) => {
+      clearTimeout(timer);
+      navigator.serviceWorker.removeEventListener("message", onMessage);
+      resolve(ok);
+    };
+    const onMessage = (event) => {
+      if (event.data?.type !== "DATA_SYNC_COMPLETE" || event.data.requestId !== requestId) return;
+      finish(event.data.ok === true);
+    };
+    navigator.serviceWorker.addEventListener("message", onMessage);
+    timer = setTimeout(() => finish(false), 120000);
+    try {
+      controller.postMessage({ type: "SYNC_DATA", force: true, requestId });
+    } catch {
+      finish(false);
+    }
+  });
+}
+
+// Refreshes are transactional. Data is downloaded into the existing cache and the app update
+// path asks the browser to install a waiting worker. Nothing is unregistered or deleted, so a
+// false "online" signal, a captive portal, or a connection drop cannot strand a walker without an
+// offline shell. "all" requires both a complete data pass and a downloaded next app worker before
+// it activates anything; if no app update exists the current app is kept in place.
 async function refreshCachedState(scope) {
   if (!navigator.onLine) {
     updateRefreshButtonsOnlineState();
-    return;
+    return false;
   }
 
   const active = REFRESH_SCOPES[scope] && document.getElementById(REFRESH_SCOPES[scope].buttonId);
@@ -245,38 +344,68 @@ async function refreshCachedState(scope) {
     button.disabled = true;
   });
   if (active) active.textContent = "Refreshing…";
+  setRefreshStatus("");
 
   try {
-    // Only an app-level refresh needs the worker itself gone; unregistering for a data refresh
-    // would throw away the cached app shell as collateral on the very next install.
-    if (scope !== "data" && "serviceWorker" in navigator) {
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(registrations.map((registration) => registration.unregister()));
+    if (scope === "data" || scope === "all") {
+      const dataReady = await requestDataRefresh();
+      if (!dataReady) {
+        setRefreshStatus("The latest data could not be downloaded. Your current offline map is still safe.", { error: true });
+        return false;
+      }
+      if (scope === "data") {
+        location.reload();
+        return true;
+      }
     }
-    if ("caches" in window) {
-      const cacheNames = await caches.keys();
-      await Promise.all(
-        cacheNames.filter((name) => cacheMatchesRefreshScope(name, scope)).map((name) => caches.delete(name))
-      );
+
+    const waiting = await downloadAppUpdate();
+    if (!waiting) {
+      setRefreshStatus("No newer app version was downloaded. Your current offline app is still safe.", { error: true });
+      return false;
     }
+    setRefreshStatus("Update downloaded. Restarting with the new version…");
+    const activated = activateDownloadedAppUpdate(waiting);
+    if (!activated) setRefreshStatus("The downloaded app update could not be activated. Your current offline app is still safe.", { error: true });
+    return activated;
   } catch (error) {
     console.error(error);
+    setRefreshStatus("Refresh failed; your current offline map is still safe.", { error: true });
+    return false;
   } finally {
-    location.reload();
+    refreshScopeButtons().forEach((button) => {
+      button.disabled = false;
+    });
+    if (active && active.isConnected) active.textContent = scope === "data" ? "Refresh data" : scope === "app" ? "Refresh app" : "Refresh both";
+    updateRefreshButtonsOnlineState();
   }
 }
 
 // Asks the active service worker to revalidate the cached map data out of band (syncData in
-// sw.js). Called once the map is up and interactive rather than during boot, so the freshness
-// pass never competes with the render — the load itself is served entirely from cache, and any
-// genuinely changed file lands quietly afterwards. The worker throttles this internally, so
-// calling it on every load is cheap.
+// sw.js). Called only while the map is visible and interactive, so freshness passes never compete
+// with the render — the load itself is served entirely from cache, and any genuinely changed file
+// lands quietly afterwards. The worker throttles this internally, so foreground checks are cheap.
 function requestBackgroundDataSync(options) {
   if (!("serviceWorker" in navigator)) return;
   if (!navigator.onLine) return;
   const controller = navigator.serviceWorker.controller;
   if (!controller) return; // First load — nothing cached yet to refresh
-  controller.postMessage({ type: "SYNC_DATA", force: Boolean(options && options.force) });
+  try {
+    controller.postMessage({ type: "SYNC_DATA", force: Boolean(options && options.force) });
+  } catch {}
+}
+
+function setupBackgroundDataSync() {
+  if (backgroundDataSyncListenersBound) return;
+  backgroundDataSyncListenersBound = true;
+  const syncWhenVisible = () => {
+    if (document.visibilityState !== "hidden") requestBackgroundDataSync();
+  };
+  document.addEventListener("visibilitychange", syncWhenVisible);
+  window.addEventListener("online", syncWhenVisible);
+  if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("controllerchange", syncWhenVisible);
+  setInterval(syncWhenVisible, BACKGROUND_DATA_SYNC_CHECK_INTERVAL_MS);
+  syncWhenVisible();
 }
 
 // The background sync found newer map data and has already cached it; it only becomes visible

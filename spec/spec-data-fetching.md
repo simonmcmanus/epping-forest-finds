@@ -82,27 +82,28 @@ still; labels, counts and the progress bar continue to communicate progress.
 ### Fallback Strategy
 
 - **Trees:** Try `data/trees/index.json` first, then load all listed chunk files with a concurrency limit of 6 and one retry per failed chunk. If chunk loading fails, fall back to the full register. On mobile/touch devices and constrained connections, full-file fallback tries the smaller base URL before the legacy enriched URL; other devices try the legacy enriched URL after the base retry.
+- **Static files:** Each JSON/GeoJSON read checks the HTTP status and has an abort timeout, so a stalled connection cannot leave boot or lazy buildings waiting indefinitely. Failed optional files return their existing empty-data fallback.
 - **Landmarks:** Each category file fetches independently; failed files return empty features.
-- **Roads:** Race against an 8-second timeout to prevent indefinite hang.
+- **Roads:** Use a longer 90-second first timeout for the large file, then retry once after two seconds with a 120-second timeout; a failed retry returns an empty road layer.
 - **Cows:** On localhost, use cached localStorage data; otherwise fetch with 7-second timeout.
 
 ### Service Worker Caching
 
 - The service worker pre-caches the app shell, smaller static datasets, and `data/trees/index.json` during install.
 - **All CSS files referenced by `app.html` must be in `APP_SHELL`**, including `css/tracking.css`. It styles `.privacy-note`, the one-line disclosure next to every "Enable location" button; without it offline the note is just unstyled text.
-- Tree chunks and large legacy veteran tree JSON files are not install pre-cache entries; they are cached opportunistically by the runtime fetch handler after the page successfully downloads them. This avoids duplicate first-load tree downloads on mobile.
+- Tree chunks are listed as opportunistic offline assets and are also fetched by a forced data refresh when any are missing. This keeps a partially populated cache repairable without deleting the chunks that already work offline. Large legacy veteran tree JSON files remain fallback-only and are not required when the chunk index is available.
 - API routes (`/api/`, `/.netlify/functions/`) are never cached; they are forwarded directly to the network. Callers handle offline failures gracefully (e.g. cow fetch returns `false`, report submit checks `navigator.onLine`).
 
 ### Return Visits: Instant Load, Background Refresh
 
 A return visit must paint from cache and never wait on the network; new data arrives afterwards, out of band.
 
-- **Navigation is cache-first.** A full page load is answered from the cached `./index.html` immediately, and the network copy refreshes that cache entry in the background. Previously navigation was network-first, so every reload blocked on a full round trip before anything appeared -- at the time a ~290 KB `index.html`, since the whole app script was inline in it. The script now lives in `js/app.js` (cached as part of `APP_SHELL`) and `index.html` is ~14 KB of markup, but the ordering guarantee is what matters here, not the size. Staleness is bounded by the browser's own `sw.js` update check on each navigation: a release bumps `APP_CACHE_NAME`, the new worker installs, caches the new shell and claims the page, and `setupPwa` surfaces the update. Under the local dev flag navigation stays network-first so edits show up on refresh.
+- **Navigation is cache-first.** An app route is answered from the cached `./app.html` immediately, and an online copy refreshes that cache entry in the background. Staleness is bounded by the browser's own `sw.js` update check on each navigation: a release bumps `APP_CACHE_NAME`, the new worker installs fully and waits, and `setupPwa` surfaces the update. The page activates it only after the person asks; under the local dev flag navigation stays network-first so edits show up on refresh.
 - **Install never re-fetches what is already cached.** `APP_SHELL`, `DATA_SHELL` and the opportunistic list are each filtered through `missingFromCache()` first. Every release bumps `APP_CACHE_NAME` and therefore re-runs install; a blanket `addAll` re-downloaded the whole ~67 MB dataset each time, which is what made a returning user's reload look like a fresh install.
 - **A data cache version bump migrates rather than re-downloads.** `adoptPreviousDataCache()` copies the previous `forest-finds-(dev-)data-*` cache's bodies into the new one during install, so the user keeps a working offline map throughout the upgrade and pays no download for it. The adopted cache is stamped `staleSince`, which forces the next background sync to run regardless of its throttle.
-- **Background data sync (`syncData` in `sw.js`).** The client posts `{ type: "SYNC_DATA" }` to the controlling worker via `requestBackgroundDataSync()` (`js/nav.js`), called from `boot()` only *after* the map is interactive, so the freshness pass never competes with the first render. The worker revalidates every cached data entry with `fetch(url, { cache: "no-cache" })` at a concurrency of 6: an unchanged file costs a 304 and no bytes, and only entries whose `ETag`/`Last-Modified`/`Content-Length` actually moved are written back. Throttled to once per 6 hours via a `lastSyncAt` stamp held in the synthetic `./__data-sync-state` cache entry (skipped by the sync itself and excluded from migration); `force: true` and a `staleSince` stamp both bypass the throttle. Concurrent requests share one in-flight pass.
-- **Update signalling.** If the sync replaced at least one entry the worker posts `{ type: "DATA_UPDATED", changed }` to all clients; `js/nav.js` sets `state.dataUpdateAvailable`, marks the settings icon, and shows the reload note in Settings. The newer data is applied on the next load — the running session is never disturbed mid-walk.
-- **Scoped manual refresh.** The Settings refresh buttons (`refreshCachedState` in `js/nav.js`) clear app caches, data caches, or both — see "Settings Screen" in `spec/spec.md`.
+- **Background data sync (`syncData` in `sw.js`).** The client posts `{ type: "SYNC_DATA" }` to the controlling worker via `requestBackgroundDataSync()` (`js/nav.js`) after the map is interactive, then repeats inexpensive checks while the page is visible, when it becomes visible again, and when connectivity returns. The freshness pass never competes with the first render. The worker revalidates every cached data entry with conditional requests at a concurrency of 6, and includes any missing offline asset in a forced pass. An unchanged file costs a 304 and no bytes; only entries whose `ETag`/`Last-Modified`/`Content-Length` moved are written back. Throttled to once per 6 hours via a `lastSyncAt` stamp held in the synthetic `./__data-sync-state` cache entry (skipped by the sync itself and excluded from migration); `force: true` and a `staleSince` stamp both bypass the throttle. Concurrent requests share one in-flight pass. Partial failures keep `staleSince` set so a later connection can retry rather than treating an interrupted walk as fresh.
+- **Update signalling.** If the sync replaced at least one entry the worker posts `{ type: "DATA_UPDATED", changed }` to all clients; `js/nav.js` sets `state.dataUpdateAvailable`, marks the settings icon, and shows the reload note in Settings. The newer data is applied on the next load — the running session is never disturbed mid-walk. The community overlay has a separate stale-while-revalidate cache; when its network response changes, the worker posts `{ type: "COMMUNITY_UPDATED", data }` and `js/community.js` applies it to the open map immediately, including while the user remains on the same page.
+- **Scoped manual refresh.** The Settings refresh buttons (`refreshCachedState` in `js/nav.js`) download and validate replacements before reloading or activating them — see "Settings Screen" in `spec/spec.md`. A failed network request never deletes the current app or data cache.
 
 ### Batched Processing
 
@@ -479,8 +480,12 @@ interface Bounds {
 
 - Each dataset loads independently; one failure does not block others.
 - Failed datasets populate with empty arrays/collections.
+- Invalid JSON shapes are treated as empty optional layers rather than being allowed to throw during
+  normalisation or rendering.
 - The overall boot only throws if a catastrophic error occurs outside individual fetches.
-- Roads have a timeout (8s) to prevent indefinite blocking.
+- Static reads and lazy buildings have abort timeouts to prevent an unresponsive connection from
+  holding the app indefinitely; roads retain their longer 90s/120s retry timeouts because they are
+  the largest boot-time file.
 - Cow fetch has a timeout (7s) with graceful degradation to cached data.
 
 ---
