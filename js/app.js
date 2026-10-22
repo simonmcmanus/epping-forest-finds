@@ -348,6 +348,7 @@ const state = {
   viewportAnimationFrame: null,
   viewportAnimationFrom: null,
   viewportAnimationTo: null,
+  locationRevealAnimationActive: false,
   viewportAnimationStartTime: null,
   viewportAnimationDuration: 0,
   emojiScaleAnimated: null,
@@ -2286,6 +2287,7 @@ function stopViewportAnimation() {
   state.viewportAnimationFrameRequestedAt = null;
   state.viewportAnimationFrom = null;
   state.viewportAnimationTo = null;
+  state.locationRevealAnimationActive = false;
   state.viewportAnimationStartTime = null;
   state.viewportAnimationDuration = 0;
   // The camera has just been told "stop, you're done" -- a pin-level cluster-join animation
@@ -2369,6 +2371,7 @@ function animateViewportTo(targetViewport, durationMs, onComplete, options = {})
 
   state.viewportAnimationFrom = from;
   state.viewportAnimationTo = targetViewport;
+  state.locationRevealAnimationActive = cinematic;
   state.viewportAnimationDuration = safeDuration;
 
   const tick = (timestamp) => {
@@ -5499,7 +5502,12 @@ function ensureLocationWatch() {
         if (vpChanged || tiltRenderStale() || selectedCompassTarget()) requestDraw();
         else if (typeof drawOverlay === "function") drawOverlay();
       } else {
-        ensureUserAndSelectionVisible({ animate: true, durationMs: 200 });
+        // Do not let the first watch callback replace the cinematic High Beach -> GPS fly-to
+        // with its ordinary short GPS-follow refit. The fly-to already targets this fix; later
+        // callbacks resume the normal follow once it has landed.
+        if (!state.locationRevealAnimationActive) {
+          ensureUserAndSelectionVisible({ animate: true, durationMs: 200 });
+        }
         keepOverviewCenteredOnUser(previousPoint);
         updateCompassOverlay();
         requestDraw();
