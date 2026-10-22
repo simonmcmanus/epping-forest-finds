@@ -284,6 +284,7 @@ const state = {
   compassHeadingTarget: null,
   nearbyListHeading: null, // heading the Nearby list is ordered by -- see headsUpSortedEntries
   compassPermission: STORED_COMPASS_PERMISSION,
+  compassPermissionPromptVisible: false,
   compassCalibrationSamples: [],
   compassCalibrationStartedAt: null,
   compassCalibrationPromptVisible: false,
@@ -402,6 +403,8 @@ const els = {
   mapStage: document.querySelector(".map-stage"),
   compassArrow: document.getElementById("compassArrow"),
   compassCalibrationBanner: document.getElementById("compassCalibrationBanner"),
+  compassCalibrationBannerText: document.getElementById("compassCalibrationBannerText"),
+  compassCalibrationBannerEnable: document.getElementById("compassCalibrationBannerEnable"),
   compassCalibrationBannerDismiss: document.getElementById("compassCalibrationBannerDismiss"),
   filterToggle: document.getElementById("filterToggle"),
   filterCount: document.getElementById("filterCount"),
@@ -1877,6 +1880,10 @@ function applyLocationFix(position) {
   // A cold load of /community has already opened its screen (boot); a fix must not wipe it.
   if (!communityScreenOpen()) state.selected = null;
   if (typeof communityNudgeCheck === "function") setTimeout(communityNudgeCheck, 0);
+  // GPS and motion permissions are separate on iOS. A returning visitor can already have a
+  // location dot without ever having granted DeviceOrientation access, so surface the compass
+  // action as soon as a real fix exists instead of waiting for a destination selection.
+  maybeShowCompassPermissionPrompt();
   return { latitude, longitude, previousPoint };
 }
 
@@ -4586,7 +4593,7 @@ function bearingForItem(item) {
   return bearingDegrees(state.userLocation.latitude, state.userLocation.longitude, item.latitude, item.longitude);
 }
 
-async function startCompassNavigation() {
+async function startCompassNavigation({ fromGesture = Boolean(navigator.userActivation?.isActive) } = {}) {
   // A default location is only a map-centering stand-in. Do not ask for compass access, or
   // show its blocking permission gate, until the visitor has shared a real position. The
   // no-location view already explains this in its source note and remains fully browseable.
@@ -4601,7 +4608,7 @@ async function startCompassNavigation() {
 
   ensureLocationWatch();
 
-  await requestCompassPermissionIfNeeded();
+  await requestCompassPermissionIfNeeded({ fromGesture });
 
   updateCompassOverlay();
 }
@@ -4609,6 +4616,13 @@ async function startCompassNavigation() {
 function compassPermissionCanBeRequested() {
   return typeof DeviceOrientationEvent !== "undefined"
     && typeof DeviceOrientationEvent.requestPermission === "function";
+}
+
+function maybeShowCompassPermissionPrompt() {
+  if (!hasRealLocation()) return;
+  if (!compassPermissionCanBeRequested()) return;
+  if (state.compassPermission === "granted") return;
+  showCompassPermissionPrompt();
 }
 
 async function requestCompassPermissionIfNeeded({ fromGesture = false } = {}) {
@@ -4635,6 +4649,10 @@ async function requestCompassPermissionIfNeeded({ fromGesture = false } = {}) {
     try {
       localStorage.setItem(COMPASS_PERMISSION_KEY, state.compassPermission);
     } catch {}
+    if (state.compassPermission === "granted") {
+      hideCompassPermissionPrompt();
+      reattachCompassListeners();
+    }
   } catch {
     state.compassPermission = "denied";
     try {
@@ -4911,14 +4929,11 @@ function onDeviceOrientation(event) {
   if (Number.isFinite(rawBeta)) {
     state.tiltBetaTarget = clamp(Math.abs(rawBeta), 0, 90);
     // Beta drives the 3D tilt by itself, but only startCompassSmoothing's loop eases
-    // tiltBetaSmoothed toward it. The heading branch below returns early on any event whose
-    // alpha/webkitCompassHeading is missing -- common indoors and on phones with a flaky
-    // magnetometer -- so on a device delivering beta without a heading the target moved and
-    // nothing advanced it: tilting the phone did nothing until some unrelated redraw
-    // happened to restart the loop (the nudge in draw(), js/renderer.js). Restart it here on
-    // the beta alone. The loop's own first guard exits immediately without a trusted
-    // heading, so this cannot spin when there is nothing to smooth.
-    if (Number.isFinite(state.compassHeading)) startCompassSmoothing();
+    // tiltBetaSmoothed toward it. Pitch is useful even while the magnetometer is still
+    // calibrating (or when a browser exposes beta but not a north-referenced heading), so the
+    // smoothing loop is intentionally started from beta alone. The loop keeps the map north-up
+    // until a heading becomes trustworthy, but the Z axis and 3D camera remain responsive.
+    startCompassSmoothing();
   }
   const source = orientationHeadingSource(event);
   if (source === HEADING_SOURCE_NONE) return;
@@ -5093,17 +5108,61 @@ function resetCompassCalibration() {
 }
 
 function showCompassCalibrationPrompt() {
+  if (state.compassPermissionPromptVisible) return;
   if (state.compassCalibrationPromptDismissed) return;
   if (state.compassCalibrationPromptVisible) return;
   if (!els.compassCalibrationBanner) return;
   state.compassCalibrationPromptVisible = true;
+  if (els.compassCalibrationBannerText) {
+    els.compassCalibrationBannerText.textContent = "Move your phone in a figure-8 to help it find your direction";
+  }
+  if (els.compassCalibrationBannerEnable) els.compassCalibrationBannerEnable.hidden = true;
   els.compassCalibrationBanner.classList.remove("fading-out");
   els.compassCalibrationBanner.hidden = false;
 }
 
+function showCompassPermissionPrompt() {
+  if (state.compassPermissionPromptVisible) return;
+  if (!els.compassCalibrationBanner) return;
+  state.compassPermissionPromptVisible = true;
+  state.compassCalibrationPromptVisible = false;
+  if (els.compassCalibrationBannerText) {
+    els.compassCalibrationBannerText.textContent = state.compassPermission === "denied"
+      ? "Compass access is blocked. Enable Motion & Orientation access in your browser settings to use map movement."
+      : "Enable compass access to turn the map and use phone movement.";
+  }
+  if (els.compassCalibrationBannerEnable) {
+    els.compassCalibrationBannerEnable.textContent = "Enable compass";
+    els.compassCalibrationBannerEnable.hidden = false;
+  }
+  els.compassCalibrationBanner.classList.remove("fading-out");
+  els.compassCalibrationBanner.hidden = false;
+}
+
+async function enableCompassFromGesture() {
+  await requestCompassPermissionIfNeeded({ fromGesture: true });
+  if (state.compassPermission === "granted") {
+    hideCompassPermissionPrompt();
+    reattachCompassListeners();
+    setStatus("");
+    requestDraw();
+  } else if (state.compassPermissionPromptVisible && els.compassCalibrationBannerText) {
+    els.compassCalibrationBannerText.textContent = "Compass access is still blocked. Enable Motion & Orientation access in your browser settings, then try again.";
+  }
+}
+
 function hideCompassCalibrationPrompt() {
+  if (state.compassPermissionPromptVisible) return;
   state.compassCalibrationPromptVisible = false;
   if (!els.compassCalibrationBanner) return;
+  if (els.compassCalibrationBannerEnable) els.compassCalibrationBannerEnable.hidden = true;
+  hideWithFade(els.compassCalibrationBanner);
+}
+
+function hideCompassPermissionPrompt() {
+  state.compassPermissionPromptVisible = false;
+  if (!els.compassCalibrationBanner) return;
+  if (els.compassCalibrationBannerEnable) els.compassCalibrationBannerEnable.hidden = true;
   hideWithFade(els.compassCalibrationBanner);
 }
 
@@ -5800,7 +5859,11 @@ function tiltAllowedForCurrentScreen() {
 }
 
 function tiltActive() {
-  return headingUpActive() && state.tiltBetaSmoothed > TILT_BETA_THRESHOLD;
+  // Pitch is an independent motion axis. A browser may provide beta while its compass is
+  // still waiting for iOS permission or magnetometer calibration, and the map can safely stay
+  // north-up while still responding to the phone being lifted. Once a heading is available the
+  // same path becomes the full heading-up radar view.
+  return Boolean(hasRealLocation()) && state.tiltBetaSmoothed > TILT_BETA_THRESHOLD;
 }
 
 function tiltRotateXDeg() {
