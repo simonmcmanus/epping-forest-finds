@@ -62,6 +62,29 @@ test.describe("Feedback / Report screen", () => {
     await expect(page.locator("#reportToggle")).not.toHaveClass(/screen-active/);
   });
 
+  test("re-entering Feedback starts at the top of the screen", async ({ page }) => {
+    const scroll = page.locator(".inspector-scroll");
+    const dimensions = await scroll.evaluate((el) => ({
+      clientHeight: el.clientHeight,
+      scrollHeight: el.scrollHeight,
+    }));
+    expect(dimensions.scrollHeight).toBeGreaterThan(dimensions.clientHeight);
+
+    const scrolledTop = await scroll.evaluate((el) => {
+      el.scrollTo(0, el.scrollHeight);
+      return el.scrollTop;
+    });
+    expect(scrolledTop).toBeGreaterThan(0);
+
+    await page.click("#nearbyToggle");
+    await expect(page.locator("#nearbyToggle")).toHaveClass(/screen-active/);
+    await page.click("#reportToggle");
+    await expect(page.locator(".community-feedback-link")).toBeVisible();
+    await page.click(".community-feedback-link");
+    await expect(page.locator("#reportDetails")).toBeVisible();
+    await expect.poll(() => scroll.evaluate((el) => el.scrollTop)).toBe(0);
+  });
+
   test("report form has a Cancel button that returns to overview", async ({ page }) => {
     await page.click("#reportCancel");
     // transitionInspectorBody() briefly creates two #inspectorTitle elements; use waitForFunction
