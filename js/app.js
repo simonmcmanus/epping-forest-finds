@@ -310,6 +310,10 @@ const state = {
   compassAnimationFrameRequestedAt: null,
   viewportAnimationFrameRequestedAt: null,
   compassAnimationTime: null,
+  // The heading/tilt loop can run at sensor frame rate, but the camera fit is much more
+  // expensive than updating the compass overlay. Keep its last solve so a fast sensor stream
+  // cannot make the viewport chase every tiny heading sample.
+  compassViewportAlignmentAt: null,
   compassArrowAngle: null,
   compassLastEventAt: null,
   orientationLastEventAt: null,
@@ -4843,6 +4847,7 @@ function releaseStrandedAnimationFrames() {
   // A timestamp from before the break would give the first frame back a dt measured in
   // minutes; the loop clamps it, but starting from null is the honest reset.
   state.compassAnimationTime = null;
+  state.compassViewportAlignmentAt = null;
   // Clears state.viewportAnimationTo as well as the frame handle, so a camera ease that was
   // interrupted by the app going away cannot keep the heading-up fit switched off.
   stopViewportAnimation();
@@ -5314,6 +5319,7 @@ function startCompassSmoothing() {
     const previousTime = state.compassAnimationTime == null ? timestamp : state.compassAnimationTime;
     const dt = Math.min(0.05, Math.max(0.001, (timestamp - previousTime) / 1000));
     state.compassAnimationTime = timestamp;
+    const previousHeading = state.compassHeading;
 
     if (hasHeading) {
       const delta = shortestCompassDelta(state.compassHeading, state.compassHeadingTarget);
@@ -5329,19 +5335,36 @@ function startCompassSmoothing() {
     const betaDiff = state.tiltBetaTarget - state.tiltBetaSmoothed;
     state.tiltBetaSmoothed += betaDiff * (1 - Math.exp(-4 * dt));
 
+    const tiltNeedsFullRedraw = tiltRenderStale();
     if (hasHeading) {
       updateOverviewDirectionArrows();
       refreshNearbyListForHeading();
+      updateCompassOverlay();
     }
-    updateCompassOverlay();
-    const viewportChanged = alignHeadingUpNavigationViewport();
+    const alignmentDue = state.compassViewportAlignmentAt == null
+      || timestamp - state.compassViewportAlignmentAt >= 33;
+    // A heading changes the rotation every frame, but the fit only needs solving often enough
+    // to follow meaningful movement. Beta-only tilt needs a solve when the baked perspective
+    // has moved enough to warrant repainting. This keeps the expensive fit math out of the
+    // tight sensor loop without delaying a real camera correction.
+    const shouldAlignViewport = navigationAnchorActive()
+      && ((hasHeading && (alignmentDue || (previousHeading != null
+        && Math.abs(shortestCompassDelta(previousHeading, state.compassHeading)) > 1)))
+        || (!hasHeading && tiltNeedsFullRedraw));
+    let viewportChanged = false;
+    if (shouldAlignViewport) {
+      viewportChanged = alignHeadingUpNavigationViewport();
+      state.compassViewportAlignmentAt = timestamp;
+    }
     if (headingUpActive()) {
       updateHeadingUpCanvasRotationTransform();
-      if (viewportChanged || tiltRenderStale()) requestDraw();
-      else if (typeof drawOverlay === "function") drawOverlay();
-    } else {
-      requestDraw();
     }
+    // In flat heading-up mode the map canvas is already rotated with CSS and the moving
+    // pins/compass live on the overlay. In beta-only tilt mode the same overlay path applies
+    // until the baked terrain projection has moved enough to need a repaint. Repainting the
+    // entire terrain for every heading sample was the main source of the visible step/jitter.
+    if (viewportChanged || tiltNeedsFullRedraw) requestDraw();
+    else if (typeof drawOverlay === "function") drawOverlay();
 
     const remaining = hasHeading
       ? Math.abs(shortestCompassDelta(state.compassHeading, state.compassHeadingTarget))
