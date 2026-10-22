@@ -169,7 +169,7 @@ function _markSwUpdateAvailable(waiting) {
   refreshSettingsVersionDisplay();
 }
 
-function applySwUpdate() {
+async function applySwUpdate() {
   if (state.swWaiting) {
     state.swPendingReload = true;
     try {
@@ -182,9 +182,19 @@ function applySwUpdate() {
     // not deliver controllerchange after a worker has already finished installing; this path is
     // only reachable after the complete replacement worker was downloaded.
     setTimeout(() => location.reload(), 10000);
-  } else {
-    location.reload();
+    return true;
   }
+
+  // The update marker can arrive through controllerchange without carrying the waiting
+  // registration on some browsers. Never turn that marker into an unconditional reload:
+  // downloadAppUpdate() must first produce a fully installed worker, otherwise an offline
+  // refresh could strand the current page without a replacement shell.
+  const waiting = await downloadAppUpdate();
+  if (!waiting) {
+    setRefreshStatus("No complete app update is ready. Your current offline app is still safe.", { error: true });
+    return false;
+  }
+  return activateDownloadedAppUpdate(waiting);
 }
 
 // The three Settings refresh buttons, keyed by the part of the offline release they check.

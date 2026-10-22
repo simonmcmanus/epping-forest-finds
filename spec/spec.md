@@ -521,7 +521,7 @@ the only one.
 - The About section also shows the person's **Tester ID** (a 10-character hash, with a Copy button) to give the admin for early access (see `spec/spec-community.md`, Feature gate).
 - **Refresh buttons**: all three are transactional. The current offline cache is never deleted or unregistered before a replacement is known to be available:
   - **Refresh data** — force-downloads and validates the complete offline data list into the existing data cache, then reloads. A failed or partial download leaves the current data in place.
-  - **Refresh app** — checks for a new service worker and only activates it after the replacement worker has fully installed. If no newer worker was downloaded, the current app stays in place.
+  - **Refresh app** — checks for a new service worker and only activates it after the replacement worker has fully installed. If no newer worker was downloaded, the current app stays in place. The version indicator uses the same download-first guard, so tapping it cannot turn an offline update check into an unsafe reload.
   - **Refresh both** — requires both a complete data pass and a downloaded next app worker before activation. It never starts a cold cache, so a dropped connection cannot strand the user without the app.
   - **`?nuke=true` URL parameter** — retained as a troubleshooting alias for the safe **Refresh both** check. It removes the parameter, preserves all caches on failure, and keeps other query parameters.
   - Caches belonging to other apps are never touched. All three are disabled, with one shared inline note, while offline; a false online signal is also handled safely because refresh failure never clears the working cache.
@@ -649,7 +649,7 @@ Legend reflects active marker semantics:
 1. When a new SW version is detected (`updatefound` → `statechange: installed`), the new SW waits — it does **not** auto-activate via `skipWaiting()` in the install handler. A manual refresh check also leaves the current worker in place if downloading the replacement fails.
 2. A red dot badge appears on the settings toggle button (always visible, not just inside the settings panel).
 3. Inside the settings panel, the app version turns red with a "— tap to update" label.
-4. Clicking either indicator triggers `SKIP_WAITING` (posted to the waiting SW), the SW activates, and the page reloads automatically on `controllerchange`.
+4. Clicking either indicator first confirms that a fully installed waiting worker is available (downloading it if necessary). Only then does it trigger `SKIP_WAITING` (posted to the waiting SW), the SW activates, and the page reloads automatically on `controllerchange`.
 5. `skipWaiting()` in the SW is triggered only via the `message` event (`event.data.type === "SKIP_WAITING"`), never automatically on install.
 
 ## Data Statistics (as of May 2026)

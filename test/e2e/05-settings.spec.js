@@ -233,6 +233,19 @@ test.describe("Settings screen", () => {
       expect(log).not.toContain("unregistered");
     });
 
+    test("tapping the app version indicator does nothing without a downloaded replacement", async ({ page }) => {
+      await stubCacheApis(page);
+      await page.evaluate(() => {
+        state.swWaiting = null;
+        state.swUpdateAvailable = true;
+        refreshSettingsVersionDisplay();
+        window.__updateIndicatorMarker = true;
+      });
+      await page.click("#appVersionDisplay");
+      await expect(page.locator("#refreshStatus")).toContainText("No complete app update is ready");
+      expect(await page.evaluate(() => window.__updateIndicatorMarker)).toBe(true);
+    });
+
     test("refreshing both keeps the working app when no replacement version was downloaded", async ({ page }) => {
       await stubCacheApis(page);
       await page.click("#refreshAllButton");
