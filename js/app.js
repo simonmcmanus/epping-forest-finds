@@ -1289,7 +1289,8 @@ async function revealMapCenteredOnUser() {
   // The loading strip stays visible while the remaining datasets arrive; boot hides it once the
   // background promise has settled, so the user can see that locations and map layers are still
   // being added without blocking the map they are already using.
-  _serverRenderedNearbyList = _staticNearbyIndex && serverRenderedNearbyListStillValid();
+  _serverRenderedNearbyList = (isNearbyCategoryLandingPath() || _staticNearbyIndex)
+    && serverRenderedNearbyListStillValid();
 }
 
 // Boot reached here with no real GPS fix -- denied, timed out, unsupported, or skipped in
@@ -1603,6 +1604,12 @@ async function boot() {
     // downloading in the background.
     if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("tree")) {
       await mapData.treePromise;
+    }
+    // Water features arrive with the environment layer. A water deep link is the one filtered
+    // landing that cannot be applied against the initial interactive map state, so wait for just
+    // that dataset while leaving ordinary category pages map-first and non-blocking.
+    if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("water")) {
+      await mapData.environmentPromise;
     }
     // Likewise a walker-added tree link needs the community overlay it is looked up in.
     if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("addedtree") && typeof communityEnsureOverlay === "function") {
