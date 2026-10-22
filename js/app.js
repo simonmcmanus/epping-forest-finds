@@ -1298,7 +1298,7 @@ async function revealMapCenteredOnUser() {
 // clicks on that banner the way the old full-screen overlay incidentally did, so a fast tap can
 // land a real fix before boot() reaches this fallback. Without the guard, that real fix was
 // overwritten back to the High Beach stand-in the moment boot() got here.
-async function revealNoRealLocation({ locationAlreadyAsked }) {
+async function revealNoRealLocation({ locationAlreadyAsked, deferLocationInvite = false }) {
   if (!hasRealLocation()) applyDefaultLocation();
 
   if (!findLandingSlug() && !communityScreenOpen()) selectOverview();
@@ -1309,7 +1309,7 @@ async function revealNoRealLocation({ locationAlreadyAsked }) {
   if (!communityScreenOpen()) applySelectionFromHash();
   await revealMapCenteredOnUser();
 
-  if (locationAlreadyAsked) return;
+  if (locationAlreadyAsked || deferLocationInvite) return;
   const message = navigator.geolocation
     ? "You're viewing finds within a 30-minute walk of High Beach. Share your location for a more custom experience — centred on you, with real distances."
     : "This browser does not support location access, so you're viewing finds within a 30-minute walk of High Beach instead.";
@@ -1617,6 +1617,12 @@ async function boot() {
         requestDraw();
         return false;
       });
+    // This is independent of the GPS request below: the map's progress strip should disappear
+    // when map datasets and cattle are ready, even if a permission prompt or cold GPS fix is
+    // still pending while the camera is sitting at the High Beach fallback.
+    Promise.all([mapData.backgroundPromise, cowBootstrapPromise])
+      .then(() => hideWithFade(els.loadingOverlay))
+      .catch(() => hideWithFade(els.loadingOverlay));
     // render:false -- state.userLocation isn't set yet (the location/default-location branch
     // below hasn't run), so selectOverview() would render the no-location dataset-order list and
     // get thrown away the instant revealMapCenteredOnUser()/revealNoRealLocation() render the
@@ -1626,9 +1632,20 @@ async function boot() {
     applyRadiusFromQuery();
 
     if (locationPromise) {
-      // Await the location request that was started in parallel with data loading,
-      // but never unconditionally -- see withBootLocationTimeout.
+      // Give the map a useful origin immediately while the browser is still asking for GPS. The
+      // first reveal deliberately uses High Beach (the same fallback as a denied request), then
+      // the real fix animates the already-visible camera across to the user below. Starting this
+      // before awaiting the location promise is what keeps an unanswered permission prompt from
+      // turning the whole first render into a loading screen.
+      const fallbackRevealPromise = revealNoRealLocation({
+        locationAlreadyAsked,
+        deferLocationInvite: true,
+      });
+      // Await the location request that was started in parallel with data loading, but never
+      // unconditionally -- see withBootLocationTimeout. The fallback reveal is allowed to finish
+      // first so a quick fix still transitions from the same stable High Beach starting view.
       const locResult = await withBootLocationTimeout(locationPromise);
+      await fallbackRevealPromise;
 
       if (locResult.ok) {
         const { latitude, longitude } = applyLocationFix(locResult.position);
@@ -1641,14 +1658,24 @@ async function boot() {
           requestCompassPermissionIfNeeded({ fromGesture: false });
         }
 
-        // Populate overview list and render map while overlay is still up.
-        await revealMapCenteredOnUser();
+        // The map is already visible at High Beach. Refit with the real origin using the normal
+        // camera animator so the user sees a smooth move rather than a second cold reveal.
+        if (state.selected) {
+          ensureUserAndSelectionVisible({ animate: true, force: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS });
+        } else {
+          ensureOverviewTargetsVisible({ animate: true, force: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS });
+        }
+        requestDraw();
       } else {
-        // Location denied or timed out. Brief pause so the user sees the completed step list
-        // (here, that it failed) before the fallback reveal below takes over.
+        // Location denied or timed out. The fallback reveal already happened, so only mark the
+        // step and offer the non-blocking invite that a normal failed request would show.
         setLoadStep("location", "error");
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        await revealNoRealLocation({ locationAlreadyAsked });
+        if (!locationAlreadyAsked) {
+          const message = navigator.geolocation
+            ? "You're viewing finds within a 30-minute walk of High Beach. Share your location for a more custom experience — centred on you, with real distances."
+            : "This browser does not support location access, so you're viewing finds within a 30-minute walk of High Beach instead.";
+          showLocationInviteBanner(message);
+        }
       }
     } else {
       // No geolocation support, a first-time user skipped it in onboarding, or the landing-page
@@ -1658,12 +1685,6 @@ async function boot() {
       await revealNoRealLocation({ locationAlreadyAsked });
     }
     showFilterHintIfFirstVisit();
-
-    // Keep the progress strip honest: it disappears only after the staged map datasets and the
-    // live cattle bootstrap have both finished. Neither promise blocks the first map reveal.
-    Promise.all([mapData.backgroundPromise, cowBootstrapPromise])
-      .then(() => hideWithFade(els.loadingOverlay))
-      .catch(() => hideWithFade(els.loadingOverlay));
 
     // Everything above was served from the service worker's caches on a return visit, which
     // is what makes the reload instant — but also means nothing here ever noticed newer data
