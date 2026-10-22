@@ -1309,7 +1309,7 @@ async function revealMapCenteredOnUser() {
 // clicks on that banner the way the old full-screen overlay incidentally did, so a fast tap can
 // land a real fix before boot() reaches this fallback. Without the guard, that real fix was
 // overwritten back to the High Beach stand-in the moment boot() got here.
-async async function revealNoRealLocation({ locationAlreadyAsked, deferLocationInvite = false }) {
+async function revealNoRealLocation({ locationAlreadyAsked, deferLocationInvite = false }) {
   if (!hasRealLocation()) applyDefaultLocation();
 
   if (!findLandingSlug() && !communityScreenOpen()) selectOverview();
