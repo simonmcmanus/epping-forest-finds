@@ -46,12 +46,10 @@ const LANDING_PAGE_WALKING_DISTANCE_MINUTES = 30;
 // list, distances, the walking-radius ring -- instead of the bare whole-forest outline, with the
 // location gate inviting a real fix for the same view centred on the user instead.
 const DEFAULT_LOCATION = { latitude: 51.667591, longitude: 0.037454 };
-// Matches LANDING_PAGE_WALKING_DISTANCE_MINUTES's own reasoning (a fair showing without the
-// reader touching the radius control) for the same reason: DEFAULT_LOCATION isn't tied to
-// anywhere the user actually stands, so the ordinary 5-minute default would show very little of
-// it. A separate constant from that one on purpose -- the two features' radii may need to diverge
-// later even though they start at the same number.
-const DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES = 30;
+// Keep the ordinary Nearby radius when the map uses DEFAULT_LOCATION as its temporary origin.
+// Category landing pages still widen themselves to LANDING_PAGE_WALKING_DISTANCE_MINUTES in
+// applyRadiusFromQuery(), before this fallback is applied.
+const DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES = DEFAULT_WALKING_DISTANCE_MINUTES;
 const COW_REFRESH_MS = 5 * 60 * 1000;
 const IS_LOCAL_COW_CACHE_MODE = ["127.0.0.1", "localhost"].includes(window.location.hostname);
 const DEFAULT_COW_CENTER = { longitude: 0.06371428038973509, latitude: 51.656022523996725 };
@@ -1310,9 +1308,10 @@ async function revealNoRealLocation({ locationAlreadyAsked, deferLocationInvite 
   await revealMapCenteredOnUser();
 
   if (locationAlreadyAsked || deferLocationInvite) return;
+  const fallbackWalk = formatWalkingRadius(state.walkingDistanceMinutes);
   const message = navigator.geolocation
-    ? "You're viewing finds within a 30-minute walk of High Beach. Share your location for a more custom experience — centred on you, with real distances."
-    : "This browser does not support location access, so you're viewing finds within a 30-minute walk of High Beach instead.";
+    ? `You're viewing finds within a ${fallbackWalk} walk of High Beach. Share your location for a more custom experience — centred on you, with real distances.`
+    : `This browser does not support location access, so you're viewing finds within a ${fallbackWalk} walk of High Beach instead.`;
   showLocationInviteBanner(message);
 }
 
@@ -1671,9 +1670,10 @@ async function boot() {
         // step and offer the non-blocking invite that a normal failed request would show.
         setLoadStep("location", "error");
         if (!locationAlreadyAsked) {
+          const fallbackWalk = formatWalkingRadius(state.walkingDistanceMinutes);
           const message = navigator.geolocation
-            ? "You're viewing finds within a 30-minute walk of High Beach. Share your location for a more custom experience — centred on you, with real distances."
-            : "This browser does not support location access, so you're viewing finds within a 30-minute walk of High Beach instead.";
+            ? `You're viewing finds within a ${fallbackWalk} walk of High Beach. Share your location for a more custom experience — centred on you, with real distances.`
+            : `This browser does not support location access, so you're viewing finds within a ${fallbackWalk} walk of High Beach instead.`;
           showLocationInviteBanner(message);
         }
       }
