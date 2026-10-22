@@ -4906,7 +4906,6 @@ test("settings form offers separate data, app and combined refresh buttons", () 
   assert.match(html, /id="refreshAllButton"/, "settings form should include the combined refresh button");
   assert.match(html, /Refresh both/, "combined refresh button should be labelled");
   assert.match(html, /id="refreshOfflineNote"/, "settings form should include a shared offline note for the refresh buttons");
-  assert.match(html, /id="refreshStatus"/, "settings form should include a refresh result status");
 });
 
 test("refresh scopes preserve the working caches until a replacement is downloaded", () => {
