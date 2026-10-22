@@ -3324,8 +3324,9 @@ function openReportModal() {
   transitionInspectorBody(reportFormHtml(), "forward", () => {
     const detailsInput = document.getElementById("reportDetails");
     if (detailsInput) {
-      detailsInput.focus();
-      detailsInput.scrollIntoView({ block: "nearest" });
+      // Keep the new Feedback screen at its top. Keyboard avoidance will scroll the
+      // field into view later if the viewport actually shrinks on a phone.
+      detailsInput.focus({ preventScroll: true });
     }
   });
   bindReportFormHandlers();
