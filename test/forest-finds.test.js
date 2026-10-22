@@ -2540,7 +2540,19 @@ test("tree loading uses chunked register before full-file fallbacks", () => {
   assert.match(loader, /const maxConcurrent = Math\.min\(6, chunks\.length\)/);
 });
 
-test("static and lazy data reads have bounded failure paths", () => {\n  const loader = fs.readFileSync(path.join(__dirname, "..", "js", "loader.js"), "utf8");\n\n  assert.match(loader, /const loadJson = async \\(url, timeoutMs = 60000\\)/);\n  assert.match(loader, /setTimeout\\(\\(\\) => controller\\.abort\\(\\), timeoutMs\\)/);\n  assert.match(loader, /if \\(!response\\.ok\\) throw new Error/);\n  assert.match(loader, /const landmarkPromises = LANDMARK_URLS\\.map\\(\\(url\\) => fetch\\(url\\)/);\n  assert.match(loader, /function loadBuildingsIfNeeded\\(\\)/);\n  assert.match(loader, /fetch\\(BUILDINGS_URL\\)/);\n  assert.match(loader, /state\\.buildingsLoaded = true/);\n});\ntest("generated tree chunks cover the full veteran tree register", () => {
+test("static and lazy data reads have bounded failure paths", () => {
+  const loader = fs.readFileSync(path.join(__dirname, "..", "js", "loader.js"), "utf8");
+
+  assert.match(loader, /const loadJson = async \\(url, timeoutMs = 60000\\)/);
+  assert.match(loader, /setTimeout\\(\\(\\) => controller\\.abort\\(\\), timeoutMs\\)/);
+  assert.match(loader, /if \\(!response\\.ok\\) throw new Error/);
+  assert.match(loader, /const landmarkPromises = LANDMARK_URLS\\.map\\(\\(url\\) => fetch\\(url\\)/);
+  assert.match(loader, /function loadBuildingsIfNeeded\\(\\)/);
+  assert.match(loader, /fetch\\(BUILDINGS_URL\\)/);
+  assert.match(loader, /state\\.buildingsLoaded = true/);
+});
+
+test("generated tree chunks cover the full veteran tree register", () => {
   const index = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "data", "trees", "index.json"), "utf8"));
   const chunkCount = index.chunks.reduce((sum, chunk) => sum + chunk.count, 0);
 
