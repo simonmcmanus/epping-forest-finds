@@ -62,6 +62,8 @@
         }
       }
 
+      // Keep the reader's selected filter/radius query intact while removing only this recovery
+      // flag, so the refreshed page returns to the view they actually opened.
       const current = new URL(window.location.href);
       current.pathname = "/nearby";
       current.searchParams.delete("nuke");
