@@ -808,19 +808,24 @@ function _cleanupTransition() {
   if (scroll) { scroll.style.overflow = ""; scroll.style.height = ""; }
 }
 
+function resetInspectorScrollPosition(scroll = els.inspector && els.inspector.querySelector(".inspector-scroll")) {
+  if (scroll) scroll.scrollTop = 0;
+}
+
 function applyScreenTransition(direction, onDone) {
   const scroll    = els.inspector && els.inspector.querySelector(".inspector-scroll");
   const screen    = scroll && scroll.querySelector(".inspector-screen");
   const snapshot  = _transitionSnapshot;
   _transitionSnapshot = null;
 
+  // Every newly-entered screen starts at its own top, including reduced-motion and
+  // no-snapshot paths where there is no animation to perform.
+  resetInspectorScrollPosition(scroll);
   if (!direction || !snapshot || !screen || !scroll || prefersReducedMotion()) {
     if (onDone) onDone();
+    resetInspectorScrollPosition(scroll);
     return;
   }
-
-  // Reset scroll position for incoming screen
-  scroll.scrollTop = 0;
 
   // Build ghost (outgoing overlay) from pre-captured snapshot
   const ghost = snapshot;
@@ -856,6 +861,7 @@ function applyScreenTransition(direction, onDone) {
     _transitionAnimation = null;
     _cleanupTransition();
     if (onDone) onDone();
+    resetInspectorScrollPosition(scroll);
   }).catch(() => { /* cancelled by next transition */ });
 }
 
