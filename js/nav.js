@@ -663,7 +663,17 @@ function setupInspectorHandlers() {
 
   if (els.compassCalibrationBannerDismiss) {
     els.compassCalibrationBannerDismiss.addEventListener("click", () => {
-      if (typeof dismissCompassCalibrationPrompt === "function") dismissCompassCalibrationPrompt();
+      if (state.compassPermissionPromptVisible) {
+        hideCompassPermissionPrompt();
+      } else if (typeof dismissCompassCalibrationPrompt === "function") {
+        dismissCompassCalibrationPrompt();
+      }
+    });
+  }
+
+  if (els.compassCalibrationBannerEnable) {
+    els.compassCalibrationBannerEnable.addEventListener("click", () => {
+      if (typeof enableCompassFromGesture === "function") enableCompassFromGesture();
     });
   }
 
