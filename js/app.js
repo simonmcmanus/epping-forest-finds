@@ -1477,6 +1477,10 @@ async function boot() {
   _serverRenderedNearbyList = isNearbyCategoryLandingPath() || (_staticNearbyIndex && staticNearbyIndexFiltersAreDefault());
   initSelectedIconMotion();
   initRouter();
+  // Keep the launch route available while the first GPS fix is arriving. applyLocationFix()
+  // normally clears a live selection because locating from an already-open detail view returns
+  // to Nearby, but a deep link must keep naming the screen the reader opened.
+  const bootRoute = routeValueFromLocation();
   initTracker();
   setupPwa();
   setupUiZoomLock();
@@ -1667,6 +1671,9 @@ async function boot() {
 
       if (locResult.ok) {
         const { latitude, longitude } = applyLocationFix(locResult.position);
+        if (bootRoute && routeValueFromLocation() === bootRoute && !state.selected) {
+          applyRoute(bootRoute, false);
+        }
         setLoadStep("location", "done");
         checkDistanceToForest(latitude, longitude);
         ensureLocationWatch();
