@@ -805,6 +805,7 @@ function syncHashFromSelection(options) {
   // The Community screen has little use for a big map, so its bottom sheet opens taller
   // (css/map-ui.css .inspector-tall). A height the user has dragged to still wins.
   if (els.inspector) els.inspector.classList.toggle("inspector-tall", state.selected?.type === "community");
+  if (typeof updateInspectorNavigationHeight === "function") updateInspectorNavigationHeight();
   setHashFromSelection(currentScreenRoute(), options);
 }
 
@@ -9496,6 +9497,7 @@ function walkingDistanceToMetres(minutes) {
 }
 
 function updateSelectedDetailFields() {
+  if (typeof updateInspectorNavigationHeight === "function") updateInspectorNavigationHeight();
   if (!state.selected || !state.userLocation) return;
   const item = selectedCompassTarget();
   if (!item) return;
