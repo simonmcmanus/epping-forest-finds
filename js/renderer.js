@@ -214,11 +214,11 @@ function draw() {
   // Initialize animation timing on first draw
   if (_animationStartTime === null) _animationStartTime = performance.now();
 
-  // A device-orientation event with a valid beta but no valid heading updates
-  // state.tiltBetaTarget without calling startCompassSmoothing (see onDeviceOrientation),
-  // so the beta-smoothing loop can go idle out of sync with its target. draw() already runs
-  // on most state changes, so nudge the loop back on here whenever that happens.
-  if (Number.isFinite(state.compassHeading) && typeof startCompassSmoothing === "function"
+  // A device-orientation event with a valid beta can arrive before a compass heading is
+  // available (or on a browser that exposes pitch without north-referenced heading), so the
+  // beta-smoothing loop must not be gated on compassHeading. draw() is also a useful recovery
+  // nudge if an orientation frame arrived while the page was resuming.
+  if (typeof startCompassSmoothing === "function"
       && Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) > 0.05) {
     startCompassSmoothing();
   }
