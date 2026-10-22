@@ -4,6 +4,7 @@ const { setup, skipOnboarding, mockCowApi, gotoAndWaitForMap, settleMapIconsAndD
 
 // A GPS fix inside Epping Forest
 const FOREST_LOCATION = { latitude: 51.6650, longitude: 0.0450, accuracy: 10 };
+const DEFAULT_WALKING_DISTANCE_MINUTES = 5;
 
 test.describe("Location and GPS — happy path", () => {
   test.describe("geolocation granted", () => {
