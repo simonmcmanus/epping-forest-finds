@@ -1274,8 +1274,10 @@ async function revealMapCenteredOnUser() {
   els.mapStage?.classList.add("map-revealed");
   // The reveal is over, so from here on the list is ordinary live content again -- except bare
   // /nearby's static list, which stays as drawn until a real fix (serverRenderedNearbyListStillValid).
+  // The loading strip stays visible while the remaining datasets arrive; boot hides it once the
+  // background promise has settled, so the user can see that locations and map layers are still
+  // being added without blocking the map they are already using.
   _serverRenderedNearbyList = _staticNearbyIndex && serverRenderedNearbyListStillValid();
-  hideWithFade(els.loadingOverlay);
 }
 
 // Boot reached here with no real GPS fix -- denied, timed out, unsupported, or skipped in
@@ -1434,20 +1436,22 @@ function showCombinedConsentBanner() {
   banner.hidden = false;
 }
 
-// ?nuke=true requests the same safe update check as Settings' "Refresh both", then returns to the
-// same URL without the flag. It no longer deletes caches: a failed update must leave the current
-// offline app usable. The parameter is retained as a troubleshooting alias for old shared links.
-async function nukeIfRequested() {
+// ?nuke=true clears exactly what Settings' "Refresh both" clears, then returns to the same URL
+// without the flag. The flag is stripped before refreshCachedState reloads the page: otherwise the
+// reload would land back on ?nuke=true and wipe everything again, forever. Offline, the clear
+// can't run, so the flag is still dropped and boot carries on as normal.
+function nukeIfRequested() {
   const url = new URL(window.location.href);
   if (url.searchParams.get("nuke") !== "true") return false;
   url.searchParams.delete("nuke");
   window.history.replaceState(null, "", url);
   if (!navigator.onLine) return false;
-  return await refreshCachedState("all");
+  refreshCachedState("all");
+  return true;
 }
 
 async function boot() {
-  if (await nukeIfRequested()) return;
+  if (nukeIfRequested()) return;
 
   // A /nearby/<slug>/ landing already shows its server-rendered list (see
   // _serverRenderedNearbyList, js/inspector.js); keep it there until a real fix or the reveal.
@@ -1582,11 +1586,30 @@ async function boot() {
     }
 
     state.bounds = calculateBounds();
-    const cowBootstrapOk = await cowPromise;
-    setLoadStep("cows", cowBootstrapOk || state.cows.length > 0 ? "done" : "error", state.cows.length);
-    scheduleCowRefresh();
     fitToBounds();
     state.dataLoaded = true;
+    // Once the first useful map data is available, turn even the installed-app splash into the
+    // same non-blocking progress strip used by browser tabs. The map and the requested category
+    // can now be used while roads, water, trees and the other locations continue in the background.
+    if (els.loadingOverlay) {
+      els.loadingOverlay.classList.add("inline");
+      els.loadingOverlay.classList.remove("fading-out");
+      els.loadingOverlay.hidden = false;
+    }
+
+    const cowBootstrapPromise = Promise.resolve(cowPromise)
+      .then((cowBootstrapOk) => {
+        setLoadStep("cows", cowBootstrapOk || state.cows.length > 0 ? "done" : "error", state.cows.length);
+        scheduleCowRefresh();
+        requestDraw();
+        return cowBootstrapOk;
+      })
+      .catch(() => {
+        setLoadStep("cows", state.cows.length > 0 ? "done" : "error", state.cows.length);
+        scheduleCowRefresh();
+        requestDraw();
+        return false;
+      });
     // render:false -- state.userLocation isn't set yet (the location/default-location branch
     // below hasn't run), so selectOverview() would render the no-location dataset-order list and
     // get thrown away the instant revealMapCenteredOnUser()/revealNoRealLocation() render the
@@ -1629,12 +1652,18 @@ async function boot() {
     }
     showFilterHintIfFirstVisit();
 
+    // Keep the progress strip honest: it disappears only after the staged map datasets and the
+    // live cattle bootstrap have both finished. Neither promise blocks the first map reveal.
+    Promise.all([mapData.backgroundPromise, cowBootstrapPromise])
+      .then(() => hideWithFade(els.loadingOverlay))
+      .catch(() => hideWithFade(els.loadingOverlay));
+
     // Everything above was served from the service worker's caches on a return visit, which
     // is what makes the reload instant — but also means nothing here ever noticed newer data
-    // upstream. Now that the map is interactive, start the foreground-visible refresh loop. The
-    // worker throttles network work internally; this also retries after a connection returns while
-    // the app remains open, and community overlay updates are delivered directly to the page.
-    setupBackgroundDataSync();
+    // upstream. Now that the map is interactive, ask the worker to revalidate its cached
+    // datasets in the background (syncData in sw.js); anything that actually changed is
+    // picked up on the next load, and Settings says so.
+    requestBackgroundDataSync();
   } catch (error) {
     console.error(error);
     hideWithFade(els.loadingOverlay);
@@ -2958,9 +2987,8 @@ function settingsFormHtml() {
           <button id="refreshAppButton" class="settings-btn" type="button"${online ? "" : " disabled"}>Refresh app</button>
           <button id="refreshAllButton" class="settings-btn" type="button"${online ? "" : " disabled"}>Refresh both</button>
         </div>
-        <p class="settings-description">Map missing or out of date? <strong>Refresh data</strong> downloads a complete replacement before reloading. Not seeing the latest version? <strong>Refresh app</strong> checks for and downloads the next app version before restarting. <strong>Refresh both</strong> requires both downloads and never removes the working offline copy first.</p>
+        <p class="settings-description">Map missing or out of date? <strong>Refresh data</strong> re-downloads the trees, paths and places. Not seeing the latest version? <strong>Refresh app</strong> clears the cached app. <strong>Refresh both</strong> starts completely cold.</p>
         <p id="refreshOfflineNote" class="report-note report-offline-note"${online ? " hidden" : ""}>Refreshing needs an internet connection — you\'re offline right now.</p>
-        <p id="refreshStatus" class="report-note" role="status" hidden></p>
       </div>
     </section>
     <section class="settings-section" id="settingsAccount">
