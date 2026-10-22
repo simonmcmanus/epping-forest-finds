@@ -150,6 +150,43 @@ test.describe("Location and GPS — happy path", () => {
       expect(minutes).toBe(DEFAULT_WALKING_DISTANCE_MINUTES);
     });
 
+    test("the High Beach to real-location handoff flies out and settles instead of jolting", async ({ page }) => {
+      const result = await page.evaluate(async () => {
+        stopViewportAnimation();
+        const start = { ...state.viewport };
+        applyLocationFix({
+          coords: { latitude: 51.6650, longitude: 0.0450, accuracy: 10 },
+        });
+        ensureOverviewTargetsVisible({ animate: true, cinematic: true, force: true, durationMs: 900 });
+
+        const scales = [];
+        await new Promise((resolve) => {
+          const sample = () => {
+            scales.push(state.viewport.scale);
+            if (state.viewportAnimationFrame == null) resolve();
+            else requestAnimationFrame(sample);
+          };
+          requestAnimationFrame(sample);
+        });
+        const cinematicEnd = { ...state.viewport };
+        stopViewportAnimation();
+        ensureOverviewTargetsVisible({ animate: false, force: true });
+        const settled = { ...state.viewport };
+        return {
+          startScale: start.scale,
+          endScale: cinematicEnd.scale,
+          minimumScale: Math.min(...scales),
+          settled,
+          cinematicEnd,
+        };
+      });
+
+      expect(result.minimumScale).toBeLessThan(Math.min(result.startScale, result.endScale) * 0.98);
+      expect(result.cinematicEnd.scale).toBeCloseTo(result.settled.scale, 5);
+      expect(result.cinematicEnd.tx).toBeCloseTo(result.settled.tx, 2);
+      expect(result.cinematicEnd.ty).toBeCloseTo(result.settled.ty, 2);
+    });
+
     test("there is no duplicate location button, and the \"You\" dot is never drawn for the stand-in", async ({ page }) => {
       await expect(page.locator("#locateButton")).toHaveCount(0);
       const drewYouDot = await page.evaluate(() => {
