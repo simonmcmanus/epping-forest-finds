@@ -1611,6 +1611,12 @@ async function boot() {
     if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("water")) {
       await mapData.environmentPromise;
     }
+    // A place deep link is resolved from the landmarks plus business metadata. Wait for just
+    // those sources before the first interactive reveal, otherwise their incremental updates
+    // briefly call selectOverview() and replace the requested detail panel.
+    if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("place")) {
+      await mapData.placesPromise;
+    }
     // Likewise a walker-added tree link needs the community overlay it is looked up in.
     if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("addedtree") && typeof communityEnsureOverlay === "function") {
       await communityEnsureOverlay();
@@ -3116,6 +3122,7 @@ function settingsFormHtml() {
           <button id="refreshAllButton" class="settings-btn" type="button"${online ? "" : " disabled"}>Refresh both</button>
         </div>
         <p class="settings-description">Map missing or out of date? <strong>Refresh data</strong> re-downloads the trees, paths and places. Not seeing the latest version? <strong>Refresh app</strong> clears the cached app. <strong>Refresh both</strong> starts completely cold.</p>
+        <p id="refreshStatus" class="report-note" role="status" aria-live="polite" hidden></p>
         <p id="refreshOfflineNote" class="report-note report-offline-note"${online ? " hidden" : ""}>Refreshing needs an internet connection — you\'re offline right now.</p>
       </div>
     </section>
@@ -6300,7 +6307,11 @@ function selectionCameraTransitionActive() {
 // anchor and the fit agree on where the usable band actually is -- an anchor placed outside
 // it leaves one side no room at all and collapses the fit (see balancedNavigationAnchorY).
 function headingUpFitMarginPx(focusRect) {
-  return Math.min(focusRect.width, focusRect.height) * 0.1 + 12 * pixelRatio();
+  // Keep a useful edge cushion without making the ordinary Nearby radius occupy only a
+  // little over half of the usable width on a portrait phone. The ring is circular and its
+  // camera is centred, so the larger 10% margin used by the old heading-up fit was needlessly
+  // conservative here; the 12dp floor still protects rotated content from touching the edge.
+  return Math.min(focusRect.width, focusRect.height) * 0.06 + 12 * pixelRatio();
 }
 
 // Where to put the user when the points being fitted lie on BOTH sides of "ahead".
