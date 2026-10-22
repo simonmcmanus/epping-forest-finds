@@ -2543,13 +2543,13 @@ test("tree loading uses chunked register before full-file fallbacks", () => {
 test("static and lazy data reads have bounded failure paths", () => {
   const loader = fs.readFileSync(path.join(__dirname, "..", "js", "loader.js"), "utf8");
 
-  assert.match(loader, /const loadJson = async \\(url, timeoutMs = 60000\\)/);
-  assert.match(loader, /setTimeout\\(\\(\\) => controller\\.abort\\(\\), timeoutMs\\)/);
-  assert.match(loader, /if \\(!response\\.ok\\) throw new Error/);
-  assert.match(loader, /const landmarkPromises = LANDMARK_URLS\\.map\\(\\(url\\) => fetch\\(url\\)/);
-  assert.match(loader, /function loadBuildingsIfNeeded\\(\\)/);
-  assert.match(loader, /fetch\\(BUILDINGS_URL\\)/);
-  assert.match(loader, /state\\.buildingsLoaded = true/);
+  assert.match(loader, /const loadJson = async \(url, timeoutMs = 60000\)/);
+  assert.match(loader, /setTimeout\(\(\) => controller\.abort\(\), timeoutMs\)/);
+  assert.match(loader, /if \(!response\.ok\) throw new Error/);
+  assert.match(loader, /const landmarkPromises = LANDMARK_URLS\.map\(\(url\) => fetch\(url\)/);
+  assert.match(loader, /function loadBuildingsIfNeeded\(\)/);
+  assert.match(loader, /fetch\(BUILDINGS_URL\)/);
+  assert.match(loader, /state\.buildingsLoaded = true/);
 });
 
 test("generated tree chunks cover the full veteran tree register", () => {
