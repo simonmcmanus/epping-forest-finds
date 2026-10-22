@@ -266,7 +266,6 @@ a.nearest-item {
   .inspector.inspector-navigation.inspector-navigation-arrived {
     --inspector-navigation-height: var(--inspector-default-height, 55.2%);
   }
-  }
 
   /* The Community screen is all content and has no use for a big map behind it, so its sheet
      opens taller (js/app.js syncHashFromSelection toggles this class). The class only sets the
