@@ -1679,6 +1679,13 @@ async function boot() {
         // The map is already visible at High Beach. Fly to the real origin on a longer, gently
         // zoomed-out arc so the camera has time to establish the journey instead of jolting
         // through a one-pass fit from the stand-in to the GPS position.
+        // The fallback reveal may still have its short camera ease in flight: revealMapCenteredOnUser
+        // deliberately starts it without awaiting the animation so the progress strip and the
+        // map can appear together. Retargeting an existing tween is blocked by the navigation-fit
+        // guard, which otherwise leaves the camera at the High Beach framing even though the GPS
+        // fix and the location dot have moved. The fallback view is already painted, so it is safe
+        // to hand the camera to the real-location fly-to now.
+        stopViewportAnimation();
         if (state.selected) {
           ensureUserAndSelectionVisible({
             animate: true,
