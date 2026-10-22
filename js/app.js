@@ -73,7 +73,7 @@ const HEADING_UP_NAV_ANIMATION_MS = 500; // standard duration for heading-up ali
 const MIN_HEADING_UP_ANIMATION_MS = 200; // floor for animateToHeadingUpNavigationViewport's duration
 const DEFAULT_VIEWPORT_ANIMATION_MS = 480; // generic fallback duration for the low-level viewport animators when nothing else is specified
 const MIN_VIEWPORT_ANIMATION_MS = 180; // floor for animateViewportTo's duration
-const FIRST_LOAD_REVEAL_ANIMATION_MS = 700; // the first-time "reveal the map" animation, in all its variants (fit to user+items, centered-on-user)
+const FIRST_LOAD_REVEAL_ANIMATION_MS = 700; // the first-time "reveal the map" animation, in all its variants (fit to user+items, centered-on-user)\nconst FIRST_LOCATION_FLY_TO_ANIMATION_MS = 1250; // the High Beach stand-in -> real GPS handoff, with a cinematic fly-to arc
 const HEADING_UP_CANVAS_OVERSCAN_RATIO = 1.5; // sqrt(2)≈1.414 is the 45° corner case minimum; 1.5 keeps safety margin
 const DEFAULT_FIT_PADDING_PX = 54; // default screen-space padding for fitToPoints (around content bounds)
 const OVERVIEW_FIT_PADDING_PX = 28; // tighter padding for overview targets fit
@@ -1660,12 +1660,23 @@ async function boot() {
           requestCompassPermissionIfNeeded({ fromGesture: false });
         }
 
-        // The map is already visible at High Beach. Refit with the real origin using the normal
-        // camera animator so the user sees a smooth move rather than a second cold reveal.
+        // The map is already visible at High Beach. Fly to the real origin on a longer, gently
+        // zoomed-out arc so the camera has time to establish the journey instead of jolting
+        // through a one-pass fit from the stand-in to the GPS position.
         if (state.selected) {
-          ensureUserAndSelectionVisible({ animate: true, force: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS });
+          ensureUserAndSelectionVisible({
+            animate: true,
+            cinematic: true,
+            force: true,
+            durationMs: FIRST_LOCATION_FLY_TO_ANIMATION_MS,
+          });
         } else {
-          ensureOverviewTargetsVisible({ animate: true, force: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS });
+          ensureOverviewTargetsVisible({
+            animate: true,
+            cinematic: true,
+            force: true,
+            durationMs: FIRST_LOCATION_FLY_TO_ANIMATION_MS,
+          });
         }
         requestDraw();
       } else {
@@ -2250,7 +2261,14 @@ function applyBoundsToViewport(bounds, options = {}) {
   const targetTy = focusRect.y + (viewportHeight - rangeY * targetScale) / 2 - bounds.minY * targetScale;
 
   if (options.animate) {
-    animateViewportTo({ scale: targetScale, tx: targetTx, ty: targetTy }, options.durationMs || DEFAULT_VIEWPORT_ANIMATION_MS);
+    animateViewportTo(
+      { scale: targetScale, tx: targetTx, ty: targetTy },
+      options.durationMs || DEFAULT_VIEWPORT_ANIMATION_MS,
+      undefined,
+      options.cinematic
+        ? { cinematic: true, focusPoint: { x: focusRect.x + viewportWidth / 2, y: focusRect.y + viewportHeight / 2 } }
+        : undefined,
+    );
     return;
   }
 
@@ -2299,9 +2317,10 @@ function viewportAnimationAlreadyHeadedTo(targetViewport) {
     && Math.abs(inFlight.ty - targetViewport.ty) < VIEWPORT_ANIMATION_SAME_TARGET_PX;
 }
 
-function animateViewportTo(targetViewport, durationMs, onComplete) {
+function animateViewportTo(targetViewport, durationMs, onComplete, options = {}) {
   const safeDuration = Math.max(MIN_VIEWPORT_ANIMATION_MS, Number(durationMs) || DEFAULT_VIEWPORT_ANIMATION_MS);
-  if (viewportAnimationAlreadyHeadedTo(targetViewport)) return;
+  const cinematic = Boolean(options.cinematic);
+  if (!cinematic && viewportAnimationAlreadyHeadedTo(targetViewport)) return;
   stopViewportAnimation();
 
   const from = {
@@ -2309,6 +2328,31 @@ function animateViewportTo(targetViewport, durationMs, onComplete) {
     tx: state.viewport.tx,
     ty: state.viewport.ty,
   };
+
+  // A normal viewport tween interpolates the transform components directly. That is right for
+  // small refits, but it makes a High Beach -> GPS handoff feel like a hard yank when both the
+  // camera position and scale change at once. The cinematic path interpolates the camera's world
+  // centre and adds a shallow zoom-out arc, like a restrained map fly-to: the route becomes clear
+  // in the middle of the move, then the camera settles into the final walking-radius fit.
+  const focusPoint = options.focusPoint || { x: 0, y: 0 };
+  const fromCenter = cinematic && from.scale > 0
+    ? { x: (focusPoint.x - from.tx) / from.scale, y: (focusPoint.y - from.ty) / from.scale }
+    : null;
+  const targetCenter = cinematic && targetViewport.scale > 0
+    ? { x: (focusPoint.x - targetViewport.tx) / targetViewport.scale, y: (focusPoint.y - targetViewport.ty) / targetViewport.scale }
+    : null;
+  const centreDistancePx = fromCenter && targetCenter
+    ? Math.hypot(
+      (targetCenter.x - fromCenter.x) * Math.min(from.scale, targetViewport.scale),
+      (targetCenter.y - fromCenter.y) * Math.min(from.scale, targetViewport.scale),
+    )
+    : 0;
+  const zoomOutRatio = cinematic
+    ? clamp(0.10 + (centreDistancePx / 900) * 0.045, 0.10, 0.24)
+    : 0;
+  const cinematicScaleFloor = cinematic && state.baseFitScale > 0
+    ? state.baseFitScale * 0.92
+    : 0;
 
   if (
     Math.abs(from.scale - targetViewport.scale) < 0.000001
@@ -2345,9 +2389,19 @@ function animateViewportTo(targetViewport, durationMs, onComplete) {
       ? 4 * progress * progress * progress
       : 1 - Math.pow(-2 * progress + 2, 3) / 2;
 
-    state.viewport.scale = state.viewportAnimationFrom.scale + (state.viewportAnimationTo.scale - state.viewportAnimationFrom.scale) * eased;
-    state.viewport.tx = state.viewportAnimationFrom.tx + (state.viewportAnimationTo.tx - state.viewportAnimationFrom.tx) * eased;
-    state.viewport.ty = state.viewportAnimationFrom.ty + (state.viewportAnimationTo.ty - state.viewportAnimationFrom.ty) * eased;
+    if (cinematic && fromCenter && targetCenter) {
+      const baseScale = from.scale + (targetViewport.scale - from.scale) * eased;
+      const zoomArc = Math.sin(Math.PI * eased) * zoomOutRatio;
+      state.viewport.scale = Math.max(cinematicScaleFloor, baseScale * (1 - zoomArc));
+      const centreX = fromCenter.x + (targetCenter.x - fromCenter.x) * eased;
+      const centreY = fromCenter.y + (targetCenter.y - fromCenter.y) * eased;
+      state.viewport.tx = focusPoint.x - centreX * state.viewport.scale;
+      state.viewport.ty = focusPoint.y - centreY * state.viewport.scale;
+    } else {
+      state.viewport.scale = state.viewportAnimationFrom.scale + (state.viewportAnimationTo.scale - state.viewportAnimationFrom.scale) * eased;
+      state.viewport.tx = state.viewportAnimationFrom.tx + (state.viewportAnimationTo.tx - state.viewportAnimationFrom.tx) * eased;
+      state.viewport.ty = state.viewportAnimationFrom.ty + (state.viewportAnimationTo.ty - state.viewportAnimationFrom.ty) * eased;
+    }
     requestDraw();
 
     if (progress >= 1) {
@@ -7097,7 +7151,12 @@ function alignHeadingUpNavigationViewport(options = {}) {
     const zoomMs = Math.max(MIN_VIEWPORT_ANIMATION_MS, totalMs - panMs);
     animateViewportTo(panViewport, panMs, () => animateViewportTo(targetViewport, zoomMs));
   } else if (options.animate) {
-    animateViewportTo(targetViewport, options.durationMs || HEADING_UP_NAV_ANIMATION_MS);
+    animateViewportTo(
+      targetViewport,
+      options.durationMs || HEADING_UP_NAV_ANIMATION_MS,
+      undefined,
+      options.cinematic ? { cinematic: true, focusPoint: { x: focus.x, y: focusY } } : undefined,
+    );
   } else {
     state.viewport.scale = targetScale;
     state.viewport.tx = targetViewport.tx;
@@ -7430,6 +7489,7 @@ function ensureUserAndSelectionVisible(options = {}) {
   fitToPoints(pointsToFit, false, {
     focusVisibleArea: true,
     animate: shouldAnimate,
+    cinematic: Boolean(options.cinematic),
     durationMs: options.durationMs || 800,
     minScale: state.baseFitScale > 0 ? state.baseFitScale : undefined,
     maxScale: maxScale > 0 ? maxScale : undefined,
@@ -7601,7 +7661,14 @@ function centerOverviewOnUserLocation(options = {}) {
   };
 
   if (options.animate) {
-    animateViewportTo(targetViewport, options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS);
+    animateViewportTo(
+      targetViewport,
+      options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
+      undefined,
+      options.cinematic
+        ? { cinematic: true, focusPoint: { x: focusRect.x + focusRect.width / 2, y: focusRect.y + focusRect.height / 2 } }
+        : undefined,
+    );
     return;
   }
 
@@ -7707,6 +7774,7 @@ function ensureOverviewTargetsVisible(options = {}) {
   if (nearbyNavigationAnchorActive()) {
     alignHeadingUpNavigationViewport({
       animate: Boolean(options.animate),
+      cinematic: Boolean(options.cinematic),
       durationMs: options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
       force: Boolean(options.force),
       stagePanThenZoom: Boolean(options.stagePanThenZoom),
@@ -7723,6 +7791,7 @@ function ensureOverviewTargetsVisible(options = {}) {
       focusVisibleArea: true,
       assumeInspectorOpen: true,
       animate: Boolean(options.animate),
+      cinematic: Boolean(options.cinematic),
       durationMs: options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
       minScale: state.baseFitScale > 0 ? state.baseFitScale : undefined,
       padding: OVERVIEW_FIT_PADDING_PX,
@@ -7732,6 +7801,7 @@ function ensureOverviewTargetsVisible(options = {}) {
     // leave the scale alone rather than fitting nothing.
     centerOverviewOnUserLocation({
       animate: Boolean(options.animate),
+      cinematic: Boolean(options.cinematic),
       durationMs: options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
       focusVisibleArea: true,
     });
