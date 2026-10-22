@@ -10085,6 +10085,29 @@ test("a pin hidden behind a selection is no longer tappable, so the tap is open 
   assert.equal(app.findHit(tap, world).type, "none");
 });
 
+test("selected road navigation removes every background pin from the map lookup", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const selectedRoad = {
+    name: "Forest Road",
+    segments: [[
+      makePoint(app, 51.6501, 0.0501).point,
+      makePoint(app, 51.6504, 0.0504).point,
+    ]],
+  };
+  app.state.roads.push(selectedRoad);
+  app.state.trees.push({ id: "other-tree", ...makePoint(app, 51.6502, 0.0502) });
+  app.state.landmarks.push({ id: "other-place", name: "Other place", ...makePoint(app, 51.6503, 0.0503) });
+  app.state.selected = { type: "road", item: selectedRoad };
+
+  const lookup = app.activeIconLookup();
+  assert.equal(lookup.tree.size, 0, "trees are hidden during road navigation");
+  assert.equal(lookup.landmark.size, 0, "landmarks are hidden during road navigation");
+  assert.equal(lookup.cow.size, 0, "cows are hidden during road navigation");
+  assert.equal(lookup.path.size, 0, "paths are hidden during road navigation");
+  assert.equal(lookup.water.size, 0, "water locations are hidden during road navigation");
+});
+
 // A 2D-context stand-in that records the path it is given, so a test can see what was drawn.
 function recordingContext() {
   const calls = { moveTo: [], lineTo: 0, fillText: [] };
