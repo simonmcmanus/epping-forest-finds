@@ -384,6 +384,14 @@ a.nearest-item {
   line-height: 1.3;
 }
 
+.compass-calibration-banner-enable {
+  flex: 0 0 auto;
+  min-height: 30px;
+  padding: 0 10px;
+  white-space: nowrap;
+  font-size: 0.76rem;
+}
+
 .compass-calibration-banner-dismiss {
   flex: 0 0 auto;
   width: 26px;
