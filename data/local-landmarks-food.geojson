@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Food & Drink",
-  "generatedAt": "2026-10-19T05:53:24.116066Z",
+  "generatedAt": "2026-10-22T05:52:40.682911Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -45699,6 +45699,41 @@
         "address": "Ground Floor 365 Hoe Street, Walthamstow, London, E17 9AP",
         "openingHours": null,
         "distanceToForestBoundaryMetres": 464.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "ledgerUrl": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/bellevue",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.053141,
+          51.645071
+        ]
+      },
+      "properties": {
+        "id": "manual/bellevue",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Bellevue",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "153 High Road, Loughton, Essex, IG10 4LF",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 28.0,
         "distanceLimitFromForestBoundaryMetres": 466.7,
         "ledgerUrl": null
       }
