@@ -9,26 +9,57 @@
   <p>Refreshing the app cache…</p>
   <script>
     (async () => {
-      try {
-        if ("serviceWorker" in navigator) {
-          const registrations = await navigator.serviceWorker.getRegistrations();
-          await Promise.all(registrations.map((registration) => registration.unregister()));
+      // A controlled page already has the current worker available to do the safe, transactional
+      // data refresh. Ask it to revalidate instead of deleting the offline shell underneath the
+      // reader; the old delete-first recovery was especially surprising when the connection was
+      // slow or the browser was offline. The request id also lets this page wait for completion
+      // before redirecting, so the normal app boot cannot race the refresh.
+      const controller = "serviceWorker" in navigator ? navigator.serviceWorker.controller : null;
+      if (controller && "serviceWorker" in navigator) {
+        await new Promise((resolve) => {
+          const requestId = `nuke-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+          let timer;
+          const finish = () => {
+            clearTimeout(timer);
+            navigator.serviceWorker.removeEventListener("message", onMessage);
+            resolve();
+          };
+          const onMessage = (event) => {
+            if (event.data?.type === "DATA_SYNC_COMPLETE" && event.data.requestId === requestId) finish();
+          };
+          navigator.serviceWorker.addEventListener("message", onMessage);
+          timer = setTimeout(finish, 20_000);
+          try {
+            controller.postMessage({ type: "SYNC_DATA", force: true, requestId });
+          } catch {
+            finish();
+          }
+        });
+      } else {
+        // There is no active worker to refresh on a first visit or after a failed registration.
+        // Only in that recovery case is it useful to remove an abandoned cache; a controlled
+        // offline app must never lose its working shell just because this URL was opened.
+        try {
+          if ("serviceWorker" in navigator) {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(registrations.map((registration) => registration.unregister()));
+          }
+        } catch (error) {
+          console.error(error);
         }
-      } catch (error) {
-        console.error(error);
-      }
 
-      try {
-        if ("caches" in window) {
-          const names = await caches.keys();
-          await Promise.all(
-            names
-              .filter((name) => name.startsWith("forest-finds-"))
-              .map((name) => caches.delete(name))
-          );
+        try {
+          if ("caches" in window) {
+            const names = await caches.keys();
+            await Promise.all(
+              names
+                .filter((name) => name.startsWith("forest-finds-"))
+                .map((name) => caches.delete(name))
+            );
+          }
+        } catch (error) {
+          console.error(error);
         }
-      } catch (error) {
-        console.error(error);
       }
 
       const current = new URL(window.location.href);
