@@ -1456,10 +1456,14 @@ function showCombinedConsentBanner() {
 function nukeIfRequested() {
   const url = new URL(window.location.href);
   if (url.searchParams.get("nuke") !== "true") return false;
-  url.searchParams.delete("nuke");
-  window.history.replaceState(null, "", url);
-  if (!navigator.onLine) return false;
-  refreshCachedState("all");
+
+  // A stale service worker can serve this app shell before the current app code is available.
+  // Hand the request to the uncached recovery page so it can unregister that worker and delete
+  // its caches before returning to the requested route.
+  const recovery = new URL("/nuke.html", window.location.origin);
+  recovery.search = url.search;
+  recovery.hash = url.hash;
+  window.location.replace(recovery.href);
   return true;
 }
 
