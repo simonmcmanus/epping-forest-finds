@@ -1301,6 +1301,7 @@ test("tiltAllowedForCurrentScreen allows 3D on every screen, with no exceptions"
 
 test("tiltRotateXDeg returns 0 without a real location", () => {
   resetData(app);
+  app.state.userLocation = null;
   app.state.compassHeading = null;
   app.state.tiltBetaSmoothed = 60;
   assert.equal(app.tiltRotateXDeg(), 0, "no rotation when heading-up inactive");
