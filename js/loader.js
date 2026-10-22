@@ -157,8 +157,8 @@ async function loadMapData() {
 
   // Each dataset is useful on its own. The old loader joined every request here, which meant a
   // 43 MB environment file or a slow road request held back a shop-only view even though the
-  // food landmarks were already available. Fetch every source in parallel, but resolve the
-  // interactive bootstrap after the forest outline and the URL's own category data arrive.
+  // food landmarks were already available. Fetch every source in parallel and let each response
+  // update the already-visible map independently.
   const notifyInteractiveDataChange = () => {
     if (!state.dataLoaded) return;
     state.bounds = calculateBounds();
