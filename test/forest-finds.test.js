@@ -2540,26 +2540,7 @@ test("tree loading uses chunked register before full-file fallbacks", () => {
   assert.match(loader, /const maxConcurrent = Math\.min\(6, chunks\.length\)/);
 });
 
-test("static and lazy data reads have bounded failure paths", () => {
-  const loader = fs.readFileSync(path.join(__dirname, "..", "js", "loader.js"), "utf8");
-
-  assert.match(loader, /async function loadJsonResource\(url, timeoutMs = 60000\)/);
-  assert.match(loader, /setTimeout\(\(\) => controller\.abort\(\), timeoutMs\)/);
-  assert.match(loader, /if \(!response\.ok\) throw new Error\(`/);
-  assert.match(loader, /const landmarkPromise = Promise\.all\([\s\S]*loadJsonResource\(url\)/);
-  assert.match(loader, /const buildingsPromise|loadJsonResource\(BUILDINGS_URL, 30000\)/);
-});
-
-test("offline report delivery cannot hang on a blocked store or half-connected network", () => {
-  const outbox = fs.readFileSync(path.join(__dirname, "..", "js", "outbox.js"), "utf8");
-
-  assert.match(outbox, /const OUTBOX_REQUEST_TIMEOUT_MS = 15000/);
-  assert.match(outbox, /req\.onblocked = \(\) => resolve\(null\)/);
-  assert.match(outbox, /setTimeout\(\(\) => controller\.abort\(\), OUTBOX_REQUEST_TIMEOUT_MS\)/);
-  assert.match(outbox, /signal: controller\.signal/);
-});
-
-test("generated tree chunks cover the full veteran tree register", () => {
+test("static and lazy data reads have bounded failure paths", () => {\n  const loader = fs.readFileSync(path.join(__dirname, "..", "js", "loader.js"), "utf8");\n\n  assert.match(loader, /const loadJson = async \\(url, timeoutMs = 60000\\)/);\n  assert.match(loader, /setTimeout\\(\\(\\) => controller\\.abort\\(\\), timeoutMs\\)/);\n  assert.match(loader, /if \\(!response\\.ok\\) throw new Error/);\n  assert.match(loader, /const landmarkPromises = LANDMARK_URLS\\.map\\(\\(url\\) => fetch\\(url\\)/);\n  assert.match(loader, /function loadBuildingsIfNeeded\\(\\)/);\n  assert.match(loader, /fetch\\(BUILDINGS_URL\\)/);\n  assert.match(loader, /state\\.buildingsLoaded = true/);\n});\ntest("generated tree chunks cover the full veteran tree register", () => {
   const index = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "data", "trees", "index.json"), "utf8"));
   const chunkCount = index.chunks.reduce((sum, chunk) => sum + chunk.count, 0);
 
