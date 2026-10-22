@@ -1250,11 +1250,12 @@ test("nearby heading-up fit is established from GPS alone, so acquiring a compas
   assert.ok(Math.abs(app.state.viewport.ty - beforeHeading.ty) < 0.001, "pan must not jump once a heading arrives");
 });
 
-test("tiltActive returns false when heading-up is not active", () => {
+test("tiltActive can respond to pitch before heading-up is active when a real location exists", () => {
   resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = null;
   app.state.tiltBetaSmoothed = 45;
-  assert.equal(app.tiltActive(), false, "tilt requires heading-up to be active");
+  assert.equal(app.tiltActive(), true, "pitch should not wait for a compass heading");
 });
 
 test("tiltActive returns false when phone is nearly flat (beta below threshold)", () => {
@@ -1298,7 +1299,7 @@ test("tiltAllowedForCurrentScreen allows 3D on every screen, with no exceptions"
   assert.equal(app.tiltAllowedForCurrentScreen(), true, "selected-item navigation should allow 3D");
 });
 
-test("tiltRotateXDeg returns 0 when tilt is not active", () => {
+test("tiltRotateXDeg returns 0 without a real location", () => {
   resetData(app);
   app.state.compassHeading = null;
   app.state.tiltBetaSmoothed = 60;
@@ -8795,7 +8796,7 @@ test("a beta-only orientation event restarts the smoothing loop so 3D keeps resp
   assert.notEqual(app.state.compassAnimationFrame, null, "and the loop that smooths it is running");
 });
 
-test("a beta-only orientation event does not spin the loop when there is no trusted heading", () => {
+test("a beta-only orientation event starts the tilt loop even without a trusted heading", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.665, 0.045);
   app.state.compassHeading = null;
@@ -8805,7 +8806,7 @@ test("a beta-only orientation event does not spin the loop when there is no trus
   app.onDeviceOrientation({ alpha: null, beta: 55 });
 
   assert.equal(app.state.tiltBetaTarget, 55);
-  assert.equal(app.state.compassAnimationFrame, null, "nothing to smooth without a heading");
+  assert.notEqual(app.state.compassAnimationFrame, null, "pitch still needs a smoothing loop without a heading");
 });
 
 test("changing the browse anchor outside setNearbyAnchor still moves the camera with it", () => {
