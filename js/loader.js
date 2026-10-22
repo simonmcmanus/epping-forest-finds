@@ -307,10 +307,10 @@ async function loadMapData() {
     }));
 
   const allLandmarkAndAuxiliaryPromises = [...landmarkPromises, folklorePromise, eventsPromise];
+  const placesPromise = Promise.all([businessSlugsPromise, ...allLandmarkAndAuxiliaryPromises]);
   const backgroundPromise = Promise.all([
     treePromise,
-    businessSlugsPromise,
-    ...allLandmarkAndAuxiliaryPromises,
+    placesPromise,
     pathsPromise,
     roadsPromise,
     environmentPromise,
@@ -328,7 +328,7 @@ async function loadMapData() {
   // service-worker cache; it also meant a filtered landing page could not show its own category
   // while unrelated layers were still downloading.
   state.bounds = calculateBounds();
-  return { treePromise, environmentPromise, backgroundPromise };
+  return { treePromise, placesPromise, environmentPromise, backgroundPromise };
 }
 
 function loadBuildingsIfNeeded() {
