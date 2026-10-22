@@ -227,35 +227,46 @@ function draw() {
   const width = els.canvas.width;
   const height = els.canvas.height;
   const animatedEmojiScale = updateAnimatedEmojiScale();
-  const nearbyIconLookup = activeIconLookup();
-  const treeClusters = buildTypeClusters(nearbyIconLookup.tree, worldToScreen);
-  const landmarkClusters = buildLandmarkClusters(nearbyIconLookup.landmark, worldToScreen);
-  const cowClusters = buildTypeClusters(nearbyIconLookup.cow, worldToScreen);
-  const pathClusters = buildTypeClusters(nearbyIconLookup.path, worldToScreen);
-  const waterClusters = buildTypeClusters(nearbyIconLookup.water, worldToScreen);
-  // Expanding a cluster narrows nearbyIconLookup (buildNearbyIconLookup, above) down to that
-  // group's own items and nothing else -- but it deliberately does *not* force every one of them
-  // into its own singleton pin any more. A tap that zoomed into, say, 100 items piled at one spot
-  // used to unconditionally flatten all 100 into individual pins regardless of how much screen
-  // space the zoom actually bought them, which was just as dense and just as hard to use as the
-  // pile-up it replaced. Re-running the ordinary clustering passes on the narrowed set instead
-  // lets it re-cluster naturally at the new zoom: items that spread apart on screen become
-  // individual pins, items still close together become a smaller sub-cluster (mega or
-  // same-category) the user can tap into again, one level deeper, the same way they got here.
-  const megaGroups = buildSuperClusters([
-    { itemType: "tree", clusters: treeClusters },
-    { itemType: "landmark", clusters: landmarkClusters },
-    { itemType: "cow", clusters: cowClusters },
-    { itemType: "path", clusters: pathClusters },
-    { itemType: "water", clusters: waterClusters },
-  ]).filter(group => group.length >= megaClusterMinMembersFor(group));
-  const megaClusterSet = new Set();
-  for (const group of megaGroups) for (const member of group) megaClusterSet.add(member.cluster);
-  const filteredTreeClusters = treeClusters.filter(c => !megaClusterSet.has(c));
-  const filteredLandmarkClusters = landmarkClusters.filter(c => !megaClusterSet.has(c));
-  const filteredCowClusters = cowClusters.filter(c => !megaClusterSet.has(c));
-  const filteredPathClusters = pathClusters.filter(c => !megaClusterSet.has(c));
-  const filteredWaterClusters = waterClusters.filter(c => !megaClusterSet.has(c));
+  // During heading-up/tilt movement every pin is drawn through drawOverlay(), where it is
+  // projected and depth-sorted against the live camera. Rebuilding the main-canvas clusters as
+  // well was pure duplicate work: on a populated forest map it was enough to make the sensor
+  // loop visibly paint in steps. Keep the flat-map clustering path intact, but defer it until we
+  // know the main canvas will actually draw pins.
+  const useOverlayForPins = (typeof nearbyHeadingUpActive === "function" && nearbyHeadingUpActive())
+    || (typeof tiltActive === "function" && tiltActive());
+  let nearbyIconLookup = null;
+  let megaGroups = [];
+  let filteredTreeClusters = [];
+  let filteredLandmarkClusters = [];
+  let filteredCowClusters = [];
+  let filteredPathClusters = [];
+  let filteredWaterClusters = [];
+  if (!useOverlayForPins) {
+    nearbyIconLookup = activeIconLookup();
+    const treeClusters = buildTypeClusters(nearbyIconLookup.tree, worldToScreen);
+    const landmarkClusters = buildLandmarkClusters(nearbyIconLookup.landmark, worldToScreen);
+    const cowClusters = buildTypeClusters(nearbyIconLookup.cow, worldToScreen);
+    const pathClusters = buildTypeClusters(nearbyIconLookup.path, worldToScreen);
+    const waterClusters = buildTypeClusters(nearbyIconLookup.water, worldToScreen);
+    // Expanding a cluster narrows nearbyIconLookup (buildNearbyIconLookup, above) down to that
+    // group's own items and nothing else -- but it deliberately does *not* force every one of them
+    // into its own singleton pin any more. Re-running the ordinary clustering passes on the
+    // narrowed set lets dense expanded groups keep offering the next level of clustering.
+    megaGroups = buildSuperClusters([
+      { itemType: "tree", clusters: treeClusters },
+      { itemType: "landmark", clusters: landmarkClusters },
+      { itemType: "cow", clusters: cowClusters },
+      { itemType: "path", clusters: pathClusters },
+      { itemType: "water", clusters: waterClusters },
+    ]).filter(group => group.length >= megaClusterMinMembersFor(group));
+    const megaClusterSet = new Set();
+    for (const group of megaGroups) for (const member of group) megaClusterSet.add(member.cluster);
+    filteredTreeClusters = treeClusters.filter(c => !megaClusterSet.has(c));
+    filteredLandmarkClusters = landmarkClusters.filter(c => !megaClusterSet.has(c));
+    filteredCowClusters = cowClusters.filter(c => !megaClusterSet.has(c));
+    filteredPathClusters = pathClusters.filter(c => !megaClusterSet.has(c));
+    filteredWaterClusters = waterClusters.filter(c => !megaClusterSet.has(c));
+  }
   ctx.clearRect(0, 0, width, height);
   drawBase(ctx, width, height);
 
