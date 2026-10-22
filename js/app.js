@@ -1588,6 +1588,11 @@ async function boot() {
     state.bounds = calculateBounds();
     fitToBounds();
     state.dataLoaded = true;
+    // The map must not wait for a first-run location prompt or a GPS timeout. Those are useful
+    // for centring the later reveal, but the forest outline is already drawable now and should
+    // be visible immediately on a cold load as well as on a refresh.
+    els.mapStage?.classList.add("map-revealed");
+    requestDraw();
     // Once the first useful map data is available, turn even the installed-app splash into the
     // same non-blocking progress strip used by browser tabs. The map and the requested category
     // can now be used while roads, water, trees and the other locations continue in the background.
