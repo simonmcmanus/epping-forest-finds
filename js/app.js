@@ -5091,6 +5091,7 @@ function completeCompassCalibration(heading) {
   state.compassCalibrationSamples = [];
   state.compassCalibrationStartedAt = null;
   stopCalibrationViewportSync();
+  hideCompassPermissionPrompt();
   hideCompassCalibrationPrompt();
   startCompassSmoothing();
 }
@@ -5243,7 +5244,9 @@ function startCompassSmoothing() {
     _overlapRectCache = undefined;
     _tiltProjectionCache = undefined;
     _nearbyRenderOriginCache = undefined;
-    if (!Number.isFinite(state.compassHeadingTarget) || !Number.isFinite(state.compassHeading)) {
+    const hasHeading = Number.isFinite(state.compassHeadingTarget) && Number.isFinite(state.compassHeading);
+    const hasBetaWork = Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) >= 0.05;
+    if (!hasHeading && !hasBetaWork) {
       state.compassAnimationFrame = null;
       state.compassAnimationTime = null;
       return;
@@ -5253,10 +5256,12 @@ function startCompassSmoothing() {
     const dt = Math.min(0.05, Math.max(0.001, (timestamp - previousTime) / 1000));
     state.compassAnimationTime = timestamp;
 
-    const delta = shortestCompassDelta(state.compassHeading, state.compassHeadingTarget);
-    const smoothing = 1 - Math.exp(-14 * dt);
-    const nextHeading = state.compassHeading + (delta * smoothing);
-    state.compassHeading = nextHeading;
+    if (hasHeading) {
+      const delta = shortestCompassDelta(state.compassHeading, state.compassHeadingTarget);
+      const smoothing = 1 - Math.exp(-14 * dt);
+      const nextHeading = state.compassHeading + (delta * smoothing);
+      state.compassHeading = nextHeading;
+    }
 
     // Slower than the compass heading filter above (rate 14): beta gates pin/pointer
     // collapse (tiltInfluence) as well as the rotateX camera tilt, and a phone lifts
@@ -5265,8 +5270,10 @@ function startCompassSmoothing() {
     const betaDiff = state.tiltBetaTarget - state.tiltBetaSmoothed;
     state.tiltBetaSmoothed += betaDiff * (1 - Math.exp(-4 * dt));
 
-    updateOverviewDirectionArrows();
-    refreshNearbyListForHeading();
+    if (hasHeading) {
+      updateOverviewDirectionArrows();
+      refreshNearbyListForHeading();
+    }
     updateCompassOverlay();
     const viewportChanged = alignHeadingUpNavigationViewport();
     if (headingUpActive()) {
@@ -5277,11 +5284,19 @@ function startCompassSmoothing() {
       requestDraw();
     }
 
-    const remaining = Math.abs(shortestCompassDelta(state.compassHeading, state.compassHeadingTarget));
+    const remaining = hasHeading
+      ? Math.abs(shortestCompassDelta(state.compassHeading, state.compassHeadingTarget))
+      : 0;
     const lastEventAge = state.compassLastEventAt == null ? Infinity : (timestamp - state.compassLastEventAt);
     const sensorIsActive = lastEventAge < HEADING_UP_SENSOR_ACTIVE_MS;
     const betaSettled = Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) < 0.1;
-    if (remaining < 0.05 && !sensorIsActive && betaSettled) {
+    if (!hasHeading && betaSettled) {
+      if (tiltActive()) requestDraw();
+      state.compassAnimationFrame = null;
+      state.compassAnimationTime = null;
+      return;
+    }
+    if (hasHeading && remaining < 0.05 && !sensorIsActive && betaSettled) {
       state.compassHeading = unwrapAngle(state.compassHeading, state.compassHeadingTarget);
       updateOverviewDirectionArrows();
       refreshNearbyListForHeading();
