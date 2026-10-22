@@ -195,6 +195,12 @@ const REFRESH_SCOPES = {
   all: { buttonId: "refreshAllButton" },
 };
 
+// The worker throttles actual network work to six hours, so this inexpensive foreground check
+// can run often enough to retry a dropped connection and to notice a connection returning while
+// the app is still open. It never runs while the document is hidden.
+const BACKGROUND_DATA_SYNC_CHECK_INTERVAL_MS = 15 * 60 * 1000;
+let backgroundDataSyncListenersBound = false;
+
 function refreshScopeButtons() {
   return Object.keys(REFRESH_SCOPES)
     .map((scope) => document.getElementById(REFRESH_SCOPES[scope].buttonId))
@@ -366,16 +372,30 @@ async function refreshCachedState(scope) {
 }
 
 // Asks the active service worker to revalidate the cached map data out of band (syncData in
-// sw.js). Called once the map is up and interactive rather than during boot, so the freshness
-// pass never competes with the render — the load itself is served entirely from cache, and any
-// genuinely changed file lands quietly afterwards. The worker throttles this internally, so
-// calling it on every load is cheap.
+// sw.js). Called only while the map is visible and interactive, so freshness passes never compete
+// with the render — the load itself is served entirely from cache, and any genuinely changed file
+// lands quietly afterwards. The worker throttles this internally, so foreground checks are cheap.
 function requestBackgroundDataSync(options) {
   if (!("serviceWorker" in navigator)) return;
   if (!navigator.onLine) return;
   const controller = navigator.serviceWorker.controller;
   if (!controller) return; // First load — nothing cached yet to refresh
-  controller.postMessage({ type: "SYNC_DATA", force: Boolean(options && options.force) });
+  try {
+    controller.postMessage({ type: "SYNC_DATA", force: Boolean(options && options.force) });
+  } catch {}
+}
+
+function setupBackgroundDataSync() {
+  if (backgroundDataSyncListenersBound) return;
+  backgroundDataSyncListenersBound = true;
+  const syncWhenVisible = () => {
+    if (document.visibilityState !== "hidden") requestBackgroundDataSync();
+  };
+  document.addEventListener("visibilitychange", syncWhenVisible);
+  window.addEventListener("online", syncWhenVisible);
+  if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("controllerchange", syncWhenVisible);
+  setInterval(syncWhenVisible, BACKGROUND_DATA_SYNC_CHECK_INTERVAL_MS);
+  syncWhenVisible();
 }
 
 // The background sync found newer map data and has already cached it; it only becomes visible

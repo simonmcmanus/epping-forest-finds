@@ -1631,10 +1631,10 @@ async function boot() {
 
     // Everything above was served from the service worker's caches on a return visit, which
     // is what makes the reload instant — but also means nothing here ever noticed newer data
-    // upstream. Now that the map is interactive, ask the worker to revalidate its cached
-    // datasets in the background (syncData in sw.js); anything that actually changed is
-    // picked up on the next load, and Settings says so.
-    requestBackgroundDataSync();
+    // upstream. Now that the map is interactive, start the foreground-visible refresh loop. The
+    // worker throttles network work internally; this also retries after a connection returns while
+    // the app remains open, and community overlay updates are delivered directly to the page.
+    setupBackgroundDataSync();
   } catch (error) {
     console.error(error);
     hideWithFade(els.loadingOverlay);

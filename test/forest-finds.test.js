@@ -5892,6 +5892,19 @@ test("the background data sync revalidates conditionally and only rewrites entri
   assert.match(sw, /type: "DATA_SYNC_COMPLETE"/, "manual refreshes must receive a completion result");
 });
 
+test("community overlay revalidation updates open clients without waiting for a reload", () => {
+  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
+  const community = fs.readFileSync(path.join(__dirname, "..", "js", "community.js"), "utf8");
+
+  assert.match(sw, /async function communityResponseChanged\(cached, fresh\)/, "community responses must be compared before notifying clients");
+  assert.match(sw, /type: "COMMUNITY_UPDATED", data/, "the worker must send fresh community data to open clients");
+  assert.match(community, /event\.data\?\.type === "COMMUNITY_UPDATED"/, "the page must listen for fresh community data");
+  assert.match(community, /communityApplyOverlay\(event\.data\.data\)/, "the page must apply the fresh overlay without a reload");
+  assert.match(community, /function setupCommunityOverlayRefresh\(\)/, "the page must periodically request community updates while open");
+  assert.match(community, /COMMUNITY_OVERLAY_REFRESH_INTERVAL_MS/, "community refreshes must be bounded");
+  assert.match(community, /window\.addEventListener\("online"/, "community refreshes must retry when connectivity returns");
+});
+
 test("a service worker update waits for an explicit activation request", () => {
   const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
   const installMatch = sw.match(/self\.addEventListener\("install",[\s\S]*?\n\}\);/);
@@ -5905,8 +5918,8 @@ test("the app asks for a background data sync only after the map is up, never du
   const source = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
   const navSource = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
 
-  const syncIdx = source.indexOf("requestBackgroundDataSync()");
-  assert.ok(syncIdx !== -1, "boot must request a background data sync");
+  const syncIdx = source.indexOf("setupBackgroundDataSync()");
+  assert.ok(syncIdx !== -1, "boot must set up background data sync");
   assert.ok(
     syncIdx > source.indexOf("showFilterHintIfFirstVisit();"),
     "the sync must be requested after the map is interactive, so it never competes with the first render"
@@ -5918,6 +5931,11 @@ test("the app asks for a background data sync only after the map is up, never du
   assert.match(fn, /if \(!navigator\.onLine\) return;/, "must not attempt a sync while offline");
   assert.match(fn, /navigator\.serviceWorker\.controller/, "must go through the controlling worker");
   assert.match(fn, /postMessage\(\{ type: "SYNC_DATA"/, "must send the worker's sync message");
+  assert.match(navSource, /function setupBackgroundDataSync\(\)/, "must set up a foreground refresh loop");
+  assert.match(navSource, /BACKGROUND_DATA_SYNC_CHECK_INTERVAL_MS/, "foreground refreshes must be bounded");
+  assert.match(navSource, /visibilitychange/, "must refresh when the app becomes visible");
+  assert.match(navSource, /window\.addEventListener\("online"/, "must retry when connectivity returns");
+  assert.match(source, /setupBackgroundDataSync\(\)/, "boot must start background refresh after the map is interactive");
 });
 
 test("service worker uses a network-first strategy in local dev so edits show up without a CACHE_NAME bump", () => {

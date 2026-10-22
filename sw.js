@@ -492,6 +492,17 @@ async function notifyDataUpdated(changed) {
   clients.forEach((client) => client.postMessage({ type: "DATA_UPDATED", changed }));
 }
 
+async function communityResponseChanged(cached, fresh) {
+  if (!cached) return true;
+  const [cachedText, freshText] = await Promise.all([cached.clone().text(), fresh.clone().text()]);
+  return cachedText !== freshText;
+}
+
+async function notifyCommunityUpdated(data) {
+  const clients = await self.clients.matchAll({ includeUncontrolled: true });
+  clients.forEach((client) => client.postMessage({ type: "COMMUNITY_UPDATED", data }));
+}
+
 self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") {
     self.skipWaiting();
@@ -546,8 +557,12 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       caches.open(COMMUNITY_CACHE_NAME).then(async (cache) => {
         const cached = await cache.match(event.request);
-        const fromNetwork = fetch(event.request).then((response) => {
-          if (response.ok) cache.put(event.request, response.clone());
+        const fromNetwork = fetch(event.request).then(async (response) => {
+          if (!response.ok) return response;
+          const changed = !cached || await communityResponseChanged(cached, response);
+          const data = await response.clone().json().catch(() => null);
+          await cache.put(event.request, response.clone());
+          if (changed && data) await notifyCommunityUpdated(data);
           return response;
         });
         if (cached) {
