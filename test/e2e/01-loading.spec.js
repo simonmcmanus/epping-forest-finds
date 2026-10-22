@@ -19,6 +19,8 @@ test.describe("Loading experience", () => {
     });
     await page.goto("/nearby");
     await expect(page.locator("#loadingOverlay")).toBeVisible();
+    await expect(page.locator("#loadingOverlay")).toHaveClass(/inline/);
+    await expect(page.locator("#mapCanvas")).toBeVisible();
     releasePlaces();
   });
 
