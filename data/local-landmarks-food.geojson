@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Food & Drink",
-  "generatedAt": "2026-10-22T05:52:40.682911Z",
+  "generatedAt": "2026-10-23T06:01:34.771051Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -40255,7 +40255,7 @@
         "website": "https://thebakineer.com/",
         "phone": null,
         "address": "38 King's Road London E4 7JE",
-        "openingHours": null,
+        "openingHours": "We-Th 11:00-19:00",
         "distanceToForestBoundaryMetres": 4.5,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
