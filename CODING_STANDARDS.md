@@ -26,6 +26,8 @@ behavioural and operational rules remain in `spec/agents.md` and the relevant
   rewriting unrelated files.
 - Reviewers should report actionable correctness, security, reliability, and
   maintainability issues rather than formatting preferences or speculation.
+- Prefer findings that identify a concrete failure mode and a practical fix over
+  broad recommendations.
 
 For testing, CI, specification synchronisation, cache markers, visual snapshots,
 and pull-request evidence, follow `spec/agents.md` and the relevant product spec.
