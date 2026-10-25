@@ -8206,6 +8206,11 @@ function normalizeCowApiData(payload) {
 function refreshSelectedDetailForCows() {
   const selected = state.selected;
   if (!selected || !selected.item || (selected.type !== "tree" && selected.type !== "landmark")) return;
+  // Only while the inspector is still showing that detail (its Nearest section is on screen): a
+  // reader who has since moved to Settings, a form or a list is left where they are.
+  const showingDetail = els.inspectorBody
+    && Array.from(els.inspectorBody.querySelectorAll(".detail-section-heading")).some((heading) => heading.textContent.trim() === "Nearest");
+  if (!showingDetail) return;
   const route = SELECTION_ROUTES.find((entry) => entry.type === selected.type);
   if (route) route.show(selected.item);
 }

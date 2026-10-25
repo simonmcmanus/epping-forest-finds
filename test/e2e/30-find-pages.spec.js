@@ -551,6 +551,18 @@ test.describe("generated find/nearby pages", () => {
       await expect(cowsLink).toHaveCount(1);
     });
 
+    test("late cow positions do not pull the reader back from another screen to the open place", async ({ page }) => {
+      await setup(page, `/find/${EXAMPLE_PUB.slug}/`);
+      await expect.poll(() => page.evaluate(() => state.selected != null && state.cows.length > 0)).toBe(true);
+      await page.evaluate(() => {
+        window.__loadedCows = { cows: state.cows, pastures: state.cowPastures, updatedAt: state.cowLastUpdatedAt };
+        applyCowData([], [], null, { persist: false });
+        els.inspectorBody.innerHTML = '<p id="otherScreen">Another screen</p>';
+        applyCowData(window.__loadedCows.cows, window.__loadedCows.pastures, window.__loadedCows.updatedAt, { persist: false });
+      });
+      await expect(page.locator("#otherScreen")).toHaveCount(1);
+    });
+
     test("a water feature's link on /nearby/ponds-streams/ selects that exact feature live, through the app's own #water= deep link -- no separate mechanism of its own", async ({ page }) => {
       await gotoAndWaitForMap(page, `/nearby/ponds-streams/#water=${encodeURIComponent(EXAMPLE_WATER.key)}`);
       await expect.poll(() => page.evaluate(() => state.selected != null)).toBe(true);
