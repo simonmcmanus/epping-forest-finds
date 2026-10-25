@@ -1,15 +1,6 @@
 ## Summary
 
-<!-- Describe the change and its user impact. Add a small diagram, call tree,
-     file tree, or focused diff sketch when it makes the change easier to review. -->
-
-## Evidence
-
-<!-- Show concrete before/after evidence: tests, command output, screenshots, or
-     a precise explanation when the change has no visible effect. -->
-
-- **Before:**
-- **After:**
+<!-- Describe the change and its user impact. -->
 
 ## Visual changes
 
@@ -25,15 +16,6 @@
 - [ ] Unit tests passed (`npm run test:unit`)
 - [ ] Relevant browser coverage passed
 - [ ] Spec updated, or this is implementation/data-only
-
-## Merge danger
-
-<!-- Is this a one-way or two-way door? State the blast radius in one word and
-     mention any migration, data, deployment, or rollback risk. -->
-
-**Door:**
-
-**Blast radius:**
 
 ## Deploy preview
 
