@@ -107,6 +107,30 @@ Before finishing any implementation task:
 
 ### CI is the verdict, and the PR is how you get it
 
+#### Automated Codex review
+
+`.github/workflows/codex-review.yml` runs the read-only Codex review on every
+non-draft pull request when it is opened, updated, reopened, or marked ready for
+review. It runs from `pull_request_target` using the base branch and obtains the
+PR diff through read-only GitHub operations, so fork-controlled workflow code is
+not executed and fork PRs can still receive a review. The job has only
+`contents: read` and `pull-requests: write` permissions and must never modify,
+approve, merge, or close a PR.
+
+The review rubric lives in `.codex/review.md`. It keeps Standards and Spec as
+separate review axes, then checks correctness, security, tests, spec
+synchronisation, performance, and repository invariants, reporting only
+actionable P0-P3 findings. The review comment carries a stable
+`<!-- codex-review -->` marker so updates should replace the prior review rather
+than creating an unbounded comment stream. The repository secret
+`OPENAI_API_KEY` must be configured before the workflow can run.
+
+The selected AI Hero skills are installed for Codex under `.agents/skills/` and
+locked in `skills-lock.json`: `code-review`, `pr`, `tdd`, `retro`, and
+`setup-matt-pocock-skills`. The first three shape review, PR evidence, and
+test-first work; `retro` and `setup-matt-pocock-skills` remain user-invoked
+because they change the agent environment or require repository decisions.
+
 **Open the PR as soon as the work is pushed, and let its `E2E tests` shards and `Visual
 snapshots (mobile)` be the one full run of the suite.** CI only fires on `pull_request` (plus a
 push to `main` and a manual dispatch), so a branch pushed without a PR gets no checks at all —
