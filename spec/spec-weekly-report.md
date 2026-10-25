@@ -6,13 +6,10 @@ generator owns the design, layout and SVG map; the
 research and the written findings come from the weekly workflow
 (`.github/workflows/weekly-ledger.yml`).
 
-The workflow's cron is currently nightly rather than weekly (temporary, from
-2026-09-30) while the business-detection data is being brought up to scratch —
-see the "NOTE on cadence" comment above `on:` in the workflow file. Nothing
-below this changes because of it: the report file name and PR branch are
-already keyed by calendar date, and `business_watch`'s escalation counts runs,
-not weeks, so it just reaches confidence sooner. Revert the cron once the data
-settles.
+The workflow's cron runs weekly, Mondays at 01:00 UTC. The report file name and
+PR branch are keyed by calendar date, and `business_watch`'s escalation counts
+runs, not weeks, so a change of cadence only changes how fast a repeating signal
+reaches confidence.
 
 ## Keeping the map's businesses current
 
@@ -33,18 +30,18 @@ enough to act on: a restaurant that closed in 2024 and a pub that closed in
 2023 were both still drawn on the map two years later. The detection now has
 memory and an outcome.
 
-**One open ledger PR at a time.** The workflow runs nightly and auto-merge is
-disabled, so a previous run's `weekly-data-report/*` PR is often still open
-when the next run starts. Branching fresh from `main` every night would let
+**One open ledger PR at a time.** Auto-merge is
+disabled, so a previous run's `weekly-data-report/*` PR can still be open
+when the next run starts. Branching fresh from `main` every run would let
 two open PRs edit the same data files independently, so whichever merged
 second would conflict with the first. Instead, the HOUSEKEEPING step in the
 workflow prompt looks for an already-open PR whose branch changed a `data/`
 file (closing any empty leftover from a prior attempt) and, if one exists,
-checks it out, merges current `main` into it, and applies that night's
+checks it out, merges current `main` into it, and applies that run's
 changeset on top of it rather than starting a new branch — pushing to the
 same branch and folding the new findings into the same PR body (via `gh pr
 edit`) rather than opening a second one. A night with no new candidates still
-commits `data/business-watch.json`'s updated patience count and that night's
+commits `data/business-watch.json`'s updated patience count and that run's
 report onto the open PR rather than skipping it. Only when no such PR is open
 does a run branch from `main` and call `gh pr create`. This keeps Simon with
 exactly one weekly-report PR to review and merge at any time, however many
