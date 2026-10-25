@@ -98,7 +98,7 @@ const TILT_HORIZON_REFERENCE_TAN = Math.tan(TILT_ROTATEX_MAX * Math.PI / 180);
 // Smallest rotateX difference between the drawn main canvas and the live camera worth a
 // redraw for (see tiltRenderStale). Small enough that no drift is visible, large enough that
 // sensor noise on a phone held still doesn't repaint the map every frame.
-const TILT_RENDER_STALE_DEG = 0.05;
+const TILT_RENDER_STALE_DEG = 0.25;
 const TILT_NEAR_PLANE_RATIO = 0.98; // fraction of the camera distance the near clip sits at — see tiltProjectOffsets
 // Perspective scale below which ground is deep enough into the horizon haze to be
 // invisible, and so not worth drawing. Bounds how much world the draw loop walks in 3D
@@ -5016,6 +5016,8 @@ function restartStaleGpsWatch() {
 
 // Constants controlling the "settle before trusting" compass calibration gate below.
 const COMPASS_TARGET_DEADBAND_DEG = 1.5; // raw readings closer than this to the current target are ignored
+const COMPASS_PITCHING_DEADBAND_DEG = 4; // wider heading deadband while beta is still moving
+const BETA_TARGET_DEADBAND_DEG = 1; // raw pitch readings closer than this to the target are ignored
 const COMPASS_SMOOTHING_MIN_RATE = 2.5; // 1/s filter rate for tiny remaining angles (sensor jitter)
 const COMPASS_SMOOTHING_MAX_RATE = 14; // 1/s filter rate for a deliberate turn
 const COMPASS_SMOOTHING_FAST_DEG = 40; // remaining angle at which the full rate applies
@@ -5033,7 +5035,9 @@ function onDeviceOrientation(event) {
   state.orientationLastEventAt = performance.now();
   const rawBeta = event.beta;
   if (Number.isFinite(rawBeta)) {
-    state.tiltBetaTarget = clamp(Math.abs(rawBeta), 0, 90);
+    const nextBeta = clamp(Math.abs(rawBeta), 0, 90);
+    // Deadband: sub-degree pitch wobble would otherwise re-project the tilted map every frame.
+    if (Math.abs(nextBeta - state.tiltBetaTarget) >= BETA_TARGET_DEADBAND_DEG) state.tiltBetaTarget = nextBeta;
     // Beta drives the 3D tilt by itself, but only startCompassSmoothing's loop eases
     // tiltBetaSmoothed toward it. Pitch is useful even while the magnetometer is still
     // calibrating (or when a browser exposes beta but not a north-referenced heading), so the
@@ -5063,8 +5067,11 @@ function onDeviceOrientation(event) {
   if (Number.isFinite(state.compassHeading)) {
     // Already trust a heading -- keep tracking the live target as before.
     // Deadband: sub-degree sensor wobble is not a turn, so it never moves the target.
+    // While the phone is being pitched, heading readings cross-talk with the tilt, so widen it.
+    const pitching = Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) > 1;
+    const deadband = pitching ? COMPASS_PITCHING_DEADBAND_DEG : COMPASS_TARGET_DEADBAND_DEG;
     if (!Number.isFinite(state.compassHeadingTarget)
-        || Math.abs(shortestCompassDelta(state.compassHeadingTarget, heading)) >= COMPASS_TARGET_DEADBAND_DEG) {
+        || Math.abs(shortestCompassDelta(state.compassHeadingTarget, heading)) >= deadband) {
       state.compassHeadingTarget = heading;
     }
     startCompassSmoothing();
