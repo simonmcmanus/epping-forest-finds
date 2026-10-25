@@ -194,16 +194,18 @@ function showUpdateBanner() {
   banner.id = "updateBanner";
   banner.className = "update-banner";
   banner.setAttribute("role", "status");
-  banner.innerHTML = '<span>A new version is ready.</span><button id="updateBannerButton" type="button">Update</button>';
+  banner.innerHTML = '<span class="update-banner-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg></span>'
+    + '<span class="update-banner-text"><strong>Update ready</strong><span>Restart to get the latest version.</span></span>'
+    + '<button id="updateBannerButton" type="button">Restart</button>';
   document.body.appendChild(banner);
   banner.querySelector("button").addEventListener("click", async (event) => {
     const button = event.currentTarget;
     button.disabled = true;
-    button.textContent = "Updating…";
+    button.textContent = "Restarting…";
     const started = (state.swWaiting || state.swUpdateAvailable) ? await applySwUpdate() : (location.reload(), true);
     if (!started) {
       button.disabled = false;
-      button.textContent = "Update";
+      button.textContent = "Restart";
     }
   });
 }
