@@ -74,8 +74,6 @@ jobs:
 
   unit:
     name: Unit tests
-    needs: claude-review
-    if: always()
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -115,8 +113,6 @@ jobs:
     # dependency on cdn.playwright.dev/the apt mirrors that added nothing but risk. Bump this
     # tag only in lockstep with the @playwright/test version in package.json.
     name: E2E tests (${{ matrix.project }}, shard ${{ matrix.shard }})
-    needs: claude-review
-    if: always()
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.61.1-noble
@@ -165,8 +161,6 @@ jobs:
     # That commit starts a fresh CI run against the exact head that reviewers will merge. Fork PRs
     # get the same review images but cannot receive an automatic commit into the fork.
     name: Visual snapshots (desktop + mobile)
-    needs: claude-review
-    if: always()
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.61.1-noble
