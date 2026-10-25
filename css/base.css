@@ -147,7 +147,10 @@ canvas {
   will-change: transform;
 }
 
-/* Pre-reveal veil: covers the canvas with the same backdrop tone .map-stage already shows
+/* A zero-opacity hook retained for the settled reveal class; the map must remain visible while
+   location permission and background datasets are resolving. Covers the canvas with the same
+   backdrop tone only if a future loading state explicitly opts into it.
+   The original reveal transition covered the canvas with the same backdrop tone .map-stage already shows
    through a transparent canvas, then fades away the moment revealMapCenteredOnUser()
    (js/app.js) adds .map-revealed -- the same beat as the inspector's own entrance
    (triggerInspectorEntry) and the camera's animated pan/zoom into place, so the whole first
@@ -175,9 +178,9 @@ canvas {
     linear-gradient(135deg, rgba(229, 236, 226, 0.65), rgba(205, 218, 203, 0.65)),
     rgba(216, 225, 212, 0.65);
   pointer-events: none;
-  opacity: 1;
-  /* Short enough to settle well inside the shortest post-reveal wait any snapshot test uses
-     (02-overview.spec.js's 400ms). */
+  /* The loading strip is the visual progress indicator; keep the map itself unobscured while
+     location permission and background datasets are still resolving. */
+  opacity: 0;
   transition: opacity 0.24s ease;
 }
 

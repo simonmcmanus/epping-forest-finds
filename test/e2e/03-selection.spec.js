@@ -36,6 +36,29 @@ test.describe("Selection and Inspector", () => {
       await expect(page.locator("#inspector")).not.toHaveClass(/minimized/);
     });
 
+    test("navigation drawer shrinks for the map and grows smoothly on arrival", async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      const inspector = page.locator("#inspector");
+      await expect(inspector).toHaveClass(/inspector-navigation/);
+      const navigatingHeight = await inspector.evaluate((el) => el.getBoundingClientRect().height);
+
+      await page.evaluate(() => {
+        const target = state.selected.item;
+        state.userLocation = {
+          latitude: target.latitude,
+          longitude: target.longitude,
+          accuracy: 10,
+          point: projectLonLat(target.longitude, target.latitude),
+        };
+        updateInspectorNavigationHeight();
+      });
+
+      await expect(inspector).toHaveClass(/inspector-navigation-arrived/);
+      await page.waitForTimeout(500);
+      const arrivedHeight = await inspector.evaluate((el) => el.getBoundingClientRect().height);
+      expect(arrivedHeight).toBeGreaterThan(navigatingHeight + 20);
+    });
+
     test("snapshot: tree detail view", async ({ page }, testInfo) => {
       await page.waitForTimeout(600);
       // Stop all canvas animations so Playwright's stability check can pass.

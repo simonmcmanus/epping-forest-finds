@@ -118,6 +118,9 @@ test.describe("Wheel and trackpad input on the Nearby screen", () => {
   // The radius gesture ends on a timeout and settles the camera with an animation, so the scale
   // is only meaningful once it has stopped moving.
   async function settledScale(page) {
+    await expect.poll(() => page.evaluate(() => (
+      state.wheelRadiusSettleTimer == null && state.viewportAnimationFrame == null
+    ))).toBe(true);
     let previous = null;
     await expect.poll(async () => {
       const scale = await page.evaluate(() => state.viewport.scale);

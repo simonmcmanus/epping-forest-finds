@@ -95,7 +95,7 @@ test("renderPage inserts <base href=\"/\"> right after <meta charset>, before an
   // app.html's own relative references are left completely untouched -- <base> is what makes
   // them resolve correctly from /nearby/<slug>/, not a rewrite of the references themselves.
   assert.match(html, /href="css\/base\.css"/);
-  assert.match(html, /src="js\/app\.js"/);
+  assert.match(html, /src="js\/app\.js(?:\?[^"]*)?"/);
 });
 
 test("renderPage produces the real app shell -- same scripts and canvas -- not a separate marketing page", () => {
@@ -103,8 +103,8 @@ test("renderPage produces the real app shell -- same scripts and canvas -- not a
   const html = renderPage(pubs, APP_HTML);
 
   assert.match(html, /id="mapCanvas"/, "the real interactive map canvas is present");
-  assert.match(html, /<script src="js\/app\.js"><\/script>/, "the real app script boots this page");
-  assert.match(html, /<script src="js\/categories\.js"><\/script>/);
+  assert.match(html, /<script src="js\/app\.js(?:\?[^"]*)?"><\/script>/, "the real app script boots this page");
+  assert.match(html, /<script src="js\/categories\.js(?:\?[^"]*)?"><\/script>/);
 });
 
 test("renderPage swaps in the category's own title, canonical, OG and JSON-LD, never the generic /nearby ones", () => {

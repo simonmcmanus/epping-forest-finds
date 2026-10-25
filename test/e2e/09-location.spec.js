@@ -4,6 +4,7 @@ const { setup, skipOnboarding, mockCowApi, gotoAndWaitForMap, settleMapIconsAndD
 
 // A GPS fix inside Epping Forest
 const FOREST_LOCATION = { latitude: 51.6650, longitude: 0.0450, accuracy: 10 };
+const DEFAULT_WALKING_DISTANCE_MINUTES = 5;
 
 test.describe("Location and GPS — happy path", () => {
   test.describe("geolocation granted", () => {
@@ -145,9 +146,46 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("#inspectorType")).toContainText("of High Beach");
     });
 
-    test("the walking radius defaults to 30 minutes, not the ordinary 5, since the anchor isn't tied to anywhere real", async ({ page }) => {
+    test("the walking radius keeps the ordinary 5-minute default while the anchor is temporary", async ({ page }) => {
       const minutes = await page.evaluate(() => state.walkingDistanceMinutes);
-      expect(minutes).toBe(30);
+      expect(minutes).toBe(DEFAULT_WALKING_DISTANCE_MINUTES);
+    });
+
+    test("the High Beach to real-location handoff flies out and settles instead of jolting", async ({ page }) => {
+      const result = await page.evaluate(async () => {
+        stopViewportAnimation();
+        const start = { ...state.viewport };
+        applyLocationFix({
+          coords: { latitude: 51.6650, longitude: 0.0450, accuracy: 10 },
+        });
+        ensureOverviewTargetsVisible({ animate: true, cinematic: true, force: true, durationMs: 900 });
+
+        const scales = [];
+        await new Promise((resolve) => {
+          const sample = () => {
+            scales.push(state.viewport.scale);
+            if (state.viewportAnimationFrame == null) resolve();
+            else requestAnimationFrame(sample);
+          };
+          requestAnimationFrame(sample);
+        });
+        const cinematicEnd = { ...state.viewport };
+        stopViewportAnimation();
+        ensureOverviewTargetsVisible({ animate: false, force: true });
+        const settled = { ...state.viewport };
+        return {
+          startScale: start.scale,
+          endScale: cinematicEnd.scale,
+          minimumScale: Math.min(...scales),
+          settled,
+          cinematicEnd,
+        };
+      });
+
+      expect(result.minimumScale).toBeLessThan(Math.min(result.startScale, result.endScale) * 0.98);
+      expect(result.cinematicEnd.scale).toBeCloseTo(result.settled.scale, 5);
+      expect(result.cinematicEnd.tx).toBeCloseTo(result.settled.tx, 2);
+      expect(result.cinematicEnd.ty).toBeCloseTo(result.settled.ty, 2);
     });
 
     test("there is no duplicate location button, and the \"You\" dot is never drawn for the stand-in", async ({ page }) => {
@@ -230,6 +268,30 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("#locationInviteBanner")).toBeVisible();
       await expect(page.locator("#locationInviteButton")).toBeEnabled();
     });
+  });
+});
+
+test.describe("compass access on motion-permission browsers", () => {
+  test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] });
+
+  test("offers a user-gesture compass action after GPS has already resolved", async ({ page }) => {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await page.addInitScript(() => {
+      if (!window.DeviceOrientationEvent) window.DeviceOrientationEvent = class {};
+      window.DeviceOrientationEvent.requestPermission = () => {
+        window.__forestFindsCompassPermissionRequested = true;
+        return Promise.resolve("granted");
+      };
+    });
+    await gotoAndWaitForMap(page);
+
+    await expect(page.locator("#compassCalibrationBanner")).toBeVisible();
+    await expect(page.locator("#compassCalibrationBannerEnable")).toBeVisible();
+    await page.locator("#compassCalibrationBannerEnable").click();
+    await expect.poll(() => page.evaluate(() => state.compassPermission)).toBe("granted");
+    await expect.poll(() => page.evaluate(() => Boolean(window.__forestFindsCompassPermissionRequested))).toBe(true);
+    await expect(page.locator("#compassCalibrationBanner")).toBeHidden();
   });
 });
 

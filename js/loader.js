@@ -19,24 +19,6 @@ function setLoadStep(key, status, count) {
   }
 }
 
-async function loadJsonResource(url, timeoutMs = 60000) {
-  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-  const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
-  try {
-    const response = await fetch(url, controller ? { signal: controller.signal } : undefined);
-    if (!response.ok) throw new Error(`${url} HTTP ${response.status}`);
-    return response.json();
-  } finally {
-    if (timeoutId != null) clearTimeout(timeoutId);
-  }
-}
-
-function featureCollectionOrEmpty(data) {
-  return data && Array.isArray(data.features)
-    ? data
-    : { type: "FeatureCollection", features: [] };
-}
-
 async function loadMapData() {
   setLoadStep("trees", "loading");
   setLoadStep("places", "loading");
@@ -47,14 +29,26 @@ async function loadMapData() {
 
   const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+  const loadJson = async (url, timeoutMs = 60000) => {
+    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+    try {
+      const response = await fetch(url, controller ? { signal: controller.signal } : undefined);
+      if (!response.ok) throw new Error(`${url} HTTP ${response.status}`);
+      return response.json();
+    } finally {
+      if (timeoutId != null) clearTimeout(timeoutId);
+    }
+  };
+
   const loadTreeDataset = async (url, timeoutMs = 60000) => {
-    const data = await loadJsonResource(url, timeoutMs);
+    const data = await loadJson(url, timeoutMs);
     if (!data || !Array.isArray(data.trees)) throw new Error("Tree data format invalid");
     return data;
   };
 
   const loadTreeChunks = async (indexUrl, timeoutMs = 20000) => {
-    const index = await loadJsonResource(indexUrl, timeoutMs);
+    const index = await loadJson(indexUrl, timeoutMs);
     const chunks = Array.isArray(index && index.chunks) ? index.chunks : [];
     if (chunks.length === 0) throw new Error("Tree chunk index empty");
 
@@ -64,7 +58,7 @@ async function loadMapData() {
     let loadedCount = 0;
 
     const loadChunk = async (chunk) => {
-      const data = await loadJsonResource(chunk.url, 30000);
+      const data = await loadJson(chunk.url, 30000);
       if (!data || !Array.isArray(data.trees)) throw new Error(`Tree chunk invalid: ${chunk.url}`);
       return data.trees;
     };
@@ -161,36 +155,103 @@ async function loadMapData() {
     }
   });
 
-  const landmarkPromise = Promise.all(
-    LANDMARK_URLS.map(url =>
-      loadJsonResource(url)
-        .then(featureCollectionOrEmpty)
-        .catch(() => ({ features: [] }))
-    )
-  ).then(datasets => {
-    const allFeatures = datasets.flatMap(data => data.features || []);
-    setLoadStep("places", "done", allFeatures.length);
-    return { features: allFeatures };
-  }).catch(() => {
-    setLoadStep("places", "error");
-    return { features: [] };
-  });
+  // Each dataset is useful on its own. The old loader joined every request here, which meant a
+  // 43 MB environment file or a slow road request held back a shop-only view even though the
+  // food landmarks were already available. Fetch every source in parallel and let each response
+  // update the already-visible map independently.
+  const notifyInteractiveDataChange = () => {
+    if (!state.dataLoaded) return;
+    state.bounds = calculateBounds();
+    if (!state.selected && !state.filterScreenOpen && !state.searchScreenOpen) {
+      if (findLandingSlug()) applySelectionFromHash(false);
+      else selectOverview();
+    }
+    requestDraw();
+  };
 
-  const folklorePromise = loadJsonResource(FOLKLORE_URL)
-    .catch(() => ({ locations: [] }));
+  const businessById = new Map();
+  const applyBusinessMetadata = (entries) => {
+    for (const entry of entries || []) businessById.set(entry.id, entry);
+    state.landmarks = state.landmarks.map((place) => {
+      const business = businessById.get(place.id);
+      return business ? { ...place, findSlug: business.slug || null, verifiedAt: business.verifiedAt || null } : place;
+    });
+    notifyInteractiveDataChange();
+  };
 
-  // Maps a place's OSM/folklore id to its own /find/<slug>/ page (data/business-slugs.json,
-  // scripts/regenerate-business-slugs.js) for generated landing-page and nearby-link lookups.
-  const businessSlugsPromise = loadJsonResource(BUSINESS_SLUGS_URL)
-    .catch(() => ({ entries: [] }));
-
-  const eventsPromise = loadJsonResource(EVENTS_URL)
-    .catch(() => ({ events: [] }));
-
-  const pathsPromise = loadJsonResource(PATHS_URL)
-    .then(featureCollectionOrEmpty)
+  const businessSlugsPromise = fetch(BUSINESS_SLUGS_URL)
+    .then((r) => (r.ok ? r.json() : { entries: [] }))
+    .catch(() => ({ entries: [] }))
     .then((data) => {
-      setLoadStep("paths", "done", data.features ? data.features.length : 0);
+      applyBusinessMetadata(data.entries);
+      return data;
+    });
+
+  const appendLandmarks = (places) => {
+    if (!places.length) return;
+    state.landmarks = state.landmarks.concat(places);
+    setLoadStep("places", "loading", state.landmarks.length);
+    notifyInteractiveDataChange();
+  };
+
+  const normalizeOsmLandmarks = (data) => (data.features || [])
+    .filter((feature) => feature.geometry && feature.geometry.type === "Point")
+    .map((feature) => {
+      const properties = feature.properties || {};
+      const longitude = Number(feature.geometry.coordinates[0]);
+      const latitude = Number(feature.geometry.coordinates[1]);
+      const business = businessById.get(properties.id);
+      return {
+        ...properties,
+        categoryTags: buildOsmCategoryTags(properties),
+        latitude,
+        longitude,
+        point: projectLonLat(longitude, latitude),
+        findSlug: business?.slug || null,
+        verifiedAt: business?.verifiedAt || null,
+      };
+    });
+
+  const landmarkPromises = LANDMARK_URLS.map((url) => fetch(url)
+    .then((r) => r.ok ? r.json() : { features: [] })
+    .catch(() => ({ features: [] }))
+    .then((data) => {
+      appendLandmarks(normalizeOsmLandmarks(data));
+      return data;
+    }));
+
+  const folklorePromise = fetch(FOLKLORE_URL)
+    .then(async (r) => {
+      if (!r.ok) throw new Error(`Folklore data HTTP ${r.status}`);
+      return r.json();
+    })
+    .catch(() => ({ locations: [] }))
+    .then((data) => {
+      appendLandmarks(normalizeFolkloreLocations(data).map((place) => {
+        const business = businessById.get(place.id);
+        return { ...place, findSlug: business?.slug || null, verifiedAt: business?.verifiedAt || null };
+      }));
+      return data;
+    });
+
+  const eventsPromise = fetch(EVENTS_URL)
+    .then(async (r) => {
+      if (!r.ok) throw new Error(`Events data HTTP ${r.status}`);
+      return r.json();
+    })
+    .catch(() => ({ events: [] }))
+    .then((data) => {
+      appendLandmarks(normalizeEventLocations(data));
+      return data;
+    });
+
+  const pathsPromise = fetch(PATHS_URL)
+    .then(async (r) => {
+      if (!r.ok) throw new Error(`Paths data HTTP ${r.status}`);
+      const data = await r.json();
+      state.paths = (data.features || []).map(toPathFeature).filter(Boolean);
+      setLoadStep("paths", "done", state.paths.length);
+      notifyInteractiveDataChange();
       return data;
     })
     .catch(() => {
@@ -198,10 +259,18 @@ async function loadMapData() {
       return { features: [] };
     });
 
-  const roadsPromise = loadJsonResource(ROADS_URL, 90000)
-    .catch(() => delay(2000).then(() => loadJsonResource(ROADS_URL, 120000)))
-    .then((data) => {
-      setLoadStep("roads", "done", (data.features || []).length);
+  const roadsPromise = loadJson(ROADS_URL, 90000)
+    .catch(() => delay(2000).then(() => loadJson(ROADS_URL, 120000)))
+    .then(async (data) => {
+      const roadFeatures = data.features || [];
+      state.roads = [];
+      const batchSize = 500;
+      for (let i = 0; i < roadFeatures.length; i += batchSize) {
+        state.roads.push(...roadFeatures.slice(i, i + batchSize).map(toRoadFeature).filter(Boolean));
+        if (i + batchSize < roadFeatures.length) await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+      setLoadStep("roads", "done", state.roads.length);
+      notifyInteractiveDataChange();
       return data;
     })
     .catch(() => {
@@ -209,10 +278,14 @@ async function loadMapData() {
       return { features: [] };
     });
 
-  const environmentPromise = loadJsonResource(ENVIRONMENT_URL)
-    .then(featureCollectionOrEmpty)
-    .then((data) => {
-      setLoadStep("environment", "done", data.features ? data.features.length : 0);
+  const environmentPromise = fetch(ENVIRONMENT_URL)
+    .then(async (r) => {
+      if (!r.ok) throw new Error(`Environment data HTTP ${r.status}`);
+      const data = await r.json();
+      state.environmentFeatures = (data.features || []).filter((feature) => feature && feature.geometry && feature.properties);
+      state.waterFeatures = extractWaterFeatures(data.features || []);
+      setLoadStep("environment", "done", state.environmentFeatures.length);
+      notifyInteractiveDataChange();
       return data;
     })
     .catch(() => {
@@ -220,96 +293,51 @@ async function loadMapData() {
       return { features: [] };
     });
 
-  const layerPromises = FEATURE_LAYERS.map((layer) =>
-    loadJsonResource(layer.url)
-      .then((data) => ({ ...layer, data: featureCollectionOrEmpty(data) }))
-      .catch(() => ({ ...layer, data: { type: "FeatureCollection", features: [] } }))
-  );
+  const layerPromises = FEATURE_LAYERS.map((layer) => fetch(layer.url)
+    .then(async (r) => {
+      if (!r.ok) throw new Error(`${layer.label} HTTP ${r.status}`);
+      return { ...layer, data: await r.json() };
+    })
+    .catch(() => ({ ...layer, data: { type: "FeatureCollection", features: [] } }))
+    .then((resolved) => {
+      state.layers = [...state.layers.filter((existing) => existing.key !== resolved.key), resolved]
+        .sort((a, b) => FEATURE_LAYERS.findIndex((layer) => layer.key === a.key) - FEATURE_LAYERS.findIndex((layer) => layer.key === b.key));
+      notifyInteractiveDataChange();
+      return resolved;
+    }));
 
-  const [landmarkData, folkloreData, eventsData, pathsData, roadsData, environmentData, businessSlugsData, ...resolvedLayers] = await Promise.all([
-    landmarkPromise,
-    folklorePromise,
-    eventsPromise,
+  const allLandmarkAndAuxiliaryPromises = [...landmarkPromises, folklorePromise, eventsPromise];
+  const placesPromise = Promise.all([businessSlugsPromise, ...allLandmarkAndAuxiliaryPromises]);
+  const backgroundPromise = Promise.all([
+    treePromise,
+    placesPromise,
     pathsPromise,
     roadsPromise,
     environmentPromise,
-    businessSlugsPromise,
     ...layerPromises,
-  ]);
+  ]).then(() => {
+    setLoadStep("places", "done", state.landmarks.length);
+    const layerFeatureCount = state.layers.reduce((sum, layer) => sum + (layer.data.features || []).length, 0);
+    setLoadStep("forest", "done", layerFeatureCount);
+    notifyInteractiveDataChange();
+  });
 
-  // verifiedAt rides along on the same entries as findSlug -- it's already in this payload
-  // (scripts/regenerate-business-slugs.js reads data/verification.json once at index-build time),
-  // so no second fetch is needed to show "Checked against OpenStreetMap on <date>" live.
-  const businessEntries = businessSlugsData && Array.isArray(businessSlugsData.entries)
-    ? businessSlugsData.entries
-    : [];
-  const businessById = new Map(businessEntries
-    .filter((entry) => entry && typeof entry === "object")
-    .map((entry) => [entry.id, entry]));
-
-  const layerFeatureCount = resolvedLayers.reduce((sum, layer) => {
-    return sum + (layer.data.features ? layer.data.features.length : 0);
-  }, 0);
-  setLoadStep("forest", "done", layerFeatureCount);
-
-  state.layers = resolvedLayers;
-
-  const osmLandmarks = (landmarkData.features || [])
-    .filter((feature) => feature && feature.properties && feature.geometry
-      && feature.geometry.type === "Point"
-      && Array.isArray(feature.geometry.coordinates) && feature.geometry.coordinates.length >= 2)
-    .map((feature) => {
-      const longitude = Number(feature.geometry.coordinates[0]);
-      const latitude = Number(feature.geometry.coordinates[1]);
-      return {
-        ...feature.properties,
-        categoryTags: buildOsmCategoryTags(feature.properties),
-        latitude,
-        longitude,
-        point: projectLonLat(longitude, latitude),
-        findSlug: businessById.get(feature.properties.id)?.slug || null,
-        verifiedAt: businessById.get(feature.properties.id)?.verifiedAt || null,
-      };
-    });
-
-  const folkloreLandmarks = normalizeFolkloreLocations(folkloreData).map((place) => ({
-    ...place,
-    findSlug: businessById.get(place.id)?.slug || null,
-    verifiedAt: businessById.get(place.id)?.verifiedAt || null,
-  }));
-  const eventLandmarks = normalizeEventLocations(eventsData);
-  state.landmarks = [...osmLandmarks, ...folkloreLandmarks, ...eventLandmarks];
-  setLoadStep("places", "done", state.landmarks.length);
-
-  state.paths = (pathsData.features || [])
-    .map(toPathFeature)
-    .filter(Boolean);
-
-  // Process roads in smaller batches to avoid freezing the main thread
-  const roadFeatures = Array.isArray(roadsData.features) ? roadsData.features : [];
-  state.roads = [];
-  const batchSize = 500;
-  for (let i = 0; i < roadFeatures.length; i += batchSize) {
-    const batch = roadFeatures.slice(i, i + batchSize);
-    state.roads.push(...batch.map(toRoadFeature).filter(Boolean));
-    if (i + batchSize < roadFeatures.length) {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    }
-  }
-
-  const environmentFeatures = Array.isArray(environmentData.features) ? environmentData.features : [];
-  state.environmentFeatures = environmentFeatures.filter((feature) => feature && feature.geometry && feature.properties);
-  state.waterFeatures = extractWaterFeatures(environmentFeatures);
-
-  return { treePromise };
+  // Do not wait for any network response here. The canvas can render its fallback viewport
+  // immediately, and every source above updates it as soon as it arrives. Waiting for even the
+  // forest outline made a cold load look stuck behind the splash until a refresh populated the
+  // service-worker cache; it also meant a filtered landing page could not show its own category
+  // while unrelated layers were still downloading.
+  state.bounds = calculateBounds();
+  return { treePromise, placesPromise, environmentPromise, backgroundPromise };
 }
 
 function loadBuildingsIfNeeded() {
   if (state.buildingsLoaded || state.buildingsLoading) return;
   state.buildingsLoading = true;
-  loadJsonResource(BUILDINGS_URL, 30000)
+  fetch(BUILDINGS_URL)
+    .then((r) => r.json())
     .then((data) => {
-      state.buildingFeatures = (Array.isArray(data.features) ? data.features : [])
+      state.buildingFeatures = (data.features || [])
         .filter((f) => f && f.geometry && f.properties);
       state.buildingsLoaded = true;
       state.buildingsLoading = false;
