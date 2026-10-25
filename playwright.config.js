@@ -36,6 +36,10 @@ module.exports = defineConfig({
   // past the waits the specs bound it with, and whole spec files failed together in `beforeEach`
   // while the same suite passed locally. That looked like flakiness and was really starvation.
   workers: process.env.CI ? 2 : 4,
+  // Shard and schedule by test, not by file. With whole files as the unit, CI's --shard=N/5 put
+  // the heaviest spec files together: one desktop shard ran 117 tests for 13 minutes while
+  // another finished in under 3. Tests already share nothing but the on-disk build output.
+  fullyParallel: true,
   retries: 0,
   reporter: [["list"], ["html", { open: "never" }]],
 

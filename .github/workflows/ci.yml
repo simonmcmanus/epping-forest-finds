@@ -138,9 +138,16 @@ jobs:
       - name: Build pages before browser tests
         run: npm run build
       - name: Run E2E tests
-        run: >
-          npx playwright test --project=${{ matrix.project }}
-          --grep-invert "snapshot:" --shard=${{ matrix.shard }}/5
+        # This is mainly a phone app, so desktop skips the specs the mobile project already runs
+        # (see its testMatch in playwright.config.js) and keeps only what mobile never covers.
+        # Desktop snapshots are unaffected: the visual-snapshots job still runs every spec.
+        run: |
+          files=""
+          if [ "${{ matrix.project }}" = desktop ]; then
+            files=$(ls test/e2e/*.spec.js | grep -vE '/(0[1-5]|09|13-tilt-3d|27)-')
+          fi
+          npx playwright test --project=${{ matrix.project }} \
+            --grep-invert "snapshot:" --shard=${{ matrix.shard }}/5 $files
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
         if: always()

@@ -6,6 +6,10 @@
 
 const path = require("node:path");
 const { test, expect } = require("@playwright/test");
+
+// beforeAll rewrites generated pages on disk; keep this file in one worker so no other worker
+// reads a page mid-rewrite (the config is otherwise fullyParallel).
+test.describe.configure({ mode: "default" });
 const { generate: generateReportsIndex } = require("../../scripts/generate-reports-index.js");
 const { generate: generateCategoryPages } = require("../../scripts/generate-find-pages.js");
 const { setup, settleMapIconsAndDraw } = require("./helpers");

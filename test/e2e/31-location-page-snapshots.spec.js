@@ -5,6 +5,10 @@
  */
 
 const { test, expect } = require("@playwright/test");
+
+// beforeAll rewrites generated pages on disk; keep this file in one worker so no other worker
+// reads a page mid-rewrite (the config is otherwise fullyParallel).
+test.describe.configure({ mode: "default" });
 const { generate: generateBusinessPages } = require("../../scripts/generate-business-pages.js");
 const businessIndex = require("../../data/business-slugs.json");
 const { gotoAndWaitForMap, settleMapIconsAndDraw, skipOnboarding, mockCowApi } = require("./helpers");
