@@ -14,6 +14,9 @@ This top-level spec provides the product overview. Implementation details are sp
 
 All specs live in the `spec/` folder at the project root.
 
+The repository automation for Claude pull-request review and remediation is
+described in [spec-claude-pr-review.md](spec-claude-pr-review.md).
+
 All specs should be kept in sync with every change.
 
 ## Product Goal
