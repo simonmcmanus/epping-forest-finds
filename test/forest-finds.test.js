@@ -6185,6 +6185,7 @@ function trustCompassAt(heading, beta = 30) {
   app.state.compassHeadingSource = 2;
   app.state.tiltBetaTarget = beta;
   app.state.tiltBetaSmoothed = beta;
+  app.state.compassTargetMovedAt = app.performance.now();
 }
 
 test("a trusted compass target ignores heading wobble inside the deadband and follows a real turn", () => {
@@ -6195,6 +6196,15 @@ test("a trusted compass target ignores heading wobble inside the deadband and fo
   assert.equal(app.state.compassHeadingTarget, 100, "wobble in the other direction is ignored too");
   app.onDeviceOrientation({ webkitCompassHeading: 104, beta: 30 });
   assert.equal(app.state.compassHeadingTarget, 104, "a turn past the deadband moves the target");
+});
+
+test("a reading held inside the deadband is accepted once the target has been quiet, so a still phone settles", () => {
+  trustCompassAt(100);
+  app.onDeviceOrientation({ webkitCompassHeading: 101, beta: 30 });
+  assert.equal(app.state.compassHeadingTarget, 100, "immediately after a move, wobble is ignored");
+  app.state.compassTargetMovedAt = app.performance.now() - 2000;
+  app.onDeviceOrientation({ webkitCompassHeading: 101, beta: 30 });
+  assert.equal(app.state.compassHeadingTarget, 101, "after a quiet period the target settles on the held reading");
 });
 
 test("the heading deadband widens while the phone is pitched or held upright, but stays small", () => {
