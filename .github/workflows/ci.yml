@@ -62,14 +62,18 @@ jobs:
             even when there are no findings. Do not return the review only as
             an assistant message: the GitHub comments are the deliverable.
 
-            Never modify files, commit, push, approve, merge, or close the PR.
+            If and only if there are no actionable findings under either axis,
+            submit a formal approval with `gh pr review ${{ github.event.pull_request.number }} --approve --body "..."`.
+            If there is any actionable finding, do not approve the PR. If
+            GitHub rejects the approval because of repository policy or
+            self-approval rules, leave the summary comment and finish without
+            trying to work around that restriction. Never modify files, commit,
+            push, merge, or close the PR.
           claude_args: |
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(git diff:*),Bash(git log:*),Bash(git merge-base:*),Bash(git show:*)"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr review:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(git diff:*),Bash(git log:*),Bash(git merge-base:*),Bash(git show:*)"
 
   unit:
     name: Unit tests
-    needs: claude-review
-    if: always()
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -109,8 +113,6 @@ jobs:
     # dependency on cdn.playwright.dev/the apt mirrors that added nothing but risk. Bump this
     # tag only in lockstep with the @playwright/test version in package.json.
     name: E2E tests (${{ matrix.project }}, shard ${{ matrix.shard }})
-    needs: claude-review
-    if: always()
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.61.1-noble
@@ -159,8 +161,6 @@ jobs:
     # That commit starts a fresh CI run against the exact head that reviewers will merge. Fork PRs
     # get the same review images but cannot receive an automatic commit into the fork.
     name: Visual snapshots (desktop + mobile)
-    needs: claude-review
-    if: always()
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.61.1-noble
