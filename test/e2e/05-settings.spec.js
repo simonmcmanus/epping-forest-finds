@@ -92,6 +92,15 @@ test.describe("Settings screen", () => {
     await page.waitForFunction(() => !window.__reloadMarker);
   });
 
+  test("snapshot: update ready banner", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
+    await page.evaluate(() => { _markDataUpdateAvailable(); });
+    await expect(page.locator("#updateBanner")).toBeVisible();
+    await page.waitForTimeout(300);
+    await settleMapIconsAndDraw(page);
+    await expect(page).toHaveScreenshot("update-ready-banner.png", { fullPage: false });
+  });
+
   test("settings screen offers a one-tap reload once new map data has already downloaded", async ({ page }) => {
     await expect(page.locator("#dataUpdateNote")).toBeHidden();
 
