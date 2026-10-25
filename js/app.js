@@ -29,8 +29,8 @@ const REPORT_REQUEST_ID_KEY = "forest-finds-report-request-id-v1";
 const FILTER_STATE_KEY = "forest-finds-filter-state-v1";
 const FILTER_HINT_KEY = "forest-finds-filter-hint-v1";
 // Matches onboarding.js's own default selection and spec.md's "Default filters" section:
-// only Trees, Cows and Events are pre-selected before onboarding ever runs.
-const DEFAULT_FILTERS = ["trees", "cows", "events"];
+// only Trees, Cows, Events and Pubs are pre-selected before onboarding ever runs.
+const DEFAULT_FILTERS = ["trees", "cows", "events", "pubs"];
 // The radius state starts at and the URL (searchStringForPath) omits -- matching state's own
 // walkingDistanceMinutes: 5 below, so a plain /nearby stays plain for the common case.
 const DEFAULT_WALKING_DISTANCE_MINUTES = 5;
@@ -5232,6 +5232,7 @@ function showCompassCalibrationPrompt() {
   if (!els.compassCalibrationBanner) return;
   state.compassCalibrationPromptVisible = true;
   if (els.compassCalibrationBannerText) {
+    els.compassCalibrationBannerText.hidden = false;
     els.compassCalibrationBannerText.textContent = "Move your phone in a figure-8 to help it find your direction";
   }
   if (els.compassCalibrationBannerEnable) els.compassCalibrationBannerEnable.hidden = true;
@@ -5245,9 +5246,12 @@ function showCompassPermissionPrompt() {
   state.compassPermissionPromptVisible = true;
   state.compassCalibrationPromptVisible = false;
   if (els.compassCalibrationBannerText) {
-    els.compassCalibrationBannerText.textContent = state.compassPermission === "denied"
+    // Not blocked: the "Enable compass" button speaks for itself, so no explanatory line.
+    const blocked = state.compassPermission === "denied";
+    els.compassCalibrationBannerText.hidden = !blocked;
+    els.compassCalibrationBannerText.textContent = blocked
       ? "Compass access is blocked. Enable Motion & Orientation access in your browser settings to use map movement."
-      : "Enable compass access to turn the map and use phone movement.";
+      : "";
   }
   if (els.compassCalibrationBannerEnable) {
     els.compassCalibrationBannerEnable.textContent = "Enable compass";
@@ -5265,6 +5269,7 @@ async function enableCompassFromGesture() {
     setStatus("");
     requestDraw();
   } else if (state.compassPermissionPromptVisible && els.compassCalibrationBannerText) {
+    els.compassCalibrationBannerText.hidden = false;
     els.compassCalibrationBannerText.textContent = "Compass access is still blocked. Enable Motion & Orientation access in your browser settings, then try again.";
   }
 }

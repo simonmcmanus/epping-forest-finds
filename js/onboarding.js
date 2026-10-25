@@ -59,7 +59,7 @@ function showOnboarding() {
     let compassPromptFailed = false;
     let locationPromise = null;
     const total = ONBOARDING_STEPS.length;
-    const selected = new Set(["trees", "cows", "events"]);
+    const selected = new Set(["trees", "cows", "events", "pubs"]);
 
     overlay.hidden = false;
     const deactivateFocus = typeof activateModalFocus === "function" ? activateModalFocus(overlay) : null;

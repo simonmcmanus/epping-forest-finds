@@ -10506,10 +10506,11 @@ test("the admin login field has a programmatic label, not just a placeholder", (
 
 // --- Events ---
 
-test("Events is a default-on category, like Trees and Cows", () => {
+test("Events and Pubs are default-on categories, like Trees and Cows", () => {
   assert.ok(app.DEFAULT_FILTERS.includes("events"));
+  assert.ok(app.DEFAULT_FILTERS.includes("pubs"));
   const onboardingSrc = fs.readFileSync(path.join(__dirname, "..", "js", "onboarding.js"), "utf8");
-  assert.match(onboardingSrc, /new Set\(\["trees", "cows", "events"\]\)/);
+  assert.match(onboardingSrc, /new Set\(\["trees", "cows", "events", "pubs"\]\)/);
 });
 
 test("normalizeEventLocations keeps upcoming (within a week) and live events, and drops past or too-far-ahead ones", () => {
