@@ -56,6 +56,9 @@ jobs:
             findings, prioritised P0 (critical) through P3 (minor). Keep general
             observations brief. For each actionable finding, use the inline
             comment tool with confirmed=true and a precise changed-line range.
+            Prefix every inline finding body with the exact marker
+            `<!-- claude-review-finding -->` so the follow-up workflow can
+            distinguish Claude findings from unrelated bot comments.
             When the review is complete, you MUST publish a top-level summary
             to the PR with `gh pr comment ${{ github.event.pull_request.number }} --body "..."`.
             Include both the Standards and Spec sections,
