@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 123878)
-Total output lines: 9703
-
 // Epping Forest Finds — application boot and wiring.
 //
 // Extracted from the inline <script> in index.html so the page stays markup-only,
@@ -3958,7 +3955,1781 @@ function nearestOverviewEntriesForFilter(filterKey, latitude, longitude, limit) 
 
 function nearestOverviewEntryForFilter(filterKey, latitude, longitude) {
   if (filterKey === "trees") {
-    const nearest = nearestTreeTo(latitude, longitude…23878 tokens truncated…_HOLD_RATIO = 0.13;
+    const nearest = nearestTreeTo(latitude, longitude);
+    return nearest ? { kind: "tree", type: "tree", item: nearest.tree, metres: nearest.metres } : null;
+  }
+  if (filterKey === "cows") {
+    const nearest = nearestCowTo(latitude, longitude);
+    return nearest ? { kind: "cow", type: "cow", item: nearest.cow, metres: nearest.metres } : null;
+  }
+  if (filterKey === "waymarked_trails") {
+    const nearest = nearestWaymarkedPathToUser(latitude, longitude);
+    return nearest ? { kind: "waymarked_trails", type: "path", item: nearest.path, metres: nearest.metres } : null;
+  }
+  if (filterKey === "ponds_streams") {
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+    const nearest = nearestWaterFeatureTo(latitude, longitude);
+    return nearest ? { kind: "ponds_streams", type: "water", item: nearest.water, metres: nearest.metres } : null;
+  }
+  const nearest = nearestPlaceByFilter(latitude, longitude, (place) => matchesPlaceFilter(place, filterKey));
+  return nearest ? { kind: filterKey, type: "landmark", item: nearest.place, metres: nearest.metres } : null;
+}
+
+function nearestFallbackEntriesForActiveFilter(latitude, longitude) {
+  const entries = [];
+  for (const filterKey of pointFilterKeysForNearestFallback()) {
+    const entry = nearestOverviewEntryForFilter(filterKey, latitude, longitude);
+    if (entry) entries.push(entry);
+  }
+  return uniqueSortedOverviewEntries(entries);
+}
+
+function overviewItemsUnlimited(latitude, longitude, limit = state.nearestItemsCount) {
+  const hasFilters = state.overviewFilters.length > 0;
+  if (hasFilters) {
+    const activePointFilters = getActivePointFilterKeys();
+    if (!activePointFilters.length) return [];
+    const entries = [];
+    for (const filterKey of activePointFilters) {
+      entries.push(...nearestOverviewEntriesForFilter(filterKey, latitude, longitude, limit));
+    }
+    return uniqueSortedOverviewEntries(entries);
+  }
+  const entries = [];
+  entries.push(...nearestTreesTo(latitude, longitude, limit).map(({ tree, metres }) => ({ kind: "tree", type: "tree", item: tree, metres })));
+  entries.push(...nearestCowsTo(latitude, longitude, limit).map(({ cow, metres }) => ({ kind: "cow", type: "cow", item: cow, metres })));
+  entries.push(...nearestWaymarkedPathsToUser(limit, latitude, longitude).map(({ path, metres }) => ({ kind: "waymarked_trails", type: "path", item: path, metres })));
+  entries.push(...nearestWaterFeaturesTo(latitude, longitude, limit).map(({ water, metres }) => ({ kind: "ponds_streams", type: "water", item: water, metres })));
+  entries.push(...nearestPlacesByFilter(latitude, longitude, () => true, limit).map(({ place, metres }) => ({ kind: resolvePlaceKind(place), type: "landmark", item: place, metres })));
+  return entries.sort((a, b) => a.metres - b.metres);
+}
+
+// overviewItemsForActiveFilter is the shared source of "what's within the walking radius"
+// for the nearby list, the map pin lookup (buildNearbyIconLookup in js/renderer.js, called
+// twice per animation frame), the overview route lines, and the camera fit -- all of which
+// want the *complete* set of matches (so growing the radius via pinch or Settings actually
+// reveals everything now inside it), not a truncated one. Recomputing that full distance
+// scan from scratch on every draw() call was the actual freeze at a large radius (tens of
+// thousands of trees within range), not the size of the result itself -- filtering the raw
+// dataset is a few milliseconds even for the full ~25k trees (measured), it just shouldn't
+// happen 60+ times a second when nothing that affects the result has changed. Memoize it
+// instead, and let each *consumer* decide how much of the full list it actually needs to
+// render (see the .slice() calls in overviewNearestHtml and overviewRouteTargets).
+let _overviewItemsCache = null;
+
+// The cache key above covers everything that changes the *filter* (origin, radius, active
+// filters, cow refresh) but not the underlying datasets themselves -- those only ever
+// change once, at load, in the real app. The unit test harness reassigns state.trees/etc.
+// to fresh arrays between test cases while reusing the same running module (so module-level
+// caches like this one persist across tests), which a key built only from primitives can't
+// see; comparing array references catches that too, at effectively no cost.
+function overviewItemsDatasetsUnchanged(cache) {
+  return cache.trees === state.trees
+    && cache.cows === state.cows
+    && cache.landmarks === state.landmarks
+    && cache.paths === state.paths
+    && cache.waterFeatures === state.waterFeatures;
+}
+
+function storeOverviewItemsCache(cacheKey, result) {
+  _overviewItemsCache = {
+    key: cacheKey,
+    result,
+    outsideRadiusFallback: state.overviewOutsideRadiusFallback,
+    trees: state.trees,
+    cows: state.cows,
+    landmarks: state.landmarks,
+    paths: state.paths,
+    waterFeatures: state.waterFeatures,
+  };
+  return result;
+}
+
+// While a cluster is expanded (state.clusterExpanded, set by focusNearbyOnClusterGroup on a map
+// tap), the Nearby list reads straight from the tapped group's own items rather than running
+// the ordinary within-radius scan below -- see that function's own comment for why a scan can't
+// promise the list agrees with the badge's count. Builds the same {kind, type, item, metres}
+// shape every other branch of overviewItemsForActiveFilter produces, so every downstream
+// consumer (heads-up sort, the nearest-item cap, route targets) handles it exactly the same way.
+function expandedClusterOverviewEntries(group, latitude, longitude) {
+  const entries = [];
+  const pushEntry = (itemType, item) => {
+    if (itemType === "path") {
+      entries.push({ kind: "waymarked_trails", type: "path", item, metres: distanceFromPointToPath(latitude, longitude, item) });
+      return;
+    }
+    const metres = distanceMetres(latitude, longitude, item.latitude, item.longitude);
+    if (itemType === "tree") entries.push({ kind: "tree", type: "tree", item, metres });
+    else if (itemType === "cow") entries.push({ kind: "cow", type: "cow", item, metres });
+    else if (itemType === "water") entries.push({ kind: "ponds_streams", type: "water", item, metres });
+    else entries.push({ kind: resolvePlaceKind(item), type: "landmark", item, metres });
+  };
+  if (group.itemType === "_mega" && group.itemsByType) {
+    for (const [itemType, items] of Object.entries(group.itemsByType)) {
+      for (const item of items) pushEntry(itemType, item);
+    }
+  } else {
+    for (const item of (group.items || [])) pushEntry(group.itemType, item);
+  }
+  return entries.filter(entry => Number.isFinite(entry.metres)).sort((a, b) => a.metres - b.metres);
+}
+
+function overviewItemsForActiveFilter() {
+  // nearbyOrigin() everywhere, Filter/Settings/Report included: those screens draw the
+  // walking-radius ring around the browse anchor like the Nearby screen does, and the anchor
+  // can now be moved, reset and resized from them (updateNearbyAnchorBar/startNearbyRadius-
+  // Pinch, js/nav.js). Reading the raw GPS fix here instead left the ring centred on the
+  // browsed spot while the matches inside it were still scanned from wherever the user
+  // actually stood. With no anchor set -- the usual case -- this is the GPS fix as before.
+  // stableNearbyOrigin() (not the raw fix) because this candidate scan feeds sampleSpread's
+  // capped tree sample -- a few-metre GPS wobble reordering "nearest 60" was visible as pins
+  // jumping while the phone sat still (see its own comment, js/nav.js).
+  const origin = stableNearbyOrigin();
+  if (!origin) return [];
+  const { latitude, longitude } = origin;
+
+  if (state.clusterExpanded) {
+    state.overviewOutsideRadiusFallback = false;
+    return expandedClusterOverviewEntries(state.clusterExpanded, latitude, longitude);
+  }
+
+  if (state.showAllOutsideRadius) {
+    state.overviewOutsideRadiusFallback = false;
+    return overviewItemsUnlimited(latitude, longitude);
+  }
+
+  const cacheKey = `${latitude}|${longitude}|${state.walkingDistanceMinutes}|${state.overviewFilters.join(",")}|${state.cowLastUpdatedAt}`;
+  if (_overviewItemsCache && _overviewItemsCache.key === cacheKey && overviewItemsDatasetsUnchanged(_overviewItemsCache)) {
+    state.overviewOutsideRadiusFallback = _overviewItemsCache.outsideRadiusFallback;
+    return _overviewItemsCache.result;
+  }
+
+  state.overviewOutsideRadiusFallback = false;
+  const maxMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
+
+  const hasFilters = state.overviewFilters.length > 0;
+  if (hasFilters) {
+    const activePointFilters = getActivePointFilterKeys();
+    if (!activePointFilters.length) {
+      return storeOverviewItemsCache(cacheKey, []);
+    }
+    const selectedEntries = [];
+    const filterTypesWithResults = new Set();
+
+    for (const filterKey of activePointFilters) {
+      let entriesForFilter = [];
+
+      if (filterKey === "trees") {
+        entriesForFilter = nearbyTreesWithinDistance(latitude, longitude, maxMetres).map(({ tree, metres }) => ({
+          kind: "tree",
+          type: "tree",
+          item: tree,
+          metres,
+        }));
+      } else if (filterKey === "cows") {
+        entriesForFilter = nearbyCowsWithinDistance(latitude, longitude, maxMetres).map(({ cow, metres }) => ({
+          kind: "cow",
+          type: "cow",
+          item: cow,
+          metres,
+        }));
+      } else if (filterKey === "waymarked_trails") {
+        entriesForFilter = nearbyWaymarkedPathsWithinDistance(latitude, longitude, maxMetres).map(({ path, metres }) => ({
+          kind: "waymarked_trails",
+          type: "path",
+          item: path,
+          metres,
+        }));
+      } else if (filterKey === "ponds_streams") {
+        entriesForFilter = nearbyWaterFeaturesWithinDistance(latitude, longitude, maxMetres).map(({ water, metres }) => ({
+          kind: "ponds_streams",
+          type: "water",
+          item: water,
+          metres,
+        }));
+      } else {
+        entriesForFilter = nearbyPlacesByFilterWithinDistance(latitude, longitude, (place) => matchesPlaceFilter(place, filterKey), maxMetres).map(({ place, metres }) => ({
+          kind: filterKey,
+          type: "landmark",
+          item: place,
+          metres,
+        }));
+      }
+
+      if (entriesForFilter.length > 0) {
+        selectedEntries.push(...entriesForFilter);
+        filterTypesWithResults.add(filterKey);
+      } else {
+        // No items within radius for this filter - add nearest 3 as fallback.
+        // outOfRadiusFilterKey records *which* filter went unanswered: entry.kind is the item's
+        // own kind ("tree" for the "trees" filter), so it cannot be matched back to a filter key
+        // on its own, and the camera reveal below needs exactly that mapping.
+        const fallbackEntries = nearestOverviewEntriesForFilter(filterKey, latitude, longitude, 3);
+        for (const entry of fallbackEntries) {
+          entry.outOfRadius = true;
+          entry.outOfRadiusFilterKey = filterKey;
+          selectedEntries.push(entry);
+        }
+      }
+    }
+
+    const sortedEntries = uniqueSortedOverviewEntries(selectedEntries);
+    const hasAnyFallback = sortedEntries.some(entry => entry.outOfRadius);
+    state.overviewOutsideRadiusFallback = hasAnyFallback && filterTypesWithResults.size === 0;
+
+    return storeOverviewItemsCache(cacheKey, sortedEntries);
+  }
+
+  const entries = [];
+  entries.push(
+    ...nearbyTreesWithinDistance(latitude, longitude, maxMetres).map(({ tree, metres }) => ({
+      kind: "tree",
+      type: "tree",
+      item: tree,
+      metres,
+    }))
+  );
+  entries.push(
+    ...nearbyCowsWithinDistance(latitude, longitude, maxMetres).map(({ cow, metres }) => ({
+      kind: "cow",
+      type: "cow",
+      item: cow,
+      metres,
+    }))
+  );
+  entries.push(
+    ...nearbyWaymarkedPathsWithinDistance(latitude, longitude, maxMetres).map(({ path, metres }) => ({
+      kind: "waymarked_trails",
+      type: "path",
+      item: path,
+      metres,
+    }))
+  );
+  entries.push(
+    ...nearbyWaterFeaturesWithinDistance(latitude, longitude, maxMetres).map(({ water, metres }) => ({
+      kind: "ponds_streams",
+      type: "water",
+      item: water,
+      metres,
+    }))
+  );
+  entries.push(
+    ...nearbyPlacesByFilterWithinDistance(latitude, longitude, () => true, maxMetres).map(({ place, metres }) => ({
+      kind: resolvePlaceKind(place),
+      type: "landmark",
+      item: place,
+      metres,
+    }))
+  );
+  const sortedEntries = entries.sort((a, b) => a.metres - b.metres);
+  if (!sortedEntries.length) {
+    const fallbackEntries = nearestFallbackEntriesForActiveFilter(latitude, longitude);
+    state.overviewOutsideRadiusFallback = fallbackEntries.length > 0;
+    return storeOverviewItemsCache(cacheKey, fallbackEntries);
+  }
+  return storeOverviewItemsCache(cacheKey, sortedEntries);
+}
+
+// --- Heads-up ordering ---------------------------------------------------------------
+//
+// The Nearby list is a heads-up view, not a distance table: of two things the same walk
+// away, the one you are facing is the one you are about to walk into, so it belongs above
+// the one at your back. Each entry is scored as an *effective* distance --
+//
+//   metres * (1 + HEADS_UP_BEHIND_PENALTY * (1 - cos(delta)) / 2)
+//
+// -- where delta is the angle between your heading and the bearing to the item. Dead ahead
+// keeps its true distance, dead behind counts as (1 + penalty) times as far, and the sides
+// fall smoothly in between. Distance still dominates: at penalty 1 something behind you only
+// loses to something ahead that is less than twice as far, so the list never promotes a
+// far-off thing over one you could reach in seconds.
+const HEADS_UP_BEHIND_PENALTY = 1;
+
+// How far you have to turn before the list re-sorts. The compass is smoothed but never
+// still, and re-ranking on every frame would have the list shuffling under your thumb; a
+// deliberate turn crosses this in one movement, and the reorder animates (see
+// animateNearestItemReorder, js/inspector.js) so the change is legible rather than abrupt.
+const HEADS_UP_REORDER_DEGREES = 12;
+
+// The heading the list is currently ordered by -- deliberately *not* the live compass value,
+// for the reason above. Latched to the live heading the first time one is available, and
+// afterwards only by syncNearbyListHeading().
+function nearbyListHeading() {
+  if (!Number.isFinite(state.compassHeading)) return null;
+  if (!Number.isFinite(state.nearbyListHeading)) {
+    state.nearbyListHeading = normalizeDegrees(state.compassHeading);
+  }
+  return state.nearbyListHeading;
+}
+
+// Called from the compass smoothing loop. Adopts the live heading once it has moved a real
+// turn away from the one the list is ordered by, and reports whether it did, so the caller
+// can re-render.
+function syncNearbyListHeading() {
+  if (!Number.isFinite(state.compassHeading)) return false;
+  const live = normalizeDegrees(state.compassHeading);
+  const settled = state.nearbyListHeading;
+  if (Number.isFinite(settled) && Math.abs(shortestCompassDelta(settled, live)) < HEADS_UP_REORDER_DEGREES) {
+    return false;
+  }
+  state.nearbyListHeading = live;
+  return true;
+}
+
+function headsUpScore(entry, origin, heading) {
+  const metres = Number(entry && entry.metres);
+  if (!Number.isFinite(metres)) return Number.POSITIVE_INFINITY;
+  if (!origin || !Number.isFinite(heading)) return metres;
+  const item = entry.item;
+  // Trails and water features are lines/areas with no single coordinate to take a bearing
+  // to, so they keep their plain distance rank rather than being guessed at.
+  if (!item || !Number.isFinite(item.latitude) || !Number.isFinite(item.longitude)) return metres;
+  const bearing = bearingDegrees(origin.latitude, origin.longitude, item.latitude, item.longitude);
+  const delta = toRadians(shortestCompassDelta(heading, bearing));
+  return metres * (1 + HEADS_UP_BEHIND_PENALTY * (1 - Math.cos(delta)) / 2);
+}
+
+// Returns a new array (never the memoized overviewItemsForActiveFilter() result, which the
+// renderer also reads) ordered by heads-up score. With no compass -- desktop, or location
+// without orientation -- this is the plain nearest-first order it has always been.
+function headsUpSortedEntries(entries) {
+  if (!Array.isArray(entries) || entries.length < 2) return entries;
+  const heading = nearbyListHeading();
+  const origin = nearbyOrigin();
+  if (!Number.isFinite(heading) || !origin) return entries;
+  return entries
+    .map((entry, index) => ({ entry, index, score: headsUpScore(entry, origin, heading) }))
+    // Ties fall back to the incoming distance order, so the sort stays deterministic.
+    .sort((a, b) => (a.score - b.score) || (a.index - b.index))
+    .map((scored) => scored.entry);
+}
+
+function overviewHeadingText() {
+  if (!state.userLocation) return "";
+  const activePointFilters = getActivePointFilterKeys();
+  // The radius is the whole premise of this list, so the heading names it rather than the
+  // vaguer "around you" -- "Trees within 5 min walk" answers "how far is this list reaching?"
+  // without the user having to go and read the walk chip. The radius chip can be toggled off
+  // (showAllOutsideRadius), in which case there is no radius to name and the heading says so.
+  const radiusLabel = state.showAllOutsideRadius
+    ? null
+    : `${formatWalkingRadius(state.walkingDistanceMinutes)} walk`;
+  // Filter titles are stored lower case ("trees", "pubs and bars") because they read as a
+  // fragment everywhere else they are used; at the head of a sentence they need a capital.
+  const rawTitle = activePointFilters.length === 1
+    ? (filterMeta(activePointFilters[0])?.title || "items")
+    : null;
+  const singleFilterTitle = rawTitle ? rawTitle.charAt(0).toUpperCase() + rawTitle.slice(1) : null;
+  // "around you" would misname applyDefaultLocation()'s High Beach stand-in as the reader's
+  // own position -- only reachable with showAllOutsideRadius on, since radiusLabel otherwise
+  // always names the radius instead, but worth getting right for that case too.
+  const aroundOrigin = state.userLocation.isDefault ? "around High Beach" : "around you";
+  // Folds in the same "measuring from High Beach, not you" fact the list itself used to carry as
+  // its own separate <p class="source-note"> paragraph (overviewNearestHtml below) -- said once,
+  // here, in the one line every Nearby screen already shows, rather than twice.
+  const radiusOrigin = state.userLocation.isDefault ? " of High Beach" : "";
+  // A single category (the common case on a /nearby/<slug> page) gets its count named too --
+  // "5 Pubs and bars within 5 min walk" says at a glance whether the radius is worth widening,
+  // which "Pubs and bars within 5 min walk" alone left the reader to count for themselves.
+  return singleFilterTitle
+    ? (radiusLabel
+        ? `${overviewItemsForActiveFilter().length} ${singleFilterTitle} within ${radiusLabel}${radiusOrigin}`
+        : `Nearest ${singleFilterTitle} ${aroundOrigin}`)
+    : state.overviewFilters.length > 0
+      ? (radiusLabel ? `Nearest selected filters within ${radiusLabel}${radiusOrigin}` : `Nearest selected filters ${aroundOrigin}`)
+      : (radiusLabel ? `Nearest within ${radiusLabel}${radiusOrigin}` : `Nearest ${aroundOrigin}`);
+}
+
+// The category label a /nearby/<slug>/ landing page's own heading names ("Nearby Nature",
+// "Nearby Pubs & bars") in place of the generic "Nearby" the plain screen, or a reader's own
+// filter choice, keeps -- same URL-path match categoryLandingLinksHtml() uses, so the two can
+// never name a different category.
+function landingPageCategoryLabel() {
+  const match = /^\/nearby\/([a-z0-9-]+)\/?$/.exec(window.location.pathname);
+  if (!match) return null;
+  const key = match[1].replace(/-/g, "_");
+  const subfilter = FILTER_SUBFILTERS_BY_KEY.get(key);
+  if (subfilter) return subfilter.label;
+  const group = FILTER_GROUPS_BY_KEY.get(key);
+  return group ? group.label : null;
+}
+
+const DOCUMENT_TITLE_SITE_NAME = "Epping Forest Finds";
+
+// The static SEO pages have their own richer titles in the generated HTML. Once the shared app
+// shell boots, the browser title follows the screen the reader is actually looking at, including
+// SPA transitions where no document navigation occurs. Keep this in app.js rather than deriving
+// it from the visible heading: the heading is deliberately shorter for selected locations and
+// category landings have a meaningful URL label even while their list is still server-rendered.
+function updateDocumentTitle() {
+  let title;
+  const selected = state.selected;
+
+  if (selected) {
+    const item = selected.item || {};
+    if (selected.type === "settings") {
+      title = "Settings";
+    } else if (selected.type === "community") {
+      title = "Community";
+    } else if (selected.type === "report") {
+      title = "Feedback";
+    } else {
+      const name = selected.type === "tree"
+        ? treeDisplayName(item)
+        : selected.type === "cow"
+          ? `Cow ${displayValue(item.serialNo)}`
+          : selected.type === "railway"
+            ? (item.properties?.name || item.properties?.ref || "Unnamed railway line")
+            : (item.name || item.ref || item.commonName || "Map location");
+      title = `${name} near Epping Forest`;
+    }
+  } else if (state.filterScreenOpen) {
+    title = "Filters for Epping Forest";
+  } else if (state.searchScreenOpen) {
+    title = "Search Epping Forest Finds";
+  } else {
+    const landingLabel = landingPageCategoryLabel();
+    title = landingLabel ? `Nearby ${landingLabel} in Epping Forest` : "Nearby in Epping Forest";
+  }
+
+  const nextTitle = `${title} | ${DOCUMENT_TITLE_SITE_NAME}`;
+  if (typeof document !== "undefined" && document.title !== nextTitle) document.title = nextTitle;
+  return nextTitle;
+}
+
+// True when the active filter set should be shown in full even without a location fix: either
+// exactly one filter -- a subfilter's own /nearby/<slug> page, or a reader's own deliberate single
+// choice, both reading better as "show me everything in this one category" than a generic
+// "enable location" prompt -- or more than one filter, but only when a /nearby/<slug> group
+// page's own pre-filter set them (state.overviewFiltersEphemeral). Never the reader's own
+// multi-filter choice, and never the 1-3 filter default state nobody chose at all
+// (DEFAULT_FILTERS) -- either of those taking this path would try to fit or list the entire
+// matching dataset (25,000+ trees, in the default case).
+function activeFiltersShowFullListWithoutLocation() {
+  const count = state.overviewFilters.length;
+  return count === 1 || (count > 1 && state.overviewFiltersEphemeral);
+}
+
+// Every place/tree/water matching one filter key, dataset order, no distance -- there is no
+// origin to measure from. Used only for the no-location /nearby/<slug> fallback below; the normal
+// Nearby list always has an origin and goes through overviewItemsForActiveFilter() instead.
+function allEntriesForFilterKey(filterKey) {
+  if (filterKey === "trees") {
+    return state.trees.map((tree) => ({ kind: "tree", type: "tree", item: tree }));
+  }
+  if (filterKey === "ponds_streams") {
+    return state.waterFeatures.map((water) => ({ kind: "ponds_streams", type: "water", item: water }));
+  }
+  return state.landmarks
+    .filter((place) => matchesPlaceFilter(place, filterKey))
+    .map((place) => ({ kind: filterKey, type: "landmark", item: place }));
+}
+
+// allEntriesForFilterKey, unioned across every active filter -- a /nearby/<slug> group page
+// (e.g. /nearby/food) arrives with several filters active at once, not the one a subfilter page
+// sets, and the no-location fallbacks below need every one of them listed, not just the first.
+// A place matching two active filters at once is listed under each, same as the normal
+// with-location path (overviewItemsForActiveFilter) already does -- not deduplicated here either.
+function allEntriesForActiveFilters() {
+  return state.overviewFilters.flatMap(allEntriesForFilterKey);
+}
+
+// One <li> per nearest-list entry -- shared by the normal (has an origin, sorted, distance
+// chips) and the no-location /nearby/<slug> fallback (no origin, dataset order, no distance chip:
+// walkInfoHtml(undefined) already renders as "") paths below.
+function renderNearestItemsHtml(entries) {
+  return entries.map((entry) => {
+    const name = entry.type === "tree"
+      ? treeDisplayName(entry.item)
+      : entry.type === "cow"
+        ? "Cow"
+        : entry.type === "path"
+          ? displayValue(entry.item.name || entry.item.ref || "Waymarked trail")
+      : entry.type === "water"
+        ? entry.item.name
+      : placeTitle(entry.item);
+    // A place takes its icon from landmarkEmoji (placeIconSlug), the same
+    // resolver the map pin uses, so the two always agree. Only the types with
+    // no per-place artwork -- cows, trails, water -- are drawn from the kind.
+    const emoji = entry.type === "tree"
+      ? (treeSpeciesIconHtml(entry.item.commonName, entry.item.latinName) || filterKindEmoji(entry.kind))
+      : entry.type === "landmark"
+        ? landmarkEmoji(entry.item)
+        : (filterKindEmoji(entry.kind) || landmarkEmoji(entry.item));
+    const key = entry.type === "tree" ? treeHashKey(entry.item) : entry.type === "cow" ? cowKey(entry.item) : entry.type === "path" ? pathHashKey(entry.item) : entry.type === "water" ? waterHashKey(entry.item) : placeHashKey(entry.item);
+    const walkChip = walkInfoHtml(entry.metres);
+    const typeLabel = filterMeta(entry.kind)?.label || (entry.type === "tree" ? "Tree" : entry.type === "cow" ? "Cow" : entry.type === "path" ? "Trail" : entry.type === "water" ? "Water" : "Place");
+    const treeTag = entry.type === "tree" ? treeTagLabel(entry.item) : null;
+    const treeTagChip = treeTag ? ` · #${escapeHtml(treeTag)}` : "";
+    const outOfRadiusClass = entry.outOfRadius ? " out-of-radius" : "";
+    return `<li><button class="nearest-item${outOfRadiusClass}" type="button" data-overview-type="${entry.type}" data-overview-key="${escapeHtml(key)}">
+      <span class="nearest-icon" aria-hidden="true">${emoji}</span>
+      <div class="nearest-content">
+        <div class="nearest-header">
+          <span class="nearest-name">${escapeHtml(name)}</span>
+        </div>
+        <div class="nearest-footer">
+          <span class="nearest-meta">${walkChip ? `${walkChip} · ` : ""}${escapeHtml(typeLabel)}${treeTagChip}</span>
+          <span class="nearest-arrow" data-item-lat="${entry.item.latitude ?? ""}" data-item-lon="${entry.item.longitude ?? ""}" aria-hidden="true">↑</span>
+        </div>
+      </div>
+    </button></li>`;
+  }).join("");
+}
+
+// "/nearby/<slug>/"'s category navigation -- the current category, a chip up to its group, a
+// way back to the full, unfiltered Nearby list, a group page's own down-links to each member
+// subfilter ("Browse by type"), and the "see also veteran trees/grazing cattle" up-links every
+// /find/<slug>/ business page already carries. It is reproduced here because the static page's
+// own version (generate-find-pages.js's topChipsHtml, what a crawler or a no-JS visitor sees) is
+// silently dropped the moment JS boots: selectOverview() replaces that content with this live
+// list. Shown only on a real /nearby/<slug>/ landing -- the plain /nearby screen, or a reader's
+// own multi-filter choice from the Filters screen, has no single category to navigate from, so
+// filterKeysFromFindPath's own pathname-only regex (never a reader's live filter selection) is
+// what gates this, same as isLandingPageArrival.
+function categoryLandingLinksHtml() {
+  const match = /^\/nearby\/([a-z0-9-]+)\/?$/.exec(window.location.pathname);
+  if (!match) return "";
+  const key = match[1].replace(/-/g, "_");
+  const subfilter = FILTER_SUBFILTERS_BY_KEY.get(key);
+  const group = subfilter ? FILTER_GROUPS_BY_KEY.get(subfilter.groupKey) : FILTER_GROUPS_BY_KEY.get(key);
+  if (!group) return "";
+  const current = subfilter || group;
+  const currentChip = `<a class="detail-map-link nearby-link nearby-link--current" href="/nearby/${key.replace(/_/g, "-")}/" aria-current="page">${appIconHtml(current.icon)}${escapeHtml(current.label)}</a>`;
+  const groupChip = subfilter
+    ? `<a class="detail-map-link nearby-link" href="/nearby/${subfilter.groupKey.replace(/_/g, "-")}/">${appIconHtml(group.icon)}${escapeHtml(group.label)}</a>`
+    : "";
+  const allChip = `<a class="detail-map-link nearby-link" href="/nearby?filters=false">${appIconHtml("nearby")}All nearby</a>`;
+
+  // A group page's own members -- cows is excluded the same way the static generator's own
+  // page.members already is (live-tracked, no fixed count, no page built through the ordinary
+  // inventory-driven path -- COW_KEY, scripts/report/map-inventory.js), so this never shows a
+  // 4th pill the static page's own generated set doesn't have.
+  const typeChips = !subfilter
+    ? group.subfilters
+        .filter((s) => s.key !== "cows")
+        .map((s) => `<a class="detail-map-link nearby-link" href="/nearby/${s.key.replace(/_/g, "-")}/">${appIconHtml(s.icon)}${escapeHtml(s.label)}</a>`)
+        .join("")
+    : "";
+
+  // Omits a duplicate trees/cows link, and omits trees entirely on the nature group page (its
+  // current/type chip above already covers it -- see topChipsHtml's matching comment,
+  // scripts/generate-find-pages.js).
+  const treesSubfilter = FILTER_SUBFILTERS_BY_KEY.get("trees");
+  const cowsSubfilter = FILTER_SUBFILTERS_BY_KEY.get("cows");
+  const treesAlreadyLinked = key === "trees" || (!subfilter && group.key === "nature");
+  const treesChip = treesAlreadyLinked || !treesSubfilter
+    ? ""
+    : `<a class="detail-map-link nearby-link" href="/nearby/trees/">${appIconHtml(treesSubfilter.icon)}${escapeHtml(treesSubfilter.label)}</a>`;
+  const cowsChip = key === "cows" || !cowsSubfilter
+    ? ""
+    : `<a class="detail-map-link nearby-link" href="/nearby/cows/">${appIconHtml(cowsSubfilter.icon)}${escapeHtml(cowsSubfilter.label)}</a>`;
+
+  return `<nav class="nearby-category-nav" aria-label="Browse nearby categories"><p class="nearby-category-nav-title">Browse nearby categories</p><div class="detail-top-row related-chips">${currentChip}${groupChip}${allChip}${typeChips}${treesChip}${cowsChip}</div></nav>`;
+}
+
+// The top-level Nearby screen's way back out of a filter: while any filter is applied there, a
+// "Show all nearby" pill links to the same ?filters=false override as the category chip's "All
+// nearby", so it ignores the reader's saved filters for this visit only. Category landings already
+// carry their own "All nearby" chip, so they get no second pill.
+function showAllNearbyPillHtml() {
+  if (isNearbyCategoryLandingPath() || !state.overviewFilters.length) return "";
+  return `<div class="detail-top-row related-chips"><a class="detail-map-link nearby-link show-all-nearby" href="/nearby?filters=false">${appIconHtml("nearby")}Show all nearby</a></div>`;
+}
+
+function overviewCategoryContentHtml(content) {
+  const categoryLabel = landingPageCategoryLabel();
+  if (!categoryLabel) return content;
+  const heading = `${categoryLabel} nearby`;
+  return `<section class="nearby-category-results" aria-labelledby="nearbyResultsHeading"><h3 id="nearbyResultsHeading">${escapeHtml(heading)}</h3>${content}</section>`;
+}
+
+function overviewNearestHtml() {
+  const navigationHtml = `${categoryLandingLinksHtml()}${showAllNearbyPillHtml()}`;
+  if (!state.userLocation) {
+    // A /nearby/<slug> category page -- a subfilter's own, or a whole group's -- lands here with
+    // no location yet (no prompt answered, or declined), as does a reader who has deliberately
+    // narrowed to one filter of their own -- list what it actually contains rather than the
+    // generic "use your location" prompt, which would otherwise hide real, specific content
+    // (the whole point of a /nearby/<slug> page) behind a request nobody has answered. See
+    // activeFiltersShowFullListWithoutLocation's comment for exactly which filter sets this
+    // covers, and why the default boot state must not also take this branch.
+    if (activeFiltersShowFullListWithoutLocation()) {
+      const entries = allEntriesForActiveFilters();
+      if (entries.length) {
+        return `${navigationHtml}${overviewCategoryContentHtml(`<p class="source-note">Enable location to sort these by distance and get walking directions.</p><ul class="nearest-list">${renderNearestItemsHtml(entries)}</ul>`)}`;
+      }
+    }
+    return `${navigationHtml}${overviewCategoryContentHtml(`<p class="empty">Use your location to list the nearest trees, cows, cafés, transport links, pubs, and landmarks.</p>`)}`;
+  }
+
+  // The "showing places near where you tapped / use my location" notice is no longer part of
+  // this list -- it is the persistent #nearbyAnchorBar in the inspector chrome, so it stays
+  // reachable from Filters/Settings/Report too (updateNearbyAnchorBar, js/nav.js).
+
+  // applyDefaultLocation()'s High Beach stand-in used to get its own "why is this centred on
+  // High Beach?" notice here, separate from the heading. It's folded into overviewHeadingText()'s
+  // own "within 30 min walk of High Beach" instead now -- the type line under the Nearby heading
+  // already answers that, for as long as the stand-in is what the list is actually measuring
+  // from, without a second sentence saying the same thing underneath it.
+
+  // Set by the pinch-to-resize gesture (updateNearbyRadiusPinch, js/nav.js) while the user
+  // is actively squeezing past the walking-radius floor -- visual feedback for a gesture
+  // that has no slider to show it on. Transient: cleared as soon as the pinch ends.
+  const floorNotice = state.walkingRadiusAtFloor
+    ? `<p class="source-note walk-radius-floor-notice">This is as close as it gets — nothing closer to show.</p>`
+    : "";
+
+  // overviewItemsForActiveFilter() now returns every match within the radius (see its
+  // comment) so the map can show all of them -- this scrollable text list still only
+  // wants to display the nearest handful, so cap it here instead.
+  // Heads-up ordering is applied to the *whole* in-radius set before the display cap, so a
+  // find you are walking straight at can climb into the visible handful rather than being
+  // cut off by a closer one behind your shoulder.
+  const allEntries = headsUpSortedEntries(overviewItemsForActiveFilter());
+  const entries = allEntries.slice(0, state.nearestItemsCount);
+  const activePointFilters = getActivePointFilterKeys();
+  if (!allEntries.length) {
+    if (state.overviewFilters.length > 0 && activePointFilters.length === 0) {
+      return `${navigationHtml}${overviewCategoryContentHtml(`<p class="empty">Selected map layers are shown on the map. Add Trees, Cows, or another point filter to list nearby items.</p>`)}`;
+    }
+    if (activePointFilters.length === 1) {
+      const meta = filterMeta(activePointFilters[0]);
+      return `${navigationHtml}${overviewCategoryContentHtml(`<p class="empty">No nearby ${escapeHtml(meta ? meta.title : "items")} found.</p>`)}`;
+    }
+    return `${navigationHtml}${overviewCategoryContentHtml(`<p class="empty">No nearby places found.</p>`)}`;
+  }
+
+
+  const itemsHtml = renderNearestItemsHtml(entries);
+
+  const fallbackNotice = state.overviewOutsideRadiusFallback
+    ? `<p class="source-note"><strong>Nothing found within ${formatWalkingRadius(state.walkingDistanceMinutes)} walking distance.</strong><br><small>Showing the closest match for each selected type instead.</small></p>`
+    : "";
+  const radiusActive = !state.showAllOutsideRadius;
+  const chipTitle = radiusActive
+    ? `Showing within ${formatWalkingRadius(state.walkingDistanceMinutes)} walk — tap to show all`
+    : `Showing all distances — tap to filter to ${formatWalkingRadius(state.walkingDistanceMinutes)} walk`;
+  const chipLabel = radiusActive ? formatWalkingRadius(state.walkingDistanceMinutes) : "All";
+  const walkChip = `<button class="walk-chip walk-chip-toggle${radiusActive ? "" : " walk-chip-toggle--off"}" type="button" data-action="toggle-radius" aria-pressed="${radiusActive}" title="${chipTitle}"><span class="walk-time">${chipLabel}</span> ${appIconHtml("walking", "app-icon walk-icon")}</button>`;
+  return `${navigationHtml}${overviewCategoryContentHtml(`${floorNotice}${fallbackNotice}<ul class="nearest-list">${itemsHtml}</ul>`)}`;
+}
+
+// The icon the Nearby list, search results and cluster detail show for a
+// place. placeIconSlug() is the same resolver the map pins use, so a place
+// reads identically wherever it appears -- it used to consult the filter
+// buckets before the tag rules and could disagree with its own pin, listing
+// an archaeological site under the generic castle while the map drew the
+// amphora.
+function landmarkEmoji(place) {
+  const slug = placeIconSlug(place);
+  if (slug) return appIconHtml(slug);
+  return landmarkTypeEmoji(place) || "📍";
+}
+
+function landmarkTypeEmoji(place) {
+  if (!place) return null;
+  if (hasAnyPlaceTag(place, ["parking"])) return "🅿️";
+  if (hasAnyPlaceTag(place, ["bicycle_parking", "cycle_parking"])) return "🚲";
+  if (hasAnyPlaceTag(place, ["bench"])) return "🪑";
+  if (hasAnyPlaceTag(place, ["toilets"])) return "🚻";
+  if (hasAnyPlaceTag(place, ["drinking_water", "water_well"])) return "🚰";
+  if (hasAnyPlaceTag(place, ["information"])) return "ℹ️";
+  if (hasAnyPlaceTag(place, ["memorial"])) return "🕯️";
+  if (hasAnyPlaceTag(place, ["monument", "boundary_stone"])) return "🗿";
+  if (hasAnyPlaceTag(place, ["archaeological_site", "roman_road", "ruins"])) return "🏺";
+  if (hasAnyPlaceTag(place, ["museum", "attraction", "building", "folly", "tomb", "gate_pier"])) return "🏛️";
+  if (hasAnyPlaceTag(place, ["camp_site", "caravan_site"])) return "⛺";
+  if (hasAnyPlaceTag(place, ["picnic_site"])) return "🧺";
+  if (hasAnyPlaceTag(place, ["viewpoint"])) return "🔭";
+  if (hasAnyPlaceTag(place, ["taxi"])) return "🚕";
+  if (hasAnyPlaceTag(place, ["telephone"])) return "☎️";
+  if (hasAnyPlaceTag(place, ["events_venue"])) return "🎟️";
+  if (hasAnyPlaceTag(place, ["alcohol"])) return "🍷";
+  if (hasAnyPlaceTag(place, ["chemist"])) return "⚕️";
+  if (hasAnyPlaceTag(place, ["dry_cleaning"])) return "👔";
+  if (hasAnyPlaceTag(place, ["cafe", "tea"])) return "☕";
+  if (hasAnyPlaceTag(place, ["gate", "entrance", "stile", "kissing_gate", "cycle_barrier", "lift_gate", "swing_gate", "cattle_grid", "fence"])) return appIconHtml("gate");
+  return "📍";
+}
+
+function hasAnyPlaceTag(place, tags) {
+  return tags.some((tag) => hasPlaceTag(place, tag));
+}
+
+function directionLabelFor(item) {
+  if (!state.userLocation || !item || !Number.isFinite(item.latitude) || !Number.isFinite(item.longitude)) return null;
+  const bearing = bearingDegrees(state.userLocation.latitude, state.userLocation.longitude, item.latitude, item.longitude);
+  const arrow = bearingArrow(bearing);
+  const cardinal = bearingCardinal(bearing);
+  return `${arrow} ${cardinal} (${Math.round(bearing)}°)`;
+}
+
+function directionTextFor(item) {
+  if (!state.userLocation || !item || !Number.isFinite(item.latitude) || !Number.isFinite(item.longitude)) return null;
+  const bearing = bearingDegrees(state.userLocation.latitude, state.userLocation.longitude, item.latitude, item.longitude);
+  return `${bearingCardinal(bearing)} (${Math.round(bearing)}°)`;
+}
+
+function bearingForItem(item) {
+  if (!state.userLocation || !item || !Number.isFinite(item.latitude) || !Number.isFinite(item.longitude)) return null;
+  return bearingDegrees(state.userLocation.latitude, state.userLocation.longitude, item.latitude, item.longitude);
+}
+
+async function startCompassNavigation({ fromGesture = Boolean(navigator.userActivation?.isActive) } = {}) {
+  // A default location is only a map-centering stand-in. Do not ask for compass access, or
+  // show its blocking permission gate, until the visitor has shared a real position. The
+  // no-location view already explains this in its source note and remains fully browseable.
+  if (!hasRealLocation()) {
+    updateCompassOverlay();
+    return;
+  }
+  if (!selectedCompassTarget()) {
+    updateCompassOverlay();
+    return;
+  }
+
+  ensureLocationWatch();
+
+  await requestCompassPermissionIfNeeded({ fromGesture });
+
+  updateCompassOverlay();
+}
+
+function compassPermissionCanBeRequested() {
+  return typeof DeviceOrientationEvent !== "undefined"
+    && typeof DeviceOrientationEvent.requestPermission === "function";
+}
+
+function maybeShowCompassPermissionPrompt() {
+  if (!hasRealLocation()) return;
+  if (!compassPermissionCanBeRequested()) return;
+  if (state.compassPermission === "granted") return;
+  showCompassPermissionPrompt();
+}
+
+async function requestCompassPermissionIfNeeded({ fromGesture = false } = {}) {
+  if (typeof DeviceOrientationEvent === "undefined") {
+    if (fromGesture && state.userLocation) {
+      const message = "Compass is not available on this device or browser. You can still use the map and tap any tree to see its distance.";
+      setStatus(message);
+    }
+    return;
+  }
+  if (typeof DeviceOrientationEvent.requestPermission !== "function") {
+    if (state.compassPermission === "unknown") state.compassPermission = "granted";
+    try {
+      localStorage.setItem(COMPASS_PERMISSION_KEY, "granted");
+    } catch {}
+    return;
+  }
+  if (state.compassPermission === "granted") return;
+  if (!fromGesture) return;
+
+  try {
+    const permission = await DeviceOrientationEvent.requestPermission();
+    state.compassPermission = permission === "granted" ? "granted" : "denied";
+    try {
+      localStorage.setItem(COMPASS_PERMISSION_KEY, state.compassPermission);
+    } catch {}
+    if (state.compassPermission === "granted") {
+      hideCompassPermissionPrompt();
+      reattachCompassListeners();
+    }
+  } catch {
+    state.compassPermission = "denied";
+    try {
+      localStorage.setItem(COMPASS_PERMISSION_KEY, "denied");
+    } catch {}
+  }
+}
+
+function compassPermissionRequiresRequest() {
+  return state.compassPermission !== "granted";
+}
+
+function setupCompassListeners() {
+  reattachCompassListeners();
+}
+
+// remove-then-add is deliberate: on iOS re-registering is what nudges the orientation
+// sensor back into firing after it has been suspended. A bare addEventListener would be
+// a no-op for an already-registered handler and so would nudge nothing.
+function reattachCompassListeners() {
+  window.removeEventListener("deviceorientationabsolute", onDeviceOrientation, true);
+  window.removeEventListener("deviceorientation", onDeviceOrientation, true);
+  window.addEventListener("deviceorientationabsolute", onDeviceOrientation, true);
+  window.addEventListener("deviceorientation", onDeviceOrientation, true);
+}
+
+function compassEventAgeMs(now = performance.now()) {
+  return state.compassLastEventAt == null ? Infinity : (now - state.compassLastEventAt);
+}
+
+function orientationEventAgeMs(now = performance.now()) {
+  return state.orientationLastEventAt == null ? Infinity : (now - state.orientationLastEventAt);
+}
+
+// True only once the sensor HAS delivered to this handler at some point and has since
+// gone quiet. Both null checks matter. Without them this is permanently true on a device
+// with no compass at all (desktop, permission never granted) and the watchdog thrashes
+// listeners forever. orientationLastEventAt is additionally the only one of the two that
+// no one but onDeviceOrientation ever writes, so requiring it keeps the watchdog inert
+// for code that drives heading state directly without any event ever firing -- the e2e
+// tilt specs do exactly that, and a watchdog waking mid-assertion to clear the heading
+// and repaint is a state change they have no way to see coming.
+function compassSensorStalled(now = performance.now()) {
+  if (state.compassLastEventAt == null || state.orientationLastEventAt == null) return false;
+  return compassEventAgeMs(now) > COMPASS_STALE_MS;
+}
+
+// Whether the walker has actually gone anywhere since the tab was last backgrounded
+// (pauseBackgroundedTracking snapshots the fix at that moment). Compared against the
+// same real-movement-vs-GPS-noise threshold ingestLocationFix uses to decide a fix is a
+// genuine relocation rather than wander (LOCATION_SMOOTHING_SNAP_METRES). No baseline or
+// no current fix -- e.g. location was never granted -- is treated as "can't tell", which
+// falls back to the old, safer assumption that the heading may no longer be trustworthy.
+function hasMovedSinceBackgrounding() {
+  const before = state.backgroundedUserLocation;
+  const current = state.userLocation;
+  if (!before || !current) return true;
+  const movedMetres = distanceMetres(before.latitude, before.longitude, current.latitude, current.longitude);
+  return !Number.isFinite(movedMetres) || movedMetres >= LOCATION_SMOOTHING_SNAP_METRES;
+}
+
+// Single recovery path, shared by the foreground-resume hooks and the watchdog below.
+// This logic used to live inline in the visibilitychange handler, which gave it exactly
+// one chance per return to the foreground -- so if the sensor came back later than that
+// one check (iOS routinely takes a moment, and sometimes never resumes without a nudge)
+// the map was left frozen on a stale heading, or stuck north-up with no tilt, until the
+// page was reloaded. That is the "put the phone down, come back, only a refresh fixes
+// it" report. Running it repeatedly is what lets the app heal itself instead.
+function recoverStalledCompass(now = performance.now()) {
+  if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+  if (!compassSensorStalled(now)) return;
+
+  // Drop a heading we can no longer trust so the map falls back to north-up rather than
+  // rendering a frozen rotation as if it were live. New readings go back through the
+  // calibration gate before rotation (and with it tilt, which headingUpActive() gates)
+  // resumes.
+  //
+  // Only when the walker has actually moved, though (hasMovedSinceBackgrounding): a phone
+  // that was simply put down for a while has a stalled sensor but an unchanged position, and
+  // the last heading is still a perfectly good guess -- clearing it anyway was what made
+  // returning to the app spin the map back to north and re-rotate to the same heading it
+  // already had, with no movement to justify it. Left alone, later orientation events still
+  // ease the heading toward the truth via the ordinary smoothing tick (startCompassSmoothing),
+  // just without the jarring reset in between.
+  if (Number.isFinite(state.compassHeading) && hasMovedSinceBackgrounding()) {
+    state.compassHeading = null;
+    state.compassHeadingTarget = null;
+    state.nearbyListHeading = null;
+    state.renderedNavigationHeading = null;
+    state.headingUpEntryAnim = null;
+    resetCompassCalibration();
+    if (typeof updateCompassOverlay === "function") updateCompassOverlay();
+    requestDraw();
+  }
+
+  // Orientation events are still arriving, just without a heading: the sensor is alive,
+  // so re-registering achieves nothing and would only thrash. Ask for the movement that
+  // actually re-calibrates the magnetometer instead.
+  if (orientationEventAgeMs(now) <= COMPASS_HEADINGLESS_PROMPT_MS) {
+    showCompassCalibrationPrompt();
+    return;
+  }
+
+  reattachCompassListeners();
+}
+
+// Every animation loop here re-arms itself from inside its own requestAnimationFrame callback
+// and parks the pending handle on `state`, so a second request cannot stack a duplicate loop.
+// Backgrounding the page breaks that contract: rAF callbacks do not run while hidden, and a
+// frame requested just before the app went away is frequently dropped outright rather than
+// delivered on return (iOS does this routinely when you switch to another app). The handle is
+// then set for ever, and the guard that exists to stop duplicate loops silently stops the loop
+// restarting at all -- requestDraw() never paints again, startCompassSmoothing() never eases
+// the heading or the tilt again, and a stranded state.viewportAnimationTo keeps
+// selectionCameraTransitionActive() true, which makes alignHeadingUpNavigationViewport bail on
+// every single call. Between them that is the whole "the compass and the 3D tilt stop updating
+// after I come back from another app, and only a reload fixes it" report. Releasing the handles
+// on the way back in lets each loop be started again from scratch.
+function releaseStrandedAnimationFrames() {
+  if (state.animationFrame != null) cancelAnimationFrame(state.animationFrame);
+  state.animationFrame = null;
+  state.animationFrameRequestedAt = null;
+  if (state.overlayAnimationFrame != null) cancelAnimationFrame(state.overlayAnimationFrame);
+  state.overlayAnimationFrame = null;
+  state.overlayAnimationFrameRequestedAt = null;
+  if (state.compassAnimationFrame != null) cancelAnimationFrame(state.compassAnimationFrame);
+  state.compassAnimationFrame = null;
+  state.compassAnimationFrameRequestedAt = null;
+  // A timestamp from before the break would give the first frame back a dt measured in
+  // minutes; the loop clamps it, but starting from null is the honest reset.
+  state.compassAnimationTime = null;
+  state.compassViewportAlignmentAt = null;
+  // Clears state.viewportAnimationTo as well as the frame handle, so a camera ease that was
+  // interrupted by the app going away cannot keep the heading-up fit switched off.
+  stopViewportAnimation();
+}
+
+// A parked rAF handle IS the duplicate-loop guard: while it is set, the loop refuses to start
+// again. That is correct only while the frame it names is really going to run. Two things break
+// that. Backgrounding, which releaseStrandedAnimationFrames above already handles -- but only on
+// visibilitychange/pageshow, and iOS routinely suspends and resumes a page without firing
+// either, which is why the sensor watchdog exists at all. And a callback that throws before it
+// re-arms: every one of these loops calls deep into fitting, overlay and draw code, and one
+// exception leaves the handle set for ever. Either way the guard silently becomes a "no loop at
+// all" lock -- requestDraw() never paints again, startCompassSmoothing() never eases heading or
+// tilt again, and a stranded viewportAnimationTo keeps selectionCameraTransitionActive() true so
+// alignHeadingUpNavigationViewport() bails on every call. That is the "the map just stops
+// moving, and the 3D tilt with it" report, and nothing short of a reload recovered from it.
+// So each loop now stamps when it asked for a frame and clears the stamp when that frame runs,
+// and a request still pending ANIMATION_FRAME_WEDGED_MS later is a wedge by definition.
+function animationFrameWedged(handle, requestedAt, now) {
+  return handle != null && requestedAt != null && (now - requestedAt) > ANIMATION_FRAME_WEDGED_MS;
+}
+
+function animationLoopsWedged(now = performance.now()) {
+  return animationFrameWedged(state.animationFrame, state.animationFrameRequestedAt, now)
+    || animationFrameWedged(state.overlayAnimationFrame, state.overlayAnimationFrameRequestedAt, now)
+    || animationFrameWedged(state.compassAnimationFrame, state.compassAnimationFrameRequestedAt, now)
+    || animationFrameWedged(state.viewportAnimationFrame, state.viewportAnimationFrameRequestedAt, now);
+}
+
+// Unlike handleForegroundResume, this is safe to run on the 10-second heartbeat: it only acts
+// once a frame request is provably overdue by two seconds, so a loop whose frames are actually
+// running is never touched and a legitimately in-flight camera animation is never cancelled.
+function recoverWedgedAnimationFrames(now = performance.now()) {
+  if (typeof document !== "undefined" && document.visibilityState === "hidden") return false;
+  if (!animationLoopsWedged(now)) return false;
+  releaseStrandedAnimationFrames();
+  startCompassSmoothing();
+  requestDraw();
+  return true;
+}
+
+// Everything that needs doing when the page returns to the foreground. Hooked to
+// visibilitychange and pageshow (a bfcache restore never fires visibilitychange); both
+// are idempotent and cheap enough to run on each.
+function handleForegroundResume() {
+  if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+
+  releaseStrandedAnimationFrames();
+
+  // Resume GPS watch + location-tracking interval paused on backgrounding.
+  ensureLocationWatch();
+
+  recoverStalledCompass();
+
+  // Nudge the orientation sensor even when it is not stale yet: it may have been
+  // suspended for less than COMPASS_STALE_MS, in which case there is no stale heading to
+  // clear but the sensor still needs waking.
+  reattachCompassListeners();
+
+  // Restart GPS watch if it has gone silent for >20 s.
+  restartStaleGpsWatch();
+
+  // Loops released above have to be started again -- nothing else will, since the sensors that
+  // normally kick them may take several seconds to resume (or may already be delivering into a
+  // smoothing loop that is no longer running).
+  startCompassSmoothing();
+  requestDraw();
+}
+
+function setupVisibilityRecovery() {
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState !== "visible") {
+      pauseBackgroundedTracking();
+      return;
+    }
+    handleForegroundResume();
+  });
+
+  // Two guards learned the hard way, both caught by the e2e suite. event.persisted:
+  // pageshow also fires on every ordinary page load, and running the resume work there
+  // started a GPS watch before boot's own flow had asked for one -- an extra stream of
+  // position fixes, each repainting at an arbitrary moment. And window "focus" was hooked
+  // here too and removed: it fires on every tab/window focus, so the resume work ran
+  // constantly rather than on an actual resume. The watchdog below is the real safety net.
+  window.addEventListener("pageshow", (event) => {
+    if (event && event.persisted) handleForegroundResume();
+  });
+
+  // Foreground watchdog -- iOS can silently stall watchPosition AND deviceorientation
+  // with no error and no visibilitychange at all, and a sensor that has not come back by
+  // the first post-resume check would otherwise never get a second one.
+  window.setInterval(() => {
+    if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+    restartStaleGpsWatch();
+    recoverStalledCompass();
+    recoverWedgedAnimationFrames();
+  }, SENSOR_WATCHDOG_INTERVAL_MS);
+}
+
+// Stop high-accuracy GPS polling and the periodic location-tracking beacon while
+// the tab/screen is not visible, so the app doesn't keep draining battery in the
+// background. Both are restarted from setupVisibilityRecovery on return to visible.
+function pauseBackgroundedTracking() {
+  // Snapshot where we were right before going away, so recoverStalledCompass can tell a
+  // phone that was actually carried somewhere from one that was simply put down -- see
+  // hasMovedSinceBackgrounding().
+  state.backgroundedUserLocation = state.userLocation
+    ? { latitude: state.userLocation.latitude, longitude: state.userLocation.longitude }
+    : null;
+  if (navigator.geolocation && state.locationWatchId != null) {
+    navigator.geolocation.clearWatch(state.locationWatchId);
+    state.locationWatchId = null;
+  }
+  if (typeof stopLocationTracking === "function") stopLocationTracking();
+}
+
+function restartStaleGpsWatch() {
+  if (!navigator.geolocation || state.locationWatchId == null) return;
+  const gpsAge = state.lastLocationUpdateAt == null
+    ? Infinity
+    : (performance.now() - state.lastLocationUpdateAt);
+  if (gpsAge > 20000) {
+    navigator.geolocation.clearWatch(state.locationWatchId);
+    state.locationWatchId = null;
+    ensureLocationWatch();
+  }
+}
+
+// Constants controlling the "settle before trusting" compass calibration gate below.
+const COMPASS_TARGET_DEADBAND_DEG = 1.5; // raw readings closer than this to the current target are ignored
+const COMPASS_PITCHING_DEADBAND_DEG = 3; // wider heading deadband while beta is still moving
+const COMPASS_UPRIGHT_EXTRA_DEADBAND_DEG = 3; // extra heading deadband at a fully upright phone (pitch 90deg), scaled by (pitch/90)^2
+const COMPASS_PITCHING_THRESHOLD_DEG = 1; // pitch still easing by more than this counts as the phone being pitched
+const COMPASS_DEADBAND_RELAX_MS = 1500; // a reading held inside the deadband this long is accepted, so a still phone settles on the true heading
+const BETA_TARGET_DEADBAND_DEG = 1; // raw pitch readings closer than this to the target are ignored
+const COMPASS_SMOOTHING_MIN_RATE = 2.5; // 1/s filter rate for tiny remaining angles (sensor jitter)
+const COMPASS_SMOOTHING_MAX_RATE = 14; // 1/s filter rate for a deliberate turn
+const COMPASS_SMOOTHING_FAST_DEG = 40; // remaining angle at which the full rate applies
+const COMPASS_CALIBRATION_WINDOW_MS = 900; // trailing window of raw readings used to judge stability
+const COMPASS_CALIBRATION_STABLE_SPREAD_DEG = 6; // max spread within the window before we trust it
+const COMPASS_CALIBRATION_MIN_SAMPLES = 4; // minimum readings required within the window
+const COMPASS_CALIBRATION_PROMPT_DELAY_MS = 1500; // how long to stay unstable before nudging the user
+const COMPASS_CALIBRATION_MAX_WAIT_MS = 6000; // safety valve -- never block heading-up forever
+
+// How far a raw heading must move from the current target before it counts as a turn. While the
+// phone is being pitched, heading readings cross-talk with the tilt, so it widens; a raised phone
+// approaches gimbal lock, where the heading is noisy even when held still, so it also grows with
+// pitch. Capped at COMPASS_PITCHING_DEADBAND_DEG + COMPASS_UPRIGHT_EXTRA_DEADBAND_DEG.
+function compassTargetDeadbandDeg() {
+  const pitching = Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) > COMPASS_PITCHING_THRESHOLD_DEG;
+  const upright = Math.pow(clamp(state.tiltBetaSmoothed / 90, 0, 1), 2);
+  return (pitching ? COMPASS_PITCHING_DEADBAND_DEG : COMPASS_TARGET_DEADBAND_DEG)
+    + upright * COMPASS_UPRIGHT_EXTRA_DEADBAND_DEG;
+}
+
+// Filter rate (1/s) for easing compassHeading toward its target: low for a small remaining angle
+// (sensor jitter), rising to the full rate at COMPASS_SMOOTHING_FAST_DEG and beyond (a real turn).
+function compassSmoothingRate(remainingDeg) {
+  const turn = Math.min(Math.abs(remainingDeg), COMPASS_SMOOTHING_FAST_DEG) / COMPASS_SMOOTHING_FAST_DEG;
+  return COMPASS_SMOOTHING_MIN_RATE + (COMPASS_SMOOTHING_MAX_RATE - COMPASS_SMOOTHING_MIN_RATE) * turn;
+}
+
+function onDeviceOrientation(event) {
+  // Tracked separately from compassLastEventAt (set below, and only for events carrying
+  // a usable heading) so recoverStalledCompass can tell a suspended sensor -- which
+  // re-registering the listeners can wake -- from a live sensor whose magnetometer has
+  // lost its heading, which it cannot.
+  state.orientationLastEventAt = performance.now();
+  const rawBeta = event.beta;
+  if (Number.isFinite(rawBeta)) {
+    const nextBeta = clamp(Math.abs(rawBeta), 0, 90);
+    // Deadband: sub-degree pitch wobble would otherwise re-project the tilted map every frame.
+    if (Math.abs(nextBeta - state.tiltBetaTarget) >= BETA_TARGET_DEADBAND_DEG) state.tiltBetaTarget = nextBeta;
+    // Beta drives the 3D tilt by itself, but only startCompassSmoothing's loop eases
+    // tiltBetaSmoothed toward it. Pitch is useful even while the magnetometer is still
+    // calibrating (or when a browser exposes beta but not a north-referenced heading), so the
+    // smoothing loop is intentionally started from beta alone. The loop keeps the map north-up
+    // until a heading becomes trustworthy, but the Z axis and 3D camera remain responsive.
+    startCompassSmoothing();
+  }
+  const source = orientationHeadingSource(event);
+  if (source === HEADING_SOURCE_NONE) return;
+  // A worse source than the one already feeding the compass: on Android that is the drifting
+  // relative stream still firing alongside the north-referenced one. Its beta was useful above;
+  // its heading is not. Note this deliberately leaves compassLastEventAt alone, so staleness is
+  // judged on the stream actually being used -- a relative stream still firing after the
+  // absolute one has died must not mask the death.
+  if (source < state.compassHeadingSource) return;
+  if (source > state.compassHeadingSource) {
+    // Upgraded to a better source. Everything the worse one produced was measured from a
+    // different zero, so averaging the two would be meaningless: throw it away and re-gate.
+    state.compassHeadingSource = source;
+    discardCompassHeadingFromWorseSource();
+  }
+
+  const heading = extractCompassHeading(event);
+  if (!Number.isFinite(heading)) return;
+  state.compassLastEventAt = performance.now();
+
+  if (Number.isFinite(state.compassHeading)) {
+    // Already trust a heading -- keep tracking the live target as before.
+    // Deadband: sub-degree sensor wobble is not a turn, so it never moves the target.
+    const deadband = compassTargetDeadbandDeg();
+    // A reading inside the deadband is wobble -- unless nothing has moved the target for a while,
+    // in which case the phone is simply being held still and the target should settle on it.
+    const quietFor = performance.now() - (state.compassTargetMovedAt || 0);
+    if (!Number.isFinite(state.compassHeadingTarget)
+        || Math.abs(shortestCompassDelta(state.compassHeadingTarget, heading)) >= deadband
+        || quietFor >= COMPASS_DEADBAND_RELAX_MS) {
+      if (heading !== state.compassHeadingTarget) state.compassTargetMovedAt = performance.now();
+      state.compassHeadingTarget = heading;
+    }
+    startCompassSmoothing();
+    return;
+  }
+
+  // No trusted heading yet. The very first orientation readings after load (or after
+  // the compass goes stale and re-acquires) are frequently wrong on phones whose
+  // magnetometer needs a moment of physical movement to settle -- snapping the map to
+  // rotate on that first raw reading is the "dodgy state" on initial load. Instead,
+  // buffer raw readings and only start trusting/rotating once they agree with each
+  // other, nudging the user to help it along if that's taking a while.
+  registerCompassCalibrationSample(heading, state.compassLastEventAt);
+}
+
+// Buffers a raw (not-yet-trusted) heading reading and decides whether the compass has
+// settled enough to trust, is still unstable long enough to warrant the "move your
+// phone" prompt, or has been unstable so long we should just give up waiting (rather
+// than block heading-up navigation indefinitely on a device that never settles).
+function registerCompassCalibrationSample(heading, now) {
+  if (state.compassCalibrationStartedAt == null) state.compassCalibrationStartedAt = now;
+  state.compassCalibrationSamples.push({ heading, time: now });
+  const cutoff = now - COMPASS_CALIBRATION_WINDOW_MS;
+  while (state.compassCalibrationSamples.length && state.compassCalibrationSamples[0].time < cutoff) {
+    state.compassCalibrationSamples.shift();
+  }
+
+  const elapsed = now - state.compassCalibrationStartedAt;
+  if (isCompassCalibrationStable() || elapsed >= COMPASS_CALIBRATION_MAX_WAIT_MS) {
+    completeCompassCalibration(heading);
+    return;
+  }
+
+  if (elapsed >= COMPASS_CALIBRATION_PROMPT_DELAY_MS) {
+    showCompassCalibrationPrompt();
+  }
+
+  // Rotation waits for a trusted heading, but the zoom/anchor fit does not need one --
+  // nearbyNavigationAnchorActive() only needs state.userLocation. Without this, the
+  // very first GPS fix can race state.dataLoaded (alignHeadingUpNavigationViewport
+  // bails until data is ready) and, previously, only got a second chance to correct
+  // itself because compassHeading was trusted immediately and startCompassSmoothing's
+  // per-frame tick kept re-running alignHeadingUpNavigationViewport regardless. Now that
+  // rotation is deliberately held back during calibration, this keeps that same
+  // "self-heal on the next frame" zoom correction going during the calibration window,
+  // so the initial zoom is never stuck wrong until the user happens to move.
+  startCalibrationViewportSync();
+}
+
+// Runs alongside calibration (see registerCompassCalibrationSample above): keeps
+// re-fitting the north-up anchored zoom every frame while a heading is not yet trusted,
+// exactly like startCompassSmoothing's tick does once one is -- just without the
+// rotation. Stops itself once a heading is trusted (startCompassSmoothing's own tick
+// takes over alignHeadingUpNavigationViewport from there) or once calibration is reset.
+function startCalibrationViewportSync() {
+  if (state.calibrationViewportSyncFrame != null) return;
+
+  const tick = () => {
+    if (Number.isFinite(state.compassHeading)) {
+      state.calibrationViewportSyncFrame = null;
+      return;
+    }
+
+    // Safety valve mirrors registerCompassCalibrationSample's MAX_WAIT check, in case
+    // no further orientation events arrive to deliver it (sensor pause, permission
+    // change mid-calibration) -- without this, a stalled sensor would leave this loop
+    // running forever instead of the calibration ever completing.
+    if (
+      state.compassCalibrationStartedAt != null
+      && performance.now() - state.compassCalibrationStartedAt >= COMPASS_CALIBRATION_MAX_WAIT_MS
+    ) {
+      const samples = state.compassCalibrationSamples;
+      const fallbackHeading = samples.length ? samples[samples.length - 1].heading : null;
+      state.calibrationViewportSyncFrame = null;
+      if (Number.isFinite(fallbackHeading)) completeCompassCalibration(fallbackHeading);
+      return;
+    }
+
+    if (navigationAnchorActive()) {
+      // force: true bypasses resolveHeadingUpTargetScale's "compass sensor is actively
+      // firing, defer non-urgent zoom changes" deferral. That deferral exists to stop
+      // zoom fighting an in-progress rotation -- but calibration holds rotation at 0
+      // the entire time (headingUpActive() is false until a heading is trusted), so
+      // there's no rotation for the zoom to fight, and no reason to wait. Without force
+      // here, calibration's continuous stream of raw orientation events keeps
+      // headingUpCompassSensorActive() true throughout, and the deferred zoom fit only
+      // ever got applied once the sensor briefly went quiet -- in practice, once
+      // rotation itself kicked in and settled -- which is exactly the "zoom only
+      // corrects after it rotates" symptom this fixes.
+      const viewportChanged = alignHeadingUpNavigationViewport({ force: true });
+      if (viewportChanged) requestDraw();
+    }
+
+    state.calibrationViewportSyncFrame = requestAnimationFrame(tick);
+  };
+
+  state.calibrationViewportSyncFrame = requestAnimationFrame(tick);
+}
+
+function stopCalibrationViewportSync() {
+  if (state.calibrationViewportSyncFrame == null) return;
+  cancelAnimationFrame(state.calibrationViewportSyncFrame);
+  state.calibrationViewportSyncFrame = null;
+}
+
+// Circular spread (max - min, degrees) of the buffered calibration samples relative to
+// the oldest sample still in the trailing window.
+function compassCalibrationSpreadDegrees() {
+  const samples = state.compassCalibrationSamples;
+  if (!samples.length) return Infinity;
+  const anchor = samples[0].heading;
+  let min = 0;
+  let max = 0;
+  for (let i = 1; i < samples.length; i++) {
+    const delta = shortestCompassDelta(anchor, samples[i].heading);
+    if (delta < min) min = delta;
+    if (delta > max) max = delta;
+  }
+  return max - min;
+}
+
+function isCompassCalibrationStable() {
+  return state.compassCalibrationSamples.length >= COMPASS_CALIBRATION_MIN_SAMPLES
+    && compassCalibrationSpreadDegrees() <= COMPASS_CALIBRATION_STABLE_SPREAD_DEG;
+}
+
+// Readings have settled (or we've waited as long as we're going to) -- start trusting
+// and rotating to the compass heading. headingUpActive() picks this up on the next
+// frame and the existing renderedNavigationHeading entry animation eases the map into
+// its new rotation, so this doesn't itself need to animate anything.
+function completeCompassCalibration(heading) {
+  state.compassHeading = heading;
+  state.compassHeadingTarget = heading;
+  state.compassTargetMovedAt = performance.now();
+  state.compassCalibrationSamples = [];
+  state.compassCalibrationStartedAt = null;
+  stopCalibrationViewportSync();
+  hideCompassPermissionPrompt();
+  hideCompassCalibrationPrompt();
+  startCompassSmoothing();
+}
+
+// Called whenever a stale compass heading is cleared elsewhere (backgrounding,
+// returning to the overview after the sensor's gone quiet) so the next readings go
+// through the calibration gate again instead of being trusted immediately, and the
+// "move your phone" prompt is free to reappear if the new fix takes a while too.
+function resetCompassCalibration() {
+  state.compassCalibrationSamples = [];
+  state.compassCalibrationStartedAt = null;
+  state.compassCalibrationPromptDismissed = false;
+  stopCalibrationViewportSync();
+  hideCompassCalibrationPrompt();
+}
+
+function showCompassCalibrationPrompt() {
+  if (state.compassPermissionPromptVisible) return;
+  if (state.compassCalibrationPromptDismissed) return;
+  if (state.compassCalibrationPromptVisible) return;
+  if (!els.compassCalibrationBanner) return;
+  state.compassCalibrationPromptVisible = true;
+  if (els.compassCalibrationBannerText) {
+    els.compassCalibrationBannerText.hidden = false;
+    els.compassCalibrationBannerText.textContent = "Move your phone in a figure-8 to help it find your direction";
+  }
+  if (els.compassCalibrationBannerEnable) els.compassCalibrationBannerEnable.hidden = true;
+  els.compassCalibrationBanner.classList.remove("fading-out");
+  els.compassCalibrationBanner.hidden = false;
+}
+
+function showCompassPermissionPrompt() {
+  if (state.compassPermissionPromptVisible) return;
+  if (!els.compassCalibrationBanner) return;
+  state.compassPermissionPromptVisible = true;
+  state.compassCalibrationPromptVisible = false;
+  if (els.compassCalibrationBannerText) {
+    // Not blocked: the "Enable compass" button speaks for itself, so no explanatory line.
+    const blocked = state.compassPermission === "denied";
+    els.compassCalibrationBannerText.hidden = !blocked;
+    els.compassCalibrationBannerText.textContent = blocked
+      ? "Compass access is blocked. Enable Motion & Orientation access in your browser settings to use map movement."
+      : "";
+  }
+  if (els.compassCalibrationBannerEnable) {
+    els.compassCalibrationBannerEnable.textContent = "Enable compass";
+    els.compassCalibrationBannerEnable.hidden = false;
+  }
+  els.compassCalibrationBanner.classList.remove("fading-out");
+  els.compassCalibrationBanner.hidden = false;
+}
+
+async function enableCompassFromGesture() {
+  await requestCompassPermissionIfNeeded({ fromGesture: true });
+  if (state.compassPermission === "granted") {
+    hideCompassPermissionPrompt();
+    reattachCompassListeners();
+    setStatus("");
+    requestDraw();
+  } else if (state.compassPermissionPromptVisible && els.compassCalibrationBannerText) {
+    els.compassCalibrationBannerText.hidden = false;
+    els.compassCalibrationBannerText.textContent = "Compass access is still blocked. Enable Motion & Orientation access in your browser settings, then try again.";
+  }
+}
+
+function hideCompassCalibrationPrompt() {
+  if (state.compassPermissionPromptVisible) return;
+  state.compassCalibrationPromptVisible = false;
+  if (!els.compassCalibrationBanner) return;
+  if (els.compassCalibrationBannerEnable) els.compassCalibrationBannerEnable.hidden = true;
+  hideWithFade(els.compassCalibrationBanner);
+}
+
+function hideCompassPermissionPrompt() {
+  state.compassPermissionPromptVisible = false;
+  if (!els.compassCalibrationBanner) return;
+  if (els.compassCalibrationBannerEnable) els.compassCalibrationBannerEnable.hidden = true;
+  hideWithFade(els.compassCalibrationBanner);
+}
+
+// --- Nearby-event alert ---
+// In-app only (no OS push): a banner, not a modal, so it never interrupts whatever screen is
+// open. Checked on every GPS fix (ensureLocationWatch) rather than against a timer, so it fires
+// the moment a walk actually brings someone into range of something happening right now.
+
+function eventAlertEnabled() {
+  // Matches the "no filters selected shows everything" rule the rest of the Nearby screen
+  // follows -- an event alert should not fire for a category the user explicitly turned off.
+  return state.overviewFilters.length === 0 || isSubfilterActive("events");
+}
+
+function checkEventProximityAlert(latitude, longitude, nowMs = Date.now()) {
+  if (!els.eventNearbyBanner || !eventAlertEnabled()) return;
+  if (!Array.isArray(state.landmarks) || !state.landmarks.length) return;
+  const radiusMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
+  let nearest = null;
+  let nearestMetres = Infinity;
+  for (const place of state.landmarks) {
+    if (!isEventCategory(place) || !isEventLive(place, nowMs)) continue;
+    if (state.eventNearbyAlertedIds.has(place.id)) continue;
+    const metres = distanceMetres(latitude, longitude, place.latitude, place.longitude);
+    if (metres <= radiusMetres && metres < nearestMetres) {
+      nearest = place;
+      nearestMetres = metres;
+    }
+  }
+  if (nearest) showEventNearbyBanner(nearest, nearestMetres);
+}
+
+function showEventNearbyBanner(event, metres) {
+  if (!els.eventNearbyBanner) return;
+  // Marked alerted immediately, not on dismiss -- lingering in range (or the next fix landing
+  // before the user has reacted) must never re-show the same event a second time this session.
+  state.eventNearbyAlertedIds.add(event.id);
+  state.eventNearbyBannerEventId = event.id;
+  if (els.eventNearbyBannerText) {
+    const minutes = Math.max(1, Math.round(metres / walkingDistanceToMetres(1)));
+    els.eventNearbyBannerText.textContent = `${event.name} is on now — ${minutes} min walk`;
+  }
+  els.eventNearbyBanner.classList.remove("fading-out");
+  els.eventNearbyBanner.hidden = false;
+}
+
+function hideEventNearbyBanner() {
+  if (!els.eventNearbyBanner) return;
+  hideWithFade(els.eventNearbyBanner);
+}
+
+// Bound to the banner's own body (not just the dismiss "x") -- tapping the alert should open
+// the event exactly as tapping it in the Nearby list would.
+function openEventNearbyBanner() {
+  const id = state.eventNearbyBannerEventId;
+  hideEventNearbyBanner();
+  if (!id) return;
+  const event = Array.isArray(state.landmarks)
+    ? state.landmarks.find((place) => isEventCategory(place) && place.id === id)
+    : null;
+  if (event) focusOverviewItem("landmark", placeHashKey(event));
+}
+
+// Bound to the banner's dismiss button -- lets the user hide the "move your phone"
+// nudge without waiting for calibration to actually finish. Suppressed only for the
+// current calibration cycle: resetCompassCalibration() (staleness recovery) clears
+// the flag again so a later re-acquisition can still prompt.
+function dismissCompassCalibrationPrompt() {
+  state.compassCalibrationPromptDismissed = true;
+  hideCompassCalibrationPrompt();
+}
+
+function startCompassSmoothing() {
+  if (state.compassAnimationFrame != null) return;
+
+  const tick = (timestamp) => {
+    state.compassAnimationFrameRequestedAt = null;
+    _overlapRectCache = undefined;
+    _tiltProjectionCache = undefined;
+    _nearbyRenderOriginCache = undefined;
+    const hasHeading = Number.isFinite(state.compassHeadingTarget) && Number.isFinite(state.compassHeading);
+    const hasBetaWork = Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) >= 0.05;
+    if (!hasHeading && !hasBetaWork) {
+      state.compassAnimationFrame = null;
+      state.compassAnimationTime = null;
+      return;
+    }
+
+    const previousTime = state.compassAnimationTime == null ? timestamp : state.compassAnimationTime;
+    const dt = Math.min(0.05, Math.max(0.001, (timestamp - previousTime) / 1000));
+    state.compassAnimationTime = timestamp;
+    const previousHeading = state.compassHeading;
+
+    if (hasHeading) {
+      const delta = shortestCompassDelta(state.compassHeading, state.compassHeadingTarget);
+      // Fixed rate 14 (70ms time constant) passed raw sensor noise straight to the screen.
+      // Ease the rate with the remaining angle: small wobble is heavily damped, a real turn
+      // still catches up quickly.
+      const rate = compassSmoothingRate(delta);
+      const smoothing = 1 - Math.exp(-rate * dt);
+      const nextHeading = state.compassHeading + (delta * smoothing);
+      state.compassHeading = nextHeading;
+    }
+
+    // Slower than the compass heading filter above (rate 14): beta gates pin/pointer
+    // collapse (tiltInfluence) as well as the rotateX camera tilt, and a phone lifts
+    // through the whole 0-12deg dead zone quickly, so a fast filter here reads as the
+    // collapsing map pins snapping to size rather than easing in.
+    const betaDiff = state.tiltBetaTarget - state.tiltBetaSmoothed;
+    state.tiltBetaSmoothed += betaDiff * (1 - Math.exp(-4 * dt));
+
+    const tiltNeedsFullRedraw = tiltRenderStale();
+    if (hasHeading) {
+      updateOverviewDirectionArrows();
+      refreshNearbyListForHeading();
+      updateCompassOverlay();
+    }
+    const alignmentDue = state.compassViewportAlignmentAt == null
+      || timestamp - state.compassViewportAlignmentAt >= 33;
+    // A heading changes the rotation every frame, but the fit only needs solving often enough
+    // to follow meaningful movement. Beta-only tilt needs a solve when the baked perspective
+    // has moved enough to warrant repainting. This keeps the expensive fit math out of the
+    // tight sensor loop without delaying a real camera correction.
+    const shouldAlignViewport = navigationAnchorActive()
+      && ((hasHeading && (alignmentDue || (previousHeading != null
+        && Math.abs(shortestCompassDelta(previousHeading, state.compassHeading)) > 1)))
+        || (!hasHeading && tiltNeedsFullRedraw));
+    let viewportChanged = false;
+    if (shouldAlignViewport) {
+      viewportChanged = alignHeadingUpNavigationViewport();
+      state.compassViewportAlignmentAt = timestamp;
+    }
+    if (headingUpActive()) {
+      updateHeadingUpCanvasRotationTransform();
+    }
+    // In flat heading-up mode the map canvas is already rotated with CSS and the moving
+    // pins/compass live on the overlay. In beta-only tilt mode the same overlay path applies
+    // until the baked terrain projection has moved enough to need a repaint. Repainting the
+    // entire terrain for every heading sample was the main source of the visible step/jitter.
+    if (viewportChanged || tiltNeedsFullRedraw) requestDraw();
+    else if (typeof drawOverlay === "function") drawOverlay();
+
+    const remaining = hasHeading
+      ? Math.abs(shortestCompassDelta(state.compassHeading, state.compassHeadingTarget))
+      : 0;
+    const lastEventAge = state.compassLastEventAt == null ? Infinity : (timestamp - state.compassLastEventAt);
+    const sensorIsActive = lastEventAge < HEADING_UP_SENSOR_ACTIVE_MS;
+    const betaSettled = Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) < 0.1;
+    if (!hasHeading && betaSettled) {
+      if (tiltActive()) requestDraw();
+      state.compassAnimationFrame = null;
+      state.compassAnimationTime = null;
+      return;
+    }
+    if (hasHeading && remaining < 0.05 && !sensorIsActive && betaSettled) {
+      state.compassHeading = unwrapAngle(state.compassHeading, state.compassHeadingTarget);
+      updateOverviewDirectionArrows();
+      refreshNearbyListForHeading();
+      updateCompassOverlay();
+      // REVERTED (was: animate this settle call to ease in the zoom that
+      // resolveHeadingUpTargetScale deferred while the sensor was live). Animating here puts
+      // a viewport animation in flight just as the smoothing loop exits, and every later
+      // alignHeadingUpNavigationViewport call early-returns while
+      // selectionCameraTransitionActive() is true -- which suppresses the map redraws that
+      // bake heading AND tilt into the canvas (see prepareCanvasForDraw). Reported in the
+      // field as the map no longer rotating and no longer entering 3D. Snapping here is the
+      // long-standing behaviour; the occasional zoom jump it causes is the lesser evil, and
+      // wants fixing inside the loop (easing state.viewport.scale per frame) rather than by
+      // handing the viewport to an animator at the moment the loop stops running.
+      const finalViewportChanged = alignHeadingUpNavigationViewport();
+      if (headingUpActive()) {
+        updateHeadingUpCanvasRotationTransform();
+        if (finalViewportChanged || tiltRenderStale()) requestDraw();
+        else if (typeof drawOverlay === "function") drawOverlay();
+      } else {
+        requestDraw();
+      }
+      state.compassAnimationFrame = null;
+      state.compassAnimationTime = null;
+      return;
+    }
+
+    state.compassAnimationFrame = requestAnimationFrame(tick);
+    state.compassAnimationFrameRequestedAt = timestamp;
+  };
+
+  state.compassAnimationFrame = requestAnimationFrame(tick);
+  state.compassAnimationFrameRequestedAt = performance.now();
+}
+
+function shortestCompassDelta(fromHeading, toHeading) {
+  const raw = normalizeDegrees(toHeading) - normalizeDegrees(fromHeading);
+  if (raw > 180) return raw - 360;
+  if (raw < -180) return raw + 360;
+  return raw;
+}
+
+function extractCompassHeading(event) {
+  if (!event) return null;
+  if (Number.isFinite(event.webkitCompassHeading)) return normalizeDegrees(event.webkitCompassHeading);
+  if (Number.isFinite(event.alpha)) return normalizeDegrees(360 - event.alpha);
+  return null;
+}
+
+// How trustworthy the heading this event carries is -- see the HEADING_SOURCE_* constants.
+// `absolute` is the standard flag saying alpha is referenced to the Earth, and
+// `deviceorientationabsolute` carries a north-referenced alpha by definition; iOS ships neither
+// and exposes the heading directly as webkitCompassHeading instead.
+function orientationHeadingSource(event) {
+  if (!event) return HEADING_SOURCE_NONE;
+  if (Number.isFinite(event.webkitCompassHeading)) {
+    return iosCompassHeadingIsValid(event) ? HEADING_SOURCE_ABSOLUTE : HEADING_SOURCE_NONE;
+  }
+  if (!Number.isFinite(event.alpha)) return HEADING_SOURCE_NONE;
+  return (event.absolute === true || event.type === "deviceorientationabsolute")
+    ? HEADING_SOURCE_ABSOLUTE
+    : HEADING_SOURCE_RELATIVE;
+}
+
+// iOS reports the magnetometer's confidence in webkitCompassAccuracy alongside every
+// heading, and Apple documents a NEGATIVE value as meaning the heading is not valid at all.
+// It is not "imprecise": the number sitting in webkitCompassHeading next to it is arbitrary.
+// Nothing read this, so an iPhone whose magnetometer had not settled -- near a car
+// dashboard, in a magnetic case, or in the first moments after the screen woke -- handed a
+// confident-looking but meaningless bearing straight to the heading, and the map rotated to
+// it. That is the same "completely wrong" the Android stream mixing caused, reached by a
+// different route, and it is why this shows up on iPhones too.
+//
+// Returning NONE rather than falling through to event.alpha is deliberate: iOS's alpha is
+// measured from wherever the device happened to be when the sensor started, not from north
+// -- that is the whole reason webkitCompassHeading exists -- so it is no better. With no
+// usable heading the event still records orientationLastEventAt, which is exactly what makes
+// recoverStalledCompass surface the "move your phone in a figure-8" banner: the sensor is
+// alive, its magnetometer wants calibrating, and physical movement is the only thing that
+// fixes it.
+//
+// A missing/undefined accuracy (any non-iOS browser, and older iOS) is not evidence of a bad
+// heading, so it is trusted as before.
+function iosCompassHeadingIsValid(event) {
+  const accuracy = event.webkitCompassAccuracy;
+  if (!Number.isFinite(accuracy)) return true;
+  return accuracy >= 0;
+}
+
+// Drops every heading derived from a source we have just improved on. In practice the two
+// Android streams start within a frame or two of each other, so this usually only clears a
+// couple of buffered calibration samples -- but if a relative reading did get as far as being
+// trusted, keeping it would leave the map rotated to an arbitrary zero until the next stale
+// check 15s later. Sending it back through the calibration gate costs a moment north-up.
+function discardCompassHeadingFromWorseSource() {
+  const hadHeading = Number.isFinite(state.compassHeading);
+  state.compassHeading = null;
+  state.compassHeadingTarget = null;
+  state.nearbyListHeading = null;
+  state.renderedNavigationHeading = null;
+  state.headingUpEntryAnim = null;
+  resetCompassCalibration();
+  if (!hadHeading) return;
+  if (typeof updateCompassOverlay === "function") updateCompassOverlay();
+  requestDraw();
+}
+
+function ensureLocationWatch() {
+  if (!navigator.geolocation || state.locationWatchId != null) return;
+  startLocationTracking();
+  state.locationWatchId = navigator.geolocation.watchPosition(
+    (position) => {
+      state.lastLocationUpdateAt = performance.now();
+      const { latitude, longitude, accuracy } = position.coords;
+      const previousPoint = state.userLocation && state.userLocation.point;
+      state.userLocation = ingestLocationFix(latitude, longitude, accuracy);
+      const point = state.userLocation.point;
+      state.userInMapArea = pointInsideBounds(point, state.bounds);
+      const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
+      state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;
+      state.nearestCow = nearestCowTo(latitude, longitude);
+      state.nearestPub = nearestPlaceByFilter(latitude, longitude, (place) => isPubCategory(place));
+      state.nearestRestaurant = nearestPlaceByFilter(latitude, longitude, (place) => isRestaurantCategory(place));
+      state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isRestaurantCategory(place) && !isCafeCategory(place) && !isShopCategory(place) && !isTransportCategory(place));
+      state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
+      checkEventProximityAlert(latitude, longitude);
+      if (typeof communityNudgeCheck === "function") communityNudgeCheck();
+      // Walked out of a radius that was framing one nearby find? Grow it back to whatever is
+      // still in reach before the list and camera are re-derived below (js/nav.js).
+      ensureWalkingRadiusCoversNearest();
+      if (isOverviewScreenActive()) {
+        selectOverview();
+      }
+      updateOverviewDirectionArrows();
+      updateSelectedDetailFields();
+      if (navigationAnchorActive()) {
+        const vpChanged = alignHeadingUpNavigationViewport();
+        keepOverviewCenteredOnUser(previousPoint);
+        updateCompassOverlay();
+        updateHeadingUpCanvasRotationTransform();
+        // The route line lives on the main canvas, and the main canvas is only repainted when
+        // the viewport itself moves -- so while navigating with the camera already settled,
+        // every fix took the overlay-only path and the line stayed painted where the walker
+        // used to be. It starts at the live position now (selectedRoutePoints, js/renderer.js),
+        // which is only visible if the frame that draws it is actually requested.
+        if (vpChanged || tiltRenderStale() || selectedCompassTarget()) requestDraw();
+        else if (typeof drawOverlay === "function") drawOverlay();
+      } else {
+        // Do not let the first watch callback replace the cinematic High Beach -> GPS fly-to
+        // with its ordinary short GPS-follow refit. The fly-to already targets this fix; later
+        // callbacks resume the normal follow once it has landed.
+        if (!state.locationRevealAnimationActive) {
+          ensureUserAndSelectionVisible({ animate: true, durationMs: 200 });
+        }
+        keepOverviewCenteredOnUser(previousPoint);
+        updateCompassOverlay();
+        requestDraw();
+      }
+    },
+    (error) => {
+      if (error && error.code === 1) {
+        // Permission revoked mid-session — clear the watch. No blocking gate: the app stays
+        // usable on the last fix it had (or the High Beach stand-in) rather than forcing a
+        // retry wall for a permission that was never required in the first place.
+        navigator.geolocation.clearWatch(state.locationWatchId);
+        state.locationWatchId = null;
+      }
+      // Timeout / position-unavailable: watchPosition continues automatically.
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 1500 }
+  );
+}
+
+function selectedCompassTarget() {
+  if (!state.selected) return null;
+  if (state.selected.type === "tree" || state.selected.type === "landmark" || state.selected.type === "cow" || state.selected.type === "path" || state.selected.type === "water") return state.selected.item;
+  if (state.selected.type === "road") {
+    // Resolved lazily and then cached on the selection itself: the route-line memoization
+    // (selectedRoutePoints, js/renderer.js) keys on target object identity, so this must
+    // return the same object every frame -- and a street selected before the first GPS fix
+    // has nothing to measure from yet, so the attempt has to be repeatable.
+    if (!state.selected.navTarget) state.selected.navTarget = roadNavTarget(state.selected.item);
+    return state.selected.navTarget;
+  }
+  return null;
+}
+
+// A street has no single position of its own, so navigating to one aims at the point on its
+// geometry nearest the user at the moment it was selected -- a fixed destination like any
+// other, exposed as a pseudo-item the compass arrow, route line, and camera fit can all read
+// (point/latitude/longitude/name). Projection is done in world (Mercator) space, which is
+// flat enough over forest distances for "nearest point on this street".
+function roadNavTarget(road) {
+  if (!state.userLocation || !road || !Array.isArray(road.segments)) return null;
+  const from = state.userLocation.point;
+  let best = null;
+  for (const segment of road.segments) {
+    for (let i = 1; i < segment.length; i += 1) {
+      const a = segment[i - 1];
+      const b = segment[i];
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const lengthSquared = dx * dx + dy * dy;
+      const t = lengthSquared === 0
+        ? 0
+        : clamp(((from.x - a.x) * dx + (from.y - a.y) * dy) / lengthSquared, 0, 1);
+      const point = { x: a.x + t * dx, y: a.y + t * dy };
+      const distance = Math.hypot(point.x - from.x, point.y - from.y);
+      if (!best || distance < best.distance) best = { point, distance };
+    }
+  }
+  if (!best) return null;
+  const lonLat = unprojectPoint(best.point);
+  return {
+    point: best.point,
+    latitude: lonLat.latitude,
+    longitude: lonLat.longitude,
+    name: road.name || road.ref || "Unnamed road",
+  };
+}
+
+const HEADING_UP_ANCHOR_SELECTED = 0.62; // user anchored below center so destination shows above
+const HEADING_UP_ANCHOR_NEARBY = 0.5; // flat/2D nearby: dead centre, so the walking-radius circle -- the only thing this view's camera frames -- is centred in the available map space
+const HEADING_UP_ANCHOR_SELECTED_TILT = 0.88; // at max tilt (full 3D), user sits near the bottom edge with a small gap so the view isn't obscured by anything behind
+const HEADING_UP_ANCHOR_NEARBY_TILT = 0.94;   // at max tilt (full 3D), you sit right down at the bottom edge: a heads-up view is about what is in front of you, and every pixel spent on the ground behind you is a pixel not spent on where you are walking
+const HEADING_UP_SCALE_EPSILON = 0.000001; // Ignore sub-pixel scale noise between successive fits.
+const HEADING_UP_POSITION_PX_THRESHOLD = 0.5; // Ignore half-pixel translation jitter between frames.
+const HEADING_UP_SCALE_BUFFER_RATIO = 0.04; // keep extra off-screen room so quick heading changes do not expose unrendered edges
+const HEADING_UP_SCALE_SETTLE_RATIO = 0.02; // absorb tiny settled scale corrections as visual noise
+const HEADING_UP_SCALE_SETTLE_MIN = 1; // absolute settle tolerance for low zoom values
+const HEADING_UP_SENSOR_ACTIVE_MS = 350;
+// Rate (per second) the scale eases toward a non-urgent fit change while compass events
+// are still arriving -- deliberately the same rate startCompassSmoothing() eases
+// state.tiltBetaSmoothed at, so the zoom and the tilt change it is responding to arrive
+// together instead of the zoom trailing or leading the perspective it is fitting.
+const HEADING_UP_SCALE_EASE_RATE = 4;
+// Ceiling a single ease step may integrate, matching the compass smoothing loop's own dt
+// clamp: an ordinary frame (even a slow one -- see HEADING_UP_SCALE_EASE_STALE_MS below)
+// still advances the ease, just by no more than this much, rather than lurching forward
+// by however long that one frame actually took.
+const HEADING_UP_SCALE_EASE_MAX_DT = 0.05;
+// Gap between ease frames past which the elapsed time is discarded outright (the clock
+// restarts with no progress) instead of clamped and integrated. This has to sit well above
+// any ordinary frame hitch -- heavy 3D redraws (a dense forest of pins/routes projected
+// under tilt every frame) can occasionally run a few frames at well under 60fps, and
+// clamping those to HEADING_UP_SCALE_EASE_MAX_DT is exactly the intended behaviour, not a
+// bug. Below this threshold used to mean "reject the frame entirely", which is fine for one
+// isolated slow frame but starves the ease completely -- permanently frozen at whatever
+// scale the last *urgent* (off-screen) correction snapped to -- when frames stay in the
+// 50ms-500ms range for a sustained stretch, e.g. while continuously re-tilting the phone
+// (this file's own maxNearbyHeadingUpScale/maxScaleForHeadingUpPoints projectTilt math adds
+// real per-frame work directly proportional to how fast tilt is changing). That read as "it
+// dips zoomed-out mid-tilt and then just never comes back" -- correct immediate reaction to
+// the dip, no way to recover from it. Only a gap this large -- a backgrounded tab, or a
+// screen the ease genuinely did not run on for a while -- should be treated as stale and
+// restart the clock instead of integrating a jump.
+const HEADING_UP_SCALE_EASE_STALE_MS = 500;
+
+// How far the fit the camera *wants* may drift from the scale actually on screen before
+// the camera responds at all -- a hysteresis deadband, sized as a fraction of the current
+// scale.
+//
+// The fit is re-solved on every compass frame against a live heading, a live GPS fix and a
+// route whose head is the walker's current position, so the scale it asks for is never
+// still: every step and every degree of heading noise moves it a little. Chasing that
+// continuously is what made walking navigation read as the map breathing in and out. A
+// 2% settle tolerance (HEADING_UP_SCALE_SETTLE_RATIO, which exists for a different job --
+// absorbing sub-pixel noise between two otherwise identical fits) is nowhere near enough
+// to cover it.
+//
+// 13% is comfortably wider than the wander a normal walking pace produces, and still well
+// inside the room the fit leaves itself: with HEADING_UP_SCALE_BUFFER_RATIO holding the
+// camera 4% tighter than the true fit, the worst a full band of drift can do is put the
+// framed target about 8% past where a perfect fit would place it -- still inside
+// headingUpFitMarginPx, which is 10% of the rect plus 12dp. Anything genuinely off-screen
+// is caught by HEADING_UP_SCALE_SNAP_RATIO below rather than by this band.
+//
+// Once the band is broken the ease runs to completion rather than stopping the moment it
+// is back inside it -- otherwise the camera would glide a token amount, halt 13% short of
+// the fit, and sit there re-triggering. state.headingUpScaleEasing is that latch; it
+// clears when the ease converges, and on any snap or settle path.
+const HEADING_UP_SCALE_HOLD_RATIO = 0.13;
 
 // Overshoot past which a zoom-out is applied in one frame instead of eased. Below it the
 // target is merely encroaching on the fit margin and there is nothing to correct urgently;
