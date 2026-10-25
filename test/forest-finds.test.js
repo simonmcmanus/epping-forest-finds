@@ -5927,7 +5927,7 @@ test("the app checks for updates while visible and announces only a fully prepar
   assert.match(nav, /register\("sw\.js", \{ updateViaCache: "none" \}\)/, "imported version files must not be served from the HTTP cache");
   assert.match(nav, /swRegistration\.update\(\)/, "an explicit update check must exist");
   assert.match(nav, /requestAppUpdateCheck\(\);/, "the check must run from the visibility/online/interval hook");
-  assert.match(nav, /async function prepareWaitingUpdate\(waiting\) \{\s*await requestDataRefresh\(\{ target: waiting/, "a waiting worker syncs its data before the banner");
+  assert.match(nav, /async function prepareWaitingUpdate\(waiting\) \{[\s\S]*?await requestDataRefresh\(\{ target: waiting/, "a waiting worker syncs its data before the banner");
   assert.doesNotMatch(nav, /_markSwUpdateAvailable\((reg\.waiting|installing)\)/, "a waiting worker must not be announced before it is prepared");
   for (const file of ["/sw.js", "/js/app-cache-version.js", "/js/data-cache-version.js"]) {
     assert.match(toml, new RegExp(`for = "${file.replace(/[./]/g, "\\$&")}"\\s+\\[headers\\.values\\]\\s+Cache-Control = "no-cache"`), `${file} must be revalidated`);

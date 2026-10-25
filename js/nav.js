@@ -200,7 +200,7 @@ function showUpdateBanner() {
     const button = event.currentTarget;
     button.disabled = true;
     button.textContent = "Updating…";
-    const started = state.swUpdateAvailable ? await applySwUpdate() : (location.reload(), true);
+    const started = (state.swWaiting || state.swUpdateAvailable) ? await applySwUpdate() : (location.reload(), true);
     if (!started) {
       button.disabled = false;
       button.textContent = "Update";
@@ -212,6 +212,9 @@ function showUpdateBanner() {
 // the app and the map data together instead of a second "reload for new data" prompt after it.
 // A failed or timed-out sync still announces the update: the worker's shell is complete either way.
 async function prepareWaitingUpdate(waiting) {
+  // Recorded up front: the worker's own sync broadcasts DATA_UPDATED, which must not show the
+  // banner (or send a tap down the plain-reload path) until this worker is ready to activate.
+  state.swWaiting = waiting;
   await requestDataRefresh({ target: waiting, force: false });
   _markSwUpdateAvailable(waiting);
 }
@@ -485,7 +488,7 @@ function _markDataUpdateAvailable() {
   state.dataUpdateAvailable = true;
   if (els.settingsToggle) els.settingsToggle.classList.add("has-update");
   refreshSettingsVersionDisplay();
-  showUpdateBanner();
+  if (!state.swWaiting || state.swUpdateAvailable) showUpdateBanner();
 }
 
 // Reads the app/data cache versions out of caches.keys() for the About screen and for bug

@@ -92,6 +92,16 @@ test.describe("Settings screen", () => {
     await page.waitForFunction(() => !window.__reloadMarker);
   });
 
+  test("data arriving while a waiting worker is still preparing does not show the banner early", async ({ page }) => {
+    await page.evaluate(() => {
+      state.swWaiting = { postMessage() {} };
+      _markDataUpdateAvailable();
+    });
+    await expect(page.locator("#updateBanner")).toHaveCount(0);
+    await page.evaluate(() => { _markSwUpdateAvailable(state.swWaiting); });
+    await expect(page.locator("#updateBanner")).toBeVisible();
+  });
+
   test("snapshot: update ready banner", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
     await page.evaluate(() => { _markDataUpdateAvailable(); });
