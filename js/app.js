@@ -98,7 +98,7 @@ const TILT_HORIZON_REFERENCE_TAN = Math.tan(TILT_ROTATEX_MAX * Math.PI / 180);
 // Smallest rotateX difference between the drawn main canvas and the live camera worth a
 // redraw for (see tiltRenderStale). Small enough that no drift is visible, large enough that
 // sensor noise on a phone held still doesn't repaint the map every frame.
-const TILT_RENDER_STALE_DEG = 0.25;
+const TILT_RENDER_STALE_DEG = 0.05;
 const TILT_NEAR_PLANE_RATIO = 0.98; // fraction of the camera distance the near clip sits at — see tiltProjectOffsets
 // Perspective scale below which ground is deep enough into the horizon haze to be
 // invisible, and so not worth drawing. Bounds how much world the draw loop walks in 3D
