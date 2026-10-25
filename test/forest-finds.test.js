@@ -4908,7 +4908,7 @@ test("settings form offers separate data, app and combined refresh buttons", () 
   assert.match(html, /id="refreshOfflineNote"/, "settings form should include a shared offline note for the refresh buttons");
 });
 
-test("refresh scopes preserve the working caches until a replacement is downloaded", () => {
+test("refresh app and both clear the cache and then reload the page", () => {
   // The Node VM test harness doesn't stub navigator.serviceWorker/location.reload, so this is a
   // source-level check (matching the other service-worker tests above) that pins the safety
   // contract rather than executing a browser refresh.
@@ -4919,10 +4919,8 @@ test("refresh scopes preserve the working caches until a replacement is download
 
   assert.match(fn, /if \(!navigator\.onLine\)/, "must bail out while offline instead of leaving the app with no cache fallback");
   assert.match(fn, /requestDataRefresh\(\)/, "data refresh must download into the existing cache first");
-  assert.match(fn, /downloadAppUpdate\(\)/, "app refresh must check for a downloaded replacement worker");
-  assert.match(fn, /activateDownloadedAppUpdate\(waiting\)/, "only a downloaded worker may be activated");
-  assert.doesNotMatch(fn, /getRegistrations\(\)/, "must not unregister the current worker");
-  assert.doesNotMatch(fn, /caches\.delete\(/, "must not delete the current offline cache");
+  assert.match(fn, /clearCachedApp\(scope === "all"\)/, "app and both scopes must clear the cache");
+  assert.match(fn, /clearCachedApp[\s\S]*location\.reload\(\)/, "must reload after clearing");
 });
 
 test("settings refresh listeners are removed before being re-added, so reopening Settings does not leak window listeners", () => {

@@ -211,7 +211,7 @@ test.describe("generated find/nearby pages", () => {
       await page.goto("/nearby");
       await expect(page.locator("#consentBanner")).toContainText("Allow location & cookies");
       await expect(page.locator("#filterToggle")).toBeVisible();
-      await expect(page.locator("#filterCount")).toHaveText("2");
+      await expect(page.locator("#filterCount")).toHaveText("3");
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
       await context.close();
     });
