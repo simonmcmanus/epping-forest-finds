@@ -44,6 +44,7 @@ plainly under each axis and mention any meaningful verification gap.
 
 ## Repository-specific checks
 
+- Read `CODING_STANDARDS.md` for the repository's judgement-based coding rules.
 - Read the relevant `spec/*.md` file when behaviour changes.
 - Do not suggest hand-editing `js/app-cache-version.js` or
   `js/data-cache-version.js`; the cache-version workflow owns those files.

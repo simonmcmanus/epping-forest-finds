@@ -233,11 +233,9 @@ If you do edit a shared one, re-run every spec that uses it, on **every** Playwr
    hand. The task is not finished until `E2E tests` is green, and the report says what CI said.
 
 ## Code Quality
-- Separate concerns strictly per the project structure above.
-- Reuse existing CSS classes before adding new ones.
-- No logic in `app.html`: it is markup and `<script src>` tags only. Boot and wiring live in `js/app.js`.
-- UX quality bar: this should feel like a polished, professional product.
-- Optimise for token efficiency: short, precise edits over large rewrites.
+General judgement-based coding standards live in `CODING_STANDARDS.md`. The
+project structure, testing, specification synchronisation, cache rules, and
+pull-request requirements remain here and in the relevant `spec/*.md` files.
 
 ## Pull requests (every agent, every PR)
 
