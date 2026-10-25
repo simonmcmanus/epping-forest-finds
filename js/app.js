@@ -5017,6 +5017,7 @@ function restartStaleGpsWatch() {
 // Constants controlling the "settle before trusting" compass calibration gate below.
 const COMPASS_TARGET_DEADBAND_DEG = 1.5; // raw readings closer than this to the current target are ignored
 const COMPASS_PITCHING_DEADBAND_DEG = 4; // wider heading deadband while beta is still moving
+const COMPASS_UPRIGHT_EXTRA_DEADBAND_DEG = 5; // extra heading deadband at a fully upright phone (pitch 90deg), scaled by (pitch/90)^2
 const BETA_TARGET_DEADBAND_DEG = 1; // raw pitch readings closer than this to the target are ignored
 const COMPASS_SMOOTHING_MIN_RATE = 2.5; // 1/s filter rate for tiny remaining angles (sensor jitter)
 const COMPASS_SMOOTHING_MAX_RATE = 14; // 1/s filter rate for a deliberate turn
@@ -5069,7 +5070,11 @@ function onDeviceOrientation(event) {
     // Deadband: sub-degree sensor wobble is not a turn, so it never moves the target.
     // While the phone is being pitched, heading readings cross-talk with the tilt, so widen it.
     const pitching = Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) > 1;
-    const deadband = pitching ? COMPASS_PITCHING_DEADBAND_DEG : COMPASS_TARGET_DEADBAND_DEG;
+    // Raised phones approach gimbal lock: the heading derived from a near-vertical device is
+    // noisy even when it is held still, so the deadband also grows with pitch.
+    const upright = Math.pow(clamp(state.tiltBetaSmoothed / 90, 0, 1), 2);
+    const deadband = (pitching ? COMPASS_PITCHING_DEADBAND_DEG : COMPASS_TARGET_DEADBAND_DEG)
+      + upright * COMPASS_UPRIGHT_EXTRA_DEADBAND_DEG;
     if (!Number.isFinite(state.compassHeadingTarget)
         || Math.abs(shortestCompassDelta(state.compassHeadingTarget, heading)) >= deadband) {
       state.compassHeadingTarget = heading;
