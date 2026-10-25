@@ -342,11 +342,24 @@ function requestDataRefresh() {
   });
 }
 
-// Refreshes are transactional. Data is downloaded into the existing cache and the app update
-// path asks the browser to install a waiting worker. Nothing is unregistered or deleted, so a
-// false "online" signal, a captive portal, or a connection drop cannot strand a walker without an
-// offline shell. "all" requires both a complete data pass and a downloaded next app worker before
-// it activates anything; if no app update exists the current app is kept in place.
+// Unregisters the service worker and deletes the app cache (plus the data cache for "Refresh both"),
+// so the reload that follows fetches a fresh shell from the network.
+async function clearCachedApp(includeData) {
+  if ("serviceWorker" in navigator) {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map((registration) => registration.unregister()));
+  }
+  if ("caches" in window) {
+    const names = await caches.keys();
+    await Promise.all(names
+      .filter((name) => /^forest-finds-(dev-)?app-/.test(name) || (includeData && name.startsWith("forest-finds-")))
+      .map((name) => caches.delete(name)));
+  }
+}
+
+// "Refresh data" downloads into the existing cache, then reloads. "Refresh app" and "Refresh both"
+// clear the cached app (and, for both, the data after a complete data download) and then reload,
+// so the page always restarts on a fresh copy.
 async function refreshCachedState(scope) {
   if (!navigator.onLine) {
     updateRefreshButtonsOnlineState();
@@ -373,15 +386,10 @@ async function refreshCachedState(scope) {
       }
     }
 
-    const waiting = await downloadAppUpdate();
-    if (!waiting) {
-      setRefreshStatus("No newer app version was downloaded. Your current offline app is still safe.", { error: true });
-      return false;
-    }
-    setRefreshStatus("Update downloaded. Restarting with the new version…");
-    const activated = activateDownloadedAppUpdate(waiting);
-    if (!activated) setRefreshStatus("The downloaded app update could not be activated. Your current offline app is still safe.", { error: true });
-    return activated;
+    setRefreshStatus("Clearing the cache and restarting…");
+    await clearCachedApp(scope === "all");
+    location.reload();
+    return true;
   } catch (error) {
     console.error(error);
     setRefreshStatus("Refresh failed; your current offline map is still safe.", { error: true });
