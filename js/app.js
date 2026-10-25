@@ -5015,7 +5015,8 @@ function restartStaleGpsWatch() {
 }
 
 // Constants controlling the "settle before trusting" compass calibration gate below.
-const COMPASS_SMOOTHING_MIN_RATE = 3.5; // 1/s filter rate for tiny remaining angles (sensor jitter)
+const COMPASS_TARGET_DEADBAND_DEG = 1.5; // raw readings closer than this to the current target are ignored
+const COMPASS_SMOOTHING_MIN_RATE = 2.5; // 1/s filter rate for tiny remaining angles (sensor jitter)
 const COMPASS_SMOOTHING_MAX_RATE = 14; // 1/s filter rate for a deliberate turn
 const COMPASS_SMOOTHING_FAST_DEG = 40; // remaining angle at which the full rate applies
 const COMPASS_CALIBRATION_WINDOW_MS = 900; // trailing window of raw readings used to judge stability
@@ -5061,7 +5062,11 @@ function onDeviceOrientation(event) {
 
   if (Number.isFinite(state.compassHeading)) {
     // Already trust a heading -- keep tracking the live target as before.
-    state.compassHeadingTarget = heading;
+    // Deadband: sub-degree sensor wobble is not a turn, so it never moves the target.
+    if (!Number.isFinite(state.compassHeadingTarget)
+        || Math.abs(shortestCompassDelta(state.compassHeadingTarget, heading)) >= COMPASS_TARGET_DEADBAND_DEG) {
+      state.compassHeadingTarget = heading;
+    }
     startCompassSmoothing();
     return;
   }
