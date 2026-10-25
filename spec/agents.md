@@ -111,11 +111,12 @@ Before finishing any implementation task:
 
 `.github/workflows/codex-review.yml` runs the read-only Codex review on every
 non-draft pull request when it is opened, updated, reopened, or marked ready for
-review. It runs from `pull_request_target` using the base branch and obtains the
-PR diff through read-only GitHub operations, so fork-controlled workflow code is
-not executed and fork PRs can still receive a review. The job has only
-`contents: read` and `pull-requests: write` permissions and must never modify,
-approve, merge, or close a PR.
+review. It runs from `pull_request_target`, checks out the PR merge ref only for
+inspection, and never executes PR code. This keeps fork-controlled workflow code
+out of the runner while allowing fork PRs to receive a review. The review job has
+only `contents: read`; a separate publisher job has `issues: write` and
+`pull-requests: write` so it can create or update the marked review comment. The
+workflow must never modify files, commit, push, approve, merge, or close a PR.
 
 The review rubric lives in `.codex/review.md`. It keeps Standards and Spec as
 separate review axes, then checks correctness, security, tests, spec
