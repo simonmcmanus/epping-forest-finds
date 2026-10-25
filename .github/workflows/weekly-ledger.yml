@@ -55,14 +55,14 @@ name: Weekly Epping Forest Ledger
 # "resume once notified", and the job just ended there with nothing committed
 # -- there is no "later" in a single unattended Actions run.
 #
-# NOTE on cadence: weekly, Mondays. It ran nightly from 2026-09-30 while the
+# NOTE on cadence: weekly, Saturdays. It ran nightly from 2026-09-30 while the
 # business-detection data was brought up to scratch, then went back to weekly.
 # The report file name and the weekly-data-report/<date>-$RUN_NUMBER branch are
 # keyed by calendar date, so the cadence can change without touching anything
 # else here.
 on:
   schedule:
-    - cron: "0 1 * * 1"
+    - cron: "0 1 * * 6"
   workflow_dispatch: {}
 
 permissions:

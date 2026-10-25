@@ -6,7 +6,7 @@ generator owns the design, layout and SVG map; the
 research and the written findings come from the weekly workflow
 (`.github/workflows/weekly-ledger.yml`).
 
-The workflow's cron runs weekly, Mondays at 01:00 UTC. The report file name and
+The workflow's cron runs weekly, Saturdays at 01:00 UTC. The report file name and
 PR branch are keyed by calendar date, and `business_watch`'s escalation counts
 runs, not weeks, so a change of cadence only changes how fast a repeating signal
 reaches confidence.
