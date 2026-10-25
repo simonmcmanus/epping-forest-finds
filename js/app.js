@@ -451,12 +451,6 @@ const els = {
 // This sits above boot() deliberately: boot()'s first statement is initRouter(), and the
 // module-scope bindings here have to be evaluated by the time it runs.
 
-const ROUTE_FILTERS = "filters";
-const ROUTE_SEARCH = "search";
-const ROUTE_SETTINGS = "settings";
-const ROUTE_REPORT = "report";
-const ROUTE_COMMUNITY = "community";
-
 // Each of the four screens above now has a real path of its own (netlify.toml, server.js --
 // all rewrite these to app.html, same as /app used to). Nearby (no screen name, "" in the
 // route vocabulary below) is the one with no entry here: it is NEARBY_PATH, the app's new
@@ -464,28 +458,15 @@ const ROUTE_COMMUNITY = "community";
 // nest under /nearby/ -- both only ever change what Nearby itself is showing (a filtered set,
 // a typed query), never a destination of their own -- while Settings and Report stay top-level,
 // general app screens with nothing to do with the Nearby view underneath them.
-const ROUTE_PATHS = {
-  [ROUTE_FILTERS]: "/nearby/filter",
-  [ROUTE_SEARCH]: "/nearby/search",
-  [ROUTE_SETTINGS]: "/settings",
-  [ROUTE_REPORT]: "/feedback",
-  [ROUTE_COMMUNITY]: "/community",
-};
-const NEARBY_PATH = "/nearby";
-
 // How deep inside the app's own history the current entry sits, carried in history.state.
 // 0 means "this is where the user arrived", so there is nothing behind it to go back to and
 // the in-app back arrow must return to Nearby itself rather than leaving the site.
-const NAV_DEPTH_KEY = "forestNavDepth";
-
 // Carries the Nearby browse anchor (state.nearbyAnchor) on every history entry, so moving
 // between clusters -- which has no URL of its own, unlike a selection -- still retraces on the
 // browser back button and the inspector's own back arrow. Every entry snapshots the anchor in
 // effect *when that entry was created*, so landing back on it (in either direction) restores
 // exactly that anchor. Absent (older entries, or the initial boot entry before this existed)
 // reads as "no anchor" via nearbyAnchorSnapshot's own null default.
-const NEARBY_ANCHOR_KEY = "forestNearbyAnchor";
-
 function nearbyAnchorSnapshot() {
   const anchor = state.nearbyAnchor;
   return anchor ? { latitude: anchor.latitude, longitude: anchor.longitude } : null;
@@ -497,33 +478,6 @@ function nearbyAnchorSnapshot() {
 // covered on its own). Kept out of SELECTION_ROUTES below: every entry there resolves to a real
 // state.selected item, where this never does -- "browse around here", not "look at this one
 // thing" -- so it gets its own narrower value/parse pair rather than a find/show pair.
-const NEARBY_ANCHOR_PARAM = "near";
-const NEARBY_ANCHOR_LABEL_PARAM = "label";
-
-// Same toFixed(6) precision placeHashKey's own "ll:" fallback already uses for a place with no
-// id -- plenty for this app's pin-level accuracy, and short enough not to make the address bar
-// unwieldy.
-// The optional place name (anchor.label) rides along as its own "label=" parameter, so a link out
-// of a place's inspector reads "Showing places near <name>" when it lands, not just the coordinates.
-function nearbyAnchorRouteValue(anchor) {
-  const params = new URLSearchParams();
-  params.set(NEARBY_ANCHOR_PARAM, `${anchor.latitude.toFixed(6)},${anchor.longitude.toFixed(6)}`);
-  if (anchor.label) params.set(NEARBY_ANCHOR_LABEL_PARAM, anchor.label);
-  return params.toString();
-}
-
-// nearbyAnchorRouteValue's reverse. Rejects anything that isn't exactly two finite numbers --
-// a shared link is as editable as any URL, and a malformed one should read as "no anchor named
-// here" rather than throw.
-function parseNearbyAnchorParam(raw) {
-  const parts = String(raw || "").split(",");
-  if (parts.length !== 2) return null;
-  const latitude = Number(parts[0]);
-  const longitude = Number(parts[1]);
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
-  return { latitude, longitude };
-}
-
 // Every selectable thing, with the URL parameter that names it, the key it is written as and
 // how it is resolved and shown again. Trees and places were the only two with a URL before
 // the router; the rest are here so that a screen change can never leave the URL describing a
@@ -641,19 +595,7 @@ function navigateBack() {
   goToInitialView();
 }
 
-function routeParam(name, value) {
-  const params = new URLSearchParams();
-  params.set(name, value);
-  return params.toString();
-}
-
 // "tree=r17338" -> "tree". Lets "report" and "report=<text>" be recognised as one screen.
-function routeName(raw) {
-  const value = String(raw || "");
-  const separator = value.indexOf("=");
-  return separator === -1 ? value : value.slice(0, separator);
-}
-
 // The canonical route for whatever is on screen right now -- unchanged by the four screens
 // having real paths now (ROUTE_PATHS): this still speaks the same bare vocabulary
 // ("filters"/"search"/"settings"/"report"/"tree=<key>"/"near=<lat>,<lon>"/"") it always has.
