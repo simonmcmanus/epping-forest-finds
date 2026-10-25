@@ -47,7 +47,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         with:
           openai-api-key: ${{ secrets.OPENAI_API_KEY }}
-          permission-profile: ":workspace"
+          # This job only inspects the PR. Use the action's legacy read-only
+          # sandbox so it does not need to mutate runner service-socket ACLs.
+          safety-strategy: read-only
           prompt: |
             Review pull request #${{ github.event.pull_request.number }} in ${{ github.repository }}.
 
