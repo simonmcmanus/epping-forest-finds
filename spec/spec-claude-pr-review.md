@@ -7,7 +7,9 @@ from branches in this repository:
   update. It reads the repository guidance and posts actionable inline findings
   plus a top-level summary. If the current diff has no actionable findings, it
   submits a Claude approval. This approval does not replace the required human
-  approval.
+  approval. The review action lists `github-actions` in `allowed_bots`, so the
+  run on a CI-generated snapshot-baseline commit is reviewed rather than
+  failing as a bot-initiated run; no other bot is allowed.
 - `.github/workflows/claude-review-followup.yml` listens only for marked inline
   findings from `github-actions[bot]` on same-repository pull requests. It
   serialises remediation jobs per pull request and allows at most three
