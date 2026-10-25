@@ -1973,3 +1973,91 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 .report-screen .community-note-actions { gap: 12px; padding-top: 2px; }
 @media (max-width: 600px) { .report-screen .report-form-actions .button { flex: 1 1 0; } }
 .report-screen .report-type-field select.report-textarea { min-height: 48px; height: 48px; padding: 0 12px; resize: none; }
+
+/* "Update ready" prompt (showUpdateBanner in js/nav.js). Top card on phones, where the bottom is
+   taken by the nav bar and the inspector sheet; bottom-centre on wider screens. */
+.update-banner {
+  position: fixed;
+  z-index: 60;
+  left: 10px;
+  right: 10px;
+  top: calc(10px + env(safe-area-inset-top, 0px));
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 10px 10px 12px;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.update-banner-icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(47, 111, 78, 0.12);
+  color: var(--tree);
+}
+
+.update-banner-icon svg {
+  width: 20px;
+  height: 20px;
+}
+
+.update-banner-text {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+
+.update-banner-text strong {
+  font-size: 0.95rem;
+}
+
+.update-banner-text span {
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+.update-banner button {
+  flex: none;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--tree);
+  color: #fff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.update-banner button:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.update-banner button:focus-visible {
+  outline: 3px solid rgba(47, 111, 78, 0.45);
+  outline-offset: 2px;
+}
+
+@media (min-width: 761px) {
+  .update-banner {
+    top: auto;
+    left: 50%;
+    right: auto;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%);
+    width: min(420px, calc(100vw - 32px));
+  }
+}

@@ -934,7 +934,8 @@ is never moved by this -- only the browse anchor, exactly as any other anchor mo
   radius: "43 trees within 30 min walk of The Foresters. 20 further away." or, with none close enough,
   "No cows within 30 min walk of The Foresters. 11 further away." (`nearbyCountCopy`,
   `countNearbyEntries`, js/inspector.js). Counts take thousands separators, and the line wraps inside the card rather than truncating. A cows card is held back until cow positions are loaded,
-  rather than reporting a zero. A headed **Related** section (its own category/group, with the same
+  rather than reporting a zero; an already-open tree or place re-renders when they first arrive
+  (`refreshSelectedDetailForCows`, js/app.js) so the card appears without reopening it. A headed **Related** section (its own category/group, with the same
   counted line for each) follows, both rendered as the same
   `.nearest-item` card — see `spec-marketing.md` § 6.7, "Related-content links, both
   server-rendered and live, as two headed sections". A `/find/` business also gets a headed

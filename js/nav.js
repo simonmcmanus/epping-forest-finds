@@ -181,6 +181,44 @@ function _markSwUpdateAvailable(waiting) {
   state.swUpdateAvailable = true;
   if (els.settingsToggle) els.settingsToggle.classList.add("has-update");
   refreshSettingsVersionDisplay();
+  showUpdateBanner();
+}
+
+// One "update ready" prompt for everything that needs a reload: a downloaded app worker (which
+// already carries its own data shell) and/or newer map data. It is only ever shown once the
+// download has finished, so a single tap restarts into the complete new version. Community
+// findings are applied to the open map live (COMMUNITY_UPDATED) and never need this.
+function showUpdateBanner() {
+  if (document.getElementById("updateBanner")) return;
+  const banner = document.createElement("div");
+  banner.id = "updateBanner";
+  banner.className = "update-banner";
+  banner.setAttribute("role", "status");
+  banner.innerHTML = '<span class="update-banner-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg></span>'
+    + '<span class="update-banner-text"><strong>Update ready</strong><span>Restart to load the latest fixes and map data. It only takes a moment.</span></span>'
+    + '<button id="updateBannerButton" type="button">Restart</button>';
+  document.body.appendChild(banner);
+  banner.querySelector("button").addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    button.textContent = "Restarting…";
+    const started = (state.swWaiting || state.swUpdateAvailable) ? await applySwUpdate() : (location.reload(), true);
+    if (!started) {
+      button.disabled = false;
+      button.textContent = "Restart";
+    }
+  });
+}
+
+// Before announcing a waiting worker, let it finish its own data sync so the one restart brings
+// the app and the map data together instead of a second "reload for new data" prompt after it.
+// A failed or timed-out sync still announces the update: the worker's shell is complete either way.
+async function prepareWaitingUpdate(waiting) {
+  // Recorded up front: the worker's own sync broadcasts DATA_UPDATED, which must not show the
+  // banner (or send a tap down the plain-reload path) until this worker is ready to activate.
+  state.swWaiting = waiting;
+  await requestDataRefresh({ target: waiting, force: false });
+  _markSwUpdateAvailable(waiting);
 }
 
 async function applySwUpdate() {
@@ -313,9 +351,9 @@ function activateDownloadedAppUpdate(waiting) {
   }
 }
 
-function requestDataRefresh() {
+function requestDataRefresh({ target = null, force = true } = {}) {
   if (!("serviceWorker" in navigator)) return Promise.resolve(false);
-  const controller = navigator.serviceWorker.controller;
+  const controller = target || navigator.serviceWorker.controller;
   if (!controller) return Promise.resolve(false);
 
   const requestId = `refresh-${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -335,7 +373,7 @@ function requestDataRefresh() {
     navigator.serviceWorker.addEventListener("message", onMessage);
     timer = setTimeout(() => finish(false), 120000);
     try {
-      controller.postMessage({ type: "SYNC_DATA", force: true, requestId });
+      controller.postMessage({ type: "SYNC_DATA", force, requestId });
     } catch {
       finish(false);
     }
@@ -417,11 +455,27 @@ function requestBackgroundDataSync(options) {
   } catch {}
 }
 
+// Browsers only look for a new sw.js on navigation (and at most daily), which an installed app that
+// is resumed rather than reopened rarely does. Ask explicitly, throttled, whenever the app is
+// visible; the check is one conditional request for sw.js and its two version files.
+const APP_UPDATE_CHECK_MIN_INTERVAL_MS = 10 * 60 * 1000;
+let swRegistration = null;
+let lastAppUpdateCheckAt = 0;
+
+function requestAppUpdateCheck() {
+  if (!swRegistration || state.swUpdateAvailable || !navigator.onLine) return;
+  if (Date.now() - lastAppUpdateCheckAt < APP_UPDATE_CHECK_MIN_INTERVAL_MS) return;
+  lastAppUpdateCheckAt = Date.now();
+  swRegistration.update().catch(() => {});
+}
+
 function setupBackgroundDataSync() {
   if (backgroundDataSyncListenersBound) return;
   backgroundDataSyncListenersBound = true;
   const syncWhenVisible = () => {
-    if (document.visibilityState !== "hidden") requestBackgroundDataSync();
+    if (document.visibilityState === "hidden") return;
+    requestBackgroundDataSync();
+    requestAppUpdateCheck();
   };
   document.addEventListener("visibilitychange", syncWhenVisible);
   window.addEventListener("online", syncWhenVisible);
@@ -436,6 +490,7 @@ function _markDataUpdateAvailable() {
   state.dataUpdateAvailable = true;
   if (els.settingsToggle) els.settingsToggle.classList.add("has-update");
   refreshSettingsVersionDisplay();
+  if (!state.swWaiting || state.swUpdateAvailable) showUpdateBanner();
 }
 
 // Reads the app/data cache versions out of caches.keys() for the About screen and for bug
@@ -480,17 +535,18 @@ function setupPwa() {
       _markSwUpdateAvailable(null);
     });
 
-    navigator.serviceWorker.register("sw.js")
+    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" })
       .then((reg) => {
+        swRegistration = reg;
         if (reg.waiting && navigator.serviceWorker.controller) {
-          _markSwUpdateAvailable(reg.waiting);
+          prepareWaitingUpdate(reg.waiting);
         }
         reg.addEventListener("updatefound", () => {
           const installing = reg.installing;
           if (!installing) return;
           installing.addEventListener("statechange", () => {
             if (installing.state === "installed" && navigator.serviceWorker.controller) {
-              _markSwUpdateAvailable(installing);
+              prepareWaitingUpdate(installing);
             }
           });
         });

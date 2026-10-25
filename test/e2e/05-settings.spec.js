@@ -83,6 +83,34 @@ test.describe("Settings screen", () => {
     await expect(page.locator("#appVersionDisplay")).toContainText("v");
   });
 
+  test("a single update banner appears once an update is ready and one tap restarts", async ({ page }) => {
+    await expect(page.locator("#updateBanner")).toHaveCount(0);
+    await page.evaluate(() => { _markDataUpdateAvailable(); });
+    await expect(page.locator("#updateBanner")).toBeVisible();
+    await page.evaluate(() => { window.__reloadMarker = true; });
+    await page.click("#updateBannerButton");
+    await page.waitForFunction(() => !window.__reloadMarker);
+  });
+
+  test("data arriving while a waiting worker is still preparing does not show the banner early", async ({ page }) => {
+    await page.evaluate(() => {
+      state.swWaiting = { postMessage() {} };
+      _markDataUpdateAvailable();
+    });
+    await expect(page.locator("#updateBanner")).toHaveCount(0);
+    await page.evaluate(() => { _markSwUpdateAvailable(state.swWaiting); });
+    await expect(page.locator("#updateBanner")).toBeVisible();
+  });
+
+  test("snapshot: update ready banner", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
+    await page.evaluate(() => { _markDataUpdateAvailable(); });
+    await expect(page.locator("#updateBanner")).toBeVisible();
+    await page.waitForTimeout(300);
+    await settleMapIconsAndDraw(page);
+    await expect(page).toHaveScreenshot("update-ready-banner.png", { fullPage: false });
+  });
+
   test("settings screen offers a one-tap reload once new map data has already downloaded", async ({ page }) => {
     await expect(page.locator("#dataUpdateNote")).toBeHidden();
 

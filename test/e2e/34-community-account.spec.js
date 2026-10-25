@@ -248,7 +248,6 @@ test.describe("Community sign-in: history, account switching, storage", () => {
 
     // 3. Account B signs in on the same browser: the link is refused (409), so B gets an identity of its own.
     me = { signedIn: true, name: "Ben", account: "acct-bbbb" };
-    requested.length = 0;
     await page.reload();
     await expect(page.locator("#communityAccount")).toContainText("Signed in as Ben");
     await expect(page.locator("#communityAccount .community-account-note")).toContainText("starting fresh");
@@ -257,8 +256,12 @@ test.describe("Community sign-in: history, account switching, storage", () => {
     expect(owners[bens]).toBe("acct-bbbb");
     await expect(page.locator(".community-log-item")).toHaveCount(0);
     await expect(page.locator(".community-rank-points")).toContainText("0 points");
+    // Requests the old page still had in flight when it reloaded can land at any point, so what the
+    // new page asks for is checked from here: clear, make the page ask afresh, and look only at that.
+    requested.length = 0;
+    await page.evaluate(() => Promise.all([communityRefreshScore(true), communityRefreshLog()]));
+    await expect.poll(() => requested.length).toBeGreaterThan(0);
     expect(requested.includes(primary)).toBe(false);
-    expect(requested.length).toBeGreaterThan(0);
     expect(requested.every((id) => id === bens)).toBe(true);
     expect(await page.evaluate((id) => localStorage.getItem(`ff-community-local-v1:${id}`), bens)).toBeNull();
     expect(await page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem("ff-community-local-v1"))).length)).toBe(1);
