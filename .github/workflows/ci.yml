@@ -12,50 +12,8 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  changes:
-    # Decides whether unit and functional E2E run. The visual job always runs, so a CI-generated
-    # baseline commit is checked by it alone.
-    name: Changed files
-    runs-on: ubuntu-latest
-    outputs:
-      code: ${{ steps.check.outputs.code }}
-    steps:
-      - uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
-          # A pull_request checkout normally points at a synthetic merge commit. For the
-          # snapshot-only commit optimization below we need the PR head and its parent instead.
-          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Check for non-snapshot changes
-        id: check
-        env:
-          EVENT: ${{ github.event_name }}
-          ACTION: ${{ github.event.action }}
-        run: |
-          if [ "$EVENT" != "pull_request" ]; then
-            code=true
-          elif [ "$ACTION" != "synchronize" ]; then
-            # The first run for a PR (or a re-opened/ready-for-review PR) must not be skipped,
-            # even when its branch already has several commits.
-            code=true
-          else
-            # pull_request payloads do not have github.event.before. On synchronize, HEAD is the
-            # new PR head and HEAD^ is the previous head, which is exactly the commit pushed by
-            # the author or by the trusted snapshot publisher.
-            files=$(git diff --name-only HEAD^ HEAD 2>/dev/null) || files=""
-            if [ -z "$files" ] || echo "$files" | grep -qv '^test/e2e/__screenshots__/'; then
-              code=true
-            else
-              code=false
-            fi
-          fi
-          echo "code=$code" >> "$GITHUB_OUTPUT"
-
   unit:
     name: Unit tests
-    needs: changes
-    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -95,8 +53,6 @@ jobs:
     # dependency on cdn.playwright.dev/the apt mirrors that added nothing but risk. Bump this
     # tag only in lockstep with the @playwright/test version in package.json.
     name: E2E tests (${{ matrix.project }}, shard ${{ matrix.shard }})
-    needs: changes
-    if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     container:
       image: mcr.microsoft.com/playwright:v1.61.1-noble
