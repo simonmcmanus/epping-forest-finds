@@ -29,8 +29,8 @@ const REPORT_REQUEST_ID_KEY = "forest-finds-report-request-id-v1";
 const FILTER_STATE_KEY = "forest-finds-filter-state-v1";
 const FILTER_HINT_KEY = "forest-finds-filter-hint-v1";
 // Matches onboarding.js's own default selection and spec.md's "Default filters" section:
-// only Trees, Cows and Events are pre-selected before onboarding ever runs.
-const DEFAULT_FILTERS = ["trees", "cows", "events"];
+// only Trees, Cows, Events and Pubs are pre-selected before onboarding ever runs.
+const DEFAULT_FILTERS = ["trees", "cows", "events", "pubs"];
 // The radius state starts at and the URL (searchStringForPath) omits -- matching state's own
 // walkingDistanceMinutes: 5 below, so a plain /nearby stays plain for the common case.
 const DEFAULT_WALKING_DISTANCE_MINUTES = 5;
