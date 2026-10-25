@@ -249,8 +249,25 @@ test("loadWaterFeatures returns nothing when there is no environment data to rea
 // Well within LANDING_PAGE_WALKING_RADIUS_METRES (2500m) of DEFAULT_LOCATION (51.667591, 0.037454).
 const NEAR_DEFAULT_LOCATION = { latitude: 51.668, longitude: 0.038 };
 
-// A tree fixture with just enough fields for treeHashKey/treeDisplayName (scripts/generate-find-pages.js,
-// reproduced from js/app.js) to resolve.
+test("build-time rules expose the runtime tree identity and display helpers", () => {
+  const rules = loadAppRules();
+  assert.equal(rules.DEFAULT_WALKING_DISTANCE_MINUTES, 5);
+  assert.equal(rules.LANDING_PAGE_WALKING_DISTANCE_MINUTES, 30);
+  assert.deepEqual(
+    { latitude: rules.DEFAULT_LOCATION.latitude, longitude: rules.DEFAULT_LOCATION.longitude },
+    { latitude: 51.667591, longitude: 0.037454 }
+  );
+  assert.equal(rules.formatDistance(1500), "1.5 km");
+  assert.equal(rules.walkingDistanceToMetres(30), 2500);
+  assert.equal(rules.formatWalkingRadius(0.25), "15 sec");
+  assert.equal(rules.normalizeTreeNumber(" R-1 "), "r1");
+  assert.equal(rules.treeHashKey({ recordNumber: "1-2" }), "r12");
+  assert.equal(rules.treeTagLabel({ tagNumber: "0" }), null);
+  assert.equal(rules.treeDisplayName({ commonName: "English Oak" }), "English Oak");
+});
+
+// A tree fixture with just enough fields for the shared treeHashKey/treeDisplayName helpers
+// to resolve.
 function treeFixture({ recordNumber, commonName, ...point }) {
   return { recordNumber, commonName, ...NEAR_DEFAULT_LOCATION, ...point };
 }

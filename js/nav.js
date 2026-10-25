@@ -73,18 +73,6 @@ function ceilWalkingMinutes(minutes) {
   return Math.ceil(minutes / step - 1e-9) * step;
 }
 
-// The radius itself stays a continuous value (see applyWalkingRadiusGesture) so the ring tracks
-// a pinch or wheel gesture smoothly; only the label rounds, to the nearest whole minute, so the
-// displayed number doesn't twitch between fractions as the gesture moves.
-//
-// The same value with its unit, for anywhere the radius is shown to the user. Sub-minute radii
-// (reachable since the floor started tracking finds closer than a minute's walk) read as
-// seconds: "15 sec" is how anyone describes that walk, "0.3 min" is not.
-function formatWalkingRadius(minutes) {
-  if (minutes < 1) return `${Math.round(minutes * 60)} sec`;
-  return `${Math.round(minutes)} min`;
-}
-
 // The effective centre for everything the Nearby view shows (walking-radius circle, nearest-
 // item list, overview camera fit): state.nearbyAnchor when the user has tapped outside the
 // radius to browse another spot, otherwise the real GPS fix. Deliberately NOT used by the
