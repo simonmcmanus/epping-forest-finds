@@ -5016,8 +5016,8 @@ function restartStaleGpsWatch() {
 
 // Constants controlling the "settle before trusting" compass calibration gate below.
 const COMPASS_TARGET_DEADBAND_DEG = 1.5; // raw readings closer than this to the current target are ignored
-const COMPASS_PITCHING_DEADBAND_DEG = 4; // wider heading deadband while beta is still moving
-const COMPASS_UPRIGHT_EXTRA_DEADBAND_DEG = 5; // extra heading deadband at a fully upright phone (pitch 90deg), scaled by (pitch/90)^2
+const COMPASS_PITCHING_DEADBAND_DEG = 3; // wider heading deadband while beta is still moving
+const COMPASS_UPRIGHT_EXTRA_DEADBAND_DEG = 3; // extra heading deadband at a fully upright phone (pitch 90deg), scaled by (pitch/90)^2
 const BETA_TARGET_DEADBAND_DEG = 1; // raw pitch readings closer than this to the target are ignored
 const COMPASS_SMOOTHING_MIN_RATE = 2.5; // 1/s filter rate for tiny remaining angles (sensor jitter)
 const COMPASS_SMOOTHING_MAX_RATE = 14; // 1/s filter rate for a deliberate turn
@@ -5027,6 +5027,24 @@ const COMPASS_CALIBRATION_STABLE_SPREAD_DEG = 6; // max spread within the window
 const COMPASS_CALIBRATION_MIN_SAMPLES = 4; // minimum readings required within the window
 const COMPASS_CALIBRATION_PROMPT_DELAY_MS = 1500; // how long to stay unstable before nudging the user
 const COMPASS_CALIBRATION_MAX_WAIT_MS = 6000; // safety valve -- never block heading-up forever
+
+// How far a raw heading must move from the current target before it counts as a turn. While the
+// phone is being pitched, heading readings cross-talk with the tilt, so it widens; a raised phone
+// approaches gimbal lock, where the heading is noisy even when held still, so it also grows with
+// pitch. Capped at COMPASS_PITCHING_DEADBAND_DEG + COMPASS_UPRIGHT_EXTRA_DEADBAND_DEG.
+function compassTargetDeadbandDeg() {
+  const pitching = Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) > 1;
+  const upright = Math.pow(clamp(state.tiltBetaSmoothed / 90, 0, 1), 2);
+  return (pitching ? COMPASS_PITCHING_DEADBAND_DEG : COMPASS_TARGET_DEADBAND_DEG)
+    + upright * COMPASS_UPRIGHT_EXTRA_DEADBAND_DEG;
+}
+
+// Filter rate (1/s) for easing compassHeading toward its target: low for a small remaining angle
+// (sensor jitter), rising to the full rate at COMPASS_SMOOTHING_FAST_DEG and beyond (a real turn).
+function compassSmoothingRate(remainingDeg) {
+  const turn = Math.min(Math.abs(remainingDeg), COMPASS_SMOOTHING_FAST_DEG) / COMPASS_SMOOTHING_FAST_DEG;
+  return COMPASS_SMOOTHING_MIN_RATE + (COMPASS_SMOOTHING_MAX_RATE - COMPASS_SMOOTHING_MIN_RATE) * turn;
+}
 
 function onDeviceOrientation(event) {
   // Tracked separately from compassLastEventAt (set below, and only for events carrying
@@ -5068,13 +5086,7 @@ function onDeviceOrientation(event) {
   if (Number.isFinite(state.compassHeading)) {
     // Already trust a heading -- keep tracking the live target as before.
     // Deadband: sub-degree sensor wobble is not a turn, so it never moves the target.
-    // While the phone is being pitched, heading readings cross-talk with the tilt, so widen it.
-    const pitching = Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) > 1;
-    // Raised phones approach gimbal lock: the heading derived from a near-vertical device is
-    // noisy even when it is held still, so the deadband also grows with pitch.
-    const upright = Math.pow(clamp(state.tiltBetaSmoothed / 90, 0, 1), 2);
-    const deadband = (pitching ? COMPASS_PITCHING_DEADBAND_DEG : COMPASS_TARGET_DEADBAND_DEG)
-      + upright * COMPASS_UPRIGHT_EXTRA_DEADBAND_DEG;
+    const deadband = compassTargetDeadbandDeg();
     if (!Number.isFinite(state.compassHeadingTarget)
         || Math.abs(shortestCompassDelta(state.compassHeadingTarget, heading)) >= deadband) {
       state.compassHeadingTarget = heading;
@@ -5389,8 +5401,7 @@ function startCompassSmoothing() {
       // Fixed rate 14 (70ms time constant) passed raw sensor noise straight to the screen.
       // Ease the rate with the remaining angle: small wobble is heavily damped, a real turn
       // still catches up quickly.
-      const turn = Math.min(Math.abs(delta), COMPASS_SMOOTHING_FAST_DEG) / COMPASS_SMOOTHING_FAST_DEG;
-      const rate = COMPASS_SMOOTHING_MIN_RATE + (COMPASS_SMOOTHING_MAX_RATE - COMPASS_SMOOTHING_MIN_RATE) * turn;
+      const rate = compassSmoothingRate(delta);
       const smoothing = 1 - Math.exp(-rate * dt);
       const nextHeading = state.compassHeading + (delta * smoothing);
       state.compassHeading = nextHeading;

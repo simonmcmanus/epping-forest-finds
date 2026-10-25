@@ -551,6 +551,8 @@ globalThis.__forestFindsTest = {
   compassStepMarkup,
   compassPermissionRequiresRequest,
   onDeviceOrientation,
+  compassTargetDeadbandDeg,
+  compassSmoothingRate,
   extractCompassHeading,
   registerCompassCalibrationSample,
   isCompassCalibrationStable,
@@ -6174,6 +6176,67 @@ test("onDeviceOrientation routes through the calibration gate until a heading is
   app.onDeviceOrientation({ alpha: 260, beta: 30 }); // heading 100
   assert.equal(app.state.compassHeadingTarget, 100);
   assert.equal(app.state.compassCalibrationSamples.length, 0, "calibration buffer should stay empty once a heading is trusted");
+});
+
+function trustCompassAt(heading, beta = 30) {
+  resetData(app);
+  app.state.compassHeading = heading;
+  app.state.compassHeadingTarget = heading;
+  app.state.compassHeadingSource = 2;
+  app.state.tiltBetaTarget = beta;
+  app.state.tiltBetaSmoothed = beta;
+}
+
+test("a trusted compass target ignores heading wobble inside the deadband and follows a real turn", () => {
+  trustCompassAt(100);
+  app.onDeviceOrientation({ webkitCompassHeading: 101, beta: 30 });
+  assert.equal(app.state.compassHeadingTarget, 100, "1 degree of wobble must not move the target");
+  app.onDeviceOrientation({ webkitCompassHeading: 99, beta: 30 });
+  assert.equal(app.state.compassHeadingTarget, 100, "wobble in the other direction is ignored too");
+  app.onDeviceOrientation({ webkitCompassHeading: 104, beta: 30 });
+  assert.equal(app.state.compassHeadingTarget, 104, "a turn past the deadband moves the target");
+});
+
+test("the heading deadband widens while the phone is pitched or held upright, but stays small", () => {
+  trustCompassAt(100, 0);
+  const flat = app.compassTargetDeadbandDeg();
+  app.state.tiltBetaTarget = 60; // still easing toward a new pitch
+  const pitching = app.compassTargetDeadbandDeg();
+  assert.ok(pitching > flat, "pitching should widen the deadband");
+  app.state.tiltBetaTarget = 90;
+  app.state.tiltBetaSmoothed = 90;
+  const upright = app.compassTargetDeadbandDeg();
+  assert.ok(upright > flat, "an upright phone should widen the deadband");
+  app.state.tiltBetaTarget = 0;
+  assert.ok(app.compassTargetDeadbandDeg() <= 6, "the deadband never exceeds 6 degrees, so heading-up never drifts far from the sensor");
+});
+
+test("a pitch reading inside the beta deadband leaves the tilt target alone", () => {
+  trustCompassAt(100, 30);
+  app.onDeviceOrientation({ webkitCompassHeading: 100, beta: 30.5 });
+  assert.equal(app.state.tiltBetaTarget, 30);
+  app.onDeviceOrientation({ webkitCompassHeading: 100, beta: 32 });
+  assert.equal(app.state.tiltBetaTarget, 32);
+});
+
+test("a slow continuous turn still reaches the target in deadband-sized steps", () => {
+  trustCompassAt(100);
+  let last = 100;
+  for (let heading = 100; heading <= 130; heading += 0.5) {
+    app.onDeviceOrientation({ webkitCompassHeading: heading, beta: 30 });
+    last = app.state.compassHeadingTarget;
+  }
+  assert.ok(130 - last <= app.compassTargetDeadbandDeg(), "the target trails a slow turn by no more than the deadband");
+  assert.ok(last > 120, "and it keeps advancing rather than sticking");
+});
+
+test("heading smoothing eases small remaining angles gently and large ones quickly", () => {
+  const small = app.compassSmoothingRate(1);
+  const medium = app.compassSmoothingRate(20);
+  const large = app.compassSmoothingRate(90);
+  assert.ok(small < medium && medium < large, "the rate rises with the remaining angle");
+  assert.equal(app.compassSmoothingRate(-90), large, "direction does not matter");
+  assert.equal(app.compassSmoothingRate(40), large, "the full rate applies from 40 degrees");
 });
 
 test("alignHeadingUpNavigationViewport defers a zoom-in fit while the compass sensor is actively firing, unless forced", () => {
