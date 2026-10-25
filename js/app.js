@@ -383,51 +383,6 @@ let _tiltProjectionCache = undefined;
 let _nearbyRenderOriginCache = undefined;
 let _nearbyRenderOriginCacheAnchor = null;
 
-const els = {
-  canvas: document.getElementById("mapCanvas"),
-  overlayCanvas: document.getElementById("overlayCanvas"),
-  mapStage: document.querySelector(".map-stage"),
-  compassArrow: document.getElementById("compassArrow"),
-  compassCalibrationBanner: document.getElementById("compassCalibrationBanner"),
-  compassCalibrationBannerText: document.getElementById("compassCalibrationBannerText"),
-  compassCalibrationBannerEnable: document.getElementById("compassCalibrationBannerEnable"),
-  compassCalibrationBannerDismiss: document.getElementById("compassCalibrationBannerDismiss"),
-  filterToggle: document.getElementById("filterToggle"),
-  filterCount: document.getElementById("filterCount"),
-  nearbyToggle: document.getElementById("nearbyToggle"),
-  installButton: document.getElementById("installButton"),
-  loadingOverlay: document.getElementById("loadingOverlay"),
-  consentBanner: document.getElementById("consentBanner"),
-  consentBannerAccept: document.getElementById("consentBannerAccept"),
-  consentBannerDecline: document.getElementById("consentBannerDecline"),
-  locationInviteBanner: document.getElementById("locationInviteBanner"),
-  locationInviteTitle: document.getElementById("locationInviteTitle"),
-  locationInviteMessage: document.getElementById("locationInviteMessage"),
-  locationInviteButton: document.getElementById("locationInviteButton"),
-  locationInviteDismiss: document.getElementById("locationInviteDismiss"),
-  distanceWarning: document.getElementById("distanceWarning"),
-  distanceWarningMessage: document.getElementById("distanceWarningMessage"),
-  distanceWarningButton: document.getElementById("distanceWarningButton"),
-  eventNearbyBanner: document.getElementById("eventNearbyBanner"),
-  eventNearbyBannerOpen: document.getElementById("eventNearbyBannerOpen"),
-  eventNearbyBannerText: document.getElementById("eventNearbyBannerText"),
-  eventNearbyBannerDismiss: document.getElementById("eventNearbyBannerDismiss"),
-  inspector: document.getElementById("inspector"),
-  inspectorBack: document.getElementById("inspectorBack"),
-  inspectorTitleEmoji: document.getElementById("inspectorTitleEmoji"),
-  inspectorTitle: document.getElementById("inspectorTitle"),
-  inspectorType: document.getElementById("inspectorType"),
-  inspectorBody: document.getElementById("inspectorBody"),
-  inspectorTools: document.querySelector(".inspector-tools"),
-  inspectorTitleSection: document.querySelector(".inspector-title-section"),
-  nearbyAnchorBar: document.getElementById("nearbyAnchorBar"),
-  closeInspector: document.getElementById("closeInspector"),
-  searchToggle: document.getElementById("searchToggle"),
-  reportToggle: document.getElementById("reportToggle"),
-  settingsToggle: document.getElementById("settingsToggle"),
-  inspectorActions: document.querySelector(".inspector-actions"),
-};
-
 // --- Router ---------------------------------------------------------------------------
 //
 // Every screen the app can be on has a URL, and the URL is what puts it there. A screen

@@ -1,4 +1,4 @@
-Warning: truncated output (original token count: 154699)
+Warning: truncated output (original token count: 154705)
 Total output lines: 11930
 
 const assert = require("node:assert/strict");
@@ -609,7 +609,7 @@ globalThis.__forestFindsTest = {
   vm.createContext(context);
 
   const rootDir = path.join(__dirname, "..");
-  const externalScripts = ["js/app-cache-version.js", "js/data-cache-version.js", "js/categories.js", "js/normalize.js", "js/router-rules.js", "js/tracker.js", "js/outbox.js", "js/community.js", "js/onboarding.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/icon-motion.js", "js/renderer.js", "js/inspector.js"];
+  const externalScripts = ["js/app-cache-version.js", "js/data-cache-version.js", "js/categories.js", "js/normalize.js", "js/router-rules.js", "js/dom-elements.js", "js/tracker.js", "js/outbox.js", "js/community.js", "js/onboarding.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/icon-motion.js", "js/renderer.js", "js/inspector.js"];
   for (const externalSrc of externalScripts) {
     const externalPath = path.join(rootDir, externalSrc);
     if (fs.existsSync(externalPath)) {
@@ -1904,8 +1904,7 @@ test("an expanded cluster's borrowed radius never leaks into the URL", () => {
   app.state.walkingDistanceMinutes = 5;
   app.state.clusterExpanded = { itemType: "tree", items: [] };
   app.state.preClusterWalkingDistanceMinutes = 5;
-  // The borrowed value a real cluster tap would have set -- see clusterFocusTarget.
-  app.s…114699 tokens truncated…, () => {
+  // The borrowed value a real cluster tap would have set -- see clust…114705 tokens truncated…, () => {
   assert.equal(app.isEventPast({}), true);
   assert.equal(app.isEventPast({ startsAt: "not a date" }), true);
   assert.equal(app.normalizeEventLocations({ events: [{ id: "bad", lat: 51.65, lon: 0.04 }] }).length, 0);

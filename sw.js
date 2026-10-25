@@ -39,6 +39,7 @@ const APP_SHELL = [
   "./js/data-cache-version.js",
   "./js/normalize.js",
   "./js/router-rules.js",
+  "./js/dom-elements.js",
   "./js/loader.js",
   "./js/routing.js",
   "./js/icon-motion.js",
