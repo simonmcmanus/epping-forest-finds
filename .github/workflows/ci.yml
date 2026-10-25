@@ -56,6 +56,9 @@ jobs:
             findings, prioritised P0 (critical) through P3 (minor). Keep general
             observations brief. For each actionable finding, use the inline
             comment tool with confirmed=true and a precise changed-line range.
+            Prefix every inline finding body with the exact visible marker
+            `CLAUDE_REVIEW_FINDING` on its own line so the follow-up workflow
+            can distinguish Claude findings from unrelated bot comments.
             When the review is complete, you MUST publish a top-level summary
             to the PR with `gh pr comment ${{ github.event.pull_request.number }} --body "..."`.
             Include both the Standards and Spec sections,
@@ -68,7 +71,8 @@ jobs:
             GitHub rejects the approval because of repository policy or
             self-approval rules, leave the summary comment and finish without
             trying to work around that restriction. Never modify files, commit,
-            push, merge, or close the PR.
+            push, merge, or close the PR. A human approval is still required by
+            repository branch protection.
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr review:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(git diff:*),Bash(git log:*),Bash(git merge-base:*),Bash(git show:*)"
 
