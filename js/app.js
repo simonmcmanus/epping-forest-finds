@@ -283,6 +283,7 @@ const state = {
   showAllOutsideRadius: false,
   compassHeading: null,
   compassHeadingTarget: null,
+  compassTargetMovedAt: 0,
   nearbyListHeading: null, // heading the Nearby list is ordered by -- see headsUpSortedEntries
   compassPermission: STORED_COMPASS_PERMISSION,
   compassPermissionPromptVisible: false,
@@ -5015,11 +5016,38 @@ function restartStaleGpsWatch() {
 }
 
 // Constants controlling the "settle before trusting" compass calibration gate below.
+const COMPASS_TARGET_DEADBAND_DEG = 1.5; // raw readings closer than this to the current target are ignored
+const COMPASS_PITCHING_DEADBAND_DEG = 3; // wider heading deadband while beta is still moving
+const COMPASS_UPRIGHT_EXTRA_DEADBAND_DEG = 3; // extra heading deadband at a fully upright phone (pitch 90deg), scaled by (pitch/90)^2
+const COMPASS_PITCHING_THRESHOLD_DEG = 1; // pitch still easing by more than this counts as the phone being pitched
+const COMPASS_DEADBAND_RELAX_MS = 1500; // a reading held inside the deadband this long is accepted, so a still phone settles on the true heading
+const BETA_TARGET_DEADBAND_DEG = 1; // raw pitch readings closer than this to the target are ignored
+const COMPASS_SMOOTHING_MIN_RATE = 2.5; // 1/s filter rate for tiny remaining angles (sensor jitter)
+const COMPASS_SMOOTHING_MAX_RATE = 14; // 1/s filter rate for a deliberate turn
+const COMPASS_SMOOTHING_FAST_DEG = 40; // remaining angle at which the full rate applies
 const COMPASS_CALIBRATION_WINDOW_MS = 900; // trailing window of raw readings used to judge stability
 const COMPASS_CALIBRATION_STABLE_SPREAD_DEG = 6; // max spread within the window before we trust it
 const COMPASS_CALIBRATION_MIN_SAMPLES = 4; // minimum readings required within the window
 const COMPASS_CALIBRATION_PROMPT_DELAY_MS = 1500; // how long to stay unstable before nudging the user
 const COMPASS_CALIBRATION_MAX_WAIT_MS = 6000; // safety valve -- never block heading-up forever
+
+// How far a raw heading must move from the current target before it counts as a turn. While the
+// phone is being pitched, heading readings cross-talk with the tilt, so it widens; a raised phone
+// approaches gimbal lock, where the heading is noisy even when held still, so it also grows with
+// pitch. Capped at COMPASS_PITCHING_DEADBAND_DEG + COMPASS_UPRIGHT_EXTRA_DEADBAND_DEG.
+function compassTargetDeadbandDeg() {
+  const pitching = Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) > COMPASS_PITCHING_THRESHOLD_DEG;
+  const upright = Math.pow(clamp(state.tiltBetaSmoothed / 90, 0, 1), 2);
+  return (pitching ? COMPASS_PITCHING_DEADBAND_DEG : COMPASS_TARGET_DEADBAND_DEG)
+    + upright * COMPASS_UPRIGHT_EXTRA_DEADBAND_DEG;
+}
+
+// Filter rate (1/s) for easing compassHeading toward its target: low for a small remaining angle
+// (sensor jitter), rising to the full rate at COMPASS_SMOOTHING_FAST_DEG and beyond (a real turn).
+function compassSmoothingRate(remainingDeg) {
+  const turn = Math.min(Math.abs(remainingDeg), COMPASS_SMOOTHING_FAST_DEG) / COMPASS_SMOOTHING_FAST_DEG;
+  return COMPASS_SMOOTHING_MIN_RATE + (COMPASS_SMOOTHING_MAX_RATE - COMPASS_SMOOTHING_MIN_RATE) * turn;
+}
 
 function onDeviceOrientation(event) {
   // Tracked separately from compassLastEventAt (set below, and only for events carrying
@@ -5029,7 +5057,9 @@ function onDeviceOrientation(event) {
   state.orientationLastEventAt = performance.now();
   const rawBeta = event.beta;
   if (Number.isFinite(rawBeta)) {
-    state.tiltBetaTarget = clamp(Math.abs(rawBeta), 0, 90);
+    const nextBeta = clamp(Math.abs(rawBeta), 0, 90);
+    // Deadband: sub-degree pitch wobble would otherwise re-project the tilted map every frame.
+    if (Math.abs(nextBeta - state.tiltBetaTarget) >= BETA_TARGET_DEADBAND_DEG) state.tiltBetaTarget = nextBeta;
     // Beta drives the 3D tilt by itself, but only startCompassSmoothing's loop eases
     // tiltBetaSmoothed toward it. Pitch is useful even while the magnetometer is still
     // calibrating (or when a browser exposes beta but not a north-referenced heading), so the
@@ -5058,7 +5088,17 @@ function onDeviceOrientation(event) {
 
   if (Number.isFinite(state.compassHeading)) {
     // Already trust a heading -- keep tracking the live target as before.
-    state.compassHeadingTarget = heading;
+    // Deadband: sub-degree sensor wobble is not a turn, so it never moves the target.
+    const deadband = compassTargetDeadbandDeg();
+    // A reading inside the deadband is wobble -- unless nothing has moved the target for a while,
+    // in which case the phone is simply being held still and the target should settle on it.
+    const quietFor = performance.now() - (state.compassTargetMovedAt || 0);
+    if (!Number.isFinite(state.compassHeadingTarget)
+        || Math.abs(shortestCompassDelta(state.compassHeadingTarget, heading)) >= deadband
+        || quietFor >= COMPASS_DEADBAND_RELAX_MS) {
+      if (heading !== state.compassHeadingTarget) state.compassTargetMovedAt = performance.now();
+      state.compassHeadingTarget = heading;
+    }
     startCompassSmoothing();
     return;
   }
@@ -5190,6 +5230,7 @@ function isCompassCalibrationStable() {
 function completeCompassCalibration(heading) {
   state.compassHeading = heading;
   state.compassHeadingTarget = heading;
+  state.compassTargetMovedAt = performance.now();
   state.compassCalibrationSamples = [];
   state.compassCalibrationStartedAt = null;
   stopCalibrationViewportSync();
@@ -5366,7 +5407,11 @@ function startCompassSmoothing() {
 
     if (hasHeading) {
       const delta = shortestCompassDelta(state.compassHeading, state.compassHeadingTarget);
-      const smoothing = 1 - Math.exp(-14 * dt);
+      // Fixed rate 14 (70ms time constant) passed raw sensor noise straight to the screen.
+      // Ease the rate with the remaining angle: small wobble is heavily damped, a real turn
+      // still catches up quickly.
+      const rate = compassSmoothingRate(delta);
+      const smoothing = 1 - Math.exp(-rate * dt);
       const nextHeading = state.compassHeading + (delta * smoothing);
       state.compassHeading = nextHeading;
     }

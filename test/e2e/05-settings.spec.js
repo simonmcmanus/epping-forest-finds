@@ -215,6 +215,10 @@ test.describe("Settings screen", () => {
             configurable: true,
             value: Promise.resolve({ waiting: null, installing: null, update: async () => {} }),
           });
+          Object.defineProperty(serviceWorker, "getRegistrations", {
+            configurable: true,
+            value: async () => [{ unregister: async () => { record("unregistered"); return true; } }],
+          });
           Object.defineProperty(serviceWorker, "getRegistration", {
             configurable: true,
             value: async () => ({ waiting: null, installing: null, update: async () => {} }),
@@ -252,13 +256,30 @@ test.describe("Settings screen", () => {
       expect(log).not.toContain("deleted:another-apps-cache-v1");
     });
 
-    test("refreshing the app does nothing when no replacement version was downloaded", async ({ page }) => {
+    // waitForFunction survives the location.reload() the button ends with; the log lives in sessionStorage.
+    async function logOnceContains(page, entry) {
+      const handle = await page.waitForFunction(
+        (wanted) => {
+          try {
+            const log = JSON.parse(sessionStorage.getItem("refresh-log") || "[]");
+            return log.includes(wanted) ? log : false;
+          } catch (error) {
+            return false;
+          }
+        },
+        entry
+      );
+      return handle.jsonValue();
+    }
+
+    test("refreshing the app clears the cached app but keeps the data and other apps' caches", async ({ page }) => {
       await stubCacheApis(page);
       await page.click("#refreshAppButton");
-      await expect(page.locator("#refreshStatus")).toContainText("No newer app version was downloaded");
-      const log = await page.evaluate(() => JSON.parse(sessionStorage.getItem("refresh-log") || "[]"));
-      expect(log).not.toContain("deleted:forest-finds-app-v99");
-      expect(log).not.toContain("unregistered");
+      const log = await logOnceContains(page, "deleted:forest-finds-app-v99");
+      expect(log).toContain("unregistered");
+      expect(log).not.toContain("message:SYNC_DATA");
+      expect(log).not.toContain("deleted:forest-finds-data-v9");
+      expect(log).not.toContain("deleted:another-apps-cache-v1");
     });
 
     test("tapping the app version indicator does nothing without a downloaded replacement", async ({ page }) => {
@@ -274,14 +295,13 @@ test.describe("Settings screen", () => {
       expect(await page.evaluate(() => window.__updateIndicatorMarker)).toBe(true);
     });
 
-    test("refreshing both keeps the working app when no replacement version was downloaded", async ({ page }) => {
+    test("refreshing both downloads the data, then clears the app and data caches but not other apps'", async ({ page }) => {
       await stubCacheApis(page);
       await page.click("#refreshAllButton");
-      await expect(page.locator("#refreshStatus")).toContainText("No newer app version was downloaded");
-      const log = await page.evaluate(() => JSON.parse(sessionStorage.getItem("refresh-log") || "[]"));
+      const log = await logOnceContains(page, "deleted:forest-finds-data-v9");
       expect(log).toContain("message:SYNC_DATA");
-      expect(log).not.toContain("deleted:");
-      expect(log).not.toContain("unregistered");
+      expect(log).toContain("unregistered");
+      expect(log).toContain("deleted:forest-finds-app-v99");
       expect(log).not.toContain("deleted:another-apps-cache-v1");
     });
   });
