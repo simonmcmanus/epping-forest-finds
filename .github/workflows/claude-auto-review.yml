@@ -45,8 +45,10 @@ jobs:
 
             Review only the changes introduced by this PR. Inspect the checked
             out merge ref and use the GitHub PR context for the diff. Read
-            CLAUDE.md, spec/agents.md, and relevant repository guidance before
-            reviewing.
+            CLAUDE.md, spec/agents.md, CODING_STANDARDS.md, and
+            .agents/skills/code-review/SKILL.md before reviewing. Apply the
+            AI Hero code-review method: keep Standards and Spec as separate
+            axes and compare the PR against its merge base.
 
             Check correctness, security, testing, specification synchronisation,
             performance, and repository invariants. Report only actionable
