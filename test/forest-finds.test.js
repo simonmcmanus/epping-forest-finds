@@ -5923,6 +5923,19 @@ test("a service worker update waits for an explicit activation request", () => {
   assert.match(sw, /event\.data\?\.type === "SKIP_WAITING"/, "activation must remain an explicit message action");
 });
 
+test("the app checks for updates while visible and announces only a fully prepared update", () => {
+  const nav = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
+  const toml = fs.readFileSync(path.join(__dirname, "..", "netlify.toml"), "utf8");
+  assert.match(nav, /register\("sw\.js", \{ updateViaCache: "none" \}\)/, "imported version files must not be served from the HTTP cache");
+  assert.match(nav, /swRegistration\.update\(\)/, "an explicit update check must exist");
+  assert.match(nav, /requestAppUpdateCheck\(\);/, "the check must run from the visibility/online/interval hook");
+  assert.match(nav, /async function prepareWaitingUpdate\(waiting\) \{\s*await requestDataRefresh\(\{ target: waiting/, "a waiting worker syncs its data before the banner");
+  assert.doesNotMatch(nav, /_markSwUpdateAvailable\((reg\.waiting|installing)\)/, "a waiting worker must not be announced before it is prepared");
+  for (const file of ["/sw.js", "/js/app-cache-version.js", "/js/data-cache-version.js"]) {
+    assert.match(toml, new RegExp(`for = "${file.replace(/[./]/g, "\\$&")}"\\s+\\[headers\\.values\\]\\s+Cache-Control = "no-cache"`), `${file} must be revalidated`);
+  }
+});
+
 test("every app update activation path downloads a complete waiting worker first", () => {
   const nav = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
   const applyMatch = nav.match(/async function applySwUpdate\(\) \{[\s\S]*?\n\}/);

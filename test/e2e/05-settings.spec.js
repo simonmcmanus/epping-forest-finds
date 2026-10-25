@@ -83,6 +83,15 @@ test.describe("Settings screen", () => {
     await expect(page.locator("#appVersionDisplay")).toContainText("v");
   });
 
+  test("a single update banner appears once an update is ready and one tap restarts", async ({ page }) => {
+    await expect(page.locator("#updateBanner")).toHaveCount(0);
+    await page.evaluate(() => { _markDataUpdateAvailable(); });
+    await expect(page.locator("#updateBanner")).toBeVisible();
+    await page.evaluate(() => { window.__reloadMarker = true; });
+    await page.click("#updateBannerButton");
+    await page.waitForFunction(() => !window.__reloadMarker);
+  });
+
   test("settings screen offers a one-tap reload once new map data has already downloaded", async ({ page }) => {
     await expect(page.locator("#dataUpdateNote")).toBeHidden();
 
