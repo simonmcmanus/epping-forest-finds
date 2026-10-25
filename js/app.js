@@ -4550,9 +4550,11 @@ function categoryLandingLinksHtml() {
 // The top-level Nearby screen's way back out of a filter: while any filter is applied there, a
 // "Show all nearby" pill links to the same ?filters=false override as the category chip's "All
 // nearby", so it ignores the reader's saved filters for this visit only. Category landings already
-// carry their own "All nearby" chip, so they get no second pill.
+// carry their own "All nearby" chip, so they get no second pill, and nor does a list already
+// showing every category (the override itself, or a reader who ticked everything).
 function showAllNearbyPillHtml() {
   if (isNearbyCategoryLandingPath() || !state.overviewFilters.length) return "";
+  if (state.overviewFilters.length >= ALL_OVERVIEW_FILTER_KEYS.size) return "";
   return `<div class="detail-top-row related-chips"><a class="detail-map-link nearby-link show-all-nearby" href="/nearby?filters=false">${appIconHtml("nearby")}Show all nearby</a></div>`;
 }
 

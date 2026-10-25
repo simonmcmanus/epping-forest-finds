@@ -330,7 +330,8 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
   override is applied by the walk-radius card's own button (`focusNearbyWithinWalkMinutes`, js/nav.js).
 - **"Show all nearby" pill on the top-level Nearby list.** While any filter is applied on the plain
   `/nearby` screen (not a `/nearby/<slug>` landing, which has its own "All nearby" chip), a
-  "Show all nearby" pill sits above the list and links to the same `/nearby?filters=false` override.
+  "Show all nearby" pill sits above the list and links to the same `/nearby?filters=false` override. Hidden once every category is applied (the
+  list is already showing everything).
   Built by `showAllNearbyPillHtml()` (js/app.js), prepended in `overviewNearestHtml()`.
 - **Navigating in-app straight from one `/nearby/<slug>` arrival to another never loses the new
   page's own category.** A link out of a selected place's inspector (a business page's own
