@@ -106,7 +106,8 @@ test.describe("Community tree verification", () => {
     refuse = false;
     await page.click("[data-action='community-retry']");
     await expect(page.locator(".community-log-item .community-pill")).not.toContainText("Couldn't send");
-    expect(calls.length).toBe(2);
+    // The pill clears the moment the retry starts, before the request reaches the mock.
+    await expect.poll(() => calls.length).toBe(2);
     expect(calls[0].id).toBe(calls[1].id);
     await expect(page.locator(".community-log-error")).toHaveCount(0);
   });
