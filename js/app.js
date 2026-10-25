@@ -5015,6 +5015,9 @@ function restartStaleGpsWatch() {
 }
 
 // Constants controlling the "settle before trusting" compass calibration gate below.
+const COMPASS_SMOOTHING_MIN_RATE = 3.5; // 1/s filter rate for tiny remaining angles (sensor jitter)
+const COMPASS_SMOOTHING_MAX_RATE = 14; // 1/s filter rate for a deliberate turn
+const COMPASS_SMOOTHING_FAST_DEG = 40; // remaining angle at which the full rate applies
 const COMPASS_CALIBRATION_WINDOW_MS = 900; // trailing window of raw readings used to judge stability
 const COMPASS_CALIBRATION_STABLE_SPREAD_DEG = 6; // max spread within the window before we trust it
 const COMPASS_CALIBRATION_MIN_SAMPLES = 4; // minimum readings required within the window
@@ -5361,7 +5364,12 @@ function startCompassSmoothing() {
 
     if (hasHeading) {
       const delta = shortestCompassDelta(state.compassHeading, state.compassHeadingTarget);
-      const smoothing = 1 - Math.exp(-14 * dt);
+      // Fixed rate 14 (70ms time constant) passed raw sensor noise straight to the screen.
+      // Ease the rate with the remaining angle: small wobble is heavily damped, a real turn
+      // still catches up quickly.
+      const turn = Math.min(Math.abs(delta), COMPASS_SMOOTHING_FAST_DEG) / COMPASS_SMOOTHING_FAST_DEG;
+      const rate = COMPASS_SMOOTHING_MIN_RATE + (COMPASS_SMOOTHING_MAX_RATE - COMPASS_SMOOTHING_MIN_RATE) * turn;
+      const smoothing = 1 - Math.exp(-rate * dt);
       const nextHeading = state.compassHeading + (delta * smoothing);
       state.compassHeading = nextHeading;
     }
