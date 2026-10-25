@@ -5217,6 +5217,7 @@ function showCompassCalibrationPrompt() {
   if (!els.compassCalibrationBanner) return;
   state.compassCalibrationPromptVisible = true;
   if (els.compassCalibrationBannerText) {
+    els.compassCalibrationBannerText.hidden = false;
     els.compassCalibrationBannerText.textContent = "Move your phone in a figure-8 to help it find your direction";
   }
   if (els.compassCalibrationBannerEnable) els.compassCalibrationBannerEnable.hidden = true;
@@ -5230,9 +5231,12 @@ function showCompassPermissionPrompt() {
   state.compassPermissionPromptVisible = true;
   state.compassCalibrationPromptVisible = false;
   if (els.compassCalibrationBannerText) {
-    els.compassCalibrationBannerText.textContent = state.compassPermission === "denied"
+    // Not blocked: the "Enable compass" button speaks for itself, so no explanatory line.
+    const blocked = state.compassPermission === "denied";
+    els.compassCalibrationBannerText.hidden = !blocked;
+    els.compassCalibrationBannerText.textContent = blocked
       ? "Compass access is blocked. Enable Motion & Orientation access in your browser settings to use map movement."
-      : "Enable compass access to turn the map and use phone movement.";
+      : "";
   }
   if (els.compassCalibrationBannerEnable) {
     els.compassCalibrationBannerEnable.textContent = "Enable compass";
@@ -5250,6 +5254,7 @@ async function enableCompassFromGesture() {
     setStatus("");
     requestDraw();
   } else if (state.compassPermissionPromptVisible && els.compassCalibrationBannerText) {
+    els.compassCalibrationBannerText.hidden = false;
     els.compassCalibrationBannerText.textContent = "Compass access is still blocked. Enable Motion & Orientation access in your browser settings, then try again.";
   }
 }
