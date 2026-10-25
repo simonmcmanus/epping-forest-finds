@@ -8200,7 +8200,18 @@ function normalizeCowApiData(payload) {
   return { cows, pastures };
 }
 
+// A selected tree or place leaves the cows card out of its Nearest section until cow positions have
+// loaded (nearbySectionsHtml, js/inspector.js), and nothing else redraws an open detail view when
+// they arrive -- so a deep-linked selection that rendered first never got the card.
+function refreshSelectedDetailForCows() {
+  const selected = state.selected;
+  if (!selected || !selected.item || (selected.type !== "tree" && selected.type !== "landmark")) return;
+  const route = SELECTION_ROUTES.find((entry) => entry.type === selected.type);
+  if (route) route.show(selected.item);
+}
+
 function applyCowData(cows, pastures, updatedAt, { persist } = { persist: true }) {
+  const cowsWereMissing = !state.cows || state.cows.length === 0;
   state.cows = cows;
   state.cowPastures = pastures;
   state.cowLastUpdatedAt = updatedAt;
@@ -8225,6 +8236,7 @@ function applyCowData(cows, pastures, updatedAt, { persist } = { persist: true }
   }
 
   if (isOverviewScreenActive()) selectOverview();
+  else if (cowsWereMissing && cows.length > 0) refreshSelectedDetailForCows();
   // Refresh the "time ago" display if a cow detail panel is open
   updateCowTimeAgoField();
   requestDraw();
