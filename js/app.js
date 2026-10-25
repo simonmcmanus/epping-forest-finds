@@ -5230,6 +5230,7 @@ function isCompassCalibrationStable() {
 function completeCompassCalibration(heading) {
   state.compassHeading = heading;
   state.compassHeadingTarget = heading;
+  state.compassTargetMovedAt = performance.now();
   state.compassCalibrationSamples = [];
   state.compassCalibrationStartedAt = null;
   stopCalibrationViewportSync();

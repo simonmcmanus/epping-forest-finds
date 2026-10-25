@@ -51,6 +51,35 @@ test.describe("compass reliability", () => {
     expect(Math.abs(readings.heading - 90), "the smoothed heading settles on east, not between the two").toBeLessThan(5);
   });
 
+  test("sensor wobble does not shake the map, but a real turn still rotates it", async ({ page }) => {
+    // Reported from the field on iPhone as the map feeling jumpy while the phone was held and tilted.
+    // Readings within a degree or two of the current target are noise; a deliberate turn is not.
+    const result = await page.evaluate(async () => {
+      const fire = (heading) => window.dispatchEvent(new DeviceOrientationEvent("deviceorientationabsolute", {
+        alpha: 360 - heading, beta: 30, gamma: 0, absolute: true,
+      }));
+      const frame = () => new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+      // Trust a steady heading of 100 first (the calibration gate needs agreeing readings).
+      for (let i = 0; i < 6; i += 1) { fire(100); await frame(); }
+      const steady = state.compassHeadingTarget;
+      const targets = [];
+      // Back to back, well inside the window after which a held reading is accepted as the new heading.
+      for (const wobble of [100.8, 99.4, 100.5, 99.7, 100.9, 99.2]) {
+        fire(wobble);
+        targets.push(state.compassHeadingTarget);
+      }
+      fire(130); // a deliberate 30 degree turn
+      await frame();
+      return { steady, targets, afterTurn: state.compassHeadingTarget };
+    });
+
+    expect(result.steady, "sanity: a steady heading should have been trusted").toBeCloseTo(100, 0);
+    for (const target of result.targets) {
+      expect(target, "wobble inside the deadband must not move the target").toBe(result.steady);
+    }
+    expect(result.afterTurn, "a deliberate turn must move the target").toBeCloseTo(130, 0);
+  });
+
   test("a heading already trusted from the drifting stream is dropped the moment a real bearing arrives", async ({ page }) => {
     const result = await page.evaluate(async () => {
       // A phone whose relative stream starts first: the app trusts it rather than leaving the
