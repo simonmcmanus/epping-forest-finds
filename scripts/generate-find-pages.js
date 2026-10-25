@@ -34,7 +34,7 @@ const path = require("node:path");
 
 const { buildInventory, loadAppRules } = require("./report/map-inventory.js");
 const { escapeHtml, replaceOnce, customizeConsentBannerText } = require("./lib/html-template.js");
-const { listBusinessesForFilterKey, loadEvents, haversineMetres } = require("./generate-business-pages.js");
+const { listBusinessesForFilterKey, loadEvents } = require("./generate-business-pages.js");
 
 // These are pure shared rules from js/normalize.js, loaded through the same vm boundary as the
 // report inventory. Keeping one copy means the static landing pages and the browser cannot drift
@@ -53,10 +53,6 @@ const SITE_NAME = "Epping Forest Finds";
 // page. DEFAULT_LOCATION/LANDING_PAGE_WALKING_DISTANCE_MINUTES come from js/normalize.js through
 // SHARED_RULES rather than being copied here, so a future change only needs updating once.
 const DEFAULT_LOCATION = SHARED_RULES.DEFAULT_LOCATION;
-// haversineMetres (scripts/generate-business-pages.js) reads .lat/.lon, not .latitude/.longitude
-// -- DEFAULT_LOCATION keeps js/app.js's own naming above; this is the one spot that bridges the
-// shared .latitude/.longitude shape to the business-page helper's .lat/.lon shape.
-const DEFAULT_LOCATION_LAT_LON = { lat: DEFAULT_LOCATION.latitude, lon: DEFAULT_LOCATION.longitude };
 const LANDING_PAGE_WALKING_RADIUS_METRES = SHARED_RULES.walkingDistanceToMetres(SHARED_RULES.LANDING_PAGE_WALKING_DISTANCE_MINUTES);
 // Category pages live under /nearby/ (the screen they pre-filter), never /find/ (reserved for
 // individual businesses and points of interest, not yet built).
@@ -175,7 +171,7 @@ function nearestWithinWalkingRadius(items, getLatLon) {
   const withDistance = items
     .map((item) => {
       const { latitude, longitude } = getLatLon(item);
-      return { item, metres: haversineMetres(DEFAULT_LOCATION_LAT_LON, { lat: latitude, lon: longitude }) };
+      return { item, metres: SHARED_RULES.distanceMetres(DEFAULT_LOCATION.latitude, DEFAULT_LOCATION.longitude, latitude, longitude) };
     })
     .filter(({ metres }) => Number.isFinite(metres))
     .sort((a, b) => a.metres - b.metres);

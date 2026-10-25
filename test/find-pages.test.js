@@ -260,6 +260,7 @@ test("build-time rules expose the runtime tree identity and display helpers", ()
   assert.equal(rules.formatDistance(1500), "1.5 km");
   assert.equal(rules.walkingDistanceToMetres(30), 2500);
   assert.equal(rules.formatWalkingRadius(0.25), "15 sec");
+  assert.equal(rules.distanceMetres(51, 0, 51, 0), 0);
   assert.equal(rules.normalizeTreeNumber(" R-1 "), "r1");
   assert.equal(rules.treeHashKey({ recordNumber: "1-2" }), "r12");
   assert.equal(rules.treeTagLabel({ tagNumber: "0" }), null);

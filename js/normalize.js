@@ -8,6 +8,7 @@ const DEFAULT_WALKING_DISTANCE_MINUTES = 5;
 const LANDING_PAGE_WALKING_DISTANCE_MINUTES = 30;
 const DEFAULT_LOCATION = { latitude: 51.667591, longitude: 0.037454 };
 const DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES = DEFAULT_WALKING_DISTANCE_MINUTES;
+const EARTH_RADIUS_METRES = 6371008.8;
 
 function toRadians(value) {
   return value * Math.PI / 180;
@@ -22,6 +23,15 @@ function bearingDegrees(lat1, lon1, lat2, lon2) {
   const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(lambda2 - lambda1);
   const brng = Math.atan2(y, x) * 180 / Math.PI;
   return (brng + 360) % 360;
+}
+
+function distanceMetres(lat1, lon1, lat2, lon2) {
+  const phi1 = toRadians(lat1);
+  const phi2 = toRadians(lat2);
+  const dPhi = toRadians(lat2 - lat1);
+  const dLambda = toRadians(lon2 - lon1);
+  const a = Math.sin(dPhi / 2) ** 2 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) ** 2;
+  return 2 * EARTH_RADIUS_METRES * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 function formatDistance(metres) {

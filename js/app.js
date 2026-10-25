@@ -38,8 +38,6 @@ const FEATURE_LAYERS = [
   { key: "forest", label: "Epping Forest land", url: "data/epping-forest-land.geojson" },
   { key: "buffer", label: "Buffer land", url: "data/epping-buffer-land.geojson" },
 ];
-const EARTH_RADIUS_METRES = 6371008.8;
-
 // Named camera-animation durations. Each replaces an exact pre-existing literal that
 // was independently repeated across multiple call sites for the same transition, so
 // this changes nothing about how any of them feel -- it just gives the recurring
@@ -9504,15 +9502,6 @@ function requestOverlayDraw() {
 }
 
 function setStatus(_message) {
-}
-
-function distanceMetres(lat1, lon1, lat2, lon2) {
-  const phi1 = toRadians(lat1);
-  const phi2 = toRadians(lat2);
-  const dPhi = toRadians(lat2 - lat1);
-  const dLambda = toRadians(lon2 - lon1);
-  const a = Math.sin(dPhi / 2) ** 2 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) ** 2;
-  return 2 * EARTH_RADIUS_METRES * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
 function formatWalkTime(metres) {
