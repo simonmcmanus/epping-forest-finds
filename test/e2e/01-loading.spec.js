@@ -95,6 +95,26 @@ test.describe("Loading experience", () => {
     releaseTrees();
   });
 
+  test("falls back to the full tree register when the chunked index cannot be fetched", async ({ page }) => {
+    await page.route("**/data/trees/index.json", (route) => route.fulfill({ status: 500, body: "unavailable" }));
+    await page.route("**/Veteran_Tree_Register*.json", (route) => route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ trees: [{ id: "fallback-1", location: { wgs84: { latitude: 51.6465, longitude: 0.0545 } } }] }),
+    }));
+    await page.goto("/nearby");
+    await expect(page.locator('[data-load-step="trees"]')).toHaveClass(/done/);
+    await expect(page.locator("[data-step-count='trees']")).toHaveText("1");
+  });
+
+  test("the map still opens when every tree download fails", async ({ page }) => {
+    await page.route("**/data/trees/**", (route) => route.abort());
+    await page.route("**/Veteran_Tree_Register*.json", (route) => route.abort());
+    await page.goto("/nearby");
+    await expect(page.locator('[data-load-step="trees"]')).toHaveClass(/error/, { timeout: 60_000 });
+    await expect(page.locator("#mapCanvas")).toBeVisible();
+    await expect(page.locator('[data-load-step="places"]')).toHaveClass(/done/);
+  });
+
   test("cows step completes with fixture data count", async ({ page }) => {
     await page.goto("/nearby");
     await page.waitForFunction(() => { const el = document.getElementById("loadingOverlay"); return !el || el.hidden === true; }, { timeout: 30_000 });

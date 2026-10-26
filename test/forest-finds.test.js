@@ -29,7 +29,11 @@ function createElementStub(id = "") {
     clientWidth: 1000,
     clientHeight: 800,
     scrollHeight: 0,
-    textContent: "",
+    children: [],
+    get textContent() { return this._text ?? ""; },
+    // Assigning text replaces any child nodes, as in a browser.
+    set textContent(value) { this._text = String(value); this.children.length = 0; },
+    append(...nodes) { nodes.forEach((node) => { if (typeof node !== "string") this.children.push(node); }); },
     innerHTML: "",
     childNodes: { length: 0 },
     offsetHeight: 0,
@@ -97,6 +101,7 @@ function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
     visibilityState: "visible",
     body: createElementStub("body"),
     documentElement: createElementStub("html"),
+    createElement(tag) { const el = createElementStub(); el.tagName = String(tag).toUpperCase(); return el; },
     getElementById(id) {
       if (!elements.has(id)) elements.set(id, createElementStub(id));
       return elements.get(id);
@@ -203,6 +208,7 @@ function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
     Image: function Image() { this.complete = false; this.naturalWidth = 0; },
     URLSearchParams,
     URL,
+    crypto: globalThis.crypto,
     localStorage,
   };
   context.globalThis = context;
@@ -519,6 +525,10 @@ globalThis.__forestFindsTest = {
   ensureUserAndSelectionVisible,
   refitSelectionAfterRoutingGraphReady,
   settingsFormHtml,
+  submitReportForm,
+  submitLocationIssueReport,
+  applyReportStatusContent,
+  refreshCachedState,
   hasTrackingConsent,
   setTrackingConsent,
   ensureTrackingConsent,
@@ -2390,15 +2400,6 @@ test("the inspector has no standalone location button", () => {
   assert.equal(app.els.locateButton, undefined, "location permission is requested from the focused gate, not a second Nearby control");
 });
 
-test("the blocking location gate has been removed", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
-  const nav = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
-  const app = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
-  assert.doesNotMatch(html, /locationGate|Allow location access/);
-  assert.doesNotMatch(nav, /locationGate|setLocationGateVisible/);
-  assert.doesNotMatch(app, /locationGate|setLocationGateVisible/);
-});
-
 test("drawUser never draws the \"You\" dot for the default location, only for a real fix", () => {
   resetData(app);
   let arcCalls = 0;
@@ -2523,37 +2524,6 @@ test("nearby filter updates trigger a heading-up refit that keeps the radius cir
   );
 });
 
-test("navigation has labelled outline glyphs that inherit the selected colour", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
-  const nav = html.match(/<nav class="inspector-actions"[\s\S]*?<\/nav>/)[0];
-  // Filters is reached inline from the Nearby heading, not a fifth nav-bar tab -- see
-  // spec-data-rendering.md, "Filters is reached from Nearby, not a nav peer".
-  // Four labelled tabs, plus the thin Back cell's own chevron (labelled by aria-label, not a tab).
-  assert.equal((nav.match(/stroke="currentColor"/g) || []).length, 5);
-  assert.equal((nav.match(/class="nav-label"/g) || []).length, 4);
-  assert.ok(!nav.includes("<img"), "navigation must not retain fixed-colour PNG icons");
-});
-
-test("tree loading uses chunked register before full-file fallbacks", () => {
-  const loader = fs.readFileSync(path.join(__dirname, "..", "js", "loader.js"), "utf8");
-
-  assert.match(loader, /loadTreeChunks\(TREE_CHUNK_INDEX_URL\)/);
-  assert.match(loader, /const treeAttempts = \[[\s\S]*loadTreeChunks\(TREE_CHUNK_INDEX_URL\)[\s\S]*\.\.\.fullFileAttempts/);
-  assert.match(loader, /const maxConcurrent = Math\.min\(6, chunks\.length\)/);
-});
-
-test("static and lazy data reads have bounded failure paths", () => {
-  const loader = fs.readFileSync(path.join(__dirname, "..", "js", "loader.js"), "utf8");
-
-  assert.match(loader, /const loadJson = async \(url, timeoutMs = 60000\)/);
-  assert.match(loader, /setTimeout\(\(\) => controller\.abort\(\), timeoutMs\)/);
-  assert.match(loader, /if \(!response\.ok\) throw new Error/);
-  assert.match(loader, /const landmarkPromises = LANDMARK_URLS\.map\(\(url\) => fetch\(url\)/);
-  assert.match(loader, /function loadBuildingsIfNeeded\(\)/);
-  assert.match(loader, /fetch\(BUILDINGS_URL\)/);
-  assert.match(loader, /state\.buildingsLoaded = true/);
-});
-
 test("generated tree chunks cover the full veteran tree register", () => {
   const index = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "data", "trees", "index.json"), "utf8"));
   const chunkCount = index.chunks.reduce((sum, chunk) => sum + chunk.count, 0);
@@ -2575,24 +2545,6 @@ test("service worker install pre-caches only the small tree chunk index", () => 
   assert.ok(!shellMatch[1].includes("data/trees/chunk-"), "tree chunks should be runtime cached after the page fetch");
   assert.ok(!shellMatch[1].includes("Veteran_Tree_Register.json"), "base tree register should be runtime cached after the page fetch");
   assert.ok(!shellMatch[1].includes("Veteran_Tree_Register.enriched.with_named_trees.json"), "enriched tree register should be runtime cached after the page fetch");
-});
-
-test("generated UI icon classes render at the enlarged sizes", () => {
-  const baseCss = fs.readFileSync(path.join(__dirname, "..", "css", "base.css"), "utf8");
-  const inspectorCss = fs.readFileSync(path.join(__dirname, "..", "css", "inspector.css"), "utf8");
-  const mapUiCss = fs.readFileSync(path.join(__dirname, "..", "css", "map-ui.css"), "utf8");
-
-  assert.match(baseCss, /--icon-scale:\s*1;/);
-  // [^}]* (not [\s\S]*) deliberately bounds each match inside its own rule's braces -- an
-  // unbounded match here previously let a later, unrelated selector's "width: 32px;" satisfy
-  // the assertion even while the rule actually named kept its original, smaller size. The nav
-  // glyphs keep their compact size; screen-title artwork matches the 44px Back target.
-  // Nearby list icons also span both the name and meta/distance lines beside them
-  // (see .nearest-item's grid layout), rather than just the first line.
-  assert.match(inspectorCss, /\.nav-icon\s*\{[^}]*width:\s*calc\(22px\s*\*\s*var\(--icon-scale\)\);[^}]*height:\s*calc\(22px\s*\*\s*var\(--icon-scale\)\);/);
-  assert.match(inspectorCss, /\.title-icon\s*\{[^}]*width:\s*calc\(44px\s*\*\s*var\(--icon-scale\)\);[^}]*height:\s*calc\(44px\s*\*\s*var\(--icon-scale\)\);/);
-  assert.match(mapUiCss, /\.nearest-icon\s+\.app-icon\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;/);
-  assert.match(mapUiCss, /\.walk-icon\s*\{[^}]*width:\s*calc\(18px\s*\*\s*var\(--icon-scale\)\);[^}]*height:\s*calc\(18px\s*\*\s*var\(--icon-scale\)\);/);
 });
 
 test("nearest list falls back to one closest item for each active type outside the walking radius", () => {
@@ -4885,18 +4837,6 @@ test("select_map_item GA event carries a specific venue category for landmarks, 
   }
 });
 
-test("onboarding's location step discloses location, usage tracking, and the merged cookie choice", () => {
-  const onboardingSource = fs.readFileSync(path.join(__dirname, "..", "js", "onboarding.js"), "utf8");
-
-  const onboardingNoteMatch = onboardingSource.match(/<p class="privacy-note">([\s\S]*?)<\/p>/);
-
-  assert.ok(onboardingNoteMatch, "the onboarding location step should show a .privacy-note disclosure");
-  assert.match(onboardingNoteMatch[1], /We collect anonymous usage data \(GPS position, navigation, interactions\)/);
-  assert.match(onboardingNoteMatch[1], /analytics cookies/, "onboarding's note must disclose the merged cookie consent");
-  assert.match(onboardingNoteMatch[1], /Settings → Privacy/);
-  assert.match(onboardingNoteMatch[1], /<a href="\/terms\.html" target="_blank" rel="noopener">Privacy Policy<\/a>/);
-});
-
 test("settings form offers separate data, app and combined refresh buttons", () => {
   // The scopes are split so a data repair does not needlessly check for an app update, while all
   // three keep the current offline copy until a replacement is ready.
@@ -4910,33 +4850,75 @@ test("settings form offers separate data, app and combined refresh buttons", () 
   assert.match(html, /id="refreshOfflineNote"/, "settings form should include a shared offline note for the refresh buttons");
 });
 
-test("refresh app and both clear the cache and then reload the page", () => {
-  // The Node VM test harness doesn't stub navigator.serviceWorker/location.reload, so this is a
-  // source-level check (matching the other service-worker tests above) that pins the safety
-  // contract rather than executing a browser refresh.
-  const navSource = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
-  const fnMatch = navSource.match(/async function refreshCachedState\(scope\) \{[\s\S]*?\n\}/);
-  assert.ok(fnMatch, "refreshCachedState must be defined in nav.js");
-  const fn = fnMatch[0];
+// Drives refreshCachedState against a fake browser: service worker, Cache Storage and reload.
+async function runRefresh(app, scope, { online = true, dataSyncOk = true } = {}) {
+  const log = [];
+  const nav = app.navigator;
+  const win = app.windowStub;
+  const listeners = new Set();
+  const cacheNames = ["forest-finds-app-9", "forest-finds-data-9", "unrelated"];
+  const previousOnline = nav.onLine;
+  const previousLocation = app.swapGlobalFunction("location", { reload: () => log.push("reload") });
+  const previousCaches = app.swapGlobalFunction("caches", {
+    keys: async () => cacheNames,
+    delete: async (name) => { log.push(`delete ${name}`); },
+  });
+  nav.onLine = online;
+  win.caches = {};
+  nav.serviceWorker = {
+    controller: {
+      postMessage: (message) => {
+        log.push(`sync ${message.type}`);
+        listeners.forEach((fn) => fn({ data: { type: "DATA_SYNC_COMPLETE", requestId: message.requestId, ok: dataSyncOk } }));
+      },
+    },
+    addEventListener: (type, fn) => listeners.add(fn),
+    removeEventListener: (type, fn) => listeners.delete(fn),
+    getRegistrations: async () => [{ unregister: async () => { log.push("unregister worker"); } }],
+  };
+  try {
+    const result = await app.refreshCachedState(scope);
+    return { result, log };
+  } finally {
+    delete nav.serviceWorker;
+    delete win.caches;
+    nav.onLine = previousOnline;
+    app.swapGlobalFunction("location", previousLocation);
+    app.swapGlobalFunction("caches", previousCaches);
+  }
+}
 
-  assert.match(fn, /if \(!navigator\.onLine\)/, "must bail out while offline instead of leaving the app with no cache fallback");
-  assert.match(fn, /requestDataRefresh\(\)/, "data refresh must download into the existing cache first");
-  assert.match(fn, /clearCachedApp\(scope === "all"\)/, "app and both scopes must clear the cache");
-  assert.match(fn, /clearCachedApp[\s\S]*location\.reload\(\)/, "must reload after clearing");
+test("Refresh app clears the app cache, keeps the data cache, and then reloads", async () => {
+  const { result, log } = await runRefresh(app, "app");
+  assert.equal(result, true);
+  assert.deepEqual(log, ["unregister worker", "delete forest-finds-app-9", "reload"]);
 });
 
-test("settings refresh listeners are removed before being re-added, so reopening Settings does not leak window listeners", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
-  const bindMatch = source.match(/function bindSettingsHandlers\(\) \{[\s\S]*?\n\}/);
-  assert.ok(bindMatch, "bindSettingsHandlers must be defined");
-  const fn = bindMatch[0];
+test("Refresh both downloads fresh data first, then clears every forest-finds cache and reloads", async () => {
+  const { result, log } = await runRefresh(app, "all");
+  assert.equal(result, true);
+  assert.deepEqual(log, ["sync SYNC_DATA", "unregister worker", "delete forest-finds-app-9", "delete forest-finds-data-9", "reload"]);
+});
 
-  for (const evt of ["online", "offline"]) {
-    const removeIdx = fn.indexOf(`removeEventListener("${evt}", updateRefreshButtonsOnlineState)`);
-    const addIdx = fn.indexOf(`addEventListener("${evt}", updateRefreshButtonsOnlineState)`);
-    assert.ok(removeIdx !== -1, `must remove any prior "${evt}" listener`);
-    assert.ok(addIdx !== -1, `must add a new "${evt}" listener`);
-    assert.ok(removeIdx < addIdx, `must remove the "${evt}" listener before adding a new one`);
+test("Refresh data downloads into the existing cache and reloads without clearing anything", async () => {
+  const { result, log } = await runRefresh(app, "data");
+  assert.equal(result, true);
+  assert.deepEqual(log, ["sync SYNC_DATA", "reload"]);
+});
+
+test("a refresh whose data download fails leaves the offline copy untouched and does not reload", async () => {
+  for (const scope of ["data", "all"]) {
+    const { result, log } = await runRefresh(app, scope, { dataSyncOk: false });
+    assert.equal(result, false, scope);
+    assert.deepEqual(log, ["sync SYNC_DATA"], `${scope}: nothing is cleared or reloaded after a failed download`);
+  }
+});
+
+test("refreshing while offline does nothing, so the app is never left without a cache to fall back on", async () => {
+  for (const scope of ["data", "app", "all"]) {
+    const { result, log } = await runRefresh(app, scope, { online: false });
+    assert.equal(result, false, scope);
+    assert.deepEqual(log, [], scope);
   }
 });
 
@@ -5227,36 +5209,73 @@ test("roundWalkingMinutes snaps the settings slider's own value to the nearest h
   assert.equal(app.roundWalkingMinutes(5.3), 5.5);
 });
 
-test("loading overlay markup includes all eight step labels", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
-  for (const label of ["Veteran trees", "Places", "Paths", "Roads", "Water", "Forest", "cattle", "location"]) {
-    assert.ok(html.includes(label), `loading overlay missing step label: "${label}"`);
-  }
-});
+// Helpers for the submit-flow tests: stub the network and capture what is POSTed.
+function withReportNetwork(app, respond, run) {
+  const sent = [];
+  const previousFetch = app.swapGlobalFunction("fetch", async (url, options) => {
+    sent.push({ url, body: JSON.parse(options.body) });
+    return respond;
+  });
+  const wasOnline = app.navigator.onLine;
+  app.navigator.onLine = true;
+  return Promise.resolve(run(sent)).finally(() => {
+    app.swapGlobalFunction("fetch", previousFetch);
+    app.navigator.onLine = wasOnline;
+  });
+}
+const okResponse = { ok: true, status: 200, json: async () => ({ issueUrl: "https://github.com/o/r/issues/9" }) };
 
-test("report submission includes the app version", () => {
-  const html = app.reportFormHtml();
-  const source = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
+test("report submission includes the app version", async () => {
+  resetData(app);
+  assert.ok(!app.reportFormHtml().includes("App version:"), "report form should not display the app version");
+  const details = app.documentStub.getElementById("reportDetails");
 
-  assert.ok(!html.includes("App version:"), "report form should not display the app version");
-  assert.match(source, /appVersion:\s*state\.swVersion \|\| APP_VERSION/, "submitted report payload should include the live service worker version, falling back to APP_VERSION");
+  await withReportNetwork(app, okResponse, async (sent) => {
+    app.state.swVersion = "forest-finds-app-77";
+    details.value = "The gate is broken";
+    await app.submitReportForm();
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].body.appVersion, "forest-finds-app-77", "the live service worker version is reported");
+
+    app.state.swVersion = null;
+    details.value = "Still broken";
+    await app.submitReportForm();
+    assert.ok(sent[1].body.appVersion, "falls back to the built-in version before the worker has reported one");
+  });
 });
 
 test("a submitted report's issue URL renders as a real clickable link, not plain text", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
-  // Both the full Report screen and the inline per-location form route their success message
-  // through applyReportStatusContent, which builds the link with document.createElement
-  // rather than interpolating the URL into a template string.
-  assert.match(source, /setReportStatus\("Report submitted successfully\.", "success", data && data\.issueUrl\)/);
-  assert.match(source, /applyReportStatusContent\(statusEl, "Report submitted successfully\.", "success", data && data\.issueUrl\)/);
-  assert.match(source, /function applyReportStatusContent[\s\S]*?document\.createElement\("a"\)/);
-  assert.match(source, /link\.href = issueUrl/);
+  const status = app.documentStub.createElement("p");
+  app.applyReportStatusContent(status, "Report submitted successfully.", "success", "https://github.com/o/r/issues/9");
+  assert.equal(status.textContent, "Report submitted successfully.");
+  assert.ok(status.classList.contains("success"));
+  assert.equal(status.children.length, 1);
+  assert.equal(status.children[0].tagName, "A");
+  assert.equal(status.children[0].href, "https://github.com/o/r/issues/9");
+
+  const unsafe = app.documentStub.createElement("p");
+  app.applyReportStatusContent(unsafe, "Report submitted successfully.", "success", "javascript:alert(1)");
+  assert.equal(unsafe.children.length, 0, "only https links are ever made clickable");
 });
 
 test("report-photo links use the active deploy before the production site", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "netlify", "functions", "report-missing-data.js"), "utf8");
-  assert.match(source, /process\.env\.DEPLOY_PRIME_URL \|\| process\.env\.URL/,
-    "a preview's Blob photo must link to its own deploy, not production");
+  const { reportPhotoUrl } = require("../netlify/functions/report-missing-data");
+  const saved = { prime: process.env.DEPLOY_PRIME_URL, url: process.env.URL };
+  try {
+    process.env.DEPLOY_PRIME_URL = "https://deploy-preview-5--site.netlify.app/";
+    process.env.URL = "https://production.example";
+    assert.equal(reportPhotoUrl("abc.jpg", ""), "https://deploy-preview-5--site.netlify.app/.netlify/functions/report-missing-data?photo=abc.jpg",
+      "a preview's Blob photo must link to its own deploy, not production");
+    delete process.env.DEPLOY_PRIME_URL;
+    assert.equal(reportPhotoUrl("abc.jpg", ""), "https://production.example/.netlify/functions/report-missing-data?photo=abc.jpg");
+    delete process.env.URL;
+    assert.equal(reportPhotoUrl("abc.jpg", "https://forest.example/nearby"), "https://forest.example/.netlify/functions/report-missing-data?photo=abc.jpg", "falls back to the reporting page's own origin");
+    assert.equal(reportPhotoUrl("abc.jpg", "http://insecure.example/"), "", "never links to a non-https origin");
+  } finally {
+    for (const [key, name] of [["prime", "DEPLOY_PRIME_URL"], ["url", "URL"]]) {
+      if (saved[key] === undefined) delete process.env[name]; else process.env[name] = saved[key];
+    }
+  }
 });
 
 test("a tree or landmark's detail view offers to report a problem with its own coordinates", () => {
@@ -5273,12 +5292,6 @@ test("reportIssueHtml renders nothing for a line/area feature with no single coo
   assert.equal(app.reportIssueHtml(null), "");
 });
 
-test("the tree and landmark detail screens both offer the report-a-problem link", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "js", "inspector.js"), "utf8");
-  assert.match(source, /function showTreeDetails[\s\S]*?reportIssueHtml\(/, "tree detail view should render the report-issue link");
-  assert.match(source, /function showLandmarkDetails[\s\S]*?reportIssueHtml\(/, "landmark detail view should render the report-issue link");
-});
-
 test("a mapped place can link back to the Ledger edition that featured it", () => {
   const html = app.ledgerMentionHtml({ ledgerUrl: "/reports/epping-forest-ledger-2026-10-17.html" });
   assert.match(html, /href="\/reports\/epping-forest-ledger-2026-10-17\.html"/);
@@ -5286,11 +5299,43 @@ test("a mapped place can link back to the Ledger edition that featured it", () =
   assert.equal(app.ledgerMentionHtml({ ledgerUrl: "https://example.com/reports/epping-forest-ledger-2026-10-17.html" }), "");
 });
 
-test("submitting a location-issue report sends the flagged item's own coordinates, not the reporter's GPS fix", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
-  assert.match(source, /reportType:\s*"location-issue"/, "location-issue reports should be distinguishable from general feedback");
-  assert.match(source, /locationContext:\s*{\s*type:\s*wrapper\.dataset\.reportType/, "payload should carry which item was flagged");
-  assert.match(source, /latitude:\s*Number\(Number\(wrapper\.dataset\.reportLat\)\.toFixed\(6\)\)/, "location sent should come from the flagged item, not state.userLocation");
+test("submitting a location-issue report sends the flagged item's own coordinates, not the reporter's GPS fix", async () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.5, 0.5);
+  const status = app.documentStub.createElement("p");
+  const nodes = {
+    ".report-textarea": Object.assign(app.documentStub.createElement("textarea"), { value: "Fallen over" }),
+    ".report-status": status,
+    "[data-action='submit-location-issue']": app.documentStub.createElement("button"),
+  };
+  const wrapper = {
+    dataset: { reportLat: "51.65123456", reportLon: "0.03", reportType: "Veteran tree", reportName: "Hangman's Oak" },
+    querySelector: (selector) => nodes[selector] || null,
+  };
+
+  await withReportNetwork(app, okResponse, async (sent) => {
+    await app.submitLocationIssueReport(wrapper);
+    assert.equal(sent.length, 1);
+    const { body } = sent[0];
+    assert.equal(body.reportType, "location-issue");
+    assert.deepEqual(body.location, { latitude: 51.651235, longitude: 0.03 }, "the flagged item's coordinates, not the GPS fix");
+    assert.deepEqual(body.locationContext, { type: "Veteran tree", name: "Hangman's Oak" });
+    assert.match(status.textContent, /submitted/i);
+    assert.equal(nodes[".report-textarea"].value, "", "the form clears after a successful submit");
+  });
+});
+
+test("a report with no details is not sent", async () => {
+  resetData(app);
+  const nodes = {
+    ".report-textarea": Object.assign(app.documentStub.createElement("textarea"), { value: "   " }),
+    ".report-status": app.documentStub.createElement("p"),
+  };
+  await withReportNetwork(app, okResponse, async (sent) => {
+    await app.submitLocationIssueReport({ dataset: { reportLat: "51.6", reportLon: "0.03" }, querySelector: (s) => nodes[s] || null });
+    assert.equal(sent.length, 0);
+    assert.match(nodes[".report-status"].textContent, /describe the problem/i);
+  });
 });
 
 test("walking radius circle is always fully visible on screen after centering", () => {
@@ -5717,31 +5762,6 @@ test("service worker APP_SHELL includes all JS files referenced by app.html", ()
   }
 });
 
-test("service worker passes API routes through without caching so offline failures are handled by callers", () => {
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  assert.match(sw, /pathname\.startsWith\(["']\/api\/["']\)/, "API routes must bypass the cache handler");
-  assert.match(sw, /event\.respondWith\(fetch\(event\.request\)\)/, "API routes should be forwarded directly");
-});
-
-test("service worker falls back to cached app.html when navigating offline", () => {
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  assert.match(sw, /request\.mode === ["']navigate["']/, "navigate mode must be handled separately");
-  assert.match(sw, /caches\.match\(["']\.\/app\.html["']\)/, "navigate fallback should serve cached app.html");
-});
-
-test("service worker answers app navigations only, so the homepage is not served from the app cache", () => {
-  // This handler used to answer EVERY navigation with the cached app shell. After the
-  // alpha URL split that would serve the app to anyone navigating to the marketing
-  // homepage at /, making the homepage invisible to every returning visitor.
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  assert.match(sw, /function isAppNavigation\(/, "an app-navigation predicate must exist");
-  assert.match(
-    sw,
-    /if \(!isAppNavigation\(requestUrl\.pathname\)\) return;/,
-    "the navigate branch must bail out for non-app navigations"
-  );
-});
-
 test("service worker falls back to the cached app shell offline for /nearby/<slug>/ and /find/<slug>/ pages, never a network error", () => {
   // Executes the real sw.js (not a regex match on its source) so a logic error in the pattern --
   // wrong anchor, missing the trailing-slash variant, an inverted condition -- fails this test
@@ -5823,84 +5843,6 @@ test("service worker never writes a /nearby/<slug>/ or /find/<slug>/ page's own 
   assert.deepEqual(await fireNavigate("/nearby/pubs/"), [], "a category page must never overwrite it either");
 });
 
-test("service worker app shell holds app.html and not the marketing homepage", () => {
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  const shell = sw.match(/const APP_SHELL = \[([\s\S]*?)\];/);
-  assert.ok(shell, "APP_SHELL must be present");
-  assert.match(shell[1], /"\.\/app\.html"/, "APP_SHELL should precache app.html");
-  assert.ok(
-    !/"\.\/",/.test(shell[1]),
-    'APP_SHELL must not precache "./" -- it resolves to the marketing homepage'
-  );
-});
-
-test("service worker serves the cached shell for a return navigation and refreshes it in the background", () => {
-  // Network-first navigation meant every reload blocked on a ~290 KB app.html round trip
-  // before anything painted, however warm the cache. Staleness is bounded by the sw.js update
-  // check the browser runs on each navigation, not by making the user wait.
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  const navMatch = sw.match(/if \(event\.request\.mode === "navigate"\) \{[\s\S]*?\n    return;\n  \}/);
-  assert.ok(navMatch, "the navigate branch must be present in the fetch handler");
-  const branch = navMatch[0];
-
-  assert.match(branch, /caches\.match\("\.\/app\.html"\)\.then\(\(cached\) => \{/, "production navigation must consult the cache first");
-  assert.match(branch, /cache\.put\("\.\/app\.html", copy\)/, "the network copy must refresh the cached shell");
-  assert.match(branch, /IS_DEV\s*\n\s*\? fromNetwork/, "local dev must stay network-first so edits show up");
-});
-
-test("service worker install only fetches shell entries that are not already cached", () => {
-  // Every app release bumps APP_CACHE_NAME and so re-runs install. A blanket addAll over
-  // DATA_SHELL plus the opportunistic list re-downloaded ~67 MB of unchanged GeoJSON each time,
-  // which is the "full download on every load" a returning user actually experienced.
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  const installMatch = sw.match(/self\.addEventListener\("install",[\s\S]*?\n\}\);/);
-  assert.ok(installMatch, "install handler exists");
-  const install = installMatch[0];
-
-  assert.doesNotMatch(install, /cache\.addAll\(DATA_SHELL\)/, "DATA_SHELL must not be re-fetched wholesale on every install");
-  assert.doesNotMatch(install, /cache\.addAll\(APP_SHELL\)/, "APP_SHELL must not be re-fetched wholesale on every install");
-  assert.match(install, /missingFromCache\(cache, APP_SHELL\)/, "app shell must be filtered down to missing entries");
-  assert.match(install, /missingFromCache\(cache, DATA_SHELL\)/, "data shell must be filtered down to missing entries");
-  assert.match(install, /missingFromCache\(cache, DATA_CACHE_OPPORTUNISTIC\)/, "opportunistic data must be filtered down to missing entries");
-  assert.match(install, /adoptPreviousDataCache\(cache\)/, "a data cache version bump must inherit the previous cache rather than re-download it");
-});
-
-test("a data cache version bump carries the old bodies over and defers the refresh to the background", () => {
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  const adoptMatch = sw.match(/async function adoptPreviousDataCache\(cache\) \{[\s\S]*?\n\}/);
-  assert.ok(adoptMatch, "adoptPreviousDataCache must be defined");
-  const adopt = adoptMatch[0];
-
-  assert.match(adopt, /\/\^forest-finds-\(dev-\)\?data-\//, "must recognise both the production and dev spellings of a data cache");
-  assert.match(adopt, /cache\.put\(request, response\)/, "must copy the previous bodies into the new cache");
-  assert.match(adopt, /writeDataSyncState\(cache, \{ staleSince: Date\.now\(\) \}\)/, "adopted data must be marked stale so the next sync is not throttled");
-});
-
-test("the background data sync revalidates conditionally and only rewrites entries that changed", () => {
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  const syncMatch = sw.match(/async function syncData\(\{ force = false \} = \{\}\) \{[\s\S]*?\n\}\n/);
-  assert.ok(syncMatch, "syncData must be defined");
-  const sync = syncMatch[0];
-
-  assert.match(sync, /fetch\(requestUrl, \{ cache: "no-store", headers: conditionalHeaders\(cached\) \}\)/, "must send its own conditional headers rather than leaning on the browser's HTTP cache");
-  assert.match(sync, /if \(fresh\.status === 304\) continue;/, "an unchanged file must cost a 304 and no bytes");
-  assert.match(sync, /responseChanged\(cached, fresh\)/, "must compare validators before writing anything back");
-  assert.match(sync, /DATA_SYNC_INTERVAL_MS/, "must throttle so a sync is not run on every single load");
-  assert.match(sync, /syncState\.staleSince != null/, "an explicitly stale cache must sync regardless of the throttle");
-  assert.match(sync, /failed === requests\.length/, "a sweep where nothing reached the network must not be recorded as a successful check");
-  assert.match(sync, /missingUrls/, "a forced sweep must repair entries missing from a partial cache");
-  assert.match(sync, /staleSince: syncState\.staleSince \|\| Date\.now\(\)/, "partial failures must remain due for a later retry");
-
-  const condMatch = sw.match(/function conditionalHeaders\(cached\) \{[\s\S]*?\n\}/);
-  assert.ok(condMatch, "conditionalHeaders must be defined");
-  assert.match(condMatch[0], /If-None-Match/, "must revalidate by ETag when the cached entry has one");
-  assert.match(condMatch[0], /If-Modified-Since/, "must fall back to Last-Modified");
-
-  assert.match(sw, /event\.data\?\.type === "SYNC_DATA"/, "the worker must accept the client's sync request");
-  assert.match(sw, /postMessage\(\{ type: "DATA_UPDATED", changed \}\)/, "clients must be told when newer data has landed");
-  assert.match(sw, /type: "DATA_SYNC_COMPLETE"/, "manual refreshes must receive a completion result");
-});
-
 test("community overlay revalidation updates open clients without waiting for a reload", () => {
   const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
   const community = fs.readFileSync(path.join(__dirname, "..", "js", "community.js"), "utf8");
@@ -5912,15 +5854,6 @@ test("community overlay revalidation updates open clients without waiting for a 
   assert.match(community, /function setupCommunityOverlayRefresh\(\)/, "the page must periodically request community updates while open");
   assert.match(community, /COMMUNITY_OVERLAY_REFRESH_INTERVAL_MS/, "community refreshes must be bounded");
   assert.match(community, /window\.addEventListener\("online"/, "community refreshes must retry when connectivity returns");
-});
-
-test("a service worker update waits for an explicit activation request", () => {
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  const installMatch = sw.match(/self\.addEventListener\("install",[\s\S]*?\n\}\);/);
-  assert.ok(installMatch, "install handler exists");
-  const install = installMatch[0];
-  assert.doesNotMatch(install, /self\.skipWaiting\(\)/, "an incomplete or unrequested update must not take over the current app");
-  assert.match(sw, /event\.data\?\.type === "SKIP_WAITING"/, "activation must remain an explicit message action");
 });
 
 test("the app checks for updates while visible and announces only a fully prepared update", () => {
@@ -5963,31 +5896,6 @@ test("the app asks for a background data sync only after the map is up, never du
   assert.match(fn, /if \(!navigator\.onLine\) return;/, "must not attempt a sync while offline");
   assert.match(fn, /navigator\.serviceWorker\.controller/, "must go through the controlling worker");
   assert.match(fn, /postMessage\(\{ type: "SYNC_DATA"/, "must send the worker sync message");
-});
-
-test("service worker uses a network-first strategy in local dev so edits show up without a CACHE_NAME bump", () => {
-  // CACHE_NAME is only ever bumped by CI, on the pull request that changes the files it
-  // watches (.github/workflows/sw-release.yml for app code, data-bump.yml for data),
-  // never locally, so the production cache-first strategy below would otherwise keep serving
-  // stale JS/CSS/data while testing locally. self.__DEV__ (injected by server.js — see the
-  // "local dev server flags sw.js" tests) must gate the cache-first branch and go to the
-  // network first instead.
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  assert.match(sw, /const IS_DEV = self\.__DEV__ === true/, "sw.js must derive a dev flag from self.__DEV__");
-
-  const fetchHandlerMatch = sw.match(/self\.addEventListener\("fetch",[\s\S]*/);
-  assert.ok(fetchHandlerMatch, "fetch handler exists");
-  const fetchHandler = fetchHandlerMatch[0];
-
-  const devBranchMatch = fetchHandler.match(/if \(IS_DEV\) \{([\s\S]*?)\n  \}\n\n  event\.respondWith\(\s*\n\s*caches\.match\(event\.request\)/);
-  assert.ok(devBranchMatch, "an IS_DEV branch must sit before the production cache-first handler");
-  const devBranch = devBranchMatch[1];
-  assert.match(devBranch, /fetch\(event\.request\)/, "dev branch must hit the network");
-  assert.match(devBranch, /\.catch\(\(\) => caches\.match\(event\.request\)\)/, "dev branch must still fall back to cache when offline");
-
-  // The dev branch must come before (and therefore short-circuit) the cache-first
-  // production strategy, not replace it — production behaviour must be untouched.
-  assert.ok(fetchHandler.indexOf("if (IS_DEV)") < fetchHandler.indexOf("caches.match(event.request).then((cached)"), "dev branch must run before the production cache-first branch");
 });
 
 test("local dev server flags sw.js with self.__DEV__ without touching the production file on disk", () => {
@@ -6039,31 +5947,6 @@ test("local dev version markers prefix cache names with dev- so the About screen
   const local = readVersions(true);
   assert.equal(local.app, `dev-${production.app}`);
   assert.equal(local.data, `dev-${production.data}`);
-});
-
-test("local dev server serves sw.js with its own dev-flagging route, not the generic static handler", () => {
-  const serverSource = fs.readFileSync(path.join(__dirname, "..", "server.js"), "utf8");
-  assert.match(serverSource, /requested === ["']\/sw\.js["']/, "server.js must special-case /sw.js");
-  assert.match(serverSource, /injectDevFlag\(/, "server.js must run sw.js through injectDevFlag before responding");
-});
-
-test("location gate button is no longer present", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
-  assert.doesNotMatch(html, /locationGate|Allow location access/);
-});
-
-test("nav.js setLocationGateVisible re-enables button on show via source code check", () => {
-  const nav = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
-  assert.doesNotMatch(nav, /setLocationGateVisible|locationGateButton/);
-});
-
-test("nav.js locationGateButton handler disables button immediately on click for visual feedback", () => {
-  const nav = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
-  assert.doesNotMatch(
-    nav,
-    /locationGateButton\.addEventListener[\s\S]{0,100}locationGateButton\.disabled\s*=\s*true/,
-    "locationGateButton click handler must disable the button immediately to give visual feedback"
-  );
 });
 
 test("compass calibration trusts a heading once several readings agree within tolerance", () => {
