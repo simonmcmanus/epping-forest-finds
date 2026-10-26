@@ -606,7 +606,7 @@ globalThis.__forestFindsTest = {
   vm.createContext(context);
 
   const rootDir = path.join(__dirname, "..");
-  const externalScripts = ["js/app-cache-version.js", "js/data-cache-version.js", "js/categories.js", "js/normalize.js", "js/tracker.js", "js/outbox.js", "js/community.js", "js/onboarding.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/icon-motion.js", "js/renderer.js", "js/inspector.js"];
+  const externalScripts = ["js/app-cache-version.js", "js/data-cache-version.js", "js/categories.js", "js/normalize.js", "js/router-rules.js", "js/dom-elements.js", "js/filter-state.js", "js/tracker.js", "js/outbox.js", "js/community.js", "js/onboarding.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/icon-motion.js", "js/renderer.js", "js/inspector.js"];
   for (const externalSrc of externalScripts) {
     const externalPath = path.join(rootDir, externalSrc);
     if (fs.existsSync(externalPath)) {
@@ -9753,6 +9753,32 @@ test("selecting an item while browsing a distant anchor slides the camera origin
 
   app.state.cameraOriginTransition.startedAt -= app.state.cameraOriginTransition.durationMs + 1;
   assert.equal(app.cameraOriginPoint(), userPoint, "settled: the camera is back on the real GPS fix, as selected navigation requires");
+});
+
+test("selection entry points capture the browse pivot before clearing the anchor", async () => {
+  enterNearby3D(app);
+  const tree = {
+    ...app.state.trees[0],
+    recordNumber: 1,
+    location: { britishNationalGrid: {} },
+  };
+  app.state.trees[0] = tree;
+  const anchor = makePoint(app, 51.66, 0.033);
+  app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
+  settleNearbySlide(app);
+
+  app.focusOverviewItem("tree", "r1");
+  assert.equal(app.state.nearbyAnchor, null, "selection should still clear the browse anchor");
+  assert.ok(app.state.cameraOriginTransition, "selection should animate the camera pivot basis change");
+  assert.ok(
+    Math.abs(app.state.cameraOriginTransition.fromX - anchor.point.x) < 1e-9
+      && Math.abs(app.state.cameraOriginTransition.fromY - anchor.point.y) < 1e-9,
+    "the pivot transition must start at the browsed anchor, not the GPS fix"
+  );
+
+  // Let the inspector-deferred selection fit finish before the next test resets shared state.
+  await new Promise((resolve) => setTimeout(resolve, 260));
+  app.stopViewportAnimation();
 });
 
 // Records the path each draw walks, so a marker's actual drawn geometry can be asserted rather

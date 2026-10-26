@@ -34,7 +34,12 @@ const path = require("node:path");
 
 const { buildInventory, loadAppRules } = require("./report/map-inventory.js");
 const { escapeHtml, replaceOnce, customizeConsentBannerText } = require("./lib/html-template.js");
-const { listBusinessesForFilterKey, loadEvents, haversineMetres } = require("./generate-business-pages.js");
+const { listBusinessesForFilterKey, loadEvents } = require("./generate-business-pages.js");
+
+// These are pure shared rules from js/normalize.js, loaded through the same vm boundary as the
+// report inventory. Keeping one copy means the static landing pages and the browser cannot drift
+// on their origin, radius, distance text, or direction math.
+const SHARED_RULES = loadAppRules();
 
 const SITE_ORIGIN = "https://www.eppingforestfinds.uk";
 const SITE_NAME = "Epping Forest Finds";
@@ -45,16 +50,10 @@ const SITE_NAME = "Epping Forest Finds";
 // in the whole forest (dataset order), while the live Nearby list a reader saw moments later,
 // once JS booted, showed only the ~handful within a 30-minute walk of High Beach, nearest first
 // -- a reader (or a crawler) saw what looked like two different, disagreeing lists for the same
-// page. DEFAULT_LOCATION/LANDING_PAGE_WALKING_DISTANCE_MINUTES are duplicated here (not
-// imported: js/app.js can't be loaded into loadAppRules()'s vm sandbox the way js/categories.js/
-// js/normalize.js are -- it references `document` at module-evaluation time) rather than
-// recomputed differently, so a future change to either constant needs updating in both places.
-const DEFAULT_LOCATION = { latitude: 51.667591, longitude: 0.037454 };
-// haversineMetres (scripts/generate-business-pages.js) reads .lat/.lon, not .latitude/.longitude
-// -- DEFAULT_LOCATION keeps js/app.js's own naming above since it's a direct copy of that
-// constant, so this is the one spot that bridges the two.
-const DEFAULT_LOCATION_LAT_LON = { lat: DEFAULT_LOCATION.latitude, lon: DEFAULT_LOCATION.longitude };
-const LANDING_PAGE_WALKING_RADIUS_METRES = 30 * (5000 / 60); // walkingDistanceToMetres(30), js/app.js
+// page. DEFAULT_LOCATION/LANDING_PAGE_WALKING_DISTANCE_MINUTES come from js/normalize.js through
+// SHARED_RULES rather than being copied here, so a future change only needs updating once.
+const DEFAULT_LOCATION = SHARED_RULES.DEFAULT_LOCATION;
+const LANDING_PAGE_WALKING_RADIUS_METRES = SHARED_RULES.walkingDistanceToMetres(SHARED_RULES.LANDING_PAGE_WALKING_DISTANCE_MINUTES);
 // Category pages live under /nearby/ (the screen they pre-filter), never /find/ (reserved for
 // individual businesses and points of interest, not yet built).
 const CATEGORY_DIR_NAME = "nearby";
@@ -154,62 +153,6 @@ function loadTrees(siteRoot) {
   return trees;
 }
 
-// treeHashKey/treeDisplayName/treeTagLabel/normalizeTreeNumber (js/app.js), reproduced rather
-// than imported for the same reason DEFAULT_LOCATION above is. Formulas must stay in sync by
-// hand.
-function normalizeTreeNumber(value) {
-  return String(value).trim().toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-const TREE_RECORD_KEY_PREFIX = "r";
-function treeHashKey(tree) {
-  if (!tree) return "";
-  const recordNumber = tree.recordNumber;
-  if (recordNumber !== null && recordNumber !== undefined && recordNumber !== "") {
-    return TREE_RECORD_KEY_PREFIX + normalizeTreeNumber(recordNumber);
-  }
-  if (Number.isFinite(tree.latitude) && Number.isFinite(tree.longitude)) {
-    const axis = (value) => (value < 0 ? "n" : "p") + Math.round(Math.abs(value) * 1e6);
-    return `ll${axis(tree.latitude)}${axis(tree.longitude)}`;
-  }
-  return normalizeTreeNumber(tree.id ?? tree.tagNumber ?? "");
-}
-function treeTagLabel(tree) {
-  const tag = tree && (tree.tagNumber ?? tree.nationalDatabaseTagNumber);
-  if (tag === null || tag === undefined) return null;
-  const text = String(tag).trim();
-  if (!text || Number(text) === 0) return null;
-  return text;
-}
-function treeDisplayName(tree) {
-  if (!tree) return "Unknown tree";
-  return tree.commonName || treeTagLabel(tree) || "Veteran tree";
-}
-
-// formatDistance (js/app.js) and the walk-time half of walkInfoHtml (js/inspector.js),
-// reproduced rather than imported for the same reason DEFAULT_LOCATION above is: those files
-// can't be loaded into loadAppRules()'s vm sandbox. Formulas must stay in sync by hand.
-function formatDistanceLabel(metres) {
-  if (!Number.isFinite(metres)) return "";
-  if (metres < 1000) return `${Math.round(metres)} m`;
-  const km = metres / 1000;
-  const kmStr = km.toFixed(km < 10 ? 1 : 0).replace(/\.0$/, "");
-  return `${kmStr} km`;
-}
-
-// bearingDegrees (js/app.js), from the no-fix origin the live list measures from. The live arrow
-// spins from this same bearing (updateOverviewDirectionArrows with no compass heading), so the
-// static arrow starts pointing exactly where the live one will.
-function bearingFromDefaultLocation(lat, lon) {
-  const toRad = (d) => (d * Math.PI) / 180;
-  const phi1 = toRad(DEFAULT_LOCATION.latitude);
-  const phi2 = toRad(lat);
-  const lambda1 = toRad(DEFAULT_LOCATION.longitude);
-  const lambda2 = toRad(lon);
-  const y = Math.sin(lambda2 - lambda1) * Math.cos(phi2);
-  const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(lambda2 - lambda1);
-  return Math.round((((Math.atan2(y, x) * 180) / Math.PI + 360) % 360) * 10) / 10;
-}
-
 function walkTimeLabel(metres) {
   const minutes = metres / (5000 / 60);
   if (minutes < 1) return "< 1 min";
@@ -228,7 +171,7 @@ function nearestWithinWalkingRadius(items, getLatLon) {
   const withDistance = items
     .map((item) => {
       const { latitude, longitude } = getLatLon(item);
-      return { item, metres: haversineMetres(DEFAULT_LOCATION_LAT_LON, { lat: latitude, lon: longitude }) };
+      return { item, metres: SHARED_RULES.distanceMetres(DEFAULT_LOCATION.latitude, DEFAULT_LOCATION.longitude, latitude, longitude) };
     })
     .filter(({ metres }) => Number.isFinite(metres))
     .sort((a, b) => a.metres - b.metres);
@@ -250,12 +193,14 @@ function nearestWithinWalkingRadius(items, getLatLon) {
 function nearestItemCardHtml(href, iconHtml, name, metres, { rules, typeLabel = "", tag = null, latitude = null, longitude = null } = {}) {
   const walkingIcon = rules ? rules.appIconHtml("walking", "app-icon walk-icon") : "";
   const parts = [
-    Number.isFinite(metres) ? `<span class="walk-chip">${formatDistanceLabel(metres)} · ${walkTimeLabel(metres)}${walkingIcon ? ` ${walkingIcon}` : ""}</span>` : "",
+    Number.isFinite(metres) ? `<span class="walk-chip">${SHARED_RULES.formatDistance(metres)} · ${walkTimeLabel(metres)}${walkingIcon ? ` ${walkingIcon}` : ""}</span>` : "",
     escapeHtml(typeLabel),
     tag ? `#${escapeHtml(tag)}` : "",
   ].filter(Boolean);
   const hasPosition = Number.isFinite(latitude) && Number.isFinite(longitude);
-  const bearing = hasPosition ? bearingFromDefaultLocation(latitude, longitude) : null;
+  const bearing = hasPosition
+    ? Math.round(SHARED_RULES.bearingDegrees(DEFAULT_LOCATION.latitude, DEFAULT_LOCATION.longitude, latitude, longitude) * 10) / 10
+    : null;
   const arrow = hasPosition
     ? `<span class="nearest-arrow" data-item-lat="${latitude}" data-item-lon="${longitude}" data-current-angle="${bearing}" style="transform: rotate(${bearing}deg)" aria-hidden="true">↑</span>`
     : "";
@@ -298,8 +243,8 @@ function natureNearestListHtml(filterKeys, enrichment, rules) {
   const cards = entries.slice(0, NEAREST_ITEMS_COUNT).map(({ type, item, metres }) => {
     if (type === "tree") {
       const icon = rules.treeSpeciesIconHtml(item.commonName, item.latinName) || rules.filterKindEmoji("trees");
-      return nearestItemCardHtml(`/nearby/trees/#tree=${encodeURIComponent(treeHashKey(item))}`, icon, treeDisplayName(item), metres, {
-        rules, typeLabel: "Tree", tag: treeTagLabel(item), latitude: item.latitude, longitude: item.longitude,
+      return nearestItemCardHtml(`/nearby/trees/#tree=${encodeURIComponent(rules.treeHashKey(item))}`, icon, rules.treeDisplayName(item), metres, {
+        rules, typeLabel: "Tree", tag: rules.treeTagLabel(item), latitude: item.latitude, longitude: item.longitude,
       });
     }
     const icon = rules.filterKindEmoji("ponds_streams");
@@ -576,7 +521,7 @@ function renderPage(page, appHtml, enrichment = {}) {
     : businesses.length
       ? nearestBusinesses.length
       : (natureFilterKeys.length === 1 ? natureEntriesForFilterKey(natureFilterKeys[0], { trees, waterFeatures }).length : null);
-  const RADIUS_LABEL = "30 min walk"; // formatWalkingRadius(LANDING_PAGE_WALKING_DISTANCE_MINUTES) + " walk", js/nav.js + js/app.js
+  const RADIUS_LABEL = `${SHARED_RULES.formatWalkingRadius(SHARED_RULES.LANDING_PAGE_WALKING_DISTANCE_MINUTES)} walk`;
   const capitalizedTitle = page.title.charAt(0).toUpperCase() + page.title.slice(1);
   const typeLine = page.isGroup
     ? `Nearest selected filters within ${RADIUS_LABEL} of High Beach`

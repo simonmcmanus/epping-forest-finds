@@ -31,25 +31,6 @@ const FILTER_HINT_KEY = "forest-finds-filter-hint-v1";
 // Matches onboarding.js's own default selection and spec.md's "Default filters" section:
 // only Trees, Cows, Events and Pubs are pre-selected before onboarding ever runs.
 const DEFAULT_FILTERS = ["trees", "cows", "events", "pubs"];
-// The radius state starts at and the URL (searchStringForPath) omits -- matching state's own
-// walkingDistanceMinutes: 5 below, so a plain /nearby stays plain for the common case.
-const DEFAULT_WALKING_DISTANCE_MINUTES = 5;
-// A /nearby/<slug> landing page (a category's own, or a whole group's) is judged on its own --
-// "is there enough near here to be worth a visit" -- which the ordinary 5-minute default can
-// easily come up empty within for a single category. 30 gives it a fair showing without the
-// reader having to touch the radius control themselves.
-const LANDING_PAGE_WALKING_DISTANCE_MINUTES = 30;
-// Centre used by applyDefaultLocation() until a real GPS fix exists (denied, unavailable, or not
-// yet asked) outside the /nearby/<slug> landing-page case above -- the "high-beach-general" area
-// anchor in data/epping_forest_folklore_locations.json, a well-known, central, historic spot in
-// the forest rather than an arbitrary coordinate. Lets the map open already populated -- Nearby
-// list, distances, the walking-radius ring -- instead of the bare whole-forest outline, with the
-// location gate inviting a real fix for the same view centred on the user instead.
-const DEFAULT_LOCATION = { latitude: 51.667591, longitude: 0.037454 };
-// Keep the ordinary Nearby radius when the map uses DEFAULT_LOCATION as its temporary origin.
-// Category landing pages still widen themselves to LANDING_PAGE_WALKING_DISTANCE_MINUTES in
-// applyRadiusFromQuery(), before this fallback is applied.
-const DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES = DEFAULT_WALKING_DISTANCE_MINUTES;
 const COW_REFRESH_MS = 5 * 60 * 1000;
 const IS_LOCAL_COW_CACHE_MODE = ["127.0.0.1", "localhost"].includes(window.location.hostname);
 const DEFAULT_COW_CENTER = { longitude: 0.06371428038973509, latitude: 51.656022523996725 };
@@ -57,8 +38,6 @@ const FEATURE_LAYERS = [
   { key: "forest", label: "Epping Forest land", url: "data/epping-forest-land.geojson" },
   { key: "buffer", label: "Buffer land", url: "data/epping-buffer-land.geojson" },
 ];
-const EARTH_RADIUS_METRES = 6371008.8;
-
 // Named camera-animation durations. Each replaces an exact pre-existing literal that
 // was independently repeated across multiple call sites for the same transition, so
 // this changes nothing about how any of them feel -- it just gives the recurring
@@ -404,51 +383,6 @@ let _tiltProjectionCache = undefined;
 let _nearbyRenderOriginCache = undefined;
 let _nearbyRenderOriginCacheAnchor = null;
 
-const els = {
-  canvas: document.getElementById("mapCanvas"),
-  overlayCanvas: document.getElementById("overlayCanvas"),
-  mapStage: document.querySelector(".map-stage"),
-  compassArrow: document.getElementById("compassArrow"),
-  compassCalibrationBanner: document.getElementById("compassCalibrationBanner"),
-  compassCalibrationBannerText: document.getElementById("compassCalibrationBannerText"),
-  compassCalibrationBannerEnable: document.getElementById("compassCalibrationBannerEnable"),
-  compassCalibrationBannerDismiss: document.getElementById("compassCalibrationBannerDismiss"),
-  filterToggle: document.getElementById("filterToggle"),
-  filterCount: document.getElementById("filterCount"),
-  nearbyToggle: document.getElementById("nearbyToggle"),
-  installButton: document.getElementById("installButton"),
-  loadingOverlay: document.getElementById("loadingOverlay"),
-  consentBanner: document.getElementById("consentBanner"),
-  consentBannerAccept: document.getElementById("consentBannerAccept"),
-  consentBannerDecline: document.getElementById("consentBannerDecline"),
-  locationInviteBanner: document.getElementById("locationInviteBanner"),
-  locationInviteTitle: document.getElementById("locationInviteTitle"),
-  locationInviteMessage: document.getElementById("locationInviteMessage"),
-  locationInviteButton: document.getElementById("locationInviteButton"),
-  locationInviteDismiss: document.getElementById("locationInviteDismiss"),
-  distanceWarning: document.getElementById("distanceWarning"),
-  distanceWarningMessage: document.getElementById("distanceWarningMessage"),
-  distanceWarningButton: document.getElementById("distanceWarningButton"),
-  eventNearbyBanner: document.getElementById("eventNearbyBanner"),
-  eventNearbyBannerOpen: document.getElementById("eventNearbyBannerOpen"),
-  eventNearbyBannerText: document.getElementById("eventNearbyBannerText"),
-  eventNearbyBannerDismiss: document.getElementById("eventNearbyBannerDismiss"),
-  inspector: document.getElementById("inspector"),
-  inspectorBack: document.getElementById("inspectorBack"),
-  inspectorTitleEmoji: document.getElementById("inspectorTitleEmoji"),
-  inspectorTitle: document.getElementById("inspectorTitle"),
-  inspectorType: document.getElementById("inspectorType"),
-  inspectorBody: document.getElementById("inspectorBody"),
-  inspectorTools: document.querySelector(".inspector-tools"),
-  inspectorTitleSection: document.querySelector(".inspector-title-section"),
-  nearbyAnchorBar: document.getElementById("nearbyAnchorBar"),
-  closeInspector: document.getElementById("closeInspector"),
-  searchToggle: document.getElementById("searchToggle"),
-  reportToggle: document.getElementById("reportToggle"),
-  settingsToggle: document.getElementById("settingsToggle"),
-  inspectorActions: document.querySelector(".inspector-actions"),
-};
-
 // --- Router ---------------------------------------------------------------------------
 //
 // Every screen the app can be on has a URL, and the URL is what puts it there. A screen
@@ -472,12 +406,6 @@ const els = {
 // This sits above boot() deliberately: boot()'s first statement is initRouter(), and the
 // module-scope bindings here have to be evaluated by the time it runs.
 
-const ROUTE_FILTERS = "filters";
-const ROUTE_SEARCH = "search";
-const ROUTE_SETTINGS = "settings";
-const ROUTE_REPORT = "report";
-const ROUTE_COMMUNITY = "community";
-
 // Each of the four screens above now has a real path of its own (netlify.toml, server.js --
 // all rewrite these to app.html, same as /app used to). Nearby (no screen name, "" in the
 // route vocabulary below) is the one with no entry here: it is NEARBY_PATH, the app's new
@@ -485,28 +413,15 @@ const ROUTE_COMMUNITY = "community";
 // nest under /nearby/ -- both only ever change what Nearby itself is showing (a filtered set,
 // a typed query), never a destination of their own -- while Settings and Report stay top-level,
 // general app screens with nothing to do with the Nearby view underneath them.
-const ROUTE_PATHS = {
-  [ROUTE_FILTERS]: "/nearby/filter",
-  [ROUTE_SEARCH]: "/nearby/search",
-  [ROUTE_SETTINGS]: "/settings",
-  [ROUTE_REPORT]: "/feedback",
-  [ROUTE_COMMUNITY]: "/community",
-};
-const NEARBY_PATH = "/nearby";
-
 // How deep inside the app's own history the current entry sits, carried in history.state.
 // 0 means "this is where the user arrived", so there is nothing behind it to go back to and
 // the in-app back arrow must return to Nearby itself rather than leaving the site.
-const NAV_DEPTH_KEY = "forestNavDepth";
-
 // Carries the Nearby browse anchor (state.nearbyAnchor) on every history entry, so moving
 // between clusters -- which has no URL of its own, unlike a selection -- still retraces on the
 // browser back button and the inspector's own back arrow. Every entry snapshots the anchor in
 // effect *when that entry was created*, so landing back on it (in either direction) restores
 // exactly that anchor. Absent (older entries, or the initial boot entry before this existed)
 // reads as "no anchor" via nearbyAnchorSnapshot's own null default.
-const NEARBY_ANCHOR_KEY = "forestNearbyAnchor";
-
 function nearbyAnchorSnapshot() {
   const anchor = state.nearbyAnchor;
   return anchor ? { latitude: anchor.latitude, longitude: anchor.longitude } : null;
@@ -518,33 +433,6 @@ function nearbyAnchorSnapshot() {
 // covered on its own). Kept out of SELECTION_ROUTES below: every entry there resolves to a real
 // state.selected item, where this never does -- "browse around here", not "look at this one
 // thing" -- so it gets its own narrower value/parse pair rather than a find/show pair.
-const NEARBY_ANCHOR_PARAM = "near";
-const NEARBY_ANCHOR_LABEL_PARAM = "label";
-
-// Same toFixed(6) precision placeHashKey's own "ll:" fallback already uses for a place with no
-// id -- plenty for this app's pin-level accuracy, and short enough not to make the address bar
-// unwieldy.
-// The optional place name (anchor.label) rides along as its own "label=" parameter, so a link out
-// of a place's inspector reads "Showing places near <name>" when it lands, not just the coordinates.
-function nearbyAnchorRouteValue(anchor) {
-  const params = new URLSearchParams();
-  params.set(NEARBY_ANCHOR_PARAM, `${anchor.latitude.toFixed(6)},${anchor.longitude.toFixed(6)}`);
-  if (anchor.label) params.set(NEARBY_ANCHOR_LABEL_PARAM, anchor.label);
-  return params.toString();
-}
-
-// nearbyAnchorRouteValue's reverse. Rejects anything that isn't exactly two finite numbers --
-// a shared link is as editable as any URL, and a malformed one should read as "no anchor named
-// here" rather than throw.
-function parseNearbyAnchorParam(raw) {
-  const parts = String(raw || "").split(",");
-  if (parts.length !== 2) return null;
-  const latitude = Number(parts[0]);
-  const longitude = Number(parts[1]);
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
-  return { latitude, longitude };
-}
-
 // Every selectable thing, with the URL parameter that names it, the key it is written as and
 // how it is resolved and shown again. Trees and places were the only two with a URL before
 // the router; the rest are here so that a screen change can never leave the URL describing a
@@ -662,19 +550,7 @@ function navigateBack() {
   goToInitialView();
 }
 
-function routeParam(name, value) {
-  const params = new URLSearchParams();
-  params.set(name, value);
-  return params.toString();
-}
-
 // "tree=r17338" -> "tree". Lets "report" and "report=<text>" be recognised as one screen.
-function routeName(raw) {
-  const value = String(raw || "");
-  const separator = value.indexOf("=");
-  return separator === -1 ? value : value.slice(0, separator);
-}
-
 // The canonical route for whatever is on screen right now -- unchanged by the four screens
 // having real paths now (ROUTE_PATHS): this still speaks the same bare vocabulary
 // ("filters"/"search"/"settings"/"report"/"tree=<key>"/"near=<lat>,<lon>"/"") it always has.
@@ -1033,6 +909,10 @@ function showRoutedSelection(route, item) {
   // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
   // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
   // rather than lingering for whenever Nearby is next shown.
+  // Capture the currently drawn browse pivot before clearing it; otherwise entering a linked
+  // selection from an anchored Nearby view makes the 3D/heading-up camera jump to the GPS fix
+  // before the selection's own camera animation can take over.
+  startCameraOriginTransition();
   state.nearbyAnchor = null;
   state.selected = { type: route.type, item };
   route.show(item);
@@ -2754,75 +2634,6 @@ function setSubfilterPanelExpanded(panel, expanded) {
   };
 
   panel.addEventListener("transitionend", onCollapseDone, { once: true });
-}
-
-function sanitizeOverviewFilters(filters) {
-  return Array.from(new Set((Array.isArray(filters) ? filters : []).filter((key) => ALL_OVERVIEW_FILTER_KEYS.has(key))));
-}
-
-function sanitizeExpandedGroups(groups) {
-  return Array.from(new Set((Array.isArray(groups) ? groups : []).filter((key) => FILTER_GROUPS_BY_KEY.has(key))));
-}
-
-function activeOverviewFilterSet() {
-  return new Set(sanitizeOverviewFilters(state.overviewFilters));
-}
-
-function activeOverviewExpandedSet() {
-  return new Set(sanitizeExpandedGroups(state.overviewExpandedGroups));
-}
-
-function getActiveSubfiltersForGroup(groupKey, currentSet = activeOverviewFilterSet()) {
-  const group = FILTER_GROUPS_BY_KEY.get(groupKey);
-  if (!group) return [];
-  return group.subfilters.map((subfilter) => subfilter.key).filter((key) => currentSet.has(key));
-}
-
-function isGroupActive(groupKey, currentSet = activeOverviewFilterSet()) {
-  return getActiveSubfiltersForGroup(groupKey, currentSet).length > 0;
-}
-
-function isSubfilterActive(filterKey, currentSet = activeOverviewFilterSet()) {
-  return currentSet.has(filterKey);
-}
-
-function getActiveGroupKeys(currentSet = activeOverviewFilterSet()) {
-  return FILTER_GROUPS.filter((group) => isGroupActive(group.key, currentSet)).map((group) => group.key);
-}
-
-function getActivePlaceFilterKeys(currentSet = activeOverviewFilterSet()) {
-  return Array.from(currentSet).filter((key) => PLACE_FILTER_KEYS.has(key));
-}
-
-function getActivePointFilterKeys(currentSet = activeOverviewFilterSet()) {
-  return Array.from(currentSet).filter((key) => !LAYER_FILTER_KEYS.has(key));
-}
-
-function pointFilterKeysForNearestFallback() {
-  const activePointFilters = getActivePointFilterKeys();
-  if (state.overviewFilters.length > 0) return activePointFilters;
-  return FILTER_SUBFILTERS
-    .map((subfilter) => subfilter.key)
-    .filter((key) => !LAYER_FILTER_KEYS.has(key));
-}
-
-function saveFilterState() {
-  try {
-    localStorage.setItem(FILTER_STATE_KEY, JSON.stringify({
-      filters: state.overviewFilters,
-      expandedGroups: state.overviewExpandedGroups,
-    }));
-  } catch {}
-}
-
-// The reader's own real filters -- read once for the initial state object below, and again by
-// goToInitialView to put them back after a /nearby/<slug> page's own ephemeral single category.
-function loadStoredOverviewFilters() {
-  try {
-    const d = JSON.parse(localStorage.getItem(FILTER_STATE_KEY) || "null");
-    if (d && Array.isArray(d.filters)) return sanitizeOverviewFilters(d.filters);
-  } catch {}
-  return DEFAULT_FILTERS.slice();
 }
 
 // persist:false is for a URL-driven pre-filter (a /nearby/<slug> page, or a shared ?show= link)
@@ -7933,58 +7744,6 @@ function ensureOverviewTargetsVisible(options = {}) {
   }
 }
 
-// The identity of a tree, used for the #tree= deep link, for the Nearby list's own
-// de-duplication (overviewEntryKey/uniqueSortedOverviewEntries) and for resolving a tapped
-// list row back to a tree (findTreeByHashKey). recordNumber first, and only recordNumber:
-// it is the one field the Veteran Tree Register guarantees unique (verified: 24,906 records,
-// 24,906 distinct recordNumbers). `id` -- which this used to prefer -- is "0" on the 6,504
-// untagged trees, so every one of them hashed to the same key. That collapsed all of them to
-// a single row in the Nearby list (hiding every untagged tree closer than the one that
-// survived the de-dupe), and made tapping that row open whichever "0" tree happened to sit
-// first in the dataset -- a tree nowhere near the user. Reported as "Tree 0 is listed as the
-// closest tree when it is nowhere nearby".
-//
-// The key is prefixed so it cannot be confused with the old id/tag-based one: record numbers and
-// tag numbers are separate numbering spaces that overlap (11383 is both a real tag and a real,
-// different, record), so an unprefixed key would make every link ambiguous about which scheme it
-// was written in. With the prefix, findTreeByHashKey can tell them apart and links shared before
-// this change still open the tree they always did.
-const TREE_RECORD_KEY_PREFIX = "r";
-
-function treeHashKey(tree) {
-  if (!tree) return "";
-  const recordNumber = tree.recordNumber;
-  if (recordNumber !== null && recordNumber !== undefined && recordNumber !== "") {
-    return TREE_RECORD_KEY_PREFIX + normalizeTreeNumber(recordNumber);
-  }
-  // No record number at all. Never true of the real register, but a future source (or a test
-  // fixture) may lack one, and returning a blank key would silently drop the tree from every
-  // de-duplicated list. Fall back to the position, which is what actually tells two trees
-  // apart -- kept alphanumeric, and with the sign spelled out, so normalizeTreeNumber (which
-  // strips "-" and ".") cannot merge a coordinate with its mirror image.
-  if (Number.isFinite(tree.latitude) && Number.isFinite(tree.longitude)) {
-    const axis = (value) => (value < 0 ? "n" : "p") + Math.round(Math.abs(value) * 1e6);
-    return `ll${axis(tree.latitude)}${axis(tree.longitude)}`;
-  }
-  return normalizeTreeNumber(tree.id ?? tree.tagNumber ?? "");
-}
-
-// The 6,504 untagged records in the Veteran Tree Register carry tagNumber "0" rather than
-// null, so a plain `commonName || tagNumber || recordNumber` chain rendered them as a tree
-// called "0" wherever the species was also unrecorded. "0" is a placeholder, not a tag.
-function treeTagLabel(tree) {
-  const tag = tree && (tree.tagNumber ?? tree.nationalDatabaseTagNumber);
-  if (tag === null || tag === undefined) return null;
-  const text = String(tag).trim();
-  if (!text || Number(text) === 0) return null;
-  return text;
-}
-
-function treeDisplayName(tree) {
-  if (!tree) return "Unknown tree";
-  return tree.commonName || treeTagLabel(tree) || "Veteran tree";
-}
-
 function placeHashKey(place) {
   if (place.id !== null && place.id !== undefined && place.id !== "") {
     return `id:${String(place.id)}`;
@@ -8140,17 +7899,6 @@ function unwrapAngle(previous, target) {
 function normalizeDegrees(value) {
   const normalized = value % 360;
   return normalized < 0 ? normalized + 360 : normalized;
-}
-
-function bearingDegrees(lat1, lon1, lat2, lon2) {
-  const phi1 = toRadians(lat1);
-  const phi2 = toRadians(lat2);
-  const lambda1 = toRadians(lon1);
-  const lambda2 = toRadians(lon2);
-  const y = Math.sin(lambda2 - lambda1) * Math.cos(phi2);
-  const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(lambda2 - lambda1);
-  const brng = Math.atan2(y, x) * 180 / Math.PI;
-  return (brng + 360) % 360;
 }
 
 function bearingArrow(degrees) {
@@ -8368,10 +8116,6 @@ function nearestPlacesByFilter(latitude, longitude, filter, limit) {
     }))
     .sort((a, b) => a.metres - b.metres)
     .slice(0, limit);
-}
-
-function normalizeTreeNumber(value) {
-  return String(value).trim().toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
 // --- Map search -----------------------------------------------------------------------
@@ -8930,9 +8674,9 @@ function openSearchResult(type, key) {
   // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
   // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
   // rather than lingering for whenever Nearby is next shown.
-  state.nearbyAnchor = null;
   // Before state.selected changes below -- see startCameraOriginTransition.
   startCameraOriginTransition();
+  state.nearbyAnchor = null;
   state.selected = { type, item };
   // Update the URL before rendering, so the selected place and browser history stay in sync.
   syncHashFromSelection();
@@ -9592,28 +9336,6 @@ function requestOverlayDraw() {
 function setStatus(_message) {
 }
 
-function distanceMetres(lat1, lon1, lat2, lon2) {
-  const phi1 = toRadians(lat1);
-  const phi2 = toRadians(lat2);
-  const dPhi = toRadians(lat2 - lat1);
-  const dLambda = toRadians(lon2 - lon1);
-  const a = Math.sin(dPhi / 2) ** 2 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) ** 2;
-  return 2 * EARTH_RADIUS_METRES * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-function toRadians(value) {
-  return value * Math.PI / 180;
-}
-
-function formatDistance(metres) {
-  if (!Number.isFinite(metres)) return "Not recorded";
-  if (metres < 1000) return `${Math.round(metres)} m`;
-  const km = metres / 1000;
-  const decimals = km < 10 ? 1 : 0;
-  const kmStr = km.toFixed(decimals).replace(/\.0$/, "");
-  return `${kmStr} km`;
-}
-
 function formatWalkTime(metres) {
   if (!Number.isFinite(metres)) return "Not recorded";
   const minutes = metres / (5000 / 60);
@@ -9622,10 +9344,6 @@ function formatWalkTime(metres) {
   const hours = Math.floor(minutes / 60);
   const mins = Math.round(minutes % 60);
   return mins > 0 ? `~${hours} hr ${mins} mins walk` : `~${hours} hr walk`;
-}
-
-function walkingDistanceToMetres(minutes) {
-  return minutes * (5000 / 60);
 }
 
 function updateSelectedDetailFields() {
