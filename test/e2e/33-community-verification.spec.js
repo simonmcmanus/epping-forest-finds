@@ -20,6 +20,18 @@ test.describe("Community tree verification", () => {
     await expect(page.locator("[data-action='community-report']")).toHaveCount(6);
   });
 
+  test("a fresh community overlay pushed by the service worker shows on an open tree without a reload", async ({ page }) => {
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await expect(page.getByLabel(/Verified by \d+ people/)).toHaveCount(0);
+
+    await page.evaluate((recordNumber) => {
+      const data = { generatedAt: Date.now(), entries: { [`tree:${recordNumber}`]: { s: "verified", n: 3 } } };
+      navigator.serviceWorker.dispatchEvent(new MessageEvent("message", { data: { type: "COMMUNITY_UPDATED", data } }));
+    }, FIXTURE_TREE.recordNumber);
+
+    await expect(page.getByLabel("Verified by 3 people")).toBeVisible();
+  });
+
   test("a cold load of /community never flashes the Nearby list", async ({ page }) => {
     await page.addInitScript(() => {
       window.__sawNearby = false;

@@ -14,6 +14,13 @@ test.describe("Onboarding", () => {
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
     });
 
+    test("the onboarding overlay is announced to assistive tech as a named modal dialog", async ({ page }) => {
+      await page.goto("/nearby");
+      const dialog = page.getByRole("dialog", { name: "Set up Epping Forest Finds" });
+      await expect(dialog).toBeVisible();
+      await expect(dialog).toHaveAttribute("aria-modal", "true");
+    });
+
     test("the location/compass opt-in step is shown first", async ({ page }) => {
       await page.goto("/nearby");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();

@@ -37,4 +37,26 @@ test.describe("Admin login", () => {
     await page.click("#loginBtn");
     await expect(page.locator("#loginError")).toContainText("Incorrect password");
   });
+  test("the password field is labelled, and a user row can be opened from the keyboard", async ({ page }) => {
+    await skipOnboarding(page);
+    const tracks = {
+      ...TRACKS,
+      locations: [
+        { uid: "user-aaaa-1111", ts: "2026-10-20T10:00:00Z", lat: 51.65, lon: 0.04 },
+        { uid: "user-bbbb-2222", ts: "2026-10-21T10:00:00Z", lat: 51.66, lon: 0.05 },
+      ],
+    };
+    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(tracks) }));
+    await page.goto("/admin");
+    await page.getByLabel("Admin password").fill("secret");
+    await page.click("#loginBtn");
+
+    const rows = page.getByRole("button", { name: /pts/ });
+    await expect(rows).toHaveCount(2);
+    const first = rows.first();
+    await expect(first).toHaveAttribute("aria-pressed", "false");
+    await first.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByRole("button", { name: /pts/ }).first()).toHaveAttribute("aria-pressed", "true");
+  });
 });

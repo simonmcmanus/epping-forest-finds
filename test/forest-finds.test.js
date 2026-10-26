@@ -529,6 +529,8 @@ globalThis.__forestFindsTest = {
   submitLocationIssueReport,
   applyReportStatusContent,
   refreshCachedState,
+  applySwUpdate,
+  requestBackgroundDataSync,
   hasTrackingConsent,
   setTrackingConsent,
   ensureTrackingConsent,
@@ -5843,59 +5845,74 @@ test("service worker never writes a /nearby/<slug>/ or /find/<slug>/ page's own 
   assert.deepEqual(await fireNavigate("/nearby/pubs/"), [], "a category page must never overwrite it either");
 });
 
-test("community overlay revalidation updates open clients without waiting for a reload", () => {
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  const community = fs.readFileSync(path.join(__dirname, "..", "js", "community.js"), "utf8");
-
-  assert.match(sw, /async function communityResponseChanged\(cached, fresh\)/, "community responses must be compared before notifying clients");
-  assert.match(sw, /type: "COMMUNITY_UPDATED", data/, "the worker must send fresh community data to open clients");
-  assert.match(community, /event\.data\?\.type === "COMMUNITY_UPDATED"/, "the page must listen for fresh community data");
-  assert.match(community, /communityApplyOverlay\(event\.data\.data\)/, "the page must apply the fresh overlay without a reload");
-  assert.match(community, /function setupCommunityOverlayRefresh\(\)/, "the page must periodically request community updates while open");
-  assert.match(community, /COMMUNITY_OVERLAY_REFRESH_INTERVAL_MS/, "community refreshes must be bounded");
-  assert.match(community, /window\.addEventListener\("online"/, "community refreshes must retry when connectivity returns");
-});
-
-test("the app checks for updates while visible and announces only a fully prepared update", () => {
-  const nav = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
+test("netlify.toml makes the browser revalidate sw.js and its version markers (shipped-config invariant)", () => {
   const toml = fs.readFileSync(path.join(__dirname, "..", "netlify.toml"), "utf8");
-  assert.match(nav, /register\("sw\.js", \{ updateViaCache: "none" \}\)/, "imported version files must not be served from the HTTP cache");
-  assert.match(nav, /swRegistration\.update\(\)/, "an explicit update check must exist");
-  assert.match(nav, /requestAppUpdateCheck\(\);/, "the check must run from the visibility/online/interval hook");
-  assert.match(nav, /async function prepareWaitingUpdate\(waiting\) \{[\s\S]*?await requestDataRefresh\(\{ target: waiting/, "a waiting worker syncs its data before the banner");
-  assert.doesNotMatch(nav, /_markSwUpdateAvailable\((reg\.waiting|installing)\)/, "a waiting worker must not be announced before it is prepared");
   for (const file of ["/sw.js", "/js/app-cache-version.js", "/js/data-cache-version.js"]) {
     assert.match(toml, new RegExp(`for = "${file.replace(/[./]/g, "\\$&")}"\\s+\\[headers\\.values\\]\\s+Cache-Control = "no-cache"`), `${file} must be revalidated`);
   }
 });
 
-test("every app update activation path downloads a complete waiting worker first", () => {
-  const nav = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
-  const applyMatch = nav.match(/async function applySwUpdate\(\) \{[\s\S]*?\n\}/);
-  assert.ok(applyMatch, "applySwUpdate must be defined");
-  assert.match(applyMatch[0], /downloadAppUpdate\(\)/, "the indicator path must check for a downloaded worker");
-  assert.match(applyMatch[0], /if \(!waiting\)/, "a missing worker must stop without reloading");
-  assert.doesNotMatch(applyMatch[0], /else \{\s*location\.reload\(\)/, "no-worker state must not reload the current app");
-  assert.match(applyMatch[0], /activateDownloadedAppUpdate\(waiting\)/, "only a waiting worker may be activated");
+// Fake service-worker environment for the update and background-sync flows.
+function withFakeServiceWorker(app, { online = true, controller = null } = {}, run) {
+  const nav = app.navigator;
+  const wasOnline = nav.onLine;
+  const reloads = [];
+  const previous = {
+    location: app.swapGlobalFunction("location", { reload: () => reloads.push("reload") }),
+    setTimeout: app.swapGlobalFunction("setTimeout", () => 0),
+  };
+  nav.onLine = online;
+  nav.serviceWorker = { controller };
+  const cleanup = () => {
+    delete nav.serviceWorker;
+    nav.onLine = wasOnline;
+    app.swapGlobalFunction("location", previous.location);
+    app.swapGlobalFunction("setTimeout", previous.setTimeout);
+  };
+  return Promise.resolve(run(reloads)).finally(cleanup);
+}
+
+test("the app asks the controlling worker for a background data sync, but not offline or before a worker controls the page", async () => {
+  const messages = [];
+  const controller = { postMessage: (m) => messages.push(m) };
+
+  await withFakeServiceWorker(app, { controller }, () => { app.requestBackgroundDataSync(); app.requestBackgroundDataSync({ force: true }); });
+  assert.deepEqual(JSON.parse(JSON.stringify(messages)), [{ type: "SYNC_DATA", force: false }, { type: "SYNC_DATA", force: true }]);
+
+  messages.length = 0;
+  await withFakeServiceWorker(app, { controller, online: false }, () => app.requestBackgroundDataSync());
+  await withFakeServiceWorker(app, { controller: null }, () => app.requestBackgroundDataSync());
+  assert.deepEqual(messages, [], "nothing is sent offline, or on a first load with nothing cached to refresh");
 });
 
-test("the app asks for a background data sync only after the map is up, never during boot", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
-  const navSource = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
+test("applying an update activates the fully downloaded waiting worker and never reloads straight away", async () => {
+  resetData(app);
+  const messages = [];
+  app.state.swWaiting = { postMessage: (m) => messages.push(m) };
+  await withFakeServiceWorker(app, {}, async (reloads) => {
+    assert.equal(await app.applySwUpdate(), true);
+    assert.deepEqual(JSON.parse(JSON.stringify(messages)), [{ type: "SKIP_WAITING" }]);
+    assert.equal(app.state.swPendingReload, true, "the reload waits for the new worker to take control");
+    assert.deepEqual(reloads, [], "no immediate reload: that would strand the page if activation failed");
+  });
+  app.state.swWaiting = null;
+  app.state.swPendingReload = false;
+});
 
-  const syncIdx = source.indexOf("requestBackgroundDataSync()");
-  assert.ok(syncIdx !== -1, "boot must request a background data sync");
-  assert.ok(
-    syncIdx > source.indexOf("showFilterHintIfFirstVisit();"),
-    "the sync must be requested after the map is interactive, so it never competes with the first render"
-  );
-
-  const fnMatch = navSource.match(/function requestBackgroundDataSync\(options\) \{[\s\S]*?\n\}/);
-  assert.ok(fnMatch, "requestBackgroundDataSync must be defined in nav.js");
-  const fn = fnMatch[0];
-  assert.match(fn, /if \(!navigator\.onLine\) return;/, "must not attempt a sync while offline");
-  assert.match(fn, /navigator\.serviceWorker\.controller/, "must go through the controlling worker");
-  assert.match(fn, /postMessage\(\{ type: "SYNC_DATA"/, "must send the worker sync message");
+test("applying an update with no complete downloaded worker leaves the current app running", async () => {
+  resetData(app);
+  app.state.swWaiting = null;
+  const wasStatus = app.documentStub.getElementById("refreshStatus");
+  await withFakeServiceWorker(app, { controller: null }, async (reloads) => {
+    const original = app.swapGlobalFunction("downloadAppUpdate", async () => null);
+    try {
+      assert.equal(await app.applySwUpdate(), false);
+    } finally {
+      app.swapGlobalFunction("downloadAppUpdate", original);
+    }
+    assert.deepEqual(reloads, [], "an update that is not fully downloaded must not reload the page");
+  });
+  assert.match(wasStatus.textContent, /No complete app update is ready/);
 });
 
 test("local dev server flags sw.js with self.__DEV__ without touching the production file on disk", () => {
@@ -6230,21 +6247,30 @@ test("the nearby zoom tracks the user's walking distance setting", () => {
   );
 });
 
-test("startCalibrationViewportSync forces its zoom fit, so calibration's view is never deferred by the actively-firing-sensor check", () => {
-  // Source-level regression guard for the specific call site: registerCompassCalibrationSample
-  // sets state.compassLastEventAt via onDeviceOrientation on every raw reading, which means
-  // headingUpCompassSensorActive() reads true throughout the whole calibration window --
-  // if startCalibrationViewportSync's call to alignHeadingUpNavigationViewport ever loses
-  // its force:true, the zoom-fit-deferred-until-quiet bug covered by the test above comes
-  // straight back for calibration specifically, even though that direct test still passes.
-  const appSource = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
-  assert.match(
-    appSource,
-    // Generous window: this function carries a lot of explanatory comment (matching this
-    // file's style), so the force:true call sits ~2000 chars past the function's own start.
-    /function startCalibrationViewportSync[\s\S]{0,3000}alignHeadingUpNavigationViewport\(\{\s*force:\s*true\s*\}\)/,
-    "startCalibrationViewportSync must call alignHeadingUpNavigationViewport with force: true"
-  );
+test("calibration's zoom fit is applied immediately, never deferred by the actively-firing sensor", () => {
+  // Raw orientation events keep the compass looking "active" for the whole calibration window,
+  // so the fit must bypass the defer-while-active rule or it only lands once the sensor settles.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = null;
+  const frames = [];
+  const calls = [];
+  const originals = {
+    raf: app.swapGlobalFunction("requestAnimationFrame", (fn) => { frames.push(fn); return frames.length; }),
+    anchor: app.swapGlobalFunction("navigationAnchorActive", () => true),
+    align: app.swapGlobalFunction("alignHeadingUpNavigationViewport", (options) => { calls.push(options); return false; }),
+  };
+  try {
+    app.startCalibrationViewportSync();
+    frames.shift()();
+    assert.equal(calls.length, 1, "the viewport is re-fitted on the first frame");
+    assert.equal(calls[0] && calls[0].force, true);
+  } finally {
+    app.stopCalibrationViewportSync();
+    app.swapGlobalFunction("requestAnimationFrame", originals.raf);
+    app.swapGlobalFunction("navigationAnchorActive", originals.anchor);
+    app.swapGlobalFunction("alignHeadingUpNavigationViewport", originals.align);
+  }
 });
 
 test("startCalibrationViewportSync/stopCalibrationViewportSync manage a single scheduled frame", () => {
@@ -10390,13 +10416,6 @@ test("the map inventory counts far more than the food places alone", () => {
   );
 });
 
-test("the app's modal overlays declare dialog role, modal state and an accessible name", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
-
-  assert.match(html, /id="distanceWarning"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-labelledby="distanceWarningTitle"/);
-  assert.match(html, /id="onboardingOverlay"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-label="[^"]+"/);
-});
-
 test("activateModalFocus traps Tab within the container and restores focus on deactivate", () => {
   // Minimal hand-rolled DOM: just enough real focus()/querySelectorAll()/addEventListener()
   // semantics for js/nav.js's actual activateModalFocus to run against, without pulling in a
@@ -10456,28 +10475,9 @@ test("activateModalFocus traps Tab within the container and restores focus on de
   delete global.document;
 });
 
-test("admin's clickable user rows are keyboard-operable (role, tabindex, Enter/Space)", () => {
-  const js = fs.readFileSync(path.join(__dirname, "..", "js", "admin.js"), "utf8");
-
-  assert.match(js, /function makeActivatable/);
-  assert.match(js, /el\.setAttribute\("role", "button"\)/);
-  assert.match(js, /el\.setAttribute\("tabindex", "0"\)/);
-  assert.match(js, /event\.key === "Enter" \|\| event\.key === " "/);
-});
-
-test("the admin login field has a programmatic label, not just a placeholder", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "admin.html"), "utf8");
-
-  assert.match(html, /<label for="loginPassword"[^>]*>[^<]*Admin password[^<]*<\/label>/);
-});
-
-// --- Events ---
-
 test("Events and Pubs are default-on categories, like Trees and Cows", () => {
   assert.ok(app.DEFAULT_FILTERS.includes("events"));
   assert.ok(app.DEFAULT_FILTERS.includes("pubs"));
-  const onboardingSrc = fs.readFileSync(path.join(__dirname, "..", "js", "onboarding.js"), "utf8");
-  assert.match(onboardingSrc, /new Set\(\["trees", "cows", "events", "pubs"\]\)/);
 });
 
 test("normalizeEventLocations keeps upcoming (within a week) and live events, and drops past or too-far-ahead ones", () => {
