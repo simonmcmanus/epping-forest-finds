@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, settleMapIconsAndDraw } = require("./helpers");
+const { setup, settleMapIconsAndDraw, waitForUiToSettle } = require("./helpers");
 
 test.describe("Settings screen", () => {
   test.beforeEach(async ({ page }) => {
@@ -106,7 +106,7 @@ test.describe("Settings screen", () => {
     test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
     await page.evaluate(() => { _markDataUpdateAvailable(); });
     await expect(page.locator("#updateBanner")).toBeVisible();
-    await page.waitForTimeout(300);
+    await waitForUiToSettle(page);
     await settleMapIconsAndDraw(page);
     await expect(page).toHaveScreenshot("update-ready-banner.png", { fullPage: false });
   });
@@ -308,7 +308,7 @@ test.describe("Settings screen", () => {
 
   test("snapshot: settings screen", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
-    await page.waitForTimeout(300);
+    await waitForUiToSettle(page);
     await settleMapIconsAndDraw(page);
     await expect(page).toHaveScreenshot("settings-screen.png", { fullPage: false });
   });

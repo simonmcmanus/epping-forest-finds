@@ -2733,6 +2733,7 @@ test("walking radius marker still draws when nearest results use fallback", () =
 test("walking radius dimming keeps a crisp edge without a canvas blur filter", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
+  const drawn = { arcs: 0, fills: 0 };
 
   const ctx = {
     save() {},
@@ -2740,14 +2741,15 @@ test("walking radius dimming keeps a crisp edge without a canvas blur filter", (
     beginPath() {},
     closePath() {},
     rect() {},
-    arc() {},
-    fill() {},
+    arc() { drawn.arcs += 1; },
+    fill() { drawn.fills += 1; },
     stroke() {},
     createLinearGradient() { return { addColorStop() {} }; },
     set filter(value) { throw new Error(`walking-radius blur is not allowed: ${value}`); },
   };
 
   app.drawWalkingRadius(ctx);
+  assert.ok(drawn.arcs > 0 && drawn.fills > 0, "the ring and its dimming are actually drawn (so the no-blur check above covered real drawing)");
 });
 
 test("walking radius marker hides in selected-detail mode", () => {

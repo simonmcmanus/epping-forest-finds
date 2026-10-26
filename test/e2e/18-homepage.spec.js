@@ -73,120 +73,29 @@ test.describe("the marketing homepage", () => {
     } finally { await context.close(); }
   });
 
-  test.skip("keeps category rows compact and marks the open list with a chevron and background", async ({ page }) => {
-    await page.goto("/");
-    const row = page.locator('[data-inventory-key="churches"]');
-    const button = row.getByRole("button", { name: "Churches", exact: true });
-    const appearance = () => button.evaluate(el => ({
-      height: el.getBoundingClientRect().height,
-      chevron: getComputedStyle(el, "::after").transform,
-      symbol: getComputedStyle(el, "::after").content,
-      background: getComputedStyle(el.closest("[data-inventory-key]")).backgroundColor,
+  test("shows a preview of the latest Ledger edition and points the Ledger links at it", async ({ page }) => {
+    await page.route("**/reports/", (route) => route.fulfill({
+      contentType: "text/html",
+      body: '<a class="report-link" href="epping-forest-ledger-2026-10-24.html"><span class="report-name">24 October 2026</span></a>',
     }));
-    const closed = await appearance();
-    expect(closed.height).toBeLessThan(30);
-    expect(closed.symbol).toBe('""');
-    await button.click();
-    await expect(row.locator(".inventory-items")).toBeVisible();
-    await expect(row).toHaveCSS("padding-left", "12px");
-    await expect(row.locator(".inventory-items li").first()).toBeVisible();
-    await expect.poll(async () => (await appearance()).chevron).not.toBe(closed.chevron);
-    const opened = await appearance();
-    expect(opened.background).not.toBe(closed.background);
-    expect(opened.background).not.toBe("rgba(0, 0, 0, 0)");
-    const card = await row.evaluate(el => {
-      const style = getComputedStyle(el);
-      const list = el.querySelector("ul");
-      const search = el.querySelector("input");
-      return {
-        border: style.borderTopWidth,
-        radius: parseFloat(style.borderRadius),
-        padding: parseFloat(style.paddingLeft),
-        shadow: style.boxShadow,
-        listBackground: list && getComputedStyle(list).backgroundColor,
-        searchBackground: search && getComputedStyle(search).backgroundColor,
-      };
-    });
-    expect(card.border).toBe("1px");
-    expect(card.radius).toBeGreaterThanOrEqual(10);
-    expect(card.padding).toBe(12);
-    expect(card.shadow).toBe("none");
-    expect(card.listBackground).toBe(card.searchBackground);
-    const spacing = await row.evaluate(el => {
-      const header = el.querySelector("dt").getBoundingClientRect();
-      const search = el.querySelector("input").getBoundingClientRect();
-      const content = el.querySelector(".inventory-content").getBoundingClientRect();
-      return { above: search.top - header.bottom, below: el.getBoundingClientRect().bottom - content.bottom };
-    });
-    expect(spacing.above).toBeLessThanOrEqual(14);
-    expect(spacing.below).toBeLessThanOrEqual(14);
-    await expect(row).toHaveCSS("background-color", "rgb(246, 241, 231)");
-    await button.press("Enter");
-    await expect(row.locator(".inventory-items")).toBeHidden();
-    await expect.poll(appearance).toEqual(closed);
+    await page.route("**/reports/epping-forest-ledger-2026-10-24.html", (route) => route.fulfill({
+      contentType: "text/html",
+      body: `<div class="banner">Two new places this week.</div>
+        <section id="businesses"><div class="card"><h3>The Test Arms</h3><span class="status-label">New</span><span class="addr">High Road</span></div></section>`,
+    }));
+    await page.goto("/");
+    const preview = page.locator("#ledgerLatest");
+    await expect(preview.locator(".ledger-latest-date")).toHaveText("24 October 2026");
+    await expect(preview.locator(".ledger-latest-summary")).toContainText("Two new places this week.");
+    await expect(preview.getByRole("link", { name: "The Test Arms" })).toHaveAttribute("href", "/reports/epping-forest-ledger-2026-10-24.html#businesses");
+    await expect(page.locator("#latestLedgerLink")).toHaveAttribute("href", "/reports/epping-forest-ledger-2026-10-24.html");
   });
 
-  test.skip("expands Churches to show the map's churches and collapses with the keyboard", async ({ page }) => {
+  test("hides the Ledger preview rather than showing a broken one when the latest edition cannot be loaded", async ({ page }) => {
+    await page.route("**/reports/", (route) => route.fulfill({ status: 500, body: "down" }));
     await page.goto("/");
-    const button = page.getByRole("button", { name: "Churches", exact: true });
-    await expect(button).toHaveAttribute("aria-expanded", "false");
-    await button.click();
-    const panel = page.locator("#inventory-churches");
-    const churches = require("../../assets/home/inventory/churches.json");
-    await expect(panel.getByRole("listitem")).toHaveCount(Math.min(churches.length, 50));
-    while (await panel.getByRole("listitem").count() < churches.length) {
-      await panel.getByRole("button", { name: "Show more" }).click();
-    }
-    await expect(panel.getByRole("listitem")).toHaveText(churches.map(item => item.name + item.detail));
-    await expect(button).toHaveAttribute("aria-expanded", "true");
-    await button.focus();
-    await button.press("Enter");
-    await expect(panel).toBeHidden();
-  });
-
-  test.skip("loads only opened categories, searches large lists and shows more results", async ({ page }) => {
-    const requests = [];
-    page.on("request", request => {
-      if (request.url().includes("/assets/home/inventory/")) requests.push(request.url());
-    });
-    await page.goto("/");
-    expect(requests).toHaveLength(0);
-    const toggle = page.getByRole("button", { name: "Trees", exact: true });
-    await toggle.click();
-    const panel = page.locator("#inventory-trees");
-    await expect(panel.getByRole("listitem")).toHaveCount(50);
-    expect(requests).toHaveLength(1);
-    await panel.getByRole("button", { name: "Show more" }).click();
-    await expect(panel.getByRole("listitem")).toHaveCount(100);
-    const search = panel.getByRole("searchbox", { name: "Search trees" });
-    await search.fill("no-such-tree-species");
-    await expect(panel.getByRole("status")).toHaveText("No matching places.");
-    await expect(panel.getByRole("listitem")).toHaveCount(0);
-    const trees = require("../../assets/home/inventory/trees.json");
-    const taggedTree = trees.find(item => item.detail.startsWith("Tag "));
-    await search.fill(taggedTree.detail);
-    await expect(panel).toContainText(taggedTree.name);
-    await expect(panel.getByRole("listitem").first()).toContainText(taggedTree.detail);
-    await toggle.click();
-    await toggle.click();
-    await expect(search).toHaveValue(taggedTree.detail);
-    expect(requests).toHaveLength(1);
-  });
-
-  test.skip("explains empty categories and lets visitors retry a failed category load", async ({ page }) => {
-    let attempts = 0;
-    await page.route("**/assets/home/inventory/medicine.json", route => {
-      attempts += 1;
-      return attempts === 1 ? route.abort() : route.continue();
-    });
-    await page.goto("/");
-    await page.getByRole("button", { name: "Medical sites", exact: true }).click();
-    const panel = page.locator("#inventory-medicine");
-    await expect(panel.getByRole("status")).toHaveText("Couldn't load these places. Please try again.");
-    await panel.getByRole("button", { name: "Try again" }).click();
-    await expect(panel.getByRole("status")).toHaveText("No places in this category yet.");
-    await expect(panel.getByRole("searchbox")).toBeHidden();
-    await expect(panel.getByRole("button", { name: "Show more" })).toBeHidden();
+    await expect(page.locator("#ledgerLatest")).toBeHidden();
+    await expect(page.locator("#latestLedgerLink")).toHaveAttribute("href", "/reports/");
   });
 
   test("explains what the app is without needing JavaScript", async ({ browser }) => {

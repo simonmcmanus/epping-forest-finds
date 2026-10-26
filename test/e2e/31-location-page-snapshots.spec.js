@@ -11,7 +11,7 @@ const { test, expect } = require("@playwright/test");
 test.describe.configure({ mode: "default" });
 const { generate: generateBusinessPages } = require("../../scripts/generate-business-pages.js");
 const businessIndex = require("../../data/business-slugs.json");
-const { gotoAndWaitForMap, settleMapIconsAndDraw, skipOnboarding, mockCowApi } = require("./helpers");
+const { gotoAndWaitForMap, settleMapIconsAndDraw, skipOnboarding, mockCowApi, waitForUiToSettle } = require("./helpers");
 
 const REPO_ROOT = require("node:path").join(__dirname, "..", "..");
 
@@ -31,7 +31,7 @@ test.describe("location page snapshots", () => {
     await skipOnboarding(page);
     await mockCowApi(page);
     await gotoAndWaitForMap(page, `/find/${EXAMPLE_PUB.slug}/`);
-    await page.waitForTimeout(300);
+    await waitForUiToSettle(page);
     await settleMapIconsAndDraw(page);
     await expect(page).toHaveScreenshot("location-page.png", { fullPage: false });
   });

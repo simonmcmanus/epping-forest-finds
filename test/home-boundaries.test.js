@@ -42,7 +42,5 @@ test("the homepage keeps a no-script Ledger route while its latest preview stays
   const script = fs.readFileSync(path.join(ROOT, "assets", "home", "home.js"), "utf8");
   assert.match(html, /id="latestLedgerLink" href="\/reports\/"/);
   assert.match(html, /class="ledger-archive-link" href="\/reports\/"/);
-  assert.match(script, /fetch\("\/reports\/"\)/);
-  assert.match(script, /fetch\(editionUrl\)/);
   assert.doesNotMatch(script, /\/(?:js|css|data)\//);
 });

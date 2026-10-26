@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, FIXTURE_TREE, settleMapIconsAndDraw } = require("./helpers");
+const { setup, FIXTURE_TREE, settleMapIconsAndDraw, waitForUiToSettle } = require("./helpers");
 
 const FOREST_LOCATION = { latitude: 51.665, longitude: 0.045, accuracy: 10 };
 
@@ -188,7 +188,7 @@ test.describe("Overview / Nearby screen", () => {
       const rows = page.locator("#inspectorBody .nearest-item");
       await expect(rows.first()).toBeVisible();
       const rowCount = await rows.count();
-      test.skip(rowCount < 3, "fixture data did not produce enough nearby rows to step through");
+      expect(rowCount, "the fixture data produces enough nearby rows to step through").toBeGreaterThanOrEqual(3);
 
       await rows.first().focus();
       const firstItem = await rows.first().evaluate((el) => ({ type: el.dataset.overviewType, key: el.dataset.overviewKey }));
@@ -287,7 +287,7 @@ test.describe("Overview / Nearby screen", () => {
 
   test("snapshot: overview state", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
-    await page.waitForTimeout(400);
+    await waitForUiToSettle(page);
     await settleMapIconsAndDraw(page);
     await expect(page).toHaveScreenshot("overview.png", { fullPage: false });
   });
@@ -550,7 +550,7 @@ test.describe("Overview / Nearby screen", () => {
     // out past it when one sat near the edge.
     async function measureRing(page) {
       await page.waitForFunction(() => Boolean(state.userLocation));
-      await page.waitForTimeout(900); // let the reveal animation settle
+      await waitForUiToSettle(page);
       return page.evaluate(() => {
         stopViewportAnimation();
         const rect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
@@ -592,7 +592,7 @@ test.describe("Overview / Nearby screen", () => {
       // heading-invariant by construction and the map must not breathe as you turn on the spot.
       await setup(page);
       await page.waitForFunction(() => Boolean(state.userLocation));
-      await page.waitForTimeout(900);
+      await waitForUiToSettle(page);
 
       const scales = await page.evaluate(() => {
         const out = [];
@@ -618,7 +618,7 @@ test.describe("Overview / Nearby screen", () => {
       // the fit has landed, the per-frame compass tick must be a no-op for the viewport.
       await setup(page);
       await page.waitForFunction(() => Boolean(state.userLocation));
-      await page.waitForTimeout(900);
+      await waitForUiToSettle(page);
 
       const changedOnRepeat = await page.evaluate(() => {
         state.compassHeading = 90;

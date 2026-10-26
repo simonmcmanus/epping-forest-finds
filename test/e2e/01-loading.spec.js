@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { skipOnboarding, mockCowApi, settleMapIconsAndDraw } = require("./helpers");
+const { skipOnboarding, mockCowApi, settleMapIconsAndDraw, waitForUiToSettle } = require("./helpers");
 
 test.describe("Loading experience", () => {
   test.beforeEach(async ({ page }) => {
@@ -110,7 +110,7 @@ test.describe("Loading experience", () => {
     await page.route("**/data/trees/**", (route) => route.abort());
     await page.route("**/Veteran_Tree_Register*.json", (route) => route.abort());
     await page.goto("/nearby");
-    await expect(page.locator('[data-load-step="trees"]')).toHaveClass(/error/, { timeout: 60_000 });
+    await expect(page.locator('[data-load-step="trees"]')).toHaveClass(/error/);
     await expect(page.locator("#mapCanvas")).toBeVisible();
     await expect(page.locator('[data-load-step="places"]')).toHaveClass(/done/);
   });
@@ -126,7 +126,7 @@ test.describe("Loading experience", () => {
     test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
     await page.goto("/nearby");
     await page.waitForFunction(() => { const el = document.getElementById("loadingOverlay"); return !el || el.hidden === true; }, { timeout: 30_000 });
-    await page.waitForTimeout(600);
+    await waitForUiToSettle(page);
     await settleMapIconsAndDraw(page);
     await expect(page).toHaveScreenshot("map-ready.png", { fullPage: false });
   });

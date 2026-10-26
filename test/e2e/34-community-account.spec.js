@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, FIXTURE_TREE } = require("./helpers");
+const { setup, FIXTURE_TREE, waitForFrames } = require("./helpers");
 
 const OVERLAY_URL = "**/api/community/overlay**";
 const ME_URL = "**/api/auth/me";
@@ -400,7 +400,7 @@ test.describe("Community sign-in: history, account switching, storage", () => {
     await expect(page.locator("#communityContributions")).toContainText("Couldn't check who is signed in");
     // Give the page's own background refreshes (they run about a second after load) time to fire.
     await page.evaluate(() => Promise.all([communityRefreshScore(false), communityRefreshLog()]));
-    await page.waitForTimeout(1500);
+    await waitForFrames(page, 90);
     expect(requested).toEqual([]);
   });
 

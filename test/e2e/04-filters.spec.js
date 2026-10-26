@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, settleMapIconsAndDraw } = require("./helpers");
+const { setup, settleMapIconsAndDraw, waitForFrames, waitForUiToSettle } = require("./helpers");
 
 test.describe("Filter panel", () => {
   test.beforeEach(async ({ page }) => {
@@ -111,7 +111,7 @@ test.describe("Filter panel", () => {
       await page.waitForFunction(
         () => document.getElementById("inspectorTitle")?.textContent === "Nearby"
       );
-      await page.waitForTimeout(400);
+      await waitForFrames(page, 24);
 
       expect(await page.evaluate(() => window.__sawReorderStyle)).toBe(false);
     });
@@ -185,7 +185,7 @@ test.describe("Filter panel", () => {
     test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
     await page.click("#filterToggle");
     await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
-    await page.waitForTimeout(300);
+    await waitForUiToSettle(page);
     await settleMapIconsAndDraw(page);
     await expect(page).toHaveScreenshot("filter-screen.png", { fullPage: false });
   });

@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, FIXTURE_TREE, skipOnboarding, mockCowApi, gotoAndWaitForMap } = require("./helpers");
+const { setup, FIXTURE_TREE, skipOnboarding, mockCowApi, gotoAndWaitForMap, waitForFrames } = require("./helpers");
 const businessIndex = require("../../data/business-slugs.json");
 const PLACE = businessIndex.entries.find((e) => e.key === "pubs" && e.lat != null);
 
@@ -305,7 +305,7 @@ test.describe("Community tree verification with location shared", () => {
     await setup(page, "/community");
     await expect(page.locator(".community-action-card")).toBeVisible();
     await page.waitForFunction(() => state.userLocation && !state.userLocation.isDefault && state.nearestTree);
-    await page.waitForTimeout(1800);
+    await waitForFrames(page, 100);
     await expect(page.locator("#communityNudge")).toHaveCount(0);
     expect(await page.evaluate(() => window.__sawNearby)).toBe(false);
   });
@@ -490,7 +490,7 @@ test.describe("Community place checks", () => {
     await expect(page.locator(".community-check-place .community-mine")).toContainText("You reported: Confirmed still right");
     await expect(page.locator(".community-check-place [data-action='community-place-choose']")).toHaveCount(0);
     await expect(page.locator(".detail-top-row .community-verified-chip")).toContainText("1");
-    await page.waitForTimeout(500);
+    await waitForFrames(page, 30);
     expect(sent).toHaveLength(0);
     // and it stays hidden when the place is opened again
     await page.click("#nearbyToggle");
@@ -1058,7 +1058,7 @@ test.describe("Community screen when the user is away from the forest", () => {
     await setup(page, "/community");
     await page.waitForFunction(() => state.userLocation && !state.userLocation.isDefault);
     // The first framing has happened with no marks; only now does the other device's history arrive.
-    await page.waitForTimeout(1500);
+    await waitForFrames(page, 90);
     expect(await page.evaluate(() => communityMapMarks().length)).toBe(0);
     // With no marks the camera shows the whole forest.
     expect(await page.evaluate(() => state.viewport.scale / state.baseFitScale)).toBeLessThan(1.5);

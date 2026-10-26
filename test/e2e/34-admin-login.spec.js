@@ -37,6 +37,7 @@ test.describe("Admin login", () => {
     await page.click("#loginBtn");
     await expect(page.locator("#loginError")).toContainText("Incorrect password");
   });
+
   test("the password field is labelled, and a user row can be opened from the keyboard", async ({ page }) => {
     await skipOnboarding(page);
     const tracks = {

@@ -93,7 +93,7 @@ A test exists to fail when the app misbehaves for a user, and to stay green thro
 - Prove a new test is real: break the code on purpose and confirm the test fails, then restore it. A test that survives the mutation it claims to guard is deleted or rewritten.
 - A data invariant that crosses files (every CSS file `app.html` links is listed in `APP_SHELL`) is a legitimate check, because it asserts a property of the shipped product, not a code pattern. Keep those, and say so in the title.
 - In Playwright, a missing precondition is a failure, not a skip: do not `test.skip(!target, ...)` because the camera or fixture did not produce something. Position the camera deterministically or fail loudly. Reserve `test.skip` for project/viewport gating (`mobile`-only snapshots).
-- Wait on state (`expect(locator)`, `waitForFunction`), never `page.waitForTimeout`.
+- Wait on state (`expect(locator)`, `waitForFunction`), never `page.waitForTimeout`. `test/e2e/helpers.js` has `waitForUiToSettle` (camera landed, finite animations done) for "let it finish moving" and `waitForFrames` for "nothing should happen" assertions. A test that measures a wall-clock animation samples inside the page (see `sampleEvery` in `14-map-interaction.spec.js`) rather than waiting from the test side.
 
 When removing a source-grep test, check that an executed test or e2e journey covers the behaviour; add one if not. Do not delete coverage — replace it.
 
