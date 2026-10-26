@@ -909,6 +909,10 @@ function showRoutedSelection(route, item) {
   // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
   // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
   // rather than lingering for whenever Nearby is next shown.
+  // Capture the currently drawn browse pivot before clearing it; otherwise entering a linked
+  // selection from an anchored Nearby view makes the 3D/heading-up camera jump to the GPS fix
+  // before the selection's own camera animation can take over.
+  startCameraOriginTransition();
   state.nearbyAnchor = null;
   state.selected = { type: route.type, item };
   route.show(item);
@@ -8670,9 +8674,9 @@ function openSearchResult(type, key) {
   // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
   // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
   // rather than lingering for whenever Nearby is next shown.
-  state.nearbyAnchor = null;
   // Before state.selected changes below -- see startCameraOriginTransition.
   startCameraOriginTransition();
+  state.nearbyAnchor = null;
   state.selected = { type, item };
   // Update the URL before rendering, so the selected place and browser history stay in sync.
   syncHashFromSelection();

@@ -9755,6 +9755,32 @@ test("selecting an item while browsing a distant anchor slides the camera origin
   assert.equal(app.cameraOriginPoint(), userPoint, "settled: the camera is back on the real GPS fix, as selected navigation requires");
 });
 
+test("selection entry points capture the browse pivot before clearing the anchor", async () => {
+  enterNearby3D(app);
+  const tree = {
+    ...app.state.trees[0],
+    recordNumber: 1,
+    location: { britishNationalGrid: {} },
+  };
+  app.state.trees[0] = tree;
+  const anchor = makePoint(app, 51.66, 0.033);
+  app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
+  settleNearbySlide(app);
+
+  app.focusOverviewItem("tree", "r1");
+  assert.equal(app.state.nearbyAnchor, null, "selection should still clear the browse anchor");
+  assert.ok(app.state.cameraOriginTransition, "selection should animate the camera pivot basis change");
+  assert.ok(
+    Math.abs(app.state.cameraOriginTransition.fromX - anchor.point.x) < 1e-9
+      && Math.abs(app.state.cameraOriginTransition.fromY - anchor.point.y) < 1e-9,
+    "the pivot transition must start at the browsed anchor, not the GPS fix"
+  );
+
+  // Let the inspector-deferred selection fit finish before the next test resets shared state.
+  await new Promise((resolve) => setTimeout(resolve, 260));
+  app.stopViewportAnimation();
+});
+
 // Records the path each draw walks, so a marker's actual drawn geometry can be asserted rather
 // than just the numbers that feed it.
 function recordingCtx() {
