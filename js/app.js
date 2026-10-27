@@ -2931,9 +2931,10 @@ function settingsFormHtml() {
     })
     .join("");
   return `<div class="settings-form">
-    <section class="settings-section">
+    <p class="settings-intro">A little more you. Make Forest Finds fit the way you explore.</p>
+    <section class="settings-section settings-walking">
       <h3 class="settings-section-title">Walking radius</h3>
-      <p class="settings-description">How far to walk when listing nearby places. A circle is drawn on the map at this distance.</p>
+      <p class="settings-description">Set your pace. Nearby finds and the circle on your map follow this walking time.</p>
       <label for="settingsWalkMins" class="settings-label">Walking time
         <span class="walk-radius-row">
           <span class="walk-radius-track-wrap">
@@ -2946,11 +2947,12 @@ function settingsFormHtml() {
         </span>
         <datalist id="walkRadiusTicks">${ticks}</datalist>
       </label>
+      <div class="settings-presets" role="group" aria-label="Walking time presets">${reachablePresets.map((m) => `<button type="button" class="settings-btn" data-walk-minutes="${m}" aria-pressed="${sliderValue === m}">${formatWalkingRadius(m)}</button>`).join("")}</div>
       <p class="source-note walk-radius-floor-note" id="settingsWalkMinsFloorNote" aria-live="polite"${sliderValue > floorMinutes ? " hidden" : ""}>This is as close as it gets — nothing closer to show nearby.</p>
     </section>
     <section class="settings-section">
       <h3 class="settings-section-title">Reminders</h3>
-      <label class="community-nudge-setting"><input type="checkbox" id="communityNudgeToggle"${communityNudgesOn() ? " checked" : ""}> Remind me to check trees I'm standing next to</label>
+      <label class="community-nudge-setting settings-switch"><span><strong>Tree check reminders</strong><span class="settings-description">A gentle nudge to check trees you’re standing next to.</span></span><input type="checkbox" id="communityNudgeToggle"${communityNudgesOn() ? " checked" : ""}></label>
     </section>
     <section class="settings-section">
       <h3 class="settings-section-title">About</h3>
@@ -2960,12 +2962,13 @@ function settingsFormHtml() {
       <p class="settings-description">Vibe coded by <a href="https://simonmcmanus.com" target="_blank" rel="noopener noreferrer">Simon McManus</a></p>
       <p id="dataUpdateNote" class="report-note"${state.dataUpdateAvailable ? "" : " hidden"}>New map data has been downloaded. <button id="dataUpdateReloadButton" class="inline-text-button" type="button">Reload now</button> to see it.</p>
       <div class="settings-refresh">
+        <h4 class="settings-section-title">Keep things fresh</h4>
         <div class="settings-refresh-row">
           <button id="refreshDataButton" class="settings-btn" type="button"${online ? "" : " disabled"}>Refresh data</button>
           <button id="refreshAppButton" class="settings-btn" type="button"${online ? "" : " disabled"}>Refresh app</button>
           <button id="refreshAllButton" class="settings-btn" type="button"${online ? "" : " disabled"}>Refresh both</button>
         </div>
-        <p class="settings-description">Map missing or out of date? <strong>Refresh data</strong> re-downloads the trees, paths and places. Not seeing the latest version? <strong>Refresh app</strong> clears the cached app. <strong>Refresh both</strong> starts completely cold.</p>
+        <p class="settings-description"><strong>Data</strong> updates trees, paths and places. <strong>App</strong> reloads the app itself. <strong>Both</strong> refreshes everything. Your preferences stay with you.</p>
         <p id="refreshStatus" class="report-note" role="status" aria-live="polite" hidden></p>
         <p id="refreshOfflineNote" class="report-note report-offline-note"${online ? " hidden" : ""}>Refreshing needs an internet connection — you\'re offline right now.</p>
       </div>
@@ -3082,11 +3085,21 @@ function bindSettingsHandlers() {
       const label = formatWalkingRadius(value);
       if (valueLabel) valueLabel.textContent = label;
       range.setAttribute("aria-valuetext", label);
+      document.querySelectorAll("[data-walk-minutes]").forEach((button) => {
+        button.setAttribute("aria-pressed", String(Number(button.dataset.walkMinutes) === value));
+      });
       if (floorNote) floorNote.hidden = value > floorMinutes;
       applyWalkingRadiusChange(value, { animate: false });
     });
     range.addEventListener("change", () => {
       refreshNearbyRadiusView();
+    });
+    document.querySelectorAll("[data-walk-minutes]").forEach((button) => {
+      button.addEventListener("click", () => {
+        range.value = button.dataset.walkMinutes;
+        range.dispatchEvent(new Event("input", { bubbles: true }));
+        range.dispatchEvent(new Event("change", { bubbles: true }));
+      });
     });
   }
 
@@ -9554,3 +9567,4 @@ function pixelRatio() {
 function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
+

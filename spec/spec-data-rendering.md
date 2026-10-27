@@ -986,6 +986,8 @@ bare records list:
 
 ### Secondary Screens (Search, Filter, Settings, Report)
 
+Settings groups preferences into rounded cards with a tinted walking-radius card, tree-reminder switch, About & updates, Account, and Privacy. Walking-time preset buttons only offer reachable radii and use the same live map/list updates as the slider; their pressed state follows slider changes. Controls support keyboard focus and touch targets of at least 44px; existing consent, cookie, account, copy-ID, offline and scoped-refresh actions remain available.
+
 Search, Filter, Settings, and Report share identical navigation behaviour, gated by the shared `secondaryScreenActive()` helper (`state.searchScreenOpen || state.filterScreenOpen || state.selected?.type === "settings" || state.selected?.type === "report"`). Where the points below say "all three", Search is the fourth and behaves the same — except for its camera fit and its highlighted set, which are its own (see "Search's camera and highlighting" below):
 
 - **Map canvas tap on open ground does not dismiss the screen**, but it *does* move the browse anchor, exactly as on Nearby. Only the Nearby button, the header back arrow and the URL return to overview. The "any tap beyond the ring relocates" rule is Nearby-only: these screens deliberately frame the map wider than the ring, so most of what is on screen is outside it.
@@ -1452,3 +1454,4 @@ The full routing model — the URL for each screen, history entries, back/forwar
 The Community screen's feedback form and the per-location "Noticed a problem" form no longer require a connection: submitting offline (or when the request cannot reach the server) saves the report to the outbox (`js/outbox.js`, see `spec-community.md`) and sends it automatically later. The Feedback screen shows how many are waiting.
 
 On the Community screen the map draws only what the user has marked (`drawCommunityMarks`): `activeIconLookup()` (`js/renderer.js`) returns an empty lookup while `state.selected.type === "community"`, so no ordinary tree, place, cow, path or water pins are drawn or tappable underneath, and they return on Nearby. The Community screen (formerly Feedback) opens with "Your contributions" (rank, points, log of the user's community reports) and "Add a missing tree" above the feedback form; see `spec-community.md`.
+
