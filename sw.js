@@ -627,6 +627,8 @@ self.addEventListener("fetch", (event) => {
   // invisible to every returning visitor. See spec/spec-alpha-access.md.
   if (event.request.mode === "navigate") {
     if (!isAppNavigation(requestUrl.pathname)) return;
+    // This worker's own release's shell only -- never a waiting release's page beside these scripts.
+    const cachedShell = () => caches.open(APP_CACHE_NAME).then((cache) => cache.match("./app.html"));
 
     // A /nearby/<slug>/ or /find/<slug>/ page's own HTML is never written into the shared
     // "./app.html" cache slot (see isGeneratedPageNavigation's comment above) -- it's fetched
@@ -634,11 +636,9 @@ self.addEventListener("fetch", (event) => {
     // rather than whatever happened to be cached, and only falls back to the generic shell if the
     // network truly isn't available.
     if (isGeneratedPageNavigation(requestUrl.pathname)) {
-      event.respondWith(fetch(event.request).catch(() => caches.match("./app.html")));
+      event.respondWith(fetch(event.request).catch(cachedShell));
       return;
     }
-
-    const cachedShell = () => caches.open(APP_CACHE_NAME).then((cache) => cache.match("./app.html"));
 
     if (IS_DEV) {
       event.respondWith(

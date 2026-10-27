@@ -326,6 +326,17 @@ test.describe("serving requests", () => {
     }
   });
 
+  test("offline, a business or category page falls back to this release's shell, never a waiting release's", async () => {
+    const sw = loadServiceWorker({ network: offline });
+    // Created first, so a search across every cache would find it before this release's own.
+    const waiting = await sw.cacheStorage.open("forest-finds-app-v0");
+    await waiting.put("./app.html", new Response("waiting release shell"));
+    const appCache = await sw.cacheStorage.open(sw.constant("APP_CACHE_NAME"));
+    await appCache.put("./app.html", new Response("cached shell"));
+    const { response } = await sw.request("/find/the-forresters/", { mode: "navigate" });
+    assert.equal(await body(response), "cached shell");
+  });
+
   test("online, a business or category page shows its own content rather than the generic shell", async () => {
     const sw = loadServiceWorker({ network: () => new Response("the forresters page") });
     const appCache = await sw.cacheStorage.open(sw.constant("APP_CACHE_NAME"));
