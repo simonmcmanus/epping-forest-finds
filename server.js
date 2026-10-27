@@ -119,11 +119,11 @@ function handleStatic(req, res, url) {
     return;
   }
 
-  // The page loads the same two version markers the worker imports. Flag them as local for the page too,
-  // so both name the caches identically ("forest-finds-data-dev-vN"): a first visit hands its map
+  // The page loads the data version marker the worker imports. Flag it as local for the page too, so
+  // both name the data cache identically ("forest-finds-data-dev-vN"): a first visit hands its map
   // downloads to the worker's data cache by that name (js/loader.js), and a mismatch would put them
-  // where the worker never looks.
-  if (requested === "/js/app-cache-version.js" || requested === "/js/data-cache-version.js") {
+  // where the worker never looks. The app marker is left alone: the page only displays it.
+  if (requested === "/js/data-cache-version.js") {
     fs.readFile(resolved, "utf8", (err, source) => {
       if (err) {
         send(res, 404, "Not found");
