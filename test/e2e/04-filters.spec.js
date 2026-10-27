@@ -43,16 +43,17 @@ test.describe("Filter panel", () => {
   });
 
   test("filter button shows active count badge when filters are toggled on", async ({ page }) => {
+    const badge = page.locator("#filterCount");
+    const before = await badge.textContent();
     await page.click("#filterToggle");
-    // Click a subfilter chip to activate it
-    const firstChip = page.locator(".filter-chip").first();
-    await firstChip.click();
+    // Pubs is the only active food filter: turning it off drops the Food group from the count
+    await page.locator('.filter-chip[data-filter-subfilter="pubs"]').click();
     // The toggle (and its badge) is the way in from Nearby, so it hides while Filters itself
     // is open in favour of the ordinary back arrow -- the badge only has to be visible again
     // once back on Nearby.
     await page.click("#nearbyToggle");
-    const badge = page.locator("#filterCount");
     await expect(badge).toBeVisible();
+    await expect(badge).not.toHaveText(before);
   });
 
   test.describe("the nearest list updates live on the Filter screen", () => {

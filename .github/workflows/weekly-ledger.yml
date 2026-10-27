@@ -641,8 +641,7 @@ jobs:
                   test suites run as normal CI checks on the PR instead
                   (step e below) -- that's Simon's and CI's job to wait on,
                   not yours.
-               c. git add the changed data file(s), index.html,
-                  assets/home/inventory/ and
+               c. git add the changed data file(s), index.html and
                   spec/spec-marketing.md if sync-homepage-counts.js touched
                   them, data/business-slugs.json (regenerate-business-slugs.js
                   above -- commit it every run, even when its own diff is

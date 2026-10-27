@@ -92,10 +92,6 @@ test.describe("Events", () => {
     await mockCowApi(page);
     await mockEventsApi(page, [liveEventFixture()]);
     await gotoAndWaitForMap(page);
-    await page.evaluate(() => {
-      const gate = document.getElementById("locationGate");
-      if (gate && !gate.hidden) gate.hidden = true;
-    });
 
     await waitForFrames(page, 30);
     await expect(page.locator("#eventNearbyBanner")).toBeHidden();

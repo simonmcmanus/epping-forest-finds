@@ -165,7 +165,9 @@ test.describe("Searching the map", () => {
     await page.click("#searchToggle");
     await page.fill("#mapSearchInput", "oak tree");
 
-    await expect(page.locator('#mapSearchResults [data-search-type="tree"]').first()).toBeVisible();
+    const first = page.locator('#mapSearchResults [data-search-type="tree"]').first();
+    await expect(first).toBeVisible();
+    await expect(first).toContainText(/oak/i);
   });
 
   test("a street split across many map ways is offered once, and can be navigated to", async ({ page }) => {
@@ -284,18 +286,6 @@ test.describe("Searching the map", () => {
     expect(lookup.landmarkCount).toBe(1);
     expect(lookup.treeCount).toBe(0);
     expect(lookup.opacity).toBe(1);
-  });
-
-  test("search offers no way to clear filters -- that control lives on the Filters screen now", async ({ page }) => {
-    await page.click("#filterToggle");
-    await page.click('[data-filter-subfilter="cows"]');
-    await page.click("#searchToggle");
-    await page.fill("#mapSearchInput", FIXTURE_PLACE);
-    await page.waitForFunction(
-      (name) => state.searchHighlightResults.some((r) => r.item?.name === name),
-      FIXTURE_PLACE
-    );
-    await expect(page.locator("#mapSearchResults [data-filter-clear-all]")).toHaveCount(0);
   });
 
   test("the nearby button is the way back out of search", async ({ page }) => {

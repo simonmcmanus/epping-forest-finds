@@ -25,10 +25,6 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
     });
 
-    test("the location gate is not shown when geolocation is pre-granted", async ({ page }) => {
-      await expect(page.locator("#locationGate")).toBeHidden();
-    });
-
     test("the High Beach stand-in notice is not shown with a real fix", async ({ page }) => {
       await expect(page.locator("#inspectorBody")).not.toContainText("Showing things near High Beach");
     });
@@ -319,11 +315,9 @@ test.describe("permission revoked mid-session", () => {
     });
   });
 
-  test("does not show the blocking location gate, and the map stays usable", async ({ page }) => {
+  test("the map stays usable after location permission is revoked mid-session", async ({ page }) => {
     await gotoAndWaitForMap(page);
-    await expect(page.locator("#locationGate")).toBeHidden();
     await waitForFrames(page, 30);
-    await expect(page.locator("#locationGate")).toBeHidden();
     await expect(page.locator("#mapCanvas")).toBeVisible();
     await expect(page.locator("#inspectorBody .nearest-list li").first()).toBeVisible();
   });

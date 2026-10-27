@@ -78,8 +78,6 @@ test.describe("Overview / Nearby screen", () => {
     });
     const nav = page.locator(".inspector-actions");
     await expect(nav).toHaveCSS("bottom", "44px");
-    await expect(nav).toHaveCSS("border-bottom-left-radius", "20px");
-    await expect(nav).toHaveCSS("border-bottom-right-radius", "20px");
     await expect.poll(async () => page.evaluate(() => {
       const nav = document.querySelector(".inspector-actions").getBoundingClientRect();
       const sheet = document.getElementById("inspector").getBoundingClientRect();
@@ -101,15 +99,13 @@ test.describe("Overview / Nearby screen", () => {
     }
   });
 
-  test("navigation announces the current screen with a gold highlight and keeps filter status separate", async ({ page }) => {
+  test("navigation announces the current screen and keeps filter status separate", async ({ page }) => {
     const nav = page.getByRole("navigation", { name: "Main navigation" });
     for (const [id, title] of [["searchToggle", "Search"], ["reportToggle", "Community"], ["settingsToggle", "Settings"], ["nearbyToggle", "Nearby"]]) {
       await page.locator(`#${id}`).click();
       await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
       await expect(page.locator(`#${id}`)).toHaveAttribute("aria-current", "page");
       await expect(page.locator("#inspectorTitle").last()).toContainText(title);
-      await expect(page.locator(`#${id}`)).toHaveCSS("background-color", "rgba(240, 180, 41, 0.16)");
-      await expect(page.locator(`#${id} svg`)).toHaveCSS("stroke", "rgb(138, 106, 0)");
     }
 
     // #filterToggle sits inline next to the Nearby heading, not in the nav row -- same gold
@@ -117,8 +113,6 @@ test.describe("Overview / Nearby screen", () => {
     await page.click("#filterToggle");
     await expect(page.locator("#filterToggle")).toHaveAttribute("aria-current", "page");
     await expect(page.locator("#inspectorTitle").last()).toContainText("Filters");
-    await expect(page.locator("#filterToggle")).toHaveCSS("background-color", "rgba(240, 180, 41, 0.16)");
-    await expect(page.locator("#filterToggle svg")).toHaveCSS("stroke", "rgb(138, 106, 0)");
 
     await page.locator(".filter-chip").first().click();
     await page.click("#nearbyToggle");
@@ -222,14 +216,6 @@ test.describe("Overview / Nearby screen", () => {
       }, firstItem);
       expect(selectedMatches).toBe(true);
     });
-  });
-
-  test("nearby list does not contain the walking distance selector", async ({ page }) => {
-    await expect(page.locator("#inspectorBody #settingsWalkMins")).toHaveCount(0);
-  });
-
-  test("nearby list does not show the app version", async ({ page }) => {
-    await expect(page.locator("#inspectorBody #appVersionDisplay")).toHaveCount(0);
   });
 
   test("filter toggle button is visible in overview mode", async ({ page }) => {

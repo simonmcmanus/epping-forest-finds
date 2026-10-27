@@ -23,14 +23,6 @@ test.describe("Community sign-in", () => {
     await expect(page.locator(".community-contributions")).toBeVisible();
   });
 
-  test("the sign-in banner can be put away and leaves a quiet link", async ({ page }) => {
-    await page.route(ME_URL, (route) =>
-      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: false }) })
-    );
-    await setup(page, "/community");
-    await expect(page.locator(".community-account-quiet a[href^='/api/auth/login']")).toBeVisible();
-  });
-
   test("the screen is drawn once as a skeleton and later renders only update values in place", async ({ page }) => {
     await page.route(ME_URL, (route) =>
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: true, name: "Sam Walker", account: "acct-sam" }) })

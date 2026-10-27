@@ -31,25 +31,22 @@ test.describe("Onboarding", () => {
     test("map data loads in the background while onboarding is visible", async ({ page }) => {
       await page.goto("/nearby");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
-      // Loading overlay may already be hidden (data loaded behind onboarding) — either state is valid,
-      // but the loading overlay must not block onboarding visibility
-      const overlayHidden = await page.locator("#loadingOverlay").getAttribute("hidden");
-      // Onboarding should still be visible regardless of loading state
+      // The map data loads behind the overlay, which stays up until the person moves on.
+      await expect(page.locator('[data-load-step="places"]')).toHaveClass(/done/);
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
     });
 
     test("'Skip for now' advances past the location step without granting permission", async ({ page }) => {
       await page.goto("/nearby");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
-      const skipBtn = page.locator("#onboardingOverlay .onboarding-skip-btn, #onboardingOverlay [class*='skip']").first();
-      await skipBtn.click();
-      // Should have moved to the next step — the overlay may still be visible
-      // (welcome step or a filter group step follows)
-      // Just verify the location-only prompt is gone and onboarding continues
+      await page.locator("#onboardingOverlay .ob-location-skip").click();
+      // The location prompt is gone, onboarding carries on, and nothing was consented to.
+      await expect(page.locator("#onboardingOverlay .ob-location")).toHaveCount(0);
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
+      expect(await page.evaluate(() => localStorage.getItem("ff-track-v1"))).not.toBe("1");
     });
 
-    test("the location step shows the same privacy disclosure the in-map location gate uses", async ({ page }) => {
+    test("the location step discloses anonymous usage data and where to change the choice", async ({ page }) => {
       await page.goto("/nearby");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
       await expect(page.locator("#onboardingOverlay .privacy-note")).toContainText("We collect anonymous usage data");

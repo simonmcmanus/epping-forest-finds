@@ -58,10 +58,6 @@ test.describe("Heads-up Nearby list", () => {
     await skipOnboarding(page);
     await mockCowApi(page);
     await gotoAndWaitForMap(page);
-    await page.evaluate(() => {
-      const gate = document.getElementById("locationGate");
-      if (gate && !gate.hidden) gate.hidden = true;
-    });
     await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
   });
 

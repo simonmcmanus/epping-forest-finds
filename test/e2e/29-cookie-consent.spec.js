@@ -100,7 +100,6 @@ test.describe("Cookie consent banner", () => {
     await expect(notice).toBeVisible();
     await expect(notice).toContainText("Epping Forest Finds is still a work in progress");
     expect(await notice.evaluate((element) => element.parentElement === document.body)).toBe(true);
-    await expect(page.locator("#locateButton")).toHaveCount(0);
     expect((await notice.boundingBox()).y).toBeLessThan(80);
   });
 

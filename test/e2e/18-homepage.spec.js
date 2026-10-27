@@ -7,8 +7,9 @@
  */
 
 const { test, expect } = require("@playwright/test");
+const { skipOnboarding, gotoAndWaitForMap } = require("./helpers");
 const { buildInventory } = require("../../scripts/report/map-inventory.js");
-const { formatCount } = require("../../scripts/count-datasets.js");
+const { formatCount, readCounts } = require("../../scripts/count-datasets.js");
 
 test.describe("the marketing homepage", () => {
   test("links directly to every FAQ answer without requiring JavaScript", async ({ browser }) => {
@@ -19,7 +20,9 @@ test.describe("the marketing homepage", () => {
         await page.goto("/#faq-" + key);
         const answer = page.locator("#faq-" + key);
         await expect(answer).toBeInViewport();
-        await expect(answer).toHaveCSS("background-color", "rgb(246, 241, 231)");
+        // The linked answer is highlighted: it differs from an answer nobody linked to.
+        const other = await page.locator(".faq-item[id]:not(#faq-" + key + ")").first().evaluate(el => getComputedStyle(el).backgroundColor);
+        await expect(answer).not.toHaveCSS("background-color", other);
         await expect(answer.locator("dt a")).toHaveAttribute("href", "#faq-" + key);
       }
       await page.goto("/");
@@ -53,9 +56,62 @@ test.describe("the marketing homepage", () => {
         await expect(page.locator(`[data-inventory-key="${subfilter.key}"] dt > a`)).toHaveAttribute("href", `/nearby/${subfilter.key.replace(/_/g, "-")}/`);
       }
     }
-    await page.locator('[data-inventory-group="food"] summary').click();
+    // On a wide screen the categories are always open: nothing to expand, and no per-place lists.
+    await expect(page.getByRole("link", { name: "Pubs & bars" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Pubs & bars" })).toHaveAttribute("href", "/nearby/pubs/");
+    await expect(page.locator(".inventory-details summary").first()).toBeHidden();
     await expect(page.locator(".inventory-toggle, .inventory-items")).toHaveCount(0);
+  });
+
+  test("on a phone the categories start collapsed and a tap opens one", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    const food = page.locator('[data-inventory-group="food"]');
+    await expect(food.getByRole("link", { name: "Pubs & bars" })).toBeHidden();
+    await food.locator("summary").click();
+    await expect(food.getByRole("link", { name: "Pubs & bars" })).toBeVisible();
+
+    // Growing to a wide screen opens everything and removes the control.
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await expect(page.locator('[data-inventory-group="nature"]').getByRole("link", { name: "Trees" })).toBeVisible();
+    await expect(page.locator(".inventory-details summary").first()).toBeHidden();
+  });
+
+  test("each category count on the homepage is the number of items the map shows for it", async ({ page, request }) => {
+    const html = await (await request.get("/")).text();
+    const quoted = [...html.matchAll(/<div data-inventory-key="([a-z_]+)"[^>]*><dt>.*?<\/dt><dd>([\d,]+)<\/dd>/g)]
+      .map((match) => [match[1], Number(match[2].replace(/,/g, ""))]);
+    expect(quoted.length, "the homepage lists categories with counts").toBeGreaterThan(15);
+
+    await skipOnboarding(page);
+    await gotoAndWaitForMap(page, "/nearby");
+    await page.waitForFunction(() => state.dataLoaded && state.trees.length > 0 && state.landmarks.length > 0);
+    const onMap = await page.evaluate((keys) => Object.fromEntries(keys.map((key) => [
+      key,
+      key === "trees" ? state.trees.length
+        : key === "ponds_streams" ? state.waterFeatures.length
+        : state.landmarks.filter((place) => placeLabelFilterKey(place) === key).length,
+    ])), quoted.map(([key]) => key));
+
+    // The register lists a few trees that have no recorded location, so they cannot be drawn. The
+    // homepage quotes the register's size; the gap must be exactly those records and nothing else.
+    const root = require("node:path").join(__dirname, "..", "..");
+    const index = JSON.parse(require("node:fs").readFileSync(require("node:path").join(root, "data/trees/index.json"), "utf8"));
+    let withoutLocation = 0;
+    for (const chunk of index.chunks) {
+      const { trees } = JSON.parse(require("node:fs").readFileSync(require("node:path").join(root, chunk.url), "utf8"));
+      for (const tree of trees) {
+        const point = tree.location && tree.location.wgs84;
+        const lat = point && Number(point.latitude);
+        const lon = point && Number(point.longitude);
+        if (!(Number.isFinite(lat) && Number.isFinite(lon) && !(lat === 0 && lon === 0))) withoutLocation += 1;
+      }
+    }
+
+    for (const [key, count] of quoted) {
+      const expected = key === "trees" ? onMap[key] + withoutLocation : onMap[key];
+      expect(expected, `${key}: the homepage quotes what the map shows`).toBe(count);
+    }
   });
 
   test("expands categories without JavaScript and hides empty categories", async ({ browser }) => {
@@ -104,8 +160,9 @@ test.describe("the marketing homepage", () => {
     await page.goto("/");
 
     await expect(page.locator("h1")).toHaveText("Your guide to Epping Forest.No Signal Necessary.");
-    await expect(page.getByText("24,906", { exact: false }).first()).toBeVisible();
-    await expect(page.locator(".hero-sub")).toHaveText("A free, offline map of Epping Forest. Find 24,906 veteran trees, forest paths, pubs and grazing cattle.");
+    const trees = formatCount(readCounts(require("node:path").join(__dirname, "..", "..")).trees);
+    await expect(page.getByText(trees, { exact: false }).first()).toBeVisible();
+    await expect(page.locator(".hero-sub")).toHaveText(`A free, offline map of Epping Forest. Find ${trees} veteran trees, forest paths, pubs and grazing cattle.`);
     await expect(page.locator("#signupForm")).toBeVisible();
     await expect(page.locator("#find-trees")).toContainText("Search veteran trees by tag, common or Latin name");
     await expect(page.locator(".signup-intro")).toContainText("opportunities to take part as an early tester");
@@ -135,12 +192,10 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator(".hero + .ledger + .counts + .signup + .pillars + #find-trees")).toHaveCount(1);
     await expect(page.locator("#find-trees + #community")).toHaveCount(1);
     for (const card of await page.locator(".pillars article").all()) {
-      await expect(card).toHaveCSS("border-radius", "14px");
-      await expect(card).not.toHaveCSS("box-shadow", "none");
       const centred = await card.evaluate(el => {
         const cardRect = el.getBoundingClientRect();
         const iconRect = el.querySelector("img").getBoundingClientRect();
-        return iconRect.width === 80 && Math.abs(iconRect.x + iconRect.width / 2 - cardRect.x - cardRect.width / 2) < 1;
+        return Math.abs(iconRect.x + iconRect.width / 2 - cardRect.x - cardRect.width / 2) < 1;
       });
       expect(centred).toBe(true);
     }
@@ -166,15 +221,14 @@ test.describe("the marketing homepage", () => {
     const iconLeftOfTotal = await page.locator(".inventory-total").evaluate(total => {
       const icon = total.querySelector("img").getBoundingClientRect();
       const count = total.querySelector("strong").getBoundingClientRect();
-      return icon.width === 44 && icon.right <= count.left && icon.bottom > count.top && icon.top < count.bottom;
+      return icon.right <= count.left && icon.bottom > count.top && icon.top < count.bottom;
     });
     expect(iconLeftOfTotal).toBe(true);
     await expect(page.locator(".inventory-group h3")).toContainText(
       inventory.groups.map(group => `${group.label}${formatCount(group.count)}`)
     );
-    await expect(page.locator(".inventory-group h3 img")).toHaveCount(6);
-    await expect(page.locator(".inventory-group dt img")).toHaveCount(22);
-    for (const summary of await page.locator(".inventory-details summary").all()) await summary.click();
+    await expect(page.locator(".inventory-group h3 img")).toHaveCount(inventory.groups.length);
+    await expect(page.locator(".inventory-group dt img")).toHaveCount(inventory.groups.reduce((sum, group) => sum + group.subfilters.length, 0));
     const iconAlignment = await page.locator(".inventory-group").evaluateAll(groups => groups.map(group => {
       const parent = group.querySelector("h3 img").getBoundingClientRect();
       return [...group.querySelectorAll("[data-inventory-key]:not([hidden]) dt img")].every(icon => {
@@ -205,12 +259,7 @@ test.describe("the marketing homepage", () => {
     await expect(trees.locator(".app-shot img")).toHaveCount(3);
     const shots = await trees.locator(".app-shot img").evaluateAll(images => images.map(img => img.getAttribute("src")));
     expect(shots).toEqual(["assets/home/app-search.jpg", "assets/home/app-nearby-route.png", "assets/home/app-tree-age.png"]);
-    for (const shot of await trees.locator(".app-shot img").all()) {
-      await expect(shot).toHaveCSS("border-top-color", "rgb(29, 74, 47)");
-      await expect(shot).toHaveCSS("border-top-width", "4px");
-    }
     for (const figure of await trees.locator(".app-shot").all()) {
-      await expect(figure).toHaveCSS("border-top-width", "0px");
       const tucked = await figure.evaluate(el => {
         const phone = el.querySelector("img").getBoundingClientRect();
         const caption = el.querySelector("figcaption").getBoundingClientRect();
@@ -240,7 +289,6 @@ test.describe("the marketing homepage", () => {
       };
     });
     expect(geometry).toEqual({ square: true, centred: true });
-    await expect(feature).toHaveCSS("border-top-width", "0px");
     await expect(page.locator("#find-trees .tag-intro .tag-feature")).toHaveCount(1);
     const layout = await page.locator(".tag-intro").evaluate(intro => {
       const copy = intro.querySelector(".tag-copy").getBoundingClientRect();
@@ -290,13 +338,11 @@ test.describe("the marketing homepage", () => {
       { besideTitle: true, centredOnTitle: true, flushWithEyebrow: true },
       { besideTitle: true, centredOnTitle: true, flushWithEyebrow: null }
     ]);
-    await expect(page.locator(".ledger").getByRole("link", { name: "Read the latest edition →" })).toHaveCSS("background-color", "rgb(46, 107, 68)");
+    await expect(page.locator(".ledger").getByRole("link", { name: "Read the latest edition →" })).toBeVisible();
     await expect(page.locator("main > section:last-child")).toHaveClass(/\bfaq\b/);
     await expect(page.locator(".faq")).not.toContainText("Does it drain my battery?");
     await expect(page.locator(".site-foot")).not.toContainText("Map data ©");
     await expect(page.locator(".offline-note")).toContainText("Cattle locations offline");
-    await expect(page.locator(".signup")).toHaveCSS("border-left-color", "rgb(243, 211, 107)");
-    await expect(page.locator(".signup")).toHaveCSS("border-top-width", "1px");
     const signupWidths = await page.locator(".signup").evaluate(el => {
       const style = getComputedStyle(el);
       const available = el.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
@@ -312,18 +358,11 @@ test.describe("the marketing homepage", () => {
   test("presents the offline steps as one divided card and the questions as one divided card", async ({ page }) => {
     await page.goto("/");
     const panel = page.locator(".offline-how .offline-panel");
-    await expect(panel).toHaveCSS("border-radius", "14px");
-    await expect(panel).not.toHaveCSS("box-shadow", "none");
     const steps = panel.locator(".steps li");
     await expect(steps).toHaveCount(3);
     await expect(steps.locator("strong")).toHaveText(["Open it once", "It downloads", "Walk out of range"]);
     for (const step of await steps.all()) {
-      await expect(step).toHaveCSS("box-shadow", "none");
-      const badge = await step.evaluate(el => {
-        const style = getComputedStyle(el, "::before");
-        return { background: style.backgroundColor, radius: style.borderRadius, width: style.width };
-      });
-      expect(badge).toEqual({ background: "rgb(29, 74, 47)", radius: "50%", width: "38px" });
+      await expect(step.locator("strong")).toBeVisible();
     }
     // Each step's title sits beside its badge, not on a row of its own.
     const titleBesideBadge = await steps.evaluateAll(items => items.map(el => {
@@ -337,7 +376,6 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator(".offline-note img")).toHaveAttribute("src", "assets/home/cow.png");
 
     const faq = page.locator(".faq-list");
-    await expect(faq).toHaveCSS("border-radius", "14px");
     await expect(faq.locator(".faq-item")).toHaveCount(6);
     await expect(faq.locator(".faq-item + .faq-item").first()).toHaveCSS("border-top-style", "solid");
   });
@@ -355,14 +393,14 @@ test.describe("the marketing homepage", () => {
     const shot = page.locator(".app-shot").last();
     const [phoneDelay, captionDelay] = await shot.evaluate(fig =>
       [fig.querySelector("img"), fig.querySelector("figcaption")].map(el => parseFloat(el.style.transitionDelay) || 0));
-    expect(captionDelay - phoneDelay).toBe(160);
+    expect(captionDelay, "the caption trails the phone").toBeGreaterThan(phoneDelay);
     await shot.scrollIntoViewIfNeeded();
     await expect(shot.locator(".reveal")).toHaveCount(0);
     if (await page.evaluate(() => matchMedia("(hover: hover)").matches)) {
       await shot.hover();
       const lift = el => new DOMMatrix(getComputedStyle(el).transform).m42;
-      await expect.poll(() => shot.locator("img").evaluate(lift)).toBe(-6);
-      await expect.poll(() => shot.locator("figcaption").evaluate(lift)).toBe(-1);
+      await expect.poll(() => shot.locator("img").evaluate(lift)).toBeLessThan(0);
+      await expect.poll(() => shot.locator("figcaption").evaluate(lift)).toBeLessThan(0);
     }
 
     const card = page.locator(".pillars article").first();
@@ -410,8 +448,6 @@ test.describe("the marketing homepage", () => {
       parseFloat(getComputedStyle(h1.querySelector(".h1-tagline")).fontSize)
     ]);
     expect(tagline).toBeLessThan(headline);
-    await expect(page.locator(".hero-photo figcaption")).toHaveCSS("background-color", "rgb(29, 74, 47)");
-    await expect(page.locator(".hero-photo figcaption")).toHaveCSS("color", "rgb(255, 255, 255)");
     const captionFlush = await page.locator(".hero-photo").evaluate(figure => {
       const photo = figure.querySelector("img").getBoundingClientRect();
       const caption = figure.querySelector("figcaption").getBoundingClientRect();

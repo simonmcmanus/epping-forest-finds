@@ -63,9 +63,6 @@ test("the grouped homepage inventory matches the app's map inventory", () => {
     assert.ok(block, `the homepage should show the ${group.label} group`);
     assert.ok(block[1].includes(`<strong>${formatCount(group.count)}</strong>`));
     for (const subfilter of group.subfilters) {
-      const items = JSON.parse(fs.readFileSync(path.join(ROOT, "assets/home/inventory", `${subfilter.key}.json`), "utf8"));
-      assert.strictEqual(items.length, subfilter.count, `${subfilter.label} lists every counted record`);
-      assert.ok(items.every(item => typeof item.name === "string" && item.name.trim() && typeof item.detail === "string"));
       const label = subfilter.label.replace(/&/g, "&amp;").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       assert.match(block[1], new RegExp(`<dt><a href="/nearby/${subfilter.key.replace(/_/g, "-")}/"><img[^>]*>${label}</a></dt><dd>${formatCount(subfilter.count)}</dd>`));
     }

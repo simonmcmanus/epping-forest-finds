@@ -268,12 +268,6 @@ test.describe("Community tree verification", () => {
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
   });
 
-  test("Settings no longer carries the contributions card", async ({ page }) => {
-    await setup(page, "/settings");
-    await expect(page.locator(".settings-form")).toBeVisible();
-    await expect(page.locator(".community-contributions")).toHaveCount(0);
-  });
-
   test("adding a missing tree is a form: nothing is sent or logged until the user submits it", async ({ page }) => {
     const posted = [];
     await page.route(REPORT_URL, async (route) => {
@@ -412,9 +406,8 @@ test.describe("Community place checks", () => {
     const box = page.locator(".community-check-place");
     await expect(box).toContainText("Help check this place");
     const nearest = page.locator('h3.detail-section-heading:has-text("Nearest")');
-    if (await nearest.count()) {
-      expect((await nearest.first().boundingBox()).y).toBeGreaterThan((await box.boundingBox()).y);
-    }
+    await expect(nearest).toHaveCount(1);
+    expect((await nearest.boundingBox()).y).toBeGreaterThan((await box.boundingBox()).y);
     await expect(box.locator(".community-or")).toContainText("Something not right?");
     await expect(box.locator(".community-choices")).toBeHidden();
     await box.locator(".community-or").click();
