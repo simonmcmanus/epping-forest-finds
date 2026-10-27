@@ -158,6 +158,7 @@ test("when a window holds more than one response can carry, the newest events ar
   assert.strictEqual(result.partial, true);
   assert.strictEqual(result.locations.length, 25);
   assert.strictEqual(result.oldestDay, tracking.dayOf(now - 2 * DAY));
+  assert.strictEqual(result.oldestDayIncomplete, true, "the read stopped inside that day, and says so");
   const newest = Math.max(...result.locations.map((e) => Date.parse(e.ts)));
   assert.strictEqual(newest, now, "the newest event is kept");
 });
@@ -352,4 +353,24 @@ test("a daily file that fails to read is never overwritten with only the new eve
   await tracking.compact(store, { now });
   const uids = (await tracking.readWindow(store, { windowDays: 1, now })).locations.map((e) => e.uid);
   assert.deepStrictEqual(uids, ["first", "second"]);
+});
+
+test("a read that reaches the end of its window says its earliest day is complete", async () => {
+  const store = memoryStore();
+  const now = Date.now();
+  await tracking.storeBatch(store, [location("u1", now)], { now });
+  const result = await tracking.readWindow(store, { windowDays: 2, now });
+  assert.strictEqual(result.partial, false);
+  assert.strictEqual(result.oldestDayIncomplete, false);
+});
+
+test("a read that runs out of time inside a day marks that day as only partly read", async () => {
+  const store = memoryStore();
+  const now = Date.now();
+  for (let i = 0; i < 60; i += 1) await tracking.storeBatch(store, [location(`u${i}`, now - i * 1000)], { now: now + i });
+  let clock = 0;
+  const result = await tracking.readWindow(store, { windowDays: 3, now, budgetMs: 5, clock: () => (clock += 1) });
+  assert.strictEqual(result.partial, true);
+  assert.strictEqual(result.oldestDay, tracking.dayOf(now));
+  assert.strictEqual(result.oldestDayIncomplete, true);
 });

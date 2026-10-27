@@ -1219,7 +1219,9 @@ function updateStats() {
   const uids = new Set([...locs, ...clicks].map((e) => e.uid));
   const windowLabel = (Number.isFinite(lastMeta?.windowDays) ? ` &nbsp;·&nbsp; last ${lastMeta.windowDays} days` : "")
     + (lastMeta?.partial
-      ? ` &nbsp;·&nbsp; <em>partial: too much data for one read, newest shown${lastMeta.oldestDay ? ` (back to ${escapeHtml(lastMeta.oldestDay)})` : ""}</em>`
+      ? ` &nbsp;·&nbsp; <em>partial: too much data for one read, newest shown${lastMeta.oldestDay
+        ? ` (back to ${escapeHtml(lastMeta.oldestDay)}${lastMeta.oldestDayIncomplete ? ", that day only in part" : ""})`
+        : ""}</em>`
       : "");
   el.innerHTML = `<strong>${uids.size}</strong> user${uids.size !== 1 ? "s" : ""} &nbsp;·&nbsp; <strong>${locs.length}</strong> location pings &nbsp;·&nbsp; <strong>${clicks.length}</strong> taps${windowLabel}`;
 }

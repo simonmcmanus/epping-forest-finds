@@ -237,7 +237,9 @@ function packedSize(event) {
 
 // Newest day first, a few days at a time, until the window, the time budget or the response size
 // runs out. A response bigger than Netlify's 6 MB limit fails outright, so the size budget sits
-// well under it, and the newest events win when a single day is bigger than that.
+// well under it, and the newest events win when a single day is bigger than that. When reading stops
+// part-way through a day, that day's events are still returned (dropping them would return nothing
+// when a single day is over budget), and `oldestDayIncomplete` says the earliest day is only in part.
 async function readWindow(adapter, { windowDays, now = Date.now(), budgetMs = 7000, maxBytes = 4_500_000, clock = Date.now, dayGroup = 3 } = {}) {
   const deadline = clock() + budgetMs;
   const days = Array.from({ length: windowDays }, (_, i) => dayOf(now - i * DAY_MS));
@@ -245,6 +247,7 @@ async function readWindow(adapter, { windowDays, now = Date.now(), budgetMs = 70
   let bytes = 0;
   let partial = false;
   let oldestDay = null;
+  let oldestDayIncomplete = false;
 
   outer:
   for (let i = 0; i < days.length; i += dayGroup) {
@@ -258,16 +261,16 @@ async function readWindow(adapter, { windowDays, now = Date.now(), budgetMs = 70
       const events = [...result.location.events, ...result.click.events].sort((a, b) => eventMs(b) - eventMs(a));
       for (const event of events) {
         const size = packedSize(event);
-        if (bytes + size > maxBytes) { partial = true; oldestDay = result.day; break outer; }
+        if (bytes + size > maxBytes) { partial = true; oldestDay = result.day; oldestDayIncomplete = true; break outer; }
         bytes += size;
         kept[event.type].push(event);
       }
       oldestDay = result.day;
-      if (result.location.partial || result.click.partial) { partial = true; break outer; }
+      if (result.location.partial || result.click.partial) { partial = true; oldestDayIncomplete = true; break outer; }
     }
   }
 
-  return { locations: kept.location.reverse(), clicks: kept.click.reverse(), partial, oldestDay };
+  return { locations: kept.location.reverse(), clicks: kept.click.reverse(), partial, oldestDay, oldestDayIncomplete };
 }
 
 // ---- Compaction (track-compact-scheduled.js) ----

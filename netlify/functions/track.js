@@ -232,7 +232,7 @@ exports.handler = async (event) => {
       logTrack("read-ok", { windowDays, locations: result.locations.length, clicks: result.clicks.length, partial: result.partial, oldestDay: result.oldestDay });
       return response(200, adminBody(result.locations, result.clicks, {
         ...baseMeta,
-        ...(result.partial ? { partial: true, oldestDay: result.oldestDay } : {}),
+        ...(result.partial ? { partial: true, oldestDay: result.oldestDay, oldestDayIncomplete: result.oldestDayIncomplete } : {}),
       }));
     } catch (blobErr) {
       warnTrack("blob-read-failed", errorDetails(blobErr));
