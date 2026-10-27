@@ -22,8 +22,19 @@ test.describe("Cookie consent banner", () => {
     await expect(banner).toContainText("You may find data problems or bugs");
     await expect(banner.getByRole("link", { name: "report any you find" })).toHaveAttribute("href", "/report");
 
+    // It leads with the same oak the homepage shows top left, loaded rather than broken.
+    const logo = banner.locator("img.early-testing-logo");
+    await expect(logo).toBeVisible();
+    expect(await logo.evaluate((img) => img.complete && img.naturalWidth > 0)).toBe(true);
+    const bytesOf = async (src) => (await page.request.get(new URL(src, page.url()).href)).body();
+    const logoBytes = await bytesOf(await logo.getAttribute("src"));
+
     await page.reload();
     await expect(page.locator("#earlyTestingBanner")).toHaveCount(0);
+
+    await page.goto("/");
+    const homepageMark = await bytesOf(await page.locator(".brand-mark").getAttribute("src"));
+    expect(logoBytes.equals(homepageMark)).toBe(true);
   });
 
   test("early testing notice lives inside the app inspector instead of overlaying the map", async ({ page }) => {

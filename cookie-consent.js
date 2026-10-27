@@ -146,6 +146,7 @@ box-shadow:0 2px 8px rgba(19,31,25,.12);
 font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,ui-sans-serif,system-ui,sans-serif;
 display:flex;gap:12px 18px;align-items:flex-start}
 #earlyTestingNoticeSlot #earlyTestingBanner{margin:12px 12px 0;background:linear-gradient(120deg,rgba(197,139,22,.13),rgba(255,255,255,.86))}
+#earlyTestingBanner .early-testing-logo{flex:0 0 auto;width:36px;height:36px}
 #earlyTestingBanner .early-testing-copy{flex:1 1 320px;min-width:0}
 #earlyTestingBanner strong{display:block;margin:0 0 3px;font-size:.95rem;font-weight:800}
 #earlyTestingBanner p{margin:0;color:#5d6a62}
@@ -179,7 +180,9 @@ font:inherit;font-size:1.2rem;line-height:1;cursor:pointer}
     banner.id = "earlyTestingBanner";
     banner.setAttribute("role", "status");
     banner.setAttribute("aria-label", "Early testing notice");
+    // Absolute path: the notice also renders on /reports/ and /find/<slug>/ pages.
     banner.innerHTML =
+      '<img class="early-testing-logo" src="/data/icons/trees/logo.png" alt="" width="36" height="36">' +
       '<div class="early-testing-copy">' +
       "<strong>Epping Forest Finds is still a work in progress</strong>" +
       '<p>You may find data problems or bugs — please <a href="/report">report any you find</a>.</p>' +
