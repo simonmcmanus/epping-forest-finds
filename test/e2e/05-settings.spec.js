@@ -34,6 +34,18 @@ test.describe("Settings screen", () => {
     expect(await page.evaluate(() => state.walkingDistanceMinutes)).toBe(Number(max));
   });
 
+  test("walking presets update the radius and stay in sync with the slider", async ({ page }) => {
+    const preset = page.locator("[data-walk-minutes]").last();
+    const minutes = Number(await preset.getAttribute("data-walk-minutes"));
+    await preset.click();
+    await expect(preset).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#settingsWalkMinsValue")).toHaveText(`${minutes} min`);
+    expect(await page.evaluate(() => state.walkingDistanceMinutes)).toBe(minutes);
+    const min = await page.locator("#settingsWalkMins").getAttribute("min");
+    await setWalkSlider(page, min);
+    await expect(preset).toHaveAttribute("aria-pressed", "false");
+  });
+
   test("dragging the walking radius slider down to its floor reveals the limit note", async ({ page }) => {
     const slider = page.locator("#settingsWalkMins");
     const min = await slider.getAttribute("min");
@@ -481,3 +493,4 @@ test.describe("?nuke=true URL parameter", () => {
     expect(log).toEqual([]);
   });
 });
+
