@@ -2,7 +2,13 @@
 // Central") needs "towards" in front of it. Bare compass points are not a direction the
 // stop is served in, so the transport lookup drops them before they reach here.
 const HAS_DIRECTIONAL_WORDING_REGEX = /bound|towards|via/i;
-const INSPECTOR_MINIMIZE_TRANSITION_TIMEOUT_MS = 180 + 40; // Inspector transition + buffer
+// The inspector moves between a readable sheet and a compact destination header. Keep one
+// duration for the geometry animation and for the camera's "measure after the sheet settles"
+// hand-off. Previously the CSS max-height transition, the mobile height transition, and the
+// camera's timeout each had a different idea of when this state change was finished, which made
+// selecting a Nearby result (and returning with Back) feel like two separate jumps.
+const INSPECTOR_GEOMETRY_TRANSITION_MS = 480;
+const INSPECTOR_MINIMIZE_TRANSITION_TIMEOUT_MS = INSPECTOR_GEOMETRY_TRANSITION_MS + 40;
 
 // --- Hit detection & map click ---
 
@@ -1087,7 +1093,7 @@ function focusOverviewItem(type, key) {
 // transitionend bubbles, and the inspector is full of descendants with their own transitions --
 // row backgrounds (120ms), the drag handle (40ms), nearest-item reorder (150ms). A bare
 // `addEventListener("transitionend", ..., { once: true })` on #inspector therefore fired on
-// whichever of those happened to finish first, which is routinely *before* the 180ms max-height
+// whichever of those happened to finish first, which is routinely *before* the inspector's own
 // transition this is actually waiting for. The camera fit then measured a half-transitioned
 // panel and framed the map against a footprint that no longer existed a moment later -- the
 // "screens don't settle properly on the map" symptom. Match the element and the property.
@@ -1126,8 +1132,8 @@ function zoomToSelection() {
     return;
   }
   state.selectionViewportTransitionPending = true;
-  // Mirrors the 180ms `.inspector` max-height transition in css/inspector.css
-  // plus a ~40ms buffer so the camera measures after the minimized layout settles.
+  // Mirrors the shared `.inspector` geometry duration in css/inspector.css plus a ~40ms buffer so
+  // the camera measures after the minimized layout settles.
   onInspectorHeightTransitionEnd(doZoom);
 }
 

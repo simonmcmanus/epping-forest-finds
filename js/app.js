@@ -7013,7 +7013,7 @@ function alignHeadingUpNavigationViewport(options = {}) {
   const previousTy = state.viewport.ty;
   // assumeInspectorOpen lets a caller that has just un-minimized the inspector fit against
   // its full open footprint. Without it this measured the *current* rect, which during the
-  // 180ms max-height transition (css/inspector.css) is still the minimized size -- and can
+  // shared inspector geometry transition (css/inspector.css) is still the minimized size -- and can
   // even be the pre-toggle size, since the plain path reads the memoized _overlapRectCache.
   // setInspectorMinimized's whole reason for calling this is to avoid fitting against the
   // smaller footprint, so it must opt in; its sibling centerViewportOnPointsKeepScale path
@@ -7186,7 +7186,7 @@ function prepareCanvasForDraw() {
     // one while the camera is still the last interpolated framing. The walking-radius circle,
     // which the whole slide exists to hold still, twitched a few pixels as the slide landed
     // and hopped back when the fade ended. Once the origin has stopped moving this call is a
-    // no-op that costs a fit solve for the ~180ms of the fade.
+    // no-op that costs a fit solve for the short fade.
     alignHeadingUpNavigationViewport({ animate: false, force: true });
     if (fading) requestDraw();
   }
@@ -7430,8 +7430,8 @@ function ensureUserAndSelectionVisible(options = {}) {
     minScale: state.baseFitScale > 0 ? state.baseFitScale : undefined,
     maxScale: maxScale > 0 ? maxScale : undefined,
     boundsSlack: routeIsFallback ? ROUTE_UNKNOWN_FIT_SLACK : 1,
-    // Callers that have just expanded the inspector must opt in: its max-height transition
-    // (180ms, css/inspector.css) has not run yet, so measuring now reports the minimized
+    // Callers that have just expanded the inspector must opt in: its geometry transition
+    // (css/inspector.css) has not run yet, so measuring now reports the minimized
     // footprint and the bottom of the route ends up behind the finished sheet.
     assumeInspectorOpen: Boolean(options.assumeInspectorOpen),
   });

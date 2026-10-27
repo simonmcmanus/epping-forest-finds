@@ -1992,9 +1992,82 @@ function updateMapHoverState(screen) {
   els.canvas.style.cursor = (cluster || hit.type !== "none") ? "pointer" : "";
 }
 
+let inspectorExpansionAnimation = null;
+
+function cancelInspectorExpansionAnimation() {
+  if (!inspectorExpansionAnimation) return;
+  cancelAnimationFrame(inspectorExpansionAnimation.frameId);
+  clearTimeout(inspectorExpansionAnimation.timeoutId);
+  els.inspector.style.transform = inspectorExpansionAnimation.previousTransform;
+  els.inspector.style.transformOrigin = inspectorExpansionAnimation.previousTransformOrigin;
+  els.inspector.style.transition = inspectorExpansionAnimation.previousTransition;
+  els.inspector.style.maxHeight = inspectorExpansionAnimation.previousMaxHeight;
+  inspectorExpansionAnimation = null;
+}
+
+function animateInspectorExpansion(previousRect) {
+  const inspector = els.inspector;
+  if (!inspector || !previousRect) return false;
+  if (typeof prefersReducedMotion === "function" && prefersReducedMotion()) {
+    inspector.classList.remove("minimized");
+    return true;
+  }
+  cancelInspectorExpansionAnimation();
+
+  const previousTransition = inspector.style.transition;
+  const previousTransform = inspector.style.transform;
+  const previousTransformOrigin = inspector.style.transformOrigin;
+  const previousMaxHeight = inspector.style.maxHeight;
+  inspector.style.transition = "none";
+  inspector.classList.remove("minimized");
+  void inspector.offsetWidth;
+  const nextRect = inspector.getBoundingClientRect();
+  const deltaY = previousRect.top - nextRect.top;
+  if (Math.abs(deltaY) < 0.5) {
+    inspector.style.transition = previousTransition;
+    return true;
+  }
+  inspector.style.transformOrigin = "top left";
+  inspector.style.transform = `translateY(${deltaY}px)`;
+  // `height:auto` can change discretely when the body is restored. Give max-height two numeric
+  // endpoints so the panel's bottom edge grows continuously with the top edge instead of
+  // expanding in one frame near the end of the transition.
+  inspector.style.maxHeight = `${previousRect.height}px`;
+  void inspector.offsetWidth;
+  const animation = {
+    frameId: requestAnimationFrame(() => {
+      if (inspectorExpansionAnimation !== animation) return;
+      inspector.style.transition = previousTransition;
+      void inspector.offsetWidth;
+      inspector.style.maxHeight = `${nextRect.height}px`;
+      inspector.style.transform = "none";
+    }),
+    timeoutId: null,
+    previousTransform,
+    previousTransformOrigin,
+    previousTransition,
+    previousMaxHeight,
+  };
+  animation.timeoutId = setTimeout(() => {
+    if (inspectorExpansionAnimation !== animation) return;
+    inspectorExpansionAnimation = null;
+    inspector.style.transform = previousTransform;
+    inspector.style.transformOrigin = previousTransformOrigin;
+    inspector.style.transition = previousTransition;
+    inspector.style.maxHeight = previousMaxHeight;
+  }, INSPECTOR_GEOMETRY_TRANSITION_MS + 40);
+  inspectorExpansionAnimation = animation;
+  return true;
+}
+
 function setInspectorMinimized(minimized) {
   const wasMinimized = els.inspector.classList.contains("minimized");
-  els.inspector.classList.toggle("minimized", minimized);
+  if (wasMinimized && !minimized) {
+    animateInspectorExpansion(els.inspector.getBoundingClientRect());
+  } else {
+    cancelInspectorExpansionAnimation();
+    els.inspector.classList.toggle("minimized", minimized);
+  }
   if (wasMinimized && !minimized) {
     // Expanding the inspector is the app's one sanctioned re-frame for an existing selection
     // ("Expand from minimized: recenter once", spec-data-rendering.md), so it takes the camera

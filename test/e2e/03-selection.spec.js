@@ -2,6 +2,13 @@
 const { test, expect } = require("@playwright/test");
 const { setup, FIXTURE_TREE, settleMapIconsAndDraw, waitForUiToSettle } = require("./helpers");
 
+function largestInspectorFrameStep(samples) {
+  return Math.max(0, ...samples.slice(1).map((sample, index) => Math.max(
+    Math.abs(sample.top - samples[index].top),
+    Math.abs(sample.bottom - samples[index].bottom),
+  )));
+}
+
 test.describe("Selection and Inspector", () => {
   test.describe("tree selected via URL hash", () => {
     test.beforeEach(async ({ page }) => {
@@ -129,6 +136,73 @@ test.describe("Selection and Inspector", () => {
 
     test("inspector back button is visible in selected-detail mode", async ({ page }) => {
       await expect(page.locator("#inspectorBack")).toBeVisible();
+    });
+  });
+
+  test.describe("coordinated state transitions", () => {
+    // The default Playwright project uses reduced motion so ordinary assertions do not wait on
+    // animation. This group opts into the real motion path because it is specifically checking
+    // that Nearby -> destination -> Back moves as one continuous interaction.
+    test.use({
+      reducedMotion: "no-preference",
+      geolocation: { latitude: 51.6650, longitude: 0.0450, accuracy: 10 },
+      permissions: ["geolocation"],
+    });
+
+    test("Nearby selection and Back move the sheet continuously", async ({ page }) => {
+      await setup(page);
+      // Make the motion preference explicit after setup as well as in the project fixture: the
+      // setup helper may have already created the page under its default reduced-motion context.
+      await page.emulateMedia({ reducedMotion: "no-preference" });
+      // The standard setup deliberately removes its fallback location. Restore a deterministic
+      // in-forest fix for this motion-only scenario, then use the same focus function the
+      // delegated Nearby row click calls. That keeps the test about the transition, not about
+      // which dataset item happens to be first in a no-location empty state.
+      await page.evaluate(() => {
+        const item = state.trees[0];
+        state.userLocation = {
+          latitude: item.latitude,
+          longitude: item.longitude,
+          accuracy: 10,
+          point: projectLonLat(item.longitude, item.latitude),
+          isDefault: false,
+        };
+        state.userInMapArea = true;
+        selectOverview();
+      });
+      await expect(page.locator("#inspectorBody [data-overview-type][data-overview-key]").first()).toBeVisible();
+
+      const selectingSamples = await page.evaluate(() => new Promise((resolve) => {
+        const item = document.querySelector("#inspectorBody [data-overview-type][data-overview-key]");
+        focusOverviewItem(item.dataset.overviewType, item.dataset.overviewKey);
+        const samples = [];
+        let frames = 0;
+        const tick = () => {
+          const inspector = document.getElementById("inspector");
+          const rect = inspector.getBoundingClientRect();
+          samples.push({ top: rect.top, bottom: rect.bottom });
+          if (++frames === 24) return resolve(samples);
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }));
+      await page.waitForFunction(() => state.selected && document.getElementById("inspector").classList.contains("minimized"));
+      expect(largestInspectorFrameStep(selectingSamples)).toBeLessThanOrEqual(80);
+
+      const returningSamples = await page.evaluate(() => new Promise((resolve) => {
+        document.getElementById("inspectorBack").click();
+        const samples = [];
+        let frames = 0;
+        const tick = () => {
+          const rect = document.getElementById("inspector").getBoundingClientRect();
+          samples.push({ top: rect.top, bottom: rect.bottom });
+          if (++frames === 24) return resolve(samples);
+          requestAnimationFrame(tick);
+        };
+        requestAnimationFrame(tick);
+      }));
+      await page.waitForFunction(() => !state.selected && document.getElementById("inspectorTitle")?.textContent?.includes("Nearby"));
+      expect(largestInspectorFrameStep(returningSamples)).toBeLessThanOrEqual(80);
     });
   });
 });

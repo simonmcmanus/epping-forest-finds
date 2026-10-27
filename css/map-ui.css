@@ -251,7 +251,16 @@ a.nearest-item {
     height: calc(var(--inspector-height, var(--inspector-navigation-height, var(--inspector-default-height, 55.2%))) - var(--nav-bar-h) - 10px - env(safe-area-inset-bottom, 0px));
     min-height: min(90px, calc(100% - var(--nav-bar-h) - 10px - env(safe-area-inset-bottom, 0px)));
     max-height: calc(100% - var(--nav-bar-h) - 10px - env(safe-area-inset-bottom, 0px));
-    transition: height 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
+    transition:
+      height var(--inspector-motion-duration) cubic-bezier(0.22, 0.61, 0.36, 1),
+      transform var(--inspector-motion-duration) cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
+
+  .inspector.minimized {
+    top: auto;
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px) + var(--nav-bar-h) + 10px);
+    height: calc(var(--inspector-height, var(--inspector-navigation-height, var(--inspector-default-height, 55.2%))) - var(--nav-bar-h) - 10px - env(safe-area-inset-bottom, 0px));
+    max-height: none;
   }
 
   /* A selected destination is a navigation view: give the map more room while the walker is
@@ -271,7 +280,12 @@ a.nearest-item {
      opens taller (js/app.js syncHashFromSelection toggles this class). The class only sets the
      variable the height above already reads, so a height the user has dragged to (an inline
      --inspector-height) still wins. */
-  .inspector.inspector-tall { --inspector-height: 78%; transition: none; }
+  .inspector.inspector-tall {
+    --inspector-height: 78%;
+    transition:
+      height var(--inspector-motion-duration) cubic-bezier(0.22, 0.61, 0.36, 1),
+      transform var(--inspector-motion-duration) cubic-bezier(0.22, 0.61, 0.36, 1);
+  }
 
   .inspector-drag-handle { display: flex; }
 

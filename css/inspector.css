@@ -9,13 +9,16 @@
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: max-height 180ms ease-out;
+  transition:
+    top var(--inspector-motion-duration) cubic-bezier(0.22, 0.61, 0.36, 1),
+    max-height var(--inspector-motion-duration) cubic-bezier(0.22, 0.61, 0.36, 1),
+    transform var(--inspector-motion-duration) cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
 .inspector.is-dragging {
   /* Mobile's sheet now animates `height`, not `max-height` (css/map-ui.css) -- snap both so a
      live drag never fights a queued transition on either property. */
-  transition: max-height 0s, height 0s;
+  transition: top 0s, max-height 0s, height 0s, transform 0s;
 }
 
 /* The Nearby list's own "requesting your location" state (showNearbyLocatingState, js/inspector.js):
@@ -79,9 +82,12 @@
 }
 
 .inspector.minimized {
-  top: auto;
-  bottom: 14px;
-  max-height: none;
+  /* Keep every desktop geometry value numeric. `auto`/`none` are discrete and leave the full
+     card in place until the transition ends, which reads as a jump. */
+  top: calc(100% - 14px - 96px);
+  bottom: auto;
+  height: 96px;
+  max-height: 96px;
   overflow: hidden;
 }
 

@@ -4003,7 +4003,7 @@ test("returning to nearby waits for inspector expansion before starting the near
   assert.equal(app.state.selected, null);
   assert.equal(app.state.viewportAnimationTo, null, "nearby refit should wait until inspector expansion settles");
 
-  await new Promise((resolve) => setTimeout(resolve, 240));
+  await new Promise((resolve) => setTimeout(resolve, 560));
 
   assert.ok(app.state.viewportAnimationTo, "nearby refit should begin after the inspector transition window");
   assert.ok(app.state.viewportAnimationDuration > 0, "nearby refit should animate once the inspector settles");
@@ -7253,7 +7253,7 @@ test("selection viewport re-fits to the whole routed line once the routing graph
 
 test("selection fit honours assumeInspectorOpen so a route is not framed behind the expanding inspector", () => {
   // The deep-link branches call setInspectorMinimized(false) and fit on the very next line,
-  // while the sheet's 180ms max-height transition is still running -- so without opting in the
+  // while the sheet's geometry transition is still running -- so without opting in the
   // fit frames the route into a taller area than will actually be visible, and its far end
   // ends up behind the finished sheet.
   resetData(app);
@@ -7440,7 +7440,7 @@ test("heading-up navigation frames the whole walking route, not just the destina
 
 test("heading-up align honours assumeInspectorOpen so a just-expanded inspector is not measured mid-transition", () => {
   // setInspectorMinimized toggles the class and refits immediately, but the inspector's
-  // max-height transition (180ms) has not run yet -- and the plain path also reads the
+  // geometry transition has not run yet -- and the plain path also reads the
   // memoized overlap rect. Without opting in, the fit is computed against the minimized
   // footprint and the destination can end up behind the expanded sheet.
   resetData(app);
