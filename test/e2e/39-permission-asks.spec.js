@@ -217,6 +217,10 @@ test.describe("a landing-page arrival", () => {
     await expect(card).toBeVisible();
     await expect(page.locator("#consentBannerAccept")).toHaveText("Enable location");
     await expect(card).not.toContainText("cookies");
+    // Led by the same oak logo as every other notice (spec.md "Logo on notices").
+    const logo = card.locator("img.consent-banner-logo");
+    await expect(logo).toBeVisible();
+    expect(await logo.evaluate((img) => img.complete && img.naturalWidth > 0)).toBe(true);
     expect(await locationRequests(page)).toBe(0);
 
     await page.locator("#consentBannerDecline").click();

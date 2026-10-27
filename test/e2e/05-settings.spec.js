@@ -472,7 +472,9 @@ test.describe("?nuke=true URL parameter", () => {
     await page.goto("/nearby");
     await expect(page.locator("#settingsToggle")).toBeVisible();
     const log = await page.evaluate(() => JSON.parse(sessionStorage.getItem("refresh-log") || "[]"));
-    expect(log).toEqual([]);
+    // A normal boot now performs its background data/update check, so SYNC_DATA is expected;
+    // this test is specifically about the nuke recovery path not clearing or unregistering.
+    expect(log.filter((entry) => entry.startsWith("deleted:") || entry.startsWith("unregistered"))).toEqual([]);
   });
 });
 
