@@ -490,19 +490,26 @@ exactly that and stayed green through a size that had quietly reverted.
 
 ## Generated app icon assets
 
-`scripts/generate-app-icon.py` composites `trees/oak.png` — the English oak
-leaf — onto a gold gradient tile (#f7dc82 top-left to #e2a13c bottom-right)
-and writes:
+The oak leaf (`trees/oak.png`, byte-identical to the homepage's top-left brand
+mark `assets/home/map-icons/oak.png`) is the product's single logo.
+`scripts/generate-app-icon.py` composites it onto a gold gradient tile (#f7dc82
+top-left to #e2a13c bottom-right) and writes:
 
-- `icon-192.png`, `icon-512.png` — manifest `purpose: any`. Corners rounded at
-  19% and knocked out to transparency, so the tile sits on any wallpaper.
+- `icon-192.png`, `icon-512.png` — manifest `purpose: any`. Leaf at 62% of the
+  tile height; corners rounded at 19% and knocked out to transparency, so the
+  tile sits on any wallpaper.
 - `icon-maskable-512.png` — manifest `purpose: maskable`. Gold bleeds to the
   edge and the leaf is drawn at 50% of the tile height to clear Android's
   circular crop.
 - `apple-touch-icon.png` — 180px, square and opaque: iOS ignores transparency
   and applies its own mask.
 - `favicon.png` — 128px, square, leaf at 72% so it still reads at 16px. Linked
-  from `index.html`, `admin.html`, `terms.html` and the generated reports index.
+  from `app.html`, `admin.html`, `terms.html` and the generated reports index.
+- `trees/logo.png` — a bare copy of the oak, used by the loading screen, the
+  onboarding welcome step and the Ledger editions' favicon.
+- `assets/home/favicon.png` and `assets/home/apple-touch-icon.png` —
+  independent homepage copies of the favicon and Apple touch icon, since the
+  homepage never loads app assets.
 
-`trees/logo.png` is not part of this set. It uses the emerald Nearby beacon, and is
-used by the onboarding welcome step and the loading screen.
+Re-run the script whenever the oak art changes, so the home screen icon never
+drifts from the homepage mark.
