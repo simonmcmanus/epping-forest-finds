@@ -1816,6 +1816,25 @@ function beginMapDrag(clientX, clientY) {
   els.canvas.classList.add("dragging");
 }
 
+// The mobile sheet and its nav bar float a few pixels in from the screen edges, so thin strips
+// of map show around them. A thumb aimed at the panel's edge that lands just off it was opening
+// whatever happened to be drawn there. Taps within this margin of either panel are dropped; drags
+// and pinches that start there still move the map. Touch and pen only -- a mouse lands where it
+// is pointed.
+const PANEL_EDGE_TAP_MARGIN_PX = 16;
+
+function isTouchTapBesidePanel(event) {
+  if (event.pointerType === "mouse") return false;
+  const m = PANEL_EDGE_TAP_MARGIN_PX;
+  return [els.inspector, els.inspectorActions].some((el) => {
+    if (!el || el.hidden) return false;
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return false;
+    return event.clientX >= r.left - m && event.clientX <= r.right + m
+      && event.clientY >= r.top - m && event.clientY <= r.bottom + m;
+  });
+}
+
 function setupMapCanvasHandlers() {
   els.canvas.addEventListener("pointerdown", (event) => {
     stopViewportAnimation();
@@ -1921,7 +1940,7 @@ function setupMapCanvasHandlers() {
       && state.activePointers.has(event.pointerId);
     endMapPointer(event);
     if (state.activePointers.size === 0) state.multiTouchOccurred = false;
-    if (wasClick) handleMapClick(event);
+    if (wasClick && !isTouchTapBesidePanel(event)) handleMapClick(event);
   });
 
   els.canvas.addEventListener("pointercancel", (event) => {

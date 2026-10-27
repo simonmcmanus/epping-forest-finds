@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, FIXTURE_TREE, settleMapIconsAndDraw, waitForUiToSettle } = require("./helpers");
+const { setup, FIXTURE_TREE, settleMapIconsAndDraw, waitForUiToSettle, tapCanvasPoint, waitForFrames } = require("./helpers");
 
 test.describe("Selection and Inspector", () => {
   test.describe("tree selected via URL hash", () => {
@@ -92,6 +92,41 @@ test.describe("Selection and Inspector", () => {
       await page.click("#nearbyToggle");
       // Hash should no longer contain a tree key
       await expect(page).not.toHaveURL(/tree=/);
+    });
+  });
+
+  test.describe("taps beside the panel", () => {
+    // A position in the forest, so the Nearby list has something to show around the user.
+    test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ["geolocation"] });
+
+    // What a tap changed: the Nearby browse spot, the selection, or the URL. Open ground moves the
+    // first; a pin or street sets the second; both rewrite the third.
+    const mapTapOutcome = (page) => page.evaluate(() => JSON.stringify({
+      anchor: state.nearbyAnchor,
+      selected: state.selected?.type ?? null,
+      url: location.pathname + location.search + location.hash,
+    }));
+
+    test("a finger landing on the strip of map just beside the panel does nothing", async ({ page }) => {
+      await setup(page);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+      await waitForUiToSettle(page);
+      const box = await page.locator("#inspector").boundingBox();
+      expect(box, "the inspector panel is on screen").not.toBeNull();
+      const before = await mapTapOutcome(page);
+
+      // 6 px off the panel's left edge: map shows there, but the finger was aiming for the panel.
+      await tapCanvasPoint(page, { clientX: box.x - 6, clientY: box.y + box.height / 2 }, { alreadyClient: true });
+      await waitForFrames(page, 3);
+      expect(await mapTapOutcome(page), "a tap just beside the panel leaves the map as it was").toBe(before);
+
+      // The same finger well clear of the panel still reaches the map: above the phone's bottom
+      // sheet, or left of the desktop side panel.
+      const clear = box.y > 200
+        ? { clientX: box.x + box.width / 2, clientY: box.y - 80 }
+        : { clientX: box.x / 2, clientY: box.y + box.height / 2 };
+      await tapCanvasPoint(page, clear, { alreadyClient: true });
+      await expect.poll(() => mapTapOutcome(page), "a tap clear of the panel still acts on the map").not.toBe(before);
     });
   });
 
