@@ -14,8 +14,7 @@ const CHUNK_SIZE = 2000;
 const READ_CONCURRENCY = 25;
 
 async function readCache(store) {
-  const index = await store.get(CACHE_INDEX);
-  const count = index && Number.isInteger(index.chunks) ? index.chunks : 0;
+  const count = await cachedChunkCount(store);
   const chunks = await mapLimit(Array.from({ length: count }, (_, n) => n), READ_CONCURRENCY, async (n) => {
     const chunk = await store.get(chunkKey(n));
     return { entries: new Map(chunk && Array.isArray(chunk.entries) ? chunk.entries : []), dirty: !chunk };
@@ -23,10 +22,20 @@ async function readCache(store) {
   return chunks;
 }
 
-async function writeCache(store, chunks) {
+// `previousCount` is how many chunks the index named before this write. When there are now fewer (a
+// deletion emptied the tail), the chunks past the new end are removed: they are never read again, but
+// would otherwise keep copies of deleted reports in storage.
+async function writeCache(store, chunks, previousCount = chunks.length) {
   await mapLimit(chunks.map((chunk, n) => [chunk, n]).filter(([chunk]) => chunk.dirty), READ_CONCURRENCY,
     ([chunk, n]) => store.put(chunkKey(n), { entries: [...chunk.entries] }));
   await store.put(CACHE_INDEX, { chunks: chunks.length });
+  const stale = Array.from({ length: Math.max(0, previousCount - chunks.length) }, (_, i) => chunkKey(chunks.length + i));
+  await mapLimit(stale, READ_CONCURRENCY, (key) => store.delete(key));
+}
+
+async function cachedChunkCount(store) {
+  const index = await store.get(CACHE_INDEX);
+  return index && Number.isInteger(index.chunks) ? index.chunks : 0;
 }
 
 // Every report in the ledger. `strict` (data deletion) reads every report afresh and throws on a storage
@@ -36,6 +45,7 @@ async function loadLedger(store, { strict = false } = {}) {
   const keys = await store.list("reports/");
 
   if (strict) {
+    const previousCount = await cachedChunkCount(store);
     const get = store.getStrict ? (k) => store.getStrict(k) : (k) => store.get(k);
     const reports = await mapLimit(keys, READ_CONCURRENCY, get);
     const chunks = [];
@@ -44,7 +54,7 @@ async function loadLedger(store, { strict = false } = {}) {
       if (!chunks.length || chunks[chunks.length - 1].entries.size >= CHUNK_SIZE) chunks.push({ entries: new Map(), dirty: true });
       chunks[chunks.length - 1].entries.set(key, reports[i]);
     });
-    await writeCache(store, chunks);
+    await writeCache(store, chunks, previousCount);
     return reports.filter(Boolean);
   }
 

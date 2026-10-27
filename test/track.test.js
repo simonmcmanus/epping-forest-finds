@@ -304,3 +304,23 @@ test("every scheduled function, the tracking compaction job included, has a sche
     assert.match(toml, new RegExp(`\\[functions\\."${name}"\\]\\s*\\n\\s*schedule = "[^"]+"`), `${name} has a schedule`);
   }
 });
+
+test("a batch delivered weeks late is merged into its day like any other", async () => {
+  const store = memoryStore();
+  const now = Date.now();
+  const late = now - 30 * DAY;
+  await tracking.storeBatch(store, [location("late-u", late)], { now });
+  await tracking.compact(store, { now, retentionDays: 365 });
+  assert.deepStrictEqual([...store.blobs.keys()].filter((k) => k.startsWith("raw/")), [], "no raw batch is left behind");
+  assert.ok(store.blobs.has(tracking.dailyKey("location", tracking.dayOf(late))));
+});
+
+test("a late batch filed under a day past retention is deleted rather than kept", async () => {
+  const store = memoryStore();
+  const now = Date.now();
+  // Written directly: the endpoint itself refuses events this old, but a batch can outlive its day.
+  await store.setJSON(`${tracking.rawPrefix("location", tracking.dayOf(now - 400 * DAY))}1_x.json`, [location("old", now - 400 * DAY)]);
+  const summary = await tracking.compact(store, { now, retentionDays: 365 });
+  assert.strictEqual(summary.expired, 1);
+  assert.deepStrictEqual([...store.blobs.keys()], []);
+});

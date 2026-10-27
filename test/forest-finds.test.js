@@ -11198,6 +11198,20 @@ test("a ledger bigger than one cache chunk is cached across several chunks and r
   assert.equal(store.reportReads, 0);
 });
 
+test("a deletion that shrinks the ledger cache by a chunk leaves no orphaned chunk holding deleted reports", async () => {
+  const store = memoryStore();
+  const total = communityLedger.CHUNK_SIZE + 1;
+  for (let i = 0; i < total; i += 1) {
+    await store.put(`reports/r${i}`, communityReport({ id: `report-${String(i).padStart(6, "0")}x`, deviceId: `device-${i % 40}aaaa` }));
+  }
+  await communityComputed.rebuildComputed(store);
+  assert.ok(store.data.has("ledger-cache/1"), "two chunks before");
+  await store.delete(`reports/r${total - 1}`);
+  await communityComputed.rebuildComputed(store, { strict: true });
+  assert.equal((await store.get("ledger-cache/index")).chunks, 1);
+  assert.equal(store.data.has("ledger-cache/1"), false, "the emptied trailing chunk is removed from storage");
+});
+
 test("bulk reads run a bounded number at a time, so a large ledger never opens a request per record at once", async () => {
   const store = memoryStore();
   for (let i = 0; i < 200; i += 1) await store.put(`reports/r${i}`, communityReport({ id: `report-${String(i).padStart(6, "0")}x`, deviceId: `device-${i}aaaa` }));

@@ -270,20 +270,36 @@ async function mergeIntoDaily(adapter, type, day, events) {
   await adapter.setJSON(dailyKey(type, day), packEvents(type, mergeEvents(existing, events)));
 }
 
-// Folds recent raw batches into daily files, migrates a page of the old flat layout, and drops daily
-// files past the retention period. Each step stops at the deadline and leaves the rest for the next
-// run; a batch is deleted only after the daily file holding its events has been written.
-async function compact(adapter, { now = Date.now(), budgetMs = 20000, clock = Date.now, lookbackDays = 14, retentionDays = null } = {}) {
+// Folds raw batches into daily files, migrates a page of the old flat layout, and drops data past the
+// retention period. Each step stops at the deadline and leaves the rest for the next run; a batch is
+// deleted only after the daily file holding its events has been written.
+//
+// Every raw batch is swept, whatever day it is filed under: an offline queue can deliver events weeks
+// late, and those must be merged (or, past retention, deleted) like any other. Listing all of `raw/`
+// stays cheap because this job runs every ten minutes, so it only ever holds the last few minutes'
+// batches plus the odd late one.
+async function compact(adapter, { now = Date.now(), budgetMs = 20000, clock = Date.now, retentionDays = null } = {}) {
   const deadline = clock() + budgetMs;
   const summary = { compacted: 0, migrated: 0, expired: 0, partial: false };
   const remove = (keys) => mapLimit(keys, READ_CONCURRENCY, (key) => adapter.delete(key).catch(() => {}));
+  const cutoff = retentionDays ? dayOf(now - retentionDays * DAY_MS) : null;
 
-  for (let i = 0; i < lookbackDays; i += 1) {
-    for (const type of TYPES) {
+  for (const type of TYPES) {
+    if (clock() > deadline) { summary.partial = true; return summary; }
+    const byDay = new Map();
+    for (const key of await adapter.listKeys(`raw/${type}/`)) {
+      const day = key.split("/")[2];
+      if (!byDay.has(day)) byDay.set(day, []);
+      byDay.get(day).push(key);
+    }
+    for (const day of [...byDay.keys()].sort().reverse()) {
       if (clock() > deadline) { summary.partial = true; return summary; }
-      const day = dayOf(now - i * DAY_MS);
-      const keys = await adapter.listKeys(rawPrefix(type, day));
-      if (!keys.length) continue;
+      const keys = byDay.get(day);
+      if (cutoff && day < cutoff) {
+        await remove(keys);
+        summary.expired += keys.length;
+        continue;
+      }
       const { read, partial } = await readKeysUntil(adapter, keys, deadline, clock);
       if (read.length) {
         await mergeIntoDaily(adapter, type, day, read.flatMap((r) => r.events));
@@ -316,8 +332,7 @@ async function compact(adapter, { now = Date.now(), budgetMs = 20000, clock = Da
     if (partial) { summary.partial = true; return summary; }
   }
 
-  if (retentionDays) {
-    const cutoff = dayOf(now - retentionDays * DAY_MS);
+  if (cutoff) {
     for (const type of TYPES) {
       const expired = (await adapter.listKeys(`daily/${type}/`))
         .filter((key) => key.slice(`daily/${type}/`.length, -".json".length) < cutoff);
