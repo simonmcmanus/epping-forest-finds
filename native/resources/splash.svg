@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 2732 2732">
+  <!-- The launch screen: the app's own green with the tree mark, so the first frame matches the map's chrome. -->
+  <rect width="2732" height="2732" fill="#24382f"/>
+  <g transform="translate(1366 1366) scale(1.1) translate(-256 -260)">
+    <path fill="#f3d36b" d="M254 74c44 40 70 92 70 154 0 77-39 133-70 171-31-38-70-94-70-171 0-62 26-114 70-154Z"/>
+    <path fill="none" stroke="#24382f" stroke-linecap="round" stroke-linejoin="round" stroke-width="24" d="M254 120v257M254 235c-39-24-65-53-82-92M254 286c42-24 71-57 91-103M254 333c-31-17-61-42-88-75"/>
+    <path fill="#f7f8f4" d="M222 396h64v50h-64z"/>
+  </g>
+</svg>

@@ -17,6 +17,8 @@ const els = {
   installButton: document.getElementById("installButton"),
   loadingOverlay: document.getElementById("loadingOverlay"),
   consentBanner: document.getElementById("consentBanner"),
+  consentBannerTitle: document.getElementById("consentBannerTitle"),
+  consentBannerText: document.getElementById("consentBannerText"),
   consentBannerAccept: document.getElementById("consentBannerAccept"),
   consentBannerDecline: document.getElementById("consentBannerDecline"),
   locationInviteBanner: document.getElementById("locationInviteBanner"),

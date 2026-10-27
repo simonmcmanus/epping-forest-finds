@@ -238,6 +238,8 @@ The local NDJSON fallback has no day layout, so it reads the whole file and filt
 
 `admin.html` is resolved as `/admin` by Netlify's default pretty-URL behaviour (strips `.html`).
 
+The native app calls `/api/track` from another origin (its own bundle). The `native-cors` edge function, declared in `netlify.toml` on `/api/*`, grants CORS to the two native WebView origins only; `/api/admin/*` is excluded, so the admin endpoint is never readable cross-origin. See `spec-native.md` § Networking.
+
 ## User colour assignment
 
 Colours are assigned from a fixed 15-colour palette in the order users are first seen in the loaded dataset. The mapping is deterministic within a page load but may differ between loads if the order of events changes.

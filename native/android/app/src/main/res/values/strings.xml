@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Epping Forest Finds</string>
+    <string name="title_activity_main">Epping Forest Finds</string>
+    <string name="package_name">uk.eppingforestfinds.app</string>
+    <string name="custom_url_scheme">uk.eppingforestfinds.app</string>
+</resources>

@@ -2030,9 +2030,10 @@ function communityRenderAccount(account, note = "") {
   noteEl.innerHTML = note ? `<p class="community-account-note" role="status">${escapeHtml(note)}</p>` : "";
   line.classList.remove("is-loading");
   line.classList.toggle("community-account-quiet", !(account && account.signedIn));
+  // No sign-in inside the native app: see settingsAccountHtml (js/app.js).
   line.innerHTML = account && account.signedIn
     ? `<span class="community-account-copy">Signed in as <strong>${escapeHtml(account.name)}</strong>.</span><a href="/api/auth/logout?return=/community">Sign out</a>`
-    : `<a href="/api/auth/login?return=/community">Sign in to take your points with you</a>`;
+    : (Native.isNative ? "" : `<a href="/api/auth/login?return=/community">Sign in to take your points with you</a>`);
   recover.hidden = Boolean(account && account.signedIn);
 }
 

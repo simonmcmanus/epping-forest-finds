@@ -34,6 +34,7 @@ const APP_SHELL = [
   "./css/map-ui.css",
   "./css/onboarding.css",
   "./css/tracking.css",
+  "./js/native.js",
   "./js/categories.js",
   "./js/app-cache-version.js",
   "./js/data-cache-version.js",

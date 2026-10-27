@@ -1,0 +1,88 @@
+name: Native build
+
+# Proves the committed iOS and Android projects (native/, spec/spec-native.md) still compile with the
+# current client in them. Unsigned debug builds only: nothing here signs, uploads or publishes.
+# Runs only when something the binaries are built from changes, not on every data refresh.
+
+on:
+  pull_request:
+    paths:
+      - "native/**"
+      - "app.html"
+      - "js/native.js"
+      - "netlify/edge-functions/native-cors.js"
+      - ".github/workflows/native-build.yml"
+  push:
+    branches: [main]
+    paths:
+      - "native/**"
+      - "js/native.js"
+      - ".github/workflows/native-build.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Android debug build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: native/package-lock.json
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Install Capacitor
+        working-directory: native
+        run: npm ci --no-audit --no-fund
+      - name: Bundle the client and sync it into the projects
+        working-directory: native
+        run: npm run sync:www && npx cap sync android
+      - name: Build the debug APK
+        working-directory: native/android
+        run: ./gradlew --no-daemon assembleDebug
+      - name: Report the APK size
+        run: ls -lh native/android/app/build/outputs/apk/debug/*.apk
+
+  ios:
+    name: iOS simulator build
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: native/package-lock.json
+      # Capacitor 8 needs a current Xcode; the runner image's default can lag behind.
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: Install Capacitor
+        working-directory: native
+        run: npm ci --no-audit --no-fund
+      - name: Bundle the client and sync it into the projects
+        working-directory: native
+        run: npm run sync:www && npx cap sync ios
+      - name: Build for the simulator, unsigned
+        working-directory: native/ios/App
+        run: >-
+          xcodebuild -project App.xcodeproj -scheme App -configuration Debug
+          -sdk iphonesimulator -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO build

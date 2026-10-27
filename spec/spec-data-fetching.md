@@ -62,6 +62,8 @@ that featured a map addition.
 | Cows & pastures | `/api/cows?center=<lon>,<lat>` (proxy) | Every 5 minutes |
 | Cows (upstream) | `https://account.nofence.no/api/open/data/?center=<lon>,<lat>` | — |
 
+Inside the native app (`spec-native.md`) the offline files load from the app bundle under the same relative paths, while every root-relative `/api/…` and `/.netlify/functions/…` request goes to the website's origin (`js/native.js` wraps `fetch`); no call site differs between the two.
+
 ---
 
 ## Loading Strategy

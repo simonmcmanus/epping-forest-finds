@@ -700,7 +700,10 @@ function cacheVersionLabel(keys) {
 }
 
 function setupPwa() {
-  if ("serviceWorker" in navigator) {
+  // Inside the native shell the app and its data are bundled files: a cache-first worker in front
+  // of them would be a second, stale copy with an update prompt that has nothing to wait on.
+  // App updates come from the store there (spec-native.md "Versioning and the update story").
+  if ("serviceWorker" in navigator && !Native.isNative) {
     let _firstChange = !navigator.serviceWorker.controller;
 
     navigator.serviceWorker.addEventListener("message", (event) => {
@@ -918,7 +921,7 @@ function setupInspectorHandlers() {
   if (els.compassCalibrationBannerDismiss) {
     els.compassCalibrationBannerDismiss.addEventListener("click", () => {
       if (state.compassPermissionPromptVisible) {
-        hideCompassPermissionPrompt();
+        dismissCompassPermissionPrompt();
       } else if (typeof dismissCompassCalibrationPrompt === "function") {
         dismissCompassCalibrationPrompt();
       }

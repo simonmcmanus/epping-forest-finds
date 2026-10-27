@@ -183,8 +183,8 @@ test.describe("generated find/nearby pages", () => {
       const staticHtml = await (await request.get("/nearby")).text();
       expect(staticHtml).toContain('<h2 id="inspectorTitle">Nearby</h2>');
       expect(staticHtml).toContain("Nearest selected filters within 30 min walk of High Beach");
-      // The location and cookie ask is part of the static page, not added once JS boots.
-      expect(staticHtml).toContain('id="consentBanner" class="consent-banner" role="group" aria-label="Location and cookies">');
+      // The location ask is part of the static page, not added once JS boots.
+      expect(staticHtml).toContain('id="consentBanner" class="consent-banner" role="group" aria-label="Location">');
       const staticKeys = [...staticHtml.matchAll(/href="\/nearby\/trees\/#tree=([^"]+)"/g)].map((m) => decodeURIComponent(m[1]));
       expect(staticKeys.length).toBeGreaterThan(0);
 
@@ -207,11 +207,11 @@ test.describe("generated find/nearby pages", () => {
       expect(staticKeys).toEqual(liveKeys);
     });
 
-    test("bare /nearby shows the location and cookie ask, the Filters button and the tree list with JavaScript disabled", async ({ browser, baseURL }) => {
+    test("bare /nearby shows the location ask, the Filters button and the tree list with JavaScript disabled", async ({ browser, baseURL }) => {
       const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
       const page = await context.newPage();
       await page.goto("/nearby");
-      await expect(page.locator("#consentBanner")).toContainText("Allow location & cookies");
+      await expect(page.locator("#consentBanner")).toContainText("See what's near you");
       await expect(page.locator("#filterToggle")).toBeVisible();
       await expect(page.locator("#filterCount")).toHaveText("3");
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
@@ -259,7 +259,7 @@ test.describe("generated find/nearby pages", () => {
       expect(staticTypeMatch).not.toBeNull();
       expect(staticTypeMatch[1]).toMatch(/^\d+ Pubs and bars within 30 min walk of High Beach$/);
       expect(staticHtml).toContain(
-        "Enable location to get walking directions and see what's near pubs and bars and help us understand how people use this site."
+        "Enable location to get walking directions and see what's near pubs and bars. <a href=\"/terms.html\""
       );
 
       await gotoAndWaitForMap(page, "/nearby/pubs/");
@@ -287,7 +287,7 @@ test.describe("generated find/nearby pages", () => {
     test("a business page's consent banner names that place in its lead phrase, server-rendered and still on screen once JS boots -- not the generic app-wide copy", async ({ page, request }) => {
       const staticHtml = await (await request.get(`/find/${EXAMPLE_PUB.slug}/`)).text();
       expect(staticHtml).toContain(
-        `<p>Enable location to get walking directions and see how far you are from ${escapeHtml(EXAMPLE_PUB.name)} and help us understand how people use this site.`
+        `<p id="consentBannerText">Enable location to get walking directions and see how far you are from ${escapeHtml(EXAMPLE_PUB.name)}. <a href="/terms.html"`
       );
       expect(staticHtml).not.toContain("Shows nearby finds and their distance from you");
 
