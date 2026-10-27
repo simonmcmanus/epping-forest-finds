@@ -234,6 +234,10 @@ globalThis.__forestFindsTest = {
   // because the app looks the method up on it at every call.
   performance,
   formatDistance,
+  fetchMapData,
+  requestPersistentStorage,
+  cowEndpointUrl,
+  cowCenterForRequest,
   projectLonLat,
   unprojectPoint,
   distanceMetres,
@@ -5756,11 +5760,13 @@ test("service worker falls back to the cached app shell offline for /nearby/<slu
   }
 });
 
-test("service worker never writes a /nearby/<slug>/ or /find/<slug>/ page's own HTML into the shared app-shell cache slot", async () => {
+test("service worker never overwrites the installed app shell from a navigation, whether a stable screen or a /nearby/<slug>/ or /find/<slug>/ page", async () => {
   // Each generated page has its own distinct title/JSON-LD/initial body -- caching any single one
   // of them under the one "./app.html" key the five stable screens share would make that slot's
   // content depend on whichever page a visitor last loaded, corrupting every other page's offline
-  // fallback. Executes the real fetch handler against a fake navigate event and a cache spy,
+  // fallback. A stable screen's network copy is not written either: it may be the next release's
+  // page, which would then boot against this release's cached scripts. Executes the real fetch
+  // handler against a fake navigate event and a cache spy,
   // rather than inspecting the source, so a regression here would actually fail this.
   const root = path.join(__dirname, "..");
   let fetchHandler = null;
@@ -5775,7 +5781,7 @@ test("service worker never writes a /nearby/<slug>/ or /find/<slug>/ page's own 
     },
     importScripts: () => {},
     caches: {
-      open: async () => ({ put: async (key) => cachePuts.push(key) }),
+      open: async () => ({ put: async (key) => cachePuts.push(key), match: async () => ({ __cached: true }) }),
       match: async () => ({ __cached: true }),
       keys: async () => [],
     },
@@ -5800,7 +5806,7 @@ test("service worker never writes a /nearby/<slug>/ or /find/<slug>/ page's own 
     return [...cachePuts];
   }
 
-  assert.deepEqual(await fireNavigate("/nearby"), ["./app.html"], "a stable screen refreshes the shared shell");
+  assert.deepEqual(await fireNavigate("/nearby"), [], "a newer deploy's page must not replace the shell matching this release's scripts");
   assert.deepEqual(await fireNavigate("/find/the-forresters/"), [], "a business page must never overwrite it");
   assert.deepEqual(await fireNavigate("/nearby/pubs/"), [], "a category page must never overwrite it either");
 });
@@ -5836,13 +5842,46 @@ test("the app asks the controlling worker for a background data sync, but not of
   const messages = [];
   const controller = { postMessage: (m) => messages.push(m) };
 
-  await withFakeServiceWorker(app, { controller }, () => { app.requestBackgroundDataSync(); app.requestBackgroundDataSync({ force: true }); });
+  await withFakeServiceWorker(app, { controller }, () => Promise.all([app.requestBackgroundDataSync(), app.requestBackgroundDataSync({ force: true })]));
   assert.deepEqual(JSON.parse(JSON.stringify(messages)), [{ type: "SYNC_DATA", force: false }, { type: "SYNC_DATA", force: true }]);
 
   messages.length = 0;
   await withFakeServiceWorker(app, { controller, online: false }, () => app.requestBackgroundDataSync());
   await withFakeServiceWorker(app, { controller: null }, () => app.requestBackgroundDataSync());
   assert.deepEqual(messages, [], "nothing is sent offline, or on a first load with nothing cached to refresh");
+});
+
+test("on a first visit the background sync waits until the page's own map downloads have reached the cache", async () => {
+  const messages = [];
+  const controller = { postMessage: (m) => messages.push(m) };
+  let finishHandOver;
+  const previousFetch = app.swapGlobalFunction("fetch", async () => ({ ok: true, clone: () => ({}) }));
+  const previousCaches = app.swapGlobalFunction("caches", {
+    open: async () => ({ put: () => new Promise((resolve) => { finishHandOver = resolve; }) }),
+  });
+  const nav = app.navigator;
+  const previousSw = nav.serviceWorker;
+  const wasOnline = nav.onLine;
+  nav.onLine = true;
+  try {
+    // Downloaded before the worker took control: the hand-over to the cache is still being written.
+    nav.serviceWorker = { controller: null, getRegistration: async () => ({}) };
+    await app.fetchMapData("data/local-environment.geojson");
+    await new Promise((resolve) => setImmediate(resolve));
+    // The worker takes control and the page asks for a sync.
+    nav.serviceWorker = { controller };
+    const sync = app.requestBackgroundDataSync();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(messages, [], "no sync while the file is still on its way into the cache");
+    finishHandOver();
+    await sync;
+    assert.equal(messages.length, 1, "the sync goes out once the hand-over has landed");
+  } finally {
+    nav.onLine = wasOnline;
+    app.swapGlobalFunction("fetch", previousFetch);
+    app.swapGlobalFunction("caches", previousCaches);
+    if (previousSw === undefined) delete nav.serviceWorker; else nav.serviceWorker = previousSw;
+  }
 });
 
 test("applying an update activates the fully downloaded waiting worker and never reloads straight away", async () => {
@@ -8348,6 +8387,7 @@ function resetLocationSmoothing(app) {
   app.state.rawUserLocation = null;
   app.state.locationGlide = null;
   app.state.locationSmoothedAt = null;
+  app.state.locationFixHistory = [];
 }
 
 test("the first GPS fix is used as delivered, with no smoothing to ease in from", () => {
@@ -8421,6 +8461,50 @@ test("a position that stops updating still converges on the last fix, rather tha
     Math.abs(app.state.userLocation.longitude - destination.longitude) < 0.000005,
     `longitude should reach the fix, off by ${Math.abs(app.state.userLocation.longitude - destination.longitude)}`
   );
+});
+
+// About 15m north per step at Epping Forest's latitude: train speed over a one-second fix
+// interval, yet under LOCATION_SMOOTHING_SNAP_METRES, so only the speed check can stop the easing.
+const TRAIN_STEP_DEG = 0.000135;
+
+test("on a train, a fix the device reports at travelling speed is used as delivered, so Nearby keeps up", () => {
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  app.state.userLocation = app.ingestLocationFix(51.665, 0.045, 25, 1000, 20);
+  const next = app.ingestLocationFix(51.665 + TRAIN_STEP_DEG, 0.045, 25, 2000, 20);
+  assert.equal(app.state.locationGlide, null, "no easing behind a moving train");
+  assert.equal(next.latitude, 51.665 + TRAIN_STEP_DEG, "the position is the fix itself");
+});
+
+test("sustained travel with no device speed reading stops being smoothed within a few seconds", () => {
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  // A fix a second at 15 m/s, with the map's frames running between them as they do on a phone.
+  // Eased, the position alternated between trailing up to ~30m behind and snapping forward.
+  for (let i = 0; i <= 12; i += 1) {
+    const at = 1000 + i * 1000;
+    const latitude = 51.665 + i * TRAIN_STEP_DEG;
+    app.state.userLocation = app.ingestLocationFix(latitude, 0.045, 25, at, null);
+    if (i >= 8) {
+      assert.equal(app.state.locationGlide, null, `fix ${i}: eight seconds at 15 m/s is travel, not wander`);
+      assert.equal(app.state.userLocation.latitude, latitude, `fix ${i}: the position is the fix, not a trailing ease`);
+    }
+    for (let t = at + 16; t < at + 1000; t += 16) app.advanceLocationGlide(t);
+  }
+});
+
+test("a walker's wander under trees is still smoothed however long it goes on", () => {
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  // Fifteen seconds of fixes scattered up to ~8m either side of one spot, no device speed.
+  const offsets = [0, 0.00007, -0.00006, 0.00005, -0.00007, 0.00003, -0.00004, 0.00007, -0.00005, 0.00006, -0.00007, 0.00004, -0.00006, 0.00007, -0.00003, 0.00005];
+  offsets.forEach((offset, i) => {
+    app.state.userLocation = app.ingestLocationFix(51.665 + offset, 0.045 - offset, 25, 1000 + i * 1000, null);
+    if (i > 0) assert.ok(app.state.locationGlide, `fix ${i} is wander and should still be eased`);
+  });
 });
 
 test("a large jump in position lands at once rather than crawling there", () => {
@@ -10746,22 +10830,100 @@ test("detailsHtml renders Opening hours as plain text like any other detail row"
   assert.match(html, /<dt>Opening hours<\/dt><dd>Mo-Su 09:00-17:00<\/dd>/);
 });
 
-const trackFunction = require("../netlify/functions/track");
+// --- First visit: the page hands its map downloads to the service worker's data cache (js/loader.js) ---
 
-test("an admin read of a big tracking store returns the newest blobs and says it is partial when time runs out", async () => {
-  const blobs = Array.from({ length: 10 }, (_, i) => ({ key: `location/${1000 + i}_abc` }));
-  let clock = 0;
-  const now = () => clock;
-  const fastStore = { get: async (key) => [{ key }] };
-  const slowStore = { get: async (key) => { clock += 1500; return [{ key }]; } };
-  const full = await trackFunction.readBlobsWithinBudget(fastStore, blobs, { budgetMs: 7000, batch: 3, now });
-  assert.equal(full.partial, false);
-  assert.equal(full.items.length, 10);
-  clock = 0;
-  const partial = await trackFunction.readBlobsWithinBudget(slowStore, blobs, { budgetMs: 7000, batch: 3, now });
-  assert.equal(partial.partial, true);
-  assert.equal(partial.items.length, 6, "two batches fit in the budget, a third does not");
-  assert.equal(partial.items[0].key, "location/1009_abc", "the newest blob is read first");
+function withHandOverEnvironment({ controller = null, registration = {}, response = { ok: true } } = {}, run) {
+  const put = [];
+  const fakeCaches = { open: async (name) => ({ put: async (url, body) => put.push({ name, url, body }) }) };
+  const fakeResponse = () => ({ ...response, clone: () => ({ cloned: true }) });
+  const previousFetch = app.swapGlobalFunction("fetch", async () => fakeResponse());
+  const previousCaches = app.swapGlobalFunction("caches", fakeCaches);
+  const previousSw = app.navigator.serviceWorker;
+  app.navigator.serviceWorker = registration === undefined
+    ? undefined
+    : { controller, getRegistration: async () => registration };
+  return Promise.resolve(run(put)).finally(() => {
+    app.swapGlobalFunction("fetch", previousFetch);
+    app.swapGlobalFunction("caches", previousCaches);
+    if (previousSw === undefined) delete app.navigator.serviceWorker; else app.navigator.serviceWorker = previousSw;
+  });
+}
+
+const handOverSettled = () => new Promise((resolve) => setImmediate(resolve));
+
+test("on a first visit a downloaded map file is handed to the data cache, so the service worker need not fetch it again", () =>
+  withHandOverEnvironment({}, async (put) => {
+    await app.fetchMapData("data/local-roads.geojson");
+    await handOverSettled();
+    assert.equal(put.length, 1);
+    assert.equal(put[0].url, "data/local-roads.geojson");
+    assert.match(put[0].name, /^forest-finds-data-/);
+  }));
+
+test("once a service worker controls the page, nothing is handed over (the worker caches what passes through it)", () =>
+  withHandOverEnvironment({ controller: {} }, async (put) => {
+    await app.fetchMapData("data/local-roads.geojson");
+    await handOverSettled();
+    assert.equal(put.length, 0);
+  }));
+
+test("with no service worker registered (blocked, or unsupported), nothing is written to the cache", () =>
+  withHandOverEnvironment({ registration: null }, async (put) => {
+    await app.fetchMapData("data/local-roads.geojson");
+    await handOverSettled();
+    assert.equal(put.length, 0);
+  }));
+
+test("a failed download, or a file outside data/, is never handed over", async () => {
+  await withHandOverEnvironment({ response: { ok: false } }, async (put) => {
+    await app.fetchMapData("data/local-roads.geojson");
+    await handOverSettled();
+    assert.equal(put.length, 0);
+  });
+  await withHandOverEnvironment({}, async (put) => {
+    await app.fetchMapData("Veteran_Tree_Register.json");
+    await handOverSettled();
+    assert.equal(put.length, 0);
+  });
+});
+
+// --- Persistent storage (js/nav.js requestPersistentStorage) ---
+
+async function persistRequests({ persisted = false, userAgent = "Mozilla/5.0 (iPhone) Safari/605.1.15" } = {}) {
+  const calls = [];
+  const previous = { storage: app.navigator.storage, userAgent: app.navigator.userAgent };
+  app.navigator.storage = { persisted: async () => persisted, persist: async () => { calls.push("persist"); return true; } };
+  app.navigator.userAgent = userAgent;
+  try {
+    app.requestPersistentStorage();
+    await handOverSettled();
+    return calls.length;
+  } finally {
+    if (previous.storage === undefined) delete app.navigator.storage; else app.navigator.storage = previous.storage;
+    app.navigator.userAgent = previous.userAgent;
+  }
+}
+
+test("the app asks the browser to keep its offline storage, so Safari does not clear it after a week away", async () => {
+  assert.equal(await persistRequests(), 1);
+});
+
+test("storage that is already persisted is not asked for again", async () => {
+  assert.equal(await persistRequests({ persisted: true }), 0);
+});
+
+test("Firefox, which would show a permission prompt for it, is not asked", async () => {
+  assert.equal(await persistRequests({ userAgent: "Mozilla/5.0 (Android 14; Mobile; rv:130.0) Gecko/130.0 Firefox/130.0" }), 0);
+});
+
+test("a browser without the storage API is left alone", () => {
+  const previous = app.navigator.storage;
+  delete app.navigator.storage;
+  try {
+    assert.doesNotThrow(() => app.requestPersistentStorage());
+  } finally {
+    if (previous !== undefined) app.navigator.storage = previous;
+  }
 });
 
 // --- Community verification consensus (netlify/functions/lib/community-consensus.js) ---
@@ -10996,6 +11158,7 @@ test("confirming a place scores nothing and a fixed feedback report earns the fi
 });
 
 const communityComputed = require("../netlify/functions/lib/community-computed");
+const communityLedger = require("../netlify/functions/lib/community-ledger");
 
 function memoryStore(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -11022,19 +11185,133 @@ test("a rebuild stores each person's score in a small shard that one lookup can 
   assert.match(communityComputed.scoreShard("device-aaaa"), /^[0-9a-f]{2}$/);
 });
 
-test("in production a request serves a slightly old snapshot instead of rebuilding inline", async () => {
-  const store = memoryStore({ computed: { generatedAt: Date.now() - 90 * 60 * 1000, overlay: { "tree:1": { s: "verified" } }, conflicts: [] } });
+test("in production a request serves an old snapshot, however old, instead of rebuilding inline", async () => {
+  // If the scheduled rebuild stops because the ledger outgrew it, an inline rebuild would fail the same way
+  // on every visitor's request; an old snapshot is better than none.
+  const store = memoryStore({ computed: { generatedAt: Date.now() - 6 * 60 * 60 * 1000, overlay: { "tree:1": { s: "verified" } }, conflicts: [] } });
   const original = process.env.CONTEXT;
+  const warn = console.warn;
   try {
     process.env.CONTEXT = "production";
+    console.warn = () => {};
     const stale = await communityComputed.loadComputed(store);
+    console.warn = warn;
     assert.deepEqual(Object.keys(stale.overlay), ["tree:1"]);
     process.env.CONTEXT = "deploy-preview";
     const fresh = await communityComputed.loadComputed(store);
     assert.deepEqual(Object.keys(fresh.overlay), [], "previews and local dev rebuild once the snapshot is past its TTL");
   } finally {
+    console.warn = warn;
     if (original === undefined) delete process.env.CONTEXT; else process.env.CONTEXT = original;
   }
+});
+
+function countingStore(initial = {}) {
+  const store = memoryStore(initial);
+  store.reportReads = 0;
+  const get = store.get;
+  store.get = async (key) => { if (key.startsWith("reports/")) store.reportReads += 1; return get(key); };
+  return store;
+}
+
+test("a rebuild fetches only the reports it has not read before", async () => {
+  const store = countingStore();
+  for (let i = 0; i < 5; i += 1) await store.put(`reports/r${i}`, communityReport({ id: `report-${i}aaaa111`, deviceId: `device-${i}aaaa` }));
+  const first = await communityComputed.rebuildComputed(store);
+  assert.equal(first.reportCount, 5);
+  assert.equal(store.reportReads, 5);
+
+  await store.put("reports/r5", communityReport({ id: "report-5aaaa111", deviceId: "device-5aaaa" }));
+  store.reportReads = 0;
+  const second = await communityComputed.rebuildComputed(store);
+  assert.equal(second.reportCount, 6, "the new report is counted");
+  assert.equal(store.reportReads, 1, "and it is the only one fetched");
+});
+
+test("a report deleted from the ledger drops out of the next rebuild even though it was cached", async () => {
+  const store = memoryStore();
+  await store.put("reports/r1", communityReport({ id: "report-1aaaa111", deviceId: "device-1aaaa" }));
+  await store.put("reports/r2", communityReport({ id: "report-2aaaa111", deviceId: "device-2aaaa" }));
+  await communityComputed.rebuildComputed(store);
+  await store.delete("reports/r2");
+  const after = await communityComputed.rebuildComputed(store);
+  assert.equal(after.reportCount, 1);
+  assert.equal((await communityComputed.loadAdminStats(store)).devices, 1, "the deleted report's device no longer counts");
+});
+
+test("a lost ledger cache is refilled from the ledger rather than losing reports", async () => {
+  const store = memoryStore();
+  for (let i = 0; i < 3; i += 1) await store.put(`reports/r${i}`, communityReport({ id: `report-${i}aaaa111`, deviceId: `device-${i}aaaa` }));
+  await communityComputed.rebuildComputed(store);
+  for (const key of [...store.data.keys()].filter((k) => k.startsWith("ledger-cache/") && k !== "ledger-cache/index")) store.data.delete(key);
+  assert.equal((await communityComputed.rebuildComputed(store)).reportCount, 3);
+});
+
+test("the admin dashboard's community figures come from the last rebuild, not a read of the whole ledger", async () => {
+  const store = countingStore();
+  await store.put("reports/r1", communityReport({ id: "report-1aaaa111", deviceId: "device-1aaaa" }));
+  await communityComputed.rebuildComputed(store);
+  store.reportReads = 0;
+  const stats = await communityComputed.loadAdminStats(store);
+  assert.equal(stats.reports, 1);
+  assert.ok(stats.generatedAt > 0, "it says when the figures were taken");
+  assert.equal(store.reportReads, 0);
+});
+
+test("the admin dashboard's community figures are built on demand when no rebuild has run yet", async () => {
+  const store = memoryStore();
+  await store.put("reports/r1", communityReport({ id: "report-1aaaa111", deviceId: "device-1aaaa" }));
+  await store.put("reports/r2", communityReport({ id: "report-2aaaa111", deviceId: "device-2aaaa" }));
+  const stats = await communityComputed.loadAdminStats(store);
+  assert.equal(stats.reports, 2);
+  assert.equal(stats.devices, 2);
+});
+
+test("a ledger bigger than one cache chunk is cached across several chunks and read back whole", async () => {
+  const store = countingStore();
+  const total = communityLedger.CHUNK_SIZE + 50;
+  for (let i = 0; i < total; i += 1) {
+    await store.put(`reports/r${i}`, communityReport({ id: `report-${String(i).padStart(6, "0")}x`, deviceId: `device-${i % 40}aaaa` }));
+  }
+  assert.equal((await communityComputed.rebuildComputed(store)).reportCount, total);
+  assert.equal((await store.get("ledger-cache/index")).chunks, 2);
+  store.reportReads = 0;
+  assert.equal((await communityComputed.rebuildComputed(store)).reportCount, total, "every report comes back from the cache");
+  assert.equal(store.reportReads, 0);
+});
+
+test("a deletion that shrinks the ledger cache by a chunk leaves no orphaned chunk holding deleted reports", async () => {
+  const store = memoryStore();
+  const total = communityLedger.CHUNK_SIZE + 1;
+  for (let i = 0; i < total; i += 1) {
+    await store.put(`reports/r${i}`, communityReport({ id: `report-${String(i).padStart(6, "0")}x`, deviceId: `device-${i % 40}aaaa` }));
+  }
+  await communityComputed.rebuildComputed(store);
+  assert.ok(store.data.has("ledger-cache/1"), "two chunks before");
+  await store.delete(`reports/r${total - 1}`);
+  await communityComputed.rebuildComputed(store, { strict: true });
+  assert.equal((await store.get("ledger-cache/index")).chunks, 1);
+  assert.equal(store.data.has("ledger-cache/1"), false, "the emptied trailing chunk is removed from storage");
+});
+
+test("bulk reads run a bounded number at a time, so a large ledger never opens a request per record at once", async () => {
+  const store = memoryStore();
+  for (let i = 0; i < 200; i += 1) await store.put(`reports/r${i}`, communityReport({ id: `report-${String(i).padStart(6, "0")}x`, deviceId: `device-${i}aaaa` }));
+  for (let i = 0; i < 60; i += 1) await store.put(`devicelink/device-${i}aaaa`, { account: `acct-${i % 3}` });
+  let inFlight = 0;
+  let most = 0;
+  const get = store.get;
+  store.get = async (key) => {
+    inFlight += 1;
+    most = Math.max(most, inFlight);
+    await new Promise((resolve) => setImmediate(resolve));
+    inFlight -= 1;
+    return get(key);
+  };
+  const computed = await communityComputed.rebuildComputed(store);
+  assert.equal(computed.reportCount, 200);
+  assert.ok(most <= 25, `at most 25 reads at once, saw ${most}`);
+  assert.ok(most > 1, "but they do run in parallel");
 });
 
 test("nudges: a card on the overview, a pulse on the tree's own page, and quiet otherwise", () => {
@@ -11369,6 +11646,45 @@ test("one network cannot mint endless device ids to confirm its own reports: com
   }
 });
 
+test("many people behind one mobile-network address can all report, well past one device's hourly allowance", async () => {
+  const reportEndpoint = require("../netlify/functions/community-report");
+  reportEndpoint.setStore(memoryStore());
+  try {
+    for (let n = 0; n < 150; n += 1) {
+      const result = await reportEndpoint.handler({
+        httpMethod: "POST",
+        headers: { "x-nf-client-connection-ip": "198.51.100.20" },
+        body: JSON.stringify({ id: `report-cgnat-${String(n).padStart(4, "0")}`, deviceId: `device-cgnat-${n}-x`, kind: "tree", target: `tree:${n}`, status: "VERIFIED", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01 }),
+      });
+      assert.equal(result.statusCode, 200, `report ${n + 1} from the shared address`);
+    }
+  } finally {
+    reportEndpoint.setStore(null);
+  }
+});
+
+test("'My reports' keeps a device's latest 1,000 reports, dropping the oldest", async () => {
+  const reportEndpoint = require("../netlify/functions/community-report");
+  const store = memoryStore();
+  const deviceId = "device-prolific-1";
+  await store.put(`mine/${deviceId}`, Array.from({ length: 1000 }, (_, i) => ({ id: `old-${i}`, kind: "tree", status: "VERIFIED", ts: i })));
+  reportEndpoint.setStore(store);
+  try {
+    const result = await reportEndpoint.handler({
+      httpMethod: "POST",
+      headers: { "x-nf-client-connection-ip": "198.51.100.21" },
+      body: JSON.stringify({ id: "report-newest-0001", deviceId, kind: "tree", target: "tree:9", status: "VERIFIED", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01 }),
+    });
+    assert.equal(result.statusCode, 200);
+    const mine = await store.get(`mine/${deviceId}`);
+    assert.equal(mine.length, 1000);
+    assert.equal(mine[mine.length - 1].id, "report-newest-0001");
+    assert.equal(mine[0].id, "old-1", "the oldest entry made room");
+  } finally {
+    reportEndpoint.setStore(null);
+  }
+});
+
 const communityDelete = require("../netlify/functions/lib/community-delete");
 
 async function deletionFixture() {
@@ -11416,7 +11732,17 @@ test("a failed read of any record a deletion depends on stops it, and nothing is
   }
 });
 
-test("deletion finds every issue a device filed, even past the 300-entry mine index cap", async () => {
+test("a data deletion leaves no cached copy of the deleted person's reports", async () => {
+  const store = await deletionFixture();
+  const cachedIds = () => [...store.data.keys()].filter((k) => /^ledger-cache\/\d+$/.test(k))
+    .flatMap((k) => store.data.get(k).entries.map(([, report]) => report.deviceId));
+  assert.ok(cachedIds().includes("phone-device-a1"), "the rebuild cached the report first");
+  await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1" });
+  assert.ok(!cachedIds().includes("phone-device-a1"));
+  assert.ok(cachedIds().includes("other-device-b1"), "other people's reports stay cached");
+});
+
+test("deletion finds every issue a device filed, even past the mine index cap", async () => {
   const store = await deletionFixture();
   for (let n = 1000; n < 1005; n += 1) await store.put(`issues/phone-device-a1/${n}`, { ts: n });
   await store.put("issues/other-device-b1/2000", { ts: 1 });
@@ -11784,4 +12110,18 @@ test("the features endpoint answers the public check and keeps the list admin-on
 runRegisteredTests().catch((error) => {
   console.error(error);
   process.exitCode = 1;
+});
+
+// Cross-file invariant: the cow proxy refuses any centre but the app's own (netlify/functions/cows.js).
+test("the cow request the app builds is one the proxy accepts", async () => {
+  const cows = require("../netlify/functions/cows");
+  const url = new URL(app.cowEndpointUrl(app.cowCenterForRequest()), "http://localhost");
+  const original = global.fetch;
+  global.fetch = async () => new Response("{}", { status: 200 });
+  try {
+    const result = await cows.handler({ httpMethod: "GET", queryStringParameters: { center: url.searchParams.get("center") } });
+    assert.equal(result.statusCode, 200);
+  } finally {
+    global.fetch = original;
+  }
 });

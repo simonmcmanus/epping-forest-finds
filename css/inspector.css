@@ -633,7 +633,86 @@ button.settings-toggle.has-update::after {
 
 .settings-form {
   display: grid;
-  gap: 16px;
+  gap: 14px;
+  padding-bottom: 12px;
+}
+
+.settings-intro {
+  margin: 0 2px 4px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.settings-form > .settings-section {
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  background: #fff;
+  gap: 12px;
+  box-shadow: 0 3px 12px rgba(19, 31, 25, 0.025);
+}
+
+.settings-form > .settings-walking {
+  background: linear-gradient(135deg, #edf5e9, #f8faf4);
+  border-color: #c8d9c6;
+}
+
+.settings-form .settings-description { line-height: 1.65; }
+.settings-form .settings-section-title { letter-spacing: -0.02em; }
+.settings-form .settings-btn { min-height: 44px; line-height: 1.4; }
+.settings-form .settings-btn:focus-visible {
+  outline: 3px solid var(--nav);
+  outline-offset: 3px;
+}
+.settings-form .settings-btn:hover:not(:disabled) { background: #edf5e9; }
+.settings-presets { display: flex; flex-wrap: wrap; gap: 8px; }
+.settings-presets .settings-btn { flex: 1; padding-inline: 10px; }
+.settings-presets .settings-btn[aria-pressed="true"] {
+  background: var(--tree);
+  border-color: var(--tree);
+  color: #fff;
+}
+.settings-switch { display: flex; align-items: center; gap: 16px; cursor: pointer; }
+.settings-switch > span { flex: 1; }
+.settings-switch .settings-description { display: block; margin-top: 4px; font-weight: 400; }
+.settings-switch input {
+  appearance: none;
+  flex: 0 0 46px;
+  width: 46px;
+  height: 28px;
+  margin: 8px 0;
+  border: 2px solid #6b786f;
+  border-radius: 20px;
+  background: #e6ebe5;
+  cursor: pointer;
+}
+.settings-switch input::before {
+  content: "";
+  display: block;
+  width: 18px;
+  height: 18px;
+  margin: 3px;
+  border-radius: 50%;
+  background: #56645b;
+}
+.settings-switch input:checked { background: var(--tree); border-color: var(--tree); }
+.settings-switch input:checked::before { transform: translateX(18px); background: #fff; }
+.settings-switch input:focus-visible { outline: 3px solid var(--nav); outline-offset: 4px; }
+.settings-form .walk-radius-row { min-height: 48px; }
+.settings-form .walk-radius-range { min-width: 0; width: 100%; }
+.settings-form .walk-radius-value {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fff;
+  font-size: 1.15rem;
+}
+.settings-form .settings-refresh { border-top: 1px solid var(--line); padding-top: 14px; gap: 12px; }
+.settings-form #settingsAccountBody { display: grid; gap: 12px; }
+.settings-form .tester-id { overflow-wrap: anywhere; }
+@media (forced-colors: active) {
+  .settings-switch input { appearance: auto; }
+  .settings-switch input::before { display: none; }
 }
 
 .settings-section {
@@ -931,21 +1010,24 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   color: #2d6e40;
 }
 
-.sw-update-available {
-  display: inline-block;
-  /* Padding plus a matching negative margin grows the tap target around the small inline
-     version string without shifting the surrounding text (WCAG 2.5.5 target size). */
-  padding: 6px 4px;
-  margin: -6px -4px;
-  color: #b34733;
-  cursor: pointer;
-  font-weight: 700;
-  text-decoration: underline;
+/* The About section's update status line and its one action (check, or restart when ready). */
+.settings-update {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 4px 0 8px;
 }
 
-.sw-update-available::after {
-  content: " — tap to update";
-  font-weight: 400;
+.settings-update .settings-description {
+  flex: 1 1 14rem;
+  margin: 0;
+}
+
+.settings-update[data-status="ready"] .settings-btn {
+  background: #2f6f4e;
+  border-color: #2f6f4e;
+  color: #fff;
 }
 
 .inspector-body {

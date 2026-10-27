@@ -59,7 +59,9 @@ function makeCacheStorage() {
 }
 
 // network: (url, init) => Response | throws. Defaults to 200 with the URL as the body.
-function loadServiceWorker({ dev = false, network } = {}) {
+// update: an older worker is already active in this registration (an app or data release), as
+// opposed to a visitor's very first install.
+function loadServiceWorker({ dev = false, network, update = false } = {}) {
   const handlers = {};
   const cacheStorage = makeCacheStorage();
   const requested = [];
@@ -84,7 +86,7 @@ function loadServiceWorker({ dev = false, network } = {}) {
         claim: async () => {},
         matchAll: async () => [{ postMessage: (message) => posted.push(message) }],
       },
-      registration: {},
+      registration: update ? { active: {} } : {},
     },
     importScripts: (...files) => {
       for (const file of files) vm.runInContext(fs.readFileSync(path.join(root, file), "utf8"), context);
@@ -132,17 +134,50 @@ function loadServiceWorker({ dev = false, network } = {}) {
 const body = async (response) => response.text();
 
 test.describe("installing", () => {
-  test("a first install downloads every app and data shell file", async () => {
+  test("a first install downloads the app shell and leaves the map data to the page already fetching it", async () => {
     const sw = loadServiceWorker();
     await sw.dispatchLifecycle("install");
+    await sw.settle();
     const fetched = new Set(sw.requested.map((r) => r.url));
-    for (const file of [...sw.constant("APP_SHELL"), ...sw.constant("DATA_SHELL")]) {
+    for (const file of sw.constant("APP_SHELL")) {
       assert.ok(fetched.has(absolute(file)), `${file} should be downloaded`);
     }
+    assert.deepEqual(sw.requested.filter((r) => r.url.includes("/data/")).map((r) => r.url), [],
+      "no map file is downloaded a second time while the first page is downloading it");
+  });
+
+  test("a first install leaves the map data to the page even when the page's first files have already reached the cache", async () => {
+    const sw = loadServiceWorker();
+    // js/loader.js can hand over a small file before install gets as far as the data cache.
+    await (await sw.cacheStorage.open(sw.constant("DATA_CACHE_NAME"))).put("./data/events.json", new Response("{}"));
+    await sw.dispatchLifecycle("install");
+    await sw.settle();
+    assert.deepEqual(sw.requested.filter((r) => r.url.includes("/data/")).map((r) => r.url), []);
+  });
+
+  test("after a first visit, the map files the page handed over are served offline and the next sync fills in the rest", async () => {
+    const sw = loadServiceWorker();
+    await sw.dispatchLifecycle("install");
+    await sw.dispatchLifecycle("activate");
+    // What js/loader.js does on a first visit, for each file the page downloaded.
+    const dataCache = await sw.cacheStorage.open(sw.constant("DATA_CACHE_NAME"));
+    await dataCache.put("./data/local-paths.geojson", new Response("paths from the page"));
+    sw.requested.length = 0;
+
+    const served = await sw.request("/data/local-paths.geojson");
+    assert.equal(await body(served.response), "paths from the page");
+    assert.equal(sw.requested.length, 0, "served from the cache, not downloaded again");
+
+    await sw.message({ type: "SYNC_DATA" });
+    const synced = new Set(sw.requested.map((r) => r.url));
+    for (const file of sw.constant("DATA_SHELL")) {
+      assert.ok(await dataCache.match(file), `${file} is cached after the first sync`);
+    }
+    assert.ok(synced.has(absolute("./data/local-environment.geojson")), "a file the page never handed over is fetched by the sync");
   });
 
   test("a reinstall fetches only the shell files that are not already cached", async () => {
-    const sw = loadServiceWorker();
+    const sw = loadServiceWorker({ update: true });
     const appShell = sw.constant("APP_SHELL");
     const dataShell = sw.constant("DATA_SHELL");
     const appCache = await sw.cacheStorage.open(sw.constant("APP_CACHE_NAME"));
@@ -162,7 +197,7 @@ test.describe("installing", () => {
   });
 
   test("a data cache version bump keeps the previous data usable and schedules a background refresh", async () => {
-    const sw = loadServiceWorker();
+    const sw = loadServiceWorker({ update: true });
     const previous = await sw.cacheStorage.open("forest-finds-data-0");
     await previous.put("./data/local-roads.geojson", new Response("old roads"));
 
@@ -180,6 +215,7 @@ test.describe("installing", () => {
 
   test("install succeeds even when the optional tree chunks and icons cannot be downloaded", async () => {
     const sw = loadServiceWorker({
+      update: true,
       network: (url) => (/\/data\/(trees\/chunk-|icons\/)/.test(url) ? Promise.reject(new TypeError("offline")) : new Response("ok")),
     });
     await sw.dispatchLifecycle("install");
@@ -231,15 +267,47 @@ test.describe("serving requests", () => {
     await assert.rejects(sw.request("/api/cows"), /offline/);
   });
 
-  test("a returning visitor gets the cached app instantly, and the cached copy is refreshed from the network", async () => {
-    const sw = loadServiceWorker({ network: () => new Response("fresh shell") });
+  test("a returning visitor gets the cached app instantly, and a newer deploy's page never replaces this release's", async () => {
+    const sw = loadServiceWorker({ network: () => new Response("next release's shell") });
     const appCache = await sw.cacheStorage.open(sw.constant("APP_CACHE_NAME"));
     await appCache.put("./app.html", new Response("cached shell"));
 
-    const { response } = await sw.request("/nearby", { mode: "navigate" });
-    assert.equal(await body(response), "cached shell");
-    await sw.settle();
-    assert.equal(await body(await appCache.match("./app.html")), "fresh shell");
+    for (let visit = 0; visit < 2; visit += 1) {
+      const { response } = await sw.request("/nearby", { mode: "navigate" });
+      assert.equal(await body(response), "cached shell", "the page always matches the scripts this release cached");
+      await sw.settle();
+    }
+    assert.equal(await body(await appCache.match("./app.html")), "cached shell");
+  });
+
+  test("every script and stylesheet app.html loads opens offline from the shell its release installed", async () => {
+    let online = true;
+    const sw = loadServiceWorker({
+      network: (url) => {
+        if (!online) throw new TypeError("offline");
+        return new Response(`installed ${url}`);
+      },
+    });
+    await sw.dispatchLifecycle("install");
+    await sw.dispatchLifecycle("activate");
+    online = false;
+
+    const html = fs.readFileSync(path.join(root, "app.html"), "utf8");
+    const refs = [...html.matchAll(/(?:src|href)="((?:js|css)\/[^"]+)"/g)].map((m) => m[1]);
+    assert.ok(refs.some((ref) => ref.startsWith("js/")) && refs.some((ref) => ref.startsWith("css/")));
+    for (const ref of refs) {
+      const { handled, response } = await sw.request(`/${ref}`);
+      assert.ok(handled, `${ref} should be answered by the worker`);
+      assert.equal(await body(response), `installed ${ORIGIN}/${ref.split("?")[0]}`, `${ref} should come from the installed shell`);
+    }
+  });
+
+  test("an app worker never serves a newer, still-waiting release's files", async () => {
+    const sw = loadServiceWorker({ network: () => new Response("network js") });
+    const waiting = await sw.cacheStorage.open("forest-finds-app-v999999");
+    await waiting.put("./js/added-next-release.js", new Response("waiting release js"));
+    const { response } = await sw.request("/js/added-next-release.js");
+    assert.equal(await body(response), "network js");
   });
 
   test("with no cache yet, the first visit comes from the network", async () => {
@@ -256,6 +324,17 @@ test.describe("serving requests", () => {
       const { response } = await sw.request(pathname, { mode: "navigate" });
       assert.equal(await body(response), "cached shell", `${pathname} should open offline`);
     }
+  });
+
+  test("offline, a business or category page falls back to this release's shell, never a waiting release's", async () => {
+    const sw = loadServiceWorker({ network: offline });
+    // Created first, so a search across every cache would find it before this release's own.
+    const waiting = await sw.cacheStorage.open("forest-finds-app-v0");
+    await waiting.put("./app.html", new Response("waiting release shell"));
+    const appCache = await sw.cacheStorage.open(sw.constant("APP_CACHE_NAME"));
+    await appCache.put("./app.html", new Response("cached shell"));
+    const { response } = await sw.request("/find/the-forresters/", { mode: "navigate" });
+    assert.equal(await body(response), "cached shell");
   });
 
   test("online, a business or category page shows its own content rather than the generic shell", async () => {
@@ -352,6 +431,14 @@ test.describe("background data sync", () => {
     await sw.message({ type: "SYNC_DATA", force: true });
     assert.equal(await body(await cache.match("./data/events.json")), "new events");
     assert.deepEqual(JSON.parse(JSON.stringify(sw.posted)), [{ type: "DATA_UPDATED", changed: 1 }]);
+  });
+
+  test("filling in map files the cache never had stores them without announcing new map data", async () => {
+    const { sw, cache } = await seededWorker((url) =>
+      url.endsWith("/events.json") ? new Response(null, { status: 304 }) : new Response("first download"));
+    await sw.message({ type: "SYNC_DATA", force: true });
+    assert.equal(await body(await cache.match("./data/local-roads.geojson")), "first download");
+    assert.deepEqual(sw.posted, [], "nothing on the person's map changed, so no restart is offered");
   });
 
   test("a server that ignores the conditional request but returns the same validator is not rewritten", async () => {

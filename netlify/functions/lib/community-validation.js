@@ -5,6 +5,7 @@
 // Pure checks live here; runValidation() wires them to the register, the report ledger and GitHub.
 const { validateReport, normalizeTag, distanceMetres, REWARD_POINTS } = require("./community-consensus");
 const { rebuildComputed } = require("./community-computed");
+const { loadLedger } = require("./community-ledger");
 
 const POINTS = REWARD_POINTS;
 const MOVED_FROM_LISTED_METRES = 10; // the register's position must have changed by at least this...
@@ -113,8 +114,7 @@ async function runValidation(deps) {
       state.register = { signature: register.signature, seenAt: now }; // baseline: nothing to compare against yet
       summary.baseline = true;
     } else if (state.register.signature !== register.signature) {
-      const keys = await store.list("reports/");
-      const reports = (await Promise.all(keys.map((k) => store.get(k)))).filter(Boolean);
+      const reports = await loadLedger(store);
       // Only reports made before the register could have changed count. The change happened somewhere
       // between the previous run (which still saw the old register) and now, so the previous run is the
       // safe cutoff: anyone waiting for an update and then posting what it says falls after it. The very

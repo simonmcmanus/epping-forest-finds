@@ -49,6 +49,21 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page).toHaveScreenshot("map-with-location.png", { fullPage: false });
     });
 
+    test("on a train, the position on Nearby is the latest GPS fix rather than easing along behind it", async ({ page, context }) => {
+      await page.waitForFunction((start) => state.rawUserLocation && state.rawUserLocation.latitude === start, FOREST_LOCATION.latitude);
+      // 15m north, at 20 m/s: the speed the phone's own GPS reports on a moving train. Playwright's
+      // setGeolocation has no speed field, so the fix goes through the DevTools protocol.
+      const next = FOREST_LOCATION.latitude + 0.000135;
+      const cdp = await context.newCDPSession(page);
+      await cdp.send("Emulation.setGeolocationOverride", { ...FOREST_LOCATION, latitude: next, speed: 20 });
+      // Read on the first frame the fix is seen, before any easing could close the gap.
+      const gap = await page.waitForFunction(
+        (target) => state.rawUserLocation.latitude === target && { metres: Math.abs(state.userLocation.latitude - target) * 111320 },
+        next
+      ).then((handle) => handle.jsonValue());
+      expect(gap.metres).toBeLessThan(0.01);
+    });
+
     test("a visitor inside the forest is not told they are far from it", async ({ page }) => {
       // The distance check runs as the location step completes, which gotoAndWaitForMap waited for.
       await expect(page.getByRole("dialog", { name: "You're not near the forest yet" })).toBeHidden();

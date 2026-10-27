@@ -157,6 +157,10 @@
 [functions."community-validate-scheduled"]
   schedule = "@daily"
 
+# Folds usage-tracking batches into one file per day (netlify/functions/track-compact-scheduled.js).
+[functions."track-compact-scheduled"]
+  schedule = "*/10 * * * *"
+
 [[redirects]]
   from = "/api/community/rebuild"
   to = "/.netlify/functions/community-rebuild"

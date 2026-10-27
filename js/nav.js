@@ -153,13 +153,115 @@ function refreshSettingsVersionDisplay() {
   if (dataNote) dataNote.hidden = !state.dataUpdateAvailable;
 
   const el = document.getElementById("appVersionDisplay");
-  if (!el) return;
-  if (state.swVersion) el.textContent = state.swVersion;
-  if (state.swUpdateAvailable) {
-    el.classList.add("sw-update-available");
-    if (!el.dataset.updateBound) {
-      el.dataset.updateBound = "1";
-      el.addEventListener("click", applySwUpdate);
+  if (el && state.swVersion) el.textContent = state.swVersion;
+  renderAppUpdateStatus();
+}
+
+// The Settings "Updates" line: what the app knows about a newer release right now, so nobody has to
+// guess from a badge. Every place that learns something about a replacement worker sets it.
+//   idle        nothing checked yet this session
+//   checking    registration.update() is asking for a newer sw.js
+//   current     that check found nothing newer
+//   downloading a newer release is installing, or its waiting worker is fetching its map data
+//   ready       fully downloaded; one restart away
+//   failed      the check or the download did not complete
+// Offline overrides idle/current/failed/checking in what is shown, since no check can run.
+function setAppUpdateStatus(status) {
+  state.appUpdateStatus = status;
+  if (status === "current") state.appUpdateCheckedAt = Date.now();
+  renderAppUpdateStatus();
+  if (status === "downloading" || status === "ready") {
+    newerAppCacheVersion().then((version) => {
+      if (!version || state.appUpdateVersion === version) return;
+      state.appUpdateVersion = version;
+      renderAppUpdateStatus();
+    });
+  }
+}
+
+// A release's install opens its own forest-finds-app-vN cache first thing, so the incoming version can
+// be read from Cache Storage while it downloads. Compared with the version this page is running.
+async function newerAppCacheVersion() {
+  const number = (value) => {
+    const match = /v(\d+)$/.exec(String(value || ""));
+    return match ? Number(match[1]) : null;
+  };
+  const current = number(typeof APP_CACHE_VERSION === "string" ? APP_CACHE_VERSION : "");
+  if (current === null || typeof caches === "undefined") return null;
+  try {
+    let newest = null;
+    for (const key of await caches.keys()) {
+      if (!/^forest-finds-(?:dev-)?app-/.test(key)) continue;
+      const n = number(key);
+      if (n !== null && n > current && (newest === null || n > newest)) newest = n;
+    }
+    return newest === null ? null : `v${newest}`;
+  } catch {
+    return null;
+  }
+}
+
+function appUpdateStatusView() {
+  const status = state.appUpdateStatus || "idle";
+  const version = state.appUpdateVersion;
+  const offline = !navigator.onLine && ["idle", "current", "failed", "checking"].includes(status);
+  if (offline) {
+    return { status: "offline", text: "You're offline. Updates are checked when you're back online.", label: "Check for updates", disabled: true };
+  }
+  switch (status) {
+    case "checking":
+      return { status, text: "Checking for updates…", label: "Checking…", disabled: true };
+    case "current": {
+      const time = new Date(state.appUpdateCheckedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return { status, text: "You have the latest version.", checkedAt: `Checked at ${time}.`, label: "Check for updates", disabled: false };
+    }
+    case "downloading":
+      return { status, text: `Downloading ${version ? `update ${version}` : "an update"}… You can keep using the app while it finishes.`, label: "Downloading…", disabled: true };
+    case "ready":
+      return { status, text: `${version ? `Update ${version}` : "An update"} has downloaded. Restart to start using it.`, label: "Restart now", disabled: false };
+    case "failed":
+      return { status, text: "Couldn't finish checking for updates. Your current app still works offline.", label: "Try again", disabled: false };
+    default:
+      return { status: "idle", text: "Updates are checked automatically while the app is open.", label: "Check for updates", disabled: false };
+  }
+}
+
+function appUpdateStatusHtml() {
+  // No service worker (a native shell, an old browser) means no web update flow to report.
+  if (!("serviceWorker" in navigator)) return "";
+  const view = appUpdateStatusView();
+  const checkedAt = view.checkedAt ? ` <span id="appUpdateCheckedAt">${view.checkedAt}</span>` : "";
+  return `<div id="appUpdateStatus" class="settings-update" data-status="${view.status}">
+        <p id="appUpdateStatusText" class="settings-description" role="status" aria-live="polite">${view.text}${checkedAt}</p>
+        <button id="appUpdateButton" class="settings-btn" type="button"${view.disabled ? " disabled" : ""}>${view.label}</button>
+      </div>`;
+}
+
+function renderAppUpdateStatus() {
+  const container = document.getElementById("appUpdateStatus");
+  if (!container) return;
+  const view = appUpdateStatusView();
+  container.dataset.status = view.status;
+  const text = document.getElementById("appUpdateStatusText");
+  if (text) {
+    text.textContent = view.text;
+    if (view.checkedAt) {
+      const checkedAt = document.createElement("span");
+      checkedAt.id = "appUpdateCheckedAt";
+      checkedAt.textContent = view.checkedAt;
+      text.append(" ", checkedAt);
+    }
+  }
+  const button = document.getElementById("appUpdateButton");
+  if (button) {
+    button.textContent = view.label;
+    button.disabled = view.disabled;
+    if (!button.dataset.bound) {
+      button.dataset.bound = "1";
+      button.addEventListener("click", () => {
+        if (state.appUpdateStatus === "ready") applySwUpdate();
+        else requestAppUpdateCheck({ force: true });
+      });
     }
   }
 }
@@ -168,6 +270,7 @@ function _markSwUpdateAvailable(waiting) {
   if (waiting) state.swWaiting = waiting;
   state.swUpdateAvailable = true;
   if (els.settingsToggle) els.settingsToggle.classList.add("has-update");
+  setAppUpdateStatus("ready");
   refreshSettingsVersionDisplay();
   showUpdateBanner();
 }
@@ -177,13 +280,23 @@ function _markSwUpdateAvailable(waiting) {
 // download has finished, so a single tap restarts into the complete new version. Community
 // findings are applied to the open map live (COMMUNITY_UPDATED) and never need this.
 function showUpdateBanner() {
-  if (document.getElementById("updateBanner")) return;
+  // The wording names what the restart brings: a new app version, or (data only) new map data.
+  // An app update already carries its own data, so it wins once both are known.
+  const [title, detail] = state.swUpdateAvailable
+    ? ["Update ready", "Restart to load the latest version. It only takes a moment."]
+    : ["New map data", "Restart to see the latest trees, paths and places."];
+  const existing = document.getElementById("updateBanner");
+  if (existing) {
+    existing.querySelector(".update-banner-text strong").textContent = title;
+    existing.querySelector(".update-banner-text span").textContent = detail;
+    return;
+  }
   const banner = document.createElement("div");
   banner.id = "updateBanner";
   banner.className = "update-banner";
   banner.setAttribute("role", "status");
   banner.innerHTML = '<span class="update-banner-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg></span>'
-    + '<span class="update-banner-text"><strong>Update ready</strong><span>Restart to load the latest fixes and map data. It only takes a moment.</span></span>'
+    + `<span class="update-banner-text"><strong>${title}</strong><span>${detail}</span></span>`
     + '<button id="updateBannerButton" type="button">Restart</button>';
   document.body.appendChild(banner);
   banner.querySelector("button").addEventListener("click", async (event) => {
@@ -201,15 +314,50 @@ function showUpdateBanner() {
 // Before announcing a waiting worker, let it finish its own data sync so the one restart brings
 // the app and the map data together instead of a second "reload for new data" prompt after it.
 // A failed or timed-out sync still announces the update: the worker's shell is complete either way.
+const preparedWorkers = new WeakSet();
+
 async function prepareWaitingUpdate(waiting) {
+  // The same worker can be reported by registration, updatefound and a manual check at once.
+  if (preparedWorkers.has(waiting)) return;
+  preparedWorkers.add(waiting);
   // Recorded up front: the worker's own sync broadcasts DATA_UPDATED, which must not show the
   // banner (or send a tap down the plain-reload path) until this worker is ready to activate.
   state.swWaiting = waiting;
+  setAppUpdateStatus("downloading");
   await requestDataRefresh({ target: waiting, force: false });
   _markSwUpdateAvailable(waiting);
 }
 
+// A newer worker that is already installing: show it downloading, then hand it to
+// prepareWaitingUpdate once installed. Only for an update -- a first install (no controller yet)
+// is the app becoming available offline, not a new version.
+const followedWorkers = new WeakSet();
+
+function followInstallingWorker(installing) {
+  if (!installing || !navigator.serviceWorker.controller || followedWorkers.has(installing)) return;
+  followedWorkers.add(installing);
+  setAppUpdateStatus("downloading");
+  const onStateChange = () => {
+    if (installing.state === "installed") {
+      installing.removeEventListener("statechange", onStateChange);
+      prepareWaitingUpdate(installing);
+    } else if (installing.state === "redundant") {
+      installing.removeEventListener("statechange", onStateChange);
+      if (state.appUpdateStatus === "downloading") setAppUpdateStatus("failed");
+    }
+  };
+  installing.addEventListener("statechange", onStateChange);
+  onStateChange();
+}
+
 async function applySwUpdate() {
+  // The new release already controls this page (another tab restarted into it, or the browser
+  // activated it): it has its complete shell, so a plain reload is all that is left.
+  if (!state.swWaiting && state.swActivatedElsewhere) {
+    location.reload();
+    return true;
+  }
+
   if (state.swWaiting) {
     state.swPendingReload = true;
     try {
@@ -269,6 +417,7 @@ function updateRefreshButtonsOnlineState() {
     button.disabled = !online;
   });
   if (note) note.hidden = online;
+  renderAppUpdateStatus();
 }
 
 function setRefreshStatus(message, { error = false } = {}) {
@@ -433,14 +582,33 @@ async function refreshCachedState(scope) {
 // sw.js). Called only while the map is visible and interactive, so freshness passes never compete
 // with the render — the load itself is served entirely from cache, and any genuinely changed file
 // lands quietly afterwards. The worker throttles this internally, so foreground checks are cheap.
+// Safari clears a website's storage after seven days without a visit unless it was added to the Home
+// Screen, which loses the offline map and the device id that holds a person's community points. A
+// persisted origin is exempt. Chrome and Safari decide silently; Firefox asks with a permission prompt
+// on first load, which is not worth showing for this, so it is skipped there.
+function requestPersistentStorage() {
+  const storage = navigator.storage;
+  if (!storage || typeof storage.persist !== "function" || typeof storage.persisted !== "function") return;
+  if (/Firefox\//.test(navigator.userAgent || "")) return;
+  storage.persisted()
+    .then((persisted) => (persisted ? null : storage.persist()))
+    .catch(() => {});
+}
+
+// Waits for this page's own map downloads to reach the data cache first (mapDataHandOverSettled,
+// js/loader.js): on a first visit the worker takes control mid-load, and its controllerchange would
+// otherwise start a sync that downloads again every file the page is still fetching.
 function requestBackgroundDataSync(options) {
-  if (!("serviceWorker" in navigator)) return;
-  if (!navigator.onLine) return;
+  if (!("serviceWorker" in navigator)) return Promise.resolve();
+  if (!navigator.onLine) return Promise.resolve();
   const controller = navigator.serviceWorker.controller;
-  if (!controller) return; // First load — nothing cached yet to refresh
-  try {
-    controller.postMessage({ type: "SYNC_DATA", force: Boolean(options && options.force) });
-  } catch {}
+  if (!controller) return Promise.resolve(); // First load — nothing cached yet to refresh
+  const settled = typeof mapDataHandOverSettled === "function" ? mapDataHandOverSettled() : Promise.resolve();
+  return settled.then(() => {
+    try {
+      controller.postMessage({ type: "SYNC_DATA", force: Boolean(options && options.force) });
+    } catch {}
+  });
 }
 
 // Browsers only look for a new sw.js on navigation (and at most daily), which an installed app that
@@ -450,11 +618,33 @@ const APP_UPDATE_CHECK_MIN_INTERVAL_MS = 10 * 60 * 1000;
 let swRegistration = null;
 let lastAppUpdateCheckAt = 0;
 
-function requestAppUpdateCheck() {
-  if (!swRegistration || state.swUpdateAvailable || !navigator.onLine) return;
-  if (Date.now() - lastAppUpdateCheckAt < APP_UPDATE_CHECK_MIN_INTERVAL_MS) return;
+// force: the Settings "Check for updates" button, which skips the throttle.
+async function requestAppUpdateCheck({ force = false } = {}) {
+  if (state.swUpdateAvailable || !navigator.onLine || !("serviceWorker" in navigator)) return;
+  // No controller yet means the first install is still making the app available offline: there
+  // is no running release to update, and its installing worker is not "an update downloading".
+  if (!navigator.serviceWorker.controller) return;
+  if (["checking", "downloading"].includes(state.appUpdateStatus)) return;
+  if (!force && Date.now() - lastAppUpdateCheckAt < APP_UPDATE_CHECK_MIN_INTERVAL_MS) return;
+  let registration = swRegistration;
+  if (!registration) {
+    try { registration = await navigator.serviceWorker.getRegistration(); } catch {}
+  }
+  if (!registration) {
+    if (force) setAppUpdateStatus("failed");
+    return;
+  }
   lastAppUpdateCheckAt = Date.now();
-  swRegistration.update().catch(() => {});
+  setAppUpdateStatus("checking");
+  try {
+    await registration.update();
+  } catch {
+    setAppUpdateStatus("failed");
+    return;
+  }
+  if (registration.installing) followInstallingWorker(registration.installing);
+  else if (registration.waiting && navigator.serviceWorker.controller) prepareWaitingUpdate(registration.waiting);
+  else if (state.appUpdateStatus === "checking") setAppUpdateStatus("current");
 }
 
 function setupBackgroundDataSync() {
@@ -520,6 +710,7 @@ function setupPwa() {
     navigator.serviceWorker.addEventListener("controllerchange", () => {
       if (_firstChange) { _firstChange = false; return; }
       if (state.swPendingReload) { location.reload(); return; }
+      state.swActivatedElsewhere = true;
       _markSwUpdateAvailable(null);
     });
 
@@ -528,16 +719,11 @@ function setupPwa() {
         swRegistration = reg;
         if (reg.waiting && navigator.serviceWorker.controller) {
           prepareWaitingUpdate(reg.waiting);
+        } else if (reg.installing) {
+          followInstallingWorker(reg.installing);
         }
-        reg.addEventListener("updatefound", () => {
-          const installing = reg.installing;
-          if (!installing) return;
-          installing.addEventListener("statechange", () => {
-            if (installing.state === "installed" && navigator.serviceWorker.controller) {
-              prepareWaitingUpdate(installing);
-            }
-          });
-        });
+        reg.addEventListener("updatefound", () => followInstallingWorker(reg.installing));
+        requestAppUpdateCheck();
       })
       .catch(console.error);
 
@@ -553,6 +739,8 @@ function setupPwa() {
         refreshSettingsVersionDisplay();
       })
       .catch(() => {});
+
+    requestPersistentStorage();
   }
 
   if (els.installButton) {
@@ -1795,6 +1983,25 @@ function beginMapDrag(clientX, clientY) {
   els.canvas.classList.add("dragging");
 }
 
+// The mobile sheet and its nav bar float a few pixels in from the screen edges, so thin strips
+// of map show around them. A thumb aimed at the panel's edge that lands just off it was opening
+// whatever happened to be drawn there. Taps within this margin of either panel are dropped; drags
+// and pinches that start there still move the map. Touch and pen only -- a mouse lands where it
+// is pointed.
+const PANEL_EDGE_TAP_MARGIN_PX = 16;
+
+function isTouchTapBesidePanel(event) {
+  if (event.pointerType === "mouse") return false;
+  const m = PANEL_EDGE_TAP_MARGIN_PX;
+  return [els.inspector, els.inspectorActions].some((el) => {
+    if (!el || el.hidden) return false;
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return false;
+    return event.clientX >= r.left - m && event.clientX <= r.right + m
+      && event.clientY >= r.top - m && event.clientY <= r.bottom + m;
+  });
+}
+
 function setupMapCanvasHandlers() {
   els.canvas.addEventListener("pointerdown", (event) => {
     stopViewportAnimation();
@@ -1900,7 +2107,7 @@ function setupMapCanvasHandlers() {
       && state.activePointers.has(event.pointerId);
     endMapPointer(event);
     if (state.activePointers.size === 0) state.multiTouchOccurred = false;
-    if (wasClick) handleMapClick(event);
+    if (wasClick && !isTouchTapBesidePanel(event)) handleMapClick(event);
   });
 
   els.canvas.addEventListener("pointercancel", (event) => {
