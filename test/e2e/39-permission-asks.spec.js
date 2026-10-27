@@ -340,3 +340,22 @@ test.describe("compass access on motion-permission browsers", () => {
     await expect(page.locator("#compassCalibrationBannerEnable")).toBeHidden();
   });
 });
+
+test.describe("compass access before any real location", () => {
+  test("the High Beach stand-in never brings up the compass card on top of the location ask", async ({ page }) => {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await setStored(page, { "ff-track-v1": "0" });
+    await page.addInitScript(() => {
+      if (!window.DeviceOrientationEvent) window.DeviceOrientationEvent = class {};
+      window.DeviceOrientationEvent.requestPermission = () => Promise.resolve("granted");
+    });
+    await stubLocation(page, { permission: "prompt" });
+    await gotoAndWaitForMap(page, "/nearby/filter?show=pubs");
+    await expect(page.locator("#consentBanner")).toBeVisible();
+    // Comfortably past the probe window (COMPASS_GRANT_PROBE_MS) in which the card would appear.
+    await waitForFrames(page, 150);
+    await expect(page.locator("#compassCalibrationBannerEnable")).toBeHidden();
+  });
+});
+

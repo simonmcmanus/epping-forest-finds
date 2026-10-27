@@ -4717,6 +4717,10 @@ function maybeShowCompassPermissionPrompt() {
   state.compassPromptProbePending = true;
   setTimeout(() => {
     state.compassPromptProbePending = false;
+    // Re-checked here, not only on entry: the High Beach stand-in runs through the same fix
+    // pipeline (applyDefaultLocation) and is only flagged as a stand-in once that returns. Without
+    // this, a visitor with no location yet got the compass card stacked on the location ask.
+    if (!hasRealLocation()) return;
     if (state.compassPermission !== "unknown") return;
     // A heading, not just an event: Chromium fires one empty orientation event on attach.
     if (Number.isFinite(compassEventAgeMs())) {
