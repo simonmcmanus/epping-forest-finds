@@ -68,7 +68,7 @@ test.describe("Loading experience", () => {
 
   test("overlay dismisses automatically after all steps complete", async ({ page }) => {
     await page.goto("/nearby");
-    await page.waitForFunction(() => { const el = document.getElementById("loadingOverlay"); return !el || el.hidden === true; }, { timeout: 30_000 });
+    await expect(page.locator("#loadingOverlay")).toBeHidden();
   });
 
   test("map canvas is visible once loading completes", async ({ page }) => {
