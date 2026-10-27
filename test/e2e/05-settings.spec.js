@@ -172,10 +172,121 @@ test.describe("Settings screen", () => {
     for (const id of ["#refreshDataButton", "#refreshAppButton", "#refreshAllButton"]) {
       await expect(page.locator(id)).toBeDisabled();
     }
+    await expect(page.locator("#appUpdateStatusText")).toContainText("You're offline");
+    await expect(page.locator("#appUpdateButton")).toBeDisabled();
 
     await context.setOffline(false);
     await expect(page.locator("#refreshOfflineNote")).toBeHidden();
     await expect(page.locator("#refreshDataButton")).toBeEnabled();
+  });
+
+  test.describe("update status", () => {
+    // Service workers are blocked in these tests, so the browser's registration and the incoming
+    // worker are stood in for at that boundary; everything above it is the real Settings code.
+    // update() makes `installing` a fake worker when `newRelease` is set, the way a browser
+    // reports a newer sw.js; the fake records what the page posts to it.
+    async function stubRegistration(page, { newRelease = false } = {}) {
+      await page.evaluate((newRelease) => {
+        window.__workerMessages = [];
+        const worker = new EventTarget();
+        worker.state = "installing";
+        worker.postMessage = (message) => window.__workerMessages.push(message);
+        window.__incomingWorker = worker;
+        const registration = {
+          installing: null,
+          waiting: null,
+          update: async () => { if (newRelease) registration.installing = worker; },
+        };
+        const serviceWorker = navigator.serviceWorker;
+        Object.defineProperty(serviceWorker, "controller", { configurable: true, value: { postMessage() {} } });
+        Object.defineProperty(serviceWorker, "getRegistration", { configurable: true, value: async () => registration });
+        const realKeys = caches.keys.bind(caches);
+        caches.keys = async () => [...(await realKeys()), "forest-finds-app-v999999"];
+      }, newRelease);
+    }
+
+    test("before any check, Settings says updates are checked automatically and offers a check", async ({ page }) => {
+      await expect(page.locator("#appUpdateStatusText")).toHaveText("Updates are checked automatically while the app is open.");
+      await expect(page.locator("#appUpdateButton")).toHaveText("Check for updates");
+    });
+
+    test("checking for updates with nothing newer says the app is on the latest version", async ({ page }) => {
+      await stubRegistration(page);
+      await page.click("#appUpdateButton");
+      await expect(page.locator("#appUpdateStatusText")).toContainText("You have the latest version.");
+      await expect(page.locator("#appUpdateCheckedAt")).toContainText("Checked at");
+      await expect(page.locator("#appUpdateButton")).toBeEnabled();
+    });
+
+    test("a newer version shows as downloading, then ready, and Restart switches to it", async ({ page }) => {
+      await stubRegistration(page, { newRelease: true });
+      await page.click("#appUpdateButton");
+      await expect(page.locator("#appUpdateStatusText")).toContainText("Downloading update v999999");
+      await expect(page.locator("#appUpdateButton")).toHaveText("Downloading…");
+      await expect(page.locator("#appUpdateButton")).toBeDisabled();
+
+      // The worker finishes installing, then fetches its own map data before it is announced.
+      await page.evaluate(() => {
+        window.__incomingWorker.state = "installed";
+        window.__incomingWorker.dispatchEvent(new Event("statechange"));
+      });
+      await page.waitForFunction(() => window.__workerMessages.some((m) => m.type === "SYNC_DATA"));
+      await expect(page.locator("#appUpdateStatusText")).toContainText("Downloading update v999999");
+
+      await page.evaluate(() => {
+        const sync = window.__workerMessages.find((m) => m.type === "SYNC_DATA");
+        navigator.serviceWorker.dispatchEvent(new MessageEvent("message", {
+          data: { type: "DATA_SYNC_COMPLETE", requestId: sync.requestId, ok: true, changed: 0, failed: 0 },
+        }));
+      });
+      await expect(page.locator("#appUpdateStatusText")).toHaveText("Update v999999 has downloaded. Restart to start using it.");
+      await expect(page.locator("#appUpdateButton")).toHaveText("Restart now");
+
+      await page.click("#appUpdateButton");
+      await page.waitForFunction(() => window.__workerMessages.some((m) => m.type === "SKIP_WAITING"));
+    });
+
+    test("an update that fails to download says so and offers to try again", async ({ page }) => {
+      await stubRegistration(page, { newRelease: true });
+      await page.click("#appUpdateButton");
+      await expect(page.locator("#appUpdateButton")).toHaveText("Downloading…");
+      await page.evaluate(() => {
+        window.__incomingWorker.state = "redundant";
+        window.__incomingWorker.dispatchEvent(new Event("statechange"));
+      });
+      await expect(page.locator("#appUpdateStatusText")).toContainText("Couldn't finish checking for updates");
+      await expect(page.locator("#appUpdateButton")).toHaveText("Try again");
+    });
+
+    // The page's first controllerchange is the first install claiming it (no worker controlled
+    // the page at load here), so the second is a newer release taking over from elsewhere.
+    async function activateReleaseElsewhere(page) {
+      await page.evaluate(() => {
+        navigator.serviceWorker.dispatchEvent(new Event("controllerchange"));
+        navigator.serviceWorker.dispatchEvent(new Event("controllerchange"));
+      });
+    }
+
+    test("a release already switched on in another tab restarts with one tap", async ({ page }) => {
+      await activateReleaseElsewhere(page);
+      await expect(page.locator("#appUpdateButton")).toHaveText("Restart now");
+      await page.evaluate(() => { window.__reloadMarker = true; });
+      await page.click("#appUpdateButton");
+      await page.waitForFunction(() => window.__reloadMarker === undefined);
+    });
+
+    test("snapshot: settings update ready", async ({ page }) => {
+      await activateReleaseElsewhere(page);
+      await expect(page.locator("#appUpdateButton")).toHaveText("Restart now");
+      await page.locator("#appUpdateStatus").scrollIntoViewIfNeeded();
+      await waitForUiToSettle(page);
+      await settleMapIconsAndDraw(page);
+      await expect(page.locator("#testerIdDisplay")).not.toHaveText("…");
+      await expect(page).toHaveScreenshot("settings-update-ready.png", {
+        fullPage: false,
+        mask: [page.locator("#testerIdDisplay"), page.locator("#appVersionDisplay")],
+      });
+    });
   });
 
   test.describe("refresh scopes", () => {
@@ -280,19 +391,6 @@ test.describe("Settings screen", () => {
       expect(log).not.toContain("message:SYNC_DATA");
       expect(log).not.toContain("deleted:forest-finds-data-v9");
       expect(log).not.toContain("deleted:another-apps-cache-v1");
-    });
-
-    test("tapping the app version indicator does nothing without a downloaded replacement", async ({ page }) => {
-      await stubCacheApis(page);
-      await page.evaluate(() => {
-        state.swWaiting = null;
-        state.swUpdateAvailable = true;
-        refreshSettingsVersionDisplay();
-        window.__updateIndicatorMarker = true;
-      });
-      await page.click("#appVersionDisplay");
-      await expect(page.locator("#refreshStatus")).toContainText("No complete app update is ready");
-      expect(await page.evaluate(() => window.__updateIndicatorMarker)).toBe(true);
     });
 
     test("refreshing both downloads the data, then clears the app and data caches but not other apps'", async ({ page }) => {

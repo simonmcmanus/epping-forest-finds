@@ -281,6 +281,10 @@ const state = {
   swVersion: "",
   swWaiting: null,
   swPendingReload: false,
+  swActivatedElsewhere: false,
+  appUpdateStatus: "idle",
+  appUpdateVersion: "",
+  appUpdateCheckedAt: 0,
   animationFrame: null,
   overlayAnimationFrame: null,
   compassAnimationFrame: null,
@@ -2923,7 +2927,8 @@ function settingsFormHtml() {
     </section>
     <section class="settings-section">
       <h3 class="settings-section-title">About</h3>
-      <p class="settings-description">App version: <span id="appVersionDisplay" class="app-version-display${state.swUpdateAvailable ? " sw-update-available" : ""}">${state.swVersion || APP_VERSION}</span></p>
+      <p class="settings-description">App version: <span id="appVersionDisplay" class="app-version-display">${state.swVersion || APP_VERSION}</span></p>
+      ${appUpdateStatusHtml()}
       <p class="settings-description">Tester ID: <code id="testerIdDisplay" class="tester-id">…</code> <button type="button" id="testerIdCopy" class="settings-btn" hidden>Copy</button><br><span class="report-note">Give this to Simon to try early features.</span></p>
       <p class="settings-description">Vibe coded by <a href="https://simonmcmanus.com" target="_blank" rel="noopener noreferrer">Simon McManus</a></p>
       <p id="dataUpdateNote" class="report-note"${state.dataUpdateAvailable ? "" : " hidden"}>New map data has been downloaded. <button id="dataUpdateReloadButton" class="inline-text-button" type="button">Reload now</button> to see it.</p>
