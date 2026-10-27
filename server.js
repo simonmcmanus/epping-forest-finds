@@ -43,11 +43,22 @@ function send(res, status, body, type = "text/plain; charset=utf-8") {
   res.end(body);
 }
 
-function streamFile(res, filePath, type) {
+// Like Netlify, every static file carries a validator and a matching If-None-Match gets a bodyless 304,
+// so the service worker's background data sync (conditional requests, sw.js syncData) costs locally
+// what it costs in production instead of re-downloading every dataset in full. Cache-Control stays
+// no-store, so the browser itself never sends one.
+function streamFile(res, filePath, type, req = null, stats = null) {
+  const etag = stats ? `W/"${stats.size.toString(16)}-${Math.floor(stats.mtimeMs).toString(16)}"` : null;
+  if (etag && req && req.headers["if-none-match"] === etag) {
+    res.writeHead(304, { ETag: etag, "Cache-Control": "no-store" });
+    res.end();
+    return;
+  }
   const stream = fs.createReadStream(filePath);
   res.writeHead(200, {
     "Content-Type": type,
     "Cache-Control": "no-store",
+    ...(etag ? { ETag: etag } : {}),
   });
   stream.pipe(res);
 }
@@ -108,6 +119,21 @@ function handleStatic(req, res, url) {
     return;
   }
 
+  // The page loads the same two version markers the worker imports. Flag them as local for the page too,
+  // so both name the caches identically ("forest-finds-data-dev-vN"): a first visit hands its map
+  // downloads to the worker's data cache by that name (js/loader.js), and a mismatch would put them
+  // where the worker never looks.
+  if (requested === "/js/app-cache-version.js" || requested === "/js/data-cache-version.js") {
+    fs.readFile(resolved, "utf8", (err, source) => {
+      if (err) {
+        send(res, 404, "Not found");
+        return;
+      }
+      send(res, 200, `globalThis.__DEV__ = true;\n${source}`, MIME[".js"]);
+    });
+    return;
+  }
+
   if (requested === "/sw.js") {
     fs.readFile(resolved, "utf8", (err, source) => {
       if (err) {
@@ -147,7 +173,7 @@ function handleStatic(req, res, url) {
 
     const ext = path.extname(resolved).toLowerCase();
     const type = MIME[ext] || "application/octet-stream";
-    streamFile(res, resolved, type);
+    streamFile(res, resolved, type, req, stats);
   });
 }
 

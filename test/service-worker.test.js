@@ -59,7 +59,9 @@ function makeCacheStorage() {
 }
 
 // network: (url, init) => Response | throws. Defaults to 200 with the URL as the body.
-function loadServiceWorker({ dev = false, network } = {}) {
+// update: an older worker is already active in this registration (an app or data release), as
+// opposed to a visitor's very first install.
+function loadServiceWorker({ dev = false, network, update = false } = {}) {
   const handlers = {};
   const cacheStorage = makeCacheStorage();
   const requested = [];
@@ -84,7 +86,7 @@ function loadServiceWorker({ dev = false, network } = {}) {
         claim: async () => {},
         matchAll: async () => [{ postMessage: (message) => posted.push(message) }],
       },
-      registration: {},
+      registration: update ? { active: {} } : {},
     },
     importScripts: (...files) => {
       for (const file of files) vm.runInContext(fs.readFileSync(path.join(root, file), "utf8"), context);
@@ -144,6 +146,15 @@ test.describe("installing", () => {
       "no map file is downloaded a second time while the first page is downloading it");
   });
 
+  test("a first install leaves the map data to the page even when the page's first files have already reached the cache", async () => {
+    const sw = loadServiceWorker();
+    // js/loader.js can hand over a small file before install gets as far as the data cache.
+    await (await sw.cacheStorage.open(sw.constant("DATA_CACHE_NAME"))).put("./data/events.json", new Response("{}"));
+    await sw.dispatchLifecycle("install");
+    await sw.settle();
+    assert.deepEqual(sw.requested.filter((r) => r.url.includes("/data/")).map((r) => r.url), []);
+  });
+
   test("after a first visit, the map files the page handed over are served offline and the next sync fills in the rest", async () => {
     const sw = loadServiceWorker();
     await sw.dispatchLifecycle("install");
@@ -166,7 +177,7 @@ test.describe("installing", () => {
   });
 
   test("a reinstall fetches only the shell files that are not already cached", async () => {
-    const sw = loadServiceWorker();
+    const sw = loadServiceWorker({ update: true });
     const appShell = sw.constant("APP_SHELL");
     const dataShell = sw.constant("DATA_SHELL");
     const appCache = await sw.cacheStorage.open(sw.constant("APP_CACHE_NAME"));
@@ -186,7 +197,7 @@ test.describe("installing", () => {
   });
 
   test("a data cache version bump keeps the previous data usable and schedules a background refresh", async () => {
-    const sw = loadServiceWorker();
+    const sw = loadServiceWorker({ update: true });
     const previous = await sw.cacheStorage.open("forest-finds-data-0");
     await previous.put("./data/local-roads.geojson", new Response("old roads"));
 
@@ -204,10 +215,9 @@ test.describe("installing", () => {
 
   test("install succeeds even when the optional tree chunks and icons cannot be downloaded", async () => {
     const sw = loadServiceWorker({
+      update: true,
       network: (url) => (/\/data\/(trees\/chunk-|icons\/)/.test(url) ? Promise.reject(new TypeError("offline")) : new Response("ok")),
     });
-    // A repair install: the data cache already holds something, so the worker fills in the rest itself.
-    await (await sw.cacheStorage.open(sw.constant("DATA_CACHE_NAME"))).put("./data/events.json", new Response("{}"));
     await sw.dispatchLifecycle("install");
     await sw.settle();
     const dataCache = await sw.cacheStorage.open(sw.constant("DATA_CACHE_NAME"));

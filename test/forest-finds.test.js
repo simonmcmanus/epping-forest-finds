@@ -5838,13 +5838,46 @@ test("the app asks the controlling worker for a background data sync, but not of
   const messages = [];
   const controller = { postMessage: (m) => messages.push(m) };
 
-  await withFakeServiceWorker(app, { controller }, () => { app.requestBackgroundDataSync(); app.requestBackgroundDataSync({ force: true }); });
+  await withFakeServiceWorker(app, { controller }, () => Promise.all([app.requestBackgroundDataSync(), app.requestBackgroundDataSync({ force: true })]));
   assert.deepEqual(JSON.parse(JSON.stringify(messages)), [{ type: "SYNC_DATA", force: false }, { type: "SYNC_DATA", force: true }]);
 
   messages.length = 0;
   await withFakeServiceWorker(app, { controller, online: false }, () => app.requestBackgroundDataSync());
   await withFakeServiceWorker(app, { controller: null }, () => app.requestBackgroundDataSync());
   assert.deepEqual(messages, [], "nothing is sent offline, or on a first load with nothing cached to refresh");
+});
+
+test("on a first visit the background sync waits until the page's own map downloads have reached the cache", async () => {
+  const messages = [];
+  const controller = { postMessage: (m) => messages.push(m) };
+  let finishHandOver;
+  const previousFetch = app.swapGlobalFunction("fetch", async () => ({ ok: true, clone: () => ({}) }));
+  const previousCaches = app.swapGlobalFunction("caches", {
+    open: async () => ({ put: () => new Promise((resolve) => { finishHandOver = resolve; }) }),
+  });
+  const nav = app.navigator;
+  const previousSw = nav.serviceWorker;
+  const wasOnline = nav.onLine;
+  nav.onLine = true;
+  try {
+    // Downloaded before the worker took control: the hand-over to the cache is still being written.
+    nav.serviceWorker = { controller: null, getRegistration: async () => ({}) };
+    await app.fetchMapData("data/local-environment.geojson");
+    await new Promise((resolve) => setImmediate(resolve));
+    // The worker takes control and the page asks for a sync.
+    nav.serviceWorker = { controller };
+    const sync = app.requestBackgroundDataSync();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(messages, [], "no sync while the file is still on its way into the cache");
+    finishHandOver();
+    await sync;
+    assert.equal(messages.length, 1, "the sync goes out once the hand-over has landed");
+  } finally {
+    nav.onLine = wasOnline;
+    app.swapGlobalFunction("fetch", previousFetch);
+    app.swapGlobalFunction("caches", previousCaches);
+    if (previousSw === undefined) delete nav.serviceWorker; else nav.serviceWorker = previousSw;
+  }
 });
 
 test("applying an update activates the fully downloaded waiting worker and never reloads straight away", async () => {

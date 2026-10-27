@@ -446,14 +446,20 @@ function requestPersistentStorage() {
     .catch(() => {});
 }
 
+// Waits for this page's own map downloads to reach the data cache first (mapDataHandOverSettled,
+// js/loader.js): on a first visit the worker takes control mid-load, and its controllerchange would
+// otherwise start a sync that downloads again every file the page is still fetching.
 function requestBackgroundDataSync(options) {
-  if (!("serviceWorker" in navigator)) return;
-  if (!navigator.onLine) return;
+  if (!("serviceWorker" in navigator)) return Promise.resolve();
+  if (!navigator.onLine) return Promise.resolve();
   const controller = navigator.serviceWorker.controller;
-  if (!controller) return; // First load — nothing cached yet to refresh
-  try {
-    controller.postMessage({ type: "SYNC_DATA", force: Boolean(options && options.force) });
-  } catch {}
+  if (!controller) return Promise.resolve(); // First load — nothing cached yet to refresh
+  const settled = typeof mapDataHandOverSettled === "function" ? mapDataHandOverSettled() : Promise.resolve();
+  return settled.then(() => {
+    try {
+      controller.postMessage({ type: "SYNC_DATA", force: Boolean(options && options.force) });
+    } catch {}
+  });
 }
 
 // Browsers only look for a new sw.js on navigation (and at most daily), which an installed app that

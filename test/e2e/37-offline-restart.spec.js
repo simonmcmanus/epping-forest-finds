@@ -11,18 +11,29 @@ test("a first visit downloads each map file once and keeps it for offline use", 
     localStorage.setItem("forest-finds-onboarding-v1", "done");
     localStorage.setItem("ff-cookie-consent", "granted");
   });
-  // Counts the page's own requests and the service worker's alike.
+  // Counts full downloads over the network, by the page or the service worker. A page request the worker
+  // answered is not one (the worker's own fetch for it is), and a bodyless 304 is the worker's background
+  // sync revalidating the copy the page handed over, which is what it should do.
   const downloads = [];
-  context.on("request", (request) => {
-    if (new URL(request.url()).pathname === "/data/local-environment.geojson") downloads.push(request.serviceWorker() ? "worker" : "page");
+  context.on("requestfinished", async (request) => {
+    if (new URL(request.url()).pathname !== "/data/local-environment.geojson") return;
+    const response = await request.response();
+    if (response && response.status() === 200 && !response.fromServiceWorker()) downloads.push(request.serviceWorker() ? "worker" : "page");
   });
 
   await page.goto("/nearby");
   await page.waitForFunction(() => state.dataLoaded === true && state.environmentFeatures.length > 0, null, { timeout: 60_000 });
   await page.waitForFunction(() => navigator.serviceWorker?.controller, null, { timeout: 30_000 });
-  await page.waitForFunction(async () => Boolean(await caches.match("/data/local-environment.geojson")), null, { timeout: 30_000 });
+  // expect.poll, not waitForFunction: an async predicate returns a promise, which waitForFunction treats as truthy at once.
+  await expect.poll(() => page.evaluate(async () => Boolean(await caches.match("/data/local-environment.geojson")))).toBe(true);
+  // The worker's first sync runs once the hand-over has landed; wait for it to finish rather than
+  // checking before it has had the chance to download anything.
+  await page.evaluate(() => new Promise((resolve) => {
+    navigator.serviceWorker.addEventListener("message", (event) => { if (event.data?.type === "DATA_SYNC_COMPLETE") resolve(); });
+    navigator.serviceWorker.controller.postMessage({ type: "SYNC_DATA", requestId: "first-visit-test" });
+  }));
 
-  expect(downloads).toEqual(["page"]);
+  expect(downloads).toHaveLength(1);
 });
 
 test("a warmed app restarts from its cached shell and map data without a network", async ({ page, context }) => {

@@ -24,17 +24,33 @@ function setLoadStep(key, status, count) {
 // download every one of them a second time (sw.js install now leaves a first install's data to the
 // page). Hand each data file over as it arrives instead. Once a worker controls the page it caches
 // what passes through it, so this does nothing then.
+const pendingDataHandOvers = new Set();
+let initialMapDownloads = Promise.resolve();
+
 function shareWithDataCache(url, response) {
   if (!response.ok || !/^data\//.test(url)) return;
   if (typeof caches === "undefined" || typeof DATA_CACHE_VERSION === "undefined") return;
   if (!("serviceWorker" in navigator) || navigator.serviceWorker.controller) return;
   const copy = response.clone();
-  navigator.serviceWorker.getRegistration()
-    .then((registration) => {
+  const handOver = navigator.serviceWorker.getRegistration()
+    .then(async (registration) => {
       if (!registration) return null;
-      return caches.open(`forest-finds-data-${DATA_CACHE_VERSION}`).then((cache) => cache.put(url, copy));
+      // The same name sw.js builds from the same marker (server.js flags both as local under the dev server).
+      const cache = await caches.open(`forest-finds-data-${DATA_CACHE_VERSION}`);
+      return cache.put(url, copy);
     })
     .catch(() => {});
+  pendingDataHandOvers.add(handOver);
+  handOver.finally(() => pendingDataHandOvers.delete(handOver));
+}
+
+// Resolves once this page's initial map downloads have finished and every one of them has reached
+// the data cache. The worker takes control part-way through a first visit, and a background sync
+// started then would find those files missing and download them all again
+// (requestBackgroundDataSync in js/nav.js waits on this).
+async function mapDataHandOverSettled() {
+  await initialMapDownloads.catch(() => {});
+  while (pendingDataHandOvers.size) await Promise.allSettled([...pendingDataHandOvers]);
 }
 
 async function fetchMapData(url, options) {
@@ -357,6 +373,7 @@ async function loadMapData() {
   // service-worker cache; it also meant a filtered landing page could not show its own category
   // while unrelated layers were still downloading.
   state.bounds = calculateBounds();
+  initialMapDownloads = backgroundPromise;
   return { treePromise, placesPromise, environmentPromise, backgroundPromise };
 }
 
