@@ -10746,24 +10746,6 @@ test("detailsHtml renders Opening hours as plain text like any other detail row"
   assert.match(html, /<dt>Opening hours<\/dt><dd>Mo-Su 09:00-17:00<\/dd>/);
 });
 
-const trackFunction = require("../netlify/functions/track");
-
-test("an admin read of a big tracking store returns the newest blobs and says it is partial when time runs out", async () => {
-  const blobs = Array.from({ length: 10 }, (_, i) => ({ key: `location/${1000 + i}_abc` }));
-  let clock = 0;
-  const now = () => clock;
-  const fastStore = { get: async (key) => [{ key }] };
-  const slowStore = { get: async (key) => { clock += 1500; return [{ key }]; } };
-  const full = await trackFunction.readBlobsWithinBudget(fastStore, blobs, { budgetMs: 7000, batch: 3, now });
-  assert.equal(full.partial, false);
-  assert.equal(full.items.length, 10);
-  clock = 0;
-  const partial = await trackFunction.readBlobsWithinBudget(slowStore, blobs, { budgetMs: 7000, batch: 3, now });
-  assert.equal(partial.partial, true);
-  assert.equal(partial.items.length, 6, "two batches fit in the budget, a third does not");
-  assert.equal(partial.items[0].key, "location/1009_abc", "the newest blob is read first");
-});
-
 // --- Community verification consensus (netlify/functions/lib/community-consensus.js) ---
 const communityConsensus = require("../netlify/functions/lib/community-consensus");
 let communityReportSeq = 0;
@@ -11022,19 +11004,77 @@ test("a rebuild stores each person's score in a small shard that one lookup can 
   assert.match(communityComputed.scoreShard("device-aaaa"), /^[0-9a-f]{2}$/);
 });
 
-test("in production a request serves a slightly old snapshot instead of rebuilding inline", async () => {
-  const store = memoryStore({ computed: { generatedAt: Date.now() - 90 * 60 * 1000, overlay: { "tree:1": { s: "verified" } }, conflicts: [] } });
+test("in production a request serves an old snapshot, however old, instead of rebuilding inline", async () => {
+  // If the scheduled rebuild stops because the ledger outgrew it, an inline rebuild would fail the same way
+  // on every visitor's request; an old snapshot is better than none.
+  const store = memoryStore({ computed: { generatedAt: Date.now() - 6 * 60 * 60 * 1000, overlay: { "tree:1": { s: "verified" } }, conflicts: [] } });
   const original = process.env.CONTEXT;
+  const warn = console.warn;
   try {
     process.env.CONTEXT = "production";
+    console.warn = () => {};
     const stale = await communityComputed.loadComputed(store);
+    console.warn = warn;
     assert.deepEqual(Object.keys(stale.overlay), ["tree:1"]);
     process.env.CONTEXT = "deploy-preview";
     const fresh = await communityComputed.loadComputed(store);
     assert.deepEqual(Object.keys(fresh.overlay), [], "previews and local dev rebuild once the snapshot is past its TTL");
   } finally {
+    console.warn = warn;
     if (original === undefined) delete process.env.CONTEXT; else process.env.CONTEXT = original;
   }
+});
+
+function countingStore(initial = {}) {
+  const store = memoryStore(initial);
+  store.reportReads = 0;
+  const get = store.get;
+  store.get = async (key) => { if (key.startsWith("reports/")) store.reportReads += 1; return get(key); };
+  return store;
+}
+
+test("a rebuild fetches only the reports it has not read before", async () => {
+  const store = countingStore();
+  for (let i = 0; i < 5; i += 1) await store.put(`reports/r${i}`, communityReport({ id: `report-${i}aaaa111`, deviceId: `device-${i}aaaa` }));
+  const first = await communityComputed.rebuildComputed(store);
+  assert.equal(first.reportCount, 5);
+  assert.equal(store.reportReads, 5);
+
+  await store.put("reports/r5", communityReport({ id: "report-5aaaa111", deviceId: "device-5aaaa" }));
+  store.reportReads = 0;
+  const second = await communityComputed.rebuildComputed(store);
+  assert.equal(second.reportCount, 6, "the new report is counted");
+  assert.equal(store.reportReads, 1, "and it is the only one fetched");
+});
+
+test("a report deleted from the ledger drops out of the next rebuild even though it was cached", async () => {
+  const store = memoryStore();
+  await store.put("reports/r1", communityReport({ id: "report-1aaaa111", deviceId: "device-1aaaa" }));
+  await store.put("reports/r2", communityReport({ id: "report-2aaaa111", deviceId: "device-2aaaa" }));
+  await communityComputed.rebuildComputed(store);
+  await store.delete("reports/r2");
+  const after = await communityComputed.rebuildComputed(store);
+  assert.equal(after.reportCount, 1);
+  assert.equal((await communityComputed.loadAdminStats(store)).devices, 1, "the deleted report's device no longer counts");
+});
+
+test("a lost ledger cache is refilled from the ledger rather than losing reports", async () => {
+  const store = memoryStore();
+  for (let i = 0; i < 3; i += 1) await store.put(`reports/r${i}`, communityReport({ id: `report-${i}aaaa111`, deviceId: `device-${i}aaaa` }));
+  await communityComputed.rebuildComputed(store);
+  for (const key of [...store.data.keys()].filter((k) => k.startsWith("ledger-cache/") && k !== "ledger-cache/index")) store.data.delete(key);
+  assert.equal((await communityComputed.rebuildComputed(store)).reportCount, 3);
+});
+
+test("the admin dashboard's community figures come from the last rebuild, not a read of the whole ledger", async () => {
+  const store = countingStore();
+  await store.put("reports/r1", communityReport({ id: "report-1aaaa111", deviceId: "device-1aaaa" }));
+  await communityComputed.rebuildComputed(store);
+  store.reportReads = 0;
+  const stats = await communityComputed.loadAdminStats(store);
+  assert.equal(stats.reports, 1);
+  assert.ok(stats.generatedAt > 0, "it says when the figures were taken");
+  assert.equal(store.reportReads, 0);
 });
 
 test("nudges: a card on the overview, a pulse on the tree's own page, and quiet otherwise", () => {

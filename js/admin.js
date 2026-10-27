@@ -1218,7 +1218,9 @@ function updateStats() {
   const clicks = filteredClicks();
   const uids = new Set([...locs, ...clicks].map((e) => e.uid));
   const windowLabel = (Number.isFinite(lastMeta?.windowDays) ? ` &nbsp;·&nbsp; last ${lastMeta.windowDays} days` : "")
-    + (lastMeta?.partial ? " &nbsp;·&nbsp; <em>partial: too much data to read in time, newest shown</em>" : "");
+    + (lastMeta?.partial
+      ? ` &nbsp;·&nbsp; <em>partial: too much data for one read, newest shown${lastMeta.oldestDay ? ` (back to ${escapeHtml(lastMeta.oldestDay)})` : ""}</em>`
+      : "");
   el.innerHTML = `<strong>${uids.size}</strong> user${uids.size !== 1 ? "s" : ""} &nbsp;·&nbsp; <strong>${locs.length}</strong> location pings &nbsp;·&nbsp; <strong>${clicks.length}</strong> taps${windowLabel}`;
 }
 
@@ -1329,8 +1331,30 @@ function updateEnvBadge(meta) {
   badge.hidden = false;
 }
 
-// The function reads every tracking blob in the window; when there is too much for one response it
-// fails with a 5xx. Fall back to shorter windows (7 days, then 1) so the dashboard still opens, and
+// The tracking function packs events (netlify/functions/lib/tracking-store.js packEvents): a shared
+// uid table and one short row per event. Unpack them into the event objects the dashboard draws; a
+// plain array (an older server, or a test fixture) is used as it is.
+const PACKED_FIELDS = {
+  location: ["lat", "lng", "heading"],
+  click: ["userLat", "userLng", "targetLat", "targetLng", "itemType", "itemId", "itemName", "source"],
+};
+
+function unpackTrackingEvents(packed) {
+  if (Array.isArray(packed)) return packed;
+  if (!packed || !Array.isArray(packed.rows)) return [];
+  const fields = PACKED_FIELDS[packed.type] || [];
+  return packed.rows.map((row) => {
+    const event = { type: packed.type, uid: packed.uids[row[0]], ts: new Date(row[1]).toISOString() };
+    fields.forEach((field, i) => { event[field] = row[i + 2]; });
+    if (packed.type === "location") {
+      const target = row[fields.length + 2];
+      event.navTarget = target >= 0 ? packed.targets[target] : null;
+    }
+    return event;
+  });
+}
+
+// When a window still has too much for one response the function can fail with a 5xx. Fall back to shorter windows (7 days, then 1) so the dashboard still opens, and
 // say which window it ended up with (the stats bar shows it).
 const ADMIN_WINDOW_FALLBACKS = [null, 7, 1];
 
@@ -1350,6 +1374,8 @@ async function loadData(password) {
     throw new Error(`Server error ${resp.status}${detail ? `: ${detail.slice(0, 160)}` : ""}`);
   }
   const data = await resp.json();
+  data.locations = unpackTrackingEvents(data.locations);
+  data.clicks = unpackTrackingEvents(data.clicks);
   console.log("[admin] data received", {
     locations: Array.isArray(data.locations) ? data.locations.length : 0,
     clicks: Array.isArray(data.clicks) ? data.clicks.length : 0,
@@ -1375,6 +1401,7 @@ function renderCommunityStats(stats) {
   return `<h3>Community verification</h3>
     <p><button type="button" class="admin-btn" id="communityRebuildBtn">Rebuild snapshot now</button> <button type="button" class="admin-btn" id="communityValidateBtn">Run reward check now</button> <span id="communityValidateResult"></span></p>
     <p><a href="/reports/tree-report" target="_blank" rel="noopener">City of London discrepancy report</a> · <a href="/reports/tree-report?format=csv">CSV</a></p>
+    ${stats.generatedAt ? `<p class="admin-community-asof">As of the last snapshot, ${escapeHtml(formatEventTime(new Date(stats.generatedAt).toISOString()))}</p>` : ""}
     <table>
       ${row("People reporting (all time)", stats.devices)}
       ${row("Active, last 24 h / 7 days", `${stats.activeDevices1d} / ${stats.activeDevices7d}`)}

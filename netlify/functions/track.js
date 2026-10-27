@@ -1,51 +1,62 @@
-// POST /api/track  — store batches of location & click events.
-// GET  /api/admin/tracks?pw=... — return all stored events (admin only).
+// POST /api/track  — store a batch of location & click events.
+// GET  /api/admin/tracks?days=N — the events in the last N days, packed (admin only).
 //
 // Storage strategy:
-//   - Netlify deployment: @netlify/blobs (one blob per batch, no conflict on concurrent writes)
-//   - local development fallback: NDJSON files in data/tracking/ (same as server.js)
+//   - Netlify deployment: @netlify/blobs, laid out by day (lib/tracking-store.js). Each POST is one
+//     small blob under its day; track-compact-scheduled.js folds those into one file per day.
+//   - local development fallback: NDJSON files in data/tracking/
 //
 // The file fallback is intentionally local-only. In deployed Lambda functions,
 // Blob storage errors should be visible instead of being hidden by ephemeral files.
 
 const fs = require("fs");
 const path = require("path");
+const { createHash } = require("crypto");
 const { connectLambda, getStore } = require("@netlify/blobs");
+const tracking = require("./lib/tracking-store");
+const { checkRateLimit, clientIp } = require("./lib/report-rate-limit");
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 const TRACKING_DIR = path.join(__dirname, "..", "..", "data", "tracking");
 
-// Blob count grows without bound (one blob per POST batch, forever -- see Storage
-// section of spec-admin.md), and each one is a separate network round-trip to fetch.
-// Once a deployment has been live long enough, downloading all of them in one admin
-// read blows past the Netlify function execution limit and the request 504s. Blob
-// keys embed their write time (`location/<ms-timestamp>_<rand>.json`), so the default
-// window is applied before any blob content is downloaded, not after.
 const DEFAULT_WINDOW_DAYS = 30;
-const DAY_MS = 24 * 60 * 60 * 1000;
+const DAY_MS = tracking.DAY_MS;
+
+// The app sends at most 150 events a request (js/tracker.js); an older build could send its whole
+// offline queue (up to 500) at once, so that is still accepted. Anything bigger is not the app.
+const MAX_BODY_BYTES = 256 * 1024;
+const MAX_EVENTS_PER_REQUEST = 500;
+// Per client IP, per hour. A phone on the current app sends about 12 requests an hour; mobile
+// networks put many customers behind one address, so this is a brake on a script, not on people.
+const DEFAULT_LIMIT_PER_IP = 600;
+const RATE_SHARDS = 64;
+
+function positiveInt(value, fallback) {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : fallback;
+}
+
+// How long daily files are kept. The owner decides the real figure (spec-admin.md "Retention").
+function retentionDays(env = process.env) {
+  if (env.TRACKING_RETENTION_DAYS === "0") return null;
+  return positiveInt(env.TRACKING_RETENTION_DAYS, 365);
+}
 
 function parseWindowDays(event) {
   const raw = queryParam(event, "days");
   if (raw === "all") return null;
   const parsed = Number(raw);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_WINDOW_DAYS;
+  return Number.isFinite(parsed) && parsed > 0 ? Math.ceil(parsed) : DEFAULT_WINDOW_DAYS;
+}
+
+// `days=all` still has to stop somewhere: the retention period, or a year when nothing expires.
+function effectiveWindowDays(windowDays) {
+  const cap = retentionDays() || 365;
+  return windowDays == null ? cap : Math.min(windowDays, cap);
 }
 
 function windowSinceMs(windowDays) {
   return windowDays == null ? null : Date.now() - windowDays * DAY_MS;
-}
-
-function blobKeyTimestampMs(key) {
-  const match = /\/(\d+)_/.exec(key || "");
-  return match ? Number(match[1]) : null;
-}
-
-// A key this function doesn't recognise is kept rather than dropped, so a future key
-// format never silently loses data -- it just skips the fast-path filter for that key.
-function blobKeyWithinWindow(key, sinceMs) {
-  if (sinceMs == null) return true;
-  const ts = blobKeyTimestampMs(key);
-  return ts == null || ts >= sinceMs;
 }
 
 function eventWithinWindow(storedEvent, sinceMs) {
@@ -65,6 +76,14 @@ function getTrackingStoreName() {
     .replace(/[^a-z0-9-]/g, "-")
     .slice(0, 48);
   return `tracking-${branch}`;
+}
+
+// Tests swap the store so nothing lands on disk or in Blobs.
+let storeOverride = null;
+function setStore(store) { storeOverride = store; }
+
+function openAdapter() {
+  return storeOverride || tracking.blobAdapter(getStore(getTrackingStoreName()));
 }
 
 function ensureTrackingDir() {
@@ -87,35 +106,6 @@ function fileRead(filename) {
     .filter(Boolean)
     .map((line) => { try { return JSON.parse(line); } catch { return null; } })
     .filter(Boolean);
-}
-
-// ---- Blob-based storage (Netlify) ----
-
-async function listAllBlobs(store, prefix) {
-  const results = [];
-  let cursor;
-  do {
-    const page = await store.list({ prefix, ...(cursor ? { cursor } : {}) });
-    results.push(...(page.blobs || []));
-    cursor = page.cursor;
-  } while (cursor);
-  return results;
-}
-
-// Reads blobs newest first in small batches and stops when the time budget is spent, so an admin read
-// of a big store returns what it has (flagged `partial`) instead of running into the function time limit.
-async function readBlobsWithinBudget(store, blobs, { budgetMs = 7000, batch = 40, now = Date.now } = {}) {
-  const started = now();
-  const sorted = [...blobs].sort((a, b) => (blobKeyTimestampMs(b.key) || 0) - (blobKeyTimestampMs(a.key) || 0));
-  const arrays = [];
-  let read = 0;
-  for (let i = 0; i < sorted.length; i += batch) {
-    if (now() - started > budgetMs) return { items: arrays.flat(), partial: true, read, total: sorted.length };
-    const chunk = sorted.slice(i, i + batch);
-    arrays.push(...await Promise.all(chunk.map((b) => store.get(b.key, { type: "json" }).catch(() => []))));
-    read += chunk.length;
-  }
-  return { items: arrays.flat(), partial: false, read, total: sorted.length };
 }
 
 // ---- Shared helpers ----
@@ -152,7 +142,7 @@ function configureBlobContext(event) {
 }
 
 function canUseFileFallback(event, blobContextConnected) {
-  return !blobContextConnected && !event?.blobs && !process.env.AWS_LAMBDA_FUNCTION_NAME;
+  return !storeOverride && !blobContextConnected && !event?.blobs && !process.env.AWS_LAMBDA_FUNCTION_NAME;
 }
 
 function queryParam(event, name) {
@@ -164,7 +154,7 @@ function eventBody(event) {
   return Buffer.from(event.body || "", "base64").toString("utf8");
 }
 
-function response(statusCode, body) {
+function response(statusCode, body, extraHeaders = {}) {
   return {
     statusCode,
     headers: {
@@ -173,6 +163,7 @@ function response(statusCode, body) {
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
       "Cache-Control": "no-store",
+      ...extraHeaders,
     },
     body: JSON.stringify(body),
   };
@@ -187,19 +178,33 @@ function checkAuth(event) {
   return false;
 }
 
+// The admin response packs locations and clicks (lib/tracking-store.js packEvents); js/admin.js
+// unpacks them back into the event objects the dashboard draws.
+function adminBody(locations, clicks, meta) {
+  return {
+    format: 2,
+    locations: tracking.packEvents("location", locations),
+    clicks: tracking.packEvents("click", clicks),
+    meta,
+  };
+}
+
+// The counters are spread over 64 small documents keyed by a hash of the address, so no single
+// document grows with the number of visitors or is rewritten by every request on the site.
+async function rateLimited(adapter, event) {
+  const ip = clientIp(event);
+  if (!ip) return { ok: true };
+  const shard = parseInt(createHash("sha256").update(ip).digest("hex").slice(0, 4), 16) % RATE_SHARDS;
+  const store = { get: (key) => adapter.getJSON(key).catch(() => null), put: (key, value) => adapter.setJSON(key, value) };
+  const perIp = positiveInt(process.env.TRACK_LIMIT_PER_IP, DEFAULT_LIMIT_PER_IP);
+  return checkRateLimit(store, { ip, limits: { perIp, perDevice: perIp, global: Number.MAX_SAFE_INTEGER }, key: `track-rate/${shard}` });
+}
+
 // ---- Handler ----
 
 exports.handler = async (event) => {
   const blobContextConnected = configureBlobContext(event);
   const allowFileFallback = canUseFileFallback(event, blobContextConnected);
-
-  logTrack("request", {
-    method: event.httpMethod,
-    hasBlobContext: Boolean(event.blobs),
-    blobContextConnected,
-    allowFileFallback,
-    storeName: getTrackingStoreName(),
-  });
 
   if (event.httpMethod === "OPTIONS") {
     return {
@@ -217,74 +222,29 @@ exports.handler = async (event) => {
   // Admin read
   if (event.httpMethod === "GET") {
     if (!checkAuth(event)) return response(401, { error: "Unauthorized" });
-    const debug = queryParam(event, "debug") === "1";
     const windowDays = parseWindowDays(event);
-    const sinceMs = windowSinceMs(windowDays);
+    const days = effectiveWindowDays(windowDays);
+    const baseMeta = { storeName: getTrackingStoreName(), context: process.env.CONTEXT || "local", windowDays };
 
-    let store;
     try {
-      store = getStore(getTrackingStoreName());
-      const [locBlobs, clickBlobs] = await Promise.all([
-        listAllBlobs(store, "location/"),
-        listAllBlobs(store, "click/"),
-      ]);
-      const locBlobsInWindow = locBlobs.filter((b) => blobKeyWithinWindow(b.key, sinceMs));
-      const clickBlobsInWindow = clickBlobs.filter((b) => blobKeyWithinWindow(b.key, sinceMs));
-      const [locRead, clickRead] = await Promise.all([
-        readBlobsWithinBudget(store, locBlobsInWindow),
-        readBlobsWithinBudget(store, clickBlobsInWindow),
-      ]);
-      const locations = locRead.items;
-      const clicks = clickRead.items;
-      const partial = locRead.partial || clickRead.partial;
-      logTrack("blob-read-ok", {
-        windowDays,
-        locationBlobCount: locBlobsInWindow.length,
-        locationBlobCountTotal: locBlobs.length,
-        clickBlobCount: clickBlobsInWindow.length,
-        clickBlobCountTotal: clickBlobs.length,
-        locations: locations.length,
-        clicks: clicks.length,
-      });
-      return response(200, {
-        locations,
-        clicks,
-        meta: {
-          storeName: getTrackingStoreName(),
-          context: process.env.CONTEXT || "local",
-          windowDays,
-          ...(partial ? { partial: true, locationBlobsRead: locRead.read, clickBlobsRead: clickRead.read } : {}),
-          ...(debug ? {
-            storage: "blobs",
-            locationBlobCount: locBlobsInWindow.length,
-            locationBlobCountTotal: locBlobs.length,
-            clickBlobCount: clickBlobsInWindow.length,
-            clickBlobCountTotal: clickBlobs.length,
-          } : {}),
-        },
-      });
+      const result = await tracking.readWindow(openAdapter(), { windowDays: days });
+      logTrack("read-ok", { windowDays, locations: result.locations.length, clicks: result.clicks.length, partial: result.partial, oldestDay: result.oldestDay });
+      return response(200, adminBody(result.locations, result.clicks, {
+        ...baseMeta,
+        ...(result.partial ? { partial: true, oldestDay: result.oldestDay } : {}),
+      }));
     } catch (blobErr) {
       warnTrack("blob-read-failed", errorDetails(blobErr));
       if (!allowFileFallback) {
         return response(500, { error: "Blob storage read failed", details: errorDetails(blobErr) });
       }
 
-      // Fall back to local NDJSON files. Small enough locally that windowing is just
-      // applied to the already-read events rather than filtering file content up front.
+      // Local NDJSON files: small enough locally that windowing is just applied to the read events.
       try {
+        const sinceMs = windowSinceMs(days);
         const locations = fileRead("location.ndjson").filter((e) => eventWithinWindow(e, sinceMs));
         const clicks = fileRead("click.ndjson").filter((e) => eventWithinWindow(e, sinceMs));
-        logTrack("file-read-fallback-ok", { locations: locations.length, clicks: clicks.length });
-        return response(200, {
-          locations,
-          clicks,
-          meta: {
-            storeName: getTrackingStoreName(),
-            context: process.env.CONTEXT || "local",
-            windowDays,
-            ...(debug ? { storage: "file-fallback", blobError: errorDetails(blobErr) } : {}),
-          },
-        });
+        return response(200, adminBody(locations, clicks, baseMeta));
       } catch (fileErr) {
         return response(500, { error: String(fileErr.message) });
       }
@@ -293,68 +253,44 @@ exports.handler = async (event) => {
 
   // Store events
   if (event.httpMethod === "POST") {
+    const raw = eventBody(event);
+    if (raw.length > MAX_BODY_BYTES) return response(413, { error: "Batch too large" });
     let payload;
     try {
-      payload = JSON.parse(eventBody(event));
+      payload = JSON.parse(raw);
     } catch {
       return response(400, { error: "Invalid JSON" });
     }
 
-    const events = Array.isArray(payload.events) ? payload.events : [];
-    const locationEvents = events.filter((e) => e?.type === "location");
-    const clickEvents = events.filter((e) => e?.type === "click");
-    const acceptedEvents = locationEvents.length + clickEvents.length;
+    const incoming = Array.isArray(payload && payload.events) ? payload.events : [];
+    if (incoming.length > MAX_EVENTS_PER_REQUEST) return response(413, { error: "Too many events in one batch" });
+    const now = Date.now();
+    const events = incoming.map((e) => tracking.sanitizeEvent(e, { now })).filter(Boolean);
 
-    logTrack("post-events", {
-      received: events.length,
-      accepted: acceptedEvents,
-      locations: locationEvents.length,
-      clicks: clickEvents.length,
-    });
-
-    if (acceptedEvents === 0) {
-      return response(200, { ok: true, received: events.length, stored: 0, storage: "none" });
+    if (events.length === 0) {
+      return response(200, { ok: true, received: incoming.length, stored: 0, storage: "none" });
     }
 
-    let store;
     try {
-      store = getStore(getTrackingStoreName());
-      const suffix = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-      const locationKey = locationEvents.length ? `location/${suffix}.json` : null;
-      const clickKey = clickEvents.length ? `click/${suffix}.json` : null;
-      const keys = [locationKey, clickKey].filter(Boolean);
-      await Promise.all([
-        locationKey && store.setJSON(locationKey, locationEvents),
-        clickKey && store.setJSON(clickKey, clickEvents),
-      ].filter(Boolean));
-      logTrack("blob-write-ok", { stored: acceptedEvents, locations: locationEvents.length, clicks: clickEvents.length, keys });
-      return response(200, {
-        ok: true,
-        received: events.length,
-        stored: acceptedEvents,
-        storage: "blobs",
-      });
+      const adapter = openAdapter();
+      const limited = await rateLimited(adapter, event);
+      if (!limited.ok) {
+        return response(429, { error: "Too many requests" }, { "Retry-After": String(limited.retryAfter) });
+      }
+      await tracking.storeBatch(adapter, events, { now });
+      return response(200, { ok: true, received: incoming.length, stored: events.length, storage: "blobs" });
     } catch (blobErr) {
       warnTrack("blob-write-failed", errorDetails(blobErr));
       if (!allowFileFallback) {
         return response(500, { error: "Blob storage write failed", details: errorDetails(blobErr) });
       }
 
-      // Fall back to local NDJSON files
       try {
+        const locationEvents = events.filter((e) => e.type === "location");
+        const clickEvents = events.filter((e) => e.type === "click");
         if (locationEvents.length) fileAppend("location.ndjson", locationEvents);
         if (clickEvents.length) fileAppend("click.ndjson", clickEvents);
-        logTrack("file-write-fallback-ok", {
-          stored: acceptedEvents,
-          locations: locationEvents.length,
-          clicks: clickEvents.length,
-        });
-        return response(200, {
-          ok: true,
-          received: events.length,
-          stored: acceptedEvents,
-          storage: "file-fallback",
-        });
+        return response(200, { ok: true, received: incoming.length, stored: events.length, storage: "file-fallback" });
       } catch (fileErr) {
         return response(500, { error: String(fileErr.message) });
       }
@@ -365,9 +301,10 @@ exports.handler = async (event) => {
 };
 
 exports.DEFAULT_WINDOW_DAYS = DEFAULT_WINDOW_DAYS;
+exports.MAX_EVENTS_PER_REQUEST = MAX_EVENTS_PER_REQUEST;
 exports.parseWindowDays = parseWindowDays;
+exports.retentionDays = retentionDays;
 exports.windowSinceMs = windowSinceMs;
-exports.blobKeyTimestampMs = blobKeyTimestampMs;
-exports.readBlobsWithinBudget = readBlobsWithinBudget;
-exports.blobKeyWithinWindow = blobKeyWithinWindow;
 exports.eventWithinWindow = eventWithinWindow;
+exports.getTrackingStoreName = getTrackingStoreName;
+exports.setStore = setStore;

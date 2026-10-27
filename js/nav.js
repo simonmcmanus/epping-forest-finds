@@ -433,6 +433,19 @@ async function refreshCachedState(scope) {
 // sw.js). Called only while the map is visible and interactive, so freshness passes never compete
 // with the render — the load itself is served entirely from cache, and any genuinely changed file
 // lands quietly afterwards. The worker throttles this internally, so foreground checks are cheap.
+// Safari clears a website's storage after seven days without a visit unless it was added to the Home
+// Screen, which loses the offline map and the device id that holds a person's community points. A
+// persisted origin is exempt. Chrome and Safari decide silently; Firefox asks with a permission prompt
+// on first load, which is not worth showing for this, so it is skipped there.
+function requestPersistentStorage() {
+  const storage = navigator.storage;
+  if (!storage || typeof storage.persist !== "function" || typeof storage.persisted !== "function") return;
+  if (/Firefox\//.test(navigator.userAgent || "")) return;
+  storage.persisted()
+    .then((persisted) => (persisted ? null : storage.persist()))
+    .catch(() => {});
+}
+
 function requestBackgroundDataSync(options) {
   if (!("serviceWorker" in navigator)) return;
   if (!navigator.onLine) return;
@@ -553,6 +566,8 @@ function setupPwa() {
         refreshSettingsVersionDisplay();
       })
       .catch(() => {});
+
+    requestPersistentStorage();
   }
 
   if (els.installButton) {

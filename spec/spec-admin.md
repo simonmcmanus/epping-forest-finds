@@ -140,23 +140,32 @@ Location pings report the **raw GPS fix** (`state.rawUserLocation`), not `state.
 }
 ```
 
-**Response:** `{ "ok": true, "stored": <count> }`
+**Response:** `{ "ok": true, "received": <count>, "stored": <count> }`
+
+**Client batching.** `js/tracker.js` queues events in `localStorage` (newest 500 kept) and sends them together, not one request each: once 20 have built up, every 5 minutes, when the page is hidden (`visibilitychange`) or closed (`pagehide`), and when the device comes back online. A request carries at most 150 events (about 40 KB, inside the 64 KB a `keepalive` request may send); a longer queue goes up as several. A 5xx, 408 or 429 puts the batch back at the front of the queue for the next attempt; any other refusal drops it, since it can never succeed. The location ping itself still samples once a minute, so the dashboard's resolution is unchanged; what moves is when it arrives — a walker's latest position reaches the dashboard up to five minutes late.
+
+**Limits.** The function refuses a body over 256 KB or more than 500 events (413; 500 is what an older client's whole offline queue could hold). Each event is reduced to the fields above — strings truncated, coordinates range-checked and rounded to 5 decimal places (~1 m), anything else dropped — and events dated more than a day ahead or more than 90 days old are discarded. Each client IP may send 600 requests an hour (`TRACK_LIMIT_PER_IP`); beyond that it gets 429 with `Retry-After`. The counters live in 64 small documents (`track-rate/<shard>`, chosen by a hash of the address) so no one document grows with the number of visitors. A phone on the current app sends about 12 requests an hour, so many people can share one carrier or Wi-Fi address before it applies; a refused batch stays in the phone's queue.
 
 ### `GET /api/admin/tracks?pw=<password>`
 Returns stored events from a recent time window. Requires authentication.
 
 **Query params:**
-- `days` — size of the window in days. Defaults to **30**. `days=all` returns the entire history (see Storage below for the cost of doing this on a long-lived deployment).
+- `days` — size of the window in days. Defaults to **30**. `days=all` reads back to the retention period (a year by default).
 
-**Response:**
+**Response:** events are packed to fit about six times as many into the response — one table of uids (and of navigation targets) and one short array per event. `js/admin.js` `unpackTrackingEvents()` turns them back into the event objects above; a plain array of events (an older server, a test fixture) is used as it is.
 ```json
 {
-  "locations": [ /* location events from the window */ ],
-  "clicks":    [ /* click events from the window */ ],
+  "format": 2,
+  "locations": { "v": 2, "type": "location", "uids": ["..."], "targets": [{ "id": "T123", "name": "Oak", "type": "tree", "targetLat": 51.66, "targetLng": 0.05 }],
+                 "rows": [[0, 1761562800000, 51.65, 0.04, 180, 0]] },
+  "clicks":    { "v": 2, "type": "click", "uids": ["..."],
+                 "rows": [[0, 1761562800000, 51.65, 0.04, 51.66, 0.05, "tree", "T123", "Oak", "map"]] },
   "meta": { "storeName": "...", "context": "...", "windowDays": 30 }
 }
 ```
-If the full-window request fails with a 5xx (too much data for one response), the dashboard retries with `days=7`, then `days=1`, and shows the window it ended up with; if every attempt fails the login error includes the server's status and message. The function reads blobs newest first in batches and stops after about 7 seconds (`readBlobsWithinBudget`), returning what it has with `meta.partial: true` (the stats bar then says "partial") instead of timing out. `meta.windowDays` is `null` when `days=all` was requested. The admin stats bar shows the active window (e.g. "last 30 days") next to the event counts.
+A location row is `[uid index, time ms, lat, lng, heading, target index or -1]`; a click row is `[uid index, time ms, userLat, userLng, targetLat, targetLng, itemType, itemId, itemName, source]`.
+
+The read goes newest day first, three days at a time, and stops when the window ends, after about 7 seconds, or at about 4.5 MB of packed events (Netlify refuses a function response over 6 MB). When it stops early it returns what it has, newest first, with `meta.partial: true` and `meta.oldestDay` (the earliest day it reached); the stats bar then says "partial … (back to <day>)". On a busy deployment a 30-day request can therefore show fewer than 30 days. If the full-window request still fails with a 5xx, the dashboard retries with `days=7`, then `days=1`, and shows the window it ended up with; if every attempt fails the login error includes the server's status and message. `meta.windowDays` is `null` when `days=all` was requested. The admin stats bar shows the active window (e.g. "last 30 days") next to the event counts.
 
 ## Storage
 
@@ -164,7 +173,7 @@ The `netlify/functions/track.js` function tries Netlify Blobs first, and automat
 
 | Run mode | Storage used |
 |---|---|
-| `node server.js` | `data/tracking/*.ndjson` (via server.js directly) |
+| `node server.js` | `data/tracking/*.ndjson` (server.js runs the same function, which falls back with no Blobs context) |
 | `netlify dev` (no linked site) | `data/tracking/*.ndjson` (Blobs fallback in function) |
 | `netlify dev` (linked site) | Netlify Blobs, `tracking-<branch>` store |
 | Branch deploy / deploy preview | Netlify Blobs, `tracking-<branch>` store |
@@ -193,20 +202,22 @@ Path: `data/tracking/` (gitignored)
 Created automatically on first write.
 
 ### Netlify Blobs
-Each batch stored as a separate blob to avoid concurrent-write conflicts:
-- Location batches keyed `location/<timestamp>_<random>`
-- Click batches keyed `click/<timestamp>_<random>`
+The store is laid out by day (`netlify/functions/lib/tracking-store.js`), so a read costs what its window holds, never what the deployment has accumulated:
 
-Admin read endpoint lists all blobs by prefix, then downloads in parallel only the ones
-inside the requested window. Blob count grows without bound (one blob per POST batch,
-forever — there is no compaction or deletion), so on a deployment old enough to have
-accumulated many thousands of batches, downloading every one of them in a single
-request exceeded the Netlify function execution limit and the admin login 504'd. The
-blob key encodes the batch's write time, so the window is applied to the key before any
-blob content is fetched: listing is still full-history, but the per-blob downloads that
-dominate request time are not. The local NDJSON fallback has no equivalent key to
-pre-filter on, so it reads the whole file and filters by each event's own `ts` instead —
-fine at local-dev data volumes.
+| Key | Holds |
+|---|---|
+| `raw/<location\|click>/<YYYY-MM-DD>/<ms>_<random>.json` | One POSTed batch, filed under its events' own UTC day (a batch that spans midnight, or an offline queue sent days later, becomes one blob per day). Separate blobs, so concurrent writes never conflict. |
+| `daily/<location\|click>/<YYYY-MM-DD>.json` | That day's events, packed (same format as the admin response). |
+| `track-rate/<0–63>` | Per-IP request counters for the current hour. |
+| `location/<ms>_<random>.json`, `click/…` | The old flat layout (one blob per POST, forever). No longer written; migrated (below). |
+
+An admin read lists only `raw/<type>/<day>/` for the days in its window and reads one daily file per day and type.
+
+**Compaction.** `netlify/functions/track-compact-scheduled.js` runs every 10 minutes (`netlify.toml`). For today and the 13 days before, it reads each day's raw batches, merges them into that day's daily file, writes it, and only then deletes the batches it absorbed; events are de-duplicated on merge, so a run that dies between the write and the delete never double-counts. It then migrates one listing page of the old flat layout per prefix into daily files (by each event's own date) and deletes those blobs, so a long-lived store converts over successive runs without ever listing the whole of it at once. Each run stops at 20 seconds (scheduled functions get 30) and leaves the rest to the next. Between runs, an admin read also merges any raw batches not yet compacted, so nothing is missing from the dashboard while a day is still open. Until the old layout has been fully migrated, the history it holds appears day by day as it converts, oldest first.
+
+**Retention.** Daily files older than `TRACKING_RETENTION_DAYS` (default **365**) are deleted by the compaction run. `TRACKING_RETENTION_DAYS=0` keeps everything. The period is the owner's decision and should match the privacy page; the default exists so the store does not grow without end.
+
+The local NDJSON fallback has no day layout, so it reads the whole file and filters by each event's own `ts` — fine at local-dev data volumes.
 
 ## Netlify routing
 
@@ -250,7 +261,7 @@ The **Access** top-bar button opens a panel with one tester per line (Tester ID 
 
 ## Community verification usage
 
-A **Community** button in the admin top bar opens a panel (`#adminCommunity`) of live usage numbers for community reports: people reporting (all time, active in the last 24 h / 7 days), report count, trees questioned / verified, new trees (unconfirmed / confirmed), conflicts awaiting review, points awarded, reports by type and per day for the last 7 days. Data comes from `GET /api/community/overlay?admin=1` with `Authorization: Bearer <ADMIN_PASSWORD>` (401 otherwise), computed fresh from the report ledger by `communityAdminStats` (`netlify/functions/lib/community-consensus.js`). Individual device ids and scores are not shown. See `spec-community.md`.
+A **Community** button in the admin top bar opens a panel (`#adminCommunity`) of usage numbers for community reports: people reporting (all time, active in the last 24 h / 7 days), report count, trees questioned / verified, new trees (unconfirmed / confirmed), conflicts awaiting review, points awarded, reports by type and per day for the last 7 days. Data comes from `GET /api/community/overlay?admin=1` with `Authorization: Bearer <ADMIN_PASSWORD>` (401 otherwise). The figures are worked out by `communityAdminStats` (`netlify/functions/lib/community-consensus.js`) during each snapshot rebuild and stored as `admin-stats`, so opening the panel never reads the whole ledger; the panel says which snapshot it shows ("As of the last snapshot, …"), normally under an hour old, and **Rebuild snapshot now** refreshes it. Individual device ids and scores are not shown. See `spec-community.md`.
 
 ## Community data deletion
 `POST /api/community/delete` (`Authorization: Bearer <ADMIN_PASSWORD>`, routed in `netlify.toml` and `server.js`) deletes one person's Community data on request; it has no button in the dashboard. See `spec-community.md` (Data deletion) and `docs/community-data-deletion.md`.

@@ -15,36 +15,7 @@ try {
   }
 } catch {}
 
-const TRACKING_DIR = path.join(__dirname, "data", "tracking");
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
-
-function ensureTrackingDir() {
-  if (!fs.existsSync(TRACKING_DIR)) fs.mkdirSync(TRACKING_DIR, { recursive: true });
-}
-
-function appendNdjson(filename, objects) {
-  ensureTrackingDir();
-  const lines = objects.map((o) => JSON.stringify(o)).join("\n") + "\n";
-  fs.appendFileSync(path.join(TRACKING_DIR, filename), lines, "utf8");
-}
-
-function readNdjson(filename) {
-  const file = path.join(TRACKING_DIR, filename);
-  if (!fs.existsSync(file)) return [];
-  return fs.readFileSync(file, "utf8")
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => { try { return JSON.parse(line); } catch { return null; } })
-    .filter(Boolean);
-}
-
-function checkAdminAuth(req, url) {
-  if (!ADMIN_PASSWORD) return false;
-  const authHeader = req.headers.authorization || "";
-  if (authHeader === `Bearer ${ADMIN_PASSWORD}`) return true;
-  if (url.searchParams.get("pw") === ADMIN_PASSWORD) return true;
-  return false;
-}
 
 const PORT = Number(process.env.PORT || 8080);
 const ROOT = process.cwd();
@@ -200,36 +171,6 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (url.pathname === "/api/track" && req.method === "POST") {
-    let body = "";
-    req.on("data", (chunk) => { body += chunk; });
-    req.on("end", () => {
-      try {
-        const payload = JSON.parse(body);
-        const events = Array.isArray(payload.events) ? payload.events : [];
-        const locationEvents = events.filter((e) => e && e.type === "location");
-        const clickEvents = events.filter((e) => e && e.type === "click");
-        if (locationEvents.length) appendNdjson("location.ndjson", locationEvents);
-        if (clickEvents.length) appendNdjson("click.ndjson", clickEvents);
-        send(res, 200, JSON.stringify({ ok: true, stored: events.length }), "application/json; charset=utf-8");
-      } catch {
-        send(res, 400, JSON.stringify({ error: "Invalid JSON" }), "application/json; charset=utf-8");
-      }
-    });
-    return;
-  }
-
-  if (url.pathname === "/api/admin/tracks" && req.method === "GET") {
-    if (!checkAdminAuth(req, url)) {
-      send(res, 401, JSON.stringify({ error: "Unauthorized" }), "application/json; charset=utf-8");
-      return;
-    }
-    const locations = readNdjson("location.ndjson");
-    const clicks = readNdjson("click.ndjson");
-    send(res, 200, JSON.stringify({ locations, clicks, meta: { storeName: "local", context: "local" } }), "application/json; charset=utf-8");
-    return;
-  }
-
   // Mirrors the /app -> /nearby redirect in netlify.toml. /app carries no content of its
   // own any more, so this is an ordinary redirect, not a rewrite.
   if (url.pathname === "/app") {
@@ -290,6 +231,9 @@ const server = http.createServer((req, res) => {
     "/api/auth/link": "auth-link",
     "/api/auth/logout": "auth-logout",
     "/api/features": "features",
+    // Tracking runs the real function too; with no Blobs context it falls back to data/tracking/*.ndjson.
+    "/api/track": "track",
+    "/api/admin/tracks": "track",
   };
   if (COMMUNITY_FUNCTION_ROUTES[url.pathname]) {
     const fnName = COMMUNITY_FUNCTION_ROUTES[url.pathname];

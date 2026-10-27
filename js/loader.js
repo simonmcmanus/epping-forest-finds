@@ -19,6 +19,30 @@ function setLoadStep(key, status, count) {
   }
 }
 
+// A visitor's first visit: the service worker has just been registered but does not control this
+// page yet, so the map files this page downloads would never reach its cache, and it used to
+// download every one of them a second time (sw.js install now leaves a first install's data to the
+// page). Hand each data file over as it arrives instead. Once a worker controls the page it caches
+// what passes through it, so this does nothing then.
+function shareWithDataCache(url, response) {
+  if (!response.ok || !/^data\//.test(url)) return;
+  if (typeof caches === "undefined" || typeof DATA_CACHE_VERSION === "undefined") return;
+  if (!("serviceWorker" in navigator) || navigator.serviceWorker.controller) return;
+  const copy = response.clone();
+  navigator.serviceWorker.getRegistration()
+    .then((registration) => {
+      if (!registration) return null;
+      return caches.open(`forest-finds-data-${DATA_CACHE_VERSION}`).then((cache) => cache.put(url, copy));
+    })
+    .catch(() => {});
+}
+
+async function fetchMapData(url, options) {
+  const response = await fetch(url, options);
+  shareWithDataCache(url, response);
+  return response;
+}
+
 async function loadMapData() {
   setLoadStep("trees", "loading");
   setLoadStep("places", "loading");
@@ -33,7 +57,7 @@ async function loadMapData() {
     const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
     const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
     try {
-      const response = await fetch(url, controller ? { signal: controller.signal } : undefined);
+      const response = await fetchMapData(url, controller ? { signal: controller.signal } : undefined);
       if (!response.ok) throw new Error(`${url} HTTP ${response.status}`);
       return response.json();
     } finally {
@@ -179,7 +203,7 @@ async function loadMapData() {
     notifyInteractiveDataChange();
   };
 
-  const businessSlugsPromise = fetch(BUSINESS_SLUGS_URL)
+  const businessSlugsPromise = fetchMapData(BUSINESS_SLUGS_URL)
     .then((r) => (r.ok ? r.json() : { entries: [] }))
     .catch(() => ({ entries: [] }))
     .then((data) => {
@@ -212,7 +236,7 @@ async function loadMapData() {
       };
     });
 
-  const landmarkPromises = LANDMARK_URLS.map((url) => fetch(url)
+  const landmarkPromises = LANDMARK_URLS.map((url) => fetchMapData(url)
     .then((r) => r.ok ? r.json() : { features: [] })
     .catch(() => ({ features: [] }))
     .then((data) => {
@@ -220,7 +244,7 @@ async function loadMapData() {
       return data;
     }));
 
-  const folklorePromise = fetch(FOLKLORE_URL)
+  const folklorePromise = fetchMapData(FOLKLORE_URL)
     .then(async (r) => {
       if (!r.ok) throw new Error(`Folklore data HTTP ${r.status}`);
       return r.json();
@@ -234,7 +258,7 @@ async function loadMapData() {
       return data;
     });
 
-  const eventsPromise = fetch(EVENTS_URL)
+  const eventsPromise = fetchMapData(EVENTS_URL)
     .then(async (r) => {
       if (!r.ok) throw new Error(`Events data HTTP ${r.status}`);
       return r.json();
@@ -245,7 +269,7 @@ async function loadMapData() {
       return data;
     });
 
-  const pathsPromise = fetch(PATHS_URL)
+  const pathsPromise = fetchMapData(PATHS_URL)
     .then(async (r) => {
       if (!r.ok) throw new Error(`Paths data HTTP ${r.status}`);
       const data = await r.json();
@@ -278,7 +302,7 @@ async function loadMapData() {
       return { features: [] };
     });
 
-  const environmentPromise = fetch(ENVIRONMENT_URL)
+  const environmentPromise = fetchMapData(ENVIRONMENT_URL)
     .then(async (r) => {
       if (!r.ok) throw new Error(`Environment data HTTP ${r.status}`);
       const data = await r.json();
@@ -293,7 +317,7 @@ async function loadMapData() {
       return { features: [] };
     });
 
-  const layerPromises = FEATURE_LAYERS.map((layer) => fetch(layer.url)
+  const layerPromises = FEATURE_LAYERS.map((layer) => fetchMapData(layer.url)
     .then(async (r) => {
       if (!r.ok) throw new Error(`${layer.label} HTTP ${r.status}`);
       return { ...layer, data: await r.json() };
@@ -339,7 +363,7 @@ async function loadMapData() {
 function loadBuildingsIfNeeded() {
   if (state.buildingsLoaded || state.buildingsLoading) return;
   state.buildingsLoading = true;
-  fetch(BUILDINGS_URL)
+  fetchMapData(BUILDINGS_URL)
     .then((r) => r.json())
     .then((data) => {
       state.buildingFeatures = (data.features || [])

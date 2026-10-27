@@ -63,3 +63,36 @@ test("bus stop direction keeps destinations that merely look compass-like", () =
   );
   assert.equal(_private.normalizeDirectionText("Northumberland Park"), "Northumberland Park");
 });
+
+const transport = require("../netlify/functions/transport-departures.js");
+
+function withTfl(respond, run) {
+  const original = global.fetch;
+  global.fetch = async (url) => respond(String(url));
+  return Promise.resolve(run()).finally(() => { global.fetch = original; });
+}
+
+const json = (body) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+
+test("live departures for a stop are shared at the edge for 30 seconds", () => withTfl(
+  (url) => (url.includes("/Arrivals")
+    ? json([{ lineName: "20", towards: "Loughton", timeToStation: 120 }])
+    : json({ stopPoints: [{ id: "490000001", commonName: "High Beach" }] })),
+  async () => {
+    const result = await transport.handler({ httpMethod: "GET", queryStringParameters: { lat: "51.65", lon: "0.03", type: "bus" } });
+    assert.equal(result.statusCode, 200);
+    assert.equal(JSON.parse(result.body).departures[0].line, "20");
+    assert.match(result.headers["Netlify-CDN-Cache-Control"], /s-maxage=30/);
+    assert.equal(result.headers["Netlify-Vary"], "query=lat|lon|type|name");
+  },
+));
+
+test("a TfL failure answers 502 and is never cached", () => withTfl(
+  () => new Response("rate limited", { status: 429 }),
+  async () => {
+    const result = await transport.handler({ httpMethod: "GET", queryStringParameters: { lat: "51.65", lon: "0.03", type: "train" } });
+    assert.equal(result.statusCode, 502);
+    assert.equal(result.headers["Netlify-CDN-Cache-Control"], undefined);
+    assert.equal(result.headers["Cache-Control"], "no-store");
+  },
+));

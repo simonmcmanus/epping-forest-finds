@@ -361,6 +361,11 @@ self.addEventListener("install", (event) => {
     .open(DATA_CACHE_NAME)
     .then(async (cache) => {
       await adoptPreviousDataCache(cache);
+      // A visitor's very first install has nothing to adopt, and the page that registered this worker
+      // is already downloading the same map files itself (js/loader.js hands each one to this cache as
+      // it lands). Fetching them here as well downloaded the whole map twice on a first visit, ~90 MB
+      // of JSON. The data sync the page asks for later fills in anything it did not fetch.
+      if ((await cache.keys()).length === 0) return;
       const missing = await missingFromCache(cache, DATA_SHELL);
       if (missing.length > 0) await cache.addAll(missing);
 

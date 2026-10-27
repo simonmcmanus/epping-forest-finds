@@ -1,6 +1,6 @@
 // POST /api/community/report — store one community report (tree or place verification).
 // Idempotent on the client-generated report id, so an outbox retry never double-counts.
-const { openStore } = require("./lib/community-store");
+const { openStore, MINE_LOG_MAX } = require("./lib/community-store");
 const { validateReport } = require("./lib/community-consensus");
 const { checkRateLimit, configuredCommunityLimits, clientIp } = require("./lib/report-rate-limit");
 
@@ -71,6 +71,6 @@ exports.handler = async (event) => {
   const mineKey = `mine/${report.deviceId}`;
   const mine = (await store.get(mineKey)) || [];
   mine.push({ id: report.id, kind: report.kind, target: report.target, status: report.status, ts: report.ts, lat: report.lat, lon: report.lon, targetLat: report.targetLat, targetLon: report.targetLon, tagNumber: report.tagNumber });
-  await store.put(mineKey, mine.slice(-300));
+  await store.put(mineKey, mine.slice(-MINE_LOG_MAX));
   return respond(200, { ok: true });
 };

@@ -74,4 +74,9 @@ function openStore(event) {
   };
 }
 
-module.exports = { openStore };
+// How many of a device's own reports `mine/<deviceId>` keeps for "My reports". Scores are counted from
+// the ledger, not from this log, so the cap only limits how far back the list goes. Every report rewrites
+// the whole log, so it stays bounded (about 250 KB at the cap).
+const MINE_LOG_MAX = 1000;
+
+module.exports = { openStore, MINE_LOG_MAX };

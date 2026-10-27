@@ -45,6 +45,27 @@ test.describe("Admin login", () => {
     await expect(page.locator("#loginError")).toContainText("Incorrect password");
   });
 
+  test("shows the people in a packed tracking response and says how far back a partial one reaches", async ({ page }) => {
+    await skipOnboarding(page);
+    const packed = {
+      format: 2,
+      locations: {
+        v: 2, type: "location", uids: ["user-aaaa-1111", "user-bbbb-2222"], targets: [],
+        rows: [[0, Date.parse("2026-10-20T10:00:00Z"), 51.65, 0.04, null, -1], [1, Date.parse("2026-10-21T10:00:00Z"), 51.66, 0.05, 90, -1]],
+      },
+      clicks: { v: 2, type: "click", uids: [], rows: [] },
+      meta: { ...TRACKS.meta, partial: true, oldestDay: "2026-10-20" },
+    };
+    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(packed) }));
+    await page.goto("/admin");
+    await page.getByLabel("Admin password").fill("secret");
+    await page.click("#loginBtn");
+
+    await expect(page.getByRole("button", { name: /pts/ })).toHaveCount(2);
+    await expect(page.locator("#adminStats")).toContainText("2 location pings");
+    await expect(page.locator("#adminStats")).toContainText("back to 2026-10-20");
+  });
+
   test("the password field is labelled, and a user row can be opened from the keyboard", async ({ page }) => {
     await skipOnboarding(page);
     const tracks = {

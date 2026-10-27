@@ -132,13 +132,37 @@ function loadServiceWorker({ dev = false, network } = {}) {
 const body = async (response) => response.text();
 
 test.describe("installing", () => {
-  test("a first install downloads every app and data shell file", async () => {
+  test("a first install downloads the app shell and leaves the map data to the page already fetching it", async () => {
     const sw = loadServiceWorker();
     await sw.dispatchLifecycle("install");
+    await sw.settle();
     const fetched = new Set(sw.requested.map((r) => r.url));
-    for (const file of [...sw.constant("APP_SHELL"), ...sw.constant("DATA_SHELL")]) {
+    for (const file of sw.constant("APP_SHELL")) {
       assert.ok(fetched.has(absolute(file)), `${file} should be downloaded`);
     }
+    assert.deepEqual(sw.requested.filter((r) => r.url.includes("/data/")).map((r) => r.url), [],
+      "no map file is downloaded a second time while the first page is downloading it");
+  });
+
+  test("after a first visit, the map files the page handed over are served offline and the next sync fills in the rest", async () => {
+    const sw = loadServiceWorker();
+    await sw.dispatchLifecycle("install");
+    await sw.dispatchLifecycle("activate");
+    // What js/loader.js does on a first visit, for each file the page downloaded.
+    const dataCache = await sw.cacheStorage.open(sw.constant("DATA_CACHE_NAME"));
+    await dataCache.put("./data/local-paths.geojson", new Response("paths from the page"));
+    sw.requested.length = 0;
+
+    const served = await sw.request("/data/local-paths.geojson");
+    assert.equal(await body(served.response), "paths from the page");
+    assert.equal(sw.requested.length, 0, "served from the cache, not downloaded again");
+
+    await sw.message({ type: "SYNC_DATA" });
+    const synced = new Set(sw.requested.map((r) => r.url));
+    for (const file of sw.constant("DATA_SHELL")) {
+      assert.ok(await dataCache.match(file), `${file} is cached after the first sync`);
+    }
+    assert.ok(synced.has(absolute("./data/local-environment.geojson")), "a file the page never handed over is fetched by the sync");
   });
 
   test("a reinstall fetches only the shell files that are not already cached", async () => {
@@ -182,6 +206,8 @@ test.describe("installing", () => {
     const sw = loadServiceWorker({
       network: (url) => (/\/data\/(trees\/chunk-|icons\/)/.test(url) ? Promise.reject(new TypeError("offline")) : new Response("ok")),
     });
+    // A repair install: the data cache already holds something, so the worker fills in the rest itself.
+    await (await sw.cacheStorage.open(sw.constant("DATA_CACHE_NAME"))).put("./data/events.json", new Response("{}"));
     await sw.dispatchLifecycle("install");
     await sw.settle();
     const dataCache = await sw.cacheStorage.open(sw.constant("DATA_CACHE_NAME"));

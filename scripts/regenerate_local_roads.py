@@ -6,6 +6,8 @@ import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 
+from geojson_format import write_feature_lines
+
 ROOT = Path.cwd()
 DATA = ROOT / "data"
 QUERY_PATH = DATA / "local-roads.overpassql"
@@ -103,8 +105,7 @@ def main():
     geojson = convert_to_geojson(overpass_data)
     
     print(f"Saving GeoJSON to {GEOJSON_PATH}...")
-    with open(GEOJSON_PATH, 'w') as f:
-        json.dump(geojson, f, indent=2)
+    write_feature_lines(GEOJSON_PATH, geojson)
     
     print(f"✓ Done! Generated {geojson['metadata']['count']} road features")
 
