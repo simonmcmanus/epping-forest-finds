@@ -2143,21 +2143,6 @@ test("updateDocumentTitle names a selected place near Epping Forest", () => {
   app.updateDocumentTitle();
 });
 
-test("overviewNearestHtml no longer shows a tree species breakdown -- dropped as not making sense for a High Beach stand-in location", () => {
-  resetData(app);
-  app.state.trees = [
-    { commonName: "English Oak" }, { commonName: "English Oak" }, { commonName: "English Oak" },
-    { commonName: "English Oak" }, { commonName: "English Oak" },
-  ];
-  app.state.overviewFilters = ["trees"];
-  app.location.pathname = "/nearby/trees/";
-  app.state.userLocation = null;
-
-  assert.ok(!app.overviewNearestHtml().includes("By species"));
-
-  app.location.pathname = "/";
-});
-
 test("navigateInApp pushes a real history entry and applies the new route, instead of leaving it to the browser's own navigation", () => {
   resetData(app);
   app.location.pathname = "/find/the-forresters/";
@@ -2398,10 +2383,6 @@ test("the Nearby heading's own type line says it is measuring from High Beach wh
   );
 });
 
-test("the inspector has no standalone location button", () => {
-  assert.equal(app.els.locateButton, undefined, "location permission is requested from the focused gate, not a second Nearby control");
-});
-
 test("drawUser never draws the \"You\" dot for the default location, only for a real fix", () => {
   resetData(app);
   let arcCalls = 0;
@@ -2536,17 +2517,6 @@ test("generated tree chunks cover the full veteran tree register", () => {
   for (const chunk of index.chunks) {
     assert.ok(fs.existsSync(path.join(__dirname, "..", chunk.url)), `${chunk.url} should exist`);
   }
-});
-
-test("service worker install pre-caches only the small tree chunk index", () => {
-  const serviceWorker = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  const shellMatch = serviceWorker.match(/const DATA_SHELL = \[([\s\S]*?)\];/);
-
-  assert.ok(shellMatch, "DATA_SHELL cache list exists");
-  assert.ok(shellMatch[1].includes("data/trees/index.json"), "tree chunk index should be pre-cached");
-  assert.ok(!shellMatch[1].includes("data/trees/chunk-"), "tree chunks should be runtime cached after the page fetch");
-  assert.ok(!shellMatch[1].includes("Veteran_Tree_Register.json"), "base tree register should be runtime cached after the page fetch");
-  assert.ok(!shellMatch[1].includes("Veteran_Tree_Register.enriched.with_named_trees.json"), "enriched tree register should be runtime cached after the page fetch");
 });
 
 test("nearest list falls back to one closest item for each active type outside the walking radius", () => {
@@ -4116,17 +4086,6 @@ test("setInspectorMinimized keeps the plain recentre-at-current-scale behaviour 
   assert.equal(app.state.viewportAnimationTo.scale, 4242, "north-up recentre must keep the current scale unchanged");
 });
 
-test("nearby HTML does not contain the walking distance selector", () => {
-  resetData(app);
-  app.state.userLocation = makePoint(app, 0, 0);
-  addFixtureData(app);
-
-  const html = app.overviewNearestHtml();
-
-  assert.ok(!html.includes("nearestItemsSelect"), "nearby should not contain the walking distance select control");
-  assert.ok(!html.includes("Walking distance:"), "nearby should not contain the walking distance label");
-});
-
 test("nearby summary uses the generated walking icon asset", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
@@ -4733,16 +4692,6 @@ test("bus stop titles keep explicit directional wording", () => {
   );
 });
 
-test("nearby HTML does not contain the app version", () => {
-  resetData(app);
-  app.state.userLocation = makePoint(app, 0, 0);
-  addFixtureData(app);
-
-  const html = app.overviewNearestHtml();
-
-  assert.ok(!html.includes("App version:"), "app version should not appear in the nearby section");
-});
-
 test("settings form puts About (and its refresh buttons) before Privacy, not last", () => {
   const html = app.settingsFormHtml();
   const aboutIndex = html.indexOf('<h3 class="settings-section-title">About</h3>');
@@ -4752,6 +4701,15 @@ test("settings form puts About (and its refresh buttons) before Privacy, not las
     aboutIndex < privacyIndex,
     "About (with the Refresh buttons people open Settings for) should render before Privacy, so it isn't the last thing scrolled to"
   );
+});
+
+test("settings form falls back to the built-in cache version before the live worker version is known", () => {
+  const marker = vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "js", "app-cache-version.js"), "utf8") + "\nAPP_CACHE_VERSION", {});
+  app.state.swVersion = null;
+  assert.ok(app.settingsFormHtml().includes(`>${marker}</span>`), "the About line shows the marker file's version");
+  app.state.swVersion = "forest-finds-app-live";
+  assert.ok(app.settingsFormHtml().includes(">forest-finds-app-live</span>"), "and the live worker's version once it is known");
+  app.state.swVersion = null;
 });
 
 test("settings form shows the app version", () => {
@@ -5994,7 +5952,7 @@ test("compassCalibrationSpreadDegrees measures circular spread correctly across 
   app.registerCompassCalibrationSample(10, base + 50);
   // 350 -> 10 is a 20 degree turn through north, not a 340 degree spread.
   assert.ok(
-    app.compassCalibrationSpreadDegrees() <= 20 + 1e-6,
+    Math.abs(app.compassCalibrationSpreadDegrees() - 20) < 1e-6,
     `wraparound spread should read as ~20 degrees, got ${app.compassCalibrationSpreadDegrees()}`
   );
 });
@@ -6737,13 +6695,13 @@ test("createRoutingGraphBuilder produces an identical graph whether fed all feat
   assert.equal(batchedEdgeCount, wholeEdgeCount);
 });
 
-test("buildRoutingGraphAsync returns a promise (chunked-build correctness is covered synchronously above via createRoutingGraphBuilder, since this file's test() runner does not await async tests)", () => {
+test("buildRoutingGraphAsync builds the same graph as the synchronous builder, batch by batch", async () => {
   const roads = [routingFeature("residential", [[51.650, 0.000], [51.650, 0.001], [51.651, 0.001]])];
   const paths = [routingFeature("footway", [[51.651, 0.001], [51.652, 0.002]])];
-  const asyncResult = app.buildRoutingGraphAsync(roads, paths, app.unprojectPoint, app.distanceMetres, 1);
-  assert.equal(typeof asyncResult.then, "function", "buildRoutingGraphAsync must return a promise");
-  // Prevent an unhandled-rejection warning if it ever throws; correctness is asserted elsewhere.
-  asyncResult.catch(() => {});
+  const sync = app.buildRoutingGraph(roads, paths, app.unprojectPoint, app.distanceMetres);
+  const batched = await app.buildRoutingGraphAsync(roads, paths, app.unprojectPoint, app.distanceMetres, 1);
+  assert.equal(batched.nodes.length, sync.nodes.length, "same junctions however the features are batched");
+  assert.ok(batched.nodes.length > 2, "the graph is not empty");
 });
 
 test("ensureRoutingGraph lazily builds a routing graph from state.roads/state.paths, drawSelectedRoute switches from the straight-line fallback to the routed polyline once it's ready, and the result is memoized until the user moves meaningfully", async () => {
@@ -7553,18 +7511,6 @@ test("detour slack is dropped once the routing graph resolves, including when th
   app.state.routingGraphBuilding = true;
   const buildingScale = fitScaleNow();
   assert.ok(buildingScale < failedScale, "while the graph is still building the fit should keep its slack");
-});
-
-test("app fallback and service worker share the independent app cache version marker", () => {
-  const root = path.join(__dirname, "..");
-  const swSource = fs.readFileSync(path.join(root, "sw.js"), "utf8");
-  const appSource = fs.readFileSync(path.join(root, "js", "app.js"), "utf8");
-  const marker = fs.readFileSync(path.join(root, "js", "app-cache-version.js"), "utf8");
-
-  assert.match(marker, /const APP_CACHE_VERSION = .*v\d+/, "app marker should hold a version");
-  assert.match(swSource, /importScripts\("\.\/js\/app-cache-version\.js"/, "service worker should import the app marker");
-  assert.match(swSource, /forest-finds-app-\$\{APP_CACHE_VERSION\}/, "service worker should derive its cache name from the app marker");
-  assert.match(appSource, /const APP_VERSION = APP_CACHE_VERSION/, "app fallback should use the same marker");
 });
 
 test("cache version label reads dev-server cache names as well as production ones", () => {

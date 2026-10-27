@@ -178,6 +178,24 @@ test.describe("installing", () => {
     assert.notEqual(state.staleSince, undefined, "the adopted data is marked stale so the next sync is not throttled");
   });
 
+  test("install succeeds even when the optional tree chunks and icons cannot be downloaded", async () => {
+    const sw = loadServiceWorker({
+      network: (url) => (/\/data\/(trees\/chunk-|icons\/)/.test(url) ? Promise.reject(new TypeError("offline")) : new Response("ok")),
+    });
+    await sw.dispatchLifecycle("install");
+    await sw.settle();
+    const dataCache = await sw.cacheStorage.open(sw.constant("DATA_CACHE_NAME"));
+    assert.ok(await dataCache.match("./data/trees/index.json"), "the tree chunk index is in the cache");
+    assert.ok(!(await dataCache.match("./data/trees/chunk-lat5163_lon0.json")), "a chunk that failed to download is simply absent, not an install failure");
+  });
+
+  test("the app and data caches are named from their independent version markers", () => {
+    const sw = loadServiceWorker();
+    const read = (file, name) => vm.runInNewContext(`${fs.readFileSync(path.join(root, file), "utf8")}\n${name}`, {});
+    assert.equal(sw.constant("APP_CACHE_NAME"), `forest-finds-app-${read("js/app-cache-version.js", "APP_CACHE_VERSION")}`);
+    assert.equal(sw.constant("DATA_CACHE_NAME"), `forest-finds-data-${read("js/data-cache-version.js", "DATA_CACHE_VERSION")}`);
+  });
+
   test("a new worker waits instead of taking over, until the page asks it to activate", async () => {
     const sw = loadServiceWorker();
     await sw.dispatchLifecycle("install");

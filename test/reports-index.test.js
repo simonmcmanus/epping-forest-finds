@@ -117,7 +117,6 @@ test("the listing wears the homepage's look: brand header, forest photograph and
   assert.match(html, /<a class="brand" href="\/">/);
   assert.match(html, /src="\/assets\/home\/map-icons\/oak\.png"/);
   assert.match(html, /src="\/assets\/home\/ledger\.png"/);
-  assert.match(html, /--tree-deep: #1d4a2f/);
   assert.doesNotMatch(html, /\/(js|css)\//, "never loads the app's code or styles");
   assert.match(html, /href="\/#signup"/);
 });

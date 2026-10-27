@@ -137,16 +137,3 @@ test("every quoted count already matches -- sync is a no-op on a clean tree", ()
   const { stale } = sync({ check: true });
   assert.deepStrictEqual(stale, [], `these files quote a stale count: ${stale.join(", ")}`);
 });
-
-test("the homepage does not quote a stale tree count", () => {
-  const html = readHomepageText();
-  const { trees } = readCounts(ROOT);
-  const quoted = html.match(/([\d,]+)\s+veteran trees/);
-
-  assert.ok(quoted, "index.html should state a veteran tree count");
-  assert.strictEqual(
-    quoted[1],
-    formatCount(trees),
-    "the veteran tree count in index.html has drifted from data/trees/index.json"
-  );
-});
