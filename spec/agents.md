@@ -27,6 +27,30 @@ Before finishing any implementation task:
 - Map changed files to the relevant `spec/` document.
 - Update the spec or explicitly document why the change is implementation-only.
 
+## Agent skills
+
+Skills live in `.claude/skills/` (Claude Code) and `.agents/skills/` (Codex). Use them as part of the normal workflow:
+
+- **Non-trivial feature or ambiguous request:** start with `/grill-with-docs` (it uses the repo's `grilling` skill), then `/to-spec`. Specs go into the matching `spec/*.md` file, not only an issue. These and `/implement` and `/triage` only run when typed, so suggest the command to the user instead of skipping the step.
+- **Implementation:** `/implement` or `/tdd`. A new user-facing behaviour still needs its BDD test in `test/e2e/`.
+- **Bug, failing or flaky test:** `/diagnosing-bugs`; establish CI-to-CI whether a failure is pre-existing (see Testing).
+- **Pull request body:** follow `/pr`, but `.github/pull_request_template.md`, the screenshot rules and the preview-links block win where they differ.
+- **Throwaway UX/logic experiment:** `/prototype`. Delete the prototype code before committing.
+- **Code review:** use the built-in `/code-review`.
+- **Wrap-up (optional):** `/retro`.
+
+### Issue tracker
+
+GitHub Issues via `gh`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default five-role vocabulary. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Glossary and decisions live in `spec/`, not `GLOSSARY.md`/`docs/adr/`. See `docs/agents/domain.md`.
+
 ## Marketing and app surfaces
 
 - `index.html` (marketing homepage, `/`) and `assets/home/**` are a separate surface from the app (`app.html`, `js/**`, `css/**`). Marketing must not import app CSS/JS or reference app icons at runtime; small brand assets are independent copies in `assets/home/`.
