@@ -96,3 +96,41 @@ test("a TfL failure answers 502 and is never cached", () => withTfl(
     assert.equal(result.headers["Cache-Control"], "no-store");
   },
 ));
+
+test("a TfL call that hangs is given up after a few seconds with a 502", async () => {
+  const { mock } = require("node:test");
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const original = global.fetch;
+  global.fetch = (url, { signal }) => new Promise((resolve, reject) => {
+    signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+  });
+  try {
+    const pending = transport.handler({ httpMethod: "GET", queryStringParameters: { lat: "51.65", lon: "0.03", type: "bus" } });
+    mock.timers.tick(4000);
+    const result = await pending;
+    assert.equal(result.statusCode, 502);
+  } finally {
+    global.fetch = original;
+    mock.timers.reset();
+  }
+});
+
+test("without TFL_APP_KEY the function says so in its log, once", async () => {
+  delete require.cache[require.resolve("../netlify/functions/transport-departures.js")];
+  const fresh = require("../netlify/functions/transport-departures.js");
+  const key = process.env.TFL_APP_KEY;
+  delete process.env.TFL_APP_KEY;
+  const warnings = [];
+  const warn = console.warn;
+  console.warn = (message) => warnings.push(String(message));
+  try {
+    await withTfl(() => json({ stopPoints: [] }), async () => {
+      await fresh.handler({ httpMethod: "GET", queryStringParameters: { lat: "51.65", lon: "0.03", type: "bus" } });
+      await fresh.handler({ httpMethod: "GET", queryStringParameters: { lat: "51.65", lon: "0.03", type: "bus" } });
+    });
+    assert.equal(warnings.filter((w) => w.includes("TFL_APP_KEY")).length, 1);
+  } finally {
+    console.warn = warn;
+    if (key !== undefined) process.env.TFL_APP_KEY = key;
+  }
+});

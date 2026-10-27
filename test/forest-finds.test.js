@@ -234,6 +234,8 @@ globalThis.__forestFindsTest = {
   // because the app looks the method up on it at every call.
   performance,
   formatDistance,
+  fetchMapData,
+  requestPersistentStorage,
   projectLonLat,
   unprojectPoint,
   distanceMetres,
@@ -10746,6 +10748,102 @@ test("detailsHtml renders Opening hours as plain text like any other detail row"
   assert.match(html, /<dt>Opening hours<\/dt><dd>Mo-Su 09:00-17:00<\/dd>/);
 });
 
+// --- First visit: the page hands its map downloads to the service worker's data cache (js/loader.js) ---
+
+function withHandOverEnvironment({ controller = null, registration = {}, response = { ok: true } } = {}, run) {
+  const put = [];
+  const fakeCaches = { open: async (name) => ({ put: async (url, body) => put.push({ name, url, body }) }) };
+  const fakeResponse = () => ({ ...response, clone: () => ({ cloned: true }) });
+  const previousFetch = app.swapGlobalFunction("fetch", async () => fakeResponse());
+  const previousCaches = app.swapGlobalFunction("caches", fakeCaches);
+  const previousSw = app.navigator.serviceWorker;
+  app.navigator.serviceWorker = registration === undefined
+    ? undefined
+    : { controller, getRegistration: async () => registration };
+  return Promise.resolve(run(put)).finally(() => {
+    app.swapGlobalFunction("fetch", previousFetch);
+    app.swapGlobalFunction("caches", previousCaches);
+    if (previousSw === undefined) delete app.navigator.serviceWorker; else app.navigator.serviceWorker = previousSw;
+  });
+}
+
+const handOverSettled = () => new Promise((resolve) => setImmediate(resolve));
+
+test("on a first visit a downloaded map file is handed to the data cache, so the service worker need not fetch it again", () =>
+  withHandOverEnvironment({}, async (put) => {
+    await app.fetchMapData("data/local-roads.geojson");
+    await handOverSettled();
+    assert.equal(put.length, 1);
+    assert.equal(put[0].url, "data/local-roads.geojson");
+    assert.match(put[0].name, /^forest-finds-data-/);
+  }));
+
+test("once a service worker controls the page, nothing is handed over (the worker caches what passes through it)", () =>
+  withHandOverEnvironment({ controller: {} }, async (put) => {
+    await app.fetchMapData("data/local-roads.geojson");
+    await handOverSettled();
+    assert.equal(put.length, 0);
+  }));
+
+test("with no service worker registered (blocked, or unsupported), nothing is written to the cache", () =>
+  withHandOverEnvironment({ registration: null }, async (put) => {
+    await app.fetchMapData("data/local-roads.geojson");
+    await handOverSettled();
+    assert.equal(put.length, 0);
+  }));
+
+test("a failed download, or a file outside data/, is never handed over", async () => {
+  await withHandOverEnvironment({ response: { ok: false } }, async (put) => {
+    await app.fetchMapData("data/local-roads.geojson");
+    await handOverSettled();
+    assert.equal(put.length, 0);
+  });
+  await withHandOverEnvironment({}, async (put) => {
+    await app.fetchMapData("Veteran_Tree_Register.json");
+    await handOverSettled();
+    assert.equal(put.length, 0);
+  });
+});
+
+// --- Persistent storage (js/nav.js requestPersistentStorage) ---
+
+async function persistRequests({ persisted = false, userAgent = "Mozilla/5.0 (iPhone) Safari/605.1.15" } = {}) {
+  const calls = [];
+  const previous = { storage: app.navigator.storage, userAgent: app.navigator.userAgent };
+  app.navigator.storage = { persisted: async () => persisted, persist: async () => { calls.push("persist"); return true; } };
+  app.navigator.userAgent = userAgent;
+  try {
+    app.requestPersistentStorage();
+    await handOverSettled();
+    return calls.length;
+  } finally {
+    if (previous.storage === undefined) delete app.navigator.storage; else app.navigator.storage = previous.storage;
+    app.navigator.userAgent = previous.userAgent;
+  }
+}
+
+test("the app asks the browser to keep its offline storage, so Safari does not clear it after a week away", async () => {
+  assert.equal(await persistRequests(), 1);
+});
+
+test("storage that is already persisted is not asked for again", async () => {
+  assert.equal(await persistRequests({ persisted: true }), 0);
+});
+
+test("Firefox, which would show a permission prompt for it, is not asked", async () => {
+  assert.equal(await persistRequests({ userAgent: "Mozilla/5.0 (Android 14; Mobile; rv:130.0) Gecko/130.0 Firefox/130.0" }), 0);
+});
+
+test("a browser without the storage API is left alone", () => {
+  const previous = app.navigator.storage;
+  delete app.navigator.storage;
+  try {
+    assert.doesNotThrow(() => app.requestPersistentStorage());
+  } finally {
+    if (previous !== undefined) app.navigator.storage = previous;
+  }
+});
+
 // --- Community verification consensus (netlify/functions/lib/community-consensus.js) ---
 const communityConsensus = require("../netlify/functions/lib/community-consensus");
 let communityReportSeq = 0;
@@ -10978,6 +11076,7 @@ test("confirming a place scores nothing and a fixed feedback report earns the fi
 });
 
 const communityComputed = require("../netlify/functions/lib/community-computed");
+const communityLedger = require("../netlify/functions/lib/community-ledger");
 
 function memoryStore(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -11075,6 +11174,48 @@ test("the admin dashboard's community figures come from the last rebuild, not a 
   assert.equal(stats.reports, 1);
   assert.ok(stats.generatedAt > 0, "it says when the figures were taken");
   assert.equal(store.reportReads, 0);
+});
+
+test("the admin dashboard's community figures are built on demand when no rebuild has run yet", async () => {
+  const store = memoryStore();
+  await store.put("reports/r1", communityReport({ id: "report-1aaaa111", deviceId: "device-1aaaa" }));
+  await store.put("reports/r2", communityReport({ id: "report-2aaaa111", deviceId: "device-2aaaa" }));
+  const stats = await communityComputed.loadAdminStats(store);
+  assert.equal(stats.reports, 2);
+  assert.equal(stats.devices, 2);
+});
+
+test("a ledger bigger than one cache chunk is cached across several chunks and read back whole", async () => {
+  const store = countingStore();
+  const total = communityLedger.CHUNK_SIZE + 50;
+  for (let i = 0; i < total; i += 1) {
+    await store.put(`reports/r${i}`, communityReport({ id: `report-${String(i).padStart(6, "0")}x`, deviceId: `device-${i % 40}aaaa` }));
+  }
+  assert.equal((await communityComputed.rebuildComputed(store)).reportCount, total);
+  assert.equal((await store.get("ledger-cache/index")).chunks, 2);
+  store.reportReads = 0;
+  assert.equal((await communityComputed.rebuildComputed(store)).reportCount, total, "every report comes back from the cache");
+  assert.equal(store.reportReads, 0);
+});
+
+test("bulk reads run a bounded number at a time, so a large ledger never opens a request per record at once", async () => {
+  const store = memoryStore();
+  for (let i = 0; i < 200; i += 1) await store.put(`reports/r${i}`, communityReport({ id: `report-${String(i).padStart(6, "0")}x`, deviceId: `device-${i}aaaa` }));
+  for (let i = 0; i < 60; i += 1) await store.put(`devicelink/device-${i}aaaa`, { account: `acct-${i % 3}` });
+  let inFlight = 0;
+  let most = 0;
+  const get = store.get;
+  store.get = async (key) => {
+    inFlight += 1;
+    most = Math.max(most, inFlight);
+    await new Promise((resolve) => setImmediate(resolve));
+    inFlight -= 1;
+    return get(key);
+  };
+  const computed = await communityComputed.rebuildComputed(store);
+  assert.equal(computed.reportCount, 200);
+  assert.ok(most <= 25, `at most 25 reads at once, saw ${most}`);
+  assert.ok(most > 1, "but they do run in parallel");
 });
 
 test("nudges: a card on the overview, a pulse on the tree's own page, and quiet otherwise", () => {
@@ -11409,6 +11550,45 @@ test("one network cannot mint endless device ids to confirm its own reports: com
   }
 });
 
+test("many people behind one mobile-network address can all report, well past one device's hourly allowance", async () => {
+  const reportEndpoint = require("../netlify/functions/community-report");
+  reportEndpoint.setStore(memoryStore());
+  try {
+    for (let n = 0; n < 150; n += 1) {
+      const result = await reportEndpoint.handler({
+        httpMethod: "POST",
+        headers: { "x-nf-client-connection-ip": "198.51.100.20" },
+        body: JSON.stringify({ id: `report-cgnat-${String(n).padStart(4, "0")}`, deviceId: `device-cgnat-${n}-x`, kind: "tree", target: `tree:${n}`, status: "VERIFIED", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01 }),
+      });
+      assert.equal(result.statusCode, 200, `report ${n + 1} from the shared address`);
+    }
+  } finally {
+    reportEndpoint.setStore(null);
+  }
+});
+
+test("'My reports' keeps a device's latest 1,000 reports, dropping the oldest", async () => {
+  const reportEndpoint = require("../netlify/functions/community-report");
+  const store = memoryStore();
+  const deviceId = "device-prolific-1";
+  await store.put(`mine/${deviceId}`, Array.from({ length: 1000 }, (_, i) => ({ id: `old-${i}`, kind: "tree", status: "VERIFIED", ts: i })));
+  reportEndpoint.setStore(store);
+  try {
+    const result = await reportEndpoint.handler({
+      httpMethod: "POST",
+      headers: { "x-nf-client-connection-ip": "198.51.100.21" },
+      body: JSON.stringify({ id: "report-newest-0001", deviceId, kind: "tree", target: "tree:9", status: "VERIFIED", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01 }),
+    });
+    assert.equal(result.statusCode, 200);
+    const mine = await store.get(`mine/${deviceId}`);
+    assert.equal(mine.length, 1000);
+    assert.equal(mine[mine.length - 1].id, "report-newest-0001");
+    assert.equal(mine[0].id, "old-1", "the oldest entry made room");
+  } finally {
+    reportEndpoint.setStore(null);
+  }
+});
+
 const communityDelete = require("../netlify/functions/lib/community-delete");
 
 async function deletionFixture() {
@@ -11456,7 +11636,17 @@ test("a failed read of any record a deletion depends on stops it, and nothing is
   }
 });
 
-test("deletion finds every issue a device filed, even past the 300-entry mine index cap", async () => {
+test("a data deletion leaves no cached copy of the deleted person's reports", async () => {
+  const store = await deletionFixture();
+  const cachedIds = () => [...store.data.keys()].filter((k) => /^ledger-cache\/\d+$/.test(k))
+    .flatMap((k) => store.data.get(k).entries.map(([, report]) => report.deviceId));
+  assert.ok(cachedIds().includes("phone-device-a1"), "the rebuild cached the report first");
+  await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1" });
+  assert.ok(!cachedIds().includes("phone-device-a1"));
+  assert.ok(cachedIds().includes("other-device-b1"), "other people's reports stay cached");
+});
+
+test("deletion finds every issue a device filed, even past the mine index cap", async () => {
   const store = await deletionFixture();
   for (let n = 1000; n < 1005; n += 1) await store.put(`issues/phone-device-a1/${n}`, { ts: n });
   await store.put("issues/other-device-b1/2000", { ts: 1 });

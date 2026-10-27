@@ -27,3 +27,16 @@ test("each feature sits on its own line, so a regenerated dataset diffs per feat
 test("the format is much smaller than pretty-printed JSON", () => {
   assert.ok(stringifyFeatureLines(collection).length < JSON.stringify(collection, null, 2).length * 0.7);
 });
+
+// A property of the shipped data, not of any code: the six large datasets every first visit downloads
+// stay in the compact format, so a regeneration that slips back to pretty-printing is caught here.
+test("the large shipped map datasets are stored one feature per line", () => {
+  const fs = require("fs");
+  const path = require("path");
+  for (const name of ["local-environment", "local-roads", "local-paths", "local-environment-buildings", "epping-forest-land", "epping-buffer-land"]) {
+    const text = fs.readFileSync(path.join(__dirname, "..", "data", `${name}.geojson`), "utf8");
+    const lines = text.trimEnd().split("\n");
+    const { features } = JSON.parse(text);
+    assert.equal(lines.length, features.length + 2, `${name}.geojson has one line per feature`);
+  }
+});

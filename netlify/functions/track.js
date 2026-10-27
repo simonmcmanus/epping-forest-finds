@@ -17,7 +17,8 @@ const tracking = require("./lib/tracking-store");
 const { checkRateLimit, clientIp } = require("./lib/report-rate-limit");
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
-const TRACKING_DIR = path.join(__dirname, "..", "..", "data", "tracking");
+// TRACKING_DIR lets a test point the local fallback at a scratch directory.
+const TRACKING_DIR = process.env.TRACKING_DIR || path.join(__dirname, "..", "..", "data", "tracking");
 
 const DEFAULT_WINDOW_DAYS = 30;
 const DAY_MS = tracking.DAY_MS;
@@ -307,4 +308,5 @@ exports.retentionDays = retentionDays;
 exports.windowSinceMs = windowSinceMs;
 exports.eventWithinWindow = eventWithinWindow;
 exports.getTrackingStoreName = getTrackingStoreName;
+exports.openAdapter = openAdapter;
 exports.setStore = setStore;

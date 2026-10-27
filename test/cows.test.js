@@ -57,3 +57,22 @@ test("a request with no centre point is refused before calling Nofence", () => w
     assert.equal(calls.length, 0);
   },
 ));
+
+test("a Nofence call that hangs is given up after a few seconds with a 502", async () => {
+  const { mock } = require("node:test");
+  mock.timers.enable({ apis: ["setTimeout"] });
+  const original = global.fetch;
+  global.fetch = (url, { signal }) => new Promise((resolve, reject) => {
+    signal.addEventListener("abort", () => reject(new DOMException("aborted", "AbortError")));
+  });
+  try {
+    const pending = get();
+    mock.timers.tick(6000);
+    const result = await pending;
+    assert.equal(result.statusCode, 502);
+    assert.equal(result.headers["Netlify-CDN-Cache-Control"], undefined);
+  } finally {
+    global.fetch = original;
+    mock.timers.reset();
+  }
+});

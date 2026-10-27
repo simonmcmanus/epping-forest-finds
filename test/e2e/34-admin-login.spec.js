@@ -66,6 +66,26 @@ test.describe("Admin login", () => {
     await expect(page.locator("#adminStats")).toContainText("back to 2026-10-20");
   });
 
+  test("the Community panel says which snapshot its figures come from", async ({ page }) => {
+    await skipOnboarding(page);
+    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) }));
+    const generatedAt = Date.parse("2026-10-27T09:35:00Z");
+    await page.route(/\/api\/community\/overlay\?admin=1/, (route) => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ generatedAt, reports: 42, devices: 9, activeDevices1d: 3, activeDevices7d: 7, byStatus: {}, perDay: {}, questioned: 0, verified: 0, newTreesUnconfirmed: 0, newTreesConfirmed: 0, conflicts: 0, totalPoints: 0 }),
+    }));
+    await page.goto("/admin");
+    await page.getByLabel("Admin password").fill("secret");
+    await page.click("#loginBtn");
+    await page.getByRole("button", { name: "Community" }).click();
+    const panel = page.locator("#adminCommunity");
+    await expect(panel).toContainText("As of the last snapshot");
+    const shown = await page.evaluate((ms) => new Date(ms).toLocaleString(), generatedAt);
+    await expect(panel).toContainText(shown);
+    await expect(panel).toContainText("42");
+  });
+
   test("the password field is labelled, and a user row can be opened from the keyboard", async ({ page }) => {
     await skipOnboarding(page);
     const tracks = {

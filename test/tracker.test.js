@@ -128,3 +128,35 @@ test("without consent nothing is queued or sent", async () => {
   assert.equal(sent.length, 0);
   assert.equal(queued().length, 0);
 });
+
+test("whatever is queued is sent when the page is closed", async () => {
+  const tracker = loadTracker();
+  tracker.api.initTracker();
+  await settle();
+  trackN(tracker.api, 4);
+  await tracker.fire("window", "pagehide");
+  assert.equal(tracker.sent.length, 1);
+  assert.equal(tracker.sent[0].events.length, 4);
+  assert.equal(tracker.queued().length, 0);
+});
+
+test("events queued while offline are sent once the connection comes back", async () => {
+  const tracker = loadTracker();
+  tracker.api.initTracker();
+  tracker.context.navigator.onLine = false;
+  trackN(tracker.api, 25);
+  await settle();
+  assert.equal(tracker.sent.length, 0, "nothing goes out offline");
+  tracker.context.navigator.onLine = true;
+  await tracker.fire("window", "online");
+  assert.equal(tracker.sent.reduce((n, r) => n + r.events.length, 0), 25);
+});
+
+test("the offline queue keeps the newest 500 events", async () => {
+  const { api, queued, context } = loadTracker();
+  context.navigator.onLine = false;
+  trackN(api, 520);
+  const queue = queued();
+  assert.equal(queue.length, 500);
+  assert.equal(queue[queue.length - 1].lng, 0.04 + 519 / 1e4, "the newest is kept");
+});

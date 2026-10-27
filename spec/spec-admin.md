@@ -195,7 +195,7 @@ The blob store name is derived from the Netlify `CONTEXT` environment variable, 
 Users cannot switch environments: the store used is determined entirely by the Netlify deploy context, not by any client-side or user-controlled value.
 
 ### Local NDJSON files
-Path: `data/tracking/` (gitignored)
+Path: `data/tracking/` (gitignored), or `TRACKING_DIR` when set (the local-server test points it at a scratch directory)
 - `location.ndjson` — one location event per line
 - `click.ndjson` — one click event per line
 

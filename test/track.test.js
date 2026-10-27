@@ -238,3 +238,69 @@ test("retention defaults to a year, and TRACKING_RETENTION_DAYS=0 keeps everythi
   assert.strictEqual(track.retentionDays({ TRACKING_RETENTION_DAYS: "90" }), 90);
   assert.strictEqual(track.retentionDays({ TRACKING_RETENTION_DAYS: "0" }), null);
 });
+
+test("a batch spanning midnight files each event under its own day", async () => {
+  const store = memoryStore();
+  track.setStore(store);
+  const midnight = Date.parse(`${tracking.dayOf(Date.now())}T00:00:00Z`);
+  await post([location("u1", midnight - 60_000), location("u1", midnight + 60_000)]);
+  const days = [...store.blobs.keys()].filter((k) => k.startsWith("raw/")).map((k) => k.split("/")[2]).sort();
+  assert.deepStrictEqual(days, [tracking.dayOf(midnight - 60_000), tracking.dayOf(midnight)]);
+  assert.strictEqual((await adminRead(1)).locations.length, 1, "today's window holds only today's event");
+  assert.strictEqual((await adminRead(2)).locations.length, 2);
+});
+
+test("days=all reads back as far as the retention period and no further", async () => {
+  process.env.TRACKING_RETENTION_DAYS = "10";
+  try {
+    const store = memoryStore();
+    track.setStore(store);
+    const now = Date.now();
+    for (const age of [0, 5, 9, 20]) await tracking.storeBatch(store, [location(`age${age}`, now - age * DAY)], { now });
+    store.listed.length = 0;
+    const read = await track.handler({ httpMethod: "GET", headers: { authorization: "Bearer admin-pw" }, queryStringParameters: { days: "all" } });
+    const body = JSON.parse(read.body);
+    assert.strictEqual(body.meta.windowDays, null);
+    assert.deepStrictEqual(tracking.unpackEvents(body.locations).map((e) => e.uid).sort(), ["age0", "age5", "age9"]);
+    assert.strictEqual(new Set(store.listed.map((p) => p.split("/")[2])).size, 10, "ten days listed, not the whole store");
+  } finally {
+    delete process.env.TRACKING_RETENTION_DAYS;
+  }
+});
+
+test("the scheduled compaction job folds batches into daily files and applies the configured retention", async () => {
+  const compactJob = require("../netlify/functions/track-compact-scheduled.js");
+  process.env.TRACKING_RETENTION_DAYS = "30";
+  const log = console.log;
+  try {
+    const store = memoryStore();
+    track.setStore(store);
+    const now = Date.now();
+    await tracking.storeBatch(store, [location("u1", now)], { now });
+    await store.setJSON(tracking.dailyKey("location", tracking.dayOf(now - 40 * DAY)), tracking.packEvents("location", [location("old", now - 40 * DAY)]));
+    console.log = () => {};
+    const result = await compactJob.handler({});
+    console.log = log;
+    const summary = JSON.parse(result.body);
+    assert.strictEqual(summary.compacted, 1);
+    assert.strictEqual(summary.expired, 1);
+    assert.deepStrictEqual([...store.blobs.keys()].filter((k) => k.startsWith("raw/")), []);
+    assert.deepStrictEqual((await adminRead(1)).locations.map((e) => e.uid), ["u1"]);
+  } finally {
+    console.log = log;
+    delete process.env.TRACKING_RETENTION_DAYS;
+  }
+});
+
+// Config invariant: a *-scheduled function with no schedule in netlify.toml is deployed but never runs, which
+// for the tracking compaction job means the store silently goes back to growing without bound.
+test("every scheduled function, the tracking compaction job included, has a schedule in netlify.toml", () => {
+  const fs = require("fs");
+  const path = require("path");
+  const toml = fs.readFileSync(path.join(__dirname, "..", "netlify.toml"), "utf8");
+  const scheduled = fs.readdirSync(path.join(__dirname, "..", "netlify", "functions")).filter((f) => f.endsWith("-scheduled.js")).map((f) => f.replace(/\.js$/, ""));
+  assert.ok(scheduled.includes("track-compact-scheduled"));
+  for (const name of scheduled) {
+    assert.match(toml, new RegExp(`\\[functions\\."${name}"\\]\\s*\\n\\s*schedule = "[^"]+"`), `${name} has a schedule`);
+  }
+});

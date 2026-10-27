@@ -6,6 +6,25 @@ const { test, expect } = require("@playwright/test");
 // warm installation can restart with the network removed.
 test.use({ serviceWorkers: "allow" });
 
+test("a first visit downloads each map file once and keeps it for offline use", async ({ page, context }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("forest-finds-onboarding-v1", "done");
+    localStorage.setItem("ff-cookie-consent", "granted");
+  });
+  // Counts the page's own requests and the service worker's alike.
+  const downloads = [];
+  context.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/data/local-environment.geojson") downloads.push(request.serviceWorker() ? "worker" : "page");
+  });
+
+  await page.goto("/nearby");
+  await page.waitForFunction(() => state.dataLoaded === true && state.environmentFeatures.length > 0, null, { timeout: 60_000 });
+  await page.waitForFunction(() => navigator.serviceWorker?.controller, null, { timeout: 30_000 });
+  await page.waitForFunction(async () => Boolean(await caches.match("/data/local-environment.geojson")), null, { timeout: 30_000 });
+
+  expect(downloads).toEqual(["page"]);
+});
+
 test("a warmed app restarts from its cached shell and map data without a network", async ({ page, context }) => {
   await page.addInitScript(() => {
     localStorage.setItem("forest-finds-onboarding-v1", "done");
