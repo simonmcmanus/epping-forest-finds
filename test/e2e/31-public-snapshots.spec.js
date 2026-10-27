@@ -1,7 +1,8 @@
 /**
  * Responsive visual coverage for the public surfaces and crawlable Nearby landings.
- * The no-JS snapshots cover only pages that deliberately server-render their content;
- * a tree selection has no dedicated no-JS page because its detail panel is app-only.
+ * The no-JS snapshots (32-public-nojs-snapshots.spec.js) cover only pages whose no-JS render differs:
+ * the terms and contribute pages are static either way, and a tree selection has no dedicated no-JS
+ * page because its detail panel is app-only.
  */
 
 const path = require("node:path");
@@ -21,6 +22,8 @@ const PUBLIC_SNAPSHOTS = [
   { name: "homepage", path: "/", ready: "main" },
   { name: "ledger-index", path: "/reports/", ready: ".report-list" },
   { name: "ledger-edition", path: "/reports/epping-forest-ledger-2026-10-03.html", ready: "#businesses" },
+  { name: "terms", path: "/terms.html", ready: "h1" },
+  { name: "contribute", path: "/contribute", ready: "h1" },
 ];
 
 const CATEGORY_SNAPSHOTS = [

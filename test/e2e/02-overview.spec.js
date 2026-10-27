@@ -271,8 +271,7 @@ test.describe("Overview / Nearby screen", () => {
     expect(ids).toEqual(["inspectorBack", "nearbyToggle", "searchToggle", "reportToggle", "settingsToggle"]);
   });
 
-  test("snapshot: overview state", async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
+  test("snapshot: overview state", async ({ page }) => {
     await waitForUiToSettle(page);
     await settleMapIconsAndDraw(page);
     await expect(page).toHaveScreenshot("overview.png", { fullPage: false });

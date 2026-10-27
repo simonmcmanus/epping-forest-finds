@@ -4,6 +4,13 @@ const { skipOnboarding } = require("./helpers");
 const TRACKS = { locations: [], clicks: [], meta: { storeName: "tracking-test", context: "test", windowDays: 30 } };
 
 test.describe("Admin login", () => {
+  // Desktop only: this file is outside the mobile project's testMatch, and the dashboard is a desk tool.
+  test("snapshot: admin sign-in screen", async ({ page }) => {
+    await page.goto("/admin");
+    await expect(page.getByLabel("Admin password")).toBeVisible();
+    await expect(page).toHaveScreenshot("admin-login.png", { fullPage: false });
+  });
+
   test("falls back to a shorter window when the full one fails on the server", async ({ page }) => {
     const asked = [];
     await skipOnboarding(page);

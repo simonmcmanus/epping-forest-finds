@@ -161,9 +161,8 @@ jobs:
     # The "snapshot: ..." tests only (see the `e2e` job above for everything else), as their
     # own check so a pixel-diff shows up as "Visual snapshots (desktop + mobile)" rather than muddying
     # "E2E tests" -- the two have very different reliability characteristics and a failure in
-    # one says nothing about the other. The public surfaces have desktop and mobile baselines;
-    # the existing app snapshots remain mobile-only except for the tree detail view, which now
-    # runs on both projects.
+    # one says nothing about the other. Every app screen and public page has desktop and mobile
+    # baselines; the no-JavaScript snapshots are desktop only.
     #
     # --retries=1, unlike the e2e job's retries:0: canvas screenshot diffs here have repeatedly
     # proven non-deterministic on an otherwise-unchanged commit (see spec/agents.md), where the

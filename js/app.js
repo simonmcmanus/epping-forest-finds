@@ -1933,8 +1933,8 @@ function locateUser({ initial }) {
 }
 
 function checkDistanceToForest(latitude, longitude) {
-  // Don't show warning if already shown
-  if (state.distanceWarningShown) return;
+  // Don't show warning if already dismissed, or open now
+  if (state.distanceWarningShown || (els.distanceWarning && !els.distanceWarning.hidden)) return;
   
   // Find the forest layer
   const forestLayer = state.layers.find(layer => layer.key === "forest");

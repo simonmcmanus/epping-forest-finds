@@ -59,19 +59,17 @@ test.describe("Selection and Inspector", () => {
       expect(arrivedHeight).toBeGreaterThan(navigatingHeight + 20);
     });
 
-    test("snapshot: tree detail view", async ({ page }, testInfo) => {
+    test("snapshot: tree detail view", async ({ page }) => {
       await waitForUiToSettle(page);
       // Stop all canvas animations so Playwright's stability check can pass.
-      // toHaveScreenshot() requires pixel-identical consecutive RAW screenshots — the mask
-      // only applies to the final baseline comparison, not the stability check.
+      // toHaveScreenshot() requires pixel-identical consecutive RAW screenshots.
       // Two sources of ongoing redraws after boot: (1) viewport animation (triggerMapRevealZoom
       // runs 700ms, overlay hides at 420ms, so 280ms spill into the test), (2) emoji-scale
       // exponential smoother (calls requestDraw until settled, ~28 more frames).
+      // No mask: #mapCanvas fills the viewport, and a mask paints over its whole box, inspector
+      // included, which left this baseline a solid magenta frame that could never show a change.
       await settleMapIconsAndDraw(page);
-      await expect(page).toHaveScreenshot("tree-detail.png", {
-        fullPage: false,
-        mask: [page.locator("#mapCanvas")],
-      });
+      await expect(page).toHaveScreenshot("tree-detail.png", { fullPage: false });
     });
   });
 

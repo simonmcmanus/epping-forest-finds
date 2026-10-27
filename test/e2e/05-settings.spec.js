@@ -102,8 +102,7 @@ test.describe("Settings screen", () => {
     await expect(page.locator("#updateBanner")).toBeVisible();
   });
 
-  test("snapshot: update ready banner", async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
+  test("snapshot: update ready banner", async ({ page }) => {
     await page.evaluate(() => { _markDataUpdateAvailable(); });
     await expect(page.locator("#updateBanner")).toBeVisible();
     await waitForUiToSettle(page);
@@ -307,11 +306,16 @@ test.describe("Settings screen", () => {
     });
   });
 
-  test("snapshot: settings screen", async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
+  test("snapshot: settings screen", async ({ page }) => {
     await waitForUiToSettle(page);
     await settleMapIconsAndDraw(page);
-    await expect(page).toHaveScreenshot("settings-screen.png", { fullPage: false });
+    // The tester ID is a random per-browser device id and the version moves with every release:
+    // mask just those two values so the baseline only changes when the screen does.
+    await expect(page.locator("#testerIdDisplay")).not.toHaveText("…");
+    await expect(page).toHaveScreenshot("settings-screen.png", {
+      fullPage: false,
+      mask: [page.locator("#testerIdDisplay"), page.locator("#appVersionDisplay")],
+    });
   });
 });
 

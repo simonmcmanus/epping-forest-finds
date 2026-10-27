@@ -43,11 +43,49 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("#inspectorBody .walk-chip-btn")).toHaveCount(0);
     });
 
-    test("snapshot: map with user location active", async ({ page }, testInfo) => {
-      test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
+    test("snapshot: map with user location active", async ({ page }) => {
       await waitForUiToSettle(page);
       await settleMapIconsAndDraw(page);
       await expect(page).toHaveScreenshot("map-with-location.png", { fullPage: false });
+    });
+
+    test("a visitor inside the forest is not told they are far from it", async ({ page }) => {
+      // The distance check runs as the location step completes, which gotoAndWaitForMap waited for.
+      await expect(page.getByRole("dialog", { name: "You're not near the forest yet" })).toBeHidden();
+    });
+  });
+
+  test.describe("far from the forest", () => {
+    // Trafalgar Square: several kilometres from the nearest forest boundary.
+    test.use({ geolocation: { latitude: 51.508, longitude: -0.1281, accuracy: 10 }, permissions: ["geolocation"] });
+
+    test.beforeEach(async ({ page }) => {
+      await skipOnboarding(page);
+      await mockCowApi(page);
+      await gotoAndWaitForMap(page);
+    });
+
+    test("says how far away the forest is, and 'Explore the map' dismisses it", async ({ page }) => {
+      const dialog = page.getByRole("dialog", { name: "You're not near the forest yet" });
+      await expect(dialog).toBeVisible();
+      await expect(dialog).toContainText(/You're about \d+(\.\d+)? km from the forest boundary — roughly \d+ minutes on foot/);
+
+      await dialog.getByRole("button", { name: "Explore the map" }).click();
+      await expect(dialog).toBeHidden();
+    });
+
+    test("Escape dismisses the far-away notice", async ({ page }) => {
+      const dialog = page.getByRole("dialog", { name: "You're not near the forest yet" });
+      await expect(dialog).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(dialog).toBeHidden();
+    });
+
+    test("snapshot: far from the forest notice", async ({ page }) => {
+      await expect(page.locator("#distanceWarning")).toBeVisible();
+      await waitForUiToSettle(page);
+      await settleMapIconsAndDraw(page);
+      await expect(page).toHaveScreenshot("distance-warning.png", { fullPage: false });
     });
   });
 

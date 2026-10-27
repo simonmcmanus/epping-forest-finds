@@ -26,8 +26,7 @@ test.describe("location page snapshots", () => {
     generateBusinessPages(REPO_ROOT);
   });
 
-  test("snapshot: location page", async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== "mobile", "Snapshots are mobile-only");
+  test("snapshot: location page", async ({ page }) => {
     await skipOnboarding(page);
     await mockCowApi(page);
     await gotoAndWaitForMap(page, `/find/${EXAMPLE_PUB.slug}/`);

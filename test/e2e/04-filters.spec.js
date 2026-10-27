@@ -182,8 +182,7 @@ test.describe("Filter panel", () => {
     });
   });
 
-  test("snapshot: filter screen open", async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
+  test("snapshot: filter screen open", async ({ page }) => {
     await page.click("#filterToggle");
     await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
     await waitForUiToSettle(page);
