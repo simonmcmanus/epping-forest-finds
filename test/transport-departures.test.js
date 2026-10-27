@@ -134,3 +134,14 @@ test("without TFL_APP_KEY the function says so in its log, once", async () => {
     if (key !== undefined) process.env.TFL_APP_KEY = key;
   }
 });
+
+test("a failed bus arrivals lookup is an uncached error, never a cached 'no departures'", () => withTfl(
+  (url) => (url.includes("/Arrivals")
+    ? new Response("busy", { status: 503 })
+    : json({ stopPoints: [{ id: "490000001", commonName: "High Beach" }] })),
+  async () => {
+    const result = await transport.handler({ httpMethod: "GET", queryStringParameters: { lat: "51.65", lon: "0.03", type: "bus" } });
+    assert.equal(result.statusCode, 502);
+    assert.equal(result.headers["Netlify-CDN-Cache-Control"], undefined);
+  },
+));

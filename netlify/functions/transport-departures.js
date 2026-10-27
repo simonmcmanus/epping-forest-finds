@@ -160,7 +160,9 @@ exports.handler = async (event) => {
       stopName = nearestStop.commonName;
 
       const res = await fetchWithTimeout(arrivalsUrl(nearestStop.id));
-      rawArrivals = res.ok ? (await res.json()) : [];
+      // A failed lookup must surface as an error (502, never cached), not as a cacheable "no departures".
+      if (!res.ok) throw new Error(`TfL Arrivals HTTP ${res.status}`);
+      rawArrivals = await res.json();
       stopDirection = busStopDirection(nearestStop, rawArrivals);
     } else {
       // Train/underground: try lat/lon first, fall back to name search
