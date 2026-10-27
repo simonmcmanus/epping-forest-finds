@@ -5760,11 +5760,13 @@ test("service worker falls back to the cached app shell offline for /nearby/<slu
   }
 });
 
-test("service worker never writes a /nearby/<slug>/ or /find/<slug>/ page's own HTML into the shared app-shell cache slot", async () => {
+test("service worker never overwrites the installed app shell from a navigation, whether a stable screen or a /nearby/<slug>/ or /find/<slug>/ page", async () => {
   // Each generated page has its own distinct title/JSON-LD/initial body -- caching any single one
   // of them under the one "./app.html" key the five stable screens share would make that slot's
   // content depend on whichever page a visitor last loaded, corrupting every other page's offline
-  // fallback. Executes the real fetch handler against a fake navigate event and a cache spy,
+  // fallback. A stable screen's network copy is not written either: it may be the next release's
+  // page, which would then boot against this release's cached scripts. Executes the real fetch
+  // handler against a fake navigate event and a cache spy,
   // rather than inspecting the source, so a regression here would actually fail this.
   const root = path.join(__dirname, "..");
   let fetchHandler = null;
@@ -5779,7 +5781,7 @@ test("service worker never writes a /nearby/<slug>/ or /find/<slug>/ page's own 
     },
     importScripts: () => {},
     caches: {
-      open: async () => ({ put: async (key) => cachePuts.push(key) }),
+      open: async () => ({ put: async (key) => cachePuts.push(key), match: async () => ({ __cached: true }) }),
       match: async () => ({ __cached: true }),
       keys: async () => [],
     },
@@ -5804,7 +5806,7 @@ test("service worker never writes a /nearby/<slug>/ or /find/<slug>/ page's own 
     return [...cachePuts];
   }
 
-  assert.deepEqual(await fireNavigate("/nearby"), ["./app.html"], "a stable screen refreshes the shared shell");
+  assert.deepEqual(await fireNavigate("/nearby"), [], "a newer deploy's page must not replace the shell matching this release's scripts");
   assert.deepEqual(await fireNavigate("/find/the-forresters/"), [], "a business page must never overwrite it");
   assert.deepEqual(await fireNavigate("/nearby/pubs/"), [], "a category page must never overwrite it either");
 });
@@ -8385,6 +8387,7 @@ function resetLocationSmoothing(app) {
   app.state.rawUserLocation = null;
   app.state.locationGlide = null;
   app.state.locationSmoothedAt = null;
+  app.state.locationFixHistory = [];
 }
 
 test("the first GPS fix is used as delivered, with no smoothing to ease in from", () => {
@@ -8458,6 +8461,50 @@ test("a position that stops updating still converges on the last fix, rather tha
     Math.abs(app.state.userLocation.longitude - destination.longitude) < 0.000005,
     `longitude should reach the fix, off by ${Math.abs(app.state.userLocation.longitude - destination.longitude)}`
   );
+});
+
+// About 15m north per step at Epping Forest's latitude: train speed over a one-second fix
+// interval, yet under LOCATION_SMOOTHING_SNAP_METRES, so only the speed check can stop the easing.
+const TRAIN_STEP_DEG = 0.000135;
+
+test("on a train, a fix the device reports at travelling speed is used as delivered, so Nearby keeps up", () => {
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  app.state.userLocation = app.ingestLocationFix(51.665, 0.045, 25, 1000, 20);
+  const next = app.ingestLocationFix(51.665 + TRAIN_STEP_DEG, 0.045, 25, 2000, 20);
+  assert.equal(app.state.locationGlide, null, "no easing behind a moving train");
+  assert.equal(next.latitude, 51.665 + TRAIN_STEP_DEG, "the position is the fix itself");
+});
+
+test("sustained travel with no device speed reading stops being smoothed within a few seconds", () => {
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  // A fix a second at 15 m/s, with the map's frames running between them as they do on a phone.
+  // Eased, the position alternated between trailing up to ~30m behind and snapping forward.
+  for (let i = 0; i <= 12; i += 1) {
+    const at = 1000 + i * 1000;
+    const latitude = 51.665 + i * TRAIN_STEP_DEG;
+    app.state.userLocation = app.ingestLocationFix(latitude, 0.045, 25, at, null);
+    if (i >= 8) {
+      assert.equal(app.state.locationGlide, null, `fix ${i}: eight seconds at 15 m/s is travel, not wander`);
+      assert.equal(app.state.userLocation.latitude, latitude, `fix ${i}: the position is the fix, not a trailing ease`);
+    }
+    for (let t = at + 16; t < at + 1000; t += 16) app.advanceLocationGlide(t);
+  }
+});
+
+test("a walker's wander under trees is still smoothed however long it goes on", () => {
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  // Fifteen seconds of fixes scattered up to ~8m either side of one spot, no device speed.
+  const offsets = [0, 0.00007, -0.00006, 0.00005, -0.00007, 0.00003, -0.00004, 0.00007, -0.00005, 0.00006, -0.00007, 0.00004, -0.00006, 0.00007, -0.00003, 0.00005];
+  offsets.forEach((offset, i) => {
+    app.state.userLocation = app.ingestLocationFix(51.665 + offset, 0.045 - offset, 25, 1000 + i * 1000, null);
+    if (i > 0) assert.ok(app.state.locationGlide, `fix ${i} is wander and should still be eased`);
+  });
 });
 
 test("a large jump in position lands at once rather than crawling there", () => {

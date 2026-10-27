@@ -931,21 +931,24 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   color: #2d6e40;
 }
 
-.sw-update-available {
-  display: inline-block;
-  /* Padding plus a matching negative margin grows the tap target around the small inline
-     version string without shifting the surrounding text (WCAG 2.5.5 target size). */
-  padding: 6px 4px;
-  margin: -6px -4px;
-  color: #b34733;
-  cursor: pointer;
-  font-weight: 700;
-  text-decoration: underline;
+/* The About section's update status line and its one action (check, or restart when ready). */
+.settings-update {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  margin: 4px 0 8px;
 }
 
-.sw-update-available::after {
-  content: " — tap to update";
-  font-weight: 400;
+.settings-update .settings-description {
+  flex: 1 1 14rem;
+  margin: 0;
+}
+
+.settings-update[data-status="ready"] .settings-btn {
+  background: #2f6f4e;
+  border-color: #2f6f4e;
+  color: #fff;
 }
 
 .inspector-body {

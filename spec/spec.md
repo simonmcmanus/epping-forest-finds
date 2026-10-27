@@ -521,10 +521,20 @@ the only one.
 - Accessible via the generated settings icon button in the inspector header.
 - Contains a **Walking radius** control: a slider (its floor to 30 min, half-minute steps — quarter-minute when its floor is under a minute — with tick marks at the old preset stops) choosing how far to walk when listing nearby places. Its lower bound tracks the distance to the nearest real item so it can't be dragged down to a radius with nothing in it; where that is closer than a minute's walk the slider opens up the sub-minute end and shows the value in seconds. Sitting at that floor shows a "nothing closer to show nearby" note. The tick marks are drawn as separate positioned elements (`.walk-radius-tick`), not the input's native `list` rendering: `appearance: none` (needed to restyle the track/thumb) silently discards a browser's own datalist tick marks too, so they have to be reimplemented to be visible at all.
 - Contains an **About** section displaying the current app version (e.g. `v80`; `dev-v80` when served by the local dev server — see "Local dev flag" in `spec/glossary.md`) and three refresh buttons: **Refresh data**, **Refresh app**, and **Refresh both**. Placed before Privacy so the troubleshooting controls people open Settings for aren't the last thing in the sheet.
+- Under the version, an **update status** line (`#appUpdateStatus`, rendered by `js/nav.js`) says where the app stands, with one action button:
+  - before any check this session: "Updates are checked automatically while the app is open." — **Check for updates**
+  - checking: "Checking for updates…" — button disabled
+  - nothing newer: "You have the latest version. Checked at HH:MM." — **Check for updates**
+  - a newer release installing, or its waiting worker fetching its map data: "Downloading update vN… You can keep using the app while it finishes." — button disabled. The incoming version is read from the new `forest-finds-app-vN` cache, which install opens first.
+  - fully downloaded: "Update vN has downloaded. Restart to start using it." — **Restart now** (filled)
+  - check or download failed: "Couldn't finish checking for updates. Your current app still works offline." — **Try again**
+  - offline (instead of the idle/latest/failed/checking states): "You're offline. Updates are checked when you're back online." — button disabled
+
+  **Check for updates** skips the 10-minute throttle on `requestAppUpdateCheck`. The line is not shown without a service worker.
 - The About section also shows the person's **Tester ID** (a 10-character hash, with a Copy button) to give the admin for early access (see `spec/spec-community.md`, Feature gate).
 - **Refresh buttons**: all three are transactional. The current offline cache is never deleted or unregistered before a replacement is known to be available:
   - **Refresh data** — force-downloads and validates the complete offline data list into the existing data cache, then reloads. A failed or partial download leaves the current data in place.
-  - **Refresh app** — unregisters the service worker, deletes the cached app, then reloads the page so it restarts on a fresh copy from the network. The version indicator keeps its download-first guard.
+  - **Refresh app** — unregisters the service worker, deletes the cached app, then reloads the page so it restarts on a fresh copy from the network. The update status's **Restart now** keeps its download-first guard.
   - **Refresh both** — completes a data download, then clears the app and data caches and reloads. Needs a connection.
   - **`?nuke=true` URL parameter** — retained as a troubleshooting alias for the safe **Refresh both** check. It removes the parameter, preserves all caches on failure, and keeps other query parameters.
   - Caches belonging to other apps are never touched. All three are disabled, with one shared inline note, while offline; a false online signal is also handled safely because refresh failure never clears the working cache.
@@ -651,9 +661,10 @@ Legend reflects active marker semantics:
 
 1. When a new SW version is detected (`updatefound` → `statechange: installed`), the new SW waits — it does **not** auto-activate via `skipWaiting()` in the install handler. A manual refresh check also leaves the current worker in place if downloading the replacement fails.
 2. A red dot badge appears on the settings toggle button (always visible, not just inside the settings panel).
-3. Inside the settings panel, the app version turns red with a "— tap to update" label.
-4. Clicking either indicator first confirms that a fully installed waiting worker is available (downloading it if necessary). Only then does it trigger `SKIP_WAITING` (posted to the waiting SW), the SW activates, and the page reloads automatically on `controllerchange`.
-5. `skipWaiting()` in the SW is triggered only via the `message` event (`event.data.type === "SKIP_WAITING"`), never automatically on install.
+3. Inside the settings panel, the update status line shows the download, then "has downloaded" with **Restart now** (see "Settings Screen").
+4. Restarting from the banner or from Settings first confirms that a fully installed waiting worker is available (downloading it if necessary). Only then does it trigger `SKIP_WAITING` (posted to the waiting SW), the SW activates, and the page reloads automatically on `controllerchange`.
+5. If the new release already controls the page (`controllerchange` with no restart pending: another tab restarted into it, or the browser activated it once every tab closed), the update shows as ready and **Restart now** is a plain reload. The new worker already has its complete shell, so there is nothing left to download.
+6. `skipWaiting()` in the SW is triggered only via the `message` event (`event.data.type === "SKIP_WAITING"`), never automatically on install.
 
 ## Data Statistics (as of May 2026)
 

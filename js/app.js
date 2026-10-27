@@ -281,6 +281,10 @@ const state = {
   swVersion: "",
   swWaiting: null,
   swPendingReload: false,
+  swActivatedElsewhere: false,
+  appUpdateStatus: "idle",
+  appUpdateVersion: "",
+  appUpdateCheckedAt: 0,
   animationFrame: null,
   overlayAnimationFrame: null,
   compassAnimationFrame: null,
@@ -308,6 +312,7 @@ const state = {
   headingUpAnchorTargetFor: null, // the selectedCompassTarget() headingUpAnchorFractionSmoothed was last resolved for
   lastLocationUpdateAt: null,
   rawUserLocation: null, // the unfiltered GPS fix; state.userLocation is the smoothed one (see ingestLocationFix)
+  locationFixHistory: [], // recent raw fixes, for telling travel from wander (recordFixAndDetectFastTravel)
   locationGlide: null, // in-flight glide of the smoothed position toward the latest fix
   locationGlideFrame: null, // rAF handle for the loop that advances it (see ensureLocationGlideLoop)
   locationSmoothedAt: null, // timestamp the location low-pass last ran
@@ -1681,16 +1686,41 @@ const LOCATION_SMOOTHING_ACCURACY_DIVISOR = 10;
 // Past this, the fix is not wander. A first fix after a gap, coming out of a tunnel, or a
 // genuine teleport should land at once rather than crawl there over seconds.
 const LOCATION_SMOOTHING_SNAP_METRES = 30;
+// Smoothing is for walking-pace wander. Travelling faster than this -- a bike, a bus, a train --
+// the easing trails the real position by speed x time constant (2.5s at 20 m/s is 50m), and
+// the Nearby list, built from that trailing position, lags with it. So above it each fix is
+// used as delivered: at that speed a few metres of wander is nothing against the motion.
+const LOCATION_FAST_TRAVEL_MPS = 5;
+// Consecutive fixes cannot tell travel from wander (two fixes 12m apart a second apart is
+// ordinary wander under trees), so without the device's own speed reading the speed is judged
+// over at least this long, where the wander averages out and real travel does not.
+const LOCATION_SPEED_BASELINE_MIN_MS = 8000;
+const LOCATION_SPEED_HISTORY_MS = 15000;
 // How close counts as arrived, in projected units -- comfortably sub-metre, so the ease
 // lands on the fix rather than crawling at it forever.
 const LOCATION_GLIDE_EPSILON = 1e-7;
 
+// Whether the person is travelling faster than walking pace: the device's own speed reading
+// (coords.speed, from the GPS itself) when it gives one, or the distance covered over the last
+// LOCATION_SPEED_BASELINE_MIN_MS or more of fixes.
+function recordFixAndDetectFastTravel(latitude, longitude, now, speed) {
+  const history = (state.locationFixHistory || []).filter((fix) => fix.at <= now && now - fix.at <= LOCATION_SPEED_HISTORY_MS);
+  history.push({ at: now, latitude, longitude });
+  state.locationFixHistory = history;
+  if (Number.isFinite(speed) && speed >= LOCATION_FAST_TRAVEL_MPS) return true;
+  const baseline = history.find((fix) => now - fix.at >= LOCATION_SPEED_BASELINE_MIN_MS);
+  if (!baseline) return false;
+  const metresPerSecond = distanceMetres(baseline.latitude, baseline.longitude, latitude, longitude) / ((now - baseline.at) / 1000);
+  return metresPerSecond >= LOCATION_FAST_TRAVEL_MPS;
+}
+
 // Turns one raw fix into the position the app should use. The smoothing itself is done by
 // advanceLocationGlide() every frame; this only records where to head for.
-function ingestLocationFix(latitude, longitude, accuracy, now = performance.now()) {
+function ingestLocationFix(latitude, longitude, accuracy, now = performance.now(), speed = null) {
   const rawPoint = projectLonLat(longitude, latitude);
   const raw = { latitude, longitude, accuracy, point: rawPoint };
   state.rawUserLocation = raw;
+  const travellingFast = recordFixAndDetectFastTravel(latitude, longitude, now, speed);
 
   const previous = state.userLocation;
   const landRaw = () => {
@@ -1703,6 +1733,7 @@ function ingestLocationFix(latitude, longitude, accuracy, now = performance.now(
   // Not wander: a first fix after a gap, coming out of a tunnel, a genuine teleport. Easing
   // across that reads as the map sliding away on its own.
   if (!Number.isFinite(movedMetres) || movedMetres >= LOCATION_SMOOTHING_SNAP_METRES) return landRaw();
+  if (travellingFast) return landRaw();
 
   state.locationGlide = {
     to: rawPoint,
@@ -1800,9 +1831,9 @@ function advanceLocationGlide(now = performance.now()) {
 }
 
 function applyLocationFix(position) {
-  const { latitude, longitude, accuracy } = position.coords;
+  const { latitude, longitude, accuracy, speed } = position.coords;
   const previousPoint = state.userLocation && state.userLocation.point;
-  state.userLocation = ingestLocationFix(latitude, longitude, accuracy);
+  state.userLocation = ingestLocationFix(latitude, longitude, accuracy, performance.now(), speed);
   const point = state.userLocation.point;
   state.userInMapArea = pointInsideBounds(point, state.bounds);
   const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
@@ -2923,7 +2954,8 @@ function settingsFormHtml() {
     </section>
     <section class="settings-section">
       <h3 class="settings-section-title">About</h3>
-      <p class="settings-description">App version: <span id="appVersionDisplay" class="app-version-display${state.swUpdateAvailable ? " sw-update-available" : ""}">${state.swVersion || APP_VERSION}</span></p>
+      <p class="settings-description">App version: <span id="appVersionDisplay" class="app-version-display">${state.swVersion || APP_VERSION}</span></p>
+      ${appUpdateStatusHtml()}
       <p class="settings-description">Tester ID: <code id="testerIdDisplay" class="tester-id">…</code> <button type="button" id="testerIdCopy" class="settings-btn" hidden>Copy</button><br><span class="report-note">Give this to Simon to try early features.</span></p>
       <p class="settings-description">Vibe coded by <a href="https://simonmcmanus.com" target="_blank" rel="noopener noreferrer">Simon McManus</a></p>
       <p id="dataUpdateNote" class="report-note"${state.dataUpdateAvailable ? "" : " hidden"}>New map data has been downloaded. <button id="dataUpdateReloadButton" class="inline-text-button" type="button">Reload now</button> to see it.</p>
@@ -5391,9 +5423,9 @@ function ensureLocationWatch() {
   state.locationWatchId = navigator.geolocation.watchPosition(
     (position) => {
       state.lastLocationUpdateAt = performance.now();
-      const { latitude, longitude, accuracy } = position.coords;
+      const { latitude, longitude, accuracy, speed } = position.coords;
       const previousPoint = state.userLocation && state.userLocation.point;
-      state.userLocation = ingestLocationFix(latitude, longitude, accuracy);
+      state.userLocation = ingestLocationFix(latitude, longitude, accuracy, performance.now(), speed);
       const point = state.userLocation.point;
       state.userInMapArea = pointInsideBounds(point, state.bounds);
       const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
