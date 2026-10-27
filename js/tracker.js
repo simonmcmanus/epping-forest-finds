@@ -47,6 +47,9 @@ function setTrackingConsent(value) {
       localStorage.setItem(TRACKER_CONSENT_KEY, "1");
     } else {
       localStorage.removeItem(TRACKER_CONSENT_KEY);
+      // Events wait in the queue for up to a few minutes (batching, below); withdrawing consent
+      // discards them rather than letting the next flush send them.
+      localStorage.removeItem(TRACKER_QUEUE_KEY);
     }
   } catch {}
 }
@@ -95,6 +98,11 @@ let _trackerFlushPending = false;
 // out, so events added meanwhile are kept; a failed batch goes back to the front. A refusal that
 // can never succeed (400, 413) drops the batch rather than retrying it forever.
 async function trackerFlushQueue() {
+  // Nothing is sent without consent, even what was queued while it was given.
+  if (!hasTrackingConsent()) {
+    trackerWriteQueue([]);
+    return;
+  }
   if (!navigator.onLine) return;
   if (_trackerFlushing) {
     _trackerFlushPending = true;

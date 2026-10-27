@@ -160,3 +160,24 @@ test("the offline queue keeps the newest 500 events", async () => {
   assert.equal(queue.length, 500);
   assert.equal(queue[queue.length - 1].lng, 0.04 + 519 / 1e4, "the newest is kept");
 });
+
+test("withdrawing consent discards the queued events instead of sending them later", async () => {
+  const tracker = loadTracker();
+  tracker.api.initTracker();
+  await settle();
+  trackN(tracker.api, 5);
+  vm.runInContext("setTrackingConsent(false)", tracker.context);
+  assert.equal(tracker.queued().length, 0);
+  await tracker.fire("window", "pagehide");
+  const timer = tracker.timers.find((t) => t.ms >= 60_000);
+  await timer.fn();
+  assert.equal(tracker.sent.length, 0);
+});
+
+test("a queue left over from a session with consent is not sent once consent is gone", async () => {
+  const tracker = loadTracker({ consent: false });
+  tracker.context.localStorage.setItem("ff-track-queue", JSON.stringify([{ type: "location", uid: "u", ts: new Date().toISOString(), lat: 51.6, lng: 0.04 }]));
+  await tracker.api.trackerFlushQueue();
+  assert.equal(tracker.sent.length, 0);
+  assert.equal(tracker.queued().length, 0, "and it is dropped");
+});
