@@ -141,28 +141,23 @@ test.describe("Map pins", () => {
   });
 
   test("a place with no artwork still gets the pointer the rest of the pins have", async ({ page }) => {
-    const drawn = await page.evaluate(() => {
-      const calls = [];
-      const ctx = {
-        save() {}, restore() {}, beginPath() { calls.push("beginPath"); },
-        moveTo() { calls.push("moveTo"); },
-        arc() { calls.push("arc"); }, lineTo() { calls.push("lineTo"); },
-        closePath() { calls.push("closePath"); },
-        fill() { calls.push(`fill:${this.fillStyle}`); },
-        stroke() { calls.push(`stroke:${this.strokeStyle}`); },
-        fillText() { calls.push("fillText"); },
-        fillStyle: null, strokeStyle: null, lineWidth: 0, font: "", textAlign: "", textBaseline: "",
-      };
+    const pixels = await page.evaluate(() => {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 400;
+      const ctx = canvas.getContext("2d");
       drawEmojiMapPin(ctx, "\u{1F6B2}", 200, 200, 35);
-      return calls;
+      const data = ctx.getImageData(0, 0, 400, 400).data;
+      let white = 0, drawn = 0;
+      for (let i = 0; i < data.length; i += 4) {
+        if (data[i + 3] > 200) drawn += 1;
+        if (data[i] > 245 && data[i + 1] > 245 && data[i + 2] > 245 && data[i + 3] > 200) white += 1;
+      }
+      return { white, drawn };
     });
 
-    // The head, the wedge down to the point, the white fill and its outline.
-    expect(drawn).toContain("arc");
-    expect(drawn).toContain("lineTo");
-    expect(drawn).toContain("fill:white");
-    expect(drawn).toContain("stroke:rgba(0,0,0,0.25)");
-    expect(drawn).toContain("fillText");
+    // A white pointer head with the glyph on it: a real filled shape, not just floating text.
+    expect(pixels.white, "the white pin head is filled").toBeGreaterThan(100);
+    expect(pixels.drawn, "and something is drawn on it").toBeGreaterThan(pixels.white);
   });
 
   test("every place in the Nearby list shows the pin the map draws for it", async ({ page }) => {

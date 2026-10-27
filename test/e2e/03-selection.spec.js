@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, FIXTURE_TREE, settleMapIconsAndDraw } = require("./helpers");
+const { setup, FIXTURE_TREE, settleMapIconsAndDraw, waitForUiToSettle, tapCanvasPoint, waitForFrames } = require("./helpers");
 
 test.describe("Selection and Inspector", () => {
   test.describe("tree selected via URL hash", () => {
@@ -54,24 +54,22 @@ test.describe("Selection and Inspector", () => {
       });
 
       await expect(inspector).toHaveClass(/inspector-navigation-arrived/);
-      await page.waitForTimeout(500);
+      await waitForUiToSettle(page);
       const arrivedHeight = await inspector.evaluate((el) => el.getBoundingClientRect().height);
       expect(arrivedHeight).toBeGreaterThan(navigatingHeight + 20);
     });
 
-    test("snapshot: tree detail view", async ({ page }, testInfo) => {
-      await page.waitForTimeout(600);
+    test("snapshot: tree detail view", async ({ page }) => {
+      await waitForUiToSettle(page);
       // Stop all canvas animations so Playwright's stability check can pass.
-      // toHaveScreenshot() requires pixel-identical consecutive RAW screenshots — the mask
-      // only applies to the final baseline comparison, not the stability check.
+      // toHaveScreenshot() requires pixel-identical consecutive RAW screenshots.
       // Two sources of ongoing redraws after boot: (1) viewport animation (triggerMapRevealZoom
       // runs 700ms, overlay hides at 420ms, so 280ms spill into the test), (2) emoji-scale
       // exponential smoother (calls requestDraw until settled, ~28 more frames).
+      // No mask: #mapCanvas fills the viewport, and a mask paints over its whole box, inspector
+      // included, which left this baseline a solid magenta frame that could never show a change.
       await settleMapIconsAndDraw(page);
-      await expect(page).toHaveScreenshot("tree-detail.png", {
-        fullPage: false,
-        mask: [page.locator("#mapCanvas")],
-      });
+      await expect(page).toHaveScreenshot("tree-detail.png", { fullPage: false });
     });
   });
 
@@ -94,6 +92,41 @@ test.describe("Selection and Inspector", () => {
       await page.click("#nearbyToggle");
       // Hash should no longer contain a tree key
       await expect(page).not.toHaveURL(/tree=/);
+    });
+  });
+
+  test.describe("taps beside the panel", () => {
+    // A position in the forest, so the Nearby list has something to show around the user.
+    test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ["geolocation"] });
+
+    // What a tap changed: the Nearby browse spot, the selection, or the URL. Open ground moves the
+    // first; a pin or street sets the second; both rewrite the third.
+    const mapTapOutcome = (page) => page.evaluate(() => JSON.stringify({
+      anchor: state.nearbyAnchor,
+      selected: state.selected?.type ?? null,
+      url: location.pathname + location.search + location.hash,
+    }));
+
+    test("a finger landing on the strip of map just beside the panel does nothing", async ({ page }) => {
+      await setup(page);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+      await waitForUiToSettle(page);
+      const box = await page.locator("#inspector").boundingBox();
+      expect(box, "the inspector panel is on screen").not.toBeNull();
+      const before = await mapTapOutcome(page);
+
+      // 6 px off the panel's left edge: map shows there, but the finger was aiming for the panel.
+      await tapCanvasPoint(page, { clientX: box.x - 6, clientY: box.y + box.height / 2 }, { alreadyClient: true });
+      await waitForFrames(page, 3);
+      expect(await mapTapOutcome(page), "a tap just beside the panel leaves the map as it was").toBe(before);
+
+      // The same finger well clear of the panel still reaches the map: above the phone's bottom
+      // sheet, or left of the desktop side panel.
+      const clear = box.y > 200
+        ? { clientX: box.x + box.width / 2, clientY: box.y - 80 }
+        : { clientX: box.x / 2, clientY: box.y + box.height / 2 };
+      await tapCanvasPoint(page, clear, { alreadyClient: true });
+      await expect.poll(() => mapTapOutcome(page), "a tap clear of the panel still acts on the map").not.toBe(before);
     });
   });
 

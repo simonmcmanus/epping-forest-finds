@@ -158,11 +158,15 @@ as well as the headline figures in §3.4 and §4 of this document, from the
 current data. `--check` reports drift without changing anything and exits
 non-zero.
 
-The same sync writes `assets/home/inventory/*.json` from the read-only map
-datasets, using the app's classification and normalisation rules at generation
-time. Each list preserves every counted record, sorts by name, and labels
-unnamed places and untagged trees explicitly. List lengths and contents are
-checked alongside counts; dataset updates commit the generated lists too.
+The homepage shows counts only. Each group lists its categories as links to the
+matching `/nearby/<slug>/` page with the category's count beside it; empty
+categories are hidden. On a wide screen (min-width 760px) the lists are always
+open and the expand control is hidden; on a phone they start collapsed behind
+a "Show … categories" summary. Without JavaScript they stay collapsed with the
+summary usable. There are no per-place lists or search on the homepage, so no generated per-category data
+files: the figures are checked against the map's own classification
+(`scripts/report/map-inventory.js`, and in the browser against the app's
+`placeLabelFilterKey` over the loaded places).
 
 It exists because the test alone left a person in the loop, and the weekly
 ledger run (`spec-weekly-report.md`) changes the food dataset unattended: every
@@ -316,6 +320,11 @@ Sections, in order:
 The walking-distance pillar uses a shaded folded map (`assets/home/distance.png`)
 and the location pillar uses the emerald-and-gold Nearby beacon
 (`assets/home/logo.png`), stored as independent homepage copies.
+
+The homepage's favicon and Apple touch icon (`assets/home/favicon.png`,
+`assets/home/apple-touch-icon.png`) are copies of the app's oak-on-gold icons,
+written by `scripts/generate-app-icon.py`, and `apple-mobile-web-app-title`
+names a saved homepage "Epping Forest Finds".
 
 The email, Ledger, tree-tag, FAQ and offline illustrations use transparent PNGs
 with gentle shading and forest-green contours. “Good to know” uses a question-mark

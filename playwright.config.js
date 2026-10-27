@@ -36,6 +36,10 @@ module.exports = defineConfig({
   // past the waits the specs bound it with, and whole spec files failed together in `beforeEach`
   // while the same suite passed locally. That looked like flakiness and was really starvation.
   workers: process.env.CI ? 2 : 4,
+  // Shard and schedule by test, not by file. With whole files as the unit, CI's --shard=N/5 put
+  // the heaviest spec files together: one desktop shard ran 117 tests for 13 minutes while
+  // another finished in under 3. Tests already share nothing but the on-disk build output.
+  fullyParallel: true,
   retries: 0,
   reporter: [["list"], ["html", { open: "never" }]],
 
@@ -101,7 +105,9 @@ module.exports = defineConfig({
       // 13 (3D tilt) is included because tilt is driven by device orientation and only
       // ever happens on a phone — the desktop profile would exercise it at a viewport
       // shape it never actually sees.
-      testMatch: ["**/0[12345]-*.spec.js", "**/09-*.spec.js", "**/13-*.spec.js", "**/18-*.spec.js", "**/27-*.spec.js", "**/31-public-snapshots.spec.js", "**/35-community-snapshots.spec.js"],
+      // Every app screen snapshot file must be listed here too, or its phone baseline is never
+      // taken: the location-page snapshot was silently skipped on both projects for that reason.
+      testMatch: ["**/0[12345]-*.spec.js", "**/09-*.spec.js", "**/13-*.spec.js", "**/18-*.spec.js", "**/27-*.spec.js", "**/31-public-snapshots.spec.js", "**/31-location-page-snapshots.spec.js", "**/35-community-snapshots.spec.js", "**/38-screen-snapshots.spec.js"],
     },
   ],
 

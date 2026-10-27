@@ -14,6 +14,9 @@
 // person's. `github` (an editor) redacts and closes them; without one the issue numbers come back as `pending`
 // for a person to handle by hand.
 const { rebuildComputed, scoreShard } = require("./community-computed");
+const { mapLimit } = require("./map-limit");
+
+const READ_CONCURRENCY = 25;
 
 const REDACTED_BODY = "_The reporter asked for this report to be removed._";
 
@@ -47,9 +50,11 @@ async function deleteCommunityData(store, { deviceId, includeAccount = false, gi
   }
 
   // 3. Reports in the ledger.
-  for (const key of await listAll(store, "reports/")) {
-    const report = await strict(store, key);
-    if (report && devices.has(report.deviceId)) { await store.delete(key); summary.reports += 1; }
+  // Read a few at a time rather than one after another, so a large ledger fits the function's time limit.
+  const reportKeys = await listAll(store, "reports/");
+  const reports = await mapLimit(reportKeys, READ_CONCURRENCY, (key) => strict(store, key));
+  for (const [i, key] of reportKeys.entries()) {
+    if (reports[i] && devices.has(reports[i].deviceId)) { await store.delete(key); summary.reports += 1; }
   }
 
   // 4. Per-device records, links and counters.
@@ -63,9 +68,10 @@ async function deleteCommunityData(store, { deviceId, includeAccount = false, gi
   if (includeAccount && account) for (const key of await listAll(store, `accountdevices/${account}/`)) await store.delete(key);
 
   // 5. Reporter references (they credit rewards to a device) and reward records.
-  for (const key of await listAll(store, "refs/")) {
-    const record = await strict(store, key);
-    if (record && devices.has(record.deviceId)) { await store.delete(key); summary.refs += 1; }
+  const refKeys = await listAll(store, "refs/");
+  const refs = await mapLimit(refKeys, READ_CONCURRENCY, (key) => strict(store, key));
+  for (const [i, key] of refKeys.entries()) {
+    if (refs[i] && devices.has(refs[i].deviceId)) { await store.delete(key); summary.refs += 1; }
   }
   const validations = await strict(store, "validations");
   if (validations && Array.isArray(validations.items)) {

@@ -29,7 +29,7 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const { readCounts, readCategoryItems, formatCount, FEATURE_FILES, TREE_INDEX } = require("./count-datasets.js");
+const { readCounts, formatCount, FEATURE_FILES, TREE_INDEX } = require("./count-datasets.js");
 const { buildInventory } = require("./report/map-inventory.js");
 
 const ROOT = path.join(__dirname, "..");
@@ -125,17 +125,6 @@ function sync({ check = false, root = ROOT } = {}) {
     if (before === after) continue;
     stale.push(path.relative(root, file.path));
     if (!check) fs.writeFileSync(file.path, after);
-  }
-  for (const [key, items] of Object.entries(readCategoryItems(root))) {
-    const relative = `assets/home/inventory/${key}.json`;
-    const target = path.join(root, relative);
-    const contents = JSON.stringify(items) + "\n";
-    if (fs.existsSync(target) && fs.readFileSync(target, "utf8") === contents) continue;
-    stale.push(relative);
-    if (!check) {
-      fs.mkdirSync(path.dirname(target), { recursive: true });
-      fs.writeFileSync(target, contents);
-    }
   }
   return { counts, stale };
 }

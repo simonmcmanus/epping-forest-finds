@@ -452,7 +452,7 @@ test.describe("3D tilt view", () => {
       }
       return null;
     });
-    test.skip(!target, "no open ground on screen at this camera");
+    expect(target, "open ground is on screen at this camera").not.toBeNull();
 
     // The framing the camera is on before the tap. The slide has to travel from here to the
     // browse framing and stop, without visiting anything outside the two.

@@ -38,6 +38,9 @@ const APP_SHELL = [
   "./js/app-cache-version.js",
   "./js/data-cache-version.js",
   "./js/normalize.js",
+  "./js/router-rules.js",
+  "./js/dom-elements.js",
+  "./js/filter-state.js",
   "./js/loader.js",
   "./js/routing.js",
   "./js/icon-motion.js",
@@ -227,9 +230,9 @@ const ALL_DATA_URLS = [...new Set([...DATA_SHELL, ...DATA_CACHE_OPPORTUNISTIC])]
 // cache must not answer for.
 const APP_SCREEN_PATHS = new Set(["/nearby", "/nearby/search", "/nearby/filter", "/settings", "/feedback", "/community"]);
 // Every one of these five (plus app.html itself) returns byte-identical content -- they're the
-// same static file, reached by different client-side routes layered on top of it -- so caching
-// "whatever was last fetched" under the one shared "./app.html" key (see the navigate branch in
-// the fetch handler below) is always correct for them.
+// same static file, reached by different client-side routes layered on top of it -- so answering
+// them all from the one shared "./app.html" key (see the navigate branch in the fetch handler
+// below) is always correct for them.
 function isStableAppShellPath(pathname) {
   return APP_SCREEN_PATHS.has(pathname) || pathname === "/app.html" || pathname.endsWith("/app.html");
 }
@@ -358,6 +361,13 @@ self.addEventListener("install", (event) => {
     .open(DATA_CACHE_NAME)
     .then(async (cache) => {
       await adoptPreviousDataCache(cache);
+      // A visitor's very first install (no older worker in this registration) has nothing to adopt, and
+      // the page that registered this worker is already downloading the same map files itself
+      // (js/loader.js hands each one to this cache as it lands). Fetching them here as well downloaded
+      // the whole map twice on a first visit, ~90 MB of JSON. The data sync the page asks for once its
+      // own downloads have landed fills in anything it did not fetch. Whether the cache is empty is no
+      // test of this: the page's first hand-overs can land before install gets here.
+      if (!self.registration || !self.registration.active) return;
       const missing = await missingFromCache(cache, DATA_SHELL);
       if (missing.length > 0) await cache.addAll(missing);
 
@@ -457,7 +467,11 @@ async function syncData({ force = false } = {}) {
           }
           if (cached && !responseChanged(cached, fresh)) continue;
           await cache.put(request, fresh.clone());
-          changed += 1;
+          // Only a replaced copy is new to the person. A file the cache never held (a tree chunk
+          // they have not walked near yet, say) was never on their map, so filling it in is not
+          // "new map data" and must not raise the restart banner -- it used to, on every partial
+          // pass, which brought the banner back after each restart until the cache was complete.
+          if (cached) changed += 1;
         } catch (error) {
           failed += 1;
           // Offline, or one file the server no longer serves -- keep the cached copy either way.
@@ -592,14 +606,20 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Navigation requests (full page loads) — serve the cached shell straight away, then refresh
-  // the cached copy behind the scenes. This used to be network-first, which meant every reload,
-  // however warm the cache, blocked on a ~290 KB app.html round trip before a single pixel
-  // appeared; on a phone in the forest that is the difference between "instant" and "loading".
-  // Staleness is still bounded: the browser re-checks sw.js on every navigation, and a release
-  // bumps APP_CACHE_NAME, so a new worker installs, caches the new shell, and claims the page
-  // (setupPwa in js/nav.js then surfaces the update). Locally the dev server is the source of
-  // truth, so IS_DEV keeps navigation network-first there.
+  // Navigation requests (full page loads) — serve the cached shell straight away. This used to be
+  // network-first, which meant every reload, however warm the cache, blocked on a ~290 KB app.html
+  // round trip before a single pixel appeared; on a phone in the forest that is the difference
+  // between "instant" and "loading". Staleness is still bounded: the browser re-checks sw.js on
+  // every navigation, and a release bumps APP_CACHE_NAME, so a new worker installs, caches the new
+  // shell, and claims the page (setupPwa in js/nav.js then surfaces the update). Locally the dev
+  // server is the source of truth, so IS_DEV keeps navigation network-first there.
+  //
+  // The cached app.html is never overwritten from the network in production. It used to be, which
+  // put the next release's page into this release's cache while its scripts stayed at this
+  // release: a script the new page added or moved was then fetched new beside old ones, the
+  // classic scripts redeclared each other's globals, and the app failed to boot -- leaving nothing
+  // running to offer the waiting update. app.html is part of APP_SHELL, so each release's install
+  // caches the page that matches its own scripts.
   //
   // Only the app's own routes are answered from the app shell. This handler used to answer
   // EVERY navigation with the cached app, which after the alpha URL split would have served
@@ -607,6 +627,8 @@ self.addEventListener("fetch", (event) => {
   // invisible to every returning visitor. See spec/spec-alpha-access.md.
   if (event.request.mode === "navigate") {
     if (!isAppNavigation(requestUrl.pathname)) return;
+    // This worker's own release's shell only -- never a waiting release's page beside these scripts.
+    const cachedShell = () => caches.open(APP_CACHE_NAME).then((cache) => cache.match("./app.html"));
 
     // A /nearby/<slug>/ or /find/<slug>/ page's own HTML is never written into the shared
     // "./app.html" cache slot (see isGeneratedPageNavigation's comment above) -- it's fetched
@@ -614,29 +636,26 @@ self.addEventListener("fetch", (event) => {
     // rather than whatever happened to be cached, and only falls back to the generic shell if the
     // network truly isn't available.
     if (isGeneratedPageNavigation(requestUrl.pathname)) {
-      event.respondWith(fetch(event.request).catch(() => caches.match("./app.html")));
+      event.respondWith(fetch(event.request).catch(cachedShell));
       return;
     }
 
-    const fromNetwork = fetch(event.request).then((response) => {
-      if (response && response.ok) {
-        const copy = response.clone();
-        caches.open(APP_CACHE_NAME).then((cache) => cache.put("./app.html", copy));
-      }
-      return response;
-    });
-
-    event.respondWith(
-      IS_DEV
-        ? fromNetwork.catch(() => caches.match("./app.html"))
-        : caches.match("./app.html").then((cached) => {
-            if (cached) {
-              fromNetwork.catch(() => {});
-              return cached;
+    if (IS_DEV) {
+      event.respondWith(
+        fetch(event.request)
+          .then((response) => {
+            if (response && response.ok) {
+              const copy = response.clone();
+              caches.open(APP_CACHE_NAME).then((cache) => cache.put("./app.html", copy));
             }
-            return fromNetwork.catch(() => caches.match("./app.html"));
+            return response;
           })
-    );
+          .catch(cachedShell)
+      );
+      return;
+    }
+
+    event.respondWith(cachedShell().then((cached) => cached || fetch(event.request)));
     return;
   }
 
@@ -665,8 +684,10 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Read from this worker's own cache only. caches.match() searches every cache, including a
+  // waiting release's, so an older worker could hand out a newer release's file beside its own.
   event.respondWith(
-    caches.match(event.request).then((cached) => {
+    caches.open(cacheName).then((cache) => cache.match(event.request)).then((cached) => {
       if (cached) return cached;
       return fetch(event.request).then((response) => {
         const copy = response.clone();

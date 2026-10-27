@@ -13,8 +13,10 @@ const DEFAULT_LIMITS = { perIp: 20, perDevice: 10, global: 300 };
 const HOUR_MS = 60 * 60 * 1000;
 const KEY = "report-rate";
 // The community-report endpoint (tree checks and new trees) is much chattier than issue creation, so it
-// has its own document and larger caps.
-const COMMUNITY_LIMITS = { perIp: 120, perDevice: 120, global: 5000 };
+// has its own document and larger caps. Per IP is well above per device because mobile networks put
+// many customers behind one address, and a volunteer group on one Wi-Fi shares one too; the site-wide
+// cap is sized for a busy launch weekend rather than a quiet alpha.
+const COMMUNITY_LIMITS = { perIp: 300, perDevice: 120, global: 10000 };
 
 function positiveInt(value, fallback) {
   const n = Number(value);

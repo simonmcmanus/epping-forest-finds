@@ -6,6 +6,8 @@ import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 
+from geojson_format import write_feature_lines
+
 ROOT = Path.cwd()
 DATA = ROOT / "data"
 QUERY_PATH = DATA / "local-paths.overpassql"
@@ -170,7 +172,7 @@ def main():
 
     parsed = json.loads(raw)
     geojson = build_geojson(parsed.get("elements", []))
-    GEOJSON_PATH.write_text(json.dumps(geojson, indent=2) + "\n", encoding="utf-8")
+    write_feature_lines(GEOJSON_PATH, geojson)
 
     counts = {}
     for feature in geojson["features"]:

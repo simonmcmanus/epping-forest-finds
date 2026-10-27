@@ -2,64 +2,26 @@
 """Generate the app icons: the oak leaf on a gold tile.
 
 The leaf is not drawn here -- it is `data/icons/trees/oak.png`, the same
-hand-drawn art the tree inspector uses, composited onto a gold ground so
-the home screen icon and the favicon share the app's mark.
-
-The location-pin logo (`trees/logo.png`) is still generated below; it is a
-different job -- the onboarding welcome step and the loading screen use it.
+hand-drawn art the tree inspector uses and the homepage shows top left
+(`assets/home/map-icons/oak.png`). That oak is the logo everywhere: it is
+composited onto a gold ground for the home screen icon and the favicon,
+and copied bare to `trees/logo.png` for the loading screen and the
+onboarding welcome step.
 """
 
 from PIL import Image, ImageDraw
-import math
 import os
+import shutil
 
 OUT = os.path.join(os.path.dirname(__file__), "../data/icons")
-
-BG       = (36, 56, 47)       # #24382f — app dark green
-PIN_FILL = (243, 211, 107)    # #f3d36b — golden (matches current tree icon)
-DOT_DARK = (36, 56, 47)       # #24382f — inner circle fill
-DOT_RING = (243, 211, 107)    # golden ring around inner dot
+HOME = os.path.join(os.path.dirname(__file__), "../assets/home")
 
 LEAF        = "trees/oak.png"   # the English oak leaf, drawn at 256 px
 GOLD_TOP    = (247, 220, 130)   # #f7dc82 -- gradient starts top-left
 GOLD_BOTTOM = (226, 161, 60)    # #e2a13c -- and ends bottom-right
-LEAF_HEIGHT = 0.56              # leaf height as a fraction of the tile
+LEAF_HEIGHT = 0.62              # leaf height as a fraction of the tile
 MASKABLE_LEAF_HEIGHT = 0.50     # smaller, to clear Android's circular crop
 FAVICON_LEAF_HEIGHT = 0.72      # larger: a browser tab draws this at 16 px
-
-
-def draw_pin_icon(draw, size, cx, cy, r, tip_y, pin_fill, dot_dark, dot_ring, stroke_w=0, stroke_color=None):
-    """Draw a location pin centred horizontally at cx, circle centre at cy with radius r, tip at tip_y."""
-
-    d = tip_y - cy  # distance from circle centre to tip
-
-    # Tangent point offsets
-    tx = r * math.sqrt(max(0, 1 - (r / d) ** 2))
-    ty = cy + (r * r) / d
-
-    # --- pin body (filled) ---
-    if stroke_w and stroke_color:
-        # Draw stroke version first (slightly larger)
-        s = stroke_w
-        s_r = r + s
-        s_d = (tip_y + s) - cy
-        s_tx = s_r * math.sqrt(max(0, 1 - (s_r / s_d) ** 2))
-        s_ty = cy + (s_r * s_r) / s_d
-
-        draw.ellipse([cx - s_r, cy - s_r, cx + s_r, cy + s_r], fill=stroke_color)
-        draw.polygon([(cx - s_tx, s_ty), (cx, tip_y + s), (cx + s_tx, s_ty)], fill=stroke_color)
-
-    # Filled circle (top part of pin)
-    draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=pin_fill)
-    # Filled triangle stem
-    draw.polygon([(cx - tx, ty), (cx, tip_y), (cx + tx, ty)], fill=pin_fill)
-
-    # --- inner ring & dot ---
-    ring_r  = r * 0.46
-    inner_r = r * 0.24
-
-    draw.ellipse([cx - ring_r, cy - ring_r, cx + ring_r, cy + ring_r], fill=dot_dark)
-    draw.ellipse([cx - inner_r, cy - inner_r, cx + inner_r, cy + inner_r], fill=dot_ring)
 
 
 def gold_tile(size):
@@ -127,28 +89,6 @@ def make_icon(size, path, shape="rounded", height_fraction=LEAF_HEIGHT):
     print(f"  wrote {path}")
 
 
-def make_transparent_logo(size, path):
-    """Transparent pin logo for the loading screen and onboarding welcome."""
-    img  = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
-
-    inset = int(size * 0.06)
-    cx    = size / 2
-    r     = (size - 2 * inset) / 2 * 0.78
-    cy    = inset + r * 1.10
-    tip_y = size - inset - size * 0.04
-    stroke = max(1, int(r * 0.10))
-
-    draw_pin_icon(draw, size, cx, cy, r, tip_y,
-                  pin_fill=tuple(BG),          # dark fill for light bg
-                  dot_dark=(247, 248, 244),    # cream dot
-                  dot_ring=tuple(BG),
-                  stroke_w=0, stroke_color=None)
-
-    img.save(path, "PNG", optimize=True)
-    print(f"  wrote {path}")
-
-
 if __name__ == "__main__":
     print("Generating oak-leaf app icons…")
     make_icon(192, os.path.join(OUT, "icon-192.png"))
@@ -159,7 +99,12 @@ if __name__ == "__main__":
     make_icon(128, os.path.join(OUT, "favicon.png"), shape="square",
               height_fraction=FAVICON_LEAF_HEIGHT)
 
-    # The loading screen and the onboarding welcome step keep the pin logo.
-    make_transparent_logo(256, os.path.join(OUT, "trees/logo.png"))
+    # The bare oak is the logo on the loading screen and onboarding welcome.
+    shutil.copyfile(os.path.join(OUT, LEAF), os.path.join(OUT, "trees/logo.png"))
+
+    # The homepage keeps independent copies: it never loads app assets.
+    shutil.copyfile(os.path.join(OUT, "favicon.png"), os.path.join(HOME, "favicon.png"))
+    shutil.copyfile(os.path.join(OUT, "apple-touch-icon.png"),
+                    os.path.join(HOME, "apple-touch-icon.png"))
 
     print("Done.")

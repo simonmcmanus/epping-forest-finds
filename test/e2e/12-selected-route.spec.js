@@ -412,6 +412,10 @@ test.describe("Selected route line follows the road/path network", () => {
       state.rawUserLocation = null;
       state.locationGlide = null;
       state.locationSmoothedAt = null;
+      // The walk starts somewhere new, so forget the page's own earlier fixes too: kept, the
+      // jump from the boot fix reads as fast travel (recordFixAndDetectFastTravel), which
+      // rightly turns smoothing off -- a real effect, but not the walk this measures.
+      state.locationFixHistory = [];
       state.userLocation = null;
 
       // A fixed world landmark: how far it slides between frames IS the reframing.

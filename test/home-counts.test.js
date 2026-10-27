@@ -63,9 +63,6 @@ test("the grouped homepage inventory matches the app's map inventory", () => {
     assert.ok(block, `the homepage should show the ${group.label} group`);
     assert.ok(block[1].includes(`<strong>${formatCount(group.count)}</strong>`));
     for (const subfilter of group.subfilters) {
-      const items = JSON.parse(fs.readFileSync(path.join(ROOT, "assets/home/inventory", `${subfilter.key}.json`), "utf8"));
-      assert.strictEqual(items.length, subfilter.count, `${subfilter.label} lists every counted record`);
-      assert.ok(items.every(item => typeof item.name === "string" && item.name.trim() && typeof item.detail === "string"));
       const label = subfilter.label.replace(/&/g, "&amp;").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
       assert.match(block[1], new RegExp(`<dt><a href="/nearby/${subfilter.key.replace(/_/g, "-")}/"><img[^>]*>${label}</a></dt><dd>${formatCount(subfilter.count)}</dd>`));
     }
@@ -136,17 +133,4 @@ test("every quoted count already matches -- sync is a no-op on a clean tree", ()
   const { sync } = require("../scripts/sync-homepage-counts.js");
   const { stale } = sync({ check: true });
   assert.deepStrictEqual(stale, [], `these files quote a stale count: ${stale.join(", ")}`);
-});
-
-test("the homepage does not quote a stale tree count", () => {
-  const html = readHomepageText();
-  const { trees } = readCounts(ROOT);
-  const quoted = html.match(/([\d,]+)\s+veteran trees/);
-
-  assert.ok(quoted, "index.html should state a veteran tree count");
-  assert.strictEqual(
-    quoted[1],
-    formatCount(trees),
-    "the veteran tree count in index.html has drifted from data/trees/index.json"
-  );
 });

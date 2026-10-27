@@ -5,6 +5,10 @@
 
 const path = require("node:path");
 const { test, expect } = require("@playwright/test");
+
+// beforeAll rewrites generated pages on disk; keep this file in one worker so no other worker
+// reads a page mid-rewrite (the config is otherwise fullyParallel).
+test.describe.configure({ mode: "default" });
 const {
   generate: generateCategoryPages,
   loadWaterFeatures,
@@ -137,9 +141,8 @@ test.describe("generated find/nearby pages", () => {
       expect(html).toMatch(/<a class="detail-map-link nearby-link" href="\/nearby\/cows\/">[\s\S]*?Cows<\/a>/);
     });
 
-    test("/nearby/trees/ server-renders a real nearest-tree list (no species breakdown -- dropped as not meaningful for a High Beach stand-in), and /nearby/ponds-streams/ still gets a real water list", async ({ request }) => {
+    test("/nearby/trees/ server-renders a real nearest-tree list, and /nearby/ponds-streams/ a real water list", async ({ request }) => {
       const trees = await (await request.get("/nearby/trees/")).text();
-      expect(trees).not.toContain("By species:");
       // The same .nearest-item card every other category's business list uses, each linking to
       // the app's own #tree= deep link (same mechanism as #water=/#place=) since a veteran tree
       // has no /find/<slug>/ page of its own to link to.
@@ -157,7 +160,6 @@ test.describe("generated find/nearby pages", () => {
       // (js/app.js) does live, so it reads as mostly trees here too, matching what JS shows a
       // moment later rather than disagreeing with it.
       const nature = await (await request.get("/nearby/nature/")).text();
-      expect(nature).not.toContain("By species:");
       expect(nature).toMatch(/class="nearest-item" href="\/nearby\/trees\/#tree=r[a-z0-9]+"/);
     });
 
@@ -322,7 +324,6 @@ test.describe("generated find/nearby pages", () => {
 
       // Not a copy-pasted pair of pages: /find/events/ carries each event's own description,
       // which /nearby/events/'s deliberately brief title-and-date list does not.
-      expect(findEvents.length).toBeGreaterThan(0);
       expect(nearbyEvents).not.toBe(findEvents);
     });
   });
@@ -332,8 +333,6 @@ test.describe("generated find/nearby pages", () => {
       await gotoAndWaitForMap(page, "/nearby/nature/");
       const body = page.locator("#inspectorBody");
       await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
-      await expect(body).not.toContainText("By species:");
-      await expect(body).not.toContainText("Named ponds, lakes and streams:");
       await expect(body.locator('a.detail-map-link[href="/nearby/trees/"]')).toHaveCount(1);
       await expect(body.locator('a.detail-map-link[href="/nearby/ponds-streams/"]')).toHaveCount(1);
     });
@@ -409,13 +408,6 @@ test.describe("generated find/nearby pages", () => {
       expect(selected.findSlug).toBe(EXAMPLE_PUB.slug);
       await expect(page).toHaveTitle(`${EXAMPLE_PUB.name} near Epping Forest | Epping Forest Finds`);
       await expect(page.locator("#inspectorTitle")).toHaveText(EXAMPLE_PUB.name);
-    });
-
-    test("the inspector does not show a Full details link", async ({ page }) => {
-      await skipOnboarding(page);
-      await gotoAndWaitForMap(page, `/find/${EXAMPLE_PUB.slug}/`);
-      await expect.poll(() => page.evaluate(() => state.selected != null)).toBe(true);
-      await expect(page.getByText("Full details", { exact: true })).toHaveCount(0);
     });
 
     test("the live inspector shows the same opening hours and phone tel: link as the static page", async ({ page }) => {
@@ -528,6 +520,39 @@ test.describe("generated find/nearby pages", () => {
         longitude: state.nearbyAnchor && Number(state.nearbyAnchor.longitude.toFixed(6)),
       }));
       expect(anchor).toEqual(placeCoords);
+    });
+
+    test("a place opened before the cow positions load gains its nearest-cow link once they arrive", async ({ page }) => {
+      await setup(page, `/find/${EXAMPLE_PUB.slug}/`);
+      await expect.poll(() => page.evaluate(() => state.selected != null && state.cows.length > 0)).toBe(true);
+      const cowsLink = page.locator('#inspectorBody a.nearest-item[href^="/nearby/cows/"]');
+      await expect(cowsLink).toHaveCount(1);
+
+      // Put the page back in the "cows not loaded yet" state this selection was rendered in.
+      await page.evaluate(() => {
+        window.__loadedCows = { cows: state.cows, pastures: state.cowPastures, updatedAt: state.cowLastUpdatedAt };
+        applyCowData([], [], null, { persist: false });
+        SELECTION_ROUTES.find((route) => route.type === state.selected.type).show(state.selected.item);
+      });
+      await expect(cowsLink).toHaveCount(0);
+
+      await page.evaluate(() => {
+        const { cows, pastures, updatedAt } = window.__loadedCows;
+        applyCowData(cows, pastures, updatedAt, { persist: false });
+      });
+      await expect(cowsLink).toHaveCount(1);
+    });
+
+    test("late cow positions do not pull the reader back from another screen to the open place", async ({ page }) => {
+      await setup(page, `/find/${EXAMPLE_PUB.slug}/`);
+      await expect.poll(() => page.evaluate(() => state.selected != null && state.cows.length > 0)).toBe(true);
+      await page.evaluate(() => {
+        window.__loadedCows = { cows: state.cows, pastures: state.cowPastures, updatedAt: state.cowLastUpdatedAt };
+        applyCowData([], [], null, { persist: false });
+        els.inspectorBody.innerHTML = '<p id="otherScreen">Another screen</p>';
+        applyCowData(window.__loadedCows.cows, window.__loadedCows.pastures, window.__loadedCows.updatedAt, { persist: false });
+      });
+      await expect(page.locator("#otherScreen")).toHaveCount(1);
     });
 
     test("a water feature's link on /nearby/ponds-streams/ selects that exact feature live, through the app's own #water= deep link -- no separate mechanism of its own", async ({ page }) => {

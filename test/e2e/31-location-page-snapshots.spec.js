@@ -5,9 +5,13 @@
  */
 
 const { test, expect } = require("@playwright/test");
+
+// beforeAll rewrites generated pages on disk; keep this file in one worker so no other worker
+// reads a page mid-rewrite (the config is otherwise fullyParallel).
+test.describe.configure({ mode: "default" });
 const { generate: generateBusinessPages } = require("../../scripts/generate-business-pages.js");
 const businessIndex = require("../../data/business-slugs.json");
-const { gotoAndWaitForMap, settleMapIconsAndDraw, skipOnboarding, mockCowApi } = require("./helpers");
+const { gotoAndWaitForMap, settleMapIconsAndDraw, skipOnboarding, mockCowApi, waitForUiToSettle } = require("./helpers");
 
 const REPO_ROOT = require("node:path").join(__dirname, "..", "..");
 
@@ -22,12 +26,11 @@ test.describe("location page snapshots", () => {
     generateBusinessPages(REPO_ROOT);
   });
 
-  test("snapshot: location page", async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== "mobile", "Snapshots are mobile-only");
+  test("snapshot: location page", async ({ page }) => {
     await skipOnboarding(page);
     await mockCowApi(page);
     await gotoAndWaitForMap(page, `/find/${EXAMPLE_PUB.slug}/`);
-    await page.waitForTimeout(300);
+    await waitForUiToSettle(page);
     await settleMapIconsAndDraw(page);
     await expect(page).toHaveScreenshot("location-page.png", { fullPage: false });
   });

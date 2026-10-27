@@ -12,6 +12,11 @@
 (function () {
   const CONSENT_KEY = "ff-cookie-consent";
   const EARLY_TESTING_BANNER_KEY = "ff-early-testing-banner-v1";
+  // The oak-leaf logo. The homepage keeps its own copy of the same file because marketing never
+  // loads app assets; every other page takes the app's. Absolute, so /reports/ and /find/<slug>/
+  // resolve it too.
+  const IS_HOMEPAGE = location.pathname === "/" || location.pathname === "/index.html";
+  const LOGO_SRC = IS_HOMEPAGE ? "/assets/home/map-icons/oak.png" : "/data/icons/trees/logo.png";
 
   function getStoredConsent() {
     try {
@@ -65,7 +70,9 @@ border:1px solid rgba(23,34,30,.18);border-left:5px solid #2f6f4e;
 box-shadow:0 22px 50px rgba(19,31,25,.3),0 2px 10px rgba(19,31,25,.14);
 font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,ui-sans-serif,system-ui,sans-serif;
 display:flex;flex-wrap:wrap;gap:14px 24px;align-items:center;justify-content:space-between}
-#cookieConsentBanner .cookie-consent-copy{flex:1 1 320px;min-width:0}
+#cookieConsentBanner .cookie-consent-lead{display:flex;flex:1 1 320px;gap:12px;align-items:flex-start;min-width:0}
+#cookieConsentBanner .cookie-consent-logo{flex:0 0 auto;width:36px;height:36px}
+#cookieConsentBanner .cookie-consent-copy{flex:1 1 auto;min-width:0}
 #cookieConsentBanner strong{display:block;margin:0 0 4px;font-size:.95rem;font-weight:800}
 #cookieConsentBanner p{margin:0;color:#5d6a62}
 #cookieConsentBanner a{color:#2f6f4e;font-weight:700;text-decoration:underline}
@@ -79,7 +86,7 @@ font-weight:700;cursor:pointer;transition:transform .12s ease,background-color .
 background:#fff;color:#2f6f4e}
 #cookieConsentBanner button[data-action="decline"]:hover{background:#f1f5ee}
 @media (max-width:480px){#cookieConsentBanner{flex-direction:column;align-items:stretch;justify-content:flex-start}
-#cookieConsentBanner .cookie-consent-copy{flex:0 0 auto}
+#cookieConsentBanner .cookie-consent-lead{flex:0 0 auto}
 #cookieConsentBanner .cookie-consent-actions{margin-left:0;flex:0 0 auto;justify-content:flex-end}}
 `;
     document.head.appendChild(style);
@@ -107,10 +114,13 @@ background:#fff;color:#2f6f4e}
     banner.setAttribute("aria-live", "polite");
     banner.setAttribute("aria-label", "Cookie consent");
     banner.innerHTML =
+      '<div class="cookie-consent-lead">' +
+      `<img class="cookie-consent-logo" src="${LOGO_SRC}" alt="" width="36" height="36">` +
       '<div class="cookie-consent-copy">' +
       "<strong>We use analytics cookies</strong>" +
       '<p>To understand how people use this site. ' +
       '<a href="/terms.html" target="_blank" rel="noopener">Privacy &amp; terms</a></p>' +
+      "</div>" +
       "</div>" +
       '<div class="cookie-consent-actions">' +
       '<button type="button" data-action="decline">Decline</button>' +
@@ -146,6 +156,7 @@ box-shadow:0 2px 8px rgba(19,31,25,.12);
 font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,ui-sans-serif,system-ui,sans-serif;
 display:flex;gap:12px 18px;align-items:flex-start}
 #earlyTestingNoticeSlot #earlyTestingBanner{margin:12px 12px 0;background:linear-gradient(120deg,rgba(197,139,22,.13),rgba(255,255,255,.86))}
+#earlyTestingBanner .early-testing-logo{flex:0 0 auto;width:36px;height:36px}
 #earlyTestingBanner .early-testing-copy{flex:1 1 320px;min-width:0}
 #earlyTestingBanner strong{display:block;margin:0 0 3px;font-size:.95rem;font-weight:800}
 #earlyTestingBanner p{margin:0;color:#5d6a62}
@@ -180,6 +191,7 @@ font:inherit;font-size:1.2rem;line-height:1;cursor:pointer}
     banner.setAttribute("role", "status");
     banner.setAttribute("aria-label", "Early testing notice");
     banner.innerHTML =
+      `<img class="early-testing-logo" src="${LOGO_SRC}" alt="" width="36" height="36">` +
       '<div class="early-testing-copy">' +
       "<strong>Epping Forest Finds is still a work in progress</strong>" +
       '<p>You may find data problems or bugs — please <a href="/report">report any you find</a>.</p>' +

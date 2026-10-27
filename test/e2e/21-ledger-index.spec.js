@@ -5,6 +5,10 @@
 
 const path = require("node:path");
 const { test, expect } = require("@playwright/test");
+
+// beforeAll rewrites generated pages on disk; keep this file in one worker so no other worker
+// reads a page mid-rewrite (the config is otherwise fullyParallel).
+test.describe.configure({ mode: "default" });
 const { generate } = require("../../scripts/generate-reports-index.js");
 
 for (const width of [390, 1280]) {
@@ -78,9 +82,11 @@ for (const width of [390, 1280]) {
   test(`the newsletter shares homepage imagery and fits a ${width}px screen`, async ({ page }) => {
     await page.setViewportSize({ width, height: 844 });
     await page.goto("/reports/epping-forest-ledger-2026-10-03.html");
-    await expect(page.locator("body")).toHaveCSS("background-color", "rgb(244, 244, 236)");
-    await expect(page.locator(".stat .n").first()).toHaveCSS("color", "rgb(24, 28, 17)");
-    await expect(page.locator(".masthead")).toHaveCSS("background-color", "rgb(29, 74, 47)");
+    // Same page background as the homepage it shares imagery with, whatever the palette is today.
+    const ledgerBackground = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    await page.goto("/");
+    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe(ledgerBackground);
+    await page.goto("/reports/epping-forest-ledger-2026-10-03.html");
     await expect(page.locator(".hero-photo figcaption")).toHaveCount(0);
     await expect(page.locator(".hero-photo img")).toHaveAttribute("src", "/assets/home/epping-longhorns.jpg");
     expect(await page.locator(".hero-photo img").evaluate(img => img.complete && img.naturalWidth > 0)).toBe(true);
