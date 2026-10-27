@@ -374,3 +374,35 @@ test("a read that runs out of time inside a day marks that day as only partly re
   assert.strictEqual(result.oldestDay, tracking.dayOf(now));
   assert.strictEqual(result.oldestDayIncomplete, true);
 });
+
+test("an admin read that overlaps a compaction run still returns every event", async () => {
+  const inner = memoryStore();
+  const now = Date.now();
+  for (let i = 0; i < 3; i += 1) await tracking.storeBatch(inner, [location(`u${i}`, now - i * 1000)], { now: now + i });
+  // Compaction lands just after the read has listed the raw batches: they are merged and deleted.
+  let compacted = false;
+  const store = {
+    ...inner,
+    async listKeys(prefix) {
+      const keys = await inner.listKeys(prefix);
+      if (!compacted && prefix.startsWith("raw/location/")) { compacted = true; await tracking.compact(inner, { now }); }
+      return keys;
+    },
+  };
+  const result = await tracking.readWindow(store, { windowDays: 1, now });
+  assert.ok(compacted);
+  assert.deepStrictEqual(result.locations.map((e) => e.uid).sort(), ["u0", "u1", "u2"]);
+});
+
+test("a daily file that fails to read marks the day incomplete instead of quietly showing fewer events", async () => {
+  const store = memoryStore();
+  const now = Date.now();
+  await tracking.storeBatch(store, [location("u1", now)], { now });
+  await tracking.compact(store, { now });
+  const getJSON = store.getJSON;
+  store.getJSON = async (key) => { if (key.startsWith("daily/")) throw new Error("blobs hiccup"); return getJSON(key); };
+  const result = await tracking.readWindow(store, { windowDays: 3, now });
+  assert.strictEqual(result.partial, true);
+  assert.strictEqual(result.oldestDayIncomplete, true);
+  assert.strictEqual(result.oldestDay, tracking.dayOf(now));
+});

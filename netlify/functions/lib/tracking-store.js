@@ -221,13 +221,21 @@ async function readKeysUntil(adapter, keys, deadline, clock) {
   return { read, partial };
 }
 
+// Raw batches first, the daily file last. Compaction writes the daily file before deleting the batches
+// it absorbed, so a batch gone by the time it is read is already in the daily file read after it, and
+// one read before it went is de-duplicated against that file. A daily file that fails to read marks the
+// day partial rather than quietly showing only its uncompacted batches.
 async function readDay(adapter, type, day, deadline, clock) {
-  const [daily, rawKeys] = await Promise.all([
-    adapter.getJSON(dailyKey(type, day)).catch(() => null),
-    adapter.listKeys(rawPrefix(type, day)),
-  ]);
+  const rawKeys = await adapter.listKeys(rawPrefix(type, day));
   const { read, partial } = await readKeysUntil(adapter, rawKeys, deadline, clock);
-  return { events: mergeEvents(unpackEvents(daily), ...read.map((r) => r.events)), partial };
+  let daily = null;
+  let dailyFailed = false;
+  try {
+    daily = await adapter.getJSON(dailyKey(type, day));
+  } catch {
+    dailyFailed = true;
+  }
+  return { events: mergeEvents(unpackEvents(daily), ...read.map((r) => r.events)), partial: partial || dailyFailed };
 }
 
 // Rough size of an event once packed into the admin response.
