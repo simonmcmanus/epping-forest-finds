@@ -1,7 +1,7 @@
 // @ts-check
 // Visual snapshots of the Community screen and its sign-in states, so layout, wrapping and contrast are
-// protected alongside the other app screens. Mobile only, like the rest of the app snapshots; the baselines
-// are written by CI (never by hand). Everything the screen shows is mocked, so nothing here depends on time or
+// protected alongside the other app screens. Desktop and mobile, like the rest of the app snapshots; the
+// baselines are written by CI (never by hand). Everything the screen shows is mocked, so nothing here depends on time or
 // on the network.
 const { test, expect } = require("@playwright/test");
 const { setup, FIXTURE_TREE, settleMapIconsAndDraw, waitForUiToSettle } = require("./helpers");
@@ -29,10 +29,6 @@ async function settle(page) {
 }
 
 test.describe("Community screen snapshots", () => {
-  test.beforeEach(async ({}, testInfo) => {
-    test.skip(testInfo.project.name !== "mobile", "Snapshots are mobile-only");
-  });
-
   test("snapshot: community screen, signed out", async ({ page }) => {
     await mockCommunity(page, { me: { signedIn: false } });
     await setup(page, "/community");

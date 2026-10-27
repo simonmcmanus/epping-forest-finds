@@ -302,6 +302,11 @@ async function loadMapData() {
     .then((resolved) => {
       state.layers = [...state.layers.filter((existing) => existing.key !== resolved.key), resolved]
         .sort((a, b) => FEATURE_LAYERS.findIndex((layer) => layer.key === a.key) - FEATURE_LAYERS.findIndex((layer) => layer.key === b.key));
+      // A cold load's GPS fix usually lands before the boundary does, and the far-from-the-forest
+      // check needs the boundary, so run it again now for a fix that is already in.
+      if (resolved.key === "forest" && hasRealLocation()) {
+        checkDistanceToForest(state.userLocation.latitude, state.userLocation.longitude);
+      }
       notifyInteractiveDataChange();
       return resolved;
     }));

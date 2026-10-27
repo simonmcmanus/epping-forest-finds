@@ -11,20 +11,27 @@ const { test, expect } = require("@playwright/test");
 test.describe.configure({ mode: "default" });
 const { generate: generateReportsIndex } = require("../../scripts/generate-reports-index.js");
 const { generate: generateCategoryPages } = require("../../scripts/generate-find-pages.js");
+const { generate: generateBusinessPages } = require("../../scripts/generate-business-pages.js");
+const businessIndex = require("../../data/business-slugs.json");
 
 const REPO_ROOT = path.join(__dirname, "..", "..");
 const REPORTS_DIR = path.join(REPO_ROOT, "reports");
+// The same business 31-location-page-snapshots.spec.js snapshots with JavaScript on.
+const EXAMPLE_PUB = businessIndex.entries.find((e) => e.key === "pubs" && e.address && e.lat != null);
 const SNAPSHOTS = [
   { name: "homepage", path: "/", ready: "main" },
   { name: "ledger-index", path: "/reports/", ready: ".report-list" },
   { name: "ledger-edition", path: "/reports/epping-forest-ledger-2026-10-03.html", ready: "#businesses" },
   { name: "nearby-food", path: "/nearby/food/", ready: "#inspectorTitle" },
   { name: "nearby-pubs", path: "/nearby/pubs/", ready: "#inspectorTitle" },
+  { name: "nearby-index", path: "/nearby", ready: "#inspectorTitle" },
+  { name: "location-page", path: `/find/${EXAMPLE_PUB.slug}/`, ready: "#inspectorTitle" },
 ];
 
 test.beforeAll(() => {
   generateReportsIndex(REPORTS_DIR);
   generateCategoryPages(REPO_ROOT);
+  generateBusinessPages(REPO_ROOT);
 });
 
 for (const snapshot of SNAPSHOTS) {

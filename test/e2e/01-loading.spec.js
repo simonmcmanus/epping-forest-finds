@@ -122,8 +122,7 @@ test.describe("Loading experience", () => {
     await expect(page.locator("[data-step-count='cows']")).toContainText("2");
   });
 
-  test("snapshot: map ready state", async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
+  test("snapshot: map ready state", async ({ page }) => {
     await page.goto("/nearby");
     await page.waitForFunction(() => { const el = document.getElementById("loadingOverlay"); return !el || el.hidden === true; }, { timeout: 30_000 });
     await waitForUiToSettle(page);
