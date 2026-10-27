@@ -5760,11 +5760,13 @@ test("service worker falls back to the cached app shell offline for /nearby/<slu
   }
 });
 
-test("service worker never writes a /nearby/<slug>/ or /find/<slug>/ page's own HTML into the shared app-shell cache slot", async () => {
+test("service worker never overwrites the installed app shell from a navigation, whether a stable screen or a /nearby/<slug>/ or /find/<slug>/ page", async () => {
   // Each generated page has its own distinct title/JSON-LD/initial body -- caching any single one
   // of them under the one "./app.html" key the five stable screens share would make that slot's
   // content depend on whichever page a visitor last loaded, corrupting every other page's offline
-  // fallback. Executes the real fetch handler against a fake navigate event and a cache spy,
+  // fallback. A stable screen's network copy is not written either: it may be the next release's
+  // page, which would then boot against this release's cached scripts. Executes the real fetch
+  // handler against a fake navigate event and a cache spy,
   // rather than inspecting the source, so a regression here would actually fail this.
   const root = path.join(__dirname, "..");
   let fetchHandler = null;
@@ -5779,7 +5781,7 @@ test("service worker never writes a /nearby/<slug>/ or /find/<slug>/ page's own 
     },
     importScripts: () => {},
     caches: {
-      open: async () => ({ put: async (key) => cachePuts.push(key) }),
+      open: async () => ({ put: async (key) => cachePuts.push(key), match: async () => ({ __cached: true }) }),
       match: async () => ({ __cached: true }),
       keys: async () => [],
     },
@@ -5804,7 +5806,7 @@ test("service worker never writes a /nearby/<slug>/ or /find/<slug>/ page's own 
     return [...cachePuts];
   }
 
-  assert.deepEqual(await fireNavigate("/nearby"), ["./app.html"], "a stable screen refreshes the shared shell");
+  assert.deepEqual(await fireNavigate("/nearby"), [], "a newer deploy's page must not replace the shell matching this release's scripts");
   assert.deepEqual(await fireNavigate("/find/the-forresters/"), [], "a business page must never overwrite it");
   assert.deepEqual(await fireNavigate("/nearby/pubs/"), [], "a category page must never overwrite it either");
 });
