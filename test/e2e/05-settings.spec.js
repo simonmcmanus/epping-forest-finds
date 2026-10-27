@@ -235,21 +235,19 @@ test.describe("Settings screen", () => {
       await page.click(buttonId);
       // waitForFunction survives the location.reload() the button ends with; the log entries
       // are written to sessionStorage before that, so they are still there afterwards.
-      // The log is read inside the same wait, not by a second evaluate: that one could land in the
-      // middle of the reload and fail with "Execution context was destroyed".
-      const handle = await page.waitForFunction(
-        () => {
-          try {
-            const log = JSON.parse(sessionStorage.getItem("refresh-log") || "[]");
-            return log.length > 0 ? log : false;
-          } catch (error) {
-            return false;
-          }
-        },
-        null,
-        { timeout: 20_000 }
-      );
-      return handle.jsonValue();
+      // The button ends with location.reload(), and any single call into the page can land while
+      // the old document is being torn down ("Execution context was destroyed"). Poll until one
+      // read gets through; the log is in sessionStorage, so it survives the reload.
+      let log = [];
+      await expect.poll(async () => {
+        try {
+          log = await page.evaluate(() => JSON.parse(sessionStorage.getItem("refresh-log") || "[]"));
+        } catch (error) {
+          return 0;
+        }
+        return log.length;
+      }).toBeGreaterThan(0);
+      return log;
     }
 
     test("refreshing the data downloads successfully without deleting the offline caches", async ({ page }) => {
@@ -260,20 +258,19 @@ test.describe("Settings screen", () => {
       expect(log).not.toContain("deleted:another-apps-cache-v1");
     });
 
-    // waitForFunction survives the location.reload() the button ends with; the log lives in sessionStorage.
+    // The log lives in sessionStorage and survives the location.reload() the button ends with, but a
+    // single call into the page can land mid-reload ("Execution context was destroyed"), so poll.
     async function logOnceContains(page, entry) {
-      const handle = await page.waitForFunction(
-        (wanted) => {
-          try {
-            const log = JSON.parse(sessionStorage.getItem("refresh-log") || "[]");
-            return log.includes(wanted) ? log : false;
-          } catch (error) {
-            return false;
-          }
-        },
-        entry
-      );
-      return handle.jsonValue();
+      let log = [];
+      await expect.poll(async () => {
+        try {
+          log = await page.evaluate(() => JSON.parse(sessionStorage.getItem("refresh-log") || "[]"));
+        } catch (error) {
+          return false;
+        }
+        return log.includes(entry);
+      }).toBe(true);
+      return log;
     }
 
     test("refreshing the app clears the cached app but keeps the data and other apps' caches", async ({ page }) => {
