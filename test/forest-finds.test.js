@@ -8387,6 +8387,7 @@ function resetLocationSmoothing(app) {
   app.state.rawUserLocation = null;
   app.state.locationGlide = null;
   app.state.locationSmoothedAt = null;
+  app.state.locationFixHistory = [];
 }
 
 test("the first GPS fix is used as delivered, with no smoothing to ease in from", () => {
@@ -8460,6 +8461,50 @@ test("a position that stops updating still converges on the last fix, rather tha
     Math.abs(app.state.userLocation.longitude - destination.longitude) < 0.000005,
     `longitude should reach the fix, off by ${Math.abs(app.state.userLocation.longitude - destination.longitude)}`
   );
+});
+
+// About 15m north per step at Epping Forest's latitude: train speed over a one-second fix
+// interval, yet under LOCATION_SMOOTHING_SNAP_METRES, so only the speed check can stop the easing.
+const TRAIN_STEP_DEG = 0.000135;
+
+test("on a train, a fix the device reports at travelling speed is used as delivered, so Nearby keeps up", () => {
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  app.state.userLocation = app.ingestLocationFix(51.665, 0.045, 25, 1000, 20);
+  const next = app.ingestLocationFix(51.665 + TRAIN_STEP_DEG, 0.045, 25, 2000, 20);
+  assert.equal(app.state.locationGlide, null, "no easing behind a moving train");
+  assert.equal(next.latitude, 51.665 + TRAIN_STEP_DEG, "the position is the fix itself");
+});
+
+test("sustained travel with no device speed reading stops being smoothed within a few seconds", () => {
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  // A fix a second at 15 m/s, with the map's frames running between them as they do on a phone.
+  // Eased, the position alternated between trailing up to ~30m behind and snapping forward.
+  for (let i = 0; i <= 12; i += 1) {
+    const at = 1000 + i * 1000;
+    const latitude = 51.665 + i * TRAIN_STEP_DEG;
+    app.state.userLocation = app.ingestLocationFix(latitude, 0.045, 25, at, null);
+    if (i >= 8) {
+      assert.equal(app.state.locationGlide, null, `fix ${i}: eight seconds at 15 m/s is travel, not wander`);
+      assert.equal(app.state.userLocation.latitude, latitude, `fix ${i}: the position is the fix, not a trailing ease`);
+    }
+    for (let t = at + 16; t < at + 1000; t += 16) app.advanceLocationGlide(t);
+  }
+});
+
+test("a walker's wander under trees is still smoothed however long it goes on", () => {
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  // Fifteen seconds of fixes scattered up to ~8m either side of one spot, no device speed.
+  const offsets = [0, 0.00007, -0.00006, 0.00005, -0.00007, 0.00003, -0.00004, 0.00007, -0.00005, 0.00006, -0.00007, 0.00004, -0.00006, 0.00007, -0.00003, 0.00005];
+  offsets.forEach((offset, i) => {
+    app.state.userLocation = app.ingestLocationFix(51.665 + offset, 0.045 - offset, 25, 1000 + i * 1000, null);
+    if (i > 0) assert.ok(app.state.locationGlide, `fix ${i} is wander and should still be eased`);
+  });
 });
 
 test("a large jump in position lands at once rather than crawling there", () => {
