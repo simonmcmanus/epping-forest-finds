@@ -48,6 +48,7 @@ test.describe("the marketing homepage", () => {
   });
 
   test("links every map category and subcategory to its filtered Nearby page", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 }); // wide screens show the lists open
     await page.goto("/");
     const inventory = buildInventory();
     for (const group of inventory.groups) {
@@ -202,6 +203,7 @@ test.describe("the marketing homepage", () => {
   });
 
   test("groups the map inventory like the app filters and uses the oak-leaf brand mark", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 }); // wide screens show the lists open
     await page.goto("/");
 
     await expect(page.locator(".brand-mark")).toHaveAttribute("src", "assets/home/map-icons/oak.png");
