@@ -236,6 +236,8 @@ globalThis.__forestFindsTest = {
   formatDistance,
   fetchMapData,
   requestPersistentStorage,
+  cowEndpointUrl,
+  cowCenterForRequest,
   projectLonLat,
   unprojectPoint,
   distanceMetres,
@@ -12061,4 +12063,18 @@ test("the features endpoint answers the public check and keeps the list admin-on
 runRegisteredTests().catch((error) => {
   console.error(error);
   process.exitCode = 1;
+});
+
+// Cross-file invariant: the cow proxy refuses any centre but the app's own (netlify/functions/cows.js).
+test("the cow request the app builds is one the proxy accepts", async () => {
+  const cows = require("../netlify/functions/cows");
+  const url = new URL(app.cowEndpointUrl(app.cowCenterForRequest()), "http://localhost");
+  const original = global.fetch;
+  global.fetch = async () => new Response("{}", { status: 200 });
+  try {
+    const result = await cows.handler({ httpMethod: "GET", queryStringParameters: { center: url.searchParams.get("center") } });
+    assert.equal(result.statusCode, 200);
+  } finally {
+    global.fetch = original;
+  }
 });

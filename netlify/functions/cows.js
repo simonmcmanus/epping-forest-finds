@@ -1,5 +1,8 @@
 const COW_SOURCE_BASE = "https://account.nofence.no/api/open/data/?center=";
 const UPSTREAM_TIMEOUT_MS = 6000;
+// The only centre the app asks for (DEFAULT_COW_CENTER in js/app.js). Anything else is refused: a
+// caller varying `center` would miss the shared edge copy on every request and reach Nofence each time.
+const ALLOWED_CENTERS = new Set(["0.06371428038973509,51.656022523996725"]);
 
 // Every open app polls this every 5 minutes for the same fixed centre point, so the answer is the
 // same for everyone. Netlify's edge keeps one copy for a minute (and may serve it up to 30 seconds
@@ -42,6 +45,9 @@ exports.handler = async (event) => {
   const center = event.queryStringParameters && event.queryStringParameters.center;
   if (!center) {
     return { statusCode: 400, headers: headers(), body: JSON.stringify({ error: "Missing center query param" }) };
+  }
+  if (!ALLOWED_CENTERS.has(center)) {
+    return { statusCode: 400, headers: headers(), body: JSON.stringify({ error: "Unknown center" }) };
   }
 
   const controller = new AbortController();

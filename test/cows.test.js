@@ -17,7 +17,9 @@ function withUpstream(respond, run) {
   return Promise.resolve(run(calls)).finally(() => { global.fetch = original; });
 }
 
-const get = (center = "0.06,51.65") => cows.handler({ httpMethod: "GET", queryStringParameters: { center } });
+// The app's own request, built the way cowEndpointUrl (js/app.js) builds it.
+const APP_CENTER = "0.06371428038973509,51.656022523996725";
+const get = (center = APP_CENTER) => cows.handler({ httpMethod: "GET", queryStringParameters: { center } });
 
 test("a good cow answer is shared at the edge for a minute, keyed on the centre point", () => withUpstream(
   () => new Response(JSON.stringify({ collars: [] }), { status: 200, headers: { "content-type": "application/json" } }),
@@ -79,3 +81,13 @@ test("a Nofence call that hangs is given up after a few seconds with a 502", asy
     mock.timers.reset();
   }
 });
+
+test("a centre the app never asks for is refused, so the shared edge copy cannot be bypassed", () => withUpstream(
+  () => { throw new Error("should not be called"); },
+  async (calls) => {
+    for (const center of ["0.06,51.65", "0.06371428038973509,51.656022523996725x", `0.0637,51.656${Math.random()}`]) {
+      assert.equal((await get(center)).statusCode, 400);
+    }
+    assert.equal(calls.length, 0, "Nofence is never called for them");
+  },
+));
