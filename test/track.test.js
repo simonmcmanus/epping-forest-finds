@@ -324,3 +324,32 @@ test("a late batch filed under a day past retention is deleted rather than kept"
   assert.strictEqual(summary.expired, 1);
   assert.deepStrictEqual([...store.blobs.keys()], []);
 });
+
+test("a raw batch that fails to read is kept for the next run, never deleted unseen", async () => {
+  const store = memoryStore();
+  const now = Date.now();
+  const keys = await tracking.storeBatch(store, [location("u1", now)], { now });
+  const getJSON = store.getJSON;
+  store.getJSON = async (key) => { if (key === keys[0]) throw new Error("blobs hiccup"); return getJSON(key); };
+  await tracking.compact(store, { now });
+  assert.ok(store.blobs.has(keys[0]), "the batch is still there");
+  store.getJSON = getJSON;
+  await tracking.compact(store, { now });
+  assert.deepStrictEqual((await tracking.readWindow(store, { windowDays: 1, now })).locations.map((e) => e.uid), ["u1"]);
+});
+
+test("a daily file that fails to read is never overwritten with only the new events", async () => {
+  const store = memoryStore();
+  const now = Date.now();
+  await tracking.storeBatch(store, [location("first", now - 60_000)], { now });
+  await tracking.compact(store, { now });
+  const raw = await tracking.storeBatch(store, [location("second", now)], { now: now + 1 });
+  const getJSON = store.getJSON;
+  store.getJSON = async (key) => { if (key.startsWith("daily/")) throw new Error("blobs hiccup"); return getJSON(key); };
+  await assert.rejects(tracking.compact(store, { now }), /hiccup/);
+  store.getJSON = getJSON;
+  assert.ok(store.blobs.has(raw[0]), "the new batch waits for the next run");
+  await tracking.compact(store, { now });
+  const uids = (await tracking.readWindow(store, { windowDays: 1, now })).locations.map((e) => e.uid);
+  assert.deepStrictEqual(uids, ["first", "second"]);
+});

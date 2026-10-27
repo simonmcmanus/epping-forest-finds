@@ -203,12 +203,19 @@ async function storeBatch(adapter, events, { now = Date.now(), rand = Math.rando
 
 // ---- Read ----
 
+// A key whose read throws is left out of `read`, so compaction (which deletes what it read) leaves it for
+// the next run instead of deleting events it never saw. A key that reads as missing is already gone.
 async function readKeysUntil(adapter, keys, deadline, clock) {
   const read = [];
   let partial = false;
   await mapLimit(keys, READ_CONCURRENCY, async (key) => {
     if (clock() > deadline) { partial = true; return; }
-    const value = await adapter.getJSON(key).catch(() => null);
+    let value;
+    try {
+      value = await adapter.getJSON(key);
+    } catch {
+      return;
+    }
     read.push({ key, events: Array.isArray(value) ? value : [] });
   });
   return { read, partial };
@@ -265,8 +272,10 @@ async function readWindow(adapter, { windowDays, now = Date.now(), budgetMs = 70
 
 // ---- Compaction (track-compact-scheduled.js) ----
 
+// A failed read of the existing daily file must stop the merge: writing over it with only the new events
+// would lose the whole day. The error ends this run with the batches still in place for the next one.
 async function mergeIntoDaily(adapter, type, day, events) {
-  const existing = unpackEvents(await adapter.getJSON(dailyKey(type, day)).catch(() => null));
+  const existing = unpackEvents(await adapter.getJSON(dailyKey(type, day)));
   await adapter.setJSON(dailyKey(type, day), packEvents(type, mergeEvents(existing, events)));
 }
 
