@@ -235,17 +235,21 @@ test.describe("Settings screen", () => {
       await page.click(buttonId);
       // waitForFunction survives the location.reload() the button ends with; the log entries
       // are written to sessionStorage before that, so they are still there afterwards.
-      await page.waitForFunction(
+      // The log is read inside the same wait, not by a second evaluate: that one could land in the
+      // middle of the reload and fail with "Execution context was destroyed".
+      const handle = await page.waitForFunction(
         () => {
           try {
-            return JSON.parse(sessionStorage.getItem("refresh-log") || "[]").length > 0;
+            const log = JSON.parse(sessionStorage.getItem("refresh-log") || "[]");
+            return log.length > 0 ? log : false;
           } catch (error) {
             return false;
           }
         },
+        null,
         { timeout: 20_000 }
       );
-      return page.evaluate(() => JSON.parse(sessionStorage.getItem("refresh-log") || "[]"));
+      return handle.jsonValue();
     }
 
     test("refreshing the data downloads successfully without deleting the offline caches", async ({ page }) => {
