@@ -1370,6 +1370,7 @@ async function boot() {
   const bootRoute = routeValueFromLocation();
   initTracker();
   setupPwa();
+  setupBackgroundDataSync();
   setupUiZoomLock();
   setupInteractions();
   resizeCanvas();
