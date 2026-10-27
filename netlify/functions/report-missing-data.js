@@ -1,6 +1,6 @@
 const DEFAULT_REPO = "simonmcmanus/epping-forest-finds";
 const { randomUUID, createHmac } = require("crypto");
-const { openStore } = require("./lib/community-store");
+const { openStore, MINE_LOG_MAX } = require("./lib/community-store");
 const { checkRateLimit, clientIp } = require("./lib/report-rate-limit");
 const { connectLambda, getStore } = require("@netlify/blobs");
 const REPORT_PHOTO_MAX_BYTES = 3 * 1024 * 1024;
@@ -115,7 +115,7 @@ async function recordReporter(event, deviceId, ref, entry) {
     const mineKey = `mine/${deviceId}`;
     const mine = (await store.get(mineKey)) || [];
     mine.push({ ...entry, ts: Date.now() });
-    await store.put(mineKey, mine.slice(-300));
+    await store.put(mineKey, mine.slice(-MINE_LOG_MAX));
   } catch {
     // Rewards are a bonus: a storage hiccup must never fail the report itself.
   }

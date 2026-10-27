@@ -433,14 +433,33 @@ async function refreshCachedState(scope) {
 // sw.js). Called only while the map is visible and interactive, so freshness passes never compete
 // with the render — the load itself is served entirely from cache, and any genuinely changed file
 // lands quietly afterwards. The worker throttles this internally, so foreground checks are cheap.
+// Safari clears a website's storage after seven days without a visit unless it was added to the Home
+// Screen, which loses the offline map and the device id that holds a person's community points. A
+// persisted origin is exempt. Chrome and Safari decide silently; Firefox asks with a permission prompt
+// on first load, which is not worth showing for this, so it is skipped there.
+function requestPersistentStorage() {
+  const storage = navigator.storage;
+  if (!storage || typeof storage.persist !== "function" || typeof storage.persisted !== "function") return;
+  if (/Firefox\//.test(navigator.userAgent || "")) return;
+  storage.persisted()
+    .then((persisted) => (persisted ? null : storage.persist()))
+    .catch(() => {});
+}
+
+// Waits for this page's own map downloads to reach the data cache first (mapDataHandOverSettled,
+// js/loader.js): on a first visit the worker takes control mid-load, and its controllerchange would
+// otherwise start a sync that downloads again every file the page is still fetching.
 function requestBackgroundDataSync(options) {
-  if (!("serviceWorker" in navigator)) return;
-  if (!navigator.onLine) return;
+  if (!("serviceWorker" in navigator)) return Promise.resolve();
+  if (!navigator.onLine) return Promise.resolve();
   const controller = navigator.serviceWorker.controller;
-  if (!controller) return; // First load — nothing cached yet to refresh
-  try {
-    controller.postMessage({ type: "SYNC_DATA", force: Boolean(options && options.force) });
-  } catch {}
+  if (!controller) return Promise.resolve(); // First load — nothing cached yet to refresh
+  const settled = typeof mapDataHandOverSettled === "function" ? mapDataHandOverSettled() : Promise.resolve();
+  return settled.then(() => {
+    try {
+      controller.postMessage({ type: "SYNC_DATA", force: Boolean(options && options.force) });
+    } catch {}
+  });
 }
 
 // Browsers only look for a new sw.js on navigation (and at most daily), which an installed app that
@@ -553,6 +572,8 @@ function setupPwa() {
         refreshSettingsVersionDisplay();
       })
       .catch(() => {});
+
+    requestPersistentStorage();
   }
 
   if (els.installButton) {

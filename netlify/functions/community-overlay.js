@@ -5,8 +5,8 @@
 // community-rebuild-scheduled.js, which is what makes other users' reports take about an hour to appear. It lives
 // outside data/**, so it never moves the data cache version.
 const { openStore } = require("./lib/community-store");
-const { computeCommunityState, communityAdminStats, reportOutcome, canonicalTarget } = require("./lib/community-consensus");
-const { loadComputed, loadScore } = require("./lib/community-computed");
+const { reportOutcome, canonicalTarget } = require("./lib/community-consensus");
+const { loadComputed, loadAdminStats, loadScore } = require("./lib/community-computed");
 const { sessionFrom } = require("./lib/auth-session");
 const { devicesForRequest, mergeScores } = require("./lib/community-account");
 
@@ -16,15 +16,14 @@ function queryParam(event, name) {
   return event.queryStringParameters?.[name] || new URLSearchParams(event.rawQuery || "").get(name);
 }
 
-// Admin stats are computed fresh from the ledger (not the hourly snapshot) so the dashboard is live.
+// Admin stats come from the last rebuild (community-computed.js), so an admin view never reads the
+// whole ledger; "Rebuild snapshot now" on the dashboard refreshes them on demand.
 async function adminStats(event) {
   const auth = (event.headers && (event.headers.authorization || event.headers.Authorization)) || "";
   if (!ADMIN_PASSWORD || auth !== `Bearer ${ADMIN_PASSWORD}`) {
     return { statusCode: 401, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ error: "Unauthorized" }) };
   }
-  const store = openStore(event);
-  const reports = (await Promise.all((await store.list("reports/")).map((k) => store.get(k)))).filter(Boolean);
-  const stats = communityAdminStats(reports, computeCommunityState(reports));
+  const stats = await loadAdminStats(openStore(event));
   return {
     statusCode: 200,
     headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },

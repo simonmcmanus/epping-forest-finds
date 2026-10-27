@@ -8,6 +8,8 @@ import json
 import os
 from pathlib import Path
 
+from geojson_format import write_feature_lines
+
 # Official Epping Forest waymarked trails with approximate start/end coordinates
 # Based on their location within the forest and near major landmarks
 OFFICIAL_TRAILS = [
@@ -183,8 +185,7 @@ def update_geojson(input_path, output_path):
         geojson["features_count"] = len(geojson["features"])
     
     # Write updated geojson
-    with open(output_path, 'w') as f:
-        json.dump(geojson, f, indent=2)
+    write_feature_lines(output_path, geojson)
     
     print(f"Updated {input_path}")
     print(f"Added {len(new_features)} official waymarked trails")

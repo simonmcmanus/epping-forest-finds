@@ -113,7 +113,7 @@ Includes:
 - Nofence open data API (same-origin proxy): `/api/cows?center=<lon>,<lat>`
 - Upstream source pattern: `https://account.nofence.no/api/open/data/?center=<lon>,<lat>`
 
-Cow requests use a fixed center coordinate (not user location) and refresh every 5 minutes.
+Cow requests use a fixed center coordinate (not user location) and refresh every 5 minutes. Because every visitor asks the same question, the proxy's successful answers are shared at Netlify's edge for a minute (`Netlify-CDN-Cache-Control: s-maxage=60, stale-while-revalidate=30`, varied on `center`), so Nofence sees about one request a minute however many people have the app open; a position can therefore be up to about 90 seconds older than Nofence's own (a minute fresh, plus at most 30 seconds served while the edge refreshes). Errors are never cached, and the upstream call gives up after 6 seconds. The proxy accepts only the app's own centre (any other `center` is a 400), so nobody can miss the shared copy, and reach Nofence on every request, by varying it. Live bus and train departures (`/.netlify/functions/transport-departures`) are shared the same way per stop (`s-maxage=30, stale-while-revalidate=30`, so at most about a minute old), with a 4-second limit on each TfL call; set `TFL_APP_KEY` in Netlify, since without it every visitor shares TfL's small anonymous allowance (the function logs a warning once).
 
 ## Events
 
@@ -749,8 +749,9 @@ Consent is implicit: tapping whichever "Enable location" button is on screen (fi
 Full terms are at `/terms.html`. The modal links to this page.
 
 ### Data collected (with consent)
-- **Location pings** — lat/lng, heading, current nav target — sent every 60 seconds while location is active. Paused while the tab/screen is hidden (`document.visibilitychange`) along with the GPS watch, and resumed on return to foreground, to avoid draining battery in the background.
-- **Click events** — item type, item ID, item name, user position — sent on every map-item selection
+- **Location pings** — lat/lng, heading, current nav target — recorded every 60 seconds while location is active. Paused while the tab/screen is hidden (`document.visibilitychange`) along with the GPS watch, and resumed on return to foreground, to avoid draining battery in the background.
+- **Click events** — item type, item ID, item name, user position — recorded on every map-item selection
+- Events are queued on the device and sent in batches (once 20 are waiting, every 5 minutes, and when the page is hidden or closed), not one request each — see "Client batching" in `spec-admin.md`.
 - Each event is tagged with a random anonymous user ID (`ff-uid` in `localStorage`) and ISO timestamp
 
 ### Event types
