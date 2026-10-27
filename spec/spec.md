@@ -152,6 +152,7 @@ calendar icon.
 - App title: `Forest Finds`.
 - Inspector supports overview mode and selected-detail mode.
 - Install button appears when `beforeinstallprompt` is available.
+- The installed app is named "Epping Forest Finds" on the home screen (manifest `name` and `short_name`; `apple-mobile-web-app-title` for iOS, whose Add to Home Screen otherwise defaults to the page title). Its icon is the homepage's oak leaf on a gold tile (see "Generated app icon assets" in `spec-icons.md`).
 - Search is available from the inspector's main navigation (see "Search Screen").
 - Mobile layout keeps controls compact and avoids overflow.
 - On mobile, the modal navigation controls sit below the drag-to-resize bar with a clear gap so the resize handle remains visually distinct and easy to touch.

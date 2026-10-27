@@ -122,6 +122,37 @@ test.describe("Loading experience", () => {
     await expect(page.locator("[data-step-count='cows']")).toContainText("2");
   });
 
+  test("installs as Epping Forest Finds with the homepage's oak as its logo", async ({ page, request }) => {
+    await page.goto("/nearby");
+    await expect(page.locator(".loading-logo")).toBeVisible();
+
+    // The name a phone puts under the home screen icon: the manifest's short_name on
+    // Android, the apple-mobile-web-app-title meta on iOS.
+    const manifestHref = await page.locator('link[rel="manifest"]').getAttribute("href");
+    const manifest = await (await request.get(new URL(manifestHref, page.url()).href)).json();
+    expect(manifest.name).toBe("Epping Forest Finds");
+    expect(manifest.short_name).toBe("Epping Forest Finds");
+    await expect(page.locator('meta[name="apple-mobile-web-app-title"]')).toHaveAttribute("content", "Epping Forest Finds");
+
+    // Every home screen icon loads at the size it declares.
+    for (const icon of manifest.icons) {
+      const size = await page.evaluate(async (src) => {
+        const img = new Image();
+        img.src = src;
+        await img.decode();
+        return `${img.naturalWidth}x${img.naturalHeight}`;
+      }, new URL(icon.src, page.url()).href);
+      expect(size).toBe(icon.sizes);
+    }
+
+    // The app's logo is the same oak the homepage shows top left.
+    const bytesOf = async (src) => (await request.get(new URL(src, page.url()).href)).body();
+    const appLogo = await bytesOf(await page.locator(".loading-logo").getAttribute("src"));
+    await page.goto("/");
+    const homepageMark = await bytesOf(await page.locator(".brand-mark").getAttribute("src"));
+    expect(appLogo.equals(homepageMark)).toBe(true);
+  });
+
   test("snapshot: map ready state", async ({ page }) => {
     await page.goto("/nearby");
     await page.waitForFunction(() => { const el = document.getElementById("loadingOverlay"); return !el || el.hidden === true; }, { timeout: 30_000 });
