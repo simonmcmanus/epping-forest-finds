@@ -467,7 +467,11 @@ async function syncData({ force = false } = {}) {
           }
           if (cached && !responseChanged(cached, fresh)) continue;
           await cache.put(request, fresh.clone());
-          changed += 1;
+          // Only a replaced copy is new to the person. A file the cache never held (a tree chunk
+          // they have not walked near yet, say) was never on their map, so filling it in is not
+          // "new map data" and must not raise the restart banner -- it used to, on every partial
+          // pass, which brought the banner back after each restart until the cache was complete.
+          if (cached) changed += 1;
         } catch (error) {
           failed += 1;
           // Offline, or one file the server no longer serves -- keep the cached copy either way.

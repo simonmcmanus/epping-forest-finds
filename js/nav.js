@@ -280,13 +280,23 @@ function _markSwUpdateAvailable(waiting) {
 // download has finished, so a single tap restarts into the complete new version. Community
 // findings are applied to the open map live (COMMUNITY_UPDATED) and never need this.
 function showUpdateBanner() {
-  if (document.getElementById("updateBanner")) return;
+  // The wording names what the restart brings: a new app version, or (data only) new map data.
+  // An app update already carries its own data, so it wins once both are known.
+  const [title, detail] = state.swUpdateAvailable
+    ? ["Update ready", "Restart to load the latest version. It only takes a moment."]
+    : ["New map data", "Restart to see the latest trees, paths and places."];
+  const existing = document.getElementById("updateBanner");
+  if (existing) {
+    existing.querySelector(".update-banner-text strong").textContent = title;
+    existing.querySelector(".update-banner-text span").textContent = detail;
+    return;
+  }
   const banner = document.createElement("div");
   banner.id = "updateBanner";
   banner.className = "update-banner";
   banner.setAttribute("role", "status");
   banner.innerHTML = '<span class="update-banner-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg></span>'
-    + '<span class="update-banner-text"><strong>Update ready</strong><span>Restart to load the latest fixes and map data. It only takes a moment.</span></span>'
+    + `<span class="update-banner-text"><strong>${title}</strong><span>${detail}</span></span>`
     + '<button id="updateBannerButton" type="button">Restart</button>';
   document.body.appendChild(banner);
   banner.querySelector("button").addEventListener("click", async (event) => {

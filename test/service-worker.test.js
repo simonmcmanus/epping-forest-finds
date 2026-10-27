@@ -422,6 +422,14 @@ test.describe("background data sync", () => {
     assert.deepEqual(JSON.parse(JSON.stringify(sw.posted)), [{ type: "DATA_UPDATED", changed: 1 }]);
   });
 
+  test("filling in map files the cache never had stores them without announcing new map data", async () => {
+    const { sw, cache } = await seededWorker((url) =>
+      url.endsWith("/events.json") ? new Response(null, { status: 304 }) : new Response("first download"));
+    await sw.message({ type: "SYNC_DATA", force: true });
+    assert.equal(await body(await cache.match("./data/local-roads.geojson")), "first download");
+    assert.deepEqual(sw.posted, [], "nothing on the person's map changed, so no restart is offered");
+  });
+
   test("a server that ignores the conditional request but returns the same validator is not rewritten", async () => {
     const { sw, cache } = await seededWorker((url) =>
       url.endsWith("/events.json") ? new Response("old events", { headers: { ETag: '"v1"' } }) : new Response("x", { status: 404 }));

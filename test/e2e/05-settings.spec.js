@@ -87,6 +87,7 @@ test.describe("Settings screen", () => {
     await expect(page.locator("#updateBanner")).toHaveCount(0);
     await page.evaluate(() => { _markDataUpdateAvailable(); });
     await expect(page.locator("#updateBanner")).toBeVisible();
+    await expect(page.locator("#updateBanner")).toContainText("New map data");
     await page.evaluate(() => { window.__reloadMarker = true; });
     await page.click("#updateBannerButton");
     await page.waitForFunction(() => !window.__reloadMarker);
@@ -100,6 +101,8 @@ test.describe("Settings screen", () => {
     await expect(page.locator("#updateBanner")).toHaveCount(0);
     await page.evaluate(() => { _markSwUpdateAvailable(state.swWaiting); });
     await expect(page.locator("#updateBanner")).toBeVisible();
+    await expect(page.locator("#updateBanner")).toContainText("Update ready");
+    await expect(page.locator("#updateBanner")).toHaveCount(1);
   });
 
   test("snapshot: update ready banner", async ({ page }) => {
