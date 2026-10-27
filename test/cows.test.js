@@ -26,6 +26,9 @@ test("a good cow answer is shared at the edge for a minute, keyed on the centre 
     assert.equal(result.statusCode, 200);
     assert.match(result.headers["Netlify-CDN-Cache-Control"], /s-maxage=60/);
     assert.equal(result.headers["Netlify-Vary"], "query=center");
+    // Fresh for a minute plus at most 30 s served stale while refreshing: no visitor sees a position over ~90 s old.
+    const [, fresh, stale] = /s-maxage=(\d+), stale-while-revalidate=(\d+)/.exec(result.headers["Netlify-CDN-Cache-Control"]);
+    assert.ok(Number(fresh) + Number(stale) <= 90);
     assert.equal(calls.length, 1);
   },
 ));

@@ -2,12 +2,13 @@ const COW_SOURCE_BASE = "https://account.nofence.no/api/open/data/?center=";
 const UPSTREAM_TIMEOUT_MS = 6000;
 
 // Every open app polls this every 5 minutes for the same fixed centre point, so the answer is the
-// same for everyone. Netlify's edge keeps one copy for a minute (and may serve it a few minutes
-// longer while it refreshes), so Nofence sees about one request a minute however many people are
-// using the app. Errors are never cached, so a failed upstream call is retried on the next poll.
+// same for everyone. Netlify's edge keeps one copy for a minute (and may serve it up to 30 seconds
+// longer while it refreshes, so a position is at most about 90 seconds old), so Nofence sees about one
+// request a minute however many people are using the app. Errors are never cached, so a failed
+// upstream call is retried on the next poll.
 const CACHED_HEADERS = {
   "Cache-Control": "public, max-age=0, must-revalidate",
-  "Netlify-CDN-Cache-Control": "public, s-maxage=60, stale-while-revalidate=240",
+  "Netlify-CDN-Cache-Control": "public, s-maxage=60, stale-while-revalidate=30",
   "Netlify-Vary": "query=center",
 };
 
