@@ -2,6 +2,114 @@
 // Converts raw GeoJSON/API data into the app's internal format.
 // Depends on: js/categories.js (loaded first), projectLonLat/unprojectPoint (main script, called at runtime only).
 
+// --- Shared walking/location rules ---
+
+const DEFAULT_WALKING_DISTANCE_MINUTES = 5;
+const LANDING_PAGE_WALKING_DISTANCE_MINUTES = 30;
+const DEFAULT_LOCATION = { latitude: 51.667591, longitude: 0.037454 };
+const DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES = DEFAULT_WALKING_DISTANCE_MINUTES;
+const EARTH_RADIUS_METRES = 6371008.8;
+
+function toRadians(value) {
+  return value * Math.PI / 180;
+}
+
+function bearingDegrees(lat1, lon1, lat2, lon2) {
+  const phi1 = toRadians(lat1);
+  const phi2 = toRadians(lat2);
+  const lambda1 = toRadians(lon1);
+  const lambda2 = toRadians(lon2);
+  const y = Math.sin(lambda2 - lambda1) * Math.cos(phi2);
+  const x = Math.cos(phi1) * Math.sin(phi2) - Math.sin(phi1) * Math.cos(phi2) * Math.cos(lambda2 - lambda1);
+  const brng = Math.atan2(y, x) * 180 / Math.PI;
+  return (brng + 360) % 360;
+}
+
+function distanceMetres(lat1, lon1, lat2, lon2) {
+  const phi1 = toRadians(lat1);
+  const phi2 = toRadians(lat2);
+  const dPhi = toRadians(lat2 - lat1);
+  const dLambda = toRadians(lon2 - lon1);
+  const a = Math.sin(dPhi / 2) ** 2 + Math.cos(phi1) * Math.cos(phi2) * Math.sin(dLambda / 2) ** 2;
+  return 2 * EARTH_RADIUS_METRES * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function formatDistance(metres) {
+  if (!Number.isFinite(metres)) return "Not recorded";
+  if (metres < 1000) return `${Math.round(metres)} m`;
+  const km = metres / 1000;
+  const decimals = km < 10 ? 1 : 0;
+  const kmStr = km.toFixed(decimals).replace(/\.0$/, "");
+  return `${kmStr} km`;
+}
+
+function walkingDistanceToMetres(minutes) {
+  return minutes * (5000 / 60);
+}
+
+function formatWalkingRadius(minutes) {
+  if (minutes < 1) return `${Math.round(minutes * 60)} sec`;
+  return `${Math.round(minutes)} min`;
+}
+
+// --- Tree identity and display helpers ---
+
+// The identity of a tree, used for the #tree= deep link, for the Nearby list's own
+// de-duplication (overviewEntryKey/uniqueSortedOverviewEntries) and for resolving a tapped
+// list row back to a tree (findTreeByHashKey). recordNumber first, and only recordNumber:
+// it is the one field the Veteran Tree Register guarantees unique (verified: 24,906 records,
+// 24,906 distinct recordNumbers). `id` -- which this used to prefer -- is "0" on the 6,504
+// untagged trees, so every one of them hashed to the same key. That collapsed all of them to
+// a single row in the Nearby list (hiding every untagged tree closer than the one that
+// survived the de-dupe), and made tapping that row open whichever "0" tree happened to sit
+// first in the dataset -- a tree nowhere near the user. Reported as "Tree 0 is listed as the
+// closest tree when it is nowhere nearby".
+//
+// The key is prefixed so it cannot be confused with the old id/tag-based one: record numbers and
+// tag numbers are separate numbering spaces that overlap (11383 is both a real tag and a real,
+// different, record), so an unprefixed key would make every link ambiguous about which scheme it
+// was written in. With the prefix, findTreeByHashKey can tell them apart and links shared before
+// this change still open the tree they always did.
+const TREE_RECORD_KEY_PREFIX = "r";
+
+function treeHashKey(tree) {
+  if (!tree) return "";
+  const recordNumber = tree.recordNumber;
+  if (recordNumber !== null && recordNumber !== undefined && recordNumber !== "") {
+    return TREE_RECORD_KEY_PREFIX + normalizeTreeNumber(recordNumber);
+  }
+  // No record number at all. Never true of the real register, but a future source (or a test
+  // fixture) may lack one, and returning a blank key would silently drop the tree from every
+  // de-duplicated list. Fall back to the position, which is what actually tells two trees
+  // apart -- kept alphanumeric, and with the sign spelled out, so normalizeTreeNumber (which
+  // strips "-" and ".") cannot merge a coordinate with its mirror image.
+  if (Number.isFinite(tree.latitude) && Number.isFinite(tree.longitude)) {
+    const axis = (value) => (value < 0 ? "n" : "p") + Math.round(Math.abs(value) * 1e6);
+    return `ll${axis(tree.latitude)}${axis(tree.longitude)}`;
+  }
+  return normalizeTreeNumber(tree.id ?? tree.tagNumber ?? "");
+}
+
+// The 6,504 untagged records in the Veteran Tree Register carry tagNumber "0" rather than
+// null, so a plain `commonName || tagNumber || recordNumber` chain rendered them as a tree
+// called "0" wherever the species was also unrecorded. "0" is a placeholder, not a tag.
+function treeTagLabel(tree) {
+  const tag = tree && (tree.tagNumber ?? tree.nationalDatabaseTagNumber);
+  if (tag === null || tag === undefined) return null;
+  const text = String(tag).trim();
+  if (!text || Number(text) === 0) return null;
+  return text;
+}
+
+function treeDisplayName(tree) {
+  if (!tree) return "Unknown tree";
+  return tree.commonName || treeTagLabel(tree) || "Veteran tree";
+}
+
+function normalizeTreeNumber(value) {
+  return String(value).trim().toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
 // --- Geometry helpers ---
 
 function lineSegmentsFromGeometry(geometry) {

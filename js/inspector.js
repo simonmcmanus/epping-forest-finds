@@ -63,10 +63,10 @@ function handleMapClick(event) {
   // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
   // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
   // rather than lingering for whenever Nearby is next shown.
-  state.nearbyAnchor = null;
   setInspectorMinimized(false);
   // Before state.selected changes below -- see startCameraOriginTransition (js/app.js).
   startCameraOriginTransition();
+  state.nearbyAnchor = null;
   if (hit.type === "tree") {
     state.selected = { type: "tree", item: hit.item };
     syncHashFromSelection();
@@ -1001,9 +1001,9 @@ function focusOverviewItem(type, key) {
   // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
   // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
   // rather than lingering for whenever Nearby is next shown.
-  state.nearbyAnchor = null;
   // Before state.selected changes below -- see startCameraOriginTransition (js/app.js).
   startCameraOriginTransition();
+  state.nearbyAnchor = null;
 
   if (type === "tree") {
     const tree = findTreeByHashKey(key);
