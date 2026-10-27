@@ -31,7 +31,7 @@ Before finishing any implementation task:
 
 Skills live in `.claude/skills/` (Claude Code) and `.agents/skills/` (Codex). Use them as part of the normal workflow:
 
-- **Non-trivial feature or ambiguous request:** start with `/grill-with-docs` (it uses the repo's `grilling` skill), then `/to-spec`. Specs go into the matching `spec/*.md` file, not only an issue. These and `/implement` and `/triage` only run when typed, so suggest the command to the user instead of skipping the step.
+- **Non-trivial feature or ambiguous request:** start with `/grill-with-docs` (it uses the repo's `grilling` skill), then `/to-spec`. Specs go into the matching `spec/*.md` file, not only an issue. These and `/implement` only run when typed, so suggest the command to the user instead of skipping the step.
 - **Implementation:** `/implement` or `/tdd`. A new user-facing behaviour still needs its BDD test in `test/e2e/`.
 - **Bug, failing or flaky test:** `/diagnosing-bugs`; establish CI-to-CI whether a failure is pre-existing (see Testing).
 - **Pull request body:** follow `/pr`, but `.github/pull_request_template.md`, the screenshot rules and the preview-links block win where they differ.
@@ -42,10 +42,6 @@ Skills live in `.claude/skills/` (Claude Code) and `.agents/skills/` (Codex). Us
 ### Issue tracker
 
 GitHub Issues via `gh`. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-Default five-role vocabulary. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 
