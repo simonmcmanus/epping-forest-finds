@@ -196,8 +196,8 @@ test.describe("URL navigation", () => {
       const outline = await page.locator("#nearbyToggle").evaluate((el) => getComputedStyle(el).outlineColor);
       // The old rgba(60, 99, 130, 0.35)/0.6 rings blended down to under the 3:1 contrast WCAG
       // 2.4.11 requires against the app's light backgrounds -- a keyboard user's focus was
-      // moving, but nothing on screen showed it. Solid var(--nav) renders as opaque rgb(44, 79, 133).
-      expect(outline).toBe("rgb(44, 79, 133)");
+      // moving, but nothing on screen showed it. An opaque colour computes as rgb(...), a translucent one as rgba(...).
+      expect(outline).toMatch(/^rgb\(/);
     });
   });
 });

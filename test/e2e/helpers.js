@@ -273,8 +273,38 @@ async function waitForViewportToSettle(page) {
   await page.waitForFunction(() => state.viewportAnimationFrame == null);
 }
 
+/**
+ * Wait until the camera has landed and no finite CSS animation or transition is running, for
+ * a few consecutive frames. Infinite animations (spinners, ambient icon motion) are ignored, so
+ * this ends when the UI has actually stopped moving rather than after a guessed number of ms.
+ */
+async function waitForUiToSettle(page) {
+  await waitForViewportToSettle(page);
+  await page.waitForFunction(() => typeof nearbyOriginTransitionActive !== "function" || !nearbyOriginTransitionActive());
+  await page.waitForFunction(() => {
+    const running = document.getAnimations().some((a) => a.effect && a.effect.getComputedTiming().iterations !== Infinity && a.playState === "running");
+    window.__uiCalmFrames = running ? 0 : (window.__uiCalmFrames || 0) + 1;
+    return window.__uiCalmFrames >= 3;
+  }, null, { polling: "raf" });
+}
+
+/**
+ * Let the app run n animation frames. For "nothing should happen" assertions, where there is no
+ * positive signal to wait on: the app gets n real ticks to do the wrong thing, independent of
+ * wall-clock speed.
+ */
+async function waitForFrames(page, n) {
+  await page.evaluate((count) => new Promise((resolve) => {
+    let seen = 0;
+    const tick = () => (++seen >= count ? resolve() : requestAnimationFrame(tick));
+    requestAnimationFrame(tick);
+  }), n);
+}
+
 module.exports = {
   setup,
+  waitForUiToSettle,
+  waitForFrames,
   waitForViewportToSettle,
   skipOnboarding,
   mockCowApi,

@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, skipOnboarding, mockCowApi, gotoAndWaitForMap, settleMapIconsAndDraw } = require("./helpers");
+const { setup, skipOnboarding, mockCowApi, gotoAndWaitForMap, settleMapIconsAndDraw, waitForFrames, waitForUiToSettle } = require("./helpers");
 
 // A GPS fix inside Epping Forest
 const FOREST_LOCATION = { latitude: 51.6650, longitude: 0.0450, accuracy: 10 };
@@ -25,10 +25,6 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
     });
 
-    test("the location gate is not shown when geolocation is pre-granted", async ({ page }) => {
-      await expect(page.locator("#locationGate")).toBeHidden();
-    });
-
     test("the High Beach stand-in notice is not shown with a real fix", async ({ page }) => {
       await expect(page.locator("#inspectorBody")).not.toContainText("Showing things near High Beach");
     });
@@ -49,7 +45,7 @@ test.describe("Location and GPS — happy path", () => {
 
     test("snapshot: map with user location active", async ({ page }, testInfo) => {
       test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
-      await page.waitForTimeout(800);
+      await waitForUiToSettle(page);
       await settleMapIconsAndDraw(page);
       await expect(page).toHaveScreenshot("map-with-location.png", { fullPage: false });
     });
@@ -319,11 +315,9 @@ test.describe("permission revoked mid-session", () => {
     });
   });
 
-  test("does not show the blocking location gate, and the map stays usable", async ({ page }) => {
+  test("the map stays usable after location permission is revoked mid-session", async ({ page }) => {
     await gotoAndWaitForMap(page);
-    await expect(page.locator("#locationGate")).toBeHidden();
-    await page.waitForTimeout(500); // past the simulated revoke at 300ms
-    await expect(page.locator("#locationGate")).toBeHidden();
+    await waitForFrames(page, 30);
     await expect(page.locator("#mapCanvas")).toBeVisible();
     await expect(page.locator("#inspectorBody .nearest-list li").first()).toBeVisible();
   });

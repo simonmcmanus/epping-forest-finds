@@ -4,7 +4,7 @@
 // are written by CI (never by hand). Everything the screen shows is mocked, so nothing here depends on time or
 // on the network.
 const { test, expect } = require("@playwright/test");
-const { setup, FIXTURE_TREE, settleMapIconsAndDraw } = require("./helpers");
+const { setup, FIXTURE_TREE, settleMapIconsAndDraw, waitForUiToSettle } = require("./helpers");
 
 const OVERLAY_ENTRIES = "**/api/community/overlay";
 const ME_URL = "**/api/auth/me";
@@ -24,7 +24,7 @@ async function mockCommunity(page, { me, link = { status: 200, body: { ok: true 
 }
 
 async function settle(page) {
-  await page.waitForTimeout(300);
+  await waitForUiToSettle(page);
   await settleMapIconsAndDraw(page);
 }
 

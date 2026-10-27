@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, settleMapIconsAndDraw } = require("./helpers");
+const { setup, settleMapIconsAndDraw, waitForUiToSettle } = require("./helpers");
 
 test.describe("Settings screen", () => {
   test.beforeEach(async ({ page }) => {
@@ -106,7 +106,7 @@ test.describe("Settings screen", () => {
     test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
     await page.evaluate(() => { _markDataUpdateAvailable(); });
     await expect(page.locator("#updateBanner")).toBeVisible();
-    await page.waitForTimeout(300);
+    await waitForUiToSettle(page);
     await settleMapIconsAndDraw(page);
     await expect(page).toHaveScreenshot("update-ready-banner.png", { fullPage: false });
   });
@@ -235,17 +235,19 @@ test.describe("Settings screen", () => {
       await page.click(buttonId);
       // waitForFunction survives the location.reload() the button ends with; the log entries
       // are written to sessionStorage before that, so they are still there afterwards.
-      await page.waitForFunction(
-        () => {
-          try {
-            return JSON.parse(sessionStorage.getItem("refresh-log") || "[]").length > 0;
-          } catch (error) {
-            return false;
-          }
-        },
-        { timeout: 20_000 }
-      );
-      return page.evaluate(() => JSON.parse(sessionStorage.getItem("refresh-log") || "[]"));
+      // The button ends with location.reload(), and any single call into the page can land while
+      // the old document is being torn down ("Execution context was destroyed"). Poll until one
+      // read gets through; the log is in sessionStorage, so it survives the reload.
+      let log = [];
+      await expect.poll(async () => {
+        try {
+          log = await page.evaluate(() => JSON.parse(sessionStorage.getItem("refresh-log") || "[]"));
+        } catch (error) {
+          return 0;
+        }
+        return log.length;
+      }).toBeGreaterThan(0);
+      return log;
     }
 
     test("refreshing the data downloads successfully without deleting the offline caches", async ({ page }) => {
@@ -256,20 +258,19 @@ test.describe("Settings screen", () => {
       expect(log).not.toContain("deleted:another-apps-cache-v1");
     });
 
-    // waitForFunction survives the location.reload() the button ends with; the log lives in sessionStorage.
+    // The log lives in sessionStorage and survives the location.reload() the button ends with, but a
+    // single call into the page can land mid-reload ("Execution context was destroyed"), so poll.
     async function logOnceContains(page, entry) {
-      const handle = await page.waitForFunction(
-        (wanted) => {
-          try {
-            const log = JSON.parse(sessionStorage.getItem("refresh-log") || "[]");
-            return log.includes(wanted) ? log : false;
-          } catch (error) {
-            return false;
-          }
-        },
-        entry
-      );
-      return handle.jsonValue();
+      let log = [];
+      await expect.poll(async () => {
+        try {
+          log = await page.evaluate(() => JSON.parse(sessionStorage.getItem("refresh-log") || "[]"));
+        } catch (error) {
+          return false;
+        }
+        return log.includes(entry);
+      }).toBe(true);
+      return log;
     }
 
     test("refreshing the app clears the cached app but keeps the data and other apps' caches", async ({ page }) => {
@@ -308,7 +309,7 @@ test.describe("Settings screen", () => {
 
   test("snapshot: settings screen", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
-    await page.waitForTimeout(300);
+    await waitForUiToSettle(page);
     await settleMapIconsAndDraw(page);
     await expect(page).toHaveScreenshot("settings-screen.png", { fullPage: false });
   });

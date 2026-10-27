@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, FIXTURE_TREE, settleMapIconsAndDraw } = require("./helpers");
+const { setup, FIXTURE_TREE, settleMapIconsAndDraw, waitForUiToSettle } = require("./helpers");
 
 test.describe("Selection and Inspector", () => {
   test.describe("tree selected via URL hash", () => {
@@ -54,13 +54,13 @@ test.describe("Selection and Inspector", () => {
       });
 
       await expect(inspector).toHaveClass(/inspector-navigation-arrived/);
-      await page.waitForTimeout(500);
+      await waitForUiToSettle(page);
       const arrivedHeight = await inspector.evaluate((el) => el.getBoundingClientRect().height);
       expect(arrivedHeight).toBeGreaterThan(navigatingHeight + 20);
     });
 
     test("snapshot: tree detail view", async ({ page }, testInfo) => {
-      await page.waitForTimeout(600);
+      await waitForUiToSettle(page);
       // Stop all canvas animations so Playwright's stability check can pass.
       // toHaveScreenshot() requires pixel-identical consecutive RAW screenshots — the mask
       // only applies to the final baseline comparison, not the stability check.

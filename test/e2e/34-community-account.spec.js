@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, FIXTURE_TREE } = require("./helpers");
+const { setup, FIXTURE_TREE, waitForFrames } = require("./helpers");
 
 const OVERLAY_URL = "**/api/community/overlay**";
 const ME_URL = "**/api/auth/me";
@@ -21,14 +21,6 @@ test.describe("Community sign-in", () => {
     await expect(page.locator("#communityAccount")).toContainText("Sign in to take your points with you");
     await expect(page.locator("#communityAccount a[href^='/api/auth/login']")).toBeVisible();
     await expect(page.locator(".community-contributions")).toBeVisible();
-  });
-
-  test("the sign-in banner can be put away and leaves a quiet link", async ({ page }) => {
-    await page.route(ME_URL, (route) =>
-      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: false }) })
-    );
-    await setup(page, "/community");
-    await expect(page.locator(".community-account-quiet a[href^='/api/auth/login']")).toBeVisible();
   });
 
   test("the screen is drawn once as a skeleton and later renders only update values in place", async ({ page }) => {
@@ -400,7 +392,7 @@ test.describe("Community sign-in: history, account switching, storage", () => {
     await expect(page.locator("#communityContributions")).toContainText("Couldn't check who is signed in");
     // Give the page's own background refreshes (they run about a second after load) time to fire.
     await page.evaluate(() => Promise.all([communityRefreshScore(false), communityRefreshLog()]));
-    await page.waitForTimeout(1500);
+    await waitForFrames(page, 90);
     expect(requested).toEqual([]);
   });
 

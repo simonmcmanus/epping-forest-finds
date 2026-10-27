@@ -29,11 +29,6 @@ test.describe("Feedback / Report screen", () => {
     );
   });
 
-  test("report form includes the current app version", async ({ page }) => {
-    // The version is displayed inside the form so the user knows which version will be reported
-    await expect(page.locator("#reportForm")).toContainText("v");
-  });
-
   test("report form has a text area for the user's description", async ({ page }) => {
     await expect(page.locator("#reportDetails")).toBeVisible();
   });

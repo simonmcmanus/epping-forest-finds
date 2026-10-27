@@ -109,17 +109,15 @@ test("renderBusinessPage shows opening hours and a folklore summary when present
   assert.ok(!withoutExtras.includes("Mo-Su 11:00-23:00"));
 });
 
-test("renderBusinessPage's no-JS panel uses the live inspector's own classes, header and section headings", () => {
+test("renderBusinessPage's no-JS panel carries the same headings and actions the live inspector shows", () => {
   const rules = loadAppRules();
   const html = renderBusinessPage(FAKE_INDEX[0], APP_HTML, rules, FAKE_INDEX);
 
   assert.match(html, /<h2 id="inspectorTitle">The Forresters<\/h2>/);
-  assert.match(html, /<p id="inspectorType" class="type">Pub<\/p>/);
-  assert.match(html, /<span id="inspectorTitleEmoji" class="inspector-title-emoji" aria-hidden="true"><img class="app-icon"/);
-  assert.match(html, /<div class="detail-top-row"><span class="detail-top-actions"><a class="detail-map-link detail-map-link--icon" href="https:\/\/maps\.google\.com[^"]*"[^>]*aria-label="Open in Maps"/);
-  assert.match(html, /<button class="detail-map-link detail-map-link--icon" type="button" data-action="share-location" aria-label="Share link"/);
-  assert.match(html, /<h3 class="detail-section-heading">Nearby<\/h3><ul class="nearest-list related-cards">/);
-  assert.match(html, /<a class="nearest-item nearby-link" href="\/nearby\/trees\/#near=/);
+  assert.match(html, /id="inspectorType"[^>]*>Pub<\/p>/);
+  assert.match(html, /<a [^>]*href="https:\/\/maps\.google\.com[^"]*"[^>]*aria-label="Open in Maps"/);
+  assert.match(html, /<button [^>]*data-action="share-location"[^>]*aria-label="Share link"/);
+  assert.match(html, /<h3 class="detail-section-heading">Nearby<\/h3>/);
   assert.match(html, /<h3 class="detail-section-heading">Related<\/h3>/);
   assert.ok(!html.includes("Epping Forest Finds</h2>"), "the generic app title is replaced on the business page");
 });

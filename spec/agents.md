@@ -76,12 +76,34 @@ Before finishing any implementation task:
 
 ## Testing
 
+### Test quality: assert behaviour, never source text
+
+A test exists to fail when the app misbehaves for a user, and to stay green through any refactor that leaves behaviour alone. Coverage of app functionality is the goal; a test that cannot catch a real regression is worse than none, because it reads as coverage.
+
+**Do not write tests that:**
+- Read a source file (`js/*.js`, `css/*`, `sw.js`, `app.html`, `server.js`, a Netlify function) and `assert.match` / `.includes` / `doesNotMatch` a regex or string against it. That pins how code is written, not what it does: it fails on a rename or reformat and stays green when the logic is wrong. Execute the code instead — call the function, run `sw.js` in a `vm` context against fake `caches`/`fetch` (see `test/service-worker.test.js`), drive the page in Playwright — and assert on the output, the network traffic, the cache contents, or the DOM a user sees.
+- Assert that something was **removed** by grepping for its name (`doesNotMatch(html, /oldFeature/)`). Once removed it has no behaviour to test; a regression is caught by the e2e journey that would exercise it.
+- Count markup or CSS (`stroke="currentColor"` tallies, pixel values in a stylesheet). Assert the rendered result (`boundingBox`, accessible role/name, visible text) or rely on the snapshot.
+- Have no assertion, or assert something that is true by construction (the value the test just set, `assert.ok(true)`, `x === x`, a `toBeTruthy()` on a value that is always set when the code runs at all).
+- Mirror the implementation: re-deriving the expected value with the same formula the code uses, or asserting call order inside a function body, rather than the observable outcome.
+
+**Do:**
+- Name the behaviour in the test title, as a user or caller would state it, and assert that outcome.
+- Stub only at the boundary (network, `caches`, `navigator`, time), not internal helpers.
+- Prove a new test is real: break the code on purpose and confirm the test fails, then restore it. A test that survives the mutation it claims to guard is deleted or rewritten.
+- A data invariant that crosses files (every CSS file `app.html` links is listed in `APP_SHELL`) is a legitimate check, because it asserts a property of the shipped product, not a code pattern. Keep those, and say so in the title.
+- In Playwright, a missing precondition is a failure, not a skip: do not `test.skip(!target, ...)` because the camera or fixture did not produce something. Position the camera deterministically or fail loudly. Reserve `test.skip` for project/viewport gating (`mobile`-only snapshots).
+- Wait on state (`expect(locator)`, `waitForFunction`), never `page.waitForTimeout`. `test/e2e/helpers.js` has `waitForUiToSettle` (camera landed, finite animations done) for "let it finish moving" and `waitForFrames` for "nothing should happen" assertions. A test that measures a wall-clock animation samples inside the page (see `sampleEvery` in `14-map-interaction.spec.js`) rather than waiting from the test side.
+
+When removing a source-grep test, check that an executed test or e2e journey covers the behaviour; add one if not. Do not delete coverage — replace it.
+
 ### Unit tests (functional behaviour)
 - Run: `npm run test:unit` (or `node test/forest-finds.test.js`).
 - **Must pass before any task is considered complete.** Run after every code change and fix failures before finishing.
 - Use BDD-style descriptions that mirror the spec wording.
 - A passing run prints one dot per test and a `# N passed` summary, not a line per test. `TEST_VERBOSE=1` restores the per-test names; a failure always prints in full regardless.
-- `TEST_FILTER=<text>` runs only the tests whose name contains that text, case-insensitively — useful while iterating on one area. **It is never a substitute for the full run:** all 312 tests share the single `app` instance built by `loadAppForTests()`, in registration order and with no per-test isolation, so a filtered subset starts from whatever state the skipped tests would have left. Finish on a full, unfiltered pass.
+- `test/service-worker.test.js` (run by `npm test`, `node --test test/service-worker.test.js`) executes the real `sw.js` against an in-memory Cache Storage and a scripted network. Add service-worker behaviour tests there, not as regexes over `sw.js`.
+- `TEST_FILTER=<text>` runs only the tests whose name contains that text, case-insensitively — useful while iterating on one area. **It is never a substitute for the full run:** all unit tests share the single `app` instance built by `loadAppForTests()`, in registration order and with no per-test isolation, so a filtered subset starts from whatever state the skipped tests would have left. Finish on a full, unfiltered pass.
 
 ### BDD browser tests (user experience)
 - Run one spec: `npx playwright test test/e2e/<file> --project=<desktop|mobile>`, narrowed

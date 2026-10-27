@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, mockEventsApi, gotoAndWaitForMap, skipOnboarding, mockCowApi } = require("./helpers");
+const { setup, mockEventsApi, gotoAndWaitForMap, skipOnboarding, mockCowApi, waitForFrames } = require("./helpers");
 
 const FOREST_LOCATION = { latitude: 51.665, longitude: 0.045, accuracy: 10 };
 
@@ -76,7 +76,7 @@ test.describe("Events", () => {
     await setup(page);
 
     // Give checkEventProximityAlert (run on every GPS fix) a real chance to have fired.
-    await page.waitForTimeout(500);
+    await waitForFrames(page, 30);
     await expect(page.locator("#eventNearbyBanner")).toBeHidden();
   });
 
@@ -92,12 +92,8 @@ test.describe("Events", () => {
     await mockCowApi(page);
     await mockEventsApi(page, [liveEventFixture()]);
     await gotoAndWaitForMap(page);
-    await page.evaluate(() => {
-      const gate = document.getElementById("locationGate");
-      if (gate && !gate.hidden) gate.hidden = true;
-    });
 
-    await page.waitForTimeout(500);
+    await waitForFrames(page, 30);
     await expect(page.locator("#eventNearbyBanner")).toBeHidden();
   });
 });
