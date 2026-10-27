@@ -2190,13 +2190,30 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 
 .search-field::before {
   content: "";
-  width: 18px;
-  height: 18px;
-  margin-left: 10px;
-  flex: 0 0 auto;
-  border: 2px solid var(--tree);
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  width: 20px;
+  height: 20px;
+  border: 3px solid var(--tree);
   border-radius: 50%;
-  box-shadow: 9px 9px 0 -7px var(--tree);
+  transform: translateY(-62%);
+  z-index: 1;
+  opacity: 0.82;
+}
+
+.search-field::after {
+  content: "";
+  position: absolute;
+  left: 30px;
+  top: calc(50% + 8px);
+  width: 13px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--tree);
+  transform: rotate(45deg);
+  transform-origin: left center;
+  z-index: 1;
   opacity: 0.82;
 }
 
@@ -2205,7 +2222,7 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   border: 0;
   background: transparent;
   box-shadow: none;
-  padding-left: 10px;
+  padding-left: 42px;
 }
 
 .search-field .search-number:focus {
