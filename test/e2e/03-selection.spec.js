@@ -67,6 +67,29 @@ test.describe("Selection and Inspector", () => {
       await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
     });
 
+    test("tree sections keep text clear of decorative icons and align the walking controls", async ({ page }) => {
+      await page.evaluate(() => showTreeDetails({ ...state.selected.item, girthMetres: 4, comments: "A veteran tree with a broad crown and a hollowing trunk." }, 420, "Tree record"));
+      const controls = page.locator("#inspectorBody .walk-chip, #inspectorBody .detail-map-link--icon");
+      await expect(controls).toHaveCount(3);
+      const heights = await controls.evaluateAll((items) => items.map((item) => item.getBoundingClientRect().height));
+      heights.forEach((height) => expect(height).toBeCloseTo(44, 0));
+      const icons = page.locator("#inspectorBody .tree-measurements .tree-field-icon, #inspectorBody .tree-form .tree-field-icon, #inspectorBody .tree-comments .tree-field-icon");
+      await expect(icons).toHaveCount(4);
+      const placement = await icons.evaluateAll((items) => items.map((icon) => {
+        const row = icon.closest(".row");
+        const image = icon.getBoundingClientRect();
+        const field = row.getBoundingClientRect();
+        const label = row.querySelector("dt > span:not(.tree-field-icon)").getBoundingClientRect();
+        return { opacity: getComputedStyle(icon).opacity, width: image.width, rightGap: field.right - image.right, labelLeft: label.left, iconLeft: image.left };
+      }));
+      for (const icon of placement) {
+        expect(icon.opacity).toBe("0.5");
+        expect(icon.width).toBe(56);
+        expect(icon.rightGap).toBeLessThanOrEqual(1);
+        expect(icon.labelLeft).toBeLessThan(icon.iconLeft);
+      }
+    });
+
     test("URL hash reflects the selected tree", async ({ page }) => {
       await expect(page).toHaveURL(new RegExp(`tree=${FIXTURE_TREE.hashKey}`));
     });
