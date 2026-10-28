@@ -84,6 +84,43 @@ test.describe("Settings screen", () => {
       await expect(page.getByRole("img", { name: /map tilted in 3D/ })).toBeVisible();
     });
 
+    test("with 3D off, the map still turns with the phone so the radar keeps pointing ahead", async ({ page }) => {
+      // Rotation the user actually sees: the angle the map was last drawn at, plus the CSS
+      // spin applied on top of that bitmap between redraws.
+      const paintedRotation = () => page.evaluate(() => {
+        const drawn = Number.isFinite(state.renderedNavigationHeading) ? -state.renderedNavigationHeading : 0;
+        const css = /rotate\((-?[\d.]+)deg\)/.exec(els.canvas.style.transform || "");
+        return normalizeDegrees(drawn + (css ? Number(css[1]) : 0));
+      });
+      // Back on Nearby with the map idle -- its last draw happened before the first compass
+      // reading, as on a phone that has only just been picked up.
+      await page.click("#nearbyToggle");
+      await waitForUiToSettle(page);
+      await page.waitForFunction(() => {
+        window.__idleFrames = state.animationFrame ? 0 : (window.__idleFrames || 0) + 1;
+        return window.__idleFrames >= 90;
+      }, null, { polling: "raf" });
+      await page.evaluate(async () => {
+        const face = async (alpha) => {
+          for (let i = 0; i < 40; i += 1) {
+            window.dispatchEvent(new DeviceOrientationEvent("deviceorientationabsolute", {
+              alpha, beta: 50, gamma: 0, absolute: true,
+            })); // phone held up
+            await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+          }
+        };
+        // The first reading faces north, so heading-up switches on without the camera fit
+        // changing -- nothing else asks for a redraw -- and only then does the walker turn.
+        await face(0);
+        await face(270); // facing east
+      });
+      expect(await page.evaluate(() => tiltActive()), "3D is off").toBe(false);
+      await expect.poll(async () => {
+        const deg = await paintedRotation();
+        return Math.round(Math.abs(((deg - 270) + 540) % 360 - 180)); // distance from -90 (=270)
+      }, { message: "facing east turns the map a quarter-turn anticlockwise" }).toBeLessThan(5);
+    });
+
     test("is off by default, so lifting the phone keeps the map flat until it is switched on", async ({ page }) => {
       const toggle = page.getByRole("checkbox", { name: /3D map/ });
       expect(await pitchPhone(page, 55), "the map stays flat while 3D is off").toBe(0);

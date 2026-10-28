@@ -7336,8 +7336,17 @@ function prepareCanvasForDraw() {
 
 function updateHeadingUpCanvasRotationTransform() {
   if (state.headingUpEntryAnim != null) return false; // entry animation loop interpolates renderedNavigationHeading each frame
-  if (!headingUpActive() || !Number.isFinite(state.renderedNavigationHeading)) {
+  if (!headingUpActive()) {
     clearHeadingUpCanvasTransform();
+    return false;
+  }
+  if (!Number.isFinite(state.renderedNavigationHeading)) {
+    // The last draw predates the first compass reading, so there is no drawn heading for a CSS
+    // delta to spin from. Without a redraw nothing else asks for one once the camera has
+    // settled -- the 3D path used to, by redrawing every frame -- and the map stayed north-up
+    // while the radar turned. prepareCanvasForDraw sets the heading on that draw.
+    clearHeadingUpCanvasTransform();
+    requestDraw();
     return false;
   }
   const renderedRotation = -normalizeDegrees(state.renderedNavigationHeading);
