@@ -2387,12 +2387,52 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 }
 .tree-facts .row:first-child {
   grid-column: 1 / -1;
-  background: #eaf2e5;
-  border-color: #cfdec7;
+  justify-items: center;
+  gap: 10px;
+  padding: 16px;
+  background: #eef2e9;
+  border-color: #dce5d6;
 }
 .tree-facts dt { font-size: 0.75rem; letter-spacing: 0.03em; }
 .tree-facts dd { color: var(--ink); font-size: 1rem; line-height: 1.4; }
-.tree-facts .row:first-child dd { font-size: 1.55rem; font-weight: 800; }
+/* A live-number version of the metal tag pictured on the homepage. */
+.tree-facts .row:first-child dd {
+  position: relative;
+  box-sizing: border-box;
+  width: fit-content;
+  max-width: 100%;
+  min-width: min(210px, 100%);
+  padding: 13px 30px;
+  border: 2px solid #879b90;
+  border-radius: 15px 10px 16px 11px;
+  background:
+    repeating-linear-gradient(115deg, transparent 0 5px, #ffffff24 6px, transparent 7px 13px),
+    linear-gradient(145deg, #e7e9de, #b6c4bc 38%, #dbe0d7 53%, #aabbb2);
+  box-shadow: inset 0 2px 2px #ffffffe6, inset 0 -2px 3px #526b6266, 0 3px 5px #23392c24;
+  color: #304b40;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-shadow: 0 1px 0 #f9fff1, 0 -1px 1px #213c3299;
+}
+.tree-facts .row:first-child dd::before,
+.tree-facts .row:first-child dd::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  margin-top: -5px;
+  border: 1px solid #799185;
+  border-radius: 50%;
+  background: #253f34;
+  box-shadow: 0 1px 0 #f4f8e9, inset 0 1px 2px #11231c;
+}
+.tree-facts .row:first-child dd::before { left: 10px; }
+.tree-facts .row:first-child dd::after { right: 10px; }
 .tree-facts .row:last-child:has(dd) { grid-column: 1 / -1; }
 .tree-facts ~ .technical-details { margin-top: 20px; border-top: 1px solid #e2e9df; padding-top: 4px; }
 @media (max-width: 340px) {
