@@ -76,10 +76,18 @@ test.describe("Settings screen", () => {
       }, beta);
     }
 
+    test("is not offered on a device without a motion sensor, and appears once one reports a tilt", async ({ page }) => {
+      const toggle = page.getByRole("checkbox", { name: /3D map/ });
+      await expect(toggle, "a laptop never reports a tilt, so there is nothing to switch on").toBeHidden();
+      await pitchPhone(page, 20);
+      await expect(toggle).toBeVisible();
+      await expect(page.getByRole("img", { name: /map tilted in 3D/ })).toBeVisible();
+    });
+
     test("is off by default, so lifting the phone keeps the map flat until it is switched on", async ({ page }) => {
       const toggle = page.getByRole("checkbox", { name: /3D map/ });
-      await expect(toggle).not.toBeChecked();
       expect(await pitchPhone(page, 55), "the map stays flat while 3D is off").toBe(0);
+      await expect(toggle).not.toBeChecked();
 
       await toggle.check();
       expect(await pitchPhone(page, 60), "the map tilts once 3D is on").toBeGreaterThan(0);

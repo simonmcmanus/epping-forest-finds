@@ -1302,6 +1302,18 @@ test("turning the 3D map on in Settings tilts the map and is remembered for next
   assert.equal(reloaded.state.map3dEnabled, true, "the choice survives a reload");
 });
 
+test("Settings only offers the 3D map once the device has reported a real tilt reading", () => {
+  const freshApp = loadAppForTests();
+  assert.match(freshApp.settingsFormHtml(), /id="map3dSetting" hidden/, "hidden on a device with no motion sensor");
+  // Chrome on a laptop fires one orientation event with every angle null.
+  freshApp.onDeviceOrientation({ alpha: null, beta: null, gamma: null });
+  assert.match(freshApp.settingsFormHtml(), /id="map3dSetting" hidden/, "an all-null event is not a sensor");
+  freshApp.onDeviceOrientation({ alpha: null, beta: 20, gamma: 0 });
+  assert.doesNotMatch(freshApp.settingsFormHtml(), /id="map3dSetting" hidden/, "shown once a pitch arrives");
+  const reloaded = loadAppForTests({ localStorage: { "ff-motion-sensor-v1": freshApp.localStorage.getItem("ff-motion-sensor-v1") } });
+  assert.doesNotMatch(reloaded.settingsFormHtml(), /id="map3dSetting" hidden/, "shown straight away on the next visit");
+});
+
 test("turning the 3D map off flattens a tilted map straight away", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
