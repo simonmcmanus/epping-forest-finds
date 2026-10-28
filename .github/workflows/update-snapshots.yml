@@ -1,6 +1,8 @@
 name: Update Snapshots
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       branch:
@@ -8,10 +10,21 @@ on:
         required: false
         default: main
 
+concurrency:
+  group: snapshot-baselines-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.branch || 'main' }}
+  # Every completed main push must reconcile the baseline branch and its PR after the push.
+  cancel-in-progress: false
+
+# main requires pull requests, so updates sourced from main are pushed to the dedicated
+# ci/snapshot-baselines branch and opened or refreshed as one baseline PR below. Other branches
+# retain the manual branch-update behaviour.
+
 jobs:
   update:
     name: Regenerate snapshot baselines
     runs-on: ubuntu-latest
+    env:
+      SOURCE_BRANCH: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.branch || 'main' }}
     # Pinned to the same image/tag as ci.yml's e2e and visual-snapshots jobs -- see the
     # comment there. Bump both together with @playwright/test in package.json.
     container:
@@ -19,9 +32,21 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Resolve output branch
+        id: branches
+        env:
+          SOURCE_BRANCH: ${{ env.SOURCE_BRANCH }}
+        run: |
+          if [ "$SOURCE_BRANCH" = main ]; then
+            echo "target_branch=ci/snapshot-baselines" >> "$GITHUB_OUTPUT"
+            echo "open_pr=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "target_branch=$SOURCE_BRANCH" >> "$GITHUB_OUTPUT"
+            echo "open_pr=false" >> "$GITHUB_OUTPUT"
+          fi
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.inputs.branch }}
+          ref: ${{ env.SOURCE_BRANCH }}
           # Must be a PAT, not this job's own GITHUB_TOKEN -- see the matching comment in
           # ci.yml's visual-snapshots job. Without it this commit triggers no CI run at all,
           # same failure mode as sw-release.yml/data-bump.yml before they made the same fix.
@@ -44,6 +69,11 @@ jobs:
         # baseline needs a real CI run to confirm it actually matches before anyone trusts it),
         # and the explicit cd + safe.directory (without them git fails outright with "fatal: not
         # in a git directory" in this container image).
+        if: steps.mobile.outcome == 'success' && steps.desktop.outcome == 'success'
+        id: commit
+        env:
+          SOURCE_BRANCH: ${{ env.SOURCE_BRANCH }}
+          TARGET_BRANCH: ${{ steps.branches.outputs.target_branch }}
         run: |
           cd "$GITHUB_WORKSPACE"
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -51,9 +81,54 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add test/e2e/__screenshots__/
           if ! git diff --staged --quiet; then
+            if [ "$TARGET_BRANCH" != "$SOURCE_BRANCH" ]; then
+              git switch --create "$TARGET_BRANCH"
+            fi
             git commit -m "chore: update CI snapshot baselines"
-            git push origin HEAD:${{ github.event.inputs.branch }}
+            if [ "$TARGET_BRANCH" = ci/snapshot-baselines ]; then
+              git push --force origin "HEAD:$TARGET_BRANCH"
+            else
+              git push origin "HEAD:$TARGET_BRANCH"
+            fi
+            echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
+      - name: Create or update the baseline pull request
+        if: steps.commit.outputs.changed == 'true' && steps.branches.outputs.open_pr == 'true'
+        env:
+          TARGET_BRANCH: ${{ steps.branches.outputs.target_branch }}
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.WEEKLY_LEDGER_PAT }}
+          script: |
+            const branch = process.env.TARGET_BRANCH;
+            const { owner, repo } = context.repo;
+            const { data: openPrs } = await github.rest.pulls.list({
+              owner,
+              repo,
+              head: `${owner}:${branch}`,
+              base: 'main',
+              state: 'open',
+            });
+            const title = 'chore: update CI snapshot baselines';
+            const body = 'Regenerate the canonical Playwright snapshot baselines from the latest main branch. This PR is maintained by CI and contains no application changes.';
+            if (openPrs[0]) {
+              await github.rest.pulls.update({
+                owner,
+                repo,
+                pull_number: openPrs[0].number,
+                title,
+                body,
+              });
+            } else {
+              await github.rest.pulls.create({
+                owner,
+                repo,
+                head: branch,
+                base: 'main',
+                title,
+                body,
+              });
+            }
       - name: Fail if any test had a non-screenshot failure
         if: steps.mobile.outcome == 'failure' || steps.desktop.outcome == 'failure'
         run: exit 1
