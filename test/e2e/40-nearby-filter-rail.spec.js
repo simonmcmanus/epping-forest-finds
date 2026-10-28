@@ -19,6 +19,11 @@ async function showAll(page) {
   await expect(page).toHaveURL(/\/nearby\?filters=false$/);
 }
 
+/** Waits for the pills' own entrance and glide animations to finish before measuring them. */
+async function settleRail(page) {
+  await page.evaluate(() => Promise.all(document.querySelector("#inspectorBody .filter-rail").getAnimations({ subtree: true }).map((a) => a.finished.catch(() => {}))));
+}
+
 /** Counts every outgoing-screen ghost the panel slide would create from now on. */
 async function watchForPanelSlide(page) {
   await page.evaluate(() => {
@@ -66,6 +71,7 @@ test.describe("Nearby filter rail", () => {
     await page.evaluate((el) => { el.dataset.survives = "yes"; }, treeNode);
     // Compared against the first pill, because tapping scrolls the row sideways.
     const gap = async () => (await pill(page, "cows").boundingBox()).x - (await pill(page, "trees").boundingBox()).x;
+    await settleRail(page);
     const gapBefore = await gap();
 
     await watchForPanelSlide(page);
@@ -120,4 +126,23 @@ test("a shared /nearby?show= link opens with its categories pressed and a second
   await expect(pill(page, "trees")).toHaveAttribute("aria-pressed", "false");
   await pill(page, "cafes").click();
   await expect(page).toHaveURL(/\/nearby\?show=pubs,cafes$/);
+});
+
+test("when more pills fit than are visible, the row drifts sideways once and back to show it scrolls", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "the desktop panel is wide enough to show the whole row");
+  await page.addInitScript(() => {
+    window.__railMax = 0;
+    window.__railScrolls = [];
+    document.addEventListener("scroll", (event) => {
+      const el = event.target;
+      if (el instanceof HTMLElement && el.classList.contains("rail-pills")) {
+        window.__railMax = Math.max(window.__railMax, el.scrollLeft);
+        window.__railScrolls.push(el.scrollLeft);
+      }
+    }, true);
+  });
+  await setup(page, "/nearby");
+  await expect(rail(page)).toBeVisible();
+  await expect.poll(() => page.evaluate(() => window.__railMax)).toBeGreaterThan(10);
+  await expect.poll(() => page.evaluate(() => document.querySelector(".rail-pills").scrollLeft)).toBe(0);
 });

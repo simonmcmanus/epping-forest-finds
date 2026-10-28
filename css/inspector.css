@@ -1374,9 +1374,28 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
 }
 
 .rail-pill {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   padding: 0 12px 0 8px;
   border-radius: 20px;
   white-space: nowrap;
+}
+
+/* The pressed fill sweeps in from the left rather than the background just changing colour. */
+.rail-pill::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: var(--tree);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.rail-pill.is-on::before {
+  transform: none;
 }
 
 .rail-edge {
@@ -1398,7 +1417,6 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
 
 .rail-pill.is-on {
   border-color: var(--tree);
-  background: var(--tree);
   color: #fff;
 }
 
@@ -1416,6 +1434,7 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
 
 @media (prefers-reduced-motion: reduce) {
   .rail-pill,
+  .rail-pill::before,
   .rail-edge {
     transition: none;
   }
