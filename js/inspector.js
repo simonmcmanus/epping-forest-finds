@@ -380,7 +380,7 @@ function showTreeDetails(tree, distance, label) {
   const measurementsHtml = measurementRows.length ? `<div class="tree-measurements"><dl>${measurementRows.map(([name, value]) => {
     const age = name === "Estimated age" && String(value).match(/^(.*) (\(c\.-?\d+\))$/);
     const shown = age
-      ? `${escapeHtml(age[1].replace(/ years$/, ""))}<span class="tree-measurement-unit"> years</span><small>${escapeHtml(age[2])}</small>`
+      ? `<span class="tree-age-value">${escapeHtml(age[1].replace(/ years$/, ""))}<span class="tree-measurement-unit"> years</span></span> <small>${escapeHtml(age[2])}</small>`
       : escapeHtml(displayValue(value));
     return `<div class="row"><dt>${escapeHtml(name)}</dt><dd>${shown}</dd></div>`;
   }).join("")}</dl></div>` : "";

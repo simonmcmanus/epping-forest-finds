@@ -2420,9 +2420,10 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 }
 .tree-measurements .row { min-height: 0; gap: 7px; align-content: start; }
 .tree-measurements dt, .tree-form dt, .tree-comments dt { display: block; }
-.tree-measurements dd { font-size: 1.4rem; font-weight: 700; line-height: 1.2; letter-spacing: -0.035em; white-space: nowrap; }
+.tree-measurements dd { font-size: 1.4rem; font-weight: 700; line-height: 1.2; letter-spacing: -0.035em; white-space: normal; }
+.tree-age-value { white-space: nowrap; }
 .tree-measurement-unit { font-size: 0.75rem; font-weight: 500; letter-spacing: 0; }
-.tree-measurements dd small { display: block; margin-top: 7px; font-size: 0.72rem; font-weight: 400; color: #6a7764; letter-spacing: 0; }
+.tree-measurements dd small { display: inline-block; white-space: nowrap; font-size: 0.72rem; font-weight: 400; color: #6a7764; letter-spacing: 0; }
 .tree-form .row, .tree-comments .row { gap: 5px; min-height: 0; margin-bottom: 8px; align-content: center; }
 .tree-form dd { font-size: 0.9rem; font-weight: 500; }
 .tree-comments dd { font-size: 0.87rem; line-height: 1.55; }

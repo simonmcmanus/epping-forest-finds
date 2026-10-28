@@ -85,6 +85,23 @@ test.describe("Selection and Inspector", () => {
       expect((await pill.locator(".walk-icon").boundingBox()).width).toBe(20);
     });
 
+    test("estimated start year stays inline when it fits and wraps on a narrow screen", async ({ page }, testInfo) => {
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.evaluate(() => showTreeDetails({ ...state.selected.item, girthMetres: 4 }, null, "Tree record"));
+      const age = page.locator("#inspectorBody .tree-age-value");
+      const year = page.locator("#inspectorBody .tree-measurements small");
+      await expect(age).toBeVisible();
+      const wideAge = await age.boundingBox();
+      const wideYear = await year.boundingBox();
+      expect(wideYear.x).toBeGreaterThanOrEqual(wideAge.x + wideAge.width);
+      await testInfo.attach("inline-tree-year", { body: await page.locator("#inspector").screenshot({ animations: "disabled" }), contentType: "image/png" });
+      await page.setViewportSize({ width: 320, height: 720 });
+      const narrowAge = await age.boundingBox();
+      const narrowYear = await year.boundingBox();
+      expect(narrowYear.y).toBeGreaterThanOrEqual(narrowAge.y + narrowAge.height - 2);
+      await testInfo.attach("wrapped-tree-year", { body: await page.locator("#inspector").screenshot({ animations: "disabled" }), contentType: "image/png" });
+    });
+
     test("URL hash reflects the selected tree", async ({ page }) => {
       await expect(page).toHaveURL(new RegExp(`tree=${FIXTURE_TREE.hashKey}`));
     });
