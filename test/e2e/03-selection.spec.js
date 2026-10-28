@@ -36,11 +36,13 @@ test.describe("Selection and Inspector", () => {
       await expect(page.locator("#inspector")).not.toHaveClass(/minimized/);
     });
 
-    test("navigation drawer shrinks for the map and grows smoothly on arrival", async ({ page }) => {
-      await page.setViewportSize({ width: 390, height: 844 });
-      const inspector = page.locator("#inspector");
-      await expect(inspector).toHaveClass(/inspector-navigation/);
-      const navigatingHeight = await inspector.evaluate((el) => el.getBoundingClientRect().height);
+    test("expanded inspector keeps the same height across navigation and screen changes", async ({ page }) => {
+      const panelHeight = () => page.evaluate(() => document.getElementById("inspector").getBoundingClientRect().height);
+      const expectedHeight = await panelHeight();
+      const expectFixedHeight = async () => {
+        const height = await panelHeight();
+        expect(Math.abs(height - expectedHeight)).toBeLessThan(1);
+      };
 
       await page.evaluate(() => {
         const target = state.selected.item;
@@ -50,13 +52,28 @@ test.describe("Selection and Inspector", () => {
           accuracy: 10,
           point: projectLonLat(target.longitude, target.latitude),
         };
-        updateInspectorNavigationHeight();
       });
 
-      await expect(inspector).toHaveClass(/inspector-navigation-arrived/);
       await waitForUiToSettle(page);
-      const arrivedHeight = await inspector.evaluate((el) => el.getBoundingClientRect().height);
-      expect(arrivedHeight).toBeGreaterThan(navigatingHeight + 20);
+      await expectFixedHeight();
+
+      await page.click("#settingsToggle");
+      await expect(page.locator("#settingsWalkMins")).toBeVisible();
+      await expectFixedHeight();
+
+      await page.click("#reportToggle");
+      await expect(page.locator(".community-intro")).toBeVisible();
+      await expectFixedHeight();
+
+      await page.click("#searchToggle");
+      await expect(page.locator("#mapSearchInput")).toBeVisible();
+      await expectFixedHeight();
+
+      await page.click("#nearbyToggle");
+      await expect(page.locator("#filterToggle")).toBeVisible();
+      await page.click("#filterToggle");
+      await expect(page.locator("#inspectorTitle")).toHaveText("Filters");
+      await expectFixedHeight();
     });
 
     test("snapshot: tree detail view", async ({ page }) => {
