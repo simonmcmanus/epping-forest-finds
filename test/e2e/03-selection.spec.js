@@ -1,6 +1,19 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
 const { setup, FIXTURE_TREE, settleMapIconsAndDraw, waitForUiToSettle, tapCanvasPoint, waitForFrames } = require("./helpers");
+const fs = require("fs");
+const path = require("path");
+
+// The fixture tree's real position, read from the shipped dataset rather than copied here.
+const FIXTURE_TREE_LOCATION = (() => {
+  const dir = path.join(__dirname, "..", "..", "data", "trees");
+  for (const file of fs.readdirSync(dir).filter((f) => f.startsWith("chunk-"))) {
+    const tree = JSON.parse(fs.readFileSync(path.join(dir, file), "utf8")).trees
+      .find((t) => String(t.recordNumber) === FIXTURE_TREE.recordNumber);
+    if (tree) return { latitude: tree.location.wgs84.latitude, longitude: tree.location.wgs84.longitude };
+  }
+  throw new Error(`fixture tree ${FIXTURE_TREE.recordNumber} is not in data/trees`);
+})();
 
 test.describe("Selection and Inspector", () => {
   test.describe("tree selected via URL hash", () => {
@@ -36,6 +49,32 @@ test.describe("Selection and Inspector", () => {
       await expect(page.locator("#inspector")).not.toHaveClass(/minimized/);
     });
 
+    test("snapshot: tree detail view", async ({ page }) => {
+      await waitForUiToSettle(page);
+      // Stop all canvas animations so Playwright's stability check can pass.
+      // toHaveScreenshot() requires pixel-identical consecutive RAW screenshots.
+      // Two sources of ongoing redraws after boot: (1) viewport animation (triggerMapRevealZoom
+      // runs 700ms, overlay hides at 420ms, so 280ms spill into the test), (2) emoji-scale
+      // exponential smoother (calls requestDraw until settled, ~28 more frames).
+      // No mask: #mapCanvas fills the viewport, and a mask paints over its whole box, inspector
+      // included, which left this baseline a solid magenta frame that could never show a change.
+      await settleMapIconsAndDraw(page);
+      await expect(page).toHaveScreenshot("tree-detail.png", { fullPage: false });
+    });
+  });
+
+  // Standing at the selected tree, delivered as a real GPS fix. Writing state.userLocation by
+  // hand skipped the camera re-fit a fix triggers, leaving the whole dataset framed: every road
+  // and path stroked on each of the many draws this journey makes, a second or more apiece on
+  // a phone-sized canvas, which ran the test into its timeout on a 2-core CI runner.
+  test.describe("standing at a tree selected via URL hash", () => {
+    test.use({ geolocation: { ...FIXTURE_TREE_LOCATION, accuracy: 5 }, permissions: ["geolocation"] });
+
+    test.beforeEach(async ({ page }) => {
+      await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+      await page.waitForFunction(() => state.selected && state.selected.type === "tree" && Boolean(state.userLocation) && !state.userLocation.isDefault);
+    });
+
     test("expanded inspector keeps the same height across navigation and screen changes", async ({ page }) => {
       const panelHeight = () => page.evaluate(() => document.getElementById("inspector").getBoundingClientRect().height);
       const expectedHeight = await panelHeight();
@@ -52,16 +91,6 @@ test.describe("Selection and Inspector", () => {
         const height = await panelHeight();
         expect(Math.abs(height - expectedHeight)).toBeLessThan(1);
       };
-
-      await page.evaluate(() => {
-        const target = state.selected.item;
-        state.userLocation = {
-          latitude: target.latitude,
-          longitude: target.longitude,
-          accuracy: 10,
-          point: projectLonLat(target.longitude, target.latitude),
-        };
-      });
 
       await waitForUiToSettle(page);
       await expectFixedHeight();
@@ -83,19 +112,6 @@ test.describe("Selection and Inspector", () => {
       await page.click("#filterToggle");
       await expect(page.locator("#inspectorTitle")).toHaveText("Filters");
       await expectFixedHeight();
-    });
-
-    test("snapshot: tree detail view", async ({ page }) => {
-      await waitForUiToSettle(page);
-      // Stop all canvas animations so Playwright's stability check can pass.
-      // toHaveScreenshot() requires pixel-identical consecutive RAW screenshots.
-      // Two sources of ongoing redraws after boot: (1) viewport animation (triggerMapRevealZoom
-      // runs 700ms, overlay hides at 420ms, so 280ms spill into the test), (2) emoji-scale
-      // exponential smoother (calls requestDraw until settled, ~28 more frames).
-      // No mask: #mapCanvas fills the viewport, and a mask paints over its whole box, inspector
-      // included, which left this baseline a solid magenta frame that could never show a change.
-      await settleMapIconsAndDraw(page);
-      await expect(page).toHaveScreenshot("tree-detail.png", { fullPage: false });
     });
   });
 
