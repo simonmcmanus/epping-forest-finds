@@ -14,30 +14,55 @@ const ROOT = path.join(__dirname, "..");
 const NATIVE_SOURCE = fs.readFileSync(path.join(ROOT, "js", "native.js"), "utf8");
 const PRODUCTION_ORIGIN = "https://www.eppingforestfinds.uk";
 
-// Runs js/native.js in a page-like context. `capacitor` stands in for what the shell injects.
-function loadNative({ capacitor = null, permissionsState = "prompt", apiBase } = {}) {
+// Runs js/native.js in a page-like context. `capacitor` stands in for what the shell injects;
+// `routes` answers fetch() by URL (anything else is a plain { ok: true }).
+function loadNative({ capacitor = null, permissionsState = "prompt", apiBase, bundle, storage = {}, routes = {}, location = "capacitor://localhost/nearby#tree=r1" } = {}) {
   const requested = [];
   const listeners = new Map();
+  const store = new Map(Object.entries(storage));
   const browserGeolocation = { getCurrentPosition() {}, watchPosition() {}, clearWatch() {} };
+  const opened = [];
   const window = {
-    fetch: async (url) => { requested.push(url); return { ok: true }; },
+    fetch: async (url) => {
+      requested.push(url);
+      const route = routes[url];
+      if (!route) return { ok: true };
+      const bytes = Buffer.from(typeof route === "string" ? route : JSON.stringify(route));
+      return {
+        ok: true,
+        json: async () => JSON.parse(bytes.toString()),
+        arrayBuffer: async () => bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.length),
+      };
+    },
     addEventListener(type, fn) { listeners.set(type, [...(listeners.get(type) || []), fn]); },
     removeEventListener(type, fn) { listeners.set(type, (listeners.get(type) || []).filter((f) => f !== fn)); },
+    location: new URL(location),
+    open: (url, target) => opened.push({ url, target }),
   };
   if (capacitor) window.Capacitor = capacitor;
   if (apiBase) window.__FOREST_FINDS_API_BASE__ = apiBase;
+  if (bundle) window.__FOREST_FINDS_BUNDLE__ = bundle;
   const context = {
     window,
     navigator: {
       geolocation: browserGeolocation,
       permissions: { query: async () => ({ state: permissionsState }) },
     },
+    localStorage: {
+      getItem: (key) => (store.has(key) ? store.get(key) : null),
+      setItem: (key, value) => store.set(key, String(value)),
+      removeItem: (key) => store.delete(key),
+    },
+    crypto: globalThis.crypto,
+    TextDecoder,
+    URL,
+    Promise,
   };
   context.globalThis = context;
   vm.createContext(context);
   vm.runInContext(NATIVE_SOURCE, context);
   const fire = (type) => (listeners.get(type) || []).slice().forEach((fn) => fn({ type }));
-  return { Native: context.Native, window, requested, browserGeolocation, fire };
+  return { Native: context.Native, window, requested, browserGeolocation, fire, store, opened, context };
 }
 
 function fakeCapacitor({ platform = "ios", permission = "granted", position, failWith } = {}) {
@@ -158,6 +183,165 @@ test("on the web the first tap is never used to ask for the compass", async () =
   assert.equal(asked, 0);
 });
 
+// --- Native features ------------------------------------------------------------------------
+
+const crypto = require("crypto");
+const sha = (text) => crypto.createHash("sha256").update(text).digest("hex");
+
+function withPlugins(extra) {
+  const capacitor = fakeCapacitor();
+  Object.assign(capacitor.Plugins, extra);
+  capacitor.convertFileSrc = (uri) => `capacitor://localhost/_capacitor_file_${uri.replace(/^file:\/\//, "")}`;
+  return capacitor;
+}
+
+test("the native heading delivers every reading to the map, from one listener however often it is started", async () => {
+  const calls = { start: 0, stop: 0, listeners: [], located: [] };
+  const ForestHeading = {
+    addListener: (event, fn) => { calls.listeners.push({ event, fn }); return { remove() {} }; },
+    start: async () => { calls.start += 1; return { started: true }; },
+    stop: async () => { calls.stop += 1; },
+    setLocation: async (where) => { calls.located.push(where); },
+  };
+  const { Native } = loadNative({ capacitor: withPlugins({ ForestHeading }) });
+  const readings = [];
+  assert.equal(await Native.heading.start((r) => readings.push(r)), true);
+  await Native.heading.start((r) => readings.push(r));
+  assert.equal(calls.listeners.length, 1, "restarting after the background adds no second listener");
+  calls.listeners[0].fn({ trueHeading: 12, magneticHeading: 11, accuracy: 5 });
+  assert.equal(readings.length, 1);
+  Native.heading.stop();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(calls.stop, 1);
+});
+
+test("the native heading is told where the walker is only when it has moved far enough to matter", () => {
+  const located = [];
+  const ForestHeading = { addListener() {}, start: async () => ({}), stop: async () => {}, setLocation: async (w) => { located.push(w); } };
+  const { Native } = loadNative({ capacitor: withPlugins({ ForestHeading }) });
+  Native.heading.setLocation(51.66, 0.04);
+  Native.heading.setLocation(51.661, 0.041);
+  Native.heading.setLocation(52.2, 0.12);
+  assert.deepEqual(located.map((w) => w.latitude), [51.66, 52.2]);
+});
+
+test("on the web there is no native heading, and keep-awake and haptics do nothing", () => {
+  const { Native } = loadNative();
+  assert.equal(Native.heading, null);
+  Native.keepAwake.set(true);
+  assert.equal(Native.keepAwake.active, false);
+  Native.haptics.arrive();
+});
+
+test("the screen is asked to stay awake once when navigation starts and released once when it ends", async () => {
+  const asked = [];
+  const KeepAwake = { keepAwake: async () => asked.push("awake"), allowSleep: async () => asked.push("sleep") };
+  const { Native } = loadNative({ capacitor: withPlugins({ KeepAwake }) });
+  Native.keepAwake.set(true);
+  Native.keepAwake.set(true);
+  Native.keepAwake.set(false);
+  Native.keepAwake.set(false);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.deepEqual(asked, ["awake", "sleep"]);
+});
+
+test("sharing from the app sends the website address of the screen, never the app's own", async () => {
+  const shared = [];
+  const Share = { share: async (what) => { shared.push(what); } };
+  const { Native } = loadNative({ capacitor: withPlugins({ Share }), location: "capacitor://localhost/nearby#tree=r17338" });
+  assert.equal(await Native.share({ title: "English Oak" }), "shared");
+  assert.equal(shared[0].url, `${PRODUCTION_ORIGIN}/nearby#tree=r17338`);
+});
+
+test("the app reports the store version and build it was installed as", async () => {
+  const App = { getInfo: async () => ({ version: "1.0.0", build: "42" }) };
+  const { Native } = loadNative({ capacitor: withPlugins({ App }) });
+  assert.deepEqual({ ...(await Native.appInfo()) }, { version: "1.0.0", build: "42" });
+  assert.equal(await loadNative().Native.appInfo(), null);
+});
+
+// A fake app-storage that records what was written.
+function fakeFilesystem() {
+  const files = new Map();
+  return {
+    files,
+    writeFile: async ({ path: filePath, data, directory, encoding }) => {
+      assert.equal(directory, "DATA");
+      assert.equal(encoding, "utf8");
+      files.set(filePath, data);
+      return { uri: `file:///data/${filePath}` };
+    },
+  };
+}
+
+const BUNDLE = { dataVersion: "v43", generatedAt: "2026-10-27T00:00:00.000Z" };
+const OLD_TREES = '{"trees":1}';
+const NEW_TREES = '{"trees":2}';
+const PATHS = '{"paths":1}';
+const bundledManifest = { dataVersion: "v43", files: { "data/trees/index.json": { sha256: sha(OLD_TREES) }, "data/local-paths.geojson": { sha256: sha(PATHS) } } };
+const liveManifest = { dataVersion: "v44", files: { "data/trees/index.json": { sha256: sha(NEW_TREES) }, "data/local-paths.geojson": { sha256: sha(PATHS) } } };
+const dataRoutes = (treesBody = NEW_TREES) => ({
+  [`${PRODUCTION_ORIGIN}/data/manifest.json`]: liveManifest,
+  "data/manifest.json": bundledManifest,
+  [`${PRODUCTION_ORIGIN}/data/trees/index.json`]: treesBody,
+});
+
+test("a data update downloads only the files the website has changed, and they are used from the next launch", async () => {
+  const Filesystem = fakeFilesystem();
+  const first = loadNative({ capacitor: withPlugins({ Filesystem }), bundle: BUNDLE, routes: dataRoutes() });
+  const result = await first.Native.data.checkForUpdates();
+  assert.equal(result.status, "updated");
+  assert.deepEqual([...result.updated], ["data/trees/index.json"]);
+  assert.ok(!first.requested.includes(`${PRODUCTION_ORIGIN}/data/local-paths.geojson`), "an unchanged file is never downloaded");
+  assert.deepEqual([...Filesystem.files.values()], [NEW_TREES]);
+
+  // This launch keeps loading what it started with.
+  await first.window.fetch("data/trees/index.json");
+  assert.equal(first.requested.at(-1), "data/trees/index.json");
+
+  // The next launch loads the downloaded copy, and reports the new data release.
+  const next = loadNative({ capacitor: withPlugins({ Filesystem }), bundle: BUNDLE, storage: Object.fromEntries(first.store) });
+  await next.window.fetch("./data/trees/index.json");
+  assert.match(next.requested.at(-1), /^capacitor:\/\/localhost\/_capacitor_file_.*data-updates\/[0-9a-f]{64}\.json$/);
+  await next.window.fetch("data/local-paths.geojson");
+  assert.equal(next.requested.at(-1), "data/local-paths.geojson");
+  assert.equal(next.Native.data.activeVersion, "v44");
+});
+
+test("a downloaded file that does not match the website's manifest is never used", async () => {
+  const Filesystem = fakeFilesystem();
+  const app = loadNative({ capacitor: withPlugins({ Filesystem }), bundle: BUNDLE, routes: dataRoutes('{"trees":"tampered"}') });
+  const result = await app.Native.data.checkForUpdates();
+  assert.equal(result.status, "failed");
+  assert.equal(Filesystem.files.size, 0);
+  const next = loadNative({ capacitor: withPlugins({ Filesystem }), bundle: BUNDLE, storage: Object.fromEntries(app.store) });
+  await next.window.fetch("data/trees/index.json");
+  assert.equal(next.requested.at(-1), "data/trees/index.json");
+  assert.equal(next.Native.data.activeVersion, "v43", "an incomplete update does not claim the new release");
+});
+
+test("the website is asked about data at most once a day unless the person asks", async () => {
+  const Filesystem = fakeFilesystem();
+  const app = loadNative({ capacitor: withPlugins({ Filesystem }), bundle: BUNDLE, routes: dataRoutes() });
+  await app.Native.data.checkForUpdates();
+  assert.equal((await app.Native.data.checkForUpdates()).status, "skipped");
+  assert.equal((await app.Native.data.checkForUpdates({ force: true })).status, "current");
+});
+
+test("data downloaded for an older install is dropped once the app update bundles newer data", async () => {
+  const Filesystem = fakeFilesystem();
+  const first = loadNative({ capacitor: withPlugins({ Filesystem }), bundle: BUNDLE, routes: dataRoutes() });
+  await first.Native.data.checkForUpdates();
+  const updatedApp = loadNative({ capacitor: withPlugins({ Filesystem }), bundle: { dataVersion: "v45", generatedAt: "2026-11-03T00:00:00.000Z" }, storage: Object.fromEntries(first.store) });
+  await updatedApp.window.fetch("data/trees/index.json");
+  assert.equal(updatedApp.requested.at(-1), "data/trees/index.json");
+  assert.equal(updatedApp.Native.data.activeVersion, "v45");
+});
+
+test("on the web there are no data updates to make: the service worker keeps data fresh", () => {
+  assert.equal(loadNative().Native.data, null);
+});
+
 // --- What ships inside the binary ------------------------------------------------------------
 
 const { sync, compactJson } = require("../native/scripts/sync-www.js");
@@ -170,9 +354,24 @@ function builtWww() {
   return built;
 }
 
+// The entry page with the one script the sync adds removed (see the test after next).
+function entryPageWithoutHeadScript(out) {
+  return fs.readFileSync(path.join(out, "index.html"), "utf8").replace(/<script>window\.__FOREST_FINDS_[^<]*<\/script>\n  /, "");
+}
+
 test("the app binary's entry page is the map app, never the marketing homepage", () => {
   const { out } = builtWww();
-  assert.equal(fs.readFileSync(path.join(out, "index.html"), "utf8"), fs.readFileSync(path.join(ROOT, "app.html"), "utf8"));
+  assert.equal(entryPageWithoutHeadScript(out), fs.readFileSync(path.join(ROOT, "app.html"), "utf8"));
+});
+
+test("the app binary names the data release it carries, before any app script runs", () => {
+  const { out, result } = builtWww();
+  const html = fs.readFileSync(path.join(out, "index.html"), "utf8");
+  const firstScript = html.slice(html.indexOf("<script"));
+  assert.ok(firstScript.startsWith(`<script>window.__FOREST_FINDS_BUNDLE__ = ${JSON.stringify(result.bundle)};</script>`));
+  const manifest = JSON.parse(fs.readFileSync(path.join(out, "data", "manifest.json"), "utf8"));
+  assert.equal(manifest.generatedAt, result.bundle.generatedAt);
+  assert.ok(manifest.files["data/trees/index.json"].sha256.match(/^[0-9a-f]{64}$/));
 });
 
 test("the app binary carries no admin dashboard, server code or source artwork", () => {
@@ -213,7 +412,7 @@ test("a build for another deployment names it before any app script runs", () =>
   sync({ root: ROOT, out, apiBase: "https://deploy-preview-1--example.netlify.app" });
   const html = fs.readFileSync(path.join(out, "index.html"), "utf8");
   const firstScript = html.indexOf("<script");
-  assert.ok(html.slice(firstScript).startsWith('<script>window.__FOREST_FINDS_API_BASE__ = "https://deploy-preview-1--example.netlify.app";</script>'));
+  assert.ok(html.slice(firstScript).startsWith('<script>window.__FOREST_FINDS_API_BASE__ = "https://deploy-preview-1--example.netlify.app";'));
 });
 
 // --- CORS for the bundled app ------------------------------------------------------------------
@@ -263,4 +462,12 @@ test("any other origin passes through untouched, with no CORS grant", async () =
     assert.equal(context.reached, 1);
     assert.equal(response.headers.get("access-control-allow-origin"), null);
   }
+});
+
+test("the iOS project ships the store version native/package.json names (cross-file invariant)", () => {
+  const { version } = JSON.parse(fs.readFileSync(path.join(ROOT, "native", "package.json"), "utf8"));
+  const project = fs.readFileSync(path.join(ROOT, "native", "ios", "App", "App.xcodeproj", "project.pbxproj"), "utf8");
+  const declared = [...project.matchAll(/MARKETING_VERSION = ([^;]+);/g)].map((m) => m[1]);
+  assert.ok(declared.length > 0);
+  assert.deepEqual([...new Set(declared)], [version]);
 });

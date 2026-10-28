@@ -746,6 +746,17 @@ function setupPwa() {
     requestPersistentStorage();
   }
 
+  // Inside the app shell the version is the store build's plus the data release it is showing,
+  // since the two move independently there (spec-native.md "Versioning"). Bug reports carry it too.
+  if (Native.isNative) {
+    Native.appInfo().then((info) => {
+      const dataVersion = Native.data && Native.data.activeVersion;
+      const appVersion = info ? `${info.version} (${info.build})` : "";
+      state.swVersion = [appVersion, dataVersion ? `data ${dataVersion}` : ""].filter(Boolean).join(" · ");
+      refreshSettingsVersionDisplay();
+    });
+  }
+
   if (els.installButton) {
     els.installButton.hidden = true;
   }
@@ -1099,6 +1110,11 @@ function setupSearchAndNavHandlers() {
   // Tab moves focus through the scrollable Nearby/Search results list using the browser's own
   // default order -- no keydown handler of ours runs for it -- so without this the focused row
   // can land outside the visible scroll area with nothing on screen to show it moved at all.
+  // A light haptic tap on picking a find from the list (native app only; a no-op on the web).
+  els.inspectorBody.addEventListener("click", (event) => {
+    if (event.target.closest(".nearest-item")) Native.haptics.select();
+  });
+
   els.inspectorBody.addEventListener("focusin", (event) => {
     const item = event.target.closest(".nearest-item");
     if (item) item.scrollIntoView({ block: "nearest" });

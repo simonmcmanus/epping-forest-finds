@@ -17,6 +17,7 @@ const path = require("path");
 const { execFileSync } = require("child_process");
 
 const REPO_ROOT = path.resolve(__dirname, "..", "..");
+const { MANIFEST_PATH, buildManifest } = require("../../scripts/lib/data-manifest.js");
 
 const INCLUDE = [
   /^app\.html$/,
@@ -74,34 +75,47 @@ function compactJson(text, isGeoJson) {
   return JSON.stringify(data, (key, value) => (key === "coordinates" ? roundCoordinates(value) : value));
 }
 
-function apiBaseScript(origin) {
-  return `<script>window.__FOREST_FINDS_API_BASE__ = ${JSON.stringify(origin)};</script>\n  `;
+// Written into www/index.html ahead of every app script: the API origin when one was given, and
+// which data release the binary carries, so js/native.js can tell before the first request whether
+// data downloaded by an older install is now older than what this one bundles.
+function headScript({ apiBase, bundle }) {
+  const lines = [];
+  if (apiBase) lines.push(`window.__FOREST_FINDS_API_BASE__ = ${JSON.stringify(apiBase)};`);
+  lines.push(`window.__FOREST_FINDS_BUNDLE__ = ${JSON.stringify(bundle)};`);
+  return `<script>${lines.join(" ")}</script>\n  `;
 }
 
 function sync({ root = REPO_ROOT, out = path.join(REPO_ROOT, "native", "www"), apiBase = process.env.NATIVE_API_BASE || "" } = {}) {
-  const files = selectFiles(trackedFiles(root));
+  const known = trackedFiles(root);
+  const files = selectFiles(known);
+  // The manifest of the data as bundled: hashes of the source files, the same ones the website
+  // serves, so the app compares like with like when it checks the website's manifest.
+  const manifest = buildManifest(root, known);
+  const bundle = { dataVersion: manifest.dataVersion, generatedAt: manifest.generatedAt };
   fs.rmSync(out, { recursive: true, force: true });
   let bytes = 0;
+  const write = (target, content) => {
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    fs.writeFileSync(target, content);
+    bytes += Buffer.byteLength(content);
+  };
   for (const file of files) {
     const target = path.join(out, file === "app.html" ? "index.html" : file);
-    fs.mkdirSync(path.dirname(target), { recursive: true });
     const source = path.join(root, file);
     if (/\.(geo)?json$/.test(file)) {
-      const compact = compactJson(fs.readFileSync(source, "utf8"), file.endsWith(".geojson"));
-      fs.writeFileSync(target, compact);
-      bytes += Buffer.byteLength(compact);
-    } else if (file === "app.html" && apiBase) {
+      write(target, compactJson(fs.readFileSync(source, "utf8"), file.endsWith(".geojson")));
+    } else if (file === "app.html") {
       const html = fs.readFileSync(source, "utf8");
       const first = html.indexOf("<script");
-      const withBase = html.slice(0, first) + apiBaseScript(apiBase) + html.slice(first);
-      fs.writeFileSync(target, withBase);
-      bytes += Buffer.byteLength(withBase);
+      write(target, html.slice(0, first) + headScript({ apiBase, bundle }) + html.slice(first));
     } else {
+      fs.mkdirSync(path.dirname(target), { recursive: true });
       fs.copyFileSync(source, target);
       bytes += fs.statSync(target).size;
     }
   }
-  return { files: files.length, bytes, out };
+  write(path.join(out, MANIFEST_PATH), JSON.stringify(manifest));
+  return { files: files.length, bytes, out, bundle };
 }
 
 if (require.main === module) {

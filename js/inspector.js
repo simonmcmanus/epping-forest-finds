@@ -1393,21 +1393,17 @@ function reportIssueHtml(context) {
     </div>`;
 }
 
+// Shares the address of what is on screen: the native share sheet in the app, the browser's own on
+// the web, and the clipboard where neither exists. Always the website address (Native.websiteUrl),
+// so a link shared from inside the app opens for anyone it is sent to.
 async function shareCurrentLocation() {
-  const url = window.location.href;
-  if (navigator.share) {
-    try { await navigator.share({ url }); return; } catch (_) {}
-  }
-  if (navigator.clipboard) {
-    try {
-      await navigator.clipboard.writeText(url);
-      const btn = els.inspectorBody && els.inspectorBody.querySelector("[data-action='share-location']");
-      if (btn) {
-        const original = btn.textContent;
-        btn.textContent = "Copied!";
-        setTimeout(() => { if (btn.isConnected) btn.textContent = original; }, 1600);
-      }
-    } catch (_) {}
+  const outcome = await Native.share({ title: document.title, url: Native.websiteUrl() });
+  if (outcome !== "copied") return;
+  const btn = els.inspectorBody && els.inspectorBody.querySelector("[data-action='share-location']");
+  if (btn) {
+    const original = btn.textContent;
+    btn.textContent = "Copied!";
+    setTimeout(() => { if (btn.isConnected) btn.textContent = original; }, 1600);
   }
 }
 

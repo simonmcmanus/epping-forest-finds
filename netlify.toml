@@ -249,3 +249,17 @@
   for = "/js/data-cache-version.js"
   [headers.values]
     Cache-Control = "no-cache"
+
+# The native app (whose pages are served from the app bundle, not this site) downloads changed
+# datasets from here, so the public data is readable cross-origin. The manifest that lists what
+# changed must never be served stale. See spec/spec-native.md "Delta updates".
+[[headers]]
+  for = "/data/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+
+[[headers]]
+  for = "/data/manifest.json"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Cache-Control = "no-cache"

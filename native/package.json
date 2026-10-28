@@ -1,6 +1,6 @@
 {
   "name": "epping-forest-finds-native",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
   "description": "Capacitor shell that ships the Epping Forest Finds web client to the App Store and Google Play. See spec/spec-native.md.",
   "scripts": {
@@ -11,10 +11,15 @@
     "assets": "node scripts/render-icons.js && capacitor-assets generate --ios --android --iconBackgroundColor '#24382f' --iconBackgroundColorDark '#24382f' --splashBackgroundColor '#24382f' --splashBackgroundColorDark '#24382f'"
   },
   "dependencies": {
+    "@capacitor-community/keep-awake": "8.0.1",
     "@capacitor/android": "8.5.3",
+    "@capacitor/app": "8.1.2",
     "@capacitor/core": "8.5.3",
+    "@capacitor/filesystem": "8.1.5",
     "@capacitor/geolocation": "8.2.4",
-    "@capacitor/ios": "8.5.3"
+    "@capacitor/haptics": "8.0.2",
+    "@capacitor/ios": "8.5.3",
+    "@capacitor/share": "8.0.3"
   },
   "devDependencies": {
     "@capacitor/assets": "^3.0.5",

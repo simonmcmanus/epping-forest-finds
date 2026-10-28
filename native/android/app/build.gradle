@@ -7,8 +7,10 @@ android {
         applicationId "uk.eppingforestfinds.app"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        // The store version lives in native/package.json; the build number comes from CI
+        // (NATIVE_BUILD_NUMBER, the workflow run number) and is 1 on a local build.
+        versionCode((System.getenv("NATIVE_BUILD_NUMBER") ?: "1").toInteger())
+        versionName new groovy.json.JsonSlurper().parse(file("../../package.json")).version
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.

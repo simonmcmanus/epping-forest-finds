@@ -19,13 +19,13 @@ This spec owns everything inside `native/`, the `js/native.js` capability layer,
 | Phase | State |
 | --- | --- |
 | 1. Shell: `native/`, sync, `js/native.js`, service worker skip, API origin, CORS | **Built** |
-| 2. Offline data bundled in the binary | **Built** (no delta updates yet — phase 5) |
-| 3. `forest-heading` true-heading plugin | Planned |
-| 4. Permissions and polish | Permissions, portrait lock, icons, launch screen **built**; keep-awake, haptics, native share, safe areas, deep links planned |
-| 5. Data delta updates | Planned |
-| 6. Submission | Privacy manifest, permission strings **built**; store listings, screenshots, data-safety form, review notes outstanding |
+| 2. Offline data bundled in the binary | **Built** |
+| 3. `forest-heading` true-heading plugin | **Built** (Swift and Java, in the app projects) |
+| 4. Permissions and polish | **Built**: permissions, portrait lock, icons, launch screen, keep-awake, haptics, native share, website-only links, safe areas. Universal/app links wait for signing (submission) |
+| 5. Data delta updates | **Built** |
+| 6. Submission | Privacy manifest, permission strings, versioning **built**; signing, store listings, screenshots, data-safety form and review notes are follow-on work |
 
-`.github/workflows/native-build.yml` builds both projects on every change that could affect them (Android debug APK on Linux, iOS simulator build on macOS, unsigned), so the committed projects are proven to compile without anyone's machine. Signing and store upload are manual until the first submission.
+`.github/workflows/native-build.yml` builds both apps on pull requests that change the native code and on every merge to `main` that touches the app or its data, and keeps the results as downloadable artifacts for testing: `android-debug-apk` (installs on any Android phone with "install unknown apps" allowed) and `ios-simulator-app` (unzip, then `xcrun simctl install booted App.app`, or drag it onto a running Simulator). Builds are unsigned; installing on a physical iPhone needs signing, which is part of the submission work.
 
 ## Chosen Approach: Capacitor
 
@@ -72,16 +72,21 @@ Loaded first in `app.html`'s script order, before any request goes out. It expos
 Native.isNative                  // true inside the shell (or under the test shim)
 Native.platform                  // "ios" | "android" | "web"
 Native.apiBase                   // "" on web; the site's origin inside the shell
-Native.remoteUrl(url)            // what fetch() does to a URL (identity on web)
+Native.remoteUrl(url)            // what fetch() does to an API URL (identity on web)
 Native.geolocation               // navigator.geolocation on web; the native plugin, same callback API, in the shell
 Native.locationPermissionState() // "granted" | "denied" | "prompt" | "unknown", from the Permissions API or the plugin
 Native.compassNeedsPrompt        // false in the shell: there is no compass ask to make there
 Native.unlockMotionOnFirstGesture(onGranted)
+Native.heading                   // null on web; { start(onReading), stop(), setLocation(lat, lon) } in the shell
+Native.keepAwake.set(wanted)     // repeat requests dropped; no-op on web
+Native.haptics.select() / .arrive()  // no-op on web
+Native.share({ title, url })     // native sheet, else Web Share, else clipboard: "shared" | "copied" | "failed"
+Native.websiteUrl(path?)         // the website address of a path (the page's own on the web)
+Native.appInfo()                 // { version, build } in the shell, null on web
+Native.data                      // null on web; { activeVersion, lastChecked(), resolve(url), checkForUpdates({ force }) }
 ```
 
-Every accessor is safe on the web and returns the web behaviour unchanged. `Native.isNative` is true when `window.Capacitor.isNativePlatform()` is, or when `window.__FORCE_NATIVE_SHIM__` is set (see [Testing](#testing)).
-
-Planned additions, each landing with its phase: `heading` (phase 3), `keepAwake`, `haptics`, `share` (phase 4), `data` and `appVersion` (phase 5).
+Every accessor is safe on the web and returns the web behaviour unchanged. `Native.isNative` is true when `window.Capacitor.isNativePlatform()` is, or when `window.__FORCE_NATIVE_SHIM__` is set (see [Testing](#testing)). Plugins are reached at `window.Capacitor.Plugins`: `@capacitor/geolocation`, `@capacitor-community/keep-awake`, `@capacitor/haptics`, `@capacitor/share`, `@capacitor/app`, `@capacitor/filesystem`, and the app's own `ForestHeading`.
 
 ## Changes to the Existing Client
 
@@ -93,8 +98,13 @@ The full set of native-specific edits to shipped client code. Anything beyond th
 4. **Service worker** — never registered inside the shell (`setupPwa`, `js/nav.js`): a cache-first worker in front of bundled files would be a second, stale copy whose update prompt has nothing to wait on. Settings hides the web update line and the refresh buttons for the same reason.
 5. **Compass** — `compassPermissionCanBeRequested()` is false in the shell, so the onboarding step reads "Your location" (no compass), the "Enable compass" card never shows, and the stored grant is never downgraded on launch.
 6. **Sign-in** — hidden in the shell (Settings and Community). See [Not in the first release](#not-in-the-first-release).
-
-Heading-up rotation, the radar cone, the calibration gate and the staleness watchdog run unchanged on WebKit's own `deviceorientation` events until the `forest-heading` plugin replaces the source (phase 3).
+7. **Heading** — `startNativeHeading()`/`onNativeHeading()` (`js/app.js`) feed the plugin into the compass as `HEADING_SOURCE_NATIVE`, ranked above WebKit's; stopped on pause, restarted on resume.
+8. **Walking aids** — `syncNativeWalkingAids()` (`js/app.js`, called from `updateCompassOverlay()` on every fix and selection change) keeps the screen awake while walking to a find in the foreground and plays one arrival haptic per find within `ARRIVAL_METRES` (20 m); a tap on a Nearby list row plays the selection haptic (`js/nav.js`).
+9. **Share** — `shareCurrentLocation()` (`js/inspector.js`) goes through `Native.share` with the website address.
+10. **Website-only links** — `js/native.js` opens `/`, `/reports/`, `/contribute` and `/terms.html`, and any new-window link, on the website in the system browser: in iOS's WebView a new-window link to a bundle path is handed to the system as a `capacitor://` address that cannot open.
+11. **Data** — the `fetch` wrapper also answers `data/…` requests from downloaded copies (`Native.data.resolve`); boot calls `Native.data.checkForUpdates()` once the map is interactive; Settings shows a "Map data" row with "Check for map updates".
+12. **Version** — Settings → About and bug reports show `1.0.0 (build) · data vNN` from `Native.appInfo()` and `Native.data.activeVersion` (`setupPwa`, `js/nav.js`).
+13. **Safe areas** — the compass and nearby-event banners pinned to the top of the map clear `env(safe-area-inset-top)`.
 
 ## Permissions Model
 
@@ -119,27 +129,28 @@ The point of the wrapper. The rules are the app's own and identical on every pla
 
 Both stores reject background location whose only beneficiary is the developer, and Play requires a written and video justification describing a user-facing feature. Background location may only ever serve a user-started walk recording whose result the user can see; usage analytics stays a separate, independently revocable, foreground-only consent.
 
-## Native Heading Plugin (`forest-heading`) — phase 3
+## Native Heading Plugin (`forest-heading`)
 
-A first-party plugin, ~80 lines of Swift and ~80 of Kotlin. It exists because `webkitCompassHeading` is magnetic-north only, unsmoothed, and — as documented in [spec.md](spec.md) § Compass and Direction Guidance — stops firing on iOS and does not reliably resume.
+Lives in the app projects, not an npm package: `native/ios/App/App/ForestHeadingPlugin.swift` (registered by `MainViewController`, the root view `SceneDelegate` installs) and `native/android/app/src/main/java/uk/eppingforestfinds/app/ForestHeadingPlugin.java` (registered in `MainActivity`). It exists because `webkitCompassHeading` is magnetic-north only, unsmoothed, and — as documented in [spec.md](spec.md) § Compass and Direction Guidance — stops firing on iOS and does not reliably resume.
 
-- `available()` → `{ available }`; false without a magnetometer, so the client falls back to `deviceorientation` rather than to nothing.
-- `start()` / `stop()`; stopped on app pause.
-- `heading` event `{ trueHeading, magneticHeading, accuracy, timestamp }`; `trueHeading` is `-1` until a location fix exists, and the client uses `magneticHeading` until then.
-- **iOS** — `CLLocationManager.startUpdatingHeading()`, `headingOrientation` kept in sync with the interface, `locationManagerShouldDisplayHeadingCalibration` returning `true`.
-- **Android** — `TYPE_ROTATION_VECTOR` at `SENSOR_DELAY_GAME`, remapped for display rotation, declination-corrected with `GeomagneticField`.
+- `available()` → `{ available }`; false without a magnetometer, so the client keeps WebKit's `deviceorientation` rather than nothing.
+- `start()` → `{ started }` / `stop()`; Android also stops itself on pause.
+- `setLocation({ latitude, longitude })` → the declination Android needs for true north (iOS corrects itself and ignores it). The client re-sends it only after a move of 0.1° or more.
+- `heading` event `{ trueHeading, magneticHeading, accuracy, timestamp }`; `trueHeading` is negative until there is a position to correct from, and the client uses `magneticHeading` until then; `accuracy` is degrees, negative when unreliable.
+- **iOS** — `CLLocationManager.startUpdatingHeading()` with a 1° filter, portrait reference, and `locationManagerShouldDisplayHeadingCalibration` returning `true` so the OS runs the figure-8 calibration.
+- **Android** — `TYPE_ROTATION_VECTOR` at `SENSOR_DELAY_GAME`, corrected with `GeomagneticField`, sent at most every 50 ms and only on a change of 0.5° or more; accuracy from the rotation vector's own estimate, else the sensor status.
 
-The plugin replaces the heading *source*, not the pipeline: the existing smoothing, heading-up rotation, radar cone and tilt projection consume the same value. With a native source the staleness watchdog (`recoverStalledCompass`) returns early, and the calibration gate trusts a heading with good reported accuracy instead of waiting for agreeing samples, keeping `COMPASS_CALIBRATION_MAX_WAIT_MS` as the safety valve.
+The plugin replaces the heading *source*, not the pipeline: the existing smoothing, heading-up rotation, radar cone and tilt projection consume the same value. A reading at or under `NATIVE_HEADING_TRUSTED_ACCURACY_DEG` (25°) skips the calibration gate (`applyCompassReading(…, { trusted })`); a worse one goes through it as WebKit's do. The staleness watchdog (`recoverStalledCompass`) returns early for a native source. WebKit's orientation events still supply beta for the 3D tilt.
 
 ## Native UX
 
-Built:
-
 - **Orientation** — portrait only, matching `manifest.webmanifest`.
 - **Icon and launch screen** — generated from `native/resources/` (the tree mark on the app's `#24382f`), full bleed for iOS, an adaptive icon for Android. The WebView background is the same green, so there is no white flash before first paint.
-- **Android back button** — the WebView handles it, and the web router already gives it the right behaviour: back steps out of a selection, then out of Filters, and exits once the history is spent ([spec.md](spec.md) § URL / navigation state).
-
-Planned (phase 4): keep-awake while navigating to a selected find (released on pause); a light haptic on arrival and on picking from the Nearby list, nothing else; the native share sheet for a selected find's URL; `env(safe-area-inset-*)` on interactive chrome with the status bar overlaid; rubber-band and pull-to-refresh disabled so they never steal a map drag; universal links / app links on the production domain (`apple-app-site-association`, `assetlinks.json` served by Netlify).
+- **Keep-awake** — only while walking to a selected find with a real fix and the app in the foreground; released when the selection ends, the fix is lost or the app is backgrounded.
+- **Haptics** — a light tap on picking a Nearby row, one success haptic on arriving at the find (once per find). Nothing else.
+- **Share** — the native share sheet, always with the website address so a link shared from the app opens for anyone.
+- **Android back button** — the WebView handles it, and the web router already gives it the right behaviour ([spec.md](spec.md) § URL / navigation state).
+- **Follow-on (with signing):** universal links / app links on the production domain (`apple-app-site-association`, `assetlinks.json`), which need the Apple team id and the Play signing certificate.
 
 ## Data Bundling
 
@@ -149,14 +160,14 @@ Every dataset ships inside the binary, so the app is fully offline on first laun
 - `local-roads.geojson` and `local-environment-buildings.geojson`, opportunistic in the service worker, are bundled too.
 - **Size (measured 27 Oct 2026):** 187 files, 58.1 MB on disk, about 9.5 MB compressed — well inside Apple's cellular download limit, so the fallback of leaving tree chunks out of the binary is not needed. Re-measure when a large dataset is added; the sync prints the total.
 
-Until delta updates exist, the binary's data is as fresh as its release: the weekly data refresh reaches the web immediately and the app only at its next store release. That gap is accepted for the closed alpha and is what phase 5 closes.
+### Delta Updates
 
-### Delta Updates — phase 5
+The weekly data refresh reaches the app without a store release.
 
-- A build step emits `data/manifest.json`: `{ dataVersion, generatedAt, files: { "<path>": { bytes, sha256 } } }`, published with the web build; the copy built at binary time ships as the baseline.
-- On launch, online and at most once a day, the app fetches the live manifest, downloads only changed files into app storage via `@capacitor/filesystem`, verifies each `sha256`, and adopts each file atomically (temp name, verify, rename).
-- `Native.data.resolve(path)` returns the downloaded copy when there is one and the bundled path otherwise — the single integration point in `js/loader.js`.
-- Never blocks first paint; an update found on one launch is used on the next. Skipped on metered connections unless asked from Settings.
+- `scripts/generate-data-manifest.js` (part of `npm run build`, so every deploy) writes `data/manifest.json`: `{ dataVersion, generatedAt, files: { "<path>": { bytes, sha256 } } }` over every `data/**/*.json|geojson` except tracking logs and backups. `scripts/lib/data-manifest.js` is the one implementation; `sync-www.js` uses it to bundle the same manifest, for the source files, at `www/data/manifest.json`, and writes `window.__FOREST_FINDS_BUNDLE__ = { dataVersion, generatedAt }` into the entry page ahead of every script.
+- `netlify.toml` serves `/data/*` with `Access-Control-Allow-Origin: *` (the data is public) and `/data/manifest.json` with `no-cache`.
+- Once the map is interactive, at most once a day (and not under Data Saver) unless asked from Settings, `Native.data.checkForUpdates()` compares the website's manifest with the bundled one plus earlier downloads, downloads only the changed files, rejects any whose SHA-256 differs from the manifest, writes each to app storage (`Directory.Data`, `data-updates/<sha256>.<ext>`) and records it in `localStorage["ff-native-data-v1"]` one file at a time, so an interrupted update leaves a consistent mix of whole, verified files. The data release is only recorded as current once every changed file has been adopted.
+- From the next launch, the `fetch` wrapper answers those paths from the downloaded copies (`Capacitor.convertFileSrc`); a running session never changes data underneath the loaded map. Downloads that an app update's bundle has caught up with, or that the website no longer lists, are dropped; and every download is ignored once the binary's `generatedAt` differs from the one they were made against.
 
 ## Networking
 
@@ -167,11 +178,11 @@ Until delta updates exist, the binary's data is as fresh as its release: the wee
 ## Not in the first release
 
 - **Community sign-in.** It is a cookie session set by a redirect through the provider back to the website, which a page served from the bundle can never return from. Signed-out Community features work; points stay on the device. Doing it properly needs an in-app browser session and a token handed back by deep link.
-- **Links to website-only pages** (the weekly ledger under `/reports/`, `/nearby/<slug>/` landing pages) resolve to the app inside the shell. Opening them in the system browser comes with deep links in phase 4.
+- **Opening website links in the app.** Website-only pages open in the system browser; a shared website link opens the website, not the app, until universal links / app links are set up with signing.
 
 ## Versioning and the Update Story
 
-The web build's cache markers and their bump workflow ([agents.md](agents.md) § Technical Constraints) are unaffected. Inside the shell there is no service worker, so the app code version is the store version (`CFBundleShortVersionString` / `versionName`), changed only by shipping a build. Settings → About shows the bundled app marker (`APP_CACHE_VERSION`) until `Native.appVersion` (phase 5) shows `v<store version> (data v<n>)`; bug reports carry the same value.
+The web build's cache markers and their bump workflow ([agents.md](agents.md) § Technical Constraints) are unaffected. Inside the shell there is no service worker, so the app code version is the store version, changed only by shipping a build, and the data release moves on its own through delta updates. `native/package.json`'s `version` is the one source of the store version: Android's `versionName` reads it at build time, and CI passes it to Xcode as `MARKETING_VERSION` (the Xcode project's own value is kept equal, checked by `test/native.test.js`). The build number is the CI run number (`NATIVE_BUILD_NUMBER` / `CURRENT_PROJECT_VERSION`), 1 on a local build. Settings → About and bug reports show `1.0.0 (build) · data vNN`.
 
 ## Closed alpha
 
@@ -180,14 +191,18 @@ The alpha gate ([spec-alpha-access.md](spec-alpha-access.md)) guards the website
 ## Testing
 
 - **Unit** — `test/native.test.js` (in `npm test`): `js/native.js` executed against a fake Capacitor (web identity; API URLs sent to the site and bundled files kept local; the plugin behind the browser's callback API, including refusal vs time-out codes and clearing a watch; permission states; the silent first-tap motion grant); the sync's output (entry page is the app, nothing forbidden ships, every file `app.html` links and every dataset the service worker caches is present, geometry-only rounding); and the CORS edge function (both native origins, preflight never reaching the function, no grant for any other origin, no credentials).
-- **BDD** — `test/e2e/40-native-shell.spec.js` runs the client's native branches under `__FORCE_NATIVE_SHIM__` with a fake Geolocation plugin: location only through the plugin, no service worker, no compass card, live data from the site's origin, no sign-in or web update controls. The ask rules themselves are covered on the web in `test/e2e/39-permission-asks.spec.js`.
-- **Build** — `.github/workflows/native-build.yml` compiles both projects.
+  It also covers the heading adapter (one listener however often started, location re-sent only after a real move), keep-awake (each change sent once), share (the website address), app info, and data updates (only changed files downloaded, a checksum mismatch never adopted, files used from the next launch only, at most one check a day, downloads dropped after an app update).
+- **BDD** — `test/e2e/40-native-shell.spec.js` runs the client's native branches under `__FORCE_NATIVE_SHIM__` with fake plugins: location only through the plugin, no service worker, no compass card, live data from the site's origin, no sign-in or web update controls, the native heading turning the map and outranking WebKit's, keep-awake and the arrival haptic while walking to a find, share with the website address, website-only links opening in the browser, and Settings' version and map-data rows. The ask rules themselves are covered on the web in `test/e2e/39-permission-asks.spec.js`.
+- **Build** — `.github/workflows/native-build.yml` compiles both apps and keeps installable artifacts.
 
 **Manual device checklist** — before each store submission, since nothing automated covers the native half:
 
 - Fresh install in airplane mode: full map and tree data available.
 - Exactly one system location dialog, and only after tapping the app's own "Enable location"; refusing leaves a usable map and is not asked again unprompted; Settings → Privacy → Use my location brings the dialog back while the OS still allows it, and explains where to turn it on once it does not.
-- No compass dialog on iOS; heading-up works after the first tap; heading survives screen off/on and backgrounding.
+- No compass dialog on iOS; the map turns with true north (check against a known bearing); heading survives screen off/on and backgrounding; the OS calibration prompt appears when the magnetometer needs it.
+- Walking to a find keeps the screen on; arriving buzzes once; backgrounding releases the screen.
+- Share from a find opens the native sheet with a `https://www.eppingforestfinds.uk/…` link; the Privacy Policy link opens in the browser.
+- Settings → About shows `1.0.0 (build) · data vNN`; after a data release on the website, "Check for map updates" downloads it and the next launch shows the new data version.
 - Usage analytics asked once, separately, after location; "No thanks" sends nothing (verify no `/api/track` requests).
 - Android back button walks the screen history and exits at the end.
 - Oldest supported OS on both platforms; one small and one tall screen (the tilt horizon is screen-height dependent).
@@ -196,7 +211,7 @@ The alpha gate ([spec-alpha-access.md](spec-alpha-access.md)) guards the website
 
 ### Apple guideline 4.2 (minimum functionality)
 
-A WebView wrapper with no native value is rejected under 4.2. The review notes must say concretely what the app does natively: fully offline datasets with no network requirement, OS-remembered while-in-use location, a live heading-up map, and — once phase 3 and 4 land — `CLLocationManager` true heading, wake lock during navigation, haptics and native share. The first submission should therefore wait for phase 3 at least, rather than submit the shell alone and add native value later.
+A WebView wrapper with no native value is rejected under 4.2. The review notes must say concretely what the app does natively: fully offline datasets updated in the background without a network requirement, OS-remembered while-in-use location, `CLLocationManager` true heading driving a live heading-up map, wake lock during navigation, haptics and native share.
 
 Built: `ios/App/App/PrivacyInfo.xcprivacy` declares precise location, product interaction and a device id, each collected for analytics only, linked to the (random) device id, not used for tracking, and collected only after the in-app usage-analytics consent. Outstanding: App Store screenshots at every required size, age rating, and the privacy policy URL (`/terms.html`).
 

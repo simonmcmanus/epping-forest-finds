@@ -4,23 +4,47 @@
 // native branches run in a desktop browser. The native half itself is covered by the manual device
 // checklist in the spec; this guards the part ordinary web edits can break.
 const { test, expect } = require("@playwright/test");
-const { skipOnboarding, mockCowApi, gotoAndWaitForMap } = require("./helpers");
+const { skipOnboarding, mockCowApi, gotoAndWaitForMap, waitForFrames } = require("./helpers");
 
 const PRODUCTION_ORIGIN = "https://www.eppingforestfinds.uk";
 
 async function runAsNativeApp(page, { permission = "granted" } = {}) {
   await page.addInitScript(({ permission }) => {
-    window.__nativeCalls = { getCurrentPosition: 0, watchPosition: 0, browserGeolocation: 0, serviceWorker: 0, compassAsked: 0 };
-    const fix = () => ({ timestamp: Date.now(), coords: { latitude: 51.665, longitude: 0.045, accuracy: 8 } });
+    window.__nativeCalls = { getCurrentPosition: 0, watchPosition: 0, browserGeolocation: 0, serviceWorker: 0, compassAsked: 0, keepAwake: [], haptics: [], shared: [], opened: [] };
+    const fix = (where = { latitude: 51.665, longitude: 0.045 }) => ({ timestamp: Date.now(), coords: { ...where, accuracy: 8 } });
+    let watchCallback = null;
+    let headingListener = null;
+    // Test hooks: move the walker, turn the phone.
+    window.__emitFix = (latitude, longitude) => watchCallback && watchCallback(fix({ latitude, longitude }));
+    window.__emitHeading = (reading) => headingListener && headingListener(reading);
+    window.__FOREST_FINDS_BUNDLE__ = { dataVersion: "v43", generatedAt: "2026-10-27T00:00:00.000Z" };
+    window.open = (url, target) => { window.__nativeCalls.opened.push({ url, target }); return null; };
     window.__FORCE_NATIVE_SHIM__ = {
       platform: "ios",
       plugins: {
         Geolocation: {
           checkPermissions: async () => ({ location: permission }),
           getCurrentPosition: async () => { window.__nativeCalls.getCurrentPosition += 1; return fix(); },
-          watchPosition: (options, callback) => { window.__nativeCalls.watchPosition += 1; setTimeout(() => callback(fix()), 0); return "w1"; },
+          watchPosition: (options, callback) => { window.__nativeCalls.watchPosition += 1; watchCallback = callback; setTimeout(() => callback(fix()), 0); return "w1"; },
           clearWatch: async () => {},
         },
+        ForestHeading: {
+          addListener: (event, callback) => { headingListener = callback; return { remove() {} }; },
+          start: async () => ({ started: true }),
+          stop: async () => {},
+          setLocation: async () => {},
+        },
+        KeepAwake: {
+          keepAwake: async () => { window.__nativeCalls.keepAwake.push("awake"); },
+          allowSleep: async () => { window.__nativeCalls.keepAwake.push("sleep"); },
+        },
+        Haptics: {
+          impact: async () => { window.__nativeCalls.haptics.push("select"); },
+          notification: async () => { window.__nativeCalls.haptics.push("arrive"); },
+        },
+        Share: { share: async (what) => { window.__nativeCalls.shared.push(what); } },
+        App: { getInfo: async () => ({ version: "1.0.0", build: "7" }) },
+        Filesystem: { writeFile: async ({ path }) => ({ uri: `file:///data/${path}` }) },
       },
     };
     // Anything reaching the browser's own geolocation inside the shell would be WebKit's second prompt.
@@ -88,5 +112,81 @@ test.describe("the native app shell", () => {
     await expect(page.locator("#settingsSignIn")).toHaveCount(0);
     // App updates come from the store; the web build's worker-driven refresh does nothing here.
     await expect(page.locator("#refreshAppButton")).toBeHidden();
+  });
+
+  test("the true-north heading from the native plugin turns the map, and WebKit's own heading is then ignored", async ({ page }) => {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await runAsNativeApp(page);
+    await page.addInitScript(() => localStorage.setItem("ff-track-v1", "0"));
+    await gotoAndWaitForMap(page);
+    // An accurate reading is trusted at once, with no wait for agreeing samples.
+    await page.evaluate(() => window.__emitHeading({ trueHeading: 90, magneticHeading: 89, accuracy: 5 }));
+    await expect.poll(() => page.evaluate(() => state.compassHeading)).toBe(90);
+    await page.evaluate(() => {
+      const event = new Event("deviceorientation");
+      Object.assign(event, { alpha: 10, beta: 20, gamma: 0, webkitCompassHeading: 250, webkitCompassAccuracy: 5 });
+      window.dispatchEvent(event);
+    });
+    await waitForFrames(page, 10);
+    expect(await page.evaluate(() => state.compassHeadingTarget)).toBe(90);
+  });
+
+  test("walking to a find keeps the screen awake, arriving is felt once, and leaving lets the screen sleep", async ({ page }) => {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await runAsNativeApp(page);
+    await page.addInitScript(() => localStorage.setItem("ff-track-v1", "0"));
+    await gotoAndWaitForMap(page, "/nearby#tree=r17338");
+    await expect.poll(async () => (await calls(page)).keepAwake.at(-1)).toBe("awake");
+
+    const tree = await page.evaluate(() => ({ latitude: state.selected.item.latitude, longitude: state.selected.item.longitude }));
+    await page.evaluate(({ latitude, longitude }) => window.__emitFix(latitude, longitude), tree);
+    await expect.poll(async () => (await calls(page)).haptics.filter((h) => h === "arrive").length).toBe(1);
+    await page.evaluate(({ latitude, longitude }) => window.__emitFix(latitude, longitude), tree);
+    await waitForFrames(page, 5);
+    expect((await calls(page)).haptics.filter((h) => h === "arrive").length).toBe(1);
+
+    await page.locator("#nearbyToggle").click();
+    await expect.poll(async () => (await calls(page)).keepAwake.at(-1)).toBe("sleep");
+  });
+
+  test("sharing a find from the app shares its website address through the native share sheet", async ({ page }) => {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await runAsNativeApp(page);
+    await page.addInitScript(() => localStorage.setItem("ff-track-v1", "0"));
+    await gotoAndWaitForMap(page, "/nearby#tree=r17338");
+    await page.locator("[data-action='share-location']").first().click();
+    await expect.poll(async () => (await calls(page)).shared.length).toBe(1);
+    const [shared] = (await calls(page)).shared;
+    expect(shared.url).toBe(`${PRODUCTION_ORIGIN}/nearby#tree=r17338`);
+  });
+
+  test("a page that only exists on the website opens there, in the browser, rather than inside the app", async ({ page }) => {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await runAsNativeApp(page);
+    await page.addInitScript(() => localStorage.setItem("ff-track-v1", "0"));
+    await gotoAndWaitForMap(page, "/settings");
+    const settingsUrl = page.url();
+    await page.locator(".settings-section", { hasText: "Usage analytics" }).getByRole("link", { name: "Privacy Policy" }).click();
+    await expect.poll(async () => (await calls(page)).opened.length).toBe(1);
+    expect((await calls(page)).opened[0].url).toBe(`${PRODUCTION_ORIGIN}/terms.html`);
+    expect(page.url()).toBe(settingsUrl);
+  });
+
+  test("Settings shows the store version with the map data release, and checks the website for newer data", async ({ page }) => {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await runAsNativeApp(page);
+    await page.addInitScript(() => localStorage.setItem("ff-track-v1", "0"));
+    const manifest = { dataVersion: "v43", files: {} };
+    await page.route(`${PRODUCTION_ORIGIN}/data/manifest.json`, (route) => route.fulfill({ json: manifest }));
+    await page.route("**/data/manifest.json", (route) => route.fulfill({ json: manifest }));
+    await gotoAndWaitForMap(page, "/settings");
+    await expect(page.locator("#appVersionDisplay")).toHaveText("1.0.0 (7) · data v43");
+    await page.locator("#nativeDataCheckButton").click();
+    await expect(page.locator("#nativeDataStatus")).toHaveText("Map data is up to date.");
   });
 });

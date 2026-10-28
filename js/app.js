@@ -142,6 +142,9 @@ const COMPASS_HEADINGLESS_PROMPT_MS = 2500;
 const HEADING_SOURCE_NONE = 0;
 const HEADING_SOURCE_RELATIVE = 1; // alpha with no north reference -- drifts, arbitrary zero
 const HEADING_SOURCE_ABSOLUTE = 2; // webkitCompassHeading, or alpha flagged absolute
+const HEADING_SOURCE_NATIVE = 3; // the app shell's true-north heading plugin (js/native.js)
+// A native reading at or under this many degrees of reported uncertainty is trusted on arrival.
+const NATIVE_HEADING_TRUSTED_ACCURACY_DEG = 25;
 // How long a requested animation frame may stay pending before the foreground watchdog
 // treats the loop that asked for it as wedged. A frame runs within ~16ms; two seconds is
 // far past any plausible scheduling delay on a loaded phone.
@@ -1699,6 +1702,8 @@ async function boot() {
     // datasets in the background (syncData in sw.js); anything that actually changed is
     // picked up on the next load, and Settings says so.
     requestBackgroundDataSync();
+    // The native app's counterpart: changed datasets are fetched from the website for the next launch.
+    if (Native.data) Native.data.checkForUpdates();
   } catch (error) {
     console.error(error);
     hideWithFade(els.loadingOverlay);
@@ -2999,6 +3004,44 @@ function setupSettingsLocationRow() {
   });
 }
 
+// The native app's own update line: its data comes from the binary plus whatever the website has
+// published since (Native.data), and is checked once a day without anyone asking.
+function nativeDataHtml() {
+  const checked = Native.data.lastChecked();
+  const when = checked ? new Date(checked).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "not yet";
+  return `<div class="settings-refresh">
+        <h4 class="settings-section-title">Map data</h4>
+        <p class="settings-description">Showing map data ${escapeHtml(String(Native.data.activeVersion || ""))}. Last checked for updates: ${escapeHtml(when)}. New data is used the next time the app starts.</p>
+        <button id="nativeDataCheckButton" class="settings-btn" type="button">Check for map updates</button>
+        <p id="nativeDataStatus" class="report-note" role="status" aria-live="polite" hidden></p>
+      </div>`;
+}
+
+const NATIVE_DATA_STATUS_TEXT = {
+  updated: "New map data downloaded. Close and reopen the app to see it.",
+  current: "Map data is up to date.",
+  failed: "Could not check for map updates. Try again when you have a connection.",
+  unavailable: "Map updates are not available on this device.",
+  skipped: "Map data is up to date.",
+};
+
+function setupNativeDataRow() {
+  const button = document.getElementById("nativeDataCheckButton");
+  const status = document.getElementById("nativeDataStatus");
+  if (!button || !Native.data) return;
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    button.textContent = "Checking…";
+    const result = await Native.data.checkForUpdates({ force: true });
+    button.disabled = false;
+    button.textContent = "Check for map updates";
+    if (status) {
+      status.textContent = NATIVE_DATA_STATUS_TEXT[result.status] || NATIVE_DATA_STATUS_TEXT.failed;
+      status.hidden = false;
+    }
+  });
+}
+
 // Keeps an open Settings screen's location row in step with a request that has just answered.
 function syncSettingsLocationRow() {
   const status = document.getElementById("locationStatus");
@@ -3070,6 +3113,7 @@ function settingsFormHtml() {
       <p class="settings-description">Tester ID: <code id="testerIdDisplay" class="tester-id">…</code> <button type="button" id="testerIdCopy" class="settings-btn" hidden>Copy</button><br><span class="report-note">Give this to Simon to try early features.</span></p>
       <p class="settings-description">Vibe coded by <a href="https://simonmcmanus.com" target="_blank" rel="noopener noreferrer">Simon McManus</a></p>
       <p id="dataUpdateNote" class="report-note"${state.dataUpdateAvailable ? "" : " hidden"}>New map data has been downloaded. <button id="dataUpdateReloadButton" class="inline-text-button" type="button">Reload now</button> to see it.</p>
+      ${Native.data ? nativeDataHtml() : ""}
       <div class="settings-refresh"${Native.isNative ? " hidden" : ""}>
         <h4 class="settings-section-title">Keep things fresh</h4>
         <div class="settings-refresh-row">
@@ -3091,7 +3135,8 @@ function settingsFormHtml() {
       <p class="settings-description">Location: <strong id="locationStatus">${locationStatusLabel()}</strong>. Used on this device to centre the map on you and measure distances.</p>
       <p id="locationBlockedNote" class="report-note" hidden></p>
       <button id="settingsLocateButton" class="settings-btn" type="button"${hasRealLocation() ? " hidden" : ""}>Use my location</button>
-      <p class="settings-description">Usage analytics: <strong id="analyticsStatus">${analyticsStatusLabel()}</strong>. Anonymous usage data, including your position while the app is open, and analytics cookies. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
+      <p class="settings-description">Usage analytics: <strong id="analyticsStatus">${analyticsStatusLabel()}</strong>. Anonymous usage data, including your position while the app is open, and Google Analytics cookies. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
+      ${trackerExistingUserId() ? `<p class="settings-description">Your anonymous ID, for a data access or deletion request: <code id="analyticsIdDisplay">${escapeHtml(trackerExistingUserId())}</code></p>` : ""}
       <button id="analyticsToggle" class="settings-btn" type="button">${analyticsChoice() === "granted" ? "Turn off usage analytics" : "Turn on usage analytics"}</button>
     </section>
   </div>`;
@@ -3237,6 +3282,7 @@ function bindSettingsHandlers() {
     });
   }
   setupSettingsLocationRow();
+  setupNativeDataRow();
   // Settings HTML is rebuilt fresh every time the screen opens (see openSettings above),
   // so remove before re-adding — otherwise every open leaks another window-level listener.
   window.removeEventListener("online", updateRefreshButtonsOnlineState);
@@ -4776,6 +4822,29 @@ function compassPermissionRequiresRequest() {
 function setupCompassListeners() {
   reattachCompassListeners();
   Native.unlockMotionOnFirstGesture(reattachCompassListeners);
+  startNativeHeading();
+}
+
+// Inside the app shell the heading comes from the native true-north plugin (Native.heading), the
+// best source there is: once it delivers, WebKit's own orientation events still feed beta for the
+// tilt but never the heading (onDeviceOrientation drops a worse source). Idempotent, so foreground
+// resume can call it again after the plugin was stopped for the background.
+function startNativeHeading() {
+  if (!Native.heading) return;
+  Native.heading.start(onNativeHeading);
+}
+
+function onNativeHeading(reading) {
+  if (!reading) return;
+  const trueHeading = Number(reading.trueHeading);
+  const heading = trueHeading >= 0 ? trueHeading : Number(reading.magneticHeading);
+  if (!Number.isFinite(heading) || heading < 0) return;
+  if (state.compassHeadingSource < HEADING_SOURCE_NATIVE) {
+    state.compassHeadingSource = HEADING_SOURCE_NATIVE;
+    discardCompassHeadingFromWorseSource();
+  }
+  const accuracy = Number(reading.accuracy);
+  applyCompassReading(heading % 360, { trusted: accuracy >= 0 && accuracy <= NATIVE_HEADING_TRUSTED_ACCURACY_DEG });
 }
 
 // remove-then-add is deliberate: on iOS re-registering is what nudges the orientation
@@ -4832,6 +4901,9 @@ function hasMovedSinceBackgrounding() {
 // it" report. Running it repeatedly is what lets the app heal itself instead.
 function recoverStalledCompass(now = performance.now()) {
   if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+  // The native heading does not stall the way WebKit's events do, and it is restarted on every
+  // return to the foreground (startNativeHeading): nothing here would help it.
+  if (state.compassHeadingSource === HEADING_SOURCE_NATIVE) return;
   if (!compassSensorStalled(now)) return;
 
   // Drop a heading we can no longer trust so the map falls back to north-up rather than
@@ -4945,6 +5017,8 @@ function handleForegroundResume() {
 
   // Resume GPS watch + location-tracking interval paused on backgrounding.
   ensureLocationWatch();
+  startNativeHeading();
+  syncNativeWalkingAids();
 
   recoverStalledCompass();
 
@@ -4997,6 +5071,9 @@ function setupVisibilityRecovery() {
 // the tab/screen is not visible, so the app doesn't keep draining battery in the
 // background. Both are restarted from setupVisibilityRecovery on return to visible.
 function pauseBackgroundedTracking() {
+  // Nothing native is held while the app is in the background: no sensor, no awake screen.
+  if (Native.heading) Native.heading.stop();
+  Native.keepAwake.set(false);
   // Snapshot where we were right before going away, so recoverStalledCompass can tell a
   // phone that was actually carried somewhere from one that was simply put down -- see
   // hasMovedSinceBackgrounding().
@@ -5091,7 +5168,20 @@ function onDeviceOrientation(event) {
 
   const heading = extractCompassHeading(event);
   if (!Number.isFinite(heading)) return;
+  applyCompassReading(heading);
+}
+
+// A heading reading from whichever source is currently feeding the compass. Until one is trusted,
+// readings go through the calibration gate; `trusted` skips it for a reading whose own reported
+// accuracy already says it is good (the native heading plugin's), which is what lets a native
+// heading rotate the map at once instead of waiting for several readings to agree.
+function applyCompassReading(heading, { trusted = false } = {}) {
   state.compassLastEventAt = performance.now();
+
+  if (!Number.isFinite(state.compassHeading) && trusted) {
+    completeCompassCalibration(heading);
+    return;
+  }
 
   if (Number.isFinite(state.compassHeading)) {
     // Already trust a heading -- keep tracking the live target as before.
@@ -5590,6 +5680,7 @@ function ensureLocationWatch() {
       const { latitude, longitude, accuracy, speed } = position.coords;
       const previousPoint = state.userLocation && state.userLocation.point;
       state.userLocation = ingestLocationFix(latitude, longitude, accuracy, performance.now(), speed);
+      if (Native.heading) Native.heading.setLocation(latitude, longitude);
       const point = state.userLocation.point;
       state.userInMapArea = pointInsideBounds(point, state.bounds);
       const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
@@ -8006,7 +8097,28 @@ function setLocationRequestPending(pending) {
   updateCompassOverlay();
 }
 
+// Within this many metres of the find being walked to counts as arriving: a little more than a
+// phone's GPS spread under tree cover, so arriving is felt once rather than flickering in and out.
+const ARRIVAL_METRES = 20;
+
+// The native app's walking aids, re-evaluated on every fix and selection change (updateCompassOverlay):
+// the screen stays awake only while walking to a find in the foreground, and arriving there is felt
+// as one haptic, once per find. Both are no-ops on the web.
+function syncNativeWalkingAids() {
+  const target = selectedCompassTarget();
+  const navigating = Boolean(target) && hasRealLocation()
+    && (typeof document === "undefined" || document.visibilityState !== "hidden");
+  Native.keepAwake.set(navigating);
+  if (!navigating) return;
+  const metres = distanceFromUser(target);
+  if (Number.isFinite(metres) && metres <= ARRIVAL_METRES && state.arrivedAtTarget !== target) {
+    state.arrivedAtTarget = target;
+    Native.haptics.arrive();
+  }
+}
+
 function updateCompassOverlay() {
+  syncNativeWalkingAids();
   const target = selectedCompassTarget();
   const arrow = els.compassArrow;
   // Waiting for the first fix: the arrow spins in place, with no bearing yet to point at.

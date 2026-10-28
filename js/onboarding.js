@@ -48,7 +48,7 @@ function hasCompletedOnboarding() {
 
 // The analytics question's own wording, shared with the in-map card (showConsentBanner, js/app.js)
 // so the two ways of asking it cannot drift apart.
-const ANALYTICS_ASK_TEXT = "Share anonymous usage data — which screens you use and where you are while the app is open — and allow analytics cookies. It is never sold or used for advertising.";
+const ANALYTICS_ASK_TEXT = "Share anonymous usage data — which screens you use and where you are while the app is open — and allow Google Analytics cookies. It is never sold or used for advertising.";
 
 // Returns a Promise resolving to { filters: string[], locationPromise: Promise|null }
 // locationPromise is a live geolocation request started the moment the user tapped

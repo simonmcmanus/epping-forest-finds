@@ -1,8 +1,10 @@
 name: Native build
 
-# Proves the committed iOS and Android projects (native/, spec/spec-native.md) still compile with the
-# current client in them. Unsigned debug builds only: nothing here signs, uploads or publishes.
-# Runs only when something the binaries are built from changes, not on every data refresh.
+# Builds the native apps (native/, spec/spec-native.md) with the current client in them, and keeps
+# the results as downloadable artifacts for testing: an Android debug APK that installs on any phone,
+# and an iOS Simulator app. Unsigned builds only: nothing here signs, uploads to a store or
+# publishes. Pull requests build when something the binaries are made from changes; every merge to
+# main that touches the app or its data builds a fresh pair to test.
 
 on:
   pull_request:
@@ -16,7 +18,10 @@ on:
     branches: [main]
     paths:
       - "native/**"
-      - "js/native.js"
+      - "app.html"
+      - "js/**"
+      - "css/**"
+      - "data/**"
       - ".github/workflows/native-build.yml"
   workflow_dispatch: {}
 
@@ -53,9 +58,20 @@ jobs:
         run: npm run sync:www && npx cap sync android
       - name: Build the debug APK
         working-directory: native/android
+        env:
+          NATIVE_BUILD_NUMBER: ${{ github.run_number }}
         run: ./gradlew --no-daemon assembleDebug
-      - name: Report the APK size
-        run: ls -lh native/android/app/build/outputs/apk/debug/*.apk
+      - name: Name the APK for download
+        run: |
+          version=$(node -p "require('./native/package.json').version")
+          mkdir -p dist
+          cp native/android/app/build/outputs/apk/debug/app-debug.apk "dist/epping-forest-finds-${version}-${{ github.run_number }}-debug.apk"
+          ls -lh dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-apk
+          path: dist/*.apk
+          retention-days: 30
 
   ios:
     name: iOS simulator build
@@ -85,4 +101,18 @@ jobs:
         run: >-
           xcodebuild -project App.xcodeproj -scheme App -configuration Debug
           -sdk iphonesimulator -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath build
+          MARKETING_VERSION=$(node -p "require('../../package.json').version")
+          CURRENT_PROJECT_VERSION=${{ github.run_number }}
           CODE_SIGNING_ALLOWED=NO build
+      # Drag the unzipped App.app onto a running Simulator, or: xcrun simctl install booted App.app
+      - name: Zip the simulator app for download
+        run: |
+          mkdir -p dist
+          ditto -c -k --keepParent native/ios/App/build/Build/Products/Debug-iphonesimulator/App.app dist/epping-forest-finds-ios-simulator.zip
+          ls -lh dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-app
+          path: dist/*.zip
+          retention-days: 30

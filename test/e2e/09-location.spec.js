@@ -113,8 +113,12 @@ test.describe("Location and GPS — happy path", () => {
       await mockCowApi(page);
     });
 
+    // An app screen with no static Nearby list under it: on bare /nearby once the build has run
+    // (as on CI), the same first ask is #consentBanner's location stage instead (39-permission-asks).
+    const SCREEN = "/nearby/search";
+
     test("the location invite banner is shown after geolocation is denied or times out, not a blocking gate", async ({ page }) => {
-      await gotoAndWaitForMap(page);
+      await gotoAndWaitForMap(page, SCREEN);
       // A returning visit with no real fix falls back to DEFAULT_LOCATION (see "No real
       // location fix" in spec.md), so what invites a real fix here is the same non-blocking,
       // dismissible banner showCombinedConsentBanner() uses for its own ask — never the opaque,
@@ -126,7 +130,7 @@ test.describe("Location and GPS — happy path", () => {
     });
 
     test("the invite is not a modal — it has no dialog role and does not trap focus", async ({ page }) => {
-      await gotoAndWaitForMap(page);
+      await gotoAndWaitForMap(page, SCREEN);
       const banner = page.locator("#locationInviteBanner");
       await expect(banner).not.toHaveAttribute("role", "dialog");
       await expect(banner).not.toHaveAttribute("aria-modal", "true");
@@ -136,7 +140,7 @@ test.describe("Location and GPS — happy path", () => {
     });
 
     test("the invite is dismissible, and the map behind it is already usable centred on High Beach", async ({ page }) => {
-      await gotoAndWaitForMap(page);
+      await gotoAndWaitForMap(page, SCREEN);
       const banner = page.locator("#locationInviteBanner");
       const dismiss = page.locator("#locationInviteDismiss");
       await expect(dismiss).toBeVisible();
@@ -148,11 +152,12 @@ test.describe("Location and GPS — happy path", () => {
       // what the map and Nearby list are centred on, not a real fix.
       const isDefault = await page.evaluate(() => Boolean(state.userLocation && state.userLocation.isDefault));
       expect(isDefault).toBe(true);
+      await page.locator("#nearbyToggle").click();
       await expect(page.locator("#inspectorBody .nearest-list li").first()).toBeVisible();
     });
 
     test("tapping the invite's own button requests a real fix, the same way the combined consent banner's does", async ({ page }) => {
-      await gotoAndWaitForMap(page);
+      await gotoAndWaitForMap(page, SCREEN);
       await page.evaluate(() => {
         navigator.geolocation.getCurrentPosition = (success) => success({
           coords: { latitude: 51.6650, longitude: 0.0450, accuracy: 10 },
@@ -299,6 +304,9 @@ test.describe("Location and GPS — happy path", () => {
       await skipOnboarding(page);
       await mockCowApi(page);
       await page.addInitScript(() => {
+        // Someone who turned location on before: the one case in which boot asks by itself, and
+        // so the one in which a request that never answers can hold boot up (bootMayRequestLocation).
+        localStorage.setItem("ff-location-v1", "granted");
         // Registered before the helper's stub, so this one wins.
         window.__forestFindsGeolocationStubbed = true;
         navigator.geolocation.getCurrentPosition = () => {};
@@ -308,12 +316,12 @@ test.describe("Location and GPS — happy path", () => {
     test("the map still opens when the location request never calls back", async ({ page }) => {
       // Deliberately sits through the whole BOOT_LOCATION_TIMEOUT_MS bound on top
       // of the normal data load, so it needs more room than the default wait.
-      await gotoAndWaitForMap(page, "/nearby", { timeout: 45_000 });
+      await gotoAndWaitForMap(page, "/nearby/search", { timeout: 45_000 });
       await expect(page.locator("#mapCanvas")).toBeVisible();
     });
 
     test("and the invite banner offers a retry rather than leaving the reader stuck", async ({ page }) => {
-      await gotoAndWaitForMap(page, "/nearby", { timeout: 45_000 });
+      await gotoAndWaitForMap(page, "/nearby/search", { timeout: 45_000 });
       await expect(page.locator("#locationInviteBanner")).toBeVisible();
       await expect(page.locator("#locationInviteButton")).toBeEnabled();
     });
