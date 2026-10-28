@@ -347,9 +347,8 @@ function drawOverlay() {
 }
 
 // The Community screen highlights everything the user has marked: a coloured ring with a check
-// (verified), a cross (reported wrong) or a plain blue disc (a tree they added), over a soft halo
-// so it reads against any pin or footpath underneath. communityMapMarks() (js/community.js) says
-// what and where.
+// (verified), a cross (reported wrong) or a plus (a tree they added), over a soft halo so it reads
+// against any pin or footpath underneath. communityMapMarks() (js/community.js) says what and where.
 function drawCommunityMarks(ctx, toScreen) {
   if (typeof communityMapMarks !== "function") return;
   const onCommunityScreen = Boolean(state.selected) && state.selected.type === "community";
@@ -388,7 +387,12 @@ function drawCommunityMarks(ctx, toScreen) {
       ctx.moveTo(p.x - 4.2 * dpr, p.y + 0.4 * dpr);
       ctx.lineTo(p.x - 1.2 * dpr, p.y + 3.4 * dpr);
       ctx.lineTo(p.x + 4.4 * dpr, p.y - 3 * dpr);
-    } else if (mark.kind !== "added") {
+    } else if (mark.kind === "added") {
+      ctx.moveTo(p.x - 4 * dpr, p.y);
+      ctx.lineTo(p.x + 4 * dpr, p.y);
+      ctx.moveTo(p.x, p.y - 4 * dpr);
+      ctx.lineTo(p.x, p.y + 4 * dpr);
+    } else {
       ctx.moveTo(p.x - 3.6 * dpr, p.y - 3.6 * dpr);
       ctx.lineTo(p.x + 3.6 * dpr, p.y + 3.6 * dpr);
       ctx.moveTo(p.x + 3.6 * dpr, p.y - 3.6 * dpr);
