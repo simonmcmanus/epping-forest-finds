@@ -62,6 +62,8 @@ that featured a map addition.
 | Cows & pastures | `/api/cows?center=<lon>,<lat>` (proxy) | Every 5 minutes |
 | Cows (upstream) | `https://account.nofence.no/api/open/data/?center=<lon>,<lat>` | — |
 
+Inside the native app (`spec-native.md`) the offline files load from the app bundle under the same relative paths, while every root-relative `/api/…` and `/.netlify/functions/…` request goes to the website's origin (`js/native.js` wraps `fetch`); no call site differs between the two. Every deploy also publishes `data/manifest.json` (the SHA-256 of each dataset, `scripts/generate-data-manifest.js`), which the native app compares with its bundled copy to download only changed datasets for its next launch (`spec-native.md` § Delta updates).
+
 ---
 
 ## Loading Strategy

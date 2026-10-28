@@ -57,6 +57,35 @@ test("snapshot: onboarding on a first visit", async ({ page }) => {
   await expect(page).toHaveScreenshot("onboarding.png", { fullPage: false });
 });
 
+test("snapshot: onboarding usage analytics step", async ({ page }) => {
+  // Its own step, straight after location (39-permission-asks.spec.js). This spec's storage pre-answers
+  // usage analytics, so a first visit here starts from nothing answered at all.
+  await page.addInitScript(() => localStorage.removeItem("ff-track-v1"));
+  await mockCowApi(page);
+  await denyGeolocationUnlessGranted(page);
+  await page.goto("/nearby");
+  const overlay = page.getByRole("dialog", { name: "Set up Epping Forest Finds" });
+  await overlay.locator(".ob-location-skip").click();
+  await expect(overlay.getByRole("heading", { name: "Help improve the map?" })).toBeVisible();
+  for (const step of ["trees", "places", "paths", "roads", "environment", "forest"]) {
+    await expect(page.locator(`[data-load-step="${step}"]`)).toHaveClass(/\b(done|error)\b/);
+  }
+  await waitForUiToSettle(page);
+  await expect(page).toHaveScreenshot("onboarding-analytics.png", { fullPage: false });
+});
+
+test("snapshot: usage analytics card on the map", async ({ page }) => {
+  // A returning visitor who has never answered: asked once the map is up, in the inspector chrome.
+  await page.addInitScript(() => {
+    localStorage.removeItem("ff-track-v1");
+    localStorage.setItem("ff-location-v1", "declined");
+  });
+  await setup(page, "/nearby/search");
+  await expect(page.locator("#consentBanner")).toContainText("Help improve the map?");
+  await settle(page);
+  await expect(page).toHaveScreenshot("analytics-card.png", { fullPage: false });
+});
+
 test.describe("Event snapshots", () => {
   test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] });
 

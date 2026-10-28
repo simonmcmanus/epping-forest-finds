@@ -700,7 +700,10 @@ function cacheVersionLabel(keys) {
 }
 
 function setupPwa() {
-  if ("serviceWorker" in navigator) {
+  // Inside the native shell the app and its data are bundled files: a cache-first worker in front
+  // of them would be a second, stale copy with an update prompt that has nothing to wait on.
+  // App updates come from the store there (spec-native.md "Versioning and the update story").
+  if ("serviceWorker" in navigator && !Native.isNative) {
     let _firstChange = !navigator.serviceWorker.controller;
 
     navigator.serviceWorker.addEventListener("message", (event) => {
@@ -741,6 +744,17 @@ function setupPwa() {
       .catch(() => {});
 
     requestPersistentStorage();
+  }
+
+  // Inside the app shell the version is the store build's plus the data release it is showing,
+  // since the two move independently there (spec-native.md "Versioning"). Bug reports carry it too.
+  if (Native.isNative) {
+    Native.appInfo().then((info) => {
+      const dataVersion = Native.data && Native.data.activeVersion;
+      const appVersion = info ? `${info.version} (${info.build})` : "";
+      state.swVersion = [appVersion, dataVersion ? `data ${dataVersion}` : ""].filter(Boolean).join(" · ");
+      refreshSettingsVersionDisplay();
+    });
   }
 
   if (els.installButton) {
@@ -918,7 +932,7 @@ function setupInspectorHandlers() {
   if (els.compassCalibrationBannerDismiss) {
     els.compassCalibrationBannerDismiss.addEventListener("click", () => {
       if (state.compassPermissionPromptVisible) {
-        hideCompassPermissionPrompt();
+        dismissCompassPermissionPrompt();
       } else if (typeof dismissCompassCalibrationPrompt === "function") {
         dismissCompassCalibrationPrompt();
       }
@@ -1096,6 +1110,11 @@ function setupSearchAndNavHandlers() {
   // Tab moves focus through the scrollable Nearby/Search results list using the browser's own
   // default order -- no keydown handler of ours runs for it -- so without this the focused row
   // can land outside the visible scroll area with nothing on screen to show it moved at all.
+  // A light haptic tap on picking a find from the list (native app only; a no-op on the web).
+  els.inspectorBody.addEventListener("click", (event) => {
+    if (event.target.closest(".nearest-item")) Native.haptics.select();
+  });
+
   els.inspectorBody.addEventListener("focusin", (event) => {
     const item = event.target.closest(".nearest-item");
     if (item) item.scrollIntoView({ block: "nearest" });

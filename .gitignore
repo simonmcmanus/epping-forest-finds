@@ -57,3 +57,4 @@ _probe_*.js
 
 # Per-developer Claude Code settings -- written by Claude Code; keep it local
 .claude/settings.local.json
+/data/manifest.json

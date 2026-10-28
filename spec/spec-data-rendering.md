@@ -1227,7 +1227,7 @@ Behavior:
   Respects `prefers-reduced-motion` (snaps instead of fading).
 - `revealNoRealLocation()`'s `applyDefaultLocation()` (the High Beach stand-in) is guarded by
   `hasRealLocation()`: because the non-blocking bar no longer holds up clicks on
-  `showCombinedConsentBanner()`'s own "Enable" button the way the old full-screen overlay
+  `showConsentBanner()`'s own "Enable location" button the way the old full-screen overlay
   incidentally did, a fast tap can land a real GPS fix before `boot()` reaches this fallback, and
   without the guard that real fix was overwritten back to the stand-in the moment it got there.
 

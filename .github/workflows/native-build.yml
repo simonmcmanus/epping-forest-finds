@@ -1,0 +1,133 @@
+name: Native build
+
+# Builds the native apps (native/, spec/spec-native.md) with the current client in them, and keeps
+# the results as downloadable artifacts for testing: an Android debug APK that installs on any phone,
+# and an iOS Simulator app. Unsigned builds only: nothing here signs, uploads to a store or
+# publishes. Pull requests and merges to main both build whenever anything the binaries are made from
+# changes, so every client or data change gets a fresh pair to test.
+
+on:
+  # Both lists cover every file native/scripts/sync-www.js can put in the binary, plus what builds
+  # it; test/native.test.js fails if a bundled file stops matching either one.
+  pull_request:
+    paths:
+      - "native/**"
+      - "app.html"
+      - "terms.html"
+      - "cookie-consent.js"
+      - "manifest.webmanifest"
+      - "tree-icon.svg"
+      - "js/**"
+      - "css/**"
+      - "data/**"
+      - "scripts/lib/data-manifest.js"
+      - "netlify/edge-functions/native-cors.js"
+      - ".github/workflows/native-build.yml"
+  push:
+    branches: [main]
+    paths:
+      - "native/**"
+      - "app.html"
+      - "terms.html"
+      - "cookie-consent.js"
+      - "manifest.webmanifest"
+      - "tree-icon.svg"
+      - "js/**"
+      - "css/**"
+      - "data/**"
+      - "scripts/lib/data-manifest.js"
+      - "netlify/edge-functions/native-cors.js"
+      - ".github/workflows/native-build.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android:
+    name: Android debug build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: native/package-lock.json
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Install Capacitor
+        working-directory: native
+        run: npm ci --no-audit --no-fund
+      - name: Bundle the client and sync it into the projects
+        working-directory: native
+        run: npm run sync:www && npx cap sync android
+      - name: Build the debug APK
+        working-directory: native/android
+        env:
+          NATIVE_BUILD_NUMBER: ${{ github.run_number }}
+        run: ./gradlew --no-daemon assembleDebug
+      - name: Name the APK for download
+        run: |
+          version=$(node -p "require('./native/package.json').version")
+          mkdir -p dist
+          cp native/android/app/build/outputs/apk/debug/app-debug.apk "dist/epping-forest-finds-${version}-${{ github.run_number }}-debug.apk"
+          ls -lh dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-apk
+          path: dist/*.apk
+          retention-days: 30
+
+  ios:
+    name: iOS simulator build
+    runs-on: macos-15
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: native/package-lock.json
+      # Capacitor 8 needs a current Xcode; the runner image's default can lag behind.
+      - uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+      - name: Install Capacitor
+        working-directory: native
+        run: npm ci --no-audit --no-fund
+      - name: Bundle the client and sync it into the projects
+        working-directory: native
+        run: npm run sync:www && npx cap sync ios
+      - name: Build for the simulator, unsigned
+        working-directory: native/ios/App
+        run: >-
+          xcodebuild -project App.xcodeproj -scheme App -configuration Debug
+          -sdk iphonesimulator -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath build
+          MARKETING_VERSION=$(node -p "require('../../package.json').version")
+          CURRENT_PROJECT_VERSION=${{ github.run_number }}
+          CODE_SIGNING_ALLOWED=NO build
+      # Drag the unzipped App.app onto a running Simulator, or: xcrun simctl install booted App.app
+      - name: Zip the simulator app for download
+        run: |
+          mkdir -p dist
+          ditto -c -k --keepParent native/ios/App/build/Build/Products/Debug-iphonesimulator/App.app dist/epping-forest-finds-ios-simulator.zip
+          ls -lh dist
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-app
+          path: dist/*.zip
+          retention-days: 30

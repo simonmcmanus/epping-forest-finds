@@ -40,7 +40,7 @@ function loadTracker({ consent = true, respond = () => ({ ok: true, status: 200 
   };
   context.globalThis = context;
   vm.createContext(context);
-  vm.runInContext(`${SOURCE}\nglobalThis.api = { trackClick, trackLocation, initTracker, trackerFlushQueue };`, context);
+  vm.runInContext(`${SOURCE}\nglobalThis.api = { trackClick, trackLocation, initTracker, trackerFlushQueue, setTrackingConsent };`, context);
   const queued = () => JSON.parse(storage.get("ff-track-queue") || "[]");
   const fire = (target, type) => Promise.all((listeners[target].get(type) || []).map((fn) => fn({ type })));
   return { api: context.api, sent, queued, timers, context, fire };
@@ -180,4 +180,39 @@ test("a queue left over from a session with consent is not sent once consent is 
   await tracker.api.trackerFlushQueue();
   assert.equal(tracker.sent.length, 0);
   assert.equal(tracker.queued().length, 0, "and it is dropped");
+});
+
+test("without usage-analytics consent nothing is written to the device: no device id, no queued event", async () => {
+  const tracker = loadTracker({ consent: false });
+  tracker.api.trackLocation(51.65, 0.04, 90);
+  tracker.api.trackClick("tree", { id: "t1", commonName: "Oak", latitude: 51.6, longitude: 0.04 }, 51.6, 0.04);
+  await settle();
+  assert.equal(tracker.context.localStorage.getItem("ff-uid"), null);
+  assert.equal(tracker.context.localStorage.getItem("ff-track-queue"), null);
+  assert.equal(tracker.sent.length, 0);
+});
+
+test("withdrawing usage-analytics consent deletes the device id the events were sent under", async () => {
+  const tracker = loadTracker();
+  tracker.api.trackLocation(51.65, 0.04, 90);
+  assert.ok(tracker.context.localStorage.getItem("ff-uid"), "an id exists while consent is given");
+  vm.runInContext("setTrackingConsent(false)", tracker.context);
+  assert.equal(tracker.context.localStorage.getItem("ff-uid"), null);
+});
+
+test("events whose send fails after consent is withdrawn are not kept to send later", async () => {
+  let failInFlight;
+  const { api, sent, queued } = loadTracker({
+    respond: () => (sent.length === 1 ? new Promise((resolve) => { failInFlight = () => resolve({ ok: false, status: 503 }); }) : { ok: true, status: 200 }),
+  });
+  trackN(api, 20);
+  await settle();
+  assert.equal(sent.length, 1, "the batch is on its way");
+  api.setTrackingConsent(false);
+  failInFlight();
+  await settle();
+  assert.equal(queued().length, 0, "the failed batch is not put back");
+  api.setTrackingConsent(true);
+  await api.trackerFlushQueue();
+  assert.equal(sent.length, 1, "nothing from before the withdrawal goes out after consent is given again");
 });

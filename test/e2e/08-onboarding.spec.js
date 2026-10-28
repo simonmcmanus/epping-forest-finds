@@ -46,21 +46,21 @@ test.describe("Onboarding", () => {
       expect(await page.evaluate(() => localStorage.getItem("ff-track-v1"))).not.toBe("1");
     });
 
-    test("the location step discloses anonymous usage data and where to change the choice", async ({ page }) => {
+    test("the location step says where to change the choice and does not ask about usage data", async ({ page }) => {
       await page.goto("/nearby");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
-      await expect(page.locator("#onboardingOverlay .privacy-note")).toContainText("We collect anonymous usage data");
       await expect(page.locator("#onboardingOverlay .privacy-note")).toContainText("Settings → Privacy");
+      // Usage analytics is its own step (39-permission-asks.spec.js), never folded into this one.
+      await expect(page.locator("#onboardingOverlay")).not.toContainText(/usage data|cookies/i);
     });
 
-    test("tapping 'Enable location' grants consent immediately and advances onboarding with no second screen", async ({ page }) => {
+    test("tapping 'Enable location' records the choice and advances onboarding with no second location screen", async ({ page }) => {
       await page.goto("/nearby");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
       await page.locator("#onboardingOverlay .ob-location").click();
-      // No separate accept/decline screen — onboarding moves straight to the next step.
       await expect(page.locator("#onboardingOverlay .ob-location")).toHaveCount(0);
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
-      await expect.poll(() => page.evaluate(() => localStorage.getItem("ff-track-v1"))).toBe("1");
+      await expect.poll(() => page.evaluate(() => localStorage.getItem("ff-location-v1"))).toBe("granted");
     });
   });
 

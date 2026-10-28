@@ -956,7 +956,13 @@ test.describe("Outbox when the browser has no IndexedDB", () => {
 
   test("a queued report is kept in local storage and sent after a reload", async ({ page, context }) => {
     const posted = [];
-    await page.route(REPORT_URL, (route) => { posted.push(route.request().postDataJSON()); route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) }); });
+    let refused = 0;
+    let acceptReports = false;
+    await page.route(REPORT_URL, (route) => {
+      if (!acceptReports) { refused += 1; return route.abort(); }
+      posted.push(route.request().postDataJSON());
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+    });
     await page.route(OVERLAY_URL, (route) =>
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {} }) }));
     await noIndexedDb(page);
@@ -965,7 +971,12 @@ test.describe("Outbox when the browser has no IndexedDB", () => {
     await page.click("[data-action='community-report'][data-status='VERIFIED']");
     await expect.poll(() => page.evaluate(() => (JSON.parse(localStorage.getItem("ff-outbox-fallback-v1")) || []).length)).toBe(1);
     expect(posted).toHaveLength(0);
+    // Coming back online sends at once. Refuse that attempt, so the report is still queued when the
+    // page reloads and the reloaded page's send is the only one -- otherwise the reload can land
+    // between a successful send and the queued copy's removal, and the report goes twice.
     await context.setOffline(false);
+    await expect.poll(() => refused).toBeGreaterThan(0);
+    acceptReports = true;
     await page.reload();
     await expect.poll(() => posted.length).toBe(1);
     expect(posted[0]).toMatchObject({ status: "VERIFIED", target: `tree:${FIXTURE_TREE.recordNumber}` });

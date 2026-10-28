@@ -1,14 +1,14 @@
 "use strict";
 
-// Google Analytics (gtag.js) consent banner, shared by every page on the site. Separate from,
-// and independent of, the in-app location/usage-tracking consent in js/tracker.js: that one is
-// a contextual browser-permission prompt tied to a feature (location), this one is the PECR/UK
-// GDPR cookie consent gate that must run before GA's non-essential cookies (_ga, _ga_*) are set,
-// on every page that loads the tag -- including the homepage, which has no other consent UI.
+// Google Analytics (gtag.js) consent banner for the site's public pages. This is the PECR/UK GDPR
+// cookie consent gate that must run before GA's non-essential cookies (_ga, _ga_*) are set, on
+// every page that loads the tag -- including the homepage, which has no other consent UI. Inside
+// the app the same cookies are part of one usage-analytics question (js/tracker.js
+// setAnalyticsConsent), which writes this file's key too, so a choice made either way carries over.
 //
-// Google Consent Mode v2's `analytics_storage` default is set to "denied" inline, before this
-// file loads (see the gtag snippet in each page's <head> / generator) -- this file only decides
-// whether to show the banner and relays the visitor's choice to gtag.
+// Every page's <head> defines the gtag() queue with all four Consent Mode v2 signals denied and
+// Google Signals off (see the snippet in each page / generator), but does not load Google's
+// script: this file loads it once the visitor agrees, and relays the choice to gtag.
 (function () {
   const CONSENT_KEY = "ff-cookie-consent";
   const EARLY_TESTING_BANNER_KEY = "ff-early-testing-banner-v1";
@@ -26,10 +26,39 @@
     }
   }
 
+  const GA_SCRIPT_SRC = "https://www.googletagmanager.com/gtag/js?id=G-M9NL06G2JB";
+
+  // Google's own script is loaded only once analytics is agreed to. Each page's <head> defines the
+  // gtag() queue and denies every consent signal, but no longer loads the script itself: in
+  // Google's "advanced" consent mode a loaded tag still sends cookieless pings (IP address, page,
+  // browser) before anyone has answered, which needs consent just as the cookies do.
+  function loadGoogleAnalytics() {
+    if (document.querySelector(`script[src="${GA_SCRIPT_SRC}"]`)) return;
+    const script = document.createElement("script");
+    script.async = true;
+    script.src = GA_SCRIPT_SRC;
+    document.head.appendChild(script);
+  }
+
+  // Withdrawal stops collection and removes what was stored for it: Google Analytics' own cookies
+  // (_ga, _ga_<id>), on this host and on the parent domain it may have set them for.
+  function clearGoogleAnalyticsCookies() {
+    const names = document.cookie.split(";").map((part) => part.split("=")[0].trim()).filter((name) => /^_ga(_|$)/.test(name));
+    const host = location.hostname;
+    const domains = ["", host, `.${host}`, `.${host.split(".").slice(-2).join(".")}`];
+    for (const name of names) {
+      for (const domain of domains) {
+        document.cookie = `${name}=; Max-Age=0; path=/${domain ? `; domain=${domain}` : ""}`;
+      }
+    }
+  }
+
   function updateGtagConsent(granted) {
     if (typeof window.gtag === "function") {
       window.gtag("consent", "update", { analytics_storage: granted ? "granted" : "denied" });
     }
+    if (granted) loadGoogleAnalytics();
+    else clearGoogleAnalyticsCookies();
   }
 
   function setConsent(granted) {
@@ -95,18 +124,11 @@ background:#fff;color:#2f6f4e}
   function renderBanner() {
     const existing = document.getElementById("cookieConsentBanner");
     if (existing) return;
-    // On the app's first-run onboarding (app.html only -- this id doesn't exist elsewhere),
-    // the location step's own privacy note already asks this question and decides cookie
-    // consent itself (see the .ob-location/.ob-location-skip handlers in js/onboarding.js).
-    // Stacking this banner on top of that overlay would ask twice for the same thing.
-    const onboarding = document.getElementById("onboardingOverlay");
-    if (onboarding && !onboarding.hidden) return;
-    // Same reasoning for a landing-page arrival's merged location/cookie ask
-    // (showCombinedConsentBanner in js/app.js) -- it already asks this and decides consent
-    // itself, normally by removing this banner outright the moment it opens, but this also
-    // covers the rare case where that happens before this script's own deferred init() has run.
-    const consentBanner = document.getElementById("consentBanner");
-    if (consentBanner && !consentBanner.hidden) return;
+    // The app shell (app.html, and every page generated from it -- the only pages with a
+    // #consentBanner) asks this itself, as part of one usage-analytics question that also covers
+    // the app's own usage data: onboarding's analytics step, or showConsentBanner in js/app.js.
+    // Showing this banner there as well would ask the same person the same thing twice.
+    if (document.getElementById("consentBanner")) return;
     injectStyle();
     const banner = document.createElement("div");
     banner.id = "cookieConsentBanner";
@@ -238,8 +260,8 @@ font:inherit;font-size:1.2rem;line-height:1;cursor:pointer}
     }, { once: true });
   }
 
-  // Exposed so a page can offer a "manage cookie preferences" control (see terms.html, and
-  // Settings → Privacy in the app) without duplicating the banner/consent logic.
+  // Exposed so a page can offer a "manage cookie preferences" control (see terms.html) and the app
+  // can record its own analytics answer (js/tracker.js) without duplicating the consent logic.
   window.ForestFindsCookieConsent = {
     get: getStoredConsent,
     set: setConsent,

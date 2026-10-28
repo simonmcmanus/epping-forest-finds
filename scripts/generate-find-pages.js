@@ -684,7 +684,7 @@ function renderCowsPage(appHtml, rules = loadAppRules()) {
  * with a real fix or saved filters sees a live list that differs from this one.
  *
  * The page also carries the live screen's consent banner (un-hidden, same as a landing page's, so
- * a visitor sees the location and cookie ask before JS runs), the Filters button with its live
+ * a visitor sees the location ask before JS runs), the Filters button with its live
  * count, and data-server-rendered-nearby on #inspectorBody. That marker is what makes boot keep
  * this list on screen until a real location fix -- js/inspector.js, serverRenderedNearbyListStillValid
  * -- so no-JS and JS both show the same list and nothing repaints on load.
@@ -723,7 +723,7 @@ function renderNearbyIndexPage(appHtml, enrichment) {
   html = replaceOnce(html, APP_EMPTY_STATE, listHtml, "initial inspector empty-state paragraph");
   html = inspectorHeadingHtml(html, rules, null, typeLine);
   html = replaceOnce(html, '<div id="inspectorBody" class="inspector-body">', '<div id="inspectorBody" class="inspector-body" data-server-rendered-nearby>', "inspector body marker");
-  html = replaceOnce(html, '<div id="consentBanner" class="consent-banner" role="group" aria-label="Location and cookies" hidden>', '<div id="consentBanner" class="consent-banner" role="group" aria-label="Location and cookies">', "consent banner shown");
+  html = replaceOnce(html, '<div id="consentBanner" class="consent-banner" role="group" aria-label="Location" hidden>', '<div id="consentBanner" class="consent-banner" role="group" aria-label="Location">', "consent banner shown");
   // Same count the live Filters button shows: groups with at least one subfilter in the default set.
   const defaultGroupCount = rules.FILTER_GROUPS.filter((group) => group.subfilters.some((sub) => NEARBY_INDEX_FILTERS.includes(sub.key))).length;
   html = replaceOnce(html, '<button id="filterToggle" class="filter-toggle inspector-filter-toggle" type="button" aria-label="Filters" aria-pressed="false" hidden>', `<button id="filterToggle" class="filter-toggle inspector-filter-toggle active" type="button" aria-label="Filters: ${defaultGroupCount} top-level filters selected" aria-pressed="true">`, "filter toggle shown");

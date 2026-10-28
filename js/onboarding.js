@@ -5,6 +5,7 @@ const ONBOARDING_KEY = "forest-finds-onboarding-v1";
 
 const ONBOARDING_STEPS = [
   { type: "location" },
+  { type: "analytics" },
   { type: "welcome" },
   ...FILTER_GROUPS.map((g) => ({ type: "group", group: g })),
 ];
@@ -45,6 +46,10 @@ function hasCompletedOnboarding() {
   }
 }
 
+// The analytics question's own wording, shared with the in-map card (showConsentBanner, js/app.js)
+// so the two ways of asking it cannot drift apart.
+const ANALYTICS_ASK_TEXT = "Share anonymous usage data — which screens you use and where you are while the app is open — and allow Google Analytics cookies. It is never sold or used for advertising.";
+
 // Returns a Promise resolving to { filters: string[], locationPromise: Promise|null }
 // locationPromise is a live geolocation request started the moment the user tapped
 // "Enable location", so it runs concurrently with the rest of the data loading.
@@ -55,28 +60,32 @@ function showOnboarding() {
     const contentEl = overlay.querySelector(".onboarding-content");
     const actionsEl = overlay.querySelector(".onboarding-actions");
 
+    // A question already answered elsewhere (usage analytics declined on the homepage's cookie
+    // banner, say) is not asked again here.
+    const steps = ONBOARDING_STEPS.filter((step) => step.type !== "analytics"
+      || typeof analyticsChoice !== "function" || analyticsChoice() === "undecided");
     let stepIndex = 0;
-    let compassPromptFailed = false;
     let locationPromise = null;
-    const total = ONBOARDING_STEPS.length;
+    const total = steps.length;
     const selected = new Set(["trees", "cows", "events", "pubs"]);
 
     overlay.hidden = false;
     const deactivateFocus = typeof activateModalFocus === "function" ? activateModalFocus(overlay) : null;
 
     function renderProgress() {
-      progressEl.innerHTML = ONBOARDING_STEPS.map((_, i) => {
+      progressEl.innerHTML = steps.map((_, i) => {
         const cls = i === stepIndex ? "active" : i < stepIndex ? "done" : "";
         return `<span class="onboarding-dot ${cls}"></span>`;
       }).join("");
     }
 
     function preloadStepImages(idx) {
-      if (idx < 0 || idx >= ONBOARDING_STEPS.length) return;
-      const s = ONBOARDING_STEPS[idx];
+      if (idx < 0 || idx >= steps.length) return;
+      const s = steps[idx];
       const srcs = [];
       if (s.type === "welcome") srcs.push("data/icons/trees/logo.png");
       if (s.type === "location") srcs.push("data/icons/pin.png");
+      if (s.type === "analytics") srcs.push("data/icons/trees/logo.png");
       if (s.type === "group") {
         srcs.push(`data/icons/${s.group.icon}.png`);
         s.group.subfilters.forEach((sf) => srcs.push(`data/icons/${sf.icon}.png`));
@@ -85,7 +94,7 @@ function showOnboarding() {
     }
 
     function renderStep(direction) {
-      const step = ONBOARDING_STEPS[stepIndex];
+      const step = steps[stepIndex];
       preloadStepImages(stepIndex + 1);
 
       contentEl.classList.remove("entering-forward", "entering-backward");
@@ -128,16 +137,31 @@ function showOnboarding() {
           ${!isLast ? `<button class="onboarding-skip-btn ob-skip" type="button">Skip remaining</button>` : ""}
         `;
       } else if (step.type === "location") {
-        const needsCompassPrompt = canRequestCompassPermission();
+        const needsCompassPrompt = canRequestCompassPermission() && Native.compassNeedsPrompt;
         contentEl.innerHTML = `
           <img class="onboarding-step-icon" src="data/icons/pin.png" alt="">
           <h2 class="onboarding-step-title">Your location${needsCompassPrompt ? " & compass" : ""}</h2>
           <p class="onboarding-step-subtitle">Enable location to centre the map on you, see distances to each find, and get heading-up compass navigation.</p>
-          <p class="privacy-note">We collect anonymous usage data (GPS position, navigation, interactions) and use analytics cookies to improve the app — this choice covers both. You can withdraw anytime via Settings → Privacy. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
+          <p class="privacy-note">Your position is used on this device to draw the map. You can change this anytime in Settings → Privacy.</p>
         `;
         actionsEl.innerHTML = `
           <button class="button ob-location" type="button">Enable${needsCompassPrompt ? " location &amp; compass" : " location"}</button>
           <button class="onboarding-skip-btn ob-location-skip" type="button">Skip for now</button>
+        `;
+      } else if (step.type === "analytics") {
+        // Its own question, with refusing exactly as easy as agreeing: nothing else in the app
+        // depends on the answer, so it is never folded into the location step above.
+        contentEl.innerHTML = `
+          <img class="onboarding-step-icon" src="data/icons/trees/logo.png" alt="">
+          <h2 class="onboarding-step-title">Help improve the map?</h2>
+          <p class="onboarding-step-subtitle">${ANALYTICS_ASK_TEXT}</p>
+          <p class="privacy-note">You can change this anytime in Settings → Privacy. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
+        `;
+        actionsEl.innerHTML = `
+          <div class="onboarding-nav">
+            <button class="button ob-analytics-decline" type="button">No thanks</button>
+            <button class="button ob-analytics-accept" type="button">Share usage data</button>
+          </div>
         `;
       }
 
@@ -163,19 +187,15 @@ function showOnboarding() {
       actionsEl.querySelector(".ob-back")?.addEventListener("click", goBack);
       actionsEl.querySelector(".ob-skip")?.addEventListener("click", () => finish());
       actionsEl.querySelector(".ob-location")?.addEventListener("click", async () => {
-        // Consent is given by tapping this button — the privacy note above states what's
-        // collected, same wording as the in-map location gate's .privacy-note (app.html).
-        if (typeof setTrackingConsent === "function") setTrackingConsent(true);
-        // This step also stands in for the cookie-consent banner (suppressed while onboarding
-        // is open -- see cookie-consent.js) so the user only has to click once.
-        window.ForestFindsCookieConsent?.set(true);
+        // Location only: usage analytics is the next step's separate question.
+        if (typeof rememberLocationChoice === "function") rememberLocationChoice("granted");
 
-        // Start location request — browser dialog fires from this tap.
-        if (navigator.geolocation) {
+        // Start location request — the system dialog fires from this tap.
+        if (Native.geolocation) {
           locationPromise = new Promise((res) => {
-            navigator.geolocation.getCurrentPosition(
+            Native.geolocation.getCurrentPosition(
               (pos) => res({ ok: true, position: pos }),
-              () => res({ ok: false }),
+              (error) => res({ ok: false, code: error && error.code }),
               // Shared with boot()'s own automatic request (js/app.js) so a cold outdoor fix gets
               // the same room to land before this is treated as a failure.
               { enableHighAccuracy: true, timeout: BOOT_GEOLOCATION_TIMEOUT_MS, maximumAge: 30000 }
@@ -185,7 +205,7 @@ function showOnboarding() {
 
         // Request compass in the same tap handler — iOS requires requestPermission()
         // to be called within a user-gesture call stack, which this still satisfies.
-        if (canRequestCompassPermission()) {
+        if (canRequestCompassPermission() && Native.compassNeedsPrompt) {
           try {
             const permission = await DeviceOrientationEvent.requestPermission();
             setCompassPermission(permission === "granted" ? "granted" : "denied");
@@ -201,9 +221,17 @@ function showOnboarding() {
       });
       actionsEl.querySelector(".ob-location-skip")?.addEventListener("click", () => {
         setImplicitCompassPermission();
-        // Mirrors the Decline side of the merged consent — see the .ob-location handler above.
-        window.ForestFindsCookieConsent?.set(false);
-        // Continue to welcome + filter personalisation even when location is skipped.
+        // Remembered, so no later launch puts a system location prompt in front of someone who
+        // already said not now. Settings → Privacy is the way back.
+        if (typeof rememberLocationChoice === "function") rememberLocationChoice("declined");
+        goNext();
+      });
+      actionsEl.querySelector(".ob-analytics-accept")?.addEventListener("click", () => {
+        if (typeof setAnalyticsConsent === "function") setAnalyticsConsent(true);
+        goNext();
+      });
+      actionsEl.querySelector(".ob-analytics-decline")?.addEventListener("click", () => {
+        if (typeof setAnalyticsConsent === "function") setAnalyticsConsent(false);
         goNext();
       });
 
@@ -234,7 +262,8 @@ function showOnboarding() {
     }
 
     function canUseCompassWithoutPrompt() {
-      return typeof DeviceOrientationEvent !== "undefined" && !canRequestCompassPermission();
+      return typeof DeviceOrientationEvent !== "undefined"
+        && (!canRequestCompassPermission() || !Native.compassNeedsPrompt);
     }
 
     function setImplicitCompassPermission() {

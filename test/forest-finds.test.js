@@ -539,7 +539,11 @@ globalThis.__forestFindsTest = {
   requestBackgroundDataSync,
   hasTrackingConsent,
   setTrackingConsent,
-  ensureTrackingConsent,
+  analyticsChoice,
+  setAnalyticsConsent,
+  storedLocationChoice,
+  rememberLocationChoice,
+  bootMayRequestLocation,
   trackGaItemSelected,
   reportFormHtml,
   reportIssueHtml,
@@ -624,7 +628,7 @@ globalThis.__forestFindsTest = {
   vm.createContext(context);
 
   const rootDir = path.join(__dirname, "..");
-  const externalScripts = ["js/app-cache-version.js", "js/data-cache-version.js", "js/categories.js", "js/normalize.js", "js/router-rules.js", "js/dom-elements.js", "js/filter-state.js", "js/tracker.js", "js/outbox.js", "js/community.js", "js/onboarding.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/icon-motion.js", "js/renderer.js", "js/inspector.js"];
+  const externalScripts = ["js/native.js", "js/app-cache-version.js", "js/data-cache-version.js", "js/categories.js", "js/normalize.js", "js/router-rules.js", "js/dom-elements.js", "js/filter-state.js", "js/tracker.js", "js/outbox.js", "js/community.js", "js/onboarding.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/icon-motion.js", "js/renderer.js", "js/inspector.js"];
   for (const externalSrc of externalScripts) {
     const externalPath = path.join(rootDir, externalSrc);
     if (fs.existsSync(externalPath)) {
@@ -4797,31 +4801,70 @@ test("settings form's floor note is an aria-live region, so hitting the floor is
   assert.match(html, /id="settingsWalkMinsFloorNote" aria-live="polite"/);
 });
 
-test("settings form's Privacy section reflects and toggles tracking consent", () => {
-  const original = app.hasTrackingConsent();
+function withStoredKeys(keys, fn) {
+  const names = ["ff-track-v1", "ff-cookie-consent", "ff-location-v1"];
+  const saved = names.map((name) => [name, app.localStorage.getItem(name)]);
+  names.forEach((name) => app.localStorage.removeItem(name));
+  Object.entries(keys).forEach(([name, value]) => app.localStorage.setItem(name, value));
+  try { fn(); } finally {
+    saved.forEach(([name, value]) => (value == null ? app.localStorage.removeItem(name) : app.localStorage.setItem(name, value)));
+  }
+}
 
-  app.setTrackingConsent(false);
-  let html = app.settingsFormHtml();
-  assert.match(html, /id="privacyConsentStatus">not enabled</, "should report consent as not enabled");
-  assert.match(html, /id="privacyConsentToggle"[^>]*>Enable location &amp; tracking</, "toggle should offer to grant consent");
+test("settings form's Privacy section shows usage analytics as one choice and offers the opposite", () => {
+  withStoredKeys({}, () => {
+    app.setAnalyticsConsent(false);
+    let html = app.settingsFormHtml();
+    assert.match(html, /id="analyticsStatus">off</);
+    assert.match(html, /id="analyticsToggle"[^>]*>Turn on usage analytics</);
+    assert.doesNotMatch(html, /cookieConsentManageBtn/, "there is no second, separate cookie control to keep in step");
 
-  app.setTrackingConsent(true);
-  html = app.settingsFormHtml();
-  assert.match(html, /id="privacyConsentStatus">enabled</, "should report consent as enabled");
-  assert.match(html, /id="privacyConsentToggle"[^>]*>Withdraw consent</, "toggle should offer to withdraw consent");
-
-  app.setTrackingConsent(original);
+    app.setAnalyticsConsent(true);
+    html = app.settingsFormHtml();
+    assert.match(html, /id="analyticsStatus">on</);
+    assert.match(html, /id="analyticsToggle"[^>]*>Turn off usage analytics</);
+  });
 });
 
-test("ensureTrackingConsent grants consent implicitly, with no separate accept/decline screen", () => {
-  const original = app.hasTrackingConsent();
+test("answering usage analytics records the usage-data and analytics-cookie halves together", () => {
+  withStoredKeys({}, () => {
+    app.setAnalyticsConsent(true);
+    assert.equal(app.hasTrackingConsent(), true);
+    assert.equal(app.localStorage.getItem("ff-cookie-consent"), "granted");
+    app.setAnalyticsConsent(false);
+    assert.equal(app.hasTrackingConsent(), false);
+    assert.equal(app.localStorage.getItem("ff-cookie-consent"), "denied");
+    assert.equal(app.analyticsChoice(), "denied", "a refusal is remembered, not read as never asked");
+  });
+});
 
-  app.setTrackingConsent(false);
-  const result = app.ensureTrackingConsent();
-  assert.equal(result, true, "tapping 'Enable location' should itself count as consent");
-  assert.equal(app.hasTrackingConsent(), true, "consent should be recorded immediately, synchronously");
+test("usage analytics is still unasked for someone who only accepted cookies on the homepage", () => {
+  // The homepage's cookie banner says nothing about positions recorded in the app, so it cannot
+  // stand in for that half of the question.
+  withStoredKeys({ "ff-cookie-consent": "granted" }, () => assert.equal(app.analyticsChoice(), "undecided"));
+  // A refusal anywhere is honoured rather than asked again.
+  withStoredKeys({ "ff-cookie-consent": "denied" }, () => assert.equal(app.analyticsChoice(), "denied"));
+});
 
-  app.setTrackingConsent(original);
+test("boot only requests a position by itself when that cannot put an unexplained system prompt on screen", () => {
+  // Already granted: answers silently.
+  assert.equal(app.bootMayRequestLocation("granted", null), true);
+  // Refused at the browser or OS: a request would fail without asking, so none is made.
+  assert.equal(app.bootMayRequestLocation("denied", "granted"), false);
+  // Would prompt: only for someone who asked for location in the app before.
+  assert.equal(app.bootMayRequestLocation("prompt", "granted"), true);
+  assert.equal(app.bootMayRequestLocation("prompt", null), false);
+  assert.equal(app.bootMayRequestLocation("prompt", "declined"), false);
+  assert.equal(app.bootMayRequestLocation("unknown", null), false, "an unanswerable permission query counts as a prompt");
+});
+
+test("a location answer is remembered, and the old bundled 'Enable location' tap still counts as having asked", () => {
+  withStoredKeys({}, () => {
+    assert.equal(app.storedLocationChoice(), null);
+    app.rememberLocationChoice("declined");
+    assert.equal(app.storedLocationChoice(), "declined");
+  });
+  withStoredKeys({ "ff-track-v1": "1" }, () => assert.equal(app.storedLocationChoice(), "granted"));
 });
 
 test("select_map_item GA event carries a specific venue category for landmarks, never coordinates", () => {

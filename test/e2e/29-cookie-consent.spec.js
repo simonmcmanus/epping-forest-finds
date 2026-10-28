@@ -2,9 +2,6 @@
 const { test, expect } = require("@playwright/test");
 const { skipOnboarding, mockCowApi, denyGeolocationUnlessGranted } = require("./helpers");
 
-// A GPS fix inside Epping Forest -- same value as 09-location.spec.js's own FOREST_LOCATION.
-const FOREST_LOCATION = { latitude: 51.6650, longitude: 0.0450, accuracy: 10 };
-
 // playwright.config.js pre-grants cookie consent for every other spec (see its `use.storageState`
 // comment) so the banner never interferes with unrelated tests. This file is the one place that
 // deliberately starts from an undecided state to exercise the banner itself.
@@ -96,15 +93,6 @@ test.describe("Cookie consent banner", () => {
     await expect(page.locator("#cookieConsentBanner")).toBeHidden();
   });
 
-  test("on the app shell it is the combined location and cookie banner, the same ask a landing page makes", async ({ page }) => {
-    await skipOnboarding(page);
-    await mockCowApi(page);
-    await denyGeolocationUnlessGranted(page);
-    await page.goto("/nearby");
-    await expect(page.locator("#consentBanner")).toBeVisible();
-    await expect(page.locator("#cookieConsentBanner")).toHaveCount(0);
-  });
-
   test("mobile keeps the early-testing notice above the map and out of the Nearby sheet", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== "mobile", "Mobile layout only");
     await skipOnboarding(page);
@@ -119,7 +107,7 @@ test.describe("Cookie consent banner", () => {
     expect((await notice.boundingBox()).y).toBeLessThan(80);
   });
 
-  test("a choice made on the homepage carries over to the app without asking again", async ({ page }) => {
+  test("a cookie choice made on the homepage is not asked again by a cookie banner in the app", async ({ page }) => {
     await page.goto("/");
     await page.locator("#cookieConsentBanner [data-action=\"accept\"]").click();
 
@@ -140,117 +128,33 @@ test.describe("Cookie consent banner", () => {
     await expect(page.locator("#cookieConsentBanner")).toBeVisible();
   });
 
-  test("declining analytics leaves the first-party location/usage consent untouched", async ({ page }) => {
-    await skipOnboarding(page);
-    await mockCowApi(page);
-    await denyGeolocationUnlessGranted(page);
-    await page.goto("/nearby");
-    await page.locator("#consentBannerDecline").click();
-    // The in-app tracker consent key is independent of the cookie-consent banner's choice.
-    expect(await page.evaluate(() => localStorage.getItem("ff-track-v1"))).toBeNull();
+  test("Google's analytics script is not requested before consent, and loads once Accept is tapped", async ({ page }) => {
+    const requests = [];
+    await page.route("**/www.googletagmanager.com/**", (route) => {
+      requests.push(route.request().url());
+      return route.fulfill({ contentType: "text/javascript", body: "" });
+    });
+    await page.goto("/");
+    const banner = page.locator("#cookieConsentBanner");
+    await expect(banner).toBeVisible();
+    // Not even a cookieless ping: nothing goes to Google before an answer.
+    expect(requests).toEqual([]);
+    await banner.locator('[data-action="accept"]').click();
+    await expect.poll(() => requests.length).toBe(1);
   });
 
-  test("on first-run onboarding, the standalone banner is suppressed and 'Enable location' grants cookie consent too", async ({ page }) => {
-    // Do NOT call skipOnboarding() — the merge only applies to the real first-visit overlay.
-    await mockCowApi(page);
-    await page.goto("/nearby");
-    await expect(page.locator("#onboardingOverlay")).toBeVisible();
-    await expect(page.locator("#cookieConsentBanner")).toHaveCount(0);
-
-    await page.locator("#onboardingOverlay .ob-location").click();
-    await expect.poll(() => page.evaluate(() => localStorage.getItem("ff-cookie-consent"))).toBe("granted");
-    // Resolved by the onboarding tap, not by a banner that appears afterward.
-    await expect(page.locator("#cookieConsentBanner")).toHaveCount(0);
-  });
-
-  test("on first-run onboarding, 'Skip for now' declines cookie consent too with no banner afterward", async ({ page }) => {
-    await mockCowApi(page);
-    await page.goto("/nearby");
-    await expect(page.locator("#onboardingOverlay")).toBeVisible();
-
-    await page.locator("#onboardingOverlay .ob-location-skip").click();
-    await expect.poll(() => page.evaluate(() => localStorage.getItem("ff-cookie-consent"))).toBe("denied");
-    await expect(page.locator("#cookieConsentBanner")).toHaveCount(0);
-  });
-
-  test.describe("landing-page arrival (merged location + cookie banner)", () => {
-    // Do NOT call skipOnboarding() — isLandingPageArrival() already skips onboarding on its own
-    // (js/app.js), and these tests are about what replaces it there: cookie consent is still
-    // undecided (this file's own storageState), same as a genuine first visit.
-
-    test("shows a non-blocking banner, not the standalone cookie banner, and the map reveals immediately behind it", async ({ page }) => {
-      await denyGeolocationUnlessGranted(page);
-      await mockCowApi(page);
-      await page.goto("/nearby/filter?show=pubs");
-
-      const banner = page.locator("#consentBanner");
-      await expect(banner).toBeVisible();
-      await expect(page.locator("#cookieConsentBanner")).toHaveCount(0);
-      await expect(banner).toContainText("cookies");
-      await expectOakLogo(page, banner.locator("img.consent-banner-logo"));
-
-      // Unlike #locationGate (a blocking, opaque-background modal elsewhere in the app), this
-      // banner must not hold up the map reveal -- boot() falls straight through to the
-      // landing page's own no-location view behind it.
-      await expect(page.locator("#loadingOverlay")).toBeHidden({ timeout: 30_000 });
-      await expect(banner).toBeVisible();
+  test("declining removes Google Analytics cookies already on the device, and never loads Google's script", async ({ page, context }) => {
+    const requests = [];
+    await page.route("**/www.googletagmanager.com/**", (route) => {
+      requests.push(route.request().url());
+      return route.fulfill({ contentType: "text/javascript", body: "" });
     });
-
-    test.describe("geolocation granted", () => {
-      // Grants the browser permission itself (not just cookie consent) so tapping Enable runs
-      // the whole merged flow to a real success via locateUser() -- the happy-path case this
-      // banner is meant for.
-      test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] });
-
-      test("Enable grants cookie consent and applies a real location fix live", async ({ page }) => {
-        await mockCowApi(page);
-        await page.goto("/nearby/filter?show=pubs");
-
-        const banner = page.locator("#consentBanner");
-        await expect(banner).toBeVisible();
-
-        await page.locator("#consentBannerAccept").click();
-        await expect.poll(() => page.evaluate(() => localStorage.getItem("ff-cookie-consent"))).toBe("granted");
-        await expect(banner).toBeHidden();
-        // Resolved by the banner's own tap, not by a standalone banner appearing afterward.
-        await expect(page.locator("#cookieConsentBanner")).toHaveCount(0);
-
-        await expect.poll(() => page.evaluate(() => state.userLocation && !state.userLocation.isDefault)).toBe(true);
-      });
-    });
-
-    test("'Maybe later' declines cookie consent too, with no banner afterward", async ({ page }) => {
-      await denyGeolocationUnlessGranted(page);
-      await mockCowApi(page);
-      await page.goto("/nearby/filter?show=pubs");
-
-      const banner = page.locator("#consentBanner");
-      await expect(banner).toBeVisible();
-
-      await page.locator("#consentBannerDecline").click();
-      await expect.poll(() => page.evaluate(() => localStorage.getItem("ff-cookie-consent"))).toBe("denied");
-      await expect(banner).toBeHidden();
-      // revealNoRealLocation's own separate "get a more custom experience" invite banner is
-      // suppressed here (locationAlreadyAsked), same as a declined onboarding location step --
-      // this banner was already the one ask, so nothing else should draw in its place.
-      await expect(page.locator("#locationInviteBanner")).toBeHidden();
-      await expect(page.locator("#cookieConsentBanner")).toHaveCount(0);
-    });
-
-    test("a repeat landing-page visit with consent already settled skips the banner", async ({ page }) => {
-      await page.addInitScript(() => localStorage.setItem("ff-cookie-consent", "granted"));
-      await denyGeolocationUnlessGranted(page);
-      await mockCowApi(page);
-      await page.goto("/nearby/filter?show=pubs");
-      await page.waitForFunction(
-        () => document.getElementById("loadingOverlay")?.hidden === true,
-        { timeout: 30_000 }
-      );
-      // Consent was already decided, so this falls through to the ordinary immediate-fire
-      // location request instead -- no banner tap needed, and no cookie banner either since
-      // consent is already stored.
-      await expect(page.locator("#consentBanner")).toBeHidden();
-      await expect(page.locator("#cookieConsentBanner")).toHaveCount(0);
-    });
+    await page.goto("/");
+    await page.evaluate(() => { document.cookie = "_ga=GA1.1.123.456; path=/"; document.cookie = "_ga_M9NL06G2JB=GS1.1; path=/"; });
+    await page.locator('#cookieConsentBanner [data-action="decline"]').click();
+    const names = (await context.cookies()).map((cookie) => cookie.name);
+    expect(names.filter((name) => name.startsWith("_ga"))).toEqual([]);
+    expect(requests).toEqual([]);
   });
 });
+

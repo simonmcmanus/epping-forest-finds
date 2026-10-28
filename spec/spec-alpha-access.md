@@ -21,6 +21,10 @@ shared secret is used by everyone, and it is expected — welcomed — that alph
 users pass the link on. That decision makes per-person tokens, revocation lists
 and an invite-to-signup mapping unnecessary, and none of them are built.
 
+The native apps (`spec-native.md`) carry the app inside the binary, so the gate
+does not apply to them; while the alpha is closed they are distributed only
+through TestFlight and Play internal testing.
+
 Two consequences follow from that and are accepted rather than mitigated:
 
 - **Rotating the secret does not evict anyone.** A user who has already loaded

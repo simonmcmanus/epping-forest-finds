@@ -33,12 +33,40 @@ function hasTrackingConsent() {
   }
 }
 
-// Consent is implicit: tapping whichever "Enable location" button is on screen (the
-// location gate or the onboarding location step) both grants consent and starts the
-// location request — see the shared .privacy-note text next to each of those buttons.
-function ensureTrackingConsent() {
-  setTrackingConsent(true);
-  return true;
+// Usage analytics is one consent, asked on its own and never bundled with a feature permission:
+// the anonymous usage events below (positions while the app is open, navigation, taps) and the
+// Google Analytics cookies cookie-consent.js controls. Location is a separate question asked in
+// context (spec.md "Permissions and consent"). Stored "1" given, "0" declined, absent never asked.
+function analyticsChoice() {
+  try {
+    const stored = localStorage.getItem(TRACKER_CONSENT_KEY);
+    if (stored === "1") return "granted";
+    if (stored === "0") return "denied";
+    // Before the two were one question, a refusal could only be recorded as the cookie half:
+    // honour it rather than ask the same person again.
+    if (localStorage.getItem("ff-cookie-consent") === "denied") return "denied";
+  } catch {}
+  return "undecided";
+}
+
+// The device id the usage data was sent under, for an access or erasure request (terms.html § 7),
+// or null when there is none: it only ever exists while usage analytics is on.
+function trackerExistingUserId() {
+  try {
+    return localStorage.getItem(TRACKER_UID_KEY);
+  } catch {
+    return null;
+  }
+}
+
+// Sets both halves together, so Settings and every ask stay one decision.
+function setAnalyticsConsent(granted) {
+  setTrackingConsent(granted);
+  if (typeof window !== "undefined" && window.ForestFindsCookieConsent) {
+    window.ForestFindsCookieConsent.set(granted);
+  } else {
+    try { localStorage.setItem("ff-cookie-consent", granted ? "granted" : "denied"); } catch {}
+  }
 }
 
 function setTrackingConsent(value) {
@@ -46,10 +74,12 @@ function setTrackingConsent(value) {
     if (value) {
       localStorage.setItem(TRACKER_CONSENT_KEY, "1");
     } else {
-      localStorage.removeItem(TRACKER_CONSENT_KEY);
+      localStorage.setItem(TRACKER_CONSENT_KEY, "0");
       // Events wait in the queue for up to a few minutes (batching, below); withdrawing consent
-      // discards them rather than letting the next flush send them.
+      // discards them rather than letting the next flush send them, and the device id goes too:
+      // nothing collected for analytics stays on the device once analytics is refused.
       localStorage.removeItem(TRACKER_QUEUE_KEY);
+      localStorage.removeItem(TRACKER_UID_KEY);
     }
   } catch {}
 }
@@ -129,7 +159,8 @@ async function trackerFlushQueue() {
       retry = true;
     }
     if (retry) {
-      trackerWriteQueue([...batch, ...trackerReadQueue()]);
+      // Consent can be withdrawn while this request is in flight: the batch then goes, not back.
+      if (hasTrackingConsent()) trackerWriteQueue([...batch, ...trackerReadQueue()]);
       break;
     }
   }
@@ -141,8 +172,11 @@ async function trackerFlushQueue() {
   }
 }
 
+// Nothing about an event is stored on the device without consent, the device id included: it is
+// created here, after the check, never while the event is being built.
 function trackerSendEvent(event) {
   if (!hasTrackingConsent()) return;
+  event.uid = trackerGetOrCreateUserId();
   const queued = trackerEnqueueEvent(event);
   if (queued >= TRACKER_FLUSH_AT && navigator.onLine) trackerFlushQueue();
 }
@@ -169,7 +203,6 @@ let _trackerInterval = null;
 function trackLocation(lat, lng, heading) {
   trackerSendEvent({
     type: "location",
-    uid: trackerGetOrCreateUserId(),
     ts: new Date().toISOString(),
     lat,
     lng,
@@ -287,7 +320,6 @@ function trackClick(itemType, item, userLat, userLng, source = "map") {
   const target = trackerItemLatLng(item);
   trackerSendEvent({
     type: "click",
-    uid: trackerGetOrCreateUserId(),
     ts: new Date().toISOString(),
     userLat: userLat ?? null,
     userLng: userLng ?? null,

@@ -86,6 +86,9 @@ module.exports = defineConfig({
         origin: baseURL,
         localStorage: [
           { name: "ff-cookie-consent", value: "granted" },
+          // Usage analytics answered (declined): its in-map card stays out of every screen and no
+          // usage events are sent from tests. Specs about that question override this.
+          { name: "ff-track-v1", value: "0" },
           { name: "ff-early-testing-banner-v1", value: "1" },
         ],
       }],
