@@ -58,6 +58,87 @@ test.describe("Settings screen", () => {
     await expect(page.locator("#settingsWalkMinsFloorNote")).toBeHidden();
   });
 
+  test.describe("3D map", () => {
+    test.use({ geolocation: { latitude: 51.6538, longitude: 0.0400, accuracy: 10 }, permissions: ["geolocation"] });
+
+    // Pitch the phone the way the orientation sensor does, then let the smoothing loop paint.
+    async function pitchPhone(page, beta) {
+      return page.evaluate(async (b) => {
+        const event = new Event("deviceorientation");
+        event.alpha = null;
+        event.beta = b;
+        event.gamma = 0;
+        window.dispatchEvent(event);
+        for (let frame = 0; frame < 18; frame += 1) {
+          await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+        }
+        return state.renderedTiltRotateXDeg;
+      }, beta);
+    }
+
+    test("is not offered on a device without a motion sensor, and appears once one reports a tilt", async ({ page }) => {
+      const toggle = page.getByRole("checkbox", { name: /3D map/ });
+      await expect(toggle, "a laptop never reports a tilt, so there is nothing to switch on").toBeHidden();
+      await pitchPhone(page, 20);
+      await expect(toggle).toBeVisible();
+      await expect(page.getByRole("img", { name: /map tilted in 3D/ })).toBeVisible();
+    });
+
+    test("with 3D off, the map still turns with the phone so the radar keeps pointing ahead", async ({ page }) => {
+      // Rotation the user actually sees: the angle the map was last drawn at, plus the CSS
+      // spin applied on top of that bitmap between redraws.
+      const paintedRotation = () => page.evaluate(() => {
+        const drawn = Number.isFinite(state.renderedNavigationHeading) ? -state.renderedNavigationHeading : 0;
+        const css = /rotate\((-?[\d.]+)deg\)/.exec(els.canvas.style.transform || "");
+        return normalizeDegrees(drawn + (css ? Number(css[1]) : 0));
+      });
+      // Back on Nearby with the map idle -- its last draw happened before the first compass
+      // reading, as on a phone that has only just been picked up.
+      await page.click("#nearbyToggle");
+      await waitForUiToSettle(page);
+      await page.waitForFunction(() => {
+        window.__idleFrames = state.animationFrame ? 0 : (window.__idleFrames || 0) + 1;
+        return window.__idleFrames >= 90;
+      }, null, { polling: "raf" });
+      await page.evaluate(async () => {
+        const face = async (alpha) => {
+          for (let i = 0; i < 40; i += 1) {
+            window.dispatchEvent(new DeviceOrientationEvent("deviceorientationabsolute", {
+              alpha, beta: 50, gamma: 0, absolute: true,
+            })); // phone held up
+            await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+          }
+        };
+        // The first reading faces north, so heading-up switches on without the camera fit
+        // changing -- nothing else asks for a redraw -- and only then does the walker turn.
+        await face(0);
+        await face(270); // facing east
+      });
+      expect(await page.evaluate(() => tiltActive()), "3D is off").toBe(false);
+      await expect.poll(async () => {
+        const deg = await paintedRotation();
+        return Math.round(Math.abs(((deg - 270) + 540) % 360 - 180)); // distance from -90 (=270)
+      }, { message: "facing east turns the map a quarter-turn anticlockwise" }).toBeLessThan(5);
+    });
+
+    test("is off by default, so lifting the phone keeps the map flat until it is switched on", async ({ page }) => {
+      const toggle = page.getByRole("checkbox", { name: /3D map/ });
+      expect(await pitchPhone(page, 55), "the map stays flat while 3D is off").toBe(0);
+      await expect(toggle).not.toBeChecked();
+
+      await toggle.check();
+      expect(await pitchPhone(page, 60), "the map tilts once 3D is on").toBeGreaterThan(0);
+
+      await toggle.uncheck();
+      await page.waitForFunction(() => state.renderedTiltRotateXDeg === 0);
+
+      await toggle.check();
+      await page.reload();
+      await page.click("#settingsToggle");
+      await expect(page.getByRole("checkbox", { name: /3D map/ }), "the choice is remembered").toBeChecked();
+    });
+  });
+
   test.describe("With a find closer than a minute's walk", () => {
     test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ["geolocation"] });
 

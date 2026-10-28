@@ -61,6 +61,8 @@ test.describe("3D tilt view", () => {
 
   test.beforeEach(async ({ page }) => {
     await skipOnboarding(page);
+    // 3D is off until switched on in Settings; this whole file is about it being on.
+    await page.addInitScript(() => localStorage.setItem("ff-map-3d-v1", "1"));
     await mockCowApi(page);
     await gotoAndWaitForMap(page);
     await page.evaluate(() => {
