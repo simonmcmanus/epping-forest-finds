@@ -4,18 +4,13 @@
   top: calc(14px + var(--nav-bar-h) + 10px);
   right: 14px;
   width: min(390px, calc(100vw - 28px));
+  height: calc(100% - 28px - var(--nav-bar-h) - 10px);
   max-height: calc(100% - 28px - var(--nav-bar-h) - 10px);
   border-radius: 8px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  transition: max-height 180ms ease-out;
-}
-
-.inspector.is-dragging {
-  /* Mobile's sheet now animates `height`, not `max-height` (css/map-ui.css) -- snap both so a
-     live drag never fights a queued transition on either property. */
-  transition: max-height 0s, height 0s;
+  transition: none;
 }
 
 /* The Nearby list's own "requesting your location" state (showNearbyLocatingState, js/inspector.js):
@@ -50,37 +45,10 @@
   }
 }
 
-.inspector-drag-handle {
-  display: none;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 20px;
-  cursor: grab;
-  touch-action: none;
-  z-index: 10;
-  justify-content: center;
-  align-items: center;
-  padding-top: 4px;
-}
-
-.inspector-drag-handle::before {
-  content: '';
-  display: block;
-  width: 36px;
-  height: 4px;
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 2px;
-}
-
-.inspector-drag-handle.dragging {
-  cursor: grabbing;
-}
-
 .inspector.minimized {
   top: auto;
   bottom: 14px;
+  height: auto;
   max-height: none;
   overflow: hidden;
 }

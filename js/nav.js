@@ -121,20 +121,6 @@ function secondaryScreenActive() {
   );
 }
 
-const INSPECTOR_NAVIGATION_ARRIVAL_METRES = 15;
-
-function updateInspectorNavigationHeight() {
-  if (!els.inspector) return;
-  const target = typeof selectedCompassTarget === "function" ? selectedCompassTarget() : null;
-  const navigating = Boolean(target);
-  const metres = navigating && state.userLocation && typeof distanceFromUser === "function"
-    ? distanceFromUser(target)
-    : null;
-  const arrived = navigating && Number.isFinite(metres) && metres <= INSPECTOR_NAVIGATION_ARRIVAL_METRES;
-  els.inspector.classList.toggle("inspector-navigation", navigating);
-  els.inspector.classList.toggle("inspector-navigation-arrived", arrived);
-}
-
 // state.selected is truthy for the Settings/Report pseudo-selections (type "settings"/
 // "report") as well as for a real tree/landmark/etc selection, but overview-only rendering
 // (the walking-radius ring, the browse-anchor marker and its cone, the off-ring user pointer)
@@ -816,7 +802,6 @@ function setupInteractions() {
   setupResizeHandler();
   setupReportKeyboardAvoidance();
   setupInspectorHandlers();
-  setupInspectorDragResize();
   setupFilterPanelHandlers();
   setupSearchAndNavHandlers();
   setupMapCanvasHandlers();
@@ -829,12 +814,8 @@ function setupInteractions() {
 // input that can summon a keyboard: the Report screen and the Search screen (Settings uses a
 // <select>, Filter has no text input).
 //
-// Report and Search only share the shift, not the rest: Report also grows the sheet to (almost)
-// fill the space above the keyboard, since the form has nothing else to show and benefits from
-// the room. Search does not -- its sheet keeps its normal size so the map stays visible behind
-// it, which is also why the nav bar (separate from the sheet, see app.html) is left alone rather
-// than made to fight the keyboard for space; it simply goes under the keyboard, the same as any
-// bottom tab bar does while a field above it is focused.
+// Report and Search only shift the same fixed-height sheet. The panel never changes height while
+// typing, so changing screens and opening a keyboard cannot change the map's available area.
 const REPORT_KEYBOARD_INSET_MIN_PX = 40; // ignore sub-keyboard-sized viewport jitter (e.g. browser chrome show/hide)
 
 function setupReportKeyboardAvoidance() {
@@ -845,8 +826,7 @@ function setupReportKeyboardAvoidance() {
 
 function handleReportViewportChange() {
   if (!els.inspector) return;
-  const isReport = state.selected?.type === "report" || state.selected?.type === "community";
-  if (!isReport && !state.searchScreenOpen) {
+  if (!(state.selected?.type === "report" || state.selected?.type === "community") && !state.searchScreenOpen) {
     clearReportKeyboardInset();
     return;
   }
@@ -858,12 +838,6 @@ function handleReportViewportChange() {
   }
   els.inspector.style.setProperty("--keyboard-inset", `${inset}px`);
   els.inspector.classList.add("keyboard-avoiding");
-  els.inspector.classList.toggle("keyboard-avoiding-expand", isReport);
-  // In the cramped landscape bottom-sheet layout, Report's expanded sheet leaves the nav bar
-  // nothing to sit in front of -- hidden there the same way it always was; Search never expands,
-  // so the nav bar (now its own fixed bar, see app.html) is simply left in place for it, and the
-  // keyboard is free to cover it the way any bottom tab bar gets covered while typing.
-  if (els.inspectorActions) els.inspectorActions.classList.toggle("keyboard-avoiding-hide", isReport);
   const detailsInput = document.getElementById("reportDetails");
   if (detailsInput && document.activeElement === detailsInput) {
     detailsInput.scrollIntoView({ block: "nearest" });
@@ -871,9 +845,8 @@ function handleReportViewportChange() {
 }
 
 function clearReportKeyboardInset() {
-  if (els.inspectorActions) els.inspectorActions.classList.remove("keyboard-avoiding-hide");
   if (!els.inspector || !els.inspector.classList.contains("keyboard-avoiding")) return;
-  els.inspector.classList.remove("keyboard-avoiding", "keyboard-avoiding-expand");
+  els.inspector.classList.remove("keyboard-avoiding");
   els.inspector.style.removeProperty("--keyboard-inset");
 }
 
@@ -2260,113 +2233,6 @@ function setInspectorMinimized(minimized) {
     requestDraw();
   }
   if (typeof updateCompassOverlay === "function") updateCompassOverlay();
-}
-
-function setupInspectorDragResize() {
-  const dragHandle = document.getElementById("inspectorDragHandle");
-  if (!dragHandle) return;
-  let dragRecenterFrame = null;
-
-  function isMobileLayout() {
-    return window.innerWidth <= 850;
-  }
-
-  function setInspectorHeight(percent) {
-    if (!isMobileLayout()) return;
-    const clamped = Math.max(20, Math.min(85, percent));
-    state.inspectorHeightPercent = clamped;
-    els.inspector.style.setProperty("--inspector-height", `${clamped}%`);
-  }
-
-  // options.animate is false while the resize drag is still live, so every intermediate height
-  // re-frames the camera instantly, and true once on release for a single settling motion --
-  // the same split the walking-radius slider and pinch gesture use. Requesting a fresh 180ms
-  // animation on every frame of the drag instead (what this used to do, with the
-  // stopViewportAnimation below cancelling the previous one each time) meant the camera never
-  // got more than a few milliseconds into any ease before being restarted: it barely moved
-  // while the sheet was being dragged, then lurched when the finger came off.
-  function recentMapForInspectorChange(options = {}) {
-    // Stop any existing viewport animation before starting a new one to prevent conflicts
-    stopViewportAnimation();
-
-    const animate = Boolean(options.animate);
-    const durationMs = options.durationMs || (animate ? 220 : 0);
-    if (!state.userLocation) return;
-    if (state.selected && selectedCompassTarget()) {
-      centerViewportOnPointsKeepScale(
-        [state.userLocation.point, selectedCompassTarget().point],
-        { animate, durationMs, focusVisibleArea: true, assumeInspectorOpen: true }
-      );
-    } else if (isOverviewScreenActive()) {
-      ensureOverviewTargetsVisible({ animate, durationMs });
-    }
-  }
-
-  dragHandle.addEventListener("pointerdown", (event) => {
-    if (!isMobileLayout()) return;
-    event.preventDefault();
-    capturePointerSafely(dragHandle, event.pointerId);
-    state.inspectorDragging = true;
-    els.inspector.classList.add("is-dragging");
-    state.inspectorDragStart = {
-      y: event.clientY,
-      // 48: the CSS fallback (css/map-ui.css, var(--inspector-height, 48%)) for a sheet that
-      // hasn't been manually resized yet.
-      heightPercent: state.inspectorHeightPercent || 48,
-    };
-    dragHandle.classList.add("dragging");
-  });
-
-  dragHandle.addEventListener("pointermove", (event) => {
-    if (!state.inspectorDragging) return;
-    const deltaY = state.inspectorDragStart.y - event.clientY;
-    const viewportHeight = window.innerHeight;
-    const deltaPercent = (deltaY / viewportHeight) * 100;
-    const newPercent = state.inspectorDragStart.heightPercent + deltaPercent;
-    setInspectorHeight(newPercent);
-    if (dragRecenterFrame == null) {
-      dragRecenterFrame = requestAnimationFrame(() => {
-        dragRecenterFrame = null;
-        recentMapForInspectorChange({ animate: false });
-      });
-    }
-  });
-
-  dragHandle.addEventListener("pointerup", (event) => {
-    if (!state.inspectorDragging) return;
-    state.inspectorDragging = false;
-    els.inspector.classList.remove("is-dragging");
-    dragHandle.classList.remove("dragging");
-    releasePointerSafely(dragHandle, event.pointerId);
-    if (dragRecenterFrame != null) {
-      cancelAnimationFrame(dragRecenterFrame);
-      dragRecenterFrame = null;
-    }
-    recentMapForInspectorChange({ animate: true, durationMs: 240 });
-  });
-
-  // An interrupted resize (system gesture, backgrounding) has to settle exactly like a normal
-  // release -- otherwise the queued per-frame recentre below fires after the drag is over and
-  // the map is left mid-resize with no final easing motion.
-  dragHandle.addEventListener("pointercancel", (event) => {
-    if (!state.inspectorDragging) return;
-    state.inspectorDragging = false;
-    els.inspector.classList.remove("is-dragging");
-    dragHandle.classList.remove("dragging");
-    releasePointerSafely(dragHandle, event.pointerId);
-    if (dragRecenterFrame != null) {
-      cancelAnimationFrame(dragRecenterFrame);
-      dragRecenterFrame = null;
-    }
-    recentMapForInspectorChange({ animate: true, durationMs: 240 });
-  });
-
-  window.addEventListener("resize", () => {
-    if (!isMobileLayout() && state.inspectorHeightPercent !== null) {
-      els.inspector.style.removeProperty("--inspector-height");
-      state.inspectorHeightPercent = null;
-    }
-  });
 }
 
 function goToInitialView(updateHash = true) {
