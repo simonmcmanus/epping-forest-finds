@@ -187,8 +187,8 @@ jobs:
     # A pixel diff is published for review, not committed into the PR branch. The trusted
     # workflow_run publisher consumes the uploaded renders and updates the PR description. The
     # main-branch snapshot workflow regenerates canonical baselines after the source change merges
-    # and opens one dedicated baseline PR, so binary baseline files cannot conflict across feature
-    # branches.
+    # and commits them directly to main through the same protected-branch App path as cache bumps,
+    # so binary baseline files cannot conflict across feature branches.
     name: Visual snapshots (desktop + mobile)
     runs-on: ubuntu-latest
     container:
