@@ -259,7 +259,10 @@ globalThis.__forestFindsTest = {
   formatWalkTime,
   overviewItemsForActiveFilter,
   overviewNearestHtml,
-  categoryLandingLinksHtml,
+  filterRailHtml,
+  railSelection,
+  railPillKeys,
+  toggleRailFilter,
   navigateInApp,
   overviewHeadingText,
   landingPageCategoryLabel,
@@ -461,6 +464,7 @@ globalThis.__forestFindsTest = {
   placeLabelFilterKey,
   resolvePlaceKind,
   FILTER_SUBFILTERS_BY_KEY,
+  FILTER_SUBFILTERS,
   nearestTreeTo,
   nearestCowTo,
   nearbySectionsHtml,
@@ -2030,32 +2034,6 @@ test("isLandingPageArrival also recognises a /find/<slug>/ business page as a la
   app.location.search = "";
 });
 
-test("categoryLandingLinksHtml labels the category navigation and marks the current subfilter", () => {
-  app.location.pathname = "/nearby/pubs/";
-  const html = app.categoryLandingLinksHtml();
-  assert.match(html, /<nav class="nearby-category-nav" aria-label="Browse nearby categories">/);
-  assert.match(html, /Browse nearby categories/);
-  assert.match(html, /class="detail-map-link nearby-link nearby-link--current" href="\/nearby\/pubs\/" aria-current="page"[\s\S]*?Pubs &amp; bars<\/a>/);
-  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\/food\/">[\s\S]*?Food<\/a>/);
-  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\?filters=false">[\s\S]*?All nearby<\/a>/);
-  app.location.pathname = "/";
-});
-
-test("categoryLandingLinksHtml marks a group page's current category and links back to the full Nearby list", () => {
-  app.location.pathname = "/nearby/food/";
-  const html = app.categoryLandingLinksHtml();
-  assert.match(html, /class="detail-map-link nearby-link nearby-link--current" href="\/nearby\/food\/" aria-current="page"[\s\S]*?Food<\/a>/);
-  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\?filters=false">[\s\S]*?All nearby<\/a>/);
-  app.location.pathname = "/";
-});
-
-test("categoryLandingLinksHtml is empty on the plain Nearby screen and on /nearby/filter or /nearby/search", () => {
-  for (const pathname of ["/nearby", "/nearby/filter", "/nearby/search", "/"]) {
-    app.location.pathname = pathname;
-    assert.equal(app.categoryLandingLinksHtml(), "", `expected no breadcrumb on ${pathname}`);
-  }
-});
-
 test("overviewNearestHtml carries the labelled category navigation and results heading through every return path", () => {
   resetData(app);
   // Set directly rather than through setOverviewFilters(), whose own selectOverview()/
@@ -2065,7 +2043,7 @@ test("overviewNearestHtml carries the labelled category navigation and results h
   app.state.overviewFilters = ["pubs"];
   app.location.pathname = "/nearby/pubs/";
   app.state.userLocation = null;
-  assert.match(app.overviewNearestHtml(), /Browse nearby categories/, "no-location branch still shows the navigation label");
+  assert.match(app.overviewNearestHtml(), /<nav class="filter-rail"/, "no-location branch still shows the filter rail");
   assert.match(app.overviewNearestHtml(), /<h3 id="nearbyResultsHeading">Pubs &amp; bars nearby<\/h3>/, "no-location branch names the results");
 
   app.state.userLocation = makePoint(app, 51.9, 0.9); // far from any fixture data -- empty list
@@ -2074,40 +2052,62 @@ test("overviewNearestHtml carries the labelled category navigation and results h
   app.location.pathname = "/";
 });
 
-test("categoryLandingLinksHtml adds a pill per member on a group page (\"Browse by type\"), excluding cows from that row -- it still gets its own \"see also\" pill, matching the static generator's own page.members set", () => {
-  app.location.pathname = "/nearby/nature/";
-  const html = app.categoryLandingLinksHtml();
-  assert.match(html, /href="\/nearby\/trees\/"[\s\S]*?Trees/);
-  assert.match(html, /href="\/nearby\/ponds-streams\/"[\s\S]*?Ponds/);
-  // Cows is live-tracked with no fixed count, so it never gets a page through the ordinary
-  // inventory-driven category path (COW_KEY, scripts/report/map-inventory.js) and so is never one
-  // of the group's own "members" -- but it still appears once, via the see-also row below, not
-  // the type row.
-  assert.match(html, /href="\/nearby\/cows\/"[\s\S]*?Cows/);
-  app.location.pathname = "/";
+test("the filter rail marks the chosen categories as pressed and shows them and their groupmates in the row without duplicates", () => {
+  resetData(app);
+  app.state.overviewFilters = ["pubs"];
+  const html = app.filterRailHtml();
+  assert.match(html, /<nav class="filter-rail" aria-label="Filter nearby places">/);
+  assert.match(html, /class="rail-pill is-on" type="button" data-rail-key="pubs" aria-pressed="true"/);
+  assert.match(html, /data-rail-key="cafes" aria-pressed="false"/, "a groupmate of the chosen category is offered");
+  const keys = [...html.matchAll(/data-rail-key="([a-z_]+)"/g)].map((m) => m[1]);
+  assert.equal(new Set(keys).size, keys.length, "no category appears twice");
+  assert.ok(keys.includes("pubs"), "the chosen category is in the row");
+  assert.match(html, /href="\/nearby\/filter"[^>]*aria-label="Filters"/, "the right-hand button opens the Filters screen");
+  app.state.overviewFilters = [];
 });
 
-test("categoryLandingLinksHtml adds \"see also\" trees/cows pills to every landing page, marking the current page and never doubling up with the nature group's own type pill", () => {
-  app.location.pathname = "/nearby/pubs/";
-  const pubsHtml = app.categoryLandingLinksHtml();
-  assert.match(pubsHtml, /href="\/nearby\/trees\/"[\s\S]*?Trees/);
-  assert.match(pubsHtml, /href="\/nearby\/cows\/"[\s\S]*?Cows/);
+test("the filter rail keeps every pill where it was when another category is added, and appends only new related ones", () => {
+  resetData(app);
+  app.state.overviewFilters = ["trees"];
+  const before = app.railPillKeys().slice();
+  app.state.overviewFilters = ["trees", "ponds_streams"];
+  const after = app.railPillKeys();
+  assert.equal(after.slice(0, before.length).join(), before.filter((key) => after.includes(key)).join(), "existing pills keep their order");
+  assert.ok(after.includes("ponds_streams"));
+  app.state.overviewFilters = [];
+});
 
-  app.location.pathname = "/nearby/trees/";
-  const treesHtml = app.categoryLandingLinksHtml();
-  assert.match(treesHtml, /nearby-link--current[^>]*href="\/nearby\/trees\/"|href="\/nearby\/trees\/"[^>]*nearby-link--current/, "the trees page marks itself as current");
-  assert.match(treesHtml, /href="\/nearby\/cows\/"[\s\S]*?Cows/);
+test("a filter set covering every category is the show-all state: nothing is pressed and show-all is disabled", () => {
+  resetData(app);
+  app.state.overviewFilters = app.FILTER_SUBFILTERS.map((sub) => sub.key);
+  assert.equal(app.railSelection().length, 0);
+  const html = app.filterRailHtml();
+  assert.doesNotMatch(html, /aria-pressed="true"/);
+  assert.match(html, /data-action="rail-show-all"[^>]*disabled/);
+  app.state.overviewFilters = [];
+});
 
-  app.location.pathname = "/nearby/cows/";
-  const cowsHtml = app.categoryLandingLinksHtml();
-  assert.match(cowsHtml, /href="\/nearby\/trees\/"[\s\S]*?Trees/);
-  assert.match(cowsHtml, /nearby-link--current[^>]*href="\/nearby\/cows\/"|href="\/nearby\/cows\/"[^>]*nearby-link--current/, "the cows page marks itself as current");
-
-  app.location.pathname = "/nearby/nature/";
-  const natureHtml = app.categoryLandingLinksHtml();
-  assert.equal((natureHtml.match(/href="\/nearby\/trees\/"/g) || []).length, 1, "the nature group's own \"Trees\" type pill is the only trees link -- the see-also row doesn't repeat it");
-
+test("tapping a rail pill narrows to it, a second pill adds to it, and un-pressing the last returns to show-all, none of it saved", () => {
+  resetData(app);
+  app.location.pathname = "/nearby";
+  app.location.search = "";
+  app.state.overviewFilters = app.FILTER_SUBFILTERS.map((sub) => sub.key);
+  app.toggleRailFilter("trees");
+  assert.equal(app.state.overviewFilters.join(), "trees");
+  assert.equal(app.state.overviewFiltersEphemeral, true, "a rail tap is a lens, not the reader's saved filters");
+  assert.equal(app.location.pathname, "/nearby/trees", "one category is its own landing path");
+  app.toggleRailFilter("ponds_streams");
+  assert.equal(app.state.overviewFilters.join(), "trees,ponds_streams");
+  assert.equal(app.location.pathname, "/nearby");
+  assert.equal(app.location.search, "?show=trees,ponds_streams");
+  app.toggleRailFilter("trees");
+  app.toggleRailFilter("ponds_streams");
+  assert.equal(app.railSelection().length, 0, "nothing chosen means show-all");
+  assert.equal(app.location.search, "?filters=false");
+  app.state.overviewFilters = [];
+  app.state.overviewFiltersEphemeral = false;
   app.location.pathname = "/";
+  app.location.search = "";
 });
 
 test("landingPageCategoryLabel names the current /nearby/<slug> landing's own category, and selectOverview() uses it to head the screen \"Nearby <Category>\" instead of the generic \"Nearby\"", () => {

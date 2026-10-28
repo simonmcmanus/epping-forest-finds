@@ -1196,7 +1196,8 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   color: var(--tree);
 }
 
-/* The category navigation chips at the top of a /nearby/<slug> page carry compact icons and a
+/* The static /nearby/<slug>/ pages (generate-find-pages.js) still render these category navigation
+   chips for crawlers and no-JS visitors. They carry compact icons and a
    smaller, softer rectangle so a row of them reads as navigation rather than a run of oversized
    pills. */
 .related-chips .app-icon {
@@ -1229,6 +1230,105 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
 
 .nearby-category-nav .detail-top-row {
   margin-bottom: 0;
+}
+
+/* Nearby's filter rail: show-all on the left, a row of toggle pills that scrolls sideways, and the
+   Filters screen link on the right. Sticky so the reader can keep tapping while the list scrolls. */
+.filter-rail {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 -4px 12px;
+  padding: 4px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  background: var(--panel);
+}
+
+.rail-pills {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+  min-width: 0;
+  padding: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 6px, #000 calc(100% - 14px), transparent);
+  mask-image: linear-gradient(90deg, transparent 0, #000 6px, #000 calc(100% - 14px), transparent);
+}
+
+.rail-pills::-webkit-scrollbar {
+  display: none;
+}
+
+.rail-pill,
+.rail-edge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  border: 1px solid var(--forest);
+  background: #fff;
+  color: var(--tree);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 120ms ease, background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.rail-pill {
+  padding: 0 12px 0 8px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+.rail-edge {
+  width: 40px;
+  padding: 0;
+  border-radius: 50%;
+}
+
+.rail-pill .app-icon,
+.rail-edge .app-icon {
+  width: 1.6em;
+  height: 1.6em;
+}
+
+.rail-pill:active,
+.rail-edge:active {
+  transform: scale(0.9);
+}
+
+.rail-pill.is-on {
+  border-color: var(--tree);
+  background: var(--tree);
+  color: #fff;
+}
+
+.rail-edge:disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+@media (hover: hover) {
+  .rail-pill:not(.is-on):hover,
+  .rail-edge:not(:disabled):hover {
+    background: #eef6f0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail-pill,
+  .rail-edge {
+    transition: none;
+  }
 }
 
 .detail-map-link.nearby-link--current {

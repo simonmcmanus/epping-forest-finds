@@ -1364,29 +1364,45 @@ The full routing model — the URL for each screen, history entries, back/forwar
 - URL writes are suppressed while a route is being applied and throughout boot (`routeApplyDepth`, `routerBooting`), so the URL never overwrites the entry it is being read from
 - A `/nearby/<slug>` category page (`spec-marketing.md` § "Category pages") IS the app — the generator templates it directly off `app.html` — so the URL path itself names the category (a subfilter's own, or a whole group's) to pre-filter Nearby to. `applyShowFilterFromQuery()`, called once right after data finishes loading in `boot()`, first tries `filterKeysFromFindPath(location.pathname)` (reversing the slug's hyphen back to the filter key's underscore; every member key at once for a group slug) and falls back to the `?show=<filterKey>,<filterKey>` query param only if the path didn't match — a leftover entry point from before category pages became real app instances, kept for any older link still using it. `<slug>` of `filter` or `search` never matches a category (those two are the Filters/Search screens' own paths), so this is a no-op there. Either way it calls the existing `setOverviewFilters(keys, { persist: false, render })` for every key recognised in `ALL_OVERVIEW_FILTER_KEYS`. An unrecognised or absent value changes nothing — this is not a hash route and carries no history entry of its own.
 - **`boot()`'s own call passes `render: false`.** `setOverviewFilters()` normally re-renders the Nearby list immediately (`selectOverview()`), which is correct for a live navigation (`applyRouteFromUrl()`, the back/forward/hand-edited-hash entry point, keeps the default `render: true`) but wrong at boot: `state.userLocation` doesn't exist yet at this point in `boot()` — the location/`applyDefaultLocation()` branch runs afterward — so an immediate render there showed `activeFiltersShowFullListWithoutLocation()`'s dataset-order, unsorted full list (not the nearest-first, radius-filtered one spec-marketing.md § "Category pages" describes), which `revealMapCenteredOnUser()`/`revealNoRealLocation()` then immediately overwrote with the real one moments later — a visible double-render on every `/nearby/<slug>` landing (reported as "the side nav loads, shows, hides, shows again"). `render: false` skips straight to `requestDraw()` and leaves the one render that follows (inside `revealMapCenteredOnUser()`/`revealNoRealLocation()`, once a real or `DEFAULT_LOCATION` origin actually exists) as the only one.
-- **Links that open a nearby view are styled as such.** Every chip in a `/nearby/<slug>/` landing's
-  top row (`categoryLandingLinksHtml`, js/app.js) and every related card in a place's Nearest and
-  Related sections (`relatedCategoryLinksHtml`, js/inspector.js) carries the `nearby-link` modifier:
-  a forest-green border and label (css/inspector.css), so they read as a move into the map rather
-  than a neutral pill. The top row's category icons (the current category, group, "All nearby",
-  and type chips) are drawn at twice the size of the inline icon used in running text
-  (`.related-chips .app-icon`), and those chips keep a 44px minimum touch target with 14px side
-  padding and a 7px icon gap so the larger icons stay readable without making the navigation feel
-  bloated. The current category uses a filled selected state and `aria-current="page"`.
-- **A `/nearby/<slug>/` landing's whole top pill row (breadcrumb, a group page's own "Browse by
-  type" members, and the "see also veteran trees/grazing cattle" pills) is reproduced live by
-  `categoryLandingLinksHtml()` (`js/app.js`), folded into `overviewNearestHtml()`'s own
-  category-navigation HTML so every one of that function's return paths carries it for free** — see
-  `spec-marketing.md` § "Category pages" for the exact chip set and dedupe rules (the nature
-  group page's own "Trees" type-chip is the only trees link there; the see-also row never repeats
-  it). A tree species breakdown was tried here first and dropped: it made no sense tied to a
-  stand-in location nobody is actually standing at, and (unlike the pill row) nothing about it
-  matched what the live Nearby list actually showed for `/nearby/trees/`/`/nearby/nature/` either
-  way — the live list there is real nearest individual trees (and, on the nature group page,
-  water too), not a species count. What actually closes that mismatch is the static generator
-  computing the *same* nearest-item list the live Nearby list does (`natureNearestListHtml`,
-  `scripts/generate-find-pages.js` — see `spec-marketing.md` § "Category pages"), not new live
-  code: the live view already produced the real list on its own.
+- **Links that open a nearby view are styled as such.** Every related card in a place's Nearest and
+  Related sections (`relatedCategoryLinksHtml`, js/inspector.js) carries the `nearby-link`
+  modifier: a forest-green border and label (css/inspector.css), so they read as a move into the
+  map rather than a neutral pill.
+- **Nearby filter rail.** The top of every Nearby view (plain `/nearby`, a `/nearby/<slug>/`
+  landing, a shared `?show=` link) is `filterRailHtml()` (js/app.js), prepended by
+  `overviewNearestHtml()` to every return path, empty states included. It replaces the old
+  `/nearby/<slug>/` breadcrumb chips and the "Show all nearby" pill.
+  - **Layout.** A sticky row: a round show-all button (disabled when nothing is narrowed), a
+    sideways-scrolling run of category pills, and a round link to the Filters screen
+    (`/nearby/filter`). Pills are `button`s with `aria-pressed`; the row is a `nav` labelled
+    "Filter nearby places".
+  - **Which pills.** Chosen categories (`railSelection()`: `state.overviewFilters`, or nothing when
+    every category is on, which is the show-all state) are pressed. With nothing chosen the row is a
+    fixed set of popular categories. With some chosen it is those, then their groupmates, then the
+    popular set, deduplicated (`railPillKeys()`).
+  - **Stable order.** A pill never moves because of a tap: the order is kept in `railOrder`, newly
+    related categories are appended, and one that is neither chosen nor related any more drops out.
+    The saved filters are the starting selection and read as pressed.
+  - **A tap is a lens, not a preference.** `toggleRailFilter()` calls
+    `setOverviewFilters(next, { persist: false, railTap: true })`: saved filters are untouched and
+    the next plain visit restores them. Un-pressing the last pill returns to show-all; the show-all
+    button applies every category.
+  - **URL.** `syncRailUrl()` replaces (never pushes) the current entry: one category is
+    `/nearby/<slug>`, several `/nearby?show=a,b`, show-all `/nearby?filters=false`
+    (`searchStringForPath()` writes that form instead of listing every key).
+  - **In place, no slide.** A tap sets `railPatchPending`; `selectOverview()` then calls
+    `patchOverviewBody()` (js/inspector.js) instead of `transitionInspectorBody()`, so the panel does
+    not slide. Existing pills keep their node and glide to new slots, new pills pop in; rows are
+    merged by place — kept rows slide to their new position, new rows step in one after another,
+    leaving rows fade out from where they were. A phone gets an 8ms vibration on a tap where
+    `navigator.vibrate` exists. With `prefers-reduced-motion`, or when the body has no rail yet, the
+    body is rebuilt the ordinary way. The Filters button is an ordinary link and still slides.
+  - **Static landings.** The server-rendered `/nearby/<slug>/` page keeps its anchor chips for
+    crawlers and no-JavaScript visitors (`spec-marketing.md` § "Category pages"); while that list
+    stays on screen, `swapStaticChipsForRail()` replaces just the chips with the rail.
+  - **SEO.** A multi-category selection is one `/nearby?show=` URL with no server-rendered page, so
+    it is not separately indexable; single-category `/nearby/<slug>/` pages stay crawlable.
+    A tap never creates a new indexable URL.
 
 ---
 

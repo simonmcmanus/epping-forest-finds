@@ -948,20 +948,14 @@ use for the homepage's counts.
   `applyRouteFromUrl()` — the same entry point the back/forward buttons and
   a hand-edited hash already use — so an intercepted link behaves exactly
   like landing on that URL any other way, just without the reload.
-- **Category/subcategory pages keep their own pill row once JS boots.** The
-  static page's whole top chip row (§6.6 — breadcrumb, a group page's own
-  "Browse by type" members, and the "see also veteran trees/grazing cattle"
-  pills) is real markup with no JS, but `selectOverview()` replaces that
-  whole static body with the live, interactive Nearby list the moment JS
-  boots — which had no chip row of its own, so a real visitor's browser
-  silently dropped it the instant the page finished loading. `categoryLandingLinksHtml()`
-  (`js/app.js`) reproduces all of it live, chip for chip, gated on the URL's
-  own path (same regex `filterKeysFromFindPath`/`isLandingPageArrival` use —
-  never a reader's own multi-filter choice from the Filters screen, which has
-  no single category to breadcrumb up from) and prepended to every one of
-  `overviewNearestHtml`'s return paths, the empty-list ones included, so it
-  survives exactly the states that most need a way out of a now-empty
-  category list. A subfilter page's sideways "More in `<group>`:
+- **Category/subcategory pages swap their chip row for the live filter rail once JS boots.**
+  The static page's top chip row (§6.6 — breadcrumb, a group page's own "Browse by type" members,
+  and the "see also veteran trees/grazing cattle" pills) is real markup with no JS, so crawlers
+  and no-JS visitors keep it. When JS boots, `swapStaticChipsForRail()` (`js/inspector.js`) replaces
+  it with the Nearby filter rail (`filterRailHtml()`, `js/app.js`; `spec-data-rendering.md`
+  "Nearby filter rail"), and every later render of the live list carries the rail on every return
+  path, the empty-list ones included, so there is always a way out of a now-empty category list.
+  A subfilter page's sideways "More in `<group>`:
   `<siblings>`" link is the one piece that stays a plain-text paragraph at
   the bottom rather than a pill — it isn't reproduced live, the same gap
   this whole bullet used to describe for everything else before the pill

@@ -107,7 +107,7 @@ module.exports = defineConfig({
       // shape it never actually sees.
       // Every app screen snapshot file must be listed here too, or its phone baseline is never
       // taken: the location-page snapshot was silently skipped on both projects for that reason.
-      testMatch: ["**/0[12345]-*.spec.js", "**/09-*.spec.js", "**/13-*.spec.js", "**/18-*.spec.js", "**/27-*.spec.js", "**/31-public-snapshots.spec.js", "**/31-location-page-snapshots.spec.js", "**/35-community-snapshots.spec.js", "**/38-screen-snapshots.spec.js"],
+      testMatch: ["**/0[12345]-*.spec.js", "**/09-*.spec.js", "**/13-*.spec.js", "**/18-*.spec.js", "**/27-*.spec.js", "**/31-public-snapshots.spec.js", "**/31-location-page-snapshots.spec.js", "**/35-community-snapshots.spec.js", "**/38-screen-snapshots.spec.js", "**/40-nearby-filter-rail.spec.js"],
     },
   ],
 
