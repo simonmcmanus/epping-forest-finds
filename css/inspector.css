@@ -1263,13 +1263,122 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
 
 /* Community design tokens: one card radius, one hairline, one elevation, and a reward gold used only for points. */
 :root {
-  --c-radius: 14px;
-  --c-radius-sm: 10px;
+  --c-radius: 16px;
+  --c-radius-sm: 12px;
   --c-hairline: 1px solid rgba(23, 34, 30, 0.1);
-  --c-lift: 0 1px 2px rgba(20, 36, 28, 0.06), 0 6px 16px rgba(20, 36, 28, 0.07);
+  --c-lift: 0 1px 2px rgba(20, 36, 28, 0.06), 0 10px 24px rgba(20, 36, 28, 0.09);
   --c-reward: #c58b00;
   --c-reward-ink: #5c4600;
   --c-reward-tint: #fbf0c8;
+}
+
+/* Shared visual polish: the inspector is the app's main reading surface, so every screen
+   should feel like the same calm, tactile object rather than a stack of unrelated panels. */
+.inspector {
+  border: 1px solid rgba(36, 72, 52, 0.14);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.965);
+  box-shadow: 0 22px 52px rgba(26, 58, 39, 0.17), 0 3px 12px rgba(26, 58, 39, 0.08);
+}
+
+.inspector-actions {
+  padding: 7px;
+  gap: 4px;
+  border: 1px solid rgba(36, 72, 52, 0.14);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.965);
+  box-shadow: 0 18px 42px rgba(26, 58, 39, 0.15), 0 3px 10px rgba(26, 58, 39, 0.08);
+}
+
+.inspector-actions > :is(button, a) {
+  border-radius: 12px;
+  transition: background 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+.inspector-actions > :is(button, a):hover {
+  background: #f2f6f1;
+  transform: translateY(-1px);
+}
+
+.inspector-actions > :is(button, a).screen-active {
+  background: linear-gradient(145deg, #fff8e7, #f7edd2);
+  color: var(--gold-ink);
+  box-shadow: inset 0 0 0 1px rgba(182, 145, 49, 0.14), 0 3px 8px rgba(132, 99, 0, 0.08);
+}
+
+.inspector-title-section {
+  padding-top: 18px;
+  padding-bottom: 14px;
+  background: linear-gradient(180deg, rgba(247, 251, 246, 0.88), rgba(255, 255, 255, 0));
+}
+
+.inspector h2 {
+  font-weight: 750;
+  letter-spacing: -0.025em;
+}
+
+.inspector .type {
+  letter-spacing: 0.01em;
+}
+
+.inspector-tools {
+  background: rgba(247, 251, 247, 0.78);
+  border-bottom-color: rgba(47, 121, 83, 0.12);
+}
+
+.search-number,
+.search-field .search-number,
+.report-input,
+.report-textarea {
+  border-color: rgba(50, 91, 67, 0.2);
+  border-radius: 12px;
+  background: #fbfdfb;
+  transition: border-color 140ms ease, box-shadow 140ms ease, background 140ms ease;
+}
+
+.search-number:focus,
+.report-input:focus,
+.report-textarea:focus {
+  border-color: rgba(47, 121, 83, 0.65);
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(47, 121, 83, 0.11);
+  outline: none;
+}
+
+.settings-form {
+  gap: 12px;
+}
+
+.settings-section {
+  gap: 9px;
+  padding: 14px;
+  border: 1px solid rgba(47, 121, 83, 0.11);
+  border-radius: 14px;
+  background: linear-gradient(145deg, rgba(248, 252, 248, 0.92), rgba(255, 255, 255, 0.96));
+}
+
+.settings-section-title {
+  color: #2d6548;
+  letter-spacing: -0.01em;
+}
+
+.settings-btn {
+  border-radius: 999px;
+  background: #fff;
+  transition: transform 140ms ease, background 140ms ease, border-color 140ms ease;
+}
+
+.settings-btn:hover {
+  background: #f3f8f3;
+  border-color: rgba(47, 121, 83, 0.42);
+  transform: translateY(-1px);
+}
+
+.report-form {
+  padding: 14px;
+  border: 1px solid rgba(47, 121, 83, 0.12);
+  border-radius: 14px;
+  background: linear-gradient(145deg, #fbfdfb, #f5faf5);
 }
 
 /* Rank medal: ring and face per rank, icon in the face. 56px. */
@@ -2144,3 +2253,153 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   }
 }
 
+/* Screen interiors: give each panel a clear rhythm and a designed empty state. */
+.inspector-body {
+  padding-bottom: 18px;
+}
+
+.search-screen {
+  gap: 14px;
+}
+
+.search-field {
+  padding: 4px;
+  border: 1px solid rgba(47, 121, 83, 0.2);
+  border-radius: 16px;
+  background: linear-gradient(145deg, #f7fbf7, #edf5ee);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 3px 10px rgba(27, 65, 43, 0.05);
+}
+
+.search-field::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  width: 20px;
+  height: 20px;
+  border: 3px solid var(--tree);
+  border-radius: 50%;
+  transform: translateY(-62%);
+  z-index: 1;
+  opacity: 0.82;
+}
+
+.search-field::after {
+  content: "";
+  position: absolute;
+  left: 30px;
+  top: calc(50% + 8px);
+  width: 13px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--tree);
+  transform: rotate(45deg);
+  transform-origin: left center;
+  z-index: 1;
+  opacity: 0.82;
+}
+
+.search-field .search-number {
+  min-height: 46px;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  padding-left: 42px;
+}
+
+.search-field .search-number:focus {
+  background: transparent;
+  box-shadow: none;
+}
+
+.search-clear {
+  right: 8px;
+}
+
+.search-results {
+  display: grid;
+  gap: 10px;
+}
+
+.search-results .empty {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 18px 16px;
+  border: 1px dashed rgba(47, 121, 83, 0.28);
+  border-radius: 14px;
+  background: linear-gradient(145deg, #f8fcf8, #eef6ef);
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.search-results .empty::before {
+  content: "Start with a name, tag number, or place";
+  color: #2d6548;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.nearby-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 28px;
+  margin: 2px 2px -2px;
+  color: #2d6548;
+  font-size: 0.78rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.detail-section-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+  color: #2d6548;
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.detail-section-heading::after {
+  content: "";
+  height: 1px;
+  flex: 1;
+  background: linear-gradient(90deg, rgba(47, 121, 83, 0.25), transparent);
+}
+
+.report-type-field {
+  margin-bottom: 2px;
+  padding: 12px 14px;
+  border: 1px solid rgba(47, 121, 83, 0.12);
+  border-radius: 14px;
+  background: linear-gradient(145deg, #f8fcf8, #f1f7f2);
+}
+
+.report-type-field label {
+  display: grid;
+  gap: 8px;
+  color: #2d6548;
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.report-type-field select {
+  min-height: 44px;
+}
+
+.community-hero {
+  background: linear-gradient(145deg, #f7fcf7, #ffffff 72%);
+  box-shadow: 0 10px 24px rgba(27, 65, 43, 0.1);
+}
+
+.community-action-row,
+.community-feedback-link,
+.community-log-item,
+.community-account-card {
+  box-shadow: 0 2px 8px rgba(27, 65, 43, 0.05);
+}

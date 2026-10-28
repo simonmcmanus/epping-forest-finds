@@ -5,7 +5,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(237, 242, 234, 0.92);
+  background: rgba(232, 240, 231, 0.92);
   backdrop-filter: blur(16px);
   padding: 20px;
   transition: opacity 0.35s ease;
@@ -26,8 +26,8 @@
   max-height: 92vh;
   background: #fff;
   border: 1px solid rgba(36, 56, 47, 0.12);
-  box-shadow: var(--shadow);
-  border-radius: 20px;
+  box-shadow: 0 24px 60px rgba(26, 58, 39, 0.19), 0 4px 14px rgba(26, 58, 39, 0.08);
+  border-radius: 24px;
   padding: 24px 22px 24px;
   display: flex;
   flex-direction: column;
