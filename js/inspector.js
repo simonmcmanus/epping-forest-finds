@@ -367,14 +367,17 @@ function showTreeDetails(tree, distance, label) {
   els.inspectorType.textContent = "Veteran tree";
   const estimatedAge = estimateTreeAgeFromGirth(tree);
   const primaryRows = [
-    ["Tag number", treeTagLabel(tree)],
     ["Estimated age", estimatedAge],
     ["Girth", tree.girthMetres == null ? null : `${tree.girthMetres} m`],
     ["Common name", tree.commonName],
     ["Tree form", tree.treeForm],
-    ["Status", tree.status],
-    ["Comments", tree.comments],
   ];
+  const tagHtml = `<div class="row tree-tag"><dt>Tag number</dt><dd>${escapeHtml(treeTagLabel(tree))}</dd></div>`;
+  const statusHtml = tree.status != null && tree.status !== ""
+    ? `<div class="row tree-status"><dt>Status</dt><dd>${escapeHtml(displayValue(tree.status))}</dd></div>` : "";
+  const commentsHtml = tree.comments
+    ? `<div class="tree-comments">${detailsHtml([["Comments", tree.comments]])}</div>` : "";
+  const factsHtml = `<section class="tree-facts" aria-label="Tree facts"><dl class="tree-summary">${tagHtml}${statusHtml}</dl>${detailsHtml(primaryRows)}${commentsHtml}</section>`;
   const technicalRows = [
     ["Latin name", tree.latinName],
     ["National tag", tree.nationalDatabaseTagNumber],
@@ -396,7 +399,7 @@ function showTreeDetails(tree, distance, label) {
   const issueHtml = reportIssueHtml({ type: "Veteran tree", name: treeDisplayName(tree), latitude: tree.latitude, longitude: tree.longitude });
   // Keep the check form directly below the actions so it can collapse into the local report
   // status in the same place, just like a place check does.
-  transitionInspectorBody(topRow + verified.detail + communitySectionHtml(tree) + `<section class="tree-facts" aria-label="Tree facts">${detailsHtml(primaryRows)}</section>` + namedTreeHtml + nearbySectionHtml + issueHtml + technicalHtml, "forward");
+  transitionInspectorBody(topRow + verified.detail + communitySectionHtml(tree) + factsHtml + namedTreeHtml + nearbySectionHtml + issueHtml + technicalHtml, "forward");
 }
 
 function showLandmarkDetails(place, distance) {
