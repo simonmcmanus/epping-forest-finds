@@ -25,7 +25,7 @@ h1{margin:14px 16px 4px;font-size:20px}
 @keyframes bump{40%{transform:scale(1.5);color:var(--accent)}}
 /* pill row */
 .rail{display:flex;align-items:center;gap:8px;padding:6px 10px 10px;border-bottom:1px solid var(--line);background:var(--bg)}
-.rail .scroll{position:relative;display:flex;gap:8px;overflow-x:auto;flex:1;padding:4px 2px;scrollbar-width:none;mask-image:linear-gradient(90deg,transparent 0,#000 8px,#000 calc(100% - 14px),transparent)}
+.rail .scroll{position:relative;display:grid;grid-template-rows:repeat(var(--rows,2),40px);grid-auto-flow:column;grid-auto-columns:max-content;gap:8px;overflow-x:auto;flex:1;padding:4px 2px;scrollbar-width:none;mask-image:linear-gradient(90deg,transparent 0,#000 8px,#000 calc(100% - 14px),transparent)}
 .scroll::-webkit-scrollbar{display:none}
 .edge{flex:none;width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:var(--card);font-size:18px;display:grid;place-items:center;cursor:pointer;transition:transform .15s,opacity .25s,background .2s}
 .edge:active{transform:scale(.88)}
@@ -35,8 +35,8 @@ h1{margin:14px 16px 4px;font-size:20px}
 .pill>*:not(.fill):not(.rip){position:relative;z-index:1}
 .pill.sel{color:var(--accent-ink);border-color:var(--accent)}
 .pill.sel .fill{transform:none}
-.pill .x{opacity:0;width:0;transition:all .25s var(--ease-out);overflow:hidden}
-.pill.sel .x{opacity:.8;width:12px}
+.pill .x{display:none}
+
 .rip{position:absolute;border-radius:50%;background:#fff6;pointer-events:none;transform:scale(0);animation:rip .55s var(--ease-out) forwards}
 @keyframes rip{to{transform:scale(1);opacity:0}}
 /* list */
@@ -102,7 +102,7 @@ h1{margin:14px 16px 4px;font-size:20px}
     <div class="fbody">This screen still slides in. Saved filters live here (prototype stub).<p id="saved"></p></div>
   </div>
 </div>
-<div class="sw"><button id="prev">←</button><span id="vlabel"></span><button id="next">→</button></div>
+<div class="sw"><button id="prev">←</button><span id="vlabel"></span><button id="rows" style="font-size:13px">rows: 2</button><button id="next">→</button></div>
 
 <script>
 // ---- mock data (shape mirrors FILTER_GROUPS in js/categories.js) ----
@@ -119,17 +119,21 @@ const DEFAULT_PILLS=["trees","cows","pubs","cafes","bus","historic","ponds_strea
 
 // ---- state: selected = ordered list of subfilter keys ----
 let selected=[...(new URLSearchParams(location.search).get("show")?.split(",")||[])].filter(k=>SUB[k]);
-let variant=(new URLSearchParams(location.search).get("variant")||"A").toUpperCase();
+let variant=(new URLSearchParams(location.search).get("variant")||"C").toUpperCase();
 
 // Related pills: the siblings (same group) of everything selected, then that group's neighbours' headliners.
 // Selected pills come first (stable order of selection), no duplicates.
+// Stable order: pills never move because of a tap. Newly related pills are appended at the end,
+// pills that are neither selected nor related any more drop out, everything else stays put.
+let order=[...DEFAULT_PILLS];
 function pillKeys(){
-  if(!selected.length) return DEFAULT_PILLS;
-  const out=[...selected];
-  const add=k=>{if(!out.includes(k))out.push(k)};
-  selected.forEach(s=>GROUPS.find(g=>g.key===SUB[s].group).subs.forEach(([k])=>add(k)));
-  DEFAULT_PILLS.forEach(add);
-  return out;
+  const want=new Set(selected.length?selected:DEFAULT_PILLS);
+  selected.forEach(s=>GROUPS.find(g=>g.key===SUB[s].group).subs.forEach(([k])=>want.add(k)));
+  if(selected.length) DEFAULT_PILLS.forEach(k=>want.add(k));
+  order=order.filter(k=>want.has(k));
+  selected.forEach(s=>{if(!order.includes(s))order.push(s)});
+  want.forEach(k=>{if(!order.includes(k))order.push(k)});
+  return order;
 }
 const urlFor=()=>selected.length===0?"/nearby":selected.length===1?`/nearby/${selected[0].replace(/_/g,"-")}`:`/nearby?show=${selected.join(",")}`;
 
@@ -142,7 +146,7 @@ function visible(){return N.filter(n=>!selected.length||selected.includes(n.sub)
 
 function renderPills(tapped){
   const keys=pillKeys();
-  const first=new Map([...pillEls].map(([k,el])=>[k,el.getBoundingClientRect().left]));
+  const first=new Map([...pillEls].map(([k,el])=>{const r=el.getBoundingClientRect();return [k,[r.left,r.top]]}));
   keys.forEach(k=>{
     let el=pillEls.get(k);
     if(!el){
@@ -150,6 +154,7 @@ function renderPills(tapped){
       el.innerHTML=`<span class="fill"></span><span>${SUB[k].emoji}</span><span>${SUB[k].label}</span><span class="x">✕</span>`;
       el.addEventListener("click",e=>toggle(k,e));
       pillEls.set(k,el);
+      if(first.size) el.animate([{opacity:0,transform:'scale(.7)'},{opacity:1,transform:'none'}],{duration:240,easing:'cubic-bezier(.2,.8,.2,1)'});
     }
     el.classList.toggle("sel",selected.includes(k));
     pillsEl.appendChild(el); // appending in order re-sorts DOM
@@ -159,8 +164,8 @@ function renderPills(tapped){
   const dur=variant==="C"?200:variant==="B"?420:480;
   pillEls.forEach((el,k)=>{
     const f=first.get(k); if(f==null) return;
-    const dx=f-el.getBoundingClientRect().left; if(!dx) return;
-    el.animate([{transform:`translateX(${dx}px)`},{transform:"none"}],{duration:dur,easing:variant==="A"?"cubic-bezier(.34,1.3,.64,1)":"cubic-bezier(.2,.8,.2,1)"});
+    const r=el.getBoundingClientRect(),dx=f[0]-r.left,dy=f[1]-r.top; if(!dx&&!dy) return;
+    el.animate([{transform:`translate(${dx}px,${dy}px)`},{transform:"none"}],{duration:dur,easing:variant==="A"?"cubic-bezier(.34,1.3,.64,1)":"cubic-bezier(.2,.8,.2,1)"});
   });
   $("showAll").disabled=!selected.length;
   // keep newest-selected pill in view
@@ -215,7 +220,7 @@ function toggle(k,e){
   if(variant==="B"&&adding) requestAnimationFrame(()=>itemEls.forEach(el=>el.classList.contains("enter")&&el.classList.add("flash")));
 }
 
-$("showAll").onclick=()=>{selected=[];renderPills();renderList()};
+$("showAll").onclick=()=>{selected=[];order=[...DEFAULT_PILLS];renderPills();renderList()};
 $("toFilters").onclick=()=>phone.classList.add("on-filters");
 $("back").onclick=()=>phone.classList.remove("on-filters");
 
@@ -224,11 +229,12 @@ function setVariant(v){
   $("vlabel").textContent={A:"A · Springy",B:"B · Ripple + grow",C:"C · Crisp + haptic"}[v];
   const u=new URL(location);u.searchParams.set("variant",v);history.replaceState(null,"",u);
 }
+let rows=2;$("rows").onclick=()=>{rows=rows===2?1:2;$("rows").textContent="rows: "+rows;pillsEl.style.setProperty("--rows",rows)};
 const V=["A","B","C"];
 $("prev").onclick=()=>setVariant(V[(V.indexOf(variant)+2)%3]);
 $("next").onclick=()=>setVariant(V[(V.indexOf(variant)+1)%3]);
 addEventListener("keydown",e=>{if(e.key==="ArrowLeft")$("prev").click();if(e.key==="ArrowRight")$("next").click()});
-if(!V.includes(variant))variant="A";
+if(!V.includes(variant))variant="C";
 setVariant(variant);renderPills();renderList();
 </script>
 </body>
