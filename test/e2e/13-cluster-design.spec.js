@@ -290,6 +290,7 @@ test.describe('Cluster badges and geographic footprints', () => {
       state.compassHeadingTarget = 0;
       state.compassHeading = 0;
       state.renderedNavigationHeading = 0;
+      state.map3dEnabled = true;
       state.tiltBetaTarget = 50;
       state.tiltBetaSmoothed = 50;
     });
@@ -364,6 +365,7 @@ test.describe('Cluster badges and geographic footprints', () => {
       state.compassHeadingTarget = 0;
       state.compassHeading = 0;
       state.renderedNavigationHeading = 0;
+      state.map3dEnabled = true;
       state.tiltBetaTarget = 50;
       state.tiltBetaSmoothed = 50;
     });
@@ -416,6 +418,7 @@ test.describe('Cluster badges and geographic footprints', () => {
         events.length = 0;
         state.compassHeading = state.compassHeadingTarget = state.renderedNavigationHeading = 0;
         state.compassLastEventAt = performance.now();
+        state.map3dEnabled = true;
         state.tiltBetaSmoothed = state.tiltBetaTarget = 65;
         alignHeadingUpNavigationViewport({ force: true });
         draw();
@@ -437,6 +440,7 @@ test.describe('Cluster badges and geographic footprints', () => {
       stopViewportAnimation();
       state.compassHeading = state.compassHeadingTarget = state.renderedNavigationHeading = 0;
       state.compassLastEventAt = performance.now();
+      state.map3dEnabled = true;
       state.tiltBetaSmoothed = state.tiltBetaTarget = 65;
       alignHeadingUpNavigationViewport({ force: true });
       const centre = worldToScreenForOverlay(state.userLocation.point);

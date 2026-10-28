@@ -644,6 +644,7 @@ button.settings-toggle.has-update::after {
 .settings-switch { display: flex; align-items: center; gap: 16px; cursor: pointer; }
 .settings-switch > span { flex: 1; }
 .settings-switch .settings-description { display: block; margin-top: 4px; font-weight: 400; }
+.settings-preview { display: block; width: 100%; height: auto; margin-top: 12px; border-radius: 12px; border: 1px solid rgba(36, 72, 52, 0.14); }
 .settings-switch input {
   appearance: none;
   flex: 0 0 46px;
