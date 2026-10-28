@@ -348,7 +348,7 @@ a.nearest-item {
    (top-right) and the mobile bottom-sheet inspector. */
 .compass-calibration-banner {
   position: absolute;
-  top: 14px;
+  top: calc(14px + env(safe-area-inset-top, 0px));
   left: 14px;
   z-index: 3;
   max-width: min(320px, calc(100vw - 84px));
@@ -429,7 +429,7 @@ a.nearest-item {
    the rare occasion both are visible at once. */
 .event-nearby-banner {
   position: absolute;
-  top: 74px;
+  top: calc(74px + env(safe-area-inset-top, 0px));
   left: 14px;
   z-index: 3;
   max-width: min(320px, calc(100vw - 84px));

@@ -193,6 +193,10 @@ async function setup(page, urlPath = "/nearby") {
     // tab-order baseline on every screen, not just Nearby.
     const invite = document.getElementById("locationInviteBanner");
     if (invite && !invite.hidden) invite.hidden = true;
+    // Its counterpart on a page with a static Nearby list under it (bare /nearby once built, as on
+    // CI): there the first location ask is #consentBanner's location stage instead of the invite.
+    const card = document.getElementById("consentBanner");
+    if (card && !card.hidden) card.hidden = true;
     // The real-fix boot path can show the compass calibration prompt over the top edge of the
     // map. General map-interaction tests intentionally do not exercise that prompt, and it can
     // intercept their corner taps; the compass-specific spec uses gotoAndWaitForMap directly.

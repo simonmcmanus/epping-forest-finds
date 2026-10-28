@@ -1,0 +1,13 @@
+{
+  "appId": "uk.eppingforestfinds.app",
+  "appName": "Epping Forest Finds",
+  "webDir": "www",
+  "backgroundColor": "#24382f",
+  "android": {
+    "allowMixedContent": false
+  },
+  "ios": {
+    "contentInset": "never",
+    "scrollEnabled": false
+  }
+}

@@ -57,6 +57,9 @@ Glossary and decisions live in `spec/`, not `GLOSSARY.md`/`docs/adr/`. See `docs
 - `index.html` — the public marketing homepage at `/`. Static content, its own `assets/home/` styles, scripts and images, no app code
 - `app.html` — the map application, served at `/app`. Markup only: head tags, DOM skeleton, and the `<script src>` list. No logic, no inline `<script>` body
 - `netlify/edge-functions/alpha-gate.js` — closed alpha gate on `/app` (see `spec/spec-alpha-access.md`)
+- `netlify/edge-functions/native-cors.js` — CORS on `/api/*` for the native app's two WebView origins only (see `spec/spec-native.md`)
+- `js/native.js` — native capability layer, loaded first: the only client file that knows about Capacitor (see `spec/spec-native.md`)
+- `native/` — Capacitor shell for the App Store / Google Play: its own `package.json`, `scripts/sync-www.js` (allowlisted bundle of the client), committed `ios/` and `android/` projects
 - `netlify/functions/subscribe.js` — mailing-list sign-up endpoint for the homepage
 - `js/app.js` — application boot and wiring (state, boot sequence, settings/report/compass handlers). Loaded last, after every other `js/*.js`
 - `js/loader.js` — data fetching, parallel fetch, normalisation triggers

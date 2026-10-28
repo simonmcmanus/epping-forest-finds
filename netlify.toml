@@ -41,6 +41,18 @@
   function = "alpha-gate"
   path = "/app.html"
 
+# CORS for the iOS/Android app, whose pages are served from the app bundle rather than this site.
+# Only the two native WebView origins are allowed; admin and sign-in routes are never opened.
+# See spec/spec-native.md "Networking".
+[[edge_functions]]
+  function = "native-cors"
+  path = "/api/*"
+  excludedPath = ["/api/admin/*", "/api/auth/*", "/api/community/rebuild", "/api/community/validate"]
+
+[[edge_functions]]
+  function = "native-cors"
+  path = "/.netlify/functions/report-missing-data"
+
 # /app is retired to a permanent redirect to /nearby, the app's new
 # place-agnostic entry point -- not a second address for the app, and no
 # content of its own, so it needs no gate (see above).
@@ -236,4 +248,18 @@
 [[headers]]
   for = "/js/data-cache-version.js"
   [headers.values]
+    Cache-Control = "no-cache"
+
+# The native app (whose pages are served from the app bundle, not this site) downloads changed
+# datasets from here, so the public data is readable cross-origin. The manifest that lists what
+# changed must never be served stale. See spec/spec-native.md "Delta updates".
+[[headers]]
+  for = "/data/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+
+[[headers]]
+  for = "/data/manifest.json"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
     Cache-Control = "no-cache"

@@ -101,6 +101,9 @@ const MAX_CANVAS_DIMENSION = 3072;
 const MAX_CANVAS_PIXEL_COUNT = 9437184;
 const APP_VERSION = APP_CACHE_VERSION; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js).
 const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
+// The person's own answer to the in-app location ask (storedLocationChoice). Up here because boot()
+// reads it, and boot() runs before the rest of this file's declarations have.
+const LOCATION_CHOICE_KEY = "ff-location-v1";
 // Declared up here with the other boot-time constants, not next to the compass
 // functions below that use them: setupVisibilityRecovery() runs inside boot(), which
 // is called long before that point in the file, and a const is in its temporal dead
@@ -139,6 +142,9 @@ const COMPASS_HEADINGLESS_PROMPT_MS = 2500;
 const HEADING_SOURCE_NONE = 0;
 const HEADING_SOURCE_RELATIVE = 1; // alpha with no north reference -- drifts, arbitrary zero
 const HEADING_SOURCE_ABSOLUTE = 2; // webkitCompassHeading, or alpha flagged absolute
+const HEADING_SOURCE_NATIVE = 3; // the app shell's true-north heading plugin (js/native.js)
+// A native reading at or under this many degrees of reported uncertainty is trusted on arrival.
+const NATIVE_HEADING_TRUSTED_ACCURACY_DEG = 25;
 // How long a requested animation frame may stay pending before the foreground watchdog
 // treats the loop that asked for it as wedged. A frame runs within ~16ms; two seconds is
 // far past any plausible scheduling delay on a loaded phone.
@@ -151,6 +157,7 @@ const STORED_COMPASS_PERMISSION = (() => {
     // Restoring "granted" would skip that per-session call, so treat it as "unknown"
     // to ensure the gate shows and the user can tap to re-enable.
     if (stored === "granted"
+        && Native.compassNeedsPrompt
         && typeof DeviceOrientationEvent !== "undefined"
         && typeof DeviceOrientationEvent.requestPermission === "function") {
       return "unknown";
@@ -1179,25 +1186,68 @@ async function revealMapCenteredOnUser() {
     && serverRenderedNearbyListStillValid();
 }
 
+// --- Permission asks -----------------------------------------------------------------------
+// Every ask follows the same rules (spec.md "Permissions and consent"): the app asks in its own
+// words first, and a system dialog only ever follows a tap on that ask; a "not now" is remembered,
+// so no later launch puts a system prompt in front of someone who already refused; and location
+// and usage analytics are separate questions, shown one at a time in one card.
+
+// "granted" (asked for location in the app), "declined" (said not now in the app, or refused the
+// system dialog), or null (never asked).
+function storedLocationChoice() {
+  try {
+    const stored = localStorage.getItem(LOCATION_CHOICE_KEY);
+    if (stored === "granted" || stored === "declined") return stored;
+    // Before the choice had a key of its own, the old bundled "Enable location" tap recorded
+    // usage consent and nothing else -- read that as having asked for location.
+    if (localStorage.getItem("ff-track-v1") === "1") return "granted";
+  } catch {}
+  return null;
+}
+
+function rememberLocationChoice(choice) {
+  try { localStorage.setItem(LOCATION_CHOICE_KEY, choice); } catch {}
+}
+
+// Whether boot may request a position on its own. Only when that cannot put an unexplained system
+// prompt on screen: the permission is already granted (it answers silently), or this person asked
+// for location in the app before, so a browser that re-asks every session is answering their own
+// request. A permission state of "unknown" counts as a prompt.
+function bootMayRequestLocation(permission, choice) {
+  if (permission === "granted") return true;
+  if (permission === "denied") return false;
+  return choice === "granted";
+}
+
+function locationInviteMessage() {
+  const fallbackWalk = formatWalkingRadius(state.walkingDistanceMinutes);
+  return `You're viewing finds within a ${fallbackWalk} walk of High Beach. Share your location for a more custom experience — centred on you, with real distances.`;
+}
+
+// Shown in place of an "Enable location" button that could not work: the permission is refused at
+// the browser or OS level, where a request fails without ever asking.
+function locationBlockedMessage() {
+  return Native.isNative
+    ? "Location is turned off for Epping Forest Finds. Turn it on in your phone's Settings to centre the map on you."
+    : "Location is blocked for this site. Allow it in your browser's site settings to centre the map on you.";
+}
+
 // Boot reached here with no real GPS fix -- denied, timed out, unsupported, or skipped in
 // onboarding. Every page, including a /nearby/<slug> landing page, gets a usable map straight
 // away by standing in at DEFAULT_LOCATION (High Beach), with the same walking-radius-circle
 // reveal a real fix gets (revealMapCenteredOnUser) -- a landing page already defaults its radius
 // to 30 minutes (LANDING_PAGE_WALKING_DISTANCE_MINUTES, applyRadiusFromQuery), so this just gives
 // it an origin to actually measure that radius from instead of listing the whole category
-// unsorted. A dismissible, non-blocking invite (showLocationInviteBanner) nudges toward a real
-// fix for the exact same view centred on the user -- skipped only when this boot already asked
-// through one of the other two prompts (onboarding's own location step, or
-// showCombinedConsentBanner's landing-page equivalent) and failed, so hitting Skip/Maybe later
-// there (or getting denied, or just ignoring the banner) doesn't draw two prompts in a row.
+// unsorted. A dismissible, non-blocking invite (offerLocationInvite) nudges toward a real fix for
+// the exact same view centred on the user -- skipped when this boot already asked (onboarding's
+// own location step, or showConsentBanner's location stage) or this person said not now before.
 //
-// hasRealLocation() guards applyDefaultLocation() because this path and a real fix can now
-// genuinely race: showCombinedConsentBanner()'s own tap fires locateUser() independently of
-// boot(), and the non-blocking loading bar (see isInstalledAppContext()) no longer holds up
-// clicks on that banner the way the old full-screen overlay incidentally did, so a fast tap can
-// land a real fix before boot() reaches this fallback. Without the guard, that real fix was
-// overwritten back to the High Beach stand-in the moment boot() got here.
-async function revealNoRealLocation({ locationAlreadyAsked, deferLocationInvite = false }) {
+// hasRealLocation() guards applyDefaultLocation() because this path and a real fix can
+// genuinely race: showConsentBanner()'s own tap fires locateUser() independently of boot(), and
+// the non-blocking loading bar no longer holds up clicks on that banner, so a fast tap can land a
+// real fix before boot() reaches this fallback. Without the guard, that real fix was overwritten
+// back to the High Beach stand-in the moment boot() got here.
+async function revealNoRealLocation({ locationAlreadyAsked, deferLocationInvite = false, locationBlocked = false }) {
   if (!hasRealLocation()) applyDefaultLocation();
 
   if (!findLandingSlug() && !communityScreenOpen()) selectOverview();
@@ -1209,31 +1259,43 @@ async function revealNoRealLocation({ locationAlreadyAsked, deferLocationInvite 
   await revealMapCenteredOnUser();
 
   if (locationAlreadyAsked || deferLocationInvite) return;
-  const fallbackWalk = formatWalkingRadius(state.walkingDistanceMinutes);
-  const message = navigator.geolocation
-    ? `You're viewing finds within a ${fallbackWalk} walk of High Beach. Share your location for a more custom experience — centred on you, with real distances.`
-    : `This browser does not support location access, so you're viewing finds within a ${fallbackWalk} walk of High Beach instead.`;
-  showLocationInviteBanner(message);
+  offerLocationInvite({ blocked: locationBlocked });
+}
+
+function offerLocationInvite({ blocked = false } = {}) {
+  if (!Native.geolocation) {
+    const fallbackWalk = formatWalkingRadius(state.walkingDistanceMinutes);
+    showLocationInviteBanner(`This browser does not support location access, so you're viewing finds within a ${fallbackWalk} walk of High Beach instead.`, { canRequest: false });
+  } else if (blocked) {
+    showLocationInviteBanner(locationBlockedMessage(), { canRequest: false });
+  } else {
+    showLocationInviteBanner(locationInviteMessage(), { canRequest: true });
+  }
+}
+
+function hideNoticeCard(banner) {
+  banner.classList.add("fading-out");
+  banner.addEventListener("transitionend", () => {
+    banner.hidden = true;
+    banner.classList.remove("fading-out");
+    // The next waiting question, if any, takes the slot once this one has gone.
+    askAnalyticsWhenFree();
+  }, { once: true });
 }
 
 // Non-blocking "get a more custom experience" nudge shown after revealNoRealLocation() -- the
 // map and Nearby list behind it are already usable, so this never covers the whole screen. Same
-// inline, dismissible treatment as
-// showCombinedConsentBanner()'s own banner, in the same inspector-chrome slot (never shown at
-// the same time -- locationAlreadyAsked above is exactly what keeps them from overlapping).
-function showLocationInviteBanner(message) {
+// inline, dismissible treatment as showConsentBanner()'s own card, in the same inspector-chrome
+// slot, and never at the same time as it. With canRequest false (location blocked or unsupported)
+// it explains instead of offering a button that could not work.
+function showLocationInviteBanner(message, { canRequest = true } = {}) {
   const banner = els.locationInviteBanner;
   if (!banner) return;
+  if (els.consentBanner && !els.consentBanner.hidden) return;
 
   if (els.locationInviteMessage) els.locationInviteMessage.textContent = message;
-
-  function hideBanner() {
-    banner.classList.add("fading-out");
-    banner.addEventListener("transitionend", () => {
-      banner.hidden = true;
-      banner.classList.remove("fading-out");
-    }, { once: true });
-  }
+  if (els.locationInviteButton) els.locationInviteButton.hidden = !canRequest;
+  if (els.locationInviteDismiss) els.locationInviteDismiss.textContent = canRequest ? "Maybe later" : "OK";
 
   function cleanup() {
     els.locationInviteButton?.removeEventListener("click", onAccept);
@@ -1242,13 +1304,15 @@ function showLocationInviteBanner(message) {
 
   function onAccept() {
     cleanup();
-    hideBanner();
+    hideNoticeCard(banner);
+    rememberLocationChoice("granted");
     locateUser({ initial: false });
   }
 
   function onDecline() {
     cleanup();
-    hideBanner();
+    rememberLocationChoice("declined");
+    hideNoticeCard(banner);
   }
 
   els.locationInviteButton?.addEventListener("click", onAccept);
@@ -1258,50 +1322,25 @@ function showLocationInviteBanner(message) {
   banner.hidden = false;
 }
 
-// Read directly rather than through window.ForestFindsCookieConsent.get(): js/app.js's own
-// <script> tags (app.html) are plain, synchronous ones, not deferred, so they run while the
-// document is still parsing -- before cookie-consent.js's deferred <head> script has run and
-// defined that global. boot()'s own top-level call happens from that same synchronous parse, so
-// checking the global here would read it as always unset (optional-chaining to undefined, which
-// == null) regardless of what's actually stored. localStorage itself has no such ordering
-// dependency. window.ForestFindsCookieConsent.set() further down is safe to use as-is -- it only
-// ever runs from a later user gesture, long after every script has finished loading.
-function cookieConsentIsUndecided() {
-  try {
-    return localStorage.getItem("ff-cookie-consent") == null;
-  } catch {
-    return true;
-  }
-}
-
-// Non-blocking merged cookie/location/compass ask for a landing-page arrival whose cookie
-// consent is still undecided -- the SEO landing-page counterpart to onboarding's own merged
-// .ob-location step, but shown as an inline notice card (#consentBanner, in the inspector
-// chrome right under #earlyTestingNoticeSlot's "still a work in progress" notice -- app.html,
-// css/loading.css), this leaves the map fully visible and interactive underneath, and boot() doesn't
-// wait for an answer before
-// revealing it -- see its call site. A reader who ignores the banner just keeps browsing with
-// the map's existing no-location view (DEFAULT_LOCATION's High Beach stand-in, same as any other
-// no-fix arrival -- see "No real location fix" in spec.md).
-function showCombinedConsentBanner() {
+// The first ask for anyone onboarding did not reach -- a landing-page arrival, or a returning
+// visitor with a question still unanswered. One non-blocking card in the inspector chrome (#consentBanner,
+// app.html, css/loading.css) that leaves the map fully usable underneath and asks one question at a
+// time: location first, in the page's own server-rendered words, then usage analytics. Boot does
+// not wait for an answer. On iOS the compass is asked from the same location tap (locateUser), as
+// onboarding does, because only a tap can ask for it.
+function showConsentBanner({ askLocation = false, askAnalytics = false } = {}) {
   const banner = els.consentBanner;
-  if (!banner) return;
+  if (!banner || (!askLocation && !askAnalytics)) return false;
+  let stage = askLocation ? "location" : "analytics";
 
-  // cookie-consent.js runs as a deferred <head> script, ahead of this one -- by the time boot()
-  // reaches here the banner has very likely already rendered once; this one replaces it rather
-  // than stacking alongside it.
-  document.getElementById("cookieConsentBanner")?.remove();
-
-  if (els.consentBannerAccept) {
-    els.consentBannerAccept.textContent = "Enable location & cookies";
-  }
-
-  function hideBanner() {
-    banner.classList.add("fading-out");
-    banner.addEventListener("transitionend", () => {
-      banner.hidden = true;
-      banner.classList.remove("fading-out");
-    }, { once: true });
+  function renderAnalyticsStage() {
+    banner.setAttribute("aria-label", "Usage analytics");
+    if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Help improve the map?";
+    if (els.consentBannerText) {
+      els.consentBannerText.innerHTML = `${ANALYTICS_ASK_TEXT} <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>`;
+    }
+    if (els.consentBannerDecline) els.consentBannerDecline.textContent = "No thanks";
+    if (els.consentBannerAccept) els.consentBannerAccept.textContent = "Share usage data";
   }
 
   function cleanup() {
@@ -1309,31 +1348,50 @@ function showCombinedConsentBanner() {
     els.consentBannerDecline?.removeEventListener("click", onDecline);
   }
 
-  function onAccept() {
+  function advance() {
+    if (stage === "location" && askAnalytics && analyticsChoice() === "undecided") {
+      stage = "analytics";
+      renderAnalyticsStage();
+      return;
+    }
     cleanup();
-    hideBanner();
-    ensureTrackingConsent();
-    window.ForestFindsCookieConsent?.set(true);
-    // Compass (on iOS) is asked separately, exactly the way the post-reveal "Get a more custom
-    // experience" gate's own button already does it once a real fix exists -- locateUser() shows
-    // that gate itself if still needed. Folding the ungestured-by-then compass ask into this
-    // banner's own tap wouldn't satisfy iOS's requestPermission() gesture requirement anyway, so
-    // there is nothing to gain by special-casing it here: one small prompt at a time, reusing an
-    // already-proven path, instead of two asks racing out of the same tap.
-    locateUser({ initial: false });
+    hideNoticeCard(banner);
+  }
+
+  function onAccept() {
+    if (stage === "location") {
+      rememberLocationChoice("granted");
+      locateUser({ initial: false });
+    } else {
+      setAnalyticsConsent(true);
+    }
+    advance();
   }
 
   function onDecline() {
-    cleanup();
-    window.ForestFindsCookieConsent?.set(false);
-    hideBanner();
+    if (stage === "location") rememberLocationChoice("declined");
+    else setAnalyticsConsent(false);
+    advance();
   }
 
   els.consentBannerAccept?.addEventListener("click", onAccept);
   els.consentBannerDecline?.addEventListener("click", onDecline);
 
+  if (stage === "analytics") renderAnalyticsStage();
   banner.classList.remove("fading-out");
   banner.hidden = false;
+  return true;
+}
+
+// Usage analytics for a returning visitor who has never answered it, held back until no other
+// card or the onboarding dialog is on screen, so two questions never stack.
+function askAnalyticsWhenFree() {
+  if (typeof analyticsChoice !== "function" || analyticsChoice() !== "undecided") return;
+  if (!state.dataLoaded) return;
+  const busy = [els.consentBanner, els.locationInviteBanner, document.getElementById("onboardingOverlay")]
+    .some((el) => el && !el.hidden);
+  if (busy) return;
+  showConsentBanner({ askAnalytics: true });
 }
 
 // ?nuke=true clears exactly what Settings' "Refresh both" clears, then returns to the same URL
@@ -1388,17 +1446,19 @@ async function boot() {
     els.loadingOverlay.hidden = false;
   }
 
-  // The banner starts hidden in every generated page (scripts/generate-find-pages.js /
-  // generate-business-pages.js, and app.html), and only this boot un-hides it. Pre-JS it was shown
-  // by default, so a returning visitor (consent already stored) saw it flash on, get removed by this
-  // boot, and then be replaced by the location invite card. Showing it only once the stored consent
-  // decision is known keeps the first-time banner in place with no flash. The condition is computed
-  // once and reused by showCombinedConsentBanner() below so the two can never drift apart.
+  // The banner starts hidden in app.html and in the generated business pages; the generated Nearby
+  // pages show it pre-JS so a no-JS visitor sees the ask too. Only this boot decides whether it stays:
+  // hidden at once when the answer is known now, otherwise once the permission state has answered
+  // (a millisecond or two), so a returning visitor never sees it flash on and off.
   // Bare /nearby's static index shows the same banner pre-JS (renderNearbyIndexPage), so it takes the
   // landing-page path here too -- except on a first visit, where onboarding asks the same questions.
   const onboardsFirst = !hasCompletedOnboarding() && !isLandingPageArrival();
-  const showsCombinedConsentBanner = Boolean(navigator.geolocation) && !onboardsFirst && (isLandingPageArrival() || _staticNearbyIndex) && cookieConsentIsUndecided();
-  if (els.consentBanner && !showsCombinedConsentBanner) els.consentBanner.hidden = true;
+  const asksFromBanner = !onboardsFirst && (isLandingPageArrival() || _staticNearbyIndex);
+  const locationChoice = storedLocationChoice();
+  const permissionPromise = Native.geolocation ? Native.locationPermissionState() : Promise.resolve("unsupported");
+  if (els.consentBanner && (!asksFromBanner || (locationChoice !== null && analyticsChoice() !== "undecided"))) {
+    els.consentBanner.hidden = true;
+  }
 
   // A cold load of /community paints the Community screen straight away: it needs no map data,
   // and the Nearby list would otherwise show first and be swapped out once data and location land.
@@ -1421,68 +1481,72 @@ async function boot() {
     : refreshCowData({ force: true, timeoutMs: 7000 });
   const mapPromise = loadMapData();
 
-  // Kick off location request — this fires the browser permission dialog automatically
-  // and runs in parallel with data loading so the map can open centred on the user.
+  // Runs in parallel with data loading so the map can open centred on the user -- but only ever
+  // without a cold system prompt (bootMayRequestLocation): otherwise the app asks in its own words.
   let locationPromise = null;
-  // Set once an interactive prompt -- onboarding's own location step, or its landing-page
-  // equivalent showCombinedConsentBanner() -- actually asked this boot, win or lose, so
+  // Set once an interactive prompt -- onboarding's own location step, or showConsentBanner()'s
+  // location stage -- asked this boot, win or lose, or this person already said not now, so
   // revealNoRealLocation() below knows not to draw a second prompt for the same question.
   let locationAlreadyAsked = false;
+  // The permission is refused below the app (browser site settings, or the OS): the invite then
+  // explains where to change it instead of offering a button that could not work.
+  let locationBlocked = false;
 
   if (onboardsFirst) {
     // First visit to the plain Nearby screen: show onboarding while data loads behind it.
     // A landing-page arrival (/nearby/<slug>, a first-touch ?show= link, or a selection hash)
-    // skips this --
-    // see isLandingPageArrival() -- and is treated like a returning visit below instead, so
-    // the setup wizard is saved for whenever this reader first reaches plain Nearby itself.
+    // skips this -- see isLandingPageArrival() -- and is treated like a returning visit below
+    // instead, so the setup wizard is saved for whenever this reader first reaches plain Nearby.
     // The location request is fired from within the onboarding tap handler so the
-    // browser dialog appears at the natural moment; we just pick up the live promise.
+    // system dialog appears at the natural moment; we just pick up the live promise.
     if (els.loadingOverlay) els.loadingOverlay.hidden = true;
     const onboardResult = await showOnboarding();
     state.overviewFilters = sanitizeOverviewFilters(onboardResult.filters);
     saveFilterState();
     if (els.loadingOverlay) els.loadingOverlay.hidden = false;
+    locationAlreadyAsked = true;
     if (onboardResult.locationPromise) {
       setLoadStep("location", "loading");
       locationPromise = onboardResult.locationPromise;
-      locationAlreadyAsked = true;
     }
-  } else if (showsCombinedConsentBanner) {
-    // A landing-page arrival (/nearby/<slug>, or a first-touch ?show= link) whose cookie
-    // consent is still undecided would otherwise show the standalone cookie banner, then fire
-    // the browser's own location prompt silently, and then -- once that resolves -- a third,
-    // separate in-app compass prompt on iOS: three stacked asks for what is really one
-    // decision. showCombinedConsentBanner() folds all three into a single tap on a non-blocking
-    // bottom banner instead, the same "one tap for everything" merge onboarding's own location
-    // step already does (js/onboarding.js) -- except here it doesn't hold up the reveal: it's
-    // fired and left running, and boot() falls straight through to the no-location-yet branch
-    // below so the map (the landing page's own "list the whole category" view) appears right
-    // away behind it. A repeat landing-page visit with consent already settled falls through to
-    // the plain immediate-fire branch instead, same as any other returning visit.
-    showCombinedConsentBanner();
-    locationAlreadyAsked = true;
-  } else if (navigator.geolocation) {
-    // Returning user, or a landing-page revisit with consent already settled: start location
-    // request immediately so the browser dialog appears while data loads — no tap needed.
-    setLoadStep("location", "loading");
-    setLocationRequestPending(true);
-    locationPromise = new Promise((resolve) => {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          setLocationRequestPending(false);
-          resolve({ ok: true, position: pos });
-        },
-        () => {
-          setLocationRequestPending(false);
-          resolve({ ok: false });
-        },
-        { enableHighAccuracy: true, timeout: BOOT_GEOLOCATION_TIMEOUT_MS, maximumAge: 30000 }
-      );
-    });
+  } else {
+    const permission = await permissionPromise;
+    const locationUnasked = Boolean(Native.geolocation) && locationChoice === null
+      && permission !== "granted" && permission !== "denied";
+    const analyticsUnasked = analyticsChoice() === "undecided";
+    if (asksFromBanner && (locationUnasked || analyticsUnasked)) {
+      // A landing-page arrival asks from the non-blocking card instead of onboarding's dialog, so
+      // the map (the landing page's own list) appears right away behind it.
+      showConsentBanner({ askLocation: locationUnasked, askAnalytics: analyticsUnasked });
+    } else if (els.consentBanner) {
+      els.consentBanner.hidden = true;
+    }
+    if (locationUnasked && asksFromBanner) {
+      locationAlreadyAsked = true;
+    } else if (Native.geolocation && bootMayRequestLocation(permission, locationChoice)) {
+      setLoadStep("location", "loading");
+      setLocationRequestPending(true);
+      locationPromise = new Promise((resolve) => {
+        Native.geolocation.getCurrentPosition(
+          (pos) => {
+            setLocationRequestPending(false);
+            resolve({ ok: true, position: pos });
+          },
+          (error) => {
+            setLocationRequestPending(false);
+            resolve({ ok: false, code: error && error.code });
+          },
+          { enableHighAccuracy: true, timeout: BOOT_GEOLOCATION_TIMEOUT_MS, maximumAge: 30000 }
+        );
+      });
+    } else if (locationChoice === "declined") {
+      locationAlreadyAsked = true;
+    } else if (permission === "denied") {
+      locationBlocked = true;
+    }
   }
-  // No geolocation at all: nothing to await, so this falls straight through to
-  // revealNoRealLocation() below (locationPromise stays null) -- which is also where its gate
-  // copy gets written, after the map itself is already up rather than before.
+  // No request started: nothing to await, so this falls straight through to
+  // revealNoRealLocation() below (locationPromise stays null), which offers the invite if one is due.
 
   try {
     const mapData = await mapPromise;
@@ -1609,26 +1673,28 @@ async function boot() {
           });
         }
         requestDraw();
-      } else {
-        // Location denied or timed out. The fallback reveal already happened, so only mark the
-        // step and offer the non-blocking invite that a normal failed request would show.
+      } else if (locResult.code === 1) {
+        // The system dialog was just refused: that is this person's answer, so it is remembered
+        // and not followed by an in-app card asking the same thing again.
         setLoadStep("location", "error");
-        if (!locationAlreadyAsked) {
-          const fallbackWalk = formatWalkingRadius(state.walkingDistanceMinutes);
-          const message = navigator.geolocation
-            ? `You're viewing finds within a ${fallbackWalk} walk of High Beach. Share your location for a more custom experience — centred on you, with real distances.`
-            : `This browser does not support location access, so you're viewing finds within a ${fallbackWalk} walk of High Beach instead.`;
-          showLocationInviteBanner(message);
-        }
+        rememberLocationChoice("declined");
+      } else {
+        // Timed out or no fix. The fallback reveal already happened, so only mark the step and
+        // offer the non-blocking invite as a retry.
+        setLoadStep("location", "error");
+        if (!locationAlreadyAsked) offerLocationInvite();
       }
     } else {
-      // No geolocation support, a first-time user skipped it in onboarding, or the landing-page
-      // combined banner is up (locationAlreadyAsked true in that last case, so the banner is the
-      // only ask rather than also drawing the post-reveal invite gate below).
+      // No geolocation support, nothing to request without a cold prompt, a first-time user
+      // skipped it in onboarding, or the landing-page card is asking (locationAlreadyAsked).
       setStatus("Offline map data loaded.");
-      await revealNoRealLocation({ locationAlreadyAsked });
+      // The strip's location step settles the same way a refused request settles it, unless a
+      // tap on the landing card has already started a request of its own.
+      if (!locationRequestPending && !hasRealLocation()) setLoadStep("location", "error");
+      await revealNoRealLocation({ locationAlreadyAsked, locationBlocked });
     }
     showFilterHintIfFirstVisit();
+    askAnalyticsWhenFree();
 
     // Everything above was served from the service worker's caches on a return visit, which
     // is what makes the reload instant — but also means nothing here ever noticed newer data
@@ -1636,6 +1702,8 @@ async function boot() {
     // datasets in the background (syncData in sw.js); anything that actually changed is
     // picked up on the next load, and Settings says so.
     requestBackgroundDataSync();
+    // The native app's counterpart: changed datasets are fetched from the website for the next launch.
+    if (Native.data) Native.data.checkForUpdates();
   } catch (error) {
     console.error(error);
     hideWithFade(els.loadingOverlay);
@@ -1844,8 +1912,9 @@ function applyLocationFix(position) {
   state.nearestRestaurant = nearestPlaceByFilter(latitude, longitude, (place) => isRestaurantCategory(place));
   state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isRestaurantCategory(place) && !isCafeCategory(place) && !isShopCategory(place) && !isTransportCategory(place));
   state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
-  // A cold load of /community has already opened its screen (boot); a fix must not wipe it.
-  if (!communityScreenOpen()) state.selected = null;
+  // A cold load of /community has already opened its screen (boot); a fix must not wipe it. Nor
+  // must Settings' own "Use my location": that answer shows in place, on the row that asked.
+  if (!communityScreenOpen() && state.selected?.type !== "settings") state.selected = null;
   if (typeof communityNudgeCheck === "function") setTimeout(communityNudgeCheck, 0);
   // GPS and motion permissions are separate on iOS. A returning visitor can already have a
   // location dot without ever having granted DeviceOrientation access, so surface the compass
@@ -1894,7 +1963,7 @@ function withBootLocationTimeout(locationPromise) {
 }
 
 function locateUser({ initial }) {
-  if (!navigator.geolocation) {
+  if (!Native.geolocation) {
     setStatus("This browser does not support location access.");
     return;
   }
@@ -1911,11 +1980,13 @@ function locateUser({ initial }) {
   // from this tap before the fix arrives. Non-iOS needs no gesture and is handled in the callback.
   if (!initial && compassPermissionCanBeRequested()) requestCompassPermissionIfNeeded({ fromGesture: true });
   setLocationRequestPending(true);
-  navigator.geolocation.getCurrentPosition(
+  Native.geolocation.getCurrentPosition(
     (position) => {
       setLocationRequestPending(false);
       const { latitude, longitude, previousPoint } = applyLocationFix(position);
       ensureLocationWatch();
+      setLoadStep("location", "done");
+      syncSettingsLocationRow();
       if (!compassPermissionCanBeRequested()) {
         // Non-iOS: no user gesture required; auto-grant if not already set.
         requestCompassPermissionIfNeeded({ fromGesture: false });
@@ -1954,6 +2025,9 @@ function locateUser({ initial }) {
         selectOverview();
       }
       const denied = error && error.code === 1;
+      // Refused at the system dialog: remembered, so nothing asks again unprompted.
+      if (denied) rememberLocationChoice("declined");
+      syncSettingsLocationRow();
       setStatus(initial
         ? (denied
           ? "Location access was denied. You can allow it in your browser settings."
@@ -2895,11 +2969,88 @@ function openSettings() {
 // window.ForestFindsCookieConsent (cookie-consent.js) is the one store of truth for the GA
 // cookie banner's choice -- read through it rather than localStorage directly so Settings always
 // agrees with whatever the banner itself last recorded.
-function cookieConsentStatusLabel() {
-  const consent = window.ForestFindsCookieConsent?.get();
-  if (consent === "granted") return "enabled";
-  if (consent === "denied") return "declined";
-  return "not yet decided";
+function analyticsStatusLabel() {
+  const choice = analyticsChoice();
+  return choice === "granted" ? "on" : choice === "denied" ? "off" : "not yet decided";
+}
+
+function locationStatusLabel() {
+  return hasRealLocation() ? "on" : "off";
+}
+
+// The one place a person who said not now can turn location on later, so no ask ever has to be
+// repeated unprompted. A permission refused below the app is explained rather than re-requested.
+function setupSettingsLocationRow() {
+  const button = document.getElementById("settingsLocateButton");
+  const note = document.getElementById("locationBlockedNote");
+  if (!button) return;
+  if (!Native.geolocation) {
+    button.hidden = true;
+    return;
+  }
+  Native.locationPermissionState().then((permission) => {
+    if (permission !== "denied" || hasRealLocation() || !button.isConnected) return;
+    button.hidden = true;
+    if (note) {
+      note.textContent = locationBlockedMessage();
+      note.hidden = false;
+    }
+  });
+  button.addEventListener("click", () => {
+    rememberLocationChoice("granted");
+    button.disabled = true;
+    button.textContent = "Getting your location…";
+    locateUser({ initial: false });
+  });
+}
+
+// The native app's own update line: its data comes from the binary plus whatever the website has
+// published since (Native.data), and is checked once a day without anyone asking.
+function nativeDataHtml() {
+  const checked = Native.data.lastChecked();
+  const when = checked ? new Date(checked).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "not yet";
+  return `<div class="settings-refresh">
+        <h4 class="settings-section-title">Map data</h4>
+        <p class="settings-description">Showing map data ${escapeHtml(String(Native.data.activeVersion || ""))}. Last checked for updates: ${escapeHtml(when)}. New data is used the next time the app starts.</p>
+        <button id="nativeDataCheckButton" class="settings-btn" type="button">Check for map updates</button>
+        <p id="nativeDataStatus" class="report-note" role="status" aria-live="polite" hidden></p>
+      </div>`;
+}
+
+const NATIVE_DATA_STATUS_TEXT = {
+  updated: "New map data downloaded. Close and reopen the app to see it.",
+  current: "Map data is up to date.",
+  failed: "Could not check for map updates. Try again when you have a connection.",
+  unavailable: "Map updates are not available on this device.",
+  skipped: "Map data is up to date.",
+};
+
+function setupNativeDataRow() {
+  const button = document.getElementById("nativeDataCheckButton");
+  const status = document.getElementById("nativeDataStatus");
+  if (!button || !Native.data) return;
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    button.textContent = "Checking…";
+    const result = await Native.data.checkForUpdates({ force: true });
+    button.disabled = false;
+    button.textContent = "Check for map updates";
+    if (status) {
+      status.textContent = NATIVE_DATA_STATUS_TEXT[result.status] || NATIVE_DATA_STATUS_TEXT.failed;
+      status.hidden = false;
+    }
+  });
+}
+
+// Keeps an open Settings screen's location row in step with a request that has just answered.
+function syncSettingsLocationRow() {
+  const status = document.getElementById("locationStatus");
+  if (status) status.textContent = locationStatusLabel();
+  const button = document.getElementById("settingsLocateButton");
+  if (!button) return;
+  button.disabled = false;
+  button.textContent = "Use my location";
+  button.hidden = hasRealLocation();
 }
 
 function settingsFormHtml() {
@@ -2958,11 +3109,12 @@ function settingsFormHtml() {
     <section class="settings-section">
       <h3 class="settings-section-title">About</h3>
       <p class="settings-description">App version: <span id="appVersionDisplay" class="app-version-display">${state.swVersion || APP_VERSION}</span></p>
-      ${appUpdateStatusHtml()}
+      ${Native.isNative ? "" : appUpdateStatusHtml()}
       <p class="settings-description">Tester ID: <code id="testerIdDisplay" class="tester-id">…</code> <button type="button" id="testerIdCopy" class="settings-btn" hidden>Copy</button><br><span class="report-note">Give this to Simon to try early features.</span></p>
       <p class="settings-description">Vibe coded by <a href="https://simonmcmanus.com" target="_blank" rel="noopener noreferrer">Simon McManus</a></p>
       <p id="dataUpdateNote" class="report-note"${state.dataUpdateAvailable ? "" : " hidden"}>New map data has been downloaded. <button id="dataUpdateReloadButton" class="inline-text-button" type="button">Reload now</button> to see it.</p>
-      <div class="settings-refresh">
+      ${Native.data ? nativeDataHtml() : ""}
+      <div class="settings-refresh"${Native.isNative ? " hidden" : ""}>
         <h4 class="settings-section-title">Keep things fresh</h4>
         <div class="settings-refresh-row">
           <button id="refreshDataButton" class="settings-btn" type="button"${online ? "" : " disabled"}>Refresh data</button>
@@ -2980,10 +3132,12 @@ function settingsFormHtml() {
     </section>
     <section class="settings-section">
       <h3 class="settings-section-title">Privacy</h3>
-      <p class="settings-description">Location &amp; usage tracking: <strong id="privacyConsentStatus">${hasTrackingConsent() ? "enabled" : "not enabled"}</strong>. We collect anonymous GPS position, navigation and interaction data to improve the app. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
-      <button id="privacyConsentToggle" class="settings-btn" type="button">${hasTrackingConsent() ? "Withdraw consent" : "Enable location &amp; tracking"}</button>
-      <p class="settings-description">Analytics cookies: <strong id="cookieConsentStatus">${cookieConsentStatusLabel()}</strong>. Separate from location &amp; usage tracking above — see <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>.</p>
-      <button id="cookieConsentManageBtn" class="settings-btn" type="button">Manage cookie preferences</button>
+      <p class="settings-description">Location: <strong id="locationStatus">${locationStatusLabel()}</strong>. Used on this device to centre the map on you and measure distances.</p>
+      <p id="locationBlockedNote" class="report-note" hidden></p>
+      <button id="settingsLocateButton" class="settings-btn" type="button"${hasRealLocation() ? " hidden" : ""}>Use my location</button>
+      <p class="settings-description">Usage analytics: <strong id="analyticsStatus">${analyticsStatusLabel()}</strong>. Anonymous usage data, including your position while the app is open, and Google Analytics cookies. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
+      ${trackerExistingUserId() ? `<p class="settings-description">Your anonymous ID, for a data access or deletion request: <code id="analyticsIdDisplay">${escapeHtml(trackerExistingUserId())}</code></p>` : ""}
+      <button id="analyticsToggle" class="settings-btn" type="button">${analyticsChoice() === "granted" ? "Turn off usage analytics" : "Turn on usage analytics"}</button>
     </section>
   </div>`;
 }
@@ -2993,6 +3147,11 @@ function settingsFormHtml() {
 // provider and comes back to Settings.
 function settingsAccountHtml(account, note = "") {
   const noteHtml = note ? `<p class="report-note" role="status">${escapeHtml(note)}</p>` : "";
+  // Sign-in is a cookie session set by a redirect through the provider back to this site, which a
+  // page served from the app bundle can never come back from (spec-native.md "Not in the first release").
+  if (Native.isNative) {
+    return `<p class="settings-description">Signing in is not available in the app yet. Your Community points are kept on this device.</p>${noteHtml}`;
+  }
   if (account && account.signedIn) {
     return `<p class="settings-description">Signed in as <strong>${escapeHtml(account.name)}</strong>. Your points follow you to any device you sign in on.</p>
       <a id="settingsSignOut" class="settings-btn settings-btn-link" href="/api/auth/logout?return=/settings">Sign out</a>
@@ -3112,22 +3271,18 @@ function bindSettingsHandlers() {
   const dataReloadButton = document.getElementById("dataUpdateReloadButton");
   if (dataReloadButton) dataReloadButton.addEventListener("click", () => location.reload());
 
-  const privacyToggle = document.getElementById("privacyConsentToggle");
-  if (privacyToggle) {
-    privacyToggle.addEventListener("click", () => {
-      const granting = !hasTrackingConsent();
-      setTrackingConsent(granting);
-      privacyToggle.textContent = granting ? "Withdraw consent" : "Enable location & tracking";
-      const status = document.getElementById("privacyConsentStatus");
-      if (status) status.textContent = granting ? "enabled" : "not enabled";
+  const analyticsToggle = document.getElementById("analyticsToggle");
+  if (analyticsToggle) {
+    analyticsToggle.addEventListener("click", () => {
+      const granting = analyticsChoice() !== "granted";
+      setAnalyticsConsent(granting);
+      analyticsToggle.textContent = granting ? "Turn off usage analytics" : "Turn on usage analytics";
+      const status = document.getElementById("analyticsStatus");
+      if (status) status.textContent = analyticsStatusLabel();
     });
   }
-  const cookieConsentManageBtn = document.getElementById("cookieConsentManageBtn");
-  if (cookieConsentManageBtn) {
-    cookieConsentManageBtn.addEventListener("click", () => {
-      window.ForestFindsCookieConsent?.showBanner();
-    });
-  }
+  setupSettingsLocationRow();
+  setupNativeDataRow();
   // Settings HTML is rebuilt fresh every time the screen opens (see openSettings above),
   // so remove before re-adding — otherwise every open leaks another window-level listener.
   window.removeEventListener("online", updateRefreshButtonsOnlineState);
@@ -3453,9 +3608,12 @@ async function populateReportLocation() {
   // report is actually about, rather than silently settling for an anchor the reader was never
   // actually standing at.
   if (hasRealLocation()) return;
-  if (!navigator.geolocation) return;
+  if (!Native.geolocation) return;
+  // Only when it answers silently: opening the feedback form must never be what puts a location
+  // prompt on screen. A report without a position is still a report.
+  if (await Native.locationPermissionState() !== "granted") return;
   await new Promise((resolve) => {
-    navigator.geolocation.getCurrentPosition((position) => {
+    Native.geolocation.getCurrentPosition((position) => {
       state.reportDraftLocation = {
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
@@ -4572,16 +4730,53 @@ async function startCompassNavigation({ fromGesture = Boolean(navigator.userActi
   updateCompassOverlay();
 }
 
+// False inside the native shell, where motion access is the shell's to grant (Native.unlockMotionOnFirstGesture)
+// and there is nothing to ask the user.
 function compassPermissionCanBeRequested() {
-  return typeof DeviceOrientationEvent !== "undefined"
+  return Native.compassNeedsPrompt
+    && typeof DeviceOrientationEvent !== "undefined"
     && typeof DeviceOrientationEvent.requestPermission === "function";
+}
+
+const COMPASS_PROMPT_DISMISSED_KEY = "forest-finds-compass-prompt-dismissed-v1";
+// iOS forgets a motion grant on its own schedule, so a stored "granted" is read as unknown each
+// launch (STORED_COMPASS_PERMISSION). Often it has not actually been forgotten: orientation events
+// simply start arriving. This is how long they get to do that before the "Enable compass" card is
+// shown, so someone whose grant still holds is not asked for it again.
+const COMPASS_GRANT_PROBE_MS = 1200;
+
+function compassPromptDismissed() {
+  try { return localStorage.getItem(COMPASS_PROMPT_DISMISSED_KEY) === "1"; } catch { return false; }
+}
+
+// Dismissing the card is an answer: it is not shown unprompted again. The compass is still asked
+// for in context, from the tap that starts navigation to a find (startCompassNavigation).
+function dismissCompassPermissionPrompt() {
+  try { localStorage.setItem(COMPASS_PROMPT_DISMISSED_KEY, "1"); } catch {}
+  hideCompassPermissionPrompt();
 }
 
 function maybeShowCompassPermissionPrompt() {
   if (!hasRealLocation()) return;
   if (!compassPermissionCanBeRequested()) return;
-  if (state.compassPermission === "granted") return;
-  showCompassPermissionPrompt();
+  if (state.compassPermission !== "unknown") return;
+  if (compassPromptDismissed() || state.compassPromptProbePending) return;
+  state.compassPromptProbePending = true;
+  setTimeout(() => {
+    state.compassPromptProbePending = false;
+    // Re-checked here, not only on entry: the High Beach stand-in runs through the same fix
+    // pipeline (applyDefaultLocation) and is only flagged as a stand-in once that returns. Without
+    // this, a visitor with no location yet got the compass card stacked on the location ask.
+    if (!hasRealLocation()) return;
+    if (state.compassPermission !== "unknown") return;
+    // A heading, not just an event: Chromium fires one empty orientation event on attach.
+    if (Number.isFinite(compassEventAgeMs())) {
+      state.compassPermission = "granted";
+      try { localStorage.setItem(COMPASS_PERMISSION_KEY, "granted"); } catch {}
+      return;
+    }
+    showCompassPermissionPrompt();
+  }, COMPASS_GRANT_PROBE_MS);
 }
 
 async function requestCompassPermissionIfNeeded({ fromGesture = false } = {}) {
@@ -4592,7 +4787,7 @@ async function requestCompassPermissionIfNeeded({ fromGesture = false } = {}) {
     }
     return;
   }
-  if (typeof DeviceOrientationEvent.requestPermission !== "function") {
+  if (typeof DeviceOrientationEvent.requestPermission !== "function" || !Native.compassNeedsPrompt) {
     if (state.compassPermission === "unknown") state.compassPermission = "granted";
     try {
       localStorage.setItem(COMPASS_PERMISSION_KEY, "granted");
@@ -4626,6 +4821,30 @@ function compassPermissionRequiresRequest() {
 
 function setupCompassListeners() {
   reattachCompassListeners();
+  Native.unlockMotionOnFirstGesture(reattachCompassListeners);
+  startNativeHeading();
+}
+
+// Inside the app shell the heading comes from the native true-north plugin (Native.heading), the
+// best source there is: once it delivers, WebKit's own orientation events still feed beta for the
+// tilt but never the heading (onDeviceOrientation drops a worse source). Idempotent, so foreground
+// resume can call it again after the plugin was stopped for the background.
+function startNativeHeading() {
+  if (!Native.heading) return;
+  Native.heading.start(onNativeHeading);
+}
+
+function onNativeHeading(reading) {
+  if (!reading) return;
+  const trueHeading = Number(reading.trueHeading);
+  const heading = trueHeading >= 0 ? trueHeading : Number(reading.magneticHeading);
+  if (!Number.isFinite(heading) || heading < 0) return;
+  if (state.compassHeadingSource < HEADING_SOURCE_NATIVE) {
+    state.compassHeadingSource = HEADING_SOURCE_NATIVE;
+    discardCompassHeadingFromWorseSource();
+  }
+  const accuracy = Number(reading.accuracy);
+  applyCompassReading(heading % 360, { trusted: accuracy >= 0 && accuracy <= NATIVE_HEADING_TRUSTED_ACCURACY_DEG });
 }
 
 // remove-then-add is deliberate: on iOS re-registering is what nudges the orientation
@@ -4682,6 +4901,9 @@ function hasMovedSinceBackgrounding() {
 // it" report. Running it repeatedly is what lets the app heal itself instead.
 function recoverStalledCompass(now = performance.now()) {
   if (typeof document !== "undefined" && document.visibilityState === "hidden") return;
+  // The native heading does not stall the way WebKit's events do, and it is restarted on every
+  // return to the foreground (startNativeHeading): nothing here would help it.
+  if (state.compassHeadingSource === HEADING_SOURCE_NATIVE) return;
   if (!compassSensorStalled(now)) return;
 
   // Drop a heading we can no longer trust so the map falls back to north-up rather than
@@ -4795,6 +5017,8 @@ function handleForegroundResume() {
 
   // Resume GPS watch + location-tracking interval paused on backgrounding.
   ensureLocationWatch();
+  startNativeHeading();
+  syncNativeWalkingAids();
 
   recoverStalledCompass();
 
@@ -4847,26 +5071,29 @@ function setupVisibilityRecovery() {
 // the tab/screen is not visible, so the app doesn't keep draining battery in the
 // background. Both are restarted from setupVisibilityRecovery on return to visible.
 function pauseBackgroundedTracking() {
+  // Nothing native is held while the app is in the background: no sensor, no awake screen.
+  if (Native.heading) Native.heading.stop();
+  Native.keepAwake.set(false);
   // Snapshot where we were right before going away, so recoverStalledCompass can tell a
   // phone that was actually carried somewhere from one that was simply put down -- see
   // hasMovedSinceBackgrounding().
   state.backgroundedUserLocation = state.userLocation
     ? { latitude: state.userLocation.latitude, longitude: state.userLocation.longitude }
     : null;
-  if (navigator.geolocation && state.locationWatchId != null) {
-    navigator.geolocation.clearWatch(state.locationWatchId);
+  if (Native.geolocation && state.locationWatchId != null) {
+    Native.geolocation.clearWatch(state.locationWatchId);
     state.locationWatchId = null;
   }
   if (typeof stopLocationTracking === "function") stopLocationTracking();
 }
 
 function restartStaleGpsWatch() {
-  if (!navigator.geolocation || state.locationWatchId == null) return;
+  if (!Native.geolocation || state.locationWatchId == null) return;
   const gpsAge = state.lastLocationUpdateAt == null
     ? Infinity
     : (performance.now() - state.lastLocationUpdateAt);
   if (gpsAge > 20000) {
-    navigator.geolocation.clearWatch(state.locationWatchId);
+    Native.geolocation.clearWatch(state.locationWatchId);
     state.locationWatchId = null;
     ensureLocationWatch();
   }
@@ -4941,7 +5168,20 @@ function onDeviceOrientation(event) {
 
   const heading = extractCompassHeading(event);
   if (!Number.isFinite(heading)) return;
+  applyCompassReading(heading);
+}
+
+// A heading reading from whichever source is currently feeding the compass. Until one is trusted,
+// readings go through the calibration gate; `trusted` skips it for a reading whose own reported
+// accuracy already says it is good (the native heading plugin's), which is what lets a native
+// heading rotate the map at once instead of waiting for several readings to agree.
+function applyCompassReading(heading, { trusted = false } = {}) {
   state.compassLastEventAt = performance.now();
+
+  if (!Number.isFinite(state.compassHeading) && trusted) {
+    completeCompassCalibration(heading);
+    return;
+  }
 
   if (Number.isFinite(state.compassHeading)) {
     // Already trust a heading -- keep tracking the live target as before.
@@ -5432,14 +5672,15 @@ function discardCompassHeadingFromWorseSource() {
 }
 
 function ensureLocationWatch() {
-  if (!navigator.geolocation || state.locationWatchId != null) return;
+  if (!Native.geolocation || state.locationWatchId != null) return;
   startLocationTracking();
-  state.locationWatchId = navigator.geolocation.watchPosition(
+  state.locationWatchId = Native.geolocation.watchPosition(
     (position) => {
       state.lastLocationUpdateAt = performance.now();
       const { latitude, longitude, accuracy, speed } = position.coords;
       const previousPoint = state.userLocation && state.userLocation.point;
       state.userLocation = ingestLocationFix(latitude, longitude, accuracy, performance.now(), speed);
+      if (Native.heading) Native.heading.setLocation(latitude, longitude);
       const point = state.userLocation.point;
       state.userInMapArea = pointInsideBounds(point, state.bounds);
       const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
@@ -5488,7 +5729,7 @@ function ensureLocationWatch() {
         // Permission revoked mid-session — clear the watch. No blocking gate: the app stays
         // usable on the last fix it had (or the High Beach stand-in) rather than forcing a
         // retry wall for a permission that was never required in the first place.
-        navigator.geolocation.clearWatch(state.locationWatchId);
+        Native.geolocation.clearWatch(state.locationWatchId);
         state.locationWatchId = null;
       }
       // Timeout / position-unavailable: watchPosition continues automatically.
@@ -7856,7 +8097,28 @@ function setLocationRequestPending(pending) {
   updateCompassOverlay();
 }
 
+// Within this many metres of the find being walked to counts as arriving: a little more than a
+// phone's GPS spread under tree cover, so arriving is felt once rather than flickering in and out.
+const ARRIVAL_METRES = 20;
+
+// The native app's walking aids, re-evaluated on every fix and selection change (updateCompassOverlay):
+// the screen stays awake only while walking to a find in the foreground, and arriving there is felt
+// as one haptic, once per find. Both are no-ops on the web.
+function syncNativeWalkingAids() {
+  const target = selectedCompassTarget();
+  const navigating = Boolean(target) && hasRealLocation()
+    && (typeof document === "undefined" || document.visibilityState !== "hidden");
+  Native.keepAwake.set(navigating);
+  if (!navigating) return;
+  const metres = distanceFromUser(target);
+  if (Number.isFinite(metres) && metres <= ARRIVAL_METRES && state.arrivedAtTarget !== target) {
+    state.arrivedAtTarget = target;
+    Native.haptics.arrive();
+  }
+}
+
 function updateCompassOverlay() {
+  syncNativeWalkingAids();
   const target = selectedCompassTarget();
   const arrow = els.compassArrow;
   // Waiting for the first fix: the arrow spins in place, with no bearing yet to point at.

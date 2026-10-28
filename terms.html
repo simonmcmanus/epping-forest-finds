@@ -3,14 +3,13 @@
 <head>
   <meta charset="utf-8">
   <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-M9NL06G2JB"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
-    gtag('consent', 'default', { analytics_storage: 'denied' });
+    gtag('consent', 'default', { analytics_storage: 'denied', ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied' });
     gtag('js', new Date());
 
-    gtag('config', 'G-M9NL06G2JB');
+    gtag('config', 'G-M9NL06G2JB', { allow_google_signals: false, allow_ad_personalization_signals: false });
   </script>
   <script src="/cookie-consent.js" defer></script>
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -106,10 +105,10 @@
     <h1>Privacy &amp; Terms of Use</h1>
     <p class="updated">Last updated: October 2026</p>
 
-    <p>Epping Forest Finds ("the app", "we", "us") is a free map application for exploring Epping Forest. These terms explain how we collect and use data when you choose to share your location with the app.</p>
+    <p>Epping Forest Finds ("the app", "we", "us") is a free map application for exploring Epping Forest. These terms explain how we collect and use data when you choose to share usage data with the app.</p>
 
     <h2>1. What data we collect</h2>
-    <p>When you enable location sharing, we may collect the following data:</p>
+    <p>Turning on location lets the app centre the map on you; that position is used on your device and is not collected on its own. Only if you also agree to share usage data — a separate question the app asks, which you can answer "No thanks" — do we collect the following:</p>
     <ul>
       <li><strong>GPS coordinates</strong> — your approximate position, updated approximately once per minute while the app is open</li>
       <li><strong>Direction of travel</strong> — your compass bearing, where available from your device</li>
@@ -156,17 +155,17 @@
     <ul>
       <li><strong>Access</strong> — request a copy of the data we hold about your anonymous ID</li>
       <li><strong>Erasure</strong> — request deletion of all data linked to your anonymous ID, including your Community reports and any account link (section 13)</li>
-      <li><strong>Withdraw consent</strong> — disable tracking at any time via <em>Settings → Privacy</em> in the app; this stops all future data collection immediately</li>
+      <li><strong>Withdraw consent</strong> — turn usage analytics off at any time via <em>Settings → Privacy</em> in the app; this stops all future data collection immediately and deletes the anonymous ID and analytics cookies from your device</li>
       <li><strong>Portability</strong> — request your data in machine-readable format</li>
       <li><strong>Objection</strong> — object to processing for direct marketing purposes</li>
     </ul>
-    <p>To exercise any of these rights, email us at the address below. Please include "Privacy request" in the subject line and, if possible, your anonymous user ID (found in <em>Settings → Privacy</em>).</p>
+    <p>To exercise any of these rights, email us at the address below. Please include "Privacy request" in the subject line and, if possible, your anonymous ID (shown in <em>Settings → Privacy</em> while usage analytics is on — note it before turning analytics off).</p>
 
     <h2>8. Cookies and local storage</h2>
     <p>The app and website use browser <strong>localStorage</strong> to store your anonymous ID, filter preferences, consent status, and an offline queue of pending tracking events. This is not a cookie and is never shared with third-party cookie networks.</p>
-    <p>Separately, every page uses <strong>Google Analytics</strong> to understand how the site and app are used — which pages and screens are viewed, and in the app, which map items are selected (by type and name only; never your GPS coordinates). Google Analytics sets cookies (<code>_ga</code>, <code>_ga_*</code>) only after you accept the cookie banner shown on first visit; declining, or not responding, keeps analytics cookies off. Your choice is stored once and applied on every page — you are not asked again unless you clear your browser storage. You can review or change it at any time: use the "Manage cookie preferences" button below, or <em>Settings → Privacy</em> in the app.</p>
+    <p>Separately, every page uses <strong>Google Analytics</strong> to understand how the site and app are used — which pages and screens are viewed, and in the app, which map items are selected (by type and name only; never your GPS coordinates). Google Analytics is not loaded at all, and sets no cookies (<code>_ga</code>, <code>_ga_*</code>), until you accept the cookie banner shown on first visit or agree to share usage data in the app; declining, or not responding, keeps it off. Google Signals and ad personalisation are always off. Declining or withdrawing later deletes any analytics cookies already set. Your choice is stored once and applied on every page — you are not asked again unless you clear your browser storage. You can review or change it at any time: use the "Manage cookie preferences" button below, or <em>Settings → Privacy → Usage analytics</em> in the app.</p>
     <p id="cookiePreferencesControl"><button type="button" id="manageCookiePreferencesBtn" class="cookie-pref-btn">Manage cookie preferences</button></p>
-    <p>This cookie consent is independent of the location &amp; usage tracking consent in section 7 above — accepting or declining one has no effect on the other.</p>
+    <p>On the website this cookie choice is its own question. In the app, analytics cookies and the usage data in section 1 are asked about together, as one question ("Help improve the map?"), so a single answer covers both and a single switch in <em>Settings → Privacy</em> changes both. Neither is ever bundled with turning on location.</p>
 
     <h2>9. Children</h2>
     <p>The app is not directed at children under 13. We do not knowingly collect data from children. If you believe a child has enabled location sharing, please contact us to request deletion.</p>
