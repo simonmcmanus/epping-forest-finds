@@ -1,24 +1,24 @@
 :root {
   color-scheme: light;
   --icon-scale: 1;
-  --ink: #17221e;
-  --muted: #5d6a62;
-  --line: #d7ded8;
-  --paper: #eef2ea;
-  --panel: rgba(255, 255, 255, 0.94);
+  --ink: #1b2a22;
+  --muted: #617168;
+  --line: #d3dfd4;
+  --paper: #e9f0e7;
+  --panel: rgba(255, 255, 255, 0.965);
   --forest: #4f8b62;
   --buffer: #55a7a0;
-  --tree: #2f6f4e;
+  --tree: #2f7953;
   --nav: #2c4f85;
-  --selected: #b34f31;
+  --selected: #b95838;
   --place: #7f4f9f;
   --landmark: #76702f;
-  --shadow: 0 18px 50px rgba(19, 31, 25, 0.18);
+  --shadow: 0 18px 46px rgba(28, 55, 39, 0.15), 0 3px 10px rgba(28, 55, 39, 0.08);
   /* The main nav bar's active-tab accent (was a flat dark-navy block; see css/inspector.css
      .screen-active). --gold-ink is the text/icon colour -- dark enough for ~5:1 contrast on the
      nav bar's own light panel background -- and --gold-tint is the soft pill behind it. */
-  --gold-ink: #8a6a00;
-  --gold-tint: rgba(240, 180, 41, 0.16);
+  --gold-ink: #806100;
+  --gold-tint: rgba(240, 184, 58, 0.19);
   /* The fixed bottom nav bar's own height, reused wherever something else (the inspector sheet,
      the keyboard-avoidance math) needs to leave room for it. Matches the button min-height plus
      the bar's own padding/border (see .inspector-actions, css/inspector.css). */
@@ -40,6 +40,7 @@ body {
   overflow: hidden; /* Allow rotated canvas to extend beyond container */
   color: var(--ink);
   background: var(--paper);
+  -webkit-font-smoothing: antialiased;
 }
 
 button {
@@ -99,16 +100,27 @@ textarea:focus-visible,
 .button {
   min-height: 42px;
   padding: 0 14px;
-  border-radius: 6px;
+  border-radius: 12px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   font-weight: 800;
   color: #fff;
-  background: var(--tree);
-  box-shadow: 0 10px 22px rgba(20, 36, 28, 0.22);
+  background: linear-gradient(135deg, #39845d, var(--tree));
+  box-shadow: 0 10px 22px rgba(20, 58, 38, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.2);
   white-space: nowrap;
+  transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease;
+}
+
+.button:hover {
+  filter: brightness(1.05);
+  transform: translateY(-1px);
+  box-shadow: 0 13px 26px rgba(20, 58, 38, 0.23), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.button:active {
+  transform: translateY(0) scale(0.985);
 }
 
 .install {
@@ -130,9 +142,10 @@ textarea:focus-visible,
      overscan only ever covers the heading-up rotation and must stay clipped to the stage —
      otherwise the oversized bitmap spills out around the inspector panel. */
   overflow: hidden;
+  isolation: isolate;
   background:
-    linear-gradient(135deg, rgba(229, 236, 226, 0.95), rgba(205, 218, 203, 0.95)),
-    #d8e1d4;
+    radial-gradient(circle at 18% 22%, rgba(255, 255, 255, 0.42), transparent 34%),
+    linear-gradient(135deg, #edf3eb 0%, #dfeade 48%, #d3e1d3 100%);
 }
 
 canvas {
