@@ -374,14 +374,13 @@ function showTreeDetails(tree, distance, label) {
     "Estimated age": treeDetailIconHtml(tree, "age"),
     "Girth": treeDetailIconHtml(tree, "girth"),
     "Tree form": treeDetailIconHtml(tree, "form"),
-    "Comments": treeDetailIconHtml(tree, "comments"),
   };
   const tag = treeTagLabel(tree);
   const tagHtml = `<div class="row tree-tag${tag == null ? " tree-tag--missing" : ""}"><dt>Tag number</dt><dd>${escapeHtml(tag ?? "No tag recorded")}</dd></div>`;
   const statusHtml = tree.status != null && tree.status !== ""
     ? `<div class="row tree-status"><dt>Status</dt><dd>${treeDetailIconHtml(tree, "status")}<span>${escapeHtml(displayValue(tree.status))}</span></dd></div>` : "";
   const commentsHtml = tree.comments
-    ? `<div class="tree-comments">${detailsHtml([["Comments", tree.comments]], { icons: factIcons })}</div>` : "";
+    ? `<div class="tree-comments">${detailsHtml([["Comments", tree.comments]])}</div>` : "";
   const measurementRows = primaryRows.filter(([, value]) => value != null && value !== "");
   const measurementsHtml = measurementRows.length ? `<div class="tree-measurements"><dl>${measurementRows.map(([name, value]) => {
     const age = name === "Estimated age" && String(value).match(/^(.*) (\(c\.-?\d+\))$/);

@@ -525,7 +525,7 @@ function treeSpeciesIconHtml(commonName, latinName, className = "app-icon tree-s
 function treeDetailIconHtml(tree, field) {
   const status = String(tree.status || "").trim().toLowerCase();
   const form = String(tree.treeForm || "").toLowerCase().replace(/[_\s]+/g, " ");
-  let icon = { age: "age", girth: "girth", comments: "comments" }[field];
+  let icon = { age: "age", girth: "girth" }[field];
   if (field === "status") icon = status === "dead" ? "dead" : status === "alive" ? "alive" : null;
   if (field === "form") {
     icon = status === "dead" ? "dead"

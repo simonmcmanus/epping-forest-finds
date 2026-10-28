@@ -74,21 +74,22 @@ test.describe("Selection and Inspector", () => {
       const heights = await controls.evaluateAll((items) => items.map((item) => item.getBoundingClientRect().height));
       heights.forEach((height) => expect(height).toBeCloseTo(44, 0));
       const icons = page.locator("#inspectorBody .tree-measurements .tree-field-icon, #inspectorBody .tree-form .tree-field-icon, #inspectorBody .tree-comments .tree-field-icon");
-      await expect(icons).toHaveCount(4);
+      await expect(icons).toHaveCount(3);
       const placement = await icons.evaluateAll((items) => items.map((icon) => {
         const row = icon.closest(".row");
         const image = icon.getBoundingClientRect();
         const field = row.getBoundingClientRect();
         const label = row.querySelector("dt > span:not(.tree-field-icon)").getBoundingClientRect();
-        return { opacity: getComputedStyle(icon).opacity, width: image.width, rightGap: field.right - image.right, labelLeft: label.left, iconLeft: image.left };
+        return { opacity: getComputedStyle(icon).opacity, width: image.width, rightGap: field.right - image.right, labelLeft: label.left, iconLeft: image.left, isForm: Boolean(row.closest(".tree-form")) };
       }));
       for (const icon of placement) {
-        expect(icon.opacity).toBe("0.7");
-        expect(icon.width).toBe(56);
-        expect(icon.rightGap).toBeGreaterThanOrEqual(5);
-        expect(icon.rightGap).toBeLessThanOrEqual(10);
+        expect(icon.opacity).toBe("1");
+        expect(icon.width).toBe(icon.isForm ? 40 : 24);
+        expect(icon.rightGap).toBeGreaterThanOrEqual(10);
+        expect(icon.rightGap).toBeLessThanOrEqual(14);
         expect(icon.labelLeft).toBeLessThan(icon.iconLeft);
       }
+      await expect(page.locator("#inspectorBody .tree-comments .tree-field-icon")).toHaveCount(0);
     });
 
     test("missing tree tags have a clear fallback and single measurements stay compact", async ({ page }, testInfo) => {
