@@ -15,6 +15,9 @@ export const NATIVE_ORIGINS = ["capacitor://localhost", "https://localhost"];
 
 const ALLOWED_METHODS = "GET, POST, OPTIONS";
 const PREFLIGHT_MAX_AGE_SECONDS = "86400";
+// The only request header the app sets on an /api call. Named, not echoed back from the preflight,
+// so a caller cannot widen what the browser lets through.
+const ALLOWED_HEADERS = "Content-Type";
 
 function allowHeaders(origin) {
   return { "Access-Control-Allow-Origin": origin, Vary: "Origin" };
@@ -30,7 +33,7 @@ export default async (request, context) => {
       headers: {
         ...allowHeaders(origin),
         "Access-Control-Allow-Methods": ALLOWED_METHODS,
-        "Access-Control-Allow-Headers": request.headers.get("access-control-request-headers") || "Content-Type",
+        "Access-Control-Allow-Headers": ALLOWED_HEADERS,
         "Access-Control-Max-Age": PREFLIGHT_MAX_AGE_SECONDS,
       },
     });

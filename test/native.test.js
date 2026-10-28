@@ -438,9 +438,18 @@ test("the app's preflight is answered for both native WebView origins", async ()
     assert.equal(response.status, 204);
     assert.equal(response.headers.get("access-control-allow-origin"), origin);
     assert.match(response.headers.get("access-control-allow-methods"), /POST/);
-    assert.equal(response.headers.get("access-control-allow-headers"), "content-type");
+    assert.equal(response.headers.get("access-control-allow-headers"), "Content-Type");
     assert.equal(context.reached, 0, "a preflight never reaches the function");
   }
+});
+
+test("a preflight asking for extra request headers is granted Content-Type only", async () => {
+  const { default: handler } = await loadEdgeFunction();
+  const response = await handler(new Request("https://www.eppingforestfinds.uk/api/track", {
+    method: "OPTIONS",
+    headers: { Origin: "https://localhost", "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type, authorization, x-admin-key" },
+  }), edgeContext());
+  assert.equal(response.headers.get("access-control-allow-headers"), "Content-Type");
 });
 
 test("the app's real request reaches the function and comes back readable by the app", async () => {
