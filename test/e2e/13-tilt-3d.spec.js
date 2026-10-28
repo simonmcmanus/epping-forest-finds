@@ -180,7 +180,7 @@ test.describe("3D tilt view", () => {
     for (const beta of TILT_SWEEP) {
       await tiltTo(page, beta);
 
-      const { groundCoverage, horizonFraction } = await page.evaluate(() => {
+      const { groundCoverage, hazeFraction, horizonFraction } = await page.evaluate(() => {
         const rect = bestVisibleCanvasRect();
         // Derived here from the camera angle and distance rather than read from
         // tiltHorizonCanvasY(), so this measures observable behaviour and stays valid
@@ -201,20 +201,40 @@ test.describe("3D tilt view", () => {
         const width = Math.min(els.canvas.width - x, Math.round(rect.width));
         const pixels = els.canvas.getContext("2d").getImageData(x, top, width, bottom - top).data;
 
-        let painted = 0;
-        let total = 0;
-        for (let row = 0; row < bottom - top; row += 4) {
+        // The horizon itself is a deliberate haze: drawTiltDistanceFade fades the ground out as
+        // it meets the horizon, so the first few rows below it are transparent by design. Measure
+        // coverage from the first painted row instead, and separately require that row to sit
+        // right at the horizon -- ground that ran out early would leave a far deeper gap.
+        const rowPainted = (row) => {
+          let painted = 0;
+          let total = 0;
           for (let col = 0; col < width; col += 4) {
             total += 1;
             if (pixels[((row * width) + col) * 4 + 3] > 8) painted += 1;
           }
+          return { painted, total };
+        };
+        let firstGroundRow = 0;
+        while (firstGroundRow < bottom - top) {
+          const { painted, total } = rowPainted(firstGroundRow);
+          if (painted / total > 0.5) break;
+          firstGroundRow += 4;
+        }
+        let painted = 0;
+        let total = 0;
+        for (let row = firstGroundRow; row < bottom - top; row += 4) {
+          const counts = rowPainted(row);
+          painted += counts.painted;
+          total += counts.total;
         }
         return {
-          groundCoverage: (painted / total) * 100,
+          groundCoverage: total ? (painted / total) * 100 : 0,
+          hazeFraction: firstGroundRow / els.canvas.height,
           horizonFraction: horizon == null ? null : (horizon - rect.y) / rect.height,
         };
       });
 
+      expect(hazeFraction, `ground must reach up to the horizon haze at beta ${beta}`).toBeLessThan(0.03);
       expect(groundCoverage, `ground must stay painted at beta ${beta}`).toBeGreaterThan(95);
       if (horizonFraction !== null && horizonFraction > 0) {
         // Once the horizon is on screen it must stay in the upper half — a horizon that

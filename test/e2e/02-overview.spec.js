@@ -550,6 +550,9 @@ test.describe("Overview / Nearby screen", () => {
           cornersInsideRing: corners.filter((c) => Math.hypot(c.x - user.x, c.y - user.y) <= radiusPx).length,
           widthFraction: (radiusPx * 2) / rect.width,
           heightFraction: (radiusPx * 2) / rect.height,
+          // The visible map can be wider than tall (a phone with the sheet open) or taller than
+          // wide, so "the smaller screen dimension" is whichever side is shorter.
+          smallerDimensionFraction: (radiusPx * 2) / Math.min(rect.width, rect.height),
           scale: state.viewport.scale,
         };
       });
@@ -562,8 +565,8 @@ test.describe("Overview / Nearby screen", () => {
       expect(ring.outside).toBe(0);
       expect(ring.cornersInsideRing).toBe(0);
       // Framed, not merely contained: the circle fills most of the smaller screen dimension.
-      expect(Math.min(ring.widthFraction, ring.heightFraction)).toBeGreaterThan(0.6);
-      expect(Math.max(ring.widthFraction, ring.heightFraction)).toBeLessThanOrEqual(1);
+      expect(ring.smallerDimensionFraction).toBeGreaterThan(0.6);
+      expect(ring.smallerDimensionFraction).toBeLessThanOrEqual(1);
     });
 
     test("the zoom does not change as the compass heading turns", async ({ page }) => {
