@@ -389,6 +389,16 @@ test("every script, stylesheet and icon the app page links is in the app binary 
   for (const ref of refs) assert.ok(fs.existsSync(path.join(out, ref)), ref);
 });
 
+test("every app-shell file the offline service worker caches is in the app binary too (cross-file invariant)", () => {
+  const { out } = builtWww();
+  const sw = fs.readFileSync(path.join(ROOT, "sw.js"), "utf8");
+  const shell = sw.slice(sw.indexOf("const APP_SHELL"), sw.indexOf("];", sw.indexOf("const APP_SHELL")));
+  const files = [...shell.matchAll(/"\.\/([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(files.length > 20);
+  // app.html ships as the shell's entry page, index.html.
+  for (const file of files) assert.ok(fs.existsSync(path.join(out, file === "app.html" ? "index.html" : file)), file);
+});
+
 test("every dataset the offline service worker caches is in the app binary too (cross-file invariant)", () => {
   const { out } = builtWww();
   const sw = fs.readFileSync(path.join(ROOT, "sw.js"), "utf8");

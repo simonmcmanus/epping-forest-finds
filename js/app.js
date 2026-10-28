@@ -149,6 +149,18 @@ const NATIVE_HEADING_TRUSTED_ACCURACY_DEG = 25;
 // treats the loop that asked for it as wedged. A frame runs within ~16ms; two seconds is
 // far past any plausible scheduling delay on a loaded phone.
 const ANIMATION_FRAME_WEDGED_MS = 2000;
+// "1" when the walker has switched on the 3D map in Settings. Off by default: pitching the phone
+// leaves the map flat (heading-up still applies) until they opt in.
+const MAP_3D_KEY = "ff-map-3d-v1";
+const STORED_MAP_3D = (() => {
+  try { return localStorage.getItem(MAP_3D_KEY) === "1"; } catch { return false; }
+})();
+// "1" once this device has reported a real pitch reading. Settings only offers the 3D switch
+// after that: a laptop never sends one, so the switch would do nothing there.
+const MOTION_SENSOR_KEY = "ff-motion-sensor-v1";
+const STORED_MOTION_SENSOR = (() => {
+  try { return localStorage.getItem(MOTION_SENSOR_KEY) === "1"; } catch { return false; }
+})();
 const STORED_COMPASS_PERMISSION = (() => {
   try {
     const stored = localStorage.getItem(COMPASS_PERMISSION_KEY) || "unknown";
@@ -338,6 +350,10 @@ const state = {
   backgroundedUserLocation: null,
   tiltBetaTarget: 0,
   tiltBetaSmoothed: 0,
+  // Settings' "3D map" switch. Pitch is still tracked while it is off (the compass deadband
+  // reads it), it just never tilts the camera or collapses pins.
+  map3dEnabled: STORED_MAP_3D,
+  motionSensorSeen: STORED_MOTION_SENSOR,
   // rotateX angle baked into the main canvas by the last draw() -- see tiltRenderStale().
   renderedTiltRotateXDeg: 0,
   tiltWasActive: false,
@@ -3095,6 +3111,11 @@ function settingsFormHtml() {
       <div class="settings-presets" role="group" aria-label="Walking time presets">${reachablePresets.map((m) => `<button type="button" class="settings-btn" data-walk-minutes="${m}" aria-pressed="${sliderValue === m}">${formatWalkingRadius(m)}</button>`).join("")}</div>
       <p class="source-note walk-radius-floor-note" id="settingsWalkMinsFloorNote" aria-live="polite"${sliderValue > floorMinutes ? " hidden" : ""}>This is as close as it gets — nothing closer to show nearby.</p>
     </section>
+    <section class="settings-section" id="map3dSetting"${state.motionSensorSeen ? "" : " hidden"}>
+      <h3 class="settings-section-title">Map</h3>
+      <label class="settings-switch"><span><strong>3D map</strong><span class="settings-description">Tilt your phone up to see the map laid out ahead of you.</span></span><input type="checkbox" id="map3dToggle"${state.map3dEnabled ? " checked" : ""}></label>
+      <img class="settings-preview" src="css/img/map-3d-preview.webp" width="480" height="346" alt="The map tilted in 3D, with paths and finds stretching away towards the horizon" loading="lazy" decoding="async">
+    </section>
     <section class="settings-section">
       <h3 class="settings-section-title">Reminders</h3>
       <label class="community-nudge-setting settings-switch"><span><strong>Tree check reminders</strong><span class="settings-description">A gentle nudge to check trees you’re standing next to.</span></span><input type="checkbox" id="communityNudgeToggle"${communityNudgesOn() ? " checked" : ""}></label>
@@ -3208,6 +3229,8 @@ async function fillTesterId() {
 
 function bindSettingsHandlers() {
   refreshSettingsVersionDisplay();
+  const map3dToggle = document.getElementById("map3dToggle");
+  if (map3dToggle) map3dToggle.addEventListener("change", () => setMap3dEnabled(map3dToggle.checked));
   const range = document.getElementById("settingsWalkMins");
   if (range) {
     // If the floor has grown since this radius was last set (e.g. the user has moved
@@ -5134,6 +5157,7 @@ function onDeviceOrientation(event) {
   state.orientationLastEventAt = performance.now();
   const rawBeta = event.beta;
   if (Number.isFinite(rawBeta)) {
+    if (!state.motionSensorSeen) markMotionSensorSeen();
     const nextBeta = clamp(Math.abs(rawBeta), 0, 90);
     // Deadband: sub-degree pitch wobble would otherwise re-project the tilted map every frame.
     if (Math.abs(nextBeta - state.tiltBetaTarget) >= BETA_TARGET_DEADBAND_DEG) state.tiltBetaTarget = nextBeta;
@@ -6144,7 +6168,26 @@ function tiltActive() {
   // still waiting for iOS permission or magnetometer calibration, and the map can safely stay
   // north-up while still responding to the phone being lifted. Once a heading is available the
   // same path becomes the full heading-up radar view.
-  return Boolean(hasRealLocation()) && state.tiltBetaSmoothed > TILT_BETA_THRESHOLD;
+  return Boolean(state.map3dEnabled) && Boolean(hasRealLocation()) && state.tiltBetaSmoothed > TILT_BETA_THRESHOLD;
+}
+
+// Chrome on a laptop fires one deviceorientation event with every angle null, so only a finite
+// beta counts. Reveals the switch in place if Settings is already open.
+function markMotionSensorSeen() {
+  state.motionSensorSeen = true;
+  try { localStorage.setItem(MOTION_SENSOR_KEY, "1"); } catch {}
+  const section = typeof document !== "undefined" && document.getElementById("map3dSetting");
+  if (section) section.hidden = false;
+}
+
+// Turning 3D off mid-tilt must flatten the map straight away, not on the next pitch change:
+// drop the frozen projection and re-fit, which re-solves the camera without the perspective.
+function setMap3dEnabled(on) {
+  state.map3dEnabled = Boolean(on);
+  try { localStorage.setItem(MAP_3D_KEY, state.map3dEnabled ? "1" : "0"); } catch {}
+  _tiltProjectionCache = undefined;
+  if (typeof ensureOverviewTargetsVisible === "function") ensureOverviewTargetsVisible();
+  requestDraw();
 }
 
 function tiltRotateXDeg() {
@@ -6408,7 +6451,7 @@ function tiltRotatedHeadingOffset(worldPoint) {
 // lower bound is exactly TILT_BETA_THRESHOLD (where tiltActive() itself flips), influence
 // is already 0 right as tilt deactivates, so leaving 3D still eases smoothly with no jump.
 function tiltInfluence() {
-  if (!headingUpActive()) return 0;
+  if (!state.map3dEnabled || !headingUpActive()) return 0;
   return clamp((state.tiltBetaSmoothed - TILT_BETA_THRESHOLD) / (TILT_BETA_MAX - TILT_BETA_THRESHOLD), 0, 1);
 }
 
@@ -7527,8 +7570,17 @@ function prepareCanvasForDraw() {
 
 function updateHeadingUpCanvasRotationTransform() {
   if (state.headingUpEntryAnim != null) return false; // entry animation loop interpolates renderedNavigationHeading each frame
-  if (!headingUpActive() || !Number.isFinite(state.renderedNavigationHeading)) {
+  if (!headingUpActive()) {
     clearHeadingUpCanvasTransform();
+    return false;
+  }
+  if (!Number.isFinite(state.renderedNavigationHeading)) {
+    // The last draw predates the first compass reading, so there is no drawn heading for a CSS
+    // delta to spin from. Without a redraw nothing else asks for one once the camera has
+    // settled -- the 3D path used to, by redrawing every frame -- and the map stayed north-up
+    // while the radar turned. prepareCanvasForDraw sets the heading on that draw.
+    clearHeadingUpCanvasTransform();
+    requestDraw();
     return false;
   }
   const renderedRotation = -normalizeDegrees(state.renderedNavigationHeading);
