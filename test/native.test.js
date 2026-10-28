@@ -471,3 +471,13 @@ test("the iOS project ships the store version native/package.json names (cross-f
   assert.ok(declared.length > 0);
   assert.deepEqual([...new Set(declared)], [version]);
 });
+
+test("the data manifest lists the same datasets whether or not git can be asked (CI containers and builds without .git)", () => {
+  const { execFileSync } = require("child_process");
+  const script = "const m=require('./scripts/lib/data-manifest.js');console.log(JSON.stringify(m.buildManifest('.').files))";
+  const run = (env) => JSON.parse(execFileSync(process.execPath, ["-e", script], { cwd: ROOT, env }).toString());
+  const withGit = run(process.env);
+  const withoutGit = run({ ...process.env, PATH: "/nonexistent" });
+  assert.ok(Object.keys(withGit).length > 20);
+  assert.deepEqual(Object.keys(withoutGit), Object.keys(withGit));
+});

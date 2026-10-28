@@ -19,11 +19,28 @@ function isDataFile(file) {
   return DATA_FILE.test(file) && !NOT_DATA.some((re) => re.test(file));
 }
 
-// Tracked plus new, not-ignored files: the same set git would hand the website build.
+// Files under data/ that are deliberately not part of the site (gitignored sources and working
+// copies), for when git cannot be asked: see knownFiles.
+const UNPUBLISHED = [/\.overpass\.json$/, /^data\/local-landmarks(-access)?\.geojson$/];
+
+function walk(root, dir) {
+  return fs.readdirSync(path.join(root, dir), { withFileTypes: true }).flatMap((entry) => {
+    const rel = `${dir}/${entry.name}`;
+    return entry.isDirectory() ? walk(root, rel) : [rel];
+  });
+}
+
+// Tracked plus new, not-ignored files: the same set git would hand the website build. Where git
+// cannot answer (no .git in the build, or a CI container whose checkout git refuses as owned by
+// another user) the data directory is walked instead, skipping what git would have ignored.
 function knownFiles(root) {
-  return execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], {
-    cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024,
-  }).split("\0").filter(Boolean);
+  try {
+    return execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], {
+      cwd: root, encoding: "utf8", maxBuffer: 64 * 1024 * 1024, stdio: ["ignore", "pipe", "ignore"],
+    }).split("\0").filter(Boolean);
+  } catch {
+    return walk(root, "data").filter((file) => !UNPUBLISHED.some((re) => re.test(file)));
+  }
 }
 
 // The data release marker (js/data-cache-version.js), which only the post-merge workflow moves.
