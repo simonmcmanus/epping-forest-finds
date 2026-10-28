@@ -21,6 +21,16 @@ test.describe("Selection and Inspector", () => {
       await expect(page.locator("#inspectorBody")).toContainText(FIXTURE_TREE.tagNumber);
     });
 
+    test("tree facts stay readable while taxonomy and technical data sit at the bottom", async ({ page }) => {
+      const technical = page.locator("#inspectorBody details.technical-details");
+      await expect(technical.locator("dt", { hasText: "Latin name" })).toHaveCount(1);
+      await expect(technical).not.toHaveAttribute("open", "");
+      await expect(page.locator("#inspectorBody > :last-child")).toHaveClass("technical-details");
+      await expect(page.locator(".tree-facts")).toContainText("Tag number");
+      await technical.locator("summary").click();
+      await expect(technical.locator("dt", { hasText: "Latin name" })).toBeVisible();
+    });
+
     test("URL hash reflects the selected tree", async ({ page }) => {
       await expect(page).toHaveURL(new RegExp(`tree=${FIXTURE_TREE.hashKey}`));
     });

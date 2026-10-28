@@ -369,14 +369,14 @@ function showTreeDetails(tree, distance, label) {
   const primaryRows = [
     ["Tag number", treeTagLabel(tree)],
     ["Estimated age", estimatedAge],
-    ["Common name", tree.commonName],
-    ["Latin name", tree.latinName],
-    ["Tree form", tree.treeForm],
     ["Girth", tree.girthMetres == null ? null : `${tree.girthMetres} m`],
+    ["Common name", tree.commonName],
+    ["Tree form", tree.treeForm],
     ["Status", tree.status],
     ["Comments", tree.comments],
   ];
   const technicalRows = [
+    ["Latin name", tree.latinName],
     ["National tag", tree.nationalDatabaseTagNumber],
     ["GPS date", tree.dateGpsd],
     ["Compartment", tree.compartmentNumber],
@@ -396,7 +396,7 @@ function showTreeDetails(tree, distance, label) {
   const issueHtml = reportIssueHtml({ type: "Veteran tree", name: treeDisplayName(tree), latitude: tree.latitude, longitude: tree.longitude });
   // Keep the check form directly below the actions so it can collapse into the local report
   // status in the same place, just like a place check does.
-  transitionInspectorBody(topRow + verified.detail + communitySectionHtml(tree) + detailsHtml(primaryRows) + technicalHtml + namedTreeHtml + nearbySectionHtml + issueHtml, "forward");
+  transitionInspectorBody(topRow + verified.detail + communitySectionHtml(tree) + `<section class="tree-facts" aria-label="Tree facts">${detailsHtml(primaryRows)}</section>` + namedTreeHtml + nearbySectionHtml + issueHtml + technicalHtml, "forward");
 }
 
 function showLandmarkDetails(place, distance) {

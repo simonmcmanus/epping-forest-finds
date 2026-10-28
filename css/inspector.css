@@ -2371,3 +2371,29 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 .community-account-card {
   box-shadow: 0 2px 8px rgba(27, 65, 43, 0.05);
 }
+
+/* Tree facts use the full panel width, with an easy-to-find physical tag. */
+.tree-facts { margin: 14px 0; }
+.tree-facts dl { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.tree-facts .row {
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 5px;
+  padding: 13px 14px;
+  border: 1px solid #e2e9df;
+  border-radius: 14px;
+  background: #f6f8f2;
+}
+.tree-facts .row:first-child {
+  grid-column: 1 / -1;
+  background: #eaf2e5;
+  border-color: #cfdec7;
+}
+.tree-facts dt { font-size: 0.75rem; letter-spacing: 0.03em; }
+.tree-facts dd { color: var(--ink); font-size: 1rem; line-height: 1.4; }
+.tree-facts .row:first-child dd { font-size: 1.55rem; font-weight: 800; }
+.tree-facts .row:last-child:has(dd) { grid-column: 1 / -1; }
+.tree-facts ~ .technical-details { margin-top: 20px; border-top: 1px solid #e2e9df; padding-top: 4px; }
+@media (max-width: 340px) {
+  .tree-facts dl { grid-template-columns: minmax(0, 1fr); }
+}
