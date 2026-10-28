@@ -376,7 +376,8 @@ function showTreeDetails(tree, distance, label) {
     "Tree form": treeDetailIconHtml(tree, "form"),
     "Comments": treeDetailIconHtml(tree, "comments"),
   };
-  const tagHtml = `<div class="row tree-tag"><dt>Tag number</dt><dd>${escapeHtml(treeTagLabel(tree))}</dd></div>`;
+  const tag = treeTagLabel(tree);
+  const tagHtml = `<div class="row tree-tag${tag == null ? " tree-tag--missing" : ""}"><dt>Tag number</dt><dd>${escapeHtml(tag ?? "No tag recorded")}</dd></div>`;
   const statusHtml = tree.status != null && tree.status !== ""
     ? `<div class="row tree-status"><dt>Status</dt><dd>${treeDetailIconHtml(tree, "status")}<span>${escapeHtml(displayValue(tree.status))}</span></dd></div>` : "";
   const commentsHtml = tree.comments

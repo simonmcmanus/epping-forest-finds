@@ -83,12 +83,32 @@ test.describe("Selection and Inspector", () => {
         return { opacity: getComputedStyle(icon).opacity, width: image.width, rightGap: field.right - image.right, labelLeft: label.left, iconLeft: image.left };
       }));
       for (const icon of placement) {
-        expect(icon.opacity).toBe("0.5");
+        expect(icon.opacity).toBe("0.7");
         expect(icon.width).toBe(56);
         expect(icon.rightGap).toBeGreaterThanOrEqual(5);
         expect(icon.rightGap).toBeLessThanOrEqual(10);
         expect(icon.labelLeft).toBeLessThan(icon.iconLeft);
       }
+    });
+
+    test("missing tree tags have a clear fallback and single measurements stay compact", async ({ page }, testInfo) => {
+      const show = async (tagNumber) => page.evaluate((tagNumber) => showTreeDetails({ ...state.selected.item, tagNumber, nationalDatabaseTagNumber: null, girthMetres: 0 }, 420, "Tree record"), tagNumber);
+      for (const tag of [null, "0", ""]) {
+        await show(tag);
+        await expect(page.locator("#inspectorBody .tree-tag dd")).toHaveText("No tag recorded");
+      }
+      await testInfo.attach("untagged-compact-tree", { body: await page.locator("#inspectorBody .tree-facts").screenshot({ animations: "disabled" }), contentType: "image/png" });
+      await show("11383");
+      await expect(page.locator("#inspectorBody .tree-tag dd")).toHaveText("11383");
+      await testInfo.attach("tagged-compact-tree", { body: await page.locator("#inspectorBody .tree-facts").screenshot({ animations: "disabled" }), contentType: "image/png" });
+      const measurement = page.locator("#inspectorBody .tree-measurements .row");
+      await expect(measurement).toHaveCount(1);
+      expect((await measurement.boundingBox()).height).toBeLessThan(85);
+      const pill = page.locator("#inspectorBody .walk-chip");
+      expect((await pill.boundingBox()).height).toBe(44);
+      expect(await pill.evaluate((item) => parseFloat(getComputedStyle(item).fontSize))).toBeGreaterThanOrEqual(14);
+      expect((await pill.locator(".walk-icon").boundingBox()).width).toBe(20);
+      await expect(page.locator("#inspectorBody .tree-status .tree-field-icon")).toHaveCSS("opacity", "1");
     });
 
     test("URL hash reflects the selected tree", async ({ page }) => {
