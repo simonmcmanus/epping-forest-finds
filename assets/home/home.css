@@ -265,6 +265,7 @@ section { padding: 52px 0; border-top: 1px solid var(--line); }
 .inventory-details summary { cursor: pointer; color: var(--tree-deep); font-size: .85rem; font-weight: 600; }
 .inventory-details summary:focus-visible { outline: 3px solid rgba(46, 107, 68, .45); outline-offset: 3px; }
 .inventory-details[open] summary { margin-bottom: 12px; }
+.map-inventory[data-always-open] .inventory-details summary { display: none; }
 .inventory-group { min-height: 0; }
 .map-inventory [hidden] { display: none; }
 .ledger-story h3 a { color: inherit; text-decoration-thickness: 1px; text-underline-offset: 3px; }

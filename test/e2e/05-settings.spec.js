@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, settleMapIconsAndDraw } = require("./helpers");
+const { setup, settleMapIconsAndDraw, waitForUiToSettle } = require("./helpers");
 
 test.describe("Settings screen", () => {
   test.beforeEach(async ({ page }) => {
@@ -32,6 +32,18 @@ test.describe("Settings screen", () => {
     await setWalkSlider(page, max);
     await expect(page.locator("#settingsWalkMinsValue")).toHaveText(`${max} min`);
     expect(await page.evaluate(() => state.walkingDistanceMinutes)).toBe(Number(max));
+  });
+
+  test("walking presets update the radius and stay in sync with the slider", async ({ page }) => {
+    const preset = page.locator("[data-walk-minutes]").last();
+    const minutes = Number(await preset.getAttribute("data-walk-minutes"));
+    await preset.click();
+    await expect(preset).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator("#settingsWalkMinsValue")).toHaveText(`${minutes} min`);
+    expect(await page.evaluate(() => state.walkingDistanceMinutes)).toBe(minutes);
+    const min = await page.locator("#settingsWalkMins").getAttribute("min");
+    await setWalkSlider(page, min);
+    await expect(preset).toHaveAttribute("aria-pressed", "false");
   });
 
   test("dragging the walking radius slider down to its floor reveals the limit note", async ({ page }) => {
@@ -81,6 +93,36 @@ test.describe("Settings screen", () => {
     await expect(page.locator("#appVersionDisplay")).toBeVisible();
     // Should start with 'v' — e.g. "v120"
     await expect(page.locator("#appVersionDisplay")).toContainText("v");
+  });
+
+  test("a single update banner appears once an update is ready and one tap restarts", async ({ page }) => {
+    await expect(page.locator("#updateBanner")).toHaveCount(0);
+    await page.evaluate(() => { _markDataUpdateAvailable(); });
+    await expect(page.locator("#updateBanner")).toBeVisible();
+    await expect(page.locator("#updateBanner")).toContainText("New map data");
+    await page.evaluate(() => { window.__reloadMarker = true; });
+    await page.click("#updateBannerButton");
+    await page.waitForFunction(() => !window.__reloadMarker);
+  });
+
+  test("data arriving while a waiting worker is still preparing does not show the banner early", async ({ page }) => {
+    await page.evaluate(() => {
+      state.swWaiting = { postMessage() {} };
+      _markDataUpdateAvailable();
+    });
+    await expect(page.locator("#updateBanner")).toHaveCount(0);
+    await page.evaluate(() => { _markSwUpdateAvailable(state.swWaiting); });
+    await expect(page.locator("#updateBanner")).toBeVisible();
+    await expect(page.locator("#updateBanner")).toContainText("Update ready");
+    await expect(page.locator("#updateBanner")).toHaveCount(1);
+  });
+
+  test("snapshot: update ready banner", async ({ page }) => {
+    await page.evaluate(() => { _markDataUpdateAvailable(); });
+    await expect(page.locator("#updateBanner")).toBeVisible();
+    await waitForUiToSettle(page);
+    await settleMapIconsAndDraw(page);
+    await expect(page).toHaveScreenshot("update-ready-banner.png", { fullPage: false });
   });
 
   test("settings screen offers a one-tap reload once new map data has already downloaded", async ({ page }) => {
@@ -145,10 +187,121 @@ test.describe("Settings screen", () => {
     for (const id of ["#refreshDataButton", "#refreshAppButton", "#refreshAllButton"]) {
       await expect(page.locator(id)).toBeDisabled();
     }
+    await expect(page.locator("#appUpdateStatusText")).toContainText("You're offline");
+    await expect(page.locator("#appUpdateButton")).toBeDisabled();
 
     await context.setOffline(false);
     await expect(page.locator("#refreshOfflineNote")).toBeHidden();
     await expect(page.locator("#refreshDataButton")).toBeEnabled();
+  });
+
+  test.describe("update status", () => {
+    // Service workers are blocked in these tests, so the browser's registration and the incoming
+    // worker are stood in for at that boundary; everything above it is the real Settings code.
+    // update() makes `installing` a fake worker when `newRelease` is set, the way a browser
+    // reports a newer sw.js; the fake records what the page posts to it.
+    async function stubRegistration(page, { newRelease = false } = {}) {
+      await page.evaluate((newRelease) => {
+        window.__workerMessages = [];
+        const worker = new EventTarget();
+        worker.state = "installing";
+        worker.postMessage = (message) => window.__workerMessages.push(message);
+        window.__incomingWorker = worker;
+        const registration = {
+          installing: null,
+          waiting: null,
+          update: async () => { if (newRelease) registration.installing = worker; },
+        };
+        const serviceWorker = navigator.serviceWorker;
+        Object.defineProperty(serviceWorker, "controller", { configurable: true, value: { postMessage() {} } });
+        Object.defineProperty(serviceWorker, "getRegistration", { configurable: true, value: async () => registration });
+        const realKeys = caches.keys.bind(caches);
+        caches.keys = async () => [...(await realKeys()), "forest-finds-app-v999999"];
+      }, newRelease);
+    }
+
+    test("before any check, Settings says updates are checked automatically and offers a check", async ({ page }) => {
+      await expect(page.locator("#appUpdateStatusText")).toHaveText("Updates are checked automatically while the app is open.");
+      await expect(page.locator("#appUpdateButton")).toHaveText("Check for updates");
+    });
+
+    test("checking for updates with nothing newer says the app is on the latest version", async ({ page }) => {
+      await stubRegistration(page);
+      await page.click("#appUpdateButton");
+      await expect(page.locator("#appUpdateStatusText")).toContainText("You have the latest version.");
+      await expect(page.locator("#appUpdateCheckedAt")).toContainText("Checked at");
+      await expect(page.locator("#appUpdateButton")).toBeEnabled();
+    });
+
+    test("a newer version shows as downloading, then ready, and Restart switches to it", async ({ page }) => {
+      await stubRegistration(page, { newRelease: true });
+      await page.click("#appUpdateButton");
+      await expect(page.locator("#appUpdateStatusText")).toContainText("Downloading update v999999");
+      await expect(page.locator("#appUpdateButton")).toHaveText("Downloading…");
+      await expect(page.locator("#appUpdateButton")).toBeDisabled();
+
+      // The worker finishes installing, then fetches its own map data before it is announced.
+      await page.evaluate(() => {
+        window.__incomingWorker.state = "installed";
+        window.__incomingWorker.dispatchEvent(new Event("statechange"));
+      });
+      await page.waitForFunction(() => window.__workerMessages.some((m) => m.type === "SYNC_DATA"));
+      await expect(page.locator("#appUpdateStatusText")).toContainText("Downloading update v999999");
+
+      await page.evaluate(() => {
+        const sync = window.__workerMessages.find((m) => m.type === "SYNC_DATA");
+        navigator.serviceWorker.dispatchEvent(new MessageEvent("message", {
+          data: { type: "DATA_SYNC_COMPLETE", requestId: sync.requestId, ok: true, changed: 0, failed: 0 },
+        }));
+      });
+      await expect(page.locator("#appUpdateStatusText")).toHaveText("Update v999999 has downloaded. Restart to start using it.");
+      await expect(page.locator("#appUpdateButton")).toHaveText("Restart now");
+
+      await page.click("#appUpdateButton");
+      await page.waitForFunction(() => window.__workerMessages.some((m) => m.type === "SKIP_WAITING"));
+    });
+
+    test("an update that fails to download says so and offers to try again", async ({ page }) => {
+      await stubRegistration(page, { newRelease: true });
+      await page.click("#appUpdateButton");
+      await expect(page.locator("#appUpdateButton")).toHaveText("Downloading…");
+      await page.evaluate(() => {
+        window.__incomingWorker.state = "redundant";
+        window.__incomingWorker.dispatchEvent(new Event("statechange"));
+      });
+      await expect(page.locator("#appUpdateStatusText")).toContainText("Couldn't finish checking for updates");
+      await expect(page.locator("#appUpdateButton")).toHaveText("Try again");
+    });
+
+    // The page's first controllerchange is the first install claiming it (no worker controlled
+    // the page at load here), so the second is a newer release taking over from elsewhere.
+    async function activateReleaseElsewhere(page) {
+      await page.evaluate(() => {
+        navigator.serviceWorker.dispatchEvent(new Event("controllerchange"));
+        navigator.serviceWorker.dispatchEvent(new Event("controllerchange"));
+      });
+    }
+
+    test("a release already switched on in another tab restarts with one tap", async ({ page }) => {
+      await activateReleaseElsewhere(page);
+      await expect(page.locator("#appUpdateButton")).toHaveText("Restart now");
+      await page.evaluate(() => { window.__reloadMarker = true; });
+      await page.click("#appUpdateButton");
+      await page.waitForFunction(() => window.__reloadMarker === undefined);
+    });
+
+    test("snapshot: settings update ready", async ({ page }) => {
+      await activateReleaseElsewhere(page);
+      await expect(page.locator("#appUpdateButton")).toHaveText("Restart now");
+      await page.locator("#appUpdateStatus").scrollIntoViewIfNeeded();
+      await waitForUiToSettle(page);
+      await settleMapIconsAndDraw(page);
+      await expect(page.locator("#testerIdDisplay")).not.toHaveText("…");
+      await expect(page).toHaveScreenshot("settings-update-ready.png", {
+        fullPage: false,
+        mask: [page.locator("#testerIdDisplay"), page.locator("#appVersionDisplay")],
+      });
+    });
   });
 
   test.describe("refresh scopes", () => {
@@ -207,17 +360,19 @@ test.describe("Settings screen", () => {
       await page.click(buttonId);
       // waitForFunction survives the location.reload() the button ends with; the log entries
       // are written to sessionStorage before that, so they are still there afterwards.
-      await page.waitForFunction(
-        () => {
-          try {
-            return JSON.parse(sessionStorage.getItem("refresh-log") || "[]").length > 0;
-          } catch (error) {
-            return false;
-          }
-        },
-        { timeout: 20_000 }
-      );
-      return page.evaluate(() => JSON.parse(sessionStorage.getItem("refresh-log") || "[]"));
+      // The button ends with location.reload(), and any single call into the page can land while
+      // the old document is being torn down ("Execution context was destroyed"). Poll until one
+      // read gets through; the log is in sessionStorage, so it survives the reload.
+      let log = [];
+      await expect.poll(async () => {
+        try {
+          log = await page.evaluate(() => JSON.parse(sessionStorage.getItem("refresh-log") || "[]"));
+        } catch (error) {
+          return 0;
+        }
+        return log.length;
+      }).toBeGreaterThan(0);
+      return log;
     }
 
     test("refreshing the data downloads successfully without deleting the offline caches", async ({ page }) => {
@@ -228,20 +383,19 @@ test.describe("Settings screen", () => {
       expect(log).not.toContain("deleted:another-apps-cache-v1");
     });
 
-    // waitForFunction survives the location.reload() the button ends with; the log lives in sessionStorage.
+    // The log lives in sessionStorage and survives the location.reload() the button ends with, but a
+    // single call into the page can land mid-reload ("Execution context was destroyed"), so poll.
     async function logOnceContains(page, entry) {
-      const handle = await page.waitForFunction(
-        (wanted) => {
-          try {
-            const log = JSON.parse(sessionStorage.getItem("refresh-log") || "[]");
-            return log.includes(wanted) ? log : false;
-          } catch (error) {
-            return false;
-          }
-        },
-        entry
-      );
-      return handle.jsonValue();
+      let log = [];
+      await expect.poll(async () => {
+        try {
+          log = await page.evaluate(() => JSON.parse(sessionStorage.getItem("refresh-log") || "[]"));
+        } catch (error) {
+          return false;
+        }
+        return log.includes(entry);
+      }).toBe(true);
+      return log;
     }
 
     test("refreshing the app clears the cached app but keeps the data and other apps' caches", async ({ page }) => {
@@ -252,19 +406,6 @@ test.describe("Settings screen", () => {
       expect(log).not.toContain("message:SYNC_DATA");
       expect(log).not.toContain("deleted:forest-finds-data-v9");
       expect(log).not.toContain("deleted:another-apps-cache-v1");
-    });
-
-    test("tapping the app version indicator does nothing without a downloaded replacement", async ({ page }) => {
-      await stubCacheApis(page);
-      await page.evaluate(() => {
-        state.swWaiting = null;
-        state.swUpdateAvailable = true;
-        refreshSettingsVersionDisplay();
-        window.__updateIndicatorMarker = true;
-      });
-      await page.click("#appVersionDisplay");
-      await expect(page.locator("#refreshStatus")).toContainText("No complete app update is ready");
-      expect(await page.evaluate(() => window.__updateIndicatorMarker)).toBe(true);
     });
 
     test("refreshing both downloads the data, then clears the app and data caches but not other apps'", async ({ page }) => {
@@ -278,11 +419,16 @@ test.describe("Settings screen", () => {
     });
   });
 
-  test("snapshot: settings screen", async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
-    await page.waitForTimeout(300);
+  test("snapshot: settings screen", async ({ page }) => {
+    await waitForUiToSettle(page);
     await settleMapIconsAndDraw(page);
-    await expect(page).toHaveScreenshot("settings-screen.png", { fullPage: false });
+    // The tester ID is a random per-browser device id and the version moves with every release:
+    // mask just those two values so the baseline only changes when the screen does.
+    await expect(page.locator("#testerIdDisplay")).not.toHaveText("…");
+    await expect(page).toHaveScreenshot("settings-screen.png", {
+      fullPage: false,
+      mask: [page.locator("#testerIdDisplay"), page.locator("#appVersionDisplay")],
+    });
   });
 });
 
@@ -344,6 +490,9 @@ test.describe("?nuke=true URL parameter", () => {
     await page.goto("/nearby");
     await expect(page.locator("#settingsToggle")).toBeVisible();
     const log = await page.evaluate(() => JSON.parse(sessionStorage.getItem("refresh-log") || "[]"));
-    expect(log).toEqual([]);
+    // A normal boot now performs its background data/update check, so SYNC_DATA is expected;
+    // this test is specifically about the nuke recovery path not clearing or unregistering.
+    expect(log.filter((entry) => entry.startsWith("deleted:") || entry.startsWith("unregistered"))).toEqual([]);
   });
 });
+

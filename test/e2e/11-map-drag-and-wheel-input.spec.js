@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { skipOnboarding, mockCowApi, gotoAndWaitForMap, FIXTURE_TREE } = require("./helpers");
+const { skipOnboarding, mockCowApi, gotoAndWaitForMap, FIXTURE_TREE, waitForFrames } = require("./helpers");
 
 // A GPS fix inside Epping Forest, reused from 09-location.spec.js / 10-secondary-screen-camera.spec.js.
 // Genuinely inside the forest boundary polygon (see data/epping-forest-land.geojson), so
@@ -72,7 +72,7 @@ test.describe("Map drag input while camera auto-repositions", () => {
       state.compassHeadingTarget = 90;
       alignHeadingUpNavigationViewport({ force: true });
     });
-    await page.waitForTimeout(50);
+    await waitForFrames(page, 3);
     expect(await page.evaluate(() => headingUpActive())).toBe(true);
 
     const box = await page.locator("#mapCanvas").boundingBox();

@@ -1,4 +1,22 @@
 const TFL_BASE = "https://api.tfl.gov.uk";
+const UPSTREAM_TIMEOUT_MS = 4000;
+
+// Live arrivals move by the minute, but everyone tapping the same stop within half a minute can
+// share one answer. The query is the stop's own coordinates from the map data, so the cache key is
+// the same for every visitor. Errors are never cached.
+const CACHED_HEADERS = {
+  "Cache-Control": "public, max-age=0, must-revalidate",
+  "Netlify-CDN-Cache-Control": "public, s-maxage=30, stale-while-revalidate=30",
+  "Netlify-Vary": "query=lat|lon|type|name",
+};
+
+let warnedMissingKey = false;
+
+function fetchWithTimeout(url) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
+  return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timeoutId));
+}
 
 // A compass bearing tells a rider nothing they can act on -- "towards 225" or
 // "towards NE" reads as noise next to "towards Walthamstow Central" -- so any
@@ -112,6 +130,12 @@ exports.handler = async (event) => {
   }
 
   const appKey = process.env.TFL_APP_KEY;
+  // Without a key every visitor shares TfL's small anonymous allowance.
+  if (!appKey && !warnedMissingKey) {
+    warnedMissingKey = true;
+    console.warn("[transport-departures] TFL_APP_KEY is not set; TfL's anonymous rate limit applies");
+  }
+  const ok = (body) => ({ statusCode: 200, headers: { ...headers, ...CACHED_HEADERS }, body: JSON.stringify(body) });
   const keyQs = appKey ? `&app_key=${appKey}` : "";
   const arrivalsUrl = (id) => `${TFL_BASE}/StopPoint/${id}/Arrivals${appKey ? `?app_key=${appKey}` : ""}`;
 
@@ -121,26 +145,28 @@ exports.handler = async (event) => {
     let stopDirection = null;
 
     if (type === "bus") {
-      const stopRes = await fetch(
+      const stopRes = await fetchWithTimeout(
         `${TFL_BASE}/StopPoint?lat=${lat}&lon=${lon}&stopTypes=NaptanPublicBusCoachTram&radius=200${keyQs}`
       );
       if (!stopRes.ok) throw new Error(`TfL StopPoint HTTP ${stopRes.status}`);
       const stopData = await stopRes.json();
       const stops = Array.isArray(stopData.stopPoints) ? stopData.stopPoints : [];
       if (!stops.length) {
-        return { statusCode: 200, headers, body: JSON.stringify({ departures: [], stopName: null }) };
+        return ok({ departures: [], stopName: null });
       }
       // Use only the single closest stop so we show departures from the tapped
       // stop only — not buses from the opposite-direction stop across the road.
       const nearestStop = stops[0];
       stopName = nearestStop.commonName;
 
-      const res = await fetch(arrivalsUrl(nearestStop.id));
-      rawArrivals = res.ok ? (await res.json()) : [];
+      const res = await fetchWithTimeout(arrivalsUrl(nearestStop.id));
+      // A failed lookup must surface as an error (502, never cached), not as a cacheable "no departures".
+      if (!res.ok) throw new Error(`TfL Arrivals HTTP ${res.status}`);
+      rawArrivals = await res.json();
       stopDirection = busStopDirection(nearestStop, rawArrivals);
     } else {
       // Train/underground: try lat/lon first, fall back to name search
-      const stopRes = await fetch(
+      const stopRes = await fetchWithTimeout(
         `${TFL_BASE}/StopPoint?lat=${lat}&lon=${lon}&stopTypes=NaptanMetroStation,NaptanRailStation&radius=500${keyQs}`
       );
       if (!stopRes.ok) throw new Error(`TfL StopPoint HTTP ${stopRes.status}`);
@@ -152,22 +178,22 @@ exports.handler = async (event) => {
         stopId = stops[0].id;
         stopName = stops[0].commonName;
       } else if (name) {
-        const searchRes = await fetch(
+        const searchRes = await fetchWithTimeout(
           `${TFL_BASE}/StopPoint/Search/${encodeURIComponent(name)}?modes=tube,overground,elizabeth-line,national-rail&maxResults=5${keyQs}`
         );
         if (!searchRes.ok) throw new Error(`TfL Search HTTP ${searchRes.status}`);
         const searchData = await searchRes.json();
         const matches = Array.isArray(searchData.matches) ? searchData.matches : [];
         if (!matches.length) {
-          return { statusCode: 200, headers, body: JSON.stringify({ departures: [], stopName: null }) };
+          return ok({ departures: [], stopName: null });
         }
         stopId = matches[0].id;
         stopName = matches[0].name;
       } else {
-        return { statusCode: 200, headers, body: JSON.stringify({ departures: [], stopName: null }) };
+        return ok({ departures: [], stopName: null });
       }
 
-      const arrivalsRes = await fetch(arrivalsUrl(stopId));
+      const arrivalsRes = await fetchWithTimeout(arrivalsUrl(stopId));
       if (!arrivalsRes.ok) throw new Error(`TfL Arrivals HTTP ${arrivalsRes.status}`);
       rawArrivals = await arrivalsRes.json();
     }
@@ -181,11 +207,7 @@ exports.handler = async (event) => {
         due: a.timeToStation <= 30,
       }));
 
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({ departures, stopName, stopDirection }),
-    };
+    return ok({ departures, stopName, stopDirection });
   } catch (error) {
     return {
       statusCode: 502,

@@ -264,3 +264,24 @@
       });
   });
 })();
+
+// Map inventory: on wide screens the category lists are always open, so the expand control goes away;
+// on phones they start collapsed. Without JavaScript they stay closed and the summary stays usable.
+(function () {
+  "use strict";
+
+  var inventory = document.querySelector(".map-inventory");
+  if (!inventory || !window.matchMedia) return;
+  var wide = window.matchMedia("(min-width: 760px)");
+
+  function sync(initial) {
+    inventory.toggleAttribute("data-always-open", wide.matches);
+    var lists = inventory.querySelectorAll(".inventory-details");
+    // Phones keep whatever the visitor opened; only the move to a wide screen forces them open.
+    if (wide.matches) lists.forEach(function (list) { list.open = true; });
+    else if (!initial) lists.forEach(function (list) { list.open = false; });
+  }
+
+  sync(true);
+  if (wide.addEventListener) wide.addEventListener("change", function () { sync(false); });
+})();

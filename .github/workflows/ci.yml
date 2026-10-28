@@ -36,6 +36,9 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
+          # CI's own baseline-commit pushes (chore: update CI snapshot baselines) run this job as
+          # github-actions; the action refuses bot-initiated runs unless the bot is listed.
+          allowed_bots: "github-actions"
           prompt: |
             Review pull request #${{ github.event.pull_request.number }} in ${{ github.repository }}.
 
@@ -56,6 +59,9 @@ jobs:
             findings, prioritised P0 (critical) through P3 (minor). Keep general
             observations brief. For each actionable finding, use the inline
             comment tool with confirmed=true and a precise changed-line range.
+            Prefix every inline finding body with the exact visible marker
+            `CLAUDE_REVIEW_FINDING` on its own line so the follow-up workflow
+            can distinguish Claude findings from unrelated bot comments.
             When the review is complete, you MUST publish a top-level summary
             to the PR with `gh pr comment ${{ github.event.pull_request.number }} --body "..."`.
             Include both the Standards and Spec sections,
@@ -68,7 +74,8 @@ jobs:
             GitHub rejects the approval because of repository policy or
             self-approval rules, leave the summary comment and finish without
             trying to work around that restriction. Never modify files, commit,
-            push, merge, or close the PR.
+            push, merge, or close the PR. A human approval is still required by
+            repository branch protection.
           claude_args: |
             --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr review:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(git diff:*),Bash(git log:*),Bash(git merge-base:*),Bash(git show:*)"
 
@@ -131,9 +138,16 @@ jobs:
       - name: Build pages before browser tests
         run: npm run build
       - name: Run E2E tests
-        run: >
-          npx playwright test --project=${{ matrix.project }}
-          --grep-invert "snapshot:" --shard=${{ matrix.shard }}/5
+        # This is mainly a phone app, so desktop skips the specs the mobile project already runs
+        # (see its testMatch in playwright.config.js) and keeps only what mobile never covers.
+        # Desktop snapshots are unaffected: the visual-snapshots job still runs every spec.
+        run: |
+          files=""
+          if [ "${{ matrix.project }}" = desktop ]; then
+            files=$(ls test/e2e/*.spec.js | grep -vE '/(0[1-5]|09|13-tilt-3d|27)-')
+          fi
+          npx playwright test --project=${{ matrix.project }} \
+            --grep-invert "snapshot:" --shard=${{ matrix.shard }}/5 $files
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
         if: always()
@@ -147,9 +161,8 @@ jobs:
     # The "snapshot: ..." tests only (see the `e2e` job above for everything else), as their
     # own check so a pixel-diff shows up as "Visual snapshots (desktop + mobile)" rather than muddying
     # "E2E tests" -- the two have very different reliability characteristics and a failure in
-    # one says nothing about the other. The public surfaces have desktop and mobile baselines;
-    # the existing app snapshots remain mobile-only except for the tree detail view, which now
-    # runs on both projects.
+    # one says nothing about the other. Every app screen and public page has desktop and mobile
+    # baselines; the no-JavaScript snapshots are desktop only.
     #
     # --retries=1, unlike the e2e job's retries:0: canvas screenshot diffs here have repeatedly
     # proven non-deterministic on an otherwise-unchanged commit (see spec/agents.md), where the

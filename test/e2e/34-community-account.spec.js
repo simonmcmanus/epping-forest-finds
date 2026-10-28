@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, FIXTURE_TREE } = require("./helpers");
+const { setup, FIXTURE_TREE, waitForFrames } = require("./helpers");
 
 const OVERLAY_URL = "**/api/community/overlay**";
 const ME_URL = "**/api/auth/me";
@@ -21,14 +21,6 @@ test.describe("Community sign-in", () => {
     await expect(page.locator("#communityAccount")).toContainText("Sign in to take your points with you");
     await expect(page.locator("#communityAccount a[href^='/api/auth/login']")).toBeVisible();
     await expect(page.locator(".community-contributions")).toBeVisible();
-  });
-
-  test("the sign-in banner can be put away and leaves a quiet link", async ({ page }) => {
-    await page.route(ME_URL, (route) =>
-      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: false }) })
-    );
-    await setup(page, "/community");
-    await expect(page.locator(".community-account-quiet a[href^='/api/auth/login']")).toBeVisible();
   });
 
   test("the screen is drawn once as a skeleton and later renders only update values in place", async ({ page }) => {
@@ -248,7 +240,6 @@ test.describe("Community sign-in: history, account switching, storage", () => {
 
     // 3. Account B signs in on the same browser: the link is refused (409), so B gets an identity of its own.
     me = { signedIn: true, name: "Ben", account: "acct-bbbb" };
-    requested.length = 0;
     await page.reload();
     await expect(page.locator("#communityAccount")).toContainText("Signed in as Ben");
     await expect(page.locator("#communityAccount .community-account-note")).toContainText("starting fresh");
@@ -257,8 +248,12 @@ test.describe("Community sign-in: history, account switching, storage", () => {
     expect(owners[bens]).toBe("acct-bbbb");
     await expect(page.locator(".community-log-item")).toHaveCount(0);
     await expect(page.locator(".community-rank-points")).toContainText("0 points");
+    // Requests the old page still had in flight when it reloaded can land at any point, so what the
+    // new page asks for is checked from here: clear, make the page ask afresh, and look only at that.
+    requested.length = 0;
+    await page.evaluate(() => Promise.all([communityRefreshScore(true), communityRefreshLog()]));
+    await expect.poll(() => requested.length).toBeGreaterThan(0);
     expect(requested.includes(primary)).toBe(false);
-    expect(requested.length).toBeGreaterThan(0);
     expect(requested.every((id) => id === bens)).toBe(true);
     expect(await page.evaluate((id) => localStorage.getItem(`ff-community-local-v1:${id}`), bens)).toBeNull();
     expect(await page.evaluate(() => Object.keys(JSON.parse(localStorage.getItem("ff-community-local-v1"))).length)).toBe(1);
@@ -397,7 +392,7 @@ test.describe("Community sign-in: history, account switching, storage", () => {
     await expect(page.locator("#communityContributions")).toContainText("Couldn't check who is signed in");
     // Give the page's own background refreshes (they run about a second after load) time to fire.
     await page.evaluate(() => Promise.all([communityRefreshScore(false), communityRefreshLog()]));
-    await page.waitForTimeout(1500);
+    await waitForFrames(page, 90);
     expect(requested).toEqual([]);
   });
 

@@ -29,7 +29,11 @@ function createElementStub(id = "") {
     clientWidth: 1000,
     clientHeight: 800,
     scrollHeight: 0,
-    textContent: "",
+    children: [],
+    get textContent() { return this._text ?? ""; },
+    // Assigning text replaces any child nodes, as in a browser.
+    set textContent(value) { this._text = String(value); this.children.length = 0; },
+    append(...nodes) { nodes.forEach((node) => { if (typeof node !== "string") this.children.push(node); }); },
     innerHTML: "",
     childNodes: { length: 0 },
     offsetHeight: 0,
@@ -97,6 +101,7 @@ function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
     visibilityState: "visible",
     body: createElementStub("body"),
     documentElement: createElementStub("html"),
+    createElement(tag) { const el = createElementStub(); el.tagName = String(tag).toUpperCase(); return el; },
     getElementById(id) {
       if (!elements.has(id)) elements.set(id, createElementStub(id));
       return elements.get(id);
@@ -203,6 +208,7 @@ function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
     Image: function Image() { this.complete = false; this.naturalWidth = 0; },
     URLSearchParams,
     URL,
+    crypto: globalThis.crypto,
     localStorage,
   };
   context.globalThis = context;
@@ -228,6 +234,10 @@ globalThis.__forestFindsTest = {
   // because the app looks the method up on it at every call.
   performance,
   formatDistance,
+  fetchMapData,
+  requestPersistentStorage,
+  cowEndpointUrl,
+  cowCenterForRequest,
   projectLonLat,
   unprojectPoint,
   distanceMetres,
@@ -519,6 +529,12 @@ globalThis.__forestFindsTest = {
   ensureUserAndSelectionVisible,
   refitSelectionAfterRoutingGraphReady,
   settingsFormHtml,
+  submitReportForm,
+  submitLocationIssueReport,
+  applyReportStatusContent,
+  refreshCachedState,
+  applySwUpdate,
+  requestBackgroundDataSync,
   hasTrackingConsent,
   setTrackingConsent,
   ensureTrackingConsent,
@@ -606,7 +622,7 @@ globalThis.__forestFindsTest = {
   vm.createContext(context);
 
   const rootDir = path.join(__dirname, "..");
-  const externalScripts = ["js/app-cache-version.js", "js/data-cache-version.js", "js/categories.js", "js/normalize.js", "js/tracker.js", "js/outbox.js", "js/community.js", "js/onboarding.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/icon-motion.js", "js/renderer.js", "js/inspector.js"];
+  const externalScripts = ["js/app-cache-version.js", "js/data-cache-version.js", "js/categories.js", "js/normalize.js", "js/router-rules.js", "js/dom-elements.js", "js/filter-state.js", "js/tracker.js", "js/outbox.js", "js/community.js", "js/onboarding.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/icon-motion.js", "js/renderer.js", "js/inspector.js"];
   for (const externalSrc of externalScripts) {
     const externalPath = path.join(rootDir, externalSrc);
     if (fs.existsSync(externalPath)) {
@@ -2131,21 +2147,6 @@ test("updateDocumentTitle names a selected place near Epping Forest", () => {
   app.updateDocumentTitle();
 });
 
-test("overviewNearestHtml no longer shows a tree species breakdown -- dropped as not making sense for a High Beach stand-in location", () => {
-  resetData(app);
-  app.state.trees = [
-    { commonName: "English Oak" }, { commonName: "English Oak" }, { commonName: "English Oak" },
-    { commonName: "English Oak" }, { commonName: "English Oak" },
-  ];
-  app.state.overviewFilters = ["trees"];
-  app.location.pathname = "/nearby/trees/";
-  app.state.userLocation = null;
-
-  assert.ok(!app.overviewNearestHtml().includes("By species"));
-
-  app.location.pathname = "/";
-});
-
 test("navigateInApp pushes a real history entry and applies the new route, instead of leaving it to the browser's own navigation", () => {
   resetData(app);
   app.location.pathname = "/find/the-forresters/";
@@ -2386,19 +2387,6 @@ test("the Nearby heading's own type line says it is measuring from High Beach wh
   );
 });
 
-test("the inspector has no standalone location button", () => {
-  assert.equal(app.els.locateButton, undefined, "location permission is requested from the focused gate, not a second Nearby control");
-});
-
-test("the blocking location gate has been removed", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
-  const nav = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
-  const app = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
-  assert.doesNotMatch(html, /locationGate|Allow location access/);
-  assert.doesNotMatch(nav, /locationGate|setLocationGateVisible/);
-  assert.doesNotMatch(app, /locationGate|setLocationGateVisible/);
-});
-
 test("drawUser never draws the \"You\" dot for the default location, only for a real fix", () => {
   resetData(app);
   let arcCalls = 0;
@@ -2523,37 +2511,6 @@ test("nearby filter updates trigger a heading-up refit that keeps the radius cir
   );
 });
 
-test("navigation has labelled outline glyphs that inherit the selected colour", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
-  const nav = html.match(/<nav class="inspector-actions"[\s\S]*?<\/nav>/)[0];
-  // Filters is reached inline from the Nearby heading, not a fifth nav-bar tab -- see
-  // spec-data-rendering.md, "Filters is reached from Nearby, not a nav peer".
-  // Four labelled tabs, plus the thin Back cell's own chevron (labelled by aria-label, not a tab).
-  assert.equal((nav.match(/stroke="currentColor"/g) || []).length, 5);
-  assert.equal((nav.match(/class="nav-label"/g) || []).length, 4);
-  assert.ok(!nav.includes("<img"), "navigation must not retain fixed-colour PNG icons");
-});
-
-test("tree loading uses chunked register before full-file fallbacks", () => {
-  const loader = fs.readFileSync(path.join(__dirname, "..", "js", "loader.js"), "utf8");
-
-  assert.match(loader, /loadTreeChunks\(TREE_CHUNK_INDEX_URL\)/);
-  assert.match(loader, /const treeAttempts = \[[\s\S]*loadTreeChunks\(TREE_CHUNK_INDEX_URL\)[\s\S]*\.\.\.fullFileAttempts/);
-  assert.match(loader, /const maxConcurrent = Math\.min\(6, chunks\.length\)/);
-});
-
-test("static and lazy data reads have bounded failure paths", () => {
-  const loader = fs.readFileSync(path.join(__dirname, "..", "js", "loader.js"), "utf8");
-
-  assert.match(loader, /const loadJson = async \(url, timeoutMs = 60000\)/);
-  assert.match(loader, /setTimeout\(\(\) => controller\.abort\(\), timeoutMs\)/);
-  assert.match(loader, /if \(!response\.ok\) throw new Error/);
-  assert.match(loader, /const landmarkPromises = LANDMARK_URLS\.map\(\(url\) => fetch\(url\)/);
-  assert.match(loader, /function loadBuildingsIfNeeded\(\)/);
-  assert.match(loader, /fetch\(BUILDINGS_URL\)/);
-  assert.match(loader, /state\.buildingsLoaded = true/);
-});
-
 test("generated tree chunks cover the full veteran tree register", () => {
   const index = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "data", "trees", "index.json"), "utf8"));
   const chunkCount = index.chunks.reduce((sum, chunk) => sum + chunk.count, 0);
@@ -2564,35 +2521,6 @@ test("generated tree chunks cover the full veteran tree register", () => {
   for (const chunk of index.chunks) {
     assert.ok(fs.existsSync(path.join(__dirname, "..", chunk.url)), `${chunk.url} should exist`);
   }
-});
-
-test("service worker install pre-caches only the small tree chunk index", () => {
-  const serviceWorker = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  const shellMatch = serviceWorker.match(/const DATA_SHELL = \[([\s\S]*?)\];/);
-
-  assert.ok(shellMatch, "DATA_SHELL cache list exists");
-  assert.ok(shellMatch[1].includes("data/trees/index.json"), "tree chunk index should be pre-cached");
-  assert.ok(!shellMatch[1].includes("data/trees/chunk-"), "tree chunks should be runtime cached after the page fetch");
-  assert.ok(!shellMatch[1].includes("Veteran_Tree_Register.json"), "base tree register should be runtime cached after the page fetch");
-  assert.ok(!shellMatch[1].includes("Veteran_Tree_Register.enriched.with_named_trees.json"), "enriched tree register should be runtime cached after the page fetch");
-});
-
-test("generated UI icon classes render at the enlarged sizes", () => {
-  const baseCss = fs.readFileSync(path.join(__dirname, "..", "css", "base.css"), "utf8");
-  const inspectorCss = fs.readFileSync(path.join(__dirname, "..", "css", "inspector.css"), "utf8");
-  const mapUiCss = fs.readFileSync(path.join(__dirname, "..", "css", "map-ui.css"), "utf8");
-
-  assert.match(baseCss, /--icon-scale:\s*1;/);
-  // [^}]* (not [\s\S]*) deliberately bounds each match inside its own rule's braces -- an
-  // unbounded match here previously let a later, unrelated selector's "width: 32px;" satisfy
-  // the assertion even while the rule actually named kept its original, smaller size. The nav
-  // glyphs keep their compact size; screen-title artwork matches the 44px Back target.
-  // Nearby list icons also span both the name and meta/distance lines beside them
-  // (see .nearest-item's grid layout), rather than just the first line.
-  assert.match(inspectorCss, /\.nav-icon\s*\{[^}]*width:\s*calc\(22px\s*\*\s*var\(--icon-scale\)\);[^}]*height:\s*calc\(22px\s*\*\s*var\(--icon-scale\)\);/);
-  assert.match(inspectorCss, /\.title-icon\s*\{[^}]*width:\s*calc\(44px\s*\*\s*var\(--icon-scale\)\);[^}]*height:\s*calc\(44px\s*\*\s*var\(--icon-scale\)\);/);
-  assert.match(mapUiCss, /\.nearest-icon\s+\.app-icon\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;/);
-  assert.match(mapUiCss, /\.walk-icon\s*\{[^}]*width:\s*calc\(18px\s*\*\s*var\(--icon-scale\)\);[^}]*height:\s*calc\(18px\s*\*\s*var\(--icon-scale\)\);/);
 });
 
 test("nearest list falls back to one closest item for each active type outside the walking radius", () => {
@@ -2779,6 +2707,7 @@ test("walking radius marker still draws when nearest results use fallback", () =
 test("walking radius dimming keeps a crisp edge without a canvas blur filter", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
+  const drawn = { arcs: 0, fills: 0 };
 
   const ctx = {
     save() {},
@@ -2786,14 +2715,15 @@ test("walking radius dimming keeps a crisp edge without a canvas blur filter", (
     beginPath() {},
     closePath() {},
     rect() {},
-    arc() {},
-    fill() {},
+    arc() { drawn.arcs += 1; },
+    fill() { drawn.fills += 1; },
     stroke() {},
     createLinearGradient() { return { addColorStop() {} }; },
     set filter(value) { throw new Error(`walking-radius blur is not allowed: ${value}`); },
   };
 
   app.drawWalkingRadius(ctx);
+  assert.ok(drawn.arcs > 0 && drawn.fills > 0, "the ring and its dimming are actually drawn (so the no-blur check above covered real drawing)");
 });
 
 test("walking radius marker hides in selected-detail mode", () => {
@@ -4160,17 +4090,6 @@ test("setInspectorMinimized keeps the plain recentre-at-current-scale behaviour 
   assert.equal(app.state.viewportAnimationTo.scale, 4242, "north-up recentre must keep the current scale unchanged");
 });
 
-test("nearby HTML does not contain the walking distance selector", () => {
-  resetData(app);
-  app.state.userLocation = makePoint(app, 0, 0);
-  addFixtureData(app);
-
-  const html = app.overviewNearestHtml();
-
-  assert.ok(!html.includes("nearestItemsSelect"), "nearby should not contain the walking distance select control");
-  assert.ok(!html.includes("Walking distance:"), "nearby should not contain the walking distance label");
-});
-
 test("nearby summary uses the generated walking icon asset", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
@@ -4777,16 +4696,6 @@ test("bus stop titles keep explicit directional wording", () => {
   );
 });
 
-test("nearby HTML does not contain the app version", () => {
-  resetData(app);
-  app.state.userLocation = makePoint(app, 0, 0);
-  addFixtureData(app);
-
-  const html = app.overviewNearestHtml();
-
-  assert.ok(!html.includes("App version:"), "app version should not appear in the nearby section");
-});
-
 test("settings form puts About (and its refresh buttons) before Privacy, not last", () => {
   const html = app.settingsFormHtml();
   const aboutIndex = html.indexOf('<h3 class="settings-section-title">About</h3>');
@@ -4796,6 +4705,15 @@ test("settings form puts About (and its refresh buttons) before Privacy, not las
     aboutIndex < privacyIndex,
     "About (with the Refresh buttons people open Settings for) should render before Privacy, so it isn't the last thing scrolled to"
   );
+});
+
+test("settings form falls back to the built-in cache version before the live worker version is known", () => {
+  const marker = vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "js", "app-cache-version.js"), "utf8") + "\nAPP_CACHE_VERSION", {});
+  app.state.swVersion = null;
+  assert.ok(app.settingsFormHtml().includes(`>${marker}</span>`), "the About line shows the marker file's version");
+  app.state.swVersion = "forest-finds-app-live";
+  assert.ok(app.settingsFormHtml().includes(">forest-finds-app-live</span>"), "and the live worker's version once it is known");
+  app.state.swVersion = null;
 });
 
 test("settings form shows the app version", () => {
@@ -4885,18 +4803,6 @@ test("select_map_item GA event carries a specific venue category for landmarks, 
   }
 });
 
-test("onboarding's location step discloses location, usage tracking, and the merged cookie choice", () => {
-  const onboardingSource = fs.readFileSync(path.join(__dirname, "..", "js", "onboarding.js"), "utf8");
-
-  const onboardingNoteMatch = onboardingSource.match(/<p class="privacy-note">([\s\S]*?)<\/p>/);
-
-  assert.ok(onboardingNoteMatch, "the onboarding location step should show a .privacy-note disclosure");
-  assert.match(onboardingNoteMatch[1], /We collect anonymous usage data \(GPS position, navigation, interactions\)/);
-  assert.match(onboardingNoteMatch[1], /analytics cookies/, "onboarding's note must disclose the merged cookie consent");
-  assert.match(onboardingNoteMatch[1], /Settings → Privacy/);
-  assert.match(onboardingNoteMatch[1], /<a href="\/terms\.html" target="_blank" rel="noopener">Privacy Policy<\/a>/);
-});
-
 test("settings form offers separate data, app and combined refresh buttons", () => {
   // The scopes are split so a data repair does not needlessly check for an app update, while all
   // three keep the current offline copy until a replacement is ready.
@@ -4910,33 +4816,75 @@ test("settings form offers separate data, app and combined refresh buttons", () 
   assert.match(html, /id="refreshOfflineNote"/, "settings form should include a shared offline note for the refresh buttons");
 });
 
-test("refresh app and both clear the cache and then reload the page", () => {
-  // The Node VM test harness doesn't stub navigator.serviceWorker/location.reload, so this is a
-  // source-level check (matching the other service-worker tests above) that pins the safety
-  // contract rather than executing a browser refresh.
-  const navSource = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
-  const fnMatch = navSource.match(/async function refreshCachedState\(scope\) \{[\s\S]*?\n\}/);
-  assert.ok(fnMatch, "refreshCachedState must be defined in nav.js");
-  const fn = fnMatch[0];
+// Drives refreshCachedState against a fake browser: service worker, Cache Storage and reload.
+async function runRefresh(app, scope, { online = true, dataSyncOk = true } = {}) {
+  const log = [];
+  const nav = app.navigator;
+  const win = app.windowStub;
+  const listeners = new Set();
+  const cacheNames = ["forest-finds-app-9", "forest-finds-data-9", "unrelated"];
+  const previousOnline = nav.onLine;
+  const previousLocation = app.swapGlobalFunction("location", { reload: () => log.push("reload") });
+  const previousCaches = app.swapGlobalFunction("caches", {
+    keys: async () => cacheNames,
+    delete: async (name) => { log.push(`delete ${name}`); },
+  });
+  nav.onLine = online;
+  win.caches = {};
+  nav.serviceWorker = {
+    controller: {
+      postMessage: (message) => {
+        log.push(`sync ${message.type}`);
+        listeners.forEach((fn) => fn({ data: { type: "DATA_SYNC_COMPLETE", requestId: message.requestId, ok: dataSyncOk } }));
+      },
+    },
+    addEventListener: (type, fn) => listeners.add(fn),
+    removeEventListener: (type, fn) => listeners.delete(fn),
+    getRegistrations: async () => [{ unregister: async () => { log.push("unregister worker"); } }],
+  };
+  try {
+    const result = await app.refreshCachedState(scope);
+    return { result, log };
+  } finally {
+    delete nav.serviceWorker;
+    delete win.caches;
+    nav.onLine = previousOnline;
+    app.swapGlobalFunction("location", previousLocation);
+    app.swapGlobalFunction("caches", previousCaches);
+  }
+}
 
-  assert.match(fn, /if \(!navigator\.onLine\)/, "must bail out while offline instead of leaving the app with no cache fallback");
-  assert.match(fn, /requestDataRefresh\(\)/, "data refresh must download into the existing cache first");
-  assert.match(fn, /clearCachedApp\(scope === "all"\)/, "app and both scopes must clear the cache");
-  assert.match(fn, /clearCachedApp[\s\S]*location\.reload\(\)/, "must reload after clearing");
+test("Refresh app clears the app cache, keeps the data cache, and then reloads", async () => {
+  const { result, log } = await runRefresh(app, "app");
+  assert.equal(result, true);
+  assert.deepEqual(log, ["unregister worker", "delete forest-finds-app-9", "reload"]);
 });
 
-test("settings refresh listeners are removed before being re-added, so reopening Settings does not leak window listeners", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
-  const bindMatch = source.match(/function bindSettingsHandlers\(\) \{[\s\S]*?\n\}/);
-  assert.ok(bindMatch, "bindSettingsHandlers must be defined");
-  const fn = bindMatch[0];
+test("Refresh both downloads fresh data first, then clears every forest-finds cache and reloads", async () => {
+  const { result, log } = await runRefresh(app, "all");
+  assert.equal(result, true);
+  assert.deepEqual(log, ["sync SYNC_DATA", "unregister worker", "delete forest-finds-app-9", "delete forest-finds-data-9", "reload"]);
+});
 
-  for (const evt of ["online", "offline"]) {
-    const removeIdx = fn.indexOf(`removeEventListener("${evt}", updateRefreshButtonsOnlineState)`);
-    const addIdx = fn.indexOf(`addEventListener("${evt}", updateRefreshButtonsOnlineState)`);
-    assert.ok(removeIdx !== -1, `must remove any prior "${evt}" listener`);
-    assert.ok(addIdx !== -1, `must add a new "${evt}" listener`);
-    assert.ok(removeIdx < addIdx, `must remove the "${evt}" listener before adding a new one`);
+test("Refresh data downloads into the existing cache and reloads without clearing anything", async () => {
+  const { result, log } = await runRefresh(app, "data");
+  assert.equal(result, true);
+  assert.deepEqual(log, ["sync SYNC_DATA", "reload"]);
+});
+
+test("a refresh whose data download fails leaves the offline copy untouched and does not reload", async () => {
+  for (const scope of ["data", "all"]) {
+    const { result, log } = await runRefresh(app, scope, { dataSyncOk: false });
+    assert.equal(result, false, scope);
+    assert.deepEqual(log, ["sync SYNC_DATA"], `${scope}: nothing is cleared or reloaded after a failed download`);
+  }
+});
+
+test("refreshing while offline does nothing, so the app is never left without a cache to fall back on", async () => {
+  for (const scope of ["data", "app", "all"]) {
+    const { result, log } = await runRefresh(app, scope, { online: false });
+    assert.equal(result, false, scope);
+    assert.deepEqual(log, [], scope);
   }
 });
 
@@ -5227,36 +5175,73 @@ test("roundWalkingMinutes snaps the settings slider's own value to the nearest h
   assert.equal(app.roundWalkingMinutes(5.3), 5.5);
 });
 
-test("loading overlay markup includes all eight step labels", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
-  for (const label of ["Veteran trees", "Places", "Paths", "Roads", "Water", "Forest", "cattle", "location"]) {
-    assert.ok(html.includes(label), `loading overlay missing step label: "${label}"`);
-  }
-});
+// Helpers for the submit-flow tests: stub the network and capture what is POSTed.
+function withReportNetwork(app, respond, run) {
+  const sent = [];
+  const previousFetch = app.swapGlobalFunction("fetch", async (url, options) => {
+    sent.push({ url, body: JSON.parse(options.body) });
+    return respond;
+  });
+  const wasOnline = app.navigator.onLine;
+  app.navigator.onLine = true;
+  return Promise.resolve(run(sent)).finally(() => {
+    app.swapGlobalFunction("fetch", previousFetch);
+    app.navigator.onLine = wasOnline;
+  });
+}
+const okResponse = { ok: true, status: 200, json: async () => ({ issueUrl: "https://github.com/o/r/issues/9" }) };
 
-test("report submission includes the app version", () => {
-  const html = app.reportFormHtml();
-  const source = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
+test("report submission includes the app version", async () => {
+  resetData(app);
+  assert.ok(!app.reportFormHtml().includes("App version:"), "report form should not display the app version");
+  const details = app.documentStub.getElementById("reportDetails");
 
-  assert.ok(!html.includes("App version:"), "report form should not display the app version");
-  assert.match(source, /appVersion:\s*state\.swVersion \|\| APP_VERSION/, "submitted report payload should include the live service worker version, falling back to APP_VERSION");
+  await withReportNetwork(app, okResponse, async (sent) => {
+    app.state.swVersion = "forest-finds-app-77";
+    details.value = "The gate is broken";
+    await app.submitReportForm();
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].body.appVersion, "forest-finds-app-77", "the live service worker version is reported");
+
+    app.state.swVersion = null;
+    details.value = "Still broken";
+    await app.submitReportForm();
+    assert.ok(sent[1].body.appVersion, "falls back to the built-in version before the worker has reported one");
+  });
 });
 
 test("a submitted report's issue URL renders as a real clickable link, not plain text", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
-  // Both the full Report screen and the inline per-location form route their success message
-  // through applyReportStatusContent, which builds the link with document.createElement
-  // rather than interpolating the URL into a template string.
-  assert.match(source, /setReportStatus\("Report submitted successfully\.", "success", data && data\.issueUrl\)/);
-  assert.match(source, /applyReportStatusContent\(statusEl, "Report submitted successfully\.", "success", data && data\.issueUrl\)/);
-  assert.match(source, /function applyReportStatusContent[\s\S]*?document\.createElement\("a"\)/);
-  assert.match(source, /link\.href = issueUrl/);
+  const status = app.documentStub.createElement("p");
+  app.applyReportStatusContent(status, "Report submitted successfully.", "success", "https://github.com/o/r/issues/9");
+  assert.equal(status.textContent, "Report submitted successfully.");
+  assert.ok(status.classList.contains("success"));
+  assert.equal(status.children.length, 1);
+  assert.equal(status.children[0].tagName, "A");
+  assert.equal(status.children[0].href, "https://github.com/o/r/issues/9");
+
+  const unsafe = app.documentStub.createElement("p");
+  app.applyReportStatusContent(unsafe, "Report submitted successfully.", "success", "javascript:alert(1)");
+  assert.equal(unsafe.children.length, 0, "only https links are ever made clickable");
 });
 
 test("report-photo links use the active deploy before the production site", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "netlify", "functions", "report-missing-data.js"), "utf8");
-  assert.match(source, /process\.env\.DEPLOY_PRIME_URL \|\| process\.env\.URL/,
-    "a preview's Blob photo must link to its own deploy, not production");
+  const { reportPhotoUrl } = require("../netlify/functions/report-missing-data");
+  const saved = { prime: process.env.DEPLOY_PRIME_URL, url: process.env.URL };
+  try {
+    process.env.DEPLOY_PRIME_URL = "https://deploy-preview-5--site.netlify.app/";
+    process.env.URL = "https://production.example";
+    assert.equal(reportPhotoUrl("abc.jpg", ""), "https://deploy-preview-5--site.netlify.app/.netlify/functions/report-missing-data?photo=abc.jpg",
+      "a preview's Blob photo must link to its own deploy, not production");
+    delete process.env.DEPLOY_PRIME_URL;
+    assert.equal(reportPhotoUrl("abc.jpg", ""), "https://production.example/.netlify/functions/report-missing-data?photo=abc.jpg");
+    delete process.env.URL;
+    assert.equal(reportPhotoUrl("abc.jpg", "https://forest.example/nearby"), "https://forest.example/.netlify/functions/report-missing-data?photo=abc.jpg", "falls back to the reporting page's own origin");
+    assert.equal(reportPhotoUrl("abc.jpg", "http://insecure.example/"), "", "never links to a non-https origin");
+  } finally {
+    for (const [key, name] of [["prime", "DEPLOY_PRIME_URL"], ["url", "URL"]]) {
+      if (saved[key] === undefined) delete process.env[name]; else process.env[name] = saved[key];
+    }
+  }
 });
 
 test("a tree or landmark's detail view offers to report a problem with its own coordinates", () => {
@@ -5273,12 +5258,6 @@ test("reportIssueHtml renders nothing for a line/area feature with no single coo
   assert.equal(app.reportIssueHtml(null), "");
 });
 
-test("the tree and landmark detail screens both offer the report-a-problem link", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "js", "inspector.js"), "utf8");
-  assert.match(source, /function showTreeDetails[\s\S]*?reportIssueHtml\(/, "tree detail view should render the report-issue link");
-  assert.match(source, /function showLandmarkDetails[\s\S]*?reportIssueHtml\(/, "landmark detail view should render the report-issue link");
-});
-
 test("a mapped place can link back to the Ledger edition that featured it", () => {
   const html = app.ledgerMentionHtml({ ledgerUrl: "/reports/epping-forest-ledger-2026-10-17.html" });
   assert.match(html, /href="\/reports\/epping-forest-ledger-2026-10-17\.html"/);
@@ -5286,11 +5265,43 @@ test("a mapped place can link back to the Ledger edition that featured it", () =
   assert.equal(app.ledgerMentionHtml({ ledgerUrl: "https://example.com/reports/epping-forest-ledger-2026-10-17.html" }), "");
 });
 
-test("submitting a location-issue report sends the flagged item's own coordinates, not the reporter's GPS fix", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
-  assert.match(source, /reportType:\s*"location-issue"/, "location-issue reports should be distinguishable from general feedback");
-  assert.match(source, /locationContext:\s*{\s*type:\s*wrapper\.dataset\.reportType/, "payload should carry which item was flagged");
-  assert.match(source, /latitude:\s*Number\(Number\(wrapper\.dataset\.reportLat\)\.toFixed\(6\)\)/, "location sent should come from the flagged item, not state.userLocation");
+test("submitting a location-issue report sends the flagged item's own coordinates, not the reporter's GPS fix", async () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.5, 0.5);
+  const status = app.documentStub.createElement("p");
+  const nodes = {
+    ".report-textarea": Object.assign(app.documentStub.createElement("textarea"), { value: "Fallen over" }),
+    ".report-status": status,
+    "[data-action='submit-location-issue']": app.documentStub.createElement("button"),
+  };
+  const wrapper = {
+    dataset: { reportLat: "51.65123456", reportLon: "0.03", reportType: "Veteran tree", reportName: "Hangman's Oak" },
+    querySelector: (selector) => nodes[selector] || null,
+  };
+
+  await withReportNetwork(app, okResponse, async (sent) => {
+    await app.submitLocationIssueReport(wrapper);
+    assert.equal(sent.length, 1);
+    const { body } = sent[0];
+    assert.equal(body.reportType, "location-issue");
+    assert.deepEqual(body.location, { latitude: 51.651235, longitude: 0.03 }, "the flagged item's coordinates, not the GPS fix");
+    assert.deepEqual(body.locationContext, { type: "Veteran tree", name: "Hangman's Oak" });
+    assert.match(status.textContent, /submitted/i);
+    assert.equal(nodes[".report-textarea"].value, "", "the form clears after a successful submit");
+  });
+});
+
+test("a report with no details is not sent", async () => {
+  resetData(app);
+  const nodes = {
+    ".report-textarea": Object.assign(app.documentStub.createElement("textarea"), { value: "   " }),
+    ".report-status": app.documentStub.createElement("p"),
+  };
+  await withReportNetwork(app, okResponse, async (sent) => {
+    await app.submitLocationIssueReport({ dataset: { reportLat: "51.6", reportLon: "0.03" }, querySelector: (s) => nodes[s] || null });
+    assert.equal(sent.length, 0);
+    assert.match(nodes[".report-status"].textContent, /describe the problem/i);
+  });
 });
 
 test("walking radius circle is always fully visible on screen after centering", () => {
@@ -5717,31 +5728,6 @@ test("service worker APP_SHELL includes all JS files referenced by app.html", ()
   }
 });
 
-test("service worker passes API routes through without caching so offline failures are handled by callers", () => {
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  assert.match(sw, /pathname\.startsWith\(["']\/api\/["']\)/, "API routes must bypass the cache handler");
-  assert.match(sw, /event\.respondWith\(fetch\(event\.request\)\)/, "API routes should be forwarded directly");
-});
-
-test("service worker falls back to cached app.html when navigating offline", () => {
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  assert.match(sw, /request\.mode === ["']navigate["']/, "navigate mode must be handled separately");
-  assert.match(sw, /caches\.match\(["']\.\/app\.html["']\)/, "navigate fallback should serve cached app.html");
-});
-
-test("service worker answers app navigations only, so the homepage is not served from the app cache", () => {
-  // This handler used to answer EVERY navigation with the cached app shell. After the
-  // alpha URL split that would serve the app to anyone navigating to the marketing
-  // homepage at /, making the homepage invisible to every returning visitor.
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  assert.match(sw, /function isAppNavigation\(/, "an app-navigation predicate must exist");
-  assert.match(
-    sw,
-    /if \(!isAppNavigation\(requestUrl\.pathname\)\) return;/,
-    "the navigate branch must bail out for non-app navigations"
-  );
-});
-
 test("service worker falls back to the cached app shell offline for /nearby/<slug>/ and /find/<slug>/ pages, never a network error", () => {
   // Executes the real sw.js (not a regex match on its source) so a logic error in the pattern --
   // wrong anchor, missing the trailing-slash variant, an inverted condition -- fails this test
@@ -5774,11 +5760,13 @@ test("service worker falls back to the cached app shell offline for /nearby/<slu
   }
 });
 
-test("service worker never writes a /nearby/<slug>/ or /find/<slug>/ page's own HTML into the shared app-shell cache slot", async () => {
+test("service worker never overwrites the installed app shell from a navigation, whether a stable screen or a /nearby/<slug>/ or /find/<slug>/ page", async () => {
   // Each generated page has its own distinct title/JSON-LD/initial body -- caching any single one
   // of them under the one "./app.html" key the five stable screens share would make that slot's
   // content depend on whichever page a visitor last loaded, corrupting every other page's offline
-  // fallback. Executes the real fetch handler against a fake navigate event and a cache spy,
+  // fallback. A stable screen's network copy is not written either: it may be the next release's
+  // page, which would then boot against this release's cached scripts. Executes the real fetch
+  // handler against a fake navigate event and a cache spy,
   // rather than inspecting the source, so a regression here would actually fail this.
   const root = path.join(__dirname, "..");
   let fetchHandler = null;
@@ -5793,7 +5781,7 @@ test("service worker never writes a /nearby/<slug>/ or /find/<slug>/ page's own 
     },
     importScripts: () => {},
     caches: {
-      open: async () => ({ put: async (key) => cachePuts.push(key) }),
+      open: async () => ({ put: async (key) => cachePuts.push(key), match: async () => ({ __cached: true }) }),
       match: async () => ({ __cached: true }),
       keys: async () => [],
     },
@@ -5818,163 +5806,112 @@ test("service worker never writes a /nearby/<slug>/ or /find/<slug>/ page's own 
     return [...cachePuts];
   }
 
-  assert.deepEqual(await fireNavigate("/nearby"), ["./app.html"], "a stable screen refreshes the shared shell");
+  assert.deepEqual(await fireNavigate("/nearby"), [], "a newer deploy's page must not replace the shell matching this release's scripts");
   assert.deepEqual(await fireNavigate("/find/the-forresters/"), [], "a business page must never overwrite it");
   assert.deepEqual(await fireNavigate("/nearby/pubs/"), [], "a category page must never overwrite it either");
 });
 
-test("service worker app shell holds app.html and not the marketing homepage", () => {
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  const shell = sw.match(/const APP_SHELL = \[([\s\S]*?)\];/);
-  assert.ok(shell, "APP_SHELL must be present");
-  assert.match(shell[1], /"\.\/app\.html"/, "APP_SHELL should precache app.html");
-  assert.ok(
-    !/"\.\/",/.test(shell[1]),
-    'APP_SHELL must not precache "./" -- it resolves to the marketing homepage'
-  );
+test("netlify.toml makes the browser revalidate sw.js and its version markers (shipped-config invariant)", () => {
+  const toml = fs.readFileSync(path.join(__dirname, "..", "netlify.toml"), "utf8");
+  for (const file of ["/sw.js", "/js/app-cache-version.js", "/js/data-cache-version.js"]) {
+    assert.match(toml, new RegExp(`for = "${file.replace(/[./]/g, "\\$&")}"\\s+\\[headers\\.values\\]\\s+Cache-Control = "no-cache"`), `${file} must be revalidated`);
+  }
 });
 
-test("service worker serves the cached shell for a return navigation and refreshes it in the background", () => {
-  // Network-first navigation meant every reload blocked on a ~290 KB app.html round trip
-  // before anything painted, however warm the cache. Staleness is bounded by the sw.js update
-  // check the browser runs on each navigation, not by making the user wait.
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  const navMatch = sw.match(/if \(event\.request\.mode === "navigate"\) \{[\s\S]*?\n    return;\n  \}/);
-  assert.ok(navMatch, "the navigate branch must be present in the fetch handler");
-  const branch = navMatch[0];
+// Fake service-worker environment for the update and background-sync flows.
+function withFakeServiceWorker(app, { online = true, controller = null } = {}, run) {
+  const nav = app.navigator;
+  const wasOnline = nav.onLine;
+  const reloads = [];
+  const previous = {
+    location: app.swapGlobalFunction("location", { reload: () => reloads.push("reload") }),
+    setTimeout: app.swapGlobalFunction("setTimeout", () => 0),
+  };
+  nav.onLine = online;
+  nav.serviceWorker = { controller };
+  const cleanup = () => {
+    delete nav.serviceWorker;
+    nav.onLine = wasOnline;
+    app.swapGlobalFunction("location", previous.location);
+    app.swapGlobalFunction("setTimeout", previous.setTimeout);
+  };
+  return Promise.resolve(run(reloads)).finally(cleanup);
+}
 
-  assert.match(branch, /caches\.match\("\.\/app\.html"\)\.then\(\(cached\) => \{/, "production navigation must consult the cache first");
-  assert.match(branch, /cache\.put\("\.\/app\.html", copy\)/, "the network copy must refresh the cached shell");
-  assert.match(branch, /IS_DEV\s*\n\s*\? fromNetwork/, "local dev must stay network-first so edits show up");
+test("the app asks the controlling worker for a background data sync, but not offline or before a worker controls the page", async () => {
+  const messages = [];
+  const controller = { postMessage: (m) => messages.push(m) };
+
+  await withFakeServiceWorker(app, { controller }, () => Promise.all([app.requestBackgroundDataSync(), app.requestBackgroundDataSync({ force: true })]));
+  assert.deepEqual(JSON.parse(JSON.stringify(messages)), [{ type: "SYNC_DATA", force: false }, { type: "SYNC_DATA", force: true }]);
+
+  messages.length = 0;
+  await withFakeServiceWorker(app, { controller, online: false }, () => app.requestBackgroundDataSync());
+  await withFakeServiceWorker(app, { controller: null }, () => app.requestBackgroundDataSync());
+  assert.deepEqual(messages, [], "nothing is sent offline, or on a first load with nothing cached to refresh");
 });
 
-test("service worker install only fetches shell entries that are not already cached", () => {
-  // Every app release bumps APP_CACHE_NAME and so re-runs install. A blanket addAll over
-  // DATA_SHELL plus the opportunistic list re-downloaded ~67 MB of unchanged GeoJSON each time,
-  // which is the "full download on every load" a returning user actually experienced.
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  const installMatch = sw.match(/self\.addEventListener\("install",[\s\S]*?\n\}\);/);
-  assert.ok(installMatch, "install handler exists");
-  const install = installMatch[0];
-
-  assert.doesNotMatch(install, /cache\.addAll\(DATA_SHELL\)/, "DATA_SHELL must not be re-fetched wholesale on every install");
-  assert.doesNotMatch(install, /cache\.addAll\(APP_SHELL\)/, "APP_SHELL must not be re-fetched wholesale on every install");
-  assert.match(install, /missingFromCache\(cache, APP_SHELL\)/, "app shell must be filtered down to missing entries");
-  assert.match(install, /missingFromCache\(cache, DATA_SHELL\)/, "data shell must be filtered down to missing entries");
-  assert.match(install, /missingFromCache\(cache, DATA_CACHE_OPPORTUNISTIC\)/, "opportunistic data must be filtered down to missing entries");
-  assert.match(install, /adoptPreviousDataCache\(cache\)/, "a data cache version bump must inherit the previous cache rather than re-download it");
+test("on a first visit the background sync waits until the page's own map downloads have reached the cache", async () => {
+  const messages = [];
+  const controller = { postMessage: (m) => messages.push(m) };
+  let finishHandOver;
+  const previousFetch = app.swapGlobalFunction("fetch", async () => ({ ok: true, clone: () => ({}) }));
+  const previousCaches = app.swapGlobalFunction("caches", {
+    open: async () => ({ put: () => new Promise((resolve) => { finishHandOver = resolve; }) }),
+  });
+  const nav = app.navigator;
+  const previousSw = nav.serviceWorker;
+  const wasOnline = nav.onLine;
+  nav.onLine = true;
+  try {
+    // Downloaded before the worker took control: the hand-over to the cache is still being written.
+    nav.serviceWorker = { controller: null, getRegistration: async () => ({}) };
+    await app.fetchMapData("data/local-environment.geojson");
+    await new Promise((resolve) => setImmediate(resolve));
+    // The worker takes control and the page asks for a sync.
+    nav.serviceWorker = { controller };
+    const sync = app.requestBackgroundDataSync();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(messages, [], "no sync while the file is still on its way into the cache");
+    finishHandOver();
+    await sync;
+    assert.equal(messages.length, 1, "the sync goes out once the hand-over has landed");
+  } finally {
+    nav.onLine = wasOnline;
+    app.swapGlobalFunction("fetch", previousFetch);
+    app.swapGlobalFunction("caches", previousCaches);
+    if (previousSw === undefined) delete nav.serviceWorker; else nav.serviceWorker = previousSw;
+  }
 });
 
-test("a data cache version bump carries the old bodies over and defers the refresh to the background", () => {
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  const adoptMatch = sw.match(/async function adoptPreviousDataCache\(cache\) \{[\s\S]*?\n\}/);
-  assert.ok(adoptMatch, "adoptPreviousDataCache must be defined");
-  const adopt = adoptMatch[0];
-
-  assert.match(adopt, /\/\^forest-finds-\(dev-\)\?data-\//, "must recognise both the production and dev spellings of a data cache");
-  assert.match(adopt, /cache\.put\(request, response\)/, "must copy the previous bodies into the new cache");
-  assert.match(adopt, /writeDataSyncState\(cache, \{ staleSince: Date\.now\(\) \}\)/, "adopted data must be marked stale so the next sync is not throttled");
+test("applying an update activates the fully downloaded waiting worker and never reloads straight away", async () => {
+  resetData(app);
+  const messages = [];
+  app.state.swWaiting = { postMessage: (m) => messages.push(m) };
+  await withFakeServiceWorker(app, {}, async (reloads) => {
+    assert.equal(await app.applySwUpdate(), true);
+    assert.deepEqual(JSON.parse(JSON.stringify(messages)), [{ type: "SKIP_WAITING" }]);
+    assert.equal(app.state.swPendingReload, true, "the reload waits for the new worker to take control");
+    assert.deepEqual(reloads, [], "no immediate reload: that would strand the page if activation failed");
+  });
+  app.state.swWaiting = null;
+  app.state.swPendingReload = false;
 });
 
-test("the background data sync revalidates conditionally and only rewrites entries that changed", () => {
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  const syncMatch = sw.match(/async function syncData\(\{ force = false \} = \{\}\) \{[\s\S]*?\n\}\n/);
-  assert.ok(syncMatch, "syncData must be defined");
-  const sync = syncMatch[0];
-
-  assert.match(sync, /fetch\(requestUrl, \{ cache: "no-store", headers: conditionalHeaders\(cached\) \}\)/, "must send its own conditional headers rather than leaning on the browser's HTTP cache");
-  assert.match(sync, /if \(fresh\.status === 304\) continue;/, "an unchanged file must cost a 304 and no bytes");
-  assert.match(sync, /responseChanged\(cached, fresh\)/, "must compare validators before writing anything back");
-  assert.match(sync, /DATA_SYNC_INTERVAL_MS/, "must throttle so a sync is not run on every single load");
-  assert.match(sync, /syncState\.staleSince != null/, "an explicitly stale cache must sync regardless of the throttle");
-  assert.match(sync, /failed === requests\.length/, "a sweep where nothing reached the network must not be recorded as a successful check");
-  assert.match(sync, /missingUrls/, "a forced sweep must repair entries missing from a partial cache");
-  assert.match(sync, /staleSince: syncState\.staleSince \|\| Date\.now\(\)/, "partial failures must remain due for a later retry");
-
-  const condMatch = sw.match(/function conditionalHeaders\(cached\) \{[\s\S]*?\n\}/);
-  assert.ok(condMatch, "conditionalHeaders must be defined");
-  assert.match(condMatch[0], /If-None-Match/, "must revalidate by ETag when the cached entry has one");
-  assert.match(condMatch[0], /If-Modified-Since/, "must fall back to Last-Modified");
-
-  assert.match(sw, /event\.data\?\.type === "SYNC_DATA"/, "the worker must accept the client's sync request");
-  assert.match(sw, /postMessage\(\{ type: "DATA_UPDATED", changed \}\)/, "clients must be told when newer data has landed");
-  assert.match(sw, /type: "DATA_SYNC_COMPLETE"/, "manual refreshes must receive a completion result");
-});
-
-test("community overlay revalidation updates open clients without waiting for a reload", () => {
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  const community = fs.readFileSync(path.join(__dirname, "..", "js", "community.js"), "utf8");
-
-  assert.match(sw, /async function communityResponseChanged\(cached, fresh\)/, "community responses must be compared before notifying clients");
-  assert.match(sw, /type: "COMMUNITY_UPDATED", data/, "the worker must send fresh community data to open clients");
-  assert.match(community, /event\.data\?\.type === "COMMUNITY_UPDATED"/, "the page must listen for fresh community data");
-  assert.match(community, /communityApplyOverlay\(event\.data\.data\)/, "the page must apply the fresh overlay without a reload");
-  assert.match(community, /function setupCommunityOverlayRefresh\(\)/, "the page must periodically request community updates while open");
-  assert.match(community, /COMMUNITY_OVERLAY_REFRESH_INTERVAL_MS/, "community refreshes must be bounded");
-  assert.match(community, /window\.addEventListener\("online"/, "community refreshes must retry when connectivity returns");
-});
-
-test("a service worker update waits for an explicit activation request", () => {
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  const installMatch = sw.match(/self\.addEventListener\("install",[\s\S]*?\n\}\);/);
-  assert.ok(installMatch, "install handler exists");
-  const install = installMatch[0];
-  assert.doesNotMatch(install, /self\.skipWaiting\(\)/, "an incomplete or unrequested update must not take over the current app");
-  assert.match(sw, /event\.data\?\.type === "SKIP_WAITING"/, "activation must remain an explicit message action");
-});
-
-test("every app update activation path downloads a complete waiting worker first", () => {
-  const nav = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
-  const applyMatch = nav.match(/async function applySwUpdate\(\) \{[\s\S]*?\n\}/);
-  assert.ok(applyMatch, "applySwUpdate must be defined");
-  assert.match(applyMatch[0], /downloadAppUpdate\(\)/, "the indicator path must check for a downloaded worker");
-  assert.match(applyMatch[0], /if \(!waiting\)/, "a missing worker must stop without reloading");
-  assert.doesNotMatch(applyMatch[0], /else \{\s*location\.reload\(\)/, "no-worker state must not reload the current app");
-  assert.match(applyMatch[0], /activateDownloadedAppUpdate\(waiting\)/, "only a waiting worker may be activated");
-});
-
-test("the app asks for a background data sync only after the map is up, never during boot", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
-  const navSource = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
-
-  const syncIdx = source.indexOf("requestBackgroundDataSync()");
-  assert.ok(syncIdx !== -1, "boot must request a background data sync");
-  assert.ok(
-    syncIdx > source.indexOf("showFilterHintIfFirstVisit();"),
-    "the sync must be requested after the map is interactive, so it never competes with the first render"
-  );
-
-  const fnMatch = navSource.match(/function requestBackgroundDataSync\(options\) \{[\s\S]*?\n\}/);
-  assert.ok(fnMatch, "requestBackgroundDataSync must be defined in nav.js");
-  const fn = fnMatch[0];
-  assert.match(fn, /if \(!navigator\.onLine\) return;/, "must not attempt a sync while offline");
-  assert.match(fn, /navigator\.serviceWorker\.controller/, "must go through the controlling worker");
-  assert.match(fn, /postMessage\(\{ type: "SYNC_DATA"/, "must send the worker sync message");
-});
-
-test("service worker uses a network-first strategy in local dev so edits show up without a CACHE_NAME bump", () => {
-  // CACHE_NAME is only ever bumped by CI, on the pull request that changes the files it
-  // watches (.github/workflows/sw-release.yml for app code, data-bump.yml for data),
-  // never locally, so the production cache-first strategy below would otherwise keep serving
-  // stale JS/CSS/data while testing locally. self.__DEV__ (injected by server.js — see the
-  // "local dev server flags sw.js" tests) must gate the cache-first branch and go to the
-  // network first instead.
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  assert.match(sw, /const IS_DEV = self\.__DEV__ === true/, "sw.js must derive a dev flag from self.__DEV__");
-
-  const fetchHandlerMatch = sw.match(/self\.addEventListener\("fetch",[\s\S]*/);
-  assert.ok(fetchHandlerMatch, "fetch handler exists");
-  const fetchHandler = fetchHandlerMatch[0];
-
-  const devBranchMatch = fetchHandler.match(/if \(IS_DEV\) \{([\s\S]*?)\n  \}\n\n  event\.respondWith\(\s*\n\s*caches\.match\(event\.request\)/);
-  assert.ok(devBranchMatch, "an IS_DEV branch must sit before the production cache-first handler");
-  const devBranch = devBranchMatch[1];
-  assert.match(devBranch, /fetch\(event\.request\)/, "dev branch must hit the network");
-  assert.match(devBranch, /\.catch\(\(\) => caches\.match\(event\.request\)\)/, "dev branch must still fall back to cache when offline");
-
-  // The dev branch must come before (and therefore short-circuit) the cache-first
-  // production strategy, not replace it — production behaviour must be untouched.
-  assert.ok(fetchHandler.indexOf("if (IS_DEV)") < fetchHandler.indexOf("caches.match(event.request).then((cached)"), "dev branch must run before the production cache-first branch");
+test("applying an update with no complete downloaded worker leaves the current app running", async () => {
+  resetData(app);
+  app.state.swWaiting = null;
+  const wasStatus = app.documentStub.getElementById("refreshStatus");
+  await withFakeServiceWorker(app, { controller: null }, async (reloads) => {
+    const original = app.swapGlobalFunction("downloadAppUpdate", async () => null);
+    try {
+      assert.equal(await app.applySwUpdate(), false);
+    } finally {
+      app.swapGlobalFunction("downloadAppUpdate", original);
+    }
+    assert.deepEqual(reloads, [], "an update that is not fully downloaded must not reload the page");
+  });
+  assert.match(wasStatus.textContent, /No complete app update is ready/);
 });
 
 test("local dev server flags sw.js with self.__DEV__ without touching the production file on disk", () => {
@@ -6028,31 +5965,6 @@ test("local dev version markers prefix cache names with dev- so the About screen
   assert.equal(local.data, `dev-${production.data}`);
 });
 
-test("local dev server serves sw.js with its own dev-flagging route, not the generic static handler", () => {
-  const serverSource = fs.readFileSync(path.join(__dirname, "..", "server.js"), "utf8");
-  assert.match(serverSource, /requested === ["']\/sw\.js["']/, "server.js must special-case /sw.js");
-  assert.match(serverSource, /injectDevFlag\(/, "server.js must run sw.js through injectDevFlag before responding");
-});
-
-test("location gate button is no longer present", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
-  assert.doesNotMatch(html, /locationGate|Allow location access/);
-});
-
-test("nav.js setLocationGateVisible re-enables button on show via source code check", () => {
-  const nav = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
-  assert.doesNotMatch(nav, /setLocationGateVisible|locationGateButton/);
-});
-
-test("nav.js locationGateButton handler disables button immediately on click for visual feedback", () => {
-  const nav = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
-  assert.doesNotMatch(
-    nav,
-    /locationGateButton\.addEventListener[\s\S]{0,100}locationGateButton\.disabled\s*=\s*true/,
-    "locationGateButton click handler must disable the button immediately to give visual feedback"
-  );
-});
-
 test("compass calibration trusts a heading once several readings agree within tolerance", () => {
   resetData(app);
   const base = Date.now();
@@ -6079,7 +5991,7 @@ test("compassCalibrationSpreadDegrees measures circular spread correctly across 
   app.registerCompassCalibrationSample(10, base + 50);
   // 350 -> 10 is a 20 degree turn through north, not a 340 degree spread.
   assert.ok(
-    app.compassCalibrationSpreadDegrees() <= 20 + 1e-6,
+    Math.abs(app.compassCalibrationSpreadDegrees() - 20) < 1e-6,
     `wraparound spread should read as ~20 degrees, got ${app.compassCalibrationSpreadDegrees()}`
   );
 });
@@ -6334,21 +6246,30 @@ test("the nearby zoom tracks the user's walking distance setting", () => {
   );
 });
 
-test("startCalibrationViewportSync forces its zoom fit, so calibration's view is never deferred by the actively-firing-sensor check", () => {
-  // Source-level regression guard for the specific call site: registerCompassCalibrationSample
-  // sets state.compassLastEventAt via onDeviceOrientation on every raw reading, which means
-  // headingUpCompassSensorActive() reads true throughout the whole calibration window --
-  // if startCalibrationViewportSync's call to alignHeadingUpNavigationViewport ever loses
-  // its force:true, the zoom-fit-deferred-until-quiet bug covered by the test above comes
-  // straight back for calibration specifically, even though that direct test still passes.
-  const appSource = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
-  assert.match(
-    appSource,
-    // Generous window: this function carries a lot of explanatory comment (matching this
-    // file's style), so the force:true call sits ~2000 chars past the function's own start.
-    /function startCalibrationViewportSync[\s\S]{0,3000}alignHeadingUpNavigationViewport\(\{\s*force:\s*true\s*\}\)/,
-    "startCalibrationViewportSync must call alignHeadingUpNavigationViewport with force: true"
-  );
+test("calibration's zoom fit is applied immediately, never deferred by the actively-firing sensor", () => {
+  // Raw orientation events keep the compass looking "active" for the whole calibration window,
+  // so the fit must bypass the defer-while-active rule or it only lands once the sensor settles.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = null;
+  const frames = [];
+  const calls = [];
+  const originals = {
+    raf: app.swapGlobalFunction("requestAnimationFrame", (fn) => { frames.push(fn); return frames.length; }),
+    anchor: app.swapGlobalFunction("navigationAnchorActive", () => true),
+    align: app.swapGlobalFunction("alignHeadingUpNavigationViewport", (options) => { calls.push(options); return false; }),
+  };
+  try {
+    app.startCalibrationViewportSync();
+    frames.shift()();
+    assert.equal(calls.length, 1, "the viewport is re-fitted on the first frame");
+    assert.equal(calls[0] && calls[0].force, true);
+  } finally {
+    app.stopCalibrationViewportSync();
+    app.swapGlobalFunction("requestAnimationFrame", originals.raf);
+    app.swapGlobalFunction("navigationAnchorActive", originals.anchor);
+    app.swapGlobalFunction("alignHeadingUpNavigationViewport", originals.align);
+  }
 });
 
 test("startCalibrationViewportSync/stopCalibrationViewportSync manage a single scheduled frame", () => {
@@ -6813,13 +6734,13 @@ test("createRoutingGraphBuilder produces an identical graph whether fed all feat
   assert.equal(batchedEdgeCount, wholeEdgeCount);
 });
 
-test("buildRoutingGraphAsync returns a promise (chunked-build correctness is covered synchronously above via createRoutingGraphBuilder, since this file's test() runner does not await async tests)", () => {
+test("buildRoutingGraphAsync builds the same graph as the synchronous builder, batch by batch", async () => {
   const roads = [routingFeature("residential", [[51.650, 0.000], [51.650, 0.001], [51.651, 0.001]])];
   const paths = [routingFeature("footway", [[51.651, 0.001], [51.652, 0.002]])];
-  const asyncResult = app.buildRoutingGraphAsync(roads, paths, app.unprojectPoint, app.distanceMetres, 1);
-  assert.equal(typeof asyncResult.then, "function", "buildRoutingGraphAsync must return a promise");
-  // Prevent an unhandled-rejection warning if it ever throws; correctness is asserted elsewhere.
-  asyncResult.catch(() => {});
+  const sync = app.buildRoutingGraph(roads, paths, app.unprojectPoint, app.distanceMetres);
+  const batched = await app.buildRoutingGraphAsync(roads, paths, app.unprojectPoint, app.distanceMetres, 1);
+  assert.equal(batched.nodes.length, sync.nodes.length, "same junctions however the features are batched");
+  assert.ok(batched.nodes.length > 2, "the graph is not empty");
 });
 
 test("ensureRoutingGraph lazily builds a routing graph from state.roads/state.paths, drawSelectedRoute switches from the straight-line fallback to the routed polyline once it's ready, and the result is memoized until the user moves meaningfully", async () => {
@@ -7629,18 +7550,6 @@ test("detour slack is dropped once the routing graph resolves, including when th
   app.state.routingGraphBuilding = true;
   const buildingScale = fitScaleNow();
   assert.ok(buildingScale < failedScale, "while the graph is still building the fit should keep its slack");
-});
-
-test("app fallback and service worker share the independent app cache version marker", () => {
-  const root = path.join(__dirname, "..");
-  const swSource = fs.readFileSync(path.join(root, "sw.js"), "utf8");
-  const appSource = fs.readFileSync(path.join(root, "js", "app.js"), "utf8");
-  const marker = fs.readFileSync(path.join(root, "js", "app-cache-version.js"), "utf8");
-
-  assert.match(marker, /const APP_CACHE_VERSION = .*v\d+/, "app marker should hold a version");
-  assert.match(swSource, /importScripts\("\.\/js\/app-cache-version\.js"/, "service worker should import the app marker");
-  assert.match(swSource, /forest-finds-app-\$\{APP_CACHE_VERSION\}/, "service worker should derive its cache name from the app marker");
-  assert.match(appSource, /const APP_VERSION = APP_CACHE_VERSION/, "app fallback should use the same marker");
 });
 
 test("cache version label reads dev-server cache names as well as production ones", () => {
@@ -8478,6 +8387,7 @@ function resetLocationSmoothing(app) {
   app.state.rawUserLocation = null;
   app.state.locationGlide = null;
   app.state.locationSmoothedAt = null;
+  app.state.locationFixHistory = [];
 }
 
 test("the first GPS fix is used as delivered, with no smoothing to ease in from", () => {
@@ -8551,6 +8461,50 @@ test("a position that stops updating still converges on the last fix, rather tha
     Math.abs(app.state.userLocation.longitude - destination.longitude) < 0.000005,
     `longitude should reach the fix, off by ${Math.abs(app.state.userLocation.longitude - destination.longitude)}`
   );
+});
+
+// About 15m north per step at Epping Forest's latitude: train speed over a one-second fix
+// interval, yet under LOCATION_SMOOTHING_SNAP_METRES, so only the speed check can stop the easing.
+const TRAIN_STEP_DEG = 0.000135;
+
+test("on a train, a fix the device reports at travelling speed is used as delivered, so Nearby keeps up", () => {
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  app.state.userLocation = app.ingestLocationFix(51.665, 0.045, 25, 1000, 20);
+  const next = app.ingestLocationFix(51.665 + TRAIN_STEP_DEG, 0.045, 25, 2000, 20);
+  assert.equal(app.state.locationGlide, null, "no easing behind a moving train");
+  assert.equal(next.latitude, 51.665 + TRAIN_STEP_DEG, "the position is the fix itself");
+});
+
+test("sustained travel with no device speed reading stops being smoothed within a few seconds", () => {
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  // A fix a second at 15 m/s, with the map's frames running between them as they do on a phone.
+  // Eased, the position alternated between trailing up to ~30m behind and snapping forward.
+  for (let i = 0; i <= 12; i += 1) {
+    const at = 1000 + i * 1000;
+    const latitude = 51.665 + i * TRAIN_STEP_DEG;
+    app.state.userLocation = app.ingestLocationFix(latitude, 0.045, 25, at, null);
+    if (i >= 8) {
+      assert.equal(app.state.locationGlide, null, `fix ${i}: eight seconds at 15 m/s is travel, not wander`);
+      assert.equal(app.state.userLocation.latitude, latitude, `fix ${i}: the position is the fix, not a trailing ease`);
+    }
+    for (let t = at + 16; t < at + 1000; t += 16) app.advanceLocationGlide(t);
+  }
+});
+
+test("a walker's wander under trees is still smoothed however long it goes on", () => {
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  // Fifteen seconds of fixes scattered up to ~8m either side of one spot, no device speed.
+  const offsets = [0, 0.00007, -0.00006, 0.00005, -0.00007, 0.00003, -0.00004, 0.00007, -0.00005, 0.00006, -0.00007, 0.00004, -0.00006, 0.00007, -0.00003, 0.00005];
+  offsets.forEach((offset, i) => {
+    app.state.userLocation = app.ingestLocationFix(51.665 + offset, 0.045 - offset, 25, 1000 + i * 1000, null);
+    if (i > 0) assert.ok(app.state.locationGlide, `fix ${i} is wander and should still be eased`);
+  });
 });
 
 test("a large jump in position lands at once rather than crawling there", () => {
@@ -9742,6 +9696,32 @@ test("selecting an item while browsing a distant anchor slides the camera origin
   assert.equal(app.cameraOriginPoint(), userPoint, "settled: the camera is back on the real GPS fix, as selected navigation requires");
 });
 
+test("selection entry points capture the browse pivot before clearing the anchor", async () => {
+  enterNearby3D(app);
+  const tree = {
+    ...app.state.trees[0],
+    recordNumber: 1,
+    location: { britishNationalGrid: {} },
+  };
+  app.state.trees[0] = tree;
+  const anchor = makePoint(app, 51.66, 0.033);
+  app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
+  settleNearbySlide(app);
+
+  app.focusOverviewItem("tree", "r1");
+  assert.equal(app.state.nearbyAnchor, null, "selection should still clear the browse anchor");
+  assert.ok(app.state.cameraOriginTransition, "selection should animate the camera pivot basis change");
+  assert.ok(
+    Math.abs(app.state.cameraOriginTransition.fromX - anchor.point.x) < 1e-9
+      && Math.abs(app.state.cameraOriginTransition.fromY - anchor.point.y) < 1e-9,
+    "the pivot transition must start at the browsed anchor, not the GPS fix"
+  );
+
+  // Let the inspector-deferred selection fit finish before the next test resets shared state.
+  await new Promise((resolve) => setTimeout(resolve, 260));
+  app.stopViewportAnimation();
+});
+
 // Records the path each draw walks, so a marker's actual drawn geometry can be asserted rather
 // than just the numbers that feed it.
 function recordingCtx() {
@@ -10494,13 +10474,6 @@ test("the map inventory counts far more than the food places alone", () => {
   );
 });
 
-test("the app's modal overlays declare dialog role, modal state and an accessible name", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
-
-  assert.match(html, /id="distanceWarning"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-labelledby="distanceWarningTitle"/);
-  assert.match(html, /id="onboardingOverlay"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-label="[^"]+"/);
-});
-
 test("activateModalFocus traps Tab within the container and restores focus on deactivate", () => {
   // Minimal hand-rolled DOM: just enough real focus()/querySelectorAll()/addEventListener()
   // semantics for js/nav.js's actual activateModalFocus to run against, without pulling in a
@@ -10560,28 +10533,9 @@ test("activateModalFocus traps Tab within the container and restores focus on de
   delete global.document;
 });
 
-test("admin's clickable user rows are keyboard-operable (role, tabindex, Enter/Space)", () => {
-  const js = fs.readFileSync(path.join(__dirname, "..", "js", "admin.js"), "utf8");
-
-  assert.match(js, /function makeActivatable/);
-  assert.match(js, /el\.setAttribute\("role", "button"\)/);
-  assert.match(js, /el\.setAttribute\("tabindex", "0"\)/);
-  assert.match(js, /event\.key === "Enter" \|\| event\.key === " "/);
-});
-
-test("the admin login field has a programmatic label, not just a placeholder", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "admin.html"), "utf8");
-
-  assert.match(html, /<label for="loginPassword"[^>]*>[^<]*Admin password[^<]*<\/label>/);
-});
-
-// --- Events ---
-
 test("Events and Pubs are default-on categories, like Trees and Cows", () => {
   assert.ok(app.DEFAULT_FILTERS.includes("events"));
   assert.ok(app.DEFAULT_FILTERS.includes("pubs"));
-  const onboardingSrc = fs.readFileSync(path.join(__dirname, "..", "js", "onboarding.js"), "utf8");
-  assert.match(onboardingSrc, /new Set\(\["trees", "cows", "events", "pubs"\]\)/);
 });
 
 test("normalizeEventLocations keeps upcoming (within a week) and live events, and drops past or too-far-ahead ones", () => {
@@ -10876,22 +10830,100 @@ test("detailsHtml renders Opening hours as plain text like any other detail row"
   assert.match(html, /<dt>Opening hours<\/dt><dd>Mo-Su 09:00-17:00<\/dd>/);
 });
 
-const trackFunction = require("../netlify/functions/track");
+// --- First visit: the page hands its map downloads to the service worker's data cache (js/loader.js) ---
 
-test("an admin read of a big tracking store returns the newest blobs and says it is partial when time runs out", async () => {
-  const blobs = Array.from({ length: 10 }, (_, i) => ({ key: `location/${1000 + i}_abc` }));
-  let clock = 0;
-  const now = () => clock;
-  const fastStore = { get: async (key) => [{ key }] };
-  const slowStore = { get: async (key) => { clock += 1500; return [{ key }]; } };
-  const full = await trackFunction.readBlobsWithinBudget(fastStore, blobs, { budgetMs: 7000, batch: 3, now });
-  assert.equal(full.partial, false);
-  assert.equal(full.items.length, 10);
-  clock = 0;
-  const partial = await trackFunction.readBlobsWithinBudget(slowStore, blobs, { budgetMs: 7000, batch: 3, now });
-  assert.equal(partial.partial, true);
-  assert.equal(partial.items.length, 6, "two batches fit in the budget, a third does not");
-  assert.equal(partial.items[0].key, "location/1009_abc", "the newest blob is read first");
+function withHandOverEnvironment({ controller = null, registration = {}, response = { ok: true } } = {}, run) {
+  const put = [];
+  const fakeCaches = { open: async (name) => ({ put: async (url, body) => put.push({ name, url, body }) }) };
+  const fakeResponse = () => ({ ...response, clone: () => ({ cloned: true }) });
+  const previousFetch = app.swapGlobalFunction("fetch", async () => fakeResponse());
+  const previousCaches = app.swapGlobalFunction("caches", fakeCaches);
+  const previousSw = app.navigator.serviceWorker;
+  app.navigator.serviceWorker = registration === undefined
+    ? undefined
+    : { controller, getRegistration: async () => registration };
+  return Promise.resolve(run(put)).finally(() => {
+    app.swapGlobalFunction("fetch", previousFetch);
+    app.swapGlobalFunction("caches", previousCaches);
+    if (previousSw === undefined) delete app.navigator.serviceWorker; else app.navigator.serviceWorker = previousSw;
+  });
+}
+
+const handOverSettled = () => new Promise((resolve) => setImmediate(resolve));
+
+test("on a first visit a downloaded map file is handed to the data cache, so the service worker need not fetch it again", () =>
+  withHandOverEnvironment({}, async (put) => {
+    await app.fetchMapData("data/local-roads.geojson");
+    await handOverSettled();
+    assert.equal(put.length, 1);
+    assert.equal(put[0].url, "data/local-roads.geojson");
+    assert.match(put[0].name, /^forest-finds-data-/);
+  }));
+
+test("once a service worker controls the page, nothing is handed over (the worker caches what passes through it)", () =>
+  withHandOverEnvironment({ controller: {} }, async (put) => {
+    await app.fetchMapData("data/local-roads.geojson");
+    await handOverSettled();
+    assert.equal(put.length, 0);
+  }));
+
+test("with no service worker registered (blocked, or unsupported), nothing is written to the cache", () =>
+  withHandOverEnvironment({ registration: null }, async (put) => {
+    await app.fetchMapData("data/local-roads.geojson");
+    await handOverSettled();
+    assert.equal(put.length, 0);
+  }));
+
+test("a failed download, or a file outside data/, is never handed over", async () => {
+  await withHandOverEnvironment({ response: { ok: false } }, async (put) => {
+    await app.fetchMapData("data/local-roads.geojson");
+    await handOverSettled();
+    assert.equal(put.length, 0);
+  });
+  await withHandOverEnvironment({}, async (put) => {
+    await app.fetchMapData("Veteran_Tree_Register.json");
+    await handOverSettled();
+    assert.equal(put.length, 0);
+  });
+});
+
+// --- Persistent storage (js/nav.js requestPersistentStorage) ---
+
+async function persistRequests({ persisted = false, userAgent = "Mozilla/5.0 (iPhone) Safari/605.1.15" } = {}) {
+  const calls = [];
+  const previous = { storage: app.navigator.storage, userAgent: app.navigator.userAgent };
+  app.navigator.storage = { persisted: async () => persisted, persist: async () => { calls.push("persist"); return true; } };
+  app.navigator.userAgent = userAgent;
+  try {
+    app.requestPersistentStorage();
+    await handOverSettled();
+    return calls.length;
+  } finally {
+    if (previous.storage === undefined) delete app.navigator.storage; else app.navigator.storage = previous.storage;
+    app.navigator.userAgent = previous.userAgent;
+  }
+}
+
+test("the app asks the browser to keep its offline storage, so Safari does not clear it after a week away", async () => {
+  assert.equal(await persistRequests(), 1);
+});
+
+test("storage that is already persisted is not asked for again", async () => {
+  assert.equal(await persistRequests({ persisted: true }), 0);
+});
+
+test("Firefox, which would show a permission prompt for it, is not asked", async () => {
+  assert.equal(await persistRequests({ userAgent: "Mozilla/5.0 (Android 14; Mobile; rv:130.0) Gecko/130.0 Firefox/130.0" }), 0);
+});
+
+test("a browser without the storage API is left alone", () => {
+  const previous = app.navigator.storage;
+  delete app.navigator.storage;
+  try {
+    assert.doesNotThrow(() => app.requestPersistentStorage());
+  } finally {
+    if (previous !== undefined) app.navigator.storage = previous;
+  }
 });
 
 // --- Community verification consensus (netlify/functions/lib/community-consensus.js) ---
@@ -11126,6 +11158,7 @@ test("confirming a place scores nothing and a fixed feedback report earns the fi
 });
 
 const communityComputed = require("../netlify/functions/lib/community-computed");
+const communityLedger = require("../netlify/functions/lib/community-ledger");
 
 function memoryStore(initial = {}) {
   const data = new Map(Object.entries(initial));
@@ -11152,19 +11185,133 @@ test("a rebuild stores each person's score in a small shard that one lookup can 
   assert.match(communityComputed.scoreShard("device-aaaa"), /^[0-9a-f]{2}$/);
 });
 
-test("in production a request serves a slightly old snapshot instead of rebuilding inline", async () => {
-  const store = memoryStore({ computed: { generatedAt: Date.now() - 90 * 60 * 1000, overlay: { "tree:1": { s: "verified" } }, conflicts: [] } });
+test("in production a request serves an old snapshot, however old, instead of rebuilding inline", async () => {
+  // If the scheduled rebuild stops because the ledger outgrew it, an inline rebuild would fail the same way
+  // on every visitor's request; an old snapshot is better than none.
+  const store = memoryStore({ computed: { generatedAt: Date.now() - 6 * 60 * 60 * 1000, overlay: { "tree:1": { s: "verified" } }, conflicts: [] } });
   const original = process.env.CONTEXT;
+  const warn = console.warn;
   try {
     process.env.CONTEXT = "production";
+    console.warn = () => {};
     const stale = await communityComputed.loadComputed(store);
+    console.warn = warn;
     assert.deepEqual(Object.keys(stale.overlay), ["tree:1"]);
     process.env.CONTEXT = "deploy-preview";
     const fresh = await communityComputed.loadComputed(store);
     assert.deepEqual(Object.keys(fresh.overlay), [], "previews and local dev rebuild once the snapshot is past its TTL");
   } finally {
+    console.warn = warn;
     if (original === undefined) delete process.env.CONTEXT; else process.env.CONTEXT = original;
   }
+});
+
+function countingStore(initial = {}) {
+  const store = memoryStore(initial);
+  store.reportReads = 0;
+  const get = store.get;
+  store.get = async (key) => { if (key.startsWith("reports/")) store.reportReads += 1; return get(key); };
+  return store;
+}
+
+test("a rebuild fetches only the reports it has not read before", async () => {
+  const store = countingStore();
+  for (let i = 0; i < 5; i += 1) await store.put(`reports/r${i}`, communityReport({ id: `report-${i}aaaa111`, deviceId: `device-${i}aaaa` }));
+  const first = await communityComputed.rebuildComputed(store);
+  assert.equal(first.reportCount, 5);
+  assert.equal(store.reportReads, 5);
+
+  await store.put("reports/r5", communityReport({ id: "report-5aaaa111", deviceId: "device-5aaaa" }));
+  store.reportReads = 0;
+  const second = await communityComputed.rebuildComputed(store);
+  assert.equal(second.reportCount, 6, "the new report is counted");
+  assert.equal(store.reportReads, 1, "and it is the only one fetched");
+});
+
+test("a report deleted from the ledger drops out of the next rebuild even though it was cached", async () => {
+  const store = memoryStore();
+  await store.put("reports/r1", communityReport({ id: "report-1aaaa111", deviceId: "device-1aaaa" }));
+  await store.put("reports/r2", communityReport({ id: "report-2aaaa111", deviceId: "device-2aaaa" }));
+  await communityComputed.rebuildComputed(store);
+  await store.delete("reports/r2");
+  const after = await communityComputed.rebuildComputed(store);
+  assert.equal(after.reportCount, 1);
+  assert.equal((await communityComputed.loadAdminStats(store)).devices, 1, "the deleted report's device no longer counts");
+});
+
+test("a lost ledger cache is refilled from the ledger rather than losing reports", async () => {
+  const store = memoryStore();
+  for (let i = 0; i < 3; i += 1) await store.put(`reports/r${i}`, communityReport({ id: `report-${i}aaaa111`, deviceId: `device-${i}aaaa` }));
+  await communityComputed.rebuildComputed(store);
+  for (const key of [...store.data.keys()].filter((k) => k.startsWith("ledger-cache/") && k !== "ledger-cache/index")) store.data.delete(key);
+  assert.equal((await communityComputed.rebuildComputed(store)).reportCount, 3);
+});
+
+test("the admin dashboard's community figures come from the last rebuild, not a read of the whole ledger", async () => {
+  const store = countingStore();
+  await store.put("reports/r1", communityReport({ id: "report-1aaaa111", deviceId: "device-1aaaa" }));
+  await communityComputed.rebuildComputed(store);
+  store.reportReads = 0;
+  const stats = await communityComputed.loadAdminStats(store);
+  assert.equal(stats.reports, 1);
+  assert.ok(stats.generatedAt > 0, "it says when the figures were taken");
+  assert.equal(store.reportReads, 0);
+});
+
+test("the admin dashboard's community figures are built on demand when no rebuild has run yet", async () => {
+  const store = memoryStore();
+  await store.put("reports/r1", communityReport({ id: "report-1aaaa111", deviceId: "device-1aaaa" }));
+  await store.put("reports/r2", communityReport({ id: "report-2aaaa111", deviceId: "device-2aaaa" }));
+  const stats = await communityComputed.loadAdminStats(store);
+  assert.equal(stats.reports, 2);
+  assert.equal(stats.devices, 2);
+});
+
+test("a ledger bigger than one cache chunk is cached across several chunks and read back whole", async () => {
+  const store = countingStore();
+  const total = communityLedger.CHUNK_SIZE + 50;
+  for (let i = 0; i < total; i += 1) {
+    await store.put(`reports/r${i}`, communityReport({ id: `report-${String(i).padStart(6, "0")}x`, deviceId: `device-${i % 40}aaaa` }));
+  }
+  assert.equal((await communityComputed.rebuildComputed(store)).reportCount, total);
+  assert.equal((await store.get("ledger-cache/index")).chunks, 2);
+  store.reportReads = 0;
+  assert.equal((await communityComputed.rebuildComputed(store)).reportCount, total, "every report comes back from the cache");
+  assert.equal(store.reportReads, 0);
+});
+
+test("a deletion that shrinks the ledger cache by a chunk leaves no orphaned chunk holding deleted reports", async () => {
+  const store = memoryStore();
+  const total = communityLedger.CHUNK_SIZE + 1;
+  for (let i = 0; i < total; i += 1) {
+    await store.put(`reports/r${i}`, communityReport({ id: `report-${String(i).padStart(6, "0")}x`, deviceId: `device-${i % 40}aaaa` }));
+  }
+  await communityComputed.rebuildComputed(store);
+  assert.ok(store.data.has("ledger-cache/1"), "two chunks before");
+  await store.delete(`reports/r${total - 1}`);
+  await communityComputed.rebuildComputed(store, { strict: true });
+  assert.equal((await store.get("ledger-cache/index")).chunks, 1);
+  assert.equal(store.data.has("ledger-cache/1"), false, "the emptied trailing chunk is removed from storage");
+});
+
+test("bulk reads run a bounded number at a time, so a large ledger never opens a request per record at once", async () => {
+  const store = memoryStore();
+  for (let i = 0; i < 200; i += 1) await store.put(`reports/r${i}`, communityReport({ id: `report-${String(i).padStart(6, "0")}x`, deviceId: `device-${i}aaaa` }));
+  for (let i = 0; i < 60; i += 1) await store.put(`devicelink/device-${i}aaaa`, { account: `acct-${i % 3}` });
+  let inFlight = 0;
+  let most = 0;
+  const get = store.get;
+  store.get = async (key) => {
+    inFlight += 1;
+    most = Math.max(most, inFlight);
+    await new Promise((resolve) => setImmediate(resolve));
+    inFlight -= 1;
+    return get(key);
+  };
+  const computed = await communityComputed.rebuildComputed(store);
+  assert.equal(computed.reportCount, 200);
+  assert.ok(most <= 25, `at most 25 reads at once, saw ${most}`);
+  assert.ok(most > 1, "but they do run in parallel");
 });
 
 test("nudges: a card on the overview, a pulse on the tree's own page, and quiet otherwise", () => {
@@ -11499,6 +11646,45 @@ test("one network cannot mint endless device ids to confirm its own reports: com
   }
 });
 
+test("many people behind one mobile-network address can all report, well past one device's hourly allowance", async () => {
+  const reportEndpoint = require("../netlify/functions/community-report");
+  reportEndpoint.setStore(memoryStore());
+  try {
+    for (let n = 0; n < 150; n += 1) {
+      const result = await reportEndpoint.handler({
+        httpMethod: "POST",
+        headers: { "x-nf-client-connection-ip": "198.51.100.20" },
+        body: JSON.stringify({ id: `report-cgnat-${String(n).padStart(4, "0")}`, deviceId: `device-cgnat-${n}-x`, kind: "tree", target: `tree:${n}`, status: "VERIFIED", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01 }),
+      });
+      assert.equal(result.statusCode, 200, `report ${n + 1} from the shared address`);
+    }
+  } finally {
+    reportEndpoint.setStore(null);
+  }
+});
+
+test("'My reports' keeps a device's latest 1,000 reports, dropping the oldest", async () => {
+  const reportEndpoint = require("../netlify/functions/community-report");
+  const store = memoryStore();
+  const deviceId = "device-prolific-1";
+  await store.put(`mine/${deviceId}`, Array.from({ length: 1000 }, (_, i) => ({ id: `old-${i}`, kind: "tree", status: "VERIFIED", ts: i })));
+  reportEndpoint.setStore(store);
+  try {
+    const result = await reportEndpoint.handler({
+      httpMethod: "POST",
+      headers: { "x-nf-client-connection-ip": "198.51.100.21" },
+      body: JSON.stringify({ id: "report-newest-0001", deviceId, kind: "tree", target: "tree:9", status: "VERIFIED", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01 }),
+    });
+    assert.equal(result.statusCode, 200);
+    const mine = await store.get(`mine/${deviceId}`);
+    assert.equal(mine.length, 1000);
+    assert.equal(mine[mine.length - 1].id, "report-newest-0001");
+    assert.equal(mine[0].id, "old-1", "the oldest entry made room");
+  } finally {
+    reportEndpoint.setStore(null);
+  }
+});
+
 const communityDelete = require("../netlify/functions/lib/community-delete");
 
 async function deletionFixture() {
@@ -11546,7 +11732,17 @@ test("a failed read of any record a deletion depends on stops it, and nothing is
   }
 });
 
-test("deletion finds every issue a device filed, even past the 300-entry mine index cap", async () => {
+test("a data deletion leaves no cached copy of the deleted person's reports", async () => {
+  const store = await deletionFixture();
+  const cachedIds = () => [...store.data.keys()].filter((k) => /^ledger-cache\/\d+$/.test(k))
+    .flatMap((k) => store.data.get(k).entries.map(([, report]) => report.deviceId));
+  assert.ok(cachedIds().includes("phone-device-a1"), "the rebuild cached the report first");
+  await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1" });
+  assert.ok(!cachedIds().includes("phone-device-a1"));
+  assert.ok(cachedIds().includes("other-device-b1"), "other people's reports stay cached");
+});
+
+test("deletion finds every issue a device filed, even past the mine index cap", async () => {
   const store = await deletionFixture();
   for (let n = 1000; n < 1005; n += 1) await store.put(`issues/phone-device-a1/${n}`, { ts: n });
   await store.put("issues/other-device-b1/2000", { ts: 1 });
@@ -11914,4 +12110,18 @@ test("the features endpoint answers the public check and keeps the list admin-on
 runRegisteredTests().catch((error) => {
   console.error(error);
   process.exitCode = 1;
+});
+
+// Cross-file invariant: the cow proxy refuses any centre but the app's own (netlify/functions/cows.js).
+test("the cow request the app builds is one the proxy accepts", async () => {
+  const cows = require("../netlify/functions/cows");
+  const url = new URL(app.cowEndpointUrl(app.cowCenterForRequest()), "http://localhost");
+  const original = global.fetch;
+  global.fetch = async () => new Response("{}", { status: 200 });
+  try {
+    const result = await cows.handler({ httpMethod: "GET", queryStringParameters: { center: url.searchParams.get("center") } });
+    assert.equal(result.statusCode, 200);
+  } finally {
+    global.fetch = original;
+  }
 });

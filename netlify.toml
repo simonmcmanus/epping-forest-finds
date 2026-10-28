@@ -157,6 +157,10 @@
 [functions."community-validate-scheduled"]
   schedule = "@daily"
 
+# Folds usage-tracking batches into one file per day (netlify/functions/track-compact-scheduled.js).
+[functions."track-compact-scheduled"]
+  schedule = "*/10 * * * *"
+
 [[redirects]]
   from = "/api/community/rebuild"
   to = "/.netlify/functions/community-rebuild"
@@ -216,3 +220,20 @@
   to = "/.netlify/functions/community-overlay"
   status = 200
   force = true
+
+# The service worker and the version files it imports must always be revalidated: a stale copy
+# means installed apps never see a release. See spec/spec-data-fetching.md "Service Worker Caching".
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/js/app-cache-version.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/js/data-cache-version.js"
+  [headers.values]
+    Cache-Control = "no-cache"

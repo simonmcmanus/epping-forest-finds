@@ -155,8 +155,15 @@
   pointer-events: none;
 }
 
+.consent-banner-logo {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  width: 36px;
+  height: 36px;
+}
+
 .consent-banner-copy {
-  flex: 1 1 220px;
+  flex: 1 1 180px;
   min-width: 0;
 }
 

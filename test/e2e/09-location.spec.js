@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, skipOnboarding, mockCowApi, gotoAndWaitForMap, settleMapIconsAndDraw } = require("./helpers");
+const { setup, skipOnboarding, mockCowApi, gotoAndWaitForMap, settleMapIconsAndDraw, waitForFrames, waitForUiToSettle } = require("./helpers");
 
 // A GPS fix inside Epping Forest
 const FOREST_LOCATION = { latitude: 51.6650, longitude: 0.0450, accuracy: 10 };
@@ -25,10 +25,6 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
     });
 
-    test("the location gate is not shown when geolocation is pre-granted", async ({ page }) => {
-      await expect(page.locator("#locationGate")).toBeHidden();
-    });
-
     test("the High Beach stand-in notice is not shown with a real fix", async ({ page }) => {
       await expect(page.locator("#inspectorBody")).not.toContainText("Showing things near High Beach");
     });
@@ -47,11 +43,64 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("#inspectorBody .walk-chip-btn")).toHaveCount(0);
     });
 
-    test("snapshot: map with user location active", async ({ page }, testInfo) => {
-      test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
-      await page.waitForTimeout(800);
+    test("snapshot: map with user location active", async ({ page }) => {
+      await waitForUiToSettle(page);
       await settleMapIconsAndDraw(page);
       await expect(page).toHaveScreenshot("map-with-location.png", { fullPage: false });
+    });
+
+    test("on a train, the position on Nearby is the latest GPS fix rather than easing along behind it", async ({ page, context }) => {
+      await page.waitForFunction((start) => state.rawUserLocation && state.rawUserLocation.latitude === start, FOREST_LOCATION.latitude);
+      // 15m north, at 20 m/s: the speed the phone's own GPS reports on a moving train. Playwright's
+      // setGeolocation has no speed field, so the fix goes through the DevTools protocol.
+      const next = FOREST_LOCATION.latitude + 0.000135;
+      const cdp = await context.newCDPSession(page);
+      await cdp.send("Emulation.setGeolocationOverride", { ...FOREST_LOCATION, latitude: next, speed: 20 });
+      // Read on the first frame the fix is seen, before any easing could close the gap.
+      const gap = await page.waitForFunction(
+        (target) => state.rawUserLocation.latitude === target && { metres: Math.abs(state.userLocation.latitude - target) * 111320 },
+        next
+      ).then((handle) => handle.jsonValue());
+      expect(gap.metres).toBeLessThan(0.01);
+    });
+
+    test("a visitor inside the forest is not told they are far from it", async ({ page }) => {
+      // The distance check runs as the location step completes, which gotoAndWaitForMap waited for.
+      await expect(page.getByRole("dialog", { name: "You're not near the forest yet" })).toBeHidden();
+    });
+  });
+
+  test.describe("far from the forest", () => {
+    // Trafalgar Square: several kilometres from the nearest forest boundary.
+    test.use({ geolocation: { latitude: 51.508, longitude: -0.1281, accuracy: 10 }, permissions: ["geolocation"] });
+
+    test.beforeEach(async ({ page }) => {
+      await skipOnboarding(page);
+      await mockCowApi(page);
+      await gotoAndWaitForMap(page);
+    });
+
+    test("says how far away the forest is, and 'Explore the map' dismisses it", async ({ page }) => {
+      const dialog = page.getByRole("dialog", { name: "You're not near the forest yet" });
+      await expect(dialog).toBeVisible();
+      await expect(dialog).toContainText(/You're about \d+(\.\d+)? km from the forest boundary — roughly \d+ minutes on foot/);
+
+      await dialog.getByRole("button", { name: "Explore the map" }).click();
+      await expect(dialog).toBeHidden();
+    });
+
+    test("Escape dismisses the far-away notice", async ({ page }) => {
+      const dialog = page.getByRole("dialog", { name: "You're not near the forest yet" });
+      await expect(dialog).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(dialog).toBeHidden();
+    });
+
+    test("snapshot: far from the forest notice", async ({ page }) => {
+      await expect(page.locator("#distanceWarning")).toBeVisible();
+      await waitForUiToSettle(page);
+      await settleMapIconsAndDraw(page);
+      await expect(page).toHaveScreenshot("distance-warning.png", { fullPage: false });
     });
   });
 
@@ -319,11 +368,9 @@ test.describe("permission revoked mid-session", () => {
     });
   });
 
-  test("does not show the blocking location gate, and the map stays usable", async ({ page }) => {
+  test("the map stays usable after location permission is revoked mid-session", async ({ page }) => {
     await gotoAndWaitForMap(page);
-    await expect(page.locator("#locationGate")).toBeHidden();
-    await page.waitForTimeout(500); // past the simulated revoke at 300ms
-    await expect(page.locator("#locationGate")).toBeHidden();
+    await waitForFrames(page, 30);
     await expect(page.locator("#mapCanvas")).toBeVisible();
     await expect(page.locator("#inspectorBody .nearest-list li").first()).toBeVisible();
   });
