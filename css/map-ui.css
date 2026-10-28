@@ -224,7 +224,7 @@ a.nearest-item {
     /* Keep one expanded footprint for every screen and selection. The nav bar lives outside the
        sheet, so subtract its footprint from the shared responsive height. Content scrolls inside
        the fixed panel rather than changing the map's available area when a screen changes. */
-    height: max(0px, min(calc(55.2% - var(--nav-bar-h) - 10px - env(safe-area-inset-bottom, 0px)), calc(100% - var(--nav-bar-h) - 10px - env(safe-area-inset-bottom, 0px))));
+    height: max(0px, min(50%, calc(100% - var(--nav-bar-h) - 10px - env(safe-area-inset-bottom, 0px))));
     min-height: 0;
     max-height: calc(100% - var(--nav-bar-h) - 10px - env(safe-area-inset-bottom, 0px));
     transition: none;

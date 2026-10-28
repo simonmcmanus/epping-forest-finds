@@ -4,7 +4,7 @@
   top: calc(14px + var(--nav-bar-h) + 10px);
   right: 14px;
   width: min(390px, calc(100vw - 28px));
-  height: min(55.2%, calc(100% - 28px - var(--nav-bar-h) - 10px));
+  height: calc(100% - 28px - var(--nav-bar-h) - 10px);
   max-height: calc(100% - 28px - var(--nav-bar-h) - 10px);
   border-radius: 8px;
   overflow: hidden;

@@ -39,6 +39,15 @@ test.describe("Selection and Inspector", () => {
     test("expanded inspector keeps the same height across navigation and screen changes", async ({ page }) => {
       const panelHeight = () => page.evaluate(() => document.getElementById("inspector").getBoundingClientRect().height);
       const expectedHeight = await panelHeight();
+      const panelGeometry = await page.evaluate(() => {
+        const panel = document.getElementById("inspector").getBoundingClientRect();
+        return { width: innerWidth, viewportHeight: innerHeight, top: panel.top, bottom: panel.bottom };
+      });
+      if (panelGeometry.width <= 760) {
+        expect(panelGeometry.bottom - panelGeometry.top).toBeCloseTo(panelGeometry.viewportHeight * 0.5, 0);
+      } else {
+        expect(panelGeometry.bottom).toBeCloseTo(panelGeometry.viewportHeight - 14, 0);
+      }
       const expectFixedHeight = async () => {
         const height = await panelHeight();
         expect(Math.abs(height - expectedHeight)).toBeLessThan(1);
