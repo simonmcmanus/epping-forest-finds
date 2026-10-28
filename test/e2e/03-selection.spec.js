@@ -113,7 +113,6 @@ test.describe("Selection and Inspector", () => {
       await expect(page.locator("#inspectorTitle")).toHaveText("Filters");
       await expectFixedHeight();
     });
-
   });
 
   test.describe("returning to overview", () => {
