@@ -58,6 +58,42 @@ test.describe("Settings screen", () => {
     await expect(page.locator("#settingsWalkMinsFloorNote")).toBeHidden();
   });
 
+  test.describe("3D map", () => {
+    test.use({ geolocation: { latitude: 51.6538, longitude: 0.0400, accuracy: 10 }, permissions: ["geolocation"] });
+
+    // Pitch the phone the way the orientation sensor does, then let the smoothing loop paint.
+    async function pitchPhone(page, beta) {
+      return page.evaluate(async (b) => {
+        const event = new Event("deviceorientation");
+        event.alpha = null;
+        event.beta = b;
+        event.gamma = 0;
+        window.dispatchEvent(event);
+        for (let frame = 0; frame < 18; frame += 1) {
+          await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+        }
+        return state.renderedTiltRotateXDeg;
+      }, beta);
+    }
+
+    test("is off by default, so lifting the phone keeps the map flat until it is switched on", async ({ page }) => {
+      const toggle = page.getByRole("checkbox", { name: /3D map/ });
+      await expect(toggle).not.toBeChecked();
+      expect(await pitchPhone(page, 55), "the map stays flat while 3D is off").toBe(0);
+
+      await toggle.check();
+      expect(await pitchPhone(page, 60), "the map tilts once 3D is on").toBeGreaterThan(0);
+
+      await toggle.uncheck();
+      await page.waitForFunction(() => state.renderedTiltRotateXDeg === 0);
+
+      await toggle.check();
+      await page.reload();
+      await page.click("#settingsToggle");
+      await expect(page.getByRole("checkbox", { name: /3D map/ }), "the choice is remembered").toBeChecked();
+    });
+  });
+
   test.describe("With a find closer than a minute's walk", () => {
     test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ["geolocation"] });
 

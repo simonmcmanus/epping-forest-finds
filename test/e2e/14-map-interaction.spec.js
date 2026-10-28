@@ -268,6 +268,7 @@ test.describe("Map interaction", () => {
         state.compassHeading = 20;
         state.renderedNavigationHeading = 20;
         state.compassLastEventAt = performance.now();
+        state.map3dEnabled = true;
         state.tiltBetaTarget = b;
         state.tiltBetaSmoothed = b;
         // The fit reads the tilt camera cached for the current frame and then changes the

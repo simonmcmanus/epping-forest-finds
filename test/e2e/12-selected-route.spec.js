@@ -203,6 +203,7 @@ test.describe("Selected route line follows the road/path network", () => {
         state.compassHeading = 0;
         state.renderedNavigationHeading = 0;
         state.compassLastEventAt = performance.now();
+        state.map3dEnabled = true;
         state.tiltBetaTarget = b;
         state.tiltBetaSmoothed = b;
         state.viewportAnimationTo = null;
@@ -299,6 +300,7 @@ test.describe("Selected route line follows the road/path network", () => {
       let seed = 1;
       const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
 
+      state.map3dEnabled = true;
       state.tiltBetaSmoothed = 40;
       state.tiltBetaTarget = 40;
 
@@ -404,6 +406,7 @@ test.describe("Selected route line follows the road/path network", () => {
       let seed = 1;
       const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
 
+      state.map3dEnabled = true;
       state.tiltBetaSmoothed = 40;
       state.tiltBetaTarget = 40;
       state.compassHeading = 0;
