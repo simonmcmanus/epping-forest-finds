@@ -1,0 +1,150 @@
+name: Native artifacts
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+# The build jobs only read the pull request. A separate workflow_run publisher adds
+# links to the PR body with a token that can write to PRs from forks.
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    name: Detect native projects
+    runs-on: ubuntu-latest
+    outputs:
+      android: ${{ steps.projects.outputs.android }}
+      ios: ${{ steps.projects.outputs.ios }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Check for committed Capacitor projects
+        id: projects
+        shell: bash
+        run: |
+          if [[ -f native/package.json && -d native/android ]]; then
+            echo "android=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "android=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          if [[ -f native/package.json && -d native/ios ]]; then
+            echo "ios=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ios=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  android:
+    name: Android debug APK
+    needs: detect
+    if: needs.detect.outputs.android == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Install web dependencies
+        run: npm ci
+      - name: Build the web assets for the native bundle
+        run: npm run build
+      - name: Install native dependencies
+        working-directory: native
+        run: npm install --no-audit --no-fund
+      - name: Sync web assets into Capacitor
+        working-directory: native
+        run: node scripts/sync-www.js
+      - name: Sync the Android project
+        working-directory: native
+        run: npx cap sync android
+      - name: Assemble unsigned debug APK
+        working-directory: native
+        run: ./android/gradlew --no-daemon --stacktrace assembleDebug
+      - name: Write Android test instructions
+        run: |
+          cat > native/android-test-instructions.txt <<'EOF'
+          Android debug APK
+
+          Install on a connected emulator or device with:
+            adb install -r app-debug.apk
+          EOF
+      - name: Upload Android debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-debug-apk
+          path: |
+            native/android/app/build/outputs/apk/debug/*.apk
+            native/android-test-instructions.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  ios:
+    name: iOS Simulator app
+    needs: detect
+    if: needs.detect.outputs.ios == 'true'
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Install web dependencies
+        run: npm ci
+      - name: Build the web assets for the native bundle
+        run: npm run build
+      - name: Install native dependencies
+        working-directory: native
+        run: npm install --no-audit --no-fund
+      - name: Sync web assets into Capacitor
+        working-directory: native
+        run: node scripts/sync-www.js
+      - name: Sync the iOS project
+        working-directory: native
+        run: npx cap sync ios
+      - name: Build unsigned iOS Simulator app
+        working-directory: native
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ -d ios/App/App.xcworkspace ]]; then
+            xcodebuild \
+              -workspace ios/App/App.xcworkspace \
+              -scheme App \
+              -sdk iphonesimulator \
+              -configuration Debug \
+              -derivedDataPath "$RUNNER_TEMP/ios-derived-data" \
+              CODE_SIGNING_ALLOWED=NO \
+              build
+          else
+            xcodebuild \
+              -project ios/App/App.xcodeproj \
+              -scheme App \
+              -sdk iphonesimulator \
+              -configuration Debug \
+              -derivedDataPath "$RUNNER_TEMP/ios-derived-data" \
+              CODE_SIGNING_ALLOWED=NO \
+              build
+          fi
+          app_path=$(find "$RUNNER_TEMP/ios-derived-data/Build/Products" -type d -name '*.app' -print -quit)
+          test -n "$app_path"
+          ditto -c -k --sequesterRsrc --keepParent "$app_path" "$RUNNER_TEMP/EppingForestFinds-iOS-simulator.zip"
+          cat > native/ios-test-instructions.txt <<'EOF'
+          iOS Simulator debug app
+
+          Unzip the app, boot an iOS Simulator, then install it with:
+            xcrun simctl install booted App.app
+          This build is unsigned and is intended for the Simulator, not a physical device.
+          EOF
+      - name: Upload iOS Simulator app
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-simulator-app
+          path: |
+            ${{ runner.temp }}/EppingForestFinds-iOS-simulator.zip
+            native/ios-test-instructions.txt
+          if-no-files-found: error
+          retention-days: 14
