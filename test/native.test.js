@@ -490,3 +490,23 @@ test("the data manifest lists the same datasets whether or not git can be asked 
   assert.ok(Object.keys(withGit).length > 20);
   assert.deepEqual(Object.keys(withoutGit), Object.keys(withGit));
 });
+
+// The workflow's own path filters, as GitHub reads them: "**" crosses folders, "*" does not.
+function workflowPathFilters(event) {
+  const yaml = fs.readFileSync(path.join(ROOT, ".github", "workflows", "native-build.yml"), "utf8");
+  const block = yaml.split(/\n(?=  \S)/).find((part) => part.startsWith(`  ${event}:`));
+  return [...block.matchAll(/^\s+- "([^"]+)"$/gm)].map(([, glob]) =>
+    new RegExp(`^${glob.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*\*/g, "\0").replace(/\*/g, "[^/]*").replace(/\0/g, ".*")}$`));
+}
+
+test("every file the app bundle ships, and the sync that builds it, triggers a native build on pull requests and on main", () => {
+  const { selectFiles } = require("../native/scripts/sync-www.js");
+  const { execFileSync } = require("child_process");
+  const files = execFileSync("git", ["ls-files"], { cwd: ROOT, encoding: "utf8" }).split("\n").filter(Boolean);
+  const inputs = [...selectFiles(files), "native/scripts/sync-www.js", "scripts/lib/data-manifest.js"];
+  for (const event of ["pull_request", "push"]) {
+    const filters = workflowPathFilters(event);
+    const missed = inputs.filter((file) => !filters.some((re) => re.test(file)));
+    assert.deepEqual(missed, [], `${event} paths miss bundle inputs`);
+  }
+});

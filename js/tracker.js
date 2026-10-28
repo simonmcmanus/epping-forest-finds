@@ -159,7 +159,8 @@ async function trackerFlushQueue() {
       retry = true;
     }
     if (retry) {
-      trackerWriteQueue([...batch, ...trackerReadQueue()]);
+      // Consent can be withdrawn while this request is in flight: the batch then goes, not back.
+      if (hasTrackingConsent()) trackerWriteQueue([...batch, ...trackerReadQueue()]);
       break;
     }
   }

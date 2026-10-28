@@ -114,6 +114,23 @@ test.describe("the native app shell", () => {
     await expect(page.locator("#refreshAppButton")).toBeHidden();
   });
 
+  test("Community says points stay on this device instead of waiting on a sign-in the app cannot reach", async ({ page }) => {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await runAsNativeApp(page);
+    await page.addInitScript(() => localStorage.setItem("ff-track-v1", "0"));
+    // /api/auth/* is not open to the app's origins, so from the shell it fails the way CORS would.
+    let identityChecks = 0;
+    await page.route("**/api/auth/**", (route) => { identityChecks += 1; return route.abort(); });
+    await gotoAndWaitForMap(page, "/community");
+    const account = page.locator("#communityAccount");
+    await expect(account).toContainText("Your points stay on this device");
+    await expect(account.locator(".is-loading")).toHaveCount(0);
+    await expect(account.locator("a[href^='/api/auth/login']")).toHaveCount(0);
+    await expect(page.locator(".community-contributions")).toBeVisible();
+    expect(identityChecks).toBe(0);
+  });
+
   test("the true-north heading from the native plugin turns the map, and WebKit's own heading is then ignored", async ({ page }) => {
     await skipOnboarding(page);
     await mockCowApi(page);
@@ -155,7 +172,12 @@ test.describe("the native app shell", () => {
     await skipOnboarding(page);
     await mockCowApi(page);
     await runAsNativeApp(page);
-    await page.addInitScript(() => localStorage.setItem("ff-track-v1", "0"));
+    await page.addInitScript(() => {
+      localStorage.setItem("ff-track-v1", "0");
+      // A WebView that is not a secure context exposes neither browser API; the plugin alone shares.
+      delete Navigator.prototype.share;
+      delete Navigator.prototype.clipboard;
+    });
     await gotoAndWaitForMap(page, "/nearby#tree=r17338");
     await page.locator("[data-action='share-location']").first().click();
     await expect.poll(async () => (await calls(page)).shared.length).toBe(1);

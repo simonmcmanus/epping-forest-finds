@@ -2084,9 +2084,18 @@ async function communityPostLink(deviceId) {
   return { ok: response.ok, status: response.status, error: response.ok ? "" : (await response.json().catch(() => ({}))).error || "" };
 }
 
+const COMMUNITY_NATIVE_ACCOUNT_NOTE = "Your points stay on this device. Signing in isn't available in the app yet.";
+
 // Resolves "ok" once /api/auth/me has answered (and the device is linked), "offline" when there is no network
 // (the last known account stands), or "failed" when the network is there but who is signed in could not be found out.
 async function communityRefreshAccountOnce() {
+  // The app has no sign-in (its cookie redirect cannot come back into the shell, and /api/auth/* is not
+  // open to it), so there is no one to ask about: it is always this device, anonymously.
+  if (Native.isNative) {
+    communityAccountMemory = { signedIn: false };
+    communityRenderAccount(communityAccountMemory, COMMUNITY_NATIVE_ACCOUNT_NOTE);
+    return "ok";
+  }
   if (!navigator.onLine) return "offline";
   try {
     const response = await fetch("/api/auth/me", { cache: "no-store", signal: AbortSignal.timeout(6000) });

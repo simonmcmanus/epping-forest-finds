@@ -25,7 +25,7 @@ This spec owns everything inside `native/`, the `js/native.js` capability layer,
 | 5. Data delta updates | **Built** |
 | 6. Submission | Privacy manifest, permission strings, versioning **built**; signing, store listings, screenshots, data-safety form and review notes are follow-on work |
 
-`.github/workflows/native-build.yml` builds both apps on pull requests that change the native code and on every merge to `main` that touches the app or its data, and keeps the results as downloadable artifacts for testing: `android-debug-apk` (installs on any Android phone with "install unknown apps" allowed) and `ios-simulator-app` (unzip, then `xcrun simctl install booted App.app`, or drag it onto a running Simulator). Builds are unsigned; installing on a physical iPhone needs signing, which is part of the submission work.
+`.github/workflows/native-build.yml` builds both apps on every pull request and every merge to `main` that changes anything the binary is made from (each path `native/scripts/sync-www.js` can bundle, plus the sync and manifest builders; `test/native.test.js` fails if a bundled file stops matching either path list), and keeps the results as downloadable artifacts for testing: `android-debug-apk` (installs on any Android phone with "install unknown apps" allowed) and `ios-simulator-app` (unzip, then `xcrun simctl install booted App.app`, or drag it onto a running Simulator). Builds are unsigned; installing on a physical iPhone needs signing, which is part of the submission work.
 
 ## Chosen Approach: Capacitor
 
@@ -148,7 +148,7 @@ The plugin replaces the heading *source*, not the pipeline: the existing smoothi
 - **Icon and launch screen** — generated from `native/resources/` (the tree mark on the app's `#24382f`), full bleed for iOS, an adaptive icon for Android. The WebView background is the same green, so there is no white flash before first paint.
 - **Keep-awake** — only while walking to a selected find with a real fix and the app in the foreground; released when the selection ends, the fix is lost or the app is backgrounded.
 - **Haptics** — a light tap on picking a Nearby row, one success haptic on arriving at the find (once per find). Nothing else.
-- **Share** — the native share sheet, always with the website address so a link shared from the app opens for anyone.
+- **Share** — the native share sheet, always with the website address so a link shared from the app opens for anyone. The share button shows whenever the plugin is there (`Native.canShare()`), even in a WebView that exposes neither `navigator.share` nor the clipboard.
 - **Android back button** — the WebView handles it, and the web router already gives it the right behaviour ([spec.md](spec.md) § URL / navigation state).
 - **Follow-on (with signing):** universal links / app links on the production domain (`apple-app-site-association`, `assetlinks.json`), which need the Apple team id and the Play signing certificate.
 
@@ -177,7 +177,7 @@ The weekly data refresh reaches the app without a store release.
 
 ## Not in the first release
 
-- **Community sign-in.** It is a cookie session set by a redirect through the provider back to the website, which a page served from the bundle can never return from. Signed-out Community features work; points stay on the device. Doing it properly needs an in-app browser session and a token handed back by deep link.
+- **Community sign-in.** It is a cookie session set by a redirect through the provider back to the website, which a page served from the bundle can never return from. Signed-out Community features work; points stay on the device. The app never asks `/api/auth/me` (not open to its origins): Community's account row says the points stay on this device and that sign-in isn't available in the app yet. Doing it properly needs an in-app browser session and a token handed back by deep link.
 - **Opening website links in the app.** Website-only pages open in the system browser; a shared website link opens the website, not the app, until universal links / app links are set up with signing.
 
 ## Versioning and the Update Story

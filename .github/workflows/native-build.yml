@@ -3,15 +3,24 @@ name: Native build
 # Builds the native apps (native/, spec/spec-native.md) with the current client in them, and keeps
 # the results as downloadable artifacts for testing: an Android debug APK that installs on any phone,
 # and an iOS Simulator app. Unsigned builds only: nothing here signs, uploads to a store or
-# publishes. Pull requests build when something the binaries are made from changes; every merge to
-# main that touches the app or its data builds a fresh pair to test.
+# publishes. Pull requests and merges to main both build whenever anything the binaries are made from
+# changes, so every client or data change gets a fresh pair to test.
 
 on:
+  # Both lists cover every file native/scripts/sync-www.js can put in the binary, plus what builds
+  # it; test/native.test.js fails if a bundled file stops matching either one.
   pull_request:
     paths:
       - "native/**"
       - "app.html"
-      - "js/native.js"
+      - "terms.html"
+      - "cookie-consent.js"
+      - "manifest.webmanifest"
+      - "tree-icon.svg"
+      - "js/**"
+      - "css/**"
+      - "data/**"
+      - "scripts/lib/data-manifest.js"
       - "netlify/edge-functions/native-cors.js"
       - ".github/workflows/native-build.yml"
   push:
@@ -19,9 +28,15 @@ on:
     paths:
       - "native/**"
       - "app.html"
+      - "terms.html"
+      - "cookie-consent.js"
+      - "manifest.webmanifest"
+      - "tree-icon.svg"
       - "js/**"
       - "css/**"
       - "data/**"
+      - "scripts/lib/data-manifest.js"
+      - "netlify/edge-functions/native-cors.js"
       - ".github/workflows/native-build.yml"
   workflow_dispatch: {}
 

@@ -296,6 +296,13 @@
     return isNative ? new URL(local, PRODUCTION_ORIGIN).href : new URL(local, window.location.href).href;
   }
 
+  // Whether share() has anything to share through. Inside the shell the WebView may expose neither
+  // browser API (capacitor:// is not a secure context to WebKit), so the plugin alone counts.
+  function canShare() {
+    if (isNative && plugins.Share) return true;
+    return typeof navigator !== "undefined" && ("share" in navigator || "clipboard" in navigator);
+  }
+
   // The native share sheet; on the web the browser's own, then the clipboard. Resolves to
   // "shared", "copied" or "failed".
   async function share({ title, text, url }) {
@@ -372,6 +379,7 @@
     keepAwake: keepAwakeControl(isNative ? plugins.KeepAwake : null),
     haptics: hapticsControl(isNative ? plugins.Haptics : null),
     share,
+    canShare,
     websiteUrl,
     appInfo,
     // null on the web, where the service worker keeps data fresh instead.

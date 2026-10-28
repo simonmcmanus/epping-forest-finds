@@ -1178,8 +1178,7 @@ function openInMapsHtml(lat, lon, name) {
 }
 
 function shareLocationHtml() {
-  if (typeof navigator === "undefined") return "";
-  if (!("share" in navigator) && !("clipboard" in navigator)) return "";
+  if (!Native.canShare()) return "";
   return `<button class="detail-map-link detail-map-link--icon" type="button" data-action="share-location" aria-label="Share link" title="Share link">${SHARE_ICON_SVG}</button>`;
 }
 
