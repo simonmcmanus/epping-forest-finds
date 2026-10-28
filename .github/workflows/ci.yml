@@ -56,28 +56,46 @@ jobs:
 
             Check correctness, security, testing, specification synchronisation,
             performance, and repository invariants. Report only actionable
-            findings, prioritised P0 (critical) through P3 (minor). Keep general
-            observations brief. For each actionable finding, use the inline
-            comment tool with confirmed=true and a precise changed-line range.
-            Prefix every inline finding body with the exact visible marker
-            `CLAUDE_REVIEW_FINDING` on its own line so the follow-up workflow
-            can distinguish Claude findings from unrelated bot comments.
-            When the review is complete, you MUST publish a top-level summary
-            to the PR with `gh pr comment ${{ github.event.pull_request.number }} --body "..."`.
-            Include both the Standards and Spec sections,
-            even when there are no findings. Do not return the review only as
-            an assistant message: the GitHub comments are the deliverable.
+            findings, prioritised P0 (critical) through P3 (minor). For each
+            actionable finding, use the inline comment tool with confirmed=true
+            and a precise changed-line range. Keep each inline finding concise:
+            after the exact visible marker `CLAUDE_REVIEW_FINDING` on its own
+            line, use at most two short paragraphs covering the risk and fix.
+            Do not restate the diff, praise the change, or include a general
+            observation. The follow-up workflow uses the marker to distinguish
+            findings from unrelated bot comments.
+
+            Before publishing the result, inspect existing review threads. For
+            each unresolved inline finding authored by `github-actions[bot]`
+            with the `CLAUDE_REVIEW_FINDING` marker, independently check the
+            current diff and resolve its review thread with the GitHub GraphQL
+            `resolveReviewThread` mutation if the issue is now fixed. Resolve
+            only findings that are clearly addressed; leave uncertain or still
+            valid findings open. Never resolve a human or another bot's thread,
+            and do not add a new comment just to say that an old finding was
+            fixed.
+
+            Keep the PR conversation compact. If there are actionable findings,
+            publish one short top-level index with
+            `gh pr comment ${{ github.event.pull_request.number }} --body "..."`.
+            Include `Standards` and `Spec` headings with only each axis's finding
+            count and priorities, followed by `See inline comments for details.`
+            Do not repeat the inline finding text in the top-level comment. Do
+            not return the review only as an assistant message: the GitHub
+            comments are the deliverable.
 
             If and only if there are no actionable findings under either axis,
-            submit a formal approval with `gh pr review ${{ github.event.pull_request.number }} --approve --body "..."`.
-            If there is any actionable finding, do not approve the PR. If
-            GitHub rejects the approval because of repository policy or
-            self-approval rules, leave the summary comment and finish without
-            trying to work around that restriction. Never modify files, commit,
-            push, merge, or close the PR. A human approval is still required by
-            repository branch protection.
+            submit a formal approval with
+            `gh pr review ${{ github.event.pull_request.number }} --approve`.
+            Do not post a separate summary or approval message body for a clean
+            review; the approval itself is sufficient. If there is any actionable
+            finding, do not approve the PR. If GitHub rejects the approval because
+            of repository policy or self-approval rules, finish without trying to
+            work around that restriction. Never modify files, commit, push, merge,
+            or close the PR. A human approval is still required by repository
+            branch protection.
           claude_args: |
-            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr review:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(git diff:*),Bash(git log:*),Bash(git merge-base:*),Bash(git show:*)"
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh api:*),Bash(gh pr comment:*),Bash(gh pr review:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(git diff:*),Bash(git log:*),Bash(git merge-base:*),Bash(git show:*)"
 
   unit:
     name: Unit tests
