@@ -2476,7 +2476,7 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   object-fit: contain;
   vertical-align: middle;
 }
-span.tree-field-icon { background-image: url("img/tree-fact-icons.png"); background-size: 300% 200%; background-repeat: no-repeat; }
+span.tree-field-icon { clip-path: inset(1px); background-image: url("img/tree-fact-icons.png"); background-size: 300% 200%; background-repeat: no-repeat; }
 .tree-field-icon--age { background-position: 0 0; }
 .tree-field-icon--girth { background-position: 50% 0; }
 .tree-field-icon--pollard { background-position: 0 100%; }
