@@ -5,11 +5,15 @@ from branches in this repository:
 
 - `.github/workflows/ci.yml` reviews the changed code on every pull-request
   update. It reads the repository guidance and posts actionable inline findings
-  plus a top-level summary. If the current diff has no actionable findings, it
-  submits a Claude approval. This approval does not replace the required human
-  approval. The review action lists `github-actions` in `allowed_bots`, so the
-  run on a CI-generated snapshot-baseline commit is reviewed rather than
-  failing as a bot-initiated run; no other bot is allowed.
+  plus a short top-level index of their priorities. The index does not repeat
+  the inline finding text. If the current diff has no actionable findings, it
+  submits only a Claude approval, with no separate summary comment. This
+  approval does not replace the required human approval. Before reporting,
+  it rechecks unresolved Claude finding threads and resolves only those whose
+  issues are clearly fixed; human and other-bot threads are left alone. The
+  review action lists `github-actions` in `allowed_bots`, so the run on a
+  CI-generated snapshot-baseline commit is reviewed rather than failing as a
+  bot-initiated run; no other bot is allowed.
 - `.github/workflows/claude-review-followup.yml` listens only for marked inline
   findings from `github-actions[bot]` on same-repository pull requests. It
   serialises remediation jobs per pull request and allows at most three

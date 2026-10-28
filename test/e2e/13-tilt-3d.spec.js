@@ -194,7 +194,10 @@ test.describe("3D tilt view", () => {
           : null;
         // Everything below the horizon is ground and must be painted. Above it is sky,
         // which is correctly empty — so the ground band is the honest thing to measure.
-        const top = Math.max(Math.round(rect.y), horizon == null ? -Infinity : Math.round(horizon), 0);
+        // The horizon falls between pixel rows. Start at the first complete row below it so
+        // the shared sky/ground boundary pixel is not treated as missing terrain by the alpha
+        // coverage check.
+        const top = Math.max(Math.ceil(rect.y), horizon == null ? -Infinity : Math.ceil(horizon), 0);
         const bottom = Math.min(Math.round(rect.y + rect.height), els.canvas.height);
         const x = Math.max(0, Math.round(rect.x));
         const width = Math.min(els.canvas.width - x, Math.round(rect.width));

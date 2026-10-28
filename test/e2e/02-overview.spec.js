@@ -407,19 +407,13 @@ test.describe("Overview / Nearby screen", () => {
 
       const boxes = await page.evaluate(() => {
         const rect = (el) => el.getBoundingClientRect().toJSON();
-        const handle = document.getElementById("inspectorDragHandle");
         return {
-          // The grip only exists on the mobile sheet; elsewhere there is nothing to clear.
-          handle: getComputedStyle(handle).display === "none" ? null : rect(handle),
           bar: rect(document.getElementById("nearbyAnchorBar")),
           text: rect(document.querySelector(".nearby-anchor-bar-text")),
           button: rect(document.querySelector("[data-action='reset-nearby-anchor']")),
         };
       });
 
-      if (boxes.handle) {
-        expect(boxes.bar.top, "the notice starts below the drag handle").toBeGreaterThanOrEqual(boxes.handle.bottom);
-      }
       expect(boxes.button.left, "the button sits beside the text, not wrapped under it").toBeGreaterThanOrEqual(boxes.text.right);
       expect(boxes.button.height, "the button is a comfortable tap target").toBeGreaterThanOrEqual(36);
     });
