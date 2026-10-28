@@ -1,10 +1,13 @@
 const { test, expect } = require("@playwright/test");
-const { setup, FIXTURE_TREE, waitForFrames } = require("./helpers");
+const { setup, FIXTURE_TREE, waitForFrames, waitForUiToSettle } = require("./helpers");
+// A real static destination whose existing beer artwork still animates.
+const DESTINATION = { route: "/nearby#place=id:node/12242503", name: "Railway Bell" };
 
 test.describe("Selected destination icon motion", () => {
   test("the location details title animates and restores its original image for reduced motion", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
-    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await setup(page, DESTINATION.route);
+    await waitForUiToSettle(page);
     const artwork = page.locator("#inspectorTitleEmoji canvas");
     const original = page.locator("#inspectorTitleEmoji img");
     await expect(artwork).toBeVisible();
@@ -22,8 +25,8 @@ test.describe("Selected destination icon motion", () => {
 
   test("reduced motion keeps the selected destination still", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
-    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
+    await setup(page, DESTINATION.route);
+    await expect(page.locator("#inspectorTitle")).toContainText(DESTINATION.name);
     await expect(page.locator("#inspectorTitleEmoji img")).toBeVisible();
     await expect(page.locator("#inspectorTitleEmoji canvas")).toBeHidden();
   });
@@ -32,8 +35,8 @@ test.describe("Selected destination icon motion", () => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await setup(page);
     await expect(page.locator("#inspectorTitleEmoji canvas")).toHaveCount(0);
-    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
-    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
+    await setup(page, DESTINATION.route);
+    await expect(page.locator("#inspectorTitle")).toContainText(DESTINATION.name);
     const artwork = page.locator("#inspectorTitleEmoji canvas");
     const first = await artwork.evaluate((canvas) => canvas.toDataURL());
     await expect.poll(() => artwork.evaluate((canvas) => canvas.toDataURL())).not.toBe(first);
@@ -43,7 +46,7 @@ test.describe("Selected destination icon motion", () => {
 
   test("turning on reduced motion stops an active animation immediately", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
-    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await setup(page, DESTINATION.route);
     const artwork = page.locator("#inspectorTitleEmoji canvas");
     await expect(artwork).toBeVisible();
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -53,7 +56,7 @@ test.describe("Selected destination icon motion", () => {
 
   test("hiding the app stops motion and showing it resumes the selected destination", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
-    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await setup(page, DESTINATION.route);
     const artwork = page.locator("#inspectorTitleEmoji canvas");
     const frame = () => artwork.evaluate((canvas) => canvas.toDataURL());
     await expect(artwork).toBeVisible();
@@ -70,6 +73,14 @@ test.describe("Selected destination icon motion", () => {
       document.dispatchEvent(new Event("visibilitychange"));
     });
     await expect.poll(frame).not.toBe(paused);
+  });
+
+  test("tree details stay text-only with motion enabled", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
+    await expect(page.locator("#inspectorTitleEmoji")).toBeHidden();
+    await expect(page.locator("#inspectorTitleEmoji img, #inspectorTitleEmoji canvas")).toHaveCount(0);
   });
 
   test("every supported PNG artwork renders changing frames", async ({ page }) => {

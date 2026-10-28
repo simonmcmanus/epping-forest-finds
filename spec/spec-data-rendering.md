@@ -1137,7 +1137,7 @@ Behavior:
 
 ### Animations
 
-- Selected tree, cow, water and landmark navigation targets opt into `IconMotion` from `drawSelectedOverlay`. The location details title opts into the same frame clock, including waymarked trail titles, and restores its original image when motion stops. Ordinary pins, cluster chips, and list icons stay still. The selected pin's size and geographic tip stay fixed; motion is clipped inside its head. Reduced motion, hidden pages, cleared selections and page unload stop the animation; showing the page restarts a still-selected destination.
+- Selected tree, cow, water and landmark navigation targets opt into `IconMotion` from `drawSelectedOverlay`. Location details titles that display artwork opt into the same frame clock, including place, cow and waymarked trail titles, and restore their original image when motion stops. Tree details remain text-only even when their selected map pin animates. Ordinary pins, cluster chips, and list icons stay still. The selected pin's size and geographic tip stay fixed; motion is clipped inside its head. Reduced motion, hidden pages, cleared selections and page unload stop the animation; showing the page restarts a still-selected destination.
 - Browser tests default to `reducedMotion: "reduce"`. Motion-specific scenarios opt back in explicitly and check activation, cleanup and artwork rendering on desktop and mobile.
 - GPS-triggered navigation follow uses 800 ms cubic ease-in-out so consecutive position updates blend without visible restarts.
 - Overview repositioning uses 360–620 ms depending on distance moved.
