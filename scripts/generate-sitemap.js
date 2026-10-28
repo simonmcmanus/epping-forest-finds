@@ -20,6 +20,7 @@ const path = require("node:path");
 
 const { listReportFiles } = require("./generate-reports-index.js");
 const { listFindSlugs } = require("./generate-find-pages.js");
+const { listBusinessSlugs } = require("./generate-business-pages.js");
 
 const SITE_ORIGIN = "https://www.eppingforestfinds.uk";
 const SITEMAP_FILE_NAME = "sitemap.xml";
@@ -36,6 +37,7 @@ const ROBOTS_FILE_NAME = "robots.txt";
 const STATIC_PAGES = [
   { loc: "/", changefreq: "weekly", priority: "1.0" },
   { loc: "/reports/", changefreq: "weekly", priority: "0.8" },
+  { loc: "/contribute", changefreq: "monthly", priority: "0.6" },
   { loc: "/terms.html", changefreq: "yearly", priority: "0.2" },
 ];
 
@@ -51,7 +53,7 @@ const STATIC_PAGES = [
 // pages (scripts/generate-find-pages.js) live under that same /nearby/ prefix and must stay
 // crawlable, so "Disallow: /nearby" alone would silently swallow every one of them too.
 // /admin.html, /api/ and /.netlify/ have no such children to protect, so they stay bare.
-const DISALLOWED_PATHS = ["/admin.html", "/nearby$", "/nearby/search$", "/nearby/filter$", "/settings$", "/feedback$", "/api/", "/.netlify/"];
+const DISALLOWED_PATHS = ["/admin.html", "/nearby$", "/nearby/search$", "/nearby/filter$", "/settings$", "/feedback$", "/community$", "/reports/tree-report$", "/api/", "/.netlify/"];
 
 function isoDate(ms) {
   return new Date(ms).toISOString().slice(0, 10);
@@ -103,6 +105,22 @@ function collectUrls(siteRoot, now = Date.now()) {
   // static pages above, so they share "now" as a build-time lastmod rather than a per-page one.
   for (const slug of listFindSlugs(siteRoot)) {
     urls.push({ loc: `/nearby/${slug}/`, lastmod: isoDate(now), changefreq: "weekly", priority: "0.5" });
+  }
+
+  // Individual business/location pages (scripts/generate-business-pages.js) and the events
+  // index, same build-time lastmod as the category pages above. Priority is lower than the
+  // category pages (0.5) and reports (0.6) -- 1,500+ of these next to a few dozen category pages
+  // would otherwise dilute crawl budget away from the pages that actually drive discovery (see
+  // spec-marketing.md "SEO impact" discussion). The events index gets the category pages' own
+  // priority: it's a hub, not one of the 1,500.
+  for (const slug of listBusinessSlugs(siteRoot)) {
+    const isEventsIndex = slug === "events";
+    urls.push({
+      loc: `/find/${slug}/`,
+      lastmod: isoDate(now),
+      changefreq: isEventsIndex ? "weekly" : "monthly",
+      priority: isEventsIndex ? "0.5" : "0.3",
+    });
   }
 
   return urls;

@@ -1,6 +1,6 @@
 {
   "name": "Epping Forest Finds",
-  "short_name": "Epping Finds",
+  "short_name": "Epping Forest Finds",
   "description": "Find nearby veteran trees, pubs, and landmarks in Epping Forest.",
   "start_url": "/nearby",
   "scope": "./",

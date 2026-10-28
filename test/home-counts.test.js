@@ -63,11 +63,8 @@ test("the grouped homepage inventory matches the app's map inventory", () => {
     assert.ok(block, `the homepage should show the ${group.label} group`);
     assert.ok(block[1].includes(`<strong>${formatCount(group.count)}</strong>`));
     for (const subfilter of group.subfilters) {
-      const items = JSON.parse(fs.readFileSync(path.join(ROOT, "assets/home/inventory", `${subfilter.key}.json`), "utf8"));
-      assert.strictEqual(items.length, subfilter.count, `${subfilter.label} lists every counted record`);
-      assert.ok(items.every(item => typeof item.name === "string" && item.name.trim() && typeof item.detail === "string"));
       const label = subfilter.label.replace(/&/g, "&amp;").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      assert.match(block[1], new RegExp(`<dt><img[^>]*>${label}</dt><dd>${formatCount(subfilter.count)}</dd>`));
+      assert.match(block[1], new RegExp(`<dt><a href="/nearby/${subfilter.key.replace(/_/g, "-")}/"><img[^>]*>${label}</a></dt><dd>${formatCount(subfilter.count)}</dd>`));
     }
   }
   assert.match(html, new RegExp(`data-inventory-always[\\s\\S]*?<strong>${formatCount(inventory.alwaysShown.count)}</strong>`));
@@ -86,7 +83,7 @@ test("the count sync corrects a homepage that has drifted", () => {
   const counts = readCounts(ROOT);
   const inventory = require("../scripts/report/map-inventory.js").buildInventory(ROOT);
   const stale = readHomepage().replace(
-    /(<dt><img[^>]*>Shops<\/dt><dd>)[\d,]+(<\/dd>)/,
+    /(<dt><a href="\/nearby\/shops\/"><img[^>]*>Shops<\/a><\/dt><dd>)[\d,]+(<\/dd>)/,
     "$1123$2"
   );
 
@@ -94,7 +91,7 @@ test("the count sync corrects a homepage that has drifted", () => {
   const fixed = updateHomepage(stale, counts, inventory);
   const shops = inventory.groups.find(group => group.key === "food").subfilters.find(item => item.key === "shops");
   assert.ok(
-    new RegExp(`<dt><img[^>]*>Shops</dt><dd>${formatCount(shops.count)}</dd>`).test(fixed),
+    new RegExp(`<dt><a href="/nearby/shops/"><img[^>]*>Shops</a></dt><dd>${formatCount(shops.count)}</dd>`).test(fixed),
     "sync-homepage-counts.js should put the real shop count back"
   );
   assert.ok(!fixed.includes(">123<"), "the stale number should be gone");
@@ -136,17 +133,4 @@ test("every quoted count already matches -- sync is a no-op on a clean tree", ()
   const { sync } = require("../scripts/sync-homepage-counts.js");
   const { stale } = sync({ check: true });
   assert.deepStrictEqual(stale, [], `these files quote a stale count: ${stale.join(", ")}`);
-});
-
-test("the homepage does not quote a stale tree count", () => {
-  const html = readHomepageText();
-  const { trees } = readCounts(ROOT);
-  const quoted = html.match(/([\d,]+)\s+veteran trees/);
-
-  assert.ok(quoted, "index.html should state a veteran tree count");
-  assert.strictEqual(
-    quoted[1],
-    formatCount(trees),
-    "the veteran tree count in index.html has drifted from data/trees/index.json"
-  );
 });

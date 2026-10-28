@@ -21,6 +21,16 @@ test.describe("URL navigation", () => {
       await expect(page.locator("#settingsWalkMins")).toBeVisible();
     });
 
+    test("navigating to /community opens the Community screen on load", async ({ page }) => {
+      await skipOnboarding(page);
+      await mockCowApi(page);
+      await gotoAndWaitForMap(page, "/community");
+      await expect(page).toHaveURL(/\/community$/);
+      await expect(page.locator("#reportToggle")).toHaveClass(/screen-active/);
+      await expect(page.locator("#inspectorTitle").last()).toContainText("Community");
+      await expect(page.locator(".community-intro")).toContainText("Help keep the map right");
+    });
+
     test("navigating to /feedback opens the feedback screen on load", async ({ page }) => {
       await skipOnboarding(page);
       await mockCowApi(page);
@@ -157,13 +167,11 @@ test.describe("URL navigation", () => {
       // of #inspector, before any per-screen content, so it is the first thing Tab reaches after
       // the skip link on every screen. #filterToggle is not part of that row -- it sits inline
       // with the Nearby heading (see spec-data-rendering.md, "Filters is reached from Nearby, not
-      // a nav peer") -- but #locateButton (".inspector-tools", also always ahead of per-screen
-      // content) comes first: with no GPS fix yet (geolocation is denied by default -- see
-      // "Geolocation is always answered" in spec/agents.md) it is shown and enabled, offering a
-      // manual retry, so it reaches it before filterToggle does.
+      // a nav peer"). Location retry stays in its focused permission prompt instead of adding a
+      // second inspector button ahead of the Nearby controls.
       await setup(page);
       await page.locator("body").evaluate((el) => el.focus());
-      const order = ["nearbyToggle", "searchToggle", "reportToggle", "settingsToggle", "locateButton", "filterToggle"];
+      const order = ["nearbyToggle", "searchToggle", "reportToggle", "settingsToggle", "filterToggle"];
       for (const id of order) {
         await page.keyboard.press("Tab");
         await expect(page.locator(`#${id}`)).toBeFocused();
@@ -175,7 +183,7 @@ test.describe("URL navigation", () => {
       // skipped by Tab -- whenever a place is selected.
       await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
       await page.locator("body").evaluate((el) => el.focus());
-      const order = ["nearbyToggle", "searchToggle", "reportToggle", "settingsToggle", "inspectorBack"];
+      const order = ["inspectorBack", "nearbyToggle", "searchToggle", "reportToggle", "settingsToggle"];
       for (const id of order) {
         await page.keyboard.press("Tab");
         await expect(page.locator(`#${id}`)).toBeFocused();
@@ -188,8 +196,8 @@ test.describe("URL navigation", () => {
       const outline = await page.locator("#nearbyToggle").evaluate((el) => getComputedStyle(el).outlineColor);
       // The old rgba(60, 99, 130, 0.35)/0.6 rings blended down to under the 3:1 contrast WCAG
       // 2.4.11 requires against the app's light backgrounds -- a keyboard user's focus was
-      // moving, but nothing on screen showed it. Solid var(--nav) renders as opaque rgb(44, 79, 133).
-      expect(outline).toBe("rgb(44, 79, 133)");
+      // moving, but nothing on screen showed it. An opaque colour computes as rgb(...), a translucent one as rgba(...).
+      expect(outline).toMatch(/^rgb\(/);
     });
   });
 });

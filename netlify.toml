@@ -35,7 +35,23 @@
 
 [[edge_functions]]
   function = "alpha-gate"
+  path = "/community"
+
+[[edge_functions]]
+  function = "alpha-gate"
   path = "/app.html"
+
+# CORS for the iOS/Android app, whose pages are served from the app bundle rather than this site.
+# Only the two native WebView origins are allowed; admin and sign-in routes are never opened.
+# See spec/spec-native.md "Networking".
+[[edge_functions]]
+  function = "native-cors"
+  path = "/api/*"
+  excludedPath = ["/api/admin/*", "/api/auth/*", "/api/community/rebuild", "/api/community/validate"]
+
+[[edge_functions]]
+  function = "native-cors"
+  path = "/.netlify/functions/report-missing-data"
 
 # /app is retired to a permanent redirect to /nearby, the app's new
 # place-agnostic entry point -- not a second address for the app, and no
@@ -63,9 +79,12 @@
 # Search nest under /nearby/ -- both only ever change what Nearby shows,
 # never a destination in their own right -- while Settings and Report stay
 # top-level, general app screens with nothing to do with Nearby itself.
+# Bare /nearby is served from a generated static file (scripts/generate-find-pages.js,
+# renderNearbyIndexPage) so a no-JS visitor or crawler sees the real trees list, not app.html's
+# empty-state placeholder. Only this one path is pointed at it; the rest keep rewriting to app.html.
 [[redirects]]
   from = "/nearby"
-  to = "/app.html"
+  to = "/nearby-index.html"
   status = 200
 
 [[redirects]]
@@ -87,6 +106,25 @@
   from = "/feedback"
   to = "/app.html"
   status = 200
+
+[[redirects]]
+  from = "/community"
+  to = "/app.html"
+  status = 200
+
+# Public, ungated: the City of London discrepancy report (rendered by a function from the daily
+# community snapshot) and, as a static page, /contribute (contribute/index.html).
+[[redirects]]
+  from = "/reports/tree-report"
+  to = "/.netlify/functions/tree-report"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/reports/tree-report/"
+  to = "/.netlify/functions/tree-report"
+  status = 200
+  force = true
 
 # /report is the screen's old path; published ledgers still link to it.
 [[redirects]]
@@ -114,7 +152,114 @@
   force = true
 
 [[redirects]]
+  from = "/api/features"
+  to = "/.netlify/functions/features"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/subscribe"
   to = "/.netlify/functions/subscribe"
   status = 200
   force = true
+
+[functions."community-rebuild-scheduled"]
+  schedule = "@hourly"
+
+[functions."community-validate-scheduled"]
+  schedule = "@daily"
+
+# Folds usage-tracking batches into one file per day (netlify/functions/track-compact-scheduled.js).
+[functions."track-compact-scheduled"]
+  schedule = "*/10 * * * *"
+
+[[redirects]]
+  from = "/api/community/rebuild"
+  to = "/.netlify/functions/community-rebuild"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/auth/login"
+  to = "/.netlify/functions/auth-login"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/auth/callback"
+  to = "/.netlify/functions/auth-callback"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/auth/me"
+  to = "/.netlify/functions/auth-me"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/auth/link"
+  to = "/.netlify/functions/auth-link"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/auth/logout"
+  to = "/.netlify/functions/auth-logout"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/community/delete"
+  to = "/.netlify/functions/community-delete"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/community/validate"
+  to = "/.netlify/functions/community-validate"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/community/report"
+  to = "/.netlify/functions/community-report"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/api/community/overlay"
+  to = "/.netlify/functions/community-overlay"
+  status = 200
+  force = true
+
+# The service worker and the version files it imports must always be revalidated: a stale copy
+# means installed apps never see a release. See spec/spec-data-fetching.md "Service Worker Caching".
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/js/app-cache-version.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/js/data-cache-version.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+# The native app (whose pages are served from the app bundle, not this site) downloads changed
+# datasets from here, so the public data is readable cross-origin. The manifest that lists what
+# changed must never be served stale. See spec/spec-native.md "Delta updates".
+[[headers]]
+  for = "/data/*"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+
+[[headers]]
+  for = "/data/manifest.json"
+  [headers.values]
+    Access-Control-Allow-Origin = "*"
+    Cache-Control = "no-cache"

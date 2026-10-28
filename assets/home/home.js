@@ -5,156 +5,103 @@
  * page. See spec/spec-marketing.md §5.
  */
 
-// Load only the category a visitor opens; large lists render in batches.
+ // The editions index is generated with every report build. Read its first row,
+// then its report, so this static homepage can show the newest Ledger without
+// duplicating editorial facts that would go stale between weekly runs.
 (function () {
   "use strict";
 
-  var motionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
-  document.querySelectorAll("[data-inventory-key]").forEach(function (row) {
-    var key = row.dataset.inventoryKey;
-    var term = row.querySelector("dt");
-    var label = term.textContent;
-    var button = document.createElement("button");
-    button.type = "button";
-    button.className = "inventory-toggle";
-    button.setAttribute("aria-label", label);
-    button.setAttribute("aria-expanded", "false");
-    button.setAttribute("aria-controls", "inventory-" + key);
-    while (term.firstChild) button.appendChild(term.firstChild);
-    term.appendChild(button);
+  var preview = document.getElementById("ledgerLatest");
+  var latestLink = document.getElementById("latestLedgerLink");
+  if (!preview || !latestLink || !window.fetch || !window.DOMParser) return;
 
-    var panel = document.createElement("dd");
-    panel.id = "inventory-" + key;
-    panel.className = "inventory-items";
-    panel.hidden = true;
-    row.appendChild(panel);
-    var clip = document.createElement("section");
-    clip.className = "inventory-clip";
-    var content = document.createElement("section");
-    content.className = "inventory-content";
-    clip.appendChild(content);
-    panel.appendChild(clip);
-    var closeTimer;
-
-    function finishClose() {
-      if (button.getAttribute("aria-expanded") === "false") panel.hidden = true;
+  function addStory(list, report, section, type, label) {
+    var card = report.querySelector(section + " .card");
+    if (!card) return;
+    var item = document.createElement("li");
+    item.className = "ledger-story ledger-story--" + type;
+    var category = document.createElement("span");
+    category.className = "ledger-story-type";
+    category.textContent = label;
+    var title = document.createElement("h3");
+    var link = document.createElement("a");
+    link.href = latestLink.pathname + section;
+    link.textContent = card.querySelector("h3").textContent.trim();
+    title.appendChild(link);
+    var meta = document.createElement("p");
+    meta.className = "ledger-story-meta";
+    var status = card.querySelector(".status-label");
+    if (status) {
+      var date = document.createElement("span");
+      date.className = "ledger-story-status";
+      date.textContent = status.textContent.trim();
+      meta.appendChild(date);
     }
-    panel.addEventListener("transitionend", function (event) {
-      if (event.target === panel && event.propertyName === "grid-template-rows") finishClose();
-    });
-
-    var status = document.createElement("p");
-    status.setAttribute("role", "status");
-    content.appendChild(status);
-    var retry = document.createElement("button");
-    retry.type = "button";
-    retry.className = "inventory-action";
-    retry.textContent = "Try again";
-    retry.hidden = true;
-    retry.addEventListener("click", load);
-    content.appendChild(retry);
-    var loaded = false;
-    var loading = false;
-    var icon = button.querySelector("img");
-    var stillIcon = icon.getAttribute("src");
-    var animatedIcon = stillIcon.replace("map-icons/", "map-icons/animated/");
-    var animationFailed = false;
-
-    function updateIcon() {
-      var animate = button.getAttribute("aria-expanded") === "true" && !motionPreference.matches && document.visibilityState !== "hidden" && !animationFailed;
-      var source = animate ? animatedIcon : stillIcon;
-      if (icon.getAttribute("src") !== source) icon.setAttribute("src", source);
+    var place = card.querySelector(".addr");
+    if (place) {
+      var location = document.createElement("span");
+      location.textContent = place.textContent.trim();
+      meta.appendChild(location);
     }
-    icon.addEventListener("error", function () {
-      if (icon.getAttribute("src") !== animatedIcon) return;
-      animationFailed = true;
-      updateIcon();
+    item.append(category, title, meta);
+    list.appendChild(item);
+  }
+
+  function homepageSummary(report) {
+    var banner = report.querySelector(".banner");
+    if (!banner) return "";
+    var update = banner.textContent.trim()
+      .replace(/\s*No event updates are included this week beyond the listings below\.\s*/i, " ");
+    return "This week’s Ledger: " + update + " Read the full edition for the complete round-up.";
+  }
+
+  fetch("/reports/")
+    .then(function (response) {
+      if (!response.ok) throw new Error("Ledger index unavailable");
+      return response.text();
+    })
+    .then(function (source) {
+      var index = new DOMParser().parseFromString(source, "text/html");
+      var edition = index.querySelector(".report-link");
+      if (!edition) throw new Error("No editions published");
+      var editionUrl = new URL(edition.getAttribute("href"), window.location.origin + "/reports/").pathname;
+      var date = edition.querySelector(".report-name");
+      latestLink.href = editionUrl;
+      var heroLink = document.querySelector(".hero-ledger-link");
+      if (heroLink) heroLink.href = editionUrl;
+      return fetch(editionUrl).then(function (response) {
+        if (!response.ok) throw new Error("Latest edition unavailable");
+        return response.text();
+      }).then(function (reportSource) {
+        return { date: date && date.textContent.trim(), report: new DOMParser().parseFromString(reportSource, "text/html") };
+      });
+    })
+    .then(function (latest) {
+      var report = latest.report;
+      var stories = document.createElement("ul");
+      stories.className = "ledger-stories";
+      addStory(stories, report, "#businesses", "find", "Local find");
+      addStory(stories, report, "#road", "access", "Plan your visit");
+      addStory(stories, report, "#event", "events", "Coming up");
+      if (!stories.children.length) throw new Error("No preview stories");
+      preview.replaceChildren();
+      var label = document.createElement("p");
+      label.className = "ledger-latest-label";
+      label.textContent = "Latest field notes";
+      var date = document.createElement("strong");
+      date.className = "ledger-latest-date";
+      date.textContent = latest.date || "This week";
+      var summary = homepageSummary(report);
+      if (summary) {
+        var introduction = document.createElement("p");
+        introduction.className = "ledger-latest-summary";
+        introduction.textContent = summary;
+        preview.append(label, date, introduction, stories);
+      } else preview.append(label, date, stories);
+    })
+    .catch(function () {
+      preview.hidden = true;
     });
-    motionPreference.addEventListener("change", updateIcon);
-    motionPreference.addEventListener("change", function () {
-      if (motionPreference.matches) finishClose();
-    });
-    document.addEventListener("visibilitychange", updateIcon);
-
-    function showItems(items) {
-      var search = document.createElement("input");
-      search.type = "search";
-      search.placeholder = "Search " + label.toLowerCase();
-      search.setAttribute("aria-label", "Search " + label.toLowerCase());
-      content.insertBefore(search, status);
-      var list = document.createElement("ul");
-      content.appendChild(list);
-      var more = document.createElement("button");
-      more.type = "button";
-      more.className = "inventory-action";
-      more.textContent = "Show more";
-      content.appendChild(more);
-      var limit = 50;
-
-      function render() {
-        var query = search.value.trim().toLocaleLowerCase("en-GB");
-        var matches = items.filter(function (item) {
-          return (item.name + " " + item.detail).toLocaleLowerCase("en-GB").includes(query);
-        });
-        list.replaceChildren();
-        matches.slice(0, limit).forEach(function (item) {
-          var li = document.createElement("li");
-          li.textContent = item.name;
-          if (item.detail) {
-            var detail = document.createElement("small");
-            detail.textContent = item.detail;
-            li.appendChild(detail);
-          }
-          list.appendChild(li);
-        });
-        status.textContent = !items.length ? "No places in this category yet."
-          : !matches.length ? "No matching places."
-          : "Showing " + Math.min(limit, matches.length).toLocaleString("en-GB") + " of " + matches.length.toLocaleString("en-GB");
-        more.hidden = matches.length <= limit;
-        search.hidden = !items.length;
-      }
-      search.addEventListener("input", function () { limit = 50; render(); });
-      more.addEventListener("click", function () { limit += 50; render(); });
-      render();
-    }
-
-    function load() {
-      if (loaded || loading) return;
-      loading = true;
-      retry.hidden = true;
-      status.textContent = "Loading places…";
-      fetch("/assets/home/inventory/" + key + ".json")
-        .then(function (response) {
-          if (!response.ok) throw new Error("Category unavailable");
-          return response.json();
-        })
-        .then(function (items) {
-          showItems(items);
-          loaded = true;
-        })
-        .catch(function () {
-          status.textContent = "Couldn't load these places. Please try again.";
-          retry.hidden = false;
-        })
-        .finally(function () { loading = false; });
-    }
-
-    button.addEventListener("click", function () {
-      var opening = button.getAttribute("aria-expanded") !== "true";
-      clearTimeout(closeTimer);
-      if (opening) {
-        panel.hidden = false;
-        // Establish the collapsed grid before transitioning into its natural height.
-        void panel.offsetHeight;
-      }
-      panel.inert = !opening;
-      button.setAttribute("aria-expanded", String(opening));
-      updateIcon();
-      if (opening) load();
-      else if (motionPreference.matches) finishClose();
-      else closeTimer = setTimeout(finishClose, 300);
-    });
-  });
 })();
 
 // Scroll reveal: blocks fade up gently as they enter the viewport. Skipped for
@@ -316,4 +263,25 @@
         finishSending();
       });
   });
+})();
+
+// Map inventory: on wide screens the category lists are always open, so the expand control goes away;
+// on phones they start collapsed. Without JavaScript they stay closed and the summary stays usable.
+(function () {
+  "use strict";
+
+  var inventory = document.querySelector(".map-inventory");
+  if (!inventory || !window.matchMedia) return;
+  var wide = window.matchMedia("(min-width: 760px)");
+
+  function sync(initial) {
+    inventory.toggleAttribute("data-always-open", wide.matches);
+    var lists = inventory.querySelectorAll(".inventory-details");
+    // Phones keep whatever the visitor opened; only the move to a wide screen forces them open.
+    if (wide.matches) lists.forEach(function (list) { list.open = true; });
+    else if (!initial) lists.forEach(function (list) { list.open = false; });
+  }
+
+  sync(true);
+  if (wide.addEventListener) wide.addEventListener("change", function () { sync(false); });
 })();

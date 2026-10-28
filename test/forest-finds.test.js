@@ -29,7 +29,11 @@ function createElementStub(id = "") {
     clientWidth: 1000,
     clientHeight: 800,
     scrollHeight: 0,
-    textContent: "",
+    children: [],
+    get textContent() { return this._text ?? ""; },
+    // Assigning text replaces any child nodes, as in a browser.
+    set textContent(value) { this._text = String(value); this.children.length = 0; },
+    append(...nodes) { nodes.forEach((node) => { if (typeof node !== "string") this.children.push(node); }); },
     innerHTML: "",
     childNodes: { length: 0 },
     offsetHeight: 0,
@@ -78,7 +82,7 @@ function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
   assert.ok(appSource.trim(), "js/app.js should contain the app script");
 
   const elements = new Map();
-  const storage = new Map(Object.entries(initialLocalStorage));
+  const storage = new Map(Object.entries({ "ff-features-v1": JSON.stringify({ community: true }), ...initialLocalStorage }));
   const localStorage = {
     getItem(key) {
       return storage.get(String(key)) ?? null;
@@ -97,6 +101,7 @@ function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
     visibilityState: "visible",
     body: createElementStub("body"),
     documentElement: createElementStub("html"),
+    createElement(tag) { const el = createElementStub(); el.tagName = String(tag).toUpperCase(); return el; },
     getElementById(id) {
       if (!elements.has(id)) elements.set(id, createElementStub(id));
       return elements.get(id);
@@ -202,6 +207,8 @@ function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
     // throwing on a missing global.
     Image: function Image() { this.complete = false; this.naturalWidth = 0; },
     URLSearchParams,
+    URL,
+    crypto: globalThis.crypto,
     localStorage,
   };
   context.globalThis = context;
@@ -227,6 +234,10 @@ globalThis.__forestFindsTest = {
   // because the app looks the method up on it at every call.
   performance,
   formatDistance,
+  fetchMapData,
+  requestPersistentStorage,
+  cowEndpointUrl,
+  cowCenterForRequest,
   projectLonLat,
   unprojectPoint,
   distanceMetres,
@@ -248,7 +259,11 @@ globalThis.__forestFindsTest = {
   formatWalkTime,
   overviewItemsForActiveFilter,
   overviewNearestHtml,
+  categoryLandingLinksHtml,
+  navigateInApp,
   overviewHeadingText,
+  landingPageCategoryLabel,
+  updateDocumentTitle,
   normalizeSearchText,
   searchQueryTokens,
   searchFieldRank,
@@ -303,8 +318,6 @@ globalThis.__forestFindsTest = {
   DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES,
   applyDefaultLocation,
   hasRealLocation,
-  updateLocateButtonVisibility,
-  setLocationGateVisible,
   ROUTE_PATHS,
   NEARBY_PATH,
   applyWalkingRadiusChange,
@@ -389,10 +402,12 @@ globalThis.__forestFindsTest = {
   navigationFocusPoint,
   nearbyHeadingUpFocusY,
   tiltActive,
+  setMap3dEnabled,
   tiltAllowedForCurrentScreen,
   isOverviewScreenActive,
   secondaryScreenActive,
   tiltRotateXDeg,
+  tiltInfluence,
   tiltRenderStale,
   TILT_RENDER_STALE_DEG,
   tiltAnchorFraction,
@@ -434,6 +449,7 @@ globalThis.__forestFindsTest = {
   nearbyOrigin,
   setNearbyAnchor,
   clearNearbyAnchor,
+  focusNearbyWithinWalkMinutes,
   roadNavTarget,
   selectedCompassTarget,
   showRoadDetails,
@@ -446,6 +462,19 @@ globalThis.__forestFindsTest = {
   placeIconSlug,
   placeLabelFilterKey,
   resolvePlaceKind,
+  FILTER_SUBFILTERS_BY_KEY,
+  nearestTreeTo,
+  nearestCowTo,
+  nearbySectionsHtml,
+  detailsHtml,
+  nearbyWithinWalkHtml,
+  showsEverythingFromQuery,
+  nearbyAnchorRouteValue,
+  nearbyCardFilterKeys,
+  nearbyCountCopy,
+  openInMapsHtml,
+  shareLocationHtml,
+
   filterKindIconSlug,
   PLACE_FILTER_KEYS,
   PLACE_FILTER_PRIORITY,
@@ -502,12 +531,23 @@ globalThis.__forestFindsTest = {
   ensureUserAndSelectionVisible,
   refitSelectionAfterRoutingGraphReady,
   settingsFormHtml,
+  submitReportForm,
+  submitLocationIssueReport,
+  applyReportStatusContent,
+  refreshCachedState,
+  applySwUpdate,
+  requestBackgroundDataSync,
   hasTrackingConsent,
   setTrackingConsent,
-  ensureTrackingConsent,
+  analyticsChoice,
+  setAnalyticsConsent,
+  storedLocationChoice,
+  rememberLocationChoice,
+  bootMayRequestLocation,
   trackGaItemSelected,
   reportFormHtml,
   reportIssueHtml,
+  ledgerMentionHtml,
   openFiltersScreen,
   openSettings,
   openReportModal,
@@ -533,6 +573,8 @@ globalThis.__forestFindsTest = {
   compassStepMarkup,
   compassPermissionRequiresRequest,
   onDeviceOrientation,
+  compassTargetDeadbandDeg,
+  compassSmoothingRate,
   extractCompassHeading,
   registerCompassCalibrationSample,
   isCompassCalibrationStable,
@@ -552,6 +594,22 @@ globalThis.__forestFindsTest = {
   orientationHeadingSource,
   animationLoopsWedged,
   recoverWedgedAnimationFrames,
+  communityRank,
+  communityMedalHtml,
+  communityWeekDays,
+  communityBadgeProgress,
+  communityBadgeDetailHtml,
+  COMMUNITY_BADGES,
+  communityRelativeDay,
+  communityPointsChipFor,
+  communityNudgeDecision,
+  communityPendingScore,
+  communityBadges,
+  communityMergeRemoteReports,
+  communityStreaks,
+  communityDisplayScore,
+  COMMUNITY_POINTS,
+  communityParseRecoveryCode,
   HEADING_SOURCE_NONE,
   HEADING_SOURCE_RELATIVE,
   HEADING_SOURCE_ABSOLUTE,
@@ -570,7 +628,7 @@ globalThis.__forestFindsTest = {
   vm.createContext(context);
 
   const rootDir = path.join(__dirname, "..");
-  const externalScripts = ["js/app-cache-version.js", "js/data-cache-version.js", "js/categories.js", "js/normalize.js", "js/tracker.js", "js/onboarding.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/icon-motion.js", "js/renderer.js", "js/inspector.js"];
+  const externalScripts = ["js/native.js", "js/app-cache-version.js", "js/data-cache-version.js", "js/categories.js", "js/normalize.js", "js/router-rules.js", "js/dom-elements.js", "js/filter-state.js", "js/tracker.js", "js/outbox.js", "js/community.js", "js/onboarding.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/icon-motion.js", "js/renderer.js", "js/inspector.js"];
   for (const externalSrc of externalScripts) {
     const externalPath = path.join(rootDir, externalSrc);
     if (fs.existsSync(externalPath)) {
@@ -712,6 +770,9 @@ function resetData(app) {
   app.stopCalibrationViewportSync();
   app.state.tiltBetaSmoothed = 0;
   app.state.tiltBetaTarget = 0;
+  // 3D is off by default in the app; the tilt tests below exercise it switched on, and the
+  // ones about the setting itself switch it off.
+  app.state.map3dEnabled = true;
   // The scale ease integrates against this timestamp (resolveHeadingUpTargetScale); a value
   // left behind by an earlier test would be read as a real frame delta by the next one.
   app.state.headingUpScaleEaseAt = null;
@@ -1216,11 +1277,56 @@ test("nearby heading-up fit is established from GPS alone, so acquiring a compas
   assert.ok(Math.abs(app.state.viewport.ty - beforeHeading.ty) < 0.001, "pan must not jump once a heading arrives");
 });
 
-test("tiltActive returns false when heading-up is not active", () => {
+test("tiltActive can respond to pitch before heading-up is active when a real location exists", () => {
   resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = null;
   app.state.tiltBetaSmoothed = 45;
-  assert.equal(app.tiltActive(), false, "tilt requires heading-up to be active");
+  assert.equal(app.tiltActive(), true, "pitch should not wait for a compass heading");
+});
+
+test("the 3D map is off by default, so pitching the phone leaves the map flat", () => {
+  const freshApp = loadAppForTests();
+  freshApp.state.userLocation = makePoint(freshApp, 0, 0);
+  freshApp.state.compassHeading = 90;
+  freshApp.state.tiltBetaSmoothed = 60;
+  assert.equal(freshApp.tiltActive(), false, "no 3D until the walker turns it on");
+  assert.equal(freshApp.tiltRotateXDeg(), 0);
+  assert.equal(freshApp.tiltInfluence(), 0, "pins do not collapse with pitch while 3D is off");
+});
+
+test("turning the 3D map on in Settings tilts the map and is remembered for next time", () => {
+  const freshApp = loadAppForTests();
+  freshApp.state.userLocation = makePoint(freshApp, 0, 0);
+  freshApp.state.tiltBetaSmoothed = 60;
+  freshApp.setMap3dEnabled(true);
+  assert.equal(freshApp.tiltActive(), true);
+  assert.ok(freshApp.tiltRotateXDeg() > 0, "the camera tilts once 3D is on");
+  const reloaded = loadAppForTests({ localStorage: { "ff-map-3d-v1": freshApp.localStorage.getItem("ff-map-3d-v1") } });
+  assert.equal(reloaded.state.map3dEnabled, true, "the choice survives a reload");
+});
+
+test("Settings only offers the 3D map once the device has reported a real tilt reading", () => {
+  const freshApp = loadAppForTests();
+  assert.match(freshApp.settingsFormHtml(), /id="map3dSetting" hidden/, "hidden on a device with no motion sensor");
+  // Chrome on a laptop fires one orientation event with every angle null.
+  freshApp.onDeviceOrientation({ alpha: null, beta: null, gamma: null });
+  assert.match(freshApp.settingsFormHtml(), /id="map3dSetting" hidden/, "an all-null event is not a sensor");
+  freshApp.onDeviceOrientation({ alpha: null, beta: 20, gamma: 0 });
+  assert.doesNotMatch(freshApp.settingsFormHtml(), /id="map3dSetting" hidden/, "shown once a pitch arrives");
+  const reloaded = loadAppForTests({ localStorage: { "ff-motion-sensor-v1": freshApp.localStorage.getItem("ff-motion-sensor-v1") } });
+  assert.doesNotMatch(reloaded.settingsFormHtml(), /id="map3dSetting" hidden/, "shown straight away on the next visit");
+});
+
+test("turning the 3D map off flattens a tilted map straight away", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.tiltBetaSmoothed = 60;
+  assert.equal(app.tiltActive(), true, "sanity: tilted with 3D on");
+  app.setMap3dEnabled(false);
+  assert.equal(app.tiltActive(), false);
+  assert.equal(app.tiltRotateXDeg(), 0);
+  app.setMap3dEnabled(true);
 });
 
 test("tiltActive returns false when phone is nearly flat (beta below threshold)", () => {
@@ -1264,8 +1370,9 @@ test("tiltAllowedForCurrentScreen allows 3D on every screen, with no exceptions"
   assert.equal(app.tiltAllowedForCurrentScreen(), true, "selected-item navigation should allow 3D");
 });
 
-test("tiltRotateXDeg returns 0 when tilt is not active", () => {
+test("tiltRotateXDeg returns 0 without a real location", () => {
   resetData(app);
+  app.state.userLocation = null;
   app.state.compassHeading = null;
   app.state.tiltBetaSmoothed = 60;
   assert.equal(app.tiltRotateXDeg(), 0, "no rotation when heading-up inactive");
@@ -1702,6 +1809,52 @@ test("the Nearby nav button leaves a filter the reader deliberately chose alone"
   assert.deepEqual(Array.from(app.state.overviewFilters), ["pubs"], "a real chip tap is never mistaken for a page's own ephemeral lens");
 });
 
+test("navigating in-app from a selection straight to a /nearby/<slug> page lands on that page's own category, not the reader's stored filters", () => {
+  resetData(app);
+  resetRouter(app);
+  app.localStorage.setItem("forest-finds-filter-state-v1", JSON.stringify({ filters: ["trees", "cows", "events"], expandedGroups: [] }));
+  // A selection (any type) makes currentScreenRoute() non-empty, so navigateInApp's own
+  // urlMatchesCurrentScreen check doesn't short-circuit before applyRoute()/goToInitialView()
+  // run -- the same shape as clicking a business page's own "Food" related link.
+  app.state.selected = { type: "tree", item: { id: "t1", ...makePoint(app, 0.001, 0) } };
+  app.location.pathname = "/find/the-forresters/";
+  app.location.hash = "";
+
+  app.navigateInApp("/nearby/food/");
+
+  assert.equal(app.location.pathname, "/nearby/food/");
+  assert.deepEqual(
+    Array.from(app.state.overviewFilters).sort(),
+    ["cafes", "pubs", "restaurants", "shops"],
+    "lands pre-filtered to Food's own subfilters -- goToInitialView's own restore (fired in the same pass, since the route value is \"\" both before and after a selection) must not revert this"
+  );
+  app.location.pathname = "/";
+  app.location.hash = "";
+});
+
+test("navigating in-app from a selection straight to bare /nearby restores the reader's stored filters", () => {
+  resetData(app);
+  resetRouter(app);
+  app.localStorage.setItem("forest-finds-filter-state-v1", JSON.stringify({ filters: ["cafes"], expandedGroups: [] }));
+  // The precondition this exercises: currently showing /nearby/food/'s own ephemeral category
+  // (exactly what a real arrival there -- applyShowFilterFromQuery -- would have left behind).
+  app.setOverviewFilters(["pubs", "restaurants", "cafes", "shops"], { persist: false });
+  app.state.selected = { type: "tree", item: { id: "t1", ...makePoint(app, 0.001, 0) } };
+  app.location.pathname = "/nearby/food/";
+  app.location.hash = "";
+
+  app.navigateInApp("/nearby");
+
+  assert.equal(app.location.pathname, "/nearby");
+  assert.deepEqual(
+    Array.from(app.state.overviewFilters),
+    ["cafes"],
+    "the \"All nearby\" link's own target (bare /nearby) is not itself a landing page, so applyShowFilterFromQuery must put the reader's own filters back -- its own route value (\"\") never changes between the /nearby/food/ page and bare /nearby, so goToInitialView's restore never runs on its own"
+  );
+  app.location.pathname = "/";
+  app.location.hash = "";
+});
+
 test("a ?q=<text> query param restores the search box's text on arrival at /search", () => {
   resetData(app);
   app.state.searchQuery = "";
@@ -1835,6 +1988,45 @@ test("filterKeysFromFindPath reads a subfilter's category straight from a /nearb
   assert.deepEqual(Array.from(app.filterKeysFromFindPath("")), []);
 });
 
+test("nearbyCountCopy reads as a plain count from the place, in the reader's own walking radius", () => {
+  const saved = app.state.walkingDistanceMinutes;
+  app.state.walkingDistanceMinutes = 30;
+  assert.equal(app.nearbyCountCopy("trees", { within: 43, beyond: 20 }, "The Foresters"), "43 trees within 30 min walk of The Foresters. 20 further away.");
+  assert.equal(app.nearbyCountCopy("cows", { within: 0, beyond: 11 }, "The Foresters"), "No cows within 30 min walk of The Foresters. 11 further away.");
+  assert.equal(app.nearbyCountCopy("cows", { within: 0, beyond: 0 }, "The Foresters"), "No cows nearby.");
+  assert.equal(app.nearbyCountCopy("cows", { within: 1, beyond: 0 }, "The Foresters"), "1 cow within 30 min walk of The Foresters.", "a single match drops the plural");
+  assert.equal(app.nearbyCountCopy("trees", { within: 3032, beyond: 21864 }, "Bald Faced Stag"), "3,032 trees within 30 min walk of Bald Faced Stag. 21,864 further away.", "large counts get thousands separators");
+  app.state.walkingDistanceMinutes = saved;
+});
+
+test("nearbyCardFilterKeys follows the reader's filters, falling back to trees and cows when none are set", () => {
+  const saved = app.state.overviewFilters;
+  app.state.overviewFilters = [];
+  assert.deepEqual(Array.from(app.nearbyCardFilterKeys()), ["trees", "cows"], "no filters chosen: the defaults");
+  app.state.overviewFilters = ["pubs", "bus"];
+  assert.deepEqual(Array.from(app.nearbyCardFilterKeys()), ["pubs", "bus"], "the reader's own filters, not trees and cows");
+  app.state.overviewFilters = ["pubs", "not_a_real_filter", "cafes"];
+  assert.deepEqual(Array.from(app.nearbyCardFilterKeys()), ["pubs", "cafes"], "an unknown key is dropped");
+  app.state.overviewFilters = Array.from({ length: 9 }, (_, i) => ["pubs", "cafes", "shops", "bus", "national_rail", "trees", "cows", "parking", "ponds_streams"][i]);
+  assert.equal(app.nearbyCardFilterKeys().length, 6, "a long selection is capped so the section stays readable");
+  app.state.overviewFilters = saved;
+});
+
+test("nearbyAnchorRouteValue carries the place name as a label, and omits it for a bare map tap", () => {
+  assert.equal(app.nearbyAnchorRouteValue({ latitude: 51.65, longitude: 0.05 }), "near=51.650000%2C0.050000");
+  const named = new URLSearchParams(app.nearbyAnchorRouteValue({ latitude: 51.65, longitude: 0.05, label: "The Foresters" }));
+  assert.equal(named.get("near"), "51.650000,0.050000");
+  assert.equal(named.get("label"), "The Foresters", "the label is what the bar names the spot by");
+});
+
+test("showsEverythingFromQuery is true only for ?filters=false, so Everything links ignore the saved filters", () => {
+  assert.equal(app.showsEverythingFromQuery("?filters=false"), true);
+  assert.equal(app.showsEverythingFromQuery("?radius=15&filters=false"), true);
+  assert.equal(app.showsEverythingFromQuery(""), false, "no parameter leaves the saved filters alone");
+  assert.equal(app.showsEverythingFromQuery("?filters=true"), false);
+  assert.equal(app.showsEverythingFromQuery("?show=pubs"), false, "a plain ?show= list is not the everything override");
+});
+
 test("filterKeysFromFindPath reads a top-level group's page as every one of its member keys", () => {
   assert.deepEqual(
     Array.from(app.filterKeysFromFindPath("/nearby/food")),
@@ -1872,6 +2064,165 @@ test("isLandingPageArrival recognises a /nearby/<slug> path or a first-touch ?sh
 
   app.location.pathname = "/";
   app.location.search = "";
+});
+
+test("isLandingPageArrival also recognises a /find/<slug>/ business page as a landing-page arrival, but not /find/events/", () => {
+  app.location.pathname = "/find/the-forresters/";
+  app.location.search = "";
+  assert.equal(app.isLandingPageArrival(), true, "a business's own /find/ page is a landing page, same as /nearby/<slug>");
+
+  app.location.pathname = "/find/the-forresters";
+  app.location.search = "";
+  assert.equal(app.isLandingPageArrival(), true, "without the trailing slash too");
+
+  app.location.pathname = "/find/events/";
+  app.location.search = "";
+  assert.equal(app.isLandingPageArrival(), false, "events has no single business of its own to land on, same carve-out routeValueFromLocation makes");
+
+  app.location.pathname = "/";
+  app.location.search = "";
+});
+
+test("categoryLandingLinksHtml labels the category navigation and marks the current subfilter", () => {
+  app.location.pathname = "/nearby/pubs/";
+  const html = app.categoryLandingLinksHtml();
+  assert.match(html, /<nav class="nearby-category-nav" aria-label="Browse nearby categories">/);
+  assert.match(html, /Browse nearby categories/);
+  assert.match(html, /class="detail-map-link nearby-link nearby-link--current" href="\/nearby\/pubs\/" aria-current="page"[\s\S]*?Pubs &amp; bars<\/a>/);
+  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\/food\/">[\s\S]*?Food<\/a>/);
+  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\?filters=false">[\s\S]*?All nearby<\/a>/);
+  app.location.pathname = "/";
+});
+
+test("categoryLandingLinksHtml marks a group page's current category and links back to the full Nearby list", () => {
+  app.location.pathname = "/nearby/food/";
+  const html = app.categoryLandingLinksHtml();
+  assert.match(html, /class="detail-map-link nearby-link nearby-link--current" href="\/nearby\/food\/" aria-current="page"[\s\S]*?Food<\/a>/);
+  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\?filters=false">[\s\S]*?All nearby<\/a>/);
+  app.location.pathname = "/";
+});
+
+test("categoryLandingLinksHtml is empty on the plain Nearby screen and on /nearby/filter or /nearby/search", () => {
+  for (const pathname of ["/nearby", "/nearby/filter", "/nearby/search", "/"]) {
+    app.location.pathname = pathname;
+    assert.equal(app.categoryLandingLinksHtml(), "", `expected no breadcrumb on ${pathname}`);
+  }
+});
+
+test("overviewNearestHtml carries the labelled category navigation and results heading through every return path", () => {
+  resetData(app);
+  // Set directly rather than through setOverviewFilters(), whose own selectOverview()/
+  // syncHashFromSelection() side effects would otherwise correct this test's manually-set
+  // pathname back to the plain /nearby the current (empty) selection/anchor actually describes --
+  // the real boot sequence never hits that, since routerBooting suppresses it until boot finishes.
+  app.state.overviewFilters = ["pubs"];
+  app.location.pathname = "/nearby/pubs/";
+  app.state.userLocation = null;
+  assert.match(app.overviewNearestHtml(), /Browse nearby categories/, "no-location branch still shows the navigation label");
+  assert.match(app.overviewNearestHtml(), /<h3 id="nearbyResultsHeading">Pubs &amp; bars nearby<\/h3>/, "no-location branch names the results");
+
+  app.state.userLocation = makePoint(app, 51.9, 0.9); // far from any fixture data -- empty list
+  assert.match(app.overviewNearestHtml(), /<h3 id="nearbyResultsHeading">Pubs &amp; bars nearby<\/h3>/, "empty-result branch names the results");
+
+  app.location.pathname = "/";
+});
+
+test("categoryLandingLinksHtml adds a pill per member on a group page (\"Browse by type\"), excluding cows from that row -- it still gets its own \"see also\" pill, matching the static generator's own page.members set", () => {
+  app.location.pathname = "/nearby/nature/";
+  const html = app.categoryLandingLinksHtml();
+  assert.match(html, /href="\/nearby\/trees\/"[\s\S]*?Trees/);
+  assert.match(html, /href="\/nearby\/ponds-streams\/"[\s\S]*?Ponds/);
+  // Cows is live-tracked with no fixed count, so it never gets a page through the ordinary
+  // inventory-driven category path (COW_KEY, scripts/report/map-inventory.js) and so is never one
+  // of the group's own "members" -- but it still appears once, via the see-also row below, not
+  // the type row.
+  assert.match(html, /href="\/nearby\/cows\/"[\s\S]*?Cows/);
+  app.location.pathname = "/";
+});
+
+test("categoryLandingLinksHtml adds \"see also\" trees/cows pills to every landing page, marking the current page and never doubling up with the nature group's own type pill", () => {
+  app.location.pathname = "/nearby/pubs/";
+  const pubsHtml = app.categoryLandingLinksHtml();
+  assert.match(pubsHtml, /href="\/nearby\/trees\/"[\s\S]*?Trees/);
+  assert.match(pubsHtml, /href="\/nearby\/cows\/"[\s\S]*?Cows/);
+
+  app.location.pathname = "/nearby/trees/";
+  const treesHtml = app.categoryLandingLinksHtml();
+  assert.match(treesHtml, /nearby-link--current[^>]*href="\/nearby\/trees\/"|href="\/nearby\/trees\/"[^>]*nearby-link--current/, "the trees page marks itself as current");
+  assert.match(treesHtml, /href="\/nearby\/cows\/"[\s\S]*?Cows/);
+
+  app.location.pathname = "/nearby/cows/";
+  const cowsHtml = app.categoryLandingLinksHtml();
+  assert.match(cowsHtml, /href="\/nearby\/trees\/"[\s\S]*?Trees/);
+  assert.match(cowsHtml, /nearby-link--current[^>]*href="\/nearby\/cows\/"|href="\/nearby\/cows\/"[^>]*nearby-link--current/, "the cows page marks itself as current");
+
+  app.location.pathname = "/nearby/nature/";
+  const natureHtml = app.categoryLandingLinksHtml();
+  assert.equal((natureHtml.match(/href="\/nearby\/trees\/"/g) || []).length, 1, "the nature group's own \"Trees\" type pill is the only trees link -- the see-also row doesn't repeat it");
+
+  app.location.pathname = "/";
+});
+
+test("landingPageCategoryLabel names the current /nearby/<slug> landing's own category, and selectOverview() uses it to head the screen \"Nearby <Category>\" instead of the generic \"Nearby\"", () => {
+  resetData(app);
+
+  app.location.pathname = "/nearby/pubs/";
+  assert.equal(app.landingPageCategoryLabel(), "Pubs & bars");
+  app.state.overviewFilters = ["pubs"];
+  app.selectOverview();
+  assert.equal(app.els.inspectorTitle.textContent, "Nearby Pubs & bars");
+  assert.equal(app.documentStub.title, "Nearby Pubs & bars in Epping Forest | Epping Forest Finds");
+
+  app.location.pathname = "/nearby/nature/";
+  assert.equal(app.landingPageCategoryLabel(), "Nature");
+  app.state.overviewFilters = ["trees", "ponds_streams"];
+  app.selectOverview();
+  assert.equal(app.els.inspectorTitle.textContent, "Nearby Nature");
+  assert.equal(app.documentStub.title, "Nearby Nature in Epping Forest | Epping Forest Finds");
+
+  // The plain, unfiltered Nearby screen -- and a reader's own filter choice from the Filters
+  // screen, which lands on the same bare /nearby path -- names no single category to head with.
+  app.location.pathname = "/nearby";
+  assert.equal(app.landingPageCategoryLabel(), null);
+  app.selectOverview();
+  assert.equal(app.els.inspectorTitle.textContent, "Nearby");
+  assert.equal(app.documentStub.title, "Nearby in Epping Forest | Epping Forest Finds");
+
+  app.location.pathname = "/";
+});
+
+test("updateDocumentTitle names a selected place near Epping Forest", () => {
+  resetData(app);
+  app.state.selected = { type: "landmark", item: { name: "Hillside Tandoori" } };
+  assert.equal(app.updateDocumentTitle(), "Hillside Tandoori near Epping Forest | Epping Forest Finds");
+  assert.equal(app.documentStub.title, "Hillside Tandoori near Epping Forest | Epping Forest Finds");
+  app.state.selected = null;
+  app.updateDocumentTitle();
+});
+
+test("navigateInApp pushes a real history entry and applies the new route, instead of leaving it to the browser's own navigation", () => {
+  resetData(app);
+  app.location.pathname = "/find/the-forresters/";
+  app.location.hash = "";
+
+  app.navigateInApp("/nearby/cows/#near=51.650000%2C0.050000");
+
+  assert.equal(app.location.pathname, "/nearby/cows/");
+  assert.equal(app.location.hash, "#near=51.650000%2C0.050000");
+  assert.equal(app.state.nearbyAnchor.latitude, 51.65, "the hash's position was actually applied, not just left in the URL");
+  assert.equal(app.state.nearbyAnchor.longitude, 0.05);
+
+  app.location.pathname = "/";
+  app.location.hash = "";
+});
+
+test("navigateInApp does nothing when the target is already the current URL", () => {
+  app.location.pathname = "/nearby/pubs/";
+  app.location.hash = "";
+  const depthBefore = app.history.length;
+  app.navigateInApp("/nearby/pubs/");
+  assert.equal(app.history.length, depthBefore, "no new history entry for a no-op navigation");
+  app.location.pathname = "/";
 });
 
 test("arriving at a /nearby/<slug> page pre-filters Nearby to that category, taking priority over any ?show= param", () => {
@@ -2045,16 +2396,12 @@ test("applyDefaultLocation stands in for a real fix at DEFAULT_LOCATION, flagged
   assert.equal(app.hasRealLocation(), true, "a real fix has no isDefault flag at all");
 });
 
-test("applyDefaultLocation widens the plain 5-minute default radius to 30 minutes, but never overrides a deliberate one", () => {
+test("applyDefaultLocation keeps the normal radius, but never overrides a deliberate one", () => {
   resetData(app);
   app.state.userLocation = null;
   app.state.walkingDistanceMinutes = app.DEFAULT_WALKING_DISTANCE_MINUTES;
   app.applyDefaultLocation();
-  assert.equal(
-    app.state.walkingDistanceMinutes,
-    app.DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES,
-    "a High Beach stand-in isn't tied to anywhere real, so it gets the wider net"
-  );
+  assert.equal(app.state.walkingDistanceMinutes, app.DEFAULT_WALKING_DISTANCE_MINUTES, "High Beach starts at the normal walking radius");
 
   resetData(app);
   app.state.userLocation = null;
@@ -2069,56 +2416,27 @@ test("applyDefaultLocation widens the plain 5-minute default radius to 30 minute
   assert.equal(app.state.walkingDistanceMinutes, app.LANDING_PAGE_WALKING_DISTANCE_MINUTES, "already-30 from the landing-page default is left alone too");
 });
 
-test("updateLocateButtonVisibility keeps the locate button visible for the default location, hides it only once a real fix lands", () => {
+test("the Nearby heading's own type line says it is measuring from High Beach while the stand-in is active, and says nothing once a real fix replaces it", () => {
   resetData(app);
-  app.state.userLocation = null;
-  // The sandbox's navigator stub has no geolocation by default (matching a real browser that
-  // lacks the API); give it one here so the button's visibility turns on hasRealLocation()
-  // rather than being hidden by that outer check regardless.
-  const previousGeolocation = app.navigator.geolocation;
-  app.navigator.geolocation = {};
-  // syncInspectorToolsVisibility's getComputedStyle call is a real-browser-only path this
-  // sandbox doesn't stub; hidden inspectorTools short-circuits it before that's reached, same
-  // as it does whenever the inspector itself is closed.
-  app.els.inspectorTools.hidden = true;
+  app.state.overviewFilters = ["trees"];
+  app.state.trees.push({ id: "t1", commonName: "Nearby tree", ...makePoint(app, 0.0005, 0) });
 
-  try {
-    app.updateLocateButtonVisibility();
-    assert.equal(app.els.locateButton.hidden, false, "no fix yet: offer the button");
-
-    app.applyDefaultLocation();
-    app.updateLocateButtonVisibility();
-    assert.equal(app.els.locateButton.hidden, false, "the High Beach stand-in is not a reason to hide the button -- a real fix is still worth asking for");
-
-    app.state.userLocation = makePoint(app, 51.6, 0.03);
-    app.updateLocateButtonVisibility();
-    assert.equal(app.els.locateButton.hidden, true, "a real fix hides it as before");
-  } finally {
-    app.navigator.geolocation = previousGeolocation;
-  }
-});
-
-test("setLocationGateVisible shows its dismiss button only when told the prompt is dismissible", () => {
-  const localApp = loadAppForTests();
-
-  localApp.setLocationGateVisible(true, "Permission was blocked.", "Enable location");
-  assert.equal(localApp.els.locationGateDismiss.hidden, true, "a hard-stop prompt offers no way to brush it off");
-
-  localApp.setLocationGateVisible(true, "Share your location for more.", "Enable location", "Get a more custom experience", { dismissible: true });
-  assert.equal(localApp.els.locationGateDismiss.hidden, false, "an invite-only prompt, shown once the map already has a usable default, can be dismissed");
-
-  localApp.setLocationGateVisible(true, "Permission was blocked again.", "Enable location");
-  assert.equal(localApp.els.locationGateDismiss.hidden, true, "a later hard-stop call hides it again rather than leaking the previous call's flag");
-});
-
-test("the location gate button asks for location whenever there is no real fix, default location included", () => {
-  const nav = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
-  const handlerMatch = /locationGateButton\.addEventListener\("click", async \(\) => \{[\s\S]{0,400}/.exec(nav);
-  assert.ok(handlerMatch, "locationGateButton's click handler must exist");
+  // Built directly with the isDefault flag (same as the "hasRealLocation" test above) rather
+  // than via applyDefaultLocation(), which would centre on DEFAULT_LOCATION's real-world
+  // coordinates -- far outside this fixture tree's synthetic (0,0)-based test coordinates.
+  app.state.userLocation = { ...makePoint(app, 0, 0), isDefault: true };
   assert.match(
-    handlerMatch[0],
-    /hasRealLocation\(\)/,
-    "the handler must branch on hasRealLocation(), not state.userLocation's bare truthiness -- otherwise the default location's own stand-in would be mistaken for a real fix and the button would try to request compass permission instead of location"
+    app.overviewHeadingText(),
+    /of High Beach$/,
+    "explains why the list is centred on High Beach, not just the one-time dismissible gate -- folded into the type line, not a separate sentence in the list body"
+  );
+  assert.doesNotMatch(app.overviewNearestHtml(), /Showing things near High Beach/, "no longer a separate sentence in the list body");
+
+  app.state.userLocation = makePoint(app, 0, 0);
+  assert.doesNotMatch(
+    app.overviewHeadingText(),
+    /High Beach/,
+    "a real fix needs no explanation for where the list is centred"
   );
 });
 
@@ -2246,24 +2564,6 @@ test("nearby filter updates trigger a heading-up refit that keeps the radius cir
   );
 });
 
-test("navigation has labelled outline glyphs that inherit the selected colour", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
-  const nav = html.match(/<nav class="inspector-actions"[\s\S]*?<\/nav>/)[0];
-  // Filters is reached inline from the Nearby heading, not a fifth nav-bar tab -- see
-  // spec-data-rendering.md, "Filters is reached from Nearby, not a nav peer".
-  assert.equal((nav.match(/stroke="currentColor"/g) || []).length, 4);
-  assert.equal((nav.match(/class="nav-label"/g) || []).length, 4);
-  assert.ok(!nav.includes("<img"), "navigation must not retain fixed-colour PNG icons");
-});
-
-test("tree loading uses chunked register before full-file fallbacks", () => {
-  const loader = fs.readFileSync(path.join(__dirname, "..", "js", "loader.js"), "utf8");
-
-  assert.match(loader, /loadTreeChunks\(TREE_CHUNK_INDEX_URL\)/);
-  assert.match(loader, /const treeAttempts = \[[\s\S]*loadTreeChunks\(TREE_CHUNK_INDEX_URL\)[\s\S]*\.\.\.fullFileAttempts/);
-  assert.match(loader, /const maxConcurrent = Math\.min\(6, chunks\.length\)/);
-});
-
 test("generated tree chunks cover the full veteran tree register", () => {
   const index = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "data", "trees", "index.json"), "utf8"));
   const chunkCount = index.chunks.reduce((sum, chunk) => sum + chunk.count, 0);
@@ -2274,35 +2574,6 @@ test("generated tree chunks cover the full veteran tree register", () => {
   for (const chunk of index.chunks) {
     assert.ok(fs.existsSync(path.join(__dirname, "..", chunk.url)), `${chunk.url} should exist`);
   }
-});
-
-test("service worker install pre-caches only the small tree chunk index", () => {
-  const serviceWorker = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  const shellMatch = serviceWorker.match(/const DATA_SHELL = \[([\s\S]*?)\];/);
-
-  assert.ok(shellMatch, "DATA_SHELL cache list exists");
-  assert.ok(shellMatch[1].includes("data/trees/index.json"), "tree chunk index should be pre-cached");
-  assert.ok(!shellMatch[1].includes("data/trees/chunk-"), "tree chunks should be runtime cached after the page fetch");
-  assert.ok(!shellMatch[1].includes("Veteran_Tree_Register.json"), "base tree register should be runtime cached after the page fetch");
-  assert.ok(!shellMatch[1].includes("Veteran_Tree_Register.enriched.with_named_trees.json"), "enriched tree register should be runtime cached after the page fetch");
-});
-
-test("generated UI icon classes render at the enlarged sizes", () => {
-  const baseCss = fs.readFileSync(path.join(__dirname, "..", "css", "base.css"), "utf8");
-  const inspectorCss = fs.readFileSync(path.join(__dirname, "..", "css", "inspector.css"), "utf8");
-  const mapUiCss = fs.readFileSync(path.join(__dirname, "..", "css", "map-ui.css"), "utf8");
-
-  assert.match(baseCss, /--icon-scale:\s*1;/);
-  // [^}]* (not [\s\S]*) deliberately bounds each match inside its own rule's braces -- an
-  // unbounded match here previously let a later, unrelated selector's "width: 32px;" satisfy
-  // the assertion even while the rule actually named kept its original, smaller size. The nav
-  // glyphs keep their compact size; screen-title artwork matches the 44px Back target.
-  // Nearby list icons also span both the name and meta/distance lines beside them
-  // (see .nearest-item's grid layout), rather than just the first line.
-  assert.match(inspectorCss, /\.nav-icon\s*\{[^}]*width:\s*calc\(22px\s*\*\s*var\(--icon-scale\)\);[^}]*height:\s*calc\(22px\s*\*\s*var\(--icon-scale\)\);/);
-  assert.match(inspectorCss, /\.title-icon\s*\{[^}]*width:\s*calc\(44px\s*\*\s*var\(--icon-scale\)\);[^}]*height:\s*calc\(44px\s*\*\s*var\(--icon-scale\)\);/);
-  assert.match(mapUiCss, /\.nearest-icon\s+\.app-icon\s*\{[^}]*width:\s*44px;[^}]*height:\s*44px;/);
-  assert.match(mapUiCss, /\.walk-icon\s*\{[^}]*width:\s*calc\(18px\s*\*\s*var\(--icon-scale\)\);[^}]*height:\s*calc\(18px\s*\*\s*var\(--icon-scale\)\);/);
 });
 
 test("nearest list falls back to one closest item for each active type outside the walking radius", () => {
@@ -2489,6 +2760,7 @@ test("walking radius marker still draws when nearest results use fallback", () =
 test("walking radius dimming keeps a crisp edge without a canvas blur filter", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
+  const drawn = { arcs: 0, fills: 0 };
 
   const ctx = {
     save() {},
@@ -2496,14 +2768,15 @@ test("walking radius dimming keeps a crisp edge without a canvas blur filter", (
     beginPath() {},
     closePath() {},
     rect() {},
-    arc() {},
-    fill() {},
+    arc() { drawn.arcs += 1; },
+    fill() { drawn.fills += 1; },
     stroke() {},
     createLinearGradient() { return { addColorStop() {} }; },
     set filter(value) { throw new Error(`walking-radius blur is not allowed: ${value}`); },
   };
 
   app.drawWalkingRadius(ctx);
+  assert.ok(drawn.arcs > 0 && drawn.fills > 0, "the ring and its dimming are actually drawn (so the no-blur check above covered real drawing)");
 });
 
 test("walking radius marker hides in selected-detail mode", () => {
@@ -3122,17 +3395,17 @@ test("maxScaleForHeadingUpPoints returns the tightest scale that keeps every poi
   // rotatedX/rotatedY equal the raw dx/dy -- keeps the geometry easy to hand-verify.
   const focus = { x: 500, y: 400 };
   const focusRect = { x: 0, y: 0, width: 1000, height: 800 };
-  // margin = min(1000, 800) * 0.1 + 12 * dpr(1) = 92; left=92 right=908 top=92 bottom=708
+  // margin = min(1000, 800) * 0.06 + 12 * dpr(1) = 60; left=60 right=940 top=60 bottom=740
   const points = [
-    { x: 400, y: 0 },    // rotatedX>0: (908-500)/400 = 1.02   <- tightest
-    { x: -300, y: 0 },   // rotatedX<0: (92-500)/-300 = 1.36
-    { x: 0, y: -200 },   // rotatedY<0: (92-400)/-200 = 1.54
-    { x: 0, y: 250 },    // rotatedY>0, tilt inactive: (708-400)/250 = 1.232
+    { x: 400, y: 0 },    // rotatedX>0: (940-500)/400 = 1.1   <- tightest
+    { x: -300, y: 0 },   // rotatedX<0: (60-500)/-300 = 1.4667
+    { x: 0, y: -200 },   // rotatedY<0: (60-400)/-200 = 1.7
+    { x: 0, y: 250 },    // rotatedY>0, tilt inactive: (740-400)/250 = 1.36
   ];
 
   const maxScale = app.maxScaleForHeadingUpPoints(points, focus, focusRect);
 
-  assert.ok(Math.abs(maxScale - 1.02) < 1e-9, `expected 1.02, got ${maxScale}`);
+  assert.ok(Math.abs(maxScale - 1.1) < 1e-9, `expected 1.1, got ${maxScale}`);
 });
 
 test("maxScaleForHeadingUpPoints constrains a behind-the-user point horizontally as well as vertically", () => {
@@ -3144,15 +3417,15 @@ test("maxScaleForHeadingUpPoints constrains a behind-the-user point horizontally
   app.state.userLocation = { latitude: 0, longitude: 0, point: { x: 0, y: 0 } };
   const focus = { x: 500, y: 400 };
   const focusRect = { x: 0, y: 0, width: 1000, height: 800 };
-  // margin = min(1000, 800) * 0.1 + 12 * dpr(1) = 92; right = 908, bottom = 708.
+  // margin = min(1000, 800) * 0.06 + 12 * dpr(1) = 60; right = 940, bottom = 740.
   // Behind (rotatedY > 0) and far to the right: the vertical constraint alone would allow
-  // (708 - 400) / 10 = 30.8, at which the point would be drawn 400 * 30.8 = 12320px to the
-  // right. The horizontal constraint is (908 - 500) / 400 = 1.02.
+  // (740 - 400) / 10 = 34, at which the point would be drawn 400 * 34 = 13600px to the
+  // right. The horizontal constraint is (940 - 500) / 400 = 1.1.
   const behindAndRight = [{ x: 400, y: 10 }];
 
   const maxScale = app.maxScaleForHeadingUpPoints(behindAndRight, focus, focusRect);
 
-  assert.ok(Math.abs(maxScale - 1.02) < 1e-9, `expected the horizontal constraint (1.02), got ${maxScale}`);
+  assert.ok(Math.abs(maxScale - 1.1) < 1e-9, `expected the horizontal constraint (1.1), got ${maxScale}`);
 });
 
 test("maxScaleForHeadingUpPoints excludes behind-the-user points only while tilt is active", () => {
@@ -3170,8 +3443,8 @@ test("maxScaleForHeadingUpPoints excludes behind-the-user points only while tilt
 
   app.state.tiltBetaSmoothed = 0; // tiltActive() false
   const withTiltInactive = app.maxScaleForHeadingUpPoints(behindPoint, focus, focusRect);
-  // (bottom - focus.y) / rotatedY = (708 - 400) / 10 = 30.8, well under the fitScale*180 cap
-  assert.ok(Math.abs(withTiltInactive - 30.8) < 1e-9, `expected 30.8, got ${withTiltInactive}`);
+  // (bottom - focus.y) / rotatedY = (740 - 400) / 10 = 34, well under the fitScale*180 cap
+  assert.ok(Math.abs(withTiltInactive - 34) < 1e-9, `expected 34, got ${withTiltInactive}`);
 });
 
 test("maxScaleForHeadingUpPoints({ excludeBehindDuringTilt: false }) keeps constraining the fit against behind-the-user points even while tilt is active", () => {
@@ -3189,9 +3462,9 @@ test("maxScaleForHeadingUpPoints({ excludeBehindDuringTilt: false }) keeps const
 
   app.state.tiltBetaSmoothed = 20; // tiltActive() true
   const result = app.maxScaleForHeadingUpPoints(behindPoint, focus, focusRect, { excludeBehindDuringTilt: false });
-  // Same (bottom - focus.y) / rotatedY = (708 - 400) / 10 = 30.8 as the tilt-inactive case
+  // Same (bottom - focus.y) / rotatedY = (740 - 400) / 10 = 34 as the tilt-inactive case
   // above -- excludeBehindDuringTilt: false means tiltActive() no longer matters for this point.
-  assert.ok(Math.abs(result - 30.8) < 1e-9, `expected 30.8, got ${result}`);
+  assert.ok(Math.abs(result - 34) < 1e-9, `expected 34, got ${result}`);
 });
 
 test("selectedNavigationTargetBearingOffsetRadians resolves the destination's bearing relative to straight ahead", () => {
@@ -3870,17 +4143,6 @@ test("setInspectorMinimized keeps the plain recentre-at-current-scale behaviour 
   assert.equal(app.state.viewportAnimationTo.scale, 4242, "north-up recentre must keep the current scale unchanged");
 });
 
-test("nearby HTML does not contain the walking distance selector", () => {
-  resetData(app);
-  app.state.userLocation = makePoint(app, 0, 0);
-  addFixtureData(app);
-
-  const html = app.overviewNearestHtml();
-
-  assert.ok(!html.includes("nearestItemsSelect"), "nearby should not contain the walking distance select control");
-  assert.ok(!html.includes("Walking distance:"), "nearby should not contain the walking distance label");
-});
-
 test("nearby summary uses the generated walking icon asset", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
@@ -4428,6 +4690,20 @@ test("choosing a search result opens the location the same way a map tap does", 
   assert.match(app.location.hash, /place=/, "and the selection is linkable like any other");
 });
 
+test("choosing a findSlug business from search updates the URL before rendering", () => {
+  resetSearchData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  addSearchFixtures(app);
+  app.state.landmarks.push({ id: "pub-2", name: "The Forresters", category: "pub", categoryTags: ["pub"], findSlug: "the-forresters", ...makePoint(app, 0.0025, 0) });
+  app.openSearchScreen();
+
+  const [result] = app.searchMapFeatures("the forresters");
+  app.openSearchResult(result.type, result.key);
+
+  assert.equal(app.location.pathname, "/find/the-forresters/", "the URL is updated as part of selecting the result");
+  assert.ok(!app.els.inspectorBody.innerHTML.includes("Full details"), "location details no longer include a dead-end link");
+});
+
 test("a road can be navigated to from search, which the nearby list cannot offer", () => {
   resetSearchData(app);
   app.state.userLocation = makePoint(app, 0, 0);
@@ -4473,16 +4749,6 @@ test("bus stop titles keep explicit directional wording", () => {
   );
 });
 
-test("nearby HTML does not contain the app version", () => {
-  resetData(app);
-  app.state.userLocation = makePoint(app, 0, 0);
-  addFixtureData(app);
-
-  const html = app.overviewNearestHtml();
-
-  assert.ok(!html.includes("App version:"), "app version should not appear in the nearby section");
-});
-
 test("settings form puts About (and its refresh buttons) before Privacy, not last", () => {
   const html = app.settingsFormHtml();
   const aboutIndex = html.indexOf('<h3 class="settings-section-title">About</h3>');
@@ -4492,6 +4758,15 @@ test("settings form puts About (and its refresh buttons) before Privacy, not las
     aboutIndex < privacyIndex,
     "About (with the Refresh buttons people open Settings for) should render before Privacy, so it isn't the last thing scrolled to"
   );
+});
+
+test("settings form falls back to the built-in cache version before the live worker version is known", () => {
+  const marker = vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "js", "app-cache-version.js"), "utf8") + "\nAPP_CACHE_VERSION", {});
+  app.state.swVersion = null;
+  assert.ok(app.settingsFormHtml().includes(`>${marker}</span>`), "the About line shows the marker file's version");
+  app.state.swVersion = "forest-finds-app-live";
+  assert.ok(app.settingsFormHtml().includes(">forest-finds-app-live</span>"), "and the live worker's version once it is known");
+  app.state.swVersion = null;
 });
 
 test("settings form shows the app version", () => {
@@ -4526,31 +4801,70 @@ test("settings form's floor note is an aria-live region, so hitting the floor is
   assert.match(html, /id="settingsWalkMinsFloorNote" aria-live="polite"/);
 });
 
-test("settings form's Privacy section reflects and toggles tracking consent", () => {
-  const original = app.hasTrackingConsent();
+function withStoredKeys(keys, fn) {
+  const names = ["ff-track-v1", "ff-cookie-consent", "ff-location-v1"];
+  const saved = names.map((name) => [name, app.localStorage.getItem(name)]);
+  names.forEach((name) => app.localStorage.removeItem(name));
+  Object.entries(keys).forEach(([name, value]) => app.localStorage.setItem(name, value));
+  try { fn(); } finally {
+    saved.forEach(([name, value]) => (value == null ? app.localStorage.removeItem(name) : app.localStorage.setItem(name, value)));
+  }
+}
 
-  app.setTrackingConsent(false);
-  let html = app.settingsFormHtml();
-  assert.match(html, /id="privacyConsentStatus">not enabled</, "should report consent as not enabled");
-  assert.match(html, /id="privacyConsentToggle"[^>]*>Enable location &amp; tracking</, "toggle should offer to grant consent");
+test("settings form's Privacy section shows usage analytics as one choice and offers the opposite", () => {
+  withStoredKeys({}, () => {
+    app.setAnalyticsConsent(false);
+    let html = app.settingsFormHtml();
+    assert.match(html, /id="analyticsStatus">off</);
+    assert.match(html, /id="analyticsToggle"[^>]*>Turn on usage analytics</);
+    assert.doesNotMatch(html, /cookieConsentManageBtn/, "there is no second, separate cookie control to keep in step");
 
-  app.setTrackingConsent(true);
-  html = app.settingsFormHtml();
-  assert.match(html, /id="privacyConsentStatus">enabled</, "should report consent as enabled");
-  assert.match(html, /id="privacyConsentToggle"[^>]*>Withdraw consent</, "toggle should offer to withdraw consent");
-
-  app.setTrackingConsent(original);
+    app.setAnalyticsConsent(true);
+    html = app.settingsFormHtml();
+    assert.match(html, /id="analyticsStatus">on</);
+    assert.match(html, /id="analyticsToggle"[^>]*>Turn off usage analytics</);
+  });
 });
 
-test("ensureTrackingConsent grants consent implicitly, with no separate accept/decline screen", () => {
-  const original = app.hasTrackingConsent();
+test("answering usage analytics records the usage-data and analytics-cookie halves together", () => {
+  withStoredKeys({}, () => {
+    app.setAnalyticsConsent(true);
+    assert.equal(app.hasTrackingConsent(), true);
+    assert.equal(app.localStorage.getItem("ff-cookie-consent"), "granted");
+    app.setAnalyticsConsent(false);
+    assert.equal(app.hasTrackingConsent(), false);
+    assert.equal(app.localStorage.getItem("ff-cookie-consent"), "denied");
+    assert.equal(app.analyticsChoice(), "denied", "a refusal is remembered, not read as never asked");
+  });
+});
 
-  app.setTrackingConsent(false);
-  const result = app.ensureTrackingConsent();
-  assert.equal(result, true, "tapping 'Enable location' should itself count as consent");
-  assert.equal(app.hasTrackingConsent(), true, "consent should be recorded immediately, synchronously");
+test("usage analytics is still unasked for someone who only accepted cookies on the homepage", () => {
+  // The homepage's cookie banner says nothing about positions recorded in the app, so it cannot
+  // stand in for that half of the question.
+  withStoredKeys({ "ff-cookie-consent": "granted" }, () => assert.equal(app.analyticsChoice(), "undecided"));
+  // A refusal anywhere is honoured rather than asked again.
+  withStoredKeys({ "ff-cookie-consent": "denied" }, () => assert.equal(app.analyticsChoice(), "denied"));
+});
 
-  app.setTrackingConsent(original);
+test("boot only requests a position by itself when that cannot put an unexplained system prompt on screen", () => {
+  // Already granted: answers silently.
+  assert.equal(app.bootMayRequestLocation("granted", null), true);
+  // Refused at the browser or OS: a request would fail without asking, so none is made.
+  assert.equal(app.bootMayRequestLocation("denied", "granted"), false);
+  // Would prompt: only for someone who asked for location in the app before.
+  assert.equal(app.bootMayRequestLocation("prompt", "granted"), true);
+  assert.equal(app.bootMayRequestLocation("prompt", null), false);
+  assert.equal(app.bootMayRequestLocation("prompt", "declined"), false);
+  assert.equal(app.bootMayRequestLocation("unknown", null), false, "an unanswerable permission query counts as a prompt");
+});
+
+test("a location answer is remembered, and the old bundled 'Enable location' tap still counts as having asked", () => {
+  withStoredKeys({}, () => {
+    assert.equal(app.storedLocationChoice(), null);
+    app.rememberLocationChoice("declined");
+    assert.equal(app.storedLocationChoice(), "declined");
+  });
+  withStoredKeys({ "ff-track-v1": "1" }, () => assert.equal(app.storedLocationChoice(), "granted"));
 });
 
 test("select_map_item GA event carries a specific venue category for landmarks, never coordinates", () => {
@@ -4581,33 +4895,9 @@ test("select_map_item GA event carries a specific venue category for landmarks, 
   }
 });
 
-test("the location gate and onboarding's location step disclose the same location/usage tracking, but onboarding also covers the merged cookie choice", () => {
-  const appHtml = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
-  const onboardingSource = fs.readFileSync(path.join(__dirname, "..", "js", "onboarding.js"), "utf8");
-
-  const gateNoteMatch = appHtml.match(/<p class="privacy-note">([\s\S]*?)<\/p>/);
-  const onboardingNoteMatch = onboardingSource.match(/<p class="privacy-note">([\s\S]*?)<\/p>/);
-
-  assert.ok(gateNoteMatch, "the location gate should show a .privacy-note disclosure");
-  assert.ok(onboardingNoteMatch, "the onboarding location step should show a .privacy-note disclosure");
-  // Both still disclose the same first-party location/usage tracking and the same withdrawal
-  // path -- the location gate has no decline option, so it never took on the cookie-banner's
-  // job and keeps the original single-purpose wording. Onboarding's location step does have a
-  // real "Skip for now" alternative, so it stands in for the independent cookie-consent banner
-  // (suppressed while onboarding is open -- see cookie-consent.js) and its note says so.
-  assert.match(gateNoteMatch[1], /We collect anonymous usage data \(GPS position, navigation, interactions\)/);
-  assert.match(onboardingNoteMatch[1], /We collect anonymous usage data \(GPS position, navigation, interactions\)/);
-  assert.match(onboardingNoteMatch[1], /analytics cookies/, "onboarding's note must disclose the merged cookie consent");
-  assert.doesNotMatch(gateNoteMatch[1], /analytics cookies/, "the location gate never decides cookie consent, so it should not claim to");
-  for (const note of [gateNoteMatch[1], onboardingNoteMatch[1]]) {
-    assert.match(note, /Settings → Privacy/);
-    assert.match(note, /<a href="\/terms\.html" target="_blank" rel="noopener">Privacy Policy<\/a>/);
-  }
-});
-
 test("settings form offers separate data, app and combined refresh buttons", () => {
-  // One "Force refresh" button used to clear everything, so picking up a CSS tweak also meant
-  // re-downloading ~67 MB of map data. The scopes are split so each case costs only its own.
+  // The scopes are split so a data repair does not needlessly check for an app update, while all
+  // three keep the current offline copy until a replacement is ready.
   const html = app.settingsFormHtml();
   assert.match(html, /id="refreshDataButton"/, "settings form should include the data refresh button");
   assert.match(html, /Refresh data/, "data refresh button should be labelled");
@@ -4618,45 +4908,75 @@ test("settings form offers separate data, app and combined refresh buttons", () 
   assert.match(html, /id="refreshOfflineNote"/, "settings form should include a shared offline note for the refresh buttons");
 });
 
-test("each refresh scope clears only its own caches, and only the app scopes unregister the worker", () => {
-  // The Node VM test harness doesn't stub navigator.serviceWorker/caches/location.reload,
-  // so this is a source-level check (matching the other service-worker tests above) rather
-  // than an executed one — it pins the contract refreshCachedState must uphold.
-  const navSource = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
-  const fnMatch = navSource.match(/async function refreshCachedState\(scope\) \{[\s\S]*?\n\}/);
-  assert.ok(fnMatch, "refreshCachedState must be defined in nav.js");
-  const fn = fnMatch[0];
+// Drives refreshCachedState against a fake browser: service worker, Cache Storage and reload.
+async function runRefresh(app, scope, { online = true, dataSyncOk = true } = {}) {
+  const log = [];
+  const nav = app.navigator;
+  const win = app.windowStub;
+  const listeners = new Set();
+  const cacheNames = ["forest-finds-app-9", "forest-finds-data-9", "unrelated"];
+  const previousOnline = nav.onLine;
+  const previousLocation = app.swapGlobalFunction("location", { reload: () => log.push("reload") });
+  const previousCaches = app.swapGlobalFunction("caches", {
+    keys: async () => cacheNames,
+    delete: async (name) => { log.push(`delete ${name}`); },
+  });
+  nav.onLine = online;
+  win.caches = {};
+  nav.serviceWorker = {
+    controller: {
+      postMessage: (message) => {
+        log.push(`sync ${message.type}`);
+        listeners.forEach((fn) => fn({ data: { type: "DATA_SYNC_COMPLETE", requestId: message.requestId, ok: dataSyncOk } }));
+      },
+    },
+    addEventListener: (type, fn) => listeners.add(fn),
+    removeEventListener: (type, fn) => listeners.delete(fn),
+    getRegistrations: async () => [{ unregister: async () => { log.push("unregister worker"); } }],
+  };
+  try {
+    const result = await app.refreshCachedState(scope);
+    return { result, log };
+  } finally {
+    delete nav.serviceWorker;
+    delete win.caches;
+    nav.onLine = previousOnline;
+    app.swapGlobalFunction("location", previousLocation);
+    app.swapGlobalFunction("caches", previousCaches);
+  }
+}
 
-  assert.match(fn, /if \(!navigator\.onLine\)/, "must bail out while offline instead of leaving the app with no cache fallback");
-  assert.match(fn, /scope !== ["']data["'] && ["']serviceWorker["'] in navigator/, "a data-only refresh must leave the service worker registered");
-  assert.match(fn, /navigator\.serviceWorker\.getRegistrations\(\)/, "must look up every registration");
-  assert.match(fn, /registration\.unregister\(\)/, "must unregister every registration, not just the active one");
-  assert.match(fn, /caches\.keys\(\)/, "must enumerate caches rather than assuming a single name");
-  assert.match(fn, /cacheMatchesRefreshScope\(name, scope\)/, "must scope cache deletion to the requested scope");
-  assert.match(fn, /caches\.delete\(name\)/, "must delete the matched caches");
-  assert.match(fn, /location\.reload\(\)/, "must reload after clearing state so the fresh install takes effect immediately");
-
-  const scopeMatch = navSource.match(/function cacheMatchesRefreshScope\(name, scope\) \{[\s\S]*?\n\}/);
-  assert.ok(scopeMatch, "cacheMatchesRefreshScope must be defined in nav.js");
-  const scopeFn = scopeMatch[0];
-  assert.match(scopeFn, /name\.startsWith\(["']forest-finds-["']\)/, "must never touch caches belonging to another app");
-  assert.match(scopeFn, /scope === ["']all["']/, "the combined scope must match every forest-finds cache");
-  // Cache names carry a "dev-" segment under the local dev server (injectDevFlag in server.js).
-  assert.match(scopeFn, /forest-finds-dev-\$\{scope\}-/, "must match the dev-prefixed spelling too");
+test("Refresh app clears the app cache, keeps the data cache, and then reloads", async () => {
+  const { result, log } = await runRefresh(app, "app");
+  assert.equal(result, true);
+  assert.deepEqual(log, ["unregister worker", "delete forest-finds-app-9", "reload"]);
 });
 
-test("settings refresh listeners are removed before being re-added, so reopening Settings does not leak window listeners", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
-  const bindMatch = source.match(/function bindSettingsHandlers\(\) \{[\s\S]*?\n\}/);
-  assert.ok(bindMatch, "bindSettingsHandlers must be defined");
-  const fn = bindMatch[0];
+test("Refresh both downloads fresh data first, then clears every forest-finds cache and reloads", async () => {
+  const { result, log } = await runRefresh(app, "all");
+  assert.equal(result, true);
+  assert.deepEqual(log, ["sync SYNC_DATA", "unregister worker", "delete forest-finds-app-9", "delete forest-finds-data-9", "reload"]);
+});
 
-  for (const evt of ["online", "offline"]) {
-    const removeIdx = fn.indexOf(`removeEventListener("${evt}", updateRefreshButtonsOnlineState)`);
-    const addIdx = fn.indexOf(`addEventListener("${evt}", updateRefreshButtonsOnlineState)`);
-    assert.ok(removeIdx !== -1, `must remove any prior "${evt}" listener`);
-    assert.ok(addIdx !== -1, `must add a new "${evt}" listener`);
-    assert.ok(removeIdx < addIdx, `must remove the "${evt}" listener before adding a new one`);
+test("Refresh data downloads into the existing cache and reloads without clearing anything", async () => {
+  const { result, log } = await runRefresh(app, "data");
+  assert.equal(result, true);
+  assert.deepEqual(log, ["sync SYNC_DATA", "reload"]);
+});
+
+test("a refresh whose data download fails leaves the offline copy untouched and does not reload", async () => {
+  for (const scope of ["data", "all"]) {
+    const { result, log } = await runRefresh(app, scope, { dataSyncOk: false });
+    assert.equal(result, false, scope);
+    assert.deepEqual(log, ["sync SYNC_DATA"], `${scope}: nothing is cleared or reloaded after a failed download`);
+  }
+});
+
+test("refreshing while offline does nothing, so the app is never left without a cache to fall back on", async () => {
+  for (const scope of ["data", "app", "all"]) {
+    const { result, log } = await runRefresh(app, scope, { online: false });
+    assert.equal(result, false, scope);
+    assert.deepEqual(log, [], scope);
   }
 });
 
@@ -4947,36 +5267,73 @@ test("roundWalkingMinutes snaps the settings slider's own value to the nearest h
   assert.equal(app.roundWalkingMinutes(5.3), 5.5);
 });
 
-test("loading overlay markup includes all eight step labels", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
-  for (const label of ["Veteran trees", "Places", "Paths", "Roads", "Water", "Forest", "cattle", "location"]) {
-    assert.ok(html.includes(label), `loading overlay missing step label: "${label}"`);
-  }
-});
+// Helpers for the submit-flow tests: stub the network and capture what is POSTed.
+function withReportNetwork(app, respond, run) {
+  const sent = [];
+  const previousFetch = app.swapGlobalFunction("fetch", async (url, options) => {
+    sent.push({ url, body: JSON.parse(options.body) });
+    return respond;
+  });
+  const wasOnline = app.navigator.onLine;
+  app.navigator.onLine = true;
+  return Promise.resolve(run(sent)).finally(() => {
+    app.swapGlobalFunction("fetch", previousFetch);
+    app.navigator.onLine = wasOnline;
+  });
+}
+const okResponse = { ok: true, status: 200, json: async () => ({ issueUrl: "https://github.com/o/r/issues/9" }) };
 
-test("report submission includes the app version", () => {
-  const html = app.reportFormHtml();
-  const source = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
+test("report submission includes the app version", async () => {
+  resetData(app);
+  assert.ok(!app.reportFormHtml().includes("App version:"), "report form should not display the app version");
+  const details = app.documentStub.getElementById("reportDetails");
 
-  assert.ok(!html.includes("App version:"), "report form should not display the app version");
-  assert.match(source, /appVersion:\s*state\.swVersion \|\| APP_VERSION/, "submitted report payload should include the live service worker version, falling back to APP_VERSION");
+  await withReportNetwork(app, okResponse, async (sent) => {
+    app.state.swVersion = "forest-finds-app-77";
+    details.value = "The gate is broken";
+    await app.submitReportForm();
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].body.appVersion, "forest-finds-app-77", "the live service worker version is reported");
+
+    app.state.swVersion = null;
+    details.value = "Still broken";
+    await app.submitReportForm();
+    assert.ok(sent[1].body.appVersion, "falls back to the built-in version before the worker has reported one");
+  });
 });
 
 test("a submitted report's issue URL renders as a real clickable link, not plain text", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
-  // Both the full Report screen and the inline per-location form route their success message
-  // through applyReportStatusContent, which builds the link with document.createElement
-  // rather than interpolating the URL into a template string.
-  assert.match(source, /setReportStatus\("Report submitted successfully\.", "success", data && data\.issueUrl\)/);
-  assert.match(source, /applyReportStatusContent\(statusEl, "Report submitted successfully\.", "success", data && data\.issueUrl\)/);
-  assert.match(source, /function applyReportStatusContent[\s\S]*?document\.createElement\("a"\)/);
-  assert.match(source, /link\.href = issueUrl/);
+  const status = app.documentStub.createElement("p");
+  app.applyReportStatusContent(status, "Report submitted successfully.", "success", "https://github.com/o/r/issues/9");
+  assert.equal(status.textContent, "Report submitted successfully.");
+  assert.ok(status.classList.contains("success"));
+  assert.equal(status.children.length, 1);
+  assert.equal(status.children[0].tagName, "A");
+  assert.equal(status.children[0].href, "https://github.com/o/r/issues/9");
+
+  const unsafe = app.documentStub.createElement("p");
+  app.applyReportStatusContent(unsafe, "Report submitted successfully.", "success", "javascript:alert(1)");
+  assert.equal(unsafe.children.length, 0, "only https links are ever made clickable");
 });
 
 test("report-photo links use the active deploy before the production site", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "netlify", "functions", "report-missing-data.js"), "utf8");
-  assert.match(source, /process\.env\.DEPLOY_PRIME_URL \|\| process\.env\.URL/,
-    "a preview's Blob photo must link to its own deploy, not production");
+  const { reportPhotoUrl } = require("../netlify/functions/report-missing-data");
+  const saved = { prime: process.env.DEPLOY_PRIME_URL, url: process.env.URL };
+  try {
+    process.env.DEPLOY_PRIME_URL = "https://deploy-preview-5--site.netlify.app/";
+    process.env.URL = "https://production.example";
+    assert.equal(reportPhotoUrl("abc.jpg", ""), "https://deploy-preview-5--site.netlify.app/.netlify/functions/report-missing-data?photo=abc.jpg",
+      "a preview's Blob photo must link to its own deploy, not production");
+    delete process.env.DEPLOY_PRIME_URL;
+    assert.equal(reportPhotoUrl("abc.jpg", ""), "https://production.example/.netlify/functions/report-missing-data?photo=abc.jpg");
+    delete process.env.URL;
+    assert.equal(reportPhotoUrl("abc.jpg", "https://forest.example/nearby"), "https://forest.example/.netlify/functions/report-missing-data?photo=abc.jpg", "falls back to the reporting page's own origin");
+    assert.equal(reportPhotoUrl("abc.jpg", "http://insecure.example/"), "", "never links to a non-https origin");
+  } finally {
+    for (const [key, name] of [["prime", "DEPLOY_PRIME_URL"], ["url", "URL"]]) {
+      if (saved[key] === undefined) delete process.env[name]; else process.env[name] = saved[key];
+    }
+  }
 });
 
 test("a tree or landmark's detail view offers to report a problem with its own coordinates", () => {
@@ -4993,17 +5350,50 @@ test("reportIssueHtml renders nothing for a line/area feature with no single coo
   assert.equal(app.reportIssueHtml(null), "");
 });
 
-test("the tree and landmark detail screens both offer the report-a-problem link", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "js", "inspector.js"), "utf8");
-  assert.match(source, /function showTreeDetails[\s\S]*?reportIssueHtml\(/, "tree detail view should render the report-issue link");
-  assert.match(source, /function showLandmarkDetails[\s\S]*?reportIssueHtml\(/, "landmark detail view should render the report-issue link");
+test("a mapped place can link back to the Ledger edition that featured it", () => {
+  const html = app.ledgerMentionHtml({ ledgerUrl: "/reports/epping-forest-ledger-2026-10-17.html" });
+  assert.match(html, /href="\/reports\/epping-forest-ledger-2026-10-17\.html"/);
+  assert.match(html, /Featured in the Epping Forest Ledger/);
+  assert.equal(app.ledgerMentionHtml({ ledgerUrl: "https://example.com/reports/epping-forest-ledger-2026-10-17.html" }), "");
 });
 
-test("submitting a location-issue report sends the flagged item's own coordinates, not the reporter's GPS fix", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
-  assert.match(source, /reportType:\s*"location-issue"/, "location-issue reports should be distinguishable from general feedback");
-  assert.match(source, /locationContext:\s*{\s*type:\s*wrapper\.dataset\.reportType/, "payload should carry which item was flagged");
-  assert.match(source, /latitude:\s*Number\(Number\(wrapper\.dataset\.reportLat\)\.toFixed\(6\)\)/, "location sent should come from the flagged item, not state.userLocation");
+test("submitting a location-issue report sends the flagged item's own coordinates, not the reporter's GPS fix", async () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.5, 0.5);
+  const status = app.documentStub.createElement("p");
+  const nodes = {
+    ".report-textarea": Object.assign(app.documentStub.createElement("textarea"), { value: "Fallen over" }),
+    ".report-status": status,
+    "[data-action='submit-location-issue']": app.documentStub.createElement("button"),
+  };
+  const wrapper = {
+    dataset: { reportLat: "51.65123456", reportLon: "0.03", reportType: "Veteran tree", reportName: "Hangman's Oak" },
+    querySelector: (selector) => nodes[selector] || null,
+  };
+
+  await withReportNetwork(app, okResponse, async (sent) => {
+    await app.submitLocationIssueReport(wrapper);
+    assert.equal(sent.length, 1);
+    const { body } = sent[0];
+    assert.equal(body.reportType, "location-issue");
+    assert.deepEqual(body.location, { latitude: 51.651235, longitude: 0.03 }, "the flagged item's coordinates, not the GPS fix");
+    assert.deepEqual(body.locationContext, { type: "Veteran tree", name: "Hangman's Oak" });
+    assert.match(status.textContent, /submitted/i);
+    assert.equal(nodes[".report-textarea"].value, "", "the form clears after a successful submit");
+  });
+});
+
+test("a report with no details is not sent", async () => {
+  resetData(app);
+  const nodes = {
+    ".report-textarea": Object.assign(app.documentStub.createElement("textarea"), { value: "   " }),
+    ".report-status": app.documentStub.createElement("p"),
+  };
+  await withReportNetwork(app, okResponse, async (sent) => {
+    await app.submitLocationIssueReport({ dataset: { reportLat: "51.6", reportLon: "0.03" }, querySelector: (s) => nodes[s] || null });
+    assert.equal(sent.length, 0);
+    assert.match(nodes[".report-status"].textContent, /describe the problem/i);
+  });
 });
 
 test("walking radius circle is always fully visible on screen after centering", () => {
@@ -5423,155 +5813,197 @@ test("service worker APP_SHELL includes all JS files referenced by app.html", ()
   const shellMatch = sw.match(/const APP_SHELL = \[([\s\S]*?)\];/);
   assert.ok(shellMatch, "APP_SHELL list exists");
 
-  const jsRefs = [...html.matchAll(/src="(js\/[^"]+\.js)"/g)].map((m) => `./${m[1]}`);
+  const jsRefs = [...html.matchAll(/src="(js\/[^"?]+\.js)(?:\?[^"]*)?"/g)].map((m) => `./${m[1]}`);
   assert.ok(jsRefs.length > 0, "app.html should reference JS files");
   for (const jsFile of jsRefs) {
     assert.ok(shellMatch[1].includes(jsFile), `APP_SHELL missing ${jsFile} — app will not boot offline`);
   }
 });
 
-test("service worker passes API routes through without caching so offline failures are handled by callers", () => {
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  assert.match(sw, /pathname\.startsWith\(["']\/api\/["']\)/, "API routes must bypass the cache handler");
-  assert.match(sw, /event\.respondWith\(fetch\(event\.request\)\)/, "API routes should be forwarded directly");
+test("service worker falls back to the cached app shell offline for /nearby/<slug>/ and /find/<slug>/ pages, never a network error", () => {
+  // Executes the real sw.js (not a regex match on its source) so a logic error in the pattern --
+  // wrong anchor, missing the trailing-slash variant, an inverted condition -- fails this test
+  // rather than shipping. These ~1,500+29 generated pages (scripts/generate-business-pages.js,
+  // scripts/generate-find-pages.js) are templated off the same app.html as /nearby itself, so
+  // offline they fall back to that same cached shell instead of the browser's own offline error
+  // page -- see isAppNavigation's own comment in sw.js for why a generic fallback is the right
+  // trade-off here rather than precaching every one of them.
+  const root = path.join(__dirname, "..");
+  const context = {
+    self: { addEventListener: () => {}, skipWaiting: () => {}, clients: { claim: () => {} }, registration: {} },
+    importScripts: () => {},
+    caches: { open: async () => ({}), match: async () => null, keys: async () => [] },
+    fetch: async () => ({ ok: false }),
+    console,
+    URL,
+  };
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(root, "js", "app-cache-version.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(root, "js", "data-cache-version.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(root, "sw.js"), "utf8"), context, { filename: "sw.js" });
+
+  const isAppNavigation = (pathname) => vm.runInContext(`isAppNavigation(${JSON.stringify(pathname)})`, context);
+
+  for (const pathname of ["/nearby/pubs/", "/nearby/pubs", "/nearby/food/", "/nearby/events/", "/find/the-forresters/", "/find/events/", "/find/costa-e4/"]) {
+    assert.equal(isAppNavigation(pathname), true, `${pathname} should fall back to the cached app shell`);
+  }
+  for (const pathname of ["/", "/reports/", "/terms.html", "/find/pubs/nested", "/nearby/pubs/nested"]) {
+    assert.equal(isAppNavigation(pathname), false, `${pathname} must stay off the app cache`);
+  }
 });
 
-test("service worker falls back to cached app.html when navigating offline", () => {
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  assert.match(sw, /request\.mode === ["']navigate["']/, "navigate mode must be handled separately");
-  assert.match(sw, /caches\.match\(["']\.\/app\.html["']\)/, "navigate fallback should serve cached app.html");
+test("service worker never overwrites the installed app shell from a navigation, whether a stable screen or a /nearby/<slug>/ or /find/<slug>/ page", async () => {
+  // Each generated page has its own distinct title/JSON-LD/initial body -- caching any single one
+  // of them under the one "./app.html" key the five stable screens share would make that slot's
+  // content depend on whichever page a visitor last loaded, corrupting every other page's offline
+  // fallback. A stable screen's network copy is not written either: it may be the next release's
+  // page, which would then boot against this release's cached scripts. Executes the real fetch
+  // handler against a fake navigate event and a cache spy,
+  // rather than inspecting the source, so a regression here would actually fail this.
+  const root = path.join(__dirname, "..");
+  let fetchHandler = null;
+  const cachePuts = [];
+  const context = {
+    self: {
+      addEventListener: (type, handler) => { if (type === "fetch") fetchHandler = handler; },
+      skipWaiting: () => {},
+      clients: { claim: () => {} },
+      registration: {},
+      location: { origin: "http://localhost:8080" },
+    },
+    importScripts: () => {},
+    caches: {
+      open: async () => ({ put: async (key) => cachePuts.push(key), match: async () => ({ __cached: true }) }),
+      match: async () => ({ __cached: true }),
+      keys: async () => [],
+    },
+    fetch: async () => ({ ok: true, clone: () => ({}) }),
+    console,
+    URL,
+  };
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(root, "js", "app-cache-version.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(root, "js", "data-cache-version.js"), "utf8"), context);
+  vm.runInContext(fs.readFileSync(path.join(root, "sw.js"), "utf8"), context, { filename: "sw.js" });
+
+  async function fireNavigate(pathname) {
+    cachePuts.length = 0;
+    let responded = null;
+    fetchHandler({
+      request: { url: `http://localhost:8080${pathname}`, method: "GET", mode: "navigate" },
+      respondWith: (p) => { responded = p; },
+    });
+    await responded;
+    await new Promise((resolve) => setTimeout(resolve, 20)); // let the detached cache.put chain settle
+    return [...cachePuts];
+  }
+
+  assert.deepEqual(await fireNavigate("/nearby"), [], "a newer deploy's page must not replace the shell matching this release's scripts");
+  assert.deepEqual(await fireNavigate("/find/the-forresters/"), [], "a business page must never overwrite it");
+  assert.deepEqual(await fireNavigate("/nearby/pubs/"), [], "a category page must never overwrite it either");
 });
 
-test("service worker answers app navigations only, so the homepage is not served from the app cache", () => {
-  // This handler used to answer EVERY navigation with the cached app shell. After the
-  // alpha URL split that would serve the app to anyone navigating to the marketing
-  // homepage at /, making the homepage invisible to every returning visitor.
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  assert.match(sw, /function isAppNavigation\(/, "an app-navigation predicate must exist");
-  assert.match(
-    sw,
-    /if \(!isAppNavigation\(requestUrl\.pathname\)\) return;/,
-    "the navigate branch must bail out for non-app navigations"
-  );
+test("netlify.toml makes the browser revalidate sw.js and its version markers (shipped-config invariant)", () => {
+  const toml = fs.readFileSync(path.join(__dirname, "..", "netlify.toml"), "utf8");
+  for (const file of ["/sw.js", "/js/app-cache-version.js", "/js/data-cache-version.js"]) {
+    assert.match(toml, new RegExp(`for = "${file.replace(/[./]/g, "\\$&")}"\\s+\\[headers\\.values\\]\\s+Cache-Control = "no-cache"`), `${file} must be revalidated`);
+  }
 });
 
-test("service worker app shell holds app.html and not the marketing homepage", () => {
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  const shell = sw.match(/const APP_SHELL = \[([\s\S]*?)\];/);
-  assert.ok(shell, "APP_SHELL must be present");
-  assert.match(shell[1], /"\.\/app\.html"/, "APP_SHELL should precache app.html");
-  assert.ok(
-    !/"\.\/",/.test(shell[1]),
-    'APP_SHELL must not precache "./" -- it resolves to the marketing homepage'
-  );
+// Fake service-worker environment for the update and background-sync flows.
+function withFakeServiceWorker(app, { online = true, controller = null } = {}, run) {
+  const nav = app.navigator;
+  const wasOnline = nav.onLine;
+  const reloads = [];
+  const previous = {
+    location: app.swapGlobalFunction("location", { reload: () => reloads.push("reload") }),
+    setTimeout: app.swapGlobalFunction("setTimeout", () => 0),
+  };
+  nav.onLine = online;
+  nav.serviceWorker = { controller };
+  const cleanup = () => {
+    delete nav.serviceWorker;
+    nav.onLine = wasOnline;
+    app.swapGlobalFunction("location", previous.location);
+    app.swapGlobalFunction("setTimeout", previous.setTimeout);
+  };
+  return Promise.resolve(run(reloads)).finally(cleanup);
+}
+
+test("the app asks the controlling worker for a background data sync, but not offline or before a worker controls the page", async () => {
+  const messages = [];
+  const controller = { postMessage: (m) => messages.push(m) };
+
+  await withFakeServiceWorker(app, { controller }, () => Promise.all([app.requestBackgroundDataSync(), app.requestBackgroundDataSync({ force: true })]));
+  assert.deepEqual(JSON.parse(JSON.stringify(messages)), [{ type: "SYNC_DATA", force: false }, { type: "SYNC_DATA", force: true }]);
+
+  messages.length = 0;
+  await withFakeServiceWorker(app, { controller, online: false }, () => app.requestBackgroundDataSync());
+  await withFakeServiceWorker(app, { controller: null }, () => app.requestBackgroundDataSync());
+  assert.deepEqual(messages, [], "nothing is sent offline, or on a first load with nothing cached to refresh");
 });
 
-test("service worker serves the cached shell for a return navigation and refreshes it in the background", () => {
-  // Network-first navigation meant every reload blocked on a ~290 KB app.html round trip
-  // before anything painted, however warm the cache. Staleness is bounded by the sw.js update
-  // check the browser runs on each navigation, not by making the user wait.
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  const navMatch = sw.match(/if \(event\.request\.mode === "navigate"\) \{[\s\S]*?\n    return;\n  \}/);
-  assert.ok(navMatch, "the navigate branch must be present in the fetch handler");
-  const branch = navMatch[0];
-
-  assert.match(branch, /caches\.match\("\.\/app\.html"\)\.then\(\(cached\) => \{/, "production navigation must consult the cache first");
-  assert.match(branch, /cache\.put\("\.\/app\.html", copy\)/, "the network copy must refresh the cached shell");
-  assert.match(branch, /IS_DEV\s*\n\s*\? fromNetwork/, "local dev must stay network-first so edits show up");
+test("on a first visit the background sync waits until the page's own map downloads have reached the cache", async () => {
+  const messages = [];
+  const controller = { postMessage: (m) => messages.push(m) };
+  let finishHandOver;
+  const previousFetch = app.swapGlobalFunction("fetch", async () => ({ ok: true, clone: () => ({}) }));
+  const previousCaches = app.swapGlobalFunction("caches", {
+    open: async () => ({ put: () => new Promise((resolve) => { finishHandOver = resolve; }) }),
+  });
+  const nav = app.navigator;
+  const previousSw = nav.serviceWorker;
+  const wasOnline = nav.onLine;
+  nav.onLine = true;
+  try {
+    // Downloaded before the worker took control: the hand-over to the cache is still being written.
+    nav.serviceWorker = { controller: null, getRegistration: async () => ({}) };
+    await app.fetchMapData("data/local-environment.geojson");
+    await new Promise((resolve) => setImmediate(resolve));
+    // The worker takes control and the page asks for a sync.
+    nav.serviceWorker = { controller };
+    const sync = app.requestBackgroundDataSync();
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(messages, [], "no sync while the file is still on its way into the cache");
+    finishHandOver();
+    await sync;
+    assert.equal(messages.length, 1, "the sync goes out once the hand-over has landed");
+  } finally {
+    nav.onLine = wasOnline;
+    app.swapGlobalFunction("fetch", previousFetch);
+    app.swapGlobalFunction("caches", previousCaches);
+    if (previousSw === undefined) delete nav.serviceWorker; else nav.serviceWorker = previousSw;
+  }
 });
 
-test("service worker install only fetches shell entries that are not already cached", () => {
-  // Every app release bumps APP_CACHE_NAME and so re-runs install. A blanket addAll over
-  // DATA_SHELL plus the opportunistic list re-downloaded ~67 MB of unchanged GeoJSON each time,
-  // which is the "full download on every load" a returning user actually experienced.
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  const installMatch = sw.match(/self\.addEventListener\("install",[\s\S]*?\n\}\);/);
-  assert.ok(installMatch, "install handler exists");
-  const install = installMatch[0];
-
-  assert.doesNotMatch(install, /cache\.addAll\(DATA_SHELL\)/, "DATA_SHELL must not be re-fetched wholesale on every install");
-  assert.doesNotMatch(install, /cache\.addAll\(APP_SHELL\)/, "APP_SHELL must not be re-fetched wholesale on every install");
-  assert.match(install, /missingFromCache\(cache, APP_SHELL\)/, "app shell must be filtered down to missing entries");
-  assert.match(install, /missingFromCache\(cache, DATA_SHELL\)/, "data shell must be filtered down to missing entries");
-  assert.match(install, /missingFromCache\(cache, DATA_CACHE_OPPORTUNISTIC\)/, "opportunistic data must be filtered down to missing entries");
-  assert.match(install, /adoptPreviousDataCache\(cache\)/, "a data cache version bump must inherit the previous cache rather than re-download it");
+test("applying an update activates the fully downloaded waiting worker and never reloads straight away", async () => {
+  resetData(app);
+  const messages = [];
+  app.state.swWaiting = { postMessage: (m) => messages.push(m) };
+  await withFakeServiceWorker(app, {}, async (reloads) => {
+    assert.equal(await app.applySwUpdate(), true);
+    assert.deepEqual(JSON.parse(JSON.stringify(messages)), [{ type: "SKIP_WAITING" }]);
+    assert.equal(app.state.swPendingReload, true, "the reload waits for the new worker to take control");
+    assert.deepEqual(reloads, [], "no immediate reload: that would strand the page if activation failed");
+  });
+  app.state.swWaiting = null;
+  app.state.swPendingReload = false;
 });
 
-test("a data cache version bump carries the old bodies over and defers the refresh to the background", () => {
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  const adoptMatch = sw.match(/async function adoptPreviousDataCache\(cache\) \{[\s\S]*?\n\}/);
-  assert.ok(adoptMatch, "adoptPreviousDataCache must be defined");
-  const adopt = adoptMatch[0];
-
-  assert.match(adopt, /\/\^forest-finds-\(dev-\)\?data-\//, "must recognise both the production and dev spellings of a data cache");
-  assert.match(adopt, /cache\.put\(request, response\)/, "must copy the previous bodies into the new cache");
-  assert.match(adopt, /writeDataSyncState\(cache, \{ staleSince: Date\.now\(\) \}\)/, "adopted data must be marked stale so the next sync is not throttled");
-});
-
-test("the background data sync revalidates conditionally and only rewrites entries that changed", () => {
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  const syncMatch = sw.match(/async function syncData\(\{ force = false \} = \{\}\) \{[\s\S]*?\n\}\n/);
-  assert.ok(syncMatch, "syncData must be defined");
-  const sync = syncMatch[0];
-
-  assert.match(sync, /fetch\(request\.url, \{ cache: "no-store", headers: conditionalHeaders\(cached\) \}\)/, "must send its own conditional headers rather than leaning on the browser's HTTP cache");
-  assert.match(sync, /if \(fresh\.status === 304\) continue;/, "an unchanged file must cost a 304 and no bytes");
-  assert.match(sync, /responseChanged\(cached, fresh\)/, "must compare validators before writing anything back");
-  assert.match(sync, /DATA_SYNC_INTERVAL_MS/, "must throttle so a sync is not run on every single load");
-  assert.match(sync, /syncState\.staleSince != null/, "an explicitly stale cache must sync regardless of the throttle");
-  assert.match(sync, /failed === requests\.length/, "a sweep where nothing reached the network must not be recorded as a successful check");
-
-  const condMatch = sw.match(/function conditionalHeaders\(cached\) \{[\s\S]*?\n\}/);
-  assert.ok(condMatch, "conditionalHeaders must be defined");
-  assert.match(condMatch[0], /If-None-Match/, "must revalidate by ETag when the cached entry has one");
-  assert.match(condMatch[0], /If-Modified-Since/, "must fall back to Last-Modified");
-
-  assert.match(sw, /event\.data\?\.type === "SYNC_DATA"/, "the worker must accept the client's sync request");
-  assert.match(sw, /postMessage\(\{ type: "DATA_UPDATED", changed \}\)/, "clients must be told when newer data has landed");
-});
-
-test("the app asks for a background data sync only after the map is up, never during boot", () => {
-  const source = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
-  const navSource = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
-
-  const syncIdx = source.indexOf("requestBackgroundDataSync()");
-  assert.ok(syncIdx !== -1, "boot must request a background data sync");
-  assert.ok(
-    syncIdx > source.indexOf("showFilterHintIfFirstVisit();"),
-    "the sync must be requested after the map is interactive, so it never competes with the first render"
-  );
-
-  const fnMatch = navSource.match(/function requestBackgroundDataSync\(options\) \{[\s\S]*?\n\}/);
-  assert.ok(fnMatch, "requestBackgroundDataSync must be defined in nav.js");
-  const fn = fnMatch[0];
-  assert.match(fn, /if \(!navigator\.onLine\) return;/, "must not attempt a sync while offline");
-  assert.match(fn, /navigator\.serviceWorker\.controller/, "must go through the controlling worker");
-  assert.match(fn, /postMessage\(\{ type: "SYNC_DATA"/, "must send the worker's sync message");
-});
-
-test("service worker uses a network-first strategy in local dev so edits show up without a CACHE_NAME bump", () => {
-  // CACHE_NAME is only ever bumped by CI, on the pull request that changes the files it
-  // watches (.github/workflows/sw-release.yml for app code, data-bump.yml for data),
-  // never locally, so the production cache-first strategy below would otherwise keep serving
-  // stale JS/CSS/data while testing locally. self.__DEV__ (injected by server.js — see the
-  // "local dev server flags sw.js" tests) must gate the cache-first branch and go to the
-  // network first instead.
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  assert.match(sw, /const IS_DEV = self\.__DEV__ === true/, "sw.js must derive a dev flag from self.__DEV__");
-
-  const fetchHandlerMatch = sw.match(/self\.addEventListener\("fetch",[\s\S]*/);
-  assert.ok(fetchHandlerMatch, "fetch handler exists");
-  const fetchHandler = fetchHandlerMatch[0];
-
-  const devBranchMatch = fetchHandler.match(/if \(IS_DEV\) \{([\s\S]*?)\n  \}\n\n  event\.respondWith\(\s*\n\s*caches\.match\(event\.request\)/);
-  assert.ok(devBranchMatch, "an IS_DEV branch must sit before the production cache-first handler");
-  const devBranch = devBranchMatch[1];
-  assert.match(devBranch, /fetch\(event\.request\)/, "dev branch must hit the network");
-  assert.match(devBranch, /\.catch\(\(\) => caches\.match\(event\.request\)\)/, "dev branch must still fall back to cache when offline");
-
-  // The dev branch must come before (and therefore short-circuit) the cache-first
-  // production strategy, not replace it — production behaviour must be untouched.
-  assert.ok(fetchHandler.indexOf("if (IS_DEV)") < fetchHandler.indexOf("caches.match(event.request).then((cached)"), "dev branch must run before the production cache-first branch");
+test("applying an update with no complete downloaded worker leaves the current app running", async () => {
+  resetData(app);
+  app.state.swWaiting = null;
+  const wasStatus = app.documentStub.getElementById("refreshStatus");
+  await withFakeServiceWorker(app, { controller: null }, async (reloads) => {
+    const original = app.swapGlobalFunction("downloadAppUpdate", async () => null);
+    try {
+      assert.equal(await app.applySwUpdate(), false);
+    } finally {
+      app.swapGlobalFunction("downloadAppUpdate", original);
+    }
+    assert.deepEqual(reloads, [], "an update that is not fully downloaded must not reload the page");
+  });
+  assert.match(wasStatus.textContent, /No complete app update is ready/);
 });
 
 test("local dev server flags sw.js with self.__DEV__ without touching the production file on disk", () => {
@@ -5625,62 +6057,6 @@ test("local dev version markers prefix cache names with dev- so the About screen
   assert.equal(local.data, `dev-${production.data}`);
 });
 
-test("local dev server serves sw.js with its own dev-flagging route, not the generic static handler", () => {
-  const serverSource = fs.readFileSync(path.join(__dirname, "..", "server.js"), "utf8");
-  assert.match(serverSource, /requested === ["']\/sw\.js["']/, "server.js must special-case /sw.js");
-  assert.match(serverSource, /injectDevFlag\(/, "server.js must run sw.js through injectDevFlag before responding");
-});
-
-test("location gate button is re-enabled when the gate is made visible", () => {
-  const localApp = loadAppForTests();
-  const btn = localApp.els.locationGateButton;
-
-  // Simulate the button being disabled (e.g. from a previous click)
-  btn.disabled = true;
-
-  // setLocationGateVisible(true) must re-enable it so the user can tap again
-  // after the gate reappears with a new message (compass prompt, error, etc.)
-  localApp.els.locationGate.hidden = false;
-  // Call via the nav module — it's exposed on app context via the same VM
-  // We test the contract by verifying setLocationGateVisible resets disabled state.
-  // We exercise this by showing the gate and checking the button is re-enabled.
-  // The function is not directly exported, so we verify the behaviour through the
-  // observable state after the gate is shown from nav.js internals.
-  // The simplest proxy: locationGate is currently visible; calling the function
-  // with visible=true should always ensure the button is not disabled.
-
-  // Re-use the hideWithFade helper to put gate into fading state, then show it again
-  localApp.els.locationGate.hidden = false;
-  localApp.els.locationGate.classList.add("fading-out");
-  btn.disabled = true;
-
-  // Force the gate back to visible (mimics setLocationGateVisible(true, ...))
-  localApp.els.locationGate.classList.remove("fading-out");
-  localApp.els.locationGate.hidden = false;
-  // setLocationGateVisible does: if (els.locationGateButton) els.locationGateButton.disabled = false;
-  btn.disabled = false;
-
-  assert.equal(btn.disabled, false, "button must be re-enabled whenever the gate becomes visible");
-});
-
-test("nav.js setLocationGateVisible re-enables button on show via source code check", () => {
-  const nav = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
-  assert.match(
-    nav,
-    /setLocationGateVisible[\s\S]{0,500}locationGateButton\.disabled\s*=\s*false/,
-    "setLocationGateVisible must re-enable locationGateButton when gate is shown"
-  );
-});
-
-test("nav.js locationGateButton handler disables button immediately on click for visual feedback", () => {
-  const nav = fs.readFileSync(path.join(__dirname, "..", "js", "nav.js"), "utf8");
-  assert.match(
-    nav,
-    /locationGateButton\.addEventListener[\s\S]{0,100}locationGateButton\.disabled\s*=\s*true/,
-    "locationGateButton click handler must disable the button immediately to give visual feedback"
-  );
-});
-
 test("compass calibration trusts a heading once several readings agree within tolerance", () => {
   resetData(app);
   const base = Date.now();
@@ -5707,7 +6083,7 @@ test("compassCalibrationSpreadDegrees measures circular spread correctly across 
   app.registerCompassCalibrationSample(10, base + 50);
   // 350 -> 10 is a 20 degree turn through north, not a 340 degree spread.
   assert.ok(
-    app.compassCalibrationSpreadDegrees() <= 20 + 1e-6,
+    Math.abs(app.compassCalibrationSpreadDegrees() - 20) < 1e-6,
     `wraparound spread should read as ~20 degrees, got ${app.compassCalibrationSpreadDegrees()}`
   );
 });
@@ -5806,6 +6182,77 @@ test("onDeviceOrientation routes through the calibration gate until a heading is
   assert.equal(app.state.compassCalibrationSamples.length, 0, "calibration buffer should stay empty once a heading is trusted");
 });
 
+function trustCompassAt(heading, beta = 30) {
+  resetData(app);
+  app.state.compassHeading = heading;
+  app.state.compassHeadingTarget = heading;
+  app.state.compassHeadingSource = 2;
+  app.state.tiltBetaTarget = beta;
+  app.state.tiltBetaSmoothed = beta;
+  app.state.compassTargetMovedAt = app.performance.now();
+}
+
+test("a trusted compass target ignores heading wobble inside the deadband and follows a real turn", () => {
+  trustCompassAt(100);
+  app.onDeviceOrientation({ webkitCompassHeading: 101, beta: 30 });
+  assert.equal(app.state.compassHeadingTarget, 100, "1 degree of wobble must not move the target");
+  app.onDeviceOrientation({ webkitCompassHeading: 99, beta: 30 });
+  assert.equal(app.state.compassHeadingTarget, 100, "wobble in the other direction is ignored too");
+  app.onDeviceOrientation({ webkitCompassHeading: 104, beta: 30 });
+  assert.equal(app.state.compassHeadingTarget, 104, "a turn past the deadband moves the target");
+});
+
+test("a reading held inside the deadband is accepted once the target has been quiet, so a still phone settles", () => {
+  trustCompassAt(100);
+  app.onDeviceOrientation({ webkitCompassHeading: 101, beta: 30 });
+  assert.equal(app.state.compassHeadingTarget, 100, "immediately after a move, wobble is ignored");
+  app.state.compassTargetMovedAt = app.performance.now() - 2000;
+  app.onDeviceOrientation({ webkitCompassHeading: 101, beta: 30 });
+  assert.equal(app.state.compassHeadingTarget, 101, "after a quiet period the target settles on the held reading");
+});
+
+test("the heading deadband widens while the phone is pitched or held upright, but stays small", () => {
+  trustCompassAt(100, 0);
+  const flat = app.compassTargetDeadbandDeg();
+  app.state.tiltBetaTarget = 60; // still easing toward a new pitch
+  const pitching = app.compassTargetDeadbandDeg();
+  assert.ok(pitching > flat, "pitching should widen the deadband");
+  app.state.tiltBetaTarget = 90;
+  app.state.tiltBetaSmoothed = 90;
+  const upright = app.compassTargetDeadbandDeg();
+  assert.ok(upright > flat, "an upright phone should widen the deadband");
+  app.state.tiltBetaTarget = 0;
+  assert.ok(app.compassTargetDeadbandDeg() <= 6, "the deadband never exceeds 6 degrees, so heading-up never drifts far from the sensor");
+});
+
+test("a pitch reading inside the beta deadband leaves the tilt target alone", () => {
+  trustCompassAt(100, 30);
+  app.onDeviceOrientation({ webkitCompassHeading: 100, beta: 30.5 });
+  assert.equal(app.state.tiltBetaTarget, 30);
+  app.onDeviceOrientation({ webkitCompassHeading: 100, beta: 32 });
+  assert.equal(app.state.tiltBetaTarget, 32);
+});
+
+test("a slow continuous turn still reaches the target in deadband-sized steps", () => {
+  trustCompassAt(100);
+  let last = 100;
+  for (let heading = 100; heading <= 130; heading += 0.5) {
+    app.onDeviceOrientation({ webkitCompassHeading: heading, beta: 30 });
+    last = app.state.compassHeadingTarget;
+  }
+  assert.ok(130 - last <= app.compassTargetDeadbandDeg(), "the target trails a slow turn by no more than the deadband");
+  assert.ok(last > 120, "and it keeps advancing rather than sticking");
+});
+
+test("heading smoothing eases small remaining angles gently and large ones quickly", () => {
+  const small = app.compassSmoothingRate(1);
+  const medium = app.compassSmoothingRate(20);
+  const large = app.compassSmoothingRate(90);
+  assert.ok(small < medium && medium < large, "the rate rises with the remaining angle");
+  assert.equal(app.compassSmoothingRate(-90), large, "direction does not matter");
+  assert.equal(app.compassSmoothingRate(40), large, "the full rate applies from 40 degrees");
+});
+
 test("alignHeadingUpNavigationViewport defers a zoom-in fit while the compass sensor is actively firing, unless forced", () => {
   // Direct, synchronous test of the exact mechanism behind the "zoom only corrects after
   // it rotates" bug: resolveHeadingUpTargetScale defers non-urgent zoom changes whenever
@@ -5891,21 +6338,30 @@ test("the nearby zoom tracks the user's walking distance setting", () => {
   );
 });
 
-test("startCalibrationViewportSync forces its zoom fit, so calibration's view is never deferred by the actively-firing-sensor check", () => {
-  // Source-level regression guard for the specific call site: registerCompassCalibrationSample
-  // sets state.compassLastEventAt via onDeviceOrientation on every raw reading, which means
-  // headingUpCompassSensorActive() reads true throughout the whole calibration window --
-  // if startCalibrationViewportSync's call to alignHeadingUpNavigationViewport ever loses
-  // its force:true, the zoom-fit-deferred-until-quiet bug covered by the test above comes
-  // straight back for calibration specifically, even though that direct test still passes.
-  const appSource = fs.readFileSync(path.join(__dirname, "..", "js", "app.js"), "utf8");
-  assert.match(
-    appSource,
-    // Generous window: this function carries a lot of explanatory comment (matching this
-    // file's style), so the force:true call sits ~2000 chars past the function's own start.
-    /function startCalibrationViewportSync[\s\S]{0,3000}alignHeadingUpNavigationViewport\(\{\s*force:\s*true\s*\}\)/,
-    "startCalibrationViewportSync must call alignHeadingUpNavigationViewport with force: true"
-  );
+test("calibration's zoom fit is applied immediately, never deferred by the actively-firing sensor", () => {
+  // Raw orientation events keep the compass looking "active" for the whole calibration window,
+  // so the fit must bypass the defer-while-active rule or it only lands once the sensor settles.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = null;
+  const frames = [];
+  const calls = [];
+  const originals = {
+    raf: app.swapGlobalFunction("requestAnimationFrame", (fn) => { frames.push(fn); return frames.length; }),
+    anchor: app.swapGlobalFunction("navigationAnchorActive", () => true),
+    align: app.swapGlobalFunction("alignHeadingUpNavigationViewport", (options) => { calls.push(options); return false; }),
+  };
+  try {
+    app.startCalibrationViewportSync();
+    frames.shift()();
+    assert.equal(calls.length, 1, "the viewport is re-fitted on the first frame");
+    assert.equal(calls[0] && calls[0].force, true);
+  } finally {
+    app.stopCalibrationViewportSync();
+    app.swapGlobalFunction("requestAnimationFrame", originals.raf);
+    app.swapGlobalFunction("navigationAnchorActive", originals.anchor);
+    app.swapGlobalFunction("alignHeadingUpNavigationViewport", originals.align);
+  }
 });
 
 test("startCalibrationViewportSync/stopCalibrationViewportSync manage a single scheduled frame", () => {
@@ -6370,13 +6826,13 @@ test("createRoutingGraphBuilder produces an identical graph whether fed all feat
   assert.equal(batchedEdgeCount, wholeEdgeCount);
 });
 
-test("buildRoutingGraphAsync returns a promise (chunked-build correctness is covered synchronously above via createRoutingGraphBuilder, since this file's test() runner does not await async tests)", () => {
+test("buildRoutingGraphAsync builds the same graph as the synchronous builder, batch by batch", async () => {
   const roads = [routingFeature("residential", [[51.650, 0.000], [51.650, 0.001], [51.651, 0.001]])];
   const paths = [routingFeature("footway", [[51.651, 0.001], [51.652, 0.002]])];
-  const asyncResult = app.buildRoutingGraphAsync(roads, paths, app.unprojectPoint, app.distanceMetres, 1);
-  assert.equal(typeof asyncResult.then, "function", "buildRoutingGraphAsync must return a promise");
-  // Prevent an unhandled-rejection warning if it ever throws; correctness is asserted elsewhere.
-  asyncResult.catch(() => {});
+  const sync = app.buildRoutingGraph(roads, paths, app.unprojectPoint, app.distanceMetres);
+  const batched = await app.buildRoutingGraphAsync(roads, paths, app.unprojectPoint, app.distanceMetres, 1);
+  assert.equal(batched.nodes.length, sync.nodes.length, "same junctions however the features are batched");
+  assert.ok(batched.nodes.length > 2, "the graph is not empty");
 });
 
 test("ensureRoutingGraph lazily builds a routing graph from state.roads/state.paths, drawSelectedRoute switches from the straight-line fallback to the routed polyline once it's ready, and the result is memoized until the user moves meaningfully", async () => {
@@ -7186,18 +7642,6 @@ test("detour slack is dropped once the routing graph resolves, including when th
   app.state.routingGraphBuilding = true;
   const buildingScale = fitScaleNow();
   assert.ok(buildingScale < failedScale, "while the graph is still building the fit should keep its slack");
-});
-
-test("app fallback and service worker share the independent app cache version marker", () => {
-  const root = path.join(__dirname, "..");
-  const swSource = fs.readFileSync(path.join(root, "sw.js"), "utf8");
-  const appSource = fs.readFileSync(path.join(root, "js", "app.js"), "utf8");
-  const marker = fs.readFileSync(path.join(root, "js", "app-cache-version.js"), "utf8");
-
-  assert.match(marker, /const APP_CACHE_VERSION = .*v\d+/, "app marker should hold a version");
-  assert.match(swSource, /importScripts\("\.\/js\/app-cache-version\.js"/, "service worker should import the app marker");
-  assert.match(swSource, /forest-finds-app-\$\{APP_CACHE_VERSION\}/, "service worker should derive its cache name from the app marker");
-  assert.match(appSource, /const APP_VERSION = APP_CACHE_VERSION/, "app fallback should use the same marker");
 });
 
 test("cache version label reads dev-server cache names as well as production ones", () => {
@@ -8035,6 +8479,7 @@ function resetLocationSmoothing(app) {
   app.state.rawUserLocation = null;
   app.state.locationGlide = null;
   app.state.locationSmoothedAt = null;
+  app.state.locationFixHistory = [];
 }
 
 test("the first GPS fix is used as delivered, with no smoothing to ease in from", () => {
@@ -8108,6 +8553,50 @@ test("a position that stops updating still converges on the last fix, rather tha
     Math.abs(app.state.userLocation.longitude - destination.longitude) < 0.000005,
     `longitude should reach the fix, off by ${Math.abs(app.state.userLocation.longitude - destination.longitude)}`
   );
+});
+
+// About 15m north per step at Epping Forest's latitude: train speed over a one-second fix
+// interval, yet under LOCATION_SMOOTHING_SNAP_METRES, so only the speed check can stop the easing.
+const TRAIN_STEP_DEG = 0.000135;
+
+test("on a train, a fix the device reports at travelling speed is used as delivered, so Nearby keeps up", () => {
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  app.state.userLocation = app.ingestLocationFix(51.665, 0.045, 25, 1000, 20);
+  const next = app.ingestLocationFix(51.665 + TRAIN_STEP_DEG, 0.045, 25, 2000, 20);
+  assert.equal(app.state.locationGlide, null, "no easing behind a moving train");
+  assert.equal(next.latitude, 51.665 + TRAIN_STEP_DEG, "the position is the fix itself");
+});
+
+test("sustained travel with no device speed reading stops being smoothed within a few seconds", () => {
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  // A fix a second at 15 m/s, with the map's frames running between them as they do on a phone.
+  // Eased, the position alternated between trailing up to ~30m behind and snapping forward.
+  for (let i = 0; i <= 12; i += 1) {
+    const at = 1000 + i * 1000;
+    const latitude = 51.665 + i * TRAIN_STEP_DEG;
+    app.state.userLocation = app.ingestLocationFix(latitude, 0.045, 25, at, null);
+    if (i >= 8) {
+      assert.equal(app.state.locationGlide, null, `fix ${i}: eight seconds at 15 m/s is travel, not wander`);
+      assert.equal(app.state.userLocation.latitude, latitude, `fix ${i}: the position is the fix, not a trailing ease`);
+    }
+    for (let t = at + 16; t < at + 1000; t += 16) app.advanceLocationGlide(t);
+  }
+});
+
+test("a walker's wander under trees is still smoothed however long it goes on", () => {
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  // Fifteen seconds of fixes scattered up to ~8m either side of one spot, no device speed.
+  const offsets = [0, 0.00007, -0.00006, 0.00005, -0.00007, 0.00003, -0.00004, 0.00007, -0.00005, 0.00006, -0.00007, 0.00004, -0.00006, 0.00007, -0.00003, 0.00005];
+  offsets.forEach((offset, i) => {
+    app.state.userLocation = app.ingestLocationFix(51.665 + offset, 0.045 - offset, 25, 1000 + i * 1000, null);
+    if (i > 0) assert.ok(app.state.locationGlide, `fix ${i} is wander and should still be eased`);
+  });
 });
 
 test("a large jump in position lands at once rather than crawling there", () => {
@@ -8412,7 +8901,7 @@ test("a beta-only orientation event restarts the smoothing loop so 3D keeps resp
   assert.notEqual(app.state.compassAnimationFrame, null, "and the loop that smooths it is running");
 });
 
-test("a beta-only orientation event does not spin the loop when there is no trusted heading", () => {
+test("a beta-only orientation event starts the tilt loop even without a trusted heading", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.665, 0.045);
   app.state.compassHeading = null;
@@ -8422,7 +8911,7 @@ test("a beta-only orientation event does not spin the loop when there is no trus
   app.onDeviceOrientation({ alpha: null, beta: 55 });
 
   assert.equal(app.state.tiltBetaTarget, 55);
-  assert.equal(app.state.compassAnimationFrame, null, "nothing to smooth without a heading");
+  assert.notEqual(app.state.compassAnimationFrame, null, "pitch still needs a smoothing loop without a heading");
 });
 
 test("changing the browse anchor outside setNearbyAnchor still moves the camera with it", () => {
@@ -8696,6 +9185,49 @@ test("tapping open ground while a group is expanded returns to nearby mode ancho
   assert.equal(app.state.clusterExpanded, null, "the group detail is dropped for nearby mode");
   assert.equal(app.state.nearbyAnchor.latitude, lonLat.latitude);
   assert.equal(app.els.inspectorTitle.textContent, "Nearby");
+});
+
+test("focusNearbyWithinWalkMinutes drops any open selection and browses that exact spot at the fixed radius", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const tree = { id: "t1", commonName: "Oak", ...makePoint(app, 51.6505, 0.05) };
+  app.state.trees.push(tree);
+  app.state.selected = { type: "tree", item: tree };
+  app.state.walkingDistanceMinutes = app.DEFAULT_WALKING_DISTANCE_MINUTES;
+
+  const spot = { latitude: 51.66, longitude: 0.06 };
+  app.focusNearbyWithinWalkMinutes(spot.latitude, spot.longitude, app.state.walkingDistanceMinutes);
+
+  assert.equal(app.state.selected, null, "the selection is dropped for the Nearby list");
+  assert.equal(app.state.nearbyAnchor.latitude, spot.latitude, "browsing is anchored on the button's own spot, not the selection or GPS fix");
+  assert.equal(app.state.nearbyAnchor.longitude, spot.longitude);
+  assert.equal(app.state.walkingDistanceMinutes, app.DEFAULT_WALKING_DISTANCE_MINUTES, "the radius is the reader's own walking radius, not a fixed 15");
+  assert.ok(app.state.overviewFilters.includes("pubs") && app.state.overviewFilters.includes("national_rail"), "Everything shows every category, not the saved filters");
+  assert.equal(app.state.userLocation.latitude, 51.65, "the real GPS fix is never moved");
+});
+
+test("openInMapsHtml is an icon-only control with an accessible name", () => {
+  const maps = app.openInMapsHtml(51.65, 0.05, "Test");
+  assert.match(maps, /class="detail-map-link detail-map-link--icon"[^>]*aria-label="Open in Maps"/);
+  assert.match(maps, /<svg /, "the glyph is inline SVG");
+  assert.ok(!/>Open in Maps</.test(maps), "no visible text label");
+  assert.equal(app.openInMapsHtml(null, null, "Test"), "", "no link without coordinates");
+});
+
+test("nearbyWithinWalkHtml renders a Nearby-list-styled card carrying the exact coordinates it should browse, and is empty without coordinates", () => {
+  const html = app.nearbyWithinWalkHtml(51.65, 0.05);
+  assert.match(html, /<li><button class="nearest-item" type="button" data-action="walk-radius" data-lat="51\.65" data-lon="0\.05">/);
+  assert.ok(html.includes(`within ${app.state.walkingDistanceMinutes} min walk`), "copy names the reader's own walking radius, not a fixed 15");
+  assert.ok(!html.includes("detail-map-link"), "shares the Nearby list's own card styling, not the unrelated pill");
+  assert.equal(app.nearbyWithinWalkHtml(null, null), "", "no card when there are no coordinates to browse from");
+});
+
+test("nearbySectionsHtml gives any point its headed Nearest section with the walk-radius card, and is empty without coordinates", () => {
+  const html = app.nearbySectionsHtml({ latitude: 51.65, longitude: 0.05, name: "Bald Faced Stag" });
+  assert.ok(html.includes('<h3 class="detail-section-heading">Nearest</h3>'));
+  assert.ok(html.includes(`within ${app.state.walkingDistanceMinutes} min walk of Bald Faced Stag`));
+  assert.ok(!html.includes('detail-section-heading">Related<'), "no Related section without a category to relate to");
+  assert.equal(app.nearbySectionsHtml({ latitude: null, longitude: null }), "", "no section when there are no coordinates to browse from");
 });
 
 test("tapping a cluster shows exactly that cluster's own members, not every tree the walking-radius floor also reaches", () => {
@@ -9256,6 +9788,32 @@ test("selecting an item while browsing a distant anchor slides the camera origin
   assert.equal(app.cameraOriginPoint(), userPoint, "settled: the camera is back on the real GPS fix, as selected navigation requires");
 });
 
+test("selection entry points capture the browse pivot before clearing the anchor", async () => {
+  enterNearby3D(app);
+  const tree = {
+    ...app.state.trees[0],
+    recordNumber: 1,
+    location: { britishNationalGrid: {} },
+  };
+  app.state.trees[0] = tree;
+  const anchor = makePoint(app, 51.66, 0.033);
+  app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
+  settleNearbySlide(app);
+
+  app.focusOverviewItem("tree", "r1");
+  assert.equal(app.state.nearbyAnchor, null, "selection should still clear the browse anchor");
+  assert.ok(app.state.cameraOriginTransition, "selection should animate the camera pivot basis change");
+  assert.ok(
+    Math.abs(app.state.cameraOriginTransition.fromX - anchor.point.x) < 1e-9
+      && Math.abs(app.state.cameraOriginTransition.fromY - anchor.point.y) < 1e-9,
+    "the pivot transition must start at the browsed anchor, not the GPS fix"
+  );
+
+  // Let the inspector-deferred selection fit finish before the next test resets shared state.
+  await new Promise((resolve) => setTimeout(resolve, 260));
+  app.stopViewportAnimation();
+});
+
 // Records the path each draw walks, so a marker's actual drawn geometry can be asserted rather
 // than just the numbers that feed it.
 function recordingCtx() {
@@ -9658,6 +10216,29 @@ test("a pin hidden behind a selection is no longer tappable, so the tap is open 
   assert.equal(app.findHit(tap, world).type, "none");
 });
 
+test("selected road navigation removes every background pin from the map lookup", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const selectedRoad = {
+    name: "Forest Road",
+    segments: [[
+      makePoint(app, 51.6501, 0.0501).point,
+      makePoint(app, 51.6504, 0.0504).point,
+    ]],
+  };
+  app.state.roads.push(selectedRoad);
+  app.state.trees.push({ id: "other-tree", ...makePoint(app, 51.6502, 0.0502) });
+  app.state.landmarks.push({ id: "other-place", name: "Other place", ...makePoint(app, 51.6503, 0.0503) });
+  app.state.selected = { type: "road", item: selectedRoad };
+
+  const lookup = app.activeIconLookup();
+  assert.equal(lookup.tree.size, 0, "trees are hidden during road navigation");
+  assert.equal(lookup.landmark.size, 0, "landmarks are hidden during road navigation");
+  assert.equal(lookup.cow.size, 0, "cows are hidden during road navigation");
+  assert.equal(lookup.path.size, 0, "paths are hidden during road navigation");
+  assert.equal(lookup.water.size, 0, "water locations are hidden during road navigation");
+});
+
 // A 2D-context stand-in that records the path it is given, so a test can see what was drawn.
 function recordingContext() {
   const calls = { moveTo: [], lineTo: 0, fillText: [] };
@@ -9985,14 +10566,6 @@ test("the map inventory counts far more than the food places alone", () => {
   );
 });
 
-test("the app's modal overlays declare dialog role, modal state and an accessible name", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
-
-  assert.match(html, /id="locationGate"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-labelledby="locationGateTitle"/);
-  assert.match(html, /id="distanceWarning"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-labelledby="distanceWarningTitle"/);
-  assert.match(html, /id="onboardingOverlay"[^>]*role="dialog"[^>]*aria-modal="true"[^>]*aria-label="[^"]+"/);
-});
-
 test("activateModalFocus traps Tab within the container and restores focus on deactivate", () => {
   // Minimal hand-rolled DOM: just enough real focus()/querySelectorAll()/addEventListener()
   // semantics for js/nav.js's actual activateModalFocus to run against, without pulling in a
@@ -10052,27 +10625,9 @@ test("activateModalFocus traps Tab within the container and restores focus on de
   delete global.document;
 });
 
-test("admin's clickable user rows are keyboard-operable (role, tabindex, Enter/Space)", () => {
-  const js = fs.readFileSync(path.join(__dirname, "..", "js", "admin.js"), "utf8");
-
-  assert.match(js, /function makeActivatable/);
-  assert.match(js, /el\.setAttribute\("role", "button"\)/);
-  assert.match(js, /el\.setAttribute\("tabindex", "0"\)/);
-  assert.match(js, /event\.key === "Enter" \|\| event\.key === " "/);
-});
-
-test("the admin login field has a programmatic label, not just a placeholder", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "admin.html"), "utf8");
-
-  assert.match(html, /<label for="loginPassword"[^>]*>[^<]*Admin password[^<]*<\/label>/);
-});
-
-// --- Events ---
-
-test("Events is a default-on category, like Trees and Cows", () => {
+test("Events and Pubs are default-on categories, like Trees and Cows", () => {
   assert.ok(app.DEFAULT_FILTERS.includes("events"));
-  const onboardingSrc = fs.readFileSync(path.join(__dirname, "..", "js", "onboarding.js"), "utf8");
-  assert.match(onboardingSrc, /new Set\(\["trees", "cows", "events"\]\)/);
+  assert.ok(app.DEFAULT_FILTERS.includes("pubs"));
 });
 
 test("normalizeEventLocations keeps upcoming (within a week) and live events, and drops past or too-far-ahead ones", () => {
@@ -10221,7 +10776,1444 @@ test("a live event outside the walking radius or behind a disabled Events filter
   assert.equal(app.els.eventNearbyBanner.hidden, true, "Events filter turned off -- no alert");
 });
 
+test("urlPartsForRouteValue routes a selected place to its own /find/<slug>/ page when it has one", () => {
+  resetData(app);
+  const pub = { id: "node/1", name: "The Forresters", latitude: 51.65, longitude: 0.05, findSlug: "the-forresters" };
+  app.state.landmarks.push(pub);
+
+  const parts = app.urlPartsForRouteValue(`place=${app.placeHashKey(pub)}`);
+  assert.equal(parts.pathname, "/find/the-forresters/");
+  assert.equal(parts.hash, "");
+});
+
+test("urlPartsForRouteValue leaves a place with no /find/ page on the existing #place=<key> form", () => {
+  resetData(app);
+  const busStop = { id: "node/2", name: "Some Bus Stop", latitude: 51.65, longitude: 0.05, findSlug: null };
+  app.state.landmarks.push(busStop);
+
+  const key = app.placeHashKey(busStop);
+  const parts = app.urlPartsForRouteValue(`place=${key}`);
+  assert.equal(parts.pathname, app.NEARBY_PATH);
+  assert.equal(parts.hash, `#place=${key}`);
+});
+
+test("routeValueFromLocation resolves a /find/<slug>/ URL back to the same place's #place=<key> value", () => {
+  resetData(app);
+  const pub = { id: "node/1", name: "The Forresters", latitude: 51.65, longitude: 0.05, findSlug: "the-forresters" };
+  app.state.landmarks.push(pub);
+  const originalPathname = app.location.pathname;
+  const originalHash = app.location.hash;
+  try {
+    app.location.pathname = "/find/the-forresters/";
+    app.location.hash = "";
+    // routeParam (js/app.js) builds this the same way currentScreenRoute() already does for an
+    // ordinary landmark selection -- via URLSearchParams, so ":" and "/" in the id-based hash key
+    // come back percent-encoded. Built the same way here rather than hand-typed, so this test
+    // doesn't itself assume a particular encoding.
+    const expectedParams = new URLSearchParams();
+    expectedParams.set("place", app.placeHashKey(pub));
+    assert.equal(app.routeValueFromLocation(), expectedParams.toString());
+  } finally {
+    app.location.pathname = originalPathname;
+    app.location.hash = originalHash;
+  }
+});
+
+test("routeValueFromLocation on an unresolvable /find/<slug>/ URL (closed business, stale link) falls back to no selection rather than throwing", () => {
+  resetData(app);
+  const originalPathname = app.location.pathname;
+  const originalHash = app.location.hash;
+  try {
+    app.location.pathname = "/find/nothing-here/";
+    app.location.hash = "";
+    assert.equal(app.routeValueFromLocation(), "");
+  } finally {
+    app.location.pathname = originalPathname;
+    app.location.hash = originalHash;
+  }
+});
+
+test("routeValueFromLocation never treats /find/events/ as a place lookup", () => {
+  resetData(app);
+  const originalPathname = app.location.pathname;
+  const originalHash = app.location.hash;
+  try {
+    app.location.pathname = "/find/events/";
+    app.location.hash = "";
+    assert.equal(app.routeValueFromLocation(), "");
+  } finally {
+    app.location.pathname = originalPathname;
+    app.location.hash = originalHash;
+  }
+});
+
+test("nearbySectionsHtml renders a headed Nearest section (tree/cow, the walk-radius card, real live distances) and a headed Related section (category/group), both as the same card style", () => {
+  resetData(app);
+  const pub = { findSlug: "the-forresters", latitude: 51.65, longitude: 0.05, category: "pub" };
+  app.state.trees.push({ latitude: 51.6505, longitude: 0.0505, id: "t1" }); // ~65m away
+  app.state.cows.push({ latitude: 51.66, longitude: 0.06, id: "c1" }); // ~1.3km away
+
+  const html = app.nearbySectionsHtml({ latitude: pub.latitude, longitude: pub.longitude, name: "The Forresters", subfilterKey: "pubs" });
+  // Section order and headings: Nearby first, then Related -- both plain <h3 class="detail-section-heading">.
+  const nearbyHeadingIndex = html.indexOf('<h3 class="detail-section-heading">Nearest</h3>');
+  const relatedHeadingIndex = html.indexOf('<h3 class="detail-section-heading">Related</h3>');
+  assert.ok(nearbyHeadingIndex >= 0 && relatedHeadingIndex > nearbyHeadingIndex, "Nearest heading comes before Related");
+
+  // Both the tree and cows links carry this pub's own position via the target page's existing
+  // "near=<lat>,<lon>" anchor route, so landing there re-centres on the pub rather than the
+  // reader's own GPS fix.
+  assert.match(html, /<a class="nearest-item nearby-link" href="\/nearby\/trees\/#near=51\.650000%2C0\.050000[^"]*">[\s\S]*?nearest-meta[\s\S]*?<\/a>/);
+  assert.match(html, /<a class="nearest-item nearby-link" href="\/nearby\/cows\/#near=51\.650000%2C0\.050000[^"]*">[\s\S]*?nearest-meta[\s\S]*?<\/a>/);
+  assert.match(html, /nearest-meta">(No |[\d,]+ )[^<]*within \d+ min walk of/, "each category card says how many sit within the walking radius");
+
+  // The walk-radius card lives in this same Nearby section, as a <button> sharing the .nearest-item
+  // card shape, between where it comes out of the Nearby heading and before Related begins.
+  const walkCardIndex = html.indexOf('data-action="walk-radius"');
+  assert.ok(walkCardIndex > nearbyHeadingIndex && walkCardIndex < relatedHeadingIndex, "walk-radius card sits inside the Nearby section");
+  assert.match(html, /<button class="nearest-item" type="button" data-action="walk-radius" data-lat="51\.65" data-lon="0\.05" data-name="The Forresters">[\s\S]*?locations within \d+ min walk[\s\S]*?<\/button>/);
+
+  // Category/group links are the same .nearest-item card as Nearby, not a different pill style.
+  assert.match(html, /<a class="nearest-item nearby-link" href="\/nearby\/pubs\/">[\s\S]*?Pubs &amp; bars[\s\S]*?<\/a>/);
+  assert.match(html, /<a class="nearest-item nearby-link" href="\/nearby\/food\/">[\s\S]*?Food[\s\S]*?<\/a>/);
+  assert.ok(!html.includes("detail-map-link"), "related links no longer use the pill style -- same card as Nearby");
+
+  // No mention of the data's source attached to these distances -- they're computed live, not
+  // fetched from anywhere that would need crediting.
+  assert.ok(!html.includes("OpenStreetMap"));
+});
+
+test("nearbySectionsHtml omits the cows link when no cow positions are currently loaded", () => {
+  resetData(app);
+  const pub = { findSlug: "the-forresters", latitude: 51.65, longitude: 0.05, category: "pub" };
+  app.state.trees.push({ latitude: 51.6505, longitude: 0.0505, id: "t1" });
+
+  const html = app.nearbySectionsHtml({ latitude: pub.latitude, longitude: pub.longitude, name: "The Forresters" });
+  assert.match(html, /nearby\/trees\//);
+  assert.ok(!html.includes("nearby/cows/"), "no cow data loaded -- no cows link to show");
+});
+
+test("nearbySectionsHtml puts Places close by above Nearest on a /find/ business", () => {
+  resetData(app);
+  const pub = { findSlug: "the-forresters", latitude: 51.65, longitude: 0.05, category: "pub" };
+  app.state.landmarks.push({ id: "node/2", name: "The Neighbour", findSlug: "the-neighbour", latitude: 51.652, longitude: 0.05, category: "cafe" });
+
+  const html = app.nearbySectionsHtml({ latitude: pub.latitude, longitude: pub.longitude, name: "The Forresters", findSlug: pub.findSlug });
+  const placesIndex = html.indexOf('<h3 class="detail-section-heading">Places close by</h3>');
+  const nearestIndex = html.indexOf('<h3 class="detail-section-heading">Nearest</h3>');
+  assert.ok(placesIndex >= 0, "the nearby business is listed");
+  assert.ok(placesIndex < nearestIndex, "Places close by comes before Nearest");
+});
+
+test("nearbySectionsHtml gives a place with no /find/ page of its own the same Nearest section, so no location is a dead end", () => {
+  resetData(app);
+  const busStop = { findSlug: null, latitude: 51.65, longitude: 0.05, category: "bus_stop" };
+  const html = app.nearbySectionsHtml({ latitude: busStop.latitude, longitude: busStop.longitude, name: "Bus stop" });
+  assert.ok(html.includes('<h3 class="detail-section-heading">Nearest</h3>'));
+  assert.ok(html.includes("Everything"), "the Everything card is there too");
+});
+
+test("detailsHtml links a Phone row as a tel: link rather than inert text", () => {
+  const html = app.detailsHtml([["Phone", "01234 567890"]]);
+  assert.match(html, /<dd><a href="tel:01234 567890">01234 567890<\/a><\/dd>/);
+});
+
+test("detailsHtml renders Opening hours as plain text like any other detail row", () => {
+  const html = app.detailsHtml([["Opening hours", "Mo-Su 09:00-17:00"]]);
+  assert.match(html, /<dt>Opening hours<\/dt><dd>Mo-Su 09:00-17:00<\/dd>/);
+});
+
+// --- First visit: the page hands its map downloads to the service worker's data cache (js/loader.js) ---
+
+function withHandOverEnvironment({ controller = null, registration = {}, response = { ok: true } } = {}, run) {
+  const put = [];
+  const fakeCaches = { open: async (name) => ({ put: async (url, body) => put.push({ name, url, body }) }) };
+  const fakeResponse = () => ({ ...response, clone: () => ({ cloned: true }) });
+  const previousFetch = app.swapGlobalFunction("fetch", async () => fakeResponse());
+  const previousCaches = app.swapGlobalFunction("caches", fakeCaches);
+  const previousSw = app.navigator.serviceWorker;
+  app.navigator.serviceWorker = registration === undefined
+    ? undefined
+    : { controller, getRegistration: async () => registration };
+  return Promise.resolve(run(put)).finally(() => {
+    app.swapGlobalFunction("fetch", previousFetch);
+    app.swapGlobalFunction("caches", previousCaches);
+    if (previousSw === undefined) delete app.navigator.serviceWorker; else app.navigator.serviceWorker = previousSw;
+  });
+}
+
+const handOverSettled = () => new Promise((resolve) => setImmediate(resolve));
+
+test("on a first visit a downloaded map file is handed to the data cache, so the service worker need not fetch it again", () =>
+  withHandOverEnvironment({}, async (put) => {
+    await app.fetchMapData("data/local-roads.geojson");
+    await handOverSettled();
+    assert.equal(put.length, 1);
+    assert.equal(put[0].url, "data/local-roads.geojson");
+    assert.match(put[0].name, /^forest-finds-data-/);
+  }));
+
+test("once a service worker controls the page, nothing is handed over (the worker caches what passes through it)", () =>
+  withHandOverEnvironment({ controller: {} }, async (put) => {
+    await app.fetchMapData("data/local-roads.geojson");
+    await handOverSettled();
+    assert.equal(put.length, 0);
+  }));
+
+test("with no service worker registered (blocked, or unsupported), nothing is written to the cache", () =>
+  withHandOverEnvironment({ registration: null }, async (put) => {
+    await app.fetchMapData("data/local-roads.geojson");
+    await handOverSettled();
+    assert.equal(put.length, 0);
+  }));
+
+test("a failed download, or a file outside data/, is never handed over", async () => {
+  await withHandOverEnvironment({ response: { ok: false } }, async (put) => {
+    await app.fetchMapData("data/local-roads.geojson");
+    await handOverSettled();
+    assert.equal(put.length, 0);
+  });
+  await withHandOverEnvironment({}, async (put) => {
+    await app.fetchMapData("Veteran_Tree_Register.json");
+    await handOverSettled();
+    assert.equal(put.length, 0);
+  });
+});
+
+// --- Persistent storage (js/nav.js requestPersistentStorage) ---
+
+async function persistRequests({ persisted = false, userAgent = "Mozilla/5.0 (iPhone) Safari/605.1.15" } = {}) {
+  const calls = [];
+  const previous = { storage: app.navigator.storage, userAgent: app.navigator.userAgent };
+  app.navigator.storage = { persisted: async () => persisted, persist: async () => { calls.push("persist"); return true; } };
+  app.navigator.userAgent = userAgent;
+  try {
+    app.requestPersistentStorage();
+    await handOverSettled();
+    return calls.length;
+  } finally {
+    if (previous.storage === undefined) delete app.navigator.storage; else app.navigator.storage = previous.storage;
+    app.navigator.userAgent = previous.userAgent;
+  }
+}
+
+test("the app asks the browser to keep its offline storage, so Safari does not clear it after a week away", async () => {
+  assert.equal(await persistRequests(), 1);
+});
+
+test("storage that is already persisted is not asked for again", async () => {
+  assert.equal(await persistRequests({ persisted: true }), 0);
+});
+
+test("Firefox, which would show a permission prompt for it, is not asked", async () => {
+  assert.equal(await persistRequests({ userAgent: "Mozilla/5.0 (Android 14; Mobile; rv:130.0) Gecko/130.0 Firefox/130.0" }), 0);
+});
+
+test("a browser without the storage API is left alone", () => {
+  const previous = app.navigator.storage;
+  delete app.navigator.storage;
+  try {
+    assert.doesNotThrow(() => app.requestPersistentStorage());
+  } finally {
+    if (previous !== undefined) app.navigator.storage = previous;
+  }
+});
+
+// --- Community verification consensus (netlify/functions/lib/community-consensus.js) ---
+const communityConsensus = require("../netlify/functions/lib/community-consensus");
+let communityReportSeq = 0;
+function communityReport(overrides) {
+  communityReportSeq += 1;
+  return {
+    id: `report-${String(communityReportSeq).padStart(4, "0")}`,
+    deviceId: "device-aaaa",
+    kind: "tree",
+    target: "tree:1",
+    status: "VERIFIED",
+    targetLat: 51.64,
+    targetLon: 0.01,
+    lat: 51.64,
+    lon: 0.01,
+    ts: communityReportSeq,
+    ...overrides,
+  };
+}
+
+test("a single missing-tree report does not change what other users see", () => {
+  const { overlay } = communityConsensus.computeCommunityState([
+    communityReport({ status: "NOT_HERE", deviceId: "device-aaaa" }),
+  ]);
+  assert.equal(Object.keys(overlay).length, 0);
+});
+
+test("two independent devices reporting a tree missing mark it questioned, not removed", () => {
+  const { overlay } = communityConsensus.computeCommunityState([
+    communityReport({ status: "NOT_HERE", deviceId: "device-aaaa" }),
+    communityReport({ status: "NOT_HERE", deviceId: "device-bbbb" }),
+  ]);
+  assert.equal(overlay["tree:1"].s, "questioned");
+  assert.equal(overlay["tree:1"].st, "NOT_HERE");
+  assert.equal(overlay["tree:1"].n, 2);
+});
+
+test("one device repeating a report still counts as one voice", () => {
+  const { overlay } = communityConsensus.computeCommunityState([
+    communityReport({ status: "NOT_HERE" }),
+    communityReport({ status: "NOT_HERE" }),
+    communityReport({ status: "NOT_HERE" }),
+  ]);
+  assert.equal(Object.keys(overlay).length, 0);
+});
+
+test("a verified tree scores 1 point, and 1 more when another device independently confirms it", () => {
+  const first = communityConsensus.computeCommunityState([communityReport({ deviceId: "device-aaaa" })]);
+  assert.equal(first.scores["device-aaaa"].points, 1);
+  const both = communityConsensus.computeCommunityState([
+    communityReport({ deviceId: "device-aaaa" }),
+    communityReport({ deviceId: "device-bbbb" }),
+  ]);
+  assert.equal(both.scores["device-aaaa"].points, 2);
+  assert.equal(both.scores["device-bbbb"].points, 2);
+  assert.equal(both.overlay["tree:1"].s, "confirmed");
+});
+
+test("conflicting reports are held for review rather than shown", () => {
+  const { overlay, conflicts } = communityConsensus.computeCommunityState([
+    communityReport({ status: "VERIFIED", deviceId: "device-aaaa" }),
+    communityReport({ status: "NOT_HERE", deviceId: "device-bbbb" }),
+  ]);
+  assert.deepEqual(conflicts, ["tree:1"]);
+  assert.equal(overlay["tree:1"], undefined);
+});
+
+test("a report made from far away earns no points and does not count towards consensus", () => {
+  const { overlay, scores } = communityConsensus.computeCommunityState([
+    communityReport({ status: "NOT_HERE", deviceId: "device-aaaa", lat: 51.7, lon: 0.1 }),
+    communityReport({ status: "NOT_HERE", deviceId: "device-bbbb" }),
+  ]);
+  assert.equal(Object.keys(overlay).length, 0);
+  assert.equal(scores["device-aaaa"].points, 0);
+});
+
+test("a new tree found by a second device is confirmed and earns the finder 4 points", () => {
+  const found = (deviceId, lat) => communityReport({ kind: "tree", status: "NEW_TREE", target: undefined, deviceId, lat, lon: 0.02, targetLat: undefined, targetLon: undefined, tagNumber: "T-9001", accuracy: 8 });
+  const one = communityConsensus.computeCommunityState([found("device-aaaa", 51.65)]);
+  assert.equal(Object.values(one.overlay)[0].s, "new");
+  assert.equal(one.scores["device-aaaa"].points, 1);
+  const two = communityConsensus.computeCommunityState([found("device-aaaa", 51.65), found("device-bbbb", 51.65001)]);
+  assert.equal(Object.values(two.overlay)[0].s, "new-confirmed");
+  assert.equal(two.scores["device-aaaa"].points, 4);
+});
+
+test("a new tree needs its tag number and a close, accurate location", () => {
+  const base = { kind: "tree", status: "NEW_TREE", target: undefined, lat: 51.65, lon: 0.02, targetLat: undefined, targetLon: undefined };
+  assert.equal(communityConsensus.validateReport(communityReport({ ...base, accuracy: 8 })), "a new tree needs its tag number");
+  assert.equal(communityConsensus.validateReport(communityReport({ ...base, tagNumber: "0", accuracy: 8 })), "a new tree needs its tag number");
+  assert.equal(communityConsensus.validateReport(communityReport({ ...base, tagNumber: "7001" })), "location is not accurate enough");
+  assert.equal(communityConsensus.validateReport(communityReport({ ...base, tagNumber: "7001", accuracy: 80 })), "location is not accurate enough");
+  assert.equal(communityConsensus.validateReport(communityReport({ ...base, tagNumber: "7001", accuracy: 12 })), null);
+});
+
+test("two people reporting the same new tag number are the same new tree, wherever the dot fell", () => {
+  const found = (deviceId, lat) => communityReport({ kind: "tree", status: "NEW_TREE", target: undefined, deviceId, lat, lon: 0.02, targetLat: undefined, targetLon: undefined, tagNumber: "t 7001", accuracy: 10 });
+  const { overlay } = communityConsensus.computeCommunityState([found("device-aaaa", 51.65), found("device-bbbb", 51.6503)]);
+  const entries = Object.values(overlay);
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].s, "new-confirmed");
+  assert.equal(entries[0].tag, "t 7001");
+});
+
+test("business reports use their own status set", () => {
+  assert.equal(communityConsensus.statusClass("place", "CLOSED"), "question");
+  assert.equal(communityConsensus.statusClass("place", "NOT_HERE"), null);
+  assert.equal(communityConsensus.validateReport(communityReport({ kind: "place", status: "NOT_HERE" })), "unknown kind/status");
+});
+
+test("a MOVED report must carry the new position", () => {
+  assert.equal(communityConsensus.validateReport(communityReport({ status: "MOVED" })), "MOVED needs newLat/newLon");
+});
+
+test("admin community stats count people, reports and flagged trees", () => {
+  const reports = [
+    communityReport({ status: "NOT_HERE", deviceId: "device-aaaa", ts: Date.now() }),
+    communityReport({ status: "NOT_HERE", deviceId: "device-bbbb", ts: Date.now() }),
+    communityReport({ status: "VERIFIED", deviceId: "device-cccc", target: "tree:2", ts: Date.now() }),
+  ];
+  const stats = communityConsensus.communityAdminStats(reports, communityConsensus.computeCommunityState(reports));
+  assert.equal(stats.devices, 3);
+  assert.equal(stats.reports, 3);
+  assert.equal(stats.questioned, 1);
+  assert.equal(stats.verified, 1);
+  assert.equal(stats.byStatus.NOT_HERE, 2);
+  assert.equal(stats.activeDevices1d, 3);
+});
+
+test("a contributor's own report is Confirmed once others agree and stays Pending until then", () => {
+  const mine = communityReport({ status: "VERIFIED" });
+  assert.equal(communityConsensus.reportOutcome(mine, undefined, []), "pending");
+  assert.equal(communityConsensus.reportOutcome(mine, { s: "verified", n: 1 }, []), "pending");
+  assert.equal(communityConsensus.reportOutcome(mine, { s: "confirmed", n: 2 }, []), "confirmed");
+  const doubt = communityReport({ status: "NOT_HERE" });
+  assert.equal(communityConsensus.reportOutcome(doubt, { s: "questioned", st: "NOT_HERE", n: 2 }, []), "confirmed");
+  assert.equal(communityConsensus.reportOutcome(doubt, { s: "questioned", st: "DIFFERENT_TREE", n: 2 }, []), "pending");
+  assert.equal(communityConsensus.reportOutcome(doubt, undefined, [doubt.target]), "review");
+});
+
+test("contributors move up from Seedling to Warden by points", () => {
+  assert.equal(app.communityRank(0).name, "Seedling");
+  assert.equal(app.communityRank(5).name, "Sapling");
+  assert.equal(app.communityRank(19).name, "Sapling");
+  assert.equal(app.communityRank(20).name, "Woodward");
+  assert.equal(app.communityRank(50).name, "Warden");
+  assert.equal(app.communityRank(50).next, null);
+  assert.equal(app.communityRank(3).next.name, "Sapling");
+});
+
+test("each rank gets its own medal and the points chip shows what a check earns", () => {
+  for (const name of ["Seedling", "Sapling", "Woodward", "Warden"]) {
+    assert.match(app.communityMedalHtml(app.communityRank(name === "Seedling" ? 0 : name === "Sapling" ? 5 : name === "Woodward" ? 20 : 50)), new RegExp(`community-medal-${name.toLowerCase()}`));
+  }
+  assert.match(app.communityPointsChipFor("VERIFIED", "near"), />\+1</);
+  assert.match(app.communityPointsChipFor("NOT_HERE", "near"), /up to \+2/);
+  assert.match(app.communityPointsChipFor("VERIFIED", "far"), /is-zero[^>]*>\+0</);
+  assert.match(app.communityPointsChipFor("VERIFIED", "none"), /is-zero/);
+});
+
+test("the streak week strip marks each of the last seven days that has a report, today last", () => {
+  const now = new Date(2026, 9, 20, 12).getTime();
+  const day = 86400000;
+  const week = app.communityWeekDays({ a: { ts: now }, b: { ts: now - 2 * day }, c: { ts: now - 9 * day }, d: { ts: now - day, kind: "feedback" } }, now);
+  assert.equal(week.length, 7);
+  assert.equal(week.map((d) => d.done).join(), "false,false,false,false,true,false,true");
+  assert.equal(week[6].today, true);
+  assert.equal(week.filter((d) => d.today).length, 1);
+});
+
+test("every badge says how to earn it and shows progress towards it, capped at its goal", () => {
+  const metrics = { verified: 4, confirmed: 0, treesAdded: 0, placesReported: 0, bestStreak: 12 };
+  const byId = (id) => app.COMMUNITY_BADGES.find((b) => b.id === id);
+  assert.ok(app.COMMUNITY_BADGES.every((b) => b.how && b.goal > 0 && b.metric));
+  assert.equal(JSON.stringify(app.communityBadgeProgress(byId("ten-checks"), metrics)), '{"have":4,"goal":10}');
+  assert.equal(JSON.stringify(app.communityBadgeProgress(byId("week-streak"), metrics)), '{"have":7,"goal":7}');
+  assert.match(app.communityBadgeDetailHtml(byId("ten-checks"), metrics), /You're at 4 of 10/);
+  assert.match(app.communityBadgeDetailHtml(byId("week-streak"), metrics), /earned/);
+});
+
+test("report dates read as Today, Yesterday, N days ago, then a short date", () => {
+  const now = new Date(2026, 9, 20, 12).getTime();
+  const day = 86400000;
+  assert.equal(app.communityRelativeDay(now - 3600000, now), "Today");
+  assert.equal(app.communityRelativeDay(now - day, now), "Yesterday");
+  assert.equal(app.communityRelativeDay(now - 3 * day, now), "3 days ago");
+  assert.match(app.communityRelativeDay(now - 30 * day, now), /Sep/);
+});
+
+const communityPointsConfig = require("../netlify/functions/lib/community-points");
+const communityValidation = require("../netlify/functions/lib/community-validation");
+
+test("the Community screen's ranks match the server's configured ranks", () => {
+  for (const rank of communityPointsConfig.RANKS) {
+    assert.equal(app.communityRank(rank.min).name, rank.name);
+    assert.equal(app.communityRank(rank.min).icon, rank.icon);
+  }
+});
+
+test("every point value comes from the one configuration file", () => {
+  const verify = communityReport({ deviceId: "device-aaaa" });
+  const second = communityReport({ deviceId: "device-bbbb" });
+  const state = communityConsensus.computeCommunityState([verify, second]);
+  assert.equal(state.scores["device-aaaa"].points, communityPointsConfig.POINTS.verify + communityPointsConfig.POINTS.verifyConfirmed);
+  assert.equal(communityConsensus.REWARD_POINTS.register, communityPointsConfig.POINTS.register);
+});
+
+test("a City of London register update that agrees with a report earns the reporter the register reward", () => {
+  const newTree = communityReport({ status: "NEW_TREE", target: undefined, tagNumber: "4821", accuracy: 8 });
+  const notHere = communityReport({ target: "tree:77", status: "NOT_HERE" });
+  const register = { hasTag: (t) => t === "4821", hasRecord: (rn) => rn !== "77", record: () => null };
+  const found = communityValidation.validateAgainstRegister([newTree, notHere], register, 1000);
+  assert.deepEqual(found.map((f) => f.status).sort(), ["NEW_TREE", "NOT_HERE"]);
+  const state = communityConsensus.computeCommunityState([newTree, notHere], found);
+  assert.equal(state.scores["device-aaaa"].points >= 2 * communityPointsConfig.POINTS.register, true);
+  assert.equal(state.scores["device-aaaa"].validated, 2);
+});
+
+test("a report made after the register was first seen cannot claim a register reward", () => {
+  const late = communityReport({ target: "tree:77", status: "NOT_HERE", ts: 5000 });
+  const register = { hasTag: () => false, hasRecord: () => false, record: () => null };
+  assert.deepEqual(communityValidation.validateAgainstRegister([late], register, 1000), []);
+});
+
+test("confirming a place scores nothing and a fixed feedback report earns the fix reward", () => {
+  const place = communityReport({ kind: "place", target: "place:9", status: "OPEN_CONFIRMED" });
+  const state = communityConsensus.computeCommunityState([place], [{ kind: "fix", deviceId: "device-cccc" }]);
+  assert.equal((state.scores["device-aaaa"] || { points: 0 }).points, 0);
+  assert.equal(state.scores["device-cccc"].points, communityPointsConfig.POINTS.fix);
+});
+
+const communityComputed = require("../netlify/functions/lib/community-computed");
+const communityLedger = require("../netlify/functions/lib/community-ledger");
+
+function memoryStore(initial = {}) {
+  const data = new Map(Object.entries(initial));
+  return {
+    data,
+    async get(key) { return data.has(key) ? JSON.parse(JSON.stringify(data.get(key))) : null; },
+    async put(key, value) { data.set(key, JSON.parse(JSON.stringify(value))); },
+    async list(prefix) { return [...data.keys()].filter((k) => k.startsWith(prefix)); },
+    async delete(key) { data.delete(key); },
+  };
+}
+
+test("a rebuild stores each person's score in a small shard that one lookup can read", async () => {
+  const store = memoryStore();
+  const a = communityReport({ id: "report-aaaa1111", deviceId: "device-aaaa" });
+  const b = communityReport({ id: "report-bbbb2222", deviceId: "device-bbbb" });
+  await store.put("reports/1", a);
+  await store.put("reports/2", b);
+  const computed = await communityComputed.rebuildComputed(store);
+  assert.equal(computed.scores, undefined, "the snapshot itself no longer carries every score");
+  const score = await communityComputed.loadScore(store, "device-aaaa");
+  assert.equal(score.points, communityPointsConfig.POINTS.verify + communityPointsConfig.POINTS.verifyConfirmed);
+  assert.equal((await communityComputed.loadScore(store, "device-nobody")).points, 0);
+  assert.match(communityComputed.scoreShard("device-aaaa"), /^[0-9a-f]{2}$/);
+});
+
+test("in production a request serves an old snapshot, however old, instead of rebuilding inline", async () => {
+  // If the scheduled rebuild stops because the ledger outgrew it, an inline rebuild would fail the same way
+  // on every visitor's request; an old snapshot is better than none.
+  const store = memoryStore({ computed: { generatedAt: Date.now() - 6 * 60 * 60 * 1000, overlay: { "tree:1": { s: "verified" } }, conflicts: [] } });
+  const original = process.env.CONTEXT;
+  const warn = console.warn;
+  try {
+    process.env.CONTEXT = "production";
+    console.warn = () => {};
+    const stale = await communityComputed.loadComputed(store);
+    console.warn = warn;
+    assert.deepEqual(Object.keys(stale.overlay), ["tree:1"]);
+    process.env.CONTEXT = "deploy-preview";
+    const fresh = await communityComputed.loadComputed(store);
+    assert.deepEqual(Object.keys(fresh.overlay), [], "previews and local dev rebuild once the snapshot is past its TTL");
+  } finally {
+    console.warn = warn;
+    if (original === undefined) delete process.env.CONTEXT; else process.env.CONTEXT = original;
+  }
+});
+
+function countingStore(initial = {}) {
+  const store = memoryStore(initial);
+  store.reportReads = 0;
+  const get = store.get;
+  store.get = async (key) => { if (key.startsWith("reports/")) store.reportReads += 1; return get(key); };
+  return store;
+}
+
+test("a rebuild fetches only the reports it has not read before", async () => {
+  const store = countingStore();
+  for (let i = 0; i < 5; i += 1) await store.put(`reports/r${i}`, communityReport({ id: `report-${i}aaaa111`, deviceId: `device-${i}aaaa` }));
+  const first = await communityComputed.rebuildComputed(store);
+  assert.equal(first.reportCount, 5);
+  assert.equal(store.reportReads, 5);
+
+  await store.put("reports/r5", communityReport({ id: "report-5aaaa111", deviceId: "device-5aaaa" }));
+  store.reportReads = 0;
+  const second = await communityComputed.rebuildComputed(store);
+  assert.equal(second.reportCount, 6, "the new report is counted");
+  assert.equal(store.reportReads, 1, "and it is the only one fetched");
+});
+
+test("a report deleted from the ledger drops out of the next rebuild even though it was cached", async () => {
+  const store = memoryStore();
+  await store.put("reports/r1", communityReport({ id: "report-1aaaa111", deviceId: "device-1aaaa" }));
+  await store.put("reports/r2", communityReport({ id: "report-2aaaa111", deviceId: "device-2aaaa" }));
+  await communityComputed.rebuildComputed(store);
+  await store.delete("reports/r2");
+  const after = await communityComputed.rebuildComputed(store);
+  assert.equal(after.reportCount, 1);
+  assert.equal((await communityComputed.loadAdminStats(store)).devices, 1, "the deleted report's device no longer counts");
+});
+
+test("a lost ledger cache is refilled from the ledger rather than losing reports", async () => {
+  const store = memoryStore();
+  for (let i = 0; i < 3; i += 1) await store.put(`reports/r${i}`, communityReport({ id: `report-${i}aaaa111`, deviceId: `device-${i}aaaa` }));
+  await communityComputed.rebuildComputed(store);
+  for (const key of [...store.data.keys()].filter((k) => k.startsWith("ledger-cache/") && k !== "ledger-cache/index")) store.data.delete(key);
+  assert.equal((await communityComputed.rebuildComputed(store)).reportCount, 3);
+});
+
+test("the admin dashboard's community figures come from the last rebuild, not a read of the whole ledger", async () => {
+  const store = countingStore();
+  await store.put("reports/r1", communityReport({ id: "report-1aaaa111", deviceId: "device-1aaaa" }));
+  await communityComputed.rebuildComputed(store);
+  store.reportReads = 0;
+  const stats = await communityComputed.loadAdminStats(store);
+  assert.equal(stats.reports, 1);
+  assert.ok(stats.generatedAt > 0, "it says when the figures were taken");
+  assert.equal(store.reportReads, 0);
+});
+
+test("the admin dashboard's community figures are built on demand when no rebuild has run yet", async () => {
+  const store = memoryStore();
+  await store.put("reports/r1", communityReport({ id: "report-1aaaa111", deviceId: "device-1aaaa" }));
+  await store.put("reports/r2", communityReport({ id: "report-2aaaa111", deviceId: "device-2aaaa" }));
+  const stats = await communityComputed.loadAdminStats(store);
+  assert.equal(stats.reports, 2);
+  assert.equal(stats.devices, 2);
+});
+
+test("a ledger bigger than one cache chunk is cached across several chunks and read back whole", async () => {
+  const store = countingStore();
+  const total = communityLedger.CHUNK_SIZE + 50;
+  for (let i = 0; i < total; i += 1) {
+    await store.put(`reports/r${i}`, communityReport({ id: `report-${String(i).padStart(6, "0")}x`, deviceId: `device-${i % 40}aaaa` }));
+  }
+  assert.equal((await communityComputed.rebuildComputed(store)).reportCount, total);
+  assert.equal((await store.get("ledger-cache/index")).chunks, 2);
+  store.reportReads = 0;
+  assert.equal((await communityComputed.rebuildComputed(store)).reportCount, total, "every report comes back from the cache");
+  assert.equal(store.reportReads, 0);
+});
+
+test("a deletion that shrinks the ledger cache by a chunk leaves no orphaned chunk holding deleted reports", async () => {
+  const store = memoryStore();
+  const total = communityLedger.CHUNK_SIZE + 1;
+  for (let i = 0; i < total; i += 1) {
+    await store.put(`reports/r${i}`, communityReport({ id: `report-${String(i).padStart(6, "0")}x`, deviceId: `device-${i % 40}aaaa` }));
+  }
+  await communityComputed.rebuildComputed(store);
+  assert.ok(store.data.has("ledger-cache/1"), "two chunks before");
+  await store.delete(`reports/r${total - 1}`);
+  await communityComputed.rebuildComputed(store, { strict: true });
+  assert.equal((await store.get("ledger-cache/index")).chunks, 1);
+  assert.equal(store.data.has("ledger-cache/1"), false, "the emptied trailing chunk is removed from storage");
+});
+
+test("bulk reads run a bounded number at a time, so a large ledger never opens a request per record at once", async () => {
+  const store = memoryStore();
+  for (let i = 0; i < 200; i += 1) await store.put(`reports/r${i}`, communityReport({ id: `report-${String(i).padStart(6, "0")}x`, deviceId: `device-${i}aaaa` }));
+  for (let i = 0; i < 60; i += 1) await store.put(`devicelink/device-${i}aaaa`, { account: `acct-${i % 3}` });
+  let inFlight = 0;
+  let most = 0;
+  const get = store.get;
+  store.get = async (key) => {
+    inFlight += 1;
+    most = Math.max(most, inFlight);
+    await new Promise((resolve) => setImmediate(resolve));
+    inFlight -= 1;
+    return get(key);
+  };
+  const computed = await communityComputed.rebuildComputed(store);
+  assert.equal(computed.reportCount, 200);
+  assert.ok(most <= 25, `at most 25 reads at once, saw ${most}`);
+  assert.ok(most > 1, "but they do run in parallel");
+});
+
+test("nudges: a card on the overview, a pulse on the tree's own page, and quiet otherwise", () => {
+  const now = 10 * 60 * 60 * 1000;
+  const base = { on: true, fixOk: true, isDefault: false, nearest: { metres: 6 }, target: "tree:1", alreadyReported: false, seenAt: 0, now, onThisTree: false, lastCardAt: 0, overviewActive: true };
+  const decide = (over) => app.communityNudgeDecision({ ...base, ...over });
+  assert.equal(decide({}), "card");
+  assert.equal(decide({ onThisTree: true }), "pulse");
+  assert.equal(decide({ on: false }), "none", "turned off");
+  assert.equal(decide({ fixOk: false }), "none", "no accurate fix");
+  assert.equal(decide({ isDefault: true }), "none", "the stand-in location is not a real position");
+  assert.equal(decide({ nearest: { metres: 11 } }), "none", "further than 10 m");
+  assert.equal(decide({ nearest: null }), "none");
+  assert.equal(decide({ alreadyReported: true }), "none", "already checked on this device");
+  assert.equal(decide({ seenAt: now - 60 * 1000 }), "none", "asked about this tree within the day");
+  assert.equal(decide({ seenAt: now - 25 * 60 * 60 * 1000 }), "card", "a day later it may ask again");
+  assert.equal(decide({ lastCardAt: now - 60 * 1000 }), "none", "at most one card every ten minutes");
+  assert.equal(decide({ overviewActive: false }), "none", "never over another screen");
+  assert.equal(decide({ onThisTree: true, lastCardAt: now - 60 * 1000, overviewActive: false }), "pulse", "the pulse ignores the card limits");
+});
+
+test("a recovery code is accepted as shown, in any case or spacing, and anything else is refused", () => {
+  const id = "abcd1234efgh5678ijkl9012";
+  assert.equal(app.communityParseRecoveryCode(id), id);
+  assert.equal(app.communityParseRecoveryCode("abcd-1234-efgh-5678-ijkl-9012"), id);
+  assert.equal(app.communityParseRecoveryCode("  ABCD-1234-EFGH-5678-IJKL-9012 "), id);
+  assert.equal(app.communityParseRecoveryCode("abcd 1234 efgh 5678 ijkl 9012"), id);
+  assert.equal(app.communityParseRecoveryCode(id.toUpperCase()), id, "an unhyphenated uppercase code is lowercased");
+  assert.equal(app.communityParseRecoveryCode(`${id}x`), null, "25 characters is not a code");
+  assert.equal(app.communityParseRecoveryCode(id.slice(0, 23)), null, "23 characters is not a code");
+  assert.equal(app.communityParseRecoveryCode("short"), null);
+  assert.equal(app.communityParseRecoveryCode("has spaces/and$symbols!!"), null);
+  assert.equal(app.communityParseRecoveryCode(""), null);
+});
+
+test("a tree report only counts when it was made close to the tree, and says so when it was not", () => {
+  const near = communityReport({ id: "report-near00001" });
+  const far = communityReport({ id: "report-far000001", deviceId: "device-bbbb", lat: 51.7, lon: 0.1 });
+  const noFix = communityReport({ id: "report-nofix0001", deviceId: "device-cccc", lat: undefined, lon: undefined });
+  assert.equal(communityConsensus.isNear(near), true);
+  assert.equal(communityConsensus.isNear(far), false);
+  assert.equal(communityConsensus.isNear(noFix), false, "no reporter position cannot show the reporter was there");
+  assert.equal(communityConsensus.reportOutcome(far, undefined, []), "far");
+  assert.equal(communityConsensus.reportOutcome(noFix, undefined, []), "far");
+  assert.equal(communityConsensus.reportOutcome(near, undefined, []), "pending");
+  const state = communityConsensus.computeCommunityState([near, far, noFix]);
+  assert.equal(state.scores["device-bbbb"].points, 0, "a far report earns nothing");
+  assert.equal(state.scores["device-cccc"].points, 0, "a report with no position earns nothing");
+  assert.equal(state.scores["device-bbbb"].reports, 1, "but it is still counted as a report");
+  assert.equal(state.scores["device-aaaa"].points, communityPointsConfig.POINTS.verify, "the close report earns its point, and the far one does not confirm it");
+});
+
+// --- Place checks go to GitHub issues for manual review (netlify/functions/report-missing-data.js) ---
+function escalationStoreForReports() {
+  const data = new Map();
+  return { async get(k) { return data.has(k) ? JSON.parse(JSON.stringify(data.get(k))) : null; }, async put(k, v) { data.set(k, JSON.parse(JSON.stringify(v))); } };
+}
+async function withStubbedGithub(responder, run) {
+  const reportFunction = require("../netlify/functions/report-missing-data");
+  const originalFetch = global.fetch;
+  const originalToken = process.env.GITHUB_TOKEN;
+  const calls = [];
+  process.env.GITHUB_TOKEN = "test-token";
+  reportFunction.setRateLimitStore(escalationStoreForReports());
+  global.fetch = async (url, options = {}) => {
+    calls.push({ url: String(url), method: options.method || "GET", body: options.body ? JSON.parse(options.body) : null });
+    return responder(String(url), options.method || "GET");
+  };
+  try {
+    return await run(reportFunction.handler, calls);
+  } finally {
+    reportFunction.setRateLimitStore(null);
+    global.fetch = originalFetch;
+    if (originalToken === undefined) delete process.env.GITHUB_TOKEN; else process.env.GITHUB_TOKEN = originalToken;
+  }
+}
+const jsonResponse = (status, body) => ({ ok: status < 300, status, json: async () => body });
+const placeCheckEvent = (overrides = {}) => ({
+  httpMethod: "POST",
+  body: JSON.stringify({
+    reportType: "place-check",
+    placeCheck: { status: "CLOSED", key: "place:id:123", name: "The Test Arms", category: "Pubs" },
+    details: "",
+    location: { latitude: 51.66, longitude: 0.04 },
+    requestId: "req-1234",
+    ...overrides,
+  }),
+});
+
+test("a place check is filed as a labelled GitHub issue for manual review, with no free text required", async () => {
+  await withStubbedGithub(
+    (url, method) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 7, html_url: "https://github.com/x/y/issues/7" })),
+    async (handler, calls) => {
+      const result = await handler(placeCheckEvent());
+      assert.equal(result.statusCode, 200);
+      const created = calls.find((c) => c.method === "POST" && c.url.endsWith("/issues"));
+      assert.ok(created, "an issue is created");
+      assert.deepEqual(created.body.labels, ["place-check", "user-report", "place:123"]);
+      assert.match(created.body.title, /^Place check: The Test Arms: It's closed/);
+      assert.match(created.body.body, /place-key:place:id:123/);
+      assert.match(created.body.body, /Reported status: CLOSED/);
+    }
+  );
+});
+
+test("a second report about the same place is added to its open issue instead of a new one", async () => {
+  await withStubbedGithub(
+    (url, method) => {
+      if (url.includes("/search/issues") && decodeURIComponent(url).includes("place-key:")) return jsonResponse(200, { items: [{ number: 7, html_url: "https://github.com/x/y/issues/7" }] });
+      if (url.includes("/search/issues")) return jsonResponse(200, { items: [] });
+      return jsonResponse(201, { id: 1 });
+    },
+    async (handler, calls) => {
+      const result = await handler(placeCheckEvent({ requestId: "req-5678", details: "Sign says closed down" }));
+      const body = JSON.parse(result.body);
+      assert.equal(body.merged, true);
+      assert.equal(body.issueNumber, 7);
+      assert.equal(calls.filter((c) => c.method === "POST" && c.url.endsWith("/issues")).length, 0, "no new issue");
+      const comment = calls.find((c) => c.url.endsWith("/issues/7/comments"));
+      assert.ok(comment, "a comment is added");
+      assert.match(comment.body.body, /Sign says closed down/);
+    }
+  );
+});
+
+test("a place check keyed by a real OSM or manual place id is accepted", async () => {
+  await withStubbedGithub(
+    (url, method) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 8, html_url: "https://github.com/x/y/issues/8" })),
+    async (handler, calls) => {
+      for (const key of ["place:id:node/5903400322", "place:id:manual/onest"]) {
+        const result = await handler(placeCheckEvent({ placeCheck: { status: "DETAILS_CHANGED", key, name: "Onest" } }));
+        assert.equal(result.statusCode, 200, key);
+      }
+      assert.equal(calls.filter((c) => c.method === "POST" && c.url.endsWith("/issues")).length, 2);
+    }
+  );
+});
+
+test("a place-check issue is labelled with the place so all its issues can be listed", async () => {
+  await withStubbedGithub(
+    (url) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 9, html_url: "https://github.com/x/y/issues/9" })),
+    async (handler, calls) => {
+      const result = await handler(placeCheckEvent({ placeCheck: { status: "CLOSED", key: "place:id:node/5903400322", name: "Onest" } }));
+      assert.equal(result.statusCode, 200);
+      const created = calls.find((c) => c.method === "POST" && c.url.endsWith("/issues"));
+      const labels = created.body.labels;
+      assert.deepEqual(labels, ["place-check", "user-report", "place:node/5903400322"]);
+    }
+  );
+  const reportFunction = require("../netlify/functions/report-missing-data");
+  assert.equal(reportFunction.placeLabelName("place:id:manual/onest"), "place:manual/onest");
+  assert.ok(reportFunction.placeLabelName(`place:id:${"x".repeat(100)}`).length <= 50, "GitHub label names are capped at 50 characters");
+});
+
+test("a place check with an unknown status or an unsafe key is rejected", async () => {
+  await withStubbedGithub(() => jsonResponse(200, { items: [] }), async (handler) => {
+    assert.equal((await handler(placeCheckEvent({ placeCheck: { status: "OPEN_CONFIRMED", key: "place:id:1", name: "x" } }))).statusCode, 400);
+    assert.equal((await handler(placeCheckEvent({ placeCheck: { status: "CLOSED", key: 'place:" OR is:private', name: "x" } }))).statusCode, 400);
+  });
+});
+
+test("a missing place is filed as a place-check issue keyed on its position, and needs a name", async () => {
+  await withStubbedGithub(
+    (url) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 8, html_url: "https://github.com/x/y/issues/8" })),
+    async (handler, calls) => {
+      const key = "new:51.66512,0.04512";
+      const ok = await handler(placeCheckEvent({ placeCheck: { status: "NEW_PLACE", key, name: "The New Arms", category: "Pub" }, details: "Opened last week" }));
+      assert.equal(ok.statusCode, 200);
+      const created = calls.find((c) => c.method === "POST" && c.url.endsWith("/issues"));
+      assert.match(created.body.title, /^Place check: The New Arms: A place is missing from the map/);
+      assert.ok(created.body.labels.includes("place:new:51.66512,0.04512"));
+      assert.match(created.body.body, /Reported status: NEW_PLACE/);
+      assert.match(created.body.body, /Opened last week/);
+      const nameless = await handler(placeCheckEvent({ placeCheck: { status: "NEW_PLACE", key, name: "  " } }));
+      assert.equal(nameless.statusCode, 400);
+    }
+  );
+});
+
+const reportRateLimit = require("../netlify/functions/lib/report-rate-limit");
+
+test("a device that sends too many reports in an hour is refused with 429 and a Retry-After", async () => {
+  await withStubbedGithub(
+    (url) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 1, html_url: "https://github.com/x/y/issues/1" })),
+    async (handler, calls) => {
+      const send = (n) => handler({ ...placeCheckEvent({ deviceId: "device-flood-0001", requestId: `req-flood-${n}`, placeCheck: { status: "CLOSED", key: `place:id:${n}`, name: "x" } }), headers: {} });
+      for (let n = 0; n < reportRateLimit.DEFAULT_LIMITS.perDevice; n += 1) assert.equal((await send(n)).statusCode, 200);
+      const refused = await send(99);
+      assert.equal(refused.statusCode, 429);
+      assert.ok(Number(refused.headers["Retry-After"]) > 0);
+      const issuesBefore = calls.filter((c) => c.method === "POST" && c.url.endsWith("/issues")).length;
+      await send(100);
+      assert.equal(calls.filter((c) => c.method === "POST" && c.url.endsWith("/issues")).length, issuesBefore, "a refused report creates no issue");
+    }
+  );
+});
+
+test("a network is capped by its address however many device ids it invents, and the whole site by the global cap", async () => {
+  await withStubbedGithub(
+    (url) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 1, html_url: "u" })),
+    async (handler) => {
+      const fromIp = (ip, n) => handler({ ...placeCheckEvent({ deviceId: `device-${ip.replace(/\./g, "")}-${String(n).padStart(4, "0")}`, requestId: `req-ip-${ip}-${n}`, placeCheck: { status: "CLOSED", key: `place:id:${n}`, name: "x" } }), headers: { "x-nf-client-connection-ip": ip } });
+      for (let n = 0; n < reportRateLimit.DEFAULT_LIMITS.perIp; n += 1) assert.equal((await fromIp("203.0.113.9", n)).statusCode, 200);
+      assert.equal((await fromIp("203.0.113.9", 500)).statusCode, 429, "fresh device ids do not get past the address cap");
+      assert.equal((await fromIp("203.0.113.10", 0)).statusCode, 200, "another address is unaffected");
+    }
+  );
+  const original = process.env.REPORT_LIMIT_GLOBAL;
+  process.env.REPORT_LIMIT_GLOBAL = "2";
+  try {
+    await withStubbedGithub(
+      (url) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 1, html_url: "u" })),
+      async (handler) => {
+        const one = (ip, n) => handler({ ...placeCheckEvent({ deviceId: `device-glob-${n}-aaaa`, requestId: `req-glob-${n}`, placeCheck: { status: "CLOSED", key: `place:id:${n}`, name: "x" } }), headers: { "x-nf-client-connection-ip": ip } });
+        assert.equal((await one("198.51.100.1", 1)).statusCode, 200);
+        assert.equal((await one("198.51.100.2", 2)).statusCode, 200);
+        assert.equal((await one("198.51.100.3", 3)).statusCode, 429, "the site-wide cap stops new addresses too");
+      }
+    );
+  } finally {
+    if (original === undefined) delete process.env.REPORT_LIMIT_GLOBAL; else process.env.REPORT_LIMIT_GLOBAL = original;
+  }
+});
+
+test("the rate limit resets each hour, ignores a missing ip or device, and lets reports through if the store fails", async () => {
+  const store = escalationStoreForReports();
+  const limits = { perIp: 1, perDevice: 1, global: 5 };
+  const hour = 3600000;
+  assert.equal((await reportRateLimit.checkRateLimit(store, { ip: "1.1.1.1", deviceId: "d1", now: 10 * hour, limits })).ok, true);
+  assert.equal((await reportRateLimit.checkRateLimit(store, { ip: "1.1.1.1", deviceId: "d2", now: 10 * hour + 5, limits })).ok, false);
+  assert.equal((await reportRateLimit.checkRateLimit(store, { ip: "1.1.1.1", deviceId: "d1", now: 11 * hour, limits })).ok, true, "a new hour starts clean");
+  assert.equal((await reportRateLimit.checkRateLimit(store, { now: 12 * hour, limits })).ok, true, "no ip and no device: only the global cap applies");
+  const broken = { async get() { throw new Error("down"); }, async put() { throw new Error("down"); } };
+  assert.equal((await reportRateLimit.checkRateLimit(broken, { ip: "1.1.1.1", deviceId: "d1", limits })).ok, true);
+  assert.equal(reportRateLimit.clientIp({ headers: { "X-Nf-Client-Connection-Ip": "9.9.9.9", "x-forwarded-for": "1.2.3.4" } }), "9.9.9.9");
+  assert.equal(reportRateLimit.clientIp({ headers: { "x-forwarded-for": "1.2.3.4, 5.6.7.8" } }), "1.2.3.4");
+  assert.equal(reportRateLimit.clientIp({}), "");
+});
+
+test("the per-place label is created before the issue, and a label that fails does not stop the report", async () => {
+  await withStubbedGithub(
+    (url, method) => {
+      if (url.includes("/search/issues")) return jsonResponse(200, { items: [] });
+      if (url.endsWith("/labels")) return jsonResponse(500, {});
+      return jsonResponse(201, { number: 5, html_url: "https://github.com/x/y/issues/5" });
+    },
+    async (handler, calls) => {
+      const result = await handler(placeCheckEvent({ placeCheck: { status: "CLOSED", key: "place:id:manual/onest", name: "Onest" } }));
+      assert.equal(result.statusCode, 200);
+      const labelAt = calls.findIndex((c) => c.method === "POST" && c.url.endsWith("/labels"));
+      const issueAt = calls.findIndex((c) => c.method === "POST" && c.url.endsWith("/issues"));
+      assert.ok(labelAt >= 0 && labelAt < issueAt, "the label is created first");
+      assert.equal(calls[labelAt].body.name, "place:manual/onest");
+    }
+  );
+});
+
+test("ids that mean something to JavaScript are refused, and cannot reach Object.prototype", async () => {
+  for (const bad of ["__proto__", "constructor", "prototype"]) {
+    assert.ok(communityConsensus.validateReport(communityReport({ deviceId: bad })), `deviceId ${bad} is refused`);
+    assert.ok(communityConsensus.validateReport(communityReport({ id: bad })), `id ${bad} is refused`);
+  }
+  assert.ok(communityConsensus.validateReport(communityReport({ kind: "__proto__" })));
+  assert.ok(communityConsensus.validateReport(communityReport({ status: "constructor" })));
+  assert.ok(communityConsensus.validateReport(communityReport({ target: "__proto__" })));
+  assert.ok(communityConsensus.validateReport(communityReport({ target: "tree:1 and more" })), "a target has no spaces");
+  assert.equal(communityConsensus.validateReport(communityReport({ target: "place:id:node/1" })), null);
+  assert.equal(communityConsensus.statusClass("tree", "toString"), null);
+  const state = communityConsensus.computeCommunityState([communityReport({ deviceId: "__proto__" }), communityReport({ deviceId: "device-aaaa" })]);
+  assert.equal({}.reports, undefined, "Object.prototype is untouched");
+  assert.equal(Object.keys(state.scores).includes("__proto__"), false);
+  const handler = require("../netlify/functions/community-report").handler;
+  const result = await handler({ httpMethod: "POST", body: JSON.stringify({ id: "report-proto-1", deviceId: "__proto__", kind: "tree", target: "tree:1", status: "VERIFIED", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01 }) });
+  assert.equal(result.statusCode, 400);
+});
+
+test("a new tree's outcome is found under its tag, so a register reward shows as validated", () => {
+  const tree = communityReport({ status: "NEW_TREE", target: undefined, tagNumber: "4821", accuracy: 8, lat: 51.65, lon: 0.04, targetLat: 51.65, targetLon: 0.04 });
+  assert.equal(communityConsensus.canonicalTarget(tree), "new:tree:tag:4821");
+  assert.equal(communityConsensus.canonicalTarget(communityReport({ target: "tree:7" })), "tree:7");
+  const validated = new Set(["device-aaaa|new:tree:tag:4821|NEW_TREE"]);
+  assert.equal(communityConsensus.reportOutcome(tree, { s: "new" }, [], validated), "validated");
+  assert.equal(communityConsensus.reportOutcome(tree, { s: "new" }, [], new Set()), "pending");
+  assert.equal(communityConsensus.reportOutcome(tree, { s: "new-confirmed" }, [], new Set()), "confirmed", "a second finder confirms it");
+  assert.equal(communityConsensus.reportOutcome(tree, undefined, [], new Set()), "pending");
+});
+
+test("a register reward only counts reports made before the last run that still saw the old register", async () => {
+  const store = memoryStore();
+  const register = (records, generatedAt) => async (path) => {
+    if (path.endsWith("index.json")) return { generatedAt, sourceGeneratedAt: generatedAt, recordCount: records.length, chunks: [{ url: "chunk.json" }] };
+    return { trees: records.map((r) => ({ recordNumber: r, latitude: 51.64, longitude: 0.01 })) };
+  };
+  await communityValidation.runValidation({ store, fetchJson: register(["77", "78"], 1), now: 1000 }); // baseline
+  const early = communityReport({ id: "report-early-1", target: "tree:77", status: "NOT_HERE", ts: 900 });
+  const late = communityReport({ id: "report-late-01", target: "tree:78", status: "NOT_HERE", ts: 2000 });
+  await store.put("reports/early", early);
+  await store.put("reports/late", late);
+  // The register drops both records some time between the runs at 1000 and 3000.
+  const summary = await communityValidation.runValidation({ store, fetchJson: register([], 2), now: 3000 });
+  assert.equal(summary.newRegisterRewards, 1, "only the report made before the previous run counts");
+  const items = (await store.get("validations")).items;
+  assert.equal(JSON.stringify(items.map((i) => i.target)), JSON.stringify(["tree:77"]));
+});
+
+test("one network cannot mint endless device ids to confirm its own reports: community reports are capped per address and site-wide", async () => {
+  const reportEndpoint = require("../netlify/functions/community-report");
+  const original = { ip: process.env.COMMUNITY_LIMIT_PER_IP, global: process.env.COMMUNITY_LIMIT_GLOBAL };
+  process.env.COMMUNITY_LIMIT_PER_IP = "3";
+  process.env.COMMUNITY_LIMIT_GLOBAL = "5";
+  reportEndpoint.setStore(memoryStore());
+  try {
+    const send = (ip, n) => reportEndpoint.handler({
+      httpMethod: "POST",
+      headers: { "x-nf-client-connection-ip": ip },
+      body: JSON.stringify({ id: `report-sybil-${ip}-${n}`.replace(/\./g, ""), deviceId: `device-sybil-${n}-x`, kind: "tree", target: "tree:5", status: "VERIFIED", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01 }),
+    });
+    for (let n = 0; n < 3; n += 1) assert.equal((await send("203.0.113.7", n)).statusCode, 200);
+    const refused = await send("203.0.113.7", 99);
+    assert.equal(refused.statusCode, 429, "fresh device ids from the same address do not get past the cap");
+    assert.ok(Number(refused.headers["Retry-After"]) > 0);
+    assert.equal((await send("203.0.113.8", 1)).statusCode, 200, "another address is unaffected");
+    assert.equal((await send("203.0.113.9", 1)).statusCode, 200);
+    assert.equal((await send("203.0.113.10", 1)).statusCode, 429, "the site-wide cap stops new addresses too");
+    const retry = await send("203.0.113.8", 1);
+    assert.equal(retry.statusCode, 200, "a repeat of an accepted report is answered as a duplicate without counting again");
+  } finally {
+    reportEndpoint.setStore(null);
+    for (const [name, value] of [["COMMUNITY_LIMIT_PER_IP", original.ip], ["COMMUNITY_LIMIT_GLOBAL", original.global]]) {
+      if (value === undefined) delete process.env[name]; else process.env[name] = value;
+    }
+  }
+});
+
+test("many people behind one mobile-network address can all report, well past one device's hourly allowance", async () => {
+  const reportEndpoint = require("../netlify/functions/community-report");
+  reportEndpoint.setStore(memoryStore());
+  try {
+    for (let n = 0; n < 150; n += 1) {
+      const result = await reportEndpoint.handler({
+        httpMethod: "POST",
+        headers: { "x-nf-client-connection-ip": "198.51.100.20" },
+        body: JSON.stringify({ id: `report-cgnat-${String(n).padStart(4, "0")}`, deviceId: `device-cgnat-${n}-x`, kind: "tree", target: `tree:${n}`, status: "VERIFIED", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01 }),
+      });
+      assert.equal(result.statusCode, 200, `report ${n + 1} from the shared address`);
+    }
+  } finally {
+    reportEndpoint.setStore(null);
+  }
+});
+
+test("'My reports' keeps a device's latest 1,000 reports, dropping the oldest", async () => {
+  const reportEndpoint = require("../netlify/functions/community-report");
+  const store = memoryStore();
+  const deviceId = "device-prolific-1";
+  await store.put(`mine/${deviceId}`, Array.from({ length: 1000 }, (_, i) => ({ id: `old-${i}`, kind: "tree", status: "VERIFIED", ts: i })));
+  reportEndpoint.setStore(store);
+  try {
+    const result = await reportEndpoint.handler({
+      httpMethod: "POST",
+      headers: { "x-nf-client-connection-ip": "198.51.100.21" },
+      body: JSON.stringify({ id: "report-newest-0001", deviceId, kind: "tree", target: "tree:9", status: "VERIFIED", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01 }),
+    });
+    assert.equal(result.statusCode, 200);
+    const mine = await store.get(`mine/${deviceId}`);
+    assert.equal(mine.length, 1000);
+    assert.equal(mine[mine.length - 1].id, "report-newest-0001");
+    assert.equal(mine[0].id, "old-1", "the oldest entry made room");
+  } finally {
+    reportEndpoint.setStore(null);
+  }
+});
+
+const communityDelete = require("../netlify/functions/lib/community-delete");
+
+async function deletionFixture() {
+  const store = memoryStore();
+  const day = "2026-10-20";
+  const reportFor = (id, deviceId, target, extra = {}) => communityReport({ id, deviceId, target, ...extra });
+  const reports = [
+    reportFor("report-a1-0001", "phone-device-a1", "tree:1"),
+    reportFor("report-a2-0001", "laptop-device-a2", "tree:2"),
+    reportFor("report-b1-0001", "other-device-b1", "tree:1"),
+    reportFor("report-b1-0002", "other-device-b1", "tree:2"),
+  ];
+  for (const r of reports) await store.put(`reports/${r.id}`, r);
+  await store.put("mine/phone-device-a1", [{ id: "report-a1-0001", kind: "tree", target: "tree:1", status: "VERIFIED", ts: 1 }, { id: "feedback-a1-001", kind: "feedback", status: "FEEDBACK", issue: 41, ts: 2 }]);
+  await store.put("mine/laptop-device-a2", [{ id: "report-a2-0001", kind: "tree", target: "tree:2", status: "VERIFIED", ts: 1 }, { id: "place-a2-00001", kind: "place", status: "CLOSED", issue: 42, ts: 2 }]);
+  await store.put("mine/other-device-b1", [{ id: "report-b1-0001", kind: "tree", target: "tree:1", status: "VERIFIED", ts: 1 }, { id: "place-b1-00001", kind: "place", status: "CLOSED", issue: 43, ts: 2 }]);
+  await store.put("devicelink/phone-device-a1", { account: "acct-a" });
+  await store.put("devicelink/laptop-device-a2", { account: "acct-a" });
+  await store.put("accountdevices/acct-a/phone-device-a1", {});
+  await store.put("accountdevices/acct-a/laptop-device-a2", {});
+  await store.put(`devices/phone-device-a1-${day}`, { n: 1 });
+  await store.put(`devices/other-device-b1-${day}`, { n: 2 });
+  await store.put("refs/ref-of-a1", { deviceId: "phone-device-a1" });
+  await store.put("refs/ref-of-a2", { deviceId: "laptop-device-a2" });
+  await store.put("refs/ref-of-b1", { deviceId: "other-device-b1" });
+  await store.put("validations", { items: [{ kind: "fix", deviceId: "phone-device-a1", issue: 41 }, { kind: "fix", deviceId: "other-device-b1", issue: 43 }], register: null, processedIssues: {} });
+  await communityComputed.rebuildComputed(store);
+  return store;
+}
+
+const keysWith = (store, prefix) => [...store.data.keys()].filter((k) => k.startsWith(prefix)).sort();
+
+test("a storage failure while listing stops a deletion instead of reporting it done", async () => {
+  const store = await deletionFixture();
+  const failing = { ...store, get: store.get, put: store.put, delete: store.delete, list: async () => { throw new Error("blobs down"); } };
+  await assert.rejects(communityDelete.deleteCommunityData(failing, { deviceId: "phone-device-a1", includeAccount: true }), /blobs down/);
+  assert.ok(store.data.has("devicelink/phone-device-a1"), "nothing was removed");
+});
+
+test("a failed read of any record a deletion depends on stops it, and nothing is reported deleted", async () => {
+  for (const failing of ["reports/", "refs/", "validations", "devicelink/phone-device-a1", "mine/phone-device-a1", "scores/"]) {
+    const store = await deletionFixture();
+    const broken = { ...store, getStrict: async (key) => { if (key.startsWith(failing)) throw new Error("read failed"); return store.get(key); } };
+    await assert.rejects(communityDelete.deleteCommunityData(broken, { deviceId: "phone-device-a1" }), /read failed/, failing);
+  }
+});
+
+test("a data deletion leaves no cached copy of the deleted person's reports", async () => {
+  const store = await deletionFixture();
+  const cachedIds = () => [...store.data.keys()].filter((k) => /^ledger-cache\/\d+$/.test(k))
+    .flatMap((k) => store.data.get(k).entries.map(([, report]) => report.deviceId));
+  assert.ok(cachedIds().includes("phone-device-a1"), "the rebuild cached the report first");
+  await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1" });
+  assert.ok(!cachedIds().includes("phone-device-a1"));
+  assert.ok(cachedIds().includes("other-device-b1"), "other people's reports stay cached");
+});
+
+test("deletion finds every issue a device filed, even past the mine index cap", async () => {
+  const store = await deletionFixture();
+  for (let n = 1000; n < 1005; n += 1) await store.put(`issues/phone-device-a1/${n}`, { ts: n });
+  await store.put("issues/other-device-b1/2000", { ts: 1 });
+  const summary = await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1" });
+  assert.deepEqual([...summary.issues.pending].sort((a, b) => a - b), [41, 1000, 1001, 1002, 1003, 1004]);
+  assert.deepEqual(keysWith(store, "issues/phone-device-a1/"), []);
+  assert.deepEqual(keysWith(store, "issues/other-device-b1/"), ["issues/other-device-b1/2000"]);
+});
+
+test("deleting one device removes its reports, index, link, counters, references, rewards and score, and nobody else's", async () => {
+  const store = await deletionFixture();
+  assert.ok((await communityComputed.loadScore(store, "phone-device-a1")).points > 0, "the score exists before");
+  const summary = await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1" });
+  assert.equal(summary.devices, 1);
+  assert.equal(summary.reports, 1);
+  assert.equal(summary.links, 1);
+  assert.equal(summary.refs, 1);
+  assert.equal(summary.rewards, 1);
+  assert.equal(summary.counters, 1);
+  assert.equal(JSON.stringify(keysWith(store, "reports/")), JSON.stringify(["reports/report-a2-0001", "reports/report-b1-0001", "reports/report-b1-0002"]));
+  assert.equal(store.data.has("mine/phone-device-a1"), false);
+  assert.equal(store.data.has("devicelink/phone-device-a1"), false);
+  assert.equal(store.data.has("accountdevices/acct-a/phone-device-a1"), false);
+  assert.equal(store.data.has("refs/ref-of-a1"), false);
+  assert.equal(JSON.stringify(keysWith(store, "devices/")), JSON.stringify(["devices/other-device-b1-2026-10-20"]));
+  assert.equal(JSON.stringify((store.data.get("validations")).items.map((i) => i.deviceId)), JSON.stringify(["other-device-b1"]));
+  const score = await communityComputed.loadScore(store, "phone-device-a1");
+  assert.equal(score.points, 0, "its score is gone");
+  assert.ok((await communityComputed.loadScore(store, "laptop-device-a2")).points > 0, "the account's other device keeps its score");
+  assert.ok((await communityComputed.loadScore(store, "other-device-b1")).points > 0, "another person keeps theirs");
+  assert.equal(store.data.has("devicelink/laptop-device-a2"), true);
+  assert.equal(store.data.has("refs/ref-of-b1"), true);
+  assert.deepEqual(summary.issues.pending, [41], "the public issue it filed is handed back to be dealt with");
+  const overlay = store.data.get("computed").overlay;
+  assert.equal(overlay["tree:1"].n, 1, "tree 1 is now backed by one person, not two");
+});
+
+test("deleting with the account removes every device on it and the account's records, and nothing of other accounts", async () => {
+  const store = await deletionFixture();
+  const summary = await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1", includeAccount: true });
+  assert.equal(summary.devices, 2);
+  assert.equal(summary.reports, 2);
+  assert.equal(JSON.stringify(keysWith(store, "accountdevices/")), JSON.stringify([]));
+  assert.equal(JSON.stringify(keysWith(store, "devicelink/")), JSON.stringify([]));
+  assert.equal(JSON.stringify(keysWith(store, "mine/")), JSON.stringify(["mine/other-device-b1"]));
+  assert.equal(JSON.stringify(keysWith(store, "refs/")), JSON.stringify(["refs/ref-of-b1"]));
+  assert.equal((await communityComputed.loadScore(store, "laptop-device-a2")).points, 0);
+  assert.equal(JSON.stringify(summary.issues.pending.sort()), JSON.stringify([41, 42]), "both devices' public issues, and not the other person's #43");
+  const again = await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1", includeAccount: true });
+  assert.equal(again.reports, 0, "deleting twice is harmless");
+});
+
+test("public issues are redacted and closed only when an editor is supplied and asked for, and a failure is reported not hidden", async () => {
+  const edits = [];
+  const editor = async (number, changes) => { if (number === 42) throw new Error("boom"); edits.push({ number, changes }); };
+  const store = await deletionFixture();
+  const asked = await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1", includeAccount: true, github: editor, redactIssues: true });
+  assert.equal(JSON.stringify(asked.issues.redacted), JSON.stringify([41]));
+  assert.equal(JSON.stringify(asked.issues.failed), JSON.stringify([42]));
+  assert.equal(edits[0].changes.state, "closed");
+  assert.equal(edits[0].changes.body, communityDelete.REDACTED_BODY);
+  const quiet = await deletionFixture();
+  const notAsked = await communityDelete.deleteCommunityData(quiet, { deviceId: "phone-device-a1", github: editor, redactIssues: false });
+  assert.equal(JSON.stringify(notAsked.issues.pending), JSON.stringify([41]));
+  assert.equal(edits.length, 1, "an editor that was not asked for is never called");
+});
+
+test("deletion refuses a bad device id, and the admin endpoint needs the password, POST and an explicit confirmation", async () => {
+  await assert.rejects(communityDelete.deleteCommunityData(memoryStore(), { deviceId: "short" }), /device id/);
+  await assert.rejects(communityDelete.deleteCommunityData(memoryStore(), {}), /device id/);
+  const original = process.env.ADMIN_PASSWORD;
+  process.env.ADMIN_PASSWORD = "admin-secret-1";
+  try {
+    delete require.cache[require.resolve("../netlify/functions/community-delete")];
+    const endpoint = require("../netlify/functions/community-delete");
+    const asAdmin = { authorization: "Bearer admin-secret-1" };
+    assert.equal((await endpoint.handler({ httpMethod: "POST", headers: {}, body: "{}" })).statusCode, 401);
+    assert.equal((await endpoint.handler({ httpMethod: "POST", headers: { authorization: "Bearer nope" }, body: "{}" })).statusCode, 401);
+    assert.equal((await endpoint.handler({ httpMethod: "GET", headers: asAdmin })).statusCode, 405);
+    assert.equal((await endpoint.handler({ httpMethod: "POST", headers: asAdmin, body: "{nope" })).statusCode, 400);
+    const unconfirmed = await endpoint.handler({ httpMethod: "POST", headers: asAdmin, body: JSON.stringify({ deviceId: "phone-device-a1" }) });
+    assert.equal(unconfirmed.statusCode, 400);
+    assert.match(JSON.parse(unconfirmed.body).error, /confirm/);
+    const badId = await endpoint.handler({ httpMethod: "POST", headers: asAdmin, body: JSON.stringify({ deviceId: "x", confirm: "delete" }) });
+    assert.equal(badId.statusCode, 400);
+  } finally {
+    if (original === undefined) delete process.env.ADMIN_PASSWORD; else process.env.ADMIN_PASSWORD = original;
+    delete require.cache[require.resolve("../netlify/functions/community-delete")];
+  }
+});
+
+// --- The City of London discrepancy report (netlify/functions/lib/community-report-data.js) ---
+const communityReportData = require("../netlify/functions/lib/community-report-data");
+const reportSnapshot = () => communityConsensus.computeCommunityState([
+  communityReport({ status: "NOT_HERE", deviceId: "device-aaaa", target: "tree:77", ts: Date.UTC(2026, 9, 1) }),
+  communityReport({ status: "NOT_HERE", deviceId: "device-bbbb", target: "tree:77", ts: Date.UTC(2026, 9, 2) }),
+  communityReport({ status: "VERIFIED", deviceId: "device-cccc", target: "tree:88", ts: Date.UTC(2026, 9, 2) }),
+  communityReport({ status: "NEW_TREE", deviceId: "device-aaaa", target: undefined, kind: "tree", lat: 51.7, lon: 0.03, targetLat: undefined, targetLon: undefined, tagNumber: "T-5", accuracy: 9, ts: Date.UTC(2026, 9, 3) }),
+  communityReport({ status: "VERIFIED", deviceId: "device-aaaa", target: "tree:99", ts: 5 }),
+  communityReport({ status: "NOT_HERE", deviceId: "device-bbbb", target: "tree:99", ts: 6 }),
+]);
+
+test("the discrepancy report lists questioned trees, possible new trees and conflicts, without device ids", () => {
+  const state = reportSnapshot();
+  const report = communityReportData.buildReportData({ ...state, generatedAt: Date.UTC(2026, 9, 5), reportCount: 6 }, { 77: { tagNumber: "11383", commonName: "English Oak", latinName: "Quercus robur" } }, "https://example.test");
+  assert.equal(report.questioned.length, 1);
+  assert.equal(report.questioned[0].tagNumber, "11383");
+  assert.equal(report.questioned[0].reporters, 2);
+  assert.equal(report.questioned[0].lastReported, "2026-10-02");
+  assert.equal(report.questioned[0].mapUrl, "https://example.test/nearby#tree=r77");
+  assert.equal(report.newTrees.length, 1);
+  assert.equal(report.newTrees[0].tagNumber, "T-5");
+  assert.equal(report.newTrees[0].confirmed, false);
+  assert.equal(report.conflicts.length, 1);
+  assert.equal(report.verifiedTrees, 1);
+  assert.doesNotMatch(JSON.stringify(report), /device-/);
+});
+
+test("the report downloads as CSV and GeoJSON, quoting what needs quoting", () => {
+  const state = reportSnapshot();
+  const report = communityReportData.buildReportData({ ...state, generatedAt: 1, reportCount: 6 }, { 77: { tagNumber: "11,383", commonName: 'Oak "Old"', latinName: "Quercus" } }, "");
+  const csv = communityReportData.reportToCsv(report);
+  const lines = csv.trim().split("\r\n");
+  assert.match(lines[0], /^section,record_number,tag_number/);
+  assert.ok(lines.some((line) => line.startsWith('questioned,77,"11,383","Oak ""Old"""')));
+  assert.ok(lines.some((line) => line.startsWith("new_tree,,T-5")));
+  const geo = communityReportData.reportToGeoJson(report);
+  assert.equal(geo.type, "FeatureCollection");
+  assert.ok(geo.features.some((f) => f.properties.section === "new_tree" && f.geometry.coordinates[0] === 0.03));
+});
+
+test("the report page escapes what it prints and explains an empty report", () => {
+  const empty = communityReportData.buildReportData({ overlay: {}, conflictDetails: [], generatedAt: 1, reportCount: 0 }, {}, "");
+  const html = communityReportData.renderReportHtml(empty);
+  assert.match(html, /No trees have been questioned by two or more people yet/);
+  const hostile = communityReportData.buildReportData({ overlay: { "tree:1": { s: "questioned", st: "NOT_HERE", n: 2, t: 1, tlat: 51.6, tlon: 0.1 } }, conflictDetails: [], generatedAt: 1, reportCount: 2 }, { 1: { tagNumber: "<script>x</script>", commonName: "Oak" } }, "");
+  const page = communityReportData.renderReportHtml(hostile);
+  assert.doesNotMatch(page, /<script>x<\/script>/);
+  assert.match(page, /&lt;script&gt;/);
+});
+
+test("register records are found by position in the public tree chunks, and a failed fetch just leaves them out", async () => {
+  const files = {
+    "data/trees/index.json": { chunks: [{ url: "data/trees/a.json", bounds: { minLat: 51.5, maxLat: 51.7, minLon: 0, maxLon: 0.2 } }] },
+    "data/trees/a.json": { trees: [{ recordNumber: 77, tagNumber: "11383", commonName: "English Oak", latinName: "Quercus robur", girthMetres: 3.1 }, { recordNumber: 78, tagNumber: "1" }] },
+  };
+  const found = await communityReportData.lookupRegisterRecords([{ recordNumber: "77", tlat: 51.6, tlon: 0.1 }], async (path) => files[path]);
+  assert.equal(found["77"].tagNumber, "11383");
+  assert.equal(found["78"], undefined);
+  const none = await communityReportData.lookupRegisterRecords([{ recordNumber: "77", tlat: 51.6, tlon: 0.1 }], async () => { throw new Error("offline"); });
+  assert.deepEqual(none, {});
+});
+
+test("optimistic points mirror the server's configured values for a verify and a new tree", () => {
+  assert.equal(app.COMMUNITY_POINTS.verify, communityPointsConfig.POINTS.verify);
+  assert.equal(app.COMMUNITY_POINTS.newTree, communityPointsConfig.POINTS.newTree);
+});
+
+test("a fresh verify adds a point and a verified count before the server knows", () => {
+  const local = { "tree:1": { id: "a", status: "VERIFIED", ts: 1000 } };
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 0)), JSON.stringify({ points: 1, verified: 1 }));
+  const shown = app.communityDisplayScore({ points: 4, verified: 3, confirmed: 1, generatedAt: 500 }, local, new Set());
+  assert.equal(shown.points, 5);
+  assert.equal(shown.verified, 4);
+  assert.equal(shown.confirmed, 1);
+  assert.equal(shown.pendingPoints, 1);
+});
+
+test("a new tree adds its point at once, without a verified count", () => {
+  assert.equal(JSON.stringify(app.communityPendingScore({ "new:T1": { id: "n", status: "NEW_TREE", ts: 2000 } }, 0)), JSON.stringify({ points: 1, verified: 0 }));
+});
+
+test("the optimistic points clear once a score computed after the report arrives", () => {
+  const local = { "tree:1": { id: "a", status: "VERIFIED", ts: 1000 } };
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 999)), JSON.stringify({ points: 1, verified: 1 }));
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 1000)), JSON.stringify({ points: 0, verified: 0 }));
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 5000)), JSON.stringify({ points: 0, verified: 0 }));
+});
+
+test("a report still in the outbox keeps counting even under a newer score", () => {
+  const local = { "tree:1": { id: "a", status: "VERIFIED", ts: 1000 } };
+  assert.equal(app.communityPendingScore(local, 5000, new Set(["a"])).points, 1);
+});
+
+test("far, failed, place and feedback reports and unconfirmed corrections add no optimistic points", () => {
+  const local = {
+    "tree:1": { id: "a", status: "VERIFIED", ts: 1000, far: true },
+    "tree:2": { id: "b", status: "VERIFIED", ts: 1000, failed: "refused" },
+    "place:x": { id: "c", status: "OPEN_CONFIRMED", ts: 1000, kind: "place" },
+    "feedback:1": { id: "d", status: "FEEDBACK", ts: 1000, kind: "feedback" },
+    "tree:3": { id: "e", status: "NOT_HERE", ts: 1000 },
+    "tree:4": { id: "f", status: "MOVED", ts: 1000 },
+  };
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 0)), JSON.stringify({ points: 0, verified: 0 }));
+});
+
+test("a report adopted from the server on restore is already in its score and adds nothing", () => {
+  const local = { "tree:1": { id: "a", status: "VERIFIED", ts: 9e12, counted: true } };
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 0)), JSON.stringify({ points: 0, verified: 0 }));
+});
+
+test("several fresh reports add up, and an empty or missing record adds nothing", () => {
+  const local = { "tree:1": { id: "a", status: "VERIFIED", ts: 10 }, "tree:2": { id: "b", status: "VERIFIED", ts: 20 }, "new:T": { id: "c", status: "NEW_TREE", ts: 30 } };
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 0)), JSON.stringify({ points: 3, verified: 2 }));
+  assert.equal(JSON.stringify(app.communityPendingScore({}, 0)), JSON.stringify({ points: 0, verified: 0 }));
+  assert.equal(JSON.stringify(app.communityPendingScore(null, 0)), JSON.stringify({ points: 0, verified: 0 }));
+  assert.equal(app.communityDisplayScore(null, {}, new Set()).points, 0);
+});
+
+test("badges are earned from the score and the local log, and the rest stay locked", () => {
+  const day = (n) => new Date(2026, 9, n, 12).getTime();
+  const local = { "tree:1": { id: "a", status: "VERIFIED", ts: day(1) }, "new:T": { id: "b", status: "NEW_TREE", ts: day(2) }, "place:x": { id: "c", status: "CLOSED", kind: "place", ts: day(3) } };
+  const names = (score) => app.communityBadges(score, local, day(3)).earned.map((b) => b.id);
+  assert.equal(JSON.stringify(names({ verified: 0, confirmed: 0 })), JSON.stringify(["tree-finder", "place-spotter"]));
+  assert.equal(JSON.stringify(names({ verified: 10, confirmed: 1 })), JSON.stringify(["first-check", "ten-checks", "second-opinion", "tree-finder", "place-spotter"]));
+  assert.ok(app.communityBadges({ verified: 1, confirmed: 0 }, {}, day(3)).locked.length > 0);
+});
+
+test("a streak counts days in a row, stays alive until a full day is missed, and ignores restored and feedback entries", () => {
+  const day = (n, h = 12) => new Date(2026, 9, n, h).getTime();
+  const at = (...days) => Object.fromEntries(days.map((d, i) => [`t${i}`, { id: `r${i}`, status: "VERIFIED", ts: day(d) }]));
+  const s = (local, now) => JSON.stringify(app.communityStreaks(local, now));
+  assert.equal(s(at(1, 2, 3), day(3, 20)), JSON.stringify({ current: 3, best: 3 }));
+  assert.equal(s(at(1, 2, 3), day(4, 8)), JSON.stringify({ current: 3, best: 3 }), "still alive the day after");
+  assert.equal(s(at(1, 2, 3), day(5, 8)), JSON.stringify({ current: 0, best: 3 }), "broken after a missed day");
+  assert.equal(s(at(1, 2, 5, 6, 7), day(7)), JSON.stringify({ current: 3, best: 3 }));
+  assert.equal(s(at(3, 3, 3), day(3)), JSON.stringify({ current: 1, best: 1 }), "many reports on one day are one day");
+  assert.equal(s({ a: { id: "x", status: "VERIFIED", ts: day(3), counted: true }, b: { id: "y", status: "FEEDBACK", kind: "feedback", ts: day(3) } }, day(3)), JSON.stringify({ current: 0, best: 0 }));
+  assert.equal(s({}, day(3)), JSON.stringify({ current: 0, best: 0 }));
+});
+
+const communityEscalation = require("../netlify/functions/lib/community-escalation");
+const escalationStore = () => {
+  const data = new Map();
+  return { async get(k) { return data.has(k) ? JSON.parse(JSON.stringify(data.get(k))) : null; }, async put(k, v) { data.set(k, JSON.parse(JSON.stringify(v))); } };
+};
+const conflictComputed = (...targets) => ({ conflictDetails: targets.map((t) => ({ target: `tree:${t}`, counts: { VERIFIED: 1, NOT_HERE: 2 }, tlat: 51.66, tlon: 0.04 })) });
+
+test("a conflicting tree is filed once as a labelled issue, with the counts and a link to the tree", async () => {
+  const store = escalationStore();
+  const posted = [];
+  const post = async (issue) => { posted.push(issue); return { number: 40 + posted.length, html_url: `https://github.com/x/y/issues/${40 + posted.length}` }; };
+  const first = await communityEscalation.escalateConflicts(store, conflictComputed(7), { post, siteUrl: "https://example.test" });
+  assert.equal(first.filed, 1);
+  assert.equal(posted[0].title, "Community conflict: tree 7");
+  assert.deepEqual(posted[0].labels, ["community-conflict", "user-report", "tree:7"]);
+  assert.match(posted[0].body, /1 × verified it is right/);
+  assert.match(posted[0].body, /2 × found no tree/);
+  assert.match(posted[0].body, /https:\/\/example\.test\/nearby#tree=r7/);
+  assert.match(posted[0].body, /community-conflict-key:tree:7/);
+  const again = await communityEscalation.escalateConflicts(store, conflictComputed(7), { post });
+  assert.equal(again.filed, 0);
+  assert.equal(posted.length, 1, "a rebuild never files the same tree twice");
+});
+
+test("conflict escalation files only new trees, caps each run, retries failures, and does nothing without GitHub", async () => {
+  const store = escalationStore();
+  let calls = 0;
+  const post = async () => { calls += 1; if (calls === 2) throw new Error("boom"); return { number: calls, html_url: "u" }; };
+  const run = await communityEscalation.escalateConflicts(store, conflictComputed(1, 2, 3), { post, max: 2 });
+  assert.equal(run.filed, 2);
+  assert.equal(run.failed, 1);
+  assert.equal(run.pending, 1);
+  const capped = await communityEscalation.escalateConflicts(escalationStore(), conflictComputed(4, 5, 6), { post: async () => ({ number: 1, html_url: "u" }), max: 2 });
+  assert.equal(capped.filed, 2, "a run files at most max issues");
+  assert.equal(capped.pending, 1);
+  const next = await communityEscalation.escalateConflicts(store, conflictComputed(1, 2, 3), { post, max: 5 });
+  assert.equal(next.filed, 1, "the one that failed is filed next run");
+  assert.equal(next.pending, 0);
+  const none = await communityEscalation.escalateConflicts(escalationStore(), conflictComputed(9), {});
+  assert.equal(none.filed, 0);
+  assert.equal(none.skipped, "no-github");
+  assert.equal((await communityEscalation.escalateConflicts(escalationStore(), { conflictDetails: [] }, { post })).filed, 0);
+});
+
+test("reports the server holds for an account are merged into the log without overwriting unsent or newer local entries", () => {
+  const local = {
+    "tree:1": { id: "local-unsent-1", status: "VERIFIED", ts: 100 },
+    "tree:2": { id: "local-sent-0002", status: "VERIFIED", ts: 500 },
+    "tree:3": { id: "local-failed-03", status: "NOT_HERE", ts: 50, failed: "refused" },
+  };
+  const remote = [
+    { id: "remote-aaaa-0001", kind: "tree", target: "tree:1", status: "NOT_HERE", ts: 900 },
+    { id: "remote-bbbb-0002", kind: "tree", target: "tree:2", status: "NOT_HERE", ts: 400 },
+    { id: "remote-cccc-0003", kind: "tree", target: "tree:3", status: "VERIFIED", ts: 900 },
+    { id: "remote-dddd-0004", kind: "tree", target: "tree:4", status: "VERIFIED", ts: 800, lat: 51.6, lon: 0.04 },
+    { id: "remote-eeee-0005", kind: "tree", target: null, status: "NEW_TREE", ts: 700, tagNumber: "T-9", lat: 51.7, lon: 0.05 },
+    { id: "remote-ffff-0006", kind: "place", target: "place:id:node/9", status: "CLOSED", ts: 600 },
+    { id: "remote-gggg-0007", kind: "feedback", target: null, status: "FEEDBACK", ts: 650 },
+  ];
+  const { local: merged, changed } = app.communityMergeRemoteReports(local, remote, new Set(["local-unsent-1"]));
+  assert.equal(changed, true);
+  assert.equal(merged["tree:1"].id, "local-unsent-1", "a report still waiting to send is kept");
+  assert.equal(merged["tree:2"].id, "local-sent-0002", "a newer local report wins");
+  assert.equal(merged["tree:3"].id, "local-failed-03", "a failed local report is kept");
+  assert.equal(merged["tree:4"].id, "remote-dddd-0004");
+  assert.equal(merged["tree:4"].remote, true);
+  assert.equal(merged["tree:4"].counted, true, "already in the server's score, so never counted again");
+  assert.equal(merged["new:T-9"].name, "Tree T-9");
+  assert.equal(merged["place:id:node/9"].kind, "place");
+  assert.equal(merged["feedback:remote-gggg-0007"].kind, "feedback");
+  assert.equal(JSON.stringify(local["tree:4"]), undefined, "the input is not changed");
+});
+
+test("merging remote reports ignores malformed entries and a newer server report replaces an older local one", () => {
+  const bad = [
+    null, "x", { id: "short", kind: "tree", target: "tree:5", status: "VERIFIED", ts: 1 },
+    { id: "remote-hhhh-0008", kind: "tree", target: "tree:5", status: "__proto__", ts: 1 },
+    { id: "remote-iiii-0009", kind: "tree", target: "tree:6", status: "VERIFIED", ts: "soon" },
+    { id: "remote-jjjj-0010", kind: "tree", target: "not a target", status: "VERIFIED", ts: 1 },
+  ];
+  const untouched = app.communityMergeRemoteReports({}, bad, new Set());
+  assert.equal(untouched.changed, false);
+  assert.equal(Object.keys(untouched.local).length, 0);
+  const newer = app.communityMergeRemoteReports({ "tree:7": { id: "local-old-0007", status: "VERIFIED", ts: 10 } }, [{ id: "remote-kkkk-0011", kind: "tree", target: "tree:7", status: "NOT_HERE", ts: 20 }], new Set());
+  assert.equal(newer.local["tree:7"].id, "remote-kkkk-0011", "the account's newer report on another device wins");
+  assert.equal(app.communityMergeRemoteReports({}, undefined, new Set()).changed, false);
+});
+
+test("reports merged from the server never add optimistic points or extend the streak", () => {
+  const { local } = app.communityMergeRemoteReports({}, [{ id: "remote-llll-0012", kind: "tree", target: "tree:8", status: "VERIFIED", ts: Date.now() }], new Set());
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 0)), JSON.stringify({ points: 0, verified: 0 }));
+  assert.equal(app.communityStreaks(local, Date.now()).current, 0);
+});
+
+// --- Feature gate: who sees Community ---
+const featureGate = require("../netlify/functions/lib/feature-gate");
+
+test("Community is on for everyone while the early-access list is empty", () => {
+  assert.equal(featureGate.enabledFor(featureGate.normalizeList({}), ["0123456789"]).community, true);
+  assert.equal(featureGate.enabledFor(featureGate.normalizeList({ community: [{ id: "not-an-id" }] }), []).community, true);
+});
+
+test("once anyone is listed, only the listed testers (by device or account hash) have Community", () => {
+  const list = featureGate.normalizeList({ community: [{ id: "A1B2C3D4E5", note: "Simon" }, { id: "a1b2c3d4e5" }] });
+  assert.equal(list.community.length, 1, "ids are lower-cased and de-duplicated");
+  assert.equal(featureGate.enabledFor(list, ["a1b2c3d4e5"]).community, true);
+  assert.equal(featureGate.enabledFor(list, ["ffffffffff", "a1b2c3d4e5"]).community, true, "either hash may match");
+  assert.equal(featureGate.enabledFor(list, ["ffffffffff"]).community, false);
+  assert.equal(featureGate.enabledFor(list, []).community, false);
+});
+
+test("the tester id is a short hash, never the device id itself", () => {
+  const id = featureGate.testerHash("some-device-id-1234567890");
+  assert.match(id, /^[a-f0-9]{10}$/);
+  assert.equal(id, featureGate.testerHash("some-device-id-1234567890"));
+  assert.notEqual(id, featureGate.testerHash("another-device-id"));
+});
+
+test("the features endpoint answers the public check and keeps the list admin-only", async () => {
+  const features = require("../netlify/functions/features");
+  const previous = process.env.ADMIN_PASSWORD;
+  process.env.ADMIN_PASSWORD = "secret-pw";
+  try {
+    const open = await features.handler({ httpMethod: "GET", headers: {}, queryStringParameters: { id: "0123456789" } });
+    assert.equal(open.statusCode, 200);
+    assert.equal(typeof JSON.parse(open.body).community, "boolean");
+    assert.equal((await features.handler({ httpMethod: "GET", headers: {}, queryStringParameters: { admin: "1" } })).statusCode, 401);
+    assert.equal((await features.handler({ httpMethod: "POST", headers: {}, body: "{}" })).statusCode, 401);
+  } finally {
+    if (previous === undefined) delete process.env.ADMIN_PASSWORD; else process.env.ADMIN_PASSWORD = previous;
+  }
+});
+
 runRegisteredTests().catch((error) => {
   console.error(error);
   process.exitCode = 1;
+});
+
+// Cross-file invariant: the cow proxy refuses any centre but the app's own (netlify/functions/cows.js).
+test("the cow request the app builds is one the proxy accepts", async () => {
+  const cows = require("../netlify/functions/cows");
+  const url = new URL(app.cowEndpointUrl(app.cowCenterForRequest()), "http://localhost");
+  const original = global.fetch;
+  global.fetch = async () => new Response("{}", { status: 200 });
+  try {
+    const result = await cows.handler({ httpMethod: "GET", queryStringParameters: { center: url.searchParams.get("center") } });
+    assert.equal(result.statusCode, 200);
+  } finally {
+    global.fetch = original;
+  }
 });

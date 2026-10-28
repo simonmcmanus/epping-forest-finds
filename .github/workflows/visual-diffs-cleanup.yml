@@ -1,0 +1,35 @@
+name: Remove visual diffs
+
+on:
+  pull_request:
+    types: [closed]
+
+jobs:
+  cleanup:
+    # Deletes this PR's published snapshot diffs from the `visual-diffs` branch (see
+    # .github/scripts/publish-visual-diffs.sh). Fork PRs never published any, and have no PAT.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Remove pr-<number> from visual-diffs
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PAT: ${{ secrets.WEEKLY_LEDGER_PAT }}
+        run: |
+          remote="https://github.com/$GITHUB_REPOSITORY.git"
+          if ! git ls-remote --exit-code --heads "$remote" visual-diffs > /dev/null 2>&1; then
+            echo "No visual-diffs branch yet; nothing to remove"
+            exit 0
+          fi
+          work=$(mktemp -d)
+          git clone --quiet --depth 1 --branch visual-diffs "$remote" "$work/w"
+          cd "$work/w"
+          if [ ! -d "pr-$PR_NUMBER" ]; then
+            echo "No diffs published for PR #$PR_NUMBER"
+            exit 0
+          fi
+          git rm --quiet -r "pr-$PR_NUMBER"
+          git -c user.name="github-actions[bot]" \
+            -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit --quiet -m "chore: remove visual diffs for closed PR #$PR_NUMBER"
+          git push --quiet "https://x-access-token:$PAT@github.com/$GITHUB_REPOSITORY.git" HEAD:visual-diffs

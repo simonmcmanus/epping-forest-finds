@@ -33,12 +33,40 @@ function hasTrackingConsent() {
   }
 }
 
-// Consent is implicit: tapping whichever "Enable location" button is on screen (the
-// location gate or the onboarding location step) both grants consent and starts the
-// location request — see the shared .privacy-note text next to each of those buttons.
-function ensureTrackingConsent() {
-  setTrackingConsent(true);
-  return true;
+// Usage analytics is one consent, asked on its own and never bundled with a feature permission:
+// the anonymous usage events below (positions while the app is open, navigation, taps) and the
+// Google Analytics cookies cookie-consent.js controls. Location is a separate question asked in
+// context (spec.md "Permissions and consent"). Stored "1" given, "0" declined, absent never asked.
+function analyticsChoice() {
+  try {
+    const stored = localStorage.getItem(TRACKER_CONSENT_KEY);
+    if (stored === "1") return "granted";
+    if (stored === "0") return "denied";
+    // Before the two were one question, a refusal could only be recorded as the cookie half:
+    // honour it rather than ask the same person again.
+    if (localStorage.getItem("ff-cookie-consent") === "denied") return "denied";
+  } catch {}
+  return "undecided";
+}
+
+// The device id the usage data was sent under, for an access or erasure request (terms.html § 7),
+// or null when there is none: it only ever exists while usage analytics is on.
+function trackerExistingUserId() {
+  try {
+    return localStorage.getItem(TRACKER_UID_KEY);
+  } catch {
+    return null;
+  }
+}
+
+// Sets both halves together, so Settings and every ask stay one decision.
+function setAnalyticsConsent(granted) {
+  setTrackingConsent(granted);
+  if (typeof window !== "undefined" && window.ForestFindsCookieConsent) {
+    window.ForestFindsCookieConsent.set(granted);
+  } else {
+    try { localStorage.setItem("ff-cookie-consent", granted ? "granted" : "denied"); } catch {}
+  }
 }
 
 function setTrackingConsent(value) {
@@ -46,27 +74,65 @@ function setTrackingConsent(value) {
     if (value) {
       localStorage.setItem(TRACKER_CONSENT_KEY, "1");
     } else {
-      localStorage.removeItem(TRACKER_CONSENT_KEY);
+      localStorage.setItem(TRACKER_CONSENT_KEY, "0");
+      // Events wait in the queue for up to a few minutes (batching, below); withdrawing consent
+      // discards them rather than letting the next flush send them, and the device id goes too:
+      // nothing collected for analytics stays on the device once analytics is refused.
+      localStorage.removeItem(TRACKER_QUEUE_KEY);
+      localStorage.removeItem(TRACKER_UID_KEY);
     }
   } catch {}
 }
 
-// --- Offline queue ---
+// --- Offline queue and batching ---
+//
+// Events wait in the queue and go up together rather than one request each: once enough have
+// built up, every few minutes, and whenever the page is hidden or closed. One request per event
+// meant a request and a stored blob a minute for every walker (see spec-admin.md "Storage").
+
+const TRACKER_QUEUE_MAX = 500;
+const TRACKER_FLUSH_AT = 20;
+const TRACKER_FLUSH_INTERVAL_MS = 5 * 60 * 1000;
+// A keepalive request (the one that survives the page closing) may carry at most 64 KB; 150 events
+// is about 40 KB.
+const TRACKER_MAX_BATCH = 150;
+
+function trackerReadQueue() {
+  try {
+    const queue = JSON.parse(localStorage.getItem(TRACKER_QUEUE_KEY) || "[]");
+    return Array.isArray(queue) ? queue : [];
+  } catch {
+    return [];
+  }
+}
+
+function trackerWriteQueue(queue) {
+  try {
+    const kept = queue.length > TRACKER_QUEUE_MAX ? queue.slice(queue.length - TRACKER_QUEUE_MAX) : queue;
+    if (kept.length) localStorage.setItem(TRACKER_QUEUE_KEY, JSON.stringify(kept));
+    else localStorage.removeItem(TRACKER_QUEUE_KEY);
+  } catch {}
+}
 
 function trackerEnqueueEvent(event) {
-  try {
-    const raw = localStorage.getItem(TRACKER_QUEUE_KEY);
-    const queue = raw ? JSON.parse(raw) : [];
-    queue.push(event);
-    if (queue.length > 500) queue.splice(0, queue.length - 500);
-    localStorage.setItem(TRACKER_QUEUE_KEY, JSON.stringify(queue));
-  } catch {}
+  const queue = trackerReadQueue();
+  queue.push(event);
+  trackerWriteQueue(queue);
+  return queue.length;
 }
 
 let _trackerFlushing = false;
 let _trackerFlushPending = false;
 
+// Sends the queue in batches of TRACKER_MAX_BATCH. A batch leaves the queue before its request goes
+// out, so events added meanwhile are kept; a failed batch goes back to the front. A refusal that
+// can never succeed (400, 413) drops the batch rather than retrying it forever.
 async function trackerFlushQueue() {
+  // Nothing is sent without consent, even what was queued while it was given.
+  if (!hasTrackingConsent()) {
+    trackerWriteQueue([]);
+    return;
+  }
   if (!navigator.onLine) return;
   if (_trackerFlushing) {
     _trackerFlushPending = true;
@@ -74,43 +140,45 @@ async function trackerFlushQueue() {
   }
   _trackerFlushing = true;
   _trackerFlushPending = false;
-  let queue;
-  const finishFlush = () => {
-    _trackerFlushing = false;
-    if (_trackerFlushPending) {
-      _trackerFlushPending = false;
-      setTimeout(trackerFlushQueue, 0);
+
+  for (;;) {
+    const queue = trackerReadQueue();
+    if (!queue.length) break;
+    const batch = queue.slice(0, TRACKER_MAX_BATCH);
+    trackerWriteQueue(queue.slice(TRACKER_MAX_BATCH));
+    let retry = false;
+    try {
+      const resp = await fetch(TRACK_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ events: batch }),
+        keepalive: true,
+      });
+      retry = !resp.ok && (resp.status >= 500 || resp.status === 408 || resp.status === 429);
+    } catch {
+      retry = true;
     }
-  };
-  try {
-    const raw = localStorage.getItem(TRACKER_QUEUE_KEY);
-    if (!raw) { finishFlush(); return; }
-    queue = JSON.parse(raw);
-    if (!queue || queue.length === 0) { finishFlush(); return; }
-    localStorage.removeItem(TRACKER_QUEUE_KEY);
-  } catch {
-    finishFlush();
-    return;
+    if (retry) {
+      // Consent can be withdrawn while this request is in flight: the batch then goes, not back.
+      if (hasTrackingConsent()) trackerWriteQueue([...batch, ...trackerReadQueue()]);
+      break;
+    }
   }
 
-  try {
-    const resp = await fetch(TRACK_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ events: queue }),
-      keepalive: true,
-    });
-    if (!resp.ok) queue.forEach(trackerEnqueueEvent);
-  } catch {
-    queue.forEach(trackerEnqueueEvent);
+  _trackerFlushing = false;
+  if (_trackerFlushPending) {
+    _trackerFlushPending = false;
+    setTimeout(trackerFlushQueue, 0);
   }
-  finishFlush();
 }
 
+// Nothing about an event is stored on the device without consent, the device id included: it is
+// created here, after the check, never while the event is being built.
 function trackerSendEvent(event) {
   if (!hasTrackingConsent()) return;
-  trackerEnqueueEvent(event);
-  if (navigator.onLine) trackerFlushQueue();
+  event.uid = trackerGetOrCreateUserId();
+  const queued = trackerEnqueueEvent(event);
+  if (queued >= TRACKER_FLUSH_AT && navigator.onLine) trackerFlushQueue();
 }
 
 // --- Nav target (resolved from state.selected at event time) ---
@@ -135,7 +203,6 @@ let _trackerInterval = null;
 function trackLocation(lat, lng, heading) {
   trackerSendEvent({
     type: "location",
-    uid: trackerGetOrCreateUserId(),
     ts: new Date().toISOString(),
     lat,
     lng,
@@ -253,7 +320,6 @@ function trackClick(itemType, item, userLat, userLng, source = "map") {
   const target = trackerItemLatLng(item);
   trackerSendEvent({
     type: "click",
-    uid: trackerGetOrCreateUserId(),
     ts: new Date().toISOString(),
     userLat: userLat ?? null,
     userLng: userLng ?? null,
@@ -304,7 +370,15 @@ function trackGaItemSelected(itemType, item, source) {
 
 // --- Init ---
 
+let _trackerFlushTimer = null;
+
 function initTracker() {
   window.addEventListener("online", trackerFlushQueue);
+  // The last chance to send what is queued before the page is frozen or closed.
+  window.addEventListener("pagehide", trackerFlushQueue);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") trackerFlushQueue();
+  });
+  if (!_trackerFlushTimer) _trackerFlushTimer = setInterval(trackerFlushQueue, TRACKER_FLUSH_INTERVAL_MS);
   if (hasTrackingConsent()) trackerFlushQueue();
 }

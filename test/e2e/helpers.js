@@ -21,6 +21,8 @@ const FIXTURE_TREE = {
 async function skipOnboarding(page) {
   await page.addInitScript(() => {
     localStorage.setItem("forest-finds-onboarding-v1", "done");
+    // Community is gated per person (js/community.js communityEnabled); specs run with it on unless they say otherwise.
+    if (!localStorage.getItem("ff-features-v1")) localStorage.setItem("ff-features-v1", JSON.stringify({ community: true }));
   });
 }
 
@@ -133,22 +135,39 @@ async function settleMapIconsAndDraw(page) {
 }
 
 /**
- * Navigate to the app and wait for the loading overlay to be fully gone.
+ * Navigate to the app and wait for its first stable interactive map state.
  *
- * hideWithFade() fades opacity to 0 (CSS) and then sets el.hidden = true after
- * a 420 ms timer. We must wait for el.hidden === true (not just CSS opacity 0)
- * because the transparent overlay still intercepts pointer events until then.
+ * Browser pages deliberately keep the loading overlay hidden until boot has started, and then
+ * leave it as a non-blocking progress strip while background datasets continue downloading.
+ * Waiting for the hidden flag therefore returns before boot has even created state on a cold load.
+ * The test harness waits for the app's data milestones instead: this keeps map-first production
+ * behaviour intact while preventing a test from racing a late dataset or the first GPS camera fit.
  */
 async function gotoAndWaitForMap(page, path = "/nearby", { timeout = 30_000 } = {}) {
   await denyGeolocationUnlessGranted(page);
   await page.goto(path);
   await page.waitForFunction(
+    () => typeof state !== "undefined" && state.dataLoaded === true,
+    { timeout }
+  );
+  await page.waitForFunction(
+    () => ["trees", "places", "paths", "roads", "environment", "forest"].every((key) => {
+      const step = document.querySelector('[data-load-step="' + key + '"]');
+      return step && (step.classList.contains("done") || step.classList.contains("error"));
+    }),
+    { timeout }
+  );
+  await page.waitForFunction(
     () => {
-      const el = document.getElementById("loadingOverlay");
-      return !el || el.hidden === true;
+      const step = document.querySelector("[data-load-step='location']");
+      return step && (step.classList.contains("done") || step.classList.contains("error"));
     },
     { timeout }
   );
+  await page.waitForFunction(() => state.viewportAnimationFrame == null, { timeout });
+  if (/[#&]tree=/.test(path)) {
+    await page.waitForFunction(() => state.selected?.type === "tree", { timeout });
+  }
 }
 
 /**
@@ -168,8 +187,26 @@ async function setup(page, urlPath = "/nearby") {
   await page.evaluate(() => {
     const gate = document.getElementById("locationGate");
     if (gate && !gate.hidden) gate.hidden = true;
+    // Same reason as the gate above -- revealNoRealLocation()'s own "get a more custom
+    // experience" invite (#locationInviteBanner, js/app.js) is non-blocking and sits inline in
+    // the inspector chrome, so leaving it up would add two extra buttons to this suite's keyboard
+    // tab-order baseline on every screen, not just Nearby.
+    const invite = document.getElementById("locationInviteBanner");
+    if (invite && !invite.hidden) invite.hidden = true;
+    // Its counterpart on a page with a static Nearby list under it (bare /nearby once built, as on
+    // CI): there the first location ask is #consentBanner's location stage instead of the invite.
+    const card = document.getElementById("consentBanner");
+    if (card && !card.hidden) card.hidden = true;
+    // The real-fix boot path can show the compass calibration prompt over the top edge of the
+    // map. General map-interaction tests intentionally do not exercise that prompt, and it can
+    // intercept their corner taps; the compass-specific spec uses gotoAndWaitForMap directly.
+    const compassBanner = document.getElementById("compassCalibrationBanner");
+    if (compassBanner && !compassBanner.hidden) compassBanner.hidden = true;
     if (state.userLocation && state.userLocation.isDefault) {
       state.userLocation = null;
+      // This fixture removes the default location entirely, so its static
+      // High Beach list must not stand in for the no-location empty state.
+      _serverRenderedNearbyList = false;
       state.walkingDistanceMinutes = DEFAULT_WALKING_DISTANCE_MINUTES;
       // Only reset to the overview when the test actually asked for the bare /nearby screen --
       // boot() already routed a URL like /nearby#tree=... or /settings to its own screen, and
@@ -180,7 +217,6 @@ async function setup(page, urlPath = "/nearby") {
       // own, so a screen (Settings/Report included) is left zoomed in on a single, now-stale
       // patch of map instead of the whole-forest view the old no-location baseline expects.
       fitToBounds(false);
-      updateLocateButtonVisibility();
       draw();
     }
   });
@@ -232,8 +268,48 @@ async function waitForStableBoundingBox(locator, { timeout = 2000, interval = 50
   return previous;
 }
 
+/**
+ * Wait until no viewport slide is in flight. animateViewportTo() (js/app.js) keeps
+ * state.viewportAnimationFrame set for the length of a slide and clears it on landing, so
+ * this is the real end of a pan or zoom rather than a guessed-at number of milliseconds.
+ */
+async function waitForViewportToSettle(page) {
+  await page.waitForFunction(() => state.viewportAnimationFrame == null);
+}
+
+/**
+ * Wait until the camera has landed and no finite CSS animation or transition is running, for
+ * a few consecutive frames. Infinite animations (spinners, ambient icon motion) are ignored, so
+ * this ends when the UI has actually stopped moving rather than after a guessed number of ms.
+ */
+async function waitForUiToSettle(page) {
+  await waitForViewportToSettle(page);
+  await page.waitForFunction(() => typeof nearbyOriginTransitionActive !== "function" || !nearbyOriginTransitionActive());
+  await page.waitForFunction(() => {
+    const running = document.getAnimations().some((a) => a.effect && a.effect.getComputedTiming().iterations !== Infinity && a.playState === "running");
+    window.__uiCalmFrames = running ? 0 : (window.__uiCalmFrames || 0) + 1;
+    return window.__uiCalmFrames >= 3;
+  }, null, { polling: "raf" });
+}
+
+/**
+ * Let the app run n animation frames. For "nothing should happen" assertions, where there is no
+ * positive signal to wait on: the app gets n real ticks to do the wrong thing, independent of
+ * wall-clock speed.
+ */
+async function waitForFrames(page, n) {
+  await page.evaluate((count) => new Promise((resolve) => {
+    let seen = 0;
+    const tick = () => (++seen >= count ? resolve() : requestAnimationFrame(tick));
+    requestAnimationFrame(tick);
+  }), n);
+}
+
 module.exports = {
   setup,
+  waitForUiToSettle,
+  waitForFrames,
+  waitForViewportToSettle,
   skipOnboarding,
   mockCowApi,
   mockEventsApi,

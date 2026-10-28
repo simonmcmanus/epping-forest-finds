@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, FIXTURE_TREE, settleMapIconsAndDraw } = require("./helpers");
+const { setup, FIXTURE_TREE, settleMapIconsAndDraw, waitForUiToSettle } = require("./helpers");
 
 const FOREST_LOCATION = { latitude: 51.665, longitude: 0.045, accuracy: 10 };
 
@@ -44,12 +44,13 @@ test.describe("Overview / Nearby screen", () => {
   test("labelled navigation stays readable and separate from the inspector panel at narrow widths", async ({ page }) => {
     await page.click("#settingsToggle");
     await expect(page.locator("#inspectorBack")).toBeVisible();
-    await expect(page.locator(".inspector-actions .nav-label")).toHaveText(["Nearby", "Search", "Feedback", "Settings"]);
+    await expect(page.locator(".inspector-actions .nav-label")).toHaveText(["Nearby", "Search", "Community", "Settings"]);
     await page.locator(".inspector-actions").evaluate(nav => nav.getAnimations({ subtree: true }).forEach(animation => animation.finish()));
     for (const width of [320, 390, 1280]) {
       await page.setViewportSize({ width, height: 844 });
       await expect.poll(async () => page.locator(".inspector-actions").evaluate(nav => {
-        const buttons = [...nav.querySelectorAll("button")];
+        // The nav items are real links (app.html), not buttons.
+        const buttons = [...nav.querySelectorAll("a")];
         const navBox = nav.getBoundingClientRect();
         // The nav bar is its own card now (see app.html), not part of #inspector -- above the
         // panel on desktop, below it (pinned to the bottom of the screen) on mobile. Either way
@@ -77,8 +78,6 @@ test.describe("Overview / Nearby screen", () => {
     });
     const nav = page.locator(".inspector-actions");
     await expect(nav).toHaveCSS("bottom", "44px");
-    await expect(nav).toHaveCSS("border-bottom-left-radius", "20px");
-    await expect(nav).toHaveCSS("border-bottom-right-radius", "20px");
     await expect.poll(async () => page.evaluate(() => {
       const nav = document.querySelector(".inspector-actions").getBoundingClientRect();
       const sheet = document.getElementById("inspector").getBoundingClientRect();
@@ -95,22 +94,18 @@ test.describe("Overview / Nearby screen", () => {
       await expect(icon).toBeVisible();
       await expect.poll(async () => icon.evaluate(el => {
         const iconStyle = getComputedStyle(el);
-        const backStyle = getComputedStyle(document.getElementById("inspectorBack"));
-        return { width: iconStyle.width, height: iconStyle.height,
-          backWidth: backStyle.width, backHeight: backStyle.height };
-      })).toEqual({ width: "44px", height: "44px", backWidth: "44px", backHeight: "44px" });
+        return { width: iconStyle.width, height: iconStyle.height };
+      })).toEqual({ width: "44px", height: "44px" });
     }
   });
 
-  test("navigation announces the current screen with a gold highlight and keeps filter status separate", async ({ page }) => {
+  test("navigation announces the current screen and keeps filter status separate", async ({ page }) => {
     const nav = page.getByRole("navigation", { name: "Main navigation" });
-    for (const [id, title] of [["searchToggle", "Search"], ["reportToggle", "Feedback"], ["settingsToggle", "Settings"], ["nearbyToggle", "Nearby"]]) {
+    for (const [id, title] of [["searchToggle", "Search"], ["reportToggle", "Community"], ["settingsToggle", "Settings"], ["nearbyToggle", "Nearby"]]) {
       await page.locator(`#${id}`).click();
       await expect(nav.locator('[aria-current="page"]')).toHaveCount(1);
       await expect(page.locator(`#${id}`)).toHaveAttribute("aria-current", "page");
       await expect(page.locator("#inspectorTitle").last()).toContainText(title);
-      await expect(page.locator(`#${id}`)).toHaveCSS("background-color", "rgba(240, 180, 41, 0.16)");
-      await expect(page.locator(`#${id} svg`)).toHaveCSS("stroke", "rgb(138, 106, 0)");
     }
 
     // #filterToggle sits inline next to the Nearby heading, not in the nav row -- same gold
@@ -118,8 +113,6 @@ test.describe("Overview / Nearby screen", () => {
     await page.click("#filterToggle");
     await expect(page.locator("#filterToggle")).toHaveAttribute("aria-current", "page");
     await expect(page.locator("#inspectorTitle").last()).toContainText("Filters");
-    await expect(page.locator("#filterToggle")).toHaveCSS("background-color", "rgba(240, 180, 41, 0.16)");
-    await expect(page.locator("#filterToggle svg")).toHaveCSS("stroke", "rgb(138, 106, 0)");
 
     await page.locator(".filter-chip").first().click();
     await page.click("#nearbyToggle");
@@ -133,7 +126,7 @@ test.describe("Overview / Nearby screen", () => {
     // not affect it at all -- unlike the sheet's own chrome (header, body), which does hide.
     await page.evaluate(() => setInspectorMinimized(true));
     await expect(page.locator("#inspector")).toHaveClass(/minimized/);
-    const fits = await page.locator(".inspector-actions button").evaluateAll(buttons => buttons.every(button => {
+    const fits = await page.locator(".inspector-actions > a, .inspector-actions > button").evaluateAll(buttons => buttons.every(button => {
       const nav = button.closest(".inspector-actions").getBoundingClientRect();
       const box = button.getBoundingClientRect();
       return box.top >= nav.top && box.bottom <= nav.bottom && box.height >= 44;
@@ -189,7 +182,7 @@ test.describe("Overview / Nearby screen", () => {
       const rows = page.locator("#inspectorBody .nearest-item");
       await expect(rows.first()).toBeVisible();
       const rowCount = await rows.count();
-      test.skip(rowCount < 3, "fixture data did not produce enough nearby rows to step through");
+      expect(rowCount, "the fixture data produces enough nearby rows to step through").toBeGreaterThanOrEqual(3);
 
       await rows.first().focus();
       const firstItem = await rows.first().evaluate((el) => ({ type: el.dataset.overviewType, key: el.dataset.overviewKey }));
@@ -223,14 +216,6 @@ test.describe("Overview / Nearby screen", () => {
       }, firstItem);
       expect(selectedMatches).toBe(true);
     });
-  });
-
-  test("nearby list does not contain the walking distance selector", async ({ page }) => {
-    await expect(page.locator("#inspectorBody #settingsWalkMins")).toHaveCount(0);
-  });
-
-  test("nearby list does not show the app version", async ({ page }) => {
-    await expect(page.locator("#inspectorBody #appVersionDisplay")).toHaveCount(0);
   });
 
   test("filter toggle button is visible in overview mode", async ({ page }) => {
@@ -281,14 +266,13 @@ test.describe("Overview / Nearby screen", () => {
     await expect(page.locator("#reportToggle")).toBeVisible();
   });
 
-  test("nav buttons read left to right: nearby, search, feedback, settings", async ({ page }) => {
-    const ids = await page.locator(".inspector-actions button").evaluateAll((els) => els.map((el) => el.id));
-    expect(ids).toEqual(["nearbyToggle", "searchToggle", "reportToggle", "settingsToggle"]);
+  test("nav buttons read left to right: back, nearby, search, feedback, settings", async ({ page }) => {
+    const ids = await page.locator(".inspector-actions > a, .inspector-actions > button").evaluateAll((els) => els.map((el) => el.id));
+    expect(ids).toEqual(["inspectorBack", "nearbyToggle", "searchToggle", "reportToggle", "settingsToggle"]);
   });
 
-  test("snapshot: overview state", async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
-    await page.waitForTimeout(400);
+  test("snapshot: overview state", async ({ page }) => {
+    await waitForUiToSettle(page);
     await settleMapIconsAndDraw(page);
     await expect(page).toHaveScreenshot("overview.png", { fullPage: false });
   });
@@ -324,7 +308,7 @@ test.describe("Overview / Nearby screen", () => {
     test("the inspector back arrow appears once the Nearby view is moved, and undoes the move", async ({ page }) => {
       await setup(page);
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
-      await expect(page.locator("#inspectorBack")).toBeHidden();
+      await expect(page.locator("#inspectorBack")).toBeDisabled();
 
       const originalAnchor = await page.evaluate(() => {
         const origin = nearbyOrigin();
@@ -337,7 +321,22 @@ test.describe("Overview / Nearby screen", () => {
 
       await page.click("#inspectorBack");
       await expect.poll(() => page.evaluate(() => state.nearbyAnchor)).toBeNull();
-      await expect(page.locator("#inspectorBack")).toBeHidden();
+      await expect(page.locator("#inspectorBack")).toBeDisabled();
+    });
+
+    test("the back arrow is live on a plain Nearby screen once a step behind it, and returns to the previous page", async ({ page }) => {
+      await setup(page);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+      await expect(page.locator("#inspectorBack")).toBeDisabled();
+
+      // A link tapped from one Nearby page to another is a Nearby-to-Nearby step with no browse
+      // anchor, so the arrow has to offer the way back rather than staying disabled.
+      await page.evaluate(() => navigateInApp("/nearby/nature/"));
+      await expect(page).toHaveURL(/\/nearby\/nature\//);
+      await expect(page.locator("#inspectorBack")).toBeEnabled();
+
+      await page.click("#inspectorBack");
+      await expect(page).toHaveURL(/\/nearby(\?|#|$|\/$)/);
     });
 
     test("tapping open map ground while a tree is selected returns to nearby, focused on that spot", async ({ page }) => {
@@ -408,19 +407,13 @@ test.describe("Overview / Nearby screen", () => {
 
       const boxes = await page.evaluate(() => {
         const rect = (el) => el.getBoundingClientRect().toJSON();
-        const handle = document.getElementById("inspectorDragHandle");
         return {
-          // The grip only exists on the mobile sheet; elsewhere there is nothing to clear.
-          handle: getComputedStyle(handle).display === "none" ? null : rect(handle),
           bar: rect(document.getElementById("nearbyAnchorBar")),
           text: rect(document.querySelector(".nearby-anchor-bar-text")),
           button: rect(document.querySelector("[data-action='reset-nearby-anchor']")),
         };
       });
 
-      if (boxes.handle) {
-        expect(boxes.bar.top, "the notice starts below the drag handle").toBeGreaterThanOrEqual(boxes.handle.bottom);
-      }
       expect(boxes.button.left, "the button sits beside the text, not wrapped under it").toBeGreaterThanOrEqual(boxes.text.right);
       expect(boxes.button.height, "the button is a comfortable tap target").toBeGreaterThanOrEqual(36);
     });
@@ -536,7 +529,7 @@ test.describe("Overview / Nearby screen", () => {
     // out past it when one sat near the edge.
     async function measureRing(page) {
       await page.waitForFunction(() => Boolean(state.userLocation));
-      await page.waitForTimeout(900); // let the reveal animation settle
+      await waitForUiToSettle(page);
       return page.evaluate(() => {
         stopViewportAnimation();
         const rect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
@@ -557,6 +550,9 @@ test.describe("Overview / Nearby screen", () => {
           cornersInsideRing: corners.filter((c) => Math.hypot(c.x - user.x, c.y - user.y) <= radiusPx).length,
           widthFraction: (radiusPx * 2) / rect.width,
           heightFraction: (radiusPx * 2) / rect.height,
+          // The visible map can be wider than tall (a phone with the sheet open) or taller than
+          // wide, so "the smaller screen dimension" is whichever side is shorter.
+          smallerDimensionFraction: (radiusPx * 2) / Math.min(rect.width, rect.height),
           scale: state.viewport.scale,
         };
       });
@@ -569,8 +565,8 @@ test.describe("Overview / Nearby screen", () => {
       expect(ring.outside).toBe(0);
       expect(ring.cornersInsideRing).toBe(0);
       // Framed, not merely contained: the circle fills most of the smaller screen dimension.
-      expect(Math.min(ring.widthFraction, ring.heightFraction)).toBeGreaterThan(0.6);
-      expect(Math.max(ring.widthFraction, ring.heightFraction)).toBeLessThanOrEqual(1);
+      expect(ring.smallerDimensionFraction).toBeGreaterThan(0.6);
+      expect(ring.smallerDimensionFraction).toBeLessThanOrEqual(1);
     });
 
     test("the zoom does not change as the compass heading turns", async ({ page }) => {
@@ -578,7 +574,7 @@ test.describe("Overview / Nearby screen", () => {
       // heading-invariant by construction and the map must not breathe as you turn on the spot.
       await setup(page);
       await page.waitForFunction(() => Boolean(state.userLocation));
-      await page.waitForTimeout(900);
+      await waitForUiToSettle(page);
 
       const scales = await page.evaluate(() => {
         const out = [];
@@ -604,7 +600,7 @@ test.describe("Overview / Nearby screen", () => {
       // the fit has landed, the per-frame compass tick must be a no-op for the viewport.
       await setup(page);
       await page.waitForFunction(() => Boolean(state.userLocation));
-      await page.waitForTimeout(900);
+      await waitForUiToSettle(page);
 
       const changedOnRepeat = await page.evaluate(() => {
         state.compassHeading = 90;

@@ -12,6 +12,12 @@ const IS_DEV = self.__DEV__ === true;
 importScripts("./js/app-cache-version.js", "./js/data-cache-version.js");
 const APP_CACHE_NAME = `forest-finds-app-${APP_CACHE_VERSION}`;
 const DATA_CACHE_NAME = `forest-finds-data-${DATA_CACHE_VERSION}`;
+// Community findings (/api/community/overlay) change daily and are not part of data/**, so they
+// live in a cache of their own with its own version: bumping it never touches the app or data
+// caches (and vice versa). Bump COMMUNITY_CACHE_VERSION only if the overlay's shape changes.
+const COMMUNITY_CACHE_VERSION = 1;
+const COMMUNITY_CACHE_NAME = `forest-finds-community-v${COMMUNITY_CACHE_VERSION}`;
+const COMMUNITY_OVERLAY_PATH = "/api/community/overlay";
 
 // APP_SHELL: Critical app code only — install blocks until all succeed
 // "./" is deliberately absent: after the alpha URL split it resolves to the
@@ -28,10 +34,15 @@ const APP_SHELL = [
   "./css/map-ui.css",
   "./css/onboarding.css",
   "./css/tracking.css",
+  "./css/img/map-3d-preview.webp",
+  "./js/native.js",
   "./js/categories.js",
   "./js/app-cache-version.js",
   "./js/data-cache-version.js",
   "./js/normalize.js",
+  "./js/router-rules.js",
+  "./js/dom-elements.js",
+  "./js/filter-state.js",
   "./js/loader.js",
   "./js/routing.js",
   "./js/icon-motion.js",
@@ -40,6 +51,8 @@ const APP_SHELL = [
   "./js/nav.js",
   "./js/onboarding.js",
   "./js/tracker.js",
+  "./js/outbox.js",
+  "./js/community.js",
   "./js/app.js",
 ];
 
@@ -56,6 +69,7 @@ const DATA_SHELL = [
   "./data/local-landmarks-tourism.geojson",
   "./data/local-landmarks-misc.geojson",
   "./data/epping_forest_folklore_locations.json",
+  "./data/business-slugs.json",
   "./data/events.json",
   "./data/local-paths.geojson",
   "./data/local-environment.geojson",
@@ -204,6 +218,11 @@ const DATA_CACHE_OPPORTUNISTIC = [
   "./data/icons/wwII.png",
 ];
 
+// A forced refresh must be able to repair a partially populated data cache as well as
+// revalidate the entries it already has. Keep this derived list next to the two source lists so
+// adding a new offline asset cannot make the refresh path forget to download it.
+const ALL_DATA_URLS = [...new Set([...DATA_SHELL, ...DATA_CACHE_OPPORTUNISTIC])];
+
 // Helper: determine if a path is app code vs data
 // The map application's own navigable URLs -- its five screen paths, each a pretty URL
 // rewritten to /app.html by netlify.toml and server.js, plus the underlying file itself.
@@ -211,9 +230,32 @@ const DATA_CACHE_OPPORTUNISTIC = [
 // server.js), so it is deliberately left to the network like any other unrecognised path.
 // Anything else -- the homepage, the reports, the terms page -- is a network page the app
 // cache must not answer for.
-const APP_SCREEN_PATHS = new Set(["/nearby", "/nearby/search", "/nearby/filter", "/settings", "/feedback"]);
-function isAppNavigation(pathname) {
+const APP_SCREEN_PATHS = new Set(["/nearby", "/nearby/search", "/nearby/filter", "/settings", "/feedback", "/community"]);
+// Every one of these five (plus app.html itself) returns byte-identical content -- they're the
+// same static file, reached by different client-side routes layered on top of it -- so answering
+// them all from the one shared "./app.html" key (see the navigate branch in the fetch handler
+// below) is always correct for them.
+function isStableAppShellPath(pathname) {
   return APP_SCREEN_PATHS.has(pathname) || pathname === "/app.html" || pathname.endsWith("/app.html");
+}
+
+// /nearby/<slug>/ (scripts/generate-find-pages.js -- ~29 category pages) and /find/<slug>/
+// (scripts/generate-business-pages.js -- ~1,500 business/location pages, plus /find/events/)
+// are a different case: each one returns its OWN distinct HTML (a different <title>, JSON-LD and
+// initial inspector body), templated off app.html at build time but not identical to it or to
+// each other. Writing any single one of them into the shared "./app.html" cache slot the way the
+// stable paths above do would make that slot's content depend on whichever of these 1,500+ pages
+// a visitor last happened to load -- the next offline navigation to a *different* one of them
+// would then see that wrong page's title and JSON-LD. So these are never written to that cache
+// slot; they're read from it only as a last-resort offline fallback (see the navigate
+// branch below), keeping it exactly as generic as it already is for the five stable paths above.
+const FIND_PAGE_PATTERN = /^\/(nearby|find)\/[a-z0-9-]+\/?$/;
+function isGeneratedPageNavigation(pathname) {
+  return FIND_PAGE_PATTERN.test(pathname);
+}
+
+function isAppNavigation(pathname) {
+  return isStableAppShellPath(pathname) || isGeneratedPageNavigation(pathname);
 }
 
 function isAppCodePath(pathname) {
@@ -241,7 +283,8 @@ const DATA_SYNC_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const DATA_SYNC_CONCURRENCY = 6;
 
 function isDataSyncStateRequest(request) {
-  return request.url.endsWith("__data-sync-state");
+  const url = typeof request === "string" ? request : request && request.url;
+  return Boolean(url && url.endsWith("__data-sync-state"));
 }
 
 // Returns only the URLs that are not already in this cache. Every app release bumps
@@ -309,8 +352,10 @@ self.addEventListener("install", (event) => {
     .then(async (cache) => {
       const missing = await missingFromCache(cache, APP_SHELL);
       if (missing.length > 0) await cache.addAll(missing);
-    })
-    .then(() => self.skipWaiting());
+    });
+    // Deliberately leave this worker waiting. The page only activates a fully downloaded worker
+    // after the person asks for the update, so an interrupted release can never replace the
+    // currently working offline shell.
 
   // Block install on critical data shell -- inheriting whatever a previous data cache already
   // holds first, so only genuinely absent files are fetched.
@@ -318,6 +363,13 @@ self.addEventListener("install", (event) => {
     .open(DATA_CACHE_NAME)
     .then(async (cache) => {
       await adoptPreviousDataCache(cache);
+      // A visitor's very first install (no older worker in this registration) has nothing to adopt, and
+      // the page that registered this worker is already downloading the same map files itself
+      // (js/loader.js hands each one to this cache as it lands). Fetching them here as well downloaded
+      // the whole map twice on a first visit, ~90 MB of JSON. The data sync the page asks for once its
+      // own downloads have landed fills in anything it did not fetch. Whether the cache is empty is no
+      // test of this: the page's first hand-overs can land before install gets here.
+      if (!self.registration || !self.registration.active) return;
       const missing = await missingFromCache(cache, DATA_SHELL);
       if (missing.length > 0) await cache.addAll(missing);
 
@@ -335,7 +387,7 @@ self.addEventListener("activate", (event) => {
     caches.keys().then((keys) =>
       Promise.all(
         keys
-          .filter((key) => key !== APP_CACHE_NAME && key !== DATA_CACHE_NAME)
+          .filter((key) => key !== APP_CACHE_NAME && key !== DATA_CACHE_NAME && key !== COMMUNITY_CACHE_NAME)
           .map((key) => caches.delete(key))
       )
     ).then(() => self.clients.claim())
@@ -389,7 +441,13 @@ async function syncData({ force = false } = {}) {
       Date.now() - syncState.lastSyncAt >= DATA_SYNC_INTERVAL_MS;
     if (!due) return { ran: false, changed: 0 };
 
-    const requests = (await cache.keys()).filter((request) => !isDataSyncStateRequest(request));
+    const cachedRequests = (await cache.keys()).filter((request) => !isDataSyncStateRequest(request));
+    const cachedUrls = new Set(cachedRequests.map((request) => request.url));
+    const missingUrls = ALL_DATA_URLS.filter((url) => {
+      const absolute = new URL(url, self.location.href).href;
+      return !cachedUrls.has(absolute);
+    });
+    const requests = [...cachedRequests, ...missingUrls];
     let next = 0;
     let changed = 0;
     let failed = 0;
@@ -400,14 +458,22 @@ async function syncData({ force = false } = {}) {
         next += 1;
         try {
           const cached = await cache.match(request);
+          const requestUrl = typeof request === "string" ? new URL(request, self.location.href).href : request.url;
           // "no-store" keeps the browser's HTTP cache out of it entirely — the conditional
           // headers above are the whole mechanism, so a 304 here really did cost no bytes.
-          const fresh = await fetch(request.url, { cache: "no-store", headers: conditionalHeaders(cached) });
+          const fresh = await fetch(requestUrl, { cache: "no-store", headers: conditionalHeaders(cached) });
           if (fresh.status === 304) continue;
-          if (!fresh.ok) continue;
+          if (!fresh.ok) {
+            failed += 1;
+            continue;
+          }
           if (cached && !responseChanged(cached, fresh)) continue;
           await cache.put(request, fresh.clone());
-          changed += 1;
+          // Only a replaced copy is new to the person. A file the cache never held (a tree chunk
+          // they have not walked near yet, say) was never on their map, so filling it in is not
+          // "new map data" and must not raise the restart banner -- it used to, on every partial
+          // pass, which brought the banner back after each restart until the cache was complete.
+          if (cached) changed += 1;
         } catch (error) {
           failed += 1;
           // Offline, or one file the server no longer serves -- keep the cached copy either way.
@@ -420,10 +486,16 @@ async function syncData({ force = false } = {}) {
     // Only record a pass that actually reached the network. Stamping a wholly failed sweep (the
     // connection dropped mid-walk, say) would push the real check six hours out and quietly clear
     // the staleSince flag that a just-migrated cache depends on.
-    if (requests.length > 0 && failed === requests.length) return { ran: false, changed: 0 };
+    if (requests.length > 0 && failed === requests.length) {
+      return { ran: false, changed: 0, failed, complete: false };
+    }
 
-    await writeDataSyncState(cache, { lastSyncAt: Date.now(), staleSince: null });
-    return { ran: true, changed };
+    // A partial pass is useful, but must remain due so a transient outage does not suppress the
+    // next repair attempt for six hours. The cached entries remain the source of truth either way.
+    await writeDataSyncState(cache, failed > 0
+      ? { staleSince: syncState.staleSince || Date.now() }
+      : { lastSyncAt: Date.now(), staleSince: null });
+    return { ran: true, changed, failed, complete: failed === 0 };
   })().finally(() => {
     dataSyncInFlight = null;
   });
@@ -436,6 +508,17 @@ async function notifyDataUpdated(changed) {
   clients.forEach((client) => client.postMessage({ type: "DATA_UPDATED", changed }));
 }
 
+async function communityResponseChanged(cached, fresh) {
+  if (!cached) return true;
+  const [cachedText, freshText] = await Promise.all([cached.clone().text(), fresh.clone().text()]);
+  return cachedText !== freshText;
+}
+
+async function notifyCommunityUpdated(data) {
+  const clients = await self.clients.matchAll({ includeUncontrolled: true });
+  clients.forEach((client) => client.postMessage({ type: "COMMUNITY_UPDATED", data }));
+}
+
 self.addEventListener("message", (event) => {
   if (event.data?.type === "SKIP_WAITING") {
     self.skipWaiting();
@@ -445,8 +528,29 @@ self.addEventListener("message", (event) => {
   if (event.data?.type === "SYNC_DATA") {
     event.waitUntil(
       syncData({ force: event.data.force === true })
-        .then((result) => (result.ran && result.changed > 0 ? notifyDataUpdated(result.changed) : undefined))
-        .catch(() => {})
+        .then(async (result) => {
+          if (result.ran && result.changed > 0) await notifyDataUpdated(result.changed);
+          if (event.source) {
+            event.source.postMessage({
+              type: "DATA_SYNC_COMPLETE",
+              requestId: event.data.requestId || null,
+              ok: result.complete === true,
+              changed: result.changed || 0,
+              failed: result.failed || 0,
+            });
+          }
+        })
+        .catch(() => {
+          if (event.source) {
+            event.source.postMessage({
+              type: "DATA_SYNC_COMPLETE",
+              requestId: event.data.requestId || null,
+              ok: false,
+              changed: 0,
+              failed: 1,
+            });
+          }
+        })
     );
   }
 });
@@ -456,6 +560,36 @@ self.addEventListener("fetch", (event) => {
 
   // Marketing ships independently: never read or write its assets in app caches.
   if (requestUrl.pathname.startsWith("/assets/home/")) return;
+
+  // The community overlay is served stale-while-revalidate from its own cache: instant (and
+  // available offline) from the last copy, refreshed from the network in the background. The
+  // per-user score query (?me=) is not cached.
+  if (
+    requestUrl.origin === self.location.origin &&
+    requestUrl.pathname === COMMUNITY_OVERLAY_PATH &&
+    !requestUrl.search &&
+    event.request.method === "GET"
+  ) {
+    event.respondWith(
+      caches.open(COMMUNITY_CACHE_NAME).then(async (cache) => {
+        const cached = await cache.match(event.request);
+        const fromNetwork = fetch(event.request).then(async (response) => {
+          if (!response.ok) return response;
+          const changed = !cached || await communityResponseChanged(cached, response);
+          const data = await response.clone().json().catch(() => null);
+          await cache.put(event.request, response.clone());
+          if (changed && data) await notifyCommunityUpdated(data);
+          return response;
+        });
+        if (cached) {
+          fromNetwork.catch(() => {});
+          return cached;
+        }
+        return fromNetwork;
+      })
+    );
+    return;
+  }
 
   // Always bypass cache for API and admin requests
   if (
@@ -474,14 +608,20 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Navigation requests (full page loads) — serve the cached shell straight away, then refresh
-  // the cached copy behind the scenes. This used to be network-first, which meant every reload,
-  // however warm the cache, blocked on a ~290 KB app.html round trip before a single pixel
-  // appeared; on a phone in the forest that is the difference between "instant" and "loading".
-  // Staleness is still bounded: the browser re-checks sw.js on every navigation, and a release
-  // bumps APP_CACHE_NAME, so a new worker installs, caches the new shell, and claims the page
-  // (setupPwa in js/nav.js then surfaces the update). Locally the dev server is the source of
-  // truth, so IS_DEV keeps navigation network-first there.
+  // Navigation requests (full page loads) — serve the cached shell straight away. This used to be
+  // network-first, which meant every reload, however warm the cache, blocked on a ~290 KB app.html
+  // round trip before a single pixel appeared; on a phone in the forest that is the difference
+  // between "instant" and "loading". Staleness is still bounded: the browser re-checks sw.js on
+  // every navigation, and a release bumps APP_CACHE_NAME, so a new worker installs, caches the new
+  // shell, and claims the page (setupPwa in js/nav.js then surfaces the update). Locally the dev
+  // server is the source of truth, so IS_DEV keeps navigation network-first there.
+  //
+  // The cached app.html is never overwritten from the network in production. It used to be, which
+  // put the next release's page into this release's cache while its scripts stayed at this
+  // release: a script the new page added or moved was then fetched new beside old ones, the
+  // classic scripts redeclared each other's globals, and the app failed to boot -- leaving nothing
+  // running to offer the waiting update. app.html is part of APP_SHELL, so each release's install
+  // caches the page that matches its own scripts.
   //
   // Only the app's own routes are answered from the app shell. This handler used to answer
   // EVERY navigation with the cached app, which after the alpha URL split would have served
@@ -489,26 +629,35 @@ self.addEventListener("fetch", (event) => {
   // invisible to every returning visitor. See spec/spec-alpha-access.md.
   if (event.request.mode === "navigate") {
     if (!isAppNavigation(requestUrl.pathname)) return;
+    // This worker's own release's shell only -- never a waiting release's page beside these scripts.
+    const cachedShell = () => caches.open(APP_CACHE_NAME).then((cache) => cache.match("./app.html"));
 
-    const fromNetwork = fetch(event.request).then((response) => {
-      if (response && response.ok) {
-        const copy = response.clone();
-        caches.open(APP_CACHE_NAME).then((cache) => cache.put("./app.html", copy));
-      }
-      return response;
-    });
+    // A /nearby/<slug>/ or /find/<slug>/ page's own HTML is never written into the shared
+    // "./app.html" cache slot (see isGeneratedPageNavigation's comment above) -- it's fetched
+    // network-first instead, so an online visitor always gets that page's real, specific content
+    // rather than whatever happened to be cached, and only falls back to the generic shell if the
+    // network truly isn't available.
+    if (isGeneratedPageNavigation(requestUrl.pathname)) {
+      event.respondWith(fetch(event.request).catch(cachedShell));
+      return;
+    }
 
-    event.respondWith(
-      IS_DEV
-        ? fromNetwork.catch(() => caches.match("./app.html"))
-        : caches.match("./app.html").then((cached) => {
-            if (cached) {
-              fromNetwork.catch(() => {});
-              return cached;
+    if (IS_DEV) {
+      event.respondWith(
+        fetch(event.request)
+          .then((response) => {
+            if (response && response.ok) {
+              const copy = response.clone();
+              caches.open(APP_CACHE_NAME).then((cache) => cache.put("./app.html", copy));
             }
-            return fromNetwork.catch(() => caches.match("./app.html"));
+            return response;
           })
-    );
+          .catch(cachedShell)
+      );
+      return;
+    }
+
+    event.respondWith(cachedShell().then((cached) => cached || fetch(event.request)));
     return;
   }
 
@@ -537,8 +686,10 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Read from this worker's own cache only. caches.match() searches every cache, including a
+  // waiting release's, so an older worker could hand out a newer release's file beside its own.
   event.respondWith(
-    caches.match(event.request).then((cached) => {
+    caches.open(cacheName).then((cache) => cache.match(event.request)).then((cached) => {
       if (cached) return cached;
       return fetch(event.request).then((response) => {
         const copy = response.clone();

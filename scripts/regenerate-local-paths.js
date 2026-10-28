@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const https = require("https");
+const { writeFeatureLines } = require("./geojson-format");
 
 const ROOT = process.cwd();
 const DATA_DIR = path.join(ROOT, "data");
@@ -166,7 +167,7 @@ async function main() {
   }
 
   const geojson = buildGeoJson(raw);
-  fs.writeFileSync(GEOJSON_PATH, JSON.stringify(geojson, null, 2) + "\n");
+  writeFeatureLines(GEOJSON_PATH, geojson);
 
   const counts = {};
   for (const feature of geojson.features) {

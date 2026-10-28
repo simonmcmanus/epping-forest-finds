@@ -61,12 +61,47 @@ test.describe("3D tilt view", () => {
 
   test.beforeEach(async ({ page }) => {
     await skipOnboarding(page);
+    // 3D is off until switched on in Settings; this whole file is about it being on.
+    await page.addInitScript(() => localStorage.setItem("ff-map-3d-v1", "1"));
     await mockCowApi(page);
     await gotoAndWaitForMap(page);
     await page.evaluate(() => {
       const gate = document.getElementById("locationGate");
       if (gate && !gate.hidden) gate.hidden = true;
     });
+  });
+
+  test("responds to a phone pitch even before a compass heading is available", async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== "mobile", "Device orientation is only exercised in the mobile project");
+
+    const result = await page.evaluate(async () => {
+      state.compassHeading = null;
+      state.compassHeadingTarget = null;
+      state.compassLastEventAt = null;
+      state.tiltBetaTarget = 0;
+      state.tiltBetaSmoothed = 0;
+
+      const event = new Event("deviceorientation");
+      event.alpha = null;
+      event.beta = 55;
+      event.gamma = 0;
+      window.dispatchEvent(event);
+
+      for (let frame = 0; frame < 18; frame += 1) {
+        await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+      }
+      return {
+        target: state.tiltBetaTarget,
+        smoothed: state.tiltBetaSmoothed,
+        active: tiltActive(),
+        rendered: state.renderedTiltRotateXDeg,
+      };
+    });
+
+    expect(result.target).toBe(55);
+    expect(result.smoothed, "pitch should ease even while heading is unavailable").toBeGreaterThan(20);
+    expect(result.active, "the lifted-phone 3D view should not wait for a compass heading").toBe(true);
+    expect(result.rendered, "the map should be repainted at a tilted angle").toBeGreaterThan(0);
   });
 
   test("raising the phone walks you into the walking radius instead of showing it from outside", async ({ page }) => {
@@ -147,7 +182,7 @@ test.describe("3D tilt view", () => {
     for (const beta of TILT_SWEEP) {
       await tiltTo(page, beta);
 
-      const { groundCoverage, horizonFraction } = await page.evaluate(() => {
+      const { groundCoverage, hazeFraction, horizonFraction } = await page.evaluate(() => {
         const rect = bestVisibleCanvasRect();
         // Derived here from the camera angle and distance rather than read from
         // tiltHorizonCanvasY(), so this measures observable behaviour and stays valid
@@ -159,26 +194,49 @@ test.describe("3D tilt view", () => {
           : null;
         // Everything below the horizon is ground and must be painted. Above it is sky,
         // which is correctly empty — so the ground band is the honest thing to measure.
-        const top = Math.max(Math.round(rect.y), horizon == null ? -Infinity : Math.round(horizon), 0);
+        // The horizon falls between pixel rows. Start at the first complete row below it so
+        // the shared sky/ground boundary pixel is not treated as missing terrain by the alpha
+        // coverage check.
+        const top = Math.max(Math.ceil(rect.y), horizon == null ? -Infinity : Math.ceil(horizon), 0);
         const bottom = Math.min(Math.round(rect.y + rect.height), els.canvas.height);
         const x = Math.max(0, Math.round(rect.x));
         const width = Math.min(els.canvas.width - x, Math.round(rect.width));
         const pixels = els.canvas.getContext("2d").getImageData(x, top, width, bottom - top).data;
 
-        let painted = 0;
-        let total = 0;
-        for (let row = 0; row < bottom - top; row += 4) {
+        // The horizon itself is a deliberate haze: drawTiltDistanceFade fades the ground out as
+        // it meets the horizon, so the first few rows below it are transparent by design. Measure
+        // coverage from the first painted row instead, and separately require that row to sit
+        // right at the horizon -- ground that ran out early would leave a far deeper gap.
+        const rowPainted = (row) => {
+          let painted = 0;
+          let total = 0;
           for (let col = 0; col < width; col += 4) {
             total += 1;
             if (pixels[((row * width) + col) * 4 + 3] > 8) painted += 1;
           }
+          return { painted, total };
+        };
+        let firstGroundRow = 0;
+        while (firstGroundRow < bottom - top) {
+          const { painted, total } = rowPainted(firstGroundRow);
+          if (painted / total > 0.5) break;
+          firstGroundRow += 4;
+        }
+        let painted = 0;
+        let total = 0;
+        for (let row = firstGroundRow; row < bottom - top; row += 4) {
+          const counts = rowPainted(row);
+          painted += counts.painted;
+          total += counts.total;
         }
         return {
-          groundCoverage: (painted / total) * 100,
+          groundCoverage: total ? (painted / total) * 100 : 0,
+          hazeFraction: firstGroundRow / els.canvas.height,
           horizonFraction: horizon == null ? null : (horizon - rect.y) / rect.height,
         };
       });
 
+      expect(hazeFraction, `ground must reach up to the horizon haze at beta ${beta}`).toBeLessThan(0.03);
       expect(groundCoverage, `ground must stay painted at beta ${beta}`).toBeGreaterThan(95);
       if (horizonFraction !== null && horizonFraction > 0) {
         // Once the horizon is on screen it must stay in the upper half — a horizon that
@@ -419,7 +477,7 @@ test.describe("3D tilt view", () => {
       }
       return null;
     });
-    test.skip(!target, "no open ground on screen at this camera");
+    expect(target, "open ground is on screen at this camera").not.toBeNull();
 
     // The framing the camera is on before the tap. The slide has to travel from here to the
     // browse framing and stop, without visiting anything outside the two.

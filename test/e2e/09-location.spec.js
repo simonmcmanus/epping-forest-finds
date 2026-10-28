@@ -1,9 +1,10 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, skipOnboarding, mockCowApi, gotoAndWaitForMap, settleMapIconsAndDraw } = require("./helpers");
+const { setup, skipOnboarding, mockCowApi, gotoAndWaitForMap, settleMapIconsAndDraw, waitForFrames, waitForUiToSettle } = require("./helpers");
 
 // A GPS fix inside Epping Forest
 const FOREST_LOCATION = { latitude: 51.6650, longitude: 0.0450, accuracy: 10 };
+const DEFAULT_WALKING_DISTANCE_MINUTES = 5;
 
 test.describe("Location and GPS — happy path", () => {
   test.describe("geolocation granted", () => {
@@ -24,8 +25,8 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
     });
 
-    test("the location gate is not shown when geolocation is pre-granted", async ({ page }) => {
-      await expect(page.locator("#locationGate")).toBeHidden();
+    test("the High Beach stand-in notice is not shown with a real fix", async ({ page }) => {
+      await expect(page.locator("#inspectorBody")).not.toContainText("Showing things near High Beach");
     });
 
     test("distance info appears as an always-visible combined distance and walk chip after a GPS fix", async ({ page }) => {
@@ -42,11 +43,64 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("#inspectorBody .walk-chip-btn")).toHaveCount(0);
     });
 
-    test("snapshot: map with user location active", async ({ page }, testInfo) => {
-      test.skip(testInfo.project.name !== 'mobile', 'Snapshots are mobile-only');
-      await page.waitForTimeout(800);
+    test("snapshot: map with user location active", async ({ page }) => {
+      await waitForUiToSettle(page);
       await settleMapIconsAndDraw(page);
       await expect(page).toHaveScreenshot("map-with-location.png", { fullPage: false });
+    });
+
+    test("on a train, the position on Nearby is the latest GPS fix rather than easing along behind it", async ({ page, context }) => {
+      await page.waitForFunction((start) => state.rawUserLocation && state.rawUserLocation.latitude === start, FOREST_LOCATION.latitude);
+      // 15m north, at 20 m/s: the speed the phone's own GPS reports on a moving train. Playwright's
+      // setGeolocation has no speed field, so the fix goes through the DevTools protocol.
+      const next = FOREST_LOCATION.latitude + 0.000135;
+      const cdp = await context.newCDPSession(page);
+      await cdp.send("Emulation.setGeolocationOverride", { ...FOREST_LOCATION, latitude: next, speed: 20 });
+      // Read on the first frame the fix is seen, before any easing could close the gap.
+      const gap = await page.waitForFunction(
+        (target) => state.rawUserLocation.latitude === target && { metres: Math.abs(state.userLocation.latitude - target) * 111320 },
+        next
+      ).then((handle) => handle.jsonValue());
+      expect(gap.metres).toBeLessThan(0.01);
+    });
+
+    test("a visitor inside the forest is not told they are far from it", async ({ page }) => {
+      // The distance check runs as the location step completes, which gotoAndWaitForMap waited for.
+      await expect(page.getByRole("dialog", { name: "You're not near the forest yet" })).toBeHidden();
+    });
+  });
+
+  test.describe("far from the forest", () => {
+    // Trafalgar Square: several kilometres from the nearest forest boundary.
+    test.use({ geolocation: { latitude: 51.508, longitude: -0.1281, accuracy: 10 }, permissions: ["geolocation"] });
+
+    test.beforeEach(async ({ page }) => {
+      await skipOnboarding(page);
+      await mockCowApi(page);
+      await gotoAndWaitForMap(page);
+    });
+
+    test("says how far away the forest is, and 'Explore the map' dismisses it", async ({ page }) => {
+      const dialog = page.getByRole("dialog", { name: "You're not near the forest yet" });
+      await expect(dialog).toBeVisible();
+      await expect(dialog).toContainText(/You're about \d+(\.\d+)? km from the forest boundary — roughly \d+ minutes on foot/);
+
+      await dialog.getByRole("button", { name: "Explore the map" }).click();
+      await expect(dialog).toBeHidden();
+    });
+
+    test("Escape dismisses the far-away notice", async ({ page }) => {
+      const dialog = page.getByRole("dialog", { name: "You're not near the forest yet" });
+      await expect(dialog).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(dialog).toBeHidden();
+    });
+
+    test("snapshot: far from the forest notice", async ({ page }) => {
+      await expect(page.locator("#distanceWarning")).toBeVisible();
+      await waitForUiToSettle(page);
+      await settleMapIconsAndDraw(page);
+      await expect(page).toHaveScreenshot("distance-warning.png", { fullPage: false });
     });
   });
 
@@ -59,55 +113,60 @@ test.describe("Location and GPS — happy path", () => {
       await mockCowApi(page);
     });
 
-    test("location gate is shown after geolocation is denied or times out", async ({ page }) => {
-      await gotoAndWaitForMap(page);
-      // The location gate should become visible once the error/timeout path runs
-      await expect(page.locator("#locationGate")).toBeVisible();
+    // An app screen with no static Nearby list under it: on bare /nearby once the build has run
+    // (as on CI), the same first ask is #consentBanner's location stage instead (39-permission-asks).
+    const SCREEN = "/nearby/search";
+
+    test("the location invite banner is shown after geolocation is denied or times out, not a blocking gate", async ({ page }) => {
+      await gotoAndWaitForMap(page, SCREEN);
+      // A returning visit with no real fix falls back to DEFAULT_LOCATION (see "No real
+      // location fix" in spec.md), so what invites a real fix here is the same non-blocking,
+      // dismissible banner showCombinedConsentBanner() uses for its own ask — never the opaque,
+      // full-screen #locationGate modal the hard-stop prompts elsewhere on this page use. The map
+      // and list behind it are already usable, so there is nothing to block.
+      await expect(page.locator("#locationInviteBanner")).toBeVisible();
+      await expect(page.locator("#locationGate")).toBeHidden();
+      await expect(page.locator("#locationInviteButton")).toBeEnabled();
     });
 
-    test("location gate button re-enables after the gate re-appears", async ({ page }) => {
-      await gotoAndWaitForMap(page);
-      await expect(page.locator("#locationGateButton")).toBeEnabled();
+    test("the invite is not a modal — it has no dialog role and does not trap focus", async ({ page }) => {
+      await gotoAndWaitForMap(page, SCREEN);
+      const banner = page.locator("#locationInviteBanner");
+      await expect(banner).not.toHaveAttribute("role", "dialog");
+      await expect(banner).not.toHaveAttribute("aria-modal", "true");
+      // Focus is never forced onto it — the reader can keep using the map/list behind it.
+      const focusedId = await page.evaluate(() => document.activeElement?.id || null);
+      expect(focusedId).not.toBe("locationInviteButton");
     });
 
-    test("location gate is a labelled, keyboard-focus-trapped dialog", async ({ page }) => {
-      await gotoAndWaitForMap(page);
-      const gate = page.locator("#locationGate");
-      await expect(gate).toHaveAttribute("role", "dialog");
-      await expect(gate).toHaveAttribute("aria-modal", "true");
-      await expect(gate).toHaveAttribute("aria-labelledby", "locationGateTitle");
-
-      // Opening the gate should have moved focus into it, onto its first control.
-      await expect(page.locator("#locationGateButton")).toBeFocused();
-
-      // A returning visit with no real fix now falls back to DEFAULT_LOCATION, so this gate
-      // is the dismissible invite (see "No real location fix" in spec.md) — Tab visits its
-      // "Maybe later" button next, then the privacy note's policy link...
-      await page.keyboard.press("Tab");
-      await expect(page.locator("#locationGateDismiss")).toBeFocused();
-      await page.keyboard.press("Tab");
-      await expect(gate.locator(".privacy-note a")).toBeFocused();
-
-      // ...and a further Tab cycles back to the first button rather than escaping to the map
-      // behind it.
-      await page.keyboard.press("Tab");
-      await expect(page.locator("#locationGateButton")).toBeFocused();
-    });
-
-    test("the gate is dismissible, and the map behind it is already usable centred on High Beach", async ({ page }) => {
-      await gotoAndWaitForMap(page);
-      const gate = page.locator("#locationGate");
-      const dismiss = page.locator("#locationGateDismiss");
+    test("the invite is dismissible, and the map behind it is already usable centred on High Beach", async ({ page }) => {
+      await gotoAndWaitForMap(page, SCREEN);
+      const banner = page.locator("#locationInviteBanner");
+      const dismiss = page.locator("#locationInviteDismiss");
       await expect(dismiss).toBeVisible();
 
       await dismiss.click();
-      await expect(gate).toBeHidden();
+      await expect(banner).toBeHidden();
 
       // Dismissing the invite never granted location — DEFAULT_LOCATION's stand-in is still
       // what the map and Nearby list are centred on, not a real fix.
       const isDefault = await page.evaluate(() => Boolean(state.userLocation && state.userLocation.isDefault));
       expect(isDefault).toBe(true);
+      await page.locator("#nearbyToggle").click();
       await expect(page.locator("#inspectorBody .nearest-list li").first()).toBeVisible();
+    });
+
+    test("tapping the invite's own button requests a real fix, the same way the combined consent banner's does", async ({ page }) => {
+      await gotoAndWaitForMap(page, SCREEN);
+      await page.evaluate(() => {
+        navigator.geolocation.getCurrentPosition = (success) => success({
+          coords: { latitude: 51.6650, longitude: 0.0450, accuracy: 10 },
+          timestamp: Date.now(),
+        });
+      });
+      await page.locator("#locationInviteButton").click();
+      await expect.poll(() => page.evaluate(() => Boolean(state.userLocation && !state.userLocation.isDefault))).toBe(true);
+      await expect(page.locator("#locationInviteBanner")).toBeHidden();
     });
   });
 
@@ -135,13 +194,56 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("#inspectorBody .nearest-list li").first()).toBeVisible();
     });
 
-    test("the walking radius defaults to 30 minutes, not the ordinary 5, since the anchor isn't tied to anywhere real", async ({ page }) => {
-      const minutes = await page.evaluate(() => state.walkingDistanceMinutes);
-      expect(minutes).toBe(30);
+    test("the list says it is showing High Beach because no location was shared, for as long as the stand-in is active", async ({ page }) => {
+      // Folded into the Nearby heading's own type line (overviewHeadingText(), js/app.js) rather
+      // than a separate sentence at the top of the list body -- see spec.md "No real location fix".
+      await expect(page.locator("#inspectorType")).toContainText("of High Beach");
     });
 
-    test("the locate button stays visible, and the \"You\" dot is never drawn for the stand-in", async ({ page }) => {
-      await expect(page.locator("#locateButton")).toBeVisible();
+    test("the walking radius keeps the ordinary 5-minute default while the anchor is temporary", async ({ page }) => {
+      const minutes = await page.evaluate(() => state.walkingDistanceMinutes);
+      expect(minutes).toBe(DEFAULT_WALKING_DISTANCE_MINUTES);
+    });
+
+    test("the High Beach to real-location handoff flies out and settles instead of jolting", async ({ page }) => {
+      const result = await page.evaluate(async () => {
+        stopViewportAnimation();
+        const start = { ...state.viewport };
+        applyLocationFix({
+          coords: { latitude: 51.6650, longitude: 0.0450, accuracy: 10 },
+        });
+        ensureOverviewTargetsVisible({ animate: true, cinematic: true, force: true, durationMs: 900 });
+
+        const scales = [];
+        await new Promise((resolve) => {
+          const sample = () => {
+            scales.push(state.viewport.scale);
+            if (state.viewportAnimationFrame == null) resolve();
+            else requestAnimationFrame(sample);
+          };
+          requestAnimationFrame(sample);
+        });
+        const cinematicEnd = { ...state.viewport };
+        stopViewportAnimation();
+        ensureOverviewTargetsVisible({ animate: false, force: true });
+        const settled = { ...state.viewport };
+        return {
+          startScale: start.scale,
+          endScale: cinematicEnd.scale,
+          minimumScale: Math.min(...scales),
+          settled,
+          cinematicEnd,
+        };
+      });
+
+      expect(result.minimumScale).toBeLessThan(Math.min(result.startScale, result.endScale) * 0.98);
+      expect(result.cinematicEnd.scale).toBeCloseTo(result.settled.scale, 5);
+      expect(result.cinematicEnd.tx).toBeCloseTo(result.settled.tx, 2);
+      expect(result.cinematicEnd.ty).toBeCloseTo(result.settled.ty, 2);
+    });
+
+    test("there is no duplicate location button, and the \"You\" dot is never drawn for the stand-in", async ({ page }) => {
+      await expect(page.locator("#locateButton")).toHaveCount(0);
       const drewYouDot = await page.evaluate(() => {
         let arcCount = 0;
         const ctx = {
@@ -153,6 +255,17 @@ test.describe("Location and GPS — happy path", () => {
         return arcCount > 0;
       });
       expect(drewYouDot).toBe(false);
+    });
+
+    test("a no-location location page keeps the map visible without opening the compass gate", async ({ page }) => {
+      // startCompassNavigation() (js/app.js) bails out before showing #locationGate's blocking
+      // compass-permission prompt while hasRealLocation() is false -- a default-location stand-in
+      // is not a real fix to navigate from. The map and Nearby list behind it stay usable either way.
+      await page.goto("/nearby#tree=11383");
+      await page.waitForFunction(() => document.getElementById("loadingOverlay")?.hidden === true, { timeout: 30_000 });
+
+      await expect(page.locator("#locationGate")).toBeHidden();
+      await expect(page.locator("#mapCanvas")).toBeVisible();
     });
 
     test("a landing-page arrival (/nearby/<slug>, simulated here via ?show=) with no real fix is centred on High Beach too, sorted by distance rather than an unsorted full category list", async ({ page }) => {
@@ -191,6 +304,9 @@ test.describe("Location and GPS — happy path", () => {
       await skipOnboarding(page);
       await mockCowApi(page);
       await page.addInitScript(() => {
+        // Someone who turned location on before: the one case in which boot asks by itself, and
+        // so the one in which a request that never answers can hold boot up (bootMayRequestLocation).
+        localStorage.setItem("ff-location-v1", "granted");
         // Registered before the helper's stub, so this one wins.
         window.__forestFindsGeolocationStubbed = true;
         navigator.geolocation.getCurrentPosition = () => {};
@@ -200,15 +316,39 @@ test.describe("Location and GPS — happy path", () => {
     test("the map still opens when the location request never calls back", async ({ page }) => {
       // Deliberately sits through the whole BOOT_LOCATION_TIMEOUT_MS bound on top
       // of the normal data load, so it needs more room than the default wait.
-      await gotoAndWaitForMap(page, "/nearby", { timeout: 45_000 });
+      await gotoAndWaitForMap(page, "/nearby/search", { timeout: 45_000 });
       await expect(page.locator("#mapCanvas")).toBeVisible();
     });
 
-    test("and the gate offers a retry rather than leaving the reader stuck", async ({ page }) => {
-      await gotoAndWaitForMap(page, "/nearby", { timeout: 45_000 });
-      await expect(page.locator("#locationGate")).toBeVisible();
-      await expect(page.locator("#locationGateButton")).toBeEnabled();
+    test("and the invite banner offers a retry rather than leaving the reader stuck", async ({ page }) => {
+      await gotoAndWaitForMap(page, "/nearby/search", { timeout: 45_000 });
+      await expect(page.locator("#locationInviteBanner")).toBeVisible();
+      await expect(page.locator("#locationInviteButton")).toBeEnabled();
     });
+  });
+});
+
+test.describe("compass access on motion-permission browsers", () => {
+  test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] });
+
+  test("offers a user-gesture compass action after GPS has already resolved", async ({ page }) => {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await page.addInitScript(() => {
+      if (!window.DeviceOrientationEvent) window.DeviceOrientationEvent = class {};
+      window.DeviceOrientationEvent.requestPermission = () => {
+        window.__forestFindsCompassPermissionRequested = true;
+        return Promise.resolve("granted");
+      };
+    });
+    await gotoAndWaitForMap(page);
+
+    await expect(page.locator("#compassCalibrationBanner")).toBeVisible();
+    await expect(page.locator("#compassCalibrationBannerEnable")).toBeVisible();
+    await page.locator("#compassCalibrationBannerEnable").click();
+    await expect.poll(() => page.evaluate(() => state.compassPermission)).toBe("granted");
+    await expect.poll(() => page.evaluate(() => Boolean(window.__forestFindsCompassPermissionRequested))).toBe(true);
+    await expect(page.locator("#compassCalibrationBanner")).toBeHidden();
   });
 });
 
@@ -236,12 +376,49 @@ test.describe("permission revoked mid-session", () => {
     });
   });
 
-  test("does not show the blocking location gate, and the map stays usable", async ({ page }) => {
+  test("the map stays usable after location permission is revoked mid-session", async ({ page }) => {
     await gotoAndWaitForMap(page);
-    await expect(page.locator("#locationGate")).toBeHidden();
-    await page.waitForTimeout(500); // past the simulated revoke at 300ms
-    await expect(page.locator("#locationGate")).toBeHidden();
+    await waitForFrames(page, 30);
     await expect(page.locator("#mapCanvas")).toBeVisible();
     await expect(page.locator("#inspectorBody .nearest-list li").first()).toBeVisible();
+  });
+});
+
+test.describe("Asking for location from an empty Nearby list", () => {
+  test.use({ permissions: ["geolocation"] });
+
+  test("shows a requesting-location state in place of the empty list until the fix arrives", async ({ page }) => {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await gotoAndWaitForMap(page);
+    // Hold the location callback so the loading state is on screen long enough to assert.
+    await page.evaluate(() => {
+      window.__locationCallbacks = null;
+      navigator.geolocation.getCurrentPosition = (success, error) => { window.__locationCallbacks = { success, error }; };
+      els.inspectorBody.innerHTML = "";
+      locateUser({ initial: false });
+    });
+    await expect(page.locator("#inspectorBody .nearby-locating")).toBeVisible();
+    await page.evaluate(() => window.__locationCallbacks.success({
+      coords: { latitude: 51.6650, longitude: 0.0450, accuracy: 10 },
+      timestamp: Date.now(),
+    }));
+    await expect(page.locator("#inspectorBody .nearby-locating")).toHaveCount(0);
+    await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+  });
+
+  test("a refused compass does not open the full-screen location gate", async ({ page }) => {
+    await page.addInitScript(() => {
+      // iOS-style compass: permission exists and is refused when asked.
+      window.DeviceOrientationEvent = class {};
+      window.DeviceOrientationEvent.requestPermission = () => Promise.resolve("denied");
+    });
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await gotoAndWaitForMap(page);
+    await page.evaluate(() => locateUser({ initial: false }));
+    await expect.poll(() => page.evaluate(() => state.compassPermission)).toBe("denied");
+    await expect(page.locator("#locationGate")).toBeHidden();
+    await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
   });
 });

@@ -73,18 +73,6 @@ function ceilWalkingMinutes(minutes) {
   return Math.ceil(minutes / step - 1e-9) * step;
 }
 
-// The radius itself stays a continuous value (see applyWalkingRadiusGesture) so the ring tracks
-// a pinch or wheel gesture smoothly; only the label rounds, to the nearest whole minute, so the
-// displayed number doesn't twitch between fractions as the gesture moves.
-//
-// The same value with its unit, for anywhere the radius is shown to the user. Sub-minute radii
-// (reachable since the floor started tracking finds closer than a minute's walk) read as
-// seconds: "15 sec" is how anyone describes that walk, "0.3 min" is not.
-function formatWalkingRadius(minutes) {
-  if (minutes < 1) return `${Math.round(minutes * 60)} sec`;
-  return `${Math.round(minutes)} min`;
-}
-
 // The effective centre for everything the Nearby view shows (walking-radius circle, nearest-
 // item list, overview camera fit): state.nearbyAnchor when the user has tapped outside the
 // radius to browse another spot, otherwise the real GPS fix. Deliberately NOT used by the
@@ -129,6 +117,7 @@ function secondaryScreenActive() {
     || state.searchScreenOpen
     || state.selected?.type === "settings"
     || state.selected?.type === "report"
+    || state.selected?.type === "community"
   );
 }
 
@@ -140,7 +129,7 @@ function secondaryScreenActive() {
 // drift out of sync with each other again (they did: the old ambient route lines used to check
 // `state.selected` directly and hid themselves on Settings/Report).
 function hasRealSelection() {
-  return Boolean(state.selected && !["settings", "report"].includes(state.selected.type));
+  return Boolean(state.selected && !["settings", "report", "community"].includes(state.selected.type));
 }
 
 function refreshSettingsVersionDisplay() {
@@ -150,13 +139,115 @@ function refreshSettingsVersionDisplay() {
   if (dataNote) dataNote.hidden = !state.dataUpdateAvailable;
 
   const el = document.getElementById("appVersionDisplay");
-  if (!el) return;
-  if (state.swVersion) el.textContent = state.swVersion;
-  if (state.swUpdateAvailable) {
-    el.classList.add("sw-update-available");
-    if (!el.dataset.updateBound) {
-      el.dataset.updateBound = "1";
-      el.addEventListener("click", applySwUpdate);
+  if (el && state.swVersion) el.textContent = state.swVersion;
+  renderAppUpdateStatus();
+}
+
+// The Settings "Updates" line: what the app knows about a newer release right now, so nobody has to
+// guess from a badge. Every place that learns something about a replacement worker sets it.
+//   idle        nothing checked yet this session
+//   checking    registration.update() is asking for a newer sw.js
+//   current     that check found nothing newer
+//   downloading a newer release is installing, or its waiting worker is fetching its map data
+//   ready       fully downloaded; one restart away
+//   failed      the check or the download did not complete
+// Offline overrides idle/current/failed/checking in what is shown, since no check can run.
+function setAppUpdateStatus(status) {
+  state.appUpdateStatus = status;
+  if (status === "current") state.appUpdateCheckedAt = Date.now();
+  renderAppUpdateStatus();
+  if (status === "downloading" || status === "ready") {
+    newerAppCacheVersion().then((version) => {
+      if (!version || state.appUpdateVersion === version) return;
+      state.appUpdateVersion = version;
+      renderAppUpdateStatus();
+    });
+  }
+}
+
+// A release's install opens its own forest-finds-app-vN cache first thing, so the incoming version can
+// be read from Cache Storage while it downloads. Compared with the version this page is running.
+async function newerAppCacheVersion() {
+  const number = (value) => {
+    const match = /v(\d+)$/.exec(String(value || ""));
+    return match ? Number(match[1]) : null;
+  };
+  const current = number(typeof APP_CACHE_VERSION === "string" ? APP_CACHE_VERSION : "");
+  if (current === null || typeof caches === "undefined") return null;
+  try {
+    let newest = null;
+    for (const key of await caches.keys()) {
+      if (!/^forest-finds-(?:dev-)?app-/.test(key)) continue;
+      const n = number(key);
+      if (n !== null && n > current && (newest === null || n > newest)) newest = n;
+    }
+    return newest === null ? null : `v${newest}`;
+  } catch {
+    return null;
+  }
+}
+
+function appUpdateStatusView() {
+  const status = state.appUpdateStatus || "idle";
+  const version = state.appUpdateVersion;
+  const offline = !navigator.onLine && ["idle", "current", "failed", "checking"].includes(status);
+  if (offline) {
+    return { status: "offline", text: "You're offline. Updates are checked when you're back online.", label: "Check for updates", disabled: true };
+  }
+  switch (status) {
+    case "checking":
+      return { status, text: "Checking for updates…", label: "Checking…", disabled: true };
+    case "current": {
+      const time = new Date(state.appUpdateCheckedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return { status, text: "You have the latest version.", checkedAt: `Checked at ${time}.`, label: "Check for updates", disabled: false };
+    }
+    case "downloading":
+      return { status, text: `Downloading ${version ? `update ${version}` : "an update"}… You can keep using the app while it finishes.`, label: "Downloading…", disabled: true };
+    case "ready":
+      return { status, text: `${version ? `Update ${version}` : "An update"} has downloaded. Restart to start using it.`, label: "Restart now", disabled: false };
+    case "failed":
+      return { status, text: "Couldn't finish checking for updates. Your current app still works offline.", label: "Try again", disabled: false };
+    default:
+      return { status: "idle", text: "Updates are checked automatically while the app is open.", label: "Check for updates", disabled: false };
+  }
+}
+
+function appUpdateStatusHtml() {
+  // No service worker (a native shell, an old browser) means no web update flow to report.
+  if (!("serviceWorker" in navigator)) return "";
+  const view = appUpdateStatusView();
+  const checkedAt = view.checkedAt ? ` <span id="appUpdateCheckedAt">${view.checkedAt}</span>` : "";
+  return `<div id="appUpdateStatus" class="settings-update" data-status="${view.status}">
+        <p id="appUpdateStatusText" class="settings-description" role="status" aria-live="polite">${view.text}${checkedAt}</p>
+        <button id="appUpdateButton" class="settings-btn" type="button"${view.disabled ? " disabled" : ""}>${view.label}</button>
+      </div>`;
+}
+
+function renderAppUpdateStatus() {
+  const container = document.getElementById("appUpdateStatus");
+  if (!container) return;
+  const view = appUpdateStatusView();
+  container.dataset.status = view.status;
+  const text = document.getElementById("appUpdateStatusText");
+  if (text) {
+    text.textContent = view.text;
+    if (view.checkedAt) {
+      const checkedAt = document.createElement("span");
+      checkedAt.id = "appUpdateCheckedAt";
+      checkedAt.textContent = view.checkedAt;
+      text.append(" ", checkedAt);
+    }
+  }
+  const button = document.getElementById("appUpdateButton");
+  if (button) {
+    button.textContent = view.label;
+    button.disabled = view.disabled;
+    if (!button.dataset.bound) {
+      button.dataset.bound = "1";
+      button.addEventListener("click", () => {
+        if (state.appUpdateStatus === "ready") applySwUpdate();
+        else requestAppUpdateCheck({ force: true });
+      });
     }
   }
 }
@@ -165,28 +256,134 @@ function _markSwUpdateAvailable(waiting) {
   if (waiting) state.swWaiting = waiting;
   state.swUpdateAvailable = true;
   if (els.settingsToggle) els.settingsToggle.classList.add("has-update");
+  setAppUpdateStatus("ready");
   refreshSettingsVersionDisplay();
+  showUpdateBanner();
 }
 
-function applySwUpdate() {
+// One "update ready" prompt for everything that needs a reload: a downloaded app worker (which
+// already carries its own data shell) and/or newer map data. It is only ever shown once the
+// download has finished, so a single tap restarts into the complete new version. Community
+// findings are applied to the open map live (COMMUNITY_UPDATED) and never need this.
+function showUpdateBanner() {
+  // The wording names what the restart brings: a new app version, or (data only) new map data.
+  // An app update already carries its own data, so it wins once both are known.
+  const [title, detail] = state.swUpdateAvailable
+    ? ["Update ready", "Restart to load the latest version. It only takes a moment."]
+    : ["New map data", "Restart to see the latest trees, paths and places."];
+  const existing = document.getElementById("updateBanner");
+  if (existing) {
+    existing.querySelector(".update-banner-text strong").textContent = title;
+    existing.querySelector(".update-banner-text span").textContent = detail;
+    return;
+  }
+  const banner = document.createElement("div");
+  banner.id = "updateBanner";
+  banner.className = "update-banner";
+  banner.setAttribute("role", "status");
+  banner.innerHTML = '<span class="update-banner-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg></span>'
+    + `<span class="update-banner-text"><strong>${title}</strong><span>${detail}</span></span>`
+    + '<button id="updateBannerButton" type="button">Restart</button>';
+  document.body.appendChild(banner);
+  banner.querySelector("button").addEventListener("click", async (event) => {
+    const button = event.currentTarget;
+    button.disabled = true;
+    button.textContent = "Restarting…";
+    const started = (state.swWaiting || state.swUpdateAvailable) ? await applySwUpdate() : (location.reload(), true);
+    if (!started) {
+      button.disabled = false;
+      button.textContent = "Restart";
+    }
+  });
+}
+
+// Before announcing a waiting worker, let it finish its own data sync so the one restart brings
+// the app and the map data together instead of a second "reload for new data" prompt after it.
+// A failed or timed-out sync still announces the update: the worker's shell is complete either way.
+const preparedWorkers = new WeakSet();
+
+async function prepareWaitingUpdate(waiting) {
+  // The same worker can be reported by registration, updatefound and a manual check at once.
+  if (preparedWorkers.has(waiting)) return;
+  preparedWorkers.add(waiting);
+  // Recorded up front: the worker's own sync broadcasts DATA_UPDATED, which must not show the
+  // banner (or send a tap down the plain-reload path) until this worker is ready to activate.
+  state.swWaiting = waiting;
+  setAppUpdateStatus("downloading");
+  await requestDataRefresh({ target: waiting, force: false });
+  _markSwUpdateAvailable(waiting);
+}
+
+// A newer worker that is already installing: show it downloading, then hand it to
+// prepareWaitingUpdate once installed. Only for an update -- a first install (no controller yet)
+// is the app becoming available offline, not a new version.
+const followedWorkers = new WeakSet();
+
+function followInstallingWorker(installing) {
+  if (!installing || !navigator.serviceWorker.controller || followedWorkers.has(installing)) return;
+  followedWorkers.add(installing);
+  setAppUpdateStatus("downloading");
+  const onStateChange = () => {
+    if (installing.state === "installed") {
+      installing.removeEventListener("statechange", onStateChange);
+      prepareWaitingUpdate(installing);
+    } else if (installing.state === "redundant") {
+      installing.removeEventListener("statechange", onStateChange);
+      if (state.appUpdateStatus === "downloading") setAppUpdateStatus("failed");
+    }
+  };
+  installing.addEventListener("statechange", onStateChange);
+  onStateChange();
+}
+
+async function applySwUpdate() {
+  // The new release already controls this page (another tab restarted into it, or the browser
+  // activated it): it has its complete shell, so a plain reload is all that is left.
+  if (!state.swWaiting && state.swActivatedElsewhere) {
+    location.reload();
+    return true;
+  }
+
   if (state.swWaiting) {
     state.swPendingReload = true;
-    state.swWaiting.postMessage({ type: "SKIP_WAITING" });
-    setTimeout(() => location.reload(), 2000);
-  } else {
-    location.reload();
+    try {
+      state.swWaiting.postMessage({ type: "SKIP_WAITING" });
+    } catch {
+      state.swPendingReload = false;
+      return;
+    }
+    // controllerchange normally reloads the page. Keep a long safety net for browsers that do
+    // not deliver controllerchange after a worker has already finished installing; this path is
+    // only reachable after the complete replacement worker was downloaded.
+    setTimeout(() => location.reload(), 10000);
+    return true;
   }
+
+  // The update marker can arrive through controllerchange without carrying the waiting
+  // registration on some browsers. Never turn that marker into an unconditional reload:
+  // downloadAppUpdate() must first produce a fully installed worker, otherwise an offline
+  // refresh could strand the current page without a replacement shell.
+  const waiting = await downloadAppUpdate();
+  if (!waiting) {
+    setRefreshStatus("No complete app update is ready. Your current offline app is still safe.", { error: true });
+    return false;
+  }
+  return activateDownloadedAppUpdate(waiting);
 }
 
-// The three Settings refresh buttons, keyed by the scope of cached state each one throws away.
-// They were one "Force refresh" button that always cleared everything — which on this app means
-// re-downloading ~67 MB of map data just to pick up a CSS tweak. Splitting them lets the common
-// case (a stale build) cost the app shell alone.
+// The three Settings refresh buttons, keyed by the part of the offline release they check.
+// Refreshes keep the current cache until the replacement has been downloaded successfully.
 const REFRESH_SCOPES = {
   data: { buttonId: "refreshDataButton" },
   app: { buttonId: "refreshAppButton" },
   all: { buttonId: "refreshAllButton" },
 };
+
+// The worker throttles actual network work to six hours, so this inexpensive foreground check
+// can run often enough to retry a dropped connection and to notice a connection returning while
+// the app is still open. It never runs while the document is hidden.
+const BACKGROUND_DATA_SYNC_CHECK_INTERVAL_MS = 15 * 60 * 1000;
+let backgroundDataSyncListenersBound = false;
 
 function refreshScopeButtons() {
   return Object.keys(REFRESH_SCOPES)
@@ -206,37 +403,128 @@ function updateRefreshButtonsOnlineState() {
     button.disabled = !online;
   });
   if (note) note.hidden = online;
+  renderAppUpdateStatus();
 }
 
-// Does this cache name belong to the scope being refreshed? Cache names gain a "dev-" segment
-// when served by the local dev server (injectDevFlag in server.js), so both spellings have to be
-// matched or a local "Refresh data" would silently clear nothing.
-function cacheMatchesRefreshScope(name, scope) {
-  if (!name.startsWith("forest-finds-")) return false;
-  if (scope === "all") return true;
-  return name.startsWith(`forest-finds-${scope}-`) || name.startsWith(`forest-finds-dev-${scope}-`);
+function setRefreshStatus(message, { error = false } = {}) {
+  const status = document.getElementById("refreshStatus");
+  if (!status) return;
+  status.textContent = message || "";
+  status.hidden = !message;
+  status.classList.toggle("error", Boolean(error));
 }
 
-// Manual escape hatch for stale PWA state: the normal update flow (setupPwa below)
-// relies on the browser noticing sw.js changed and silently activating a new worker
-// in the background, which the open tab's own "App version" display only reflects
-// after a full reload — sometimes two, since the reload that triggers the update
-// check can itself still be served by the outgoing worker. Clearing the cached state
-// before reloading sidesteps that timing entirely.
-//
-//   "data" — drops the cached datasets only. The service worker registration and the cached
-//            app shell survive, so the reload re-downloads map data and nothing else.
-//   "app"  — unregisters every service worker and drops the cached app shell, leaving the map
-//            data alone. This is the "I'm not on the latest build" case, and the one that used
-//            to needlessly cost a full data re-download.
-//   "all"  — both, i.e. a completely cold start.
-//
-// Requires connectivity in every scope, since it briefly leaves the app with no offline
-// fallback until the fresh install completes.
+function waitForInstallingWorker(registration, installing) {
+  return new Promise((resolve) => {
+    let timer = setTimeout(() => {
+      installing.removeEventListener("statechange", onStateChange);
+      resolve(null);
+    }, 30000);
+
+    function onStateChange() {
+      if (installing.state === "installed") {
+        clearTimeout(timer);
+        installing.removeEventListener("statechange", onStateChange);
+        resolve(registration.waiting || installing);
+      } else if (installing.state === "redundant") {
+        clearTimeout(timer);
+        installing.removeEventListener("statechange", onStateChange);
+        resolve(null);
+      }
+    }
+
+    installing.addEventListener("statechange", onStateChange);
+    onStateChange();
+  });
+}
+
+// Checks for an app update without touching the current cache. A refresh is allowed to activate
+// an app worker only after registration.update() has produced a fully installed waiting worker;
+// an offline/failed check simply leaves the current app in place.
+async function downloadAppUpdate() {
+  if (!("serviceWorker" in navigator)) return null;
+  let registration;
+  try {
+    // `ready` never resolves for a first install whose worker is still waiting. Refreshing an
+    // old troubleshooting URL must not hang boot in that state, so inspect the registration
+    // directly and treat an absent one as "no downloaded update".
+    registration = await navigator.serviceWorker.getRegistration();
+    if (!registration) return null;
+    if (!registration.waiting) await registration.update();
+  } catch {
+    return null;
+  }
+
+  if (registration.waiting) return registration.waiting;
+  if (registration.installing) return waitForInstallingWorker(registration, registration.installing);
+  return null;
+}
+
+function activateDownloadedAppUpdate(waiting) {
+  if (!waiting) return false;
+  state.swWaiting = waiting;
+  state.swPendingReload = true;
+  try {
+    waiting.postMessage({ type: "SKIP_WAITING" });
+    return true;
+  } catch {
+    state.swWaiting = null;
+    state.swPendingReload = false;
+    return false;
+  }
+}
+
+function requestDataRefresh({ target = null, force = true } = {}) {
+  if (!("serviceWorker" in navigator)) return Promise.resolve(false);
+  const controller = target || navigator.serviceWorker.controller;
+  if (!controller) return Promise.resolve(false);
+
+  const requestId = `refresh-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return new Promise((resolve) => {
+    // A complete repair includes the large road/building files and every tree chunk. Give a
+    // healthy but mobile connection enough time, while still returning control if it disappears.
+    let timer;
+    const finish = (ok) => {
+      clearTimeout(timer);
+      navigator.serviceWorker.removeEventListener("message", onMessage);
+      resolve(ok);
+    };
+    const onMessage = (event) => {
+      if (event.data?.type !== "DATA_SYNC_COMPLETE" || event.data.requestId !== requestId) return;
+      finish(event.data.ok === true);
+    };
+    navigator.serviceWorker.addEventListener("message", onMessage);
+    timer = setTimeout(() => finish(false), 120000);
+    try {
+      controller.postMessage({ type: "SYNC_DATA", force, requestId });
+    } catch {
+      finish(false);
+    }
+  });
+}
+
+// Unregisters the service worker and deletes the app cache (plus the data cache for "Refresh both"),
+// so the reload that follows fetches a fresh shell from the network.
+async function clearCachedApp(includeData) {
+  if ("serviceWorker" in navigator) {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map((registration) => registration.unregister()));
+  }
+  if ("caches" in window) {
+    const names = await caches.keys();
+    await Promise.all(names
+      .filter((name) => /^forest-finds-(dev-)?app-/.test(name) || (includeData && name.startsWith("forest-finds-")))
+      .map((name) => caches.delete(name)));
+  }
+}
+
+// "Refresh data" downloads into the existing cache, then reloads. "Refresh app" and "Refresh both"
+// clear the cached app (and, for both, the data after a complete data download) and then reload,
+// so the page always restarts on a fresh copy.
 async function refreshCachedState(scope) {
   if (!navigator.onLine) {
     updateRefreshButtonsOnlineState();
-    return;
+    return false;
   }
 
   const active = REFRESH_SCOPES[scope] && document.getElementById(REFRESH_SCOPES[scope].buttonId);
@@ -244,38 +532,120 @@ async function refreshCachedState(scope) {
     button.disabled = true;
   });
   if (active) active.textContent = "Refreshing…";
+  setRefreshStatus("");
 
   try {
-    // Only an app-level refresh needs the worker itself gone; unregistering for a data refresh
-    // would throw away the cached app shell as collateral on the very next install.
-    if (scope !== "data" && "serviceWorker" in navigator) {
-      const registrations = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(registrations.map((registration) => registration.unregister()));
+    if (scope === "data" || scope === "all") {
+      const dataReady = await requestDataRefresh();
+      if (!dataReady) {
+        setRefreshStatus("The latest data could not be downloaded. Your current offline map is still safe.", { error: true });
+        return false;
+      }
+      if (scope === "data") {
+        location.reload();
+        return true;
+      }
     }
-    if ("caches" in window) {
-      const cacheNames = await caches.keys();
-      await Promise.all(
-        cacheNames.filter((name) => cacheMatchesRefreshScope(name, scope)).map((name) => caches.delete(name))
-      );
-    }
+
+    setRefreshStatus("Clearing the cache and restarting…");
+    await clearCachedApp(scope === "all");
+    location.reload();
+    return true;
   } catch (error) {
     console.error(error);
+    setRefreshStatus("Refresh failed; your current offline map is still safe.", { error: true });
+    return false;
   } finally {
-    location.reload();
+    refreshScopeButtons().forEach((button) => {
+      button.disabled = false;
+    });
+    if (active && active.isConnected) active.textContent = scope === "data" ? "Refresh data" : scope === "app" ? "Refresh app" : "Refresh both";
+    updateRefreshButtonsOnlineState();
   }
 }
 
 // Asks the active service worker to revalidate the cached map data out of band (syncData in
-// sw.js). Called once the map is up and interactive rather than during boot, so the freshness
-// pass never competes with the render — the load itself is served entirely from cache, and any
-// genuinely changed file lands quietly afterwards. The worker throttles this internally, so
-// calling it on every load is cheap.
+// sw.js). Called only while the map is visible and interactive, so freshness passes never compete
+// with the render — the load itself is served entirely from cache, and any genuinely changed file
+// lands quietly afterwards. The worker throttles this internally, so foreground checks are cheap.
+// Safari clears a website's storage after seven days without a visit unless it was added to the Home
+// Screen, which loses the offline map and the device id that holds a person's community points. A
+// persisted origin is exempt. Chrome and Safari decide silently; Firefox asks with a permission prompt
+// on first load, which is not worth showing for this, so it is skipped there.
+function requestPersistentStorage() {
+  const storage = navigator.storage;
+  if (!storage || typeof storage.persist !== "function" || typeof storage.persisted !== "function") return;
+  if (/Firefox\//.test(navigator.userAgent || "")) return;
+  storage.persisted()
+    .then((persisted) => (persisted ? null : storage.persist()))
+    .catch(() => {});
+}
+
+// Waits for this page's own map downloads to reach the data cache first (mapDataHandOverSettled,
+// js/loader.js): on a first visit the worker takes control mid-load, and its controllerchange would
+// otherwise start a sync that downloads again every file the page is still fetching.
 function requestBackgroundDataSync(options) {
-  if (!("serviceWorker" in navigator)) return;
-  if (!navigator.onLine) return;
+  if (!("serviceWorker" in navigator)) return Promise.resolve();
+  if (!navigator.onLine) return Promise.resolve();
   const controller = navigator.serviceWorker.controller;
-  if (!controller) return; // First load — nothing cached yet to refresh
-  controller.postMessage({ type: "SYNC_DATA", force: Boolean(options && options.force) });
+  if (!controller) return Promise.resolve(); // First load — nothing cached yet to refresh
+  const settled = typeof mapDataHandOverSettled === "function" ? mapDataHandOverSettled() : Promise.resolve();
+  return settled.then(() => {
+    try {
+      controller.postMessage({ type: "SYNC_DATA", force: Boolean(options && options.force) });
+    } catch {}
+  });
+}
+
+// Browsers only look for a new sw.js on navigation (and at most daily), which an installed app that
+// is resumed rather than reopened rarely does. Ask explicitly, throttled, whenever the app is
+// visible; the check is one conditional request for sw.js and its two version files.
+const APP_UPDATE_CHECK_MIN_INTERVAL_MS = 10 * 60 * 1000;
+let swRegistration = null;
+let lastAppUpdateCheckAt = 0;
+
+// force: the Settings "Check for updates" button, which skips the throttle.
+async function requestAppUpdateCheck({ force = false } = {}) {
+  if (state.swUpdateAvailable || !navigator.onLine || !("serviceWorker" in navigator)) return;
+  // No controller yet means the first install is still making the app available offline: there
+  // is no running release to update, and its installing worker is not "an update downloading".
+  if (!navigator.serviceWorker.controller) return;
+  if (["checking", "downloading"].includes(state.appUpdateStatus)) return;
+  if (!force && Date.now() - lastAppUpdateCheckAt < APP_UPDATE_CHECK_MIN_INTERVAL_MS) return;
+  let registration = swRegistration;
+  if (!registration) {
+    try { registration = await navigator.serviceWorker.getRegistration(); } catch {}
+  }
+  if (!registration) {
+    if (force) setAppUpdateStatus("failed");
+    return;
+  }
+  lastAppUpdateCheckAt = Date.now();
+  setAppUpdateStatus("checking");
+  try {
+    await registration.update();
+  } catch {
+    setAppUpdateStatus("failed");
+    return;
+  }
+  if (registration.installing) followInstallingWorker(registration.installing);
+  else if (registration.waiting && navigator.serviceWorker.controller) prepareWaitingUpdate(registration.waiting);
+  else if (state.appUpdateStatus === "checking") setAppUpdateStatus("current");
+}
+
+function setupBackgroundDataSync() {
+  if (backgroundDataSyncListenersBound) return;
+  backgroundDataSyncListenersBound = true;
+  const syncWhenVisible = () => {
+    if (document.visibilityState === "hidden") return;
+    requestBackgroundDataSync();
+    requestAppUpdateCheck();
+  };
+  document.addEventListener("visibilitychange", syncWhenVisible);
+  window.addEventListener("online", syncWhenVisible);
+  if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("controllerchange", syncWhenVisible);
+  setInterval(syncWhenVisible, BACKGROUND_DATA_SYNC_CHECK_INTERVAL_MS);
+  syncWhenVisible();
 }
 
 // The background sync found newer map data and has already cached it; it only becomes visible
@@ -284,6 +654,7 @@ function _markDataUpdateAvailable() {
   state.dataUpdateAvailable = true;
   if (els.settingsToggle) els.settingsToggle.classList.add("has-update");
   refreshSettingsVersionDisplay();
+  if (!state.swWaiting || state.swUpdateAvailable) showUpdateBanner();
 }
 
 // Reads the app/data cache versions out of caches.keys() for the About screen and for bug
@@ -315,7 +686,10 @@ function cacheVersionLabel(keys) {
 }
 
 function setupPwa() {
-  if ("serviceWorker" in navigator) {
+  // Inside the native shell the app and its data are bundled files: a cache-first worker in front
+  // of them would be a second, stale copy with an update prompt that has nothing to wait on.
+  // App updates come from the store there (spec-native.md "Versioning and the update story").
+  if ("serviceWorker" in navigator && !Native.isNative) {
     let _firstChange = !navigator.serviceWorker.controller;
 
     navigator.serviceWorker.addEventListener("message", (event) => {
@@ -325,23 +699,20 @@ function setupPwa() {
     navigator.serviceWorker.addEventListener("controllerchange", () => {
       if (_firstChange) { _firstChange = false; return; }
       if (state.swPendingReload) { location.reload(); return; }
+      state.swActivatedElsewhere = true;
       _markSwUpdateAvailable(null);
     });
 
-    navigator.serviceWorker.register("sw.js")
+    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" })
       .then((reg) => {
+        swRegistration = reg;
         if (reg.waiting && navigator.serviceWorker.controller) {
-          _markSwUpdateAvailable(reg.waiting);
+          prepareWaitingUpdate(reg.waiting);
+        } else if (reg.installing) {
+          followInstallingWorker(reg.installing);
         }
-        reg.addEventListener("updatefound", () => {
-          const installing = reg.installing;
-          if (!installing) return;
-          installing.addEventListener("statechange", () => {
-            if (installing.state === "installed" && navigator.serviceWorker.controller) {
-              _markSwUpdateAvailable(installing);
-            }
-          });
-        });
+        reg.addEventListener("updatefound", () => followInstallingWorker(reg.installing));
+        requestAppUpdateCheck();
       })
       .catch(console.error);
 
@@ -357,6 +728,19 @@ function setupPwa() {
         refreshSettingsVersionDisplay();
       })
       .catch(() => {});
+
+    requestPersistentStorage();
+  }
+
+  // Inside the app shell the version is the store build's plus the data release it is showing,
+  // since the two move independently there (spec-native.md "Versioning"). Bug reports carry it too.
+  if (Native.isNative) {
+    Native.appInfo().then((info) => {
+      const dataVersion = Native.data && Native.data.activeVersion;
+      const appVersion = info ? `${info.version} (${info.build})` : "";
+      state.swVersion = [appVersion, dataVersion ? `data ${dataVersion}` : ""].filter(Boolean).join(" · ");
+      refreshSettingsVersionDisplay();
+    });
   }
 
   if (els.installButton) {
@@ -418,7 +802,6 @@ function setupInteractions() {
   setupResizeHandler();
   setupReportKeyboardAvoidance();
   setupInspectorHandlers();
-  setupInspectorDragResize();
   setupFilterPanelHandlers();
   setupSearchAndNavHandlers();
   setupMapCanvasHandlers();
@@ -431,12 +814,8 @@ function setupInteractions() {
 // input that can summon a keyboard: the Report screen and the Search screen (Settings uses a
 // <select>, Filter has no text input).
 //
-// Report and Search only share the shift, not the rest: Report also grows the sheet to (almost)
-// fill the space above the keyboard, since the form has nothing else to show and benefits from
-// the room. Search does not -- its sheet keeps its normal size so the map stays visible behind
-// it, which is also why the nav bar (separate from the sheet, see app.html) is left alone rather
-// than made to fight the keyboard for space; it simply goes under the keyboard, the same as any
-// bottom tab bar does while a field above it is focused.
+// Report and Search only shift the same fixed-height sheet. The panel never changes height while
+// typing, so changing screens and opening a keyboard cannot change the map's available area.
 const REPORT_KEYBOARD_INSET_MIN_PX = 40; // ignore sub-keyboard-sized viewport jitter (e.g. browser chrome show/hide)
 
 function setupReportKeyboardAvoidance() {
@@ -447,8 +826,7 @@ function setupReportKeyboardAvoidance() {
 
 function handleReportViewportChange() {
   if (!els.inspector) return;
-  const isReport = state.selected?.type === "report";
-  if (!isReport && !state.searchScreenOpen) {
+  if (!(state.selected?.type === "report" || state.selected?.type === "community") && !state.searchScreenOpen) {
     clearReportKeyboardInset();
     return;
   }
@@ -460,12 +838,6 @@ function handleReportViewportChange() {
   }
   els.inspector.style.setProperty("--keyboard-inset", `${inset}px`);
   els.inspector.classList.add("keyboard-avoiding");
-  els.inspector.classList.toggle("keyboard-avoiding-expand", isReport);
-  // In the cramped landscape bottom-sheet layout, Report's expanded sheet leaves the nav bar
-  // nothing to sit in front of -- hidden there the same way it always was; Search never expands,
-  // so the nav bar (now its own fixed bar, see app.html) is simply left in place for it, and the
-  // keyboard is free to cover it the way any bottom tab bar gets covered while typing.
-  if (els.inspectorActions) els.inspectorActions.classList.toggle("keyboard-avoiding-hide", isReport);
   const detailsInput = document.getElementById("reportDetails");
   if (detailsInput && document.activeElement === detailsInput) {
     detailsInput.scrollIntoView({ block: "nearest" });
@@ -473,9 +845,8 @@ function handleReportViewportChange() {
 }
 
 function clearReportKeyboardInset() {
-  if (els.inspectorActions) els.inspectorActions.classList.remove("keyboard-avoiding-hide");
   if (!els.inspector || !els.inspector.classList.contains("keyboard-avoiding")) return;
-  els.inspector.classList.remove("keyboard-avoiding", "keyboard-avoiding-expand");
+  els.inspector.classList.remove("keyboard-avoiding");
   els.inspector.style.removeProperty("--keyboard-inset");
 }
 
@@ -520,40 +891,6 @@ function setupInspectorHandlers() {
     setInspectorMinimized(false);
   });
 
-  els.locateButton.addEventListener("click", () => {
-    ensureTrackingConsent();
-    locateUser({ initial: false });
-  });
-
-  if (els.locationGateButton) {
-    els.locationGateButton.addEventListener("click", async () => {
-      els.locationGateButton.disabled = true;
-      if (!hasRealLocation()) {
-        ensureTrackingConsent();
-        locateUser({ initial: false });
-        // Button re-enabled by setLocationGateVisible(true) when locateUser's callbacks
-        // re-show the gate (error message or compass prompt), or stays disabled if gate hides.
-      } else {
-        await requestCompassPermissionIfNeeded({ fromGesture: true });
-        if (state.compassPermission === "granted") {
-          setLocationGateVisible(false);
-          updateCompassOverlay();
-        } else {
-          // setLocationGateVisible(true) was called by showCompassAccessPrompt inside
-          // requestCompassPermissionIfNeeded, which already re-enabled the button.
-          // Guard in case a code path skipped that call.
-          if (els.locationGateButton.disabled) els.locationGateButton.disabled = false;
-        }
-      }
-    });
-  }
-
-  if (els.locationGateDismiss) {
-    els.locationGateDismiss.addEventListener("click", () => {
-      setLocationGateVisible(false);
-    });
-  }
-
   if (els.distanceWarningButton) {
     els.distanceWarningButton.addEventListener("click", () => {
       state.distanceWarningShown = true;
@@ -567,7 +904,17 @@ function setupInspectorHandlers() {
 
   if (els.compassCalibrationBannerDismiss) {
     els.compassCalibrationBannerDismiss.addEventListener("click", () => {
-      if (typeof dismissCompassCalibrationPrompt === "function") dismissCompassCalibrationPrompt();
+      if (state.compassPermissionPromptVisible) {
+        dismissCompassPermissionPrompt();
+      } else if (typeof dismissCompassCalibrationPrompt === "function") {
+        dismissCompassCalibrationPrompt();
+      }
+    });
+  }
+
+  if (els.compassCalibrationBannerEnable) {
+    els.compassCalibrationBannerEnable.addEventListener("click", () => {
+      if (typeof enableCompassFromGesture === "function") enableCompassFromGesture();
     });
   }
 
@@ -604,7 +951,8 @@ function setupFilterPanelHandlers() {
   });
 
   if (els.nearbyToggle) {
-    els.nearbyToggle.addEventListener("click", () => {
+    els.nearbyToggle.addEventListener("click", (event) => {
+      event.preventDefault();
       if (els.nearbyToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
         pulseNavButton(els.nearbyToggle);
         return;
@@ -614,17 +962,21 @@ function setupFilterPanelHandlers() {
   }
 
   if (els.reportToggle) {
-    els.reportToggle.addEventListener("click", () => {
-      if (els.reportToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
+    els.reportToggle.addEventListener("click", (event) => {
+      event.preventDefault();
+      // The tab is lit on its Feedback sub-page too, but tapping it there goes back up to Community.
+      const here = communityEnabled() ? "community" : "report";
+      if (state.selected?.type === here && !els.inspector.classList.contains("minimized")) {
         pulseNavButton(els.reportToggle);
         return;
       }
-      openReportModal();
+      openCommunityOrFeedback();
     });
   }
 
   if (els.settingsToggle) {
-    els.settingsToggle.addEventListener("click", () => {
+    els.settingsToggle.addEventListener("click", (event) => {
+      event.preventDefault();
       if (els.settingsToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
         pulseNavButton(els.settingsToggle);
         return;
@@ -709,7 +1061,8 @@ function handleNearestListArrowKey(event) {
 
 function setupSearchAndNavHandlers() {
   if (els.searchToggle) {
-    els.searchToggle.addEventListener("click", () => {
+    els.searchToggle.addEventListener("click", (event) => {
+      event.preventDefault();
       if (els.searchToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
         pulseNavButton(els.searchToggle);
         return;
@@ -730,6 +1083,11 @@ function setupSearchAndNavHandlers() {
   // Tab moves focus through the scrollable Nearby/Search results list using the browser's own
   // default order -- no keydown handler of ours runs for it -- so without this the focused row
   // can land outside the visible scroll area with nothing on screen to show it moved at all.
+  // A light haptic tap on picking a find from the list (native app only; a no-op on the web).
+  els.inspectorBody.addEventListener("click", (event) => {
+    if (event.target.closest(".nearest-item")) Native.haptics.select();
+  });
+
   els.inspectorBody.addEventListener("focusin", (event) => {
     const item = event.target.closest(".nearest-item");
     if (item) item.scrollIntoView({ block: "nearest" });
@@ -785,6 +1143,51 @@ function setupSearchAndNavHandlers() {
     }
     const shareBtn = event.target.closest("[data-action='share-location']");
     if (shareBtn) { shareCurrentLocation(); return; }
+    const walkRadiusBtn = event.target.closest("[data-action='walk-radius']");
+    if (walkRadiusBtn) {
+      const lat = Number(walkRadiusBtn.dataset.lat);
+      const lon = Number(walkRadiusBtn.dataset.lon);
+      if (Number.isFinite(lat) && Number.isFinite(lon)) {
+        focusNearbyWithinWalkMinutes(lat, lon, state.walkingDistanceMinutes, walkRadiusBtn.dataset.name || null);
+      }
+      return;
+    }
+    const moreToggle = event.target.closest("[data-action='community-more']");
+    if (moreToggle) { communityToggleMore(moreToggle); return; }
+    const badgeTile = event.target.closest("[data-action='community-badge']");
+    if (badgeTile) { communityShowBadgeDetail(badgeTile); return; }
+    const logFilter = event.target.closest("[data-action='community-log-filter']");
+    if (logFilter) { communityLogFilter = logFilter.dataset.filter; communityRenderContributions(); return; }
+    const signinDismiss = event.target.closest("[data-action='community-signin-dismiss']");
+    if (signinDismiss) { communityDismissSignin(); return; }
+    const addStart = event.target.closest("[data-action='community-add-start']");
+    if (addStart) { communityStartAddTree(); return; }
+    const retryButton = event.target.closest("[data-action='community-retry']");
+    if (retryButton) { event.preventDefault(); communityRetry(retryButton); return; }
+    const recoveryAction = event.target.closest("[data-action='community-copy-code'], [data-action='community-restore']");
+    if (recoveryAction) {
+      event.preventDefault();
+      if (recoveryAction.dataset.action === "community-restore") communityRestore(); else communityCopyCode();
+      return;
+    }
+    const confirmAdded = event.target.closest("[data-action='community-confirm-added']");
+    if (confirmAdded) { communityConfirmAddedTree(confirmAdded.dataset.tag); return; }
+    const addPlaceStart = event.target.closest("[data-action='community-addplace-start']");
+    if (addPlaceStart) { communityStartAddPlace(); return; }
+    const addPlaceCancel = event.target.closest("[data-action='community-addplace-cancel']");
+    if (addPlaceCancel) { communityCancelAddPlace(); return; }
+    const addCancel = event.target.closest("[data-action='community-add-cancel']");
+    if (addCancel) { communityCancelAddTree(); return; }
+    const placeChoice = event.target.closest("[data-action='community-place-choose']");
+    if (placeChoice) { communityHandlePlaceChoice(placeChoice); return; }
+    const placeSend = event.target.closest("[data-action='community-send-place']");
+    if (placeSend) { communitySendPlace(placeSend); return; }
+    const placeCancel = event.target.closest("[data-action='community-cancel-note']");
+    if (placeCancel) { communityCancelNote(placeCancel); return; }
+    const communityChange = event.target.closest("[data-action='community-change']");
+    if (communityChange) { communityHandleChange(communityChange); return; }
+    const communityChoice = event.target.closest("[data-action='community-report']");
+    if (communityChoice) { communityHandleChoice(communityChoice); return; }
     const reportIssueToggle = event.target.closest("[data-action='report-issue']");
     if (reportIssueToggle) { toggleLocationIssueForm(reportIssueToggle); return; }
     const cancelIssueBtn = event.target.closest("[data-action='cancel-location-issue']");
@@ -799,6 +1202,19 @@ function setupSearchAndNavHandlers() {
       selectOverview();
       ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
       requestDraw();
+      return;
+    }
+    // Any plain in-app link rendered into the inspector (nearbySectionsHtml's category/
+    // group chips and nearest-tree/cow cards) -- an
+    // external link (Open in Maps, a website row, OSM attribution) always opens target="_blank"
+    // and is left to the browser untouched; so is a modified click (open in new tab/window),
+    // same as any ordinary link.
+    // API routes (sign-in, sign-out) are server redirects, not app screens: leave them to the browser.
+    const internalLink = event.target.closest("a[href^='/']:not([href^='/api/'])");
+    if (internalLink && internalLink.target !== "_blank"
+      && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey) {
+      event.preventDefault();
+      navigateInApp(internalLink.getAttribute("href"));
       return;
     }
     const button = event.target.closest("[data-overview-type][data-overview-key]");
@@ -943,12 +1359,33 @@ function syncSettingsWalkSlider() {
 // *origin* rather than the camera (startNearbyOriginTransition, index.html), which keeps the
 // walking-radius circle still on screen and moves the map behind it -- so the camera itself is
 // re-derived per frame from the interpolated origin and must not also be animated here.
-function setNearbyAnchor(latitude, longitude, point) {
+function setNearbyAnchor(latitude, longitude, point, label = null) {
   startNearbyOriginTransition(nearbyRenderOriginPoint());
-  state.nearbyAnchor = { latitude, longitude, point };
+  state.nearbyAnchor = { latitude, longitude, point, label };
   // Same reasoning as applyWalkingRadiusChange: moving the browse point is the user choosing
   // what the camera should be looking at.
   state.outOfRadiusRevealFilters = [];
+  refreshNearbyRadiusView({ animate: false });
+  pushNearbyAnchorHistory();
+}
+
+// A selected place's own "Everything within 15 min walk" button (nearbyWithinWalkHtml,
+// js/inspector.js) -- folds setNearbyAnchor's anchor move and applyWalkingRadiusChange's radius
+// change into one state update and one refresh/history push, the same way
+// focusNearbyOnClusterGroup folds an anchor move and a radius change together for a cluster tap,
+// rather than calling each of those two functions in turn and refreshing twice.
+function focusNearbyWithinWalkMinutes(latitude, longitude, minutes, label = null) {
+  state.selected = null;
+  setInspectorMinimized(false);
+  startNearbyOriginTransition(nearbyRenderOriginPoint());
+  state.nearbyAnchor = { latitude, longitude, point: projectLonLat(longitude, latitude), label };
+  state.walkingDistanceMinutes = minutes;
+  state.outOfRadiusRevealFilters = [];
+  // "Everything" means every category, not the reader's saved filter set -- same override the
+  // /nearby?filters=false link gets (applyShowFilterFromQuery, js/app.js). Ephemeral, so the
+  // saved filters come back as soon as the reader leaves this view.
+  setOverviewFilters(Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: false, render: false });
+  exitClusterExpansion({ restoreRadius: false });
   refreshNearbyRadiusView({ animate: false });
   pushNearbyAnchorHistory();
 }
@@ -962,7 +1399,7 @@ function setNearbyAnchor(latitude, longitude, point) {
 function applyNearbyAnchorFromRoute(anchor) {
   state.selected = null;
   setInspectorMinimized(false);
-  setNearbyAnchor(anchor.latitude, anchor.longitude, projectLonLat(anchor.longitude, anchor.latitude));
+  setNearbyAnchor(anchor.latitude, anchor.longitude, projectLonLat(anchor.longitude, anchor.latitude), anchor.label || null);
 }
 
 // The counterpart to pushNearbyAnchorHistory (js/app.js), run on every popstate before the URL
@@ -1111,7 +1548,7 @@ function focusNearbyOnClusterGroup(cluster) {
   // what lets its own `if (!secondaryScreenActive()) selectOverview()` actually fire.
   state.filterScreenOpen = false;
   state.searchScreenOpen = false;
-  if (state.selected && (state.selected.type === "settings" || state.selected.type === "report")) {
+  if (state.selected && ["settings", "report", "community"].includes(state.selected.type)) {
     state.selected = null;
   }
   // Same slide restoreNearbyAnchorFromHistory/setNearbyAnchor use for any other anchor move --
@@ -1163,6 +1600,37 @@ function clearNearbyAnchor() {
   pushNearbyAnchorHistory();
 }
 
+// Hides the bar with the entry animation played backwards (css/inspector.css): the card fades
+// out first, then the space collapses, and only when that finishes is `hidden` set. Falls back to
+// hiding at once when animation is unavailable or reduced motion is requested.
+function hideNearbyAnchorBar(bar) {
+  if (bar.classList && bar.classList.contains("is-leaving")) return;
+  const animates = bar.classList && typeof bar.getAnimations === "function"
+    && !(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  if (!animates) {
+    bar.hidden = true;
+    return;
+  }
+  const finish = () => {
+    cancelNearbyAnchorBarExit(bar);
+    bar.hidden = true;
+  };
+  bar.classList.add("is-leaving");
+  bar._leaveHandler = (event) => {
+    if (event.animationName === "nearby-anchor-space-out") finish();
+  };
+  bar.addEventListener("animationend", bar._leaveHandler);
+  bar._leaveTimer = setTimeout(finish, 1200);
+}
+
+function cancelNearbyAnchorBarExit(bar) {
+  if (bar._leaveHandler) bar.removeEventListener("animationend", bar._leaveHandler);
+  clearTimeout(bar._leaveTimer);
+  bar._leaveHandler = null;
+  bar._leaveTimer = null;
+  if (bar.classList) bar.classList.remove("is-leaving");
+}
+
 // Shows/hides #nearbyAnchorBar, the way back from a browsed spot. It lives in the inspector
 // chrome rather than inside the Nearby list's own HTML because Filters, Settings and Report all
 // keep drawing the walking-radius circle around the browse anchor behind them (see
@@ -1172,7 +1640,23 @@ function clearNearbyAnchor() {
 function updateNearbyAnchorBar() {
   const bar = els.nearbyAnchorBar;
   if (!bar) return;
-  bar.hidden = !(state.nearbyAnchor && !hasRealSelection());
+  const show = !!(state.nearbyAnchor && !hasRealSelection());
+  if (show) {
+    cancelNearbyAnchorBarExit(bar);
+    bar.hidden = false;
+  } else if (!bar.hidden) {
+    hideNearbyAnchorBar(bar);
+  }
+  // Mid-exit the card keeps its old wording; the generic fallback would flash in as it fades out.
+  if (bar.classList && bar.classList.contains("is-leaving")) return;
+  // Names the spot when the browse point came from a place (its own inspector's walk card or a
+  // related link), so the reader sees whose neighbourhood they are looking at; a bare map tap
+  // keeps the generic wording.
+  const text = bar.querySelector(".nearby-anchor-bar-text");
+  if (text) {
+    const label = state.nearbyAnchor && state.nearbyAnchor.label;
+    text.textContent = label ? `Showing places near ${label}` : "Showing places near where you tapped";
+  }
 }
 
 // The Nearby view's "nearest area" is the walking-radius ring drawn around nearbyOrigin().
@@ -1491,6 +1975,25 @@ function beginMapDrag(clientX, clientY) {
   els.canvas.classList.add("dragging");
 }
 
+// The mobile sheet and its nav bar float a few pixels in from the screen edges, so thin strips
+// of map show around them. A thumb aimed at the panel's edge that lands just off it was opening
+// whatever happened to be drawn there. Taps within this margin of either panel are dropped; drags
+// and pinches that start there still move the map. Touch and pen only -- a mouse lands where it
+// is pointed.
+const PANEL_EDGE_TAP_MARGIN_PX = 16;
+
+function isTouchTapBesidePanel(event) {
+  if (event.pointerType === "mouse") return false;
+  const m = PANEL_EDGE_TAP_MARGIN_PX;
+  return [els.inspector, els.inspectorActions].some((el) => {
+    if (!el || el.hidden) return false;
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height) return false;
+    return event.clientX >= r.left - m && event.clientX <= r.right + m
+      && event.clientY >= r.top - m && event.clientY <= r.bottom + m;
+  });
+}
+
 function setupMapCanvasHandlers() {
   els.canvas.addEventListener("pointerdown", (event) => {
     stopViewportAnimation();
@@ -1596,7 +2099,7 @@ function setupMapCanvasHandlers() {
       && state.activePointers.has(event.pointerId);
     endMapPointer(event);
     if (state.activePointers.size === 0) state.multiTouchOccurred = false;
-    if (wasClick) handleMapClick(event);
+    if (wasClick && !isTouchTapBesidePanel(event)) handleMapClick(event);
   });
 
   els.canvas.addEventListener("pointercancel", (event) => {
@@ -1732,113 +2235,6 @@ function setInspectorMinimized(minimized) {
   if (typeof updateCompassOverlay === "function") updateCompassOverlay();
 }
 
-function setupInspectorDragResize() {
-  const dragHandle = document.getElementById("inspectorDragHandle");
-  if (!dragHandle) return;
-  let dragRecenterFrame = null;
-
-  function isMobileLayout() {
-    return window.innerWidth <= 850;
-  }
-
-  function setInspectorHeight(percent) {
-    if (!isMobileLayout()) return;
-    const clamped = Math.max(20, Math.min(85, percent));
-    state.inspectorHeightPercent = clamped;
-    els.inspector.style.setProperty("--inspector-height", `${clamped}%`);
-  }
-
-  // options.animate is false while the resize drag is still live, so every intermediate height
-  // re-frames the camera instantly, and true once on release for a single settling motion --
-  // the same split the walking-radius slider and pinch gesture use. Requesting a fresh 180ms
-  // animation on every frame of the drag instead (what this used to do, with the
-  // stopViewportAnimation below cancelling the previous one each time) meant the camera never
-  // got more than a few milliseconds into any ease before being restarted: it barely moved
-  // while the sheet was being dragged, then lurched when the finger came off.
-  function recentMapForInspectorChange(options = {}) {
-    // Stop any existing viewport animation before starting a new one to prevent conflicts
-    stopViewportAnimation();
-
-    const animate = Boolean(options.animate);
-    const durationMs = options.durationMs || (animate ? 220 : 0);
-    if (!state.userLocation) return;
-    if (state.selected && selectedCompassTarget()) {
-      centerViewportOnPointsKeepScale(
-        [state.userLocation.point, selectedCompassTarget().point],
-        { animate, durationMs, focusVisibleArea: true, assumeInspectorOpen: true }
-      );
-    } else if (isOverviewScreenActive()) {
-      ensureOverviewTargetsVisible({ animate, durationMs });
-    }
-  }
-
-  dragHandle.addEventListener("pointerdown", (event) => {
-    if (!isMobileLayout()) return;
-    event.preventDefault();
-    capturePointerSafely(dragHandle, event.pointerId);
-    state.inspectorDragging = true;
-    els.inspector.classList.add("is-dragging");
-    state.inspectorDragStart = {
-      y: event.clientY,
-      // 48: the CSS fallback (css/map-ui.css, var(--inspector-height, 48%)) for a sheet that
-      // hasn't been manually resized yet.
-      heightPercent: state.inspectorHeightPercent || 48,
-    };
-    dragHandle.classList.add("dragging");
-  });
-
-  dragHandle.addEventListener("pointermove", (event) => {
-    if (!state.inspectorDragging) return;
-    const deltaY = state.inspectorDragStart.y - event.clientY;
-    const viewportHeight = window.innerHeight;
-    const deltaPercent = (deltaY / viewportHeight) * 100;
-    const newPercent = state.inspectorDragStart.heightPercent + deltaPercent;
-    setInspectorHeight(newPercent);
-    if (dragRecenterFrame == null) {
-      dragRecenterFrame = requestAnimationFrame(() => {
-        dragRecenterFrame = null;
-        recentMapForInspectorChange({ animate: false });
-      });
-    }
-  });
-
-  dragHandle.addEventListener("pointerup", (event) => {
-    if (!state.inspectorDragging) return;
-    state.inspectorDragging = false;
-    els.inspector.classList.remove("is-dragging");
-    dragHandle.classList.remove("dragging");
-    releasePointerSafely(dragHandle, event.pointerId);
-    if (dragRecenterFrame != null) {
-      cancelAnimationFrame(dragRecenterFrame);
-      dragRecenterFrame = null;
-    }
-    recentMapForInspectorChange({ animate: true, durationMs: 240 });
-  });
-
-  // An interrupted resize (system gesture, backgrounding) has to settle exactly like a normal
-  // release -- otherwise the queued per-frame recentre below fires after the drag is over and
-  // the map is left mid-resize with no final easing motion.
-  dragHandle.addEventListener("pointercancel", (event) => {
-    if (!state.inspectorDragging) return;
-    state.inspectorDragging = false;
-    els.inspector.classList.remove("is-dragging");
-    dragHandle.classList.remove("dragging");
-    releasePointerSafely(dragHandle, event.pointerId);
-    if (dragRecenterFrame != null) {
-      cancelAnimationFrame(dragRecenterFrame);
-      dragRecenterFrame = null;
-    }
-    recentMapForInspectorChange({ animate: true, durationMs: 240 });
-  });
-
-  window.addEventListener("resize", () => {
-    if (!isMobileLayout() && state.inspectorHeightPercent !== null) {
-      els.inspector.style.removeProperty("--inspector-height");
-      state.inspectorHeightPercent = null;
-    }
-  });
-}
-
 function goToInitialView(updateHash = true) {
   // If compass hasn't fired in >5 s, clear the heading so the map goes north-up
   // rather than showing a frozen direction when the user returns to the overview.
@@ -1869,8 +2265,20 @@ function goToInitialView(updateHash = true) {
   // A /nearby/<slug> page's single category is that page's own lens, not a preference the reader
   // chose -- the Nearby nav button is "take me to the real Nearby", so it puts their actual
   // filters back rather than carrying that category over (see setOverviewFilters' persist:false
-  // comment, js/app.js).
-  if (state.overviewFiltersEphemeral) setOverviewFilters(loadStoredOverviewFilters());
+  // comment, js/app.js). Except when this goToInitialView() call is itself how the reader is
+  // *arriving* at a different /nearby/<slug> page (a SPA link click or a popstate, routed through
+  // applyRouteFromUrl -> applyRoute, both of which hold routeApplyDepth open across this call --
+  // see their own comments) and the URL already names that page's own category: that arrival's
+  // route value is also "", same as the plain Nearby screen's, so without this check the filters
+  // applyShowFilterFromQuery() just set moments ago in the very same pass would be restored right
+  // back over them before the reader ever saw the new page's own category. A direct call (the
+  // Nearby nav button, the Report form's Cancel, the inspector back arrow with no history to
+  // retrace) never runs inside that depth, so this never suppresses a genuine "leave" there.
+  const arrivingAtLandingPage = routeApplyDepth > 0 && filterKeysFromFindPath(window.location.pathname).length > 0;
+  if (state.overviewFiltersEphemeral && !arrivingAtLandingPage) setOverviewFilters(loadStoredOverviewFilters());
+  // The Nearby button always shows the real list. A landing's server-rendered list is kept only
+  // while the reader is still on that landing (selectOverview's own check), so clear it here.
+  _serverRenderedNearbyList = false;
   selectOverview(true);
   setInspectorMinimized(false);
   const refitOverview = () => {
@@ -1897,26 +2305,17 @@ function goToInitialView(updateHash = true) {
   requestDraw();
 }
 
-// True once a real GPS fix exists -- false while state.userLocation is unset, or is only
-// applyDefaultLocation()'s High Beach stand-in (js/app.js). Everything that means "do we
-// already know where the user actually is" (the locate button, the location gate's own retry
-// button) reads this instead of state.userLocation's bare truthiness; everything that just
-// wants coordinates to measure or draw from (distances, the Nearby list, the walking-radius
-// ring) keeps reading state.userLocation directly, stand-in included -- that's the point of it.
+// A default High Beach location is useful for rendering nearby results, but is not a real GPS
+// fix: the location gate must still ask for permission in that case.
 function hasRealLocation() {
   return Boolean(state.userLocation) && !state.userLocation.isDefault;
 }
 
-function updateLocateButtonVisibility() {
-  const geolocationAvailable = typeof navigator !== "undefined" && Boolean(navigator.geolocation);
-  els.locateButton.hidden = !geolocationAvailable || hasRealLocation();
-  syncInspectorToolsVisibility();
-}
-
 function syncInspectorToolsVisibility() {
   if (!els.inspectorTools || els.inspectorTools.hidden) return;
-  const hasContent = !els.locateButton.hidden
-    || (els.installButton && getComputedStyle(els.installButton).display !== "none");
+  const hasContent = els.installButton
+    && !els.installButton.hidden
+    && (typeof getComputedStyle !== "function" || getComputedStyle(els.installButton).display !== "none");
   els.inspectorTools.classList.toggle("tools-empty", !hasContent);
 }
 
@@ -1979,43 +2378,3 @@ function activateModalFocus(container, { onEscape } = {}) {
   };
 }
 if (typeof globalThis !== "undefined") globalThis.activateModalFocus = activateModalFocus;
-
-// dismissible (js/app.js's revealNoRealLocation) shows the "Maybe later" button and answers
-// Escape the same way, for the invite-only prompts shown once DEFAULT_LOCATION's High Beach
-// stand-in has already made the map usable. Every hard-stop case (blocked permission, no
-// geolocation support at all, the compass-only prompt) still omits it, since there the map
-// has nothing of its own to fall back on and the button is the only way forward.
-function setLocationGateVisible(visible, message, buttonLabel, title, { dismissible = false } = {}) {
-  if (!els.locationGate) return;
-  if (visible) {
-    els.locationGate.classList.remove("fading-out");
-    els.locationGate.hidden = false;
-    if (els.locationGateButton) els.locationGateButton.disabled = false;
-    if (els.locationGateDismiss) els.locationGateDismiss.hidden = !dismissible;
-    if (!els.locationGate._deactivateFocus) {
-      els.locationGate._deactivateFocus = activateModalFocus(
-        els.locationGate,
-        dismissible ? { onEscape: () => setLocationGateVisible(false) } : undefined
-      );
-    }
-  } else {
-    if (els.locationGate._deactivateFocus) {
-      els.locationGate._deactivateFocus();
-      els.locationGate._deactivateFocus = null;
-    }
-    // When the gate is dismissed (all permissions granted), show loading overlay if data isn't ready yet
-    if (!state.dataLoaded && els.loadingOverlay) {
-      els.loadingOverlay.hidden = false;
-    }
-    hideWithFade(els.locationGate);
-  }
-  if (title && els.locationGateTitle) {
-    els.locationGateTitle.textContent = title;
-  }
-  if (message && els.locationGateMessage) {
-    els.locationGateMessage.textContent = message;
-  }
-  if (els.locationGateButton) {
-    els.locationGateButton.textContent = buttonLabel || "Enable location to continue";
-  }
-}

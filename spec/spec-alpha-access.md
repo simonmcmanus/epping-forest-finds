@@ -21,6 +21,10 @@ shared secret is used by everyone, and it is expected — welcomed — that alph
 users pass the link on. That decision makes per-person tokens, revocation lists
 and an invite-to-signup mapping unnecessary, and none of them are built.
 
+The native apps (`spec-native.md`) carry the app inside the binary, so the gate
+does not apply to them; while the alpha is closed they are distributed only
+through TestFlight and Play internal testing.
+
 Two consequences follow from that and are accepted rather than mitigated:
 
 - **Rotating the secret does not evict anyone.** A user who has already loaded
@@ -42,7 +46,7 @@ restriction has to be real even though the secret is shared.
 | Path | Serves | Gated |
 | --- | --- | --- |
 | `/` | Marketing homepage (`index.html`) | No |
-| `/nearby`, `/nearby/search`, `/nearby/filter`, `/settings`, `/feedback` | The map application's five screens, each its own URL (see spec.md "Routing") | Yes |
+| `/nearby`, `/nearby/search`, `/nearby/filter`, `/settings`, `/feedback`, `/community` | The map application's five screens, each its own URL (see spec.md "Routing") | Yes |
 | `/app` | Bare redirect (301) to `/nearby` — the app's old entry point, kept working for old links and bookmarks | No (nothing to gate; it carries no content) |
 | `/app.html` | The underlying file every screen path rewrites to | Yes |
 | `/nearby/<slug>` | Category pages (spec-marketing.md § "Category pages"), **not** gated — the gate's `path` list names the bare `/nearby`, `/nearby/search` and `/nearby/filter` paths exactly, so a category page nested one segment deeper is never caught by it | No |
@@ -76,7 +80,7 @@ it cache `/js/*`, `/css/*` and `/data/*`. Moving the app into an `/app/`
 directory would collapse that scope to `/app/` and the app would stop working
 offline entirely — which is the product.
 
-Each screen path (`/nearby`, `/nearby/search`, `/nearby/filter`, `/settings`, `/feedback`) is
+Each screen path (`/nearby`, `/nearby/search`, `/nearby/filter`, `/settings`, `/feedback`, `/community`) is
 therefore a URL, produced by a rewrite, not a folder — all five rewrite to the
 same `app.html` at the root (spec.md "Routing"). `/app` is a bare redirect to
 `/nearby` kept for old links; it is not itself a rewrite target and carries no
@@ -92,7 +96,7 @@ what keeps the installed app able to reach `/js`, `/css` and `/data`.
 ## 3. The gate
 
 `netlify/edge-functions/alpha-gate.js`, configured for `/nearby`, `/nearby/search`,
-`/nearby/filter`, `/settings`, `/feedback` and `/app.html`.
+`/nearby/filter`, `/settings`, `/feedback`, `/community` and `/app.html`.
 
 ### 3.1 Secrets
 
@@ -170,7 +174,7 @@ would be served the app instead of the new homepage, and the homepage would be
 invisible to exactly the people most likely to look.
 
 The handler is now scoped to the app's own routes (`/nearby`, `/nearby/search`,
-`/nearby/filter`, `/settings`, `/feedback`, `/app.html`). Navigations to anything else
+`/nearby/filter`, `/settings`, `/feedback`, `/community`, `/app.html`). Navigations to anything else
 — the homepage, the reports, the terms, `/app` itself — fall through to the
 network and are not served from the app cache.
 
@@ -199,7 +203,7 @@ feature branch.
 `netlify.toml`:
 
 - An edge function declaration binding `alpha-gate` to each of `/nearby`,
-  `/nearby/search`, `/nearby/filter`, `/settings`, `/feedback` and to `/app.html`.
+  `/nearby/search`, `/nearby/filter`, `/settings`, `/feedback`, `/community` and to `/app.html`.
 - A 200 rewrite from each of those five screen paths to `/app.html`, so every
   pretty URL serves the same file.
 - `/app` is a separate 301 redirect to `/nearby` — not a rewrite, and not bound

@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Food & Drink",
-  "generatedAt": "2026-10-16T05:38:09.730608Z",
+  "generatedAt": "2026-10-23T06:01:34.771051Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -22205,6 +22205,7 @@
         "website": "https://fishfellaschigwell.co.uk",
         "phone": "020 8504 0888",
         "address": "714 Chigwell Road, Woodford Green, IG8 8AL",
+        "ledgerUrl": "/reports/epping-forest-ledger-2026-09-03.html",
         "distanceToForestBoundaryMetres": 407.0,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
@@ -32883,40 +32884,6 @@
     },
     {
       "type": "Feature",
-      "id": "manual/london-academy-of-sustainable-development-construction-college",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          0.0013195,
-          51.5600074
-        ]
-      },
-      "properties": {
-        "id": "manual/london-academy-of-sustainable-development-construction-college",
-        "osmType": "manual",
-        "osmId": null,
-        "name": "London Academy of Sustainable Development Construction College",
-        "category": "restaurant",
-        "categoryLabel": "Restaurant",
-        "amenity": "restaurant",
-        "shop": null,
-        "highway": null,
-        "tourism": null,
-        "historic": null,
-        "railway": null,
-        "barrier": null,
-        "entrance": null,
-        "heritage": null,
-        "website": null,
-        "phone": null,
-        "address": "442 Cathall Road, Leytonstone, London, E11 4LB",
-        "openingHours": null,
-        "distanceToForestBoundaryMetres": 435.2,
-        "distanceLimitFromForestBoundaryMetres": 466.7
-      }
-    },
-    {
-      "type": "Feature",
       "id": "manual/lot-14-at-theydon",
       "geometry": {
         "type": "Point",
@@ -40288,7 +40255,7 @@
         "website": "https://thebakineer.com/",
         "phone": null,
         "address": "38 King's Road London E4 7JE",
-        "openingHours": null,
+        "openingHours": "We-Th 11:00-19:00",
         "distanceToForestBoundaryMetres": 4.5,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
@@ -45629,6 +45596,146 @@
         "openingHours": null,
         "distanceToForestBoundaryMetres": 204.3,
         "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/london-academy-of-sustainable-development-construction-college",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0013195,
+          51.5600074
+        ]
+      },
+      "properties": {
+        "id": "manual/london-academy-of-sustainable-development-construction-college",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "London Academy of Sustainable Development Construction College",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "442 Cathall Road, Leytonstone, London, E11 4LB",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 435.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "ledgerUrl": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/aavo-chai-coffee",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0016075,
+          51.5857219
+        ]
+      },
+      "properties": {
+        "id": "manual/aavo-chai-coffee",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Aavo Chai & Coffee",
+        "category": "cafe",
+        "categoryLabel": "Caf\u00e9",
+        "amenity": "cafe",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "193 Wood Street, Walthamstow, London, E17 3NU",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 412.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "ledgerUrl": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/rewayat-restaurant",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.014977,
+          51.5763811
+        ]
+      },
+      "properties": {
+        "id": "manual/rewayat-restaurant",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Rewayat Restaurant",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Ground Floor 365 Hoe Street, Walthamstow, London, E17 9AP",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 464.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "ledgerUrl": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/bellevue",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.053141,
+          51.645071
+        ]
+      },
+      "properties": {
+        "id": "manual/bellevue",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Bellevue",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "153 High Road, Loughton, Essex, IG10 4LF",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 28.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "ledgerUrl": null
       }
     }
   ]

@@ -15,36 +15,7 @@ try {
   }
 } catch {}
 
-const TRACKING_DIR = path.join(__dirname, "data", "tracking");
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
-
-function ensureTrackingDir() {
-  if (!fs.existsSync(TRACKING_DIR)) fs.mkdirSync(TRACKING_DIR, { recursive: true });
-}
-
-function appendNdjson(filename, objects) {
-  ensureTrackingDir();
-  const lines = objects.map((o) => JSON.stringify(o)).join("\n") + "\n";
-  fs.appendFileSync(path.join(TRACKING_DIR, filename), lines, "utf8");
-}
-
-function readNdjson(filename) {
-  const file = path.join(TRACKING_DIR, filename);
-  if (!fs.existsSync(file)) return [];
-  return fs.readFileSync(file, "utf8")
-    .split("\n")
-    .filter(Boolean)
-    .map((line) => { try { return JSON.parse(line); } catch { return null; } })
-    .filter(Boolean);
-}
-
-function checkAdminAuth(req, url) {
-  if (!ADMIN_PASSWORD) return false;
-  const authHeader = req.headers.authorization || "";
-  if (authHeader === `Bearer ${ADMIN_PASSWORD}`) return true;
-  if (url.searchParams.get("pw") === ADMIN_PASSWORD) return true;
-  return false;
-}
 
 const PORT = Number(process.env.PORT || 8080);
 const ROOT = process.cwd();
@@ -59,6 +30,7 @@ const MIME = {
   ".svg": "image/svg+xml",
   ".webmanifest": "application/manifest+json; charset=utf-8",
   ".png": "image/png",
+  ".webp": "image/webp",
   ".jpg": "image/jpeg",
   ".jpeg": "image/jpeg",
   ".ico": "image/x-icon",
@@ -72,11 +44,22 @@ function send(res, status, body, type = "text/plain; charset=utf-8") {
   res.end(body);
 }
 
-function streamFile(res, filePath, type) {
+// Like Netlify, every static file carries a validator and a matching If-None-Match gets a bodyless 304,
+// so the service worker's background data sync (conditional requests, sw.js syncData) costs locally
+// what it costs in production instead of re-downloading every dataset in full. Cache-Control stays
+// no-store, so the browser itself never sends one.
+function streamFile(res, filePath, type, req = null, stats = null) {
+  const etag = stats ? `W/"${stats.size.toString(16)}-${Math.floor(stats.mtimeMs).toString(16)}"` : null;
+  if (etag && req && req.headers["if-none-match"] === etag) {
+    res.writeHead(304, { ETag: etag, "Cache-Control": "no-store" });
+    res.end();
+    return;
+  }
   const stream = fs.createReadStream(filePath);
   res.writeHead(200, {
     "Content-Type": type,
     "Cache-Control": "no-store",
+    ...(etag ? { ETag: etag } : {}),
   });
   stream.pipe(res);
 }
@@ -137,6 +120,21 @@ function handleStatic(req, res, url) {
     return;
   }
 
+  // The page loads the data version marker the worker imports. Flag it as local for the page too, so
+  // both name the data cache identically ("forest-finds-data-dev-vN"): a first visit hands its map
+  // downloads to the worker's data cache by that name (js/loader.js), and a mismatch would put them
+  // where the worker never looks. The app marker is left alone: the page only displays it.
+  if (requested === "/js/data-cache-version.js") {
+    fs.readFile(resolved, "utf8", (err, source) => {
+      if (err) {
+        send(res, 404, "Not found");
+        return;
+      }
+      send(res, 200, `globalThis.__DEV__ = true;\n${source}`, MIME[".js"]);
+    });
+    return;
+  }
+
   if (requested === "/sw.js") {
     fs.readFile(resolved, "utf8", (err, source) => {
       if (err) {
@@ -176,7 +174,7 @@ function handleStatic(req, res, url) {
 
     const ext = path.extname(resolved).toLowerCase();
     const type = MIME[ext] || "application/octet-stream";
-    streamFile(res, resolved, type);
+    streamFile(res, resolved, type, req, stats);
   });
 }
 
@@ -200,40 +198,10 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (url.pathname === "/api/track" && req.method === "POST") {
-    let body = "";
-    req.on("data", (chunk) => { body += chunk; });
-    req.on("end", () => {
-      try {
-        const payload = JSON.parse(body);
-        const events = Array.isArray(payload.events) ? payload.events : [];
-        const locationEvents = events.filter((e) => e && e.type === "location");
-        const clickEvents = events.filter((e) => e && e.type === "click");
-        if (locationEvents.length) appendNdjson("location.ndjson", locationEvents);
-        if (clickEvents.length) appendNdjson("click.ndjson", clickEvents);
-        send(res, 200, JSON.stringify({ ok: true, stored: events.length }), "application/json; charset=utf-8");
-      } catch {
-        send(res, 400, JSON.stringify({ error: "Invalid JSON" }), "application/json; charset=utf-8");
-      }
-    });
-    return;
-  }
-
-  if (url.pathname === "/api/admin/tracks" && req.method === "GET") {
-    if (!checkAdminAuth(req, url)) {
-      send(res, 401, JSON.stringify({ error: "Unauthorized" }), "application/json; charset=utf-8");
-      return;
-    }
-    const locations = readNdjson("location.ndjson");
-    const clicks = readNdjson("click.ndjson");
-    send(res, 200, JSON.stringify({ locations, clicks, meta: { storeName: "local", context: "local" } }), "application/json; charset=utf-8");
-    return;
-  }
-
   // Mirrors the /app -> /nearby redirect in netlify.toml. /app carries no content of its
   // own any more, so this is an ordinary redirect, not a rewrite.
   if (url.pathname === "/app") {
-    res.writeHead(301, { Location: "/nearby", "Cache-Control": "no-store" });
+    res.writeHead(301, { Location: `/nearby${url.search}`, "Cache-Control": "no-store" });
     res.end();
     return;
   }
@@ -244,10 +212,21 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // Mirrors the five screen-path -> app.html rewrites in netlify.toml. The alpha gate is NOT
+  // Mirrors the screen-path -> app.html rewrites in netlify.toml (bare /nearby is handled above). The alpha gate is NOT
   // mirrored: it is a Netlify edge function, so local dev and the e2e suite always reach the
   // app. See spec/spec-alpha-access.md section 3.4.
-  if (["/nearby", "/nearby/search", "/nearby/filter", "/settings", "/feedback"].includes(url.pathname)) {
+  // Bare /nearby mirrors netlify.toml's rewrite to the generated static index, falling back to
+  // app.html until `npm run build` has written it.
+  if (url.pathname === "/nearby") {
+    const indexFile = path.join(ROOT, "nearby-index.html");
+    const file = fs.existsSync(indexFile) ? indexFile : path.join(ROOT, "app.html");
+    if (!fs.existsSync(file)) { send(res, 404, "App not found"); return; }
+    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
+    fs.createReadStream(file).pipe(res);
+    return;
+  }
+
+  if (["/nearby/search", "/nearby/filter", "/settings", "/feedback", "/community"].includes(url.pathname)) {
     const appFile = path.join(ROOT, "app.html");
     if (!fs.existsSync(appFile)) { send(res, 404, "App not found"); return; }
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
@@ -263,6 +242,45 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // Community reports/overlay: same function modules Netlify runs, with the request body passed
+  // through (the generic proxy below only forwards the query string).
+  const COMMUNITY_FUNCTION_ROUTES = {
+    "/api/community/report": "community-report",
+    "/api/community/overlay": "community-overlay",
+    "/api/community/validate": "community-validate",
+    "/api/community/rebuild": "community-rebuild",
+    "/api/community/delete": "community-delete",
+    "/reports/tree-report": "tree-report",
+    "/reports/tree-report/": "tree-report",
+    "/api/auth/login": "auth-login",
+    "/api/auth/callback": "auth-callback",
+    "/api/auth/me": "auth-me",
+    "/api/auth/link": "auth-link",
+    "/api/auth/logout": "auth-logout",
+    "/api/features": "features",
+    // Tracking runs the real function too; with no Blobs context it falls back to data/tracking/*.ndjson.
+    "/api/track": "track",
+    "/api/admin/tracks": "track",
+  };
+  if (COMMUNITY_FUNCTION_ROUTES[url.pathname]) {
+    const fnName = COMMUNITY_FUNCTION_ROUTES[url.pathname];
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", () => {
+      const fn = require(path.join(ROOT, "netlify", "functions", fnName + ".js"));
+      fn.handler({ httpMethod: req.method, headers: req.headers, queryStringParameters: Object.fromEntries(url.searchParams), body })
+        .then((result) => {
+          // Redirects set cookies through multiValueHeaders, which the headers object alone would drop.
+          const headers = { ...(result.headers || { "Content-Type": "application/json" }) };
+          for (const [name, values] of Object.entries(result.multiValueHeaders || {})) headers[name] = values;
+          res.writeHead(result.statusCode, headers);
+          res.end(result.body || "");
+        })
+        .catch((err) => send(res, 500, JSON.stringify({ error: String(err.message) }), "application/json; charset=utf-8"));
+    });
+    return;
+  }
+
   // Proxy Netlify functions locally
   if (url.pathname.startsWith("/.netlify/functions/")) {
     const fnName = url.pathname.replace("/.netlify/functions/", "");
@@ -272,22 +290,28 @@ const server = http.createServer((req, res) => {
       send(res, 403, "Forbidden");
       return;
     }
-    try {
-      // Clear require cache so changes are picked up on restart
-      delete require.cache[require.resolve(resolved)];
-      const fn = require(resolved);
-      const qs = Object.fromEntries(url.searchParams.entries());
-      fn.handler({ httpMethod: req.method, queryStringParameters: qs })
-        .then((result) => {
-          res.writeHead(result.statusCode, result.headers || { "Content-Type": "application/json" });
-          res.end(result.body || "");
-        })
-        .catch((err) => {
-          send(res, 500, JSON.stringify({ error: String(err.message) }), "application/json; charset=utf-8");
-        });
-    } catch (err) {
-      send(res, 500, JSON.stringify({ error: String(err.message) }), "application/json; charset=utf-8");
-    }
+    // Forward the request body and headers like Netlify does (a POST function such as
+    // report-missing-data reads both), once the whole body has arrived.
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", () => {
+      try {
+        // Clear require cache so changes are picked up on restart
+        delete require.cache[require.resolve(resolved)];
+        const fn = require(resolved);
+        const qs = Object.fromEntries(url.searchParams.entries());
+        fn.handler({ httpMethod: req.method, headers: req.headers, queryStringParameters: qs, body })
+          .then((result) => {
+            res.writeHead(result.statusCode, result.headers || { "Content-Type": "application/json" });
+            res.end(result.body || "");
+          })
+          .catch((err) => {
+            send(res, 500, JSON.stringify({ error: String(err.message) }), "application/json; charset=utf-8");
+          });
+      } catch (err) {
+        send(res, 500, JSON.stringify({ error: String(err.message) }), "application/json; charset=utf-8");
+      }
+    });
     return;
   }
 

@@ -19,6 +19,46 @@ function setLoadStep(key, status, count) {
   }
 }
 
+// A visitor's first visit: the service worker has just been registered but does not control this
+// page yet, so the map files this page downloads would never reach its cache, and it used to
+// download every one of them a second time (sw.js install now leaves a first install's data to the
+// page). Hand each data file over as it arrives instead. Once a worker controls the page it caches
+// what passes through it, so this does nothing then.
+const pendingDataHandOvers = new Set();
+let initialMapDownloads = Promise.resolve();
+
+function shareWithDataCache(url, response) {
+  if (!response.ok || !/^data\//.test(url)) return;
+  if (typeof caches === "undefined" || typeof DATA_CACHE_VERSION === "undefined") return;
+  if (!("serviceWorker" in navigator) || navigator.serviceWorker.controller) return;
+  const copy = response.clone();
+  const handOver = navigator.serviceWorker.getRegistration()
+    .then(async (registration) => {
+      if (!registration) return null;
+      // The same name sw.js builds from the same marker (server.js flags both as local under the dev server).
+      const cache = await caches.open(`forest-finds-data-${DATA_CACHE_VERSION}`);
+      return cache.put(url, copy);
+    })
+    .catch(() => {});
+  pendingDataHandOvers.add(handOver);
+  handOver.finally(() => pendingDataHandOvers.delete(handOver));
+}
+
+// Resolves once this page's initial map downloads have finished and every one of them has reached
+// the data cache. The worker takes control part-way through a first visit, and a background sync
+// started then would find those files missing and download them all again
+// (requestBackgroundDataSync in js/nav.js waits on this).
+async function mapDataHandOverSettled() {
+  await initialMapDownloads.catch(() => {});
+  while (pendingDataHandOvers.size) await Promise.allSettled([...pendingDataHandOvers]);
+}
+
+async function fetchMapData(url, options) {
+  const response = await fetch(url, options);
+  shareWithDataCache(url, response);
+  return response;
+}
+
 async function loadMapData() {
   setLoadStep("trees", "loading");
   setLoadStep("places", "loading");
@@ -33,7 +73,7 @@ async function loadMapData() {
     const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
     const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
     try {
-      const response = await fetch(url, controller ? { signal: controller.signal } : undefined);
+      const response = await fetchMapData(url, controller ? { signal: controller.signal } : undefined);
       if (!response.ok) throw new Error(`${url} HTTP ${response.status}`);
       return response.json();
     } finally {
@@ -126,40 +166,132 @@ async function loadMapData() {
       return { trees: [], historicalNamedTreeEnrichment: null };
     });
 
-  const landmarkPromise = Promise.all(
-    LANDMARK_URLS.map(url =>
-      fetch(url)
-        .then(r => r.ok ? r.json() : { features: [] })
-        .catch(() => ({ features: [] }))
-    )
-  ).then(datasets => {
-    const allFeatures = datasets.flatMap(data => data.features || []);
-    setLoadStep("places", "done", allFeatures.length);
-    return { features: allFeatures };
-  }).catch(() => {
-    setLoadStep("places", "error");
-    return { features: [] };
+  // Trees are the largest download by a wide margin. Keep that work in flight, but do not
+  // make places (and their deep links) wait for every tree chunk to arrive. The map's other
+  // layers below are sufficient to open and use a places-only view; when trees finish they
+  // join the already interactive map without moving the user's camera.
+  treePromise.then((treeData) => {
+    state.trees = treeData.trees
+      .filter((tree) => tree.location && tree.location.wgs84)
+      .map((tree) => ({
+        ...tree,
+        latitude: Number(tree.location.wgs84.latitude),
+        longitude: Number(tree.location.wgs84.longitude),
+        point: projectLonLat(Number(tree.location.wgs84.longitude), Number(tree.location.wgs84.latitude)),
+      }))
+      .filter((tree) => Number.isFinite(tree.latitude) && Number.isFinite(tree.longitude)
+        && !(tree.latitude === 0 && tree.longitude === 0));
+    state.namedTreeStoriesByName = buildNamedTreeStoryIndex(treeData.historicalNamedTreeEnrichment);
+
+    if (state.dataLoaded) {
+      state.bounds = calculateBounds();
+      // A /find/ landing's place is resolvable now that the data is in: select it rather than
+      // replacing the server-rendered panel with the Nearby list.
+      if (!state.selected && !state.filterScreenOpen && !state.searchScreenOpen) {
+        if (findLandingSlug()) applySelectionFromHash(false);
+        else selectOverview();
+      }
+      requestDraw();
+    }
   });
 
-  const folklorePromise = fetch(FOLKLORE_URL)
+  // Each dataset is useful on its own. The old loader joined every request here, which meant a
+  // 43 MB environment file or a slow road request held back a shop-only view even though the
+  // food landmarks were already available. Fetch every source in parallel and let each response
+  // update the already-visible map independently.
+  const notifyInteractiveDataChange = () => {
+    if (!state.dataLoaded) return;
+    state.bounds = calculateBounds();
+    if (!state.selected && !state.filterScreenOpen && !state.searchScreenOpen) {
+      if (findLandingSlug()) applySelectionFromHash(false);
+      else selectOverview();
+    }
+    requestDraw();
+  };
+
+  const businessById = new Map();
+  const applyBusinessMetadata = (entries) => {
+    for (const entry of entries || []) businessById.set(entry.id, entry);
+    state.landmarks = state.landmarks.map((place) => {
+      const business = businessById.get(place.id);
+      return business ? { ...place, findSlug: business.slug || null, verifiedAt: business.verifiedAt || null } : place;
+    });
+    notifyInteractiveDataChange();
+  };
+
+  const businessSlugsPromise = fetchMapData(BUSINESS_SLUGS_URL)
+    .then((r) => (r.ok ? r.json() : { entries: [] }))
+    .catch(() => ({ entries: [] }))
+    .then((data) => {
+      applyBusinessMetadata(data.entries);
+      return data;
+    });
+
+  const appendLandmarks = (places) => {
+    if (!places.length) return;
+    state.landmarks = state.landmarks.concat(places);
+    setLoadStep("places", "loading", state.landmarks.length);
+    notifyInteractiveDataChange();
+  };
+
+  const normalizeOsmLandmarks = (data) => (data.features || [])
+    .filter((feature) => feature.geometry && feature.geometry.type === "Point")
+    .map((feature) => {
+      const properties = feature.properties || {};
+      const longitude = Number(feature.geometry.coordinates[0]);
+      const latitude = Number(feature.geometry.coordinates[1]);
+      const business = businessById.get(properties.id);
+      return {
+        ...properties,
+        categoryTags: buildOsmCategoryTags(properties),
+        latitude,
+        longitude,
+        point: projectLonLat(longitude, latitude),
+        findSlug: business?.slug || null,
+        verifiedAt: business?.verifiedAt || null,
+      };
+    });
+
+  const landmarkPromises = LANDMARK_URLS.map((url) => fetchMapData(url)
+    .then((r) => r.ok ? r.json() : { features: [] })
+    .catch(() => ({ features: [] }))
+    .then((data) => {
+      appendLandmarks(normalizeOsmLandmarks(data));
+      return data;
+    }));
+
+  const folklorePromise = fetchMapData(FOLKLORE_URL)
     .then(async (r) => {
       if (!r.ok) throw new Error(`Folklore data HTTP ${r.status}`);
       return r.json();
     })
-    .catch(() => ({ locations: [] }));
+    .catch(() => ({ locations: [] }))
+    .then((data) => {
+      appendLandmarks(normalizeFolkloreLocations(data).map((place) => {
+        const business = businessById.get(place.id);
+        return { ...place, findSlug: business?.slug || null, verifiedAt: business?.verifiedAt || null };
+      }));
+      return data;
+    });
 
-  const eventsPromise = fetch(EVENTS_URL)
+  const eventsPromise = fetchMapData(EVENTS_URL)
     .then(async (r) => {
       if (!r.ok) throw new Error(`Events data HTTP ${r.status}`);
       return r.json();
     })
-    .catch(() => ({ events: [] }));
+    .catch(() => ({ events: [] }))
+    .then((data) => {
+      appendLandmarks(normalizeEventLocations(data));
+      return data;
+    });
 
-  const pathsPromise = fetch(PATHS_URL)
+  const pathsPromise = fetchMapData(PATHS_URL)
     .then(async (r) => {
       if (!r.ok) throw new Error(`Paths data HTTP ${r.status}`);
       const data = await r.json();
-      setLoadStep("paths", "done", data.features ? data.features.length : 0);
+      state.paths = (data.features || []).map(toPathFeature).filter(Boolean);
+      setLoadStep("paths", "done", state.paths.length);
+      notifyInteractiveDataChange();
       return data;
     })
     .catch(() => {
@@ -169,8 +301,16 @@ async function loadMapData() {
 
   const roadsPromise = loadJson(ROADS_URL, 90000)
     .catch(() => delay(2000).then(() => loadJson(ROADS_URL, 120000)))
-    .then((data) => {
-      setLoadStep("roads", "done", (data.features || []).length);
+    .then(async (data) => {
+      const roadFeatures = data.features || [];
+      state.roads = [];
+      const batchSize = 500;
+      for (let i = 0; i < roadFeatures.length; i += batchSize) {
+        state.roads.push(...roadFeatures.slice(i, i + batchSize).map(toRoadFeature).filter(Boolean));
+        if (i + batchSize < roadFeatures.length) await new Promise((resolve) => setTimeout(resolve, 0));
+      }
+      setLoadStep("roads", "done", state.roads.length);
+      notifyInteractiveDataChange();
       return data;
     })
     .catch(() => {
@@ -178,11 +318,14 @@ async function loadMapData() {
       return { features: [] };
     });
 
-  const environmentPromise = fetch(ENVIRONMENT_URL)
+  const environmentPromise = fetchMapData(ENVIRONMENT_URL)
     .then(async (r) => {
       if (!r.ok) throw new Error(`Environment data HTTP ${r.status}`);
       const data = await r.json();
-      setLoadStep("environment", "done", data.features ? data.features.length : 0);
+      state.environmentFeatures = (data.features || []).filter((feature) => feature && feature.geometry && feature.properties);
+      state.waterFeatures = extractWaterFeatures(data.features || []);
+      setLoadStep("environment", "done", state.environmentFeatures.length);
+      notifyInteractiveDataChange();
       return data;
     })
     .catch(() => {
@@ -190,94 +333,54 @@ async function loadMapData() {
       return { features: [] };
     });
 
-  const layerPromises = FEATURE_LAYERS.map((layer) =>
-    fetch(layer.url)
-      .then(async (r) => {
-        if (!r.ok) throw new Error(`${layer.label} HTTP ${r.status}`);
-        return { ...layer, data: await r.json() };
-      })
-      .catch(() => ({ ...layer, data: { type: "FeatureCollection", features: [] } }))
-  );
+  const layerPromises = FEATURE_LAYERS.map((layer) => fetchMapData(layer.url)
+    .then(async (r) => {
+      if (!r.ok) throw new Error(`${layer.label} HTTP ${r.status}`);
+      return { ...layer, data: await r.json() };
+    })
+    .catch(() => ({ ...layer, data: { type: "FeatureCollection", features: [] } }))
+    .then((resolved) => {
+      state.layers = [...state.layers.filter((existing) => existing.key !== resolved.key), resolved]
+        .sort((a, b) => FEATURE_LAYERS.findIndex((layer) => layer.key === a.key) - FEATURE_LAYERS.findIndex((layer) => layer.key === b.key));
+      // A cold load's GPS fix usually lands before the boundary does, and the far-from-the-forest
+      // check needs the boundary, so run it again now for a fix that is already in.
+      if (resolved.key === "forest" && hasRealLocation()) {
+        checkDistanceToForest(state.userLocation.latitude, state.userLocation.longitude);
+      }
+      notifyInteractiveDataChange();
+      return resolved;
+    }));
 
-  const [treeData, landmarkData, folkloreData, eventsData, pathsData, roadsData, environmentData, ...resolvedLayers] = await Promise.all([
+  const allLandmarkAndAuxiliaryPromises = [...landmarkPromises, folklorePromise, eventsPromise];
+  const placesPromise = Promise.all([businessSlugsPromise, ...allLandmarkAndAuxiliaryPromises]);
+  const backgroundPromise = Promise.all([
     treePromise,
-    landmarkPromise,
-    folklorePromise,
-    eventsPromise,
+    placesPromise,
     pathsPromise,
     roadsPromise,
     environmentPromise,
     ...layerPromises,
-  ]);
+  ]).then(() => {
+    setLoadStep("places", "done", state.landmarks.length);
+    const layerFeatureCount = state.layers.reduce((sum, layer) => sum + (layer.data.features || []).length, 0);
+    setLoadStep("forest", "done", layerFeatureCount);
+    notifyInteractiveDataChange();
+  });
 
-  const layerFeatureCount = resolvedLayers.reduce((sum, layer) => {
-    return sum + (layer.data.features ? layer.data.features.length : 0);
-  }, 0);
-  setLoadStep("forest", "done", layerFeatureCount);
-
-  state.layers = resolvedLayers;
-
-  // A handful of Veteran Tree Register records carry no survey position at all
-  // (location.wgs84.latitude/longitude both null). Number(null) is 0, so mapping them
-  // straight through put those trees on Null Island -- a real entry in state.trees that
-  // every nearest/within-radius scan then had to measure against. Drop them: a tree with no
-  // coordinate cannot be shown on the map or walked to, so it has nothing to contribute.
-  state.trees = treeData.trees
-    .filter((tree) => tree.location && tree.location.wgs84)
-    .map((tree) => ({
-      ...tree,
-      latitude: Number(tree.location.wgs84.latitude),
-      longitude: Number(tree.location.wgs84.longitude),
-      point: projectLonLat(Number(tree.location.wgs84.longitude), Number(tree.location.wgs84.latitude)),
-    }))
-    .filter((tree) => Number.isFinite(tree.latitude) && Number.isFinite(tree.longitude)
-      && !(tree.latitude === 0 && tree.longitude === 0));
-
-  state.namedTreeStoriesByName = buildNamedTreeStoryIndex(treeData.historicalNamedTreeEnrichment);
-
-  const osmLandmarks = (landmarkData.features || [])
-    .filter((feature) => feature.geometry && feature.geometry.type === "Point")
-    .map((feature) => {
-      const longitude = Number(feature.geometry.coordinates[0]);
-      const latitude = Number(feature.geometry.coordinates[1]);
-      return {
-        ...feature.properties,
-        categoryTags: buildOsmCategoryTags(feature.properties),
-        latitude,
-        longitude,
-        point: projectLonLat(longitude, latitude),
-      };
-    });
-
-  const folkloreLandmarks = normalizeFolkloreLocations(folkloreData);
-  const eventLandmarks = normalizeEventLocations(eventsData);
-  state.landmarks = [...osmLandmarks, ...folkloreLandmarks, ...eventLandmarks];
-  setLoadStep("places", "done", state.landmarks.length);
-
-  state.paths = (pathsData.features || [])
-    .map(toPathFeature)
-    .filter(Boolean);
-
-  // Process roads in smaller batches to avoid freezing the main thread
-  const roadFeatures = roadsData.features || [];
-  state.roads = [];
-  const batchSize = 500;
-  for (let i = 0; i < roadFeatures.length; i += batchSize) {
-    const batch = roadFeatures.slice(i, i + batchSize);
-    state.roads.push(...batch.map(toRoadFeature).filter(Boolean));
-    if (i + batchSize < roadFeatures.length) {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-    }
-  }
-
-  state.environmentFeatures = (environmentData.features || []).filter((feature) => feature && feature.geometry && feature.properties);
-  state.waterFeatures = extractWaterFeatures(environmentData.features || []);
+  // Do not wait for any network response here. The canvas can render its fallback viewport
+  // immediately, and every source above updates it as soon as it arrives. Waiting for even the
+  // forest outline made a cold load look stuck behind the splash until a refresh populated the
+  // service-worker cache; it also meant a filtered landing page could not show its own category
+  // while unrelated layers were still downloading.
+  state.bounds = calculateBounds();
+  initialMapDownloads = backgroundPromise;
+  return { treePromise, placesPromise, environmentPromise, backgroundPromise };
 }
 
 function loadBuildingsIfNeeded() {
   if (state.buildingsLoaded || state.buildingsLoading) return;
   state.buildingsLoading = true;
-  fetch(BUILDINGS_URL)
+  fetchMapData(BUILDINGS_URL)
     .then((r) => r.json())
     .then((data) => {
       state.buildingFeatures = (data.features || [])

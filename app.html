@@ -11,19 +11,18 @@
        rather than inserting its own. -->
   <base href="/">
   <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-M9NL06G2JB"></script>
   <script>
     window.dataLayer = window.dataLayer || [];
     function gtag(){dataLayer.push(arguments);}
-    gtag('consent', 'default', { analytics_storage: 'denied' });
+    gtag('consent', 'default', { analytics_storage: 'denied', ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied' });
     gtag('js', new Date());
 
-    gtag('config', 'G-M9NL06G2JB');
+    gtag('config', 'G-M9NL06G2JB', { allow_google_signals: false, allow_ad_personalization_signals: false });
   </script>
   <script src="/cookie-consent.js" defer></script>
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <meta name="theme-color" content="#24382f">
-  <title>Epping Forest Finds — offline map of Epping Forest</title>
+  <title>Nearby in Epping Forest | Epping Forest Finds</title>
   <!-- The map itself. The public front door is the marketing homepage at /
        (index.html); this page is reached from there, and during the closed
        alpha it sits behind the gate in netlify/edge-functions/alpha-gate.js.
@@ -42,6 +41,8 @@
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="data/icons/favicon.png" type="image/png">
   <link rel="apple-touch-icon" href="data/icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-title" content="Epping Forest Finds">
+  <meta name="application-name" content="Epping Forest Finds">
   <link rel="preload" href="data/icons/pin.png" as="image">
   <link rel="preload" href="data/icons/trees/logo.png" as="image">
   <link rel="stylesheet" href="css/base.css">
@@ -58,7 +59,12 @@
       <canvas id="mapCanvas" aria-label="Interactive map of veteran trees and local landmarks"></canvas>
       <canvas id="overlayCanvas" aria-hidden="true"></canvas>
 
-      <div id="loadingOverlay" class="loading-overlay" aria-live="polite" aria-label="Loading map data">
+      <!-- Starts hidden so a no-JS visitor or a crawler sees the server-rendered content in
+           #inspectorBody immediately, with nothing covering it (spec-marketing.md §6.6/6.7) --
+           boot() (js/app.js) un-hides this only once JS actually runs, and even then only as a
+           full-screen blocking modal in an installed/native app context; an ordinary browser tab
+           gets the same element styled as a non-blocking top progress bar instead. -->
+      <div id="loadingOverlay" class="loading-overlay" aria-live="polite" aria-label="Loading map data" hidden>
         <div class="loading-card">
           <div class="loading-brand"><img class="loading-logo" src="data/icons/trees/logo.png" alt=""> Epping Forest Finds</div>
           <p class="loading-intro">Preparing your offline map — this is a one-time download. Once ready, the map works anywhere in the forest, even without phone signal.</p>
@@ -95,19 +101,6 @@
         <div id="sw-version" class="version" aria-hidden="true"></div>
       </div>
 
-      <div id="locationGate" class="location-gate" role="dialog" aria-modal="true" aria-labelledby="locationGateTitle" aria-describedby="locationGateMessage" hidden>
-        <div class="location-gate-card">
-          <div class="location-gate-icon" aria-hidden="true">
-            <img class="app-icon" src="data/icons/pin.png" alt="" loading="lazy" decoding="async">
-          </div>
-          <h2 id="locationGateTitle" class="location-gate-title">Allow location access</h2>
-          <p id="locationGateMessage" class="location-gate-text">Epping Forest Finds uses your location to show nearby trees and point you toward them with compass directions.</p>
-          <button id="locationGateButton" class="button" type="button">Enable location to continue</button>
-          <button id="locationGateDismiss" class="onboarding-skip-btn" type="button" hidden>Maybe later</button>
-          <p class="privacy-note">We collect anonymous usage data (GPS position, navigation, interactions) to improve the app. You can withdraw anytime via Settings → Privacy. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
-        </div>
-      </div>
-
       <div id="distanceWarning" class="location-gate" role="dialog" aria-modal="true" aria-labelledby="distanceWarningTitle" aria-describedby="distanceWarningMessage" hidden>
         <div class="location-gate-card">
           <div class="location-gate-icon" aria-hidden="true"><img class="app-icon" src="data/icons/distance.png" alt=""></div>
@@ -129,7 +122,8 @@
       <div id="compassCalibrationBanner" class="compass-calibration-banner" role="status" aria-live="polite" hidden>
         <div class="compass-calibration-banner-card">
           <span class="compass-calibration-banner-icon" aria-hidden="true"><img class="app-icon" src="data/icons/compass.png" alt=""></span>
-          <p class="compass-calibration-banner-text">Move your phone in a figure-8 to help it find your direction</p>
+          <p id="compassCalibrationBannerText" class="compass-calibration-banner-text">Move your phone in a figure-8 to help it find your direction</p>
+          <button id="compassCalibrationBannerEnable" class="button compass-calibration-banner-enable" type="button" hidden>Enable compass</button>
           <button id="compassCalibrationBannerDismiss" class="compass-calibration-banner-dismiss" type="button" aria-label="Dismiss">✕</button>
         </div>
       </div>
@@ -168,15 +162,21 @@
            of the inspector sheet's own open/minimized/keyboard-avoiding state. Sits before the
            aside in markup so Tab still reaches it immediately after the skip link (see
            spec-data-rendering.md, "The nav row is always reachable"). -->
+      <!-- Nearby starts already marked .screen-active/aria-current="page", the same state
+           setNavScreenActive(els.nearbyToggle) (js/app.js) would set on boot anyway, since
+           Nearby is always the screen a fresh load lands on. Without this, a no-JS visitor (or
+           the moment before JS runs) saw a flat, unhighlighted nav row that then visibly
+           changed the instant boot() ran -- a static page should already look like the screen
+           it's showing, not like a different, not-yet-decided one. -->
       <nav class="inspector-actions" aria-label="Main navigation">
-        <button id="nearbyToggle" class="close nearby-toggle" type="button" aria-label="Nearby"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg><span class="nav-label">Nearby</span></button>
-        <button id="searchToggle" class="close search-screen-toggle" type="button" aria-label="Search"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="7"/><path d="m16 16 5 5"/></svg><span class="nav-label">Search</span></button>
-        <button id="reportToggle" class="close report-toggle" type="button" aria-label="Feedback"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a3 3 0 0 1-3 3H8l-5 3V6a3 3 0 0 1 3-3h12a3 3 0 0 1 3 3Z"/></svg><span class="nav-label">Feedback</span></button>
-        <button id="settingsToggle" class="close settings-toggle" type="button" aria-label="Settings"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 2-.5 3-2 1-2.8-1-2 3.5L4 10.5v3L1.7 15.5l2 3.5 2.8-1 2 1 .5 3h6l.5-3 2-1 2.8 1 2-3.5-2.3-2v-3l2.3-2-2-3.5-2.8 1-2-1L15 2Z"/><circle cx="12" cy="12" r="3"/></svg><span class="nav-label">Settings</span></button>
+        <button id="inspectorBack" class="nav-back" type="button" aria-label="Back" disabled><svg class="app-icon nav-icon" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="14 4 7 11 14 18"/></svg></button>
+        <a id="nearbyToggle" href="/nearby" class="close nearby-toggle screen-active" aria-label="Nearby" aria-current="page"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 11-8 11S4 16 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/></svg><span class="nav-label">Nearby</span></a>
+        <a id="searchToggle" href="/nearby/search" class="close search-screen-toggle" aria-label="Search" aria-current="false"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="7"/><path d="m16 16 5 5"/></svg><span class="nav-label">Search</span></a>
+        <a id="reportToggle" href="/community" class="close report-toggle" aria-label="Community" aria-current="false"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 4 18.5V20"/><circle cx="10" cy="8" r="3.5"/><path d="M20 20v-1.5a3.5 3.5 0 0 0-2.5-3.35M15.5 4.7a3.5 3.5 0 0 1 0 6.6"/></svg><span class="nav-label">Community</span></a>
+        <a id="settingsToggle" href="/settings" class="close settings-toggle" aria-label="Settings" aria-current="false"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 2-.5 3-2 1-2.8-1-2 3.5L4 10.5v3L1.7 15.5l2 3.5 2.8-1 2 1 .5 3h6l.5-3 2-1 2.8 1 2-3.5-2.3-2v-3l2.3-2-2-3.5-2.8 1-2-1L15 2Z"/><circle cx="12" cy="12" r="3"/></svg><span class="nav-label">Settings</span></a>
       </nav>
 
       <aside id="inspector" class="inspector" aria-live="polite">
-        <div id="inspectorDragHandle" class="inspector-drag-handle" aria-label="Drag to resize"></div>
         <!-- Lives in the inspector chrome rather than in the Nearby list's own HTML so the way
              back from a browsed spot survives every screen that still draws the walking-radius
              circle behind it (Nearby, Filters, Settings, Report) -- see updateNearbyAnchorBar. -->
@@ -188,30 +188,42 @@
              the inspector makes it part of the app's readable chrome, rather than a floating
              layer over the map or navigation. -->
         <div id="earlyTestingNoticeSlot"></div>
-        <!-- Non-blocking merged cookie/location ask for a landing-page arrival
-             (showCombinedConsentBanner, js/app.js). Sits in the same inspector-chrome slot as
-             #earlyTestingNoticeSlot just above, rather than floating over the map, so the two
-             read as one stack of notices instead of competing asks. -->
-        <div id="consentBanner" class="consent-banner" role="group" aria-label="Location and cookies" hidden>
+        <!-- Non-blocking first ask for anyone onboarding did not reach (showConsentBanner,
+             js/app.js): location first, then usage analytics, one question at a time in the same
+             card. Sits in the same inspector-chrome slot as #earlyTestingNoticeSlot just above,
+             rather than floating over the map, so the two read as one stack of notices. -->
+        <div id="consentBanner" class="consent-banner" role="group" aria-label="Location" hidden>
+          <img class="consent-banner-logo" src="data/icons/trees/logo.png" alt="" width="36" height="36">
           <div class="consent-banner-copy">
-            <strong>Allow location &amp; cookies</strong>
-            <p>Shows nearby finds and their distance from you, and understands how people use this site — enabling covers both. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
+            <strong id="consentBannerTitle">See what's near you</strong>
+            <p id="consentBannerText">Enable location to centre the map on you and see real walking distances. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
           </div>
           <div class="consent-banner-actions">
             <button id="consentBannerDecline" class="onboarding-skip-btn" type="button">Maybe later</button>
-            <button id="consentBannerAccept" class="button" type="button">Enable location &amp; cookies</button>
+            <button id="consentBannerAccept" class="button" type="button">Enable location</button>
+          </div>
+        </div>
+        <!-- The dismissible "get a more custom experience" invite shown after a boot with no real
+             location fix (revealNoRealLocation, js/app.js). Non-blocking, same inline treatment as
+             #consentBanner above. The map and list behind it are already usable the whole time. -->
+        <div id="locationInviteBanner" class="consent-banner" role="group" aria-label="Location access" hidden>
+          <div class="consent-banner-copy">
+            <strong id="locationInviteTitle">Get a more custom experience</strong>
+            <p id="locationInviteMessage"></p>
+          </div>
+          <div class="consent-banner-actions">
+            <button id="locationInviteDismiss" class="onboarding-skip-btn" type="button">Maybe later</button>
+            <button id="locationInviteButton" class="button" type="button">Enable location</button>
           </div>
         </div>
         <div class="inspector-tools">
           <div class="search-shell">
-            <button id="locateButton" class="button" type="button" disabled hidden>Use my location</button>
             <button id="installButton" class="button install" type="button">Install</button>
           </div>
         </div>
         <div class="inspector-scroll">
           <div class="inspector-screen">
             <div class="inspector-title-section">
-              <button id="inspectorBack" class="inspector-back" type="button" aria-label="Back" hidden><svg class="app-icon nav-icon" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="14 4 7 11 14 18"/></svg></button>
               <span id="inspectorTitleEmoji" class="inspector-title-emoji" aria-hidden="true" hidden></span>
               <div class="inspector-title-copy">
                 <h2 id="inspectorTitle">Epping Forest Finds</h2>
@@ -234,11 +246,17 @@
     </main>
   </div>
 
+  <script src="js/native.js"></script>
   <script src="js/app-cache-version.js"></script>
   <script src="js/data-cache-version.js"></script>
   <script src="js/categories.js"></script>
   <script src="js/normalize.js"></script>
+  <script src="js/router-rules.js"></script>
+  <script src="js/dom-elements.js"></script>
+  <script src="js/filter-state.js"></script>
   <script src="js/tracker.js"></script>
+  <script src="js/outbox.js"></script>
+  <script src="js/community.js"></script>
   <script src="js/nav.js"></script>
   <script src="js/routing.js"></script>
   <script src="js/loader.js"></script>

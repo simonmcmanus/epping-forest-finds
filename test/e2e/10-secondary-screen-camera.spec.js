@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { skipOnboarding, mockCowApi, gotoAndWaitForMap } = require("./helpers");
+const { skipOnboarding, mockCowApi, gotoAndWaitForMap, waitForUiToSettle } = require("./helpers");
 
 // A GPS fix inside Epping Forest, reused from 09-location.spec.js
 const FOREST_LOCATION = { latitude: 51.6650, longitude: 0.0450, accuracy: 10 };
@@ -24,7 +24,7 @@ test.describe("Secondary screens (Filter, Settings, Feedback) show a consistent 
 
   async function readViewport(page) {
     // Let any in-flight camera animation (max ~520ms in this codebase) settle.
-    await page.waitForTimeout(900);
+    await waitForUiToSettle(page);
     return page.evaluate(() => ({
       scale: state.viewport.scale,
       tx: state.viewport.tx,
@@ -42,6 +42,7 @@ test.describe("Secondary screens (Filter, Settings, Feedback) show a consistent 
     const settingsViewport = await readViewport(page);
 
     await page.click("#reportToggle");
+    await page.click(".community-feedback-link");
     await expect(page.locator("#reportDetails")).toBeVisible();
     const feedbackViewport = await readViewport(page);
 
@@ -221,7 +222,7 @@ test.describe("Secondary screens (Filter, Settings, Feedback) show a consistent 
   test("walking radius circle is drawn on all three secondary screens", async ({ page }) => {
     for (const toggleId of ["#filterToggle", "#settingsToggle", "#reportToggle"]) {
       await page.click(toggleId);
-      await page.waitForTimeout(300);
+      await waitForUiToSettle(page);
       const radiusDrawn = await page.evaluate(() => {
         let arcCount = 0;
         drawWalkingRadius({

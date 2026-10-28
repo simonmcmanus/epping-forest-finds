@@ -14,6 +14,13 @@ test.describe("Onboarding", () => {
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
     });
 
+    test("the onboarding overlay is announced to assistive tech as a named modal dialog", async ({ page }) => {
+      await page.goto("/nearby");
+      const dialog = page.getByRole("dialog", { name: "Set up Epping Forest Finds" });
+      await expect(dialog).toBeVisible();
+      await expect(dialog).toHaveAttribute("aria-modal", "true");
+    });
+
     test("the location/compass opt-in step is shown first", async ({ page }) => {
       await page.goto("/nearby");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
@@ -24,39 +31,36 @@ test.describe("Onboarding", () => {
     test("map data loads in the background while onboarding is visible", async ({ page }) => {
       await page.goto("/nearby");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
-      // Loading overlay may already be hidden (data loaded behind onboarding) — either state is valid,
-      // but the loading overlay must not block onboarding visibility
-      const overlayHidden = await page.locator("#loadingOverlay").getAttribute("hidden");
-      // Onboarding should still be visible regardless of loading state
+      // The map data loads behind the overlay, which stays up until the person moves on.
+      await expect(page.locator('[data-load-step="places"]')).toHaveClass(/done/);
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
     });
 
     test("'Skip for now' advances past the location step without granting permission", async ({ page }) => {
       await page.goto("/nearby");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
-      const skipBtn = page.locator("#onboardingOverlay .onboarding-skip-btn, #onboardingOverlay [class*='skip']").first();
-      await skipBtn.click();
-      // Should have moved to the next step — the overlay may still be visible
-      // (welcome step or a filter group step follows)
-      // Just verify the location-only prompt is gone and onboarding continues
+      await page.locator("#onboardingOverlay .ob-location-skip").click();
+      // The location prompt is gone, onboarding carries on, and nothing was consented to.
+      await expect(page.locator("#onboardingOverlay .ob-location")).toHaveCount(0);
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
+      expect(await page.evaluate(() => localStorage.getItem("ff-track-v1"))).not.toBe("1");
     });
 
-    test("the location step shows the same privacy disclosure the in-map location gate uses", async ({ page }) => {
+    test("the location step says where to change the choice and does not ask about usage data", async ({ page }) => {
       await page.goto("/nearby");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
-      await expect(page.locator("#onboardingOverlay .privacy-note")).toContainText("We collect anonymous usage data");
       await expect(page.locator("#onboardingOverlay .privacy-note")).toContainText("Settings → Privacy");
+      // Usage analytics is its own step (39-permission-asks.spec.js), never folded into this one.
+      await expect(page.locator("#onboardingOverlay")).not.toContainText(/usage data|cookies/i);
     });
 
-    test("tapping 'Enable location' grants consent immediately and advances onboarding with no second screen", async ({ page }) => {
+    test("tapping 'Enable location' records the choice and advances onboarding with no second location screen", async ({ page }) => {
       await page.goto("/nearby");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
       await page.locator("#onboardingOverlay .ob-location").click();
-      // No separate accept/decline screen — onboarding moves straight to the next step.
       await expect(page.locator("#onboardingOverlay .ob-location")).toHaveCount(0);
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
-      await expect.poll(() => page.evaluate(() => localStorage.getItem("ff-track-v1"))).toBe("1");
+      await expect.poll(() => page.evaluate(() => localStorage.getItem("ff-location-v1"))).toBe("granted");
     });
   });
 
@@ -70,6 +74,12 @@ test.describe("Onboarding", () => {
     test("onboarding is skipped on a first visit that already names its own category", async ({ page }) => {
       await gotoAndWaitForMap(page, "/nearby/filter?show=pubs");
       await expect(page.locator("#onboardingOverlay")).toBeHidden();
+    });
+
+    test("onboarding is skipped on a first visit that selects a location via a hash", async ({ page }) => {
+      await gotoAndWaitForMap(page, "/nearby#tree=r17338");
+      await expect(page.locator("#onboardingOverlay")).toBeHidden();
+      await expect(page.locator("#inspector")).toContainText("English Oak");
     });
 
     test("skipping onboarding here does not mark onboarding as completed, so plain Nearby still shows it next", async ({ page }) => {

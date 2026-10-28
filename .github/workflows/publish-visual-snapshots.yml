@@ -1,0 +1,218 @@
+name: Publish visual snapshots
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: write
+  pull-requests: write
+
+concurrency:
+  # A new push supersedes an older snapshot run. The resolver below also checks the head SHA,
+  # so an already-running publisher cannot commit renders from an outdated PR revision.
+  group: visual-snapshot-publisher-${{ github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.id }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve the current pull request head
+        id: pr
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const candidate = run.pull_requests?.[0];
+            if (!candidate) {
+              core.setOutput('process', 'false');
+              return;
+            }
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: candidate.number,
+            });
+
+            // Never publish or commit a stale run after another PR push has arrived.
+            if (pr.state !== 'open' || pr.head.sha !== run.head_sha) {
+              core.info(`Skipping stale or closed PR run: ${run.head_sha}`);
+              core.setOutput('process', 'false');
+              return;
+            }
+
+            core.setOutput('process', 'true');
+            core.setOutput('number', String(pr.number));
+            core.setOutput('head_sha', pr.head.sha);
+            core.setOutput('head_repository', pr.head.repo.full_name);
+
+      - name: Download visual snapshot candidates
+        if: steps.pr.outputs.process == 'true'
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: playwright-visual-candidates
+          path: ${{ runner.temp }}/visual-candidates
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Check that the visual job produced candidates
+        id: artifact
+        if: steps.pr.outputs.process == 'true'
+        env:
+          CANDIDATES: ${{ runner.temp }}/visual-candidates
+        run: |
+          if compgen -G "$CANDIDATES/test-results-*" > /dev/null || [ -d "$CANDIDATES/test-results" ] || [ -d "$CANDIDATES/test/e2e/__screenshots__" ]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+            echo "The CI run did not produce visual snapshot artifacts; no baselines will be changed."
+          fi
+
+      - name: Check out the exact PR head
+        if: steps.artifact.outputs.present == 'true'
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Preserve the trusted diff publisher
+        if: steps.artifact.outputs.present == 'true'
+        run: cp .github/scripts/publish-visual-diffs.sh "$RUNNER_TEMP/publish-visual-diffs.sh"
+
+      - name: Fetch the PR head repository
+        if: steps.artifact.outputs.present == 'true'
+        env:
+          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
+          HEAD_REPOSITORY: ${{ steps.pr.outputs.head_repository }}
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          if [ "$HEAD_REPOSITORY" = "$GITHUB_REPOSITORY" ]; then
+            git fetch --no-tags origin "$HEAD_SHA"
+          else
+            # Fork refs are public. The privileged job reads the fork commit but never executes
+            # code from it and never attempts to push back to it.
+            git fetch --no-tags "https://github.com/$HEAD_REPOSITORY.git" "$HEAD_SHA"
+          fi
+          git checkout --detach "$HEAD_SHA"
+
+      - name: Apply generated snapshots and failing renders
+        if: steps.artifact.outputs.present == 'true'
+        env:
+          CANDIDATES: ${{ runner.temp }}/visual-candidates
+        run: |
+          rm -rf test-results
+          mkdir -p test-results
+          for result_dir in "$CANDIDATES"/test-results-* "$CANDIDATES"/test-results; do
+            [ -d "$result_dir" ] || continue
+            cp -a "$result_dir/." test-results/
+          done
+
+          if [ -d "$CANDIDATES/test/e2e/__screenshots__" ]; then
+            cp -a "$CANDIDATES/test/e2e/__screenshots__/." test/e2e/__screenshots__/
+          fi
+
+          shopt -s nullglob
+          while IFS= read -r actual; do
+            stem=$(basename "$actual" -actual.png)
+            project=$(basename "$(dirname "$actual")" | grep -oE 'desktop|mobile' | tail -n 1 || true)
+            if [ -z "$project" ]; then
+              matches=("test/e2e/__screenshots__/$stem"-*-linux.png)
+              if [ "${#matches[@]}" -eq 1 ]; then
+                project=$(basename "${matches[0]}" | sed -E "s/^${stem}-(.*)-linux\\.png$/\\1/")
+              fi
+            fi
+            if [ -z "$project" ]; then
+              echo "Could not determine the Playwright project for $actual" >&2
+              exit 1
+            fi
+            cp "$actual" "test/e2e/__screenshots__/$stem-$project-linux.png"
+          done < <(find test-results -name '*-actual.png' -print | sort)
+
+      - name: Publish baseline, actual, and diff images
+        if: steps.artifact.outputs.present == 'true'
+        env:
+          PR_NUMBER: ${{ steps.pr.outputs.number }}
+          HEAD_SHA: ${{ steps.pr.outputs.head_sha }}
+          HEAD_REPOSITORY: ${{ steps.pr.outputs.head_repository }}
+          PAT: ${{ secrets.WEEKLY_LEDGER_PAT }}
+        run: bash "$RUNNER_TEMP/publish-visual-diffs.sh"
+
+      - name: Update the PR description
+        if: steps.artifact.outputs.present == 'true'
+        uses: actions/github-script@v7
+        env:
+          SECTION_FILE: ${{ runner.temp }}/visual-section.md
+          HEAD_REPOSITORY: ${{ steps.pr.outputs.head_repository }}
+        with:
+          script: |
+            const fs = require('fs');
+            const prNumber = Number('${{ steps.pr.outputs.number }}');
+            const failureSection = fs.existsSync(process.env.SECTION_FILE)
+              ? fs.readFileSync(process.env.SECTION_FILE, 'utf8').trim()
+              : '';
+
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+            });
+
+            const rawUrl = (repository, sha, file) =>
+              `https://raw.githubusercontent.com/${repository}/${sha}/${file}`;
+            const prefix = 'test/e2e/__screenshots__/';
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: prNumber,
+              per_page: 100,
+            });
+            const snapshots = files.filter((file) =>
+              file.filename.startsWith(prefix) && file.filename.endsWith('.png'));
+            const headRepository = pr.head.repo.full_name;
+
+            const visualSection = snapshots.length
+              ? [
+                  '### Visual changes',
+                  '',
+                  '| Snapshot | Before | After |',
+                  '| --- | --- | --- |',
+                  ...snapshots.map((file) => {
+                    const name = file.filename.slice(prefix.length, -'.png'.length);
+                    const before = file.status === 'added'
+                      ? '_new_'
+                      : `![before](${rawUrl(pr.base.repo.full_name, pr.base.sha, file.filename)})`;
+                    const after = file.status === 'removed'
+                      ? '_removed_'
+                      : `![after](${rawUrl(headRepository, pr.head.sha, file.filename)})`;
+                    return `| \`${name}\` | ${before} | ${after} |`;
+                  }),
+                ].join('\n')
+              : '';
+
+            const failure = failureSection;
+
+            const replaceSection = (body, start, end, section) => {
+              const marker = new RegExp(`${start}[\\s\\S]*?${end}`);
+              const block = `${start}\n${section}\n${end}`;
+              if (marker.test(body)) return body.replace(marker, block);
+              if (!section) return body;
+              return `${body.trim()}\n\n${block}\n`;
+            };
+
+            let next = pr.body || '';
+            next = replaceSection(next, '<!-- visual-diffs:start -->', '<!-- visual-diffs:end -->', visualSection);
+            next = replaceSection(next, '<!-- visual-failures:start -->', '<!-- visual-failures:end -->', failure);
+            if (next !== (pr.body || '')) {
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: prNumber,
+                body: next,
+              });
+            }

@@ -1,5 +1,5 @@
 const { test, expect } = require("@playwright/test");
-const { setup, FIXTURE_TREE } = require("./helpers");
+const { setup, FIXTURE_TREE, waitForFrames } = require("./helpers");
 
 test.describe("Selected destination icon motion", () => {
   test("the location details title animates and restores its original image for reduced motion", async ({ page }) => {
@@ -23,47 +23,53 @@ test.describe("Selected destination icon motion", () => {
   test("reduced motion keeps the selected destination still", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "reduce" });
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
-    expect(await page.evaluate(() => selectedIconMotionFrame())).toBeNull();
-    expect(await page.evaluate(() => _selectedIconMotionTimer)).toBeNull();
+    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
+    await expect(page.locator("#inspectorTitleEmoji img")).toBeVisible();
+    await expect(page.locator("#inspectorTitleEmoji canvas")).toBeHidden();
   });
 
   test("only selecting a navigation destination starts motion and returning to Nearby stops it", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await setup(page);
-    expect(await page.evaluate(() => selectedIconMotionFrame())).toBeNull();
+    await expect(page.locator("#inspectorTitleEmoji canvas")).toHaveCount(0);
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
-    await expect.poll(() => page.evaluate(() => _selectedIconMotionTimer !== null)).toBe(true);
-    const elapsed = await page.evaluate(() => selectedIconMotionFrame().elapsed);
-    await expect.poll(() => page.evaluate(() => selectedIconMotionFrame().elapsed)).toBeGreaterThan(elapsed);
+    const artwork = page.locator("#inspectorTitleEmoji canvas");
+    const first = await artwork.evaluate((canvas) => canvas.toDataURL());
+    await expect.poll(() => artwork.evaluate((canvas) => canvas.toDataURL())).not.toBe(first);
     await page.click("#nearbyToggle");
-    await expect.poll(() => page.evaluate(() => selectedIconMotionFrame())).toBeNull();
-    await expect.poll(() => page.evaluate(() => _selectedIconMotionTimer)).toBeNull();
+    await expect(artwork).toHaveCount(0);
   });
 
   test("turning on reduced motion stops an active animation immediately", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
-    await expect.poll(() => page.evaluate(() => _selectedIconMotionTimer !== null)).toBe(true);
+    const artwork = page.locator("#inspectorTitleEmoji canvas");
+    await expect(artwork).toBeVisible();
     await page.emulateMedia({ reducedMotion: "reduce" });
-    await expect.poll(() => page.evaluate(() => selectedIconMotionFrame())).toBeNull();
-    await expect.poll(() => page.evaluate(() => _selectedIconMotionTimer)).toBeNull();
+    await expect(artwork).toBeHidden();
+    await expect(page.locator("#inspectorTitleEmoji img")).toBeVisible();
   });
 
   test("hiding the app stops motion and showing it resumes the selected destination", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
-    await expect.poll(() => page.evaluate(() => _selectedIconMotionTimer !== null)).toBe(true);
+    const artwork = page.locator("#inspectorTitleEmoji canvas");
+    const frame = () => artwork.evaluate((canvas) => canvas.toDataURL());
+    await expect(artwork).toBeVisible();
     await page.evaluate(() => {
       Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
       document.dispatchEvent(new Event("visibilitychange"));
     });
-    expect(await page.evaluate(() => _selectedIconMotionTimer)).toBeNull();
+    await waitForFrames(page, 3);
+    const paused = await frame();
+    await waitForFrames(page, 60);
+    expect(await frame(), "no new frames while the app is hidden").toBe(paused);
     await page.evaluate(() => {
       delete document.visibilityState;
       document.dispatchEvent(new Event("visibilitychange"));
     });
-    await expect.poll(() => page.evaluate(() => _selectedIconMotionTimer !== null)).toBe(true);
+    await expect.poll(frame).not.toBe(paused);
   });
 
   test("every supported PNG artwork renders changing frames", async ({ page }) => {

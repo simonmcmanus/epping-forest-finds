@@ -1,6 +1,38 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, tapCanvasPoint } = require("./helpers");
+const { setup, tapCanvasPoint, FIXTURE_TREE, skipOnboarding, mockCowApi, denyGeolocationUnlessGranted, waitForViewportToSettle, waitForFrames, waitForUiToSettle } = require("./helpers");
+
+// Lands on a linked Nearby URL and waits until the app has booted AND applied the link's own
+// browse anchor, rather than trusting setup()'s overlay check: on a direct #near= load the
+// overlay can read as hidden before app.js has defined `state`, so setup()'s first evaluate hit
+// "state is not defined" on CI's 2-vCPU runners. Use /nearby, not a /nearby/<slug>/ page: those
+// are gitignored build output that only 30-find-pages generates, so a cold load 404s here.
+async function gotoLinkedNearby(page, path) {
+  await skipOnboarding(page);
+  await mockCowApi(page);
+  await denyGeolocationUnlessGranted(page);
+  await page.goto(path);
+  await page.waitForFunction(() => typeof state !== "undefined" && state.nearbyAnchor != null, null, { timeout: 30_000 });
+}
+
+// Samples a pure in-page function every intervalMs, entirely inside the page. The cadence is the
+// thing being measured (what is on screen at steady instants of a wall-clock slide), so it is kept
+// out of the Playwright round trip, whose latency grows on a loaded runner and would let a short
+// slide finish before the first sample.
+// `startFn` runs in the same round trip, immediately before the first interval, so no latency
+// sits between triggering the slide and measuring it.
+function sampleEvery(page, startFn, sampleFn, count, intervalMs) {
+  return page.evaluate(async ({ startSrc, src, count, intervalMs }) => {
+    const fn = (0, eval)(`(${src})`);
+    (0, eval)(`(${startSrc})`)();
+    const out = [];
+    for (let i = 0; i < count; i += 1) {
+      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+      out.push(fn());
+    }
+    return out;
+  }, { startSrc: startFn.toString(), src: sampleFn.toString(), count, intervalMs });
+}
 
 const FOREST_LOCATION = { latitude: 51.665, longitude: 0.045, accuracy: 10 };
 
@@ -45,7 +77,7 @@ test.describe("Map interaction", () => {
           maxMetres,
         };
       });
-      test.skip(!target, "no multi-item tree cluster on screen at this camera");
+      expect(target, "a multi-item tree cluster is on screen at this camera").not.toBeNull();
 
       await tapCanvasPoint(page, target.point);
 
@@ -87,7 +119,7 @@ test.describe("Map interaction", () => {
         const iconSize = MAP_PNG_ICON_SIZE * pixelRatio() * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
         return { point: { x: cluster.screenPt.x, y: cluster.screenPt.y - iconSize * 0.64 } };
       });
-      test.skip(!target, "no multi-item tree cluster on screen at this camera");
+      expect(target, "a multi-item tree cluster is on screen at this camera").not.toBeNull();
 
       await tapCanvasPoint(page, target.point);
       await page.waitForFunction(() => Boolean(state.nearbyAnchor));
@@ -108,49 +140,36 @@ test.describe("Map interaction", () => {
       })).toEqual(anchorAfterTap ? { latitude: anchorAfterTap.latitude, longitude: anchorAfterTap.longitude } : null);
     });
 
-    test("tapping a cluster while something is selected expands the cluster, not the pin behind it", async ({ page }) => {
+    test("while a tree is selected the map shows only that destination: no cluster badges are drawn or tappable", async ({ page }) => {
       await setup(page);
+      await page.waitForFunction(() => state.trees.length > 0);
 
-      // Select a tree first -- mirrors viewing one tree, then tapping a nearby cluster to browse
-      // the rest. Cluster hit-testing used to be skipped whenever state.selected was set, so a
-      // tap here fell straight through to findHit and picked up whatever individual pin sat
-      // behind the badge instead of expanding it.
-      await page.evaluate(() => {
+      // A multi-item cluster exists on the Nearby map before anything is selected.
+      const clustersBefore = await page.evaluate(() => {
         stopViewportAnimation();
-        const lookup = buildNearbyIconLookup();
-        state.selected = { type: "tree", item: [...lookup.tree][0] };
+        return buildTypeClusters(buildNearbyIconLookup().tree, worldToScreen).filter((c) => c.items.length > 1).length;
+      });
+      expect(clustersBefore, "the Nearby map has multi-item tree clusters").toBeGreaterThan(0);
+
+      await page.evaluate(() => {
+        const [first] = [...buildNearbyIconLookup().tree];
+        state.selected = { type: "tree", item: first };
         requestDraw();
+        stopViewportAnimation();
       });
       await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("tree");
 
-      // Find a cluster whose hit-test circle overlaps an individual pin's own hit region -- the
-      // exact overlap the old code got wrong.
-      const clusterScreen = await page.evaluate(() => {
-        const dpr = pixelRatio();
-        const iconSize = MAP_PNG_ICON_SIZE * dpr * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
-        const pinYOffset = iconSize * 0.64;
-        const lookup = buildNearbyIconLookup();
-        const clusters = buildTypeClusters(lookup.tree, worldToScreen);
-        for (const cluster of clusters) {
-          if (cluster.items.length <= 1) continue;
-          const screen = { x: cluster.screenPt.x, y: cluster.screenPt.y - pinYOffset };
-          if (!findClusterHit(screen)) continue;
-          const world = screenToWorld(screen.x, screen.y);
-          if (findHit(screen, world).type !== "none") return screen;
-        }
-        return null;
+      const during = await page.evaluate(() => {
+        const iconSize = MAP_PNG_ICON_SIZE * pixelRatio() * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
+        const lookup = activeIconLookup();
+        const clusters = buildTypeClusters(buildNearbyIconLookup().tree, worldToScreen).filter((c) => c.items.length > 1);
+        return {
+          drawnTrees: lookup.tree.size,
+          tappableClusters: clusters.filter((c) => findClusterHit({ x: c.screenPt.x, y: c.screenPt.y - iconSize * 0.64 })).length,
+        };
       });
-      test.skip(!clusterScreen, "no multi-item tree cluster overlapping an individual pin at this camera");
-
-      const dpr = await page.evaluate(() => pixelRatio());
-      const { insetX, insetY, left, top } = await page.evaluate(() => {
-        const r = (document.querySelector(".map-stage") || document.getElementById("mapCanvas")).getBoundingClientRect();
-        return { insetX: state.canvasInsetX, insetY: state.canvasInsetY, left: r.left, top: r.top };
-      });
-      await page.mouse.click(left + (clusterScreen.x - insetX) / dpr, top + (clusterScreen.y - insetY) / dpr);
-
-      await expect.poll(() => page.evaluate(() => state.selected)).toBeNull();
-      await expect.poll(() => page.evaluate(() => Boolean(state.nearbyAnchor))).toBe(true);
+      expect(during.drawnTrees, "other trees are not drawn behind the selected destination").toBe(0);
+      expect(during.tappableClusters, "so no cluster badge can be tapped").toBe(0);
     });
   });
 
@@ -184,7 +203,7 @@ test.describe("Map interaction", () => {
         }
         return null;
       });
-      test.skip(!target, "no out-of-radius road vertex on screen at this camera");
+      expect(target, "an out-of-radius road vertex is on screen at this camera").not.toBeNull();
 
       await tapCanvasPoint(page, target, { alreadyClient: true });
 
@@ -200,7 +219,7 @@ test.describe("Map interaction", () => {
     test("repeated taps outside the nearest area keep moving it, at a steady zoom", async ({ page }) => {
       await setup(page);
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
-      await page.waitForTimeout(1000);
+      await waitForViewportToSettle(page);
 
       // How big the ring is drawn and where its centre sits on screen are what "still in nearby
       // mode" means visually -- both must survive relocation, or the view walks out to
@@ -228,7 +247,7 @@ test.describe("Map interaction", () => {
       let previousAnchor = before.anchor;
       for (const spot of spots) {
         await page.mouse.click(spot.x, spot.y);
-        await page.waitForTimeout(1300);
+        await waitForUiToSettle(page);
         const after = await framing();
         expect(after.selected, "the Nearby view is never left").toBeNull();
         expect(after.anchor, "each tap moves the nearest area again").not.toEqual(previousAnchor);
@@ -249,6 +268,7 @@ test.describe("Map interaction", () => {
         state.compassHeading = 20;
         state.renderedNavigationHeading = 20;
         state.compassLastEventAt = performance.now();
+        state.map3dEnabled = true;
         state.tiltBetaTarget = b;
         state.tiltBetaSmoothed = b;
         // The fit reads the tilt camera cached for the current frame and then changes the
@@ -351,9 +371,9 @@ test.describe("Map interaction", () => {
     test("the radius circle holds still on screen while the map slides behind it", async ({ page }) => {
       await setup(page);
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
-      await page.waitForTimeout(1000);
+      await waitForViewportToSettle(page);
 
-      const sample = () => page.evaluate(() => {
+      const sampleBody = () => {
         // prepareCanvasForDraw is the frame boundary: it advances the slide, re-derives the
         // camera from the interpolated origin, and unfreezes the per-frame origin.
         prepareCanvasForDraw();
@@ -364,22 +384,19 @@ test.describe("Map interaction", () => {
           mapX: Math.round(mapPoint.x),
           sliding: nearbyOriginTransitionActive(),
         };
-      });
+      };
+      const sample = () => page.evaluate(sampleBody);
 
       await page.evaluate(() => { stopViewportAnimation(); });
       const before = await sample();
 
-      await page.evaluate(() => {
+      const startSlide = () => {
         const latitude = state.userLocation.latitude - 0.005;
         const longitude = state.userLocation.longitude - 0.012;
         focusNearbyOnMapPoint({ latitude, longitude }, projectLonLat(longitude, latitude));
-      });
+      };
 
-      const frames = [];
-      for (let i = 0; i < 10; i += 1) {
-        await page.waitForTimeout(60);
-        frames.push(await sample());
-      }
+      const frames = await sampleEvery(page, startSlide, sampleBody, 10, 60);
       await page.waitForFunction(() => !nearbyOriginTransitionActive());
       const settled = await sample();
 
@@ -395,27 +412,24 @@ test.describe("Map interaction", () => {
     test("the new nearby set is held back until the map lands, then fades in", async ({ page }) => {
       await setup(page);
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
-      await page.waitForTimeout(1000);
+      await waitForViewportToSettle(page);
 
       // Both read in one round trip: sampled separately, the slide can finish between them and
       // the pair no longer describes the same instant.
-      const sample = () => page.evaluate(() => {
+      const sampleBody = () => {
         prepareCanvasForDraw();
         return { sliding: nearbyOriginTransitionActive(), reveal: nearbyRevealOpacity() };
-      });
+      };
+      const sample = () => page.evaluate(sampleBody);
       expect((await sample()).reveal, "settled, the nearby set is fully drawn").toBe(1);
 
-      await page.evaluate(() => {
+      const startSlide = () => {
         const latitude = state.userLocation.latitude - 0.005;
         const longitude = state.userLocation.longitude - 0.012;
         focusNearbyOnMapPoint({ latitude, longitude }, projectLonLat(longitude, latitude));
-      });
+      };
 
-      const during = [];
-      for (let i = 0; i < 5; i += 1) {
-        await page.waitForTimeout(60);
-        during.push(await sample());
-      }
+      const during = await sampleEvery(page, startSlide, sampleBody, 5, 60);
       for (const [i, sample] of during.entries()) {
         if (sample.sliding) expect(sample.reveal, `frame ${i}: nothing drawn while the map moves`).toBe(0);
       }
@@ -484,7 +498,7 @@ test.describe("Map interaction", () => {
         }
         return null;
       });
-      test.skip(!target, "no single tree pin on screen at this camera");
+      expect(target, "a single tree pin is on screen at this camera").not.toBeNull();
 
       await tapCanvasPoint(page, target.point);
       await page.waitForFunction(() => state.selected?.type === "tree");
@@ -494,6 +508,62 @@ test.describe("Map interaction", () => {
       // checks state.nearbyAnchor) -- behind the new selection.
       const anchor = await page.evaluate(() => state.nearbyAnchor);
       expect(anchor, "the browse anchor is cleared once a real selection is made").toBeNull();
+    });
+
+    test("a selected place's \"Everything within N min walk\" button drops the selection and browses the Nearby list from its own spot at the reader's own walking radius, showing every category", async ({ page }) => {
+      await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+      await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("tree");
+      const treeCoords = await page.evaluate(() => ({
+        latitude: state.selected.item.latitude,
+        longitude: state.selected.item.longitude,
+      }));
+      const radiusBefore = await page.evaluate(() => state.walkingDistanceMinutes);
+
+      await page.locator("#inspectorBody [data-action='walk-radius']").click();
+
+      await expect.poll(() => page.evaluate(() => state.selected)).toBeNull();
+      const after = await page.evaluate(() => ({
+        anchorLatitude: state.nearbyAnchor && state.nearbyAnchor.latitude,
+        anchorLongitude: state.nearbyAnchor && state.nearbyAnchor.longitude,
+        minutes: state.walkingDistanceMinutes,
+      }));
+      expect(after.anchorLatitude).toBeCloseTo(treeCoords.latitude, 6);
+      expect(after.anchorLongitude).toBeCloseTo(treeCoords.longitude, 6);
+      expect(after.minutes).toBe(radiusBefore);
+      const everything = await page.evaluate(() => state.overviewFilters.includes("pubs") && state.overviewFilters.includes("national_rail"));
+      expect(everything, "Everything ignores the saved filters").toBe(true);
+    });
+
+    test("a related link to a place's nearby view opens on that place's spot, not the reader's own location, and names it", async ({ page }) => {
+      await gotoLinkedNearby(page, "/nearby#near=51.650000,0.050000&label=The%20Foresters");
+      await expect.poll(() => page.evaluate(() => state.nearbyAnchor && state.nearbyAnchor.latitude)).toBeCloseTo(51.65, 5);
+      await expect(page.locator(".nearby-anchor-bar-text")).toHaveText("Showing places near The Foresters");
+    });
+
+    test.describe("with a real GPS fix elsewhere", () => {
+      test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ["geolocation"] });
+
+      test("a related link keeps its place's spot rather than the reader's own location, and names it", async ({ page }) => {
+        await gotoLinkedNearby(page, "/nearby#near=51.650000,0.050000&label=The%20Foresters");
+        await expect.poll(() => page.evaluate(() => state.userLocation && state.userLocation.latitude)).toBeCloseTo(51.665, 3);
+        await expect.poll(() => page.evaluate(() => state.nearbyAnchor && state.nearbyAnchor.latitude)).toBeCloseTo(51.65, 5);
+        await expect(page.locator(".nearby-anchor-bar-text")).toHaveText("Showing places near The Foresters");
+      });
+    });
+
+    test("a selected veteran tree gets the same Nearest section a business gets, and a Related link to its own category", async ({ page }) => {
+      await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+      await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("tree");
+      const body = page.locator("#inspectorBody");
+      await expect(body.locator('h3.detail-section-heading:has-text("Nearest")')).toHaveCount(1);
+      await expect(body.locator('h3.detail-section-heading:has-text("Related")')).toHaveCount(1);
+      await expect(body.locator('a.nearest-item[href^="/nearby/trees/"]').first()).toBeVisible();
+      await expect(body.locator("button.nearest-item[data-action='walk-radius']")).toHaveCount(1);
+    });
+
+    test("a /nearby?filters=false link shows every category, ignoring the reader's saved filters", async ({ page }) => {
+      await setup(page, "/nearby?filters=false");
+      await expect.poll(() => page.evaluate(() => state.overviewFilters.includes("pubs") && state.overviewFilters.includes("national_rail"))).toBe(true);
     });
   });
 

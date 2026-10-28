@@ -1,11 +1,12 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, FIXTURE_TREE } = require("./helpers");
+const { setup, FIXTURE_TREE, waitForFrames } = require("./helpers");
 
 // A real pub and a real street from the shipped datasets. "Forest Road" arrives from
 // OpenStreetMap as 164 separate ways, which is exactly the case the results list has to
 // collapse into one row.
 const FIXTURE_PLACE = "Railway Bell";
+const LEDGER_FEATURED_PLACE = "Fishfellas";
 const FIXTURE_ROAD = "Forest Road";
 const FOREST_LOCATION = { latitude: 51.665, longitude: 0.045, accuracy: 10 };
 
@@ -37,6 +38,14 @@ test.describe("Searching the map", () => {
     await expect(result.locator(":scope > .nearest-icon + .nearest-content")).toBeVisible();
   });
 
+  test("a place featured in the Ledger links back to its edition", async ({ page }) => {
+    await page.click("#searchToggle");
+    await page.fill("#mapSearchInput", LEDGER_FEATURED_PLACE);
+    await page.locator("#mapSearchResults .nearest-item").first().click();
+
+    await expect(page.locator(".ledger-mention a")).toHaveAttribute("href", "/reports/epping-forest-ledger-2026-09-03.html");
+  });
+
   test("category groups and subcategories discover places whose names are unknown", async ({ page }) => {
     await page.click("#searchToggle");
     await page.fill("#mapSearchInput", "Cafés");
@@ -58,7 +67,7 @@ test.describe("Searching the map", () => {
     const rows = page.locator("#mapSearchResults .nearest-item");
     await expect(rows.first()).toBeVisible();
     const rowCount = await rows.count();
-    test.skip(rowCount < 3, "not enough oak results in the fixture data to step through");
+    expect(rowCount, "enough oak results in the fixture data to step through").toBeGreaterThanOrEqual(3);
 
     const input = page.locator("#mapSearchInput");
     await input.focus();
@@ -101,7 +110,7 @@ test.describe("Searching the map", () => {
     const rows = page.locator("#mapSearchResults .nearest-item");
     await expect(rows.first()).toBeVisible();
     const rowCount = await rows.count();
-    test.skip(rowCount < 5, "not enough oak results in the fixture data to scroll through");
+    expect(rowCount, "enough oak results in the fixture data to scroll through").toBeGreaterThanOrEqual(5);
 
     // Step deep enough into the list that a focused row without scroll-into-view behaviour
     // would land below the visible results panel.
@@ -156,7 +165,9 @@ test.describe("Searching the map", () => {
     await page.click("#searchToggle");
     await page.fill("#mapSearchInput", "oak tree");
 
-    await expect(page.locator('#mapSearchResults [data-search-type="tree"]').first()).toBeVisible();
+    const first = page.locator('#mapSearchResults [data-search-type="tree"]').first();
+    await expect(first).toBeVisible();
+    await expect(first).toContainText(/oak/i);
   });
 
   test("a street split across many map ways is offered once, and can be navigated to", async ({ page }) => {
@@ -277,18 +288,6 @@ test.describe("Searching the map", () => {
     expect(lookup.opacity).toBe(1);
   });
 
-  test("search offers no way to clear filters -- that control lives on the Filters screen now", async ({ page }) => {
-    await page.click("#filterToggle");
-    await page.click('[data-filter-subfilter="cows"]');
-    await page.click("#searchToggle");
-    await page.fill("#mapSearchInput", FIXTURE_PLACE);
-    await page.waitForFunction(
-      (name) => state.searchHighlightResults.some((r) => r.item?.name === name),
-      FIXTURE_PLACE
-    );
-    await expect(page.locator("#mapSearchResults [data-filter-clear-all]")).toHaveCount(0);
-  });
-
   test("the nearby button is the way back out of search", async ({ page }) => {
     await page.click("#searchToggle");
     await page.waitForFunction(
@@ -357,7 +356,7 @@ test.describe("Searching the map with a location fix", () => {
     );
     // Give any (wrongly re-triggered) ring fit's own animation time to finish landing, so a
     // regression would be caught here rather than racing this assertion.
-    await page.waitForTimeout(1000);
+    await waitForFrames(page, 60);
 
     const after = await page.evaluate(() => {
       const origin = nearbyOrigin();

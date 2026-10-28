@@ -109,19 +109,20 @@
 .filter-group-card {
   background: #fff;
   border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 12px;
+  border-radius: 16px;
   overflow: hidden;
-  transition: border-color 180ms ease, box-shadow 180ms ease;
+  box-shadow: 0 2px 8px rgba(27, 65, 43, 0.05);
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
 }
 
 .filter-group-card.active {
-  border-color: rgba(47, 111, 78, 0.3);
-  box-shadow: 0 2px 8px rgba(47, 111, 78, 0.08);
+  border-color: rgba(47, 121, 83, 0.34);
+  box-shadow: 0 8px 20px rgba(27, 65, 43, 0.09);
 }
 
 .filter-group-header {
   padding: 14px 16px;
-  background: #f9fbf9;
+  background: linear-gradient(145deg, #f8fcf8, #f1f7f1);
   border-bottom: 1px solid rgba(0, 0, 0, 0.06);
   display: flex;
   align-items: center;
@@ -198,7 +199,7 @@
   position: relative;
   min-height: 44px;
   padding: 10px 14px;
-  border-radius: 10px;
+  border-radius: 12px;
   border: 1.5px solid rgba(0, 0, 0, 0.12);
   background: #fff;
   color: #3a4a40;
@@ -258,10 +259,10 @@
 }
 
 .filter-chip.active {
-  background: #e9f3eb;
-  border-color: rgba(47, 111, 78, 0.5);
+  background: linear-gradient(145deg, #eaf5ec, #dff0e4);
+  border-color: rgba(47, 121, 83, 0.58);
   color: #1f3f2e;
-  box-shadow: 0 2px 4px rgba(47, 111, 78, 0.1);
+  box-shadow: 0 4px 10px rgba(47, 121, 83, 0.13), inset 0 1px 0 rgba(255,255,255,.7);
 }
 
 .filter-chip.active .filter-chip-check {

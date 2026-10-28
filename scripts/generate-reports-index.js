@@ -142,14 +142,13 @@ function buildIndexHtml(files) {
 <head>
 <meta charset="utf-8">
 <!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-M9NL06G2JB"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
   function gtag(){dataLayer.push(arguments);}
-  gtag('consent', 'default', { analytics_storage: 'denied' });
+  gtag('consent', 'default', { analytics_storage: 'denied', ad_storage: 'denied', ad_user_data: 'denied', ad_personalization: 'denied' });
   gtag('js', new Date());
 
-  gtag('config', 'G-M9NL06G2JB');
+  gtag('config', 'G-M9NL06G2JB', { allow_google_signals: false, allow_ad_personalization_signals: false });
 </script>
 <script src="/cookie-consent.js" defer></script>
 <title>Epping Forest Ledger — weekly Epping Forest news</title>
@@ -244,8 +243,7 @@ function buildIndexHtml(files) {
     ${body}
   </section>
   <aside class="note">
-    <p>Join the mailing list for weekly Ledger updates once the site launches,
-    plus news of early app access.</p>
+    <p>Sign up for launch news, to take part as an early tester, and for weekly Ledger updates when they launch.</p>
     <a class="app-cta" href="${SITE_ORIGIN}/#signup">Keep me in the loop →</a>
   </aside>
 </main>

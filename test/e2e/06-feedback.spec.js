@@ -4,23 +4,29 @@ const { setup, FIXTURE_TREE, waitForStableBoundingBox } = require("./helpers");
 
 test.describe("Feedback / Report screen", () => {
   test.beforeEach(async ({ page }) => {
-    await setup(page);
-    await page.click("#reportToggle");
+    await setup(page, "/feedback");
     await expect(page.locator("#reportDetails")).toBeVisible();
   });
 
-  test("feedback button opens a clearly labelled feedback form", async ({ page }) => {
+  test("the feedback form is its own page, reached from the Community screen", async ({ page }) => {
+    await page.click("#nearbyToggle");
+    await page.click("#reportToggle");
+    await expect(page.locator("#inspectorTitle").last()).toContainText("Community");
+    await expect(page.locator("#reportForm")).toHaveCount(0);
+    await page.click(".community-feedback-link");
+    await expect(page).toHaveURL(/\/feedback$/);
+    await expect(page.locator("#reportDetails")).toBeVisible();
+    // the Community tab stays lit on its Feedback page
+    await expect(page.locator("#reportToggle")).toHaveClass(/screen-active/);
+  });
+
+  test("the feedback page opens with a clearly labelled form", async ({ page }) => {
     await expect(page.locator("#reportToggle")).toHaveClass(/screen-active/);
     await expect(page.locator("#inspectorTitle")).toHaveText("Feedback");
     await expect(page.locator("#reportForm")).toBeVisible();
     await expect(page.locator(".report-intro")).toHaveText(
       "We welcome feedback, bug reports, and anything strange you have noticed. It helps us improve the data for everyone."
     );
-  });
-
-  test("report form includes the current app version", async ({ page }) => {
-    // The version is displayed inside the form so the user knows which version will be reported
-    await expect(page.locator("#reportForm")).toContainText("v");
   });
 
   test("report form has a text area for the user's description", async ({ page }) => {
@@ -49,6 +55,29 @@ test.describe("Feedback / Report screen", () => {
       () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby")
     );
     await expect(page.locator("#reportToggle")).not.toHaveClass(/screen-active/);
+  });
+
+  test("re-entering Feedback starts at the top of the screen", async ({ page }) => {
+    const scroll = page.locator(".inspector-scroll");
+    const dimensions = await scroll.evaluate((el) => ({
+      clientHeight: el.clientHeight,
+      scrollHeight: el.scrollHeight,
+    }));
+    expect(dimensions.scrollHeight).toBeGreaterThan(dimensions.clientHeight);
+
+    const scrolledTop = await scroll.evaluate((el) => {
+      el.scrollTo(0, el.scrollHeight);
+      return el.scrollTop;
+    });
+    expect(scrolledTop).toBeGreaterThan(0);
+
+    await page.click("#nearbyToggle");
+    await expect(page.locator("#nearbyToggle")).toHaveClass(/screen-active/);
+    await page.click("#reportToggle");
+    await expect(page.locator(".community-feedback-link")).toBeVisible();
+    await page.click(".community-feedback-link");
+    await expect(page.locator("#reportDetails")).toBeVisible();
+    await expect.poll(() => scroll.evaluate((el) => el.scrollTop)).toBe(0);
   });
 
   test("report form has a Cancel button that returns to overview", async ({ page }) => {
@@ -82,6 +111,27 @@ test.describe("Feedback / Report screen", () => {
 
     await expect(page.locator("#reportStatus")).toContainText("submitted successfully");
     expect(requestCount).toBe(1);
+  });
+
+  test("a report written offline is saved and sent automatically when the connection returns", async ({ page, context }) => {
+    const posted = [];
+    await page.route("**/.netlify/functions/report-missing-data", async (route) => {
+      posted.push(route.request().postDataJSON());
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+    });
+
+    await context.setOffline(true);
+    await page.fill("#reportDetails", "Written with no signal");
+    await expect(page.locator("#reportSubmit")).toBeEnabled();
+    await page.click("#reportSubmit");
+    await expect(page.locator("#reportStatus")).toContainText("sent automatically");
+    await expect(page.locator("#reportOutboxNote")).toContainText("1 report waiting to send");
+    expect(posted).toHaveLength(0);
+
+    await context.setOffline(false);
+    await expect.poll(() => posted.length).toBe(1);
+    expect(posted[0].details).toBe("Written with no signal");
+    await expect(page.locator("#reportOutboxNote")).toBeHidden();
   });
 
   test("a submitted report's filed issue is a real clickable link", async ({ page }) => {
@@ -141,6 +191,27 @@ test.describe("Feedback / Report screen", () => {
   });
 });
 
+test.describe("Public issue notice", () => {
+  test("the Feedback form says the report is published on a public GitHub page, and links to the terms", async ({ page }) => {
+    await setup(page, "/feedback");
+    const notice = page.locator("#reportForm .community-public-notice");
+    await expect(notice).toContainText("public GitHub page");
+    await expect(notice).toContainText("Community ID are never included");
+    await expect(notice.locator("a")).toHaveAttribute("href", "/terms.html#community-reports");
+    await expect(notice.locator("a")).toHaveAttribute("target", "_blank");
+  });
+
+  test("the terms explain what a public issue holds and where the notice links to", async ({ page }) => {
+    await page.goto("/terms.html");
+    const section = page.locator("#community-reports");
+    await expect(section).toBeVisible();
+    const body = page.locator("body");
+    for (const phrase of ["address of the page you were on", "user agent", "a photo", "Tester ID", "no public leaderboard", "keeps the earlier versions"]) {
+      await expect(body).toContainText(phrase);
+    }
+  });
+});
+
 // No Playwright engine here can trigger a genuine iOS on-screen keyboard (playwright.config.js
 // only defines Chromium desktop/mobile projects). `window.visualViewport` is replaced with a
 // small controllable fake before the app boots, so a "keyboard open" can be simulated exactly as
@@ -196,9 +267,10 @@ test.describe("Feedback / Report screen — keyboard avoidance (VisualViewport)"
   test("portrait bottom sheet: repositions above the simulated keyboard and keeps the textarea visible", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.click("#reportToggle");
+    await page.click(".community-feedback-link");
     await expect(page.locator("#reportDetails")).toBeVisible();
 
-    const beforeBox = await page.locator("#reportDetails").boundingBox();
+    const beforeBox = await waitForStableBoundingBox(page.locator("#reportDetails"));
     const insetPx = 260;
     await simulateKeyboardInset(page, insetPx);
 
@@ -234,9 +306,10 @@ test.describe("Feedback / Report screen — keyboard avoidance (VisualViewport)"
     await installFakeVisualViewport(page);
     await setup(page);
     await page.click("#reportToggle");
+    await page.click(".community-feedback-link");
     await expect(page.locator("#reportDetails")).toBeVisible();
 
-    const beforeBox = await page.locator("#reportDetails").boundingBox();
+    const beforeBox = await waitForStableBoundingBox(page.locator("#reportDetails"));
     const insetPx = 180;
     await simulateKeyboardInset(page, insetPx);
 
@@ -362,6 +435,25 @@ test.describe("Reporting a problem with a selected location", () => {
     const issueLink = page.locator(".report-issue .report-status a");
     await expect(issueLink).toHaveAttribute("href", "https://github.com/simonmcmanus/epping-forest-finds/issues/1");
     await expect(issueLink).toHaveAttribute("target", "_blank");
+  });
+
+  test("a second report made in the same open form gets its own request id", async ({ page }) => {
+    const posted = [];
+    await page.route("**/.netlify/functions/report-missing-data", async (route) => {
+      posted.push(route.request().postDataJSON());
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, issueNumber: posted.length, issueUrl: `https://github.com/simonmcmanus/epping-forest-finds/issues/${posted.length}` }) });
+    });
+
+    await page.click("[data-action='report-issue']");
+    await page.fill(".report-issue textarea", "First problem");
+    await page.click("[data-action='submit-location-issue']");
+    await expect(page.locator(".report-issue .report-status")).toContainText("submitted successfully");
+    await page.fill(".report-issue textarea", "A different problem");
+    await page.click("[data-action='submit-location-issue']");
+    await expect.poll(() => posted.length).toBe(2);
+    expect(posted[0].requestId).toBeTruthy();
+    expect(posted[1].requestId).toBeTruthy();
+    expect(posted[1].requestId).not.toBe(posted[0].requestId);
   });
 
   test("an empty submission is rejected without a network request", async ({ page }) => {

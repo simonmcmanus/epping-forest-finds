@@ -1,0 +1,50 @@
+# Community points: how the game works
+
+Every number below lives in one file: `netlify/functions/lib/community-points.js`. Change it there and the scoring, the reward check and the ranks follow. After editing, update the same numbers in `contribute/index.html` (the public explainer) and run `npm run test:unit`, which checks the Community screen's ranks still match.
+
+## Points you earn straight away
+
+| Action | Points | Config key | Notes |
+|---|---|---|---|
+| Verify a tree you are standing next to | 1 | `verify` | Must be within 10 m (`NEAR_METRES`). |
+| ...and a different person independently confirms the same tree | +1 | `verifyConfirmed` | Paid to the first verifier. |
+| Add a missing tree (tag number and an accurate GPS fix, 30 m or better) | 1 | `newTree` | Tag "0" is not valid. |
+| ...and a second person finds the same new tree | +3 | `newTreeSecondFinder` | |
+| Report a problem (not here, different tree, moved...) that others agree with | 2 | `correction` | Two independent people must agree. |
+
+## Points that arrive later (after a person or the City of London acts)
+
+| Action | Points | Config key | How it is checked |
+|---|---|---|---|
+| The City of London updates its register and it agrees with your report | 10 | `register` | Daily check against the new register: a new tree's tag now exists, a "not here" tree has gone, a moved tree now sits where you put it. |
+| Feedback or a bug report you sent is fixed | 1 | `fix` | The GitHub issue is closed as completed. |
+| You report a place (pub, cafe, shop...) as wrong and a person confirms it | 3 | `placeConfirmed` | The GitHub issue is closed as completed. |
+
+The first register check only records a baseline, so differences that already exist never pay out. Only reports made at or before the previous check can earn the reward, so waiting for an update and then reporting what it says does not. A report made after a register was first seen cannot claim a reward from it.
+
+## Points you do not earn
+
+- Confirming a place is still right earns nothing. It only hides that place's check card on your device.
+- Reports made from more than 10 m away (or with location off; you can still send them, the app says they won't earn points), and your own repeat reports about the same thing.
+
+## Badges and streaks
+
+Badges and the streak are worked out on the device from the score and the reports kept there; no points attach to them. The list is `COMMUNITY_BADGES` in `js/community.js` (first check, ten checks, fifty checks, second opinion, tree finder, place spotter, week streak). A streak is days in a row (local time) with at least one report on this device; it stays alive until a full day passes with nothing. Reports restored from a recovery code do not count towards it.
+
+## Ranks
+
+| Rank | From |
+|---|---|
+| Seedling | 0 |
+| Sapling | 5 |
+| Woodward | 20 |
+| Warden | 50 |
+
+Config key: `RANKS` in the same file (the Community screen mirrors it in `COMMUNITY_RANKS`, `js/community.js`; a unit test fails if they drift).
+
+## Forcing a rebuild while testing
+The overlay and scores are rebuilt hourly. To see a change at once: admin, Community panel, **Rebuild snapshot now** (needs `ADMIN_PASSWORD`). On previews you can also set `COMMUNITY_TTL_MINUTES=1`. The public overlay is then cached for up to 5 minutes, so add `?x=1` to the URL or hard-refresh to bypass your browser's copy.
+
+## Running the reward check
+
+It runs daily (`community-validate-scheduled`). To run it now: the **Run reward check now** button on the admin Community panel. It is safe to run twice. Issue rewards need a GitHub token in the Netlify environment (`GITHUB_TOKEN`); without one, only register rewards are paid.

@@ -1,6 +1,8 @@
 name: Update Snapshots
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
     inputs:
       branch:
@@ -8,10 +10,27 @@ on:
         required: false
         default: main
 
+concurrency:
+  group: snapshot-baselines-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.branch || 'main' }}
+  # Every completed main push must reconcile baselines after the push.
+  cancel-in-progress: false
+
+# Main's cache-version workflow already establishes the repository's approved direct-push path:
+# the dedicated GitHub App is on main's ruleset bypass list. The privileged token is created only
+# after tests have finished and only for a main push; checkout and manual branch runs never expose
+# that bypass credential to repository code.
+
 jobs:
   update:
     name: Regenerate snapshot baselines
     runs-on: ubuntu-latest
+    env:
+      SOURCE_BRANCH: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.branch || 'main' }}
+    # A direct baseline commit triggers this workflow again. The second run has no changes, but
+    # skip it explicitly so a successful regeneration does not spend another full Playwright run.
+    if: >-
+      github.event_name != 'push' ||
+      github.event.head_commit.message != 'chore: update CI snapshot baselines'
     # Pinned to the same image/tag as ci.yml's e2e and visual-snapshots jobs -- see the
     # comment there. Bump both together with @playwright/test in package.json.
     container:
@@ -19,40 +38,96 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Resolve output branch
+        id: branches
+        env:
+          SOURCE_BRANCH: ${{ env.SOURCE_BRANCH }}
+        run: |
+          echo "target_branch=$SOURCE_BRANCH" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v5
         with:
-          ref: ${{ github.event.inputs.branch }}
-          # Must be a PAT, not this job's own GITHUB_TOKEN -- see the matching comment in
-          # ci.yml's visual-snapshots job. Without it this commit triggers no CI run at all,
-          # same failure mode as sw-release.yml/data-bump.yml before they made the same fix.
-          token: ${{ secrets.WEEKLY_LEDGER_PAT }}
+          ref: ${{ env.SOURCE_BRANCH }}
+          # Repository code must not inherit a credential that can bypass main's ruleset. The
+          # final push supplies its own short-lived auth header after both test suites finish.
+          persist-credentials: false
       - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Regenerate all snapshot baselines
-        id: e2e
-        # Mobile only: every toHaveScreenshot() spec is skipped on desktop (see
-        # test.skip(testInfo.project.name !== 'mobile') in each one), so running desktop here
-        # only pays its setup and test time for zero screenshots.
-        run: npx playwright test --project=mobile --update-snapshots=all
+      - name: Regenerate mobile snapshot baselines
+        id: mobile
+        run: npx playwright test --project=mobile --grep "snapshot:" --update-snapshots=all
+        continue-on-error: true
+      - name: Regenerate desktop snapshot baselines
+        id: desktop
+        run: npx playwright test --project=desktop --grep "snapshot:" --update-snapshots=all
         continue-on-error: true
       - name: Commit updated baselines
         # See the matching comments in ci.yml's visual-snapshots job: no [skip ci] (a regenerated
         # baseline needs a real CI run to confirm it actually matches before anyone trusts it),
         # and the explicit cd + safe.directory (without them git fails outright with "fatal: not
         # in a git directory" in this container image).
+        if: steps.mobile.outcome == 'success' && steps.desktop.outcome == 'success'
+        id: commit
+        env:
+          SOURCE_BRANCH: ${{ env.SOURCE_BRANCH }}
+          TARGET_BRANCH: ${{ steps.branches.outputs.target_branch }}
         run: |
+          set -euo pipefail
           cd "$GITHUB_WORKSPACE"
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "Epping Cache Version Bot"
+          git config user.email "cache-version-bot@users.noreply.github.com"
           git add test/e2e/__screenshots__/
+          echo "changed=false" >> "$GITHUB_OUTPUT"
           if ! git diff --staged --quiet; then
+            if [ "$TARGET_BRANCH" != "$SOURCE_BRANCH" ]; then
+              git switch --create "$TARGET_BRANCH"
+            fi
             git commit -m "chore: update CI snapshot baselines"
-            git push origin HEAD:${{ github.event.inputs.branch }}
+            echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
+      - name: Create a short-lived cache-version app token for main
+        id: app-token
+        if: steps.commit.outputs.changed == 'true' && env.SOURCE_BRANCH == 'main'
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.CACHE_VERSION_APP_ID }}
+          private-key: ${{ secrets.CACHE_VERSION_APP_PRIVATE_KEY }}
+      - name: Push updated baselines
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          SOURCE_BRANCH: ${{ env.SOURCE_BRANCH }}
+          TARGET_BRANCH: ${{ steps.branches.outputs.target_branch }}
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          if [ "$SOURCE_BRANCH" = "main" ]; then
+            push_token="$APP_TOKEN"
+          else
+            # Manual runs for another branch use the ordinary workflow token; only main gets the
+            # ruleset-bypass App credential above.
+            push_token="$GITHUB_TOKEN"
+          fi
+          test -n "$push_token"
+          auth_header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$push_token" | base64 -w0)"
+
+          # Main can move while Playwright is running. Rebase the screenshot-only commit onto the
+          # latest target and retry a few times so a concurrent merge does not lose the update.
+          for attempt in 1 2 3; do
+            if git -c "http.https://github.com/.extraheader=$auth_header" pull --rebase origin "$TARGET_BRANCH" \
+              && git -c "http.https://github.com/.extraheader=$auth_header" push origin "HEAD:$TARGET_BRANCH"; then
+              exit 0
+            fi
+            git rebase --abort || true
+            if [ "$attempt" -eq 3 ]; then
+              echo "Unable to push snapshot baselines after $attempt attempts." >&2
+              exit 1
+            fi
+          done
       - name: Fail if any test had a non-screenshot failure
-        if: steps.e2e.outcome == 'failure'
+        if: steps.mobile.outcome == 'failure' || steps.desktop.outcome == 'failure'
         run: exit 1

@@ -1,17 +1,22 @@
 "use strict";
 
-// Google Analytics (gtag.js) consent banner, shared by every page on the site. Separate from,
-// and independent of, the in-app location/usage-tracking consent in js/tracker.js: that one is
-// a contextual browser-permission prompt tied to a feature (location), this one is the PECR/UK
-// GDPR cookie consent gate that must run before GA's non-essential cookies (_ga, _ga_*) are set,
-// on every page that loads the tag -- including the homepage, which has no other consent UI.
+// Google Analytics (gtag.js) consent banner for the site's public pages. This is the PECR/UK GDPR
+// cookie consent gate that must run before GA's non-essential cookies (_ga, _ga_*) are set, on
+// every page that loads the tag -- including the homepage, which has no other consent UI. Inside
+// the app the same cookies are part of one usage-analytics question (js/tracker.js
+// setAnalyticsConsent), which writes this file's key too, so a choice made either way carries over.
 //
-// Google Consent Mode v2's `analytics_storage` default is set to "denied" inline, before this
-// file loads (see the gtag snippet in each page's <head> / generator) -- this file only decides
-// whether to show the banner and relays the visitor's choice to gtag.
+// Every page's <head> defines the gtag() queue with all four Consent Mode v2 signals denied and
+// Google Signals off (see the snippet in each page / generator), but does not load Google's
+// script: this file loads it once the visitor agrees, and relays the choice to gtag.
 (function () {
   const CONSENT_KEY = "ff-cookie-consent";
   const EARLY_TESTING_BANNER_KEY = "ff-early-testing-banner-v1";
+  // The oak-leaf logo. The homepage keeps its own copy of the same file because marketing never
+  // loads app assets; every other page takes the app's. Absolute, so /reports/ and /find/<slug>/
+  // resolve it too.
+  const IS_HOMEPAGE = location.pathname === "/" || location.pathname === "/index.html";
+  const LOGO_SRC = IS_HOMEPAGE ? "/assets/home/map-icons/oak.png" : "/data/icons/trees/logo.png";
 
   function getStoredConsent() {
     try {
@@ -21,10 +26,39 @@
     }
   }
 
+  const GA_SCRIPT_SRC = "https://www.googletagmanager.com/gtag/js?id=G-M9NL06G2JB";
+
+  // Google's own script is loaded only once analytics is agreed to. Each page's <head> defines the
+  // gtag() queue and denies every consent signal, but no longer loads the script itself: in
+  // Google's "advanced" consent mode a loaded tag still sends cookieless pings (IP address, page,
+  // browser) before anyone has answered, which needs consent just as the cookies do.
+  function loadGoogleAnalytics() {
+    if (document.querySelector(`script[src="${GA_SCRIPT_SRC}"]`)) return;
+    const script = document.createElement("script");
+    script.async = true;
+    script.src = GA_SCRIPT_SRC;
+    document.head.appendChild(script);
+  }
+
+  // Withdrawal stops collection and removes what was stored for it: Google Analytics' own cookies
+  // (_ga, _ga_<id>), on this host and on the parent domain it may have set them for.
+  function clearGoogleAnalyticsCookies() {
+    const names = document.cookie.split(";").map((part) => part.split("=")[0].trim()).filter((name) => /^_ga(_|$)/.test(name));
+    const host = location.hostname;
+    const domains = ["", host, `.${host}`, `.${host.split(".").slice(-2).join(".")}`];
+    for (const name of names) {
+      for (const domain of domains) {
+        document.cookie = `${name}=; Max-Age=0; path=/${domain ? `; domain=${domain}` : ""}`;
+      }
+    }
+  }
+
   function updateGtagConsent(granted) {
     if (typeof window.gtag === "function") {
       window.gtag("consent", "update", { analytics_storage: granted ? "granted" : "denied" });
     }
+    if (granted) loadGoogleAnalytics();
+    else clearGoogleAnalyticsCookies();
   }
 
   function setConsent(granted) {
@@ -65,7 +99,9 @@ border:1px solid rgba(23,34,30,.18);border-left:5px solid #2f6f4e;
 box-shadow:0 22px 50px rgba(19,31,25,.3),0 2px 10px rgba(19,31,25,.14);
 font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,ui-sans-serif,system-ui,sans-serif;
 display:flex;flex-wrap:wrap;gap:14px 24px;align-items:center;justify-content:space-between}
-#cookieConsentBanner .cookie-consent-copy{flex:1 1 320px;min-width:0}
+#cookieConsentBanner .cookie-consent-lead{display:flex;flex:1 1 320px;gap:12px;align-items:flex-start;min-width:0}
+#cookieConsentBanner .cookie-consent-logo{flex:0 0 auto;width:36px;height:36px}
+#cookieConsentBanner .cookie-consent-copy{flex:1 1 auto;min-width:0}
 #cookieConsentBanner strong{display:block;margin:0 0 4px;font-size:.95rem;font-weight:800}
 #cookieConsentBanner p{margin:0;color:#5d6a62}
 #cookieConsentBanner a{color:#2f6f4e;font-weight:700;text-decoration:underline}
@@ -79,7 +115,7 @@ font-weight:700;cursor:pointer;transition:transform .12s ease,background-color .
 background:#fff;color:#2f6f4e}
 #cookieConsentBanner button[data-action="decline"]:hover{background:#f1f5ee}
 @media (max-width:480px){#cookieConsentBanner{flex-direction:column;align-items:stretch;justify-content:flex-start}
-#cookieConsentBanner .cookie-consent-copy{flex:0 0 auto}
+#cookieConsentBanner .cookie-consent-lead{flex:0 0 auto}
 #cookieConsentBanner .cookie-consent-actions{margin-left:0;flex:0 0 auto;justify-content:flex-end}}
 `;
     document.head.appendChild(style);
@@ -88,18 +124,11 @@ background:#fff;color:#2f6f4e}
   function renderBanner() {
     const existing = document.getElementById("cookieConsentBanner");
     if (existing) return;
-    // On the app's first-run onboarding (app.html only -- this id doesn't exist elsewhere),
-    // the location step's own privacy note already asks this question and decides cookie
-    // consent itself (see the .ob-location/.ob-location-skip handlers in js/onboarding.js).
-    // Stacking this banner on top of that overlay would ask twice for the same thing.
-    const onboarding = document.getElementById("onboardingOverlay");
-    if (onboarding && !onboarding.hidden) return;
-    // Same reasoning for a landing-page arrival's merged location/cookie ask
-    // (showCombinedConsentBanner in js/app.js) -- it already asks this and decides consent
-    // itself, normally by removing this banner outright the moment it opens, but this also
-    // covers the rare case where that happens before this script's own deferred init() has run.
-    const consentBanner = document.getElementById("consentBanner");
-    if (consentBanner && !consentBanner.hidden) return;
+    // The app shell (app.html, and every page generated from it -- the only pages with a
+    // #consentBanner) asks this itself, as part of one usage-analytics question that also covers
+    // the app's own usage data: onboarding's analytics step, or showConsentBanner in js/app.js.
+    // Showing this banner there as well would ask the same person the same thing twice.
+    if (document.getElementById("consentBanner")) return;
     injectStyle();
     const banner = document.createElement("div");
     banner.id = "cookieConsentBanner";
@@ -107,10 +136,13 @@ background:#fff;color:#2f6f4e}
     banner.setAttribute("aria-live", "polite");
     banner.setAttribute("aria-label", "Cookie consent");
     banner.innerHTML =
+      '<div class="cookie-consent-lead">' +
+      `<img class="cookie-consent-logo" src="${LOGO_SRC}" alt="" width="36" height="36">` +
       '<div class="cookie-consent-copy">' +
       "<strong>We use analytics cookies</strong>" +
       '<p>To understand how people use this site. ' +
       '<a href="/terms.html" target="_blank" rel="noopener">Privacy &amp; terms</a></p>' +
+      "</div>" +
       "</div>" +
       '<div class="cookie-consent-actions">' +
       '<button type="button" data-action="decline">Decline</button>' +
@@ -146,6 +178,7 @@ box-shadow:0 2px 8px rgba(19,31,25,.12);
 font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,ui-sans-serif,system-ui,sans-serif;
 display:flex;gap:12px 18px;align-items:flex-start}
 #earlyTestingNoticeSlot #earlyTestingBanner{margin:12px 12px 0;background:linear-gradient(120deg,rgba(197,139,22,.13),rgba(255,255,255,.86))}
+#earlyTestingBanner .early-testing-logo{flex:0 0 auto;width:36px;height:36px}
 #earlyTestingBanner .early-testing-copy{flex:1 1 320px;min-width:0}
 #earlyTestingBanner strong{display:block;margin:0 0 3px;font-size:.95rem;font-weight:800}
 #earlyTestingBanner p{margin:0;color:#5d6a62}
@@ -153,7 +186,7 @@ display:flex;gap:12px 18px;align-items:flex-start}
 #earlyTestingBanner button{flex:0 0 auto;border:0;background:transparent;color:#405048;padding:2px;
 font:inherit;font-size:1.2rem;line-height:1;cursor:pointer}
 #earlyTestingBanner button:hover{color:#17221e}
-@media (max-width:480px){#earlyTestingBanner{padding:13px 14px;gap:10px}}
+@media (max-width:760px){#earlyTestingBanner{position:fixed;top:max(12px,env(safe-area-inset-top,0px));left:12px;right:12px;z-index:109;max-width:560px;margin:0 auto;padding:13px 14px;gap:10px;box-shadow:0 18px 42px rgba(19,31,25,.24),0 2px 8px rgba(19,31,25,.12)}}
 `;
     document.head.appendChild(style);
   }
@@ -163,11 +196,12 @@ font:inherit;font-size:1.2rem;line-height:1;cursor:pointer}
     // The homepage already explains the trial and has its own sign-up invitation, so keep this
     // extra notice for people arriving elsewhere on the site.
     if (location.pathname === "/" || location.pathname === "/index.html") return;
-    // A notice belongs in the page's reading flow. The app supplies a dedicated inspector slot;
-    // standalone public pages use their main content container. Do not add it to the admin UI,
-    // which has neither public-facing content nor an appropriate non-overlaying home for it.
-    const noticeSlot = document.getElementById("earlyTestingNoticeSlot") ||
-      document.querySelector("main, .page");
+    // Fixed descendants are scoped by a transformed inspector sheet, so on mobile this must be
+    // mounted directly under <body>: otherwise it is fixed to the sheet and covers the location
+    // notice inside it. Desktop keeps the notice in the inspector's reading flow.
+    const noticeSlot = window.matchMedia("(max-width: 760px)").matches
+      ? document.body
+      : document.getElementById("earlyTestingNoticeSlot") || document.querySelector("main, .page");
     if (!noticeSlot) return;
     // Do not layer a site notice over the app's first-run onboarding dialog. It is shown once
     // that dialog has been completed instead.
@@ -179,6 +213,7 @@ font:inherit;font-size:1.2rem;line-height:1;cursor:pointer}
     banner.setAttribute("role", "status");
     banner.setAttribute("aria-label", "Early testing notice");
     banner.innerHTML =
+      `<img class="early-testing-logo" src="${LOGO_SRC}" alt="" width="36" height="36">` +
       '<div class="early-testing-copy">' +
       "<strong>Epping Forest Finds is still a work in progress</strong>" +
       '<p>You may find data problems or bugs — please <a href="/report">report any you find</a>.</p>' +
@@ -225,8 +260,8 @@ font:inherit;font-size:1.2rem;line-height:1;cursor:pointer}
     }, { once: true });
   }
 
-  // Exposed so a page can offer a "manage cookie preferences" control (see terms.html, and
-  // Settings → Privacy in the app) without duplicating the banner/consent logic.
+  // Exposed so a page can offer a "manage cookie preferences" control (see terms.html) and the app
+  // can record its own analytics answer (js/tracker.js) without duplicating the consent logic.
   window.ForestFindsCookieConsent = {
     get: getStoredConsent,
     set: setConsent,

@@ -214,11 +214,11 @@ function draw() {
   // Initialize animation timing on first draw
   if (_animationStartTime === null) _animationStartTime = performance.now();
 
-  // A device-orientation event with a valid beta but no valid heading updates
-  // state.tiltBetaTarget without calling startCompassSmoothing (see onDeviceOrientation),
-  // so the beta-smoothing loop can go idle out of sync with its target. draw() already runs
-  // on most state changes, so nudge the loop back on here whenever that happens.
-  if (Number.isFinite(state.compassHeading) && typeof startCompassSmoothing === "function"
+  // A device-orientation event with a valid beta can arrive before a compass heading is
+  // available (or on a browser that exposes pitch without north-referenced heading), so the
+  // beta-smoothing loop must not be gated on compassHeading. draw() is also a useful recovery
+  // nudge if an orientation frame arrived while the page was resuming.
+  if (typeof startCompassSmoothing === "function"
       && Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) > 0.05) {
     startCompassSmoothing();
   }
@@ -227,35 +227,46 @@ function draw() {
   const width = els.canvas.width;
   const height = els.canvas.height;
   const animatedEmojiScale = updateAnimatedEmojiScale();
-  const nearbyIconLookup = activeIconLookup();
-  const treeClusters = buildTypeClusters(nearbyIconLookup.tree, worldToScreen);
-  const landmarkClusters = buildLandmarkClusters(nearbyIconLookup.landmark, worldToScreen);
-  const cowClusters = buildTypeClusters(nearbyIconLookup.cow, worldToScreen);
-  const pathClusters = buildTypeClusters(nearbyIconLookup.path, worldToScreen);
-  const waterClusters = buildTypeClusters(nearbyIconLookup.water, worldToScreen);
-  // Expanding a cluster narrows nearbyIconLookup (buildNearbyIconLookup, above) down to that
-  // group's own items and nothing else -- but it deliberately does *not* force every one of them
-  // into its own singleton pin any more. A tap that zoomed into, say, 100 items piled at one spot
-  // used to unconditionally flatten all 100 into individual pins regardless of how much screen
-  // space the zoom actually bought them, which was just as dense and just as hard to use as the
-  // pile-up it replaced. Re-running the ordinary clustering passes on the narrowed set instead
-  // lets it re-cluster naturally at the new zoom: items that spread apart on screen become
-  // individual pins, items still close together become a smaller sub-cluster (mega or
-  // same-category) the user can tap into again, one level deeper, the same way they got here.
-  const megaGroups = buildSuperClusters([
-    { itemType: "tree", clusters: treeClusters },
-    { itemType: "landmark", clusters: landmarkClusters },
-    { itemType: "cow", clusters: cowClusters },
-    { itemType: "path", clusters: pathClusters },
-    { itemType: "water", clusters: waterClusters },
-  ]).filter(group => group.length >= megaClusterMinMembersFor(group));
-  const megaClusterSet = new Set();
-  for (const group of megaGroups) for (const member of group) megaClusterSet.add(member.cluster);
-  const filteredTreeClusters = treeClusters.filter(c => !megaClusterSet.has(c));
-  const filteredLandmarkClusters = landmarkClusters.filter(c => !megaClusterSet.has(c));
-  const filteredCowClusters = cowClusters.filter(c => !megaClusterSet.has(c));
-  const filteredPathClusters = pathClusters.filter(c => !megaClusterSet.has(c));
-  const filteredWaterClusters = waterClusters.filter(c => !megaClusterSet.has(c));
+  // During heading-up/tilt movement every pin is drawn through drawOverlay(), where it is
+  // projected and depth-sorted against the live camera. Rebuilding the main-canvas clusters as
+  // well was pure duplicate work: on a populated forest map it was enough to make the sensor
+  // loop visibly paint in steps. Keep the flat-map clustering path intact, but defer it until we
+  // know the main canvas will actually draw pins.
+  const useOverlayForPins = (typeof nearbyHeadingUpActive === "function" && nearbyHeadingUpActive())
+    || (typeof tiltActive === "function" && tiltActive());
+  let nearbyIconLookup = null;
+  let megaGroups = [];
+  let filteredTreeClusters = [];
+  let filteredLandmarkClusters = [];
+  let filteredCowClusters = [];
+  let filteredPathClusters = [];
+  let filteredWaterClusters = [];
+  if (!useOverlayForPins) {
+    nearbyIconLookup = activeIconLookup();
+    const treeClusters = buildTypeClusters(nearbyIconLookup.tree, worldToScreen);
+    const landmarkClusters = buildLandmarkClusters(nearbyIconLookup.landmark, worldToScreen);
+    const cowClusters = buildTypeClusters(nearbyIconLookup.cow, worldToScreen);
+    const pathClusters = buildTypeClusters(nearbyIconLookup.path, worldToScreen);
+    const waterClusters = buildTypeClusters(nearbyIconLookup.water, worldToScreen);
+    // Expanding a cluster narrows nearbyIconLookup (buildNearbyIconLookup, above) down to that
+    // group's own items and nothing else -- but it deliberately does *not* force every one of them
+    // into its own singleton pin any more. Re-running the ordinary clustering passes on the
+    // narrowed set lets dense expanded groups keep offering the next level of clustering.
+    megaGroups = buildSuperClusters([
+      { itemType: "tree", clusters: treeClusters },
+      { itemType: "landmark", clusters: landmarkClusters },
+      { itemType: "cow", clusters: cowClusters },
+      { itemType: "path", clusters: pathClusters },
+      { itemType: "water", clusters: waterClusters },
+    ]).filter(group => group.length >= megaClusterMinMembersFor(group));
+    const megaClusterSet = new Set();
+    for (const group of megaGroups) for (const member of group) megaClusterSet.add(member.cluster);
+    filteredTreeClusters = treeClusters.filter(c => !megaClusterSet.has(c));
+    filteredLandmarkClusters = landmarkClusters.filter(c => !megaClusterSet.has(c));
+    filteredCowClusters = cowClusters.filter(c => !megaClusterSet.has(c));
+    filteredPathClusters = pathClusters.filter(c => !megaClusterSet.has(c));
+    filteredWaterClusters = waterClusters.filter(c => !megaClusterSet.has(c));
+  }
   ctx.clearRect(0, 0, width, height);
   drawBase(ctx, width, height);
 
@@ -272,8 +283,6 @@ function draw() {
   drawWalkingRadius(ctx);
   drawSelectedRoute(ctx);
   drawUserRadarMainCanvas(ctx);
-  const useOverlayForPins = (typeof nearbyHeadingUpActive === "function" && nearbyHeadingUpActive())
-    || (typeof tiltActive === "function" && tiltActive());
   if (!useOverlayForPins) {
     drawClusterFootprints(ctx, [...filteredTreeClusters, ...filteredLandmarkClusters, ...filteredCowClusters, ...filteredPathClusters, ...filteredWaterClusters], megaGroups);
     drawTrees(ctx, nearbyIconLookup, undefined, filteredTreeClusters);
@@ -328,12 +337,71 @@ function drawOverlay() {
   }
   drawUser(ctx, toScreen, isTilted);
   drawNearbyAnchorMarker(ctx, toScreen);
+  drawCommunityMarks(ctx, toScreen);
   drawSelectedOverlay(ctx, toScreen);
   if (drawInspectorIconMotion(selectedIconMotionFrame())) _selectedIconMotionDrawn = true;
   if (_selectedIconMotionDrawn) {
     _selectedIconMotionTimer = setTimeout(drawOverlay, SELECTED_ICON_FRAME_MS);
   } else {
     stopSelectedIconMotion();
+  }
+}
+
+// The Community screen highlights everything the user has marked: a coloured ring with a check
+// (verified), a cross (reported wrong) or a plus (a tree they added), over a soft halo so it reads
+// against any pin or footpath underneath. communityMapMarks() (js/community.js) says what and where.
+function drawCommunityMarks(ctx, toScreen) {
+  if (typeof communityMapMarks !== "function") return;
+  const onCommunityScreen = Boolean(state.selected) && state.selected.type === "community";
+  // Trees walkers have added show for everyone on every other screen; the Community screen
+  // shows only the user's own reports.
+  const shared = onCommunityScreen ? [] : communityOverlayNewTreeMarks();
+  const own = onCommunityScreen ? communityMapMarks() : (state.selected && state.selected.type === "tree" && typeof communitySelectedTreeMarks === "function" ? communitySelectedTreeMarks() : []);
+  const marks = shared.concat(own);
+  if (!marks.length) return;
+  if (!toScreen) toScreen = worldToScreen;
+  const dpr = pixelRatio();
+  const w = ctx.canvas.width;
+  const h = ctx.canvas.height;
+  for (const mark of marks) {
+    const p = toScreen(projectLonLat(mark.lon, mark.lat));
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
+    if (p.x < -30 * dpr || p.y < -30 * dpr || p.x > w + 30 * dpr || p.y > h + 30 * dpr) continue;
+    const style = COMMUNITY_MARK_STYLE[mark.kind];
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 18 * dpr, 0, Math.PI * 2);
+    ctx.fillStyle = style.halo;
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 10.5 * dpr, 0, Math.PI * 2);
+    ctx.fillStyle = style.color;
+    ctx.fill();
+    ctx.lineWidth = 2 * dpr;
+    ctx.strokeStyle = "#fff";
+    ctx.stroke();
+    ctx.lineWidth = 2 * dpr;
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.beginPath();
+    if (mark.kind === "verified") {
+      ctx.moveTo(p.x - 4.2 * dpr, p.y + 0.4 * dpr);
+      ctx.lineTo(p.x - 1.2 * dpr, p.y + 3.4 * dpr);
+      ctx.lineTo(p.x + 4.4 * dpr, p.y - 3 * dpr);
+    } else if (mark.kind === "added") {
+      ctx.moveTo(p.x - 4 * dpr, p.y);
+      ctx.lineTo(p.x + 4 * dpr, p.y);
+      ctx.moveTo(p.x, p.y - 4 * dpr);
+      ctx.lineTo(p.x, p.y + 4 * dpr);
+    } else {
+      ctx.moveTo(p.x - 3.6 * dpr, p.y - 3.6 * dpr);
+      ctx.lineTo(p.x + 3.6 * dpr, p.y + 3.6 * dpr);
+      ctx.moveTo(p.x + 3.6 * dpr, p.y - 3.6 * dpr);
+      ctx.lineTo(p.x - 3.6 * dpr, p.y + 3.6 * dpr);
+    }
+    ctx.strokeStyle = "#fff";
+    ctx.stroke();
+    ctx.restore();
   }
 }
 
@@ -1187,7 +1255,7 @@ function selectedRouteIsFallback(target) {
 // time chip can never disagree with the drawn line, and so it benefits from the same movement-
 // threshold memoization -- calling this is not itself a source of extra Dijkstra runs.
 function selectedRouteMetres(target) {
-  if (!state.userLocation || !target || !target.point) return null;
+  if (!hasRealLocation() || !target || !target.point) return null;
   const points = selectedRoutePoints(target);
   if (!points || points.length < 2) return null;
   let metres = 0;
@@ -1206,7 +1274,8 @@ function selectedRouteMetres(target) {
 // is ready the fallback is meaningful ("we looked, there is no route") and does get drawn.
 function drawSelectedRoute(ctx) {
   const target = selectedCompassTarget();
-  if (!state.userLocation || !target) return;
+  // No shared location means no route: the stand-in origin is not where the reader is.
+  if (!hasRealLocation() || !target) return;
   if (!state.routingGraphReady) return;
 
   const dpr = pixelRatio();
@@ -2198,7 +2267,31 @@ function buildSearchIconLookup() {
 // while it has matches to show, the ordinary Nearby/Filter/Settings/Report set otherwise (an
 // open Search screen with no query yet, or too short a query, falls back to this too -- see
 // searchResultsHtml/updateSearchHighlight, js/app.js).
+// On the Community screen the map shows only what the user has marked (drawCommunityMarks), so no
+// ordinary pins are drawn or tappable underneath.
+const COMMUNITY_EMPTY_ICON_LOOKUP = Object.freeze({
+  tree: new Set(), landmark: new Set(), cow: new Set(), path: new Set(), water: new Set(), outOfRadius: new Set(),
+});
+const SELECTED_NAVIGATION_EMPTY_ICON_LOOKUP = Object.freeze({
+  tree: new Set(), landmark: new Set(), cow: new Set(), path: new Set(), water: new Set(), outOfRadius: new Set(),
+});
+
+// Once a real location is selected for navigation, the map is a two-point view: the walker's
+// position and the chosen destination. Nearby pins are useful while browsing, but leaving them
+// underneath a selected route makes it unclear which marker the route is leading to. Use the
+// shared target resolver so this also covers road navigation, whose selected type is not one of
+// the point-pin categories.
+function selectedNavigationMapModeActive() {
+  return Boolean(
+    state.selected?.item
+    && typeof selectedCompassTarget === "function"
+    && selectedCompassTarget(),
+  );
+}
+
 function activeIconLookup() {
+  if (state.selected && state.selected.type === "community") return COMMUNITY_EMPTY_ICON_LOOKUP;
+  if (selectedNavigationMapModeActive()) return SELECTED_NAVIGATION_EMPTY_ICON_LOOKUP;
   if (state.searchScreenOpen && state.searchHighlightResults.length) return buildSearchIconLookup();
   return buildNearbyIconLookup();
 }
@@ -2654,7 +2747,7 @@ function drawUserRadarOverlayTilted(ctx) {
 // to the user (higher Y in heading-up mode) paint over distant ones (painter's algorithm),
 // then draws them in a single pass. Selected item is still drawn last via drawSelectedOverlay.
 function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
-  if (state.selected && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type)) return;
+  if (selectedNavigationMapModeActive()) return;
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
   const uScale = MAP_ICON_SCALE_UNSELECTED;

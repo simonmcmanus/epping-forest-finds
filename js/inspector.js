@@ -63,14 +63,20 @@ function handleMapClick(event) {
   // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
   // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
   // rather than lingering for whenever Nearby is next shown.
-  state.nearbyAnchor = null;
   setInspectorMinimized(false);
   // Before state.selected changes below -- see startCameraOriginTransition (js/app.js).
   startCameraOriginTransition();
+  state.nearbyAnchor = null;
   if (hit.type === "tree") {
     state.selected = { type: "tree", item: hit.item };
     syncHashFromSelection();
     showTreeDetails(hit.item, distanceFromUser(hit.item), "Tree record");
+    startCompassNavigation();
+    zoomToSelection();
+  } else if (hit.type === "addedtree") {
+    state.selected = { type: "addedtree", item: hit.item };
+    syncHashFromSelection();
+    showAddedTreeDetails(hit.item);
     startCompassNavigation();
     zoomToSelection();
   } else if (hit.type === "cow") {
@@ -146,6 +152,21 @@ function findHit(screen, world) {
   const selectedItem = hasRealSelection() ? state.selected.item : null;
   function isTappablePin(type, item) {
     return item === selectedItem || shouldDrawMapIcon(type, item, iconLookup);
+  }
+
+  // Trees other walkers added are drawn as marks (drawCommunityMarks) over everything else, so a tap
+  // on one wins.
+  if (typeof communityOverlayNewTreeMarks === "function" && !(state.selected && state.selected.type === "community")) {
+    let bestAdded = null;
+    for (const mark of communityOverlayNewTreeMarks()) {
+      if (!mark.tag) continue;
+      const point = worldToScreen(projectLonLat(mark.lon, mark.lat));
+      const distance = Math.hypot(point.x - screen.x, point.y - screen.y);
+      if (distance < 22 * dpr && (!bestAdded || distance < bestAdded.distance)) {
+        bestAdded = { type: "addedtree", item: communityAddedTreeItem(mark), distance };
+      }
+    }
+    if (bestAdded) return bestAdded;
   }
 
   let bestPlace = null;
@@ -365,13 +386,17 @@ function showTreeDetails(tree, distance, label) {
   ].filter(([, value]) => value != null && value !== "");
   const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const mapsLink = openInMapsHtml(tree.latitude, tree.longitude, tree.commonName || "Veteran tree");
-  const topRow = `<div class="detail-top-row">${distancePill}${mapsLink}${shareLocationHtml()}</div>`;
+  const verified = communityVerifiedSlotsHtml(tree);
+  const topRow = `<div class="detail-top-row">${distancePill}<span class="detail-top-actions">${verified.chip}${mapsLink}${shareLocationHtml()}</span></div>`;
   const technicalHtml = technicalRows.length
     ? `<details class="technical-details"><summary>Technical data</summary>${detailsHtml(technicalRows)}</details>`
     : "";
   const namedTreeHtml = namedTreeDetailsHtml(tree);
+  const nearbySectionHtml = nearbySectionsHtml({ latitude: tree.latitude, longitude: tree.longitude, name: tree.commonName || null, subfilterKey: "trees" });
   const issueHtml = reportIssueHtml({ type: "Veteran tree", name: treeDisplayName(tree), latitude: tree.latitude, longitude: tree.longitude });
-  transitionInspectorBody(topRow + detailsHtml(primaryRows) + technicalHtml + namedTreeHtml + issueHtml, "forward");
+  // Keep the check form directly below the actions so it can collapse into the local report
+  // status in the same place, just like a place check does.
+  transitionInspectorBody(topRow + verified.detail + communitySectionHtml(tree) + detailsHtml(primaryRows) + technicalHtml + namedTreeHtml + nearbySectionHtml + issueHtml, "forward");
 }
 
 function showLandmarkDetails(place, distance) {
@@ -394,20 +419,61 @@ function showLandmarkDetails(place, distance) {
         ["Type", place.type],
         ["Area", place.area],
         ["Confidence", place.confidence],
+        ["Opening hours", place.openingHours],
         ["Website", place.website],
         ["Phone", place.phone],
       ];
-  const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
+  // The walking pill starts in its loading form and resolves into the ready chip once its figure is
+  // worked out (updateSelectedDetailFields, js/app.js), so it always has a slot that does not move the
+  // actions beside it. The resolve waits a short minimum so the loading form reads as loading.
+  // Without a shared location there is no walking distance to work out, so the slot stays empty.
+  const distancePill = `<span data-live-field="distance">${hasRealLocation() ? walkChipPendingHtml() : ""}</span>`;
+  if (hasRealLocation()) {
+    setTimeout(() => {
+      if (state.selected && state.selected.item === place) updateSelectedDetailFields();
+    }, WALK_CHIP_MIN_LOADING_MS);
+  }
   const mapsLink = place.latitude != null ? openInMapsHtml(place.latitude, place.longitude, place.name) : "";
   const shareBtn = shareLocationHtml();
-  const topRow = (distancePill || mapsLink || shareBtn) ? `<div class="detail-top-row">${distancePill}${mapsLink}${shareBtn}</div>` : "";
+  const communityPlaceStatus = isEvent ? { chip: "", detail: "" } : communityPlaceStatusSlotsHtml(place);
+  const actionsHtml = `<span class="detail-top-actions">${communityPlaceStatus.chip}${mapsLink}${shareBtn}</span>`;
+  const topRow = `<div class="detail-top-row">${distancePill}${actionsHtml}</div>`;
+  const communityPlaceMarker = isEvent ? "" : communityPlaceConfirmationHtml(place);
+  const communityPlaceSection = isEvent ? "" : communityPlaceSectionHtml(place);
   const descriptionHtml = description ? `<p class="details-description">${escapeHtml(description)}</p>` : "";
+  const ledgerHtml = ledgerMentionHtml(place);
   const issueHtml = place.latitude != null ? reportIssueHtml({ type: place.categoryLabel || "Local place", name: place.name || "Local place", latitude: place.latitude, longitude: place.longitude }) : "";
-  const landmarkHtml = topRow + descriptionHtml + detailsHtml(rows) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + issueHtml;
-  transitionInspectorBody(landmarkHtml, "forward");
+  // Every location with coordinates gets the same Nearest and Related sections (nearbySectionsHtml),
+  // keyed to whichever category the place belongs to for its Related links.
+  const relatedLinksHtml = nearbySectionsHtml({ latitude: place.latitude, longitude: place.longitude, name: place.name, subfilterKey: placePrimaryFilterKey(place), findSlug: place.findSlug });
+  // The check form belongs to the same top-of-detail stack as the community status, so a
+  // submission can visibly transition into that status instead of leaving a second summary at
+  // the bottom of the location details.
+  const landmarkHtml = topRow + communityPlaceStatus.detail + communityPlaceMarker + communityPlaceSection + descriptionHtml + ledgerHtml + detailsHtml(rows, { labels: isEvent }) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + relatedLinksHtml + issueHtml;
+  // A /find/ landing's place replaces its server-rendered panel in place: no slide-in from the side.
+  transitionInspectorBody(landmarkHtml, findLandingSlug() ? null : "forward");
+  if (navigator.onLine && !isEvent && place.latitude != null) loadCommunityPlaceIssues(place);
   if (navigator.onLine && (isBusCategory(place) || isTrainCategory(place))) {
     loadTransportDepartures(place);
   }
+}
+
+function ledgerMentionHtml(place) {
+  const rawUrl = place && (place.ledgerUrl || place.ledger_url);
+  if (typeof rawUrl !== "string" || !rawUrl.trim()) return "";
+
+  const origin = window.location.origin || `https://${window.location.hostname || "www.eppingforestfinds.uk"}`;
+  let url;
+  try {
+    url = new URL(rawUrl, origin);
+  } catch (_) {
+    return "";
+  }
+  // Ledger provenance is deliberately limited to this site's dated editions;
+  // map data must not turn an arbitrary property into a navigation link.
+  if (url.origin !== origin || !/^\/reports\/epping-forest-ledger-\d{4}-\d{2}-\d{2}\.html$/.test(url.pathname)) return "";
+  const href = `${url.pathname}${url.search}${url.hash}`;
+  return `<p class="source-note ledger-mention"><a href="${escapeHtml(href)}">Featured in the Epping Forest Ledger</a></p>`;
 }
 
 function showCowDetails(cow, distance) {
@@ -425,7 +491,8 @@ function showCowDetails(cow, distance) {
   const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const mapsLink = openInMapsHtml(cow.latitude, cow.longitude, `Cow ${cow.serialNo}`);
   const topRow = `<div class="detail-top-row">${distancePill}${mapsLink}</div>`;
-  transitionInspectorBody(topRow + detailsHtml(rows), "forward");
+  const nearbySectionHtml = nearbySectionsHtml({ latitude: cow.latitude, longitude: cow.longitude, name: `Cow ${cow.serialNo}`, subfilterKey: "cows" });
+  transitionInspectorBody(topRow + detailsHtml(rows) + nearbySectionHtml, "forward");
 
   if (state.cowDetailTimerId != null) clearInterval(state.cowDetailTimerId);
   state.cowDetailTimerId = setInterval(() => {
@@ -575,9 +642,46 @@ function showWaterDetails(water, distance) {
 // --- Overview screen ---
 
 let _overviewListKey;
+// True while a /nearby/<slug>/ landing's own server-rendered list (generate-find-pages.js) is the
+// one on screen. Set by boot() and cleared by the first reveal that finishes (revealMapCenteredOnUser),
+// or by showNearbyLocatingState() once the reader asks for their location.
+let _serverRenderedNearbyList = false;
+// True on bare /nearby's generated index (scripts/generate-find-pages.js, renderNearbyIndexPage),
+// whose list is built for the default filters from the no-fix High Beach origin only.
+let _staticNearbyIndex = false;
+
+// The static index is only a valid stand-in for the default filter set (DEFAULT_FILTERS, js/app.js).
+function staticNearbyIndexFiltersAreDefault() {
+  const current = sanitizeOverviewFilters(state.overviewFilters);
+  return current.length === DEFAULT_FILTERS.length && DEFAULT_FILTERS.every((key) => current.includes(key));
+}
+
+// Whether the server-rendered list may stay on screen: no real location fix yet, and for bare
+// /nearby the filters still match the ones it was built for. Anything else rebuilds the live list.
+function serverRenderedNearbyListStillValid() {
+  if (!_serverRenderedNearbyList || hasRealLocation()) return false;
+  return !_staticNearbyIndex || staticNearbyIndexFiltersAreDefault();
+}
+
+// Replaces the list with a "requesting your location" state while a reader's own location request
+// is pending (locateUser, js/app.js). Deliberately not routed through transitionInspectorBody: that
+// slides the whole body in, and this is a state change inside a list that is already on screen.
+function showNearbyLocatingState() {
+  _serverRenderedNearbyList = false;
+  _overviewListKey = undefined;
+  els.inspectorBody.innerHTML = `<div class="nearby-locating" role="status" aria-live="polite"><span class="nearby-locating-spinner" aria-hidden="true"></span><p>Requesting your location…</p></div>`;
+}
 
 function selectOverview(animate = false) {
   if (state.filterScreenOpen || state.searchScreenOpen) return;
+  if (typeof updateDocumentTitle === "function") updateDocumentTitle();
+  if (findLandingAwaitingPlace()) return;
+  // A landing's server-rendered list already shows the High Beach default it would otherwise
+  // rebuild here (default location, no real fix yet), so keep it. Every early caller -- boot's own
+  // reveal, the tree chunks arriving after data has loaded -- would otherwise clear it and repaint
+  // the same list, which read as a flicker. Once a real fix lands, the list is rebuilt for real.
+  if (serverRenderedNearbyListStillValid()) return;
+  _serverRenderedNearbyList = false;
   // The reorder animation is for a live update to the list already on screen (GPS/heading
   // moving an item, a filter changing which ones show) -- captured positions only mean
   // something when compared against the same screen's own previous layout. animate=true means
@@ -591,10 +695,18 @@ function selectOverview(animate = false) {
   // longer centred on the real GPS fix -- showing the back arrow here, same as every other
   // screen, gives that moved view a visible, working way back (navigateBack() retraces the
   // anchor push from pushNearbyAnchorHistory, same as the browser's own back button).
-  setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: Boolean(state.nearbyAnchor), captureSnapshot: animate });
+  // The arrow is live whenever the browser back button has an app screen to return to, not only
+  // when a browse anchor was moved: a /nearby/<slug>/ link tapped from another landing is a
+  // Nearby-to-Nearby step with no anchor of its own, and it still has to be undoable here.
+  setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: Boolean(state.nearbyAnchor) || canGoBackInApp(), captureSnapshot: animate });
   setNavScreenActive(els.nearbyToggle);
   els.inspectorTools.hidden = false;
-  els.inspectorTitle.textContent = "Nearby";
+  // The overview keeps the tools row in the shared shell, but it is normally empty because the
+  // install prompt is hidden. Collapse that empty row so the Nearby heading starts immediately
+  // below the sheet chrome instead of leaving a blank band above it.
+  syncInspectorToolsVisibility();
+  const landingLabel = landingPageCategoryLabel();
+  els.inspectorTitle.textContent = landingLabel ? `Nearby ${landingLabel}` : "Nearby";
   const nearestSummary = overviewNearestHtml();
   els.inspectorType.textContent = overviewHeadingText();
   const listKey = nearestSummary.replace(/<span class="walk-time">[^<]*<\/span>/, "");
@@ -611,7 +723,12 @@ function selectOverview(animate = false) {
     hydrateOverviewBusStopDirections();
     animateNearestItemReorder(previousNearestPositions);
   });
-  syncHashFromSelection();
+  // A category landing path is already the user's navigation target.  Nearby is re-rendered
+  // by location/radius updates after boot, but those incidental renders must not canonicalise
+  // /nearby/<slug>/ to /nearby?radius=30 and lose the category lens from the address bar.
+  // goToInitialView() still calls syncHashFromSelection() after this function when the reader
+  // explicitly navigates back to ordinary Nearby.
+  if (!filterKeysFromFindPath(window.location.pathname).length) syncHashFromSelection();
 }
 
 function nearestItemDomKey(node) {
@@ -691,19 +808,24 @@ function _cleanupTransition() {
   if (scroll) { scroll.style.overflow = ""; scroll.style.height = ""; }
 }
 
+function resetInspectorScrollPosition(scroll = els.inspector && els.inspector.querySelector(".inspector-scroll")) {
+  if (scroll) scroll.scrollTop = 0;
+}
+
 function applyScreenTransition(direction, onDone) {
   const scroll    = els.inspector && els.inspector.querySelector(".inspector-scroll");
   const screen    = scroll && scroll.querySelector(".inspector-screen");
   const snapshot  = _transitionSnapshot;
   _transitionSnapshot = null;
 
+  // Every newly-entered screen starts at its own top, including reduced-motion and
+  // no-snapshot paths where there is no animation to perform.
+  resetInspectorScrollPosition(scroll);
   if (!direction || !snapshot || !screen || !scroll || prefersReducedMotion()) {
     if (onDone) onDone();
+    resetInspectorScrollPosition(scroll);
     return;
   }
-
-  // Reset scroll position for incoming screen
-  scroll.scrollTop = 0;
 
   // Build ghost (outgoing overlay) from pre-captured snapshot
   const ghost = snapshot;
@@ -739,11 +861,15 @@ function applyScreenTransition(direction, onDone) {
     _transitionAnimation = null;
     _cleanupTransition();
     if (onDone) onDone();
+    resetInspectorScrollPosition(scroll);
   }).catch(() => { /* cancelled by next transition */ });
 }
 
 function transitionInspectorBody(newHtml, direction, onDone) {
+  // Replacing the initial Nearby content invalidates its server-rendered stand-in.
+  _serverRenderedNearbyList = false;
   els.inspectorBody.innerHTML = newHtml;
+  if (typeof updateDocumentTitle === "function") updateDocumentTitle();
   applyScreenTransition(direction, onDone);
 }
 
@@ -803,8 +929,9 @@ function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true }
   }
 
   // Apply chrome updates
-  els.inspectorBack.hidden = !showBack;
-  if (els.inspectorTitleSection) els.inspectorTitleSection.classList.toggle("has-back", Boolean(showBack));
+  // Back lives in the nav bar and is always rendered, so it is disabled rather than hidden: showing
+  // or dimming it never moves the title or the tabs.
+  els.inspectorBack.disabled = !showBack;
   els.inspectorTitleEmoji.hidden = !emoji;
   if (emoji && emoji.includes("<")) {
     els.inspectorTitleEmoji.innerHTML = emoji;
@@ -874,9 +1001,9 @@ function focusOverviewItem(type, key) {
   // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
   // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
   // rather than lingering for whenever Nearby is next shown.
-  state.nearbyAnchor = null;
   // Before state.selected changes below -- see startCameraOriginTransition (js/app.js).
   startCameraOriginTransition();
+  state.nearbyAnchor = null;
 
   if (type === "tree") {
     const tree = findTreeByHashKey(key);
@@ -1018,7 +1145,14 @@ function walkTimeStr(distance) {
 function walkInfoHtml(distance) {
   if (distance == null || !Number.isFinite(distance)) return "";
   const walkTime = walkTimeStr(distance).replace(/~/g, "");
-  return `<span class="walk-chip">${formatDistance(distance)} · ${walkTime} ${appIconHtml("walking", "app-icon walk-icon")}</span>`;
+  return `<span class="walk-chip walk-chip--ready"><span class="walk-chip-values">${formatDistance(distance)} · ${walkTime}</span> ${appIconHtml("walking", "app-icon walk-icon")}</span>`;
+}
+
+// The loading form of the walking pill: a spinner beside the walker, shown until the walking figure
+// is worked out. It expands into the ready chip (walkInfoHtml) once there is a figure to show.
+const WALK_CHIP_MIN_LOADING_MS = 450;
+function walkChipPendingHtml() {
+  return `<span class="walk-chip walk-chip--pending" role="status" aria-label="Working out walking time"><span class="walk-chip-spinner" aria-hidden="true"></span>${appIconHtml("walking", "app-icon walk-icon")}</span>`;
 }
 
 function walkInfoExpandableHtml(distance) {
@@ -1030,18 +1164,217 @@ function detailTypeLabel(distance) {
   return `🚶 ${walkTimeStr(distance)} · ${formatDistance(distance)}`;
 }
 
+// Icon-only actions for the inspector's top row. Inline SVG rather than a registry icon
+// (spec-icons.md) -- these are two generic UI glyphs, not map categories, so they have no
+// generated PNG to live in data/icons/. Decorative inside the control: the accessible name is
+// the aria-label on the control itself, and the title gives sighted pointer users the same words.
+const SHARE_ICON_SVG = '<svg class="detail-map-icon-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v12M8 7l4-4 4 4M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+const MAP_PIN_ICON_SVG = '<svg class="detail-map-icon-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="9.5" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
+
 function openInMapsHtml(lat, lon, name) {
   if (lat == null || lon == null || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lon))) return "";
   const url = `https://maps.google.com/?q=${Number(lat).toFixed(6)},${Number(lon).toFixed(6)}`;
-  return `<a class="detail-map-link" href="${escapeHtml(url)}" target="_blank" rel="noreferrer">Open in Maps</a>`;
+  return `<a class="detail-map-link detail-map-link--icon" href="${escapeHtml(url)}" target="_blank" rel="noreferrer" aria-label="Open in Maps" title="Open in Maps">${MAP_PIN_ICON_SVG}</a>`;
 }
 
 function shareLocationHtml() {
-  if (typeof navigator === "undefined") return "";
-  if (!("share" in navigator) && !("clipboard" in navigator)) return "";
-  return `<button class="detail-map-link" type="button" data-action="share-location">Share link</button>`;
+  if (!Native.canShare()) return "";
+  return `<button class="detail-map-link detail-map-link--icon" type="button" data-action="share-location" aria-label="Share link" title="Share link">${SHARE_ICON_SVG}</button>`;
 }
 
+// One tap to browse everything within a fixed 15-minute walk of exactly this spot -- reuses the
+// same anchor-move (setNearbyAnchor) and radius-change (applyWalkingRadiusChange) mechanisms a
+// map tap on open ground and the Settings walking-radius slider already use, combined into one
+// state update by focusNearbyWithinWalkMinutes (js/nav.js), wired through the same delegated
+// click handler as Share link/Open in Maps (data-action, js/nav.js). Shares the Nearby list's own
+// .nearest-item card shape (see nearbySectionsHtml below) rather than the unrelated
+// .detail-map-link pill an earlier version used -- it lives under a "Nearby" heading alongside
+// whatever else is nearby, not as a disconnected top-row action. A <button>, not an <a>: it drives
+// a live state change (moving the browse anchor and resizing the radius), not a navigation, so the
+// .nearest-item styling (written for a <button> in the Nearby list itself) needs no anchor-tag
+// override the way nearbySectionsHtml's own cards do.
+function nearbyWithinWalkHtml(lat, lon, name = null) {
+  if (lat == null || lon == null) return "";
+  const minutes = state.walkingDistanceMinutes;
+  const nameAttr = name ? ` data-name="${escapeHtml(name)}"` : "";
+  // The count covers every category, the same set the card browses -- "342 locations within 30 min
+  // walk of The Foresters" -- so the number matches what the Nearby list shows once it is opened.
+  const { within } = countNearbyEntries(Array.from(ALL_OVERVIEW_FILTER_KEYS), Number(lat), Number(lon));
+  const copy = `${formatCount(within)} locations within ${minutes} min walk of ${name || "this spot"}`;
+  return `<li><button class="nearest-item" type="button" data-action="walk-radius" data-lat="${Number(lat)}" data-lon="${Number(lon)}"${nameAttr}>` +
+    `<span class="nearest-icon" aria-hidden="true">${appIconHtml("walking")}</span>` +
+    `<div class="nearest-content"><div class="nearest-header"><span class="nearest-name">Everything</span></div>` +
+    `<div class="nearest-footer"><span class="nearest-meta">${escapeHtml(copy)}</span></div></div>` +
+    `</button></li>`;
+}
+
+
+// Two headed sections -- "Nearby" (live walk-time cards to the nearest tree and, when any are
+// currently loaded, the cows) and "Related" (this place's own subfilter/group) -- both using the
+// same .nearest-item card the Nearby list itself uses, rather than mixing that card style with
+// the unrelated .detail-map-link pill the way an earlier version of this did: one visual
+// language, not two. Food/locations places only (findSlug) -- the same scope the static
+// /find/<slug>/ page's own "Nearby"/"Part of" content already covers before JS boots; this is
+// that content's live continuation once the business is actually selected on screen, using the
+// app's own real nearest-neighbour distance (nearestTreeTo/nearestCowTo, js/app.js) rather than a
+// second approximation of "how far" the static page had no way to compute at build time -- no
+// external source to credit for it, so neither section names one.
+// The categories a place's Nearby section shows a nearest-match card for: the reader's own active
+// filters, capped so a long selection doesn't bury the section, or the defaults (trees and cows)
+// when nothing is set -- the same fallback a first visit and an SEO landing page get.
+const NEARBY_SECTION_DEFAULT_KEYS = ["trees", "cows"];
+const NEARBY_SECTION_MAX_CARDS = 6;
+function nearbyCardFilterKeys() {
+  const active = (state.overviewFilters || []).filter((key) => ALL_OVERVIEW_FILTER_KEYS.has(key));
+  const keys = active.length ? active : NEARBY_SECTION_DEFAULT_KEYS;
+  return keys.slice(0, NEARBY_SECTION_MAX_CARDS);
+}
+
+// Counts the entries in the given categories that sit within the reader's walking radius of a
+// point, and how many lie beyond it. An entry matching more than one of the categories (a pub that is
+// also a food place, say) is counted once. Reads the same nearest-entry helpers the Nearby list
+// itself uses (nearestOverviewEntriesForFilter, js/app.js), so the numbers agree with what the list
+// would show if the reader browsed from this spot.
+function countNearbyEntries(filterKeys, latitude, longitude) {
+  const limit = walkingDistanceToMetres(state.walkingDistanceMinutes);
+  const seen = new Set();
+  let within = 0;
+  let beyond = 0;
+  for (const key of filterKeys) {
+    for (const entry of nearestOverviewEntriesForFilter(key, latitude, longitude, Infinity)) {
+      if (seen.has(entry.item)) continue;
+      seen.add(entry.item);
+      if (entry.metres <= limit) within += 1;
+      else beyond += 1;
+    }
+  }
+  return { within, beyond };
+}
+
+// One plain sentence for a category: "43 trees within 30 min walk of The Foresters. 20 further away."
+// or, with none close enough, "No cows within 30 min walk of The Foresters. 11 further away." The
+// noun is the category's own label in lower case; a count of exactly one drops a trailing "s".
+function formatCount(count) {
+  return count.toLocaleString("en-GB");
+}
+
+function nearbyCountCopy(noun, { within, beyond }, placeName) {
+  const minutes = state.walkingDistanceMinutes;
+  const where = `within ${minutes} min walk of ${placeName}`;
+  let sentence;
+  if (within === 0) {
+    sentence = beyond === 0 ? `No ${noun} nearby.` : `No ${noun} ${where}.`;
+  } else {
+    const word = within === 1 ? noun.replace(/s$/, "") : noun;
+    sentence = `${formatCount(within)} ${word} ${where}.`;
+  }
+  return beyond ? `${sentence} ${formatCount(beyond)} further away.` : sentence;
+}
+
+// The Places close by, Nearest and Related sections for any selected point with coordinates -- a /find/ business,
+// a tree, a cow, or a landmark with no page of its own. `subfilterKey` names the category the point
+// belongs to (its own subfilter, e.g. "trees" for a veteran tree), which decides the headed
+// "Related" section; without one there is no Related section, only Nearest. Every location gets the
+// same Nearest cards (the reader's own filters, or the defaults), so a tree is no longer a dead end
+// offering only "Everything".
+// The places within 1 km (straight line) of a /find/ business, as links to their own pages, so the
+// live panel lists the same neighbours the static page does (generate-business-pages.js). Only
+// places with a findSlug qualify, and the business itself is left out.
+const NEARBY_PLACES_RADIUS_METRES = 1000;
+const NEARBY_PLACES_MAX = 6;
+function nearbyPlacesSectionHtml(latitude, longitude, findSlug) {
+  const places = state.landmarks
+    .filter((place) => place.findSlug && place.findSlug !== findSlug && place.latitude != null && place.longitude != null)
+    .map((place) => ({ place, metres: distanceMetres(latitude, longitude, place.latitude, place.longitude) }))
+    .filter(({ metres }) => metres <= NEARBY_PLACES_RADIUS_METRES)
+    .sort((a, b) => a.metres - b.metres)
+    .slice(0, NEARBY_PLACES_MAX);
+  if (!places.length) return "";
+  const cards = places
+    .map(({ place, metres }) => {
+      const subfilter = FILTER_SUBFILTERS_BY_KEY.get(placePrimaryFilterKey(place));
+      const icon = subfilter ? appIconHtml(subfilter.icon) : "";
+      return `<li><a class="nearest-item nearby-link" href="/find/${escapeHtml(place.findSlug)}/">` +
+        `<span class="nearest-icon" aria-hidden="true">${icon}</span>` +
+        `<div class="nearest-content"><div class="nearest-header"><span class="nearest-name">${escapeHtml(place.name || "Local place")}</span></div>` +
+        `<div class="nearest-footer"><span class="nearest-meta">${escapeHtml(formatDistance(Math.round(metres)))} away</span></div></div></a></li>`;
+    })
+    .join("");
+  return `<h3 class="detail-section-heading">Places close by</h3><ul class="nearest-list related-cards">${cards}</ul>`;
+}
+
+function nearbySectionsHtml({ latitude, longitude, name = null, subfilterKey = null, findSlug = null }) {
+  if (latitude == null || longitude == null) return "";
+  const placeName = name || "this spot";
+
+  // One shared card shape for both sections -- icon, name and a plain sentence of counts -- plain
+  // <a> elements carrying the Nearby list's own .nearest-item class rather than the
+  // <button data-overview-type> it's usually paired with, which is safe (every handler keyed to
+  // that class also requires the data-overview-type attribute in its own selector, per js/nav.js)
+  // and gets the same hover lift and arrow-key list navigation for free.
+  const cardHtml = (href, icon, cardName, copy) =>
+    `<li><a class="nearest-item nearby-link" href="${href}">` +
+    `<span class="nearest-icon" aria-hidden="true">${appIconHtml(icon)}</span>` +
+    `<div class="nearest-content"><div class="nearest-header"><span class="nearest-name">${escapeHtml(cardName)}</span></div>` +
+    (copy ? `<div class="nearest-footer"><span class="nearest-meta">${escapeHtml(copy)}</span></div>` : "") +
+    `</div></a></li>`;
+
+  // Links carry this point's own position as the target page's existing "near=<lat>,<lon>" anchor
+  // route (nearbyAnchorRouteValue, js/app.js), plus its name so the target can say whose
+  // neighbourhood it is showing. Otherwise landing there re-anchors to the reader's own GPS fix,
+  // which strands the reader's actual reason for coming here (how far from *this place*).
+  const anchorHash = nearbyAnchorRouteValue({ latitude, longitude, label: name });
+  // One card per category the reader has chosen (state.overviewFilters, or the defaults when none
+  // are set or on an SEO page), each saying how many sit within the walking radius of this point.
+  const nearestCardsHtml = nearbyCardFilterKeys()
+    .map((key) => {
+      const sub = FILTER_SUBFILTERS_BY_KEY.get(key);
+      // Cow positions arrive asynchronously; until they are loaded "no cows nearby" would be a lie,
+      // so the card waits for them rather than reporting a count of zero.
+      if (!sub || (key === "cows" && !state.cows.length)) return "";
+      const counts = countNearbyEntries([key], latitude, longitude);
+      return cardHtml(`/nearby/${key.replace(/_/g, "-")}/#${anchorHash}`, sub.icon, sub.label, nearbyCountCopy(sub.label.toLowerCase(), counts, placeName));
+    })
+    .join("");
+  // The "Everything" card (nearbyWithinWalkHtml) joins the same list, so there is always at least
+  // this card for a point with coordinates.
+  const walkCardHtml = nearbyWithinWalkHtml(latitude, longitude, name);
+  const nearestSectionHtml =
+    `<h3 class="detail-section-heading">Nearest</h3><ul class="nearest-list related-cards">` +
+    nearestCardsHtml +
+    walkCardHtml +
+    `</ul>`;
+
+  const subfilter = subfilterKey ? FILTER_SUBFILTERS_BY_KEY.get(subfilterKey) : null;
+  const group = subfilter ? FILTER_GROUPS_BY_KEY.get(subfilter.groupKey) : null;
+  const relatedSectionHtml = subfilter && group
+    ? `<h3 class="detail-section-heading">Related</h3><ul class="nearest-list related-cards">` +
+      cardHtml(
+        `/nearby/${subfilter.key.replace(/_/g, "-")}/`,
+        subfilter.icon,
+        subfilter.label,
+        nearbyCountCopy(subfilter.label.toLowerCase(), countNearbyEntries([subfilter.key], latitude, longitude), placeName)
+      ) +
+      cardHtml(
+        `/nearby/${subfilter.groupKey.replace(/_/g, "-")}/`,
+        group.icon,
+        group.label,
+        nearbyCountCopy(group.label.toLowerCase(), countNearbyEntries(group.subfilters.map((s) => s.key), latitude, longitude), placeName)
+      ) +
+      `</ul>`
+    : "";
+
+  const placesHtml = findSlug ? nearbyPlacesSectionHtml(latitude, longitude, findSlug) : "";
+  return placesHtml + nearestSectionHtml + relatedSectionHtml;
+}
+
+// A link to this place's own crawlable /find/<slug>/ page, when it has one (findSlug is set at
+// load time, js/loader.js, from data/business-slugs.json -- the same index that page itself was
+// built from). Only food/locations places get one; everything else (trees, transport, history)
+// has no individual page, so this is absent there. Also absent when the page on screen already
+// IS that place's own /find/ page (landing there selects it automatically -- see
+// applySelectionFromHash's own routeValueFromLocation resolution, js/app.js): a link to the
+// current page would be a dead end, not a useful action.
 // A "Noticed a problem with this location?" link on point-feature detail screens (trees,
 // landmarks) that expands into an inline report form in place, rather than navigating to the
 // full Report screen. Submission mechanics mirror that screen (js/app.js), but the location
@@ -1059,25 +1392,23 @@ function reportIssueHtml(context) {
     </div>`;
 }
 
+// Shares the address of what is on screen: the native share sheet in the app, the browser's own on
+// the web, and the clipboard where neither exists. Always the website address (Native.websiteUrl),
+// so a link shared from inside the app opens for anyone it is sent to.
 async function shareCurrentLocation() {
-  const url = window.location.href;
-  if (navigator.share) {
-    try { await navigator.share({ url }); return; } catch (_) {}
-  }
-  if (navigator.clipboard) {
-    try {
-      await navigator.clipboard.writeText(url);
-      const btn = els.inspectorBody && els.inspectorBody.querySelector("[data-action='share-location']");
-      if (btn) {
-        const original = btn.textContent;
-        btn.textContent = "Copied!";
-        setTimeout(() => { if (btn.isConnected) btn.textContent = original; }, 1600);
-      }
-    } catch (_) {}
+  const outcome = await Native.share({ title: document.title, url: Native.websiteUrl() });
+  if (outcome !== "copied") return;
+  const btn = els.inspectorBody && els.inspectorBody.querySelector("[data-action='share-location']");
+  if (btn) {
+    const original = btn.textContent;
+    btn.textContent = "Copied!";
+    setTimeout(() => { if (btn.isConnected) btn.textContent = original; }, 1600);
   }
 }
 
-function detailsHtml(rows) {
+// `labels: false` drops each field name, for a table whose values say what they are on their own
+// (a place's address and website, js/inspector.js showLandmarkDetails).
+function detailsHtml(rows, { labels = true } = {}) {
   const visibleRows = rows.filter(([, value]) => value !== null && value !== undefined && value !== "");
   return `<dl>${visibleRows.map(([label, value, liveKey]) => {
     const shown = displayValue(value);
@@ -1087,9 +1418,15 @@ function detailsHtml(rows) {
       let display;
       try { display = new URL(value).hostname.replace(/^www\./, ""); } catch (_) { display = value; }
       ddContent = `<a href="${escapeHtml(value)}" target="_blank" rel="noreferrer">${escapeHtml(display)}</a>`;
+    } else if (label === "Phone" && typeof value === "string" && value.trim()) {
+      // A tel: link is the one piece of contact detail worth a direct tap on a phone --
+      // the static /find/<slug>/ page already does this (scripts/generate-business-pages.js);
+      // this brings the live detail view to the same place rather than leaving it as inert text.
+      ddContent = `<a href="tel:${escapeHtml(value)}">${escapeHtml(shown)}</a>`;
     } else {
       ddContent = escapeHtml(shown);
     }
+    if (!labels) return `<div class="row row--value-only"><dd${liveAttr}>${ddContent}</dd></div>`;
     return `<div class="row"><dt>${escapeHtml(label)}</dt><dd${liveAttr}>${ddContent}</dd></div>`;
   }).join("")}</dl>`;
 }

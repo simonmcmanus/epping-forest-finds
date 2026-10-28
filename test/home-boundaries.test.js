@@ -36,3 +36,11 @@ test("the app entry point does not depend on marketing assets", () => {
   const html = fs.readFileSync(path.join(ROOT, "app.html"), "utf8");
   assert.doesNotMatch(html, /(?:src|href)=["'][^"']*assets\/home\//);
 });
+
+test("the homepage keeps a no-script Ledger route while its latest preview stays marketing-owned", () => {
+  const html = fs.readFileSync(path.join(ROOT, "index.html"), "utf8");
+  const script = fs.readFileSync(path.join(ROOT, "assets", "home", "home.js"), "utf8");
+  assert.match(html, /id="latestLedgerLink" href="\/reports\/"/);
+  assert.match(html, /class="ledger-archive-link" href="\/reports\/"/);
+  assert.doesNotMatch(script, /\/(?:js|css|data)\//);
+});
