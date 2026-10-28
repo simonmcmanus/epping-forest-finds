@@ -329,7 +329,7 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
   ordinary 1-3 filter default state got the no-location full-list/fit treatment above on every
   single back-navigation to Filters with no location granted.
 - **"All nearby" ignores the saved filters.** `/nearby?filters=false` (read by
-  `showsEverythingFromQuery()`, js/app.js) applies every category ephemerally (`persist:false`), so
+  `showsEverythingFromQuery()`, js/app.js) applies every category ephemerally (`persist:false`, `reveal:false`: the camera stays on the walking radius rather than reaching out to the nearest match of a kind with nothing in range), so
   the reader's own saved filters are untouched and return on the next plain visit. The same
   override is applied by the walk-radius card's own button (`focusNearbyWithinWalkMinutes`, js/nav.js).
 - **"Show all nearby" pill on the top-level Nearby list.** While any filter is applied on the plain

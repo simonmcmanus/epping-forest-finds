@@ -1055,7 +1055,7 @@ function isInstalledAppContext() {
 
 function applyShowFilterFromQuery({ render = true } = {}) {
   if (showsEverythingFromQuery(window.location.search)) {
-    setOverviewFilters(Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: false, render });
+    setOverviewFilters(Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: false, render, reveal: false });
     return;
   }
   const fromPath = filterKeysFromFindPath(window.location.pathname);
@@ -2672,7 +2672,7 @@ function setSubfilterPanelExpanded(panel, expanded) {
 // -- landing on one of those names what that page shows, not a preference the reader chose, so
 // it must not overwrite their own saved filters (saveFilterState) for every later visit to
 // /nearby. An actual chip tap, on that page or anywhere else, always persists as before.
-function setOverviewFilters(nextFilters, { persist = true, render = true } = {}) {
+function setOverviewFilters(nextFilters, { persist = true, render = true, reveal = true } = {}) {
   const previousFilters = state.overviewFilters;
   state.overviewFilters = sanitizeOverviewFilters(nextFilters);
   // Marks the current filters as a page's own lens rather than the reader's choice, so
@@ -2682,7 +2682,10 @@ function setOverviewFilters(nextFilters, { persist = true, render = true } = {})
   state.overviewFiltersEphemeral = !persist;
   // Before the camera work below: a filter switched on with nothing inside the walking radius
   // is what lets the fit reach its nearest match (outOfRadiusFitPoints).
-  refreshOutOfRadiusReveal(previousFilters);
+  // reveal:false -- the show-everything override: every kind arrives at once, so some always has
+  // nothing in the ring, and reaching for it would zoom out past the walking radius.
+  if (reveal) refreshOutOfRadiusReveal(previousFilters);
+  else state.outOfRadiusRevealFilters = [];
   if (persist) saveFilterState();
   updateFilterUi();
   syncLiveQueryStringForScreen();

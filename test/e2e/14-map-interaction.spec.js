@@ -565,6 +565,15 @@ test.describe("Map interaction", () => {
       await expect.poll(() => page.evaluate(() => state.overviewFilters.includes("pubs") && state.overviewFilters.includes("national_rail"))).toBe(true);
     });
 
+    test("tapping Show all nearby keeps the camera on the walking radius instead of reaching for far-off matches", async ({ page }) => {
+      await setup(page, "/nearby");
+      await page.evaluate(() => setOverviewFilters(["pubs"], { persist: false }));
+      await page.locator("#inspectorBody .show-all-nearby").click();
+      await expect.poll(() => page.evaluate(() => state.overviewFilters.length === ALL_OVERVIEW_FILTER_KEYS.size)).toBe(true);
+      expect(await page.evaluate(() => state.outOfRadiusRevealFilters.length)).toBe(0);
+      expect(await page.evaluate(() => outOfRadiusFitPoints().length)).toBe(0);
+    });
+
     test("the Show all nearby pill appears only while some categories are filtered out", async ({ page }) => {
       await setup(page, "/nearby?filters=false");
       await expect.poll(() => page.evaluate(() => state.overviewFilters.length === ALL_OVERVIEW_FILTER_KEYS.size)).toBe(true);
