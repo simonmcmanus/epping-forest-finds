@@ -62,8 +62,8 @@ jobs:
         working-directory: native
         run: npx cap sync android
       - name: Assemble unsigned debug APK
-        working-directory: native
-        run: ./android/gradlew --no-daemon --stacktrace assembleDebug
+        working-directory: native/android
+        run: ./gradlew --no-daemon --stacktrace assembleDebug
       - name: Write Android test instructions
         run: |
           cat > native/android-test-instructions.txt <<'EOF'
