@@ -2388,23 +2388,38 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 .tree-facts .row:first-child {
   grid-column: 1 / -1;
   justify-items: center;
-  gap: 10px;
-  padding: 16px;
-  background: #eef2e9;
-  border-color: #dce5d6;
+  gap: 0;
+  padding: 4px 0 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
 }
 .tree-facts dt { font-size: 0.75rem; letter-spacing: 0.03em; }
 .tree-facts dd { color: var(--ink); font-size: 1rem; line-height: 1.4; }
-/* A live-number version of the metal tag pictured on the homepage. */
+/* Retain the field name for screen readers without a visible heading or frame. */
+.tree-facts .row:first-child dt {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* A live-number version of the scalloped metal tag pictured on the homepage. */
 .tree-facts .row:first-child dd {
   position: relative;
   box-sizing: border-box;
   width: fit-content;
   max-width: 100%;
   min-width: min(210px, 100%);
-  padding: 13px 30px;
-  border: 2px solid #879b90;
-  border-radius: 15px 10px 16px 11px;
+  padding: 19px 30px;
+  border: 0;
+  border-radius: 0;
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 80' preserveAspectRatio='none'%3E%3Cpath d='M0 14 Q0 3 12 3 Q22 0 30 6 Q40 14 50 6 Q60 -2 70 6 Q80 14 90 6 Q100 -2 110 6 Q120 14 130 6 Q140 -2 150 6 Q160 14 170 6 Q180 -2 190 6 Q200 14 210 6 Q220 0 228 3 Q240 3 240 14 L240 66 Q240 77 228 77 Q218 80 210 74 Q200 66 190 74 Q180 82 170 74 Q160 66 150 74 Q140 82 130 74 Q120 66 110 74 Q100 82 90 74 Q80 66 70 74 Q60 82 50 74 Q40 66 30 74 Q20 80 12 77 Q0 77 0 66 Z'/%3E%3C/svg%3E");
+  mask-size: 100% 100%;
+  mask-repeat: no-repeat;
   background:
     repeating-linear-gradient(115deg, transparent 0 5px, #ffffff24 6px, transparent 7px 13px),
     linear-gradient(145deg, #e7e9de, #b6c4bc 38%, #dbe0d7 53%, #aabbb2);
