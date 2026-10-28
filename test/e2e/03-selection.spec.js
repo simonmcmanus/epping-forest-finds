@@ -85,7 +85,8 @@ test.describe("Selection and Inspector", () => {
       for (const icon of placement) {
         expect(icon.opacity).toBe("0.5");
         expect(icon.width).toBe(56);
-        expect(icon.rightGap).toBeLessThanOrEqual(1);
+        expect(icon.rightGap).toBeGreaterThanOrEqual(5);
+        expect(icon.rightGap).toBeLessThanOrEqual(10);
         expect(icon.labelLeft).toBeLessThan(icon.iconLeft);
       }
     });

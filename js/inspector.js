@@ -384,7 +384,9 @@ function showTreeDetails(tree, distance, label) {
   const measurementRows = primaryRows.filter(([, value]) => value != null && value !== "");
   const measurementsHtml = measurementRows.length ? `<div class="tree-measurements"><dl>${measurementRows.map(([name, value]) => {
     const age = name === "Estimated age" && String(value).match(/^(.*) (\(c\.-?\d+\))$/);
-    const shown = age ? `${escapeHtml(age[1])} <small>${escapeHtml(age[2])}</small>` : escapeHtml(displayValue(value));
+    const shown = age
+      ? `${escapeHtml(age[1].replace(/ years$/, ""))}<span class="tree-measurement-unit"> years</span><small>${escapeHtml(age[2])}</small>`
+      : escapeHtml(displayValue(value));
     return `<div class="row"><dt>${factIcons[name]}<span>${escapeHtml(name)}</span></dt><dd>${shown}</dd></div>`;
   }).join("")}</dl></div>` : "";
   const formHtml = tree.treeForm ? `<div class="tree-form">${detailsHtml([["Tree form", tree.treeForm]], { icons: factIcons })}</div>` : "";
