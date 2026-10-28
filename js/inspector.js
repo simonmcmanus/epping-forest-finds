@@ -678,6 +678,41 @@ function swapStaticChipsForRail() {
   const nav = els.inspectorBody && els.inspectorBody.querySelector("nav.nearby-category-nav");
   if (!nav || typeof filterRailHtml !== "function") return;
   nav.outerHTML = filterRailHtml();
+  maybePlayRailIntro(false);
+}
+
+// The rail arriving on screen: pills stream in from the right one after another, and if there are
+// more than fit, the row drifts sideways and back once so it is obvious it scrolls.
+// Plays once per arrival on the Nearby screen: a rebuild that replaces a rail already on screen
+// (a location update, a radius change) does not replay it, and one that lands before the rail has
+// any width (still behind the boot overlay) leaves it owed until the rail is actually visible.
+let railIntroDue = true;
+function maybePlayRailIntro(hadRail) {
+  if (!hadRail) railIntroDue = true;
+  const row = els.inspectorBody && els.inspectorBody.querySelector && els.inspectorBody.querySelector(".filter-rail .rail-pills");
+  if (!railIntroDue || !row || !row.clientWidth) return;
+  railIntroDue = false;
+  animateRailIntro();
+}
+
+function animateRailIntro() {
+  const row = els.inspectorBody && els.inspectorBody.querySelector && els.inspectorBody.querySelector(".filter-rail .rail-pills");
+  if (!row || prefersReducedMotion()) return;
+  row.querySelectorAll(".rail-pill").forEach((pillEl, index) => {
+    pillEl.animate(
+      [{ opacity: 0, transform: "translateX(28px) scale(0.9)" }, { opacity: 1, transform: "none" }],
+      { duration: 380, delay: 60 + Math.min(index, 9) * 45, easing: "cubic-bezier(0.34, 1.3, 0.64, 1)", fill: "backwards" }
+    );
+  });
+  const overflow = row.scrollWidth - row.clientWidth;
+  if (overflow <= 8) return;
+  const peek = Math.min(72, overflow);
+  setTimeout(() => {
+    if (!row.isConnected) { railIntroDue = true; return; }
+    if (row.scrollLeft > 0) return;
+    row.scrollTo({ left: peek, behavior: "smooth" });
+    setTimeout(() => { if (row.isConnected && Math.abs(row.scrollLeft - peek) < 24) row.scrollTo({ left: 0, behavior: "smooth" }); }, 650);
+  }, 700);
 }
 
 function selectOverview(animate = false) {
@@ -729,6 +764,7 @@ function selectOverview(animate = false) {
   }
 
   _overviewListKey = listKey;
+  const hadRail = Boolean(els.inspectorBody && els.inspectorBody.querySelector && els.inspectorBody.querySelector(".filter-rail"));
   const patchInPlace = railPatchPending && !animate;
   railPatchPending = false;
   if (patchInPlace && patchOverviewBody(nearestSummary)) {
@@ -741,6 +777,7 @@ function selectOverview(animate = false) {
       updateOverviewDirectionArrows();
       hydrateOverviewBusStopDirections();
       animateNearestItemReorder(previousNearestPositions);
+      maybePlayRailIntro(hadRail);
     });
   }
   // A category landing path is already the user's navigation target.  Nearby is re-rendered
@@ -806,7 +843,14 @@ function patchRailPills(oldRail, newRail) {
     const key = next.dataset.railKey;
     let el = existing.get(key);
     if (el) {
+      const wasOn = el.classList.contains("is-on");
       el.classList.toggle("is-on", next.classList.contains("is-on"));
+      if (wasOn !== el.classList.contains("is-on")) {
+        el.animate([{ transform: "scale(0.9)" }, { transform: "scale(1.09)", offset: 0.55 }, { transform: "scale(1)" }], { duration: 380, easing: "cubic-bezier(0.34, 1.3, 0.64, 1)" });
+        const rowEl = oldPills;
+        const left = el.offsetLeft - 16;
+        if (el.offsetLeft < rowEl.scrollLeft || el.offsetLeft + el.offsetWidth > rowEl.scrollLeft + rowEl.clientWidth) rowEl.scrollTo({ left, behavior: "smooth" });
+      }
       el.setAttribute("aria-pressed", next.getAttribute("aria-pressed"));
       existing.delete(key);
     } else {
@@ -845,7 +889,7 @@ function mergeNearestList(list, oldItems, keyOf) {
     ghost.setAttribute("aria-hidden", "true");
     ghost.style.cssText = `position:absolute;left:0;top:${top - listTop}px;width:${width}px;margin:0;pointer-events:none;`;
     list.appendChild(ghost);
-    ghost.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "translateX(-14px)" }], { duration: 140, easing: "ease-in" }).finished
+    ghost.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "scale(0.94)" }], { duration: 170, easing: "ease-in" }).finished
       .then(() => ghost.remove(), () => ghost.remove());
   });
 
@@ -862,7 +906,9 @@ function mergeNearestList(list, oldItems, keyOf) {
 
   settled.forEach(({ el, was, order }) => {
     if (was == null) {
-      el.animate([{ opacity: 0, transform: "translateX(14px)" }, { opacity: 1, transform: "none" }], { duration: 280, delay: Math.min(order, 8) * 18, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)", fill: "backwards" });
+      const delay = Math.min(order, 9) * 32;
+      el.animate([{ opacity: 0, transform: "translateY(18px) scale(0.97)" }, { opacity: 1, transform: "none" }], { duration: 360, delay, easing: "cubic-bezier(0.34, 1.3, 0.64, 1)", fill: "backwards" });
+      el.animate([{ boxShadow: "0 0 0 3px rgba(47, 107, 60, 0.4)" }, { boxShadow: "0 0 0 0 rgba(47, 107, 60, 0)" }], { duration: 900, delay, easing: "ease-out" });
       return;
     }
     const dy = was - el.getBoundingClientRect().top;

@@ -1393,10 +1393,15 @@ The full routing model — the URL for each screen, history entries, back/forwar
   - **In place, no slide.** A tap sets `railPatchPending`; `selectOverview()` then calls
     `patchOverviewBody()` (js/inspector.js) instead of `transitionInspectorBody()`, so the panel does
     not slide. Existing pills keep their node and glide to new slots, new pills pop in; rows are
-    merged by place — kept rows slide to their new position, new rows step in one after another,
-    leaving rows fade out from where they were. A phone gets an 8ms vibration on a tap where
+    merged by place — kept rows slide to their new position, new rows spring up one after another
+    with a brief green ring, leaving rows fade out from where they were. A pressed pill's green
+    fill sweeps in from the left and the pill pops; a toggled pill is scrolled into view. A phone gets an 8ms vibration on a tap where
     `navigator.vibrate` exists. With `prefers-reduced-motion`, or when the body has no rail yet, the
     body is rebuilt the ordinary way. The Filters button is an ordinary link and still slides.
+  - **Arrival.** When the rail first appears on a Nearby screen (`animateRailIntro()`,
+    js/inspector.js) the pills stream in from the right one after another, and if more pills exist
+    than fit, the row drifts sideways and back once so it is clear it scrolls. It plays once per
+    arrival: a rebuild that replaces a rail already on screen does not replay it.
   - **Static landings.** The server-rendered `/nearby/<slug>/` page keeps its anchor chips for
     crawlers and no-JavaScript visitors (`spec-marketing.md` § "Category pages"); while that list
     stays on screen, `swapStaticChipsForRail()` replaces just the chips with the rail.
