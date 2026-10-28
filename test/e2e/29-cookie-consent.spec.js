@@ -127,4 +127,34 @@ test.describe("Cookie consent banner", () => {
     await page.locator("#manageCookiePreferencesBtn").click();
     await expect(page.locator("#cookieConsentBanner")).toBeVisible();
   });
+
+  test("Google's analytics script is not requested before consent, and loads once Accept is tapped", async ({ page }) => {
+    const requests = [];
+    await page.route("**/www.googletagmanager.com/**", (route) => {
+      requests.push(route.request().url());
+      return route.fulfill({ contentType: "text/javascript", body: "" });
+    });
+    await page.goto("/");
+    const banner = page.locator("#cookieConsentBanner");
+    await expect(banner).toBeVisible();
+    // Not even a cookieless ping: nothing goes to Google before an answer.
+    expect(requests).toEqual([]);
+    await banner.locator('[data-action="accept"]').click();
+    await expect.poll(() => requests.length).toBe(1);
+  });
+
+  test("declining removes Google Analytics cookies already on the device, and never loads Google's script", async ({ page, context }) => {
+    const requests = [];
+    await page.route("**/www.googletagmanager.com/**", (route) => {
+      requests.push(route.request().url());
+      return route.fulfill({ contentType: "text/javascript", body: "" });
+    });
+    await page.goto("/");
+    await page.evaluate(() => { document.cookie = "_ga=GA1.1.123.456; path=/"; document.cookie = "_ga_M9NL06G2JB=GS1.1; path=/"; });
+    await page.locator('#cookieConsentBanner [data-action="decline"]').click();
+    const names = (await context.cookies()).map((cookie) => cookie.name);
+    expect(names.filter((name) => name.startsWith("_ga"))).toEqual([]);
+    expect(requests).toEqual([]);
+  });
 });
+

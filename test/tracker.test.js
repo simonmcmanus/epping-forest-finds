@@ -181,3 +181,21 @@ test("a queue left over from a session with consent is not sent once consent is 
   assert.equal(tracker.sent.length, 0);
   assert.equal(tracker.queued().length, 0, "and it is dropped");
 });
+
+test("without usage-analytics consent nothing is written to the device: no device id, no queued event", async () => {
+  const tracker = loadTracker({ consent: false });
+  tracker.api.trackLocation(51.65, 0.04, 90);
+  tracker.api.trackClick("tree", { id: "t1", commonName: "Oak", latitude: 51.6, longitude: 0.04 }, 51.6, 0.04);
+  await settle();
+  assert.equal(tracker.context.localStorage.getItem("ff-uid"), null);
+  assert.equal(tracker.context.localStorage.getItem("ff-track-queue"), null);
+  assert.equal(tracker.sent.length, 0);
+});
+
+test("withdrawing usage-analytics consent deletes the device id the events were sent under", async () => {
+  const tracker = loadTracker();
+  tracker.api.trackLocation(51.65, 0.04, 90);
+  assert.ok(tracker.context.localStorage.getItem("ff-uid"), "an id exists while consent is given");
+  vm.runInContext("setTrackingConsent(false)", tracker.context);
+  assert.equal(tracker.context.localStorage.getItem("ff-uid"), null);
+});

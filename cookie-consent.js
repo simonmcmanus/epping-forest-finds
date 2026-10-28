@@ -6,9 +6,9 @@
 // the app the same cookies are part of one usage-analytics question (js/tracker.js
 // setAnalyticsConsent), which writes this file's key too, so a choice made either way carries over.
 //
-// Google Consent Mode v2's `analytics_storage` default is set to "denied" inline, before this
-// file loads (see the gtag snippet in each page's <head> / generator) -- this file only decides
-// whether to show the banner and relays the visitor's choice to gtag.
+// Every page's <head> defines the gtag() queue with all four Consent Mode v2 signals denied and
+// Google Signals off (see the snippet in each page / generator), but does not load Google's
+// script: this file loads it once the visitor agrees, and relays the choice to gtag.
 (function () {
   const CONSENT_KEY = "ff-cookie-consent";
   const EARLY_TESTING_BANNER_KEY = "ff-early-testing-banner-v1";
@@ -26,10 +26,39 @@
     }
   }
 
+  const GA_SCRIPT_SRC = "https://www.googletagmanager.com/gtag/js?id=G-M9NL06G2JB";
+
+  // Google's own script is loaded only once analytics is agreed to. Each page's <head> defines the
+  // gtag() queue and denies every consent signal, but no longer loads the script itself: in
+  // Google's "advanced" consent mode a loaded tag still sends cookieless pings (IP address, page,
+  // browser) before anyone has answered, which needs consent just as the cookies do.
+  function loadGoogleAnalytics() {
+    if (document.querySelector(`script[src="${GA_SCRIPT_SRC}"]`)) return;
+    const script = document.createElement("script");
+    script.async = true;
+    script.src = GA_SCRIPT_SRC;
+    document.head.appendChild(script);
+  }
+
+  // Withdrawal stops collection and removes what was stored for it: Google Analytics' own cookies
+  // (_ga, _ga_<id>), on this host and on the parent domain it may have set them for.
+  function clearGoogleAnalyticsCookies() {
+    const names = document.cookie.split(";").map((part) => part.split("=")[0].trim()).filter((name) => /^_ga(_|$)/.test(name));
+    const host = location.hostname;
+    const domains = ["", host, `.${host}`, `.${host.split(".").slice(-2).join(".")}`];
+    for (const name of names) {
+      for (const domain of domains) {
+        document.cookie = `${name}=; Max-Age=0; path=/${domain ? `; domain=${domain}` : ""}`;
+      }
+    }
+  }
+
   function updateGtagConsent(granted) {
     if (typeof window.gtag === "function") {
       window.gtag("consent", "update", { analytics_storage: granted ? "granted" : "denied" });
     }
+    if (granted) loadGoogleAnalytics();
+    else clearGoogleAnalyticsCookies();
   }
 
   function setConsent(granted) {

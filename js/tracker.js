@@ -49,6 +49,16 @@ function analyticsChoice() {
   return "undecided";
 }
 
+// The device id the usage data was sent under, for an access or erasure request (terms.html § 7),
+// or null when there is none: it only ever exists while usage analytics is on.
+function trackerExistingUserId() {
+  try {
+    return localStorage.getItem(TRACKER_UID_KEY);
+  } catch {
+    return null;
+  }
+}
+
 // Sets both halves together, so Settings and every ask stay one decision.
 function setAnalyticsConsent(granted) {
   setTrackingConsent(granted);
@@ -66,8 +76,10 @@ function setTrackingConsent(value) {
     } else {
       localStorage.setItem(TRACKER_CONSENT_KEY, "0");
       // Events wait in the queue for up to a few minutes (batching, below); withdrawing consent
-      // discards them rather than letting the next flush send them.
+      // discards them rather than letting the next flush send them, and the device id goes too:
+      // nothing collected for analytics stays on the device once analytics is refused.
       localStorage.removeItem(TRACKER_QUEUE_KEY);
+      localStorage.removeItem(TRACKER_UID_KEY);
     }
   } catch {}
 }
@@ -159,8 +171,11 @@ async function trackerFlushQueue() {
   }
 }
 
+// Nothing about an event is stored on the device without consent, the device id included: it is
+// created here, after the check, never while the event is being built.
 function trackerSendEvent(event) {
   if (!hasTrackingConsent()) return;
+  event.uid = trackerGetOrCreateUserId();
   const queued = trackerEnqueueEvent(event);
   if (queued >= TRACKER_FLUSH_AT && navigator.onLine) trackerFlushQueue();
 }
@@ -187,7 +202,6 @@ let _trackerInterval = null;
 function trackLocation(lat, lng, heading) {
   trackerSendEvent({
     type: "location",
-    uid: trackerGetOrCreateUserId(),
     ts: new Date().toISOString(),
     lat,
     lng,
@@ -305,7 +319,6 @@ function trackClick(itemType, item, userLat, userLng, source = "map") {
   const target = trackerItemLatLng(item);
   trackerSendEvent({
     type: "click",
-    uid: trackerGetOrCreateUserId(),
     ts: new Date().toISOString(),
     userLat: userLat ?? null,
     userLng: userLng ?? null,
