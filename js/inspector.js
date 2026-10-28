@@ -361,7 +361,7 @@ function findClusterHit(screen) {
 // --- Detail views ---
 
 function showTreeDetails(tree, distance, label) {
-  setInspectorSelectionChrome({ emoji: treeSpeciesIconHtml(tree.commonName, tree.latinName, "app-icon title-icon") || appIconHtml("tree", "app-icon title-icon"), showBack: true });
+  setInspectorSelectionChrome({ emoji: "", showBack: true });
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = treeDisplayName(tree);
   els.inspectorType.textContent = "Veteran tree";
@@ -370,15 +370,10 @@ function showTreeDetails(tree, distance, label) {
     ["Estimated age", estimatedAge],
     ["Girth", tree.girthMetres == null ? null : `${tree.girthMetres} m`],
   ];
-  const factIcons = {
-    "Estimated age": treeDetailIconHtml(tree, "age"),
-    "Girth": treeDetailIconHtml(tree, "girth"),
-    "Tree form": treeDetailIconHtml(tree, "form"),
-  };
   const tag = treeTagLabel(tree);
   const tagHtml = `<div class="row tree-tag${tag == null ? " tree-tag--missing" : ""}"><dt>Tag number</dt><dd>${escapeHtml(tag ?? "No tag recorded")}</dd></div>`;
   const statusHtml = tree.status != null && tree.status !== ""
-    ? `<div class="row tree-status"><dt>Status</dt><dd>${treeDetailIconHtml(tree, "status")}<span>${escapeHtml(displayValue(tree.status))}</span></dd></div>` : "";
+    ? `<div class="row tree-status"><dt>Status</dt><dd><span>${escapeHtml(displayValue(tree.status))}</span></dd></div>` : "";
   const commentsHtml = tree.comments
     ? `<div class="tree-comments">${detailsHtml([["Comments", tree.comments]])}</div>` : "";
   const measurementRows = primaryRows.filter(([, value]) => value != null && value !== "");
@@ -387,9 +382,9 @@ function showTreeDetails(tree, distance, label) {
     const shown = age
       ? `${escapeHtml(age[1].replace(/ years$/, ""))}<span class="tree-measurement-unit"> years</span><small>${escapeHtml(age[2])}</small>`
       : escapeHtml(displayValue(value));
-    return `<div class="row"><dt>${factIcons[name]}<span>${escapeHtml(name)}</span></dt><dd>${shown}</dd></div>`;
+    return `<div class="row"><dt>${escapeHtml(name)}</dt><dd>${shown}</dd></div>`;
   }).join("")}</dl></div>` : "";
-  const formHtml = tree.treeForm ? `<div class="tree-form">${detailsHtml([["Tree form", tree.treeForm]], { icons: factIcons })}</div>` : "";
+  const formHtml = tree.treeForm ? `<div class="tree-form">${detailsHtml([["Tree form", tree.treeForm]])}</div>` : "";
   const technicalRows = [
     ["Latin name", tree.latinName],
     ["National tag", tree.nationalDatabaseTagNumber],
@@ -1424,7 +1419,7 @@ async function shareCurrentLocation() {
 
 // `labels: false` drops each field name, for a table whose values say what they are on their own
 // (a place's address and website, js/inspector.js showLandmarkDetails).
-function detailsHtml(rows, { labels = true, icons = {} } = {}) {
+function detailsHtml(rows, { labels = true } = {}) {
   const visibleRows = rows.filter(([, value]) => value !== null && value !== undefined && value !== "");
   return `<dl>${visibleRows.map(([label, value, liveKey]) => {
     const shown = displayValue(value);
@@ -1443,7 +1438,7 @@ function detailsHtml(rows, { labels = true, icons = {} } = {}) {
       ddContent = escapeHtml(shown);
     }
     if (!labels) return `<div class="row row--value-only"><dd${liveAttr}>${ddContent}</dd></div>`;
-    return `<div class="row"><dt>${icons[label] ? `${icons[label]}<span>${escapeHtml(label)}</span>` : escapeHtml(label)}</dt><dd${liveAttr}>${ddContent}</dd></div>`;
+    return `<div class="row"><dt>${escapeHtml(label)}</dt><dd${liveAttr}>${ddContent}</dd></div>`;
   }).join("")}</dl>`;
 }
 

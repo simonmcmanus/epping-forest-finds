@@ -31,25 +31,15 @@ test.describe("Selection and Inspector", () => {
       await expect(technical.locator("dt", { hasText: "Latin name" })).toBeVisible();
     });
 
-    test("tree fact icons follow species, status and form values", async ({ page }, testInfo) => {
-      const show = async (values) => {
-        await page.evaluate((values) => showTreeDetails({ ...state.selected.item, ...values }, null, "Tree record"), values);
-      };
-      await show({ commonName: "English Oak", latinName: "Quercus robur", status: "Alive", treeForm: "Veteran Pollard", girthMetres: 4, comments: "Recorded as a veteran tree." });
-      await expect(page.locator("#inspectorTitleEmoji img")).toHaveAttribute("src", "data/icons/trees/oak.png");
-      await expect(page.locator("#inspectorBody .tree-status .tree-field-icon")).toHaveClass(/--alive/);
-      await expect(page.locator("#inspectorBody .tree-facts .tree-field-icon--pollard")).toBeVisible();
-      await testInfo.attach("living-tree-icons", { body: await page.locator("#inspectorBody .tree-facts").screenshot({ animations: "disabled" }), contentType: "image/png" });
-      await show({ commonName: "Ash", latinName: "Fraxinus excelsior", status: "dead", treeForm: "Veteran Pollard" });
-      await expect(page.locator("#inspectorTitleEmoji img")).toHaveAttribute("src", "data/icons/trees/ash.png");
-      await expect(page.locator("#inspectorBody .tree-status .tree-field-icon")).toHaveClass(/--dead/);
-      await expect(page.locator("#inspectorBody .tree-facts .tree-field-icon--alive")).toHaveCount(0);
-      await testInfo.attach("dead-tree-icons", { body: await page.locator("#inspectorBody .tree-facts").screenshot({ animations: "disabled" }), contentType: "image/png" });
-      await show({ status: "Alive", treeForm: "Veteran_ Multistem_pollard" });
-      await expect(page.locator("#inspectorBody .tree-facts .tree-field-icon--multistem")).toBeVisible();
-      await show({ status: null, treeForm: null, commonName: "Unknown species", latinName: null });
-      await expect(page.locator("#inspectorBody .tree-status")).toHaveCount(0);
-      await expect(page.locator("#inspectorTitleEmoji img")).toHaveAttribute("src", "data/icons/tree.png");
+    test("tree records show species, status and form as text without decorative illustrations", async ({ page }, testInfo) => {
+      for (const status of ["Alive", "Dead"]) {
+        await page.evaluate((status) => showTreeDetails({ ...state.selected.item, status, treeForm: "Veteran Pollard", girthMetres: 4, comments: "Recorded as a veteran tree." }, 420, "Tree record"), status);
+        await expect(page.locator("#inspectorTitleEmoji")).toBeHidden();
+        await expect(page.locator("#inspectorBody .tree-status dd")).toHaveText(status);
+        await expect(page.locator("#inspectorBody .tree-form dd")).toHaveText("Veteran Pollard");
+        await expect(page.locator("#inspectorBody .tree-summary img, #inspectorBody .tree-measurements img, #inspectorBody .tree-form img, #inspectorBody .tree-comments img, #inspectorBody .tree-field-icon")).toHaveCount(0);
+      }
+      await testInfo.attach("text-only-tree", { body: await page.locator("#inspector").screenshot({ animations: "disabled" }), contentType: "image/png" });
     });
 
     test("tree identity and facts come before the community check", async ({ page }) => {
@@ -67,29 +57,13 @@ test.describe("Selection and Inspector", () => {
       await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
     });
 
-    test("tree sections keep text clear of decorative icons and align the walking controls", async ({ page }) => {
+    test("tree facts are text-only and walking controls stay aligned", async ({ page }) => {
       await page.evaluate(() => showTreeDetails({ ...state.selected.item, girthMetres: 4, comments: "A veteran tree with a broad crown and a hollowing trunk." }, 420, "Tree record"));
       const controls = page.locator("#inspectorBody .walk-chip, #inspectorBody .detail-map-link--icon");
       await expect(controls).toHaveCount(3);
       const heights = await controls.evaluateAll((items) => items.map((item) => item.getBoundingClientRect().height));
       heights.forEach((height) => expect(height).toBeCloseTo(44, 0));
-      const icons = page.locator("#inspectorBody .tree-measurements .tree-field-icon, #inspectorBody .tree-form .tree-field-icon, #inspectorBody .tree-comments .tree-field-icon");
-      await expect(icons).toHaveCount(3);
-      const placement = await icons.evaluateAll((items) => items.map((icon) => {
-        const row = icon.closest(".row");
-        const image = icon.getBoundingClientRect();
-        const field = row.getBoundingClientRect();
-        const label = row.querySelector("dt > span:not(.tree-field-icon)").getBoundingClientRect();
-        return { opacity: getComputedStyle(icon).opacity, width: image.width, rightGap: field.right - image.right, labelLeft: label.left, iconLeft: image.left, isForm: Boolean(row.closest(".tree-form")) };
-      }));
-      for (const icon of placement) {
-        expect(icon.opacity).toBe("1");
-        expect(icon.width).toBe(icon.isForm ? 40 : 24);
-        expect(icon.rightGap).toBeGreaterThanOrEqual(10);
-        expect(icon.rightGap).toBeLessThanOrEqual(14);
-        expect(icon.labelLeft).toBeLessThan(icon.iconLeft);
-      }
-      await expect(page.locator("#inspectorBody .tree-comments .tree-field-icon")).toHaveCount(0);
+      await expect(page.locator("#inspectorBody .tree-field-icon")).toHaveCount(0);
     });
 
     test("missing tree tags have a clear fallback and single measurements stay compact", async ({ page }, testInfo) => {
@@ -109,7 +83,6 @@ test.describe("Selection and Inspector", () => {
       expect((await pill.boundingBox()).height).toBe(44);
       expect(await pill.evaluate((item) => parseFloat(getComputedStyle(item).fontSize))).toBeGreaterThanOrEqual(14);
       expect((await pill.locator(".walk-icon").boundingBox()).width).toBe(20);
-      await expect(page.locator("#inspectorBody .tree-status .tree-field-icon")).toHaveCSS("opacity", "1");
     });
 
     test("URL hash reflects the selected tree", async ({ page }) => {

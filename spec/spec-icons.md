@@ -515,8 +515,6 @@ Re-run the script whenever the oak art changes, so the home screen icon never
 drifts from the homepage mark.
 
 
-## Tree detail field icons
+## Tree detail icons
 
-Tree facts use two transparent 3×2 illustrated sprite sheets in `css/img/`, cached for offline use and included by the native CSS-image allowlist. `tree-fact-icons.png` contains age rings, girth tape, a leaf, pollard, alive status and comments; `tree-state-icons.png` contains dead tree, coppice, coppard, multistem pollard, remnant and maiden. They use the existing forest-green, sage, cream and warm-gold style.
-
-The tree’s species heading reuses `treeSpeciesIconPath` and the existing species artwork, falling back to the generic tree. Status selects the alive icon only for Alive and a leafless dead tree for Dead, case-insensitively. Tree form selects multistem before pollard, then coppard, coppice, remnant and maiden; underscores and spacing are normalised. Dead status overrides living form artwork. Unknown values use a generic tree without implying the tree is alive. Field icons are decorative and fully opaque: age and girth use 24px icons at the right of the label row (20px on very narrow screens), and form uses a 40px icon vertically centred beside its value. Comments are text-only; the unused comments artwork remains in the source sheet. The compact status icon follows its text at 28px and full opacity. Text reserves space for the illustrations; they do not replace text or change map pins.
+Tree records use text-only headings, status and fact cards. No decorative species or field illustrations are rendered in the inspector. Existing species/map artwork remains available elsewhere in the app. Walking, Maps, Share and community-verification controls retain their functional icons. The unused tree-field sprite sheets are not deployed or cached.

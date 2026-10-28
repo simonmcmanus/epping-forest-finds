@@ -521,24 +521,6 @@ function treeSpeciesIconHtml(commonName, latinName, className = "app-icon tree-s
   return src ? `<img class="${className}" src="${src}" alt="" loading="eager" decoding="sync">` : "";
 }
 
-// Inspector-only field art; status and form follow recorded values.
-function treeDetailIconHtml(tree, field) {
-  const status = String(tree.status || "").trim().toLowerCase();
-  const form = String(tree.treeForm || "").toLowerCase().replace(/[_\s]+/g, " ");
-  let icon = { age: "age", girth: "girth" }[field];
-  if (field === "status") icon = status === "dead" ? "dead" : status === "alive" ? "alive" : null;
-  if (field === "form") {
-    icon = status === "dead" ? "dead"
-      : form.includes("multistem") ? "multistem"
-      : form.includes("pollard") ? "pollard"
-      : form.includes("coppard") ? "coppard"
-      : form.includes("coppice") ? "coppice"
-      : form.includes("remnant") ? "remnant"
-      : form.includes("maiden") ? "maiden" : null;
-  }
-  return icon ? `<span class="tree-field-icon tree-field-icon--${icon}" aria-hidden="true"></span>` : appIconHtml("tree", "tree-field-icon");
-}
-
 function filterKindColor(kind) {
   switch (kind) {
     case "tree": return "rgba(47, 111, 78, 0.85)";
