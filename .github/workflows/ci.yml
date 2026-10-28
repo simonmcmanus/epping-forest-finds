@@ -36,9 +36,6 @@ jobs:
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
-          # CI's own baseline-commit pushes (chore: update CI snapshot baselines) run this job as
-          # github-actions; the action refuses bot-initiated runs unless the bot is listed.
-          allowed_bots: "github-actions"
           prompt: |
             Review pull request #${{ github.event.pull_request.number }} in ${{ github.repository }}.
 
@@ -187,10 +184,11 @@ jobs:
     # e2e job's functional assertions have not. A retry absorbs that known noise instead of
     # requiring a human to notice and re-run CI by hand; a genuine visual regression still fails
     # twice and stays red.
-    # A pixel diff fails this job. The trusted workflow_run publisher consumes the uploaded
-    # renders, updates the PR description, and commits the new baselines to same-repository PRs.
-    # That commit starts a fresh CI run against the exact head that reviewers will merge. Fork PRs
-    # get the same review images but cannot receive an automatic commit into the fork.
+    # A pixel diff is published for review, not committed into the PR branch. The trusted
+    # workflow_run publisher consumes the uploaded renders and updates the PR description. The
+    # main-branch snapshot workflow regenerates canonical baselines after the source change merges
+    # and opens one dedicated baseline PR, so binary baseline files cannot conflict across feature
+    # branches.
     name: Visual snapshots (desktop + mobile)
     runs-on: ubuntu-latest
     container:
