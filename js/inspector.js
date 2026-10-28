@@ -361,7 +361,7 @@ function findClusterHit(screen) {
 // --- Detail views ---
 
 function showTreeDetails(tree, distance, label) {
-  setInspectorSelectionChrome({ emoji: appIconHtml("tree", "app-icon title-icon"), showBack: true });
+  setInspectorSelectionChrome({ emoji: treeSpeciesIconHtml(tree.commonName, tree.latinName, "app-icon title-icon") || appIconHtml("tree", "app-icon title-icon"), showBack: true });
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = treeDisplayName(tree);
   els.inspectorType.textContent = "Veteran tree";
@@ -369,22 +369,25 @@ function showTreeDetails(tree, distance, label) {
   const primaryRows = [
     ["Estimated age", estimatedAge],
     ["Girth", tree.girthMetres == null ? null : `${tree.girthMetres} m`],
-    ["Common name", tree.commonName],
-    ["Tree form", tree.treeForm],
   ];
   const factIcons = {
     "Estimated age": treeDetailIconHtml(tree, "age"),
     "Girth": treeDetailIconHtml(tree, "girth"),
-    "Common name": treeDetailIconHtml(tree, "species"),
     "Tree form": treeDetailIconHtml(tree, "form"),
     "Comments": treeDetailIconHtml(tree, "comments"),
   };
   const tagHtml = `<div class="row tree-tag"><dt>Tag number</dt><dd>${escapeHtml(treeTagLabel(tree))}</dd></div>`;
   const statusHtml = tree.status != null && tree.status !== ""
-    ? `<div class="row tree-status"><dt>${treeDetailIconHtml(tree, "status")}<span>Status</span></dt><dd>${escapeHtml(displayValue(tree.status))}</dd></div>` : "";
+    ? `<div class="row tree-status"><dt>Status</dt><dd>${treeDetailIconHtml(tree, "status")}<span>${escapeHtml(displayValue(tree.status))}</span></dd></div>` : "";
   const commentsHtml = tree.comments
     ? `<div class="tree-comments">${detailsHtml([["Comments", tree.comments]], { icons: factIcons })}</div>` : "";
-  const factsHtml = `<section class="tree-facts" aria-label="Tree facts"><dl class="tree-summary">${tagHtml}${statusHtml}</dl>${detailsHtml(primaryRows, { icons: factIcons })}${commentsHtml}</section>`;
+  const measurementRows = primaryRows.filter(([, value]) => value != null && value !== "");
+  const measurementsHtml = measurementRows.length ? `<div class="tree-measurements"><dl>${measurementRows.map(([name, value]) => {
+    const age = name === "Estimated age" && String(value).match(/^(.*) (\(c\.-?\d+\))$/);
+    const shown = age ? `${escapeHtml(age[1])} <small>${escapeHtml(age[2])}</small>` : escapeHtml(displayValue(value));
+    return `<div class="row"><dt>${factIcons[name]}<span>${escapeHtml(name)}</span></dt><dd>${shown}</dd></div>`;
+  }).join("")}</dl></div>` : "";
+  const formHtml = tree.treeForm ? `<div class="tree-form">${detailsHtml([["Tree form", tree.treeForm]], { icons: factIcons })}</div>` : "";
   const technicalRows = [
     ["Latin name", tree.latinName],
     ["National tag", tree.nationalDatabaseTagNumber],
@@ -404,9 +407,10 @@ function showTreeDetails(tree, distance, label) {
   const namedTreeHtml = namedTreeDetailsHtml(tree);
   const nearbySectionHtml = nearbySectionsHtml({ latitude: tree.latitude, longitude: tree.longitude, name: tree.commonName || null, subfilterKey: "trees" });
   const issueHtml = reportIssueHtml({ type: "Veteran tree", name: treeDisplayName(tree), latitude: tree.latitude, longitude: tree.longitude });
-  // Keep the check form directly below the actions so it can collapse into the local report
-  // status in the same place, just like a place check does.
-  transitionInspectorBody(topRow + verified.detail + communitySectionHtml(tree) + factsHtml + namedTreeHtml + nearbySectionHtml + issueHtml + technicalHtml, "forward");
+  // Read the tree first; community checks follow the record and stay in the same host as
+  // the live verification slots so saved-report updates can still find the header actions.
+  const factsHtml = `<section class="tree-facts" aria-label="Tree facts"><dl class="tree-summary">${tagHtml}${statusHtml}</dl>${topRow}${verified.detail}${measurementsHtml}${formHtml}${commentsHtml}</section>`;
+  transitionInspectorBody(`<article class="tree-detail">${factsHtml}${namedTreeHtml}${communitySectionHtml(tree)}${nearbySectionHtml}${issueHtml}${technicalHtml}</article>`, "forward");
 }
 
 function showLandmarkDetails(place, distance) {

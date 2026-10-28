@@ -521,9 +521,8 @@ function treeSpeciesIconHtml(commonName, latinName, className = "app-icon tree-s
   return src ? `<img class="${className}" src="${src}" alt="" loading="eager" decoding="sync">` : "";
 }
 
-// Inspector-only art: species reuse the map registry; status and form follow recorded values.
+// Inspector-only field art; status and form follow recorded values.
 function treeDetailIconHtml(tree, field) {
-  if (field === "species") return treeSpeciesIconHtml(tree.commonName, tree.latinName, "tree-field-icon") || appIconHtml("tree", "tree-field-icon");
   const status = String(tree.status || "").trim().toLowerCase();
   const form = String(tree.treeForm || "").toLowerCase().replace(/[_\s]+/g, " ");
   let icon = { age: "age", girth: "girth", comments: "comments" }[field];

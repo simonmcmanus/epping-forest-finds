@@ -2373,106 +2373,97 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   box-shadow: 0 2px 8px rgba(27, 65, 43, 0.05);
 }
 
-/* Tree facts use the full panel width, with an easy-to-find physical tag. */
-.tree-facts { margin: 14px 0; }
-.tree-facts dl { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-.tree-facts .row {
-  grid-template-columns: minmax(0, 1fr);
-  align-content: start;
-  gap: 5px;
-  padding: 13px 14px;
-  border: 1px solid #e2e9df;
-  border-radius: 14px;
-  background: #f6f8f2;
+/* Tree record: one reading surface, with a clear identity, measurements and notes. */
+.inspector:has(.tree-detail) .inspector-title-section { padding-bottom: 10px; background: transparent; }
+.inspector:has(.tree-detail) h2 { font-size: 1.5rem; line-height: 1.15; letter-spacing: -0.03em; }
+.inspector:has(.tree-detail) .type { margin-top: 5px; font-size: 0.75rem; letter-spacing: 0.05em; }
+.tree-detail { --tree-rule: #e3e9e1; }
+.tree-facts { margin: 0; }
+.tree-facts .row { border: 0; background: transparent; min-width: 0; }
+.tree-facts dt { color: var(--muted); font-size: 0.75rem; font-weight: 650; letter-spacing: 0.015em; }
+.tree-facts dd { color: var(--ink); font-size: 0.95rem; line-height: 1.5; }
+.tree-facts dl.tree-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin: 2px 0 14px;
 }
-.tree-facts .tree-tag {
-  justify-items: start;
-  align-self: center;
-  gap: 0;
-  padding: 0;
-  background: transparent;
-  border: 0;
-  border-radius: 0;
+.tree-facts .tree-tag, .tree-facts .tree-status { display: block; padding: 0; }
+/* Physical tag and status are identifiable without repeating visible field labels. */
+.tree-facts .tree-tag dt, .tree-facts .tree-status dt {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap;
 }
-.tree-facts dt { font-size: 0.75rem; letter-spacing: 0.03em; }
-.tree-facts dd { color: var(--ink); font-size: 1rem; line-height: 1.4; }
-/* Retain the field name for screen readers without a visible heading or frame. */
-.tree-facts .tree-tag dt {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-/* Compact straight-edged metal tag with the record’s physical tag number. */
 .tree-facts .tree-tag dd {
   position: relative;
   box-sizing: border-box;
-  width: fit-content;
   max-width: 100%;
-  padding: 8px 26px;
-  border: 1px solid #879b90;
-  border-radius: 6px;
-  background:
-    repeating-linear-gradient(115deg, transparent 0 5px, #ffffff24 6px, transparent 7px 13px),
-    linear-gradient(145deg, #e7e9de, #b6c4bc 38%, #dbe0d7 53%, #aabbb2);
-  box-shadow: inset 0 2px 2px #ffffffe6, inset 0 -2px 3px #526b6266, 0 3px 5px #23392c24;
+  padding: 6px 25px;
+  border: 1px solid #9cab9f;
+  border-radius: 5px;
+  background: linear-gradient(155deg, #eef0e8, #ccd6cc 60%, #e0e5dc);
+  box-shadow: inset 0 1px 1px #fff, 0 1px 2px #23392c14;
   color: #304b40;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 1.3rem;
-  font-weight: 700;
-  line-height: 1.2;
+  font-size: 1rem;
+  font-weight: 750;
+  line-height: 1.25;
   letter-spacing: 0.06em;
   text-align: center;
-  text-shadow: 0 1px 0 #f9fff1, 0 -1px 1px #213c3299;
+  text-shadow: 0 1px 0 #fff;
 }
-.tree-facts .tree-tag dd::before,
-.tree-facts .tree-tag dd::after {
-  content: "";
-  position: absolute;
-  top: 50%;
-  width: 9px;
-  height: 9px;
-  margin-top: -5px;
-  border: 1px solid #799185;
-  border-radius: 50%;
-  background: #253f34;
-  box-shadow: 0 1px 0 #f4f8e9, inset 0 1px 2px #11231c;
+.tree-facts .tree-tag dd::before, .tree-facts .tree-tag dd::after {
+  content: ""; position: absolute; top: 50%; width: 6px; height: 6px;
+  margin-top: -3px; border-radius: 50%; background: #456252;
+  box-shadow: 0 1px 0 #fff;
 }
 .tree-facts .tree-tag dd::before { left: 10px; }
 .tree-facts .tree-tag dd::after { right: 10px; }
-.tree-facts dl.tree-summary {
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 16px;
-  margin-bottom: 12px;
+.tree-facts .tree-status dd { display: flex; align-items: center; gap: 6px; font-size: 0.85rem; font-weight: 600; }
+.tree-facts .tree-status .tree-field-icon { width: 24px; height: 24px; flex-basis: 24px; }
+.tree-detail .detail-top-row { padding-bottom: 14px; margin-bottom: 0; gap: 10px; }
+.tree-detail .detail-top-actions { gap: 8px; }
+.tree-detail .detail-map-link--icon { width: 44px; min-height: 44px; border-radius: 8px; }
+.tree-measurements {
+  padding: 16px 0;
+  margin: 0 0 2px;
+  border-top: 1px solid var(--tree-rule);
+  border-bottom: 1px solid var(--tree-rule);
+  background: linear-gradient(100deg, #f4f7f0, #fafbf7);
+  border-radius: 0;
 }
-.tree-facts .tree-status {
-  grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-  padding: 0;
-  border: 0;
-  background: transparent;
+.tree-measurements dl { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0; }
+.tree-measurements dl:has(.row:only-child) { grid-template-columns: minmax(0, 1fr); }
+.tree-measurements .row { grid-template-columns: minmax(0, 1fr); align-content: start; padding: 0 16px; gap: 9px; }
+.tree-measurements .row + .row { border-left: 1px solid #dce5d6; }
+.tree-measurements dt { display: flex; align-items: center; gap: 6px; }
+.tree-measurements dd { font-size: 1.2rem; font-weight: 700; line-height: 1.4; letter-spacing: -0.025em; }
+.tree-measurements dd small { display: block; margin-top: 3px; font-size: 0.75rem; font-weight: 500; color: var(--muted); letter-spacing: 0; }
+.tree-form .row, .tree-comments .row {
+  position: relative; grid-template-columns: minmax(0, 1fr); gap: 4px;
+  padding: 16px 0 16px 40px; border-bottom: 1px solid var(--tree-rule);
 }
-.tree-facts .tree-status dd { font-size: 0.9rem; }
-.tree-facts .tree-comments { margin-top: 10px; }
-.tree-facts .tree-comments dl { grid-template-columns: minmax(0, 1fr); }
-.tree-facts ~ .technical-details { margin-top: 20px; border-top: 1px solid #e2e9df; padding-top: 4px; }
+.tree-form dt, .tree-comments dt { display: flex; align-items: center; gap: 0; }
+.tree-form .tree-field-icon, .tree-comments .tree-field-icon { position: absolute; left: 0; top: 17px; }
+.tree-comments dd { font-size: 0.9rem; line-height: 1.6; }
+.tree-detail > .community-check { margin: 20px 0 0; padding: 14px; border-radius: 12px; box-shadow: none; }
+.tree-detail .detail-section-heading { margin-top: 22px; padding-top: 18px; border-color: var(--tree-rule); font-size: 0.85rem; }
+.tree-detail .related-cards { gap: 6px; }
+.tree-detail .nearest-item { border-radius: 10px; box-shadow: none; }
+.tree-detail > .technical-details { margin-top: 20px; padding-top: 4px; border-top: 1px solid var(--tree-rule); }
 @media (max-width: 340px) {
-  .tree-facts dl, .tree-facts dl.tree-summary { grid-template-columns: minmax(0, 1fr); }
+  .tree-measurements .row { padding: 0 10px; }
+  .tree-measurements dd { font-size: 1.05rem; }
 }
 
 /* Decorative tree-fact illustrations; labels and recorded values remain readable text. */
-.tree-facts dt { display: flex; align-items: center; gap: 7px; }
 .tree-field-icon {
   display: inline-block;
-  flex: 0 0 32px;
-  width: 32px;
-  height: 32px;
+  flex: 0 0 28px;
+  width: 28px;
+  height: 28px;
   object-fit: contain;
   vertical-align: middle;
 }

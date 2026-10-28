@@ -908,11 +908,11 @@ is never moved by this -- only the browse anchor, exactly as any other anchor mo
 
 #### Tree Details
 
-- Tree facts start with a compact straight-edged metal tag beside an unboxed inline status. The physical tag uses fixing holes and stamped lettering, without a visible heading or outer card; its Tag number label remains available to screen readers. Estimated age, Girth, Common name and Tree form use a responsive two-column card grid. Only comments occupy a full-width card; a missing field does not cause the last fact to span both columns. Narrow screens stack the summary and facts. The tag stays first so walkers can confirm the physical forest tag without extra taps.
-- Fact cards include decorative icons for age, girth and comments. Common name uses the existing species icon; status and form icons reflect their recorded values, including leafless artwork for dead trees. Unknown values fall back to a generic tree, and text remains visible (see `spec-icons.md`).
+- Tree details use a single field-guide layout: the species name and existing species icon appear once in the inspector heading, followed by a compact straight-edged physical tag and inline recorded status. Tag/status labels remain available to screen readers without visible headings or extra boxes. Walking distance, Maps and Share form a compact action row; Maps and Share have 44px touch targets. Estimated age and Girth share one two-column measurement band, with the estimated start year styled as secondary context; Tree form and Comments use unboxed text with aligned icons and subtle dividers. Missing fields are omitted. Named-tree notes follow, then the community check block, Nearest/Related, issue reporting and finally collapsed Technical data. The tree's identity and facts appear before requests to contribute.
+- Tree details include decorative icons for age, girth and comments. The species heading uses the existing species icon; status and form icons reflect their recorded values, including leafless artwork for dead trees. Unknown values fall back to a generic tree, and text remains visible (see `spec-icons.md`).
 - Register fields: IDs, taxonomy, status, girth, metadata, comments, grid refs
 - Enriched named-tree data: match metadata, folklore/historical notes, source links
-- Inspector title icon: `tree.png`
+- Inspector title icon: existing species artwork, falling back to `tree.png`
 - Live distance + walking time
 - **Latin name** and **National tag** stay inside the collapsed "Technical data" accordion at the very bottom, after named-tree notes, nearby finds and the issue-report control. National tag is often blank or `0` and is distinct from the physical tag number.
 - Distance uses the shared rounded display: whole metres below 1 km, one decimal below 10 km, then whole kilometres.
