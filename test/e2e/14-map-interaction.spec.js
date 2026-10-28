@@ -564,6 +564,16 @@ test.describe("Map interaction", () => {
       await setup(page, "/nearby?filters=false");
       await expect.poll(() => page.evaluate(() => state.overviewFilters.includes("pubs") && state.overviewFilters.includes("national_rail"))).toBe(true);
     });
+
+    test("the Show all nearby pill appears only while some categories are filtered out", async ({ page }) => {
+      await setup(page, "/nearby?filters=false");
+      await expect.poll(() => page.evaluate(() => state.overviewFilters.length === ALL_OVERVIEW_FILTER_KEYS.size)).toBe(true);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+      await expect(page.locator("#inspectorBody .show-all-nearby")).toHaveCount(0);
+
+      await page.evaluate(() => setOverviewFilters(["pubs"], { persist: false }));
+      await expect(page.locator("#inspectorBody .show-all-nearby")).toHaveCount(1);
+    });
   });
 
   test.describe("The cone from you to the nearby circle", () => {
