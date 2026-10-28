@@ -372,12 +372,19 @@ function showTreeDetails(tree, distance, label) {
     ["Common name", tree.commonName],
     ["Tree form", tree.treeForm],
   ];
+  const factIcons = {
+    "Estimated age": treeDetailIconHtml(tree, "age"),
+    "Girth": treeDetailIconHtml(tree, "girth"),
+    "Common name": treeDetailIconHtml(tree, "species"),
+    "Tree form": treeDetailIconHtml(tree, "form"),
+    "Comments": treeDetailIconHtml(tree, "comments"),
+  };
   const tagHtml = `<div class="row tree-tag"><dt>Tag number</dt><dd>${escapeHtml(treeTagLabel(tree))}</dd></div>`;
   const statusHtml = tree.status != null && tree.status !== ""
-    ? `<div class="row tree-status"><dt>Status</dt><dd>${escapeHtml(displayValue(tree.status))}</dd></div>` : "";
+    ? `<div class="row tree-status"><dt>${treeDetailIconHtml(tree, "status")}<span>Status</span></dt><dd>${escapeHtml(displayValue(tree.status))}</dd></div>` : "";
   const commentsHtml = tree.comments
-    ? `<div class="tree-comments">${detailsHtml([["Comments", tree.comments]])}</div>` : "";
-  const factsHtml = `<section class="tree-facts" aria-label="Tree facts"><dl class="tree-summary">${tagHtml}${statusHtml}</dl>${detailsHtml(primaryRows)}${commentsHtml}</section>`;
+    ? `<div class="tree-comments">${detailsHtml([["Comments", tree.comments]], { icons: factIcons })}</div>` : "";
+  const factsHtml = `<section class="tree-facts" aria-label="Tree facts"><dl class="tree-summary">${tagHtml}${statusHtml}</dl>${detailsHtml(primaryRows, { icons: factIcons })}${commentsHtml}</section>`;
   const technicalRows = [
     ["Latin name", tree.latinName],
     ["National tag", tree.nationalDatabaseTagNumber],
@@ -1411,7 +1418,7 @@ async function shareCurrentLocation() {
 
 // `labels: false` drops each field name, for a table whose values say what they are on their own
 // (a place's address and website, js/inspector.js showLandmarkDetails).
-function detailsHtml(rows, { labels = true } = {}) {
+function detailsHtml(rows, { labels = true, icons = {} } = {}) {
   const visibleRows = rows.filter(([, value]) => value !== null && value !== undefined && value !== "");
   return `<dl>${visibleRows.map(([label, value, liveKey]) => {
     const shown = displayValue(value);
@@ -1430,7 +1437,7 @@ function detailsHtml(rows, { labels = true } = {}) {
       ddContent = escapeHtml(shown);
     }
     if (!labels) return `<div class="row row--value-only"><dd${liveAttr}>${ddContent}</dd></div>`;
-    return `<div class="row"><dt>${escapeHtml(label)}</dt><dd${liveAttr}>${ddContent}</dd></div>`;
+    return `<div class="row"><dt>${icons[label] ? `${icons[label]}<span>${escapeHtml(label)}</span>` : escapeHtml(label)}</dt><dd${liveAttr}>${ddContent}</dd></div>`;
   }).join("")}</dl>`;
 }
 

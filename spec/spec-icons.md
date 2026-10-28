@@ -513,3 +513,10 @@ top-left to #e2a13c bottom-right) and writes:
 
 Re-run the script whenever the oak art changes, so the home screen icon never
 drifts from the homepage mark.
+
+
+## Tree detail field icons
+
+Tree facts use two transparent 3×2 illustrated sprite sheets in `css/img/`, cached for offline use and included by the native CSS-image allowlist. `tree-fact-icons.png` contains age rings, girth tape, a leaf, pollard, alive status and comments; `tree-state-icons.png` contains dead tree, coppice, coppard, multistem pollard, remnant and maiden. They use the existing forest-green, sage, cream and warm-gold style.
+
+The Common name field reuses `treeSpeciesIconPath` and the existing species artwork, falling back to the generic tree. Status selects the alive icon only for Alive and a leafless dead tree for Dead, case-insensitively. Tree form selects multistem before pollard, then coppard, coppice, remnant and maiden; underscores and spacing are normalised. Dead status overrides living form artwork. Unknown values use a generic tree without implying the tree is alive. Icons are decorative, alongside the existing field labels and values; they do not replace text or change map pins.

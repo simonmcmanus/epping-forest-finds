@@ -138,6 +138,10 @@ const DATA_CACHE_OPPORTUNISTIC = [
   "./data/trees/chunk-lat5171_lon13.json",
   "./data/trees/chunk-lat5171_lon14.json",
 
+  // Tree inspector icon sheets (also bundled by the native CSS-image allowlist).
+  "./css/img/tree-fact-icons.png",
+  "./css/img/tree-state-icons.png",
+
   // Icons
   "./data/icons/apple-touch-icon.png",
   "./data/icons/art.png",

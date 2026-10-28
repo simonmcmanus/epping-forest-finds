@@ -31,6 +31,27 @@ test.describe("Selection and Inspector", () => {
       await expect(technical.locator("dt", { hasText: "Latin name" })).toBeVisible();
     });
 
+    test("tree fact icons follow species, status and form values", async ({ page }, testInfo) => {
+      const show = async (values) => {
+        await page.evaluate((values) => showTreeDetails({ ...state.selected.item, ...values }, null, "Tree record"), values);
+      };
+      await show({ commonName: "English Oak", latinName: "Quercus robur", status: "Alive", treeForm: "Veteran Pollard", girthMetres: 4, comments: "Recorded as a veteran tree." });
+      await expect(page.locator("#inspectorBody .tree-facts img.tree-field-icon")).toHaveAttribute("src", "data/icons/trees/oak.png");
+      await expect(page.locator("#inspectorBody .tree-status .tree-field-icon")).toHaveClass(/--alive/);
+      await expect(page.locator("#inspectorBody .tree-facts .tree-field-icon--pollard")).toBeVisible();
+      await testInfo.attach("living-tree-icons", { body: await page.locator("#inspectorBody .tree-facts").screenshot({ animations: "disabled" }), contentType: "image/png" });
+      await show({ commonName: "Ash", latinName: "Fraxinus excelsior", status: "dead", treeForm: "Veteran Pollard" });
+      await expect(page.locator("#inspectorBody .tree-facts img.tree-field-icon")).toHaveAttribute("src", "data/icons/trees/ash.png");
+      await expect(page.locator("#inspectorBody .tree-status .tree-field-icon")).toHaveClass(/--dead/);
+      await expect(page.locator("#inspectorBody .tree-facts .tree-field-icon--alive")).toHaveCount(0);
+      await testInfo.attach("dead-tree-icons", { body: await page.locator("#inspectorBody .tree-facts").screenshot({ animations: "disabled" }), contentType: "image/png" });
+      await show({ status: "Alive", treeForm: "Veteran_ Multistem_pollard" });
+      await expect(page.locator("#inspectorBody .tree-facts .tree-field-icon--multistem")).toBeVisible();
+      await show({ status: null, treeForm: null, commonName: "Unknown species", latinName: null });
+      await expect(page.locator("#inspectorBody .tree-status")).toHaveCount(0);
+      await expect(page.locator("#inspectorBody .tree-facts img.tree-field-icon")).toHaveAttribute("src", "data/icons/tree.png");
+    });
+
     test("URL hash reflects the selected tree", async ({ page }) => {
       await expect(page).toHaveURL(new RegExp(`tree=${FIXTURE_TREE.hashKey}`));
     });

@@ -909,6 +909,7 @@ is never moved by this -- only the browse anchor, exactly as any other anchor mo
 #### Tree Details
 
 - Tree facts start with a compact straight-edged metal tag beside an unboxed inline status. The physical tag uses fixing holes and stamped lettering, without a visible heading or outer card; its Tag number label remains available to screen readers. Estimated age, Girth, Common name and Tree form use a responsive two-column card grid. Only comments occupy a full-width card; a missing field does not cause the last fact to span both columns. Narrow screens stack the summary and facts. The tag stays first so walkers can confirm the physical forest tag without extra taps.
+- Fact cards include decorative icons for age, girth and comments. Common name uses the existing species icon; status and form icons reflect their recorded values, including leafless artwork for dead trees. Unknown values fall back to a generic tree, and text remains visible (see `spec-icons.md`).
 - Register fields: IDs, taxonomy, status, girth, metadata, comments, grid refs
 - Enriched named-tree data: match metadata, folklore/historical notes, source links
 - Inspector title icon: `tree.png`
