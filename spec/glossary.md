@@ -9,6 +9,9 @@ The map canvas in the background, visible in the area not covered by the inspect
 **Navigation buttons**
 The icon buttons in the nav bar, a fixed bottom tab bar separate from the Modal/Inspector (above it as its own card on desktop, pinned to the bottom of the screen on mobile) — in left-to-right order: Nearby, Search, Feedback, Settings. The active button is highlighted gold. Filters is not part of this row — its own icon button sits inline with the Nearby/Filters heading instead (see "Filter Panel" in `spec-data-rendering.md`).
 
+**Filter rail**
+The row of category pills at the top of every Nearby view: show-all on the left, a toggle pill per related category, and a link to the Filters screen on the right. A tap narrows the list in place as a temporary lens without touching the reader's saved filters (see "Nearby filter rail" in `spec-data-rendering.md`).
+
 ---
 
 ## Inspector Modes

@@ -1242,6 +1242,9 @@ function setupSearchAndNavHandlers() {
     if (submitIssueBtn) { submitLocationIssueReport(submitIssueBtn.closest(".report-issue")); return; }
     const resetAnchorBtn = event.target.closest("[data-action='reset-nearby-anchor']");
     if (resetAnchorBtn) { clearNearbyAnchor(); return; }
+    const railPill = event.target.closest("[data-rail-key]");
+    if (railPill) { toggleRailFilter(railPill.dataset.railKey); return; }
+    if (event.target.closest("[data-action='rail-show-all']")) { showAllFromRail(); return; }
     const radiusToggle = event.target.closest("[data-action='toggle-radius']");
     if (radiusToggle) {
       state.showAllOutsideRadius = !state.showAllOutsideRadius;

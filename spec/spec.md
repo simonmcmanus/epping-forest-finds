@@ -332,14 +332,18 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
   `showsEverythingFromQuery()`, js/app.js) applies every category ephemerally (`persist:false`), so
   the reader's own saved filters are untouched and return on the next plain visit. The same
   override is applied by the walk-radius card's own button (`focusNearbyWithinWalkMinutes`, js/nav.js).
-- **"Show all nearby" pill on the top-level Nearby list.** While any filter is applied on the plain
-  `/nearby` screen (not a `/nearby/<slug>` landing, which has its own "All nearby" chip), a
-  "Show all nearby" pill sits above the list and links to the same `/nearby?filters=false` override.
-  Built by `showAllNearbyPillHtml()` (js/app.js), prepended in `overviewNearestHtml()`.
+- **Nearby filter rail.** Every Nearby view carries one row of toggle pills (`filterRailHtml()`,
+  js/app.js; detail in `spec-data-rendering.md` "Nearby filter rail"): a show-all button on the
+  left, a pill per related category, and a button to the Filters screen on the right. A pill adds
+  or removes its category from the current filter set as an ephemeral lens (`persist:false`), so
+  the reader's saved filters are untouched. The address bar follows the selection: one category is
+  its own landing path (`/nearby/trees`), several are `/nearby?show=trees,ponds_streams`, and none
+  (every category on) is `/nearby?filters=false`. A tap replaces the history entry rather than
+  adding one.
 - **Navigating in-app straight from one `/nearby/<slug>` arrival to another never loses the new
   page's own category.** A link out of a selected place's inspector (a business page's own
   "Related" section, `js/inspector.js`) or a bare `near="" ` link like "All nearby"
-  (`js/app.js`'s `categoryLandingLinksHtml()`, which links `/nearby?filters=false`) routes through `navigateInApp()` →
+  (the static `/nearby/<slug>/` page's "All nearby" chip, which links `/nearby?filters=false`) routes through `navigateInApp()` →
   `applyRouteFromUrl()` → `applyRoute()`, the same path a popstate takes. Both a `/nearby/<slug>`
   arrival (its own route value is `""`, same as the plain Nearby screen's) and a tap on the Nearby
   nav button land in `goToInitialView()`, whose own ephemeral-filter restore (above) would

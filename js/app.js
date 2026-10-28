@@ -677,7 +677,11 @@ function searchStringForPath(pathname) {
   // A shared /nearby?show= link is an ephemeral landing lens just like /nearby/<slug>.
   // Keep its query visible while that lens is active; otherwise the first selectOverview() during
   // a cold/nuke refresh rewrites the URL to bare /nearby before the caller can verify the refresh.
-  if ((pathname === ROUTE_PATHS[ROUTE_FILTERS]
+  // Every category on is the show-everything override, written as the "All nearby" link's own
+  // ?filters=false rather than a list of every key.
+  if (pathname === NEARBY_PATH && state.overviewFiltersEphemeral && railSelection().length === 0 && state.overviewFilters.length) {
+    parts.push("filters=false");
+  } else if ((pathname === ROUTE_PATHS[ROUTE_FILTERS]
     || (pathname === NEARBY_PATH && state.overviewFiltersEphemeral)) && state.overviewFilters.length) {
     parts.push(`show=${state.overviewFilters.join(",")}`);
   }
@@ -2776,7 +2780,7 @@ function setSubfilterPanelExpanded(panel, expanded) {
 // -- landing on one of those names what that page shows, not a preference the reader chose, so
 // it must not overwrite their own saved filters (saveFilterState) for every later visit to
 // /nearby. An actual chip tap, on that page or anywhere else, always persists as before.
-function setOverviewFilters(nextFilters, { persist = true, render = true } = {}) {
+function setOverviewFilters(nextFilters, { persist = true, render = true, railTap = false } = {}) {
   const previousFilters = state.overviewFilters;
   state.overviewFilters = sanitizeOverviewFilters(nextFilters);
   // Marks the current filters as a page's own lens rather than the reader's choice, so
@@ -2790,6 +2794,10 @@ function setOverviewFilters(nextFilters, { persist = true, render = true } = {})
   if (persist) saveFilterState();
   updateFilterUi();
   syncLiveQueryStringForScreen();
+  if (railTap) {
+    syncRailUrl();
+    railPatchPending = true;
+  }
   // render:false -- boot()'s own call, before state.userLocation exists -- skips the render
   // this would otherwise force here: without it, selectOverview() ran once against no location
   // (activeFiltersShowFullListWithoutLocation()'s dataset-order full list) and then again
@@ -4603,64 +4611,81 @@ function renderNearestItemsHtml(entries) {
   }).join("");
 }
 
-// "/nearby/<slug>/"'s category navigation -- the current category, a chip up to its group, a
-// way back to the full, unfiltered Nearby list, a group page's own down-links to each member
-// subfilter ("Browse by type"), and the "see also veteran trees/grazing cattle" up-links every
-// /find/<slug>/ business page already carries. It is reproduced here because the static page's
-// own version (generate-find-pages.js's topChipsHtml, what a crawler or a no-JS visitor sees) is
-// silently dropped the moment JS boots: selectOverview() replaces that content with this live
-// list. Shown only on a real /nearby/<slug>/ landing -- the plain /nearby screen, or a reader's
-// own multi-filter choice from the Filters screen, has no single category to navigate from, so
-// filterKeysFromFindPath's own pathname-only regex (never a reader's live filter selection) is
-// what gates this, same as isLandingPageArrival.
-function categoryLandingLinksHtml() {
-  const match = /^\/nearby\/([a-z0-9-]+)\/?$/.exec(window.location.pathname);
-  if (!match) return "";
-  const key = match[1].replace(/-/g, "_");
-  const subfilter = FILTER_SUBFILTERS_BY_KEY.get(key);
-  const group = subfilter ? FILTER_GROUPS_BY_KEY.get(subfilter.groupKey) : FILTER_GROUPS_BY_KEY.get(key);
-  if (!group) return "";
-  const current = subfilter || group;
-  const currentChip = `<a class="detail-map-link nearby-link nearby-link--current" href="/nearby/${key.replace(/_/g, "-")}/" aria-current="page">${appIconHtml(current.icon)}${escapeHtml(current.label)}</a>`;
-  const groupChip = subfilter
-    ? `<a class="detail-map-link nearby-link" href="/nearby/${subfilter.groupKey.replace(/_/g, "-")}/">${appIconHtml(group.icon)}${escapeHtml(group.label)}</a>`
-    : "";
-  const allChip = `<a class="detail-map-link nearby-link" href="/nearby?filters=false">${appIconHtml("nearby")}All nearby</a>`;
+// The filter rail at the top of every Nearby view: "show all" on the left, one toggle pill per
+// category in the middle, a link to the Filters screen on the right. A pill adds or removes its
+// category from the current (ephemeral) filter set in place -- no screen slide -- so the reader
+// can keep tapping round. It replaces the old /nearby/<slug> breadcrumb chips and the "Show all
+// nearby" pill; generate-find-pages.js still server-renders anchor chips for crawlers and no-JS
+// visitors, and the first render after boot swaps them for this.
+const RAIL_DEFAULT_KEYS = ["trees", "cows", "ponds_streams", "pubs", "cafes", "bus", "historic", "plaques"];
+let railOrder = [];
+// Set by a rail tap so the next selectOverview() patches the rail and list in place rather than
+// rebuilding the body, which is what lets pills glide and rows animate individually.
+let railPatchPending = false;
 
-  // A group page's own members -- cows is excluded the same way the static generator's own
-  // page.members already is (live-tracked, no fixed count, no page built through the ordinary
-  // inventory-driven path -- COW_KEY, scripts/report/map-inventory.js), so this never shows a
-  // 4th pill the static page's own generated set doesn't have.
-  const typeChips = !subfilter
-    ? group.subfilters
-        .filter((s) => s.key !== "cows")
-        .map((s) => `<a class="detail-map-link nearby-link" href="/nearby/${s.key.replace(/_/g, "-")}/">${appIconHtml(s.icon)}${escapeHtml(s.label)}</a>`)
-        .join("")
-    : "";
-
-  // Omits a duplicate trees/cows link, and omits trees entirely on the nature group page (its
-  // current/type chip above already covers it -- see topChipsHtml's matching comment,
-  // scripts/generate-find-pages.js).
-  const treesSubfilter = FILTER_SUBFILTERS_BY_KEY.get("trees");
-  const cowsSubfilter = FILTER_SUBFILTERS_BY_KEY.get("cows");
-  const treesAlreadyLinked = key === "trees" || (!subfilter && group.key === "nature");
-  const treesChip = treesAlreadyLinked || !treesSubfilter
-    ? ""
-    : `<a class="detail-map-link nearby-link" href="/nearby/trees/">${appIconHtml(treesSubfilter.icon)}${escapeHtml(treesSubfilter.label)}</a>`;
-  const cowsChip = key === "cows" || !cowsSubfilter
-    ? ""
-    : `<a class="detail-map-link nearby-link" href="/nearby/cows/">${appIconHtml(cowsSubfilter.icon)}${escapeHtml(cowsSubfilter.label)}</a>`;
-
-  return `<nav class="nearby-category-nav" aria-label="Browse nearby categories"><p class="nearby-category-nav-title">Browse nearby categories</p><div class="detail-top-row related-chips">${currentChip}${groupChip}${allChip}${typeChips}${treesChip}${cowsChip}</div></nav>`;
+// The categories the rail treats as chosen. A set covering every category is the "show all"
+// state (?filters=false), which reads as nothing chosen so the first tap narrows to that one.
+function railSelection() {
+  const chosen = state.overviewFilters.filter((key) => FILTER_SUBFILTERS_BY_KEY.has(key));
+  return chosen.length >= FILTER_SUBFILTERS.length ? [] : chosen;
 }
 
-// The top-level Nearby screen's way back out of a filter: while any filter is applied there, a
-// "Show all nearby" pill links to the same ?filters=false override as the category chip's "All
-// nearby", so it ignores the reader's saved filters for this visit only. Category landings already
-// carry their own "All nearby" chip, so they get no second pill.
-function showAllNearbyPillHtml() {
-  if (isNearbyCategoryLandingPath() || !state.overviewFilters.length) return "";
-  return `<div class="detail-top-row related-chips"><a class="detail-map-link nearby-link show-all-nearby" href="/nearby?filters=false">${appIconHtml("nearby")}Show all nearby</a></div>`;
+// Pill order is stable: a pill never moves because of a tap. Newly related categories (the chosen
+// ones' groupmates, then the defaults) are appended, and a category that is neither chosen nor
+// related any more drops out. Never duplicates.
+function railPillKeys() {
+  const chosen = railSelection();
+  const want = new Set(chosen.length ? chosen : RAIL_DEFAULT_KEYS);
+  for (const key of chosen) {
+    const group = FILTER_GROUPS_BY_KEY.get(FILTER_SUBFILTERS_BY_KEY.get(key).groupKey);
+    group.subfilters.forEach((s) => want.add(s.key));
+  }
+  if (chosen.length) RAIL_DEFAULT_KEYS.forEach((key) => want.add(key));
+  railOrder = railOrder.filter((key) => want.has(key));
+  for (const key of chosen) if (!railOrder.includes(key)) railOrder.push(key);
+  for (const key of want) if (!railOrder.includes(key)) railOrder.push(key);
+  if (!chosen.length) railOrder = RAIL_DEFAULT_KEYS.filter((key) => FILTER_SUBFILTERS_BY_KEY.has(key));
+  return railOrder.filter((key) => FILTER_SUBFILTERS_BY_KEY.has(key));
+}
+
+function filterRailHtml() {
+  const chosen = new Set(railSelection());
+  const pills = railPillKeys().map((key) => {
+    const sub = FILTER_SUBFILTERS_BY_KEY.get(key);
+    const on = chosen.has(key);
+    return `<button class="rail-pill${on ? " is-on" : ""}" type="button" data-rail-key="${key}" aria-pressed="${on}">${appIconHtml(sub.icon)}<span>${escapeHtml(sub.label)}</span></button>`;
+  }).join("");
+  return `<nav class="filter-rail" aria-label="Filter nearby places">` +
+    `<button class="rail-edge" type="button" data-action="rail-show-all" aria-label="Show all nearby"${chosen.size ? "" : " disabled"}>${appIconHtml("nearby")}</button>` +
+    `<div class="rail-pills">${pills}</div>` +
+    `<a class="rail-edge" href="${ROUTE_PATHS[ROUTE_FILTERS]}" aria-label="Filters">${appIconHtml("filter")}</a>` +
+    `</nav>`;
+}
+
+// Where the address bar points for the current rail selection: one category is its own landing
+// path, several are /nearby?show=a,b, none is the show-everything override. Replaces the current
+// history entry (a tap is a refinement, not a new place to go back to).
+function syncRailUrl() {
+  if (routeApplyDepth > 0 || routerBooting) return;
+  const chosen = railSelection();
+  const pathname = chosen.length === 1 ? `/nearby/${chosen[0].replace(/_/g, "-")}` : NEARBY_PATH;
+  const search = searchStringForPath(pathname);
+  const url = `${pathname}${search}${window.location.hash}`;
+  if (`${window.location.pathname}${window.location.search}${window.location.hash}` === url) return;
+  history.replaceState(history.state, "", url);
+}
+
+function toggleRailFilter(key) {
+  if (!FILTER_SUBFILTERS_BY_KEY.has(key)) return;
+  const chosen = railSelection();
+  const next = chosen.includes(key) ? chosen.filter((k) => k !== key) : [...chosen, key];
+  if (typeof navigator.vibrate === "function") navigator.vibrate(8);
+  setOverviewFilters(next.length ? next : Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: false, railTap: true });
+}
+
+function showAllFromRail() {
+  if (typeof navigator.vibrate === "function") navigator.vibrate(8);
+  setOverviewFilters(Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: false, railTap: true });
 }
 
 function overviewCategoryContentHtml(content) {
@@ -4671,7 +4696,7 @@ function overviewCategoryContentHtml(content) {
 }
 
 function overviewNearestHtml() {
-  const navigationHtml = `${categoryLandingLinksHtml()}${showAllNearbyPillHtml()}`;
+  const navigationHtml = filterRailHtml();
   if (!state.userLocation) {
     // A /nearby/<slug> category page -- a subfilter's own, or a whole group's -- lands here with
     // no location yet (no prompt answered, or declined), as does a reader who has deliberately

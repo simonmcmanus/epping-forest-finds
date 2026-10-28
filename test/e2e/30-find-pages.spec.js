@@ -573,35 +573,34 @@ test.describe("generated find/nearby pages", () => {
       expect(html).toContain('href="/nearby/food/"');
     });
 
-    test("once JS boots, /nearby/pubs/ still labels the category navigation and links up to the full Nearby list", async ({ page }) => {
+    test("once JS boots, /nearby/pubs/ swaps the static chips for the filter rail with Pubs pressed", async ({ page }) => {
       // The live Nearby overview (selectOverview/overviewNearestHtml) replaces the static page's
-      // whole #inspectorBody the moment JS boots -- it had no breadcrumb of its own, so these
-      // links silently vanished the instant a real visitor's browser finished loading the page.
+      // whole #inspectorBody the moment JS boots. The rail carries the category navigation the
+      // static chips gave a crawler: the current category pressed, its groupmates as pills, a way
+      // back to everything, and the Filters screen.
       // setup() (not gotoAndWaitForMap directly) force-hides #locationGate, which otherwise
       // intercepts the click below (no geolocation permission is granted in this spec file).
       await setup(page, "/nearby/pubs/");
       await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
 
       const body = page.locator("#inspectorBody");
-      await expect(body.getByText("Browse nearby categories")).toBeVisible();
-      await expect(body.locator('a[aria-current="page"][href="/nearby/pubs/"]')).toHaveCount(1);
+      await expect(body.locator('[data-rail-key="pubs"][aria-pressed="true"]')).toHaveCount(1);
+      await expect(body.locator('[data-rail-key="cafes"][aria-pressed="false"]')).toHaveCount(1);
       await expect(body.getByRole("heading", { name: "Pubs & bars nearby" })).toBeVisible();
-      await expect(body.locator('a.detail-map-link[href="/nearby/food/"]')).toHaveCount(1);
-      await expect(body.locator('a.detail-map-link[href="/nearby?filters=false"]')).toHaveCount(1);
+      await expect(body.getByRole("button", { name: "Show all nearby" })).toBeEnabled();
 
       await page.evaluate(() => { window.__noReloadMarker = "still-here"; });
-      await body.locator('a.detail-map-link[href="/nearby/food/"]').click();
-      await expect(page).toHaveURL(/\/nearby\/food\/$/);
+      await body.locator('[data-rail-key="cafes"]').click();
+      await expect(page).toHaveURL(/\/nearby\?show=pubs,cafes$/);
       const markerSurvived = await page.evaluate(() => window.__noReloadMarker).catch(() => null);
       expect(markerSurvived).toBe("still-here");
     });
 
-    test("the /nearby/trees/ page marks its current category, and /nearby/cows/ does the same", async ({ page }) => {
+    test("the /nearby/trees/ page opens with Trees pressed on the rail", async ({ page }) => {
       await skipOnboarding(page);
       await gotoAndWaitForMap(page, "/nearby/trees/");
       await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
-      await expect(page.locator('#inspectorBody a[aria-current="page"][href="/nearby/trees/"]')).toHaveCount(1);
-      await expect(page.locator('#inspectorBody a.detail-map-link[href="/nearby?filters=false"]')).toHaveCount(1);
+      await expect(page.locator('#inspectorBody [data-rail-key="trees"][aria-pressed="true"]')).toHaveCount(1);
     });
   });
 });
