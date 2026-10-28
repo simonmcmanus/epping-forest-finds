@@ -10,17 +10,17 @@
   width: 100%;
   text-align: left;
   border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 10px;
-  background: #fff;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #ffffff, #fbfdfb);
   color: var(--ink);
-  padding: 7px 12px;
+  padding: 9px 12px;
   font: inherit;
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: center;
   column-gap: 10px;
   transition: all 140ms ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  box-shadow: 0 2px 7px rgba(27, 65, 43, 0.06);
 }
 
 /* .nearest-item is normally a <button> (the Nearby/Search lists), which carries no default
@@ -41,8 +41,8 @@ a.nearest-item {
 
 .nearest-item:hover {
   background: #f7faf7;
-  border-color: rgba(47, 111, 78, 0.2);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+  border-color: rgba(47, 121, 83, 0.32);
+  box-shadow: 0 7px 16px rgba(27, 65, 43, 0.11);
   transform: translateY(-1px);
 }
 
@@ -131,7 +131,7 @@ a.nearest-item {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: rgba(47, 111, 78, 0.08);
+  background: linear-gradient(145deg, rgba(47, 121, 83, 0.15), rgba(85, 167, 160, 0.1));
   color: var(--tree);
   font-size: 1.3rem;
   font-weight: 900;
@@ -141,7 +141,7 @@ a.nearest-item {
 }
 
 .nearest-item:hover .nearest-arrow {
-  background: rgba(47, 111, 78, 0.12);
+  background: linear-gradient(145deg, rgba(47, 121, 83, 0.2), rgba(85, 167, 160, 0.15));
 }
 
 .nearest-item.out-of-radius .nearest-arrow {
