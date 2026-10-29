@@ -45,6 +45,7 @@ test.describe("Nearby filter rail", () => {
     await expect(pill(page, "nature").locator(".rail-check")).toHaveText("✓");
     await expect(pill(page, "food")).toHaveAttribute("aria-pressed", "true");
     await expect(pill(page, "transport")).toHaveAttribute("aria-pressed", "false");
+    await expect(pill(page, "transport").locator(".rail-check")).toHaveText("×");
     await expect(page.getByRole("button", { name: "Show all nearby" })).toBeEnabled();
     await expect(page.getByRole("link", { name: "Filters" })).toHaveAttribute("href", "/nearby/filter");
     await expect(rail(page).locator("[data-rail-key]").first()).toBeVisible();

@@ -1417,6 +1417,10 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   line-height: 1;
 }
 
+.rail-check.is-off {
+  opacity: 0.58;
+}
+
 .rail-pill:active,
 .rail-edge:active {
   transform: scale(0.9);

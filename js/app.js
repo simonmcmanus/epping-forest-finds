@@ -4669,8 +4669,8 @@ function railPillKeys() {
 function filterRailHtml() {
   const pills = railItems().map((item) => {
     const on = railItemIsActive(item);
-    const check = on ? `<span class="rail-check" aria-hidden="true">✓</span>` : "";
-    return `<button class="rail-pill${on ? " is-on" : ""}" type="button" data-rail-key="${item.key}" aria-pressed="${on}">${appIconHtml(item.icon)}<span>${escapeHtml(item.label)}</span>${check}</button>`;
+    const status = `<span class="rail-check${on ? "" : " is-off"}" aria-hidden="true">${on ? "✓" : "×"}</span>`;
+    return `<button class="rail-pill${on ? " is-on" : ""}" type="button" data-rail-key="${item.key}" aria-pressed="${on}">${appIconHtml(item.icon)}<span>${escapeHtml(item.label)}</span>${status}</button>`;
   }).join("");
   const narrowed = railSelection().length > 0;
   return `<nav class="filter-rail" aria-label="Filter nearby places">` +

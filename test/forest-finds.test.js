@@ -2120,6 +2120,7 @@ test("the plain Nearby filter rail shows top-level categories with ticks for ena
   assert.match(html, /data-rail-key="nature"[^>]*>[^<]*[\s\S]*?<span class="rail-check"/, "enabled groups show a tick");
   assert.match(html, /class="rail-pill is-on" type="button" data-rail-key="food" aria-pressed="true"/);
   assert.match(html, /data-rail-key="transport" aria-pressed="false"/, "the rail uses top-level groups");
+  assert.match(html, /data-rail-key="transport"[^>]*>[\s\S]*?<span class="rail-check is-off"[^>]*>×<\/span>/, "disabled groups show a cross");
   const keys = [...html.matchAll(/data-rail-key="([a-z_]+)"/g)].map((m) => m[1]);
   assert.equal(new Set(keys).size, keys.length, "no category appears twice");
   assert.ok(keys.includes("nature") && keys.includes("food"), "the top-level categories are in the row");
