@@ -2916,10 +2916,22 @@ function navHighlightPosition(current) {
 
   const navRect = nav.getBoundingClientRect();
   const currentRect = current.getBoundingClientRect();
-  nav.style.setProperty("--nav-highlight-x", `${currentRect.left - navRect.left}px`);
-  nav.style.setProperty("--nav-highlight-y", `${currentRect.top - navRect.top}px`);
-  nav.style.setProperty("--nav-highlight-width", `${currentRect.width}px`);
-  nav.style.setProperty("--nav-highlight-height", `${currentRect.height}px`);
+  const nextPosition = {
+    x: currentRect.left - navRect.left,
+    y: currentRect.top - navRect.top,
+    width: currentRect.width,
+    height: currentRect.height,
+  };
+  const previousPosition = nav._navHighlightPosition;
+  const positionIsUnchanged = previousPosition
+    && Object.keys(nextPosition).every((key) => Math.abs(nextPosition[key] - previousPosition[key]) < 0.25);
+  if (!positionIsUnchanged) {
+    nav.style.setProperty("--nav-highlight-x", `${nextPosition.x}px`);
+    nav.style.setProperty("--nav-highlight-y", `${nextPosition.y}px`);
+    nav.style.setProperty("--nav-highlight-width", `${nextPosition.width}px`);
+    nav.style.setProperty("--nav-highlight-height", `${nextPosition.height}px`);
+    nav._navHighlightPosition = nextPosition;
+  }
   nav.classList.add("nav-has-highlight");
 }
 
