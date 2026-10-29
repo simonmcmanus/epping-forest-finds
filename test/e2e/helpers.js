@@ -216,7 +216,11 @@ async function setup(page, urlPath = "/nearby") {
       // radius before this runs -- clearing the location above doesn't undo that framing on its
       // own, so a screen (Settings/Report included) is left zoomed in on a single, now-stale
       // patch of map instead of the whole-forest view the old no-location baseline expects.
-      fitToBounds(false);
+      // A URL that opened a place (/nearby#tree=...) instead keeps the app's own framing of that
+      // place, re-run now that no location is set: the whole-forest view would leave a visitor's
+      // first sight of the place out of shot.
+      if (state.selected && selectedCompassTarget()) ensureUserAndSelectionVisible({ animate: false, force: true });
+      else fitToBounds(false);
       draw();
     }
   });
