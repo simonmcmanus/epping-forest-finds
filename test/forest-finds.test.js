@@ -2162,13 +2162,15 @@ test("tapping a rail pill narrows to it, a second pill adds to it, and un-pressi
   app.toggleRailFilter("nature");
   assert.deepEqual(Array.from(app.state.overviewFilters), ["trees", "cows", "ponds_streams"]);
   assert.equal(app.state.overviewFiltersEphemeral, true, "a rail tap is a lens, not the reader's saved filters");
-  assert.equal(app.location.pathname, "/nearby/nature", "one top-level category is its own landing path");
-  app.location.pathname = "/nearby/nature";
+  assert.equal(app.location.pathname, "/nearby", "the plain Nearby rail stays at top-level groups");
+  assert.equal(app.location.search, "?show=trees,cows,ponds_streams");
+  app.state.nearbyRailGroupKey = "nature";
   app.toggleRailFilter("ponds_streams");
   assert.deepEqual(Array.from(app.state.overviewFilters), ["trees", "cows"]);
   assert.equal(app.location.pathname, "/nearby");
   assert.equal(app.location.search, "?show=trees,cows");
   app.location.pathname = "/nearby";
+  app.state.nearbyRailGroupKey = null;
   app.toggleRailFilter("nature");
   assert.equal(app.railSelection().length, 0, "nothing chosen means show-all");
   assert.equal(app.location.search, "?filters=false");

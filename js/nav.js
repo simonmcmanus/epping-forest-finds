@@ -2423,6 +2423,10 @@ function goToInitialView(updateHash = true) {
   exitClusterExpansion();
   state.filterScreenOpen = false;
   state.searchScreenOpen = false;
+  // Returning to Nearby through the main navigation or an ordinary route should read the rail
+  // level from the destination path again. A rail tap itself never calls this function, so its
+  // group/subcategory level remains stable while the query string is rewritten.
+  state.nearbyRailGroupKey = undefined;
   // A /nearby/<slug> page's single category is that page's own lens, not a preference the reader
   // chose -- the Nearby nav button is "take me to the real Nearby", so it puts their actual
   // filters back rather than carrying that category over (see setOverviewFilters' persist:false

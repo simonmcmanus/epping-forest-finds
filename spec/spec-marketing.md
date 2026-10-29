@@ -710,7 +710,7 @@ branches.
   first visit the onboarding wizard takes its place. The list is trees
   only: cows and events join it only once a real fix rebuilds the list.
 - **The static page carries one labelled category-navigation region at the very top of a
-  `/nearby/<slug>/` landing, matching `categoryLandingLinksHtml()`
+  `/nearby/<slug>/` landing, matching the static category-chip generator
   (`js/app.js`) chip for chip** (`topChipsHtml`, `scripts/generate-find-pages.js`;
   `.nearby-category-nav`, `.detail-top-row.related-chips`/`.detail-map-link`,
   `css/inspector.css`; icons via `appIconHtml`/`treeSpeciesIconHtml`, both exposed by
@@ -729,7 +729,7 @@ branches.
   The actual nearby entries sit below this region under a separate
   `<h3>` such as "Pubs & bars nearby", so the category links cannot be mistaken for the first
   results. The current page's static results heading and navigation remain in place when
-  `selectOverview()` replaces the list content after JS boots; `categoryLandingLinksHtml()`
+  `selectOverview()` replaces the list content after JS boots; the live category rail
   grew this same logic — without it, a reader (or a crawler) saw this whole
   row until JS swapped it in and then never again. `/nearby/cows/` and
   `/nearby/events/` (rendered outside `collectPages`/`renderPage`, so with no

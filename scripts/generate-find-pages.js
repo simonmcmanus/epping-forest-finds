@@ -255,7 +255,8 @@ function natureNearestListHtml(filterKeys, enrichment, rules) {
   return nearestListHtml(cards);
 }
 
-// The exact category navigation categoryLandingLinksHtml() (js/app.js) renders live at the top
+// The static equivalent of the category navigation that the live filter rail (js/app.js) renders
+// at the top
 // of the Nearby list on a real /nearby/<slug>/ landing -- the current category, a chip up to the
 // category's own group, a way back to the full, unfiltered list, plus (for a group page) a
 // down-link to each member subfilter ("Browse by type") and the same "see also veteran
@@ -270,7 +271,7 @@ function subfilterByKey(rules, key) {
   return null;
 }
 
-// The same class and markup categoryLandingLinksHtml (js/app.js) gives every chip live, so the
+// The same class and markup the live category navigation uses gives every chip live, so the
 // forest-green "navigate into the map" styling (css/inspector.css, .detail-map-link.nearby-link)
 // shows on the static page too, not only after JS boots.
 function chipHtml(rules, href, icon, label, { current = false } = {}) {
@@ -312,7 +313,7 @@ function seeAlsoChipsHtml(rules, { omitTrees = false, omitCows = false } = {}) {
 }
 
 // Assembles every navigation chip a page gets in the live version's own order, wrapped in the
-// same labelled navigation region as categoryLandingLinksHtml() rather than looking like the
+// same labelled navigation region as the live category navigation rather than looking like the
 // first few result cards.
 function topChipsHtml(rules, { currentKey = null, group = null, members = null, omitTrees = false, omitCows = false } = {}) {
   const breadcrumb = breadcrumbChipsHtml(rules, group, currentKey);

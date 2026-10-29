@@ -248,6 +248,10 @@ const state = {
   overviewFilters: loadStoredOverviewFilters(),
   // Set by setOverviewFilters(persist:false) -- see its comment -- never true on first load.
   overviewFiltersEphemeral: false,
+  // The rail level is normally derived from the current /nearby/<slug> path. A rail tap keeps
+  // the level it was displayed at while replacing that path with a shareable query string, so
+  // a plain Nearby rail stays at groups and a category rail stays at subcategories.
+  nearbyRailGroupKey: undefined,
   overviewExpandedGroups: (() => {
     try {
       const d = JSON.parse(localStorage.getItem(FILTER_STATE_KEY) || "null");
@@ -803,6 +807,9 @@ function applyRouteFromUrl() {
   routeApplyDepth += 1;
   let raw;
   try {
+    // A real route change should derive the rail level from its new path. A rail tap uses
+    // replaceState only, so it never comes through here and can retain its displayed level.
+    state.nearbyRailGroupKey = undefined;
     applyShowFilterFromQuery();
     applySearchQueryFromQuery();
     applyRadiusFromQuery();
@@ -4476,7 +4483,7 @@ function overviewHeadingText() {
 
 // The category label a /nearby/<slug>/ landing page's own heading names ("Nearby Nature",
 // "Nearby Pubs & bars") in place of the generic "Nearby" the plain screen, or a reader's own
-// filter choice, keeps -- same URL-path match categoryLandingLinksHtml() uses, so the two can
+// filter choice, keeps -- same URL-path match used by the category landing generator, so the two can
 // never name a different category.
 function landingPageCategoryLabel() {
   const match = /^\/nearby\/([a-z0-9-]+)\/?$/.exec(window.location.pathname);
@@ -4623,6 +4630,9 @@ function renderNearestItemsHtml(entries) {
 let railPatchPending = false;
 
 function nearbyRailGroup() {
+  if (state.nearbyRailGroupKey !== undefined) {
+    return state.nearbyRailGroupKey ? FILTER_GROUPS_BY_KEY.get(state.nearbyRailGroupKey) || null : null;
+  }
   const match = /^\/nearby\/([a-z0-9-]+)\/?$/.exec(window.location.pathname);
   if (!match) return null;
   const key = match[1].replace(/-/g, "_");
@@ -4689,7 +4699,10 @@ function syncRailUrl() {
   const matchingGroup = FILTER_GROUPS.find((group) =>
     chosen.length === group.subfilters.length && group.subfilters.every((subfilter) => chosen.includes(subfilter.key))
   );
-  const pathname = matchingGroup
+  const displayedGroup = nearbyRailGroup();
+  const pathname = !displayedGroup && matchingGroup
+    ? NEARBY_PATH
+    : matchingGroup
     ? `/nearby/${matchingGroup.key.replace(/_/g, "-")}`
     : chosen.length === 1 ? `/nearby/${chosen[0].replace(/_/g, "-")}` : NEARBY_PATH;
   const search = searchStringForPath(pathname);
@@ -4699,8 +4712,10 @@ function syncRailUrl() {
 }
 
 function toggleRailFilter(key) {
+  const displayedGroup = nearbyRailGroup();
   const item = railItems().find((candidate) => candidate.key === key);
   if (!item) return;
+  state.nearbyRailGroupKey = displayedGroup ? displayedGroup.key : null;
   const current = new Set(state.overviewFilters.filter((filterKey) => FILTER_SUBFILTERS_BY_KEY.has(filterKey)));
   const showingAll = state.overviewFilters.length === 0 || railSelection().length === 0;
   const active = item.filterKeys.some((filterKey) => current.has(filterKey));
@@ -4719,6 +4734,8 @@ function toggleRailFilter(key) {
 }
 
 function showAllFromRail() {
+  const displayedGroup = nearbyRailGroup();
+  state.nearbyRailGroupKey = displayedGroup ? displayedGroup.key : null;
   if (typeof navigator.vibrate === "function") navigator.vibrate(8);
   setOverviewFilters(Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: false, railTap: true });
 }
