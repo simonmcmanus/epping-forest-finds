@@ -2281,7 +2281,10 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 .inspector-title-emoji {
   width: calc(48px * var(--icon-scale));
   height: calc(48px * var(--icon-scale));
-  padding: 2px;
+  /* The global border-box sizing means the 48px shell includes its border and padding. Keep
+     one pixel of inset so the child artwork remains the promised 44px title icon rather than
+     shrinking to 42px. */
+  padding: 1px;
   border: 1px solid var(--border-soft);
   border-radius: 14px;
   display: grid;
