@@ -587,7 +587,7 @@ test.describe("generated find/nearby pages", () => {
       await expect(body.locator('[data-rail-key="pubs"][aria-pressed="true"]')).toHaveCount(1);
       await expect(body.locator('[data-rail-key="cafes"][aria-pressed="false"]')).toHaveCount(1);
       await expect(body.getByRole("heading", { name: "Pubs & bars nearby" })).toBeVisible();
-      await expect(body.getByRole("button", { name: "Show all nearby" })).toBeEnabled();
+      await expect(body.getByRole("link", { name: "Filters" })).toHaveAttribute("href", "/nearby/filter");
 
       await page.evaluate(() => { window.__noReloadMarker = "still-here"; });
       await body.locator('[data-rail-key="cafes"]').click();

@@ -333,8 +333,8 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
   the reader's own saved filters are untouched and return on the next plain visit. The same
   override is applied by the walk-radius card's own button (`focusNearbyWithinWalkMinutes`, js/nav.js).
 - **Nearby filter rail.** Every Nearby view carries one row of toggle pills (`filterRailHtml()`,
-  js/app.js; detail in `spec-data-rendering.md` "Nearby filter rail"): a show-all button on the
-  left, top-level category pills on `/nearby`, that category's subcategory pills on a
+  js/app.js; detail in `spec-data-rendering.md` "Nearby filter rail"): top-level category pills on
+  `/nearby`, that category's subcategory pills on a
   `/nearby/<category>` page, and a button to the Filters screen on the right. Enabled pills show a
   tick. A top-level pill toggles all of its subcategories; a subcategory pill toggles only itself.
   Changes remain an ephemeral lens (`persist:false`), so the reader's saved filters are untouched.

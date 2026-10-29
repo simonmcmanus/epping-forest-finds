@@ -46,7 +46,6 @@ test.describe("Nearby filter rail", () => {
     await expect(pill(page, "food")).toHaveAttribute("aria-pressed", "true");
     await expect(pill(page, "transport")).toHaveAttribute("aria-pressed", "false");
     await expect(pill(page, "transport").locator(".rail-check")).toHaveText("×");
-    await expect(page.getByRole("button", { name: "Show all nearby" })).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Filters" })).toHaveAttribute("href", "/nearby/filter");
     await expect(rail(page).locator("[data-rail-key]").first()).toBeVisible();
   });
@@ -94,7 +93,7 @@ test.describe("Nearby filter rail", () => {
     await pill(page, "trees").click();
     await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?filters=false$/);
     await expect(rail(page).locator('[aria-pressed="true"]')).toHaveCount(3);
-    await expect(page.getByRole("button", { name: "Show all nearby" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Filters" })).toBeVisible();
   });
 
   test("tapping pills never changes the reader's saved filters", async ({ page }) => {
