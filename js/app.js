@@ -2931,7 +2931,7 @@ function previewNavScreenActive(current) {
   navHighlightPosition(current);
 }
 
-function setNavScreenActive(current = null) {
+function setNavScreenActive(current = null, { preserveHighlight = false } = {}) {
   const nav = document.querySelector(".inspector-actions");
   [els.nearbyToggle, els.searchToggle, els.filterToggle, els.settingsToggle, els.reportToggle].forEach((el) => {
     if (!el) return;
@@ -2942,7 +2942,7 @@ function setNavScreenActive(current = null) {
     else el.setAttribute("aria-current", "false");
   });
   if (current?.closest(".inspector-actions")) navHighlightPosition(current);
-  else nav?.classList.remove("nav-has-highlight");
+  else if (!preserveHighlight) nav?.classList.remove("nav-has-highlight");
 }
 
 function openFiltersScreen() {
@@ -2957,7 +2957,7 @@ function openFiltersScreen() {
   // showBack:true clears state.filterScreenOpen inside setInspectorSelectionChrome (the shared
   // chokepoint every other showBack:true screen relies on to stand Filters down) -- set it again
   // immediately after, now that Filters is the screen being entered rather than left.
-  setInspectorSelectionChrome({ emoji: appIconHtml("filter", "app-icon title-icon"), showBack: true });
+  setInspectorSelectionChrome({ emoji: appIconHtml("filter", "app-icon title-icon"), showBack: true, preserveNavHighlight: true });
   state.filterScreenOpen = true;
   if (els.nearbyToggle) els.nearbyToggle.hidden = false;
   setNavScreenActive(els.filterToggle);
@@ -2983,7 +2983,7 @@ function openSettings() {
   // showed the tapped group's borrowed radius as if it were the user's own setting.
   exitClusterExpansion();
   state.selected = { type: "settings", item: null };
-  setInspectorSelectionChrome({ emoji: appIconHtml("settings", "app-icon title-icon"), showBack: true });
+  setInspectorSelectionChrome({ emoji: appIconHtml("settings", "app-icon title-icon"), showBack: true, preserveNavHighlight: true });
   setNavScreenActive(els.settingsToggle);
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = "Settings";
@@ -3368,7 +3368,7 @@ function openCommunity() {
   if (typeof trackGaScreenView === "function") trackGaScreenView("Community");
   exitClusterExpansion();
   state.selected = { type: "community", item: null };
-  setInspectorSelectionChrome({ emoji: appIconHtml("tree", "app-icon title-icon"), showBack: true });
+  setInspectorSelectionChrome({ emoji: appIconHtml("tree", "app-icon title-icon"), showBack: true, preserveNavHighlight: true });
   setNavScreenActive(els.reportToggle);
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = "Community";
@@ -3414,7 +3414,7 @@ function openReportModal() {
   // See the matching comment in openFiltersScreen.
   exitClusterExpansion();
   state.selected = { type: "report", item: null };
-  setInspectorSelectionChrome({ emoji: appIconHtml("feedback", "app-icon title-icon"), showBack: true });
+  setInspectorSelectionChrome({ emoji: appIconHtml("feedback", "app-icon title-icon"), showBack: true, preserveNavHighlight: true });
   setNavScreenActive(els.reportToggle);
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = "Feedback";
@@ -8996,7 +8996,7 @@ function openSearchScreen() {
   // Building the index here rather than on the first keystroke keeps the hitch off the
   // moment the user is typing into the field.
   ensureSearchIndex();
-  setInspectorSelectionChrome({ emoji: searchIconHtml(), showBack: false });
+  setInspectorSelectionChrome({ emoji: searchIconHtml(), showBack: false, preserveNavHighlight: true });
   state.searchScreenOpen = true;
   if (els.nearbyToggle) els.nearbyToggle.hidden = false;
   setNavScreenActive(els.searchToggle);
