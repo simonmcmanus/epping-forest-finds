@@ -232,6 +232,7 @@ const ICON_PATHS = {
   stories: "data/icons/stories.png",
   theatre: "data/icons/theatre.png",
   tree: "data/icons/tree.png",
+  "tree-dead": "data/icons/tree-dead.png",
   underground: "data/icons/underground.png",
   waymarked: "data/icons/waymarked.png",
   wwII: "data/icons/wwII.png",

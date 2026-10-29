@@ -361,22 +361,35 @@ function findClusterHit(screen) {
 // --- Detail views ---
 
 function showTreeDetails(tree, distance, label) {
-  setInspectorSelectionChrome({ emoji: appIconHtml("tree", "app-icon title-icon"), showBack: true });
+  setInspectorSelectionChrome({ emoji: treeSpeciesIconHtml(tree.commonName, tree.latinName, "app-icon title-icon") || appIconHtml("tree", "app-icon title-icon"), showBack: true });
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = treeDisplayName(tree);
-  els.inspectorType.textContent = "Veteran tree";
+  const form = String(tree.treeForm || "").trim().replace(/^veteran\s+/i, "");
+  els.inspectorType.textContent = form ? `Veteran tree · ${form} form` : "Veteran tree";
   const estimatedAge = estimateTreeAgeFromGirth(tree);
   const primaryRows = [
-    ["Tag number", treeTagLabel(tree)],
     ["Estimated age", estimatedAge],
-    ["Common name", tree.commonName],
-    ["Latin name", tree.latinName],
-    ["Tree form", tree.treeForm],
     ["Girth", tree.girthMetres == null ? null : `${tree.girthMetres} m`],
-    ["Status", tree.status],
-    ["Comments", tree.comments],
   ];
+  const tag = treeTagLabel(tree);
+  const tagHtml = `<div class="row tree-tag${tag == null ? " tree-tag--missing" : ""}"><dt>Tag number</dt><dd>${escapeHtml(tag ?? "No tag recorded")}</dd></div>`;
+  const status = String(tree.status || "").trim().toLowerCase();
+  const statusIcon = status === "alive" ? appIconHtml("tree", "tree-status-icon")
+    : status === "dead" ? appIconHtml("tree-dead", "tree-status-icon") : "";
+  const statusHtml = tree.status != null && tree.status !== ""
+    ? `<div class="row tree-status"><dt>Status</dt><dd><span>${escapeHtml(displayValue(tree.status))}</span>${statusIcon}</dd></div>` : "";
+  const commentsHtml = tree.comments
+    ? `<div class="tree-comments">${detailsHtml([["Comments", tree.comments]])}</div>` : "";
+  const measurementRows = primaryRows.filter(([, value]) => value != null && value !== "");
+  const measurementsHtml = measurementRows.length ? `<div class="tree-measurements"><dl>${measurementRows.map(([name, value]) => {
+    const age = name === "Estimated age" && String(value).match(/^(.*) (\(c\.-?\d+\))$/);
+    const shown = age
+      ? `<span class="tree-age-value">${escapeHtml(age[1].replace(/ years$/, ""))}<span class="tree-measurement-unit"> years</span></span> <small>${escapeHtml(age[2])}</small>`
+      : escapeHtml(displayValue(value));
+    return `<div class="row"><dt>${escapeHtml(name)}</dt><dd>${shown}</dd></div>`;
+  }).join("")}</dl></div>` : "";
   const technicalRows = [
+    ["Latin name", tree.latinName],
     ["National tag", tree.nationalDatabaseTagNumber],
     ["GPS date", tree.dateGpsd],
     ["Compartment", tree.compartmentNumber],
@@ -394,9 +407,10 @@ function showTreeDetails(tree, distance, label) {
   const namedTreeHtml = namedTreeDetailsHtml(tree);
   const nearbySectionHtml = nearbySectionsHtml({ latitude: tree.latitude, longitude: tree.longitude, name: tree.commonName || null, subfilterKey: "trees" });
   const issueHtml = reportIssueHtml({ type: "Veteran tree", name: treeDisplayName(tree), latitude: tree.latitude, longitude: tree.longitude });
-  // Keep the check form directly below the actions so it can collapse into the local report
-  // status in the same place, just like a place check does.
-  transitionInspectorBody(topRow + verified.detail + communitySectionHtml(tree) + detailsHtml(primaryRows) + technicalHtml + namedTreeHtml + nearbySectionHtml + issueHtml, "forward");
+  // Read the tree first; community checks follow the record and stay in the same host as
+  // the live verification slots so saved-report updates can still find the header actions.
+  const factsHtml = `<section class="tree-facts" aria-label="Tree facts"><dl class="tree-summary">${tagHtml}${statusHtml}</dl>${topRow}${verified.detail}${measurementsHtml}${commentsHtml}</section>`;
+  transitionInspectorBody(`<article class="tree-detail">${factsHtml}${namedTreeHtml}${communitySectionHtml(tree)}${nearbySectionHtml}${issueHtml}${technicalHtml}</article>`, "forward");
 }
 
 function showLandmarkDetails(place, distance) {
