@@ -98,12 +98,23 @@ test.describe("Overview / Nearby screen", () => {
 
     const panel = page.locator("#inspector");
     const before = (await panel.boundingBox()).height;
-    const handle = await page.locator("#inspectorDragHandle").boundingBox();
+    const handleLocator = page.locator("#inspectorDragHandle");
+    await expect(handleLocator).toHaveAttribute("aria-valuemin", "20");
+    await expect(handleLocator).toHaveAttribute("aria-valuemax", "85");
+    await expect(handleLocator).toHaveAttribute("aria-valuenow", "50");
+    const handle = await handleLocator.boundingBox();
     await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
     await page.mouse.down();
     await page.mouse.move(handle.x + handle.width / 2, handle.y - 120, { steps: 5 });
     await page.mouse.up();
+    await expect(handleLocator).toHaveAttribute("aria-valuenow", /^(6[0-9]|7[0-9])$/);
     await expect.poll(async () => (await panel.boundingBox()).height).toBeGreaterThan(before + 80);
+
+    await handleLocator.focus();
+    await page.keyboard.press("Home");
+    await expect(handleLocator).toHaveAttribute("aria-valuenow", "20");
+    await page.keyboard.press("End");
+    await expect(handleLocator).toHaveAttribute("aria-valuenow", "85");
   });
 
   test("screen title icons match the back button size even when Back is hidden", async ({ page }) => {

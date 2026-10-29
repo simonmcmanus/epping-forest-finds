@@ -2207,6 +2207,7 @@ function setupInspectorDragResize() {
     const clamped = Math.max(20, Math.min(85, percent));
     state.inspectorHeightPercent = clamped;
     els.inspector.style.setProperty("--inspector-height", `${clamped}%`);
+    dragHandle.setAttribute("aria-valuenow", String(Math.round(clamped)));
   }
 
   function recenterMap(options = {}) {
@@ -2287,6 +2288,7 @@ function setupInspectorDragResize() {
     if (!isBottomSheetLayout() && state.inspectorHeightPercent !== null) {
       els.inspector.style.removeProperty("--inspector-height");
       state.inspectorHeightPercent = null;
+      dragHandle.setAttribute("aria-valuenow", "50");
     }
   });
 }

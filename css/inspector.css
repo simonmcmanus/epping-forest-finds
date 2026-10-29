@@ -45,6 +45,11 @@
   cursor: grabbing;
 }
 
+.inspector-drag-handle:focus-visible::before {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
 /* The Nearby list's own "requesting your location" state (showNearbyLocatingState, js/inspector.js):
    replaces the list while a reader's location request is pending. The ring reuses step-spin from
    css/loading.css, the same turn the boot checklist's loading step uses. */
