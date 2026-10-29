@@ -28,9 +28,9 @@ const REPORT_DRAFT_KEY = "forest-finds-report-draft-v1";
 const REPORT_REQUEST_ID_KEY = "forest-finds-report-request-id-v1";
 const FILTER_STATE_KEY = "forest-finds-filter-state-v1";
 const FILTER_HINT_KEY = "forest-finds-filter-hint-v1";
-// Matches onboarding.js's own default selection and spec.md's "Default filters" section:
-// only Trees, Cows, Events and Pubs are pre-selected before onboarding ever runs.
-const DEFAULT_FILTERS = ["trees", "cows", "events", "pubs"];
+// Matches the onboarding dialog and filter-state.js. Keep the initial map interesting
+// without turning it into a dense wall of pins.
+const DEFAULT_FILTERS = DEFAULT_OVERVIEW_FILTER_KEYS.slice();
 const COW_REFRESH_MS = 5 * 60 * 1000;
 const IS_LOCAL_COW_CACHE_MODE = ["127.0.0.1", "localhost"].includes(window.location.hostname);
 const DEFAULT_COW_CENTER = { longitude: 0.06371428038973509, latitude: 51.656022523996725 };

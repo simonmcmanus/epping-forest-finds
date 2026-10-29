@@ -1,4 +1,4 @@
-// First-visit onboarding: progressive filter selection + location and compass opt-in.
+// First-visit onboarding: a short guided filter setup, then location and compass opt-in.
 // Runs while map data loads in the background.
 
 const ONBOARDING_KEY = "forest-finds-onboarding-v1";
@@ -7,7 +7,7 @@ const ONBOARDING_STEPS = [
   { type: "location" },
   { type: "analytics" },
   { type: "welcome" },
-  ...FILTER_GROUPS.map((g) => ({ type: "group", group: g })),
+  { type: "filters" },
 ];
 
 if (typeof globalThis !== "undefined") {
@@ -67,7 +67,7 @@ function showOnboarding() {
     let stepIndex = 0;
     let locationPromise = null;
     const total = steps.length;
-    const selected = new Set(["trees", "cows", "events", "pubs"]);
+    const selected = new Set(DEFAULT_OVERVIEW_FILTER_KEYS);
 
     overlay.hidden = false;
     const deactivateFocus = typeof activateModalFocus === "function" ? activateModalFocus(overlay) : null;
@@ -83,12 +83,13 @@ function showOnboarding() {
       if (idx < 0 || idx >= steps.length) return;
       const s = steps[idx];
       const srcs = [];
-      if (s.type === "welcome") srcs.push("data/icons/trees/logo.png");
+      if (s.type === "welcome" || s.type === "analytics") srcs.push("data/icons/trees/logo.png");
       if (s.type === "location") srcs.push("data/icons/pin.png");
-      if (s.type === "analytics") srcs.push("data/icons/trees/logo.png");
-      if (s.type === "group") {
-        srcs.push(`data/icons/${s.group.icon}.png`);
-        s.group.subfilters.forEach((sf) => srcs.push(`data/icons/${sf.icon}.png`));
+      if (s.type === "filters") {
+        FILTER_GROUPS.forEach((group) => {
+          srcs.push(`data/icons/${group.icon}.png`);
+          group.subfilters.forEach((sf) => srcs.push(`data/icons/${sf.icon}.png`));
+        });
       }
       srcs.forEach((src) => { const img = new Image(); img.src = src; });
     }
@@ -104,37 +105,40 @@ function showOnboarding() {
       if (step.type === "welcome") {
         contentEl.innerHTML = `
           <img class="onboarding-step-icon" src="data/icons/trees/logo.png" alt="">
-          <h2 class="onboarding-step-title">Epping Forest Finds</h2>
-          <p class="onboarding-step-subtitle">Let's personalise your map. Choose what you'd like to explore — you can always change this later.</p>
+          <h2 class="onboarding-step-title">Make the map yours</h2>
+          <p class="onboarding-step-subtitle">Take a quick tour of the map setup. Pick the finds you want to see, then you can start exploring.</p>
         `;
         actionsEl.innerHTML = `
-          <button class="button ob-primary">Get started</button>
-          <button class="onboarding-skip-btn ob-skip">Skip setup</button>
+          <button class="button ob-primary">Set up my map</button>
+          <button class="onboarding-skip-btn ob-skip">Explore first</button>
         `;
-      } else if (step.type === "group") {
-        const { group } = step;
-        const chips = group.subfilters.map((sf) => {
-          const on = selected.has(sf.key);
-          return `<button class="onboarding-chip${on ? "" : " off"}" data-key="${sf.key}" type="button">
-            <span class="chip-tick">✓</span>
-            <img src="data/icons/${sf.icon}.png" alt="" onerror="this.style.display='none'">
-            ${sf.label}
-          </button>`;
+      } else if (step.type === "filters") {
+        const groups = FILTER_GROUPS.map((group) => {
+          const chips = group.subfilters.map((sf) => {
+            const on = selected.has(sf.key);
+            return `<button class="onboarding-chip${on ? "" : " off"}" data-key="${sf.key}" type="button" aria-pressed="${on}">
+              <span class="chip-tick">✓</span>
+              <img src="data/icons/${sf.icon}.png" alt="" onerror="this.style.display='none'">
+              ${sf.label}
+            </button>`;
+          }).join("");
+          return `<section class="onboarding-filter-group" aria-labelledby="onboarding-group-${group.key}">
+            <h3 id="onboarding-group-${group.key}">${group.label}</h3>
+            <div class="onboarding-chips">${chips}</div>
+          </section>`;
         }).join("");
-        const isFirst = stepIndex === 1;
-        const isLast = stepIndex === total - 1;
         contentEl.innerHTML = `
-          <img class="onboarding-step-icon" src="data/icons/${group.icon}.png" alt="">
-          <h2 class="onboarding-step-title">${group.label}</h2>
-          <p class="onboarding-step-subtitle">Tap to toggle what you'd like to see on the map.</p>
-          <div class="onboarding-chips">${chips}</div>
+          <img class="onboarding-step-icon" src="data/icons/trees/logo.png" alt="">
+          <h2 class="onboarding-step-title">What would you like to find?</h2>
+          <p class="onboarding-step-subtitle">Choose a few starting points. You can change these anytime in Filters.</p>
+          <div class="onboarding-filter-groups">${groups}</div>
         `;
         actionsEl.innerHTML = `
           <div class="onboarding-nav">
-            ${!isFirst ? `<button class="button ob-back" type="button">← Back</button>` : ""}
-            <button class="button ob-next" type="button">${isLast ? "Done" : "Next"}</button>
+            <button class="button ob-back" type="button">← Back</button>
+            <button class="button ob-next" type="button">Continue</button>
           </div>
-          ${!isLast ? `<button class="onboarding-skip-btn ob-skip" type="button">Skip remaining</button>` : ""}
+          <button class="onboarding-skip-btn ob-skip" type="button">Use the defaults</button>
         `;
       } else if (step.type === "location") {
         const needsCompassPrompt = canRequestCompassPermission() && Native.compassNeedsPrompt;
@@ -172,9 +176,11 @@ function showOnboarding() {
           if (selected.has(key)) {
             selected.delete(key);
             chip.classList.add("off");
+            chip.setAttribute("aria-pressed", "false");
           } else {
             selected.add(key);
             chip.classList.remove("off");
+            chip.setAttribute("aria-pressed", "true");
           }
         });
       });
@@ -273,7 +279,10 @@ function showOnboarding() {
     }
 
     function goNext() {
-      if (stepIndex >= total - 1) return;
+      if (stepIndex >= total - 1) {
+        finish();
+        return;
+      }
       stepIndex++;
       renderProgress();
       renderStep("forward");

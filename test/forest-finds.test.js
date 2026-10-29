@@ -1126,9 +1126,12 @@ test("first-visit onboarding shows location step first so permission is requeste
   const { ONBOARDING_STEPS: steps } = app;
   const locationStep = steps.findIndex((step) => step.type === "location");
   const compassStep = steps.findIndex((step) => step.type === "compass");
+  const filterStep = steps.findIndex((step) => step.type === "filters");
 
   assert.ok(locationStep >= 0, "location onboarding step should exist");
   assert.strictEqual(locationStep, 0, "location step must be first so permission is requested as soon as data starts loading");
+  assert.strictEqual(filterStep, steps.length - 1, "filter setup should be the final consolidated onboarding step");
+  assert.deepEqual(Array.from(app.DEFAULT_FILTERS), ["trees", "cows", "events", "pubs", "churches", "campsites"]);
   // Compass step is only included on iOS (canRequestCompassPermission). In the test
   // environment DeviceOrientationEvent.requestPermission is not defined, so no step.
   if (compassStep >= 0) {
