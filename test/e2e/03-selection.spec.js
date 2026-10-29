@@ -48,6 +48,94 @@ test.describe("Selection and Inspector", () => {
       expect(framing.inside, "the tree is in the visible map, not hidden under the inspector panel").toBe(true);
     });
 
+    test("tree facts stay readable while taxonomy and technical data sit at the bottom", async ({ page }) => {
+      const technical = page.locator("#inspectorBody details.technical-details");
+      await expect(technical.locator("dt", { hasText: "Latin name" })).toHaveCount(1);
+      await expect(technical).not.toHaveAttribute("open", "");
+      await expect(page.locator("#inspectorBody .tree-detail > :last-child")).toHaveClass("technical-details");
+      await expect(page.locator(".tree-facts")).toContainText("Tag number");
+      await technical.locator("summary").click();
+      await expect(technical.locator("dt", { hasText: "Latin name" })).toBeVisible();
+    });
+
+    test("tree details show species artwork, a status icon and form beneath the title", async ({ page }) => {
+      for (const status of ["Alive", "Dead"]) {
+        await page.evaluate((status) => showTreeDetails({ ...state.selected.item, status, treeForm: "Veteran Pollard", girthMetres: 4, comments: "Recorded as a veteran tree." }, 420, "Tree record"), status);
+        await waitForUiToSettle(page);
+        await expect(page.locator("#inspectorTitleEmoji")).toBeVisible();
+        await expect(page.locator("#inspectorTitleEmoji img:visible, #inspectorTitleEmoji canvas:visible")).toHaveCount(1);
+        await expect(page.locator("#inspectorTitleEmoji img")).toHaveAttribute("src", /trees\/oak\.png$/);
+        await expect(page.locator("#inspectorBody .tree-status dd")).toHaveText(status);
+        await expect(page.locator("#inspectorType")).toHaveText("Veteran tree · Pollard form");
+        const icon = page.locator("#inspectorBody .tree-status img");
+        await expect(icon).toBeVisible();
+        await expect(icon).toHaveAttribute("src", status === "Alive" ? /icons\/tree\.png$/ : /icons\/tree-dead\.png$/);
+        const textBox = await page.locator("#inspectorBody .tree-status dd span").boundingBox();
+        const iconBox = await icon.boundingBox();
+        expect(iconBox.x).toBeGreaterThanOrEqual(textBox.x + textBox.width);
+        expect(await icon.evaluate(el => getComputedStyle(el).opacity)).toBe("1");
+      }
+    });
+
+    test("tree identity and facts come before the community check", async ({ page }) => {
+      const facts = page.locator("#inspectorBody .tree-facts");
+      const check = page.locator("#inspectorBody .community-check");
+      await expect(facts).toBeVisible();
+      await expect(check).toHaveCount(1);
+      const order = await page.evaluate(() => {
+        const facts = document.querySelector("#inspectorBody .tree-facts");
+        const check = document.querySelector("#inspectorBody .community-check");
+        return Boolean(facts.compareDocumentPosition(check) & Node.DOCUMENT_POSITION_FOLLOWING);
+      });
+      expect(order).toBe(true);
+      await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
+    });
+
+    test("walking, map and share controls stay aligned", async ({ page }) => {
+      await page.evaluate(() => showTreeDetails({ ...state.selected.item, girthMetres: 4, comments: "A veteran tree with a broad crown and a hollowing trunk." }, 420, "Tree record"));
+      const controls = page.locator("#inspectorBody .walk-chip, #inspectorBody .detail-map-link--icon");
+      await expect(controls).toHaveCount(3);
+      const heights = await controls.evaluateAll((items) => items.map((item) => item.getBoundingClientRect().height));
+      heights.slice(1).forEach((height) => expect(height).toBeCloseTo(heights[0], 0));
+    });
+
+    test("missing tree tags have a clear fallback and single measurements stay compact", async ({ page }) => {
+      const show = async (tagNumber) => page.evaluate((tagNumber) => showTreeDetails({ ...state.selected.item, tagNumber, nationalDatabaseTagNumber: null, girthMetres: 0 }, 420, "Tree record"), tagNumber);
+      for (const tag of [null, "0", ""]) {
+        await show(tag);
+        await expect(page.locator("#inspectorBody .tree-tag dd")).toHaveText("No tag recorded");
+      }
+      await show("11383");
+      await expect(page.locator("#inspectorBody .tree-tag dd")).toHaveText("11383");
+      const measurement = page.locator("#inspectorBody .tree-measurements .row");
+      await expect(measurement).toHaveCount(1);
+      const card = await measurement.boundingBox();
+      const label = await measurement.locator("dt").boundingBox();
+      const value = await measurement.locator("dd").boundingBox();
+      // A single value has balanced insets, rather than blank space below a fixed-height card.
+      expect(card.y + card.height - value.y - value.height).toBeCloseTo(label.y - card.y, 0);
+      const pill = page.locator("#inspectorBody .walk-chip");
+      expect((await pill.boundingBox()).height).toBeCloseTo((await page.locator("#inspectorBody .detail-map-link--icon").first().boundingBox()).height, 0);
+      const tagFont = await page.locator("#inspectorBody .tree-tag dd").evaluate(item => parseFloat(getComputedStyle(item).fontSize));
+      const labelFont = await measurement.locator("dt").evaluate(item => parseFloat(getComputedStyle(item).fontSize));
+      expect(tagFont).toBeGreaterThan(labelFont);
+    });
+
+    test("estimated start year stays inline when it fits and wraps on a narrow screen", async ({ page }) => {
+      await page.setViewportSize({ width: 1280, height: 900 });
+      await page.evaluate(() => showTreeDetails({ ...state.selected.item, girthMetres: 4 }, null, "Tree record"));
+      const age = page.locator("#inspectorBody .tree-age-value");
+      const year = page.locator("#inspectorBody .tree-measurements small");
+      await expect(age).toBeVisible();
+      const wideAge = await age.boundingBox();
+      const wideYear = await year.boundingBox();
+      expect(wideYear.x).toBeGreaterThanOrEqual(wideAge.x + wideAge.width);
+      await page.setViewportSize({ width: 320, height: 720 });
+      const narrowAge = await age.boundingBox();
+      const narrowYear = await year.boundingBox();
+      expect(narrowYear.y).toBeGreaterThanOrEqual(narrowAge.y + narrowAge.height - 2);
+    });
+
     test("URL hash reflects the selected tree", async ({ page }) => {
       await expect(page).toHaveURL(new RegExp(`tree=${FIXTURE_TREE.hashKey}`));
     });
