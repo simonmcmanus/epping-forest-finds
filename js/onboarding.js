@@ -52,7 +52,7 @@ const ANALYTICS_ASK_TEXT = "Share anonymous usage data — which screens you use
 // Returns a Promise resolving to { filters: string[], locationPromise: Promise|null }
 // locationPromise is a live geolocation request started the moment the user tapped
 // "Enable location", so it runs concurrently with the rest of the data loading.
-function showOnboarding() {
+function showOnboarding({ skipPermissions = false } = {}) {
   return new Promise((resolve) => {
     const overlay = document.getElementById("onboardingOverlay");
     const progressEl = overlay.querySelector(".onboarding-progress");
@@ -61,7 +61,9 @@ function showOnboarding() {
 
     // A usage-analytics answer already given elsewhere (the homepage's cookie banner, say) is
     // omitted from the permissions dialog below; the rest of the guided setup is unchanged.
-    const steps = ONBOARDING_STEPS;
+    const steps = skipPermissions
+      ? ONBOARDING_STEPS.filter((step) => step.type !== "permissions")
+      : ONBOARDING_STEPS;
     let stepIndex = 0;
     let locationPromise = null;
     const total = steps.length;

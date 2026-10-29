@@ -7,67 +7,79 @@ test.describe("Onboarding", () => {
     // Do NOT call skipOnboarding() — we want the real first-visit behaviour
     test.beforeEach(async ({ page }) => {
       await mockCowApi(page);
+      await page.addInitScript(() => {
+        const originalQuery = navigator.permissions?.query?.bind(navigator.permissions);
+        if (!originalQuery) return;
+        navigator.permissions.query = (descriptor) => descriptor && descriptor.name === "geolocation"
+          ? Promise.resolve({ state: "prompt", onchange: null })
+          : originalQuery(descriptor);
+      });
     });
 
-    test("onboarding overlay is shown on first visit", async ({ page }) => {
+    test("the map remains usable and the first-run ask sits in the inspector", async ({ page }) => {
       await page.goto("/nearby");
-      await expect(page.locator("#onboardingOverlay")).toBeVisible();
+      await expect(page.locator("#consentBanner")).toBeVisible();
+      await expect(page.locator("#onboardingOverlay")).toBeHidden();
     });
 
-    test("the onboarding overlay is announced to assistive tech as a named modal dialog", async ({ page }) => {
+    test("the guided dialog is announced after the reader asks for setup", async ({ page }) => {
       await page.goto("/nearby");
+      const accept = page.locator("#consentBannerAccept");
+      if (await accept.textContent() !== "Set up my map") await accept.click();
+      await expect(page.locator("#consentBannerAccept")).toHaveText("Set up my map");
+      await accept.click();
       const dialog = page.getByRole("dialog", { name: "Set up Epping Forest Finds" });
       await expect(dialog).toBeVisible();
       await expect(dialog).toHaveAttribute("aria-modal", "true");
     });
 
-    test("the permissions screen is shown first", async ({ page }) => {
+    test("the non-blocking first-run card explains location and cookies", async ({ page }) => {
       await page.goto("/nearby");
-      await expect(page.locator("#onboardingOverlay")).toBeVisible();
-      // The first screen offers location and (when unanswered) analytics as independent choices.
-      await expect(page.locator("#onboardingOverlay")).toContainText(/location|compass/i);
+      await expect(page.locator("#consentBanner")).toBeVisible();
+      await expect(page.locator("#consentBanner")).toContainText(/location|cookies/i);
     });
 
-    test("map data loads in the background while onboarding is visible", async ({ page }) => {
+    test("map data loads in the background while the first-run ask is visible", async ({ page }) => {
       await page.goto("/nearby");
-      await expect(page.locator("#onboardingOverlay")).toBeVisible();
-      // The map data loads behind the overlay, which stays up until the person moves on.
+      await expect(page.locator("#consentBanner")).toBeVisible();
+      // The map data loads behind the card, which stays in the inspector while the map remains usable.
       await expect(page.locator('[data-load-step="places"]')).toHaveClass(/done|error/, { timeout: 30_000 });
-      await expect(page.locator("#onboardingOverlay")).toBeVisible();
+      await expect(page.locator("#consentBanner")).toBeVisible();
     });
 
-  test("'Skip for now' records a location choice without granting permission", async ({ page }) => {
+  test("'Maybe later' records a location choice without blocking the map", async ({ page }) => {
       await page.goto("/nearby");
-      await expect(page.locator("#onboardingOverlay")).toBeVisible();
-      await page.locator("#onboardingOverlay .ob-location-skip").click();
-    // The combined permissions dialog stays open so the analytics choice remains independent.
-    await expect(page.locator("#onboardingOverlay .ob-location-skip")).toBeDisabled();
-    await expect(page.locator("#onboardingOverlay .ob-location-status")).toContainText("skipped");
-      await expect(page.locator("#onboardingOverlay")).toBeVisible();
+      await expect(page.locator("#consentBanner")).toBeVisible();
+      await page.locator("#consentBannerDecline").click();
+      await expect(page.locator("#consentBannerAccept")).toHaveText("Set up my map");
       expect(await page.evaluate(() => localStorage.getItem("ff-track-v1"))).not.toBe("1");
     });
 
-  test("the combined permissions dialog keeps location and usage choices distinct", async ({ page }) => {
+  test("the combined first-run action moves to setup without blocking the map", async ({ page }) => {
       await page.addInitScript(() => {
         localStorage.removeItem("ff-track-v1");
         localStorage.removeItem("ff-cookie-consent");
       });
       await page.goto("/nearby");
-      await expect(page.locator("#onboardingOverlay")).toBeVisible();
-    await expect(page.locator("#onboardingOverlay")).toContainText("Settings → Privacy");
-    await expect(page.locator("#onboardingOverlay")).toContainText(/usage data|cookies/i);
-    await expect(page.locator("#onboardingOverlay .ob-location-skip")).toBeVisible();
-    await expect(page.locator("#onboardingOverlay .ob-analytics-decline")).toBeVisible();
+      await expect(page.locator("#consentBanner")).toContainText("Allow location & cookies");
+      await page.locator("#consentBannerAccept").click();
+      await expect(page.locator("#consentBannerAccept")).toHaveText("Set up my map");
+      expect(await page.evaluate(() => localStorage.getItem("ff-track-v1"))).toBe("1");
     });
 
-  test("tapping 'Enable location' records the choice without bundling analytics", async ({ page }) => {
+  test("tapping the combined action records location and analytics together", async ({ page }) => {
+      await page.addInitScript(() => {
+        localStorage.removeItem("ff-track-v1");
+        localStorage.removeItem("ff-cookie-consent");
+        navigator.geolocation.getCurrentPosition = (success) => success({
+          coords: { latitude: 51.665, longitude: 0.045, accuracy: 8 },
+          timestamp: Date.now(),
+        });
+      });
       await page.goto("/nearby");
-      await expect(page.locator("#onboardingOverlay")).toBeVisible();
-      await page.locator("#onboardingOverlay .ob-location").click();
-    await expect(page.locator("#onboardingOverlay .ob-location")).toHaveText("Location enabled");
-      await expect(page.locator("#onboardingOverlay")).toBeVisible();
+      await page.locator("#consentBannerAccept").click();
       await expect.poll(() => page.evaluate(() => localStorage.getItem("ff-location-v1"))).toBe("granted");
-    expect(await page.evaluate(() => localStorage.getItem("ff-track-v1"))).not.toBe("1");
+      expect(await page.evaluate(() => localStorage.getItem("ff-track-v1"))).toBe("1");
     });
   });
 

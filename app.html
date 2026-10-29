@@ -188,19 +188,19 @@
              the inspector makes it part of the app's readable chrome, rather than a floating
              layer over the map or navigation. -->
         <div id="earlyTestingNoticeSlot"></div>
-        <!-- Non-blocking first ask for anyone onboarding did not reach (showConsentBanner,
-             js/app.js): location first, then usage analytics, one question at a time in the same
-             card. Sits in the same inspector-chrome slot as #earlyTestingNoticeSlot just above,
-             rather than floating over the map, so the two read as one stack of notices. -->
+        <!-- Non-blocking first ask (showConsentBanner, js/app.js). On a first visit the single
+             explicit action covers location and cookies, then the same slot offers the optional
+             guided map setup. Sits in the same inspector-chrome slot as #earlyTestingNoticeSlot
+             just above, rather than floating over the map. -->
         <div id="consentBanner" class="consent-banner" role="group" aria-label="Location" hidden>
           <img class="consent-banner-logo" src="data/icons/trees/logo.png" alt="" width="36" height="36">
           <div class="consent-banner-copy">
-            <strong id="consentBannerTitle">See what's near you</strong>
-            <p id="consentBannerText">Enable location to centre the map on you and see real walking distances. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
+            <strong id="consentBannerTitle">Allow location &amp; cookies</strong>
+            <p id="consentBannerText">Shows nearby finds and their distance from you, and helps us understand how people use this site — enabling covers both. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
           </div>
           <div class="consent-banner-actions">
             <button id="consentBannerDecline" class="onboarding-skip-btn" type="button">Maybe later</button>
-            <button id="consentBannerAccept" class="button" type="button">Enable location</button>
+            <button id="consentBannerAccept" class="button" type="button">Enable location &amp; cookies</button>
           </div>
         </div>
         <!-- The dismissible "get a more custom experience" invite shown after a boot with no real
