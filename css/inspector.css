@@ -1410,6 +1410,13 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   height: 1.6em;
 }
 
+.rail-check {
+  margin-left: 1px;
+  font-size: 1.1em;
+  font-weight: 900;
+  line-height: 1;
+}
+
 .rail-pill:active,
 .rail-edge:active {
   transform: scale(0.9);

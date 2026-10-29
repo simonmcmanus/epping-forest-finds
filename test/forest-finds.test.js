@@ -2110,28 +2110,35 @@ test("overviewNearestHtml carries the labelled category navigation and results h
   app.location.pathname = "/";
 });
 
-test("the filter rail marks the chosen categories as pressed and shows them and their groupmates in the row without duplicates", () => {
+test("the plain Nearby filter rail shows top-level categories with ticks for enabled groups", () => {
   resetData(app);
-  app.state.overviewFilters = ["pubs"];
+  app.location.pathname = "/nearby";
+  app.state.overviewFilters = ["pubs", "trees"];
   const html = app.filterRailHtml();
   assert.match(html, /<nav class="filter-rail" aria-label="Filter nearby places">/);
-  assert.match(html, /class="rail-pill is-on" type="button" data-rail-key="pubs" aria-pressed="true"/);
-  assert.match(html, /data-rail-key="cafes" aria-pressed="false"/, "a groupmate of the chosen category is offered");
+  assert.match(html, /class="rail-pill is-on" type="button" data-rail-key="nature" aria-pressed="true"/);
+  assert.match(html, /data-rail-key="nature"[^>]*>[^<]*[\s\S]*?<span class="rail-check"/, "enabled groups show a tick");
+  assert.match(html, /class="rail-pill is-on" type="button" data-rail-key="food" aria-pressed="true"/);
+  assert.match(html, /data-rail-key="transport" aria-pressed="false"/, "the rail uses top-level groups");
   const keys = [...html.matchAll(/data-rail-key="([a-z_]+)"/g)].map((m) => m[1]);
   assert.equal(new Set(keys).size, keys.length, "no category appears twice");
-  assert.ok(keys.includes("pubs"), "the chosen category is in the row");
+  assert.ok(keys.includes("nature") && keys.includes("food"), "the top-level categories are in the row");
   assert.match(html, /href="\/nearby\/filter"[^>]*aria-label="Filters"/, "the right-hand button opens the Filters screen");
+  app.location.pathname = "/";
   app.state.overviewFilters = [];
 });
 
-test("the filter rail keeps every pill where it was when another category is added, and appends only new related ones", () => {
+test("a category Nearby page shows its subcategories and ticks the enabled ones", () => {
   resetData(app);
-  app.state.overviewFilters = ["trees"];
-  const before = app.railPillKeys().slice();
-  app.state.overviewFilters = ["trees", "ponds_streams"];
-  const after = app.railPillKeys();
-  assert.equal(after.slice(0, before.length).join(), before.filter((key) => after.includes(key)).join(), "existing pills keep their order");
-  assert.ok(after.includes("ponds_streams"));
+  app.location.pathname = "/nearby/food/";
+  app.state.overviewFilters = ["pubs", "cafes"];
+  const html = app.filterRailHtml();
+  assert.deepEqual(Array.from(app.railPillKeys()), ["pubs", "restaurants", "cafes", "shops"]);
+  assert.match(html, /data-rail-key="pubs"[^>]*aria-pressed="true"[\s\S]*?rail-check/);
+  assert.match(html, /data-rail-key="cafes"[^>]*aria-pressed="true"[\s\S]*?rail-check/);
+  assert.match(html, /data-rail-key="restaurants"[^>]*aria-pressed="false"/);
+  assert.doesNotMatch(html, /data-rail-key="nature"/);
+  app.location.pathname = "/";
   app.state.overviewFilters = [];
 });
 
@@ -2140,7 +2147,8 @@ test("a filter set covering every category is the show-all state: nothing is pre
   app.state.overviewFilters = app.FILTER_SUBFILTERS.map((sub) => sub.key);
   assert.equal(app.railSelection().length, 0);
   const html = app.filterRailHtml();
-  assert.doesNotMatch(html, /aria-pressed="true"/);
+  assert.match(html, /aria-pressed="true"/);
+  assert.match(html, /class="rail-check"/);
   assert.match(html, /data-action="rail-show-all"[^>]*disabled/);
   app.state.overviewFilters = [];
 });
@@ -2150,16 +2158,17 @@ test("tapping a rail pill narrows to it, a second pill adds to it, and un-pressi
   app.location.pathname = "/nearby";
   app.location.search = "";
   app.state.overviewFilters = app.FILTER_SUBFILTERS.map((sub) => sub.key);
-  app.toggleRailFilter("trees");
-  assert.equal(app.state.overviewFilters.join(), "trees");
+  app.toggleRailFilter("nature");
+  assert.deepEqual(Array.from(app.state.overviewFilters), ["trees", "cows", "ponds_streams"]);
   assert.equal(app.state.overviewFiltersEphemeral, true, "a rail tap is a lens, not the reader's saved filters");
-  assert.equal(app.location.pathname, "/nearby/trees", "one category is its own landing path");
+  assert.equal(app.location.pathname, "/nearby/nature", "one top-level category is its own landing path");
+  app.location.pathname = "/nearby/nature";
   app.toggleRailFilter("ponds_streams");
-  assert.equal(app.state.overviewFilters.join(), "trees,ponds_streams");
+  assert.deepEqual(Array.from(app.state.overviewFilters), ["trees", "cows"]);
   assert.equal(app.location.pathname, "/nearby");
-  assert.equal(app.location.search, "?show=trees,ponds_streams");
-  app.toggleRailFilter("trees");
-  app.toggleRailFilter("ponds_streams");
+  assert.equal(app.location.search, "?show=trees,cows");
+  app.location.pathname = "/nearby";
+  app.toggleRailFilter("nature");
   assert.equal(app.railSelection().length, 0, "nothing chosen means show-all");
   assert.equal(app.location.search, "?filters=false");
   app.state.overviewFilters = [];

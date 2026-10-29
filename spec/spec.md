@@ -334,9 +334,11 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
   override is applied by the walk-radius card's own button (`focusNearbyWithinWalkMinutes`, js/nav.js).
 - **Nearby filter rail.** Every Nearby view carries one row of toggle pills (`filterRailHtml()`,
   js/app.js; detail in `spec-data-rendering.md` "Nearby filter rail"): a show-all button on the
-  left, a pill per related category, and a button to the Filters screen on the right. A pill adds
-  or removes its category from the current filter set as an ephemeral lens (`persist:false`), so
-  the reader's saved filters are untouched. The address bar follows the selection: one category is
+  left, top-level category pills on `/nearby`, that category's subcategory pills on a
+  `/nearby/<category>` page, and a button to the Filters screen on the right. Enabled pills show a
+  tick. A top-level pill toggles all of its subcategories; a subcategory pill toggles only itself.
+  Changes remain an ephemeral lens (`persist:false`), so the reader's saved filters are untouched.
+  The address bar follows the selection: one category is
   its own landing path (`/nearby/trees`), several are `/nearby?show=trees,ponds_streams`, and none
   (every category on) is `/nearby?filters=false`. A tap replaces the history entry rather than
   adding one.

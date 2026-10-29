@@ -4612,16 +4612,48 @@ function renderNearestItemsHtml(entries) {
 }
 
 // The filter rail at the top of every Nearby view: "show all" on the left, one toggle pill per
-// category in the middle, a link to the Filters screen on the right. A pill adds or removes its
-// category from the current (ephemeral) filter set in place -- no screen slide -- so the reader
-// can keep tapping round. It replaces the old /nearby/<slug> breadcrumb chips and the "Show all
-// nearby" pill; generate-find-pages.js still server-renders anchor chips for crawlers and no-JS
-// visitors, and the first render after boot swaps them for this.
-const RAIL_DEFAULT_KEYS = ["trees", "cows", "ponds_streams", "pubs", "cafes", "bus", "historic", "plaques"];
-let railOrder = [];
+// category in the middle, a link to the Filters screen on the right. The plain /nearby screen
+// shows top-level groups; a /nearby/<category> landing shows that group's subcategories. A pill
+// adds or removes its category from the current (ephemeral) filter set in place -- no screen
+// slide -- so the reader can keep tapping round. It replaces the old /nearby/<slug> breadcrumb
+// chips and the "Show all nearby" pill; generate-find-pages.js still server-renders anchor chips
+// for crawlers and no-JS visitors, and the first render after boot swaps them for this.
 // Set by a rail tap so the next selectOverview() patches the rail and list in place rather than
 // rebuilding the body, which is what lets pills glide and rows animate individually.
 let railPatchPending = false;
+
+function nearbyRailGroup() {
+  const match = /^\/nearby\/([a-z0-9-]+)\/?$/.exec(window.location.pathname);
+  if (!match) return null;
+  const key = match[1].replace(/-/g, "_");
+  const group = FILTER_GROUPS_BY_KEY.get(key);
+  if (group) return group;
+  const subfilter = FILTER_SUBFILTERS_BY_KEY.get(key);
+  return subfilter ? FILTER_GROUPS_BY_KEY.get(subfilter.groupKey) : null;
+}
+
+function railItems() {
+  const group = nearbyRailGroup();
+  if (group) {
+    return group.subfilters.map((subfilter) => ({
+      key: subfilter.key,
+      label: subfilter.label,
+      icon: subfilter.icon,
+      filterKeys: [subfilter.key],
+    }));
+  }
+  return FILTER_GROUPS.map((groupDefinition) => ({
+    key: groupDefinition.key,
+    label: groupDefinition.label,
+    icon: groupDefinition.icon,
+    filterKeys: groupDefinition.subfilters.map((subfilter) => subfilter.key),
+  }));
+}
+
+function railItemIsActive(item) {
+  const active = new Set(state.overviewFilters);
+  return item.filterKeys.some((key) => active.has(key));
+}
 
 // The categories the rail treats as chosen. A set covering every category is the "show all"
 // state (?filters=false), which reads as nothing chosen so the first tap narrows to that one.
@@ -4630,33 +4662,19 @@ function railSelection() {
   return chosen.length >= FILTER_SUBFILTERS.length ? [] : chosen;
 }
 
-// Pill order is stable: a pill never moves because of a tap. Newly related categories (the chosen
-// ones' groupmates, then the defaults) are appended, and a category that is neither chosen nor
-// related any more drops out. Never duplicates.
 function railPillKeys() {
-  const chosen = railSelection();
-  const want = new Set(chosen.length ? chosen : RAIL_DEFAULT_KEYS);
-  for (const key of chosen) {
-    const group = FILTER_GROUPS_BY_KEY.get(FILTER_SUBFILTERS_BY_KEY.get(key).groupKey);
-    group.subfilters.forEach((s) => want.add(s.key));
-  }
-  if (chosen.length) RAIL_DEFAULT_KEYS.forEach((key) => want.add(key));
-  railOrder = railOrder.filter((key) => want.has(key));
-  for (const key of chosen) if (!railOrder.includes(key)) railOrder.push(key);
-  for (const key of want) if (!railOrder.includes(key)) railOrder.push(key);
-  if (!chosen.length) railOrder = RAIL_DEFAULT_KEYS.filter((key) => FILTER_SUBFILTERS_BY_KEY.has(key));
-  return railOrder.filter((key) => FILTER_SUBFILTERS_BY_KEY.has(key));
+  return railItems().map((item) => item.key);
 }
 
 function filterRailHtml() {
-  const chosen = new Set(railSelection());
-  const pills = railPillKeys().map((key) => {
-    const sub = FILTER_SUBFILTERS_BY_KEY.get(key);
-    const on = chosen.has(key);
-    return `<button class="rail-pill${on ? " is-on" : ""}" type="button" data-rail-key="${key}" aria-pressed="${on}">${appIconHtml(sub.icon)}<span>${escapeHtml(sub.label)}</span></button>`;
+  const pills = railItems().map((item) => {
+    const on = railItemIsActive(item);
+    const check = on ? `<span class="rail-check" aria-hidden="true">✓</span>` : "";
+    return `<button class="rail-pill${on ? " is-on" : ""}" type="button" data-rail-key="${item.key}" aria-pressed="${on}">${appIconHtml(item.icon)}<span>${escapeHtml(item.label)}</span>${check}</button>`;
   }).join("");
+  const narrowed = railSelection().length > 0;
   return `<nav class="filter-rail" aria-label="Filter nearby places">` +
-    `<button class="rail-edge" type="button" data-action="rail-show-all" aria-label="Show all nearby"${chosen.size ? "" : " disabled"}>${appIconHtml("nearby")}</button>` +
+    `<button class="rail-edge" type="button" data-action="rail-show-all" aria-label="Show all nearby"${narrowed ? "" : " disabled"}>${appIconHtml("nearby")}</button>` +
     `<div class="rail-pills">${pills}</div>` +
     `<a class="rail-edge" href="${ROUTE_PATHS[ROUTE_FILTERS]}" aria-label="Filters">${appIconHtml("filter")}</a>` +
     `</nav>`;
@@ -4668,7 +4686,12 @@ function filterRailHtml() {
 function syncRailUrl() {
   if (routeApplyDepth > 0 || routerBooting) return;
   const chosen = railSelection();
-  const pathname = chosen.length === 1 ? `/nearby/${chosen[0].replace(/_/g, "-")}` : NEARBY_PATH;
+  const matchingGroup = FILTER_GROUPS.find((group) =>
+    chosen.length === group.subfilters.length && group.subfilters.every((subfilter) => chosen.includes(subfilter.key))
+  );
+  const pathname = matchingGroup
+    ? `/nearby/${matchingGroup.key.replace(/_/g, "-")}`
+    : chosen.length === 1 ? `/nearby/${chosen[0].replace(/_/g, "-")}` : NEARBY_PATH;
   const search = searchStringForPath(pathname);
   const url = `${pathname}${search}${window.location.hash}`;
   if (`${window.location.pathname}${window.location.search}${window.location.hash}` === url) return;
@@ -4676,9 +4699,21 @@ function syncRailUrl() {
 }
 
 function toggleRailFilter(key) {
-  if (!FILTER_SUBFILTERS_BY_KEY.has(key)) return;
-  const chosen = railSelection();
-  const next = chosen.includes(key) ? chosen.filter((k) => k !== key) : [...chosen, key];
+  const item = railItems().find((candidate) => candidate.key === key);
+  if (!item) return;
+  const current = new Set(state.overviewFilters.filter((filterKey) => FILTER_SUBFILTERS_BY_KEY.has(filterKey)));
+  const showingAll = state.overviewFilters.length === 0 || railSelection().length === 0;
+  const active = item.filterKeys.some((filterKey) => current.has(filterKey));
+  let next;
+  if (showingAll) {
+    next = item.filterKeys.slice();
+  } else if (active) {
+    item.filterKeys.forEach((filterKey) => current.delete(filterKey));
+    next = Array.from(current);
+  } else {
+    item.filterKeys.forEach((filterKey) => current.add(filterKey));
+    next = Array.from(current);
+  }
   if (typeof navigator.vibrate === "function") navigator.vibrate(8);
   setOverviewFilters(next.length ? next : Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: false, railTap: true });
 }

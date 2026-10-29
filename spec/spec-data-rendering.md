@@ -1382,13 +1382,17 @@ The full routing model — the URL for each screen, history entries, back/forwar
     sideways-scrolling run of category pills, and a round link to the Filters screen
     (`/nearby/filter`). Pills are `button`s with `aria-pressed`; the row is a `nav` labelled
     "Filter nearby places".
-  - **Which pills.** Chosen categories (`railSelection()`: `state.overviewFilters`, or nothing when
-    every category is on, which is the show-all state) are pressed. With nothing chosen the row is a
-    fixed set of popular categories. With some chosen it is those, then their groupmates, then the
-    popular set, deduplicated (`railPillKeys()`).
-  - **Stable order.** A pill never moves because of a tap: the order is kept in `railOrder`, newly
-    related categories are appended, and one that is neither chosen nor related any more drops out.
-    The saved filters are the starting selection and read as pressed.
+  - **Which pills.** The plain `/nearby` screen shows one pill per top-level group (`Nature`,
+    `Food`, `Transport`, `History`, `Locations`, `Stories`, `Events`). A `/nearby/<category>`
+    landing shows that category's subcategory pills instead; a subcategory landing shows the same
+    sibling list. A pill is pressed and carries a visible tick when one of its filter keys is
+    enabled. On the group view that means any subcategory in the group is enabled; on the
+    subcategory view it means that exact subcategory is enabled. The saved filters are the starting
+    selection and read as pressed.
+  - **Toggling.** Tapping a top-level pill enables or disables all of its subcategories. Tapping a
+    subcategory pill enables or disables only that subcategory. The row remains on `/nearby` for
+    the group view and on a category landing for its subcategory view; the ordinary rail URL rules
+    below still provide the matching shareable path/query.
   - **A tap is a lens, not a preference.** `toggleRailFilter()` calls
     `setOverviewFilters(next, { persist: false, railTap: true })`: saved filters are untouched and
     the next plain visit restores them. Un-pressing the last pill returns to show-all; the show-all
