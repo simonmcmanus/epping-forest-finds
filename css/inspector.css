@@ -250,6 +250,38 @@
   z-index: 4;
 }
 
+/* One shared active surface lets the selected state travel between tabs instead of blinking
+   off one button and on to another. Its position is measured in js/app.js so it also adapts to
+   the back cell, responsive widths, and the localized tab labels. */
+.nav-highlight {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: 0;
+  width: var(--nav-highlight-width, 0px);
+  height: var(--nav-highlight-height, 0px);
+  border-radius: 12px;
+  background: linear-gradient(145deg, #fff8e7, #f7edd2);
+  box-shadow: inset 0 0 0 1px rgba(182, 145, 49, 0.14), 0 3px 8px rgba(132, 99, 0, 0.08);
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(var(--nav-highlight-x, 0px), var(--nav-highlight-y, 0px), 0);
+  transition: transform 280ms cubic-bezier(0.22, 0.8, 0.24, 1),
+    width 240ms cubic-bezier(0.22, 0.8, 0.24, 1),
+    height 180ms ease, opacity 120ms ease;
+  will-change: transform, width;
+}
+
+.inspector-actions.nav-has-highlight .nav-highlight {
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-highlight {
+    transition: none;
+  }
+}
+
 .inspector-tools {
   display: grid;
   gap: 8px;
@@ -528,6 +560,7 @@ button.settings-toggle.has-update::after {
   background: transparent;
   color: #263345;
   box-shadow: none;
+  z-index: 1;
 }
 
 .inspector-actions > :is(button, a):hover {
@@ -536,6 +569,14 @@ button.settings-toggle.has-update::after {
 
 .inspector-actions > :is(button, a).screen-active {
   background: var(--gold-tint);
+  color: var(--gold-ink);
+}
+
+.inspector-actions.nav-has-highlight > :is(button, a).screen-active {
+  background: transparent;
+}
+
+.inspector-actions.nav-has-highlight > :is(button, a).nav-pressing {
   color: var(--gold-ink);
 }
 
@@ -1273,6 +1314,11 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   background: linear-gradient(145deg, #fff8e7, #f7edd2);
   color: var(--gold-ink);
   box-shadow: inset 0 0 0 1px rgba(182, 145, 49, 0.14), 0 3px 8px rgba(132, 99, 0, 0.08);
+}
+
+.inspector-actions.nav-has-highlight > :is(button, a).screen-active {
+  background: transparent;
+  box-shadow: none;
 }
 
 .inspector-title-section {

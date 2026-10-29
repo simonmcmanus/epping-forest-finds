@@ -2909,14 +2909,40 @@ function filterMeta(filterKey) {
   return FILTER_SUBFILTERS_BY_KEY.get(filterKey) || null;
 }
 
+function navHighlightPosition(current) {
+  const nav = current?.closest(".inspector-actions");
+  const highlight = nav?.querySelector(".nav-highlight");
+  if (!nav || !highlight || !current || current.hidden) return;
+
+  const navRect = nav.getBoundingClientRect();
+  const currentRect = current.getBoundingClientRect();
+  nav.style.setProperty("--nav-highlight-x", `${currentRect.left - navRect.left}px`);
+  nav.style.setProperty("--nav-highlight-y", `${currentRect.top - navRect.top}px`);
+  nav.style.setProperty("--nav-highlight-width", `${currentRect.width}px`);
+  nav.style.setProperty("--nav-highlight-height", `${currentRect.height}px`);
+  nav.classList.add("nav-has-highlight");
+}
+
+function previewNavScreenActive(current) {
+  const nav = current?.closest(".inspector-actions");
+  if (!nav || !current || current.hidden) return;
+  nav.querySelectorAll(":scope > .nav-pressing").forEach((el) => el.classList.remove("nav-pressing"));
+  current.classList.add("nav-pressing");
+  navHighlightPosition(current);
+}
+
 function setNavScreenActive(current = null) {
+  const nav = document.querySelector(".inspector-actions");
   [els.nearbyToggle, els.searchToggle, els.filterToggle, els.settingsToggle, els.reportToggle].forEach((el) => {
     if (!el) return;
     el.classList.toggle("screen-active", el === current);
+    el.classList.remove("nav-pressing");
     el.classList.remove("active");
     if (el === current) el.setAttribute("aria-current", "page");
     else el.setAttribute("aria-current", "false");
   });
+  if (current?.closest(".inspector-actions")) navHighlightPosition(current);
+  else nav?.classList.remove("nav-has-highlight");
 }
 
 function openFiltersScreen() {
