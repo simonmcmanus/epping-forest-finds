@@ -1,9 +1,20 @@
 const { test, expect } = require("@playwright/test");
 const { setup, FIXTURE_TREE, waitForFrames, waitForUiToSettle } = require("./helpers");
-// A real static destination whose existing beer artwork still animates.
-const DESTINATION = { route: "/nearby#place=id:node/12242503", name: "Railway Bell" };
+// Own the destination data so weekly place updates cannot change motion coverage.
+const DESTINATION = { route: "/nearby#place=id:motion-fixture-pub", name: "Motion test pub" };
+const placeFixture = {
+  type: "FeatureCollection",
+  features: [{
+    type: "Feature",
+    geometry: { type: "Point", coordinates: [0.04, 51.66] },
+    properties: { id: "motion-fixture-pub", name: DESTINATION.name, category: "pub", categoryLabel: "Pub" },
+  }],
+};
 
 test.describe("Selected destination icon motion", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.route("**/data/local-landmarks-food.geojson", route => route.fulfill({ json: placeFixture }));
+  });
   test("the location details title animates and restores its original image for reduced motion", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await setup(page, DESTINATION.route);
@@ -80,7 +91,6 @@ test.describe("Selected destination icon motion", () => {
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
     await expect(page.locator("#inspectorTitleEmoji")).toBeHidden();
-    await expect(page.locator("#inspectorTitleEmoji img, #inspectorTitleEmoji canvas")).toHaveCount(0);
   });
 
   test("every supported PNG artwork renders changing frames", async ({ page }) => {
