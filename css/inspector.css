@@ -282,24 +282,11 @@
   }
 }
 
-/* The compact bottom bar has less surface area and more surrounding map contrast than the
-   desktop card, so give its moving state a slightly stronger visual anchor. */
+/* Keep the compact bar's resting design identical to desktop, but give the shorter mobile
+   interaction a little more travel time so the shared highlight's movement is easy to read. */
 @media (max-width: 760px) {
   .inspector-actions .nav-highlight {
-    background: linear-gradient(145deg, #fff4ce, #f6df9f);
-    box-shadow: inset 0 0 0 1px rgba(128, 97, 0, 0.28), 0 4px 12px rgba(128, 97, 0, 0.16);
-  }
-
-  .inspector-actions .nav-highlight::after {
-    content: "";
-    position: absolute;
-    left: 18%;
-    right: 18%;
-    bottom: 4px;
-    height: 3px;
-    border-radius: 999px;
-    background: var(--gold-ink);
-    opacity: 0.72;
+    transition-duration: 360ms, 320ms, 180ms, 120ms;
   }
 }
 
