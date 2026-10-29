@@ -7569,6 +7569,40 @@ test("heading-up navigation frames the whole walking route, not just the destina
   );
 });
 
+test("heading-up selection leaves room for the route detour while the graph is building", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const tree = { id: "t1", commonName: "T1", ...makePoint(app, 51.6512, 0.0509) };
+  app.state.trees.push(tree);
+  app.state.selected = { type: "tree", item: tree };
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  app.state.routingGraphReady = false;
+  app.state.routingGraphBuilding = true;
+  app.state.selectedRouteCache = null;
+
+  const rect = app.bestVisibleCanvasRect();
+  const focus = app.navigationFocusPoint(rect);
+  const fallbackScale = app.maxHeadingUpNavigationScale(focus, rect);
+
+  app.state.routingGraphReady = true;
+  app.state.routingGraphBuilding = false;
+  app.state.routingGraph = {};
+  app.state.selectedRouteCache = {
+    target: tree,
+    fromLatitude: app.state.userLocation.latitude,
+    fromLongitude: app.state.userLocation.longitude,
+    tail: [app.projectLonLat(0.0515, 51.6513), tree.point],
+    routed: true,
+  };
+  const routedScale = app.maxHeadingUpNavigationScale(focus, rect);
+
+  assert.ok(
+    fallbackScale <= routedScale * 1.01,
+    `the first heading-up fit should leave room for the route detour (fallback=${fallbackScale}, routed=${routedScale})`
+  );
+});
+
 test("heading-up align honours assumeInspectorOpen so a just-expanded inspector is not measured mid-transition", () => {
   // setInspectorMinimized toggles the class and refits immediately, but the inspector's
   // max-height transition (180ms) has not run yet -- and the plain path also reads the

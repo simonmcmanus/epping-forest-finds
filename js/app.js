@@ -7063,8 +7063,28 @@ function maxScaleForHeadingUpPoints(points, focus, focusRect, options = {}) {
 
 function maxHeadingUpNavigationScale(focus, focusRect) {
   if (!state.userLocation) return state.viewport.scale;
-  const points = selectedNavigationTargetPoints();
+  let points = selectedNavigationTargetPoints();
   if (!points.length) return state.viewport.scale;
+  // The routing graph is lazy. Before it is ready, selectedNavigationTargetPoints() is the
+  // straight-line fallback, while the eventual route can detour well outside that line. Give
+  // the first heading-up fit the same room as ensureUserAndSelectionVisible's flat fit, so a
+  // selection does not visibly zoom in and then reverse when the real route arrives.
+  if (!state.routingGraphReady && points.length > 1) {
+    const bounds = points.reduce((next, point) => ({
+      minX: Math.min(next.minX, point.x),
+      minY: Math.min(next.minY, point.y),
+      maxX: Math.max(next.maxX, point.x),
+      maxY: Math.max(next.maxY, point.y),
+    }), { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+    const centreX = (bounds.minX + bounds.maxX) / 2;
+    const centreY = (bounds.minY + bounds.maxY) / 2;
+    const halfWidth = ((bounds.maxX - bounds.minX) / 2) * ROUTE_UNKNOWN_FIT_SLACK;
+    const halfHeight = ((bounds.maxY - bounds.minY) / 2) * ROUTE_UNKNOWN_FIT_SLACK;
+    points = [
+      { x: centreX - halfWidth, y: centreY - halfHeight },
+      { x: centreX + halfWidth, y: centreY + halfHeight },
+    ];
+  }
   // See maxScaleForHeadingUpPoints's comment: the selected destination/route stay
   // visible even when behind the user during full tilt, so the fit must keep framing
   // them there too, unlike nearby mode's item cluster.
@@ -7867,6 +7887,16 @@ function refitSelectionAfterRoutingGraphReady() {
     // Heading-up navigation has its own camera (anchor + rotation aware); going through
     // ensureUserAndSelectionVisible there would be overwritten by the next compass frame.
     if (selectedNavigationHeadingUpActive()) {
+      const focusRect = bestVisibleCanvasRect();
+      const margin = headingUpFitMarginPx(focusRect);
+      const routeNeedsRefit = selectedNavigationTargetPoints().some((point) => {
+        const screen = worldToScreen(point);
+        return screen.x < focusRect.x + margin
+          || screen.x > focusRect.x + focusRect.width - margin
+          || screen.y < focusRect.y + margin
+          || screen.y > focusRect.y + focusRect.height - margin;
+      });
+      if (!routeNeedsRefit) return;
       alignHeadingUpNavigationViewport({ animate: true, durationMs: 520, force: true });
       return;
     }
