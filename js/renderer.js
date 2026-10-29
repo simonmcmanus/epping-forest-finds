@@ -7,6 +7,7 @@ const MAP_PNG_ICON_SIZE = 30;
 const CLUSTER_RADIUS_ICON_SIZE_REF = 16;
 const MAX_MAP_TREES = 60;
 const SELECTED_OVERLAY_PULSE_PERIOD_MS = 380;  // Shared pulse period for smooth animation
+const USER_RADAR_RADIUS_METRES = 80;
 
 const mapImageCache = new Map();
 
@@ -14,8 +15,7 @@ const mapImageCache = new Map();
 let _animationStartTime = null;
 
 // Tracks the previous tilt state so drawOverlay can detect transitions and trigger
-// a full canvas redraw when tilt activates/deactivates. Without this, the compass
-// tick calls only drawOverlay (not draw()), leaving the main-canvas radar stale.
+// a full canvas redraw when tilt activates/deactivates.
 let _overlayWasTilted = false;
 
 // The selected road/path overlay pulses (see drawSelectedRoadOverlay/drawSelectedPathOverlay)
@@ -282,7 +282,6 @@ function draw() {
   drawPaths(ctx);
   drawWalkingRadius(ctx);
   drawSelectedRoute(ctx);
-  drawUserRadarMainCanvas(ctx);
   if (!useOverlayForPins) {
     drawClusterFootprints(ctx, [...filteredTreeClusters, ...filteredLandmarkClusters, ...filteredCowClusters, ...filteredPathClusters, ...filteredWaterClusters], megaGroups);
     drawTrees(ctx, nearbyIconLookup, undefined, filteredTreeClusters);
@@ -322,8 +321,7 @@ function drawOverlay() {
   const useOverlayForPins = (typeof nearbyHeadingUpActive === "function" && nearbyHeadingUpActive())
     || isTilted;
   // When tilt mode changes, the compass tick calls only drawOverlay (not draw()), so
-  // the main-canvas radar from the previous state is stale. Force a full redraw to
-  // synchronise both canvases without introducing a radar gap.
+  // force a full redraw to synchronise the terrain and overlay projections.
   if (isTilted !== _overlayWasTilted) {
     _overlayWasTilted = isTilted;
     if (typeof requestDraw === "function") requestDraw();
@@ -332,6 +330,7 @@ function drawOverlay() {
     ? worldToScreenForOverlayTilted
     : (typeof worldToScreenForOverlay === "function" ? worldToScreenForOverlay : worldToScreen);
   if (isTilted) drawUserRadarOverlayTilted(ctx);
+  else drawUserRadarOverlay(ctx, toScreen);
   if (useOverlayForPins) {
     drawAllPinsSorted(ctx, activeIconLookup(), toScreen);
   }
@@ -2598,11 +2597,11 @@ function drawCows(ctx, nearbyIconLookup, toScreen, cowClusters) {
   ctx.restore();
 }
 
-// Draws the radar cone on the main canvas so CSS perspective+rotation places it in the
-// 3D ground plane alongside the route lines. Always points in the direction the user is
-// facing (forward in heading-up mode, or the compass heading in flat mode) — the dotted
-// route line, not the radar cone, is what shows the bearing to a selected target.
-function drawUserRadarMainCanvas(ctx) {
+// Draws the flat radar cone on the overlay canvas so it gets the same per-frame compass
+// redraw as the live user marker. Always points in the direction the user is facing (forward
+// in heading-up mode, or the compass heading in flat mode) — the dotted route line, not the
+// radar cone, is what shows the bearing to a selected target.
+function drawUserRadarOverlay(ctx, toScreen = worldToScreenForOverlay) {
   // isDefault: see drawUser's own comment -- the device's real heading pointing out of a
   // High Beach stand-in the reader isn't actually standing at would be its own false signal,
   // not just a mislabelled dot.
@@ -2610,8 +2609,8 @@ function drawUserRadarMainCanvas(ctx) {
   if (!Number.isFinite(state.compassHeading)) return;
   if (typeof tiltActive === "function" && tiltActive()) return;
   const dpr = pixelRatio();
-  const point = worldToScreen(state.userLocation.point);
-  const outerRadius = Math.max(0.5, radarRadiusForMetres(point, 60));
+  const point = toScreen(state.userLocation.point);
+  const outerRadius = Math.max(0.5, radarRadiusForMetres(point, USER_RADAR_RADIUS_METRES, toScreen));
   const innerRadius = Math.max(0.2, outerRadius * 0.28);
   const spread = toRadians(26);
 
@@ -2622,8 +2621,8 @@ function drawUserRadarMainCanvas(ctx) {
 
   ctx.save();
   const fill = ctx.createRadialGradient(point.x, point.y, innerRadius * 0.2, point.x, point.y, outerRadius);
-  fill.addColorStop(0, "rgba(31, 94, 255, 0.30)");
-  fill.addColorStop(1, "rgba(31, 94, 255, 0.02)");
+  fill.addColorStop(0, "rgba(31, 94, 255, 0.34)");
+  fill.addColorStop(1, "rgba(31, 94, 255, 0.03)");
   ctx.beginPath();
   ctx.moveTo(point.x, point.y);
   ctx.arc(point.x, point.y, outerRadius, headingRad - spread, headingRad + spread);
@@ -2632,19 +2631,13 @@ function drawUserRadarMainCanvas(ctx) {
   ctx.fill();
 
   ctx.lineWidth = 2 * dpr;
-  ctx.strokeStyle = "rgba(31, 94, 255, 0.55)";
+  ctx.strokeStyle = "rgba(31, 94, 255, 0.64)";
   for (const ratio of [0.4, 0.7, 1]) {
     ctx.beginPath();
     ctx.arc(point.x, point.y, outerRadius * ratio, headingRad - spread, headingRad + spread);
     ctx.stroke();
   }
 
-  ctx.beginPath();
-  ctx.moveTo(point.x, point.y);
-  ctx.lineTo(point.x + Math.cos(headingRad) * outerRadius, point.y + Math.sin(headingRad) * outerRadius);
-  ctx.lineWidth = 2.6 * dpr;
-  ctx.strokeStyle = "rgba(31, 94, 255, 0.82)";
-  ctx.stroke();
   ctx.restore();
 }
 
@@ -2658,16 +2651,14 @@ function drawUserRadarOverlayTilted(ctx) {
   if (typeof projectCanvasPoint !== "function") return;
 
   const dpr = pixelRatio();
-  // The user's *rotated* pre-tilt position, not the raw one. Those were the same thing while
-  // the heading rotation always pivoted on the user, but it now pivots on the camera origin
-  // (cameraOriginPoint, index.html), which is the browse anchor while browsing -- so reading
-  // the raw position detached the radar cone from the "You" dot it belongs to. The cone's own
-  // direction is unaffected: a rotation is uniform, so ahead is still straight up on screen.
-  const U = typeof worldToScreenFlat === "function"
-    ? worldToScreenFlat(state.userLocation.point)
-    : worldToScreen(state.userLocation.point);
+  // Use the same live, screen-space position as the You dot. The main canvas may be waiting
+  // for its next terrain redraw while compass smoothing is running, but the overlay follows
+  // every heading frame, so using the current overlay projection keeps the cone attached.
+  const U = typeof worldToScreenForOverlay === "function"
+    ? worldToScreenForOverlay(state.userLocation.point)
+    : worldToScreenFlat(state.userLocation.point);
 
-  const outerRadius = Math.max(0.5, radarRadiusForMetres(U, 60, worldToScreenFlat));
+  const outerRadius = Math.max(0.5, radarRadiusForMetres(U, USER_RADAR_RADIUS_METRES, worldToScreenForOverlay));
   const innerRadius = Math.max(0.2, outerRadius * 0.28);
   const spread = toRadians(26);
 
@@ -2694,8 +2685,8 @@ function drawUserRadarOverlayTilted(ctx) {
   ctx.save();
 
   const fill = ctx.createRadialGradient(apex.x, apex.y, innerRadius * 0.2, apex.x, apex.y, outerRadius);
-  fill.addColorStop(0, "rgba(31, 94, 255, 0.30)");
-  fill.addColorStop(1, "rgba(31, 94, 255, 0.02)");
+  fill.addColorStop(0, "rgba(31, 94, 255, 0.34)");
+  fill.addColorStop(1, "rgba(31, 94, 255, 0.03)");
 
   // Filled cone
   ctx.beginPath();
@@ -2713,7 +2704,7 @@ function drawUserRadarOverlayTilted(ctx) {
 
   // Concentric rings at 40 %, 70 %, 100 %
   ctx.lineWidth = 2 * dpr;
-  ctx.strokeStyle = "rgba(31, 94, 255, 0.55)";
+  ctx.strokeStyle = "rgba(31, 94, 255, 0.64)";
   for (const ratio of [0.4, 0.7, 1]) {
     ctx.beginPath();
     let first = true;
@@ -2726,18 +2717,6 @@ function drawUserRadarOverlayTilted(ctx) {
       else ctx.lineTo(p.x, p.y);
     }
     ctx.stroke();
-  }
-
-  // Centre direction line
-  const lineEnd = proj(U.x + outerRadius * Math.cos(headingRad), U.y + outerRadius * Math.sin(headingRad));
-  // Only draw centre line if projection is valid
-  if (Number.isFinite(lineEnd.x) && Number.isFinite(lineEnd.y)) {
-  ctx.beginPath();
-  ctx.moveTo(apex.x, apex.y);
-  ctx.lineTo(lineEnd.x, lineEnd.y);
-  ctx.lineWidth = 2.6 * dpr;
-  ctx.strokeStyle = "rgba(31, 94, 255, 0.82)";
-  ctx.stroke();
   }
 
   ctx.restore();

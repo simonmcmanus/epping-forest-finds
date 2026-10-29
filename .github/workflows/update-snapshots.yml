@@ -12,12 +12,13 @@ on:
 
 concurrency:
   group: snapshot-baselines-${{ github.event_name == 'workflow_dispatch' && github.event.inputs.branch || 'main' }}
-  # Every completed main push must reconcile the baseline branch and its PR after the push.
+  # Every completed main push must reconcile baselines after the push.
   cancel-in-progress: false
 
-# main requires pull requests, so updates sourced from main are pushed to the dedicated
-# ci/snapshot-baselines branch and opened or refreshed as one baseline PR below. Other branches
-# retain the manual branch-update behaviour.
+# Main's cache-version workflow already establishes the repository's approved direct-push path:
+# the dedicated GitHub App is on main's ruleset bypass list. The privileged token is created only
+# after tests have finished and only for a main push; checkout and manual branch runs never expose
+# that bypass credential to repository code.
 
 jobs:
   update:
@@ -25,6 +26,11 @@ jobs:
     runs-on: ubuntu-latest
     env:
       SOURCE_BRANCH: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.branch || 'main' }}
+    # A direct baseline commit triggers this workflow again. The second run has no changes, but
+    # skip it explicitly so a successful regeneration does not spend another full Playwright run.
+    if: >-
+      github.event_name != 'push' ||
+      github.event.head_commit.message != 'chore: update CI snapshot baselines'
     # Pinned to the same image/tag as ci.yml's e2e and visual-snapshots jobs -- see the
     # comment there. Bump both together with @playwright/test in package.json.
     container:
@@ -37,20 +43,13 @@ jobs:
         env:
           SOURCE_BRANCH: ${{ env.SOURCE_BRANCH }}
         run: |
-          if [ "$SOURCE_BRANCH" = main ]; then
-            echo "target_branch=ci/snapshot-baselines" >> "$GITHUB_OUTPUT"
-            echo "open_pr=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "target_branch=$SOURCE_BRANCH" >> "$GITHUB_OUTPUT"
-            echo "open_pr=false" >> "$GITHUB_OUTPUT"
-          fi
+          echo "target_branch=$SOURCE_BRANCH" >> "$GITHUB_OUTPUT"
       - uses: actions/checkout@v5
         with:
           ref: ${{ env.SOURCE_BRANCH }}
-          # Must be a PAT, not this job's own GITHUB_TOKEN -- see the matching comment in
-          # ci.yml's visual-snapshots job. Without it this commit triggers no CI run at all,
-          # same failure mode as sw-release.yml/data-bump.yml before they made the same fix.
-          token: ${{ secrets.WEEKLY_LEDGER_PAT }}
+          # Repository code must not inherit a credential that can bypass main's ruleset. The
+          # final push supplies its own short-lived auth header after both test suites finish.
+          persist-credentials: false
       - uses: actions/setup-node@v5
         with:
           node-version: 22
@@ -75,60 +74,60 @@ jobs:
           SOURCE_BRANCH: ${{ env.SOURCE_BRANCH }}
           TARGET_BRANCH: ${{ steps.branches.outputs.target_branch }}
         run: |
+          set -euo pipefail
           cd "$GITHUB_WORKSPACE"
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config user.name "Epping Cache Version Bot"
+          git config user.email "cache-version-bot@users.noreply.github.com"
           git add test/e2e/__screenshots__/
+          echo "changed=false" >> "$GITHUB_OUTPUT"
           if ! git diff --staged --quiet; then
             if [ "$TARGET_BRANCH" != "$SOURCE_BRANCH" ]; then
               git switch --create "$TARGET_BRANCH"
             fi
             git commit -m "chore: update CI snapshot baselines"
-            if [ "$TARGET_BRANCH" = ci/snapshot-baselines ]; then
-              git push --force origin "HEAD:$TARGET_BRANCH"
-            else
-              git push origin "HEAD:$TARGET_BRANCH"
-            fi
             echo "changed=true" >> "$GITHUB_OUTPUT"
           fi
-      - name: Create or update the baseline pull request
-        if: steps.commit.outputs.changed == 'true' && steps.branches.outputs.open_pr == 'true'
-        env:
-          TARGET_BRANCH: ${{ steps.branches.outputs.target_branch }}
-        uses: actions/github-script@v7
+      - name: Create a short-lived cache-version app token for main
+        id: app-token
+        if: steps.commit.outputs.changed == 'true' && env.SOURCE_BRANCH == 'main'
+        uses: actions/create-github-app-token@v2
         with:
-          github-token: ${{ secrets.WEEKLY_LEDGER_PAT }}
-          script: |
-            const branch = process.env.TARGET_BRANCH;
-            const { owner, repo } = context.repo;
-            const { data: openPrs } = await github.rest.pulls.list({
-              owner,
-              repo,
-              head: `${owner}:${branch}`,
-              base: 'main',
-              state: 'open',
-            });
-            const title = 'chore: update CI snapshot baselines';
-            const body = 'Regenerate the canonical Playwright snapshot baselines from the latest main branch. This PR is maintained by CI and contains no application changes.';
-            if (openPrs[0]) {
-              await github.rest.pulls.update({
-                owner,
-                repo,
-                pull_number: openPrs[0].number,
-                title,
-                body,
-              });
-            } else {
-              await github.rest.pulls.create({
-                owner,
-                repo,
-                head: branch,
-                base: 'main',
-                title,
-                body,
-              });
-            }
+          app-id: ${{ secrets.CACHE_VERSION_APP_ID }}
+          private-key: ${{ secrets.CACHE_VERSION_APP_PRIVATE_KEY }}
+      - name: Push updated baselines
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          APP_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_TOKEN: ${{ github.token }}
+          SOURCE_BRANCH: ${{ env.SOURCE_BRANCH }}
+          TARGET_BRANCH: ${{ steps.branches.outputs.target_branch }}
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE"
+          if [ "$SOURCE_BRANCH" = "main" ]; then
+            push_token="$APP_TOKEN"
+          else
+            # Manual runs for another branch use the ordinary workflow token; only main gets the
+            # ruleset-bypass App credential above.
+            push_token="$GITHUB_TOKEN"
+          fi
+          test -n "$push_token"
+          auth_header="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$push_token" | base64 -w0)"
+
+          # Main can move while Playwright is running. Rebase the screenshot-only commit onto the
+          # latest target and retry a few times so a concurrent merge does not lose the update.
+          for attempt in 1 2 3; do
+            if git -c "http.https://github.com/.extraheader=$auth_header" pull --rebase origin "$TARGET_BRANCH" \
+              && git -c "http.https://github.com/.extraheader=$auth_header" push origin "HEAD:$TARGET_BRANCH"; then
+              exit 0
+            fi
+            git rebase --abort || true
+            if [ "$attempt" -eq 3 ]; then
+              echo "Unable to push snapshot baselines after $attempt attempts." >&2
+              exit 1
+            fi
+          done
       - name: Fail if any test had a non-screenshot failure
         if: steps.mobile.outcome == 'failure' || steps.desktop.outcome == 'failure'
         run: exit 1
