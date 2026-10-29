@@ -1205,7 +1205,13 @@ function zoomToSelection() {
     return;
   }
   if (!waitForInspectorTransition) {
-    requestAnimationFrame(doZoom);
+    // The class change has already happened by the time this path runs. Force the panel's
+    // layout once so the camera fit reads its new footprint, then continue immediately. A
+    // requestAnimationFrame here looks tidy but can be delayed by a busy/backgrounded mobile
+    // tab for hundreds of milliseconds, turning a no-op transition into visible selection
+    // latency. Real inspector toggles still take the transition-aware path above.
+    void els.inspector.offsetHeight;
+    doZoom();
     return;
   }
   state.selectionViewportTransitionPending = true;
