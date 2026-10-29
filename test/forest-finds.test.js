@@ -745,6 +745,11 @@ function resetData(app) {
   app.state.viewportAnimationDuration = 0;
   app.state.dataLoaded = true;
   app.state.selectionViewportTransitionPending = false;
+  app.state.inspectorMinimizeTransitionPending = false;
+  app.state.selectionMapTransitionActive = false;
+  app.state.selectionMapTransitionToken = null;
+  app.state.selectionMapTransitionIconLookup = null;
+  app.state.selectionMapTransitionOriginPoint = null;
   app.state.headingUpEntryAnim = null;
   app.state.renderedNavigationHeading = null;
   // resetData simulates an app already well past first load, so heading-up activations here
@@ -7569,6 +7574,40 @@ test("heading-up navigation frames the whole walking route, not just the destina
   );
 });
 
+test("heading-up selection leaves room for the route detour while the graph is building", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const tree = { id: "t1", commonName: "T1", ...makePoint(app, 51.6512, 0.0509) };
+  app.state.trees.push(tree);
+  app.state.selected = { type: "tree", item: tree };
+  app.state.compassHeading = 0;
+  app.state.renderedNavigationHeading = 0;
+  app.state.routingGraphReady = false;
+  app.state.routingGraphBuilding = true;
+  app.state.selectedRouteCache = null;
+
+  const rect = app.bestVisibleCanvasRect();
+  const focus = app.navigationFocusPoint(rect);
+  const fallbackScale = app.maxHeadingUpNavigationScale(focus, rect);
+
+  app.state.routingGraphReady = true;
+  app.state.routingGraphBuilding = false;
+  app.state.routingGraph = {};
+  app.state.selectedRouteCache = {
+    target: tree,
+    fromLatitude: app.state.userLocation.latitude,
+    fromLongitude: app.state.userLocation.longitude,
+    tail: [app.projectLonLat(0.0515, 51.6513), tree.point],
+    routed: true,
+  };
+  const routedScale = app.maxHeadingUpNavigationScale(focus, rect);
+
+  assert.ok(
+    fallbackScale <= routedScale * 1.01,
+    `the first heading-up fit should leave room for the route detour (fallback=${fallbackScale}, routed=${routedScale})`
+  );
+});
+
 test("heading-up align honours assumeInspectorOpen so a just-expanded inspector is not measured mid-transition", () => {
   // setInspectorMinimized toggles the class and refits immediately, but the inspector's
   // max-height transition (180ms) has not run yet -- and the plain path also reads the
@@ -9800,8 +9839,16 @@ test("selection entry points capture the browse pivot before clearing the anchor
   app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
   settleNearbySlide(app);
 
+  const nearbyScale = app.state.viewport.scale;
+  const outgoingIconLookup = app.activeIconLookup();
   app.focusOverviewItem("tree", "r1");
   assert.equal(app.state.nearbyAnchor, null, "selection should still clear the browse anchor");
+  assert.equal(app.state.selectionMapTransitionActive, true,
+    "the outgoing Nearby map should remain visible during selection");
+  assert.ok(app.activeIconLookup().tree.size > 0,
+    "Nearby pins should remain available during the handoff");
+  assert.equal(app.activeIconLookup(), outgoingIconLookup,
+    "the handoff should retain the outgoing Nearby pins, not rebuild a new set around the user");
   assert.ok(app.state.cameraOriginTransition, "selection should animate the camera pivot basis change");
   assert.ok(
     Math.abs(app.state.cameraOriginTransition.fromX - anchor.point.x) < 1e-9
@@ -9811,6 +9858,10 @@ test("selection entry points capture the browse pivot before clearing the anchor
 
   // Let the inspector-deferred selection fit finish before the next test resets shared state.
   await new Promise((resolve) => setTimeout(resolve, 260));
+  assert.ok(
+    app.state.viewport.scale > nearbyScale,
+    `selecting a Nearby location should zoom in after the inspector transition (current=${app.state.viewport.scale}, target=${app.state.viewportAnimationTo?.scale})`
+  );
   app.stopViewportAnimation();
 });
 
@@ -10446,6 +10497,81 @@ test("in the nearby view, tapping a street beyond the nearest area moves the nea
   assert.equal(app.state.selected, null, "a street out there is somewhere to browse, not navigate to");
   assert.ok(app.state.nearbyAnchor, "the nearest area moves to the tapped spot");
   assert.ok(Math.abs(app.state.nearbyAnchor.longitude - 0.07) < 1e-4);
+});
+
+test("in the nearby view, tapping a visible location beyond the nearest area selects it", async () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const tree = {
+    id: "far-tree",
+    commonName: "Far Oak",
+    recordNumber: 1,
+    location: { britishNationalGrid: {} },
+    ...makePoint(app, 51.65, 0.07),
+  };
+  app.state.trees.push(tree);
+  app.state.showAllOutsideRadius = true;
+  app.state.map3dEnabled = false;
+  app.selectOverview();
+  app.state.viewport = { scale: 100000, tx: 0, ty: 0 };
+  app.state.viewport.tx = 500 - tree.point.x * 100000;
+  app.state.viewport.ty = 400 - tree.point.y * 100000;
+
+  const tapLonLat = { latitude: 51.65, longitude: 0.07 };
+  assert.equal(app.isOutsideNearestArea(tapLonLat), true, "sanity: this tap is outside the ring");
+  assert.equal(app.activeIconLookup().tree.has(tree), true, "the all-distances view draws the outside-radius tree");
+  const treeTap = pinTapPoint(app, tree.point);
+  assert.equal(app.findHit(treeTap, app.screenToWorld(treeTap.x, treeTap.y)).type, "tree", "the outside-radius location is actually drawn and tappable");
+  tapMap(app, treeTap);
+
+  assert.equal(app.state.selected?.type, "tree", "a visible location remains selectable outside the ring");
+  assert.equal(app.state.nearbyAnchor, null, "selecting a location should not move the Nearby anchor");
+  await new Promise((resolve) => setTimeout(resolve, 260));
+  assert.ok(app.state.viewportAnimationTo || app.state.viewport.scale !== 100000, "selection should start a camera fit");
+  app.stopViewportAnimation();
+});
+
+test("tapping a location from a browsed Nearby anchor keeps the outgoing map during handoff", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const anchor = makePoint(app, 51.65, 0.07);
+  const tree = {
+    id: "anchored-tree",
+    commonName: "Anchored Oak",
+    recordNumber: 1,
+    location: { britishNationalGrid: {} },
+    ...makePoint(app, 51.6503, 0.07),
+  };
+  app.state.trees.push(tree);
+  app.state.map3dEnabled = false;
+  app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
+  settleNearbySlide(app);
+  app.selectOverview();
+  app.ensureOverviewTargetsVisible({ animate: false, force: true });
+  app.stopViewportAnimation();
+  // Re-start the otherwise harmless anchor transition to exercise the intermittent case where
+  // a pin is tapped while Nearby is still sliding/revealing its current view.
+  app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
+  assert.ok(app.state.nearbyOriginTransition, "sanity: the Nearby-origin transition is in flight");
+
+  const outgoingIconLookup = app.activeIconLookup();
+  const treeTap = pinTapPoint(app, tree.point);
+  assert.equal(app.findHit(treeTap, app.screenToWorld(treeTap.x, treeTap.y)).type, "tree");
+  tapMap(app, treeTap);
+
+  assert.equal(app.state.selected?.type, "tree", "the Nearby pin should open the location");
+  assert.equal(app.state.selectionMapTransitionActive, true,
+    "the outgoing map should remain active during a direct map selection");
+  assert.equal(app.activeIconLookup(), outgoingIconLookup,
+    "direct map selection should retain the pins from the browsed Nearby view");
+  assert.ok(
+    Math.abs(app.state.selectionMapTransitionOriginPoint.x - anchor.point.x) < 1e-9
+      && Math.abs(app.state.selectionMapTransitionOriginPoint.y - anchor.point.y) < 1e-9,
+    "direct map selection should retain the browsed pivot during handoff"
+  );
+  assert.equal(app.state.nearbyOriginTransition, null,
+    "selection should cancel the obsolete Nearby-origin transition");
+  app.stopViewportAnimation();
 });
 
 test("the nearest area is measured from the browse anchor once one is set, not the GPS fix", () => {

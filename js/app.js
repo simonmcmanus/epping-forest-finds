@@ -358,6 +358,11 @@ const state = {
   renderedTiltRotateXDeg: 0,
   tiltWasActive: false,
   selectionViewportTransitionPending: false,
+  inspectorMinimizeTransitionPending: false,
+  selectionMapTransitionActive: false,
+  selectionMapTransitionToken: null,
+  selectionMapTransitionIconLookup: null,
+  selectionMapTransitionOriginPoint: null,
   viewportAnimationFrame: null,
   viewportAnimationFrom: null,
   viewportAnimationTo: null,
@@ -6080,7 +6085,22 @@ function cameraOriginPoint(useFinalBrowseState = false) {
 // that feeds selectedNavigationHeadingUpActive()/nearbyOrigin() does), mirroring how
 // startNearbyOriginTransition is called before state.nearbyAnchor changes.
 function startCameraOriginTransition() {
+  // Selection clears a browsed Nearby anchor immediately, but the map still needs the exact
+  // pins and pivot that were visible before that state change while the camera slides away from
+  // it. Rebuilding the Nearby lookup after the clear scopes pins to the user's GPS position and
+  // can leave the in-between camera looking at empty terrain.
+  state.selectionMapTransitionIconLookup = typeof buildNearbyIconLookup === "function"
+    ? buildNearbyIconLookup()
+    : null;
+  state.selectionMapTransitionOriginPoint = typeof nearbyRenderOriginPoint === "function"
+    ? nearbyRenderOriginPoint()
+    : (typeof nearbyOrigin === "function" ? nearbyOrigin()?.point || null : null);
   const fromPoint = cameraOriginPoint();
+  // A selection owns the camera from this frame onward. If a Nearby anchor move is still in
+  // flight, leaving its transition alive lets prepareCanvasForDraw run an old Nearby refit over
+  // the new selection animation, which is an intermittent blank/snap depending on tap timing.
+  state.nearbyOriginTransition = null;
+  _nearbyRenderOriginCache = undefined;
   if (!fromPoint) {
     state.cameraOriginTransition = null;
     return;
@@ -6198,6 +6218,7 @@ function nearbyOriginTransitionEasedProgress() {
 function nearbyRevealOpacity() {
   const transition = state.nearbyOriginTransition;
   if (!transition) return 1;
+  if (state.selectionMapTransitionActive) return 1;
   if (state.viewportAnimationTo != null) return 1;
   const sinceStart = performance.now() - transition.startedAt;
   if (sinceStart < transition.durationMs) return 0;
@@ -6210,6 +6231,7 @@ function nearbyRevealOpacity() {
 function nearbyRevealInProgress() {
   const transition = state.nearbyOriginTransition;
   if (!transition) return false;
+  if (state.selectionMapTransitionActive) return false;
   if (state.viewportAnimationTo != null) return false;
   return performance.now() - transition.startedAt < transition.durationMs + NEARBY_REVEAL_MS;
 }
@@ -6543,7 +6565,15 @@ function currentNavigationMapRotationDegrees() {
 }
 
 function selectionCameraTransitionActive() {
-  return state.selectionViewportTransitionPending || state.viewportAnimationTo != null;
+  const selectedNavigationBasisTransition = Boolean(
+    state.cameraOriginTransition
+    && state.selected?.item
+    && typeof selectedCompassTarget === "function"
+    && selectedCompassTarget(),
+  );
+  return state.selectionViewportTransitionPending
+    || state.viewportAnimationTo != null
+    || selectedNavigationBasisTransition;
 }
 
 // Takes the rect the caller already measured. Previously this measured its own, which meant
@@ -7063,8 +7093,28 @@ function maxScaleForHeadingUpPoints(points, focus, focusRect, options = {}) {
 
 function maxHeadingUpNavigationScale(focus, focusRect) {
   if (!state.userLocation) return state.viewport.scale;
-  const points = selectedNavigationTargetPoints();
+  let points = selectedNavigationTargetPoints();
   if (!points.length) return state.viewport.scale;
+  // The routing graph is lazy. Before it is ready, selectedNavigationTargetPoints() is the
+  // straight-line fallback, while the eventual route can detour well outside that line. Give
+  // the first heading-up fit the same room as ensureUserAndSelectionVisible's flat fit, so a
+  // selection does not visibly zoom in and then reverse when the real route arrives.
+  if (!state.routingGraphReady && points.length > 1) {
+    const bounds = points.reduce((next, point) => ({
+      minX: Math.min(next.minX, point.x),
+      minY: Math.min(next.minY, point.y),
+      maxX: Math.max(next.maxX, point.x),
+      maxY: Math.max(next.maxY, point.y),
+    }), { minX: Infinity, minY: Infinity, maxX: -Infinity, maxY: -Infinity });
+    const centreX = (bounds.minX + bounds.maxX) / 2;
+    const centreY = (bounds.minY + bounds.maxY) / 2;
+    const halfWidth = ((bounds.maxX - bounds.minX) / 2) * ROUTE_UNKNOWN_FIT_SLACK;
+    const halfHeight = ((bounds.maxY - bounds.minY) / 2) * ROUTE_UNKNOWN_FIT_SLACK;
+    points = [
+      { x: centreX - halfWidth, y: centreY - halfHeight },
+      { x: centreX + halfWidth, y: centreY + halfHeight },
+    ];
+  }
   // See maxScaleForHeadingUpPoints's comment: the selected destination/route stay
   // visible even when behind the user during full tilt, so the fit must keep framing
   // them there too, unlike nearby mode's item cluster.
@@ -7867,6 +7917,16 @@ function refitSelectionAfterRoutingGraphReady() {
     // Heading-up navigation has its own camera (anchor + rotation aware); going through
     // ensureUserAndSelectionVisible there would be overwritten by the next compass frame.
     if (selectedNavigationHeadingUpActive()) {
+      const focusRect = bestVisibleCanvasRect();
+      const margin = headingUpFitMarginPx(focusRect);
+      const routeNeedsRefit = selectedNavigationTargetPoints().some((point) => {
+        const screen = worldToScreen(point);
+        return screen.x < focusRect.x + margin
+          || screen.x > focusRect.x + focusRect.width - margin
+          || screen.y < focusRect.y + margin
+          || screen.y > focusRect.y + focusRect.height - margin;
+      });
+      if (!routeNeedsRefit) return;
       alignHeadingUpNavigationViewport({ animate: true, durationMs: 520, force: true });
       return;
     }

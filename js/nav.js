@@ -824,6 +824,29 @@ function setupNavHighlightPressFeedback() {
       if (active) navHighlightPosition(active);
     });
   });
+  document.addEventListener("pointerup", (event) => {
+    const preview = nav._navHighlightPreviewTarget;
+    if (!preview) return;
+    const releasedInsidePreview = event.target === preview
+      || (typeof preview.contains === "function" && preview.contains(event.target));
+    // A normal pointerup on a tab is followed by click, which commits the preview. Keep it until
+    // that click has run so asynchronous route handling cannot briefly snap the highlight back to
+    // the old tab. A release outside the tab has no click to commit, so clear it immediately.
+    if (!releasedInsidePreview) {
+      preview.classList.remove("nav-pressing");
+      nav._navHighlightPreviewTarget = null;
+      const active = nav.querySelector(":scope > .screen-active");
+      if (active) navHighlightPosition(active);
+    }
+  });
+  document.addEventListener("pointercancel", () => {
+    const preview = nav._navHighlightPreviewTarget;
+    if (!preview) return;
+    preview.classList.remove("nav-pressing");
+    nav._navHighlightPreviewTarget = null;
+    const active = nav.querySelector(":scope > .screen-active");
+    if (active) navHighlightPosition(active);
+  });
   const active = nav.querySelector(":scope > .screen-active");
   if (active) navHighlightPosition(active);
 }
@@ -1722,6 +1745,10 @@ function focusNearbyOnMapPoint(lonLat, worldPoint) {
   // truthy, and taking this branch from them dismissed the very screen the tap must never
   // dismiss. They behave like plain Nearby here -- move the anchor, leave the screen open.
   if (hasRealSelection() || state.clusterExpanded) {
+    // Keep the selected-location path visually consistent with an ordinary Nearby anchor move.
+    // Without this, the anchor snapped to the new point while the camera refit started from the
+    // old origin, producing a brief jump when leaving a selected location.
+    startNearbyOriginTransition(nearbyRenderOriginPoint());
     state.nearbyAnchor = { latitude: lonLat.latitude, longitude: lonLat.longitude, point: worldPoint };
     refreshNearestTreeForNearbyOrigin();
     goToInitialView();
@@ -2323,6 +2350,7 @@ function setupInspectorDragResize() {
 
 function setInspectorMinimized(minimized) {
   const wasMinimized = els.inspector.classList.contains("minimized");
+  state.inspectorMinimizeTransitionPending = wasMinimized !== Boolean(minimized);
   els.inspector.classList.toggle("minimized", minimized);
   if (wasMinimized && !minimized) {
     // Expanding the inspector is the app's one sanctioned re-frame for an existing selection

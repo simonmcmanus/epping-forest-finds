@@ -40,10 +40,11 @@ function handleMapClick(event) {
   //
   //  - open ground (no highlighted location, no street), anywhere on the map -- rather than
   //    selecting whatever background polygon happens to sit there, or resetting the camera;
-  //  - *any* tap outside the nearest area while the Nearby view is showing, whatever it landed
-  //    on. Streets and waymarked trails are drawn right across the map, so without this a tap
-  //    into the out-of-radius corners of the Nearby screen opened a navigation view to whatever
-  //    road happened to run through there instead of browsing that spot.
+  //  - open-ground or terrain taps outside the nearest area while the Nearby view is showing.
+  //    Streets and waymarked trails are drawn right across the map, so without this a tap into
+  //    the out-of-radius corners of the Nearby screen opened a navigation view to whatever road
+  //    happened to run through there instead of browsing that spot. A real location pin remains
+  //    selectable even when it is an out-of-radius fallback.
   //
   // Either way the walking radius and the nearby list move to the tapped spot, leaving any
   // selection or cluster group behind. The second rule is Nearby-only (isOverviewScreenActive()
@@ -53,7 +54,11 @@ function handleMapClick(event) {
   // -- they draw the same ring, and moving it is one of the things it must stay possible to do
   // from them. Neither ever dismisses the screen itself.
   const beyondNearestArea = isOverviewScreenActive() && isOutsideNearestArea(lonLat);
-  if (hit.type === "none" || beyondNearestArea) {
+  // A visible location remains a selection target even when it is the out-of-radius fallback
+  // shown at the edge of Nearby. The browse-origin rule is for open ground and terrain lines
+  // (especially roads crossing the outer map), not for a place the user deliberately tapped.
+  const isLocationHit = ["tree", "addedtree", "cow", "landmark", "path", "water"].includes(hit.type);
+  if (hit.type === "none" || (beyondNearestArea && !isLocationHit)) {
     focusNearbyOnMapPoint(lonLat, world);
     return;
   }
@@ -800,6 +805,13 @@ function animateNearestItemReorder(previousPositions) {
       item.style.transition = "transform 150ms ease-out, opacity 150ms ease-out";
       item.style.transform = "";
       item.style.opacity = "";
+      const transitionToken = {};
+      item._nearestReorderTransitionToken = transitionToken;
+      setTimeout(() => {
+        if (item._nearestReorderTransitionToken !== transitionToken) return;
+        item.style.transition = "";
+        item._nearestReorderTransitionToken = null;
+      }, 180);
     }
   });
 }
@@ -818,7 +830,10 @@ function _cleanupTransition() {
   const screen = scroll && scroll.querySelector(".inspector-screen");
   const ghost  = scroll && scroll.querySelector(".inspector-screen-ghost");
   if (ghost)  ghost.remove();
-  if (screen) { screen.style.willChange = ""; screen.getAnimations().forEach(a => a.cancel()); }
+  // Only the outgoing screen animation is owned by this transition. Cancelling every animation
+  // on the screen also cancels child animations (walk chips, icons, etc.) that entered with the
+  // replacement markup, cutting their reveal off when the parent slide finishes.
+  if (screen) screen.style.willChange = "";
   if (scroll) { scroll.style.overflow = ""; scroll.style.height = ""; }
 }
 
@@ -1094,9 +1109,34 @@ function focusOverviewItem(type, key) {
   }
 }
 
+function inspectorTransitionTimeMs() {
+  if (!els.inspector || typeof getComputedStyle !== "function") return null;
+  const computed = getComputedStyle(els.inspector);
+  const properties = String(computed.transitionProperty || "").split(",").map(value => value.trim());
+  const durations = String(computed.transitionDuration || "").split(",").map(value => value.trim());
+  const delays = String(computed.transitionDelay || "").split(",").map(value => value.trim());
+  if (!properties.length || properties[0] === "none") return 0;
+
+  const timeMs = (value) => {
+    if (value.endsWith("ms")) return Number.parseFloat(value) || 0;
+    if (value.endsWith("s")) return (Number.parseFloat(value) || 0) * 1000;
+    return 0;
+  };
+  let longest = 0;
+  for (let index = 0; index < properties.length; index += 1) {
+    const property = properties[index];
+    if (property !== "all" && property !== "max-height" && property !== "height") continue;
+    const duration = timeMs(durations[index % Math.max(1, durations.length)] || "0s");
+    const delay = timeMs(delays[index % Math.max(1, delays.length)] || "0s");
+    longest = Math.max(longest, duration + delay);
+  }
+  return longest;
+}
+
 // Runs `callback` once the inspector's own height transition has finished, or after a timeout
 // if it never fires (reduced motion, an interrupted transition, a panel that was already at the
-// target height).
+// target height). Fixed-height layouts have no height transition, so they only wait one frame for
+// the class change to be reflected in layout instead of holding the camera for the old 220ms window.
 //
 // transitionend bubbles, and the inspector is full of descendants with their own transitions --
 // row backgrounds (120ms), the drag handle (40ms), nearest-item reorder (150ms). A bare
@@ -1106,6 +1146,11 @@ function focusOverviewItem(type, key) {
 // panel and framed the map against a footprint that no longer existed a moment later -- the
 // "screens don't settle properly on the map" symptom. Match the element and the property.
 function onInspectorHeightTransitionEnd(callback, timeoutMs = INSPECTOR_MINIMIZE_TRANSITION_TIMEOUT_MS) {
+  const transitionTime = inspectorTransitionTimeMs();
+  if (transitionTime === 0) {
+    requestAnimationFrame(callback);
+    return;
+  }
   let fired = false;
   const fire = () => {
     if (fired) return;
@@ -1115,17 +1160,36 @@ function onInspectorHeightTransitionEnd(callback, timeoutMs = INSPECTOR_MINIMIZE
   };
   function onTransitionEnd(event) {
     if (event.target !== els.inspector) return;
-    if (event.propertyName !== "max-height") return;
+    if (event.propertyName !== "max-height" && event.propertyName !== "height") return;
     fire();
   }
   els.inspector.addEventListener("transitionend", onTransitionEnd);
-  setTimeout(fire, timeoutMs);
+  setTimeout(fire, Math.max(timeoutMs, (transitionTime || 0) + 40));
 }
 
 // Defers the selection camera zoom until after the inspector's max-height CSS
 // transition completes, so getBoundingClientRect() returns the correct
 // minimized height when bestVisibleCanvasRect() measures the focus rect.
 function zoomToSelection() {
+  const waitForInspectorTransition = state.inspectorMinimizeTransitionPending;
+  state.inspectorMinimizeTransitionPending = false;
+  const transitionToken = {};
+  state.selectionMapTransitionActive = true;
+  state.selectionMapTransitionToken = transitionToken;
+  const settleMapTransition = () => {
+    if (state.selectionMapTransitionToken !== transitionToken) return;
+    if (state.selectionViewportTransitionPending
+        || state.viewportAnimationTo != null
+        || state.cameraOriginTransition != null) {
+      requestAnimationFrame(settleMapTransition);
+      return;
+    }
+    state.selectionMapTransitionActive = false;
+    state.selectionMapTransitionToken = null;
+    state.selectionMapTransitionIconLookup = null;
+    state.selectionMapTransitionOriginPoint = null;
+    requestDraw();
+  };
   const doZoom = () => {
     state.selectionViewportTransitionPending = false;
     if (typeof animateToHeadingUpNavigationViewport === "function" && selectedNavigationHeadingUpActive()) {
@@ -1133,15 +1197,26 @@ function zoomToSelection() {
     } else {
       ensureUserAndSelectionVisible({ animate: true, force: true, durationMs: HEADING_UP_NAV_ANIMATION_MS });
     }
+    requestAnimationFrame(settleMapTransition);
   };
 
   if (!els.inspector.classList.contains("minimized")) {
     doZoom();
     return;
   }
+  if (!waitForInspectorTransition) {
+    // The class change has already happened by the time this path runs. Force the panel's
+    // layout once so the camera fit reads its new footprint, then continue immediately. A
+    // requestAnimationFrame here looks tidy but can be delayed by a busy/backgrounded mobile
+    // tab for hundreds of milliseconds, turning a no-op transition into visible selection
+    // latency. Real inspector toggles still take the transition-aware path above.
+    void els.inspector.offsetHeight;
+    doZoom();
+    return;
+  }
   state.selectionViewportTransitionPending = true;
-  // Mirrors the 180ms `.inspector` max-height transition in css/inspector.css
-  // plus a ~40ms buffer so the camera measures after the minimized layout settles.
+  // The helper follows the inspector's current CSS. This remains correct if a height transition
+  // is restored later, while fixed-height panels proceed on the next layout frame.
   onInspectorHeightTransitionEnd(doZoom);
 }
 

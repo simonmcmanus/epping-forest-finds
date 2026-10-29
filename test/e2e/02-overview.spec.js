@@ -151,6 +151,35 @@ test.describe("Overview / Nearby screen", () => {
     await expect(page.locator("#filterToggle")).toHaveAccessibleName(/^Filters/);
   });
 
+  test("nav press previews clear when released outside, but remain through the tab click", async ({ page }) => {
+    const search = page.locator("#searchToggle");
+    await search.dispatchEvent("pointerdown", { bubbles: true, pointerId: 1, pointerType: "touch" });
+    await page.dispatchEvent("body", "pointerup", { bubbles: true, pointerId: 1, pointerType: "touch" });
+    await expect(search).not.toHaveClass(/nav-pressing/);
+
+    await search.dispatchEvent("pointerdown", { bubbles: true, pointerId: 2, pointerType: "touch" });
+    await search.dispatchEvent("pointerup", { bubbles: true, pointerId: 2, pointerType: "touch" });
+    await expect(search).toHaveClass(/nav-pressing/);
+    await search.click();
+    await expect(search).toHaveClass(/screen-active/);
+  });
+
+  test("selection camera refit does not wait for a removed inspector height transition", async ({ page }) => {
+    const elapsedMs = await page.evaluate(() => new Promise((resolve) => {
+      const inspector = els.inspector;
+      inspector.classList.add("minimized");
+      const original = window.ensureUserAndSelectionVisible;
+      const startedAt = performance.now();
+      window.ensureUserAndSelectionVisible = () => {
+        window.ensureUserAndSelectionVisible = original;
+        inspector.classList.remove("minimized");
+        resolve(performance.now() - startedAt);
+      };
+      zoomToSelection();
+    }));
+    expect(elapsedMs, "fixed-height inspector should refit on the next layout frame").toBeLessThan(150);
+  });
+
   test("the nav bar stays usable regardless of the inspector sheet's minimized state", async ({ page }) => {
     // The nav bar is no longer part of #inspector (see app.html), so minimizing the sheet must
     // not affect it at all -- unlike the sheet's own chrome (header, body), which does hide.
