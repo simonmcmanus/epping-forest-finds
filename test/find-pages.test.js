@@ -140,7 +140,7 @@ test("renderPage renders a group page's own title, count and member pills, promo
   assert.match(html, /"numberOfItems":49/, "the group's count is its members' counts summed");
   assert.match(html, /Find all 49 places to eat, drink and shop in Epping Forest/);
   // "Browse by type" used to be a bottom paragraph of plain links -- now a pill per member, in
-  // the same top chip row as the breadcrumb (categoryLandingLinksHtml's own live equivalent,
+  // the same top chip row as the breadcrumb (the live category navigation's equivalent,
   // js/app.js), so it survives selectOverview() replacing the rest of the body the instant JS
   // boots instead of vanishing with it.
   const topRow = /<div class="detail-top-row related-chips">([\s\S]*?)<\/div>/.exec(html)[1];

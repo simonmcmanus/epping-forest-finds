@@ -538,10 +538,20 @@
   margin: 6px 0 0;
   color: var(--muted);
   font-size: 0.88rem;
+  line-height: 1.25;
+  min-height: 2.5em;
+  max-height: 2.5em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .inspector .type:empty {
   display: none;
+  min-height: 0;
+  max-height: none;
 }
 
 .close {
@@ -1282,7 +1292,7 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   }
 }
 
-/* Links that open a Nearby view (categoryLandingLinksHtml's chips, relatedCategoryLinksHtml's
+/* Links that open a Nearby view (the static category chips, relatedCategoryLinksHtml's
    cards) read as navigation into the map rather than as plain reference text: a forest-green
    border and label, so they are told apart from the neutral pills and the inspector's own actions. */
 .detail-map-link.nearby-link {
@@ -1334,8 +1344,8 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   margin-bottom: 0;
 }
 
-/* Nearby's filter rail: a row of toggle pills that scrolls sideways, and the Filters screen link
-   on the right. Sticky so the reader can keep tapping while the list scrolls. */
+/* Nearby's filter rail: a row of toggle pills that scrolls sideways. Sticky so the reader can keep
+   tapping while the list scrolls. */
 .filter-rail {
   position: sticky;
   top: 0;
@@ -1365,8 +1375,7 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   display: none;
 }
 
-.rail-pill,
-.rail-edge {
+.rail-pill {
   display: inline-flex;
   flex: none;
   align-items: center;
@@ -1410,14 +1419,7 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   transform: none;
 }
 
-.rail-edge {
-  width: 40px;
-  padding: 0;
-  border-radius: 50%;
-}
-
-.rail-pill .app-icon,
-.rail-edge .app-icon {
+.rail-pill .app-icon {
   width: 1.6em;
   height: 1.6em;
 }
@@ -1433,8 +1435,7 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   opacity: 0.58;
 }
 
-.rail-pill:active,
-.rail-edge:active {
+.rail-pill:active {
   transform: scale(0.9);
 }
 
@@ -1443,22 +1444,15 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   color: #2f6b3c;
 }
 
-.rail-edge:disabled {
-  opacity: 0.35;
-  pointer-events: none;
-}
-
 @media (hover: hover) {
-  .rail-pill:not(.is-on):hover,
-  .rail-edge:not(:disabled):hover {
+  .rail-pill:not(.is-on):hover {
     background: #eef6f0;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .rail-pill,
-  .rail-pill::before,
-  .rail-edge {
+  .rail-pill::before {
     transition: none;
   }
 }

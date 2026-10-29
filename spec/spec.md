@@ -335,7 +335,7 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
 - **Nearby filter rail.** Every Nearby view carries one row of toggle pills (`filterRailHtml()`,
   js/app.js; detail in `spec-data-rendering.md` "Nearby filter rail"): top-level category pills on
   `/nearby`, that category's subcategory pills on a
-  `/nearby/<category>` page, and a button to the Filters screen on the right. Enabled pills show a
+  `/nearby/<category>` page. Enabled pills show a
   tick. A top-level pill toggles all of its subcategories; a subcategory pill toggles only itself.
   Changes remain an ephemeral lens (`persist:false`), so the reader's saved filters are untouched.
   The address bar follows the selection: one category is

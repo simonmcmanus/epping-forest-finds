@@ -4618,8 +4618,7 @@ function renderNearestItemsHtml(entries) {
   }).join("");
 }
 
-// The filter rail at the top of every Nearby view: "show all" on the left, one toggle pill per
-// category in the middle, a link to the Filters screen on the right. The plain /nearby screen
+// The filter rail at the top of every Nearby view: one toggle pill per category. The plain /nearby screen
 // shows top-level groups; a /nearby/<category> landing shows that group's subcategories. A pill
 // adds or removes its category from the current (ephemeral) filter set in place -- no screen
 // slide -- so the reader can keep tapping round. It replaces the old /nearby/<slug> breadcrumb
@@ -4684,7 +4683,6 @@ function filterRailHtml() {
   }).join("");
   return `<nav class="filter-rail" aria-label="Filter nearby places">` +
     `<div class="rail-pills">${pills}</div>` +
-    `<a class="rail-edge" href="${ROUTE_PATHS[ROUTE_FILTERS]}" aria-label="Filters">${appIconHtml("filter")}</a>` +
     `</nav>`;
 }
 

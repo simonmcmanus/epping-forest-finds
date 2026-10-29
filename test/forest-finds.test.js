@@ -2125,7 +2125,7 @@ test("the plain Nearby filter rail shows top-level categories with ticks for ena
   const keys = [...html.matchAll(/data-rail-key="([a-z_]+)"/g)].map((m) => m[1]);
   assert.equal(new Set(keys).size, keys.length, "no category appears twice");
   assert.ok(keys.includes("nature") && keys.includes("food"), "the top-level categories are in the row");
-  assert.match(html, /href="\/nearby\/filter"[^>]*aria-label="Filters"/, "the right-hand button opens the Filters screen");
+  assert.doesNotMatch(html, /rail-edge|href="\/nearby\/filter"/, "the rail contains category pills only");
   app.location.pathname = "/";
   app.state.overviewFilters = [];
 });
@@ -2144,14 +2144,13 @@ test("a category Nearby page shows its subcategories and ticks the enabled ones"
   app.state.overviewFilters = [];
 });
 
-test("a filter set covering every category is the show-all state: nothing is pressed and show-all is disabled", () => {
+test("a filter set covering every category keeps every displayed pill pressed", () => {
   resetData(app);
   app.state.overviewFilters = app.FILTER_SUBFILTERS.map((sub) => sub.key);
   assert.equal(app.railSelection().length, 0);
   const html = app.filterRailHtml();
   assert.match(html, /aria-pressed="true"/);
   assert.match(html, /class="rail-check"/);
-  assert.doesNotMatch(html, /data-action="rail-show-all"/, "the rail no longer has a left show-all button");
   app.state.overviewFilters = [];
 });
 
