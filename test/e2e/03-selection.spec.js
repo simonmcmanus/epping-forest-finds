@@ -62,7 +62,7 @@ test.describe("Selection and Inspector", () => {
       const controls = page.locator("#inspectorBody .walk-chip, #inspectorBody .detail-map-link--icon");
       await expect(controls).toHaveCount(3);
       const heights = await controls.evaluateAll((items) => items.map((item) => item.getBoundingClientRect().height));
-      heights.forEach((height) => expect(height).toBeCloseTo(44, 0));
+      heights.forEach((height) => expect(height).toBeCloseTo(36, 0));
       await expect(page.locator("#inspectorBody .tree-field-icon")).toHaveCount(0);
     });
 
@@ -80,7 +80,7 @@ test.describe("Selection and Inspector", () => {
       await expect(measurement).toHaveCount(1);
       expect((await measurement.boundingBox()).height).toBeLessThan(85);
       const pill = page.locator("#inspectorBody .walk-chip");
-      expect((await pill.boundingBox()).height).toBe(44);
+      expect((await pill.boundingBox()).height).toBe(36);
       expect(await pill.evaluate((item) => parseFloat(getComputedStyle(item).fontSize))).toBeGreaterThanOrEqual(14);
       expect((await pill.locator(".walk-icon").boundingBox()).width).toBe(20);
     });

@@ -2389,12 +2389,12 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   overflow: hidden; clip-path: inset(50%); white-space: nowrap;
 }
 .tree-facts .tree-tag dd {
-  position: relative; box-sizing: border-box; max-width: 100%; padding: 5px 23px;
+  position: relative; box-sizing: border-box; max-width: 100%; padding: 6px 26px;
   border: 1px solid #a8b4a5; border-radius: 5px;
   background: linear-gradient(155deg, #eef0e8, #d5ddd0);
   box-shadow: inset 0 1px 0 #ffffffb3;
   color: #354e3c; font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
-  font-size: 0.9rem; font-weight: 700; line-height: 1.25; letter-spacing: 0.06em; text-align: center;
+  font-size: 1.1rem; font-weight: 700; line-height: 1.25; letter-spacing: 0.06em; text-align: center;
 }
 .tree-facts .tree-tag dd::before, .tree-facts .tree-tag dd::after {
   content: ""; position: absolute; top: 50%; width: 5px; height: 5px;
@@ -2407,9 +2407,12 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 .tree-facts .tree-status dd { display: flex; align-items: center; gap: 4px; font-size: 0.78rem; font-weight: 600; color: #52634c; }
 .tree-detail .detail-top-row { padding-bottom: 12px; margin-bottom: 0; gap: 8px; }
 .tree-detail .detail-top-row > [data-live-field="distance"] { flex: 1 1 130px; }
-.tree-detail .detail-top-actions { gap: 6px; }
-.tree-detail .detail-map-link--icon { box-sizing: border-box; width: 44px; height: 44px; min-height: 44px; border-radius: 9px; border-color: #dce4d6; }
-.tree-detail .walk-chip { box-sizing: border-box; width: 100%; justify-content: center; gap: 5px; height: 44px; padding: 0 10px; border-radius: 9px; border-color: #dce4d6; background: #f3f7ef; font-size: 0.88rem; font-weight: 650; }
+.tree-detail .detail-top-actions { gap: 8px; }
+.tree-detail .detail-map-link--icon { box-sizing: border-box; width: 36px; height: 36px; min-height: 36px; border-radius: 8px; border-color: #dce4d6; }
+.tree-detail .walk-chip { box-sizing: border-box; width: 100%; justify-content: center; gap: 5px; height: 36px; padding: 0 8px; border-radius: 8px; border-color: #dce4d6; background: #f3f7ef; font-size: 0.88rem; font-weight: 650; }
+/* Extend the compact controls’ hit areas without adding visible padding. */
+.tree-detail .detail-map-link--icon, .tree-detail .walk-chip { position: relative; }
+.tree-detail .detail-map-link--icon::after, .tree-detail .walk-chip::after { content: ""; position: absolute; inset: -4px; }
 .tree-detail .walk-chip .walk-icon { width: calc(20px * var(--icon-scale)); height: calc(20px * var(--icon-scale)); }
 .tree-measurements { margin: 0 0 8px; }
 .tree-measurements dl { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
