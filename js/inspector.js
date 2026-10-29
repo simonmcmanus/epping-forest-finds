@@ -851,6 +851,7 @@ function patchOverviewBody(html) {
 function patchRailPills(oldRail, newRail) {
   const oldPills = oldRail.querySelector(".rail-pills");
   const newPills = newRail.querySelector(".rail-pills");
+  const scrollLeft = oldPills.scrollLeft;
   const first = new Map();
   oldPills.querySelectorAll("[data-rail-key]").forEach((el) => {
     const r = el.getBoundingClientRect();
@@ -864,11 +865,9 @@ function patchRailPills(oldRail, newRail) {
     if (el) {
       const wasOn = el.classList.contains("is-on");
       el.classList.toggle("is-on", next.classList.contains("is-on"));
+      el.innerHTML = next.innerHTML;
       if (wasOn !== el.classList.contains("is-on")) {
         el.animate([{ transform: "scale(0.9)" }, { transform: "scale(1.09)", offset: 0.55 }, { transform: "scale(1)" }], { duration: 380, easing: "cubic-bezier(0.34, 1.3, 0.64, 1)" });
-        const rowEl = oldPills;
-        const left = el.offsetLeft - 16;
-        if (el.offsetLeft < rowEl.scrollLeft || el.offsetLeft + el.offsetWidth > rowEl.scrollLeft + rowEl.clientWidth) rowEl.scrollTo({ left, behavior: "smooth" });
       }
       el.setAttribute("aria-pressed", next.getAttribute("aria-pressed"));
       existing.delete(key);
@@ -879,6 +878,9 @@ function patchRailPills(oldRail, newRail) {
     oldPills.appendChild(el);
   }
   existing.forEach((el) => el.remove());
+  // A toggle is an in-place edit, so never take horizontal control away from someone who has
+  // deliberately scrolled the rail. The browser clamps this if the new row is shorter.
+  oldPills.scrollLeft = scrollLeft;
   const edge = oldRail.querySelector("[data-action='rail-show-all']");
   const nextEdge = newRail.querySelector("[data-action='rail-show-all']");
   if (edge && nextEdge) edge.disabled = nextEdge.disabled;

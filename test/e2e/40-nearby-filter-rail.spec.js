@@ -112,6 +112,22 @@ test.describe("Nearby filter rail", () => {
     await expect(page.locator(".nearest-list .nearest-item")).not.toHaveCount(0);
   });
 
+  test("toggling a right-scrolled pill keeps the rail under the pointer", async ({ page, isMobile }) => {
+    test.skip(!isMobile, "the desktop rail does not need horizontal scrolling");
+    const row = page.locator(".rail-pills");
+    const stories = pill(page, "stories");
+    await stories.scrollIntoViewIfNeeded();
+    await row.evaluate((el) => {
+      const button = el.querySelector('[data-rail-key="stories"]');
+      el.scrollLeft = Math.max(0, button.offsetLeft + button.offsetWidth - el.clientWidth - 4);
+    });
+    const before = await row.evaluate((el) => el.scrollLeft);
+    await stories.click();
+    await expect(stories).toHaveAttribute("aria-pressed", "true");
+    await expect.poll(() => row.evaluate((el) => el.scrollLeft)).toBe(before);
+    await expect(stories.locator(".rail-check")).toHaveText("✓");
+  });
+
   test("the Filters button still slides to the Filters screen", async ({ page }) => {
     await page.getByRole("link", { name: "Filters" }).click();
     await expect(page).toHaveURL(/\/nearby\/filter/);
