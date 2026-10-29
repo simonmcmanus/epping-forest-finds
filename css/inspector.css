@@ -236,6 +236,7 @@
   top: 14px;
   right: 14px;
   width: min(390px, calc(100vw - 28px));
+  --nav-slide-duration: 280ms;
   display: grid;
   /* A thin first cell for Back (.nav-back), reserved even while it is disabled, so the four tabs
      never move when it becomes available. */
@@ -285,6 +286,10 @@
 /* Keep the compact bar's resting design identical to desktop, but give the shorter mobile
    interaction a little more travel time so the shared highlight's movement is easy to read. */
 @media (max-width: 760px) {
+  .inspector-actions {
+    --nav-slide-duration: 420ms;
+  }
+
   .inspector-actions .nav-highlight {
     transition: transform 420ms cubic-bezier(0.2, 0.75, 0.25, 1),
       width 360ms cubic-bezier(0.2, 0.75, 0.25, 1),
@@ -589,7 +594,20 @@ button.settings-toggle.has-update::after {
 .inspector-actions.nav-has-highlight > :is(button, a).nav-pressing {
   color: var(--gold-ink);
   z-index: 2;
-  animation: nav-press-bump 420ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+
+.inspector-actions > :is(button, a) > .nav-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  transition: transform 140ms ease;
+  transform-origin: center;
+}
+
+.inspector-actions.nav-has-highlight > :is(button, a).nav-pressing > :is(.nav-content, .nav-icon, .nav-label) {
+  animation: nav-press-bump var(--nav-slide-duration) cubic-bezier(0.2, 0.75, 0.25, 1) both;
 }
 
 @keyframes nav-press-bump {
@@ -598,9 +616,10 @@ button.settings-toggle.has-update::after {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .inspector-actions.nav-has-highlight > :is(button, a).nav-pressing {
+  .inspector-actions.nav-has-highlight > :is(button, a).nav-pressing > :is(.nav-content, .nav-icon, .nav-label) {
     animation: none;
     transform: none;
+    transition: none;
   }
 }
 
