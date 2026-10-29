@@ -361,10 +361,11 @@ function findClusterHit(screen) {
 // --- Detail views ---
 
 function showTreeDetails(tree, distance, label) {
-  setInspectorSelectionChrome({ emoji: "", showBack: true });
+  setInspectorSelectionChrome({ emoji: treeSpeciesIconHtml(tree.commonName, tree.latinName, "app-icon title-icon") || appIconHtml("tree", "app-icon title-icon"), showBack: true });
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = treeDisplayName(tree);
-  els.inspectorType.textContent = "Veteran tree";
+  const form = String(tree.treeForm || "").trim().replace(/^veteran\s+/i, "");
+  els.inspectorType.textContent = form ? `Veteran tree · ${form} form` : "Veteran tree";
   const estimatedAge = estimateTreeAgeFromGirth(tree);
   const primaryRows = [
     ["Estimated age", estimatedAge],
@@ -372,8 +373,14 @@ function showTreeDetails(tree, distance, label) {
   ];
   const tag = treeTagLabel(tree);
   const tagHtml = `<div class="row tree-tag${tag == null ? " tree-tag--missing" : ""}"><dt>Tag number</dt><dd>${escapeHtml(tag ?? "No tag recorded")}</dd></div>`;
+  const status = String(tree.status || "").trim().toLowerCase();
+  const statusIcon = status === "alive"
+    ? '<svg class="tree-status-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 4C10 3 4 7 5 13s10 8 14-9Z"/><path d="M4 21 15 10m-5 5-1-5m1 5 5 1"/></svg>'
+    : status === "dead"
+      ? '<svg class="tree-status-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21V4m0 9-6-5V4m6 12 6-5V6M6 8 3 6m15 5 3-3M8 21h8"/></svg>'
+      : "";
   const statusHtml = tree.status != null && tree.status !== ""
-    ? `<div class="row tree-status"><dt>Status</dt><dd><span>${escapeHtml(displayValue(tree.status))}</span></dd></div>` : "";
+    ? `<div class="row tree-status"><dt>Status</dt><dd>${statusIcon}<span>${escapeHtml(displayValue(tree.status))}</span></dd></div>` : "";
   const commentsHtml = tree.comments
     ? `<div class="tree-comments">${detailsHtml([["Comments", tree.comments]])}</div>` : "";
   const measurementRows = primaryRows.filter(([, value]) => value != null && value !== "");
@@ -384,7 +391,6 @@ function showTreeDetails(tree, distance, label) {
       : escapeHtml(displayValue(value));
     return `<div class="row"><dt>${escapeHtml(name)}</dt><dd>${shown}</dd></div>`;
   }).join("")}</dl></div>` : "";
-  const formHtml = tree.treeForm ? `<div class="tree-form">${detailsHtml([["Tree form", tree.treeForm]])}</div>` : "";
   const technicalRows = [
     ["Latin name", tree.latinName],
     ["National tag", tree.nationalDatabaseTagNumber],
@@ -406,7 +412,7 @@ function showTreeDetails(tree, distance, label) {
   const issueHtml = reportIssueHtml({ type: "Veteran tree", name: treeDisplayName(tree), latitude: tree.latitude, longitude: tree.longitude });
   // Read the tree first; community checks follow the record and stay in the same host as
   // the live verification slots so saved-report updates can still find the header actions.
-  const factsHtml = `<section class="tree-facts" aria-label="Tree facts"><dl class="tree-summary">${tagHtml}${statusHtml}</dl>${topRow}${verified.detail}${measurementsHtml}${formHtml}${commentsHtml}</section>`;
+  const factsHtml = `<section class="tree-facts" aria-label="Tree facts"><dl class="tree-summary">${tagHtml}${statusHtml}</dl>${topRow}${verified.detail}${measurementsHtml}${commentsHtml}</section>`;
   transitionInspectorBody(`<article class="tree-detail">${factsHtml}${namedTreeHtml}${communitySectionHtml(tree)}${nearbySectionHtml}${issueHtml}${technicalHtml}</article>`, "forward");
 }
 

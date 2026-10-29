@@ -44,12 +44,20 @@ test.describe("Selection and Inspector", () => {
       await expect(technical.locator("dt", { hasText: "Latin name" })).toBeVisible();
     });
 
-    test("tree records show species, status and form as text without decorative illustrations", async ({ page }) => {
+    test("tree details show species artwork, a status icon and form beneath the title", async ({ page }) => {
+      let aliveIcon;
       for (const status of ["Alive", "Dead"]) {
         await page.evaluate((status) => showTreeDetails({ ...state.selected.item, status, treeForm: "Veteran Pollard", girthMetres: 4, comments: "Recorded as a veteran tree." }, 420, "Tree record"), status);
-        await expect(page.locator("#inspectorTitleEmoji")).toBeHidden();
+        await waitForUiToSettle(page);
+        await expect(page.locator("#inspectorTitleEmoji")).toBeVisible();
+        await expect(page.locator("#inspectorTitleEmoji img:visible, #inspectorTitleEmoji canvas:visible")).toHaveCount(1);
+        await expect(page.locator("#inspectorTitleEmoji img")).toHaveAttribute("src", /trees\/oak\.png$/);
         await expect(page.locator("#inspectorBody .tree-status dd")).toHaveText(status);
-        await expect(page.locator("#inspectorBody .tree-form dd")).toHaveText("Veteran Pollard");
+        await expect(page.locator("#inspectorType")).toHaveText("Veteran tree · Pollard form");
+        await expect(page.locator("#inspectorBody .tree-status svg")).toBeVisible();
+        const icon = await page.locator("#inspectorBody .tree-status svg").screenshot({ animations: "disabled" });
+        if (status === "Alive") aliveIcon = icon;
+        else expect(icon.equals(aliveIcon)).toBe(false);
       }
     });
 

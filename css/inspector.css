@@ -2404,6 +2404,7 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 .tree-facts .tree-tag dd::after { right: 9px; }
 .tree-facts .tree-tag--missing dd { padding: 0; border: 0; background: none; box-shadow: none; color: var(--muted); font-family: inherit; font-size: 0.78rem; font-weight: 400; letter-spacing: 0; }
 .tree-facts .tree-tag--missing dd::before, .tree-facts .tree-tag--missing dd::after { display: none; }
+.tree-status-icon { width: 20px; height: 20px; flex: 0 0 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .tree-facts .tree-status dd { display: flex; align-items: center; gap: 4px; font-size: 0.78rem; font-weight: 600; color: #52634c; }
 .tree-detail .detail-top-row { padding-bottom: 12px; margin-bottom: 0; gap: 8px; }
 .tree-detail .detail-top-row > [data-live-field="distance"] { flex: 1 1 130px; }
@@ -2417,18 +2418,17 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 .tree-measurements { margin: 0 0 8px; }
 .tree-measurements dl { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .tree-measurements dl:has(.row:only-child) { grid-template-columns: minmax(0, 1fr); }
-.tree-measurements .row, .tree-form .row, .tree-comments .row {
+.tree-measurements .row, .tree-comments .row {
   position: relative; box-sizing: border-box; grid-template-columns: minmax(0, 1fr);
   padding: var(--tree-inset); border: 1px solid var(--tree-rule); border-radius: 10px; background: var(--tree-card);
 }
 .tree-measurements .row { min-height: 0; gap: 7px; align-content: start; }
-.tree-measurements dt, .tree-form dt, .tree-comments dt { display: block; }
+.tree-measurements dt, .tree-comments dt { display: block; }
 .tree-measurements dd { font-size: 1.4rem; font-weight: 700; line-height: 1.2; letter-spacing: -0.035em; white-space: normal; }
 .tree-age-value { white-space: nowrap; }
 .tree-measurement-unit { font-size: 0.75rem; font-weight: 500; letter-spacing: 0; }
 .tree-measurements dd small { display: inline-block; white-space: nowrap; font-size: 0.72rem; font-weight: 400; color: #6a7764; letter-spacing: 0; }
-.tree-form .row, .tree-comments .row { gap: 5px; min-height: 0; margin-bottom: 8px; align-content: center; }
-.tree-form dd { font-size: 0.9rem; font-weight: 500; }
+.tree-comments .row { gap: 5px; min-height: 0; margin-bottom: 8px; align-content: center; }
 .tree-comments dd { font-size: 0.87rem; line-height: 1.55; }
 .tree-detail > .community-check { margin: 16px 0 0; padding: 12px; border-radius: 10px; box-shadow: none; background: #fff; border-color: var(--tree-rule); }
 .tree-detail > .community-check .community-head { gap: 9px; }

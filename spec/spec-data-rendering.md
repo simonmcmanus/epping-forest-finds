@@ -908,14 +908,14 @@ is never moved by this -- only the browse anchor, exactly as any other anchor mo
 
 #### Tree Details
 
-- The species appears once in the heading, followed by a prominent straight-edged physical tag and inline recorded status. Missing/zero tags display “No tag recorded”. Tag/status labels remain available to screen readers without extra visible headings or boxes.
+- The species appears once in the heading beside the same species artwork used on the map and Nearby list (with the generic tree icon as fallback). Tree form sits in the subtitle, for example “Veteran tree · Pollard form”, instead of a separate card. The heading is followed by a prominent straight-edged physical tag and inline recorded status. Missing/zero tags display “No tag recorded”. Tag/status labels remain available to screen readers without extra visible headings or boxes.
 - Walking distance, Maps and Share form a compact row with equal-height controls and at least 44px touch targets. The walking text and icon remain easy to read.
-- Estimated age and Girth share a compact grid. The start year follows the age on the same line when it fits, wrapping as a whole when necessary; age and “years” stay together. Tree form and Comments use matching cards. Text aligns left and cards size to their content without unnecessary minimum heights. Missing fields are omitted.
-- The heading, status and fact cards are text-only. Functional walking, Maps, Share and community controls retain their icons.
+- Estimated age and Girth share a compact grid. The start year follows the age on the same line when it fits, wrapping as a whole when necessary; age and “years” stay together. Comments use a matching card. Text aligns left and cards size to their content without unnecessary minimum heights. Missing fields are omitted.
+- Age, girth and comment cards remain text-only. Recorded Alive/Dead status has a small, fully opaque leaf/bare-tree icon beside its text; unknown statuses keep their recorded text. Every location detail heading retains its map/category artwork. Functional walking, Maps, Share and community controls retain their icons.
 - Facts precede named-tree notes, the community check, Nearest/Related, issue reporting and collapsed Technical data.
 - Register fields: IDs, taxonomy, status, girth, metadata, comments, grid refs
 - Enriched named-tree data: match metadata, folklore/historical notes, source links
-- No decorative inspector title icon for tree records
+- Tree inspector title artwork matches its map and Nearby species icon
 - Live distance + walking time
 - **Latin name** and **National tag** stay inside the collapsed "Technical data" accordion at the very bottom, after named-tree notes, nearby finds and the issue-report control. National tag is often blank or `0` and is distinct from the physical tag number.
 - Distance uses the shared rounded display: whole metres below 1 km, one decimal below 10 km, then whole kilometres.
@@ -1141,7 +1141,7 @@ Behavior:
 
 ### Animations
 
-- Selected tree, cow, water and landmark navigation targets opt into `IconMotion` from `drawSelectedOverlay`. Location details titles that display artwork opt into the same frame clock, including place, cow and waymarked trail titles, and restore their original image when motion stops. Tree details remain text-only even when their selected map pin animates. Ordinary pins, cluster chips, and list icons stay still. The selected pin's size and geographic tip stay fixed; motion is clipped inside its head. Reduced motion, hidden pages, cleared selections and page unload stop the animation; showing the page restarts a still-selected destination.
+- Selected tree, cow, water and landmark navigation targets opt into `IconMotion` from `drawSelectedOverlay`. Location details titles that display artwork opt into the same frame clock, including place, cow and waymarked trail titles, and restore their original image when motion stops. Tree details use their species artwork in the title and participate in the same motion/reduced-motion behaviour as other location titles. Ordinary pins, cluster chips, and list icons stay still. The selected pin's size and geographic tip stay fixed; motion is clipped inside its head. Reduced motion, hidden pages, cleared selections and page unload stop the animation; showing the page restarts a still-selected destination.
 - Browser tests default to `reducedMotion: "reduce"`. Motion-specific scenarios opt back in explicitly and check activation, cleanup and artwork rendering on desktop and mobile.
 - GPS-triggered navigation follow uses 800 ms cubic ease-in-out so consecutive position updates blend without visible restarts.
 - Overview repositioning uses 360–620 ms depending on distance moved.

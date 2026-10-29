@@ -86,11 +86,14 @@ test.describe("Selected destination icon motion", () => {
     await expect.poll(frame).not.toBe(paused);
   });
 
-  test("tree details stay text-only with motion enabled", async ({ page }) => {
+  test("tree details animate the species artwork with motion enabled", async ({ page }) => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
-    await expect(page.locator("#inspectorTitleEmoji")).toBeHidden();
+    await expect(page.locator("#inspectorTitleEmoji canvas")).toBeVisible();
+    await expect(page.locator("#inspectorTitleEmoji img")).toHaveAttribute("src", /trees\/oak\.png$/);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await expect(page.locator("#inspectorTitleEmoji img")).toBeVisible();
   });
 
   test("every supported PNG artwork renders changing frames", async ({ page }) => {

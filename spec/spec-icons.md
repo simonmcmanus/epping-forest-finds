@@ -517,4 +517,4 @@ drifts from the homepage mark.
 
 ## Tree detail icons
 
-Tree records use text-only headings, status and fact cards. No decorative species or field illustrations are rendered in the inspector. Existing species/map artwork remains available elsewhere in the app. Walking, Maps, Share and community-verification controls retain their functional icons. The unused tree-field sprite sheets are not deployed or cached.
+Tree detail headings reuse the species artwork shown on map pins and Nearby entries, with the generic tree icon as fallback. All location detail headings retain their map/category artwork. Recorded Alive/Dead status uses a small, fully opaque inline leaf/bare-tree symbol beside its text. Age, girth and comments remain text-only; tree form sits in the subtitle. Walking, Maps, Share and community-verification controls retain their functional icons. The unused tree-field sprite sheets are not deployed or cached.
