@@ -828,18 +828,23 @@ function setupNavHighlightPressFeedback() {
     if (!preview) return;
     const releasedInsidePreview = event.target === preview
       || (typeof preview.contains === "function" && preview.contains(event.target));
-    // A normal pointerup on a tab is followed by click, which commits the preview. Defer the
-    // fallback cleanup by one task so that click gets first chance to do that; this also clears a
-    // preview when the pointer is released outside the tab or the click is otherwise suppressed.
-    setTimeout(() => {
-      if (nav._navHighlightPreviewTarget !== preview) return;
-      if (!releasedInsidePreview || !preview.classList.contains("screen-active")) {
-        preview.classList.remove("nav-pressing");
-        nav._navHighlightPreviewTarget = null;
-        const active = nav.querySelector(":scope > .screen-active");
-        if (active) navHighlightPosition(active);
-      }
-    }, 0);
+    // A normal pointerup on a tab is followed by click, which commits the preview. Keep it until
+    // that click has run so asynchronous route handling cannot briefly snap the highlight back to
+    // the old tab. A release outside the tab has no click to commit, so clear it immediately.
+    if (!releasedInsidePreview) {
+      preview.classList.remove("nav-pressing");
+      nav._navHighlightPreviewTarget = null;
+      const active = nav.querySelector(":scope > .screen-active");
+      if (active) navHighlightPosition(active);
+    }
+  });
+  document.addEventListener("pointercancel", () => {
+    const preview = nav._navHighlightPreviewTarget;
+    if (!preview) return;
+    preview.classList.remove("nav-pressing");
+    nav._navHighlightPreviewTarget = null;
+    const active = nav.querySelector(":scope > .screen-active");
+    if (active) navHighlightPosition(active);
   });
   const active = nav.querySelector(":scope > .screen-active");
   if (active) navHighlightPosition(active);
