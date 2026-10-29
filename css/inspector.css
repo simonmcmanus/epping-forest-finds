@@ -2264,7 +2264,7 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 .inspector,
 .inspector-actions {
   background: var(--panel);
-  border-color: var(--border-soft);
+  border-color: var(--border-accent);
   box-shadow: var(--inspector-shadow);
 }
 

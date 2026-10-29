@@ -137,6 +137,28 @@ test.describe("Selection and Inspector", () => {
       await expect(page.locator("#inspector")).not.toHaveClass(/minimized/);
     });
 
+    test("a linked location's first fit stays above the open mobile panel", async ({ page }) => {
+      const mobileSheet = await page.evaluate(() => window.innerWidth <= 760
+        || window.matchMedia("(orientation: landscape) and (pointer: coarse) and (max-height: 500px)").matches);
+      test.skip(!mobileSheet, "the side-panel first fit is not covered by this mobile regression");
+
+      await page.evaluate((key) => {
+        state.userLocation = null;
+        applyRoute(`tree=${key}`);
+      }, FIXTURE_TREE.hashKey);
+      await waitForUiToSettle(page);
+
+      const geometry = await page.evaluate(() => {
+        const stage = (els.mapStage || els.canvas).getBoundingClientRect();
+        const point = worldToScreen(state.selected.item.point);
+        const dpr = pixelRatio();
+        const pointClientY = stage.top + (point.y - state.canvasInsetY) / dpr;
+        const panel = els.inspector.getBoundingClientRect();
+        return { pointClientY, panelTop: panel.top };
+      });
+      expect(geometry.pointClientY).toBeLessThan(geometry.panelTop - 4);
+    });
+
     test("snapshot: tree detail view", async ({ page }) => {
       await waitForUiToSettle(page);
       // Stop all canvas animations so Playwright's stability check can pass.
