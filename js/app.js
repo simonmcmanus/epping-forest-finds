@@ -360,6 +360,8 @@ const state = {
   selectionViewportTransitionPending: false,
   selectionMapTransitionActive: false,
   selectionMapTransitionToken: null,
+  selectionMapTransitionIconLookup: null,
+  selectionMapTransitionOriginPoint: null,
   viewportAnimationFrame: null,
   viewportAnimationFrom: null,
   viewportAnimationTo: null,
@@ -6082,6 +6084,16 @@ function cameraOriginPoint(useFinalBrowseState = false) {
 // that feeds selectedNavigationHeadingUpActive()/nearbyOrigin() does), mirroring how
 // startNearbyOriginTransition is called before state.nearbyAnchor changes.
 function startCameraOriginTransition() {
+  // Selection clears a browsed Nearby anchor immediately, but the map still needs the exact
+  // pins and pivot that were visible before that state change while the camera slides away from
+  // it. Rebuilding the Nearby lookup after the clear scopes pins to the user's GPS position and
+  // can leave the in-between camera looking at empty terrain.
+  state.selectionMapTransitionIconLookup = typeof buildNearbyIconLookup === "function"
+    ? buildNearbyIconLookup()
+    : null;
+  state.selectionMapTransitionOriginPoint = typeof nearbyRenderOriginPoint === "function"
+    ? nearbyRenderOriginPoint()
+    : (typeof nearbyOrigin === "function" ? nearbyOrigin()?.point || null : null);
   const fromPoint = cameraOriginPoint();
   if (!fromPoint) {
     state.cameraOriginTransition = null;

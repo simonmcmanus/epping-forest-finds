@@ -747,6 +747,8 @@ function resetData(app) {
   app.state.selectionViewportTransitionPending = false;
   app.state.selectionMapTransitionActive = false;
   app.state.selectionMapTransitionToken = null;
+  app.state.selectionMapTransitionIconLookup = null;
+  app.state.selectionMapTransitionOriginPoint = null;
   app.state.headingUpEntryAnim = null;
   app.state.renderedNavigationHeading = null;
   // resetData simulates an app already well past first load, so heading-up activations here
@@ -9837,12 +9839,15 @@ test("selection entry points capture the browse pivot before clearing the anchor
   settleNearbySlide(app);
 
   const nearbyScale = app.state.viewport.scale;
+  const outgoingIconLookup = app.activeIconLookup();
   app.focusOverviewItem("tree", "r1");
   assert.equal(app.state.nearbyAnchor, null, "selection should still clear the browse anchor");
   assert.equal(app.state.selectionMapTransitionActive, true,
     "the outgoing Nearby map should remain visible during selection");
   assert.ok(app.activeIconLookup().tree.size > 0,
     "Nearby pins should remain available during the handoff");
+  assert.equal(app.activeIconLookup(), outgoingIconLookup,
+    "the handoff should retain the outgoing Nearby pins, not rebuild a new set around the user");
   assert.ok(app.state.cameraOriginTransition, "selection should animate the camera pivot basis change");
   assert.ok(
     Math.abs(app.state.cameraOriginTransition.fromX - anchor.point.x) < 1e-9

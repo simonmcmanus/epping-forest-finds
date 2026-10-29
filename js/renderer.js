@@ -409,11 +409,12 @@ function drawCommunityMarks(ctx, toScreen) {
 // it's clear the radius/list have pivoted away from the user's actual GPS position without
 // moving it.
 function drawNearbyAnchorMarker(ctx, toScreen) {
-  if (!state.nearbyAnchor) return;
+  const transitionOrigin = state.selectionMapTransitionActive && state.selectionMapTransitionOriginPoint;
+  if (!state.nearbyAnchor && !transitionOrigin) return;
   if (!toScreen) toScreen = worldToScreen;
   // Rides the slide with the circle it sits at the centre of, rather than jumping to the new
   // anchor a frame before the circle gets there.
-  const point = toScreen(nearbyRenderOriginPoint() || state.nearbyAnchor.point);
+  const point = toScreen(transitionOrigin || nearbyRenderOriginPoint() || state.nearbyAnchor.point);
   if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
   const dpr = pixelRatio();
   ctx.save();
@@ -1111,9 +1112,11 @@ function drawWalkingRadiusRimHighlight(ctx, center, radiusPx, tilted, dpr) {
 function drawWalkingRadius(ctx) {
   // The *rendered* origin, so the circle stays still on screen while a browse-origin slide moves
   // the map behind it (nearbyRenderOriginPoint, index.html).
-  const originPoint = nearbyRenderOriginPoint();
+  const originPoint = state.selectionMapTransitionActive && state.selectionMapTransitionOriginPoint
+    ? state.selectionMapTransitionOriginPoint
+    : nearbyRenderOriginPoint();
   if (!originPoint) return;
-  if (hasRealSelection()) return;
+  if (hasRealSelection() && !state.selectionMapTransitionActive) return;
 
   const dpr = pixelRatio();
   // Centre and radius are measured on the flat (untilted) map, then projected as a whole —
@@ -2295,6 +2298,9 @@ function activeIconLookup() {
   // handoff is in flight. The selected route/icon may not be drawable on the first frame (the
   // routing graph and map artwork can both still be loading), and clearing the Nearby lookup at
   // that exact moment leaves a blank map between the two states.
+  if (state.selectionMapTransitionActive && state.selectionMapTransitionIconLookup) {
+    return state.selectionMapTransitionIconLookup;
+  }
   if (state.selectionMapTransitionActive) return buildNearbyIconLookup();
   if (selectedNavigationMapModeActive()) return SELECTED_NAVIGATION_EMPTY_ICON_LOOKUP;
   if (state.searchScreenOpen && state.searchHighlightResults.length) return buildSearchIconLookup();

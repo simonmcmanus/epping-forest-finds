@@ -1182,6 +1182,8 @@ function zoomToSelection() {
     }
     state.selectionMapTransitionActive = false;
     state.selectionMapTransitionToken = null;
+    state.selectionMapTransitionIconLookup = null;
+    state.selectionMapTransitionOriginPoint = null;
     requestDraw();
   };
   const doZoom = () => {
