@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, tapCanvasPoint, FIXTURE_TREE, skipOnboarding, mockCowApi, denyGeolocationUnlessGranted, waitForViewportToSettle, waitForFrames, waitForUiToSettle } = require("./helpers");
+const { setup, tapCanvasPoint, FIXTURE_TREE, skipOnboarding, mockCowApi, denyGeolocationUnlessGranted, waitForViewportToSettle, waitForFrames, waitForUiToSettle, expectMapTilted } = require("./helpers");
 
 // Lands on a linked Nearby URL and waits until the app has booted AND applied the link's own
 // browse anchor, rather than trusting setup()'s overlay check: on a direct #near= load the
@@ -326,6 +326,7 @@ test.describe("Map interaction", () => {
 
       for (const beta of [20, 40, 60, 85]) {
         await tiltTo(page, beta);
+        await expectMapTilted(page, `beta=${beta}`);
         const framing = await ringFraming(page);
         expect(framing.inside, `beta=${beta}: ring points inside the map area`).toBe(framing.total);
         // Framed, not merely on screen: a ring shrunk into a corner would also pass the check

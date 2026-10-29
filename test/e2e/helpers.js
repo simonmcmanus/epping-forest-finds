@@ -305,8 +305,30 @@ async function waitForFrames(page, n) {
   }), n);
 }
 
+/**
+ * Proves the map is actually drawn in 3D right now, for a test whose own invariant would also
+ * hold on a flat map ("tilting never resizes the canvas"): without this, such a test stays green
+ * when tilt silently stops engaging. Two observable outcomes, both required: the angle the main
+ * canvas was last painted at, and a ground point a quarter of the canvas ahead of the camera
+ * landing somewhere other than its flat position (foreshortened toward the horizon).
+ */
+async function expectMapTilted(page, label = "the map") {
+  const tilt = await page.evaluate(() => {
+    const origin = rawWorldToScreen(cameraOriginPoint());
+    const ahead = { x: origin.x, y: origin.y - els.canvas.height * 0.25 };
+    const projected = projectCanvasPoint(ahead.x, ahead.y);
+    return {
+      renderedDeg: state.renderedTiltRotateXDeg,
+      aheadShiftPx: Math.hypot(projected.x - ahead.x, projected.y - ahead.y),
+    };
+  });
+  expect(tilt.renderedDeg, `${label}: should be painted at a tilted angle`).toBeGreaterThan(0);
+  expect(tilt.aheadShiftPx, `${label}: ground ahead should be foreshortened by the tilt`).toBeGreaterThan(1);
+}
+
 module.exports = {
   setup,
+  expectMapTilted,
   waitForUiToSettle,
   waitForFrames,
   waitForViewportToSettle,

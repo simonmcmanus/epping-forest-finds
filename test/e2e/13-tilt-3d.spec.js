@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { skipOnboarding, mockCowApi, gotoAndWaitForMap, tapCanvasPoint } = require("./helpers");
+const { skipOnboarding, mockCowApi, gotoAndWaitForMap, tapCanvasPoint, expectMapTilted } = require("./helpers");
 
 // A GPS fix inside Epping Forest
 const FOREST_LOCATION = { latitude: 51.6538, longitude: 0.0400, accuracy: 10 };
@@ -8,6 +8,10 @@ const FOREST_LOCATION = { latitude: 51.6538, longitude: 0.0400, accuracy: 10 };
 // The full tilt range the device orientation handler can produce: flat, through the
 // activation threshold, to the maximum 3D angle.
 const TILT_SWEEP = [0, 12, 20, 30, 40, 50, 60, 70, 80, 85];
+// Pitches at or below this read as flat (TILT_BETA_THRESHOLD in js/app.js); every sweep step
+// above it must prove the map really was drawn tilted, or a sweep over a silently flat map
+// passes every flat-safe invariant below.
+const FLAT_BELOW_BETA = 12;
 
 /**
  * Put the app into heading-up mode at a given tilt, then draw and settle a frame.
@@ -181,6 +185,7 @@ test.describe("3D tilt view", () => {
     // canvas, no tilt overscan, and no unguarded perspective divide.
     for (const beta of TILT_SWEEP) {
       await tiltTo(page, beta);
+      if (beta > FLAT_BELOW_BETA) await expectMapTilted(page, `beta ${beta}`);
 
       const { groundCoverage, hazeFraction, horizonFraction } = await page.evaluate(() => {
         const rect = bestVisibleCanvasRect();
@@ -249,6 +254,7 @@ test.describe("3D tilt view", () => {
   test("the perspective projection never goes singular while tilting", async ({ page }) => {
     for (const beta of TILT_SWEEP) {
       await tiltTo(page, beta);
+      if (beta > FLAT_BELOW_BETA) await expectMapTilted(page, `beta ${beta}`);
 
       const bad = await page.evaluate(() => {
         const origin = rawWorldToScreen(state.userLocation.point);
@@ -277,6 +283,7 @@ test.describe("3D tilt view", () => {
 
     for (const beta of TILT_SWEEP) {
       await tiltTo(page, beta);
+      if (beta > FLAT_BELOW_BETA) await expectMapTilted(page, `beta ${beta}`);
       const size = await page.evaluate(() => ({ w: els.canvas.width, h: els.canvas.height }));
       expect(size, `canvas size must not change at beta ${beta}`).toEqual(flat);
     }
@@ -414,12 +421,14 @@ test.describe("3D tilt view", () => {
       let worstGapDeg = 0;
       let userMarkerTravelPx = 0;
       let lastUserMarkerY = null;
+      let steepestPaintedDeg = 0;
       const originalDrawOverlay = drawOverlay;
       drawOverlay = function instrumentedDrawOverlay(...args) {
         overlayPaints += 1;
         const gap = Math.abs(tiltRotateXDeg() - state.renderedTiltRotateXDeg);
         worstGapDeg = Math.max(worstGapDeg, gap);
         if (gap > 0.05) mismatchedPaints += 1;
+        steepestPaintedDeg = Math.max(steepestPaintedDeg, state.renderedTiltRotateXDeg);
         const markerY = worldToScreenForOverlayTilted(state.userLocation.point).y;
         if (lastUserMarkerY !== null) userMarkerTravelPx += Math.abs(markerY - lastUserMarkerY);
         lastUserMarkerY = markerY;
@@ -437,10 +446,13 @@ test.describe("3D tilt view", () => {
       }
 
       drawOverlay = originalDrawOverlay;
-      return { overlayPaints, mismatchedPaints, worstGapDeg, userMarkerTravelPx };
+      return { overlayPaints, mismatchedPaints, worstGapDeg, userMarkerTravelPx, steepestPaintedDeg };
     });
 
     expect(result.overlayPaints, "the overlay should have been repainted while the phone pitched").toBeGreaterThan(0);
+    // Matching tilts are trivially true of two canvases both stuck flat; the sweep reaches beta
+    // 65, so the map under the overlay must have been painted well into 3D.
+    expect(result.steepestPaintedDeg, "the map should have been painted tilted during the pitch sweep").toBeGreaterThan(20);
     // The marker really does travel a long way up and down the screen as the camera pitches --
     // that is the perspective doing its job. What must never happen is it travelling while the
     // map it sits on stays where it was.
@@ -461,6 +473,7 @@ test.describe("3D tilt view", () => {
     //  - the map was repainted four times per animation frame for the whole slide, so it
     //    actually moved at a fraction of the frame rate (see draw(), js/renderer.js).
     await tiltToSettled(page, 60);
+    await expectMapTilted(page, "before the tap");
 
     // Open ground well off to one side of the pivot, so the tap moves the browse origin (rather
     // than selecting whatever it landed on) and there is a real move for the camera to make.
@@ -495,7 +508,7 @@ test.describe("3D tilt view", () => {
       };
       const startedAt = performance.now();
       const sample = () => {
-        frames.push({ scale: state.viewport.scale, paints });
+        frames.push({ scale: state.viewport.scale, paints, tiltDeg: state.renderedTiltRotateXDeg });
         paints = 0;
         if (performance.now() - startedAt < 1200) requestAnimationFrame(sample);
         else {
@@ -522,6 +535,10 @@ test.describe("3D tilt view", () => {
     expect(painted.length, "sanity: the slide should have painted the map").toBeGreaterThanOrEqual(1);
     const worstPaints = Math.max(...painted.map((frame) => frame.paints));
     expect(worstPaints, "the map must be painted once per frame, not several times over").toBe(1);
+    // The slide stays in 3D throughout: a browse tap does not flatten the camera.
+    for (const frame of painted) {
+      expect(frame.tiltDeg, "every painted frame of the slide should be tilted").toBeGreaterThan(0);
+    }
 
     // Headless rAF runs at a few frames a second under a full canvas repaint, so this cannot
     // measure per-frame smoothness -- it measures where the zoom *goes*. Both ends of the slide
@@ -552,6 +569,9 @@ test.describe("3D tilt view", () => {
   test("the canvas carries no CSS 3D transform of its own", async ({ page }) => {
     // A leftover perspective()/rotateX() would tilt the already-projected pixels twice.
     await tiltTo(page, 85);
+    // The tilt has to come from somewhere: no CSS transform is only right if the per-point
+    // projection is doing the work instead.
+    await expectMapTilted(page, "beta 85");
     const transform = await page.evaluate(() => els.canvas.style.transform || "");
     expect(transform).not.toMatch(/perspective\(|rotateX\(/);
   });

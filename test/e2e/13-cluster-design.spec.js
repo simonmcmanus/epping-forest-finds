@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { setup, tapCanvasPoint } = require('./helpers');
+const { setup, tapCanvasPoint, expectMapTilted } = require('./helpers');
 
 test.describe('Cluster badges and geographic footprints', () => {
   test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ['geolocation'] });
@@ -293,7 +293,11 @@ test.describe('Cluster badges and geographic footprints', () => {
       state.map3dEnabled = true;
       state.tiltBetaTarget = 50;
       state.tiltBetaSmoothed = 50;
+      draw();
     });
+    // The divergence this test needs is a 3D one ("invisible without tilt"), so the camera must
+    // actually be tilted for the sanity check below to mean anything.
+    await expectMapTilted(page, "before the cluster tap");
 
     const result = await page.evaluate(() => {
       stopViewportAnimation();
@@ -415,6 +419,7 @@ test.describe('Cluster badges and geographic footprints', () => {
       try {
         draw();
         const flat = events.slice();
+        const flatDeg = state.renderedTiltRotateXDeg;
         events.length = 0;
         state.compassHeading = state.compassHeadingTarget = state.renderedNavigationHeading = 0;
         state.compassLastEventAt = performance.now();
@@ -422,12 +427,14 @@ test.describe('Cluster badges and geographic footprints', () => {
         state.tiltBetaSmoothed = state.tiltBetaTarget = 65;
         alignHeadingUpNavigationViewport({ force: true });
         draw();
-        return { flat, tilted: events.slice() };
+        return { flat, tilted: events.slice(), flatDeg, tiltedDeg: state.renderedTiltRotateXDeg };
       } finally {
         drawClusterFootprints = footprint;
         drawGroupBadge = badge;
       }
     });
+    expect(result.flatDeg, "the first scene should be painted flat").toBe(0);
+    expect(result.tiltedDeg, "the second scene should be painted tilted").toBeGreaterThan(0);
     for (const events of [result.flat, result.tilted]) {
       expect(events[0]).toBe('footprint');
       expect(events.slice(1)).toContain('badge');

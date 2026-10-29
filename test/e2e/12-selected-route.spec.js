@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, gotoAndWaitForMap, FIXTURE_TREE } = require("./helpers");
+const { setup, gotoAndWaitForMap, FIXTURE_TREE, expectMapTilted } = require("./helpers");
 
 // Same forest-area fix used by 09-location.spec.js/10-secondary-screen-camera.spec.js.
 const FOREST_LOCATION = { latitude: 51.6650, longitude: 0.0450, accuracy: 10 };
@@ -255,6 +255,8 @@ test.describe("Selected route line follows the road/path network", () => {
         };
       }, beta);
 
+      // Framing that holds on a flat map proves nothing about the tilt camera.
+      await expectMapTilted(page, `beta=${beta}`);
       expect(framing.pointCount).toBeGreaterThan(2);
       expect(framing.offScreen, `beta=${beta}: route points outside the visible rect`).toBe(0);
       // The fit is only as good as the axis that binds it. This route is wider than it is deep,
