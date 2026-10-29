@@ -362,6 +362,9 @@ const state = {
   viewportAnimationFrom: null,
   viewportAnimationTo: null,
   locationRevealAnimationActive: false,
+  inspectorDragging: false,
+  inspectorDragStart: null,
+  inspectorHeightPercent: null,
   viewportAnimationStartTime: null,
   viewportAnimationDuration: 0,
   emojiScaleAnimated: null,
@@ -946,7 +949,13 @@ function showRoutedSelection(route, item) {
   setInspectorMinimized(false);
   startCompassNavigation();
   if (state.userLocation) ensureUserAndSelectionVisible({ animate: true, force: true, assumeInspectorOpen: true });
-  else if (item.point) fitToPoints([item.point], false, { animate: true });
+  else if (item.point) {
+    // A deep-linked selection can arrive before a location fix exists. The inspector has already
+    // been opened above, so the first fit must use the map area that remains visible beside/above
+    // that panel; fitting against the full canvas leaves the destination underneath it until a
+    // later resize or camera correction happens.
+    fitToPoints([item.point], false, { animate: true, focusVisibleArea: true, assumeInspectorOpen: true });
+  }
   requestDraw();
 }
 
@@ -9097,7 +9106,7 @@ function openSearchResult(type, key) {
     zoomToSelection();
   } else {
     const point = searchResultPoint(type, item);
-    if (point) fitToPoints([point], false, { animate: true });
+    if (point) fitToPoints([point], false, { animate: true, focusVisibleArea: true });
   }
   trackSelectionClick(type, item, "search");
   requestDraw();

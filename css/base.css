@@ -4,6 +4,22 @@
   --ink: #1b2a22;
   --muted: #617168;
   --line: #d3dfd4;
+  /* Shared surface roles. Keep colour differences meaningful: white is the reading surface,
+     green is guidance/action, gold is current/reward/attention, and red is an error. */
+  --surface: #ffffff;
+  --surface-soft: #f7fbf7;
+  --surface-tint: #edf6ee;
+  --surface-selected: #e4f0e6;
+  --surface-warning: #fff1cf;
+  --surface-neutral: #f2f4f1;
+  --border-soft: rgba(47, 121, 83, 0.14);
+  --border-accent: rgba(47, 121, 83, 0.28);
+  --accent: #2f7953;
+  --accent-ink: #245d3e;
+  --accent-soft: #eaf4ec;
+  --current-ink: #806100;
+  --current-soft: #fff8e7;
+  --status-error: #b34733;
   --paper: #e9f0e7;
   --panel: rgba(255, 255, 255, 0.965);
   --forest: #4f8b62;

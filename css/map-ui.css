@@ -11,7 +11,7 @@
   text-align: left;
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 14px;
-  background: linear-gradient(145deg, #ffffff, #fbfdfb);
+  background: var(--surface);
   color: var(--ink);
   padding: 9px 12px;
   font: inherit;
@@ -40,14 +40,14 @@ a.nearest-item {
 }
 
 .nearest-item:hover {
-  background: #f7faf7;
+  background: var(--surface-soft);
   border-color: rgba(47, 121, 83, 0.32);
   box-shadow: 0 7px 16px rgba(27, 65, 43, 0.11);
   transform: translateY(-1px);
 }
 
 .nearest-item:active {
-  background: #eff5ee;
+  background: var(--surface-selected);
   transform: translateY(0);
 }
 
@@ -57,13 +57,13 @@ a.nearest-item {
 }
 
 .nearest-item.out-of-radius {
-  background: #fafafa;
+  background: var(--surface-neutral);
   border-color: rgba(0, 0, 0, 0.06);
   opacity: 0.85;
 }
 
 .nearest-item.out-of-radius:hover {
-  background: #f5f5f5;
+  background: var(--surface-neutral);
   border-color: rgba(0, 0, 0, 0.12);
 }
 
@@ -131,7 +131,7 @@ a.nearest-item {
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: linear-gradient(145deg, rgba(47, 121, 83, 0.15), rgba(85, 167, 160, 0.1));
+  background: var(--accent-soft);
   color: var(--tree);
   font-size: 1.3rem;
   font-weight: 900;
@@ -141,11 +141,11 @@ a.nearest-item {
 }
 
 .nearest-item:hover .nearest-arrow {
-  background: linear-gradient(145deg, rgba(47, 121, 83, 0.2), rgba(85, 167, 160, 0.15));
+  background: var(--surface-selected);
 }
 
 .nearest-item.out-of-radius .nearest-arrow {
-  background: rgba(0, 0, 0, 0.04);
+  background: var(--surface-neutral);
   color: #999;
 }
 
@@ -222,13 +222,15 @@ a.nearest-item {
     bottom: calc(10px + env(safe-area-inset-bottom, 0px) + var(--nav-bar-h) + 10px);
     width: auto;
     /* Keep one expanded footprint for every screen and selection. The nav bar lives outside the
-       sheet, so subtract its footprint from the shared responsive height. Content scrolls inside
-       the fixed panel rather than changing the map's available area when a screen changes. */
-    height: max(0px, min(50%, calc(100% - var(--nav-bar-h) - 10px - env(safe-area-inset-bottom, 0px))));
-    min-height: 0;
+       sheet, so subtract its footprint from the available space. A manual drag stores its chosen
+       height in --inspector-height and takes precedence over the default 50% footprint. */
+    height: min(var(--inspector-height, 50%), calc(100% - var(--nav-bar-h) - 10px - env(safe-area-inset-bottom, 0px)));
+    min-height: min(90px, calc(100% - var(--nav-bar-h) - 10px - env(safe-area-inset-bottom, 0px)));
     max-height: calc(100% - var(--nav-bar-h) - 10px - env(safe-area-inset-bottom, 0px));
-    transition: none;
+    transition: height 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
   }
+
+  .inspector-drag-handle { display: flex; }
 
   /* With an explicit height on the sheet, grow the scrollable body into the space the fixed-size
      header does not need. */

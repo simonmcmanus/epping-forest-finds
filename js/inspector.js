@@ -463,7 +463,7 @@ function showLandmarkDetails(place, distance) {
   // The check form belongs to the same top-of-detail stack as the community status, so a
   // submission can visibly transition into that status instead of leaving a second summary at
   // the bottom of the location details.
-  const landmarkHtml = topRow + communityPlaceStatus.detail + communityPlaceMarker + communityPlaceSection + descriptionHtml + ledgerHtml + detailsHtml(rows, { labels: isEvent }) + (isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : "") + relatedLinksHtml + issueHtml;
+  const landmarkHtml = `<article class="place-detail place-detail--${isEvent ? "event" : "landmark"}">${topRow}${communityPlaceStatus.detail}${communityPlaceMarker}${communityPlaceSection}${descriptionHtml}${ledgerHtml}${detailsHtml(rows, { labels: isEvent })}${isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : ""}${relatedLinksHtml}${issueHtml}</article>`;
   // A /find/ landing's place replaces its server-rendered panel in place: no slide-in from the side.
   transitionInspectorBody(landmarkHtml, findLandingSlug() ? null : "forward");
   if (navigator.onLine && !isEvent && place.latitude != null) loadCommunityPlaceIssues(place);
@@ -506,7 +506,7 @@ function showCowDetails(cow, distance) {
   const mapsLink = openInMapsHtml(cow.latitude, cow.longitude, `Cow ${cow.serialNo}`);
   const topRow = `<div class="detail-top-row">${distancePill}${mapsLink}</div>`;
   const nearbySectionHtml = nearbySectionsHtml({ latitude: cow.latitude, longitude: cow.longitude, name: `Cow ${cow.serialNo}`, subfilterKey: "cows" });
-  transitionInspectorBody(topRow + detailsHtml(rows) + nearbySectionHtml, "forward");
+  transitionInspectorBody(`<article class="place-detail place-detail--cow">${topRow}${detailsHtml(rows)}${nearbySectionHtml}</article>`, "forward");
 
   if (state.cowDetailTimerId != null) clearInterval(state.cowDetailTimerId);
   state.cowDetailTimerId = setInterval(() => {
@@ -536,7 +536,7 @@ function showPathDetails(path, distance) {
   ];
   const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const topRow = distancePill ? `<div class="detail-top-row">${distancePill}</div>` : "";
-  transitionInspectorBody(topRow + detailsHtml(rows), "forward");
+  transitionInspectorBody(`<article class="place-detail place-detail--path">${topRow}${detailsHtml(rows)}</article>`, "forward");
 }
 
 function distanceToSegment(px, py, x1, y1, x2, y2) {
@@ -595,7 +595,7 @@ function showRoadDetails(road, distance) {
   // somewhere you are being guided to rather than a bare records list.
   const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const topRow = distancePill ? `<div class="detail-top-row">${distancePill}</div>` : "";
-  transitionInspectorBody(topRow + detailsHtml(rows), "forward");
+  transitionInspectorBody(`<article class="place-detail place-detail--road">${topRow}${detailsHtml(rows)}</article>`, "forward");
 }
 
 function showRailwayDetails(railway) {
@@ -634,7 +634,7 @@ function showRailwayDetails(railway) {
     ? `<details class="technical-details"><summary>Technical data</summary>${detailsHtml(technicalRows)}</details>`
     : "";
 
-  transitionInspectorBody(detailsHtml(primaryRows) + technicalHtml, "forward");
+  transitionInspectorBody(`<article class="place-detail place-detail--railway">${detailsHtml(primaryRows)}${technicalHtml}</article>`, "forward");
 }
 
 function showWaterDetails(water, distance) {
@@ -650,7 +650,7 @@ function showWaterDetails(water, distance) {
     ["Type", typeLabel],
     ["Source", water.id ? `OpenStreetMap ${water.id}` : "OpenStreetMap"],
   ];
-  transitionInspectorBody(detailsHtml(rows), "forward");
+  transitionInspectorBody(`<article class="place-detail place-detail--water">${detailsHtml(rows)}</article>`, "forward");
 }
 
 // --- Overview screen ---
