@@ -79,9 +79,9 @@ rows=$(
 # An empty section removes the table from the PR description.
 if [[ -n "$rows" ]]; then
   {
-    echo "### Failing visual snapshots"
+    echo "### Visual changes to review"
     echo
-    echo "Baseline is the committed image, Actual is this run's render, Diff highlights the changed pixels. Cleared on the next green run."
+    echo "Baseline is the committed image, Actual is this run's render, Diff highlights the changed pixels. Cleared when the screenshots match their baselines."
     echo
     echo "| Snapshot | Project | Baseline | Actual | Diff |"
     echo "| --- | --- | --- | --- | --- |"

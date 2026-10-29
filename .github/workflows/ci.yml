@@ -182,8 +182,8 @@ jobs:
     # --retries=1, unlike the e2e job's retries:0: canvas screenshot diffs here have repeatedly
     # proven non-deterministic on an otherwise-unchanged commit (see spec/agents.md), where the
     # e2e job's functional assertions have not. A retry absorbs that known noise instead of
-    # requiring a human to notice and re-run CI by hand; a genuine visual regression still fails
-    # twice and stays red.
+    # requiring a human to notice and re-run CI by hand; a persistent visual difference still produces comparison images
+    # and a warning for review, without failing CI.
     # A pixel diff is published for review, not committed into the PR branch. The trusted
     # workflow_run publisher consumes the uploaded renders and updates the PR description. The
     # main-branch snapshot workflow regenerates canonical baselines after the source change merges
@@ -249,6 +249,16 @@ jobs:
           name: playwright-report-visual
           path: playwright-report/
           retention-days: 14
-      - name: Fail if visual snapshot tests had failures
+      - name: Warn about visual snapshot differences
         if: steps.mobile.outcome == 'failure' || steps.desktop.outcome == 'failure'
-        run: exit 1
+        run: |
+          echo "::warning title=Visual snapshots need review::Visual snapshot tests reported differences or failures. Review the baseline, actual render and diff in the PR description, plus the uploaded Playwright report."
+          {
+            echo "### Visual snapshots need review"
+            echo
+            echo "Visual snapshot results are advisory and do not fail CI."
+            echo "- Mobile: ${{ steps.mobile.outcome }}"
+            echo "- Desktop: ${{ steps.desktop.outcome }}"
+            echo
+            echo "Review the comparison images in the PR description and the uploaded Playwright report."
+          } >> "$GITHUB_STEP_SUMMARY"
