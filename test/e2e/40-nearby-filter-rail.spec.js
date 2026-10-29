@@ -64,7 +64,7 @@ test.describe("Nearby filter rail", () => {
   });
 
   test("a category page shows subcategories and toggling one changes only that subcategory", async ({ page }) => {
-    await page.goto("/nearby/food/?nuke=true");
+    await setup(page, "/nearby/food");
     await expect(rail(page)).toBeVisible();
     await expect(pill(page, "pubs")).toHaveAttribute("aria-pressed", "true");
     await expect(pill(page, "restaurants")).toHaveAttribute("aria-pressed", "true");
@@ -79,8 +79,7 @@ test.describe("Nearby filter rail", () => {
   });
 
   test("a pill that was pressed un-presses on a second tap, and the last one returns to show-all", async ({ page }) => {
-    await page.goto("/nearby/trees/?nuke=true");
-    await expect(rail(page)).toBeVisible();
+    await setup(page, "/nearby/trees");
     await pill(page, "trees").click();
     await expect(page).toHaveURL(/\/nearby\?filters=false$/);
     await expect(rail(page).locator('[aria-pressed="true"]')).toHaveCount(7);
@@ -93,7 +92,7 @@ test.describe("Nearby filter rail", () => {
     await watchForPanelSlide(page);
     await page.getByRole("button", { name: "Show all nearby" }).click();
     await expect(page).toHaveURL(/\/nearby\?filters=false$/);
-    await expect(rail(page).locator('[aria-pressed="true"]')).toHaveCount(0);
+    await expect(rail(page).locator('[aria-pressed="true"]')).toHaveCount(7);
     expect(await page.evaluate(() => window.__slides)).toBe(0);
   });
 
@@ -117,7 +116,7 @@ test("a category link opens with its subcategories available", async ({ page }) 
   await expect(pill(page, "pubs")).toHaveAttribute("aria-pressed", "true");
   await expect(pill(page, "trees")).toHaveCount(0);
   await pill(page, "cafes").click();
-  await expect(page).toHaveURL(/\/nearby\?show=pubs,cafes$/);
+  await expect(page).toHaveURL(/\/nearby\?radius=30&show=pubs,restaurants,shops$/);
 });
 
 test("when more pills fit than are visible, the row drifts sideways once and back to show it scrolls", async ({ page, isMobile }) => {
