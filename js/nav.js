@@ -823,6 +823,24 @@ function setupNavHighlightPressFeedback() {
       if (active) navHighlightPosition(active);
     });
   });
+  document.addEventListener("pointerup", (event) => {
+    const preview = nav._navHighlightPreviewTarget;
+    if (!preview) return;
+    const releasedInsidePreview = event.target === preview
+      || (typeof preview.contains === "function" && preview.contains(event.target));
+    // A normal pointerup on a tab is followed by click, which commits the preview. Defer the
+    // fallback cleanup by one task so that click gets first chance to do that; this also clears a
+    // preview when the pointer is released outside the tab or the click is otherwise suppressed.
+    setTimeout(() => {
+      if (nav._navHighlightPreviewTarget !== preview) return;
+      if (!releasedInsidePreview || !preview.classList.contains("screen-active")) {
+        preview.classList.remove("nav-pressing");
+        nav._navHighlightPreviewTarget = null;
+        const active = nav.querySelector(":scope > .screen-active");
+        if (active) navHighlightPosition(active);
+      }
+    }, 0);
+  });
   const active = nav.querySelector(":scope > .screen-active");
   if (active) navHighlightPosition(active);
 }
@@ -1721,6 +1739,10 @@ function focusNearbyOnMapPoint(lonLat, worldPoint) {
   // truthy, and taking this branch from them dismissed the very screen the tap must never
   // dismiss. They behave like plain Nearby here -- move the anchor, leave the screen open.
   if (hasRealSelection() || state.clusterExpanded) {
+    // Keep the selected-location path visually consistent with an ordinary Nearby anchor move.
+    // Without this, the anchor snapped to the new point while the camera refit started from the
+    // old origin, producing a brief jump when leaving a selected location.
+    startNearbyOriginTransition(nearbyRenderOriginPoint());
     state.nearbyAnchor = { latitude: lonLat.latitude, longitude: lonLat.longitude, point: worldPoint };
     refreshNearestTreeForNearbyOrigin();
     goToInitialView();

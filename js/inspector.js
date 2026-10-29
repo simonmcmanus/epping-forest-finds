@@ -800,6 +800,13 @@ function animateNearestItemReorder(previousPositions) {
       item.style.transition = "transform 150ms ease-out, opacity 150ms ease-out";
       item.style.transform = "";
       item.style.opacity = "";
+      const transitionToken = {};
+      item._nearestReorderTransitionToken = transitionToken;
+      setTimeout(() => {
+        if (item._nearestReorderTransitionToken !== transitionToken) return;
+        item.style.transition = "";
+        item._nearestReorderTransitionToken = null;
+      }, 180);
     }
   });
 }
@@ -818,7 +825,10 @@ function _cleanupTransition() {
   const screen = scroll && scroll.querySelector(".inspector-screen");
   const ghost  = scroll && scroll.querySelector(".inspector-screen-ghost");
   if (ghost)  ghost.remove();
-  if (screen) { screen.style.willChange = ""; screen.getAnimations().forEach(a => a.cancel()); }
+  // Only the outgoing screen animation is owned by this transition. Cancelling every animation
+  // on the screen also cancels child animations (walk chips, icons, etc.) that entered with the
+  // replacement markup, cutting their reveal off when the parent slide finishes.
+  if (screen) screen.style.willChange = "";
   if (scroll) { scroll.style.overflow = ""; scroll.style.height = ""; }
 }
 
@@ -1094,9 +1104,34 @@ function focusOverviewItem(type, key) {
   }
 }
 
+function inspectorTransitionTimeMs() {
+  if (!els.inspector || typeof getComputedStyle !== "function") return null;
+  const computed = getComputedStyle(els.inspector);
+  const properties = String(computed.transitionProperty || "").split(",").map(value => value.trim());
+  const durations = String(computed.transitionDuration || "").split(",").map(value => value.trim());
+  const delays = String(computed.transitionDelay || "").split(",").map(value => value.trim());
+  if (!properties.length || properties[0] === "none") return 0;
+
+  const timeMs = (value) => {
+    if (value.endsWith("ms")) return Number.parseFloat(value) || 0;
+    if (value.endsWith("s")) return (Number.parseFloat(value) || 0) * 1000;
+    return 0;
+  };
+  let longest = 0;
+  for (let index = 0; index < properties.length; index += 1) {
+    const property = properties[index];
+    if (property !== "all" && property !== "max-height" && property !== "height") continue;
+    const duration = timeMs(durations[index % Math.max(1, durations.length)] || "0s");
+    const delay = timeMs(delays[index % Math.max(1, delays.length)] || "0s");
+    longest = Math.max(longest, duration + delay);
+  }
+  return longest;
+}
+
 // Runs `callback` once the inspector's own height transition has finished, or after a timeout
 // if it never fires (reduced motion, an interrupted transition, a panel that was already at the
-// target height).
+// target height). Fixed-height layouts have no height transition, so they only wait one frame for
+// the class change to be reflected in layout instead of holding the camera for the old 220ms window.
 //
 // transitionend bubbles, and the inspector is full of descendants with their own transitions --
 // row backgrounds (120ms), the drag handle (40ms), nearest-item reorder (150ms). A bare
@@ -1106,6 +1141,11 @@ function focusOverviewItem(type, key) {
 // panel and framed the map against a footprint that no longer existed a moment later -- the
 // "screens don't settle properly on the map" symptom. Match the element and the property.
 function onInspectorHeightTransitionEnd(callback, timeoutMs = INSPECTOR_MINIMIZE_TRANSITION_TIMEOUT_MS) {
+  const transitionTime = inspectorTransitionTimeMs();
+  if (transitionTime === 0) {
+    requestAnimationFrame(callback);
+    return;
+  }
   let fired = false;
   const fire = () => {
     if (fired) return;
@@ -1119,7 +1159,7 @@ function onInspectorHeightTransitionEnd(callback, timeoutMs = INSPECTOR_MINIMIZE
     fire();
   }
   els.inspector.addEventListener("transitionend", onTransitionEnd);
-  setTimeout(fire, timeoutMs);
+  setTimeout(fire, Math.max(timeoutMs, (transitionTime || 0) + 40));
 }
 
 // Defers the selection camera zoom until after the inspector's max-height CSS
@@ -1140,8 +1180,8 @@ function zoomToSelection() {
     return;
   }
   state.selectionViewportTransitionPending = true;
-  // Mirrors the 180ms `.inspector` max-height transition in css/inspector.css
-  // plus a ~40ms buffer so the camera measures after the minimized layout settles.
+  // The helper follows the inspector's current CSS. This remains correct if a height transition
+  // is restored later, while fixed-height panels proceed on the next layout frame.
   onInspectorHeightTransitionEnd(doZoom);
 }
 
