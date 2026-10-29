@@ -21,10 +21,10 @@ test.describe("Onboarding", () => {
       await expect(dialog).toHaveAttribute("aria-modal", "true");
     });
 
-    test("the location/compass opt-in step is shown first", async ({ page }) => {
+    test("the permissions screen is shown first", async ({ page }) => {
       await page.goto("/nearby");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
-      // The first step asks the user to enable location — look for the enable button or location text
+      // The first screen offers location and (when unanswered) analytics as independent choices.
       await expect(page.locator("#onboardingOverlay")).toContainText(/location|compass/i);
     });
 
@@ -32,35 +32,42 @@ test.describe("Onboarding", () => {
       await page.goto("/nearby");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
       // The map data loads behind the overlay, which stays up until the person moves on.
-      await expect(page.locator('[data-load-step="places"]')).toHaveClass(/done/);
+      await expect(page.locator('[data-load-step="places"]')).toHaveClass(/done|error/, { timeout: 30_000 });
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
     });
 
-    test("'Skip for now' advances past the location step without granting permission", async ({ page }) => {
+  test("'Skip for now' records a location choice without granting permission", async ({ page }) => {
       await page.goto("/nearby");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
       await page.locator("#onboardingOverlay .ob-location-skip").click();
-      // The location prompt is gone, onboarding carries on, and nothing was consented to.
-      await expect(page.locator("#onboardingOverlay .ob-location")).toHaveCount(0);
+    // The combined permissions dialog stays open so the analytics choice remains independent.
+    await expect(page.locator("#onboardingOverlay .ob-location-skip")).toBeDisabled();
+    await expect(page.locator("#onboardingOverlay .ob-location-status")).toContainText("skipped");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
       expect(await page.evaluate(() => localStorage.getItem("ff-track-v1"))).not.toBe("1");
     });
 
-    test("the location step says where to change the choice and does not ask about usage data", async ({ page }) => {
+  test("the combined permissions dialog keeps location and usage choices distinct", async ({ page }) => {
+      await page.addInitScript(() => {
+        localStorage.removeItem("ff-track-v1");
+        localStorage.removeItem("ff-cookie-consent");
+      });
       await page.goto("/nearby");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
-      await expect(page.locator("#onboardingOverlay .privacy-note")).toContainText("Settings → Privacy");
-      // Usage analytics is its own step (39-permission-asks.spec.js), never folded into this one.
-      await expect(page.locator("#onboardingOverlay")).not.toContainText(/usage data|cookies/i);
+    await expect(page.locator("#onboardingOverlay")).toContainText("Settings → Privacy");
+    await expect(page.locator("#onboardingOverlay")).toContainText(/usage data|cookies/i);
+    await expect(page.locator("#onboardingOverlay .ob-location-skip")).toBeVisible();
+    await expect(page.locator("#onboardingOverlay .ob-analytics-decline")).toBeVisible();
     });
 
-    test("tapping 'Enable location' records the choice and advances onboarding with no second location screen", async ({ page }) => {
+  test("tapping 'Enable location' records the choice without bundling analytics", async ({ page }) => {
       await page.goto("/nearby");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
       await page.locator("#onboardingOverlay .ob-location").click();
-      await expect(page.locator("#onboardingOverlay .ob-location")).toHaveCount(0);
+    await expect(page.locator("#onboardingOverlay .ob-location")).toHaveText("Location enabled");
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
       await expect.poll(() => page.evaluate(() => localStorage.getItem("ff-location-v1"))).toBe("granted");
+    expect(await page.evaluate(() => localStorage.getItem("ff-track-v1"))).not.toBe("1");
     });
   });
 

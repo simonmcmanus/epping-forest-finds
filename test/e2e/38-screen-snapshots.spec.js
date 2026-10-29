@@ -57,9 +57,8 @@ test("snapshot: onboarding on a first visit", async ({ page }) => {
   await expect(page).toHaveScreenshot("onboarding.png", { fullPage: false });
 });
 
-test("snapshot: onboarding usage analytics step", async ({ page }) => {
-  // Its own step, straight after location (39-permission-asks.spec.js). This spec's storage pre-answers
-  // usage analytics, so a first visit here starts from nothing answered at all.
+test("snapshot: onboarding permissions after location choice", async ({ page }) => {
+  // Location and usage analytics share the first dialog but remain independent choices.
   await page.addInitScript(() => localStorage.removeItem("ff-track-v1"));
   await mockCowApi(page);
   await denyGeolocationUnlessGranted(page);

@@ -1,7 +1,7 @@
 // @ts-check
 // Every point the app asks for a permission or a consent (spec.md "Permissions and consent"):
 // the app asks in its own words before any system dialog, a "not now" is remembered, and location
-// and usage analytics are separate questions asked one at a time.
+// and usage analytics are independent choices in the same permissions dialog.
 const { test, expect } = require("@playwright/test");
 const { skipOnboarding, mockCowApi, gotoAndWaitForMap, waitForFrames } = require("./helpers");
 
@@ -49,7 +49,7 @@ test.describe("first-run onboarding", () => {
     await mockCowApi(page);
   });
 
-  test("enabling location asks only for location; usage analytics is the next, separate question", async ({ page }) => {
+  test("enabling location keeps usage analytics as a separate choice", async ({ page }) => {
     await stubLocation(page, { answer: "grant" });
     await page.goto("/nearby");
     const overlay = page.locator("#onboardingOverlay");
@@ -73,7 +73,7 @@ test.describe("first-run onboarding", () => {
     expect(await stored(page, "ff-cookie-consent")).toBe("granted");
   });
 
-  test("'No thanks' is recorded for both halves and onboarding carries on", async ({ page }) => {
+  test("'No thanks' is recorded independently and onboarding carries on", async ({ page }) => {
     await stubLocation(page);
     await page.goto("/nearby");
     const overlay = page.locator("#onboardingOverlay");
@@ -81,6 +81,7 @@ test.describe("first-run onboarding", () => {
     await overlay.getByRole("button", { name: "No thanks" }).click();
     expect(await stored(page, "ff-track-v1")).toBe("0");
     expect(await stored(page, "ff-cookie-consent")).toBe("denied");
+    await overlay.locator(".ob-permissions-continue").click();
     await expect(overlay.locator(".ob-primary")).toBeVisible();
   });
 
@@ -90,6 +91,8 @@ test.describe("first-run onboarding", () => {
     await page.goto("/nearby");
     const overlay = page.locator("#onboardingOverlay");
     await overlay.locator(".ob-location-skip").click();
+    await expect(overlay.locator(".ob-permissions-continue")).toBeVisible();
+    await overlay.locator(".ob-permissions-continue").click();
     await expect(overlay.locator(".ob-primary")).toBeVisible();
     await expect(overlay.getByRole("heading", { name: "Help improve the map?" })).toHaveCount(0);
   });
@@ -100,6 +103,7 @@ test.describe("first-run onboarding", () => {
     const overlay = page.locator("#onboardingOverlay");
     await overlay.locator(".ob-location-skip").click();
     await overlay.getByRole("button", { name: "No thanks" }).click();
+    await overlay.locator(".ob-permissions-continue").click();
     await overlay.locator(".ob-skip").click();
     await page.waitForFunction(() => typeof state !== "undefined" && state.dataLoaded === true);
     await page.waitForFunction(() => document.querySelector("[data-load-step='location']")?.classList.contains("error"));

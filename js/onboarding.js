@@ -1,13 +1,12 @@
-// First-visit onboarding: a short guided filter setup, then location and compass opt-in.
+// First-visit onboarding: a short guided filter setup, with permissions collected up front.
 // Runs while map data loads in the background.
 
 const ONBOARDING_KEY = "forest-finds-onboarding-v1";
 
 const ONBOARDING_STEPS = [
-  { type: "location" },
-  { type: "analytics" },
+  { type: "permissions" },
   { type: "welcome" },
-  { type: "filters" },
+  ...FILTER_GROUPS.map((g) => ({ type: "group", group: g })),
 ];
 
 if (typeof globalThis !== "undefined") {
@@ -60,10 +59,9 @@ function showOnboarding() {
     const contentEl = overlay.querySelector(".onboarding-content");
     const actionsEl = overlay.querySelector(".onboarding-actions");
 
-    // A question already answered elsewhere (usage analytics declined on the homepage's cookie
-    // banner, say) is not asked again here.
-    const steps = ONBOARDING_STEPS.filter((step) => step.type !== "analytics"
-      || typeof analyticsChoice !== "function" || analyticsChoice() === "undecided");
+    // A usage-analytics answer already given elsewhere (the homepage's cookie banner, say) is
+    // omitted from the permissions dialog below; the rest of the guided setup is unchanged.
+    const steps = ONBOARDING_STEPS;
     let stepIndex = 0;
     let locationPromise = null;
     const total = steps.length;
@@ -83,13 +81,11 @@ function showOnboarding() {
       if (idx < 0 || idx >= steps.length) return;
       const s = steps[idx];
       const srcs = [];
-      if (s.type === "welcome" || s.type === "analytics") srcs.push("data/icons/trees/logo.png");
-      if (s.type === "location") srcs.push("data/icons/pin.png");
-      if (s.type === "filters") {
-        FILTER_GROUPS.forEach((group) => {
-          srcs.push(`data/icons/${group.icon}.png`);
-          group.subfilters.forEach((sf) => srcs.push(`data/icons/${sf.icon}.png`));
-        });
+      if (s.type === "welcome" || s.type === "permissions") srcs.push("data/icons/trees/logo.png");
+      if (s.type === "permissions") srcs.push("data/icons/pin.png");
+      if (s.type === "group") {
+        srcs.push(`data/icons/${s.group.icon}.png`);
+        s.group.subfilters.forEach((sf) => srcs.push(`data/icons/${sf.icon}.png`));
       }
       srcs.forEach((src) => { const img = new Image(); img.src = src; });
     }
@@ -112,61 +108,62 @@ function showOnboarding() {
           <button class="button ob-primary">Set up my map</button>
           <button class="onboarding-skip-btn ob-skip">Explore first</button>
         `;
-      } else if (step.type === "filters") {
-        const groups = FILTER_GROUPS.map((group) => {
-          const chips = group.subfilters.map((sf) => {
-            const on = selected.has(sf.key);
-            return `<button class="onboarding-chip${on ? "" : " off"}" data-key="${sf.key}" type="button" aria-pressed="${on}">
-              <span class="chip-tick">✓</span>
-              <img src="data/icons/${sf.icon}.png" alt="" onerror="this.style.display='none'">
-              ${sf.label}
-            </button>`;
-          }).join("");
-          return `<section class="onboarding-filter-group" aria-labelledby="onboarding-group-${group.key}">
-            <h3 id="onboarding-group-${group.key}">${group.label}</h3>
-            <div class="onboarding-chips">${chips}</div>
-          </section>`;
+      } else if (step.type === "group") {
+        const { group } = step;
+        const chips = group.subfilters.map((sf) => {
+          const on = selected.has(sf.key);
+          return `<button class="onboarding-chip${on ? "" : " off"}" data-key="${sf.key}" type="button" aria-pressed="${on}">
+            <span class="chip-tick">✓</span>
+            <img src="data/icons/${sf.icon}.png" alt="" onerror="this.style.display='none'">
+            ${sf.label}
+          </button>`;
         }).join("");
+        const isFirst = stepIndex === steps.findIndex((candidate) => candidate.type === "group");
+        const isLast = stepIndex === total - 1;
         contentEl.innerHTML = `
-          <img class="onboarding-step-icon" src="data/icons/trees/logo.png" alt="">
-          <h2 class="onboarding-step-title">What would you like to find?</h2>
-          <p class="onboarding-step-subtitle">Choose a few starting points. You can change these anytime in Filters.</p>
-          <div class="onboarding-filter-groups">${groups}</div>
+          <img class="onboarding-step-icon" src="data/icons/${group.icon}.png" alt="">
+          <h2 class="onboarding-step-title">${group.label}</h2>
+          <p class="onboarding-step-subtitle">Tap to toggle what you'd like to see on the map.</p>
+          <div class="onboarding-chips">${chips}</div>
         `;
         actionsEl.innerHTML = `
           <div class="onboarding-nav">
-            <button class="button ob-back" type="button">← Back</button>
-            <button class="button ob-next" type="button">Continue</button>
+            ${!isFirst ? `<button class="button ob-back" type="button">← Back</button>` : ""}
+            <button class="button ob-next" type="button">${isLast ? "Done" : "Next"}</button>
           </div>
-          <button class="onboarding-skip-btn ob-skip" type="button">Use the defaults</button>
+          ${!isLast ? `<button class="onboarding-skip-btn ob-skip" type="button">Skip remaining</button>` : ""}
         `;
-      } else if (step.type === "location") {
+      } else if (step.type === "permissions") {
         const needsCompassPrompt = canRequestCompassPermission() && Native.compassNeedsPrompt;
-        contentEl.innerHTML = `
-          <img class="onboarding-step-icon" src="data/icons/pin.png" alt="">
-          <h2 class="onboarding-step-title">Your location${needsCompassPrompt ? " & compass" : ""}</h2>
-          <p class="onboarding-step-subtitle">Enable location to centre the map on you, see distances to each find, and get heading-up compass navigation.</p>
-          <p class="privacy-note">Your position is used on this device to draw the map. You can change this anytime in Settings → Privacy.</p>
-        `;
-        actionsEl.innerHTML = `
-          <button class="button ob-location" type="button">Enable${needsCompassPrompt ? " location &amp; compass" : " location"}</button>
-          <button class="onboarding-skip-btn ob-location-skip" type="button">Skip for now</button>
-        `;
-      } else if (step.type === "analytics") {
-        // Its own question, with refusing exactly as easy as agreeing: nothing else in the app
-        // depends on the answer, so it is never folded into the location step above.
+        const analyticsUnanswered = typeof analyticsChoice !== "function" || analyticsChoice() === "undecided";
         contentEl.innerHTML = `
           <img class="onboarding-step-icon" src="data/icons/trees/logo.png" alt="">
-          <h2 class="onboarding-step-title">Help improve the map?</h2>
-          <p class="onboarding-step-subtitle">${ANALYTICS_ASK_TEXT}</p>
-          <p class="privacy-note">You can change this anytime in Settings → Privacy. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
-        `;
-        actionsEl.innerHTML = `
-          <div class="onboarding-nav">
-            <button class="button ob-analytics-decline" type="button">No thanks</button>
-            <button class="button ob-analytics-accept" type="button">Share usage data</button>
+          <h2 class="onboarding-step-title">Before we start</h2>
+          <p class="onboarding-step-subtitle">Choose these separately. You can change either choice later in Settings → Privacy.</p>
+          <div class="onboarding-permissions">
+            <section class="onboarding-permission-option" aria-labelledby="onboarding-location-title">
+              <h3 id="onboarding-location-title">Your location</h3>
+              <p>Centre the map on you and see real walking distances. Your position is used on this device to draw the map.</p>
+              <div class="onboarding-permission-actions">
+                <button class="button ob-location" type="button">Enable${needsCompassPrompt ? " location &amp; compass" : " location"}</button>
+                <button class="onboarding-skip-btn ob-location-skip" type="button">Skip for now</button>
+              </div>
+              <p class="onboarding-choice-status ob-location-status" aria-live="polite"></p>
+            </section>
+            ${analyticsUnanswered ? `
+              <section class="onboarding-permission-option" aria-labelledby="onboarding-analytics-title">
+                <h3 id="onboarding-analytics-title">Help improve the map?</h3>
+                <p>${ANALYTICS_ASK_TEXT} <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
+                <div class="onboarding-permission-actions">
+                  <button class="onboarding-skip-btn ob-analytics-decline" type="button">No thanks</button>
+                  <button class="button ob-analytics-accept" type="button">Share usage data</button>
+                </div>
+                <p class="onboarding-choice-status ob-analytics-status" aria-live="polite"></p>
+              </section>
+            ` : ""}
           </div>
         `;
+        actionsEl.innerHTML = `<button class="button ob-permissions-continue" type="button">Continue setup</button>`;
       }
 
       // Chip toggles
@@ -192,9 +189,19 @@ function showOnboarding() {
       });
       actionsEl.querySelector(".ob-back")?.addEventListener("click", goBack);
       actionsEl.querySelector(".ob-skip")?.addEventListener("click", () => finish());
-      actionsEl.querySelector(".ob-location")?.addEventListener("click", async () => {
-        // Location only: usage analytics is the next step's separate question.
+      actionsEl.querySelector(".ob-permissions-continue")?.addEventListener("click", goNext);
+      contentEl.querySelector(".ob-location")?.addEventListener("click", async () => {
         if (typeof rememberLocationChoice === "function") rememberLocationChoice("granted");
+
+        const locationButton = contentEl.querySelector(".ob-location");
+        const locationSkip = contentEl.querySelector(".ob-location-skip");
+        const locationStatus = contentEl.querySelector(".ob-location-status");
+        if (locationButton) {
+          locationButton.disabled = true;
+          locationButton.textContent = "Location enabled";
+        }
+        if (locationSkip) locationSkip.disabled = true;
+        if (locationStatus) locationStatus.textContent = "Location request started.";
 
         // Start location request — the system dialog fires from this tap.
         if (Native.geolocation) {
@@ -222,23 +229,45 @@ function showOnboarding() {
           setImplicitCompassPermission();
         }
 
-        // Location is now the first step — continue to welcome + filter personalisation.
-        goNext();
       });
-      actionsEl.querySelector(".ob-location-skip")?.addEventListener("click", () => {
+      contentEl.querySelector(".ob-location-skip")?.addEventListener("click", () => {
         setImplicitCompassPermission();
         // Remembered, so no later launch puts a system location prompt in front of someone who
         // already said not now. Settings → Privacy is the way back.
         if (typeof rememberLocationChoice === "function") rememberLocationChoice("declined");
-        goNext();
+        const locationButton = contentEl.querySelector(".ob-location");
+        const locationSkip = contentEl.querySelector(".ob-location-skip");
+        const locationStatus = contentEl.querySelector(".ob-location-status");
+        if (locationButton) locationButton.disabled = true;
+        if (locationSkip) {
+          locationSkip.disabled = true;
+          locationSkip.textContent = "Location skipped";
+        }
+        if (locationStatus) locationStatus.textContent = "Location skipped for now.";
       });
-      actionsEl.querySelector(".ob-analytics-accept")?.addEventListener("click", () => {
+      contentEl.querySelector(".ob-analytics-accept")?.addEventListener("click", () => {
         if (typeof setAnalyticsConsent === "function") setAnalyticsConsent(true);
-        goNext();
+        const accept = contentEl.querySelector(".ob-analytics-accept");
+        const decline = contentEl.querySelector(".ob-analytics-decline");
+        const status = contentEl.querySelector(".ob-analytics-status");
+        if (accept) {
+          accept.disabled = true;
+          accept.textContent = "Usage data enabled";
+        }
+        if (decline) decline.disabled = true;
+        if (status) status.textContent = "Usage data sharing enabled.";
       });
-      actionsEl.querySelector(".ob-analytics-decline")?.addEventListener("click", () => {
+      contentEl.querySelector(".ob-analytics-decline")?.addEventListener("click", () => {
         if (typeof setAnalyticsConsent === "function") setAnalyticsConsent(false);
-        goNext();
+        const accept = contentEl.querySelector(".ob-analytics-accept");
+        const decline = contentEl.querySelector(".ob-analytics-decline");
+        const status = contentEl.querySelector(".ob-analytics-status");
+        if (accept) accept.disabled = true;
+        if (decline) {
+          decline.disabled = true;
+          decline.textContent = "No thanks selected";
+        }
+        if (status) status.textContent = "Usage data sharing declined.";
       });
 
       // Each step replaces contentEl/actionsEl wholesale, which drops focus back to <body> for

@@ -95,7 +95,7 @@ test.describe("the native app shell", () => {
     await runAsNativeApp(page, { permission: "prompt" });
     await page.goto("/nearby");
     const overlay = page.locator("#onboardingOverlay");
-    await expect(overlay.getByRole("heading", { name: "Your location" })).toBeVisible();
+    await expect(overlay.getByRole("heading", { name: "Before we start" })).toBeVisible();
     await expect(overlay.locator(".ob-location")).toHaveText("Enable location");
     await overlay.locator(".ob-location").click();
     await expect.poll(async () => (await calls(page)).getCurrentPosition).toBe(1);
