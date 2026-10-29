@@ -1807,6 +1807,7 @@ test("the Nearby nav button restores the reader's real filters after a /nearby/<
 
   app.goToInitialView();
   assert.deepEqual(Array.from(app.state.overviewFilters), ["cafes"], "\"Nearby\" takes the reader back to their own filters, not the page's");
+  assert.equal(app.location.pathname, "/nearby", "the Nearby nav also canonicalizes the category URL");
   app.location.pathname = "/";
 });
 

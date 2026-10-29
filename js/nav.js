@@ -1006,7 +1006,13 @@ function setupFilterPanelHandlers() {
   if (els.nearbyToggle) {
     els.nearbyToggle.addEventListener("click", (event) => {
       event.preventDefault();
-      if (els.nearbyToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
+      const onPlainNearby = window.location.pathname === NEARBY_PATH
+        && !window.location.search
+        && !window.location.hash
+        && !state.nearbyAnchor;
+      if (els.nearbyToggle.classList.contains("screen-active")
+        && !els.inspector.classList.contains("minimized")
+        && onPlainNearby) {
         pulseNavButton(els.nearbyToggle);
         return;
       }

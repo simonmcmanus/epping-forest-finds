@@ -143,6 +143,14 @@ test.describe("Nearby filter rail", () => {
     await expect(page).toHaveURL(/\/nearby(?:\?.*)?$/);
     await expect(pill(page, "nature")).toHaveCount(1);
   });
+
+  test("the Nearby nav button leaves a category landing at plain Nearby", async ({ page }) => {
+    await setup(page, "/nearby/nature/");
+    await page.locator("#nearbyToggle").click();
+    await expect(page).toHaveURL(/\/nearby(?:\?.*)?$/);
+    await expect(pill(page, "nature")).toHaveCount(1);
+    await expect(pill(page, "trees")).toHaveCount(0);
+  });
 });
 
 test("a category link opens with its subcategories available", async ({ page }) => {
