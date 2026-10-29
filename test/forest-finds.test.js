@@ -10530,6 +10530,40 @@ test("in the nearby view, tapping a visible location beyond the nearest area sel
   app.stopViewportAnimation();
 });
 
+test("tapping a location from a browsed Nearby anchor keeps the outgoing map during handoff", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const anchor = makePoint(app, 51.65, 0.07);
+  const tree = {
+    id: "anchored-tree",
+    commonName: "Anchored Oak",
+    recordNumber: 1,
+    location: { britishNationalGrid: {} },
+    ...makePoint(app, 51.6503, 0.07),
+  };
+  app.state.trees.push(tree);
+  app.state.map3dEnabled = false;
+  app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
+  settleNearbySlide(app);
+  app.selectOverview();
+  app.ensureOverviewTargetsVisible({ animate: false, force: true });
+  app.stopViewportAnimation();
+
+  const outgoingIconLookup = app.activeIconLookup();
+  const treeTap = pinTapPoint(app, tree.point);
+  assert.equal(app.findHit(treeTap, app.screenToWorld(treeTap.x, treeTap.y)).type, "tree");
+  tapMap(app, treeTap);
+
+  assert.equal(app.state.selected?.type, "tree", "the Nearby pin should open the location");
+  assert.equal(app.state.selectionMapTransitionActive, true,
+    "the outgoing map should remain active during a direct map selection");
+  assert.equal(app.activeIconLookup(), outgoingIconLookup,
+    "direct map selection should retain the pins from the browsed Nearby view");
+  assert.equal(app.state.selectionMapTransitionOriginPoint, anchor.point,
+    "direct map selection should retain the browsed pivot during handoff");
+  app.stopViewportAnimation();
+});
+
 test("the nearest area is measured from the browse anchor once one is set, not the GPS fix", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.65, 0.05);
