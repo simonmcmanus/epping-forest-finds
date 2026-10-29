@@ -7692,7 +7692,9 @@ function ensureUserAndSelectionVisible(options = {}) {
       const eastOneKm = projectLonLat(target.longitude + 1000 / metresPerDegreeLon, target.latitude);
       const worldPerKm = Math.abs(eastOneKm.x - origin.x);
       state.viewport.scale = focusRect.width / (worldPerKm * 1.2);
-      centerViewportOnPointsKeepScale([target.point], options);
+      // Centre in the same visible area the scale was sized against. The whole canvas's centre
+      // sits under the expanded inspector panel on a phone, which hid the place it had opened.
+      centerViewportOnPointsKeepScale([target.point], { ...options, focusVisibleArea: true, assumeInspectorOpen: true });
     }
     return;
   }

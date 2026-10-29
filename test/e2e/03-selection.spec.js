@@ -34,6 +34,20 @@ test.describe("Selection and Inspector", () => {
       await expect(page.locator("#inspectorBody")).toContainText(FIXTURE_TREE.tagNumber);
     });
 
+    test("a tree opened from a link without a location is shown on the map above the panel", async ({ page }) => {
+      await waitForUiToSettle(page);
+      const framing = await page.evaluate(() => {
+        const rect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+        const tree = worldToScreen(selectedCompassTarget().point);
+        return {
+          inside: tree.x >= rect.x && tree.x <= rect.x + rect.width && tree.y >= rect.y && tree.y <= rect.y + rect.height,
+          zoomedIn: state.viewport.scale > state.fitScale * 2,
+        };
+      });
+      expect(framing.zoomedIn, "the camera opens close in on the tree, not on the whole forest").toBe(true);
+      expect(framing.inside, "the tree is in the visible map, not hidden under the inspector panel").toBe(true);
+    });
+
     test("URL hash reflects the selected tree", async ({ page }) => {
       await expect(page).toHaveURL(new RegExp(`tree=${FIXTURE_TREE.hashKey}`));
     });
