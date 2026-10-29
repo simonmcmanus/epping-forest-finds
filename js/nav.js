@@ -2214,13 +2214,19 @@ function setupInspectorDragResize() {
     stopViewportAnimation();
     const animate = Boolean(options.animate);
     const durationMs = options.durationMs || (animate ? 220 : 0);
-    if (!state.userLocation) return;
-    if (state.selected && selectedCompassTarget()) {
+    if (state.selected && state.selected.item && state.selected.item.point && !state.userLocation) {
+      fitToPoints([state.selected.item.point], false, {
+        animate,
+        durationMs,
+        focusVisibleArea: true,
+        assumeInspectorOpen: true,
+      });
+    } else if (state.userLocation && state.selected && selectedCompassTarget()) {
       centerViewportOnPointsKeepScale(
         [state.userLocation.point, selectedCompassTarget().point],
         { animate, durationMs, focusVisibleArea: true, assumeInspectorOpen: true }
       );
-    } else if (isOverviewScreenActive()) {
+    } else if (state.userLocation && isOverviewScreenActive()) {
       ensureOverviewTargetsVisible({ animate, durationMs });
     }
   }

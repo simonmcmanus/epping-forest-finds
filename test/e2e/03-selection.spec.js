@@ -157,6 +157,19 @@ test.describe("Selection and Inspector", () => {
         return { pointClientY, panelTop: panel.top };
       });
       expect(geometry.pointClientY).toBeLessThan(geometry.panelTop - 4);
+
+      const handle = await page.locator("#inspectorDragHandle").boundingBox();
+      await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(handle.x + handle.width / 2, handle.y - 120, { steps: 5 });
+      await page.mouse.up();
+      await expect.poll(async () => page.evaluate(() => {
+        const stage = (els.mapStage || els.canvas).getBoundingClientRect();
+        const point = worldToScreen(state.selected.item.point);
+        const dpr = pixelRatio();
+        const pointClientY = stage.top + (point.y - state.canvasInsetY) / dpr;
+        return pointClientY < els.inspector.getBoundingClientRect().top - 4;
+      })).toBe(true);
     });
 
     test("snapshot: tree detail view", async ({ page }) => {
