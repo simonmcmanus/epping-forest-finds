@@ -801,10 +801,30 @@ function setupInteractions() {
   setupVisibilityRecovery();
   setupResizeHandler();
   setupReportKeyboardAvoidance();
+  setupNavHighlightPressFeedback();
   setupInspectorHandlers();
   setupFilterPanelHandlers();
   setupSearchAndNavHandlers();
   setupMapCanvasHandlers();
+}
+
+function setupNavHighlightPressFeedback() {
+  const nav = document.querySelector(".inspector-actions");
+  if (!nav) return;
+  const tabs = [els.nearbyToggle, els.searchToggle, els.reportToggle, els.settingsToggle, els.filterToggle].filter(Boolean);
+  tabs.forEach((tab) => {
+    tab.addEventListener("pointerdown", () => {
+      if (!tab.classList.contains("screen-active")) previewNavScreenActive(tab);
+    });
+    tab.addEventListener("pointercancel", () => {
+      tab.classList.remove("nav-pressing");
+      nav._navHighlightPreviewTarget = null;
+      const active = nav.querySelector(":scope > .screen-active");
+      if (active) navHighlightPosition(active);
+    });
+  });
+  const active = nav.querySelector(":scope > .screen-active");
+  if (active) navHighlightPosition(active);
 }
 
 // iOS Safari doesn't shrink the layout viewport when the on-screen keyboard opens, so the
@@ -854,6 +874,8 @@ function setupResizeHandler() {
   updateFilterUi();
   window.addEventListener("resize", () => {
     updateSubfilterScrollHints();
+    const activeNavTab = document.querySelector(".inspector-actions > .screen-active");
+    if (activeNavTab) navHighlightPosition(activeNavTab);
     resizeCanvas();
     if (state.bounds) {
       if (typeof headingUpActive === "function" && headingUpActive()) {
