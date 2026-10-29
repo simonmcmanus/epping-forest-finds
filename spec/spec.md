@@ -763,10 +763,11 @@ Other browsers, and the native app, need no ask: the native shell grants motion 
 
 ### Usage analytics
 
-One consent covering both the app's own usage events (`js/tracker.js`: positions while the app is open, navigation, taps, sent with a random device id) and Google Analytics cookies. Stored in `ff-track-v1` (`1` / `0` / absent) and mirrored to `ff-cookie-consent`; a legacy `ff-cookie-consent = denied` counts as refused. Asked once, with refusing exactly as easy as agreeing (**No thanks** / **Share usage data**, equal-weight buttons):
+One consent covering both the app's own usage events (`js/tracker.js`: positions while the app is open, navigation, taps, sent with a random device id) and Google Analytics cookies. Stored in `ff-track-v1` (`1` / `0` / absent) and mirrored to `ff-cookie-consent`; a legacy `ff-cookie-consent = denied` counts as refused. On first run it is asked with location as one combined decision, with refusing exactly as easy as agreeing (**Maybe later** / **Enable location & cookies**):
 
-- **First-run consent card**, in the explicit **Enable location & cookies** action; **Maybe later** declines it. Settings → Privacy can withdraw it later.
-- **`#consentBanner`, analytics stage** — after the location stage on a landing-page arrival, in the same card; or, for a returning visitor who never answered, once the map is up and no other card is showing (`askAnalyticsWhenFree()`), so two questions never stack.
+- **First-run consent card and onboarding permissions step**, in the explicit **Enable location & cookies** action; **Maybe later** declines both. Settings → Privacy can change either control later.
+- **`#consentBanner`, landing-page arrival** — when both location and usage analytics are unanswered, the same combined action is shown in the inspector card. If location is already answered, only the outstanding usage-analytics question is shown.
+- **`#consentBanner`, returning visitor** — for someone who never answered usage analytics, once the map is up and no other card is showing (`askAnalyticsWhenFree()`), so two questions never stack.
 - **Settings → Privacy** — one on/off toggle.
 
 The shared cookie banner (`cookie-consent.js`) never appears on the app shell; it remains the cookie ask for the public pages.
@@ -776,7 +777,7 @@ The shared cookie banner (`cookie-consent.js`) never appears on the app shell; i
 The asks are built to meet UK GDPR, PECR and the stores' rules, and changes to them must keep these properties:
 
 - **Location** is a feature permission used on the device to draw the map; it is never collected on its own, so it needs no consent beyond the system permission, and the app's own explanation precedes every system dialog (Google Play's prominent-disclosure rule).
-- **Usage analytics** (positions while the app is open, interactions, a random device id, and Google Analytics) is non-essential, so it runs only on prior, opt-in consent: never bundled with location, refusing as easy as agreeing, named third party (Google Analytics), withdrawable at any time from Settings as easily as it was given.
+- **Usage analytics** (positions while the app is open, interactions, a random device id, and Google Analytics) is non-essential, so it runs only on prior, opt-in consent: the first-run action may bundle it with the location request for a faster experience, refusing is as easy as agreeing, named third party (Google Analytics), withdrawable at any time from Settings as easily as it was given.
 - **Before consent nothing is stored or sent for it**: no device id written, no event queued, and no Google script loaded (so no cookieless pings either); every Consent Mode signal is denied and Google Signals and ad personalisation are off, which is also what lets the iOS privacy manifest declare no tracking.
 - **Withdrawal removes**: the queued events, the device id and the `_ga` cookies.
 - What is stored without consent is only what the person asked for or the app needs to work: their own answers (`ff-location-v1`, `ff-track-v1 = 0`, `ff-cookie-consent`, the compass dismissal), filters and onboarding state.

@@ -218,22 +218,19 @@ test.describe("a landing-page arrival", () => {
     await mockCowApi(page);
   });
 
-  test("asks location, then usage analytics, one question at a time in the same card", async ({ page }) => {
+  test("asks for location and cookies with one combined action", async ({ page }) => {
     await stubLocation(page, { permission: "prompt" });
     await gotoAndWaitForMap(page, "/nearby/filter?show=pubs");
     const card = page.locator("#consentBanner");
     await expect(card).toBeVisible();
-    await expect(page.locator("#consentBannerAccept")).toHaveText("Enable location");
-    await expect(card).not.toContainText("cookies");
+    await expect(page.locator("#consentBannerAccept")).toHaveText("Enable location & cookies");
+    await expect(card).toContainText("cookies");
     // Led by the same oak logo as every other notice (spec.md "Logo on notices").
     const logo = card.locator("img.consent-banner-logo");
     await expect(logo).toBeVisible();
     expect(await logo.evaluate((img) => img.complete && img.naturalWidth > 0)).toBe(true);
     expect(await locationRequests(page)).toBe(0);
 
-    await page.locator("#consentBannerDecline").click();
-    await expect(card).toContainText("Help improve the map?");
-    await expect(page.locator("#consentBannerAccept")).toHaveText("Share usage data");
     await page.locator("#consentBannerDecline").click();
     await expect(card).toBeHidden();
 
@@ -244,13 +241,13 @@ test.describe("a landing-page arrival", () => {
     await expect(page.locator("#cookieConsentBanner")).toHaveCount(0);
   });
 
-  test("'Enable location' on the card applies a real fix live", async ({ page }) => {
+  test("'Enable location & cookies' on the card applies a real fix live", async ({ page }) => {
     await stubLocation(page, { permission: "prompt", answer: "grant" });
     await gotoAndWaitForMap(page, "/nearby/filter?show=pubs");
     await page.locator("#consentBannerAccept").click();
     await expect.poll(() => page.evaluate(() => Boolean(state.userLocation && !state.userLocation.isDefault))).toBe(true);
     expect(await locationRequests(page)).toBe(1);
-    expect(await stored(page, "ff-track-v1")).toBeNull();
+    expect(await stored(page, "ff-track-v1")).toBe("1");
   });
 
   test("with location already allowed, the card asks only about usage analytics", async ({ page }) => {

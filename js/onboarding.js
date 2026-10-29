@@ -45,9 +45,9 @@ function hasCompletedOnboarding() {
   }
 }
 
-// The analytics question's own wording, shared with the in-map card (showConsentBanner, js/app.js)
+// The combined consent wording is shared with the in-map card (showConsentBanner, js/app.js)
 // so the two ways of asking it cannot drift apart.
-const ANALYTICS_ASK_TEXT = "Share anonymous usage data — which screens you use and where you are while the app is open — and allow Google Analytics cookies. It is never sold or used for advertising.";
+const COMBINED_CONSENT_TEXT = "Shows nearby finds and their distance from you, and helps us understand how people use this site — enabling covers both.";
 
 // Returns a Promise resolving to { filters: string[], locationPromise: Promise|null }
 // locationPromise is a live geolocation request started the moment the user tapped
@@ -94,6 +94,8 @@ function showOnboarding({ skipPermissions = false } = {}) {
 
     function renderStep(direction) {
       const step = steps[stepIndex];
+      let analyticsUnanswered = false;
+      let combinedConsent = false;
       preloadStepImages(stepIndex + 1);
 
       contentEl.classList.remove("entering-forward", "entering-backward");
@@ -137,35 +139,29 @@ function showOnboarding({ skipPermissions = false } = {}) {
         `;
       } else if (step.type === "permissions") {
         const needsCompassPrompt = canRequestCompassPermission() && Native.compassNeedsPrompt;
-        const analyticsUnanswered = typeof analyticsChoice !== "function" || analyticsChoice() === "undecided";
+        analyticsUnanswered = typeof analyticsChoice !== "function" || analyticsChoice() === "undecided";
+        combinedConsent = analyticsUnanswered;
         contentEl.innerHTML = `
           <img class="onboarding-step-icon" src="data/icons/trees/logo.png" alt="">
-          <h2 class="onboarding-step-title">Before we start</h2>
-          <p class="onboarding-step-subtitle">Choose these separately. You can change either choice later in Settings → Privacy.</p>
+          <h2 class="onboarding-step-title">${combinedConsent ? "Allow location &amp; cookies" : "Before we start"}</h2>
+          <p class="onboarding-step-subtitle">${combinedConsent
+            ? `${COMBINED_CONSENT_TEXT} <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>`
+            : "Centre the map on you and see real walking distances. You can change this later in Settings → Privacy."}</p>
           <div class="onboarding-permissions">
             <section class="onboarding-permission-option" aria-labelledby="onboarding-location-title">
-              <h3 id="onboarding-location-title">Your location</h3>
-              <p>Centre the map on you and see real walking distances. Your position is used on this device to draw the map.</p>
+              <h3 id="onboarding-location-title">${combinedConsent ? "Location and cookies" : "Your location"}</h3>
+              <p>${combinedConsent
+                ? "Enabling location centres the map and shows walking distances; enabling cookies also shares anonymous usage data with Google Analytics."
+                : "Your position is used on this device to draw the map."}</p>
               <div class="onboarding-permission-actions">
-                <button class="button ob-location" type="button">Enable${needsCompassPrompt ? " location &amp; compass" : " location"}</button>
-                <button class="onboarding-skip-btn ob-location-skip" type="button">Skip for now</button>
+                <button class="button ob-location" type="button">${combinedConsent ? "Enable location &amp; cookies" : `Enable${needsCompassPrompt ? " location &amp; compass" : " location"}`}</button>
+                <button class="onboarding-skip-btn ob-location-skip" type="button">${combinedConsent ? "Maybe later" : "Skip for now"}</button>
               </div>
               <p class="onboarding-choice-status ob-location-status" aria-live="polite"></p>
             </section>
-            ${analyticsUnanswered ? `
-              <section class="onboarding-permission-option" aria-labelledby="onboarding-analytics-title">
-                <h3 id="onboarding-analytics-title">Help improve the map?</h3>
-                <p>${ANALYTICS_ASK_TEXT} <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
-                <div class="onboarding-permission-actions">
-                  <button class="onboarding-skip-btn ob-analytics-decline" type="button">No thanks</button>
-                  <button class="button ob-analytics-accept" type="button">Share usage data</button>
-                </div>
-                <p class="onboarding-choice-status ob-analytics-status" aria-live="polite"></p>
-              </section>
-            ` : ""}
           </div>
         `;
-        actionsEl.innerHTML = `<button class="button ob-permissions-continue" type="button">Continue setup</button>`;
+        actionsEl.innerHTML = "";
       }
 
       // Chip toggles
@@ -191,16 +187,16 @@ function showOnboarding({ skipPermissions = false } = {}) {
       });
       actionsEl.querySelector(".ob-back")?.addEventListener("click", goBack);
       actionsEl.querySelector(".ob-skip")?.addEventListener("click", () => finish());
-      actionsEl.querySelector(".ob-permissions-continue")?.addEventListener("click", goNext);
       contentEl.querySelector(".ob-location")?.addEventListener("click", async () => {
         if (typeof rememberLocationChoice === "function") rememberLocationChoice("granted");
+        if (analyticsUnanswered && typeof setAnalyticsConsent === "function") setAnalyticsConsent(true);
 
         const locationButton = contentEl.querySelector(".ob-location");
         const locationSkip = contentEl.querySelector(".ob-location-skip");
         const locationStatus = contentEl.querySelector(".ob-location-status");
         if (locationButton) {
           locationButton.disabled = true;
-          locationButton.textContent = "Location enabled";
+          locationButton.textContent = combinedConsent ? "Location & cookies enabled" : "Location enabled";
         }
         if (locationSkip) locationSkip.disabled = true;
         if (locationStatus) locationStatus.textContent = "Location request started.";
@@ -230,46 +226,24 @@ function showOnboarding({ skipPermissions = false } = {}) {
         } else {
           setImplicitCompassPermission();
         }
-
+        goNext();
       });
       contentEl.querySelector(".ob-location-skip")?.addEventListener("click", () => {
         setImplicitCompassPermission();
         // Remembered, so no later launch puts a system location prompt in front of someone who
         // already said not now. Settings → Privacy is the way back.
         if (typeof rememberLocationChoice === "function") rememberLocationChoice("declined");
+        if (analyticsUnanswered && typeof setAnalyticsConsent === "function") setAnalyticsConsent(false);
         const locationButton = contentEl.querySelector(".ob-location");
         const locationSkip = contentEl.querySelector(".ob-location-skip");
         const locationStatus = contentEl.querySelector(".ob-location-status");
         if (locationButton) locationButton.disabled = true;
         if (locationSkip) {
           locationSkip.disabled = true;
-          locationSkip.textContent = "Location skipped";
+          locationSkip.textContent = combinedConsent ? "Both skipped" : "Location skipped";
         }
         if (locationStatus) locationStatus.textContent = "Location skipped for now.";
-      });
-      contentEl.querySelector(".ob-analytics-accept")?.addEventListener("click", () => {
-        if (typeof setAnalyticsConsent === "function") setAnalyticsConsent(true);
-        const accept = contentEl.querySelector(".ob-analytics-accept");
-        const decline = contentEl.querySelector(".ob-analytics-decline");
-        const status = contentEl.querySelector(".ob-analytics-status");
-        if (accept) {
-          accept.disabled = true;
-          accept.textContent = "Usage data enabled";
-        }
-        if (decline) decline.disabled = true;
-        if (status) status.textContent = "Usage data sharing enabled.";
-      });
-      contentEl.querySelector(".ob-analytics-decline")?.addEventListener("click", () => {
-        if (typeof setAnalyticsConsent === "function") setAnalyticsConsent(false);
-        const accept = contentEl.querySelector(".ob-analytics-accept");
-        const decline = contentEl.querySelector(".ob-analytics-decline");
-        const status = contentEl.querySelector(".ob-analytics-status");
-        if (accept) accept.disabled = true;
-        if (decline) {
-          decline.disabled = true;
-          decline.textContent = "No thanks selected";
-        }
-        if (status) status.textContent = "Usage data sharing declined.";
+        goNext();
       });
 
       // Each step replaces contentEl/actionsEl wholesale, which drops focus back to <body> for

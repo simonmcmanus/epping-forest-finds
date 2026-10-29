@@ -1336,13 +1336,13 @@ function showLocationInviteBanner(message, { canRequest = true } = {}) {
 // returning visitor with a question still unanswered. One non-blocking card in the inspector
 // chrome (#consentBanner, app.html, css/loading.css) leaves the map fully usable underneath. On a
 // first visit its single explicit action covers the two initial choices; after that it offers the
-// optional guided map setup in the same slot. On other visits it asks location and analytics one
-// at a time. On iOS the compass is asked from the same location tap (locateUser), because only a
-// user gesture can ask for it.
+// optional guided map setup in the same slot. Landing-page arrivals use that same combined action
+// whenever both choices are still unanswered. On iOS the compass is asked from the same location
+// tap (locateUser), because only a user gesture can ask for it.
 function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnboarding = false } = {}) {
   const banner = els.consentBanner;
   if (!banner || (!askLocation && !askAnalytics && !offerOnboarding)) return false;
-  let stage = askLocation ? (offerOnboarding && askAnalytics ? "permissions" : "location")
+  let stage = askLocation ? (askAnalytics ? "permissions" : "location")
     : askAnalytics ? "analytics" : "onboarding";
 
   function renderLocationStage() {
@@ -1369,7 +1369,7 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
     banner.setAttribute("aria-label", "Usage analytics");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Help improve the map?";
     if (els.consentBannerText) {
-      els.consentBannerText.innerHTML = `${ANALYTICS_ASK_TEXT} <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>`;
+      els.consentBannerText.innerHTML = `Share anonymous usage data — which screens you use and where you are while the app is open — and allow Google Analytics cookies. It is never sold or used for advertising. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>`;
     }
     if (els.consentBannerDecline) els.consentBannerDecline.textContent = "No thanks";
     if (els.consentBannerAccept) els.consentBannerAccept.textContent = "Share usage data";
