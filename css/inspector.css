@@ -13,6 +13,38 @@
   transition: none;
 }
 
+.inspector.is-dragging {
+  transition: height 0s;
+}
+
+.inspector-drag-handle {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 20px;
+  cursor: grab;
+  touch-action: none;
+  z-index: 10;
+  justify-content: center;
+  align-items: center;
+  padding-top: 4px;
+}
+
+.inspector-drag-handle::before {
+  content: "";
+  display: block;
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border-accent);
+}
+
+.inspector-drag-handle.dragging {
+  cursor: grabbing;
+}
+
 /* The Nearby list's own "requesting your location" state (showNearbyLocatingState, js/inspector.js):
    replaces the list while a reader's location request is pending. The ring reuses step-spin from
    css/loading.css, the same turn the boot checklist's loading step uses. */
@@ -2266,6 +2298,7 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 
 .inspector-body {
   padding-bottom: 18px;
+  padding-top: 14px;
 }
 
 .search-screen {

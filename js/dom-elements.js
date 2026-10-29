@@ -34,6 +34,7 @@ const els = {
   eventNearbyBannerText: document.getElementById("eventNearbyBannerText"),
   eventNearbyBannerDismiss: document.getElementById("eventNearbyBannerDismiss"),
   inspector: document.getElementById("inspector"),
+  inspectorDragHandle: document.getElementById("inspectorDragHandle"),
   inspectorBack: document.getElementById("inspectorBack"),
   inspectorTitleEmoji: document.getElementById("inspectorTitleEmoji"),
   inspectorTitle: document.getElementById("inspectorTitle"),
