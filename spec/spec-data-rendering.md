@@ -1377,9 +1377,8 @@ The full routing model — the URL for each screen, history entries, back/forwar
 - **Nearby filter rail.** The top of every Nearby view (plain `/nearby`, a `/nearby/<slug>/`
   landing, a shared `?show=` link) is `filterRailHtml()` (js/app.js), prepended by
   `overviewNearestHtml()` to every return path, empty states included. It replaces the old
-  `/nearby/<slug>/` breadcrumb chips and the "Show all nearby" pill.
-  - **Layout.** A sticky row: a round show-all button (disabled when nothing is narrowed), a
-    sideways-scrolling run of category pills, and a round link to the Filters screen
+  `/nearby/<slug>/` breadcrumb chips and leaves the Filters link at the end.
+  - **Layout.** A sticky row: a sideways-scrolling run of category pills and a round link to the Filters screen
     (`/nearby/filter`). Pills are `button`s with `aria-pressed`; the row is a `nav` labelled
     "Filter nearby places".
   - **Which pills.** The plain `/nearby` screen shows one pill per top-level group (`Nature`,

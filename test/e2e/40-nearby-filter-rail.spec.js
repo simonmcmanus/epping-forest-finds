@@ -1,6 +1,6 @@
 // @ts-check
 // Nearby's filter rail: a row of category pills that narrows the list in place (no panel slide),
-// with show-all on the left and the Filters screen on the right. spec-data-rendering.md "Nearby
+// with the Filters screen on the right. spec-data-rendering.md "Nearby
 // filter rail".
 const { test, expect } = require("@playwright/test");
 const { setup } = require("./helpers");
@@ -15,8 +15,8 @@ const pill = (page, key) => page.locator(`#inspectorBody [data-rail-key="${key}"
 
 /** Starts from the show-everything view, so a pill tap is the first narrowing. */
 async function showAll(page) {
-  await page.getByRole("button", { name: "Show all nearby" }).click();
-  await expect(page).toHaveURL(/\/nearby\?filters=false$/);
+  await setup(page, "/nearby?filters=false");
+  await expect(rail(page)).toBeVisible();
 }
 
 /** Counts every outgoing-screen ghost the panel slide would create from now on. */
@@ -46,7 +46,7 @@ test.describe("Nearby filter rail", () => {
     await expect(pill(page, "food")).toHaveAttribute("aria-pressed", "true");
     await expect(pill(page, "transport")).toHaveAttribute("aria-pressed", "false");
     await expect(pill(page, "transport").locator(".rail-check")).toHaveText("×");
-    await expect(page.getByRole("button", { name: "Show all nearby" })).toBeEnabled();
+    await expect(page.getByRole("button", { name: "Show all nearby" })).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Filters" })).toHaveAttribute("href", "/nearby/filter");
     await expect(rail(page).locator("[data-rail-key]").first()).toBeVisible();
   });
@@ -89,22 +89,12 @@ test.describe("Nearby filter rail", () => {
     expect(await page.evaluate(() => window.__slides)).toBe(0);
   });
 
-  test("a pill that was pressed un-presses on a second tap, and the last one returns to show-all", async ({ page }) => {
+  test("a pill that was pressed un-presses on a second tap, and the last one returns to all filters", async ({ page }) => {
     await setup(page, "/nearby/trees");
     await pill(page, "trees").click();
     await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?filters=false$/);
     await expect(rail(page).locator('[aria-pressed="true"]')).toHaveCount(3);
-    await expect(page.getByRole("button", { name: "Show all nearby" })).toBeDisabled();
-  });
-
-  test("show-all on the left clears the lens without sliding", async ({ page }) => {
-    await showAll(page);
-    await pill(page, "nature").click();
-    await watchForPanelSlide(page);
-    await page.getByRole("button", { name: "Show all nearby" }).click();
-    await expect(page).toHaveURL(/\/nearby\?filters=false$/);
-    await expect(rail(page).locator('[aria-pressed="true"]')).toHaveCount(7);
-    expect(await page.evaluate(() => window.__slides)).toBe(0);
+    await expect(page.getByRole("button", { name: "Show all nearby" })).toHaveCount(0);
   });
 
   test("tapping pills never changes the reader's saved filters", async ({ page }) => {
@@ -143,6 +133,15 @@ test.describe("Nearby filter rail", () => {
     await page.getByRole("link", { name: "Filters" }).click();
     await expect(page).toHaveURL(/\/nearby\/filter/);
     await expect(page.locator("#inspectorTitle")).toHaveText(/Filters/);
+  });
+
+  test("the Nearby title icon links back to plain Nearby", async ({ page }) => {
+    await setup(page, "/nearby/food");
+    const titleLink = page.locator("#inspectorTitleEmoji a.inspector-title-link");
+    await expect(titleLink).toHaveAttribute("href", "/nearby");
+    await titleLink.click();
+    await expect(page).toHaveURL(/\/nearby(?:\?.*)?$/);
+    await expect(pill(page, "nature")).toHaveCount(1);
   });
 });
 

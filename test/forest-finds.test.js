@@ -2150,7 +2150,7 @@ test("a filter set covering every category is the show-all state: nothing is pre
   const html = app.filterRailHtml();
   assert.match(html, /aria-pressed="true"/);
   assert.match(html, /class="rail-check"/);
-  assert.match(html, /data-action="rail-show-all"[^>]*disabled/);
+  assert.doesNotMatch(html, /data-action="rail-show-all"/, "the rail no longer has a left show-all button");
   app.state.overviewFilters = [];
 });
 

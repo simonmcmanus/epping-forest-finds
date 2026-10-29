@@ -522,6 +522,18 @@
   height: calc(44px * var(--icon-scale));
 }
 
+.inspector-title-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.inspector-title-link:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
 .inspector .type {
   margin: 6px 0 0;
   color: var(--muted);
@@ -1322,8 +1334,8 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   margin-bottom: 0;
 }
 
-/* Nearby's filter rail: show-all on the left, a row of toggle pills that scrolls sideways, and the
-   Filters screen link on the right. Sticky so the reader can keep tapping while the list scrolls. */
+/* Nearby's filter rail: a row of toggle pills that scrolls sideways, and the Filters screen link
+   on the right. Sticky so the reader can keep tapping while the list scrolls. */
 .filter-rail {
   position: sticky;
   top: 0;

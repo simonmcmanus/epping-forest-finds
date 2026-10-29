@@ -4623,7 +4623,7 @@ function renderNearestItemsHtml(entries) {
 // shows top-level groups; a /nearby/<category> landing shows that group's subcategories. A pill
 // adds or removes its category from the current (ephemeral) filter set in place -- no screen
 // slide -- so the reader can keep tapping round. It replaces the old /nearby/<slug> breadcrumb
-// chips and the "Show all nearby" pill; generate-find-pages.js still server-renders anchor chips
+// chips; generate-find-pages.js still server-renders anchor chips
 // for crawlers and no-JS visitors, and the first render after boot swaps them for this.
 // Set by a rail tap so the next selectOverview() patches the rail and list in place rather than
 // rebuilding the body, which is what lets pills glide and rows animate individually.
@@ -4682,9 +4682,7 @@ function filterRailHtml() {
     const status = `<span class="rail-check${on ? "" : " is-off"}" aria-hidden="true">${on ? "✓" : "×"}</span>`;
     return `<button class="rail-pill${on ? " is-on" : ""}" type="button" data-rail-key="${item.key}" aria-pressed="${on}">${appIconHtml(item.icon)}<span>${escapeHtml(item.label)}</span>${status}</button>`;
   }).join("");
-  const narrowed = railSelection().length > 0;
   return `<nav class="filter-rail" aria-label="Filter nearby places">` +
-    `<button class="rail-edge" type="button" data-action="rail-show-all" aria-label="Show all nearby"${narrowed ? "" : " disabled"}>${appIconHtml("nearby")}</button>` +
     `<div class="rail-pills">${pills}</div>` +
     `<a class="rail-edge" href="${ROUTE_PATHS[ROUTE_FILTERS]}" aria-label="Filters">${appIconHtml("filter")}</a>` +
     `</nav>`;
@@ -4731,13 +4729,6 @@ function toggleRailFilter(key) {
   }
   if (typeof navigator.vibrate === "function") navigator.vibrate(8);
   setOverviewFilters(next.length ? next : Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: false, railTap: true });
-}
-
-function showAllFromRail() {
-  const displayedGroup = nearbyRailGroup();
-  state.nearbyRailGroupKey = displayedGroup ? displayedGroup.key : null;
-  if (typeof navigator.vibrate === "function") navigator.vibrate(8);
-  setOverviewFilters(Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: false, railTap: true });
 }
 
 function overviewCategoryContentHtml(content) {

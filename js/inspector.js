@@ -763,7 +763,7 @@ function selectOverview(animate = false) {
   // The arrow is live whenever the browser back button has an app screen to return to, not only
   // when a browse anchor was moved: a /nearby/<slug>/ link tapped from another landing is a
   // Nearby-to-Nearby step with no anchor of its own, and it still has to be undoable here.
-  setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: Boolean(state.nearbyAnchor) || canGoBackInApp(), captureSnapshot: animate, preserveNavHighlight: true });
+  setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), titleLink: NEARBY_PATH, showBack: Boolean(state.nearbyAnchor) || canGoBackInApp(), captureSnapshot: animate, preserveNavHighlight: true });
   setNavScreenActive(els.nearbyToggle);
   els.inspectorTools.hidden = false;
   // The overview keeps the tools row in the shared shell, but it is normally empty because the
@@ -881,10 +881,6 @@ function patchRailPills(oldRail, newRail) {
   // A toggle is an in-place edit, so never take horizontal control away from someone who has
   // deliberately scrolled the rail. The browser clamps this if the new row is shorter.
   oldPills.scrollLeft = scrollLeft;
-  const edge = oldRail.querySelector("[data-action='rail-show-all']");
-  const nextEdge = newRail.querySelector("[data-action='rail-show-all']");
-  if (edge && nextEdge) edge.disabled = nextEdge.disabled;
-
   oldPills.querySelectorAll("[data-rail-key]").forEach((el) => {
     const was = first.get(el.dataset.railKey);
     if (!was) return;
@@ -1120,7 +1116,7 @@ function drawInspectorIconMotion(motion) {
   return true;
 }
 
-function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true, preserveNavHighlight = false }) {
+function setInspectorSelectionChrome({ emoji, titleLink = null, showBack, captureSnapshot = true, preserveNavHighlight = false }) {
   // Cancel any in-flight transition and capture a fresh snapshot before DOM changes
   if (_transitionAnimation) {
     _transitionAnimation.cancel();
@@ -1149,8 +1145,11 @@ function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true, 
   // or dimming it never moves the title or the tabs.
   els.inspectorBack.disabled = !showBack;
   els.inspectorTitleEmoji.hidden = !emoji;
+  els.inspectorTitleEmoji.setAttribute("aria-hidden", titleLink ? "false" : "true");
   if (emoji && emoji.includes("<")) {
-    els.inspectorTitleEmoji.innerHTML = emoji;
+    els.inspectorTitleEmoji.innerHTML = titleLink
+      ? `<a class="inspector-title-link" href="${escapeHtml(titleLink)}" aria-label="Nearby">${emoji}</a>`
+      : emoji;
   } else {
     els.inspectorTitleEmoji.textContent = emoji || "";
   }

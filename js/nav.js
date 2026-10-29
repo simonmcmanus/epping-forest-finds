@@ -931,6 +931,13 @@ function setupInspectorHandlers() {
     navigateBack();
   });
 
+  els.inspectorTitleEmoji.addEventListener("click", (event) => {
+    const internalLink = event.target.closest("a[href^='/']");
+    if (!internalLink || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    navigateInApp(internalLink.getAttribute("href"));
+  });
+
   els.inspector.addEventListener("click", (event) => {
     if (!els.inspector.classList.contains("minimized")) return;
     if (els.closeInspector && event.target === els.closeInspector) return;
@@ -1244,7 +1251,6 @@ function setupSearchAndNavHandlers() {
     if (resetAnchorBtn) { clearNearbyAnchor(); return; }
     const railPill = event.target.closest("[data-rail-key]");
     if (railPill) { toggleRailFilter(railPill.dataset.railKey); return; }
-    if (event.target.closest("[data-action='rail-show-all']")) { showAllFromRail(); return; }
     const radiusToggle = event.target.closest("[data-action='toggle-radius']");
     if (radiusToggle) {
       state.showAllOutsideRadius = !state.showAllOutsideRadius;
