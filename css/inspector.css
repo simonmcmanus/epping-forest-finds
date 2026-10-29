@@ -588,8 +588,20 @@ button.settings-toggle.has-update::after {
 
 .inspector-actions.nav-has-highlight > :is(button, a).nav-pressing {
   color: var(--gold-ink);
-  transform: scale(1.045);
   z-index: 2;
+  animation: nav-press-bump 420ms cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+
+@keyframes nav-press-bump {
+  0%, 100% { transform: scale(1); }
+  20% { transform: scale(1.045); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inspector-actions.nav-has-highlight > :is(button, a).nav-pressing {
+    animation: none;
+    transform: none;
+  }
 }
 
 .inspector-actions .nav-label {

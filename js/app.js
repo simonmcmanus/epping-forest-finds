@@ -2947,14 +2947,13 @@ function previewNavScreenActive(current) {
 function setNavScreenActive(current = null, { preserveHighlight = false } = {}) {
   const nav = document.querySelector(".inspector-actions");
   const previewTarget = nav?._navHighlightPreviewTarget;
-  if (nav?._navPressingTimer) {
-    clearTimeout(nav._navPressingTimer);
-    nav._navPressingTimer = null;
-  }
+  const keepPressingTarget = previewTarget && (previewTarget === current || (preserveHighlight && !current))
+    ? previewTarget
+    : null;
   [els.nearbyToggle, els.searchToggle, els.filterToggle, els.settingsToggle, els.reportToggle].forEach((el) => {
     if (!el) return;
     el.classList.toggle("screen-active", el === current);
-    el.classList.remove("nav-pressing");
+    if (el !== keepPressingTarget) el.classList.remove("nav-pressing");
     el.classList.remove("active");
     if (el === current) el.setAttribute("aria-current", "page");
     else el.setAttribute("aria-current", "false");
@@ -2963,15 +2962,16 @@ function setNavScreenActive(current = null, { preserveHighlight = false } = {}) 
     nav._navHighlightPreviewTarget = null;
     if (previewTarget !== current) {
       navHighlightPosition(current);
-    } else {
+    } else if (!current.classList.contains("nav-pressing")) {
       current.classList.add("nav-pressing");
-      nav._navPressingTimer = setTimeout(() => {
-        current.classList.remove("nav-pressing");
-        nav._navPressingTimer = null;
-      }, 500);
+    }
+  } else if (!preserveHighlight) {
+    if (nav?._navHighlightPreviewTarget) nav._navHighlightPreviewTarget.classList.remove("nav-pressing");
+    if (nav) {
+      nav._navHighlightPreviewTarget = null;
+      nav.classList.remove("nav-has-highlight");
     }
   }
-  else if (!preserveHighlight) nav?.classList.remove("nav-has-highlight");
 }
 
 function openFiltersScreen() {
