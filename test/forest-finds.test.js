@@ -10548,6 +10548,10 @@ test("tapping a location from a browsed Nearby anchor keeps the outgoing map dur
   app.selectOverview();
   app.ensureOverviewTargetsVisible({ animate: false, force: true });
   app.stopViewportAnimation();
+  // Re-start the otherwise harmless anchor transition to exercise the intermittent case where
+  // a pin is tapped while Nearby is still sliding/revealing its current view.
+  app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
+  assert.ok(app.state.nearbyOriginTransition, "sanity: the Nearby-origin transition is in flight");
 
   const outgoingIconLookup = app.activeIconLookup();
   const treeTap = pinTapPoint(app, tree.point);
@@ -10559,8 +10563,13 @@ test("tapping a location from a browsed Nearby anchor keeps the outgoing map dur
     "the outgoing map should remain active during a direct map selection");
   assert.equal(app.activeIconLookup(), outgoingIconLookup,
     "direct map selection should retain the pins from the browsed Nearby view");
-  assert.equal(app.state.selectionMapTransitionOriginPoint, anchor.point,
-    "direct map selection should retain the browsed pivot during handoff");
+  assert.ok(
+    Math.abs(app.state.selectionMapTransitionOriginPoint.x - anchor.point.x) < 1e-9
+      && Math.abs(app.state.selectionMapTransitionOriginPoint.y - anchor.point.y) < 1e-9,
+    "direct map selection should retain the browsed pivot during handoff"
+  );
+  assert.equal(app.state.nearbyOriginTransition, null,
+    "selection should cancel the obsolete Nearby-origin transition");
   app.stopViewportAnimation();
 });
 

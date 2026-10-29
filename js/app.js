@@ -6095,6 +6095,11 @@ function startCameraOriginTransition() {
     ? nearbyRenderOriginPoint()
     : (typeof nearbyOrigin === "function" ? nearbyOrigin()?.point || null : null);
   const fromPoint = cameraOriginPoint();
+  // A selection owns the camera from this frame onward. If a Nearby anchor move is still in
+  // flight, leaving its transition alive lets prepareCanvasForDraw run an old Nearby refit over
+  // the new selection animation, which is an intermittent blank/snap depending on tap timing.
+  state.nearbyOriginTransition = null;
+  _nearbyRenderOriginCache = undefined;
   if (!fromPoint) {
     state.cameraOriginTransition = null;
     return;
@@ -6212,6 +6217,7 @@ function nearbyOriginTransitionEasedProgress() {
 function nearbyRevealOpacity() {
   const transition = state.nearbyOriginTransition;
   if (!transition) return 1;
+  if (state.selectionMapTransitionActive) return 1;
   if (state.viewportAnimationTo != null) return 1;
   const sinceStart = performance.now() - transition.startedAt;
   if (sinceStart < transition.durationMs) return 0;
@@ -6224,6 +6230,7 @@ function nearbyRevealOpacity() {
 function nearbyRevealInProgress() {
   const transition = state.nearbyOriginTransition;
   if (!transition) return false;
+  if (state.selectionMapTransitionActive) return false;
   if (state.viewportAnimationTo != null) return false;
   return performance.now() - transition.startedAt < transition.durationMs + NEARBY_REVEAL_MS;
 }
