@@ -74,7 +74,7 @@ test.describe("Nearby filter rail", () => {
     await expect(pill(page, "nature")).toHaveCount(0);
     await watchForPanelSlide(page);
     await pill(page, "cafes").click();
-    await expect(page).toHaveURL(/\/nearby\?show=pubs,restaurants,shops$/);
+    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?show=pubs,restaurants,shops$/);
     await expect(pill(page, "cafes")).toHaveCount(0);
     expect(await page.evaluate(() => window.__slides)).toBe(0);
   });
@@ -82,7 +82,7 @@ test.describe("Nearby filter rail", () => {
   test("a pill that was pressed un-presses on a second tap, and the last one returns to show-all", async ({ page }) => {
     await setup(page, "/nearby/trees");
     await pill(page, "trees").click();
-    await expect(page).toHaveURL(/\/nearby\?filters=false$/);
+    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?filters=false$/);
     await expect(rail(page).locator('[aria-pressed="true"]')).toHaveCount(7);
     await expect(page.getByRole("button", { name: "Show all nearby" })).toBeDisabled();
   });
