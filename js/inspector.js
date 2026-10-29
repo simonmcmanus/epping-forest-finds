@@ -824,7 +824,7 @@ function patchOverviewBody(html) {
 
   const keyOf = (li) => nearestItemDomKey(li.querySelector("[data-overview-type][data-overview-key]"));
   const oldItems = new Map();
-  body.querySelectorAll(".nearest-list > li").forEach((li) => {
+  body.querySelectorAll('.nearest-list > li:not([aria-hidden="true"])').forEach((li) => {
     const key = keyOf(li);
     if (key) oldItems.set(key, { el: li, top: li.getBoundingClientRect().top, width: li.offsetWidth });
   });

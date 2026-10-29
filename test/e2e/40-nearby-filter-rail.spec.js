@@ -104,6 +104,14 @@ test.describe("Nearby filter rail", () => {
     expect(await page.evaluate(() => localStorage.getItem(FILTER_STATE_KEY))).toBe(saved);
   });
 
+  test("rapidly toggling a category off and on keeps the returning rows visible", async ({ page }) => {
+    const nature = pill(page, "nature");
+    await nature.click();
+    await nature.click();
+    await expect(nature).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(".nearest-list .nearest-item")).not.toHaveCount(0);
+  });
+
   test("the Filters button still slides to the Filters screen", async ({ page }) => {
     await page.getByRole("link", { name: "Filters" }).click();
     await expect(page).toHaveURL(/\/nearby\/filter/);
