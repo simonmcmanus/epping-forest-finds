@@ -1407,9 +1407,10 @@ The full routing model — the URL for each screen, history entries, back/forwar
 ## Responsive Layout
 
 - Mobile-first: controls compact, avoid overflow
-- **Inspector height is fixed while expanded.** On mobile the panel uses 50% of the stage height, capped where necessary to leave the navigation card and safe area visible; on desktop it fills the available height beneath the navigation card. This applies to Nearby, Filters, Search, Settings, Community, Feedback, and every selected location. Content scrolls inside the panel, so switching screens, entering navigation mode, arriving at a destination, or opening the keyboard does not resize the panel or change the map's available area. The panel can still be deliberately minimized by the existing selection/navigation controls; that is an open/closed state, not a screen-specific height.
+- **Inspector height is fixed by default while expanded.** On mobile the panel starts at 50% of the stage height, capped where necessary to leave the navigation card and safe area visible; on desktop it fills the available height beneath the navigation card. This applies to Nearby, Filters, Search, Settings, Community, Feedback, and every selected location. Content scrolls inside the panel, so switching screens, entering navigation mode, arriving at a destination, or opening the keyboard does not resize the panel or change the map's available area. The panel can still be deliberately minimized by the existing selection/navigation controls; that is an open/closed state, not a screen-specific height.
+- **The mobile inspector can be manually resized.** The visible drag handle at the top of the bottom sheet is a horizontal splitter (`#inspectorDragHandle`, `role="separator"`) with a 20–85% height range. Dragging it changes the panel height continuously and recentres the selected destination or Nearby view against the newly visible map area; releasing it adds one settling animation. Keyboard users can focus the handle and use Arrow Up/Down in 5-point steps, Home for 20% and End for 85%; `aria-valuenow` tracks the current height. The chosen height remains while moving between screens and selected locations in the bottom-sheet layout, but is cleared when switching to the desktop side-panel layout. A location loaded before a real fix exists uses the open panel's visible map area for its first camera fit, so its pin does not start underneath the sheet.
 - **Nav bar is a fixed bottom tab bar, separate from the inspector sheet.** `<nav class="inspector-actions">` (`app.html`) is a sibling of `#inspector`, not nested inside it — the common pattern in apps like Monzo. On the mobile bottom-sheet layouts (`max-width: 760px` and the landscape `pointer: coarse`/`max-height: 500px` override, `css/map-ui.css`) it is `position: fixed` to the bottom of the screen, its own rounded card with a shadow, 20px corners and a bottom gap of 10px plus `env(safe-area-inset-bottom, 0px)` to clear rounded screens and the home indicator. The inspector sheet reserves the same additional inset in its bottom offset and height budget, retaining its 10px gap above the nav; on desktop it sits in the same spot as a card above the (top-right) inspector panel instead. Either way `#inspector`'s own `top`/`bottom` offset leaves a 10px gap above/below the bar (via the shared `--nav-bar-h` custom property, `css/base.css`) so the two read as distinct panels rather than one tall one. `bestVisibleCanvasRect()`/`inspectorCanvasOverlapRect()` (`js/app.js`) treat the nav bar's footprint as obstructing the map the same as the inspector sheet's — the union of both elements' rects, since the bar is always present regardless of the sheet's own open/minimized state.
-- The active tab (`.screen-active`) is highlighted in gold (`--gold-tint` background, `--gold-ink` icon/label, `css/base.css`/`css/inspector.css`), not a solid dark block. `#nearbyToggle` carries `.screen-active`/`aria-current="page"` already in `app.html`'s own markup (the other three carry `aria-current="false"`), rather than only gaining it once `setNavScreenActive(els.nearbyToggle)` (`js/inspector.js`'s `selectOverview()`) runs — Nearby is always the screen a fresh load lands on, so a no-JS visitor or the instant before boot() runs saw a flat, unhighlighted nav row that then visibly changed the moment JS took over. The static page now already looks like the screen it's showing.
+- The active tab (`.screen-active`) is highlighted with the current/reward role (`--current-soft` background, `--current-ink` icon/label, `css/base.css`/`css/inspector.css`), not a solid dark block. `#nearbyToggle` carries `.screen-active`/`aria-current="page"` already in `app.html`'s own markup (the other three carry `aria-current="false"`), rather than only gaining it once `setNavScreenActive(els.nearbyToggle)` (`js/inspector.js`'s `selectOverview()`) runs — Nearby is always the screen a fresh load lands on, so a no-JS visitor or the instant before boot() runs saw a flat, unhighlighted nav row that then visibly changed the moment JS took over. The static page now already looks like the screen it's showing.
 - **The Nearby button always shows the real list.** `goToInitialView()` (`js/nav.js`) clears the
   landing's server-rendered list before it repaints, so a /nearby/search or /nearby/<slug> landing
   never keeps its own list when the reader taps Nearby.
@@ -1438,9 +1439,20 @@ The full routing model — the URL for each screen, history entries, back/forwar
 --selected: #b34f31
 --place: #7f4f9f
 --landmark: #76702f
---gold-ink: #8a6a00
---gold-tint: rgba(240, 180, 41, 0.16)
+--current-ink: #806100
+--current-soft: #fff8e7
+--status-error: #b34733
 ```
+
+The panel surfaces use the same semantic roles in `css/base.css`: white `--surface` is the ordinary
+reading surface; green `--surface-tint`, `--accent`, and `--accent-soft` are for guidance and
+actions; `--surface-soft` is a quiet section surface; `--surface-selected` marks a selected state;
+gold `--surface-warning`, `--current-soft`, and `--current-ink` mark current/reward/attention
+states; `--surface-neutral` is informational neutral space; `--border-soft` separates content
+gently; and `--border-accent` separates the inspector and navigation panels from the map. Red
+`--status-error` is reserved for errors. Selected trees use the specialised `.tree-detail` layout;
+other selected places share `.place-detail` for the same title rhythm, action controls, field cards,
+and related-content treatment.
 
 ---
 

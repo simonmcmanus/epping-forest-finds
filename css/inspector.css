@@ -13,6 +13,43 @@
   transition: none;
 }
 
+.inspector.is-dragging {
+  transition: height 0s;
+}
+
+.inspector-drag-handle {
+  display: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 20px;
+  cursor: grab;
+  touch-action: none;
+  z-index: 10;
+  justify-content: center;
+  align-items: center;
+  padding-top: 4px;
+}
+
+.inspector-drag-handle::before {
+  content: "";
+  display: block;
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border-accent);
+}
+
+.inspector-drag-handle.dragging {
+  cursor: grabbing;
+}
+
+.inspector-drag-handle:focus-visible::before {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+
 /* The Nearby list's own "requesting your location" state (showNearbyLocatingState, js/inspector.js):
    replaces the list while a reader's location request is pending. The ring reuses step-spin from
    css/loading.css, the same turn the boot checklist's loading step uses. */
@@ -1354,8 +1391,8 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
 }
 
 .inspector-actions > :is(button, a).screen-active {
-  background: linear-gradient(145deg, #fff8e7, #f7edd2);
-  color: var(--gold-ink);
+  background: var(--current-soft);
+  color: var(--current-ink);
   box-shadow: inset 0 0 0 1px rgba(182, 145, 49, 0.14), 0 3px 8px rgba(132, 99, 0, 0.08);
 }
 
@@ -2312,8 +2349,53 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 }
 
 /* Screen interiors: give each panel a clear rhythm and a designed empty state. */
+:root {
+  /* Keep the inspector's later polish on the same surface vocabulary as the base controls. */
+  --inspector-shadow: 0 22px 52px rgba(26, 58, 39, 0.15), 0 3px 12px rgba(26, 58, 39, 0.07);
+  --inspector-shadow-small: 0 2px 8px rgba(27, 65, 43, 0.06);
+}
+
+.inspector,
+.inspector-actions {
+  background: var(--panel);
+  border-color: var(--border-accent);
+  box-shadow: var(--inspector-shadow);
+}
+
+.inspector-title-section {
+  background: var(--surface-soft);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.inspector-title-emoji {
+  width: calc(48px * var(--icon-scale));
+  height: calc(48px * var(--icon-scale));
+  /* The global border-box sizing means the 48px shell includes its border and padding. Keep
+     one pixel of inset so the child artwork remains the promised 44px title icon rather than
+     shrinking to 42px. */
+  padding: 1px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: var(--surface-tint);
+  color: var(--accent);
+  font-size: calc(40px * var(--icon-scale));
+}
+
+.inspector-title-emoji .app-icon {
+  width: 100%;
+  height: 100%;
+}
+
+.inspector-tools {
+  background: var(--surface-soft);
+  border-bottom-color: var(--border-soft);
+}
+
 .inspector-body {
   padding-bottom: 18px;
+  padding-top: 14px;
 }
 
 .search-screen {
@@ -2322,9 +2404,9 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 
 .search-field {
   padding: 4px;
-  border: 1px solid rgba(47, 121, 83, 0.2);
+  border: 1px solid var(--border-accent);
   border-radius: 16px;
-  background: linear-gradient(145deg, #f7fbf7, #edf5ee);
+  background: var(--surface-tint);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 3px 10px rgba(27, 65, 43, 0.05);
 }
 
@@ -2384,16 +2466,16 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   gap: 8px;
   margin: 0;
   padding: 18px 16px;
-  border: 1px dashed rgba(47, 121, 83, 0.28);
+  border: 1px dashed var(--border-accent);
   border-radius: 14px;
-  background: linear-gradient(145deg, #f8fcf8, #eef6ef);
+  background: var(--surface-tint);
   color: var(--muted);
   line-height: 1.5;
 }
 
 .search-results .empty::before {
   content: "Start with a name, tag number, or place";
-  color: #2d6548;
+  color: var(--accent-ink);
   font-size: 0.78rem;
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -2406,7 +2488,7 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   justify-content: space-between;
   min-height: 28px;
   margin: 2px 2px -2px;
-  color: #2d6548;
+  color: var(--accent-ink);
   font-size: 0.78rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -2417,7 +2499,7 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   align-items: center;
   gap: 8px;
   margin-top: 20px;
-  color: #2d6548;
+  color: var(--accent-ink);
   font-size: 0.78rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2427,21 +2509,21 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   content: "";
   height: 1px;
   flex: 1;
-  background: linear-gradient(90deg, rgba(47, 121, 83, 0.25), transparent);
+  background: linear-gradient(90deg, var(--border-accent), transparent);
 }
 
 .report-type-field {
   margin-bottom: 2px;
   padding: 12px 14px;
-  border: 1px solid rgba(47, 121, 83, 0.12);
+  border: 1px solid var(--border-soft);
   border-radius: 14px;
-  background: linear-gradient(145deg, #f8fcf8, #f1f7f2);
+  background: var(--surface-tint);
 }
 
 .report-type-field label {
   display: grid;
   gap: 8px;
-  color: #2d6548;
+  color: var(--accent-ink);
   font-size: 0.84rem;
   font-weight: 800;
 }
@@ -2451,7 +2533,7 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 }
 
 .community-hero {
-  background: linear-gradient(145deg, #f7fcf7, #ffffff 72%);
+  background: var(--surface-soft);
   box-shadow: 0 10px 24px rgba(27, 65, 43, 0.1);
 }
 
@@ -2459,7 +2541,68 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 .community-feedback-link,
 .community-log-item,
 .community-account-card {
-  box-shadow: 0 2px 8px rgba(27, 65, 43, 0.05);
+  box-shadow: var(--inspector-shadow-small);
+}
+
+/* One compact surface system for every panel interior. The green tint is reserved for an
+   invitation, active control or contextual guidance; ordinary content stays neutral. This is
+   shared by tree details, business places, search and settings so a pub or shop does not become
+   a visually different kind of page just because its data fields differ. */
+.settings-form > .settings-section,
+.community-check,
+.community-mine,
+.community-badge-tile,
+.community-feedback-link,
+.community-account-card,
+.community-log-item,
+.community-action-row,
+.report-form {
+  background: var(--surface);
+  border-color: var(--border-soft);
+  box-shadow: var(--inspector-shadow-small);
+}
+
+.settings-form > .settings-walking,
+.search-field,
+.report-type-field {
+  background: var(--surface-tint);
+  border-color: var(--border-accent);
+}
+
+.settings-form > .settings-section:first-child .settings-section-title,
+.settings-form .settings-section-title,
+.detail-section-heading,
+.nearby-heading {
+  color: var(--accent-ink);
+}
+
+.settings-presets .settings-btn[aria-pressed="true"],
+.settings-switch input:checked,
+.settings-update[data-status="ready"] .settings-btn {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.inspector-filter-toggle.screen-active {
+  background: var(--current-soft);
+  color: var(--current-ink);
+}
+
+.community-check-reported,
+.report-issue {
+  background: transparent;
+  box-shadow: none;
+}
+
+.community-status-problem-chip,
+.community-badge-questioned,
+.community-location.is-wait {
+  background: var(--surface-warning);
+}
+
+.report-status.error,
+.settings-update[data-status="error"] .settings-description {
+  color: var(--status-error);
 }
 
 /* Tree record: compact cards and clear text hierarchy. */
@@ -2538,4 +2681,168 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   .tree-detail { --tree-inset: 10px; }
   .tree-measurements dd { font-size: 1.2rem; }
   .tree-measurement-unit { font-size: 0.65rem; }
+}
+
+/* The remaining selected records use the same quiet card language as the tree record. Their
+   fields stay generic, but the hierarchy, actions, and surfaces now read as one family across
+   pubs, shops, cafés, transport, paths, roads, and water features. */
+.place-detail {
+  --place-rule: var(--border-soft);
+  --place-card: var(--surface-soft);
+  --place-control: var(--surface-tint);
+  --place-ink: var(--accent-ink);
+}
+
+.inspector:has(.place-detail) .inspector-title-section {
+  padding-top: 16px;
+  padding-bottom: 12px;
+  background: transparent;
+  align-items: center;
+  gap: 12px;
+}
+
+.inspector:has(.place-detail) h2 {
+  font-size: 1.6rem;
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+}
+
+.inspector:has(.place-detail) .type {
+  margin-top: 5px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.055em;
+}
+
+.place-detail > .detail-top-row {
+  padding-bottom: 12px;
+  margin-bottom: 0;
+  gap: 8px;
+}
+
+.place-detail .detail-top-row > [data-live-field="distance"] {
+  flex: 1 1 130px;
+}
+
+.place-detail .detail-top-actions {
+  gap: 8px;
+}
+
+.place-detail .detail-map-link--icon,
+.place-detail .walk-chip {
+  box-sizing: border-box;
+  border-radius: 8px;
+  border-color: var(--border-accent);
+}
+
+.place-detail .detail-map-link--icon {
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+}
+
+.place-detail .walk-chip {
+  width: 100%;
+  height: 36px;
+  padding: 0 8px;
+  justify-content: center;
+  gap: 5px;
+  background: var(--place-control);
+  color: var(--place-ink);
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+
+.place-detail .detail-map-link--icon,
+.place-detail .walk-chip {
+  position: relative;
+}
+
+.place-detail .detail-map-link--icon::after,
+.place-detail .walk-chip::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+}
+
+.place-detail .walk-chip .walk-icon {
+  width: calc(20px * var(--icon-scale));
+  height: calc(20px * var(--icon-scale));
+}
+
+.place-detail > dl {
+  gap: 7px;
+}
+
+.place-detail > dl > .row {
+  grid-template-columns: minmax(92px, 0.7fr) minmax(0, 1.3fr);
+  gap: 10px;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid var(--place-rule);
+  border-radius: 10px;
+  background: var(--place-card);
+}
+
+.place-detail > dl > .row.row--value-only {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.place-detail > dl > .row dt {
+  align-self: start;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  line-height: 1.4;
+  letter-spacing: 0.015em;
+}
+
+.place-detail > dl > .row dd {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.place-detail > dl > .row dd a {
+  color: var(--place-ink);
+  font-weight: 650;
+}
+
+.place-detail .details-description {
+  margin: 0 0 12px;
+  padding: 12px;
+  border: 1px solid var(--place-rule);
+  border-radius: 10px;
+  background: var(--place-card);
+}
+
+.place-detail .detail-section-heading {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-color: var(--place-rule);
+  font-size: 0.78rem;
+  letter-spacing: 0.025em;
+}
+
+.place-detail .related-cards {
+  gap: 6px;
+}
+
+.place-detail .nearest-item {
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.place-detail > .technical-details {
+  margin-top: 14px;
+  padding-top: 4px;
+  border-top: 1px solid var(--place-rule);
+}
+
+@media (max-width: 340px) {
+  .place-detail > dl > .row {
+    grid-template-columns: minmax(78px, 0.65fr) minmax(0, 1.35fr);
+    padding-inline: 10px;
+  }
 }

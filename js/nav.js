@@ -803,6 +803,7 @@ function setupInteractions() {
   setupReportKeyboardAvoidance();
   setupNavHighlightPressFeedback();
   setupInspectorHandlers();
+  setupInspectorDragResize();
   setupFilterPanelHandlers();
   setupSearchAndNavHandlers();
   setupMapCanvasHandlers();
@@ -2211,6 +2212,113 @@ function updateMapHoverState(screen) {
   const world = screenToWorld(screen.x, screen.y);
   const hit = cluster ? { type: cluster.itemType } : findHit(screen, world);
   els.canvas.style.cursor = (cluster || hit.type !== "none") ? "pointer" : "";
+}
+
+function setupInspectorDragResize() {
+  const dragHandle = els.inspectorDragHandle;
+  if (!dragHandle) return;
+  let recenterFrame = null;
+
+  function isBottomSheetLayout() {
+    return window.innerWidth <= 760
+      || window.matchMedia("(orientation: landscape) and (pointer: coarse) and (max-height: 500px)").matches;
+  }
+
+  function setInspectorHeight(percent) {
+    if (!isBottomSheetLayout()) return;
+    const clamped = Math.max(20, Math.min(85, percent));
+    state.inspectorHeightPercent = clamped;
+    els.inspector.style.setProperty("--inspector-height", `${clamped}%`);
+    dragHandle.setAttribute("aria-valuenow", String(Math.round(clamped)));
+  }
+
+  function recenterMap(options = {}) {
+    stopViewportAnimation();
+    const animate = Boolean(options.animate);
+    const durationMs = options.durationMs || (animate ? 220 : 0);
+    if (state.selected && state.selected.item && state.selected.item.point && !state.userLocation) {
+      fitToPoints([state.selected.item.point], false, {
+        animate,
+        durationMs,
+        focusVisibleArea: true,
+        assumeInspectorOpen: true,
+      });
+    } else if (state.userLocation && state.selected && selectedCompassTarget()) {
+      centerViewportOnPointsKeepScale(
+        [state.userLocation.point, selectedCompassTarget().point],
+        { animate, durationMs, focusVisibleArea: true, assumeInspectorOpen: true }
+      );
+    } else if (state.userLocation && isOverviewScreenActive()) {
+      ensureOverviewTargetsVisible({ animate, durationMs });
+    }
+  }
+
+  function scheduleLiveRecenter() {
+    if (recenterFrame != null) return;
+    recenterFrame = requestAnimationFrame(() => {
+      recenterFrame = null;
+      recenterMap();
+    });
+  }
+
+  function finishResize(event) {
+    if (!state.inspectorDragging) return;
+    state.inspectorDragging = false;
+    els.inspector.classList.remove("is-dragging");
+    dragHandle.classList.remove("dragging");
+    if (event && event.pointerId != null) releasePointerSafely(dragHandle, event.pointerId);
+    if (recenterFrame != null) {
+      cancelAnimationFrame(recenterFrame);
+      recenterFrame = null;
+    }
+    recenterMap({ animate: true, durationMs: 240 });
+  }
+
+  dragHandle.addEventListener("pointerdown", (event) => {
+    if (!isBottomSheetLayout()) return;
+    event.preventDefault();
+    capturePointerSafely(dragHandle, event.pointerId);
+    state.inspectorDragging = true;
+    els.inspector.classList.add("is-dragging");
+    state.inspectorDragStart = {
+      y: event.clientY,
+      heightPercent: state.inspectorHeightPercent || 50,
+    };
+    dragHandle.classList.add("dragging");
+  });
+
+  dragHandle.addEventListener("pointermove", (event) => {
+    if (!state.inspectorDragging) return;
+    const deltaY = state.inspectorDragStart.y - event.clientY;
+    const deltaPercent = (deltaY / window.innerHeight) * 100;
+    setInspectorHeight(state.inspectorDragStart.heightPercent + deltaPercent);
+    scheduleLiveRecenter();
+  });
+
+  dragHandle.addEventListener("pointerup", finishResize);
+  dragHandle.addEventListener("pointercancel", finishResize);
+
+  dragHandle.addEventListener("keydown", (event) => {
+    if (!isBottomSheetLayout()) return;
+    const current = state.inspectorHeightPercent || 50;
+    const next = event.key === "ArrowUp" ? current + 5
+      : event.key === "ArrowDown" ? current - 5
+      : event.key === "Home" ? 20
+      : event.key === "End" ? 85
+      : null;
+    if (next == null) return;
+    event.preventDefault();
+    setInspectorHeight(next);
+    recenterMap({ animate: true, durationMs: 180 });
+  });
+
+  window.addEventListener("resize", () => {
+    if (!isBottomSheetLayout() && state.inspectorHeightPercent !== null) {
+      els.inspector.style.removeProperty("--inspector-height");
+      state.inspectorHeightPercent = null;
+      dragHandle.setAttribute("aria-valuenow", "50");
+    }
+  });
 }
 
 function setInspectorMinimized(minimized) {

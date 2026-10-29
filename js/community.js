@@ -1640,7 +1640,7 @@ function showAddedTreeDetails(item) {
       </div>
       <button class="community-add" type="button" data-action="community-confirm-added" data-tag="${escapeHtml(item.tag)}">${communityIcon("plus")}<span>I found it</span></button>
     </div>`;
-  transitionInspectorBody(topRow + detailsHtml(rows) + cta, "forward");
+  transitionInspectorBody(`<article class="place-detail place-detail--added-tree">${topRow}${detailsHtml(rows)}${cta}</article>`, "forward");
 }
 
 // "I found it too": the Feedback screen's add-a-tree form, with the tag filled in.

@@ -87,6 +87,36 @@ test.describe("Overview / Nearby screen", () => {
     await expect(nav).toHaveCSS("bottom", "10px");
   });
 
+  test("mobile inspector keeps space below its title and can be manually resized", async ({ page }) => {
+    const mobileSheet = await page.evaluate(() => window.innerWidth <= 760
+      || window.matchMedia("(orientation: landscape) and (pointer: coarse) and (max-height: 500px)").matches);
+    test.skip(!mobileSheet, "the inspector is a side panel on desktop");
+
+    const title = await page.locator(".inspector-title-section").boundingBox();
+    const firstBodyChild = await page.locator("#inspectorBody > :first-child").boundingBox();
+    expect(firstBodyChild.y - (title.y + title.height)).toBeGreaterThanOrEqual(13);
+
+    const panel = page.locator("#inspector");
+    const before = (await panel.boundingBox()).height;
+    const handleLocator = page.locator("#inspectorDragHandle");
+    await expect(handleLocator).toHaveAttribute("aria-valuemin", "20");
+    await expect(handleLocator).toHaveAttribute("aria-valuemax", "85");
+    await expect(handleLocator).toHaveAttribute("aria-valuenow", "50");
+    const handle = await handleLocator.boundingBox();
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(handle.x + handle.width / 2, handle.y - 120, { steps: 5 });
+    await page.mouse.up();
+    await expect(handleLocator).toHaveAttribute("aria-valuenow", /^(6[0-9]|7[0-9])$/);
+    await expect.poll(async () => (await panel.boundingBox()).height).toBeGreaterThan(before + 80);
+
+    await handleLocator.focus();
+    await page.keyboard.press("Home");
+    await expect(handleLocator).toHaveAttribute("aria-valuenow", "20");
+    await page.keyboard.press("End");
+    await expect(handleLocator).toHaveAttribute("aria-valuenow", "85");
+  });
+
   test("screen title icons match the back button size even when Back is hidden", async ({ page }) => {
     for (const id of ["settingsToggle", "searchToggle", "nearbyToggle", "filterToggle", "reportToggle"]) {
       await page.locator(`#${id}`).click();
