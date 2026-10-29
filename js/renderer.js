@@ -1121,9 +1121,22 @@ function drawWalkingRadius(ctx) {
   const dpr = pixelRatio();
   // Centre and radius are measured on the flat (untilted) map, then projected as a whole —
   // measuring them post-projection would fold the perspective in twice.
-  const center = worldToScreenFlat(originPoint);
+  // During the cinematic fallback -> GPS handoff the camera is travelling between two world
+  // positions while `state.userLocation` already names the destination. Projecting that live
+  // destination through the in-flight viewport puts the ring away from the camera focus for
+  // most of the tween. Hold its screen centre at the handoff focus instead; once the tween
+  // lands, stopViewportAnimation clears the flag and normal world projection resumes.
+  const holdingRevealFocus = state.locationRevealAnimationActive
+    && state.viewportAnimationTo != null
+    && state.locationRevealFocusPoint
+    && Number.isFinite(state.locationRevealFocusPoint.x)
+    && Number.isFinite(state.locationRevealFocusPoint.y);
+  const projectedOrigin = worldToScreenFlat(originPoint);
+  const center = holdingRevealFocus
+    ? state.locationRevealFocusPoint
+    : projectedOrigin;
   const edge = worldToScreenFlat({ x: originPoint.x + walkingRadiusWorldUnits(), y: originPoint.y });
-  const radiusPx = Math.max(8, Math.hypot(edge.x - center.x, edge.y - center.y));
+  const radiusPx = Math.max(8, Math.hypot(edge.x - projectedOrigin.x, edge.y - projectedOrigin.y));
   const tilted = typeof tiltActive === "function" && tiltActive();
 
   drawWalkingRadiusDimming(ctx, center, radiusPx, tilted, nearbyUserCone(center, radiusPx, tilted));

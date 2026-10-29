@@ -367,6 +367,11 @@ const state = {
   viewportAnimationFrom: null,
   viewportAnimationTo: null,
   locationRevealAnimationActive: false,
+  // Canvas-pixel focus used to hold the walking-radius ring in place while the cinematic
+  // High Beach -> real-location handoff is still moving the camera. The live GPS point is
+  // already the destination during that tween, so projecting it against the in-flight camera
+  // would make the ring jump away from the map's focus until the animation landed.
+  locationRevealFocusPoint: null,
   inspectorDragging: false,
   inspectorDragStart: null,
   inspectorHeightPercent: null,
@@ -2340,6 +2345,7 @@ function stopViewportAnimation() {
   state.viewportAnimationFrom = null;
   state.viewportAnimationTo = null;
   state.locationRevealAnimationActive = false;
+  state.locationRevealFocusPoint = null;
   state.viewportAnimationStartTime = null;
   state.viewportAnimationDuration = 0;
   // The camera has just been told "stop, you're done" -- a pin-level cluster-join animation
@@ -2424,6 +2430,7 @@ function animateViewportTo(targetViewport, durationMs, onComplete, options = {})
   state.viewportAnimationFrom = from;
   state.viewportAnimationTo = targetViewport;
   state.locationRevealAnimationActive = cinematic;
+  state.locationRevealFocusPoint = cinematic ? { x: focusPoint.x, y: focusPoint.y } : null;
   state.viewportAnimationDuration = safeDuration;
 
   const tick = (timestamp) => {

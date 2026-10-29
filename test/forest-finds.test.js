@@ -2762,6 +2762,33 @@ test("walking radius marker still draws when nearest results use fallback", () =
   assert.equal(arcCount, 2);
 });
 
+test("walking radius stays at the camera focus during the cinematic location handoff", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.viewport = { scale: 1000, tx: 0, ty: 0 };
+  app.state.locationRevealAnimationActive = true;
+  app.state.viewportAnimationTo = { scale: 1200, tx: 500, ty: 400 };
+  app.state.locationRevealFocusPoint = { x: 500, y: 400 };
+
+  const arcs = [];
+  app.drawWalkingRadius({
+    save() {},
+    restore() {},
+    beginPath() {},
+    closePath() {},
+    rect() {},
+    arc(x, y, radius) { arcs.push({ x, y, radius }); },
+    fill() {},
+    stroke() {},
+    createLinearGradient() { return { addColorStop() {} }; },
+  });
+
+  assert.equal(arcs.length, 2);
+  assert.equal(arcs[0].x, 500, "the dimming cutout stays centred on the camera focus");
+  assert.equal(arcs[0].y, 400, "the dimming cutout stays centred on the camera focus");
+  assert.ok(arcs[0].radius < 100, "the handoff should not inflate the radius while moving its centre");
+});
+
 test("walking radius dimming keeps a crisp edge without a canvas blur filter", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
