@@ -712,7 +712,7 @@ function selectOverview(animate = false) {
   // The arrow is live whenever the browser back button has an app screen to return to, not only
   // when a browse anchor was moved: a /nearby/<slug>/ link tapped from another landing is a
   // Nearby-to-Nearby step with no anchor of its own, and it still has to be undoable here.
-  setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: Boolean(state.nearbyAnchor) || canGoBackInApp(), captureSnapshot: animate });
+  setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: Boolean(state.nearbyAnchor) || canGoBackInApp(), captureSnapshot: animate, preserveNavHighlight: true });
   setNavScreenActive(els.nearbyToggle);
   els.inspectorTools.hidden = false;
   // The overview keeps the tools row in the shared shell, but it is normally empty because the
@@ -918,7 +918,7 @@ function drawInspectorIconMotion(motion) {
   return true;
 }
 
-function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true }) {
+function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true, preserveNavHighlight = false }) {
   // Cancel any in-flight transition and capture a fresh snapshot before DOM changes
   if (_transitionAnimation) {
     _transitionAnimation.cancel();
@@ -954,7 +954,7 @@ function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true }
   }
   _inspectorMotionImage = showBack ? els.inspectorTitleEmoji.querySelector("img") : null;
   _inspectorMotionCanvas = null;
-  setNavScreenActive();
+  setNavScreenActive(null, { preserveHighlight: preserveNavHighlight });
   // Every screen entry point routes through here, so this is where Search stands down;
   // openSearchScreen sets the flag again straight after its own call.
   state.searchScreenOpen = false;

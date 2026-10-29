@@ -2918,14 +2918,69 @@ function filterMeta(filterKey) {
   return FILTER_SUBFILTERS_BY_KEY.get(filterKey) || null;
 }
 
-function setNavScreenActive(current = null) {
+function navHighlightPosition(current) {
+  const nav = current?.closest(".inspector-actions");
+  const highlight = nav?.querySelector(".nav-highlight");
+  if (!nav || !highlight || !current || current.hidden) return;
+
+  const navRect = nav.getBoundingClientRect();
+  const currentRect = current.getBoundingClientRect();
+  const nextPosition = {
+    x: currentRect.left - navRect.left,
+    y: currentRect.top - navRect.top,
+    width: currentRect.width,
+    height: currentRect.height,
+  };
+  const previousPosition = nav._navHighlightPosition;
+  const positionIsUnchanged = previousPosition
+    && Object.keys(nextPosition).every((key) => Math.abs(nextPosition[key] - previousPosition[key]) < 0.25);
+  if (!positionIsUnchanged) {
+    nav.style.setProperty("--nav-highlight-x", `${nextPosition.x}px`);
+    nav.style.setProperty("--nav-highlight-y", `${nextPosition.y}px`);
+    nav.style.setProperty("--nav-highlight-width", `${nextPosition.width}px`);
+    nav.style.setProperty("--nav-highlight-height", `${nextPosition.height}px`);
+    nav._navHighlightPosition = nextPosition;
+  }
+  nav.classList.add("nav-has-highlight");
+}
+
+function previewNavScreenActive(current) {
+  const nav = current?.closest(".inspector-actions");
+  if (!nav || !current || current.hidden) return;
+  nav.querySelectorAll(":scope > .nav-pressing").forEach((el) => el.classList.remove("nav-pressing"));
+  current.classList.add("nav-pressing");
+  nav._navHighlightPreviewTarget = current;
+  navHighlightPosition(current);
+}
+
+function setNavScreenActive(current = null, { preserveHighlight = false } = {}) {
+  const nav = document.querySelector(".inspector-actions");
+  const previewTarget = nav?._navHighlightPreviewTarget;
+  const keepPressingTarget = previewTarget && (previewTarget === current || (preserveHighlight && !current))
+    ? previewTarget
+    : null;
   [els.nearbyToggle, els.searchToggle, els.filterToggle, els.settingsToggle, els.reportToggle].forEach((el) => {
     if (!el) return;
     el.classList.toggle("screen-active", el === current);
+    if (el !== keepPressingTarget) el.classList.remove("nav-pressing");
     el.classList.remove("active");
     if (el === current) el.setAttribute("aria-current", "page");
     else el.setAttribute("aria-current", "false");
   });
+  if (current?.closest(".inspector-actions")) {
+    nav._navHighlightPreviewTarget = null;
+    if (previewTarget !== current) {
+      navHighlightPosition(current);
+    } else if (!current.classList.contains("nav-pressing")) {
+      current.classList.add("nav-pressing");
+    }
+  } else if (!preserveHighlight) {
+    if (nav?._navHighlightPreviewTarget) nav._navHighlightPreviewTarget.classList.remove("nav-pressing");
+    if (nav) {
+      nav._navHighlightPreviewTarget = null;
+      nav.classList.remove("nav-has-highlight");
+    }
+  }
 }
 
 function openFiltersScreen() {
@@ -2940,7 +2995,7 @@ function openFiltersScreen() {
   // showBack:true clears state.filterScreenOpen inside setInspectorSelectionChrome (the shared
   // chokepoint every other showBack:true screen relies on to stand Filters down) -- set it again
   // immediately after, now that Filters is the screen being entered rather than left.
-  setInspectorSelectionChrome({ emoji: appIconHtml("filter", "app-icon title-icon"), showBack: true });
+  setInspectorSelectionChrome({ emoji: appIconHtml("filter", "app-icon title-icon"), showBack: true, preserveNavHighlight: true });
   state.filterScreenOpen = true;
   if (els.nearbyToggle) els.nearbyToggle.hidden = false;
   setNavScreenActive(els.filterToggle);
@@ -2966,7 +3021,7 @@ function openSettings() {
   // showed the tapped group's borrowed radius as if it were the user's own setting.
   exitClusterExpansion();
   state.selected = { type: "settings", item: null };
-  setInspectorSelectionChrome({ emoji: appIconHtml("settings", "app-icon title-icon"), showBack: true });
+  setInspectorSelectionChrome({ emoji: appIconHtml("settings", "app-icon title-icon"), showBack: true, preserveNavHighlight: true });
   setNavScreenActive(els.settingsToggle);
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = "Settings";
@@ -3351,7 +3406,7 @@ function openCommunity() {
   if (typeof trackGaScreenView === "function") trackGaScreenView("Community");
   exitClusterExpansion();
   state.selected = { type: "community", item: null };
-  setInspectorSelectionChrome({ emoji: appIconHtml("tree", "app-icon title-icon"), showBack: true });
+  setInspectorSelectionChrome({ emoji: appIconHtml("tree", "app-icon title-icon"), showBack: true, preserveNavHighlight: true });
   setNavScreenActive(els.reportToggle);
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = "Community";
@@ -3397,7 +3452,7 @@ function openReportModal() {
   // See the matching comment in openFiltersScreen.
   exitClusterExpansion();
   state.selected = { type: "report", item: null };
-  setInspectorSelectionChrome({ emoji: appIconHtml("feedback", "app-icon title-icon"), showBack: true });
+  setInspectorSelectionChrome({ emoji: appIconHtml("feedback", "app-icon title-icon"), showBack: true, preserveNavHighlight: true });
   setNavScreenActive(els.reportToggle);
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = "Feedback";
@@ -7701,7 +7756,9 @@ function ensureUserAndSelectionVisible(options = {}) {
       const eastOneKm = projectLonLat(target.longitude + 1000 / metresPerDegreeLon, target.latitude);
       const worldPerKm = Math.abs(eastOneKm.x - origin.x);
       state.viewport.scale = focusRect.width / (worldPerKm * 1.2);
-      centerViewportOnPointsKeepScale([target.point], options);
+      // Centre in the same visible area the scale was sized against. The whole canvas's centre
+      // sits under the expanded inspector panel on a phone, which hid the place it had opened.
+      centerViewportOnPointsKeepScale([target.point], { ...options, focusVisibleArea: true, assumeInspectorOpen: true });
     }
     return;
   }
@@ -8979,7 +9036,7 @@ function openSearchScreen() {
   // Building the index here rather than on the first keystroke keeps the hitch off the
   // moment the user is typing into the field.
   ensureSearchIndex();
-  setInspectorSelectionChrome({ emoji: searchIconHtml(), showBack: false });
+  setInspectorSelectionChrome({ emoji: searchIconHtml(), showBack: false, preserveNavHighlight: true });
   state.searchScreenOpen = true;
   if (els.nearbyToggle) els.nearbyToggle.hidden = false;
   setNavScreenActive(els.searchToggle);

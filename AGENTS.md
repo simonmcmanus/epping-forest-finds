@@ -1,5 +1,11 @@
 spec/agents.md
 
+Preview and PR workflow
+- Always create a pull request for changes so they can be reviewed and previewed.
+- Once the changes are ready, check the PR comments for the preview-environment URL and wait until the preview is available.
+- In the final response, provide a useful testing link into the preview environment. Choose a representative page or flow that exercises the change, and include the `nuke` parameter in the URL.
+- Treat the preview testing link as part of the handoff; do not report the work as ready without it unless the preview environment failed or is unavailable, in which case explain why.
+
 Review
 
 
