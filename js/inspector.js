@@ -374,13 +374,10 @@ function showTreeDetails(tree, distance, label) {
   const tag = treeTagLabel(tree);
   const tagHtml = `<div class="row tree-tag${tag == null ? " tree-tag--missing" : ""}"><dt>Tag number</dt><dd>${escapeHtml(tag ?? "No tag recorded")}</dd></div>`;
   const status = String(tree.status || "").trim().toLowerCase();
-  const statusIcon = status === "alive"
-    ? '<svg class="tree-status-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 4C10 3 4 7 5 13s10 8 14-9Z"/><path d="M4 21 15 10m-5 5-1-5m1 5 5 1"/></svg>'
-    : status === "dead"
-      ? '<svg class="tree-status-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21V4m0 9-6-5V4m6 12 6-5V6M6 8 3 6m15 5 3-3M8 21h8"/></svg>'
-      : "";
+  const statusIcon = status === "alive" ? appIconHtml("tree", "tree-status-icon")
+    : status === "dead" ? appIconHtml("tree-dead", "tree-status-icon") : "";
   const statusHtml = tree.status != null && tree.status !== ""
-    ? `<div class="row tree-status"><dt>Status</dt><dd>${statusIcon}<span>${escapeHtml(displayValue(tree.status))}</span></dd></div>` : "";
+    ? `<div class="row tree-status"><dt>Status</dt><dd><span>${escapeHtml(displayValue(tree.status))}</span>${statusIcon}</dd></div>` : "";
   const commentsHtml = tree.comments
     ? `<div class="tree-comments">${detailsHtml([["Comments", tree.comments]])}</div>` : "";
   const measurementRows = primaryRows.filter(([, value]) => value != null && value !== "");

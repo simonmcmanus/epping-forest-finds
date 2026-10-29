@@ -45,7 +45,6 @@ test.describe("Selection and Inspector", () => {
     });
 
     test("tree details show species artwork, a status icon and form beneath the title", async ({ page }) => {
-      let aliveIcon;
       for (const status of ["Alive", "Dead"]) {
         await page.evaluate((status) => showTreeDetails({ ...state.selected.item, status, treeForm: "Veteran Pollard", girthMetres: 4, comments: "Recorded as a veteran tree." }, 420, "Tree record"), status);
         await waitForUiToSettle(page);
@@ -54,10 +53,13 @@ test.describe("Selection and Inspector", () => {
         await expect(page.locator("#inspectorTitleEmoji img")).toHaveAttribute("src", /trees\/oak\.png$/);
         await expect(page.locator("#inspectorBody .tree-status dd")).toHaveText(status);
         await expect(page.locator("#inspectorType")).toHaveText("Veteran tree · Pollard form");
-        await expect(page.locator("#inspectorBody .tree-status svg")).toBeVisible();
-        const icon = await page.locator("#inspectorBody .tree-status svg").screenshot({ animations: "disabled" });
-        if (status === "Alive") aliveIcon = icon;
-        else expect(icon.equals(aliveIcon)).toBe(false);
+        const icon = page.locator("#inspectorBody .tree-status img");
+        await expect(icon).toBeVisible();
+        await expect(icon).toHaveAttribute("src", status === "Alive" ? /icons\/tree\.png$/ : /icons\/tree-dead\.png$/);
+        const textBox = await page.locator("#inspectorBody .tree-status dd span").boundingBox();
+        const iconBox = await icon.boundingBox();
+        expect(iconBox.x).toBeGreaterThanOrEqual(textBox.x + textBox.width);
+        expect(await icon.evaluate(el => getComputedStyle(el).opacity)).toBe("1");
       }
     });
 

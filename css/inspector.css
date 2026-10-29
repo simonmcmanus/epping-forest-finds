@@ -2404,7 +2404,7 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 .tree-facts .tree-tag dd::after { right: 9px; }
 .tree-facts .tree-tag--missing dd { padding: 0; border: 0; background: none; box-shadow: none; color: var(--muted); font-family: inherit; font-size: 0.78rem; font-weight: 400; letter-spacing: 0; }
 .tree-facts .tree-tag--missing dd::before, .tree-facts .tree-tag--missing dd::after { display: none; }
-.tree-status-icon { width: 20px; height: 20px; flex: 0 0 20px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.tree-status-icon { width: 24px; height: 24px; flex: 0 0 24px; object-fit: contain; }
 .tree-facts .tree-status dd { display: flex; align-items: center; gap: 4px; font-size: 0.78rem; font-weight: 600; color: #52634c; }
 .tree-detail .detail-top-row { padding-bottom: 12px; margin-bottom: 0; gap: 8px; }
 .tree-detail .detail-top-row > [data-live-field="distance"] { flex: 1 1 130px; }
