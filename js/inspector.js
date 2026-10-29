@@ -1171,6 +1171,19 @@ function onInspectorHeightTransitionEnd(callback, timeoutMs = INSPECTOR_MINIMIZE
 // transition completes, so getBoundingClientRect() returns the correct
 // minimized height when bestVisibleCanvasRect() measures the focus rect.
 function zoomToSelection() {
+  const transitionToken = {};
+  state.selectionMapTransitionActive = true;
+  state.selectionMapTransitionToken = transitionToken;
+  const settleMapTransition = () => {
+    if (state.selectionMapTransitionToken !== transitionToken) return;
+    if (state.selectionViewportTransitionPending || state.viewportAnimationTo != null) {
+      requestAnimationFrame(settleMapTransition);
+      return;
+    }
+    state.selectionMapTransitionActive = false;
+    state.selectionMapTransitionToken = null;
+    requestDraw();
+  };
   const doZoom = () => {
     state.selectionViewportTransitionPending = false;
     if (typeof animateToHeadingUpNavigationViewport === "function" && selectedNavigationHeadingUpActive()) {
@@ -1178,6 +1191,7 @@ function zoomToSelection() {
     } else {
       ensureUserAndSelectionVisible({ animate: true, force: true, durationMs: HEADING_UP_NAV_ANIMATION_MS });
     }
+    requestAnimationFrame(settleMapTransition);
   };
 
   if (!els.inspector.classList.contains("minimized")) {

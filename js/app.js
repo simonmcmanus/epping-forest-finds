@@ -358,6 +358,8 @@ const state = {
   renderedTiltRotateXDeg: 0,
   tiltWasActive: false,
   selectionViewportTransitionPending: false,
+  selectionMapTransitionActive: false,
+  selectionMapTransitionToken: null,
   viewportAnimationFrame: null,
   viewportAnimationFrom: null,
   viewportAnimationTo: null,
