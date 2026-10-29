@@ -925,7 +925,10 @@ function mergeNearestList(list, oldItems, keyOf) {
     if (was == null) {
       const delay = Math.min(order, 9) * 32;
       el.animate([{ opacity: 0, transform: "translateY(18px) scale(0.97)" }, { opacity: 1, transform: "none" }], { duration: 360, delay, easing: "cubic-bezier(0.34, 1.3, 0.64, 1)", fill: "backwards" });
-      el.animate([{ boxShadow: "0 0 0 3px rgba(47, 107, 60, 0.4)" }, { boxShadow: "0 0 0 0 rgba(47, 107, 60, 0)" }], { duration: 900, delay, easing: "ease-out" });
+      // The list item is only the layout wrapper and has square corners. Put the fading ring on
+      // the rounded card inside it so the new-entry highlight follows the card's shape.
+      const card = el.querySelector(".nearest-item") || el;
+      card.animate([{ boxShadow: "0 0 0 3px rgba(47, 107, 60, 0.4)" }, { boxShadow: "0 0 0 0 rgba(47, 107, 60, 0)" }], { duration: 900, delay, easing: "ease-out" });
       return;
     }
     const dy = was - el.getBoundingClientRect().top;

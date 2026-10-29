@@ -1405,7 +1405,7 @@ The full routing model — the URL for each screen, history entries, back/forwar
     `patchOverviewBody()` (js/inspector.js) instead of `transitionInspectorBody()`, so the panel does
     not slide. Existing pills keep their node and glide to new slots, new pills pop in; rows are
     merged by place — kept rows slide to their new position, new rows spring up one after another
-    with a brief green ring, leaving rows fade out from where they were. A pressed pill's green
+    with a brief green ring around the rounded card, leaving rows fade out from where they were. A pressed pill's green
     light sage secondary fill sweeps in from the left and its status marker changes between a tick
     for selected and a cross for unselected without moving the user's horizontal scroll position.
     It is a secondary selection state, not a primary CTA treatment. A phone gets an 8ms vibration on a tap where
