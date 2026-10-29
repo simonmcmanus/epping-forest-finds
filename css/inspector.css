@@ -1270,8 +1270,8 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
 }
 
 .inspector-actions > :is(button, a).screen-active {
-  background: linear-gradient(145deg, #fff8e7, #f7edd2);
-  color: var(--gold-ink);
+  background: var(--current-soft);
+  color: var(--current-ink);
   box-shadow: inset 0 0 0 1px rgba(182, 145, 49, 0.14), 0 3px 8px rgba(132, 99, 0, 0.08);
 }
 
@@ -2223,6 +2223,47 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 }
 
 /* Screen interiors: give each panel a clear rhythm and a designed empty state. */
+:root {
+  /* Keep the inspector's later polish on the same surface vocabulary as the base controls. */
+  --inspector-shadow: 0 22px 52px rgba(26, 58, 39, 0.15), 0 3px 12px rgba(26, 58, 39, 0.07);
+  --inspector-shadow-small: 0 2px 8px rgba(27, 65, 43, 0.06);
+}
+
+.inspector,
+.inspector-actions {
+  background: var(--panel);
+  border-color: var(--border-soft);
+  box-shadow: var(--inspector-shadow);
+}
+
+.inspector-title-section {
+  background: var(--surface-soft);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.inspector-title-emoji {
+  width: calc(48px * var(--icon-scale));
+  height: calc(48px * var(--icon-scale));
+  padding: 2px;
+  border: 1px solid var(--border-soft);
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  background: var(--surface-tint);
+  color: var(--accent);
+  font-size: calc(40px * var(--icon-scale));
+}
+
+.inspector-title-emoji .app-icon {
+  width: 100%;
+  height: 100%;
+}
+
+.inspector-tools {
+  background: var(--surface-soft);
+  border-bottom-color: var(--border-soft);
+}
+
 .inspector-body {
   padding-bottom: 18px;
 }
@@ -2233,9 +2274,9 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 
 .search-field {
   padding: 4px;
-  border: 1px solid rgba(47, 121, 83, 0.2);
+  border: 1px solid var(--border-accent);
   border-radius: 16px;
-  background: linear-gradient(145deg, #f7fbf7, #edf5ee);
+  background: var(--surface-tint);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 3px 10px rgba(27, 65, 43, 0.05);
 }
 
@@ -2295,16 +2336,16 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   gap: 8px;
   margin: 0;
   padding: 18px 16px;
-  border: 1px dashed rgba(47, 121, 83, 0.28);
+  border: 1px dashed var(--border-accent);
   border-radius: 14px;
-  background: linear-gradient(145deg, #f8fcf8, #eef6ef);
+  background: var(--surface-tint);
   color: var(--muted);
   line-height: 1.5;
 }
 
 .search-results .empty::before {
   content: "Start with a name, tag number, or place";
-  color: #2d6548;
+  color: var(--accent-ink);
   font-size: 0.78rem;
   font-weight: 800;
   letter-spacing: 0.06em;
@@ -2317,7 +2358,7 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   justify-content: space-between;
   min-height: 28px;
   margin: 2px 2px -2px;
-  color: #2d6548;
+  color: var(--accent-ink);
   font-size: 0.78rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
@@ -2328,7 +2369,7 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   align-items: center;
   gap: 8px;
   margin-top: 20px;
-  color: #2d6548;
+  color: var(--accent-ink);
   font-size: 0.78rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2338,21 +2379,21 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   content: "";
   height: 1px;
   flex: 1;
-  background: linear-gradient(90deg, rgba(47, 121, 83, 0.25), transparent);
+  background: linear-gradient(90deg, var(--border-accent), transparent);
 }
 
 .report-type-field {
   margin-bottom: 2px;
   padding: 12px 14px;
-  border: 1px solid rgba(47, 121, 83, 0.12);
+  border: 1px solid var(--border-soft);
   border-radius: 14px;
-  background: linear-gradient(145deg, #f8fcf8, #f1f7f2);
+  background: var(--surface-tint);
 }
 
 .report-type-field label {
   display: grid;
   gap: 8px;
-  color: #2d6548;
+  color: var(--accent-ink);
   font-size: 0.84rem;
   font-weight: 800;
 }
@@ -2362,7 +2403,7 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 }
 
 .community-hero {
-  background: linear-gradient(145deg, #f7fcf7, #ffffff 72%);
+  background: var(--surface-soft);
   box-shadow: 0 10px 24px rgba(27, 65, 43, 0.1);
 }
 
@@ -2370,5 +2411,66 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 .community-feedback-link,
 .community-log-item,
 .community-account-card {
-  box-shadow: 0 2px 8px rgba(27, 65, 43, 0.05);
+  box-shadow: var(--inspector-shadow-small);
+}
+
+/* One compact surface system for every panel interior. The green tint is reserved for an
+   invitation, active control or contextual guidance; ordinary content stays neutral. This is
+   shared by tree details, business places, search and settings so a pub or shop does not become
+   a visually different kind of page just because its data fields differ. */
+.settings-form > .settings-section,
+.community-check,
+.community-mine,
+.community-badge-tile,
+.community-feedback-link,
+.community-account-card,
+.community-log-item,
+.community-action-row,
+.report-form {
+  background: var(--surface);
+  border-color: var(--border-soft);
+  box-shadow: var(--inspector-shadow-small);
+}
+
+.settings-form > .settings-walking,
+.search-field,
+.report-type-field {
+  background: var(--surface-tint);
+  border-color: var(--border-accent);
+}
+
+.settings-form > .settings-section:first-child .settings-section-title,
+.settings-form .settings-section-title,
+.detail-section-heading,
+.nearby-heading {
+  color: var(--accent-ink);
+}
+
+.settings-presets .settings-btn[aria-pressed="true"],
+.settings-switch input:checked,
+.settings-update[data-status="ready"] .settings-btn {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.inspector-filter-toggle.screen-active {
+  background: var(--current-soft);
+  color: var(--current-ink);
+}
+
+.community-check-reported,
+.report-issue {
+  background: transparent;
+  box-shadow: none;
+}
+
+.community-status-problem-chip,
+.community-badge-questioned,
+.community-location.is-wait {
+  background: var(--surface-warning);
+}
+
+.report-status.error,
+.settings-update[data-status="error"] .settings-description {
+  color: var(--status-error);
 }
