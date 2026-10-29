@@ -203,6 +203,12 @@ CI's queueing and setup time still applies. Reporting a task finished before its
 reporting a guess. Two consecutive PRs were once handed over as done on the strength of a
 green-ish local run while their CI job was red the whole time.
 
+After opening a PR, keep monitoring it for reviewer feedback and requested changes. When feedback
+arrives, address it, push the update, and re-check the resulting CI and review state. Do not stop
+working or report the task complete while the PR is awaiting review or has unresolved requested
+changes; continue until the required reviewers have approved it. If approval is blocked by a
+permission problem or a decision needed from the user, report that blocker explicitly.
+
 ### Screenshots in every PR
 
 Every PR needs at least one screenshot showing the change in the running app, not just prose
