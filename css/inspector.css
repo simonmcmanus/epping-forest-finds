@@ -2687,6 +2687,10 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   background: var(--place-card);
 }
 
+.place-detail > dl > .row.row--value-only {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .place-detail > dl > .row dt {
   align-self: start;
   color: var(--muted);
