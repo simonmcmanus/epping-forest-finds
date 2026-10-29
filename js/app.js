@@ -2946,6 +2946,11 @@ function previewNavScreenActive(current) {
 
 function setNavScreenActive(current = null, { preserveHighlight = false } = {}) {
   const nav = document.querySelector(".inspector-actions");
+  const previewTarget = nav?._navHighlightPreviewTarget;
+  if (nav?._navPressingTimer) {
+    clearTimeout(nav._navPressingTimer);
+    nav._navPressingTimer = null;
+  }
   [els.nearbyToggle, els.searchToggle, els.filterToggle, els.settingsToggle, els.reportToggle].forEach((el) => {
     if (!el) return;
     el.classList.toggle("screen-active", el === current);
@@ -2955,9 +2960,16 @@ function setNavScreenActive(current = null, { preserveHighlight = false } = {}) 
     else el.setAttribute("aria-current", "false");
   });
   if (current?.closest(".inspector-actions")) {
-    const previewTarget = nav?._navHighlightPreviewTarget;
     nav._navHighlightPreviewTarget = null;
-    if (previewTarget !== current) navHighlightPosition(current);
+    if (previewTarget !== current) {
+      navHighlightPosition(current);
+    } else {
+      current.classList.add("nav-pressing");
+      nav._navPressingTimer = setTimeout(() => {
+        current.classList.remove("nav-pressing");
+        nav._navPressingTimer = null;
+      }, 500);
+    }
   }
   else if (!preserveHighlight) nav?.classList.remove("nav-has-highlight");
 }

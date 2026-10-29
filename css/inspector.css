@@ -588,6 +588,8 @@ button.settings-toggle.has-update::after {
 
 .inspector-actions.nav-has-highlight > :is(button, a).nav-pressing {
   color: var(--gold-ink);
+  transform: scale(1.045);
+  z-index: 2;
 }
 
 .inspector-actions .nav-label {
