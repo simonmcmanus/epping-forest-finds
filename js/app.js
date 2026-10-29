@@ -2940,6 +2940,7 @@ function previewNavScreenActive(current) {
   if (!nav || !current || current.hidden) return;
   nav.querySelectorAll(":scope > .nav-pressing").forEach((el) => el.classList.remove("nav-pressing"));
   current.classList.add("nav-pressing");
+  nav._navHighlightPreviewTarget = current;
   navHighlightPosition(current);
 }
 
@@ -2953,7 +2954,11 @@ function setNavScreenActive(current = null, { preserveHighlight = false } = {}) 
     if (el === current) el.setAttribute("aria-current", "page");
     else el.setAttribute("aria-current", "false");
   });
-  if (current?.closest(".inspector-actions")) navHighlightPosition(current);
+  if (current?.closest(".inspector-actions")) {
+    const previewTarget = nav?._navHighlightPreviewTarget;
+    nav._navHighlightPreviewTarget = null;
+    if (previewTarget !== current) navHighlightPosition(current);
+  }
   else if (!preserveHighlight) nav?.classList.remove("nav-has-highlight");
 }
 

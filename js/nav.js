@@ -818,6 +818,7 @@ function setupNavHighlightPressFeedback() {
     });
     tab.addEventListener("pointercancel", () => {
       tab.classList.remove("nav-pressing");
+      nav._navHighlightPreviewTarget = null;
       const active = nav.querySelector(":scope > .screen-active");
       if (active) navHighlightPosition(active);
     });
