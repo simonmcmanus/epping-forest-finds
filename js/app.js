@@ -358,6 +358,7 @@ const state = {
   renderedTiltRotateXDeg: 0,
   tiltWasActive: false,
   selectionViewportTransitionPending: false,
+  inspectorMinimizeTransitionPending: false,
   selectionMapTransitionActive: false,
   selectionMapTransitionToken: null,
   selectionMapTransitionIconLookup: null,
@@ -6564,7 +6565,15 @@ function currentNavigationMapRotationDegrees() {
 }
 
 function selectionCameraTransitionActive() {
-  return state.selectionViewportTransitionPending || state.viewportAnimationTo != null;
+  const selectedNavigationBasisTransition = Boolean(
+    state.cameraOriginTransition
+    && state.selected?.item
+    && typeof selectedCompassTarget === "function"
+    && selectedCompassTarget(),
+  );
+  return state.selectionViewportTransitionPending
+    || state.viewportAnimationTo != null
+    || selectedNavigationBasisTransition;
 }
 
 // Takes the rect the caller already measured. Previously this measured its own, which meant

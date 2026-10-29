@@ -745,6 +745,7 @@ function resetData(app) {
   app.state.viewportAnimationDuration = 0;
   app.state.dataLoaded = true;
   app.state.selectionViewportTransitionPending = false;
+  app.state.inspectorMinimizeTransitionPending = false;
   app.state.selectionMapTransitionActive = false;
   app.state.selectionMapTransitionToken = null;
   app.state.selectionMapTransitionIconLookup = null;

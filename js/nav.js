@@ -2350,6 +2350,7 @@ function setupInspectorDragResize() {
 
 function setInspectorMinimized(minimized) {
   const wasMinimized = els.inspector.classList.contains("minimized");
+  state.inspectorMinimizeTransitionPending = wasMinimized !== Boolean(minimized);
   els.inspector.classList.toggle("minimized", minimized);
   if (wasMinimized && !minimized) {
     // Expanding the inspector is the app's one sanctioned re-frame for an existing selection
