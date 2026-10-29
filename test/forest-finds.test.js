@@ -9800,6 +9800,7 @@ test("selection entry points capture the browse pivot before clearing the anchor
   app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
   settleNearbySlide(app);
 
+  const nearbyScale = app.state.viewport.scale;
   app.focusOverviewItem("tree", "r1");
   assert.equal(app.state.nearbyAnchor, null, "selection should still clear the browse anchor");
   assert.ok(app.state.cameraOriginTransition, "selection should animate the camera pivot basis change");
@@ -9811,6 +9812,10 @@ test("selection entry points capture the browse pivot before clearing the anchor
 
   // Let the inspector-deferred selection fit finish before the next test resets shared state.
   await new Promise((resolve) => setTimeout(resolve, 260));
+  assert.ok(
+    app.state.viewport.scale > nearbyScale,
+    `selecting a Nearby location should zoom in after the inspector transition (current=${app.state.viewport.scale}, target=${app.state.viewportAnimationTo?.scale})`
+  );
   app.stopViewportAnimation();
 });
 
@@ -10446,6 +10451,38 @@ test("in the nearby view, tapping a street beyond the nearest area moves the nea
   assert.equal(app.state.selected, null, "a street out there is somewhere to browse, not navigate to");
   assert.ok(app.state.nearbyAnchor, "the nearest area moves to the tapped spot");
   assert.ok(Math.abs(app.state.nearbyAnchor.longitude - 0.07) < 1e-4);
+});
+
+test("in the nearby view, tapping a visible location beyond the nearest area selects it", async () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const tree = {
+    id: "far-tree",
+    commonName: "Far Oak",
+    recordNumber: 1,
+    location: { britishNationalGrid: {} },
+    ...makePoint(app, 51.65, 0.07),
+  };
+  app.state.trees.push(tree);
+  app.state.showAllOutsideRadius = true;
+  app.state.map3dEnabled = false;
+  app.selectOverview();
+  app.state.viewport = { scale: 100000, tx: 0, ty: 0 };
+  app.state.viewport.tx = 500 - tree.point.x * 100000;
+  app.state.viewport.ty = 400 - tree.point.y * 100000;
+
+  const tapLonLat = { latitude: 51.65, longitude: 0.07 };
+  assert.equal(app.isOutsideNearestArea(tapLonLat), true, "sanity: this tap is outside the ring");
+  assert.equal(app.activeIconLookup().tree.has(tree), true, "the all-distances view draws the outside-radius tree");
+  const treeTap = pinTapPoint(app, tree.point);
+  assert.equal(app.findHit(treeTap, app.screenToWorld(treeTap.x, treeTap.y)).type, "tree", "the outside-radius location is actually drawn and tappable");
+  tapMap(app, treeTap);
+
+  assert.equal(app.state.selected?.type, "tree", "a visible location remains selectable outside the ring");
+  assert.equal(app.state.nearbyAnchor, null, "selecting a location should not move the Nearby anchor");
+  await new Promise((resolve) => setTimeout(resolve, 260));
+  assert.ok(app.state.viewportAnimationTo || app.state.viewport.scale !== 100000, "selection should start a camera fit");
+  app.stopViewportAnimation();
 });
 
 test("the nearest area is measured from the browse anchor once one is set, not the GPS fix", () => {

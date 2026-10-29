@@ -40,10 +40,11 @@ function handleMapClick(event) {
   //
   //  - open ground (no highlighted location, no street), anywhere on the map -- rather than
   //    selecting whatever background polygon happens to sit there, or resetting the camera;
-  //  - *any* tap outside the nearest area while the Nearby view is showing, whatever it landed
-  //    on. Streets and waymarked trails are drawn right across the map, so without this a tap
-  //    into the out-of-radius corners of the Nearby screen opened a navigation view to whatever
-  //    road happened to run through there instead of browsing that spot.
+  //  - open-ground or terrain taps outside the nearest area while the Nearby view is showing.
+  //    Streets and waymarked trails are drawn right across the map, so without this a tap into
+  //    the out-of-radius corners of the Nearby screen opened a navigation view to whatever road
+  //    happened to run through there instead of browsing that spot. A real location pin remains
+  //    selectable even when it is an out-of-radius fallback.
   //
   // Either way the walking radius and the nearby list move to the tapped spot, leaving any
   // selection or cluster group behind. The second rule is Nearby-only (isOverviewScreenActive()
@@ -53,7 +54,11 @@ function handleMapClick(event) {
   // -- they draw the same ring, and moving it is one of the things it must stay possible to do
   // from them. Neither ever dismisses the screen itself.
   const beyondNearestArea = isOverviewScreenActive() && isOutsideNearestArea(lonLat);
-  if (hit.type === "none" || beyondNearestArea) {
+  // A visible location remains a selection target even when it is the out-of-radius fallback
+  // shown at the edge of Nearby. The browse-origin rule is for open ground and terrain lines
+  // (especially roads crossing the outer map), not for a place the user deliberately tapped.
+  const isLocationHit = ["tree", "addedtree", "cow", "landmark", "path", "water"].includes(hit.type);
+  if (hit.type === "none" || (beyondNearestArea && !isLocationHit)) {
     focusNearbyOnMapPoint(lonLat, world);
     return;
   }
@@ -1155,7 +1160,7 @@ function onInspectorHeightTransitionEnd(callback, timeoutMs = INSPECTOR_MINIMIZE
   };
   function onTransitionEnd(event) {
     if (event.target !== els.inspector) return;
-    if (event.propertyName !== "max-height") return;
+    if (event.propertyName !== "max-height" && event.propertyName !== "height") return;
     fire();
   }
   els.inspector.addEventListener("transitionend", onTransitionEnd);
