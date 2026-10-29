@@ -2585,3 +2585,163 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   .tree-measurements dd { font-size: 1.2rem; }
   .tree-measurement-unit { font-size: 0.65rem; }
 }
+
+/* The remaining selected records use the same quiet card language as the tree record. Their
+   fields stay generic, but the hierarchy, actions, and surfaces now read as one family across
+   pubs, shops, cafés, transport, paths, roads, and water features. */
+.place-detail {
+  --place-rule: var(--border-soft);
+  --place-card: var(--surface-soft);
+  --place-control: var(--surface-tint);
+  --place-ink: var(--accent-ink);
+}
+
+.inspector:has(.place-detail) .inspector-title-section {
+  padding-top: 16px;
+  padding-bottom: 12px;
+  background: transparent;
+  align-items: center;
+  gap: 12px;
+}
+
+.inspector:has(.place-detail) h2 {
+  font-size: 1.6rem;
+  line-height: 1.15;
+  letter-spacing: -0.035em;
+}
+
+.inspector:has(.place-detail) .type {
+  margin-top: 5px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.055em;
+}
+
+.place-detail > .detail-top-row {
+  padding-bottom: 12px;
+  margin-bottom: 0;
+  gap: 8px;
+}
+
+.place-detail .detail-top-row > [data-live-field="distance"] {
+  flex: 1 1 130px;
+}
+
+.place-detail .detail-top-actions {
+  gap: 8px;
+}
+
+.place-detail .detail-map-link--icon,
+.place-detail .walk-chip {
+  box-sizing: border-box;
+  border-radius: 8px;
+  border-color: var(--border-accent);
+}
+
+.place-detail .detail-map-link--icon {
+  width: 36px;
+  height: 36px;
+  min-height: 36px;
+}
+
+.place-detail .walk-chip {
+  width: 100%;
+  height: 36px;
+  padding: 0 8px;
+  justify-content: center;
+  gap: 5px;
+  background: var(--place-control);
+  color: var(--place-ink);
+  font-size: 0.88rem;
+  font-weight: 650;
+}
+
+.place-detail .detail-map-link--icon,
+.place-detail .walk-chip {
+  position: relative;
+}
+
+.place-detail .detail-map-link--icon::after,
+.place-detail .walk-chip::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+}
+
+.place-detail .walk-chip .walk-icon {
+  width: calc(20px * var(--icon-scale));
+  height: calc(20px * var(--icon-scale));
+}
+
+.place-detail > dl {
+  gap: 7px;
+}
+
+.place-detail > dl > .row {
+  grid-template-columns: minmax(92px, 0.7fr) minmax(0, 1.3fr);
+  gap: 10px;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid var(--place-rule);
+  border-radius: 10px;
+  background: var(--place-card);
+}
+
+.place-detail > dl > .row dt {
+  align-self: start;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 650;
+  line-height: 1.4;
+  letter-spacing: 0.015em;
+}
+
+.place-detail > dl > .row dd {
+  min-width: 0;
+  color: var(--ink);
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.place-detail > dl > .row dd a {
+  color: var(--place-ink);
+  font-weight: 650;
+}
+
+.place-detail .details-description {
+  margin: 0 0 12px;
+  padding: 12px;
+  border: 1px solid var(--place-rule);
+  border-radius: 10px;
+  background: var(--place-card);
+}
+
+.place-detail .detail-section-heading {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-color: var(--place-rule);
+  font-size: 0.78rem;
+  letter-spacing: 0.025em;
+}
+
+.place-detail .related-cards {
+  gap: 6px;
+}
+
+.place-detail .nearest-item {
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.place-detail > .technical-details {
+  margin-top: 14px;
+  padding-top: 4px;
+  border-top: 1px solid var(--place-rule);
+}
+
+@media (max-width: 340px) {
+  .place-detail > dl > .row {
+    grid-template-columns: minmax(78px, 0.65fr) minmax(0, 1.35fr);
+    padding-inline: 10px;
+  }
+}

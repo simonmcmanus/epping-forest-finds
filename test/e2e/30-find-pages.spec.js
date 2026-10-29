@@ -408,6 +408,7 @@ test.describe("generated find/nearby pages", () => {
       expect(selected.findSlug).toBe(EXAMPLE_PUB.slug);
       await expect(page).toHaveTitle(`${EXAMPLE_PUB.name} near Epping Forest | Epping Forest Finds`);
       await expect(page.locator("#inspectorTitle")).toHaveText(EXAMPLE_PUB.name);
+      await expect(page.locator("#inspectorBody > .place-detail")).toHaveClass(/place-detail--landmark/);
     });
 
     test("the live inspector shows the same opening hours and phone tel: link as the static page", async ({ page }) => {
@@ -562,6 +563,7 @@ test.describe("generated find/nearby pages", () => {
       expect(selected.type).toBe("water");
       expect(selected.name).toBe(EXAMPLE_WATER.name);
       await expect(page.locator("#inspectorTitle")).toHaveText(EXAMPLE_WATER.name);
+      await expect(page.locator("#inspectorBody > .place-detail")).toHaveClass(/place-detail--water/);
     });
   });
 
