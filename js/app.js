@@ -4526,6 +4526,11 @@ function overviewHeadingText() {
   // its own separate <p class="source-note"> paragraph (overviewNearestHtml below) -- said once,
   // here, in the one line every Nearby screen already shows, rather than twice.
   const radiusOrigin = state.userLocation.isDefault ? " of High Beach" : "";
+  if (railSelection().length === 0) {
+    return radiusLabel
+      ? `Showing everything within ${radiusLabel}${radiusOrigin}`
+      : `Showing everything ${aroundOrigin}`;
+  }
   // A single category (the common case on a /nearby/<slug> page) gets its count named too --
   // "5 Pubs and bars within 5 min walk" says at a glance whether the radius is worth widening,
   // which "Pubs and bars within 5 min walk" alone left the reader to count for themselves.
@@ -4735,7 +4740,7 @@ function railPillKeys() {
 function filterRailHtml() {
   const allOn = railSelection().length === 0;
   const allStatus = `<span class="rail-check" aria-hidden="true">${allOn ? "✓" : ""}</span>`;
-  const allPill = `<button class="rail-pill rail-pill--all${allOn ? " is-on" : ""}" type="button" data-rail-key="all-nearby" aria-pressed="${allOn}">${appIconHtml("nearby")}<span>All nearby</span>${allStatus}</button>`;
+  const allPill = `<button class="rail-pill rail-pill--all${allOn ? " is-on" : ""}" type="button" data-rail-key="all-nearby" aria-pressed="${allOn}">${appIconHtml("nearby")}<span>Everything</span>${allStatus}</button>`;
   const pills = railItems().map((item) => {
     const on = railItemIsActive(item);
     const status = `<span class="rail-check" aria-hidden="true">${on ? "✓" : ""}</span>`;

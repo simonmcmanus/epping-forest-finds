@@ -4262,6 +4262,15 @@ test("the nearby heading names the walking radius, not just the filter", () => {
   app.state.showAllOutsideRadius = false;
 });
 
+test("the nearby heading explains when Everything is selected", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.walkingDistanceMinutes = 5;
+  app.state.overviewFilters = app.FILTER_SUBFILTERS.map((subfilter) => subfilter.key);
+
+  assert.equal(app.overviewHeadingText(), "Showing everything within 5 min walk");
+});
+
 test("the nearby heading names the count too, so a /nearby/<slug> page answers 'how many' at a glance", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);

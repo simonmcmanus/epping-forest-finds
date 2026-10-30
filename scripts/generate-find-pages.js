@@ -306,7 +306,7 @@ function staticFilterRailHtml(rules, { activeKeys = [], displayedGroup = null } 
       }));
   const allPill = staticRailPillHtml(rules, {
     key: "all-nearby",
-    label: "All nearby",
+    label: "Everything",
     icon: "nearby",
     filterKeys: allKeys,
     activeKeys,

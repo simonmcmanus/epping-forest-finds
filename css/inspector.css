@@ -1410,7 +1410,7 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  padding: 0 12px;
+  padding: 0 10px;
   border-radius: 20px;
   white-space: nowrap;
 }
