@@ -1540,24 +1540,22 @@ function nearbyCardFilterKeys() {
 }
 
 // Counts the entries in the given categories that sit within the reader's walking radius of a
-// point, and how many lie beyond it. An entry matching more than one of the categories (a pub that is
-// also a food place, say) is counted once. Reads the same nearest-entry helpers the Nearby list
-// itself uses (nearestOverviewEntriesForFilter, js/app.js), so the numbers agree with what the list
-// would show if the reader browsed from this spot.
+// point. An entry matching more than one of the categories (a pub that is also a food place, say)
+ // is counted once. Reads the same nearest-entry helpers the Nearby list itself uses
+// (nearestOverviewEntriesForFilter, js/app.js), so the numbers agree with what the list would show
+// if the reader browsed from this spot.
 function countNearbyEntries(filterKeys, latitude, longitude) {
   const limit = walkingDistanceToMetres(state.walkingDistanceMinutes);
   const seen = new Set();
   let within = 0;
-  let beyond = 0;
   for (const key of filterKeys) {
     for (const entry of nearestOverviewEntriesForFilter(key, latitude, longitude, Infinity)) {
       if (seen.has(entry.item)) continue;
       seen.add(entry.item);
       if (entry.metres <= limit) within += 1;
-      else beyond += 1;
     }
   }
-  return { within, beyond };
+  return { within };
 }
 
 // One plain sentence for a category: "43 trees within 30 min walk of The Foresters." The noun is
@@ -1566,7 +1564,7 @@ function formatCount(count) {
   return count.toLocaleString("en-GB");
 }
 
-function nearbyCountCopy(noun, { within, beyond }, placeName) {
+function nearbyCountCopy(noun, { within }, placeName) {
   const minutes = state.walkingDistanceMinutes;
   const where = `within ${minutes} min walk of ${placeName}`;
   let sentence;
