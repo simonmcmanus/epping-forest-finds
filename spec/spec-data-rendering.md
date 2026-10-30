@@ -885,18 +885,20 @@ The figure itself is the real road/path-following distance (and the walk time de
 
 The inspector's top row offers **Open in Maps** and **Share link** as icon-only controls (`openInMapsHtml`, `shareLocationHtml`, js/inspector.js): a map-pin and a share glyph, inline SVG, in square 30px buttons with the same 5px corner radius as the walking-distance chip beside them, with `aria-label` and `title` carrying the accessible name, so no visible text is needed. They share the `.detail-map-link--icon` modifier (css/inspector.css).
 
-Any selected point (tree, place, cow) with coordinates also shows an **"Everything"** card whose
-line reads "N locations within M min walk of <name>", M being the reader's own walking radius
-(default when unset) and N the count across every category within it (`nearbyWithinWalkHtml`,
-js/inspector.js), under a "Nearest" heading, not in
+Any selected feature with an anchor coordinate (tree, place, cow, path, road, railway, water or
+named area) also shows a **"Nearest"** section. When at least one location is inside the reader's
+walking radius it includes an **"Everything"** card whose line reads "N locations within M min walk
+of <name>", M being the reader's own walking radius (rounded through `formatWalkingRadius()`) and N
+the count across every category within it (`nearbyWithinWalkHtml`, js/inspector.js), not in
 `.detail-top-row` alongside Open in Maps/Share: it shares the Nearby list's own `.nearest-item`
 card styling (a `<button>`, since it drives a live state change rather than a navigation) instead
 of the unrelated `.detail-map-link` pill those use. Every selected point with coordinates -- a `/find/`
 business, a veteran tree, a cow, or a landmark with no page of its own -- gets the same headed
 **Nearest** section and, where its category has a subfilter, a headed **Related** section
 (`nearbySectionsHtml`, js/inspector.js), with the walk-radius card as the last Nearest entry. A
-tree's Related section links its own category, a cow's its own, and a business or landmark the
-category its `placePrimaryFilterKey` names. It reuses the existing Nearby-browsing mechanism rather than
+tree's Related section links its own category, a cow's its own, a water feature's Ponds & streams
+category, and a business or landmark the category its `placePrimaryFilterKey` names. Related links
+carry the selected feature's `near=<lat>,<lon>` browse anchor. It reuses the existing Nearby-browsing mechanism rather than
 inventing a new one: tapping it drops the selection, moves the Nearby browse anchor to that exact
 point (`setNearbyAnchor`'s own mechanism -- the same one a tap on open ground or a shared
 `near=<lat>,<lon>` link already use), keeps the reader's own walking radius, and shows every category
@@ -936,9 +938,10 @@ is never moved by this -- only the browse anchor, exactly as any other anchor mo
 - A `findSlug` place also shows a headed **Nearest** section (one card per category the reader has
   chosen -- `nearbyCardFilterKeys()`, js/inspector.js -- falling back to trees and cows when none are
   set, capped at six). Each card's line is a plain count from this place within the reader's walking
-  radius: "43 trees within 30 min walk of The Foresters. 20 further away." or, with none close enough,
-  "No cows within 30 min walk of The Foresters. 11 further away." (`nearbyCountCopy`,
-  `countNearbyEntries`, js/inspector.js). Counts take thousands separators, and the line wraps inside the card rather than truncating. A cows card is held back until cow positions are loaded,
+  radius: "43 trees within 30 min walk of The Foresters." (`nearbyCountCopy`,
+  `countNearbyEntries`, js/inspector.js). Counts include only locations inside the selected walking
+  radius; zero-result category cards and out-of-radius results are omitted rather than shown as a
+  zero or a "further away" total. Counts take thousands separators, and the line wraps inside the card rather than truncating. A cows card is held back until cow positions are loaded,
   rather than reporting a zero; an already-open tree or place re-renders when they first arrive
   (`refreshSelectedDetailForCows`, js/app.js) so the card appears without reopening it. A headed **Related** section (its own category/group, with the same
   counted line for each) follows, both rendered as the same

@@ -4136,7 +4136,7 @@ function nearestOverviewEntriesForFilter(filterKey, latitude, longitude, limit) 
     return nearestWaymarkedPathsToUser(limit, latitude, longitude).map(({ path, metres }) => ({ kind: "waymarked_trails", type: "path", item: path, metres }));
   }
   if (filterKey === "ponds_streams") {
-    if (!state.userLocation) return [];
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return [];
     return nearestWaterFeaturesTo(latitude, longitude, limit).map(({ water, metres }) => ({ kind: "ponds_streams", type: "water", item: water, metres }));
   }
   return nearestPlacesByFilter(latitude, longitude, (place) => matchesPlaceFilter(place, filterKey), limit)
