@@ -56,9 +56,10 @@ test.describe("generated find/nearby pages", () => {
   });
 
   test.describe("no-JS render matches the JS render", () => {
-    // Reads the content both renders share -- heading, type line, chip row and each Nearby card's
-    // name, footer and direction arrow -- from whatever is in #inspectorBody, so the same reader
-    // serves the static DOM (JS disabled) and the live one.
+    // Reads the content both renders share -- heading, type line and each Nearby card's name,
+    // footer and direction arrow -- from whatever is in #inspectorBody, so the same reader serves
+    // the static DOM (JS disabled) and the live one. Static category links are intentionally
+    // replaced by the live filter rail once JS boots.
     const readInspector = (page) =>
       page.evaluate(() => {
         const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
@@ -101,9 +102,6 @@ test.describe("generated find/nearby pages", () => {
 
         expect(liveRender.title).toBe(staticRender.title);
         expect(liveRender.type).toBe(staticRender.type);
-        expect(liveRender.chips.map(({ href, label }) => ({ href, label }))).toEqual(
-          staticRender.chips.map(({ href, label }) => ({ href, label }))
-        );
         expect(staticRender.chips.every((chip) => chip.classes.includes("nearby-link"))).toBe(true);
         expect(liveRender.cards.map(({ name }) => name)).toEqual(staticRender.cards.map(({ name }) => name));
         expect(liveRender.cards.map(({ meta }) => meta)).toEqual(staticRender.cards.map(({ meta }) => meta));
@@ -329,12 +327,12 @@ test.describe("generated find/nearby pages", () => {
   });
 
   test.describe("the live app", () => {
-    test("/nearby/nature/ keeps the same \"Browse by type\"/\"see also\" pills once JS boots, with no species breakdown or water-only list on either render", async ({ page }) => {
+    test("/nearby/nature/ shows the nature subcategory rail once JS boots", async ({ page }) => {
       await gotoAndWaitForMap(page, "/nearby/nature/");
       const body = page.locator("#inspectorBody");
       await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
-      await expect(body.locator('a.detail-map-link[href="/nearby/trees/"]')).toHaveCount(1);
-      await expect(body.locator('a.detail-map-link[href="/nearby/ponds-streams/"]')).toHaveCount(1);
+      await expect(body.locator('[data-rail-key="trees"]')).toHaveCount(1);
+      await expect(body.locator('[data-rail-key="ponds_streams"]')).toHaveCount(1);
     });
 
     test("/nearby/pubs/ never slides its server-rendered list in from the side while booting without a location fix", async ({ page }) => {
@@ -576,8 +574,7 @@ test.describe("generated find/nearby pages", () => {
     test("once JS boots, /nearby/pubs/ swaps the static chips for the filter rail with Pubs pressed", async ({ page }) => {
       // The live Nearby overview (selectOverview/overviewNearestHtml) replaces the static page's
       // whole #inspectorBody the moment JS boots. The rail carries the category navigation the
-      // static chips gave a crawler: the current category pressed, its groupmates as pills, a way
-      // back to everything, and the Filters screen.
+      // static chips gave a crawler: the current category pressed and its groupmates as pills.
       // setup() (not gotoAndWaitForMap directly) force-hides #locationGate, which otherwise
       // intercepts the click below (no geolocation permission is granted in this spec file).
       await setup(page, "/nearby/pubs/");
@@ -587,8 +584,6 @@ test.describe("generated find/nearby pages", () => {
       await expect(body.locator('[data-rail-key="pubs"][aria-pressed="true"]')).toHaveCount(1);
       await expect(body.locator('[data-rail-key="cafes"][aria-pressed="false"]')).toHaveCount(1);
       await expect(body.getByRole("heading", { name: "Pubs & bars nearby" })).toBeVisible();
-      await expect(body.getByRole("link", { name: "Filters" })).toHaveAttribute("href", "/nearby/filter");
-
       await page.evaluate(() => { window.__noReloadMarker = "still-here"; });
       await body.locator('[data-rail-key="cafes"]').click();
       await expect(page).toHaveURL(/\/nearby\?show=pubs,cafes$/);
