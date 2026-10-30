@@ -1,7 +1,6 @@
 // @ts-check
-// Nearby's filter rail: a row of category pills that narrows the list in place (no panel slide),
-// with the Filters screen on the right. spec-data-rendering.md "Nearby
-// filter rail".
+// Nearby's filter rail: a row of category pills that narrows the list in place (no panel slide).
+// See spec-data-rendering.md "Nearby filter rail".
 const { test, expect } = require("@playwright/test");
 const { setup } = require("./helpers");
 
@@ -46,7 +45,6 @@ test.describe("Nearby filter rail", () => {
     await expect(pill(page, "food")).toHaveAttribute("aria-pressed", "true");
     await expect(pill(page, "transport")).toHaveAttribute("aria-pressed", "false");
     await expect(pill(page, "transport").locator(".rail-check")).toHaveText("×");
-    await expect(page.getByRole("link", { name: "Filters" })).toHaveAttribute("href", "/nearby/filter");
     await expect(rail(page).locator("[data-rail-key]").first()).toBeVisible();
   });
 
@@ -56,7 +54,7 @@ test.describe("Nearby filter rail", () => {
     await pill(page, "nature").click();
     await expect(page).toHaveURL(/\/nearby\?show=trees,cows,ponds_streams$/);
     await expect(pill(page, "nature")).toHaveAttribute("aria-pressed", "true");
-    await expect(pill(page, "trees")).toHaveCount(0);
+    await expect(pill(page, "nature")).toHaveCount(1);
     await expect(pill(page, "food")).toHaveCount(1);
     await expect(page.locator("#inspectorBody .nearest-item")).not.toHaveCount(0);
     expect(await page.evaluate(() => window.__slides)).toBe(0);
@@ -83,7 +81,7 @@ test.describe("Nearby filter rail", () => {
     await watchForPanelSlide(page);
     await pill(page, "cafes").click();
     await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?show=pubs,restaurants,shops$/);
-    await expect(pill(page, "cafes")).toHaveCount(0);
+    await expect(pill(page, "cafes")).toHaveAttribute("aria-pressed", "false");
     await expect(pill(page, "pubs")).toHaveCount(1);
     expect(await page.evaluate(() => window.__slides)).toBe(0);
   });
@@ -93,7 +91,7 @@ test.describe("Nearby filter rail", () => {
     await pill(page, "trees").click();
     await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?filters=false$/);
     await expect(rail(page).locator('[aria-pressed="true"]')).toHaveCount(3);
-    await expect(page.getByRole("link", { name: "Filters" })).toBeVisible();
+    await expect(pill(page, "trees")).toHaveAttribute("aria-pressed", "true");
   });
 
   test("tapping pills never changes the reader's saved filters", async ({ page }) => {
@@ -128,10 +126,9 @@ test.describe("Nearby filter rail", () => {
     await expect(stories.locator(".rail-check")).toHaveText("✓");
   });
 
-  test("the Filters button still slides to the Filters screen", async ({ page }) => {
-    await page.getByRole("link", { name: "Filters" }).click();
-    await expect(page).toHaveURL(/\/nearby\/filter/);
-    await expect(page.locator("#inspectorTitle")).toHaveText(/Filters/);
+  test("the Nearby rail contains category pills without a right-hand control", async ({ page }) => {
+    await expect(page.getByRole("link", { name: "Filters" })).toHaveCount(0);
+    await expect(rail(page).locator("[data-rail-key]")).not.toHaveCount(0);
   });
 
   test("the Nearby title icon links back to plain Nearby", async ({ page }) => {
@@ -147,8 +144,6 @@ test.describe("Nearby filter rail", () => {
     await setup(page, "/nearby/nature/");
     await page.locator("#nearbyToggle").click();
     await expect(page).toHaveURL(/\/nearby(?:\?.*)?$/);
-    await expect(pill(page, "nature")).toHaveCount(1);
-    await expect(pill(page, "trees")).toHaveCount(0);
   });
 });
 
