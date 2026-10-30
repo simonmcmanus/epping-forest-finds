@@ -1,12 +1,30 @@
 spec/agents.md
 
-Preview and PR workflow
-- Always create a pull request for changes so they can be reviewed and previewed.
-- Once the changes are ready, check the PR comments for the preview-environment URL and wait until the preview is available.
-- In the final response, provide a useful testing link into the preview environment. Choose a representative page or flow that exercises the change, and include the `nuke` parameter in the URL.
-- Treat the preview testing link as part of the handoff; do not report the work as ready without it unless the preview environment failed or is unavailable, in which case explain why.
+## Pull request workflow
 
-Review
+Every implementation change must be committed to a dedicated branch, pushed, and opened as a pull
+request (or added to the existing pull request for that branch) before the work is reported as
+complete. The pull request is the review and preview handoff.
+
+After every push to a pull-request branch:
+
+- Wait for the branch CI and deploy preview to finish.
+- Check review comments, requested changes, and unresolved threads.
+- Address all actionable feedback, run the relevant tests, commit, and push again.
+- Continue this loop until the required reviewers have approved the pull request, required checks
+  are green, and no requested changes remain. Do not stop at "awaiting review" or report completion
+  while feedback is unresolved. If approval is blocked by permissions or a decision needed from the
+  user, report that blocker explicitly.
+- Make the final response for that round a useful testing link into the current preview. Choose a
+  representative page or flow that exercises the change and include `nuke=true` in the URL (using
+  `&nuke=true` when the URL already has a query string). If the preview is unavailable, say so
+  explicitly instead of presenting an unverified link.
+
+The preview testing link is part of the handoff, not optional status text. When rewriting the PR
+description, preserve the preview-links block between `<!-- preview-links:start -->` and
+`<!-- preview-links:end -->`.
+
+## Review
 
 
 Review checklist
