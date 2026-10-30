@@ -1255,7 +1255,10 @@ function setupSearchAndNavHandlers() {
     if (submitIssueBtn) { submitLocationIssueReport(submitIssueBtn.closest(".report-issue")); return; }
     const resetAnchorBtn = event.target.closest("[data-action='reset-nearby-anchor']");
     if (resetAnchorBtn) { clearNearbyAnchor(); return; }
-    const railPill = event.target.closest("[data-rail-key]");
+    // Server-rendered Nearby pills are anchors. Only the hydrated button rail is an in-place
+    // toggle; leave static anchors to the ordinary internal-link handler below, including
+    // modified clicks that should open the link in a new tab.
+    const railPill = event.target.closest("button[data-rail-key]");
     if (railPill) { toggleRailFilter(railPill.dataset.railKey); return; }
     const radiusToggle = event.target.closest("[data-action='toggle-radius']");
     if (radiusToggle) {
