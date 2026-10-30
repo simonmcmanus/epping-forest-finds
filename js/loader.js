@@ -190,6 +190,8 @@ async function loadMapData() {
       if (!state.selected && !state.filterScreenOpen && !state.searchScreenOpen) {
         if (findLandingSlug()) applySelectionFromHash(false);
         else selectOverview();
+      } else {
+        refreshSelectedDetailForNearbyData();
       }
       requestDraw();
     }
