@@ -163,10 +163,13 @@ test.describe("Nearby filter rail", () => {
       el.scrollLeft = Math.max(0, button.offsetLeft + button.offsetWidth - el.clientWidth - 4);
     });
     const before = await row.evaluate((el) => el.scrollLeft);
+    await expect(rail(page)).toHaveClass(/has-left-overflow/);
     await stories.click();
     await expect(stories).toHaveAttribute("aria-pressed", "true");
     await expect.poll(() => row.evaluate((el) => el.scrollLeft)).toBe(before);
     await expect(stories.locator(".rail-check")).toHaveText("✓");
+    await row.evaluate((el) => { el.scrollLeft = 0; });
+    await expect(rail(page)).not.toHaveClass(/has-left-overflow/);
   });
 
   test("the Nearby rail contains category pills without a right-hand control", async ({ page }) => {

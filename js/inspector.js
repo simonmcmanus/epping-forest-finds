@@ -697,6 +697,7 @@ function swapStaticChipsForRail() {
   const nav = els.inspectorBody && els.inspectorBody.querySelector("nav.nearby-category-nav");
   if (!nav || typeof filterRailHtml !== "function") return;
   nav.outerHTML = filterRailHtml();
+  if (typeof attachNearbyRailScrollHints === "function") attachNearbyRailScrollHints();
   maybePlayRailIntro(false);
 }
 
@@ -815,6 +816,7 @@ function selectOverview(animate = false) {
       updateOverviewDirectionArrows();
       hydrateOverviewBusStopDirections();
       animateNearestItemReorder(previousNearestPositions);
+      if (typeof attachNearbyRailScrollHints === "function") attachNearbyRailScrollHints();
       maybePlayRailIntro(hadRail);
     });
   }

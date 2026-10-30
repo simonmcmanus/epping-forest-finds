@@ -2724,6 +2724,7 @@ function refreshFilterScreenList() {
   if (!section) return;
   const previousNearestPositions = captureNearestItemPositions();
   section.innerHTML = overviewNearestHtml();
+  attachNearbyRailScrollHints(section);
   updateOverviewDirectionArrows();
   hydrateOverviewBusStopDirections();
   animateNearestItemReorder(previousNearestPositions);
@@ -2735,6 +2736,27 @@ function attachFilterScrollHints() {
     row.addEventListener("scroll", () => updateSingleSubfilterScrollHint(row), { passive: true });
     updateSingleSubfilterScrollHint(row);
   }
+}
+
+function attachNearbyRailScrollHints(root = els.inspectorBody) {
+  if (!root?.querySelectorAll) return;
+  for (const row of root.querySelectorAll(".filter-rail .rail-pills")) {
+    if (row.dataset.scrollHintsAttached !== "true") {
+      row.addEventListener("scroll", () => updateNearbyRailScrollHint(row), { passive: true });
+      row.dataset.scrollHintsAttached = "true";
+    }
+    updateNearbyRailScrollHint(row);
+  }
+}
+
+function updateNearbyRailScrollHint(row) {
+  if (!row) return;
+  const rail = row.closest(".filter-rail");
+  if (!rail) return;
+  const maxScrollLeft = row.scrollWidth - row.clientWidth;
+  const isScrollable = maxScrollLeft > 6;
+  rail.classList.toggle("has-left-overflow", isScrollable && row.scrollLeft > 2);
+  rail.classList.toggle("has-right-overflow", isScrollable && row.scrollLeft < maxScrollLeft - 2);
 }
 
 function updateSingleSubfilterScrollHint(row) {
@@ -3103,6 +3125,7 @@ function openFiltersScreen() {
   transitionInspectorBody(filterScreenBodyHtml(), "forward", () => {
     updateOverviewDirectionArrows();
     hydrateOverviewBusStopDirections();
+    attachNearbyRailScrollHints();
   });
   updateFilterUi();
   setInspectorMinimized(false);

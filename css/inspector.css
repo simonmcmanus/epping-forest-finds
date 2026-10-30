@@ -1351,6 +1351,20 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   background: var(--panel);
 }
 
+/* Once the rail has moved, soften the clipped pill at the left edge. At scrollLeft 0 the first
+   pill remains fully legible; the fade only appears when there is content hidden to the left. */
+.filter-rail.has-left-overflow::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 1px;
+  left: 0;
+  z-index: 1;
+  width: 28px;
+  pointer-events: none;
+  background: linear-gradient(90deg, var(--panel), transparent);
+}
+
 /* A brief, decorative pulse at the clipped edge accompanies the one-time scroll peek. It makes
    the affordance visible even when the pill labels are similar in colour to the panel. */
 .filter-rail.has-more-right::after {
@@ -1379,8 +1393,13 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   padding: 2px;
   overflow-x: auto;
   scrollbar-width: none;
-  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 6px, #000 calc(100% - 14px), transparent);
-  mask-image: linear-gradient(90deg, transparent 0, #000 6px, #000 calc(100% - 14px), transparent);
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 14px), transparent);
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 14px), transparent);
+}
+
+.filter-rail.has-left-overflow .rail-pills {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 14px), transparent);
+  mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 14px), transparent);
 }
 
 .rail-pills::-webkit-scrollbar {
