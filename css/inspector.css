@@ -1421,7 +1421,7 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: #dcecdf;
+  background: #e3edf3;
   transform: scaleX(0);
   transform-origin: left;
   transition: transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -1451,8 +1451,8 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
 }
 
 .rail-pill.is-on {
-  border-color: #9abda1;
-  color: #2f6b3c;
+  border-color: #9fb7c8;
+  color: #35576c;
 }
 
 @media (hover: hover) {
@@ -1470,7 +1470,7 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   }
 
   .rail-pill.is-on:hover::before {
-    background: #cfe3d3;
+    background: #d5e3eb;
   }
 }
 
