@@ -27,8 +27,6 @@ test.describe("Onboarding", () => {
     test("the guided dialog is announced after the reader asks for setup", async ({ page }) => {
       await page.goto("/nearby");
       await page.locator("#consentBannerDecline").click();
-      await expect(page.locator("#consentBanner")).toContainText("Help improve the map?");
-      await page.locator("#consentBannerDecline").click();
       await expect(page.locator("#consentBannerAccept")).toHaveText("Set up my map");
       await page.locator("#consentBannerAccept").click();
       const dialog = page.getByRole("dialog", { name: "Set up Epping Forest Finds" });
@@ -36,10 +34,10 @@ test.describe("Onboarding", () => {
       await expect(dialog).toHaveAttribute("aria-modal", "true");
     });
 
-    test("the non-blocking first-run card explains location", async ({ page }) => {
+    test("the non-blocking first-run card explains location and cookies", async ({ page }) => {
       await page.goto("/nearby");
       await expect(page.locator("#consentBanner")).toBeVisible();
-      await expect(page.locator("#consentBanner")).toContainText("walking distances");
+      await expect(page.locator("#consentBanner")).toContainText("cookies");
     });
 
     test("map data loads in the background while the first-run ask is visible", async ({ page }) => {
@@ -53,13 +51,10 @@ test.describe("Onboarding", () => {
       await expect(page.locator("#consentBanner")).toBeVisible();
     });
 
-    test("location and analytics are separate first-run questions", async ({ page }) => {
+    test("one first-run action records location and analytics together", async ({ page }) => {
       await page.goto("/nearby");
       await expect(page.locator("#consentBanner")).toBeVisible();
-      await expect(page.locator("#consentBannerAccept")).toHaveText("Enable location");
-      await page.locator("#consentBannerDecline").click();
-      await expect(page.locator("#consentBanner")).toContainText("Help improve the map?");
-      expect(await page.evaluate(() => localStorage.getItem("ff-track-v1"))).toBeNull();
+      await expect(page.locator("#consentBannerAccept")).toHaveText("Enable location & cookies");
       await page.locator("#consentBannerDecline").click();
       await expect(page.locator("#consentBannerAccept")).toHaveText("Set up my map");
       expect(await page.evaluate(() => localStorage.getItem("ff-location-v1"))).toBe("declined");
@@ -68,16 +63,13 @@ test.describe("Onboarding", () => {
 
     test("the first-run actions remain available without blocking the map", async ({ page }) => {
       await page.goto("/nearby");
-      await expect(page.locator("#consentBanner")).toContainText("See what's near you");
+      await expect(page.locator("#consentBanner")).toContainText("Allow location & cookies");
       await page.locator("#consentBannerAccept").click();
-      await expect(page.locator("#consentBanner")).toContainText("Help improve the map?");
-      await page.locator("#consentBannerDecline").click();
       await expect(page.locator("#consentBannerAccept")).toHaveText("Set up my map");
     });
 
     test("the guided flow toggles a chip and can go back to its welcome step", async ({ page }) => {
       await page.goto("/nearby");
-      await page.locator("#consentBannerDecline").click();
       await page.locator("#consentBannerDecline").click();
       await page.locator("#consentBannerAccept").click();
       await page.locator(".ob-primary").click();
@@ -93,7 +85,6 @@ test.describe("Onboarding", () => {
 
     test("Explore first dismisses the setup invitation across visits", async ({ page }) => {
       await page.goto("/nearby");
-      await page.locator("#consentBannerDecline").click();
       await page.locator("#consentBannerDecline").click();
       await page.locator("#consentBannerDecline").click();
       await expect(page.locator("#consentBanner")).toBeHidden();

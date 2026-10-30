@@ -108,7 +108,7 @@ The full set of native-specific edits to shipped client code. Anything beyond th
 
 ## Permissions Model
 
-The point of the wrapper. The rules are the app's own and identical on every platform ([spec.md](spec.md) § Permissions and Consent): the app asks in its own words before any system dialog, an answer is remembered, the first-run location and usage-analytics questions are separate (with separate Settings controls later), and a blocked permission is explained rather than re-asked. What is native-specific:
+The point of the wrapper. The rules are the app's own and identical on every platform ([spec.md](spec.md) § Permissions and Consent): the app asks in its own words before any system dialog, an answer is remembered, the first-run location and usage-analytics choice is one combined action (with separate Settings controls later), and a blocked permission is explained rather than re-asked. What is native-specific:
 
 - **Location: one system dialog, never two.** `navigator.geolocation` inside `WKWebView` shows the app's own location prompt and then WebKit's per-origin "localhost would like to use your current location" prompt on top, every launch. Location therefore always goes through `@capacitor/geolocation` (via `Native.geolocation`), which asks once, through the OS, and is remembered by the OS.
 - **Compass: no ask.** Capacitor's `WKWebView` delegate grants device-orientation access without a dialog; WebKit still only accepts `requestPermission()` from a tap, so `Native.unlockMotionOnFirstGesture` collects the grant silently on the first tap of a session and re-attaches the listeners. Android needs no permission for orientation.
@@ -203,7 +203,7 @@ The alpha gate ([spec-alpha-access.md](spec-alpha-access.md)) guards the website
 - Walking to a find keeps the screen on; arriving buzzes once; backgrounding releases the screen.
 - Share from a find opens the native sheet with a `https://www.eppingforestfinds.uk/…` link; the Privacy Policy link opens in the browser.
 - Settings → About shows `1.0.0 (build) · data vNN`; after a data release on the website, "Check for map updates" downloads it and the next launch shows the new data version.
-- Usage analytics asked once, separately, after location; "No thanks" sends nothing (verify no `/api/track` requests).
+- Usage analytics asked once alongside the first-run location choice; "Maybe later" sends nothing (verify no `/api/track` requests).
 - Android back button walks the screen history and exits at the end.
 - Oldest supported OS on both platforms; one small and one tall screen (the tilt horizon is screen-height dependent).
 

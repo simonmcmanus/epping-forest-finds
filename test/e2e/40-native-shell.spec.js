@@ -96,7 +96,7 @@ test.describe("the native app shell", () => {
     await page.goto("/nearby");
     const banner = page.locator("#consentBanner");
     await expect(banner).toBeVisible();
-    await expect(banner.locator("#consentBannerAccept")).toHaveText("Enable location");
+    await expect(banner.locator("#consentBannerAccept")).toHaveText("Enable location & cookies");
     await banner.locator("#consentBannerAccept").click();
     await expect.poll(async () => (await calls(page)).getCurrentPosition).toBe(1);
     expect((await calls(page)).browserGeolocation).toBe(0);

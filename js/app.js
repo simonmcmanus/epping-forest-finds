@@ -1354,21 +1354,31 @@ function showLocationInviteBanner(message, { canRequest = true } = {}) {
 // The first ask for anyone onboarding did not reach -- a first visit, a landing-page arrival, or a
 // returning visitor with a question still unanswered. One non-blocking card in the inspector
 // chrome (#consentBanner, app.html, css/loading.css) leaves the map fully usable underneath. On a
-// first visit it asks location and usage analytics separately, then offers the optional guided map
-// setup in the same slot. Landing-page arrivals use the same staged questions
+// first visit its single explicit action covers location and usage analytics, then offers the
+// optional guided map setup in the same slot. Landing-page arrivals use the same combined action
 // whenever both choices are still unanswered. On iOS the compass is asked from the same location
 // tap (locateUser), because only a user gesture can ask for it.
 function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnboarding = false } = {}) {
   const banner = els.consentBanner;
   if (!banner || (!askLocation && !askAnalytics && !offerOnboarding)) return false;
-  let stage = askLocation ? "location" : askAnalytics ? "analytics" : "onboarding";
+  let stage = askLocation && askAnalytics ? "permissions" : askLocation ? "location" : askAnalytics ? "analytics" : "onboarding";
+
+  function renderPermissionsStage() {
+    banner.setAttribute("aria-label", "Location and usage analytics");
+    if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Allow location & cookies";
+    if (els.consentBannerText) {
+      els.consentBannerText.innerHTML = `Shows nearby finds and their distance from you, and helps us understand how people use this site — enabling covers both. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>`;
+    }
+    if (els.consentBannerDecline) els.consentBannerDecline.textContent = "Maybe later";
+    if (els.consentBannerAccept) els.consentBannerAccept.textContent = "Enable location & cookies";
+  }
 
   function renderLocationStage() {
     banner.setAttribute("aria-label", "Location");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "See what's near you";
     // Generated landing pages replace the shell's default paragraph with a lead that names the
     // category or place. Keep that useful server-rendered copy when the live page only needs the
-    // location question; the first-run location card supplies its own copy below.
+    // location question; the first-run combined card supplies its own copy below.
     const pageSpecificCopy = els.consentBannerText
       && /^Enable location to get walking directions/.test(els.consentBannerText.textContent || "");
     if (els.consentBannerText && !pageSpecificCopy) {
@@ -1404,14 +1414,14 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
   }
 
   function advance() {
+    if (offerOnboarding && (stage === "permissions" || stage === "location" || stage === "analytics")) {
+      stage = "onboarding";
+      renderOnboardingStage();
+      return;
+    }
     if (stage === "location" && askAnalytics && analyticsChoice() === "undecided") {
       stage = "analytics";
       renderAnalyticsStage();
-      return;
-    }
-    if (offerOnboarding && (stage === "location" || stage === "analytics")) {
-      stage = "onboarding";
-      renderOnboardingStage();
       return;
     }
     cleanup();
@@ -1419,7 +1429,11 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
   }
 
   function onAccept() {
-    if (stage === "location") {
+    if (stage === "permissions") {
+      rememberLocationChoice("granted");
+      if (analyticsChoice() === "undecided") setAnalyticsConsent(true);
+      locateUser({ initial: false });
+    } else if (stage === "location") {
       rememberLocationChoice("granted");
       locateUser({ initial: false });
     } else if (stage === "analytics") {
@@ -1441,7 +1455,10 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
   }
 
   function onDecline() {
-    if (stage === "location") rememberLocationChoice("declined");
+    if (stage === "permissions") {
+      rememberLocationChoice("declined");
+      if (analyticsChoice() === "undecided") setAnalyticsConsent(false);
+    } else if (stage === "location") rememberLocationChoice("declined");
     else if (stage === "analytics") setAnalyticsConsent(false);
     else {
       cleanup();
@@ -1456,7 +1473,8 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
   els.consentBannerAccept?.addEventListener("click", onAccept);
   els.consentBannerDecline?.addEventListener("click", onDecline);
 
-  if (stage === "location") renderLocationStage();
+  if (stage === "permissions") renderPermissionsStage();
+  else if (stage === "location") renderLocationStage();
   else if (stage === "analytics") renderAnalyticsStage();
   else renderOnboardingStage();
   banner.classList.remove("fading-out");

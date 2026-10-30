@@ -44,7 +44,7 @@ test("snapshot: feedback screen", async ({ page }) => {
 
 test("snapshot: onboarding on a first visit", async ({ page }) => {
   // No skipOnboarding(): this is the first-visit state. The map remains usable beneath the
-  // non-blocking location consent card.
+  // non-blocking combined consent card.
   await page.addInitScript(() => {
     localStorage.removeItem("ff-track-v1");
     localStorage.removeItem("ff-cookie-consent");
@@ -58,7 +58,7 @@ test("snapshot: onboarding on a first visit", async ({ page }) => {
   await mockCowApi(page);
   await denyGeolocationUnlessGranted(page);
   await page.goto("/nearby");
-  await expect(page.locator("#consentBanner")).toContainText("See what's near you");
+  await expect(page.locator("#consentBanner")).toContainText("Allow location & cookies");
   for (const step of ["trees", "places", "paths", "roads", "environment", "forest"]) {
     await expect(page.locator(`[data-load-step="${step}"]`)).toHaveClass(/\b(done|error)\b/);
   }
@@ -80,7 +80,6 @@ test("snapshot: guided onboarding after non-blocking consent", async ({ page }) 
   await mockCowApi(page);
   await denyGeolocationUnlessGranted(page);
   await page.goto("/nearby");
-  await page.locator("#consentBannerAccept").click();
   await page.locator("#consentBannerAccept").click();
   await page.locator("#consentBannerAccept").click();
   await expect(page.getByRole("dialog", { name: "Set up Epping Forest Finds" })).toBeVisible();

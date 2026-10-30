@@ -211,7 +211,7 @@ test.describe("generated find/nearby pages", () => {
       const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
       const page = await context.newPage();
       await page.goto("/nearby");
-      await expect(page.locator("#consentBanner")).toContainText("Enable location");
+      await expect(page.locator("#consentBanner")).toContainText("Allow location & cookies");
       await expect(page.locator("#filterToggle")).toBeVisible();
       await expect(page.locator("#filterCount")).toHaveText("4");
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
@@ -292,7 +292,7 @@ test.describe("generated find/nearby pages", () => {
       expect(staticHtml).not.toContain("Shows nearby finds and their distance from you");
 
       // Unlike /find/events/, a business page is a landing-page arrival (isLandingPageArrival,
-      // js/app.js), so the staged consent card shows live with this same server-rendered copy.
+      // js/app.js), so the combined consent card shows live with this same server-rendered copy.
       await skipOnboarding(page);
       await gotoAndWaitForMap(page, `/find/${EXAMPLE_PUB.slug}/`);
       await expect(page.locator("#consentBanner .consent-banner-copy")).toContainText(

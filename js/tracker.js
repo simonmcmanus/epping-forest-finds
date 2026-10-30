@@ -35,7 +35,7 @@ function hasTrackingConsent() {
 
 // Usage analytics is one consent covering the anonymous usage events below (positions while the
 // app is open, navigation, taps) and the Google Analytics cookies cookie-consent.js controls. On
-// first run it is presented separately from the location question; Settings can change the two
+// first run it is presented with location as one combined decision; Settings can change the two
 // controls separately later. Stored "1" given, "0" declined, absent never asked.
 function analyticsChoice() {
   try {
