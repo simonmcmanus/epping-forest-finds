@@ -670,7 +670,7 @@ function renderCowsPage(appHtml, rules = loadAppRules()) {
 }
 
 /**
- * Bare /nearby -- the plain Nearby screen, DEFAULT_FILTERS (js/app.js: trees, cows, events, pubs) for a
+ * Bare /nearby -- the plain Nearby screen, DEFAULT_FILTERS (js/app.js: trees, cows, events, pubs, churches, campsites) for a
  * first-time visitor. Written to its own root file rather than nearby/index.html so Netlify's
  * clean-URL resolution cannot 301 /nearby to /nearby/ and serve this file directly, which would
  * bypass the alpha-gate edge function on /nearby (netlify.toml). Routed to it by /nearby alone.
@@ -691,7 +691,7 @@ function renderCowsPage(appHtml, rules = loadAppRules()) {
  */
 const NEARBY_INDEX_FILE_NAME = "nearby-index.html";
 // DEFAULT_FILTERS (js/app.js): the filter set a first-time visitor's Nearby list is built from.
-const NEARBY_INDEX_FILTERS = ["trees", "cows", "events", "pubs"];
+const NEARBY_INDEX_FILTERS = ["trees", "cows", "events", "pubs", "churches", "campsites"];
 
 function renderNearbyIndexPage(appHtml, enrichment) {
   const { trees = [], rules = loadAppRules() } = enrichment;
@@ -790,6 +790,7 @@ module.exports = {
   natureNearestListHtml,
   nearestWithinWalkingRadius,
   CATEGORY_DIR_NAME,
+  NEARBY_INDEX_FILTERS,
 };
 
 if (require.main === module) {

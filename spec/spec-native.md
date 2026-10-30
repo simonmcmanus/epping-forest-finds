@@ -93,10 +93,10 @@ Every accessor is safe on the web and returns the web behaviour unchanged. `Nati
 The full set of native-specific edits to shipped client code. Anything beyond this list is a sign the wrapper is leaking into the app and should be pushed back into `js/native.js`.
 
 1. **`app.html`** — `<script src="js/native.js">` as the first script.
-2. **Every location request** (`js/app.js`, `js/onboarding.js`) goes through `Native.geolocation`, with the same callbacks and the same `error.code === 1` for a refusal.
+2. **Every location request** (`js/app.js`) goes through `Native.geolocation`, with the same callbacks and the same `error.code === 1` for a refusal.
 3. **API calls** — `js/native.js` wraps `fetch` inside the shell so a root-relative `/api/…` or `/.netlify/functions/…` URL goes to `Native.apiBase`. No call site changes; bundled files (`data/…`, `js/…`) still load locally. `NATIVE_API_BASE` at sync time points a build at another deployment (a deploy preview, a tunnel).
 4. **Service worker** — never registered inside the shell (`setupPwa`, `js/nav.js`): a cache-first worker in front of bundled files would be a second, stale copy whose update prompt has nothing to wait on. Settings hides the web update line and the refresh buttons for the same reason.
-5. **Compass** — `compassPermissionCanBeRequested()` is false in the shell, so the onboarding step reads "Your location" (no compass), the "Enable compass" card never shows, and the stored grant is never downgraded on launch.
+5. **Compass** — `compassPermissionCanBeRequested()` is false in the shell, so the non-blocking location card does not mention compass, the "Enable compass" card never shows, and the stored grant is never downgraded on launch.
 6. **Sign-in** — hidden in the shell (Settings and Community). See [Not in the first release](#not-in-the-first-release).
 7. **Heading** — `startNativeHeading()`/`onNativeHeading()` (`js/app.js`) feed the plugin into the compass as `HEADING_SOURCE_NATIVE`, ranked above WebKit's; stopped on pause, restarted on resume.
 8. **Walking aids** — `syncNativeWalkingAids()` (`js/app.js`, called from `updateCompassOverlay()` on every fix and selection change) keeps the screen awake while walking to a find in the foreground and plays one arrival haptic per find within `ARRIVAL_METRES` (20 m); a tap on a Nearby list row plays the selection haptic (`js/nav.js`).
@@ -108,7 +108,7 @@ The full set of native-specific edits to shipped client code. Anything beyond th
 
 ## Permissions Model
 
-The point of the wrapper. The rules are the app's own and identical on every platform ([spec.md](spec.md) § Permissions and Consent): the app asks in its own words before any system dialog, an answer is remembered, the first-run location and usage-analytics choice is one combined action (with separate Settings controls later), and a blocked permission is explained rather than re-asked. What is native-specific:
+The point of the wrapper. The rules are the app's own and identical on every platform ([spec.md](spec.md) § Permissions and Consent): the app asks in its own words before any system dialog, an answer is remembered, the first-run location and usage-analytics questions are separate (with separate Settings controls later), and a blocked permission is explained rather than re-asked. What is native-specific:
 
 - **Location: one system dialog, never two.** `navigator.geolocation` inside `WKWebView` shows the app's own location prompt and then WebKit's per-origin "localhost would like to use your current location" prompt on top, every launch. Location therefore always goes through `@capacitor/geolocation` (via `Native.geolocation`), which asks once, through the OS, and is remembered by the OS.
 - **Compass: no ask.** Capacitor's `WKWebView` delegate grants device-orientation access without a dialog; WebKit still only accepts `requestPermission()` from a tap, so `Native.unlockMotionOnFirstGesture` collects the grant silently on the first tap of a session and re-attaches the listeners. Android needs no permission for orientation.

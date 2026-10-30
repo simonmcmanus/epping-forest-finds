@@ -190,15 +190,15 @@
              the inspector makes it part of the app's readable chrome, rather than a floating
              layer over the map or navigation. -->
         <div id="earlyTestingNoticeSlot"></div>
-        <!-- Non-blocking first ask (showConsentBanner, js/app.js). On a first visit the single
-             explicit action covers location and cookies, then the same slot offers the optional
+        <!-- Non-blocking first ask (showConsentBanner, js/app.js). On a first visit separate
+             location and usage-analytics questions use this slot before the optional
              guided map setup. Sits in the same inspector-chrome slot as #earlyTestingNoticeSlot
              just above, rather than floating over the map. -->
         <div id="consentBanner" class="consent-banner" role="group" aria-label="Location" hidden>
           <img class="consent-banner-logo" src="data/icons/trees/logo.png" alt="" width="36" height="36">
           <div class="consent-banner-copy">
-            <strong id="consentBannerTitle">Allow location &amp; cookies</strong>
-            <p id="consentBannerText">Shows nearby finds and their distance from you, and helps us understand how people use this site — enabling covers both. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
+            <strong id="consentBannerTitle">See what's near you</strong>
+            <p id="consentBannerText">Enable location to centre the map on you and see real walking distances. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>
           </div>
           <div class="consent-banner-actions">
             <button id="consentBannerDecline" class="onboarding-skip-btn" type="button">Maybe later</button>

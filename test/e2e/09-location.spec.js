@@ -156,7 +156,7 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("#inspectorBody .nearest-list li").first()).toBeVisible();
     });
 
-    test("tapping the invite's own button requests a real fix, the same way the combined consent banner's does", async ({ page }) => {
+    test("tapping the invite's own button requests a real fix, the same way the location consent card does", async ({ page }) => {
       await gotoAndWaitForMap(page, SCREEN);
       await page.evaluate(() => {
         navigator.geolocation.getCurrentPosition = (success) => success({

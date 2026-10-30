@@ -27,13 +27,13 @@ function replaceOnce(html, needle, replacement, label) {
 // app.html's own default copy inside #consentBanner's .consent-banner-copy -- generic, since the
 // shared app shell has no page of its own to be specific about.
 const APP_CONSENT_BANNER_TEXT =
-  '<p id="consentBannerText">Shows nearby finds and their distance from you, and helps us understand how people use this site — enabling covers both. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>';
+  '<p id="consentBannerText">Enable location to centre the map on you and see real walking distances. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a></p>';
 
 // Swaps that generic copy for a page-specific lead phrase (e.g. "Enable location to get walking
 // directions and see what's near pubs and bars") on a generated /nearby/<slug>/ or /find/<slug>/
 // page. Generated landing pages use this replacement for their server-rendered location copy;
-// the live first-run app card keeps its combined location-and-cookies copy and changes stages in
-// js/app.js. Reported directly: the body's own separate "Enable location to..." sentence not only
+// the live first-run app card keeps its separate location and analytics stages in js/app.js.
+// Reported directly: the body's own separate "Enable location to..." sentence not only
 // repeated what this banner already asks, but read as generic boilerplate once the real content sat
 // right below it -- merging the two into the one ask on screen removes the repeat.
 function customizeConsentBannerText(html, leadPhrase) {
