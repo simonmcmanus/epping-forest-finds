@@ -242,8 +242,9 @@ const state = {
   // in range or walks in and out of the radius (see checkEventProximityAlert, js/nav.js).
   eventNearbyAlertedIds: new Set(),
   eventNearbyBannerEventId: null,
-  // Filter keys just switched on that have nothing inside the walking radius, so the Nearby
-  // camera reaches their nearest match once -- see refreshOutOfRadiusReveal/outOfRadiusFitPoints.
+  // Filter keys just switched on that have nothing inside the walking radius. Secondary screens
+  // may reach their nearest match once; the Nearby screen itself remains anchored to the radius.
+  // See refreshOutOfRadiusReveal/outOfRadiusFitPoints.
   outOfRadiusRevealFilters: [],
   overviewFilters: loadStoredOverviewFilters(),
   // Set by setOverviewFilters(persist:false) -- see its comment -- never true on first load.
@@ -683,7 +684,7 @@ function searchStringForPath(pathname) {
   // a cold/nuke refresh rewrites the URL to bare /nearby before the caller can verify the refresh.
   // Every category on is the show-everything override, written as the "All nearby" link's own
   // ?filters=false rather than a list of every key.
-  if (pathname === NEARBY_PATH && state.overviewFiltersEphemeral && railSelection().length === 0 && state.overviewFilters.length) {
+  if (pathname === NEARBY_PATH && state.overviewFiltersEphemeral && railSelection().length === 0) {
     parts.push("filters=false");
   } else if ((pathname === ROUTE_PATHS[ROUTE_FILTERS]
     || (pathname === NEARBY_PATH && state.overviewFiltersEphemeral)) && state.overviewFilters.length) {
@@ -2852,8 +2853,9 @@ function setOverviewFilters(nextFilters, { persist = true, render = true, railTa
   // carrying a /nearby/<slug> page's single category over to the plain Nearby screen. Any real
   // change -- a chip tap, anywhere, persist:false page included -- clears it again.
   state.overviewFiltersEphemeral = !persist;
-  // Before the camera work below: a filter switched on with nothing inside the walking radius
-  // is what lets the fit reach its nearest match (outOfRadiusFitPoints).
+  // Before the camera work below: secondary screens may reach a newly selected filter's nearest
+  // match when it lies outside the walking radius (outOfRadiusFitPoints). Nearby stays framed on
+  // the radius itself, even when its list is using an out-of-radius fallback entry.
   refreshOutOfRadiusReveal(previousFilters);
   if (persist) saveFilterState();
   updateFilterUi();
@@ -4726,8 +4728,10 @@ function railItemIsActive(item) {
   return item.filterKeys.some((key) => active.has(key));
 }
 
-// The categories the rail treats as chosen. A set covering every category is the "show all"
-// state (?filters=false), which reads as nothing chosen so the first tap narrows to that one.
+// The categories the rail treats as chosen. A set covering every category is the URL-driven
+// "show all" state (?filters=false), which reads as nothing chosen so the first tap narrows to
+// that one. An empty set is also an explicit show-everything state after the reader switches off
+// their last pill; keeping it empty matters because it lets that pill visibly unselect.
 function railSelection() {
   const chosen = state.overviewFilters.filter((key) => FILTER_SUBFILTERS_BY_KEY.has(key));
   return chosen.length >= FILTER_SUBFILTERS.length ? [] : chosen;
@@ -4798,7 +4802,10 @@ function toggleRailFilter(key) {
     next = Array.from(current);
   }
   if (typeof navigator.vibrate === "function") navigator.vibrate(8);
-  setOverviewFilters(next.length ? next : Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: false, railTap: true });
+  // Do not expand an empty selection back to every key here. That made the last pill look
+  // selected again immediately after it was tapped off, so Nature (and any other final pill)
+  // could never visibly unselect. The Everything pill represents this empty, explicit state.
+  setOverviewFilters(next, { persist: false, railTap: true });
 }
 
 function overviewCategoryContentHtml(content) {
@@ -7364,11 +7371,10 @@ function nearestSelectedFilterPoints() {
 // view zooms out past the ring far enough to show that each selected kind exists and which
 // way it lies -- see nearestSelectedFilterPoints.
 //
-// Every screen also reaches the nearest match of a filter the user has *just switched on* that
-// turned out to have nothing inside the ring (see outOfRadiusFitPoints). Without that, adding a
-// filter whose nearest match is beyond the ring -- Underground stations from inside the forest,
-// say -- changed the list and left the map framed on a ring with nothing new in it, so the
-// station the list had just named was nowhere to be seen.
+// Secondary screens also reach the nearest match of a filter the user has *just switched on*
+// that turned out to have nothing inside the ring (see outOfRadiusFitPoints). Nearby deliberately
+// does not: its map is a survey of the walking radius, and changing filters must not zoom the
+// map out to a distant fallback that may not even be drawn on screen.
 // While a cluster is expanded (state.clusterExpanded), the camera fits the group's own member
 // points instead of the ring. This is not the "fit the item cluster" design the comment above
 // warns against reverting to: that one re-solved every frame against whichever matches
@@ -7402,8 +7408,13 @@ function expandedClusterFitPoints(group) {
 function nearbyCameraFitPoints(useFinalBrowseState = false) {
   if (state.clusterExpanded) return expandedClusterFitPoints(state.clusterExpanded);
   const ring = walkingRadiusCirclePoints(64, useFinalBrowseState);
+  // Nearby is always framed by the configured walking radius. In particular, don't append
+  // out-of-radius fallback matches here: selecting a category can name a distant nearest item
+  // in the list, but that must not pull the camera out to it. The secondary Filter/Settings/
+  // Report screens intentionally use the extra reach because their map explains the selected
+  // filters rather than surveying the reader's walking area.
+  if (!secondaryScreenActive()) return ring;
   const reach = ring.concat(outOfRadiusFitPoints());
-  if (!secondaryScreenActive()) return reach;
   const base = reach.concat(nearestSelectedFilterPoints());
   return state.selected?.type === "community" && typeof communityFitPoints === "function" ? base.concat(communityFitPoints()) : base;
 }

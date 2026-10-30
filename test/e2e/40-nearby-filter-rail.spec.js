@@ -116,12 +116,19 @@ test.describe("Nearby filter rail", () => {
     await expect(pill(page, "nature")).toHaveCount(0);
   });
 
-  test("a pill that was pressed un-presses on a second tap, and the last one returns to all filters", async ({ page }) => {
+  test("a pill that was pressed un-presses on a second tap, and the last one returns to Everything", async ({ page }) => {
     await setup(page, "/nearby/trees");
     await pill(page, "trees").click();
     await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?filters=false$/);
-    await expect(rail(page).locator('[aria-pressed="true"]')).toHaveCount(4);
-    await expect(pill(page, "trees")).toHaveAttribute("aria-pressed", "true");
+    await expect(pill(page, "all-nearby")).toHaveAttribute("aria-pressed", "true");
+    await expect(pill(page, "trees")).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("a selected top-level Nature pill can be switched off", async ({ page }) => {
+    await expect(pill(page, "nature")).toHaveAttribute("aria-pressed", "true");
+    await pill(page, "nature").click();
+    await expect(pill(page, "nature")).toHaveAttribute("aria-pressed", "false");
+    await expect(pill(page, "food")).toHaveAttribute("aria-pressed", "true");
   });
 
   test("tapping pills never changes the reader's saved filters", async ({ page }) => {

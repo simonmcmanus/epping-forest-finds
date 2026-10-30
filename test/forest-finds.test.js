@@ -1715,7 +1715,7 @@ test("nearby heading-up viewport frames the walking-radius circle and ignores wh
   );
 });
 
-test("a filter with nothing inside the radius pulls the nearby camera out far enough to show its nearest match", () => {
+test("a filter with nothing inside the radius does not pull the Nearby camera out to its fallback match", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 0;
@@ -1733,17 +1733,18 @@ test("a filter with nothing inside the radius pulls the nearby camera out far en
   const ringOnlyScale = app.state.viewport.scale;
 
   // Switch on a filter whose only match is a long walk outside the ring. The Nearby list
-  // already falls back to showing it (overviewItemsForActiveFilter marks it outOfRadius), so
-  // the map has to reach it too -- otherwise the list names a station the map never shows.
+  // still falls back to showing it (overviewItemsForActiveFilter marks it outOfRadius), but
+  // the Nearby camera stays focused on the walking radius rather than zooming out to a distant
+  // item that may not be drawn on screen.
   app.setOverviewFilters(["trees", "underground"]);
   app.stopViewportAnimation();
-  assert.deepEqual(Array.from(app.state.outOfRadiusRevealFilters), ["underground"], "the added filter is what the camera reaches for");
+  assert.deepEqual(Array.from(app.state.outOfRadiusRevealFilters), ["underground"], "the added filter is marked for secondary-screen reach");
   app.state.viewport = { scale: 1000, tx: 200, ty: 200 };
   app.alignHeadingUpNavigationViewport();
-  const revealedScale = app.state.viewport.scale;
+  const nearbyScale = app.state.viewport.scale;
   assert.ok(
-    revealedScale < ringOnlyScale * 0.9,
-    `the camera zooms out past the ring to reach the out-of-radius match (${revealedScale} vs ${ringOnlyScale})`,
+    Math.abs(nearbyScale - ringOnlyScale) < ringOnlyScale * 0.001,
+    `the Nearby camera stays on the ring (${nearbyScale} vs ${ringOnlyScale})`,
   );
 
   // It is a response to that action, not a standing property of the camera. A saved filter set
@@ -2158,7 +2159,7 @@ test("a filter set covering every category keeps every displayed pill pressed", 
   app.state.overviewFilters = [];
 });
 
-test("tapping a rail pill narrows to it, a second pill adds to it, and un-pressing the last returns to all filters, none of it saved", () => {
+test("tapping a rail pill narrows to it, a second pill adds to it, and un-pressing the last returns to Everything, none of it saved", () => {
   resetData(app);
   app.location.pathname = "/nearby";
   app.location.search = "";
@@ -2178,6 +2179,9 @@ test("tapping a rail pill narrows to it, a second pill adds to it, and un-pressi
   app.toggleRailFilter("nature");
   assert.equal(app.railSelection().length, 0, "nothing chosen represents all filters");
   assert.equal(app.location.search, "?filters=false");
+  assert.deepEqual(Array.from(app.state.overviewFilters), [], "the last pill remains visibly unselected");
+  assert.match(app.filterRailHtml(), /data-rail-key="all-nearby"[^>]*aria-pressed="true"/);
+  assert.match(app.filterRailHtml(), /data-rail-key="nature"[^>]*aria-pressed="false"/);
   app.state.overviewFilters = [];
   app.state.overviewFiltersEphemeral = false;
   app.location.pathname = "/";
@@ -3791,7 +3795,7 @@ test("maxNearbyHeadingUpScale does not depend on the compass heading, so the cam
   }
 });
 
-test("nearby and the filter screen both zoom out past the walking radius to reach the nearest match of every selected filter", () => {
+test("Nearby stays on the walking radius while the filter screen reaches selected matches outside it", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 0;
@@ -3828,16 +3832,15 @@ test("nearby and the filter screen both zoom out past the walking radius to reac
       filterPoints.some((p) => p.x === point.x && p.y === point.y),
       "the nearest match of each selected filter should be part of the filter-screen fit",
     );
-    // The Nearby screen reaches them too: a filter with nothing inside the ring is exactly
-    // the case where the list shows an out-of-radius fallback, and the map has to agree.
-    assert.ok(
+    assert.equal(
       nearbyPoints.some((p) => p.x === point.x && p.y === point.y),
-      "and part of the plain Nearby fit, since neither filter has anything inside the ring",
+      false,
+      "the plain Nearby fit stays on the walking-radius ring",
     );
   }
   assert.ok(
-    nearbyScale < ringOnlyScale,
-    `Nearby should zoom out past the ring-only fit (nearby=${nearbyScale}, ringOnly=${ringOnlyScale})`,
+    Math.abs(nearbyScale - ringOnlyScale) < ringOnlyScale * 0.001,
+    `Nearby should stay on the ring-only fit (nearby=${nearbyScale}, ringOnly=${ringOnlyScale})`,
   );
   assert.ok(
     filterScale <= nearbyScale * 1.001,
