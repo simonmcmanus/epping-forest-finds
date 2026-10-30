@@ -171,7 +171,7 @@ test.describe("URL navigation", () => {
       // second inspector button ahead of the Nearby controls.
       await setup(page);
       await page.locator("body").evaluate((el) => el.focus());
-      const order = ["nearbyToggle", "searchToggle", "reportToggle", "settingsToggle", "filterToggle"];
+      const order = ["nearbyToggle", "searchToggle", "reportToggle", "settingsToggle", "inspectorDragHandle", "filterToggle"];
       for (const id of order) {
         await page.keyboard.press("Tab");
         await expect(page.locator(`#${id}`)).toBeFocused();
