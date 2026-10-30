@@ -59,7 +59,7 @@ function trackerExistingUserId() {
   }
 }
 
-// Sets both analytics halves together, so the combined first-run ask and Settings stay aligned.
+// Sets both analytics halves together, so the usage-data answer and cookie answer stay aligned.
 function setAnalyticsConsent(granted) {
   setTrackingConsent(granted);
   if (typeof window !== "undefined" && window.ForestFindsCookieConsent) {

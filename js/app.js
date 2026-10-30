@@ -1369,22 +1369,31 @@ function showLocationInviteBanner(message, { canRequest = true } = {}) {
 // The first ask for anyone onboarding did not reach -- a first visit, a landing-page arrival, or a
 // returning visitor with a question still unanswered. One non-blocking card in the inspector
 // chrome (#consentBanner, app.html, css/loading.css) leaves the map fully usable underneath. On a
-// first visit its single explicit action covers the two initial choices; after that it offers the
-// optional guided map setup in the same slot. Landing-page arrivals use that same combined action
+// first visit its single explicit action covers location and usage analytics, then offers the
+// optional guided map setup in the same slot. Landing-page arrivals use the same combined action
 // whenever both choices are still unanswered. On iOS the compass is asked from the same location
 // tap (locateUser), because only a user gesture can ask for it.
 function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnboarding = false } = {}) {
   const banner = els.consentBanner;
   if (!banner || (!askLocation && !askAnalytics && !offerOnboarding)) return false;
-  let stage = askLocation ? (askAnalytics ? "permissions" : "location")
-    : askAnalytics ? "analytics" : "onboarding";
+  let stage = askLocation && askAnalytics ? "permissions" : askLocation ? "location" : askAnalytics ? "analytics" : "onboarding";
+
+  function renderPermissionsStage() {
+    banner.setAttribute("aria-label", "Location and usage analytics");
+    if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Allow location & cookies";
+    if (els.consentBannerText) {
+      els.consentBannerText.innerHTML = `Shows nearby finds and their distance from you, and helps us understand how people use this site — enabling covers both. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>`;
+    }
+    if (els.consentBannerDecline) els.consentBannerDecline.textContent = "Maybe later";
+    if (els.consentBannerAccept) els.consentBannerAccept.textContent = "Enable location & cookies";
+  }
 
   function renderLocationStage() {
     banner.setAttribute("aria-label", "Location");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "See what's near you";
     // Generated landing pages replace the shell's default paragraph with a lead that names the
     // category or place. Keep that useful server-rendered copy when the live page only needs the
-    // location question; the combined first-run card still supplies its own copy below.
+    // location question; the first-run combined card supplies its own copy below.
     const pageSpecificCopy = els.consentBannerText
       && /^Enable location to get walking directions/.test(els.consentBannerText.textContent || "");
     if (els.consentBannerText && !pageSpecificCopy) {
@@ -1392,16 +1401,6 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
     }
     if (els.consentBannerDecline) els.consentBannerDecline.textContent = "Maybe later";
     if (els.consentBannerAccept) els.consentBannerAccept.textContent = "Enable location";
-  }
-
-  function renderPermissionsStage() {
-    banner.setAttribute("aria-label", "Location and cookies");
-    if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Allow location & cookies";
-    if (els.consentBannerText) {
-      els.consentBannerText.innerHTML = `Shows nearby finds and their distance from you, and helps us understand how people use this site — enabling covers both. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>`;
-    }
-    if (els.consentBannerDecline) els.consentBannerDecline.textContent = "Maybe later";
-    if (els.consentBannerAccept) els.consentBannerAccept.textContent = "Enable location & cookies";
   }
 
   function renderAnalyticsStage() {
@@ -1458,7 +1457,7 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
       cleanup();
       banner.classList.remove("fading-out");
       banner.hidden = true;
-      showOnboarding({ skipPermissions: true }).then((onboardResult) => {
+      showOnboarding().then((onboardResult) => {
         state.overviewFilters = sanitizeOverviewFilters(onboardResult.filters);
         saveFilterState();
         updateFilterUi();
@@ -1480,6 +1479,7 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
       cleanup();
       banner.classList.remove("fading-out");
       banner.hidden = true;
+      try { localStorage.setItem("forest-finds-onboarding-v1", "declined"); } catch {}
       return;
     }
     advance();

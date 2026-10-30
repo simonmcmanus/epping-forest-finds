@@ -1134,18 +1134,13 @@ test("treeSpeciesIconHtml returns leaf icon for known species", () => {
 
 test("guided onboarding keeps category groups separate and uses useful defaults", () => {
   const { ONBOARDING_STEPS: steps } = app;
-  const permissionsStep = steps.findIndex((step) => step.type === "permissions");
   const compassStep = steps.findIndex((step) => step.type === "compass");
   const groupSteps = steps.filter((step) => step.type === "group");
 
-  assert.strictEqual(permissionsStep, 0, "the permissions step remains available for direct onboarding launches");
+  assert.equal(steps[0].type, "welcome", "permission questions belong to the non-blocking card, not the guided filter dialog");
   assert.strictEqual(groupSteps.length, app.FILTER_GROUPS.length, "each filter group should keep its own onboarding screen");
   assert.deepEqual(Array.from(app.DEFAULT_FILTERS), ["trees", "cows", "events", "pubs", "churches", "campsites"]);
-  // Compass step is only included on iOS (canRequestCompassPermission). In the test
-  // environment DeviceOrientationEvent.requestPermission is not defined, so no step.
-  if (compassStep >= 0) {
-    assert.ok(compassStep > locationStep, "compass onboarding should come after location setup");
-  }
+  assert.equal(compassStep, -1, "compass access is requested from the location card, not as a filter step");
 });
 
 test("compass onboarding renders permission and fallback states", () => {

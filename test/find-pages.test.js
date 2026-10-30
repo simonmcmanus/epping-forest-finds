@@ -15,6 +15,7 @@ const {
   slugFor,
   loadWaterFeatures,
   nearestWithinWalkingRadius,
+  NEARBY_INDEX_FILTERS,
 } = require("../scripts/generate-find-pages.js");
 const { loadAppRules } = require("../scripts/report/map-inventory.js");
 
@@ -206,6 +207,25 @@ test("generate writes one index.html per page under nearby/<slug>/, and listFind
   assert.ok(fs.existsSync(path.join(dir, "nearby", "cows", "index.html")), "cows too, same reasoning");
 
   assert.deepEqual(listFindSlugs(dir), ["cafes", "cows", "events", "food", "pubs"]);
+});
+
+test("generated bare Nearby uses the same six default filter groups as the app", () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "find-pages-defaults-"));
+  fs.copyFileSync(path.join(REPO_ROOT, "app.html"), path.join(dir, "app.html"));
+  generate(dir, FAKE_INVENTORY);
+
+  const html = fs.readFileSync(path.join(dir, "nearby-index.html"), "utf8");
+  const rules = loadAppRules();
+  const expectedDefaults = ["trees", "cows", "events", "pubs", "churches", "campsites"];
+  assert.deepEqual(NEARBY_INDEX_FILTERS, expectedDefaults);
+  const expectedGroupCount = rules.FILTER_GROUPS.filter((group) =>
+    group.subfilters.some((subfilter) => expectedDefaults.includes(subfilter.key))
+  ).length;
+  assert.match(
+    html,
+    new RegExp(`aria-label="Filters: ${expectedGroupCount} top-level filters selected"`),
+    "the generated index must advertise the complete default filter set"
+  );
 });
 
 test("no generated category slug ever collides with the /nearby/filter or /nearby/search screens", () => {

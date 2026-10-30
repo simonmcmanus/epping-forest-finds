@@ -286,7 +286,7 @@ function renderBusinessPage(entry, appHtml, rules, index) {
   html = replaceOnce(html, APP_EMPTY_STATE, seoContent, "initial inspector empty-state paragraph");
   // Unlike every other /find/<slug>/ page, /find/events/ itself is excluded from
   // isLandingPageArrival() (js/app.js -- "events" is the one /find/ path that isn't a business
-  // of its own), so it never shows the combined consent banner live and must keep app.html's own
+  // of its own), so it never shows the app consent card live and must keep app.html's own
   // hidden default, not get this treatment.
   html = customizeConsentBannerText(html, `Enable location to get walking directions and see how far you are from ${escapeHtml(entry.name)}`);
   return html;
