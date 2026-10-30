@@ -32,8 +32,8 @@ const APP_CONSENT_BANNER_TEXT =
 // Swaps that generic copy for a page-specific lead phrase (e.g. "Enable location to get walking
 // directions and see what's near pubs and bars") on a generated /nearby/<slug>/ or /find/<slug>/
 // page. Generated landing pages use this replacement for their server-rendered location copy;
-// the live first-run app card keeps its combined location-and-cookies copy and changes stages in
-// js/app.js. Reported directly: the body's own separate "Enable location to..." sentence not only
+// the live first-run app card keeps its combined location and analytics action in js/app.js.
+// Reported directly: the body's own separate "Enable location to..." sentence not only
 // repeated what this banner already asks, but read as generic boilerplate once the real content sat
 // right below it -- merging the two into the one ask on screen removes the repeat.
 function customizeConsentBannerText(html, leadPhrase) {

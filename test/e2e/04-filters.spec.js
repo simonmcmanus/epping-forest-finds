@@ -124,12 +124,10 @@ test.describe("Filter panel", () => {
       permissions: ["geolocation"],
     });
 
-    // The Nearby list already falls back to naming the closest match for a filter with nothing
-    // inside the walking radius. The map has to agree: leaving the camera framed on the ring
-    // meant adding, say, Underground stations from inside the forest changed the list and
-    // changed nothing at all on the map, so the station the list had just named was nowhere
-    // to be seen.
-    test("the map zooms out far enough to show the nearest one", async ({ page }) => {
+    // The Nearby list still falls back to naming the closest match for a filter with nothing
+    // inside the walking radius, but the map remains a survey of that radius. A distant fallback
+    // must not make checking a category zoom the camera out to a place that is not shown.
+    test("the map stays focused on the walking radius", async ({ page }) => {
       await setup(page);
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
@@ -170,15 +168,15 @@ test.describe("Filter panel", () => {
         return {
           candidate,
           ringOnlyScale,
-          zoomedOutScale: state.viewport.scale,
+          afterFilterScale: state.viewport.scale,
           onScreen: screen.x >= rect.x && screen.x <= rect.x + rect.width
             && screen.y >= rect.y && screen.y <= rect.y + rect.height,
         };
       });
 
       expect(framing, "the dataset should have at least one transport kind outside a 5 min walk").not.toBeNull();
-      expect(framing.zoomedOutScale, "the camera reaches past the ring").toBeLessThan(framing.ringOnlyScale);
-      expect(framing.onScreen, `the nearest ${framing?.candidate} is on the map`).toBe(true);
+      expect(framing.afterFilterScale, "checking a distant fallback must not zoom out the Nearby map")
+        .toBeGreaterThanOrEqual(framing.ringOnlyScale * 0.999);
     });
   });
 

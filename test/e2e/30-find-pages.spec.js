@@ -56,9 +56,10 @@ test.describe("generated find/nearby pages", () => {
   });
 
   test.describe("no-JS render matches the JS render", () => {
-    // Reads the content both renders share -- heading, type line, chip row and each Nearby card's
-    // name, footer and direction arrow -- from whatever is in #inspectorBody, so the same reader
-    // serves the static DOM (JS disabled) and the live one.
+    // Reads the content both renders share -- heading, type line and each Nearby card's name,
+    // footer and direction arrow -- from whatever is in #inspectorBody, so the same reader serves
+    // the static DOM (JS disabled) and the live one. Static category links are intentionally
+    // replaced by the live filter rail once JS boots.
     const readInspector = (page) =>
       page.evaluate(() => {
         const text = (el) => (el ? el.textContent.replace(/\s+/g, " ").trim() : "");
@@ -66,7 +67,7 @@ test.describe("generated find/nearby pages", () => {
         return {
           title: text(document.querySelector("#inspectorTitle")),
           type: text(document.querySelector("#inspectorType")),
-          chips: [...body.querySelectorAll(".related-chips a")].map((a) => ({
+          chips: [...body.querySelectorAll(".rail-pills [data-rail-key]")].map((a) => ({
             href: a.getAttribute("href"),
             label: text(a),
             classes: a.className,
@@ -101,10 +102,7 @@ test.describe("generated find/nearby pages", () => {
 
         expect(liveRender.title).toBe(staticRender.title);
         expect(liveRender.type).toBe(staticRender.type);
-        expect(liveRender.chips.map(({ href, label }) => ({ href, label }))).toEqual(
-          staticRender.chips.map(({ href, label }) => ({ href, label }))
-        );
-        expect(staticRender.chips.every((chip) => chip.classes.includes("nearby-link"))).toBe(true);
+        expect(staticRender.chips.length).toBeGreaterThan(0);
         expect(liveRender.cards.map(({ name }) => name)).toEqual(staticRender.cards.map(({ name }) => name));
         expect(liveRender.cards.map(({ meta }) => meta)).toEqual(staticRender.cards.map(({ meta }) => meta));
         staticRender.cards.forEach((card, i) => {
@@ -125,20 +123,16 @@ test.describe("generated find/nearby pages", () => {
       // browser-default-styled <ul> that then visibly restyled itself the instant JS booted.
       expect(html).toContain('class="nearest-list"');
       expect(html).toContain(`class="nearest-item" href="/find/${EXAMPLE_PUB.slug}/"`);
-      expect(html).toContain('Browse nearby categories');
-      expect(html).toContain('class="detail-map-link nearby-link nearby-link--current" href="/nearby/pubs/" aria-current="page"');
+      expect(html).toContain('class="filter-rail nearby-category-nav" aria-label="Filter nearby places"');
+      expect(html).toContain('class="rail-pill is-on" href="/nearby?filters=false" data-rail-key="pubs"');
       expect(html).toContain('<h3 id="nearbyResultsHeading">Pubs &amp; bars nearby</h3>');
-      // Every category/subcategory page links onward to veteran trees and grazing cattle as
-      // pills in the top chip row, the same up-link every /find/<slug>/ business page already
-      // carries.
-      expect(html).toMatch(/<a class="detail-map-link nearby-link" href="\/nearby\/trees\/">[\s\S]*?Trees<\/a>/);
-      expect(html).toMatch(/<a class="detail-map-link nearby-link" href="\/nearby\/cows\/">[\s\S]*?Cows<\/a>/);
+      expect(html).toContain('data-rail-key="all-nearby"');
     });
 
     test("the trees category page marks its current pill and links onward to cows", async ({ request }) => {
       const html = await (await request.get("/nearby/trees/")).text();
-      expect(html).toContain('class="detail-map-link nearby-link nearby-link--current" href="/nearby/trees/" aria-current="page"');
-      expect(html).toMatch(/<a class="detail-map-link nearby-link" href="\/nearby\/cows\/">[\s\S]*?Cows<\/a>/);
+      expect(html).toContain('class="rail-pill is-on" href="/nearby?filters=false" data-rail-key="trees"');
+      expect(html).toContain('data-rail-key="cows"');
     });
 
     test("/nearby/trees/ server-renders a real nearest-tree list, and /nearby/ponds-streams/ a real water list", async ({ request }) => {
@@ -207,13 +201,13 @@ test.describe("generated find/nearby pages", () => {
       expect(staticKeys).toEqual(liveKeys);
     });
 
-    test("bare /nearby shows the location ask, the Filters button and the tree list with JavaScript disabled", async ({ browser, baseURL }) => {
+    test("bare /nearby shows the location ask and tree list with JavaScript disabled", async ({ browser, baseURL }) => {
       const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
       const page = await context.newPage();
       await page.goto("/nearby");
       await expect(page.locator("#consentBanner")).toContainText("Allow location & cookies");
       await expect(page.locator("#filterToggle")).toBeVisible();
-      await expect(page.locator("#filterCount")).toHaveText("3");
+      await expect(page.locator("#filterCount")).toHaveText("4");
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
       await context.close();
     });
@@ -292,7 +286,7 @@ test.describe("generated find/nearby pages", () => {
       expect(staticHtml).not.toContain("Shows nearby finds and their distance from you");
 
       // Unlike /find/events/, a business page is a landing-page arrival (isLandingPageArrival,
-      // js/app.js), so the combined banner shows live with this same server-rendered copy.
+      // js/app.js), so the combined consent card shows live with this same server-rendered copy.
       await skipOnboarding(page);
       await gotoAndWaitForMap(page, `/find/${EXAMPLE_PUB.slug}/`);
       await expect(page.locator("#consentBanner .consent-banner-copy")).toContainText(
@@ -329,12 +323,12 @@ test.describe("generated find/nearby pages", () => {
   });
 
   test.describe("the live app", () => {
-    test("/nearby/nature/ keeps the same \"Browse by type\"/\"see also\" pills once JS boots, with no species breakdown or water-only list on either render", async ({ page }) => {
+    test("/nearby/nature/ shows the nature subcategory rail once JS boots", async ({ page }) => {
       await gotoAndWaitForMap(page, "/nearby/nature/");
       const body = page.locator("#inspectorBody");
       await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
-      await expect(body.locator('a.detail-map-link[href="/nearby/trees/"]')).toHaveCount(1);
-      await expect(body.locator('a.detail-map-link[href="/nearby/ponds-streams/"]')).toHaveCount(1);
+      await expect(body.locator('[data-rail-key="trees"]')).toHaveCount(1);
+      await expect(body.locator('[data-rail-key="ponds_streams"]')).toHaveCount(1);
     });
 
     test("/nearby/pubs/ never slides its server-rendered list in from the side while booting without a location fix", async ({ page }) => {
@@ -573,35 +567,32 @@ test.describe("generated find/nearby pages", () => {
       expect(html).toContain('href="/nearby/food/"');
     });
 
-    test("once JS boots, /nearby/pubs/ still labels the category navigation and links up to the full Nearby list", async ({ page }) => {
+    test("once JS boots, /nearby/pubs/ hydrates the server rail with Pubs pressed", async ({ page }) => {
       // The live Nearby overview (selectOverview/overviewNearestHtml) replaces the static page's
-      // whole #inspectorBody the moment JS boots -- it had no breadcrumb of its own, so these
-      // links silently vanished the instant a real visitor's browser finished loading the page.
+      // whole #inspectorBody the moment JS boots. The live rail carries the same category
+      // navigation the server-rendered links gave a crawler: the current category pressed and
+      // its groupmates as pills.
       // setup() (not gotoAndWaitForMap directly) force-hides #locationGate, which otherwise
       // intercepts the click below (no geolocation permission is granted in this spec file).
       await setup(page, "/nearby/pubs/");
       await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
 
       const body = page.locator("#inspectorBody");
-      await expect(body.getByText("Browse nearby categories")).toBeVisible();
-      await expect(body.locator('a[aria-current="page"][href="/nearby/pubs/"]')).toHaveCount(1);
+      await expect(body.locator('[data-rail-key="pubs"][aria-pressed="true"]')).toHaveCount(1);
+      await expect(body.locator('[data-rail-key="cafes"][aria-pressed="false"]')).toHaveCount(1);
       await expect(body.getByRole("heading", { name: "Pubs & bars nearby" })).toBeVisible();
-      await expect(body.locator('a.detail-map-link[href="/nearby/food/"]')).toHaveCount(1);
-      await expect(body.locator('a.detail-map-link[href="/nearby?filters=false"]')).toHaveCount(1);
-
       await page.evaluate(() => { window.__noReloadMarker = "still-here"; });
-      await body.locator('a.detail-map-link[href="/nearby/food/"]').click();
-      await expect(page).toHaveURL(/\/nearby\/food\/$/);
+      await body.locator('[data-rail-key="cafes"]').click();
+      await expect(page).toHaveURL(/\/nearby\?show=pubs,cafes$/);
       const markerSurvived = await page.evaluate(() => window.__noReloadMarker).catch(() => null);
       expect(markerSurvived).toBe("still-here");
     });
 
-    test("the /nearby/trees/ page marks its current category, and /nearby/cows/ does the same", async ({ page }) => {
+    test("the /nearby/trees/ page opens with Trees pressed on the rail", async ({ page }) => {
       await skipOnboarding(page);
       await gotoAndWaitForMap(page, "/nearby/trees/");
       await expect.poll(() => page.evaluate(() => state.dataLoaded === true)).toBe(true);
-      await expect(page.locator('#inspectorBody a[aria-current="page"][href="/nearby/trees/"]')).toHaveCount(1);
-      await expect(page.locator('#inspectorBody a.detail-map-link[href="/nearby?filters=false"]')).toHaveCount(1);
+      await expect(page.locator('#inspectorBody [data-rail-key="trees"][aria-pressed="true"]')).toHaveCount(1);
     });
   });
 });
