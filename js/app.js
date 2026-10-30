@@ -1348,7 +1348,12 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
   function renderLocationStage() {
     banner.setAttribute("aria-label", "Location");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "See what's near you";
-    if (els.consentBannerText) {
+    // Generated landing pages replace the shell's default paragraph with a lead that names the
+    // category or place. Keep that useful server-rendered copy when the live page only needs the
+    // location question; the combined first-run card still supplies its own copy below.
+    const pageSpecificCopy = els.consentBannerText
+      && /^Enable location to get walking directions/.test(els.consentBannerText.textContent || "");
+    if (els.consentBannerText && !pageSpecificCopy) {
       els.consentBannerText.innerHTML = `Enable location to centre the map on you and see real walking distances. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>`;
     }
     if (els.consentBannerDecline) els.consentBannerDecline.textContent = "Maybe later";
