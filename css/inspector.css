@@ -534,11 +534,14 @@
   border-radius: 8px;
 }
 
-.inspector.nearby-overview .type {
+.inspector .type {
   margin: 6px 0 0;
   color: var(--muted);
   font-size: 0.88rem;
   line-height: 1.25;
+}
+
+.inspector.nearby-overview .type {
   min-height: 2.5em;
   max-height: 2.5em;
   overflow: hidden;
