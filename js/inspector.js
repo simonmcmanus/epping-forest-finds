@@ -729,8 +729,13 @@ function animateRailIntro() {
   setTimeout(() => {
     if (!row.isConnected) { railIntroDue = true; return; }
     if (row.scrollLeft > 0) return;
+    const rail = row.closest(".filter-rail");
+    rail?.classList.add("has-more-right");
     row.scrollTo({ left: peek, behavior: "smooth" });
-    setTimeout(() => { if (row.isConnected && Math.abs(row.scrollLeft - peek) < 24) row.scrollTo({ left: 0, behavior: "smooth" }); }, 650);
+    setTimeout(() => {
+      rail?.classList.remove("has-more-right");
+      if (row.isConnected && Math.abs(row.scrollLeft - peek) < 24) row.scrollTo({ left: 0, behavior: "smooth" });
+    }, 1250);
   }, 700);
 }
 

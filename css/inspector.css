@@ -1348,6 +1348,26 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   background: var(--panel);
 }
 
+/* A brief, decorative pulse at the clipped edge accompanies the one-time scroll peek. It makes
+   the affordance visible even when the pill labels are similar in colour to the panel. */
+.filter-rail.has-more-right::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 34px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--panel));
+  animation: rail-more-right 1.25s ease-in-out both;
+}
+
+@keyframes rail-more-right {
+  0%, 100% { opacity: 0; transform: translateX(8px); }
+  35% { opacity: 0.92; transform: none; }
+  68% { opacity: 0.52; transform: none; }
+}
+
 .rail-pills {
   display: flex;
   flex: 1;
@@ -1453,8 +1473,10 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
 
 @media (prefers-reduced-motion: reduce) {
   .rail-pill,
-  .rail-pill::before {
+  .rail-pill::before,
+  .filter-rail.has-more-right::after {
     transition: none;
+    animation: none;
   }
 }
 

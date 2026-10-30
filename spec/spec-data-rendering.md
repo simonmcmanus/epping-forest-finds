@@ -1405,16 +1405,18 @@ The full routing model — the URL for each screen, history entries, back/forwar
     not slide. Existing pills keep their node and glide to new slots, new pills pop in; rows are
     merged by place — kept rows slide to their new position, new rows spring up one after another
     with a brief green ring around the rounded card, leaving rows fade out from where they were. A pressed pill's green
-    light sage secondary fill sweeps in from the left and its status marker changes between a tick
-    for selected and a cross for unselected without moving the user's horizontal scroll position.
+    light sage secondary fill sweeps in from the left and its status marker shows a tick only for
+    selected pills, while unselected pills reserve the same space without showing a close icon.
+    This does not move the user's horizontal scroll position.
     It is a secondary selection state, not a primary CTA treatment. A phone gets an 8ms vibration on a tap where
     `navigator.vibrate` exists. With `prefers-reduced-motion`, or when the body has no rail yet, the
     body is rebuilt the ordinary way. The rail has no right-hand Filters control; the existing
     navigation and title affordances remain ordinary links and still slide when used.
   - **Arrival.** When the rail first appears on a Nearby screen (`animateRailIntro()`,
     js/inspector.js) the pills stream in from the right one after another, and if more pills exist
-    than fit, the row drifts sideways and back once so it is clear it scrolls. It plays once per
-    arrival: a rebuild that replaces a rail already on screen does not replay it.
+    than fit, the row drifts sideways and back once, with a soft pulse at the clipped right edge,
+    so it is clear it scrolls. It plays once per arrival: a rebuild that replaces a rail already on
+    screen does not replay it.
   - **Static landings.** The server-rendered `/nearby/<slug>/` page keeps its anchor chips for
     crawlers and no-JavaScript visitors (`spec-marketing.md` § "Category pages"); while that list
     stays on screen, `swapStaticChipsForRail()` replaces just the chips with the rail.
