@@ -936,9 +936,9 @@ is never moved by this -- only the browse anchor, exactly as any other anchor mo
 - A `findSlug` place also shows a headed **Nearest** section (one card per category the reader has
   chosen -- `nearbyCardFilterKeys()`, js/inspector.js -- falling back to trees and cows when none are
   set, capped at six). Each card's line is a plain count from this place within the reader's walking
-  radius: "43 trees within 30 min walk of The Foresters. 20 further away." or, with none close enough,
-  "No cows within 30 min walk of The Foresters. 11 further away." (`nearbyCountCopy`,
-  `countNearbyEntries`, js/inspector.js). Counts take thousands separators, and the line wraps inside the card rather than truncating. A cows card is held back until cow positions are loaded,
+  radius: "43 trees within 30 min walk of The Foresters." or, with none close enough,
+  "No cows within 30 min walk of The Foresters." (`nearbyCountCopy`, `countNearbyEntries`,
+  js/inspector.js). Tiles with no locations within the walking radius are omitted. Counts take thousands separators, and the line wraps inside the card rather than truncating. A cows card is held back until cow positions are loaded,
   rather than reporting a zero; an already-open tree or place re-renders when they first arrive
   (`refreshSelectedDetailForCows`, js/app.js) so the card appears without reopening it. A headed **Related** section (its own category/group, with the same
   counted line for each) follows, both rendered as the same
