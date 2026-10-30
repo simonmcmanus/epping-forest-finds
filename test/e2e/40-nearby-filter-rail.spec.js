@@ -131,6 +131,12 @@ test.describe("Nearby filter rail", () => {
     await expect(pill(page, "food")).toHaveAttribute("aria-pressed", "true");
   });
 
+  test("adding Transport does not widen the walking radius to an invisible fallback", async ({ page }) => {
+    const before = await page.evaluate(() => state.walkingDistanceMinutes);
+    await pill(page, "transport").click();
+    await expect.poll(() => page.evaluate(() => state.walkingDistanceMinutes)).toBe(before);
+  });
+
   test("tapping pills never changes the reader's saved filters", async ({ page }) => {
     const saved = await page.evaluate(() => localStorage.getItem(FILTER_STATE_KEY));
     await pill(page, "transport").click();

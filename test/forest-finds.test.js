@@ -722,6 +722,7 @@ function resetData(app) {
   app.state.roads = [];
   app.state.nearbyAnchor = null;
   app.state.nearbyOriginTransition = null;
+  app.state.nearbyFilterChangeOrigin = null;
   app.state.cameraOriginTransition = null;
   app.state.clusterExpanded = null;
   app.state.clusterZoomed = false;
@@ -5171,6 +5172,18 @@ test("the walking radius grows back to the nearest remaining find once the ring 
   app.state.walkingDistanceMinutes = 30;
   assert.equal(app.ensureWalkingRadiusCoversNearest(), false, "the radius is never pulled back in automatically");
   assert.equal(app.state.walkingDistanceMinutes, 30);
+});
+
+test("adding a filter does not widen an empty Nearby ring to its distant fallback", () => {
+  resetData(app);
+  app.state.landmarks.push({ id: "far-station", name: "Far Underground Station", category: "station", ...makePoint(app, 0.03, 0) });
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.walkingDistanceMinutes = 5;
+
+  app.setOverviewFilters(["underground"]);
+  assert.equal(app.nearbyRadiusIsEmpty(), true, "the selected transport kind has no match in the ring");
+  assert.equal(app.ensureWalkingRadiusCoversNearest(), false, "a filter change must not widen the ring");
+  assert.equal(app.state.walkingDistanceMinutes, 5, "the reader's radius remains unchanged");
 });
 
 test("an open settings slider follows a radius changed from outside it", () => {

@@ -1333,6 +1333,7 @@ function refreshNearbyRadiusView(options = {}) {
 function applyWalkingRadiusChange(minutes, options = {}) {
   if (state.walkingDistanceMinutes === minutes) return;
   state.walkingDistanceMinutes = minutes;
+  state.nearbyFilterChangeOrigin = null;
   syncLiveQueryStringForScreen();
   // Resizing the ring is the user taking the camera back: whatever out-of-radius match a
   // just-added filter had the fit reaching for (outOfRadiusFitPoints, js/app.js), the ring they
@@ -1382,6 +1383,20 @@ function walkingRadiusGrowBackMinutes() {
   if (nearbyOriginTransitionActive()) return null;
   const origin = nearbyOrigin();
   if (!origin) return null;
+  // Changing filters can make the current ring empty without the reader having moved. Do not
+  // reinterpret that as permission to widen the radius to the nearest out-of-radius fallback:
+  // on Nearby the map remains focused on the radius the reader chose, even when the list names
+  // a distant match. Once the origin has genuinely moved, normal empty-ring recovery resumes.
+  if (state.nearbyFilterChangeOrigin) {
+    const movedMetres = distanceMetres(
+      state.nearbyFilterChangeOrigin.latitude,
+      state.nearbyFilterChangeOrigin.longitude,
+      origin.latitude,
+      origin.longitude,
+    );
+    if (movedMetres <= STABLE_NEARBY_ORIGIN_HYSTERESIS_METRES) return null;
+    state.nearbyFilterChangeOrigin = null;
+  }
   if (!nearbyRadiusIsEmpty()) return null;
   const floor = ceilWalkingMinutes(walkingRadiusFloorMinutes(origin));
   return floor > state.walkingDistanceMinutes ? floor : null;

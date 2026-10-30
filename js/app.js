@@ -246,6 +246,9 @@ const state = {
   // may reach their nearest match once; the Nearby screen itself remains anchored to the radius.
   // See refreshOutOfRadiusReveal/outOfRadiusFitPoints.
   outOfRadiusRevealFilters: [],
+  // A filter change must not make the automatic empty-ring recovery widen the user's radius to a
+  // distant fallback. It is cleared once the reader has actually moved away from this origin.
+  nearbyFilterChangeOrigin: null,
   overviewFilters: loadStoredOverviewFilters(),
   // Set by setOverviewFilters(persist:false) -- see its comment -- never true on first load.
   overviewFiltersEphemeral: false,
@@ -2847,7 +2850,16 @@ function setSubfilterPanelExpanded(panel, expanded) {
 // /nearby. An actual chip tap, on that page or anywhere else, always persists as before.
 function setOverviewFilters(nextFilters, { persist = true, render = true, railTap = false } = {}) {
   const previousFilters = state.overviewFilters;
-  state.overviewFilters = sanitizeOverviewFilters(nextFilters);
+  const sanitizedFilters = sanitizeOverviewFilters(nextFilters);
+  const filtersChanged = previousFilters.length !== sanitizedFilters.length
+    || previousFilters.some((filterKey, index) => filterKey !== sanitizedFilters[index]);
+  state.overviewFilters = sanitizedFilters;
+  if (filtersChanged) {
+    const origin = state.nearbyAnchor || state.userLocation;
+    state.nearbyFilterChangeOrigin = origin
+      ? { latitude: origin.latitude, longitude: origin.longitude }
+      : null;
+  }
   // Marks the current filters as a page's own lens rather than the reader's choice, so
   // goToInitialView (the Nearby nav button) knows to put their real filters back rather than
   // carrying a /nearby/<slug> page's single category over to the plain Nearby screen. Any real
