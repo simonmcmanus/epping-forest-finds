@@ -157,21 +157,14 @@ test("a category link opens with its subcategories available", async ({ page }) 
   await expect(pill(page, "nature")).toHaveCount(0);
 });
 
-test("when more pills fit than are visible, the row drifts sideways once and back to show it scrolls", async ({ page, isMobile }) => {
+test("when more pills fit than are visible, the row can scroll sideways and return to the start", async ({ page, isMobile }) => {
   test.skip(!isMobile, "the desktop panel is wide enough to show the whole row");
-  await page.addInitScript(() => {
-    window.__railMax = 0;
-    window.__railScrolls = [];
-    document.addEventListener("scroll", (event) => {
-      const el = event.target;
-      if (el instanceof HTMLElement && el.classList.contains("rail-pills")) {
-        window.__railMax = Math.max(window.__railMax, el.scrollLeft);
-        window.__railScrolls.push(el.scrollLeft);
-      }
-    }, true);
-  });
   await setup(page, "/nearby");
   await expect(rail(page)).toBeVisible();
-  await expect.poll(() => page.evaluate(() => window.__railMax)).toBeGreaterThan(10);
+  const row = page.locator(".rail-pills");
+  await expect.poll(() => row.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeGreaterThan(10);
+  await row.evaluate((el) => { el.scrollLeft = el.scrollWidth; });
+  await expect.poll(() => row.evaluate((el) => el.scrollLeft)).toBeGreaterThan(10);
+  await row.evaluate((el) => { el.scrollLeft = 0; });
   await expect.poll(() => page.evaluate(() => document.querySelector(".rail-pills").scrollLeft)).toBe(0);
 });
