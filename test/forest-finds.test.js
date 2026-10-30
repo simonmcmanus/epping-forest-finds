@@ -5491,19 +5491,19 @@ test("walking radius circle fits in visible area even with inspector open", () =
   assert.ok(center.y + radiusPx <= canvasHeight, `bottom edge of radius circle off screen: ${center.y + radiusPx} > ${canvasHeight}`);
 });
 
-test("filter screen sets the URL to /nearby/filter", () => {
+test("map setup opens at /nearby/filter", () => {
   resetData(app);
   app.openFiltersScreen();
-  assert.equal(app.location.pathname, "/nearby/filter", "filter screen has its own path");
+  assert.equal(app.location.pathname, "/nearby/filter", "map setup keeps the filter route");
 });
 
-test("the /nearby/filter path opens the filter screen on load", () => {
+test("the /nearby/filter path opens map setup on load", () => {
   resetData(app);
   app.location.pathname = "/nearby/filter";
   const opened = app.applySelectionFromHash(false);
   assert.ok(opened, "applySelectionFromHash returns true for /nearby/filter");
-  assert.ok(app.state.filterScreenOpen, "filter screen is open");
-  assert.equal(app.els.inspectorTitle.textContent, "Filters", "inspector shows Filters title");
+  assert.ok(app.state.filterScreenOpen, "map setup route is open");
+  assert.equal(app.els.inspectorTitle.textContent, "Map setup", "inspector shows Map setup title");
   app.location.pathname = "/";
 });
 

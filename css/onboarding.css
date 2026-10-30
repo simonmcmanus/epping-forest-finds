@@ -140,6 +140,17 @@
   margin-bottom: 2px;
 }
 
+.onboarding-map-setup-icon {
+  display: grid;
+  place-items: center;
+  color: var(--tree);
+}
+
+.onboarding-map-setup-icon svg {
+  width: 56px;
+  height: 56px;
+}
+
 .onboarding-step-title {
   margin: 0;
   font-size: 1.4rem;

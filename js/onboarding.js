@@ -1,4 +1,5 @@
 // First-visit onboarding: a short guided filter setup, with permissions collected up front.
+// The same guided filter steps can also be opened later from Nearby in `filters` mode.
 // Runs while map data loads in the background.
 
 const ONBOARDING_KEY = "forest-finds-onboarding-v1";
@@ -49,11 +50,16 @@ function hasCompletedOnboarding() {
 // so the two ways of asking it cannot drift apart.
 const COMBINED_CONSENT_TEXT = "Shows nearby finds and their distance from you, and helps us understand how people use this site — enabling covers both.";
 
-// Returns a Promise resolving to { filters: string[], locationPromise: Promise|null }
+function mapSetupIconMarkup() {
+  return `<span class="onboarding-step-icon onboarding-map-setup-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 7 8.5-3.5L20.5 7 12 10.5 3.5 7Z"/><path d="m3.5 12 8.5 3.5 8.5-3.5"/><path d="m3.5 17 8.5 3.5 8.5-3.5"/></svg></span>`;
+}
+
+// Returns a Promise resolving to { filters: string[]|null, cancelled: boolean, locationPromise: Promise|null }
 // locationPromise is a live geolocation request started the moment the user tapped
 // "Enable location", so it runs concurrently with the rest of the data loading.
-function showOnboarding({ skipPermissions = false } = {}) {
+function showOnboarding({ skipPermissions = false, mode = "first-run" } = {}) {
   return new Promise((resolve) => {
+    const filterSetupMode = mode === "filters";
     const overlay = document.getElementById("onboardingOverlay");
     const progressEl = overlay.querySelector(".onboarding-progress");
     const contentEl = overlay.querySelector(".onboarding-content");
@@ -61,15 +67,24 @@ function showOnboarding({ skipPermissions = false } = {}) {
 
     // A usage-analytics answer already given elsewhere (the homepage's cookie banner, say) is
     // omitted from the permissions dialog below; the rest of the guided setup is unchanged.
-    const steps = skipPermissions
-      ? ONBOARDING_STEPS.filter((step) => step.type !== "permissions")
-      : ONBOARDING_STEPS;
+    const steps = filterSetupMode
+      ? [{ type: "filter-intro" }, ...FILTER_GROUPS.map((g) => ({ type: "group", group: g }))]
+      : skipPermissions
+        ? ONBOARDING_STEPS.filter((step) => step.type !== "permissions")
+        : ONBOARDING_STEPS;
     let stepIndex = 0;
     let locationPromise = null;
     const total = steps.length;
-    const selected = new Set(DEFAULT_OVERVIEW_FILTER_KEYS);
+    const startingFilters = filterSetupMode
+      && typeof state !== "undefined"
+      && state
+      && Array.isArray(state.overviewFilters)
+      ? state.overviewFilters
+      : DEFAULT_OVERVIEW_FILTER_KEYS;
+    const selected = new Set(sanitizeOverviewFilters(startingFilters));
 
     overlay.hidden = false;
+    overlay._onboardingActive = true;
     const deactivateFocus = typeof activateModalFocus === "function" ? activateModalFocus(overlay) : null;
 
     function renderProgress() {
@@ -102,7 +117,17 @@ function showOnboarding({ skipPermissions = false } = {}) {
       void contentEl.offsetWidth;
       contentEl.classList.add(direction === "back" ? "entering-backward" : "entering-forward");
 
-      if (step.type === "welcome") {
+      if (step.type === "filter-intro") {
+        contentEl.innerHTML = `
+          ${mapSetupIconMarkup()}
+          <h2 class="onboarding-step-title">Choose what appears on the map</h2>
+          <p class="onboarding-step-subtitle">Turn categories on or off to control the pins you see and the finds in your Nearby list. Your choices only change what is shown — you can update them any time.</p>
+        `;
+        actionsEl.innerHTML = `
+          <button class="button ob-primary">Choose categories</button>
+          <button class="onboarding-skip-btn ob-cancel" type="button">Keep current choices</button>
+        `;
+      } else if (step.type === "welcome") {
         contentEl.innerHTML = `
           <img class="onboarding-step-icon" src="data/icons/trees/logo.png" alt="">
           <h2 class="onboarding-step-title">Make the map yours</h2>
@@ -135,8 +160,9 @@ function showOnboarding({ skipPermissions = false } = {}) {
             ${!isFirst ? `<button class="button ob-back" type="button">← Back</button>` : ""}
             <button class="button ob-next" type="button">${isLast ? "Done" : "Next"}</button>
           </div>
-          ${!isLast ? `<button class="onboarding-skip-btn ob-skip" type="button">Skip remaining</button>` : ""}
+          <button class="onboarding-skip-btn ${filterSetupMode ? "ob-cancel" : "ob-skip"}" type="button">${filterSetupMode ? "Cancel changes" : (!isLast ? "Skip remaining" : "")}</button>
         `;
+        if (isLast && !filterSetupMode) actionsEl.querySelector(".ob-cancel")?.remove();
       } else if (step.type === "permissions") {
         const needsCompassPrompt = canRequestCompassPermission() && Native.compassNeedsPrompt;
         analyticsUnanswered = typeof analyticsChoice !== "function" || analyticsChoice() === "undecided";
@@ -187,6 +213,7 @@ function showOnboarding({ skipPermissions = false } = {}) {
       });
       actionsEl.querySelector(".ob-back")?.addEventListener("click", goBack);
       actionsEl.querySelector(".ob-skip")?.addEventListener("click", () => finish());
+      actionsEl.querySelector(".ob-cancel")?.addEventListener("click", () => finish({ cancelled: true }));
       contentEl.querySelector(".ob-location")?.addEventListener("click", async () => {
         if (typeof rememberLocationChoice === "function") rememberLocationChoice("granted");
         if (analyticsUnanswered && typeof setAnalyticsConsent === "function") setAnalyticsConsent(true);
@@ -300,15 +327,18 @@ function showOnboarding({ skipPermissions = false } = {}) {
       renderStep("back");
     }
 
-    function finish() {
-      try { localStorage.setItem(ONBOARDING_KEY, "1"); } catch {}
+    function finish({ cancelled = false } = {}) {
+      if (!filterSetupMode) {
+        try { localStorage.setItem(ONBOARDING_KEY, "1"); } catch {}
+      }
       if (deactivateFocus) deactivateFocus();
       overlay.classList.add("fading-out");
       overlay.addEventListener("transitionend", () => {
         overlay.hidden = true;
+        overlay._onboardingActive = false;
         overlay.classList.remove("fading-out");
       }, { once: true });
-      resolve({ filters: Array.from(selected), locationPromise });
+      resolve({ filters: cancelled ? null : Array.from(selected), cancelled, locationPromise });
     }
 
     renderProgress();

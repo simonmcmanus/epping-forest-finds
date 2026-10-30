@@ -90,9 +90,10 @@ test.describe("Onboarding", () => {
       await mockCowApi(page);
     });
 
-    test("onboarding is skipped on a first visit that already names its own category", async ({ page }) => {
+    test("the legacy filter route opens filter setup without permission steps", async ({ page }) => {
       await gotoAndWaitForMap(page, "/nearby/filter?show=pubs");
-      await expect(page.locator("#onboardingOverlay")).toBeHidden();
+      await expect(page.getByRole("heading", { name: "Choose what appears on the map" })).toBeVisible();
+      await expect(page.locator("#onboardingOverlay")).not.toContainText("Allow location");
     });
 
     test("onboarding is skipped on a first visit that selects a location via a hash", async ({ page }) => {
@@ -101,8 +102,9 @@ test.describe("Onboarding", () => {
       await expect(page.locator("#inspector")).toContainText("English Oak");
     });
 
-    test("skipping onboarding here does not mark onboarding as completed, so plain Nearby still shows it next", async ({ page }) => {
+    test("closing filter setup does not mark first-visit onboarding as completed", async ({ page }) => {
       await gotoAndWaitForMap(page, "/nearby/filter?show=pubs");
+      await page.getByRole("button", { name: "Keep current choices" }).click();
       await expect(page.locator("#onboardingOverlay")).toBeHidden();
       expect(await page.evaluate(() => localStorage.getItem("forest-finds-onboarding-v1"))).toBeNull();
     });
