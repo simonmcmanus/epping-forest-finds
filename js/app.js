@@ -2875,6 +2875,12 @@ function setOverviewFilters(nextFilters, { persist = true, render = true, railTa
   const sanitizedFilters = sanitizeOverviewFilters(nextFilters);
   const filtersChanged = previousFilters.length !== sanitizedFilters.length
     || previousFilters.some((filterKey, index) => filterKey !== sanitizedFilters[index]);
+  // Capture the currently visible pin set before changing state so the canvas renderer can
+  // animate additions and removals by item identity. Initial boot calls this with render:false;
+  // that path should remain a quiet data/setup render rather than replaying a filter animation.
+  const previousPinLookup = render && filtersChanged && typeof buildNearbyIconLookup === "function"
+    ? buildNearbyIconLookup()
+    : null;
   state.overviewFilters = sanitizedFilters;
   if (filtersChanged) {
     const origin = state.nearbyAnchor || state.userLocation;
@@ -2891,6 +2897,9 @@ function setOverviewFilters(nextFilters, { persist = true, render = true, railTa
   // match when it lies outside the walking radius (outOfRadiusFitPoints). Nearby stays framed on
   // the radius itself, even when its list is using an out-of-radius fallback entry.
   refreshOutOfRadiusReveal(previousFilters);
+  if (previousPinLookup && typeof beginOverviewFilterPinTransition === "function") {
+    beginOverviewFilterPinTransition(previousPinLookup);
+  }
   if (persist) saveFilterState();
   updateFilterUi();
   syncLiveQueryStringForScreen();
