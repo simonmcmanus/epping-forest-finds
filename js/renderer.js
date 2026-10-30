@@ -1566,6 +1566,9 @@ function easeOutCubic(t) {
 // final part of their exit. The short duration keeps this perceptual polish from making a filter
 // feel slow, and the artwork itself is still drawn through the normal high-resolution icon paths.
 const FILTER_PIN_ANIMATION_MS = 340;
+const FILTER_PIN_ENTER_POP_SCALE = 1.05;
+const FILTER_PIN_ENTER_POP_PEAK = 0.2;
+const FILTER_PIN_ENTER_POP_END = 0.58;
 const FILTER_PIN_EXIT_SCALE = 0.06;
 const FILTER_PIN_EXIT_SHRINK_START = 0.64;
 const _filterPinAnimations = new Map();
@@ -1576,12 +1579,23 @@ function filterPinAnimationFor(item, now = performance.now()) {
   const progress = clamp((now - animation.startedAt) / FILTER_PIN_ANIMATION_MS, 0, 1);
   if (progress >= 1) return null;
   const alphaProgress = easeOutCubic(progress);
+  const enterPopProgress = animation.direction === "enter"
+    ? progress <= FILTER_PIN_ENTER_POP_PEAK
+      ? easeOutCubic(progress / FILTER_PIN_ENTER_POP_PEAK)
+      : 1 - Math.pow(
+        clamp((progress - FILTER_PIN_ENTER_POP_PEAK) /
+          (FILTER_PIN_ENTER_POP_END - FILTER_PIN_ENTER_POP_PEAK), 0, 1),
+        3,
+      )
+    : 0;
   const shrinkProgress = animation.direction === "exit"
     ? clamp((progress - FILTER_PIN_EXIT_SHRINK_START) / (1 - FILTER_PIN_EXIT_SHRINK_START), 0, 1)
     : 0;
   const scaleProgress = easeOutCubic(shrinkProgress);
   return {
-    scale: animation.fromScale + (animation.toScale - animation.fromScale) * scaleProgress,
+    scale: animation.direction === "enter"
+      ? animation.fromScale + (FILTER_PIN_ENTER_POP_SCALE - animation.fromScale) * enterPopProgress
+      : animation.fromScale + (animation.toScale - animation.fromScale) * scaleProgress,
     alpha: animation.fromAlpha + (animation.toAlpha - animation.fromAlpha) * alphaProgress,
   };
 }
