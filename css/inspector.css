@@ -1445,8 +1445,21 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
 }
 
 @media (hover: hover) {
+  /* Hover is an interaction cue, not another selected state: keep it neutral and lift the
+     pill slightly so desktop pointer users can distinguish it from the sage pressed fill. */
+  .rail-pill:hover {
+    background: #f4f6f3;
+    border-color: #6f9676;
+    box-shadow: 0 2px 8px rgba(42, 84, 53, 0.14);
+    transform: translateY(-1px);
+  }
+
   .rail-pill:not(.is-on):hover {
-    background: #eef6f0;
+    color: var(--tree);
+  }
+
+  .rail-pill.is-on:hover::before {
+    background: #cfe3d3;
   }
 }
 
