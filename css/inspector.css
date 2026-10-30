@@ -1362,7 +1362,7 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   width: 34px;
   pointer-events: none;
   background: linear-gradient(90deg, transparent, var(--panel));
-  animation: rail-more-right 1.25s ease-in-out both;
+  animation: rail-more-right 900ms ease-in-out both;
 }
 
 @keyframes rail-more-right {

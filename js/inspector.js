@@ -700,32 +700,27 @@ function swapStaticChipsForRail() {
   maybePlayRailIntro(false);
 }
 
-// The rail arriving on screen: pills stream in from the right one after another, and if there are
-// more than fit, the row drifts sideways and back once so it is obvious it scrolls.
-// Plays once per arrival on the Nearby screen: a rebuild that replaces a rail already on screen
-// (a location update, a radius change) does not replay it, and one that lands before the rail has
-// any width (still behind the boot overlay) leaves it owed until the rail is actually visible.
+// The rail arriving on screen keeps its server-rendered pills in place. If more than fit, the row
+// gives one short sideways peek and bounce so it is obvious it scrolls, without making the pills
+// themselves appear to be re-rendering. A rebuild that replaces a rail already on screen (a
+// location update, a radius change) does not replay it, and one that lands before the rail has any
+// width (still behind the boot overlay) leaves it owed until the rail is actually visible.
 let railIntroDue = true;
+const railIntroRows = new WeakSet();
 function maybePlayRailIntro(hadRail) {
   if (!hadRail) railIntroDue = true;
   const row = els.inspectorBody && els.inspectorBody.querySelector && els.inspectorBody.querySelector(".filter-rail .rail-pills");
-  if (!railIntroDue || !row || !row.clientWidth) return;
+  if (!railIntroDue || !row || !row.clientWidth || railIntroRows.has(row)) return;
+  railIntroRows.add(row);
   railIntroDue = false;
-  animateRailIntro();
+  animateRailIntro(row);
 }
 
-function animateRailIntro() {
-  const row = els.inspectorBody && els.inspectorBody.querySelector && els.inspectorBody.querySelector(".filter-rail .rail-pills");
+function animateRailIntro(row) {
   if (!row || prefersReducedMotion()) return;
-  row.querySelectorAll(".rail-pill").forEach((pillEl, index) => {
-    pillEl.animate(
-      [{ opacity: 0, transform: "translateX(28px) scale(0.9)" }, { opacity: 1, transform: "none" }],
-      { duration: 380, delay: 60 + Math.min(index, 9) * 45, easing: "cubic-bezier(0.34, 1.3, 0.64, 1)", fill: "backwards" }
-    );
-  });
   const overflow = row.scrollWidth - row.clientWidth;
   if (overflow <= 8) return;
-  const peek = Math.min(72, overflow);
+  const peek = Math.min(48, overflow);
   setTimeout(() => {
     if (!row.isConnected) { railIntroDue = true; return; }
     if (row.scrollLeft > 0) return;
@@ -735,8 +730,8 @@ function animateRailIntro() {
     setTimeout(() => {
       rail?.classList.remove("has-more-right");
       if (row.isConnected && Math.abs(row.scrollLeft - peek) < 24) row.scrollTo({ left: 0, behavior: "smooth" });
-    }, 1250);
-  }, 700);
+    }, 550);
+  }, 450);
 }
 
 function selectOverview(animate = false) {
