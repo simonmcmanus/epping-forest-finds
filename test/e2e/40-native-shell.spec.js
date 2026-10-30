@@ -90,14 +90,14 @@ test.describe("the native app shell", () => {
     expect((await cowRequest).url().startsWith(`${PRODUCTION_ORIGIN}/api/cows`)).toBe(true);
   });
 
-  test("first-run onboarding asks for location without a compass step, through the plugin", async ({ page }) => {
+  test("the non-blocking first-run card asks for location through the plugin", async ({ page }) => {
     await mockCowApi(page);
     await runAsNativeApp(page, { permission: "prompt" });
     await page.goto("/nearby");
-    const overlay = page.locator("#onboardingOverlay");
-    await expect(overlay.getByRole("heading", { name: "Your location" })).toBeVisible();
-    await expect(overlay.locator(".ob-location")).toHaveText("Enable location");
-    await overlay.locator(".ob-location").click();
+    const banner = page.locator("#consentBanner");
+    await expect(banner).toBeVisible();
+    await expect(banner.locator("#consentBannerAccept")).toHaveText("Enable location");
+    await banner.locator("#consentBannerAccept").click();
     await expect.poll(async () => (await calls(page)).getCurrentPosition).toBe(1);
     expect((await calls(page)).browserGeolocation).toBe(0);
   });

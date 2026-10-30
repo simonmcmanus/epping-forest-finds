@@ -2,6 +2,11 @@
 // Rendering and event handlers remain in js/app.js; this boundary owns validation,
 // persistence, and the derived filter sets used by both those consumers.
 
+// The first-run map should feel interesting without becoming visually dense. Keep this
+// list shared by the boot defaults and the onboarding dialog so a skipped setup and a
+// completed setup produce the same initial map.
+const DEFAULT_OVERVIEW_FILTER_KEYS = ["trees", "cows", "events", "pubs", "churches", "campsites"];
+
 function sanitizeOverviewFilters(filters) {
   return Array.from(new Set((Array.isArray(filters) ? filters : []).filter((key) => ALL_OVERVIEW_FILTER_KEYS.has(key))));
 }
@@ -68,5 +73,5 @@ function loadStoredOverviewFilters() {
     const d = JSON.parse(localStorage.getItem(FILTER_STATE_KEY) || "null");
     if (d && Array.isArray(d.filters)) return sanitizeOverviewFilters(d.filters);
   } catch {}
-  return DEFAULT_FILTERS.slice();
+  return DEFAULT_OVERVIEW_FILTER_KEYS.slice();
 }

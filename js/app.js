@@ -28,9 +28,9 @@ const REPORT_DRAFT_KEY = "forest-finds-report-draft-v1";
 const REPORT_REQUEST_ID_KEY = "forest-finds-report-request-id-v1";
 const FILTER_STATE_KEY = "forest-finds-filter-state-v1";
 const FILTER_HINT_KEY = "forest-finds-filter-hint-v1";
-// Matches onboarding.js's own default selection and spec.md's "Default filters" section:
-// only Trees, Cows, Events and Pubs are pre-selected before onboarding ever runs.
-const DEFAULT_FILTERS = ["trees", "cows", "events", "pubs"];
+// Matches the onboarding dialog and filter-state.js. Keep the initial map interesting
+// without turning it into a dense wall of pins.
+const DEFAULT_FILTERS = DEFAULT_OVERVIEW_FILTER_KEYS.slice();
 const COW_REFRESH_MS = 5 * 60 * 1000;
 const IS_LOCAL_COW_CACHE_MODE = ["127.0.0.1", "localhost"].includes(window.location.hostname);
 const DEFAULT_COW_CENTER = { longitude: 0.06371428038973509, latitude: 51.656022523996725 };
@@ -1217,8 +1217,9 @@ async function revealMapCenteredOnUser() {
 // --- Permission asks -----------------------------------------------------------------------
 // Every ask follows the same rules (spec.md "Permissions and consent"): the app asks in its own
 // words first, and a system dialog only ever follows a tap on that ask; a "not now" is remembered,
-// so no later launch puts a system prompt in front of someone who already refused; and location
-// and usage analytics are separate questions, shown one at a time in one card.
+// so no later launch puts a system prompt in front of someone who already refused. The first-visit
+// card uses one explicit fast path for location and usage analytics; Settings remains the way to
+// review or withdraw either choice later.
 
 // "granted" (asked for location in the app), "declined" (said not now in the app, or refused the
 // system dialog), or null (never asked).
@@ -1350,25 +1351,62 @@ function showLocationInviteBanner(message, { canRequest = true } = {}) {
   banner.hidden = false;
 }
 
-// The first ask for anyone onboarding did not reach -- a landing-page arrival, or a returning
-// visitor with a question still unanswered. One non-blocking card in the inspector chrome (#consentBanner,
-// app.html, css/loading.css) that leaves the map fully usable underneath and asks one question at a
-// time: location first, in the page's own server-rendered words, then usage analytics. Boot does
-// not wait for an answer. On iOS the compass is asked from the same location tap (locateUser), as
-// onboarding does, because only a tap can ask for it.
-function showConsentBanner({ askLocation = false, askAnalytics = false } = {}) {
+// The first ask for anyone onboarding did not reach -- a first visit, a landing-page arrival, or a
+// returning visitor with a question still unanswered. One non-blocking card in the inspector
+// chrome (#consentBanner, app.html, css/loading.css) leaves the map fully usable underneath. On a
+// first visit its single explicit action covers the two initial choices; after that it offers the
+// optional guided map setup in the same slot. Landing-page arrivals use that same combined action
+// whenever both choices are still unanswered. On iOS the compass is asked from the same location
+// tap (locateUser), because only a user gesture can ask for it.
+function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnboarding = false } = {}) {
   const banner = els.consentBanner;
-  if (!banner || (!askLocation && !askAnalytics)) return false;
-  let stage = askLocation ? "location" : "analytics";
+  if (!banner || (!askLocation && !askAnalytics && !offerOnboarding)) return false;
+  let stage = askLocation ? (askAnalytics ? "permissions" : "location")
+    : askAnalytics ? "analytics" : "onboarding";
+
+  function renderLocationStage() {
+    banner.setAttribute("aria-label", "Location");
+    if (els.consentBannerTitle) els.consentBannerTitle.textContent = "See what's near you";
+    // Generated landing pages replace the shell's default paragraph with a lead that names the
+    // category or place. Keep that useful server-rendered copy when the live page only needs the
+    // location question; the combined first-run card still supplies its own copy below.
+    const pageSpecificCopy = els.consentBannerText
+      && /^Enable location to get walking directions/.test(els.consentBannerText.textContent || "");
+    if (els.consentBannerText && !pageSpecificCopy) {
+      els.consentBannerText.innerHTML = `Enable location to centre the map on you and see real walking distances. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>`;
+    }
+    if (els.consentBannerDecline) els.consentBannerDecline.textContent = "Maybe later";
+    if (els.consentBannerAccept) els.consentBannerAccept.textContent = "Enable location";
+  }
+
+  function renderPermissionsStage() {
+    banner.setAttribute("aria-label", "Location and cookies");
+    if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Allow location & cookies";
+    if (els.consentBannerText) {
+      els.consentBannerText.innerHTML = `Shows nearby finds and their distance from you, and helps us understand how people use this site — enabling covers both. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>`;
+    }
+    if (els.consentBannerDecline) els.consentBannerDecline.textContent = "Maybe later";
+    if (els.consentBannerAccept) els.consentBannerAccept.textContent = "Enable location & cookies";
+  }
 
   function renderAnalyticsStage() {
     banner.setAttribute("aria-label", "Usage analytics");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Help improve the map?";
     if (els.consentBannerText) {
-      els.consentBannerText.innerHTML = `${ANALYTICS_ASK_TEXT} <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>`;
+      els.consentBannerText.innerHTML = `Share anonymous usage data — which screens you use and where you are while the app is open — and allow Google Analytics cookies. It is never sold or used for advertising. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>`;
     }
     if (els.consentBannerDecline) els.consentBannerDecline.textContent = "No thanks";
     if (els.consentBannerAccept) els.consentBannerAccept.textContent = "Share usage data";
+  }
+
+  function renderOnboardingStage() {
+    banner.setAttribute("aria-label", "Map setup");
+    if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Make the map yours";
+    if (els.consentBannerText) {
+      els.consentBannerText.innerHTML = "Choose the finds you want to see. You can change these anytime in Filters.";
+    }
+    if (els.consentBannerDecline) els.consentBannerDecline.textContent = "Explore first";
+    if (els.consentBannerAccept) els.consentBannerAccept.textContent = "Set up my map";
   }
 
   function cleanup() {
@@ -1377,6 +1415,11 @@ function showConsentBanner({ askLocation = false, askAnalytics = false } = {}) {
   }
 
   function advance() {
+    if (offerOnboarding && (stage === "permissions" || stage === "location" || stage === "analytics")) {
+      stage = "onboarding";
+      renderOnboardingStage();
+      return;
+    }
     if (stage === "location" && askAnalytics && analyticsChoice() === "undecided") {
       stage = "analytics";
       renderAnalyticsStage();
@@ -1387,25 +1430,53 @@ function showConsentBanner({ askLocation = false, askAnalytics = false } = {}) {
   }
 
   function onAccept() {
-    if (stage === "location") {
+    if (stage === "permissions") {
+      rememberLocationChoice("granted");
+      if (analyticsChoice() === "undecided") setAnalyticsConsent(true);
+      locateUser({ initial: false });
+    } else if (stage === "location") {
       rememberLocationChoice("granted");
       locateUser({ initial: false });
-    } else {
+    } else if (stage === "analytics") {
       setAnalyticsConsent(true);
+    } else {
+      cleanup();
+      banner.classList.remove("fading-out");
+      banner.hidden = true;
+      showOnboarding({ skipPermissions: true }).then((onboardResult) => {
+        state.overviewFilters = sanitizeOverviewFilters(onboardResult.filters);
+        saveFilterState();
+        updateFilterUi();
+        if (isOverviewScreenActive()) selectOverview();
+        requestDraw();
+      });
+      return;
     }
     advance();
   }
 
   function onDecline() {
-    if (stage === "location") rememberLocationChoice("declined");
-    else setAnalyticsConsent(false);
+    if (stage === "permissions") {
+      rememberLocationChoice("declined");
+      if (analyticsChoice() === "undecided") setAnalyticsConsent(false);
+    } else if (stage === "location") rememberLocationChoice("declined");
+    else if (stage === "analytics") setAnalyticsConsent(false);
+    else {
+      cleanup();
+      banner.classList.remove("fading-out");
+      banner.hidden = true;
+      return;
+    }
     advance();
   }
 
   els.consentBannerAccept?.addEventListener("click", onAccept);
   els.consentBannerDecline?.addEventListener("click", onDecline);
 
-  if (stage === "analytics") renderAnalyticsStage();
+  if (stage === "permissions") renderPermissionsStage();
+  else if (stage === "location") renderLocationStage();
+  else if (stage === "analytics") renderAnalyticsStage();
+  else renderOnboardingStage();
   banner.classList.remove("fading-out");
   banner.hidden = false;
   return true;
@@ -1479,12 +1550,12 @@ async function boot() {
   // hidden at once when the answer is known now, otherwise once the permission state has answered
   // (a millisecond or two), so a returning visitor never sees it flash on and off.
   // Bare /nearby's static index shows the same banner pre-JS (renderNearbyIndexPage), so it takes the
-  // landing-page path here too -- except on a first visit, where onboarding asks the same questions.
+  // landing-page path here too. First visits use the same card and offer onboarding from its slot.
   const onboardsFirst = !hasCompletedOnboarding() && !isLandingPageArrival();
-  const asksFromBanner = !onboardsFirst && (isLandingPageArrival() || _staticNearbyIndex);
+  const asksFromBanner = onboardsFirst || isLandingPageArrival() || _staticNearbyIndex;
   const locationChoice = storedLocationChoice();
   const permissionPromise = Native.geolocation ? Native.locationPermissionState() : Promise.resolve("unsupported");
-  if (els.consentBanner && (!asksFromBanner || (locationChoice !== null && analyticsChoice() !== "undecided"))) {
+  if (els.consentBanner && (!asksFromBanner || (!onboardsFirst && locationChoice !== null && analyticsChoice() !== "undecided"))) {
     els.consentBanner.hidden = true;
   }
 
@@ -1512,66 +1583,52 @@ async function boot() {
   // Runs in parallel with data loading so the map can open centred on the user -- but only ever
   // without a cold system prompt (bootMayRequestLocation): otherwise the app asks in its own words.
   let locationPromise = null;
-  // Set once an interactive prompt -- onboarding's own location step, or showConsentBanner()'s
-  // location stage -- asked this boot, win or lose, or this person already said not now, so
+  // Set once an interactive prompt -- showConsentBanner()'s location stage, or a previous choice --
+  // asked this boot, win or lose, so
   // revealNoRealLocation() below knows not to draw a second prompt for the same question.
   let locationAlreadyAsked = false;
   // The permission is refused below the app (browser site settings, or the OS): the invite then
   // explains where to change it instead of offering a button that could not work.
   let locationBlocked = false;
 
-  if (onboardsFirst) {
-    // First visit to the plain Nearby screen: show onboarding while data loads behind it.
-    // A landing-page arrival (/nearby/<slug>, a first-touch ?show= link, or a selection hash)
-    // skips this -- see isLandingPageArrival() -- and is treated like a returning visit below
-    // instead, so the setup wizard is saved for whenever this reader first reaches plain Nearby.
-    // The location request is fired from within the onboarding tap handler so the
-    // system dialog appears at the natural moment; we just pick up the live promise.
-    if (els.loadingOverlay) els.loadingOverlay.hidden = true;
-    const onboardResult = await showOnboarding();
-    state.overviewFilters = sanitizeOverviewFilters(onboardResult.filters);
-    saveFilterState();
-    if (els.loadingOverlay) els.loadingOverlay.hidden = false;
+  const permission = await permissionPromise;
+  const locationUnasked = Boolean(Native.geolocation) && locationChoice === null
+    && permission !== "granted" && permission !== "denied";
+  const analyticsUnasked = analyticsChoice() === "undecided";
+  if (asksFromBanner && (locationUnasked || analyticsUnasked || onboardsFirst)) {
+    // First visits and landing-page arrivals use the non-blocking inspector card so the map is
+    // usable immediately. A first visit moves from the permission card to the guided setup in
+    // this same slot; the dialog opens only after the reader explicitly chooses it.
+    showConsentBanner({
+      askLocation: locationUnasked,
+      askAnalytics: analyticsUnasked,
+      offerOnboarding: onboardsFirst,
+    });
+  } else if (els.consentBanner) {
+    els.consentBanner.hidden = true;
+  }
+  if (locationUnasked && asksFromBanner) {
     locationAlreadyAsked = true;
-    if (onboardResult.locationPromise) {
-      setLoadStep("location", "loading");
-      locationPromise = onboardResult.locationPromise;
-    }
-  } else {
-    const permission = await permissionPromise;
-    const locationUnasked = Boolean(Native.geolocation) && locationChoice === null
-      && permission !== "granted" && permission !== "denied";
-    const analyticsUnasked = analyticsChoice() === "undecided";
-    if (asksFromBanner && (locationUnasked || analyticsUnasked)) {
-      // A landing-page arrival asks from the non-blocking card instead of onboarding's dialog, so
-      // the map (the landing page's own list) appears right away behind it.
-      showConsentBanner({ askLocation: locationUnasked, askAnalytics: analyticsUnasked });
-    } else if (els.consentBanner) {
-      els.consentBanner.hidden = true;
-    }
-    if (locationUnasked && asksFromBanner) {
-      locationAlreadyAsked = true;
-    } else if (Native.geolocation && bootMayRequestLocation(permission, locationChoice)) {
-      setLoadStep("location", "loading");
-      setLocationRequestPending(true);
-      locationPromise = new Promise((resolve) => {
-        Native.geolocation.getCurrentPosition(
-          (pos) => {
-            setLocationRequestPending(false);
-            resolve({ ok: true, position: pos });
-          },
-          (error) => {
-            setLocationRequestPending(false);
-            resolve({ ok: false, code: error && error.code });
-          },
-          { enableHighAccuracy: true, timeout: BOOT_GEOLOCATION_TIMEOUT_MS, maximumAge: 30000 }
-        );
-      });
-    } else if (locationChoice === "declined") {
-      locationAlreadyAsked = true;
-    } else if (permission === "denied") {
-      locationBlocked = true;
-    }
+  } else if (Native.geolocation && bootMayRequestLocation(permission, locationChoice)) {
+    setLoadStep("location", "loading");
+    setLocationRequestPending(true);
+    locationPromise = new Promise((resolve) => {
+      Native.geolocation.getCurrentPosition(
+        (pos) => {
+          setLocationRequestPending(false);
+          resolve({ ok: true, position: pos });
+        },
+        (error) => {
+          setLocationRequestPending(false);
+          resolve({ ok: false, code: error && error.code });
+        },
+        { enableHighAccuracy: true, timeout: BOOT_GEOLOCATION_TIMEOUT_MS, maximumAge: 30000 }
+      );
+    });
+  } else if (locationChoice === "declined") {
+    locationAlreadyAsked = true;
+  } else if (permission === "denied") {
+    locationBlocked = true;
   }
   // No request started: nothing to await, so this falls straight through to
   // revealNoRealLocation() below (locationPromise stays null), which offers the invite if one is due.
@@ -1714,7 +1771,7 @@ async function boot() {
       }
     } else {
       // No geolocation support, nothing to request without a cold prompt, a first-time user
-      // skipped it in onboarding, or the landing-page card is asking (locationAlreadyAsked).
+      // skipped the card, or the landing-page card is asking (locationAlreadyAsked).
       setStatus("Offline map data loaded.");
       // The strip's location step settles the same way a refused request settles it, unless a
       // tap on the landing card has already started a request of its own.

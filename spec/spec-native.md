@@ -108,7 +108,7 @@ The full set of native-specific edits to shipped client code. Anything beyond th
 
 ## Permissions Model
 
-The point of the wrapper. The rules are the app's own and identical on every platform ([spec.md](spec.md) § Permissions and Consent): the app asks in its own words before any system dialog, an answer is remembered, location and usage analytics are separate questions, and a blocked permission is explained rather than re-asked. What is native-specific:
+The point of the wrapper. The rules are the app's own and identical on every platform ([spec.md](spec.md) § Permissions and Consent): the app asks in its own words before any system dialog, an answer is remembered, the first-run location and usage-analytics choice is one combined action (with separate Settings controls later), and a blocked permission is explained rather than re-asked. What is native-specific:
 
 - **Location: one system dialog, never two.** `navigator.geolocation` inside `WKWebView` shows the app's own location prompt and then WebKit's per-origin "localhost would like to use your current location" prompt on top, every launch. Location therefore always goes through `@capacitor/geolocation` (via `Native.geolocation`), which asks once, through the OS, and is remembered by the OS.
 - **Compass: no ask.** Capacitor's `WKWebView` delegate grants device-orientation access without a dialog; WebKit still only accepts `requestPermission()` from a tap, so `Native.unlockMotionOnFirstGesture` collects the grant silently on the first tap of a session and re-attaches the listeners. Android needs no permission for orientation.
