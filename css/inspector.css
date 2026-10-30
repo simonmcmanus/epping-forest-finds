@@ -1410,7 +1410,7 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   position: relative;
   isolation: isolate;
   overflow: hidden;
-  padding: 0 12px 0 8px;
+  padding: 0 12px;
   border-radius: 20px;
   white-space: nowrap;
 }
@@ -1421,7 +1421,7 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   position: absolute;
   inset: 0;
   z-index: -1;
-  background: #e3edf3;
+  background: #eef0f3;
   transform: scaleX(0);
   transform-origin: left;
   transition: transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -1451,8 +1451,8 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
 }
 
 .rail-pill.is-on {
-  border-color: #9fb7c8;
-  color: #35576c;
+  border-color: #b1bbc5;
+  color: #45525d;
 }
 
 @media (hover: hover) {
@@ -1470,7 +1470,7 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   }
 
   .rail-pill.is-on:hover::before {
-    background: #d5e3eb;
+    background: #e2e6eb;
   }
 }
 
