@@ -1407,7 +1407,7 @@ The full routing model — the URL for each screen, history entries, back/forwar
     with a brief green ring around the rounded card, leaving rows fade out from where they were. A pressed pill's green
     light sage secondary fill sweeps in from the left and its status marker shows a tick only for
     selected pills, while unselected pills reserve the same space without showing a close icon.
-    This does not move the user's horizontal scroll position.
+    This does not move the user's horizontal scroll position. Live GPS/heading updates also preserve the category row's horizontal position when rebuilding the Nearby body, including with reduced motion; overflow hints reflect the restored position.
     It is a secondary selection state, not a primary CTA treatment. A phone gets an 8ms vibration on a tap where
     `navigator.vibrate` exists. With `prefers-reduced-motion`, or when the body has no rail yet, the
     body is rebuilt the ordinary way. The rail has no right-hand Filters control; the existing

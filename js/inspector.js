@@ -1112,6 +1112,8 @@ function applyScreenTransition(direction, onDone) {
 function transitionInspectorBody(newHtml, direction, onDone, { preserveScroll = false } = {}) {
   const scroll = els.inspector && els.inspector.querySelector(".inspector-scroll");
   const scrollTop = scroll ? scroll.scrollTop : 0;
+  const oldRail = preserveScroll && els.inspectorBody.querySelector(".filter-rail .rail-pills");
+  const railScrollLeft = oldRail ? oldRail.scrollLeft : 0;
   // Replacing the initial Nearby content invalidates its server-rendered stand-in.
   _serverRenderedNearbyList = false;
   els.inspectorBody.innerHTML = newHtml;
@@ -1120,6 +1122,9 @@ function transitionInspectorBody(newHtml, direction, onDone, { preserveScroll = 
     // GPS/heading refreshes update the current list; only screen entry starts at the top.
     // Restore after hydration/reordering too, since replacing rows can clamp the offset.
     _transitionSnapshot = null;
+    // Restore the sideways category row before its overflow hints are attached.
+    const newRail = els.inspectorBody.querySelector(".filter-rail .rail-pills");
+    if (newRail) newRail.scrollLeft = railScrollLeft;
     if (onDone) onDone();
     if (scroll) scroll.scrollTop = scrollTop;
   } else {
