@@ -564,6 +564,8 @@ test.describe("generated find/nearby pages", () => {
       expect(selected.name).toBe(EXAMPLE_WATER.name);
       await expect(page.locator("#inspectorTitle")).toHaveText(EXAMPLE_WATER.name);
       await expect(page.locator("#inspectorBody > .place-detail")).toHaveClass(/place-detail--water/);
+      await expect(page.locator("#inspectorBody")).toContainText("Nearest");
+      await expect(page.locator("#inspectorBody")).toContainText("Related");
     });
   });
 

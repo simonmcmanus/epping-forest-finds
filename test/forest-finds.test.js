@@ -453,6 +453,10 @@ globalThis.__forestFindsTest = {
   roadNavTarget,
   selectedCompassTarget,
   showRoadDetails,
+  showPathDetails,
+  showWaterDetails,
+  showRailwayDetails,
+  showEnvironmentDetails,
   landmarkEmoji,
   landmarkIconSlug,
   iconPath,
@@ -9296,6 +9300,25 @@ test("nearbySectionsHtml gives any point its headed Nearest section with the wal
   assert.ok(html.includes(`within ${app.state.walkingDistanceMinutes} min walk of Bald Faced Stag`));
   assert.ok(!html.includes('detail-section-heading">Related<'), "no Related section without a category to relate to");
   assert.equal(app.nearbySectionsHtml({ latitude: null, longitude: null }), "", "no section when there are no coordinates to browse from");
+});
+
+test("named water and area details expose the nearby context of the selected map feature", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.64, 0.04);
+  const water = { id: "way/water-1", name: "Hollow Pond", featureType: "hydrology_area", ...makePoint(app, 51.650, 0.050) };
+  app.state.waterFeatures = [water];
+  app.showWaterDetails(water, 420);
+  assert.match(app.els.inspectorBody.innerHTML, /detail-section-heading">Nearest/);
+  assert.match(app.els.inspectorBody.innerHTML, /detail-section-heading">Related/);
+
+  const area = {
+    id: "way/area-1",
+    geometry: { type: "Polygon", coordinates: [[[0.05, 51.65], [0.051, 51.65], [0.051, 51.651], [0.05, 51.65]]] },
+    properties: { id: "way/area-1", name: "Hollow Plain", featureType: "open_land" },
+  };
+  app.showEnvironmentDetails(area);
+  assert.match(app.els.inspectorBody.innerHTML, /detail-section-heading">Nearest/);
+  assert.match(app.els.inspectorBody.innerHTML, /within \d+ min walk of Hollow Plain/);
 });
 
 test("tapping a cluster shows exactly that cluster's own members, not every tree the walking-radius floor also reaches", () => {

@@ -214,6 +214,36 @@ function railwayHashKey(railway) {
   return (railway && railway.properties && railway.properties.id) || "";
 }
 
+// Environment labels (named ponds, reserves, commons and localities) are raw GeoJSON
+// features rather than point records. Give every labelled feature one stable point so the
+// canvas label can open a detail view and the detail view can offer nearby results.
+function environmentFeatureAnchor(feature) {
+  const geometry = feature && feature.geometry;
+  if (!geometry) return null;
+  let coordinates = null;
+  if (geometry.type === "Point") {
+    coordinates = geometry.coordinates;
+  } else if (geometry.type === "LineString" && Array.isArray(geometry.coordinates) && geometry.coordinates.length) {
+    coordinates = geometry.coordinates[Math.floor(geometry.coordinates.length / 2)];
+  } else if (geometry.type === "Polygon" && Array.isArray(geometry.coordinates?.[0]) && geometry.coordinates[0].length) {
+    const ring = geometry.coordinates[0];
+    coordinates = [
+      ring.reduce((sum, point) => sum + Number(point[0]), 0) / ring.length,
+      ring.reduce((sum, point) => sum + Number(point[1]), 0) / ring.length,
+    ];
+  }
+  if (!Array.isArray(coordinates) || coordinates.length < 2) return null;
+  const longitude = Number(coordinates[0]);
+  const latitude = Number(coordinates[1]);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  return { point: projectLonLat(longitude, latitude), latitude, longitude };
+}
+
+function environmentHashKey(feature) {
+  const properties = feature && feature.properties;
+  return (properties && properties.id) || (feature && feature.id) || (properties && properties.name) || "";
+}
+
 function isWaymarkedTrail(path) {
   return Boolean(path) && path.pathType === "waymarked_trail";
 }

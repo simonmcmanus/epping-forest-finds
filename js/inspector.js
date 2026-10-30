@@ -34,7 +34,7 @@ function handleMapClick(event) {
 
   const world = screenToWorld(screen.x, screen.y);
   const lonLat = unprojectPoint(world);
-  const hit = findHit(screen, world);
+  const hit = (typeof findMapLabelHit === "function" && findMapLabelHit(screen)) || findHit(screen, world);
 
   // Two kinds of tap move the Nearby view instead of selecting something:
   //
@@ -57,7 +57,7 @@ function handleMapClick(event) {
   // A visible location remains a selection target even when it is the out-of-radius fallback
   // shown at the edge of Nearby. The browse-origin rule is for open ground and terrain lines
   // (especially roads crossing the outer map), not for a place the user deliberately tapped.
-  const isLocationHit = ["tree", "addedtree", "cow", "landmark", "path", "water"].includes(hit.type);
+  const isLocationHit = ["tree", "addedtree", "cow", "landmark", "path", "water", "environment"].includes(hit.type);
   if (hit.type === "none" || (beyondNearestArea && !isLocationHit)) {
     focusNearbyOnMapPoint(lonLat, world);
     return;
@@ -94,6 +94,12 @@ function handleMapClick(event) {
     state.selected = { type: "landmark", item: hit.item };
     syncHashFromSelection();
     showLandmarkDetails(hit.item, distanceFromUser(hit.item));
+    startCompassNavigation();
+    zoomToSelection();
+  } else if (hit.type === "environment") {
+    state.selected = { type: "environment", item: hit.item };
+    syncHashFromSelection();
+    showEnvironmentDetails(hit.item);
     startCompassNavigation();
     zoomToSelection();
   } else if (hit.type === "road") {
@@ -211,6 +217,17 @@ function findHit(screen, world) {
     }
   }
   if (bestTree) return bestTree;
+
+  let bestWater = null;
+  for (const water of state.waterFeatures) {
+    if (!isTappablePin("water", water)) continue;
+    const point = worldToScreen(water.point);
+    const distance = pinDistance(point);
+    if (distance < pinR && (!bestWater || distance < bestWater.distance)) {
+      bestWater = { type: "water", item: water, distance };
+    }
+  }
+  if (bestWater) return bestWater;
 
   let bestPath = null;
   const pathClickRadius = 12 * dpr;
@@ -541,7 +558,8 @@ function showPathDetails(path, distance) {
   ];
   const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const topRow = distancePill ? `<div class="detail-top-row">${distancePill}</div>` : "";
-  transitionInspectorBody(`<article class="place-detail place-detail--path">${topRow}${detailsHtml(rows)}</article>`, "forward");
+  const nearbyHtml = nearbySectionsHtml({ latitude: path.latitude, longitude: path.longitude, name: path.name || path.ref || "this trail" });
+  transitionInspectorBody(`<article class="place-detail place-detail--path">${topRow}${detailsHtml(rows)}${nearbyHtml}</article>`, "forward");
 }
 
 function distanceToSegment(px, py, x1, y1, x2, y2) {
@@ -600,7 +618,9 @@ function showRoadDetails(road, distance) {
   // somewhere you are being guided to rather than a bare records list.
   const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const topRow = distancePill ? `<div class="detail-top-row">${distancePill}</div>` : "";
-  transitionInspectorBody(`<article class="place-detail place-detail--road">${topRow}${detailsHtml(rows)}</article>`, "forward");
+  if (typeof ensureRoadAnchor === "function") ensureRoadAnchor(road);
+  const nearbyHtml = nearbySectionsHtml({ latitude: road.latitude, longitude: road.longitude, name: displayName });
+  transitionInspectorBody(`<article class="place-detail place-detail--road">${topRow}${detailsHtml(rows)}${nearbyHtml}</article>`, "forward");
 }
 
 function showRailwayDetails(railway) {
@@ -638,8 +658,13 @@ function showRailwayDetails(railway) {
   const technicalHtml = technicalRows.length
     ? `<details class="technical-details"><summary>Technical data</summary>${detailsHtml(technicalRows)}</details>`
     : "";
-
-  transitionInspectorBody(`<article class="place-detail place-detail--railway">${detailsHtml(primaryRows)}${technicalHtml}</article>`, "forward");
+  const anchor = typeof environmentFeatureAnchor === "function" ? environmentFeatureAnchor(railway) : null;
+  if (anchor) Object.assign(railway, anchor);
+  const distancePill = railway.latitude != null && typeof distanceFromUser === "function"
+    ? `<span data-live-field="distance">${walkInfoExpandableHtml(distanceFromUser(railway))}</span>` : "";
+  const topRow = distancePill ? `<div class="detail-top-row">${distancePill}</div>` : "";
+  const nearbyHtml = nearbySectionsHtml({ latitude: railway.latitude, longitude: railway.longitude, name: displayName });
+  transitionInspectorBody(`<article class="place-detail place-detail--railway">${topRow}${detailsHtml(primaryRows)}${technicalHtml}${nearbyHtml}</article>`, "forward");
 }
 
 function showWaterDetails(water, distance) {
@@ -655,7 +680,37 @@ function showWaterDetails(water, distance) {
     ["Type", typeLabel],
     ["Source", water.id ? `OpenStreetMap ${water.id}` : "OpenStreetMap"],
   ];
-  transitionInspectorBody(`<article class="place-detail place-detail--water">${detailsHtml(rows)}</article>`, "forward");
+  const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
+  const topRow = distancePill ? `<div class="detail-top-row">${distancePill}</div>` : "";
+  const nearbyHtml = nearbySectionsHtml({ latitude: water.latitude, longitude: water.longitude, name: water.name, subfilterKey: "ponds_streams" });
+  transitionInspectorBody(`<article class="place-detail place-detail--water">${topRow}${detailsHtml(rows)}${nearbyHtml}</article>`, "forward");
+}
+
+function showEnvironmentDetails(feature) {
+  const properties = feature && feature.properties ? feature.properties : {};
+  const anchor = typeof environmentFeatureAnchor === "function" ? environmentFeatureAnchor(feature) : null;
+  if (anchor) Object.assign(feature, anchor);
+  const typeLabel = properties.featureType === "nature_designation"
+    ? "Nature designation"
+    : properties.featureType === "open_land"
+      ? "Open land"
+      : properties.featureType === "named_locality"
+        ? "Named place"
+        : "Map feature";
+  const name = properties.name || "Map feature";
+  setInspectorSelectionChrome({ emoji: appIconHtml("pin", "app-icon title-icon"), showBack: true });
+  els.inspectorTools.hidden = true;
+  els.inspectorTitle.textContent = name;
+  els.inspectorType.textContent = typeLabel;
+  const rows = [
+    ["Type", typeLabel],
+    ["Source", properties.id ? `OpenStreetMap ${properties.id}` : "OpenStreetMap"],
+  ];
+  const distance = anchor && typeof distanceFromUser === "function" ? distanceFromUser(feature) : null;
+  const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
+  const topRow = distancePill ? `<div class="detail-top-row">${distancePill}</div>` : "";
+  const nearbyHtml = nearbySectionsHtml({ latitude: feature.latitude, longitude: feature.longitude, name });
+  transitionInspectorBody(`<article class="place-detail place-detail--environment">${topRow}${detailsHtml(rows)}${nearbyHtml}</article>`, "forward");
 }
 
 // --- Overview screen ---

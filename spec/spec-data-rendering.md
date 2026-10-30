@@ -189,7 +189,7 @@ Rendered from `environmentFeatures`:
 - **Water/wetland polygons** — blue-tinted fills
 - **Nature designation polygons** (`featureType: "nature_designation"` — nature reserves, SSSIs, LNRs, Ancient Woodland) — green-tinted fills. A named polygon also gets its name drawn centered on it, but only when the name fits inside the polygon's on-screen footprint — the label is measured against the polygon's screen-space bounding box each frame and skipped entirely rather than drawn oversized or spilling past the outline.
 - **Open-land polygons** (`featureType: "open_land"` — parks, commons, grassland, heath, scrub, meadows, recreation grounds) — a lighter, more muted green-tinted fill than nature designations, since these aren't necessarily protected/designated land, just named open ground. Named ones get the same fits-the-footprint label treatment as nature designation polygons, drawn by the same `drawGreenSpaceLabels` (`js/renderer.js`).
-- **Named locality points** (`featureType: "named_locality"` — OSM `place=locality`: a known, named spot with no mapped boundary of its own, e.g. an informal forest "plain" like Deershelter Plain) — no fill or outline, just the name, drawn once zoomed in past the same threshold `drawPaths` uses for path names (`drawNamedLocalityLabels`, `js/renderer.js`). There's no polygon footprint to gate against here, so the gate is zoom level rather than "does it fit".
+- **Named locality points** (`featureType: "named_locality"` — OSM `place=locality`: a known, named spot with no mapped boundary of its own, e.g. an informal forest "plain" like Deershelter Plain) — no fill or outline, just the name, drawn once zoomed in past the same threshold `drawPaths` uses for path names (`drawNamedLocalityLabels`, `js/renderer.js`). There's no polygon footprint to gate against here, so the gate is zoom level rather than "does it fit". Named nature, open-land, locality and water labels register their visible canvas bounds as tap targets.
 - **Railway lines** — dashed dark strokes with specific styling
 - **Buildings** (lazy-loaded) — opaque light-gray fills in 2D footprints; in full 3D tilt, roofs keep that same opaque fill while walls use subtle opaque side shading (fixed light-from-upper-left look) so buildings read as solid blocks without transparency and still transition cleanly when flattening to 2D.
 
@@ -243,7 +243,7 @@ The rounded rectangular pin uses a compact layout with a large icon:
   fallback is itself a map pin, and a pin inside a pin reads as a mistake, so
   a place the data says nothing about (OSM `building=yes`, the last seven on
   the map) gets a plain `#76702f` dot in the head instead.
-- `findHit` resolves, in order: highlighted locations (places, cows, trees, waymarked trails) then streets (roads, railways), and nothing else. Background polygons are not hit-tested, so every remaining tap is "open ground" and relocates the Nearby browse origin (see "Browsing Another Spot").
+- Visible label bounds are hit-tested before the normal geometry hit test, so a named path, water feature, nature/open-land area or locality opens its corresponding detail view. Water pins are also selectable. `findHit` otherwise resolves, in order: highlighted locations (places, cows, trees, waymarked trails) then streets (roads, railways). Unnamed background polygons remain open ground and relocate the Nearby browse origin (see "Browsing Another Spot").
 - **Only what is drawn is tappable.** Pin hit-testing asks the renderer's own `shouldDrawMapIcon(type, item, buildNearbyIconLookup())` rather than sweeping the raw datasets, so a pin that is not on screen cannot be selected at the position it would occupy. This covers all three cases the renderer already distinguishes: outside the nearby set, hidden by an expanded group, and hidden because a location is selected — in that last case only the selected pin itself is drawn, so it stays tappable and everything around it is open ground. With ~25,000 trees in the register against the ~60 the map draws (`MAX_MAP_TREES`), the old dataset-wide sweep meant a tap "away from the selection" routinely landed on an invisible tree and re-selected it instead of returning to Nearby. Waymarked trails are the exception and are deliberately *not* gated on this: a trail is hit-tested along its whole drawn line, and that line is terrain — drawn whatever the nearby set, group, or selection happens to be, exactly like a street. Only its pin comes and goes.
 - **No taps just beside the panel.** The inspector sheet and nav bar float a few pixels in from the screen edges, leaving thin strips of map visible around them. A touch or pen tap within 16 CSS px of either panel's edge (`isTouchTapBesidePanel`, `js/nav.js`) is ignored, so a thumb that just misses the panel does not open whatever is drawn there. Drags and pinches starting in that margin still move the map, and mouse clicks are unaffected.
 
@@ -986,7 +986,13 @@ bare records list:
   measure from yet, so the attempt has to be repeatable. It stays fixed at the point that was
   nearest when the street was selected, the way any other destination stays put.
 - The selected street itself keeps its existing pulsing overlay (`drawSelectedRoadOverlay`).
-- Railways are unchanged: still a plain detail view with no navigation target.
+- A selected street also shows the shared Nearest section, anchored at its nearest geometry point; roads have no category filter, so they do not get a Related section.
+
+#### Path, Water, Railway and Area Details
+
+- Named waymarked paths, water features, railway lines and named environment areas use the same inspector selection model as other map features.
+- Water, paths, roads, railways, community-added trees and named environment areas show a shared Nearest section whenever an anchor coordinate can be derived. Water features also show Related links for Ponds & streams/Nature; line and uncategorised area features have no false category relationship.
+- Water labels and pins select the named water record; named nature/open-land/locality labels select a lightweight area detail view with its source and nearby context.
 
 ### Secondary Screens (Search, Filter, Settings, Report)
 

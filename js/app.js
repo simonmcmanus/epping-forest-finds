@@ -519,6 +519,13 @@ const SELECTION_ROUTES = [
     show: (item) => showWaterDetails(item, distanceFromUser(item)),
   },
   {
+    type: "environment",
+    param: "area",
+    toKey: (item) => environmentHashKey(item),
+    find: (key) => findEnvironmentByHashKey(key),
+    show: (item) => showEnvironmentDetails(item),
+  },
+  {
     type: "road",
     param: "road",
     toKey: (item) => roadHashKey(item),
@@ -4563,6 +4570,8 @@ function updateDocumentTitle() {
           ? `Cow ${displayValue(item.serialNo)}`
           : selected.type === "railway"
             ? (item.properties?.name || item.properties?.ref || "Unnamed railway line")
+            : selected.type === "environment"
+              ? (item.properties?.name || "Map feature")
             : (item.name || item.ref || item.commonName || "Map location");
       title = `${name} near Epping Forest`;
     }
@@ -5890,7 +5899,7 @@ function ensureLocationWatch() {
 
 function selectedCompassTarget() {
   if (!state.selected) return null;
-  if (state.selected.type === "tree" || state.selected.type === "landmark" || state.selected.type === "cow" || state.selected.type === "path" || state.selected.type === "water") return state.selected.item;
+  if (state.selected.type === "tree" || state.selected.type === "landmark" || state.selected.type === "cow" || state.selected.type === "path" || state.selected.type === "water" || state.selected.type === "environment") return state.selected.item;
   if (state.selected.type === "road") {
     // Resolved lazily and then cached on the selection itself: the route-line memoization
     // (selectedRoutePoints, js/renderer.js) keys on target object identity, so this must
@@ -8381,6 +8390,8 @@ function updateCompassOverlay() {
 
   const title = state.selected.type === "tree"
     ? treeDisplayName(target)
+    : state.selected.type === "environment"
+      ? (target.properties?.name || "Map feature")
     : placeTitle(target);
   if (arrow) {
     // The first bearing after the search: spin two full turns and slow into the direction, rather
@@ -9409,6 +9420,10 @@ function findRailwayByHashKey(key) {
     && feature.properties.featureType === "railway"
     && railwayHashKey(feature) === key
   )) || null;
+}
+
+function findEnvironmentByHashKey(key) {
+  return state.environmentFeatures.find((feature) => environmentHashKey(feature) === key) || null;
 }
 
 function nearbyWaterFeaturesWithinDistance(latitude, longitude, maxMetres) {
