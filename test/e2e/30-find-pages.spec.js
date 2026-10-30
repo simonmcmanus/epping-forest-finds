@@ -439,6 +439,29 @@ test.describe("generated find/nearby pages", () => {
       await expect(nearbySection.locator("button.nearest-item[data-action='walk-radius']")).toHaveCount(1);
     });
 
+    test("a selected place hides empty Nearest and Related sections when nothing is within the walking radius", async ({ page }) => {
+      await skipOnboarding(page);
+      await gotoAndWaitForMap(page, `/find/${EXAMPLE_PUB.slug}/`);
+      await expect.poll(() => page.evaluate(() => state.selected != null)).toBe(true);
+
+      await page.evaluate(() => {
+        // Leave the selected place available for its detail rows, but remove all nearby
+        // datasets so the section renderer has a genuine zero-within result to display.
+        state.trees = [];
+        state.cows = [];
+        state.landmarks = [];
+        state.paths = [];
+        state.roads = [];
+        state.environmentFeatures = [];
+        showLandmarkDetails(state.selected.item, null);
+      });
+
+      const body = page.locator("#inspectorBody");
+      await expect(body.locator('h3.detail-section-heading:has-text("Nearest")')).toHaveCount(0);
+      await expect(body.locator('h3.detail-section-heading:has-text("Related")')).toHaveCount(0);
+      await expect(body.locator("a.nearest-item")).toHaveCount(0);
+      await expect(body.locator("button.nearest-item")).toHaveCount(0);
+    });
     test("/find/<slug>/ boots without JS errors", async ({ page }) => {
       const errors = [];
       page.on("pageerror", (e) => errors.push(e.message));
