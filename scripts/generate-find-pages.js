@@ -284,7 +284,7 @@ function staticRailHref(activeKeys, filterKeys, allKeys) {
 function staticRailPillHtml(rules, { key, label, icon, filterKeys, activeKeys, allKeys, all = false }) {
   const active = new Set(activeKeys);
   const on = all ? active.size === allKeys.length : filterKeys.some((filterKey) => active.has(filterKey));
-  const status = `<span class="rail-check${on ? "" : " is-off"}" aria-hidden="true">${on ? "✓" : "×"}</span>`;
+  const status = `<span class="rail-check" aria-hidden="true">${on ? "✓" : ""}</span>`;
   const href = all ? "/nearby?filters=false" : staticRailHref(activeKeys, filterKeys, allKeys);
   return `<a class="rail-pill${all ? " rail-pill--all" : ""}${on ? " is-on" : ""}" href="${href}" data-rail-key="${key}">${rules.appIconHtml(icon)}<span>${escapeHtml(label)}</span>${status}</a>`;
 }

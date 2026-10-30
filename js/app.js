@@ -4734,11 +4734,11 @@ function railPillKeys() {
 
 function filterRailHtml() {
   const allOn = railSelection().length === 0;
-  const allStatus = `<span class="rail-check${allOn ? "" : " is-off"}" aria-hidden="true">${allOn ? "✓" : "×"}</span>`;
+  const allStatus = `<span class="rail-check" aria-hidden="true">${allOn ? "✓" : ""}</span>`;
   const allPill = `<button class="rail-pill rail-pill--all${allOn ? " is-on" : ""}" type="button" data-rail-key="all-nearby" aria-pressed="${allOn}">${appIconHtml("nearby")}<span>All nearby</span>${allStatus}</button>`;
   const pills = railItems().map((item) => {
     const on = railItemIsActive(item);
-    const status = `<span class="rail-check${on ? "" : " is-off"}" aria-hidden="true">${on ? "✓" : "×"}</span>`;
+    const status = `<span class="rail-check" aria-hidden="true">${on ? "✓" : ""}</span>`;
     return `<button class="rail-pill${on ? " is-on" : ""}" type="button" data-rail-key="${item.key}" aria-pressed="${on}">${appIconHtml(item.icon)}<span>${escapeHtml(item.label)}</span>${status}</button>`;
   }).join("");
   return `<nav class="filter-rail" aria-label="Filter nearby places">` +

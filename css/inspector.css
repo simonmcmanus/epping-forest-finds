@@ -1414,14 +1414,13 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
 }
 
 .rail-check {
+  display: inline-flex;
+  flex: 0 0 1.1em;
+  justify-content: center;
   margin-left: 1px;
   font-size: 1.1em;
   font-weight: 900;
   line-height: 1;
-}
-
-.rail-check.is-off {
-  opacity: 0.58;
 }
 
 .rail-pill:active {
