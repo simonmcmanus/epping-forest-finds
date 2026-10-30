@@ -2119,6 +2119,7 @@ test("the plain Nearby filter rail shows top-level categories with ticks for ena
   app.state.overviewFilters = ["pubs", "trees"];
   const html = app.filterRailHtml();
   assert.match(html, /<nav class="filter-rail" aria-label="Filter nearby places">/);
+  assert.match(html, /class="rail-pill rail-pill--all" type="button" data-rail-key="all-nearby" aria-pressed="false"/);
   assert.match(html, /class="rail-pill is-on" type="button" data-rail-key="nature" aria-pressed="true"/);
   assert.match(html, /data-rail-key="nature"[^>]*>[^<]*[\s\S]*?<span class="rail-check"/, "enabled groups show a tick");
   assert.match(html, /class="rail-pill is-on" type="button" data-rail-key="food" aria-pressed="true"/);
@@ -2136,6 +2137,7 @@ test("a category Nearby page shows its subcategories and ticks the enabled ones"
   app.location.pathname = "/nearby/food/";
   app.state.overviewFilters = ["pubs", "cafes"];
   const html = app.filterRailHtml();
+  assert.match(html, /data-rail-key="all-nearby"[^>]*aria-pressed="false"/);
   assert.deepEqual(Array.from(app.railPillKeys()), ["pubs", "restaurants", "cafes", "shops"]);
   assert.match(html, /data-rail-key="pubs"[^>]*aria-pressed="true"[\s\S]*?rail-check/);
   assert.match(html, /data-rail-key="cafes"[^>]*aria-pressed="true"[\s\S]*?rail-check/);
@@ -2150,6 +2152,7 @@ test("a filter set covering every category keeps every displayed pill pressed", 
   app.state.overviewFilters = app.FILTER_SUBFILTERS.map((sub) => sub.key);
   assert.equal(app.railSelection().length, 0);
   const html = app.filterRailHtml();
+  assert.match(html, /class="rail-pill rail-pill--all is-on" type="button" data-rail-key="all-nearby" aria-pressed="true"/);
   assert.match(html, /aria-pressed="true"/);
   assert.match(html, /class="rail-check"/);
   app.state.overviewFilters = [];
@@ -2177,6 +2180,26 @@ test("tapping a rail pill narrows to it, a second pill adds to it, and un-pressi
   assert.equal(app.location.search, "?filters=false");
   app.state.overviewFilters = [];
   app.state.overviewFiltersEphemeral = false;
+  app.location.pathname = "/";
+  app.location.search = "";
+});
+
+test("the All nearby rail pill restores every category and the top-level rail", () => {
+  resetData(app);
+  app.location.pathname = "/nearby/food";
+  app.location.search = "?show=pubs,cafes";
+  app.state.nearbyRailGroupKey = "food";
+  app.state.overviewFilters = ["pubs", "cafes"];
+  app.toggleRailFilter("all-nearby");
+  assert.equal(Array.from(app.state.overviewFilters).join(","), app.FILTER_SUBFILTERS.map((sub) => sub.key).join(","));
+  assert.equal(app.state.nearbyRailGroupKey, null);
+  assert.equal(app.location.pathname, "/nearby");
+  assert.equal(app.location.search, "?filters=false");
+  assert.match(app.filterRailHtml(), /data-rail-key="all-nearby"[^>]*aria-pressed="true"/);
+  assert.equal(Array.from(app.railPillKeys()).join(","), app.FILTER_GROUPS.map((group) => group.key).join(","));
+  app.state.overviewFilters = [];
+  app.state.overviewFiltersEphemeral = false;
+  app.state.nearbyRailGroupKey = undefined;
   app.location.pathname = "/";
   app.location.search = "";
 });

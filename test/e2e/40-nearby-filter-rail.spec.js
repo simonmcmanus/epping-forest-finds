@@ -61,6 +61,18 @@ test.describe("Nearby filter rail", () => {
     expect(await page.evaluate(() => state.overviewFilters.join())).toBe("trees,cows,ponds_streams");
   });
 
+  test("All nearby restores every category and returns to the top-level rail", async ({ page }) => {
+    await showAll(page);
+    await pill(page, "nature").click();
+    await expect(page).toHaveURL(/\/nearby\?show=trees,cows,ponds_streams$/);
+    await pill(page, "all-nearby").click();
+    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?filters=false$/);
+    await expect(pill(page, "all-nearby")).toHaveAttribute("aria-pressed", "true");
+    await expect(pill(page, "nature")).toHaveAttribute("aria-pressed", "true");
+    await expect(pill(page, "food")).toHaveAttribute("aria-pressed", "true");
+    await expect(pill(page, "pubs")).toHaveCount(0);
+  });
+
   test("a second top-level category can be selected without changing the rail level", async ({ page }) => {
     await showAll(page);
     await pill(page, "nature").click();
@@ -94,11 +106,21 @@ test.describe("Nearby filter rail", () => {
     await expect(pill(page, "nature")).toHaveCount(0);
   });
 
+  test("All nearby also resets a category landing", async ({ page }) => {
+    await setup(page, "/nearby/food");
+    await pill(page, "cafes").click();
+    await pill(page, "all-nearby").click();
+    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?filters=false$/);
+    await expect(pill(page, "all-nearby")).toHaveAttribute("aria-pressed", "true");
+    await expect(pill(page, "nature")).toHaveCount(1);
+    await expect(pill(page, "pubs")).toHaveCount(0);
+  });
+
   test("a pill that was pressed un-presses on a second tap, and the last one returns to all filters", async ({ page }) => {
     await setup(page, "/nearby/trees");
     await pill(page, "trees").click();
     await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?filters=false$/);
-    await expect(rail(page).locator('[aria-pressed="true"]')).toHaveCount(3);
+    await expect(rail(page).locator('[aria-pressed="true"]')).toHaveCount(4);
     await expect(pill(page, "trees")).toHaveAttribute("aria-pressed", "true");
   });
 
