@@ -818,7 +818,7 @@ function selectOverview(animate = false) {
       animateNearestItemReorder(previousNearestPositions);
       if (typeof attachNearbyRailScrollHints === "function") attachNearbyRailScrollHints();
       maybePlayRailIntro(hadRail);
-    });
+    }, { preserveScroll: !animate });
   }
   // A category landing path is already the user's navigation target.  Nearby is re-rendered
   // by location/radius updates after boot, but those incidental renders must not canonicalise
@@ -1108,12 +1108,22 @@ function applyScreenTransition(direction, onDone) {
   }).catch(() => { /* cancelled by next transition */ });
 }
 
-function transitionInspectorBody(newHtml, direction, onDone) {
+function transitionInspectorBody(newHtml, direction, onDone, { preserveScroll = false } = {}) {
+  const scroll = els.inspector && els.inspector.querySelector(".inspector-scroll");
+  const scrollTop = scroll ? scroll.scrollTop : 0;
   // Replacing the initial Nearby content invalidates its server-rendered stand-in.
   _serverRenderedNearbyList = false;
   els.inspectorBody.innerHTML = newHtml;
   if (typeof updateDocumentTitle === "function") updateDocumentTitle();
-  applyScreenTransition(direction, onDone);
+  if (preserveScroll) {
+    // GPS/heading refreshes update the current list; only screen entry starts at the top.
+    // Restore after hydration/reordering too, since replacing rows can clamp the offset.
+    _transitionSnapshot = null;
+    if (onDone) onDone();
+    if (scroll) scroll.scrollTop = scrollTop;
+  } else {
+    applyScreenTransition(direction, onDone);
+  }
 }
 
 let _inspectorMotionImage = null;
@@ -1564,7 +1574,7 @@ function formatCount(count) {
   return count.toLocaleString("en-GB");
 }
 
-function nearbyCountCopy(noun, { within }, placeName) {
+function nearbyCountCopy(noun, { within, beyond = 0 }, placeName) {
   const minutes = state.walkingDistanceMinutes;
   const where = `within ${minutes} min walk of ${placeName}`;
   let sentence;
