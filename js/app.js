@@ -8623,13 +8623,23 @@ function normalizeCowApiData(payload) {
 function refreshSelectedDetailForNearbyData() {
   const selected = state.selected;
   if (!selected || !selected.item || (selected.type !== "tree" && selected.type !== "landmark")) return;
-  // Only while the inspector is still showing that detail (its Nearest section is on screen): a
-  // reader who has since moved to Settings, a form or a list is left where they are.
-  const showingDetail = els.inspectorBody
-    && Array.from(els.inspectorBody.querySelectorAll(".detail-section-heading")).some((heading) => heading.textContent.trim() === "Nearest");
-  if (!showingDetail) return;
-  const route = SELECTION_ROUTES.find((entry) => entry.type === selected.type);
-  if (route) route.show(selected.item);
+  // The slot belongs to the current detail, including when all nearby sections are empty.
+  // Patch only that slot so the surrounding detail, forms and view tracking stay intact.
+  const slot = els.inspectorBody && els.inspectorBody.querySelector("[data-live-nearby]");
+  if (!slot) return;
+  const item = selected.item;
+  const html = nearbySectionsHtml({
+    latitude: item.latitude,
+    longitude: item.longitude,
+    name: selected.type === "tree" ? item.commonName || null : item.name,
+    subfilterKey: selected.type === "tree" ? "trees" : placePrimaryFilterKey(item),
+    findSlug: selected.type === "landmark" ? item.findSlug : null,
+  });
+  if (slot.innerHTML === html) return;
+  const scroll = els.inspector.querySelector(".inspector-scroll");
+  const scrollTop = scroll ? scroll.scrollTop : 0;
+  slot.innerHTML = html;
+  if (scroll) scroll.scrollTop = scrollTop;
 }
 
 function applyCowData(cows, pastures, updatedAt, { persist } = { persist: true }) {

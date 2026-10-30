@@ -415,7 +415,7 @@ function showTreeDetails(tree, distance, label) {
   // Read the tree first; community checks follow the record and stay in the same host as
   // the live verification slots so saved-report updates can still find the header actions.
   const factsHtml = `<section class="tree-facts" aria-label="Tree facts"><dl class="tree-summary">${tagHtml}${statusHtml}</dl>${topRow}${verified.detail}${measurementsHtml}${commentsHtml}</section>`;
-  transitionInspectorBody(`<article class="tree-detail">${factsHtml}${namedTreeHtml}${communitySectionHtml(tree)}${nearbySectionHtml}${issueHtml}${technicalHtml}</article>`, "forward");
+  transitionInspectorBody(`<article class="tree-detail">${factsHtml}${namedTreeHtml}${communitySectionHtml(tree)}<div data-live-nearby>${nearbySectionHtml}</div>${issueHtml}${technicalHtml}</article>`, "forward");
 }
 
 function showLandmarkDetails(place, distance) {
@@ -468,7 +468,7 @@ function showLandmarkDetails(place, distance) {
   // The check form belongs to the same top-of-detail stack as the community status, so a
   // submission can visibly transition into that status instead of leaving a second summary at
   // the bottom of the location details.
-  const landmarkHtml = `<article class="place-detail place-detail--${isEvent ? "event" : "landmark"}">${topRow}${communityPlaceStatus.detail}${communityPlaceMarker}${communityPlaceSection}${descriptionHtml}${ledgerHtml}${detailsHtml(rows, { labels: isEvent })}${isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : ""}${relatedLinksHtml}${issueHtml}</article>`;
+  const landmarkHtml = `<article class="place-detail place-detail--${isEvent ? "event" : "landmark"}">${topRow}${communityPlaceStatus.detail}${communityPlaceMarker}${communityPlaceSection}${descriptionHtml}${ledgerHtml}${detailsHtml(rows, { labels: isEvent })}${isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : ""}<div data-live-nearby>${relatedLinksHtml}</div>${issueHtml}</article>`;
   // A /find/ landing's place replaces its server-rendered panel in place: no slide-in from the side.
   transitionInspectorBody(landmarkHtml, findLandingSlug() ? null : "forward");
   if (navigator.onLine && !isEvent && place.latitude != null) loadCommunityPlaceIssues(place);
