@@ -67,7 +67,7 @@ test.describe("generated find/nearby pages", () => {
         return {
           title: text(document.querySelector("#inspectorTitle")),
           type: text(document.querySelector("#inspectorType")),
-          chips: [...body.querySelectorAll(".related-chips a")].map((a) => ({
+          chips: [...body.querySelectorAll(".rail-pills [data-rail-key]")].map((a) => ({
             href: a.getAttribute("href"),
             label: text(a),
             classes: a.className,
@@ -102,7 +102,7 @@ test.describe("generated find/nearby pages", () => {
 
         expect(liveRender.title).toBe(staticRender.title);
         expect(liveRender.type).toBe(staticRender.type);
-        expect(staticRender.chips.every((chip) => chip.classes.includes("nearby-link"))).toBe(true);
+        expect(staticRender.chips.length).toBeGreaterThan(0);
         expect(liveRender.cards.map(({ name }) => name)).toEqual(staticRender.cards.map(({ name }) => name));
         expect(liveRender.cards.map(({ meta }) => meta)).toEqual(staticRender.cards.map(({ meta }) => meta));
         staticRender.cards.forEach((card, i) => {
@@ -123,20 +123,16 @@ test.describe("generated find/nearby pages", () => {
       // browser-default-styled <ul> that then visibly restyled itself the instant JS booted.
       expect(html).toContain('class="nearest-list"');
       expect(html).toContain(`class="nearest-item" href="/find/${EXAMPLE_PUB.slug}/"`);
-      expect(html).toContain('Browse nearby categories');
-      expect(html).toContain('class="detail-map-link nearby-link nearby-link--current" href="/nearby/pubs/" aria-current="page"');
+      expect(html).toContain('class="filter-rail nearby-category-nav" aria-label="Filter nearby places"');
+      expect(html).toContain('class="rail-pill is-on" href="/nearby?filters=false" data-rail-key="pubs"');
       expect(html).toContain('<h3 id="nearbyResultsHeading">Pubs &amp; bars nearby</h3>');
-      // Every category/subcategory page links onward to veteran trees and grazing cattle as
-      // pills in the top chip row, the same up-link every /find/<slug>/ business page already
-      // carries.
-      expect(html).toMatch(/<a class="detail-map-link nearby-link" href="\/nearby\/trees\/">[\s\S]*?Trees<\/a>/);
-      expect(html).toMatch(/<a class="detail-map-link nearby-link" href="\/nearby\/cows\/">[\s\S]*?Cows<\/a>/);
+      expect(html).toContain('data-rail-key="all-nearby"');
     });
 
     test("the trees category page marks its current pill and links onward to cows", async ({ request }) => {
       const html = await (await request.get("/nearby/trees/")).text();
-      expect(html).toContain('class="detail-map-link nearby-link nearby-link--current" href="/nearby/trees/" aria-current="page"');
-      expect(html).toMatch(/<a class="detail-map-link nearby-link" href="\/nearby\/cows\/">[\s\S]*?Cows<\/a>/);
+      expect(html).toContain('class="rail-pill is-on" href="/nearby?filters=false" data-rail-key="trees"');
+      expect(html).toContain('data-rail-key="cows"');
     });
 
     test("/nearby/trees/ server-renders a real nearest-tree list, and /nearby/ponds-streams/ a real water list", async ({ request }) => {
@@ -571,10 +567,11 @@ test.describe("generated find/nearby pages", () => {
       expect(html).toContain('href="/nearby/food/"');
     });
 
-    test("once JS boots, /nearby/pubs/ swaps the static chips for the filter rail with Pubs pressed", async ({ page }) => {
+    test("once JS boots, /nearby/pubs/ hydrates the server rail with Pubs pressed", async ({ page }) => {
       // The live Nearby overview (selectOverview/overviewNearestHtml) replaces the static page's
-      // whole #inspectorBody the moment JS boots. The rail carries the category navigation the
-      // static chips gave a crawler: the current category pressed and its groupmates as pills.
+      // whole #inspectorBody the moment JS boots. The live rail carries the same category
+      // navigation the server-rendered links gave a crawler: the current category pressed and
+      // its groupmates as pills.
       // setup() (not gotoAndWaitForMap directly) force-hides #locationGate, which otherwise
       // intercepts the click below (no geolocation permission is granted in this spec file).
       await setup(page, "/nearby/pubs/");

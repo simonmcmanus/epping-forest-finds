@@ -9,6 +9,7 @@ const {
   renderPage,
   renderEventsPage,
   renderCowsPage,
+  renderNearbyIndexPage,
   generate,
   listFindSlugs,
   slugFor,
@@ -124,14 +125,16 @@ test("renderPage replaces the app's initial empty-state message with real, crawl
   const html = renderPage(pubs, APP_HTML);
 
   assert.ok(!html.includes("All veteran trees are shown"), "the generic placeholder text is gone");
-  assert.match(html, /Browse nearby categories/);
+  assert.match(html, /<nav class="filter-rail nearby-category-nav" aria-label="Filter nearby places">/);
+  assert.match(html, /data-rail-key="all-nearby"/);
+  assert.match(html, /class="rail-pill is-on" href="\/nearby\?filters=false" data-rail-key="pubs"/);
   assert.match(html, /<h3 id="nearbyResultsHeading">Pubs &amp; bars nearby<\/h3>/);
   assert.match(html, /Find all 42 pubs and bars in Epping Forest/);
   assert.match(html, /href="\/nearby\/cafes\/"/, "a sibling cross-link uses the trailing slash Netlify serves directly");
   assert.match(html, /More in <a href="\/nearby\/food\/">Food<\/a>/, "and links back up to its own group page");
 });
 
-test("renderPage renders a group page's own title, count and member pills, promoted to the top chip row", () => {
+test("renderPage renders a group page's own title, count and member pills in the server rail", () => {
   const food = collectPages(FAKE_RULES, FAKE_INVENTORY).find((p) => p.isGroup);
   const html = renderPage(food, APP_HTML);
 
@@ -139,37 +142,37 @@ test("renderPage renders a group page's own title, count and member pills, promo
   assert.match(html, /<link rel="canonical" href="https:\/\/www\.eppingforestfinds\.uk\/nearby\/food\/">/);
   assert.match(html, /"numberOfItems":49/, "the group's count is its members' counts summed");
   assert.match(html, /Find all 49 places to eat, drink and shop in Epping Forest/);
-  // "Browse by type" used to be a bottom paragraph of plain links -- now a pill per member, in
-  // the same top chip row as the breadcrumb (the live category navigation's equivalent,
-  // js/app.js), so it survives selectOverview() replacing the rest of the body the instant JS
-  // boots instead of vanishing with it.
-  const topRow = /<div class="detail-top-row related-chips">([\s\S]*?)<\/div>/.exec(html)[1];
-  assert.match(topRow, /<a class="detail-map-link nearby-link" href="\/nearby\/pubs\/">[\s\S]*?Pubs &amp; bars[\s\S]*?<\/a>/, "a pill per member, not a comma-separated sentence");
-  assert.match(topRow, /Cafés/);
+  assert.match(html, /data-rail-key="pubs"[^>]*aria-pressed|data-rail-key="pubs"/);
+  assert.match(html, /data-rail-key="cafes"/);
 });
 
-test("renderPage links out to veteran trees and grazing cattle as pills in the top chip row, the same up-link every /find/<slug>/ business page carries", () => {
+test("renderPage includes the All nearby reset in the server-rendered rail", () => {
   const [pubs] = collectPages(FAKE_RULES, FAKE_INVENTORY);
   const html = renderPage(pubs, APP_HTML);
-  const topRow = /<div class="detail-top-row related-chips">([\s\S]*?)<\/div>/.exec(html)[1];
-  assert.match(topRow, /<a class="detail-map-link nearby-link" href="\/nearby\/trees\/">[\s\S]*?Trees<\/a>/);
-  assert.match(topRow, /<a class="detail-map-link nearby-link" href="\/nearby\/cows\/">[\s\S]*?Cows<\/a>/);
+  assert.match(html, /<a class="rail-pill rail-pill--all" href="\/nearby\?filters=false" data-rail-key="all-nearby"/);
+});
+
+test("renderNearbyIndexPage server-renders the top-level rail and All nearby reset", () => {
+  const html = renderNearbyIndexPage(APP_HTML, { rules: loadAppRules(), trees: [] });
+  assert.match(html, /<nav class="filter-rail nearby-category-nav" aria-label="Filter nearby places">/);
+  assert.match(html, /data-rail-key="all-nearby"/);
+  assert.match(html, /data-rail-key="food"/);
+  assert.match(html, /class="rail-check/);
 });
 
 test("renderPage's own trees pill marks the current page and never doubles up with the nature group's own type pill", () => {
   const treesPage = { key: "trees", slug: "trees", label: "Trees", title: "trees", count: 24906, groupLabel: "Nature", groupSlug: "nature", siblings: [] };
   const html = renderPage(treesPage, APP_HTML);
-  assert.match(html, /nearby-link--current[^>]*href="\/nearby\/trees\/"|href="\/nearby\/trees\/"[^>]*nearby-link--current/, "the trees page marks itself as current");
-  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\/cows\/">[\s\S]*?Cows<\/a>/);
+  assert.match(html, /class="rail-pill is-on" href="\/nearby\?filters=false" data-rail-key="trees"/, "the trees page marks its current category as enabled");
+  assert.match(html, /data-rail-key="cows"/);
 
   const naturePage = { key: "nature", slug: "nature", label: "Nature", title: "trees and water features", count: 25017, isGroup: true, members: [{ key: "trees", slug: "trees", label: "Trees" }, { key: "ponds_streams", slug: "ponds-streams", label: "Ponds & streams" }] };
   const natureHtml = renderPage(naturePage, APP_HTML);
-  const topRow = /<div class="detail-top-row related-chips">([\s\S]*?)<\/div>/.exec(natureHtml)[1];
-  assert.equal((topRow.match(/href="\/nearby\/trees\/"/g) || []).length, 1, "the nature group's own \"Trees\" type pill is the only trees link -- the see-also row doesn't repeat it");
-  assert.match(topRow, /href="\/nearby\/cows\/"/);
+  assert.equal((natureHtml.match(/data-rail-key="trees"/g) || []).length, 1, "the nature group has one Trees pill");
+  assert.match(natureHtml, /data-rail-key="ponds_streams"/);
 });
 
-test("renderEventsPage lists real event titles/dates, links to the fuller /find/events/ listing, and carries the same see-also pills", () => {
+test("renderEventsPage lists real event titles/dates and the server-rendered rail", () => {
   const events = [{ title: "Autumn Fair", date: "2026-10-13" }, { title: "Recurring litter pick", date: null }];
   const html = renderEventsPage(APP_HTML, events);
   assert.match(html, /<title>2 Events in Epping Forest \| Epping Forest Finds<\/title>/);
@@ -177,8 +180,7 @@ test("renderEventsPage lists real event titles/dates, links to the fuller /find/
   assert.match(html, /Autumn Fair \(2026-10-13\)/);
   assert.match(html, /Recurring litter pick<\/li>/, "an event with no date still lists, just without a parenthetical");
   assert.match(html, /href="\/find\/events\/"/);
-  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\/trees\/">[\s\S]*?Trees<\/a>/);
-  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\/cows\/">[\s\S]*?Cows<\/a>/);
+  assert.match(html, /data-rail-key="all-nearby"/);
 });
 
 test("renderCowsPage has no fixed count (live-tracked data) but is a real, linkable page", () => {
@@ -187,8 +189,8 @@ test("renderCowsPage has no fixed count (live-tracked data) but is a real, linka
   assert.match(html, /<link rel="canonical" href="https:\/\/www\.eppingforestfinds\.uk\/nearby\/cows\/">/);
   assert.match(html, /GPS collar/);
   assert.ok(!html.includes('"numberOfItems"'), "no fixed count to quote for live-tracked positions");
-  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\/trees\/">[\s\S]*?Trees<\/a>/, "links onward to trees");
-  assert.match(html, /nearby-link--current[^>]*href="\/nearby\/cows\/"|href="\/nearby\/cows\/"[^>]*nearby-link--current/, "the cows page marks itself as current");
+  assert.match(html, /data-rail-key="trees"/, "links onward to trees");
+  assert.match(html, /class="rail-pill is-on" href="\/nearby\?filters=false" data-rail-key="cows"/, "the cows page marks its current category as enabled");
 });
 
 test("generate writes one index.html per page under nearby/<slug>/, and listFindSlugs finds them back", () => {

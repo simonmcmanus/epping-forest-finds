@@ -422,8 +422,8 @@ generated report links back to the homepage. This is what lifts both.
 
 **Parity is tested, not just intended.** `test/e2e/30-find-pages.spec.js` loads a
 category page with JS disabled, then forces the live Nearby renderer on the same
-page, and asserts the heading, type line, chip row (hrefs, labels, `nearby-link`
-class), each card's name and footer text, and each arrow's starting angle match.
+page, and asserts the heading, type line, server rail's category keys and labels,
+each card's name and footer text, and each arrow's starting angle match.
 Nearest-card footers carry the same parts as the live row: walk chip with its
 walking icon, type label, optional tree tag, and direction arrow. The static
 business list is capped at the same 10-item display limit as the live list, while
@@ -709,40 +709,17 @@ branches.
   for a visitor who has already answered the cookie question, and on a
   first visit the onboarding wizard takes its place. The list is trees
   only: cows and events join it only once a real fix rebuilds the list.
-- **The static page carries one labelled category-navigation region at the very top of a
-  `/nearby/<slug>/` landing, matching the static category-chip generator
-  (`js/app.js`) chip for chip** (`topChipsHtml`, `scripts/generate-find-pages.js`;
-  `.nearby-category-nav`, `.detail-top-row.related-chips`/`.detail-map-link`,
-  `css/inspector.css`; icons via `appIconHtml`/`treeSpeciesIconHtml`, both exposed by
-  `loadAppRules()`). Its label is "Browse nearby categories" and its first chip is the current
-  category, marked with a filled selected state and `aria-current="page"`; then it carries a
-  chip up to the category's own group; an "All nearby" chip back to the unfiltered list; on a
-  **group** page only, a down-link pill per member subfilter ("Browse by type" — e.g.
-  `/nearby/nature/` gets "Trees" and "Ponds & streams", excluding cows, which
-  is live-tracked with no fixed count and so never one of a group's own
-  `page.members`, `COW_KEY`, `scripts/report/map-inventory.js`); and a
-  "see also" pill each for veteran trees and grazing cattle, omitting a
-  self-link (`/nearby/trees/` never gets its own trees pill, `/nearby/cows/`
-  never its own cows pill) and never repeating a pill the type-chip row
-  already shows (the nature group page's own "Trees" type/current pills are the only trees
-  links there — the see-also row doesn't add a second one next to them).
-  The actual nearby entries sit below this region under a separate
-  `<h3>` such as "Pubs & bars nearby", so the category links cannot be mistaken for the first
-  results. The current page's static results heading and navigation remain in place when
-  `selectOverview()` replaces the list content after JS boots; the live category rail
-  grew this same logic — without it, a reader (or a crawler) saw this whole
-  row until JS swapped it in and then never again. `/nearby/cows/` and
-  `/nearby/events/` (rendered outside `collectPages`/`renderPage`, so with no
-  `page.groupSlug` of their own) get the breadcrumb half too, via
-  `groupContainingSubfilter()` — the same group lookup `FILTER_SUBFILTERS_BY_KEY`
-  does live. `/nearby/events/`'s chip points back to itself (its own
-  subfilter and group share the "events" key) — a pre-existing quirk of the
-  live version this faithfully reproduces rather than silently "fixing" only
-  on the static side, which would be a new mismatch, not a smaller one. This
-  used to be two separate plain-text sentences at the *bottom* of the page
-  ("Browse by type: ..." and "See also veteran trees and grazing cattle near
-  Epping Forest.") — reshaped into pills and promoted to the top so they
-  survive `selectOverview()` instead of vanishing with the rest of the body.
+- **The static page carries the Nearby filter rail at the very top of every `/nearby/<slug>/`
+  landing and the bare `/nearby` index.** `staticFilterRailHtml()` (`scripts/generate-find-pages.js`)
+  mirrors `filterRailHtml()` (`js/app.js`) with the same `filter-rail`/`rail-pills`/`rail-pill`
+  structure, icons, labels and tick/cross states. Its pills are anchors before JavaScript boots,
+  so crawlers and no-JS visitors can still open a category lens; the first "All nearby" link
+  targets `/nearby?filters=false`. A category landing shows that group's subcategory pills,
+  while bare `/nearby` shows top-level groups using the generated default filter set. Once JS
+  boots, `swapStaticChipsForRail()` (`js/inspector.js`) replaces the server-rendered anchors with
+  the live button rail without changing the visible hierarchy. The actual nearby entries sit
+  below this region under a separate `<h3>` such as "Pubs & bars nearby", so the navigation
+  cannot be mistaken for the first results.
 - **`trees` and `ponds_streams` get a real nearest-item list exactly like a
   business does — including on the `nature` group page, where it's the
   *same* list, not two separate ones** (`natureNearestListHtml`,
@@ -774,10 +751,9 @@ branches.
   actually standing at, and didn't match what the live list showed either
   way — the nearest-item list above is what actually satisfies "the same
   content, live or not."
-- **Every category/subcategory page also links onward to veteran trees and
-  grazing cattle, as pills in the top chip row above, not a bottom
-  sentence** — see the top-pill-row bullet above for exactly how the
-  trees/cows "see also" pills are built and when each is omitted.
+- **Every category/subcategory page keeps its sibling categories and the All nearby reset in the
+  server-rendered rail**, so a no-JS visitor can always leave a category lens without relying on
+  browser history.
 - **Title tags state the page's own real content, not a repeated generic
   phrase.** A subfilter page's title leads with its count (`"129 Pubs & Bars
   in Epping Forest | Epping Forest Finds"` — a plural noun reads naturally
@@ -948,13 +924,12 @@ use for the homepage's counts.
   `applyRouteFromUrl()` — the same entry point the back/forward buttons and
   a hand-edited hash already use — so an intercepted link behaves exactly
   like landing on that URL any other way, just without the reload.
-- **Category/subcategory pages swap their chip row for the live filter rail once JS boots.**
-  The static page's top chip row (§6.6 — breadcrumb, a group page's own "Browse by type" members,
-  and the "see also veteran trees/grazing cattle" pills) is real markup with no JS, so crawlers
-  and no-JS visitors keep it. When JS boots, `swapStaticChipsForRail()` (`js/inspector.js`) replaces
-  it with the Nearby filter rail (`filterRailHtml()`, `js/app.js`; `spec-data-rendering.md`
-  "Nearby filter rail"), and every later render of the live list carries the rail on every return
-  path, the empty-list ones included, so there is always a way out of a now-empty category list.
+- **Category/subcategory pages hydrate their server-rendered rail once JS boots.** The static
+  anchors are real markup with no JS, so crawlers and no-JS visitors keep them. When JS boots,
+  `swapStaticChipsForRail()` (`js/inspector.js`) replaces them with the Nearby filter rail
+  (`filterRailHtml()`, `js/app.js`; `spec-data-rendering.md` "Nearby filter rail"), and every
+  later render of the live list carries the rail on every return path, the empty-list ones
+  included, so there is always a way out of a now-empty category list.
   A subfilter page's sideways "More in `<group>`:
   `<siblings>`" link is the one piece that stays a plain-text paragraph at
   the bottom rather than a pill — it isn't reproduced live, the same gap

@@ -1308,22 +1308,11 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   color: var(--tree);
 }
 
-/* The static /nearby/<slug>/ pages (generate-find-pages.js) still render these category navigation
-   chips for crawlers and no-JS visitors. They carry compact icons and a
-   smaller, softer rectangle so a row of them reads as navigation rather than a run of oversized
-   pills. */
+/* The static /nearby/<slug>/ pages (generate-find-pages.js) render the same rail as links for
+   crawlers and no-JS visitors. The live app replaces those links with buttons after boot. */
 .related-chips .app-icon {
   width: 1.7em;
   height: 1.7em;
-}
-
-/* Keep the category row easy to scan without spending the vertical space of the old pills. */
-.related-chips .detail-map-link {
-  min-height: 38px;
-  padding: 3px 10px;
-  border-radius: 10px;
-  gap: 5px;
-  font-size: 0.82rem;
 }
 
 .nearby-category-nav {
