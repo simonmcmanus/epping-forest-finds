@@ -142,7 +142,7 @@ test("renderPage renders a group page's own title, count and member pills in the
   assert.match(html, /<link rel="canonical" href="https:\/\/www\.eppingforestfinds\.uk\/nearby\/food\/">/);
   assert.match(html, /"numberOfItems":49/, "the group's count is its members' counts summed");
   assert.match(html, /Find all 49 places to eat, drink and shop in Epping Forest/);
-  assert.match(html, /data-rail-key="pubs"[^>]*aria-pressed|data-rail-key="pubs"/);
+  assert.match(html, /<a class="rail-pill[^\"]*" href="[^"]*" data-rail-key="pubs">/);
   assert.match(html, /data-rail-key="cafes"/);
 });
 
