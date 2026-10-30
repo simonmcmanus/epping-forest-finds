@@ -931,6 +931,13 @@ function setupInspectorHandlers() {
     navigateBack();
   });
 
+  els.inspectorTitleEmoji.addEventListener("click", (event) => {
+    const internalLink = event.target.closest("a[href^='/']");
+    if (!internalLink || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    navigateInApp(internalLink.getAttribute("href"));
+  });
+
   els.inspector.addEventListener("click", (event) => {
     if (!els.inspector.classList.contains("minimized")) return;
     if (els.closeInspector && event.target === els.closeInspector) return;
@@ -999,7 +1006,13 @@ function setupFilterPanelHandlers() {
   if (els.nearbyToggle) {
     els.nearbyToggle.addEventListener("click", (event) => {
       event.preventDefault();
-      if (els.nearbyToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
+      const onPlainNearby = window.location.pathname === NEARBY_PATH
+        && !window.location.search
+        && !window.location.hash
+        && !state.nearbyAnchor;
+      if (els.nearbyToggle.classList.contains("screen-active")
+        && !els.inspector.classList.contains("minimized")
+        && onPlainNearby) {
         pulseNavButton(els.nearbyToggle);
         return;
       }
@@ -1242,6 +1255,11 @@ function setupSearchAndNavHandlers() {
     if (submitIssueBtn) { submitLocationIssueReport(submitIssueBtn.closest(".report-issue")); return; }
     const resetAnchorBtn = event.target.closest("[data-action='reset-nearby-anchor']");
     if (resetAnchorBtn) { clearNearbyAnchor(); return; }
+    // Server-rendered Nearby pills are anchors. Only the hydrated button rail is an in-place
+    // toggle; leave static anchors to the ordinary internal-link handler below, including
+    // modified clicks that should open the link in a new tab.
+    const railPill = event.target.closest("button[data-rail-key]");
+    if (railPill) { toggleRailFilter(railPill.dataset.railKey); return; }
     const radiusToggle = event.target.closest("[data-action='toggle-radius']");
     if (radiusToggle) {
       state.showAllOutsideRadius = !state.showAllOutsideRadius;
@@ -1315,6 +1333,7 @@ function refreshNearbyRadiusView(options = {}) {
 function applyWalkingRadiusChange(minutes, options = {}) {
   if (state.walkingDistanceMinutes === minutes) return;
   state.walkingDistanceMinutes = minutes;
+  state.nearbyFilterChangeOrigin = null;
   syncLiveQueryStringForScreen();
   // Resizing the ring is the user taking the camera back: whatever out-of-radius match a
   // just-added filter had the fit reaching for (outOfRadiusFitPoints, js/app.js), the ring they
@@ -1364,6 +1383,20 @@ function walkingRadiusGrowBackMinutes() {
   if (nearbyOriginTransitionActive()) return null;
   const origin = nearbyOrigin();
   if (!origin) return null;
+  // Changing filters can make the current ring empty without the reader having moved. Do not
+  // reinterpret that as permission to widen the radius to the nearest out-of-radius fallback:
+  // on Nearby the map remains focused on the radius the reader chose, even when the list names
+  // a distant match. Once the origin has genuinely moved, normal empty-ring recovery resumes.
+  if (state.nearbyFilterChangeOrigin) {
+    const movedMetres = distanceMetres(
+      state.nearbyFilterChangeOrigin.latitude,
+      state.nearbyFilterChangeOrigin.longitude,
+      origin.latitude,
+      origin.longitude,
+    );
+    if (movedMetres <= STABLE_NEARBY_ORIGIN_HYSTERESIS_METRES) return null;
+    state.nearbyFilterChangeOrigin = null;
+  }
   if (!nearbyRadiusIsEmpty()) return null;
   const floor = ceilWalkingMinutes(walkingRadiusFloorMinutes(origin));
   return floor > state.walkingDistanceMinutes ? floor : null;
@@ -2420,6 +2453,10 @@ function goToInitialView(updateHash = true) {
   exitClusterExpansion();
   state.filterScreenOpen = false;
   state.searchScreenOpen = false;
+  // Returning to Nearby through the main navigation or an ordinary route should read the rail
+  // level from the destination path again. A rail tap itself never calls this function, so its
+  // group/subcategory level remains stable while the query string is rewritten.
+  state.nearbyRailGroupKey = undefined;
   // A /nearby/<slug> page's single category is that page's own lens, not a preference the reader
   // chose -- the Nearby nav button is "take me to the real Nearby", so it puts their actual
   // filters back rather than carrying that category over (see setOverviewFilters' persist:false
