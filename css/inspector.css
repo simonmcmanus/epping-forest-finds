@@ -522,14 +522,39 @@
   height: calc(44px * var(--icon-scale));
 }
 
+.inspector-title-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.inspector-title-link:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
 .inspector .type {
   margin: 6px 0 0;
   color: var(--muted);
   font-size: 0.88rem;
+  line-height: 1.25;
+}
+
+.inspector.nearby-overview .type {
+  min-height: 2.5em;
+  max-height: 2.5em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .inspector .type:empty {
   display: none;
+  min-height: 0;
+  max-height: none;
 }
 
 .close {
@@ -1270,7 +1295,7 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   }
 }
 
-/* Links that open a Nearby view (categoryLandingLinksHtml's chips, relatedCategoryLinksHtml's
+/* Links that open a Nearby view (the static category chips, relatedCategoryLinksHtml's
    cards) read as navigation into the map rather than as plain reference text: a forest-green
    border and label, so they are told apart from the neutral pills and the inspector's own actions. */
 .detail-map-link.nearby-link {
@@ -1286,21 +1311,11 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   color: var(--tree);
 }
 
-/* The category navigation chips at the top of a /nearby/<slug> page carry compact icons and a
-   smaller, softer rectangle so a row of them reads as navigation rather than a run of oversized
-   pills. */
+/* The static /nearby/<slug>/ pages (generate-find-pages.js) render the same rail as links for
+   crawlers and no-JS visitors. The live app replaces those links with buttons after boot. */
 .related-chips .app-icon {
   width: 1.7em;
   height: 1.7em;
-}
-
-/* Keep the category row easy to scan without spending the vertical space of the old pills. */
-.related-chips .detail-map-link {
-  min-height: 38px;
-  padding: 3px 10px;
-  border-radius: 10px;
-  gap: 5px;
-  font-size: 0.82rem;
 }
 
 .nearby-category-nav {
@@ -1319,6 +1334,176 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
 
 .nearby-category-nav .detail-top-row {
   margin-bottom: 0;
+}
+
+/* Nearby's filter rail: a row of toggle pills that scrolls sideways. Sticky so the reader can keep
+   tapping while the list scrolls. */
+.filter-rail {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 -4px 12px;
+  padding: 4px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  background: var(--panel);
+}
+
+/* Once the rail has moved, soften the clipped pill at the left edge. At scrollLeft 0 the first
+   pill remains fully legible; the fade only appears when there is content hidden to the left. */
+.filter-rail.has-left-overflow::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 1px;
+  left: 0;
+  z-index: 1;
+  width: 28px;
+  pointer-events: none;
+  background: linear-gradient(90deg, var(--panel), transparent);
+}
+
+/* A brief, decorative pulse at the clipped edge accompanies the one-time scroll peek. It makes
+   the affordance visible even when the pill labels are similar in colour to the panel. */
+.filter-rail.has-more-right::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 34px;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent, var(--panel));
+  animation: rail-more-right 900ms ease-in-out both;
+}
+
+@keyframes rail-more-right {
+  0%, 100% { opacity: 0; transform: translateX(8px); }
+  35% { opacity: 0.92; transform: none; }
+  68% { opacity: 0.52; transform: none; }
+}
+
+.rail-pills {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+  min-width: 0;
+  padding: 2px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 14px), transparent);
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 14px), transparent);
+}
+
+.filter-rail.has-left-overflow .rail-pills {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 14px), transparent);
+  mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 14px), transparent);
+}
+
+.rail-pills::-webkit-scrollbar {
+  display: none;
+}
+
+.rail-pill {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 40px;
+  border: 1px solid var(--forest);
+  background: #fff;
+  color: var(--tree);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 120ms ease, background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+}
+
+.rail-pill {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+
+/* The pressed fill sweeps in from the left rather than the background just changing colour. */
+.rail-pill::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: #eef0f3;
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.rail-pill.is-on::before {
+  transform: none;
+}
+
+.rail-pill .app-icon {
+  width: 1.6em;
+  height: 1.6em;
+}
+
+.rail-check {
+  display: inline-flex;
+  flex: 0 0 1.1em;
+  width: 1.1em;
+  min-width: 1.1em;
+  box-sizing: border-box;
+  justify-content: center;
+  margin-left: 1px;
+  font-size: 1.1em;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.rail-pill:active {
+  transform: scale(0.98);
+}
+
+.rail-pill.is-on {
+  border-color: #b1bbc5;
+  color: #45525d;
+}
+
+@media (hover: hover) {
+  /* Hover is an interaction cue, not another selected state: keep it neutral and lift the
+     pill slightly so desktop pointer users can distinguish it from the sage pressed fill. */
+  .rail-pill:hover {
+    background: #f4f6f3;
+    border-color: #6f9676;
+    box-shadow: 0 2px 8px rgba(42, 84, 53, 0.14);
+    transform: translateY(-1px);
+  }
+
+  .rail-pill:not(.is-on):hover {
+    color: var(--tree);
+  }
+
+  .rail-pill.is-on:hover::before {
+    background: #e2e6eb;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail-pill,
+  .rail-pill::before,
+  .filter-rail.has-more-right::after {
+    transition: none;
+    animation: none;
+  }
 }
 
 .detail-map-link.nearby-link--current {

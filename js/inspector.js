@@ -691,15 +691,80 @@ function showNearbyLocatingState() {
   els.inspectorBody.innerHTML = `<div class="nearby-locating" role="status" aria-live="polite"><span class="nearby-locating-spinner" aria-hidden="true"></span><p>Requesting your location…</p></div>`;
 }
 
+// The server-rendered /nearby/<slug>/ page keeps its anchor chips for crawlers and no-JS visitors.
+// Once JS is running they become the live filter rail, so the first tap already works in place.
+function swapStaticChipsForRail() {
+  const nav = els.inspectorBody && els.inspectorBody.querySelector("nav.nearby-category-nav");
+  if (!nav || typeof filterRailHtml !== "function") return;
+  nav.outerHTML = filterRailHtml();
+  if (typeof attachNearbyRailScrollHints === "function") attachNearbyRailScrollHints();
+  maybePlayRailIntro(false);
+}
+
+// The rail arriving on screen keeps its server-rendered pills in place. If more than fit, the row
+// gives one short sideways peek and bounce so it is obvious it scrolls, without making the pills
+// themselves appear to be re-rendering. A rebuild that replaces a rail already on screen (a
+// location update, a radius change) does not replay it, and one that lands before the rail has any
+// width (still behind the boot overlay) leaves it owed until the rail is actually visible.
+let railIntroDue = true;
+const railIntroRows = new WeakSet();
+let railIntroPendingRow = null;
+let railIntroLoadListenerAttached = false;
+function maybePlayRailIntro(hadRail) {
+  if (!hadRail) railIntroDue = true;
+  const row = els.inspectorBody && els.inspectorBody.querySelector && els.inspectorBody.querySelector(".filter-rail .rail-pills");
+  if (!railIntroDue || !row || !row.clientWidth || railIntroRows.has(row)) return;
+  if (document.readyState !== "complete") {
+    railIntroPendingRow = row;
+    if (!railIntroLoadListenerAttached) {
+      railIntroLoadListenerAttached = true;
+      window.addEventListener("load", () => {
+        railIntroLoadListenerAttached = false;
+        const pendingRow = railIntroPendingRow;
+        railIntroPendingRow = null;
+        if (!pendingRow?.isConnected) return;
+        // Let the map, images, and first data paint settle before moving the rail.
+        setTimeout(() => maybePlayRailIntro(true), 350);
+      }, { once: true });
+    }
+    return;
+  }
+  railIntroRows.add(row);
+  railIntroDue = false;
+  animateRailIntro(row);
+}
+
+function animateRailIntro(row) {
+  if (!row || prefersReducedMotion()) return;
+  const overflow = row.scrollWidth - row.clientWidth;
+  if (overflow <= 8) return;
+  const peek = Math.min(48, overflow);
+  setTimeout(() => {
+    if (!row.isConnected) { railIntroDue = true; return; }
+    if (row.scrollLeft > 0) return;
+    const rail = row.closest(".filter-rail");
+    rail?.classList.add("has-more-right");
+    row.scrollTo({ left: peek, behavior: "smooth" });
+    setTimeout(() => {
+      rail?.classList.remove("has-more-right");
+      if (row.isConnected && Math.abs(row.scrollLeft - peek) < 24) row.scrollTo({ left: 0, behavior: "smooth" });
+    }, 550);
+  }, 450);
+}
+
 function selectOverview(animate = false) {
   if (state.filterScreenOpen || state.searchScreenOpen) return;
+  els.inspector.classList.add("nearby-overview");
   if (typeof updateDocumentTitle === "function") updateDocumentTitle();
   if (findLandingAwaitingPlace()) return;
   // A landing's server-rendered list already shows the High Beach default it would otherwise
   // rebuild here (default location, no real fix yet), so keep it. Every early caller -- boot's own
   // reveal, the tree chunks arriving after data has loaded -- would otherwise clear it and repaint
   // the same list, which read as a flicker. Once a real fix lands, the list is rebuilt for real.
-  if (serverRenderedNearbyListStillValid()) return;
+  if (serverRenderedNearbyListStillValid()) {
+    swapStaticChipsForRail();
+    return;
+  }
   _serverRenderedNearbyList = false;
   // The reorder animation is for a live update to the list already on screen (GPS/heading
   // moving an item, a filter changing which ones show) -- captured positions only mean
@@ -717,7 +782,8 @@ function selectOverview(animate = false) {
   // The arrow is live whenever the browser back button has an app screen to return to, not only
   // when a browse anchor was moved: a /nearby/<slug>/ link tapped from another landing is a
   // Nearby-to-Nearby step with no anchor of its own, and it still has to be undoable here.
-  setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), showBack: Boolean(state.nearbyAnchor) || canGoBackInApp(), captureSnapshot: animate, preserveNavHighlight: true });
+  setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), titleLink: NEARBY_PATH, showBack: Boolean(state.nearbyAnchor) || canGoBackInApp(), captureSnapshot: animate, preserveNavHighlight: true });
+  els.inspector.classList.add("nearby-overview");
   setNavScreenActive(els.nearbyToggle);
   els.inspectorTools.hidden = false;
   // The overview keeps the tools row in the shared shell, but it is normally empty because the
@@ -737,17 +803,165 @@ function selectOverview(animate = false) {
   }
 
   _overviewListKey = listKey;
-  transitionInspectorBody(nearestSummary, animate ? "back" : null, () => {
+  const hadRail = Boolean(els.inspectorBody && els.inspectorBody.querySelector && els.inspectorBody.querySelector(".filter-rail"));
+  const patchInPlace = railPatchPending && !animate;
+  railPatchPending = false;
+  if (patchInPlace && patchOverviewBody(nearestSummary)) {
+    _serverRenderedNearbyList = false;
+    if (typeof updateDocumentTitle === "function") updateDocumentTitle();
     updateOverviewDirectionArrows();
     hydrateOverviewBusStopDirections();
-    animateNearestItemReorder(previousNearestPositions);
-  });
+  } else {
+    transitionInspectorBody(nearestSummary, animate ? "back" : null, () => {
+      updateOverviewDirectionArrows();
+      hydrateOverviewBusStopDirections();
+      animateNearestItemReorder(previousNearestPositions);
+      if (typeof attachNearbyRailScrollHints === "function") attachNearbyRailScrollHints();
+      maybePlayRailIntro(hadRail);
+    });
+  }
   // A category landing path is already the user's navigation target.  Nearby is re-rendered
   // by location/radius updates after boot, but those incidental renders must not canonicalise
   // /nearby/<slug>/ to /nearby?radius=30 and lose the category lens from the address bar.
   // goToInitialView() still calls syncHashFromSelection() after this function when the reader
   // explicitly navigates back to ordinary Nearby.
   if (!filterKeysFromFindPath(window.location.pathname).length) syncHashFromSelection();
+}
+
+// A filter-rail tap changes which places show, not which screen the reader is on, so the panel
+// does not slide. The rail's pills are kept (and glide to their new slots, new ones pop in), and
+// the list is merged by place: rows that stay keep their node and slide to their new position,
+// new rows step in one after another, rows that go fade out from where they were. Returns false
+// (caller rebuilds the body the ordinary way) only when the old body has no rail to keep, e.g. the
+// first tap on a server-rendered landing.
+function patchOverviewBody(html) {
+  const body = els.inspectorBody;
+  const oldRail = body && body.querySelector(".filter-rail");
+  if (!oldRail || prefersReducedMotion()) return false;
+  const tpl = document.createElement("template");
+  tpl.innerHTML = html;
+  const newRail = tpl.content.querySelector(".filter-rail");
+  if (!newRail) return false;
+
+  const keyOf = (li) => nearestItemDomKey(li.querySelector("[data-overview-type][data-overview-key]"));
+  const oldItems = new Map();
+  body.querySelectorAll('.nearest-list > li:not([aria-hidden="true"])').forEach((li) => {
+    const key = keyOf(li);
+    if (key) oldItems.set(key, { el: li, top: li.getBoundingClientRect().top, width: li.offsetWidth });
+  });
+
+  patchRailPills(oldRail, newRail);
+
+  // Everything after the rail (results heading, notices, list) is replaced; the rows are carried
+  // across by place below so they are not rebuilt.
+  Array.from(body.children).forEach((node) => { if (node !== oldRail) node.remove(); });
+  Array.from(tpl.content.childNodes).forEach((node) => {
+    if (node !== newRail) body.appendChild(node);
+  });
+
+  const list = body.querySelector(".nearest-list");
+  if (!list) {
+    Array.from(body.children).filter((node) => node !== oldRail)
+      .forEach((node) => node.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180, easing: "ease-out" }));
+    return true;
+  }
+  mergeNearestList(list, oldItems, keyOf);
+  return true;
+}
+
+function patchRailPills(oldRail, newRail) {
+  const oldPills = oldRail.querySelector(".rail-pills");
+  const newPills = newRail.querySelector(".rail-pills");
+  const scrollLeft = oldPills.scrollLeft;
+  const first = new Map();
+  oldPills.querySelectorAll("[data-rail-key]").forEach((el) => {
+    const r = el.getBoundingClientRect();
+    first.set(el.dataset.railKey, [r.left, r.top]);
+  });
+  const existing = new Map(Array.from(oldPills.querySelectorAll("[data-rail-key]"), (el) => [el.dataset.railKey, el]));
+  const entering = [];
+  for (const next of Array.from(newPills.children)) {
+    const key = next.dataset.railKey;
+    let el = existing.get(key);
+    if (el) {
+      const wasOn = el.classList.contains("is-on");
+      el.classList.toggle("is-on", next.classList.contains("is-on"));
+      el.innerHTML = next.innerHTML;
+      if (wasOn !== el.classList.contains("is-on")) {
+        if (typeof prefersReducedMotion !== "function" || !prefersReducedMotion()) {
+          const restingShadow = getComputedStyle(el).boxShadow;
+          el.animate([
+            { boxShadow: restingShadow },
+            { boxShadow: "0 0 0 3px rgba(81, 128, 91, 0.18)", offset: 0.55 },
+            { boxShadow: restingShadow },
+          ], { duration: 320, easing: "ease-out" });
+        }
+      }
+      el.setAttribute("aria-pressed", next.getAttribute("aria-pressed"));
+      existing.delete(key);
+    } else {
+      el = next;
+      entering.push(el);
+    }
+    oldPills.appendChild(el);
+  }
+  existing.forEach((el) => el.remove());
+  // A toggle is an in-place edit, so never take horizontal control away from someone who has
+  // deliberately scrolled the rail. The browser clamps this if the new row is shorter.
+  oldPills.scrollLeft = scrollLeft;
+  oldPills.querySelectorAll("[data-rail-key]").forEach((el) => {
+    const was = first.get(el.dataset.railKey);
+    if (!was) return;
+    const now = el.getBoundingClientRect();
+    const dx = was[0] - now.left;
+    const dy = was[1] - now.top;
+    if (dx || dy) el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: 220, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+  });
+  entering.forEach((el) => el.animate([{ opacity: 0, transform: "scale(0.7)" }, { opacity: 1, transform: "none" }], { duration: 240, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" }));
+}
+
+function mergeNearestList(list, oldItems, keyOf) {
+  const rows = Array.from(list.children);
+  const nextKeys = new Set(rows.map(keyOf));
+  list.style.position = "relative";
+  const listTop = list.getBoundingClientRect().top;
+
+  // Leaving rows fade out as detached copies at their old spot, so the survivors can already slide
+  // into their final layout without waiting for the fade.
+  oldItems.forEach(({ el, top, width }, key) => {
+    if (nextKeys.has(key)) return;
+    const ghost = el.cloneNode(true);
+    ghost.setAttribute("aria-hidden", "true");
+    ghost.style.cssText = `position:absolute;left:0;top:${top - listTop}px;width:${width}px;margin:0;pointer-events:none;`;
+    list.appendChild(ghost);
+    ghost.animate([{ opacity: 1, transform: "none" }, { opacity: 0, transform: "scale(0.94)" }], { duration: 170, easing: "ease-in" }).finished
+      .then(() => ghost.remove(), () => ghost.remove());
+  });
+
+  let entered = 0;
+  const settled = rows.map((li) => {
+    const kept = oldItems.get(keyOf(li));
+    if (kept) {
+      kept.el.innerHTML = li.innerHTML;
+      li.replaceWith(kept.el);
+      return { el: kept.el, was: kept.top };
+    }
+    return { el: li, was: null, order: entered++ };
+  });
+
+  settled.forEach(({ el, was, order }) => {
+    if (was == null) {
+      const delay = Math.min(order, 9) * 32;
+      el.animate([{ opacity: 0, transform: "translateY(18px) scale(0.97)" }, { opacity: 1, transform: "none" }], { duration: 360, delay, easing: "cubic-bezier(0.34, 1.3, 0.64, 1)", fill: "backwards" });
+      // The list item is only the layout wrapper and has square corners. Put the fading ring on
+      // the rounded card inside it so the new-entry highlight follows the card's shape.
+      const card = el.querySelector(".nearest-item") || el;
+      card.animate([{ boxShadow: "0 0 0 3px rgba(47, 107, 60, 0.4)" }, { boxShadow: "0 0 0 0 rgba(47, 107, 60, 0)" }], { duration: 900, delay, easing: "ease-out" });
+      return;
+    }
+    const dy = was - el.getBoundingClientRect().top;
+    if (Math.abs(dy) > 0.5) el.animate([{ transform: `translateY(${dy}px)` }, { transform: "none" }], { duration: 220, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+  });
 }
 
 function nearestItemDomKey(node) {
@@ -933,7 +1147,7 @@ function drawInspectorIconMotion(motion) {
   return true;
 }
 
-function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true, preserveNavHighlight = false }) {
+function setInspectorSelectionChrome({ emoji, titleLink = null, showBack, captureSnapshot = true, preserveNavHighlight = false }) {
   // Cancel any in-flight transition and capture a fresh snapshot before DOM changes
   if (_transitionAnimation) {
     _transitionAnimation.cancel();
@@ -957,13 +1171,18 @@ function setInspectorSelectionChrome({ emoji, showBack, captureSnapshot = true, 
     _transitionSnapshot = null;
   }
 
+  els.inspector.classList.remove("nearby-overview");
+
   // Apply chrome updates
   // Back lives in the nav bar and is always rendered, so it is disabled rather than hidden: showing
   // or dimming it never moves the title or the tabs.
   els.inspectorBack.disabled = !showBack;
   els.inspectorTitleEmoji.hidden = !emoji;
+  els.inspectorTitleEmoji.setAttribute("aria-hidden", titleLink ? "false" : "true");
   if (emoji && emoji.includes("<")) {
-    els.inspectorTitleEmoji.innerHTML = emoji;
+    els.inspectorTitleEmoji.innerHTML = titleLink
+      ? `<a class="inspector-title-link" href="${escapeHtml(titleLink)}" aria-label="Nearby">${emoji}</a>`
+      : emoji;
   } else {
     els.inspectorTitleEmoji.textContent = emoji || "";
   }

@@ -255,13 +255,9 @@ function natureNearestListHtml(filterKeys, enrichment, rules) {
   return nearestListHtml(cards);
 }
 
-// The exact category navigation categoryLandingLinksHtml() (js/app.js) renders live at the top
-// of the Nearby list on a real /nearby/<slug>/ landing -- the current category, a chip up to the
-// category's own group, a way back to the full, unfiltered list, plus (for a group page) a
-// down-link to each member subfilter ("Browse by type") and the same "see also veteran
-// trees/grazing cattle" up-links every /find/<slug>/ business page already carries
-// (scripts/generate-business-pages.js). It stays labelled and grouped above the actual results
-// so a no-JS visitor sees the same hierarchy as the live app. Same classes and icons either side.
+// The server-rendered equivalent of filterRailHtml() (js/app.js). It deliberately uses anchors
+// rather than buttons so a no-JS visitor can still move between category lenses. Once the app
+// boots, swapStaticChipsForRail() replaces this exact labelled region with the live button rail.
 function subfilterByKey(rules, key) {
   for (const group of rules.FILTER_GROUPS) {
     const found = group.subfilters.find((s) => s.key === key);
@@ -270,55 +266,55 @@ function subfilterByKey(rules, key) {
   return null;
 }
 
-// The same class and markup categoryLandingLinksHtml (js/app.js) gives every chip live, so the
-// forest-green "navigate into the map" styling (css/inspector.css, .detail-map-link.nearby-link)
-// shows on the static page too, not only after JS boots.
-function chipHtml(rules, href, icon, label, { current = false } = {}) {
-  return `<a class="detail-map-link nearby-link${current ? " nearby-link--current" : ""}" href="${href}"${current ? ' aria-current="page"' : ""}>${rules.appIconHtml(icon)}${escapeHtml(label)}</a>`;
+function allFilterKeys(rules) {
+  return rules.FILTER_GROUPS.flatMap((group) => group.subfilters.map((subfilter) => subfilter.key));
 }
 
-function breadcrumbChipsHtml(rules, group, currentKey) {
-  const currentSubfilter = currentKey ? subfilterByKey(rules, currentKey) : null;
-  const currentGroup = currentSubfilter
-    ? null
-    : rules.FILTER_GROUPS.find((candidate) => candidate.key === currentKey) || null;
-  const current = currentSubfilter || currentGroup;
-  const currentChip = current
-    ? chipHtml(rules, `/nearby/${slugFor(current.key)}/`, current.icon, current.label, { current: true })
-    : "";
-  const groupChip = group ? chipHtml(rules, `/nearby/${slugFor(group.key)}/`, group.icon, group.label) : "";
-  return currentChip + groupChip + chipHtml(rules, "/nearby?filters=false", "nearby", "All nearby");
+function staticRailHref(activeKeys, filterKeys, allKeys) {
+  const active = new Set(activeKeys);
+  const itemIsActive = filterKeys.some((key) => active.has(key));
+  if (itemIsActive) filterKeys.forEach((key) => active.delete(key));
+  else filterKeys.forEach((key) => active.add(key));
+  const next = allKeys.filter((key) => active.has(key));
+  if (!next.length || next.length === allKeys.length) return "/nearby?filters=false";
+  if (next.length === 1) return `/nearby/${slugFor(next[0])}/`;
+  return `/nearby?show=${next.join(",")}`;
 }
 
-// A group page's own members ("Browse by type") -- cows is excluded the same way collectPages'
-// own page.members already is (live-tracked, no fixed count, no page built through the ordinary
-// inventory-driven path -- COW_KEY, scripts/report/map-inventory.js), so this never shows a 4th
-// pill the group's own generated page set doesn't actually have.
-function typeChipsHtml(members, rules) {
-  return members
-    .filter((m) => m.key !== "cows")
-    .map((m) => chipHtml(rules, `/nearby/${m.slug}/`, subfilterByKey(rules, m.key)?.icon, m.label))
-    .join("");
+function staticRailPillHtml(rules, { key, label, icon, filterKeys, activeKeys, allKeys, all = false }) {
+  const active = new Set(activeKeys);
+  const on = all ? active.size === allKeys.length : filterKeys.some((filterKey) => active.has(filterKey));
+  const status = `<span class="rail-check" aria-hidden="true">${on ? "✓" : ""}</span>`;
+  const href = all ? "/nearby?filters=false" : staticRailHref(activeKeys, filterKeys, allKeys);
+  return `<a class="rail-pill${all ? " rail-pill--all" : ""}${on ? " is-on" : ""}" href="${href}" data-rail-key="${key}">${rules.appIconHtml(icon)}<span>${escapeHtml(label)}</span>${status}</a>`;
 }
 
-// omitTrees/omitCows avoid a duplicate of a pill the page already shows elsewhere (the nature
-// group page's own "Trees" type-chip above, alongside its current category chip).
-function seeAlsoChipsHtml(rules, { omitTrees = false, omitCows = false } = {}) {
-  const trees = subfilterByKey(rules, "trees");
-  const cows = subfilterByKey(rules, "cows");
-  const treesChip = omitTrees || !trees ? "" : chipHtml(rules, "/nearby/trees/", trees.icon, trees.label);
-  const cowsChip = omitCows || !cows ? "" : chipHtml(rules, "/nearby/cows/", cows.icon, cows.label);
-  return treesChip + cowsChip;
-}
-
-// Assembles every navigation chip a page gets in the live version's own order, wrapped in the
-// same labelled navigation region as categoryLandingLinksHtml() rather than looking like the
-// first few result cards.
-function topChipsHtml(rules, { currentKey = null, group = null, members = null, omitTrees = false, omitCows = false } = {}) {
-  const breadcrumb = breadcrumbChipsHtml(rules, group, currentKey);
-  const typeChips = members ? typeChipsHtml(members, rules) : "";
-  const seeAlso = seeAlsoChipsHtml(rules, { omitTrees, omitCows });
-  return `<nav class="nearby-category-nav" aria-label="Browse nearby categories"><p class="nearby-category-nav-title">Browse nearby categories</p><div class="detail-top-row related-chips">${breadcrumb}${typeChips}${seeAlso}</div></nav>`;
+function staticFilterRailHtml(rules, { activeKeys = [], displayedGroup = null } = {}) {
+  const allKeys = allFilterKeys(rules);
+  const items = displayedGroup
+    ? displayedGroup.subfilters.map((subfilter) => ({
+        key: subfilter.key,
+        label: subfilter.label,
+        icon: subfilter.icon,
+        filterKeys: [subfilter.key],
+      }))
+    : rules.FILTER_GROUPS.map((group) => ({
+        key: group.key,
+        label: group.label,
+        icon: group.icon,
+        filterKeys: group.subfilters.map((subfilter) => subfilter.key),
+      }));
+  const allPill = staticRailPillHtml(rules, {
+    key: "all-nearby",
+    label: "Everything",
+    icon: "nearby",
+    filterKeys: allKeys,
+    activeKeys,
+    allKeys,
+    all: true,
+  });
+  const pills = items.map((item) => staticRailPillHtml(rules, { ...item, activeKeys, allKeys })).join("");
+  return `<nav class="filter-rail nearby-category-nav" aria-label="Filter nearby places"><div class="rail-pills related-chips">${allPill}${pills}</div></nav>`;
 }
 
 function categoryResultsHtml(label, content) {
@@ -447,7 +443,7 @@ function renderPage(page, appHtml, enrichment = {}) {
 
   // A subfilter page cross-links sideways to its siblings and up to its own group page -- a
   // group page's own down-links to its members are part of the top pill row instead (typeChipsHtml,
-  // via topChipsHtml below).
+  // via staticFilterRailHtml below).
   const siblingLinks = page.isGroup
     ? ""
     : page.siblings.map((s) => `<a href="/nearby/${escapeHtml(s.slug)}/">${escapeHtml(s.label)}</a>`).join(", ");
@@ -488,14 +484,11 @@ function renderPage(page, appHtml, enrichment = {}) {
   const group = page.isGroup
     ? null
     : rules.FILTER_GROUPS.find((g) => g.key === page.groupSlug.replace(/-/g, "_"));
-  // The nature group's own "Trees" type-chip already covers trees -- the see-also row's own
-  // trees pill would otherwise repeat it right next to it in the same row.
-  const chips = topChipsHtml(rules, {
-    currentKey: page.key,
-    group,
-    members: page.isGroup ? page.members : null,
-    omitTrees: page.key === "trees" || (page.isGroup && page.members.some((m) => m.key === "trees")),
-  });
+  const displayedGroup = page.isGroup
+    ? rules.FILTER_GROUPS.find((candidate) => candidate.key === page.key)
+    : group;
+  const activeKeys = page.isGroup ? page.members.map((member) => member.key) : [page.key];
+  const chips = staticFilterRailHtml(rules, { activeKeys, displayedGroup });
 
   // A generic "Find all N <title> in Epping Forest, mapped and ready to walk to" lead sentence
   // read as boilerplate filler once a real list (business, tree or water) already sat right
@@ -609,7 +602,7 @@ function renderEventsPage(appHtml, events, rules = loadAppRules()) {
     : "";
 
   const seoContent =
-    topChipsHtml(rules, { currentKey: "events", group: groupContainingSubfilter(rules, "events") }) +
+    staticFilterRailHtml(rules, { activeKeys: ["events"], displayedGroup: groupContainingSubfilter(rules, "events") }) +
     categoryResultsHtml("Events", `<p>${escapeHtml(description)}</p>` +
       eventListHtml +
       `<p>See the <a href="/find/events/">full events list</a> with descriptions and source links.</p>`);
@@ -652,7 +645,7 @@ function renderCowsPage(appHtml, rules = loadAppRules()) {
   };
 
   const seoContent =
-    topChipsHtml(rules, { currentKey: "cows", group: groupContainingSubfilter(rules, "cows"), omitCows: true }) +
+    staticFilterRailHtml(rules, { activeKeys: ["cows"], displayedGroup: groupContainingSubfilter(rules, "cows") }) +
     categoryResultsHtml("Cows", `<p>${escapeHtml(description)} Positions refresh periodically while online; offline, the map shows the last saved positions, which may be out of date.</p>`);
 
   let html = appHtml;
@@ -708,7 +701,8 @@ function renderNearbyIndexPage(appHtml, enrichment) {
   };
   // Same list the live Nearby screen shows for trees, with the same radius-or-nearest-3 fallback
   // and 10-item cap (natureNearestListHtml, shared with the category pages).
-  const listHtml = natureNearestListHtml(["trees"], { trees, waterFeatures: [] }, rules);
+  const listHtml = staticFilterRailHtml(rules, { activeKeys: NEARBY_INDEX_FILTERS }) +
+    natureNearestListHtml(["trees"], { trees, waterFeatures: [] }, rules);
   // Matches overviewHeadingText()'s multi-filter branch for the default origin (js/app.js).
   const typeLine = "Nearest selected filters within 30 min walk of High Beach";
 
