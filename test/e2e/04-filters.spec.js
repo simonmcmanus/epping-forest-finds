@@ -56,6 +56,34 @@ test.describe("Filter panel", () => {
     await expect(badge).not.toHaveText(before);
   });
 
+  test.describe("map pin transitions", () => {
+    test.use({ reducedMotion: "no-preference" });
+
+    test("changing a filter animates the map pins while the camera is held still", async ({ page }) => {
+      await page.click("#filterToggle");
+      await page.locator('.filter-chip[data-filter-subfilter="trees"]').click();
+
+      // The filter action also requests the ordinary camera refit. Stop that separate motion so
+      // this journey observes the pin transition itself, not a camera transform underneath it.
+      await page.evaluate(() => stopViewportAnimation());
+      const before = await page.evaluate(() => [
+        document.getElementById("mapCanvas").toDataURL(),
+        document.getElementById("overlayCanvas").toDataURL(),
+      ]);
+      const after = await page.evaluate(async () => {
+        for (let i = 0; i < 8; i += 1) {
+          await new Promise((resolve) => requestAnimationFrame(resolve));
+        }
+        return [
+          document.getElementById("mapCanvas").toDataURL(),
+          document.getElementById("overlayCanvas").toDataURL(),
+        ];
+      });
+
+      expect(after).not.toEqual(before);
+    });
+  });
+
   test.describe("the nearest list updates live on the Filter screen", () => {
     test.use({
       geolocation: { latitude: 51.654, longitude: 0.0296, accuracy: 10 },
