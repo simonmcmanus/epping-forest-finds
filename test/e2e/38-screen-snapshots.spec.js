@@ -43,13 +43,22 @@ test("snapshot: feedback screen", async ({ page }) => {
 });
 
 test("snapshot: onboarding on a first visit", async ({ page }) => {
-  // No skipOnboarding(): this is the first-visit state.
-  // Boot waits on the person's onboarding choice, so wait for the map data loading behind the
-  // translucent overlay rather than for a full boot (gotoAndWaitForMap).
+  // No skipOnboarding(): this is the first-visit state. The map remains usable beneath the
+  // non-blocking combined consent card.
+  await page.addInitScript(() => {
+    localStorage.removeItem("ff-track-v1");
+    localStorage.removeItem("ff-cookie-consent");
+    const originalQuery = navigator.permissions?.query?.bind(navigator.permissions);
+    if (originalQuery) {
+      navigator.permissions.query = (descriptor) => descriptor && descriptor.name === "geolocation"
+        ? Promise.resolve({ state: "prompt", onchange: null })
+        : originalQuery(descriptor);
+    }
+  });
   await mockCowApi(page);
   await denyGeolocationUnlessGranted(page);
   await page.goto("/nearby");
-  await expect(page.getByRole("dialog", { name: "Set up Epping Forest Finds" })).toBeVisible();
+  await expect(page.locator("#consentBanner")).toContainText("Allow location & cookies");
   for (const step of ["trees", "places", "paths", "roads", "environment", "forest"]) {
     await expect(page.locator(`[data-load-step="${step}"]`)).toHaveClass(/\b(done|error)\b/);
   }
@@ -57,16 +66,23 @@ test("snapshot: onboarding on a first visit", async ({ page }) => {
   await expect(page).toHaveScreenshot("onboarding.png", { fullPage: false });
 });
 
-test("snapshot: onboarding usage analytics step", async ({ page }) => {
-  // Its own step, straight after location (39-permission-asks.spec.js). This spec's storage pre-answers
-  // usage analytics, so a first visit here starts from nothing answered at all.
-  await page.addInitScript(() => localStorage.removeItem("ff-track-v1"));
+test("snapshot: guided onboarding after non-blocking consent", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.removeItem("ff-track-v1");
+    localStorage.removeItem("ff-cookie-consent");
+    const originalQuery = navigator.permissions?.query?.bind(navigator.permissions);
+    if (originalQuery) {
+      navigator.permissions.query = (descriptor) => descriptor && descriptor.name === "geolocation"
+        ? Promise.resolve({ state: "prompt", onchange: null })
+        : originalQuery(descriptor);
+    }
+  });
   await mockCowApi(page);
   await denyGeolocationUnlessGranted(page);
   await page.goto("/nearby");
-  const overlay = page.getByRole("dialog", { name: "Set up Epping Forest Finds" });
-  await overlay.locator(".ob-location-skip").click();
-  await expect(overlay.getByRole("heading", { name: "Help improve the map?" })).toBeVisible();
+  await page.locator("#consentBannerAccept").click();
+  await page.locator("#consentBannerAccept").click();
+  await expect(page.getByRole("dialog", { name: "Set up Epping Forest Finds" })).toBeVisible();
   for (const step of ["trees", "places", "paths", "roads", "environment", "forest"]) {
     await expect(page.locator(`[data-load-step="${step}"]`)).toHaveClass(/\b(done|error)\b/);
   }

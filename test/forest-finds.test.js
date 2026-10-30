@@ -1131,13 +1131,15 @@ test("treeSpeciesIconHtml returns leaf icon for known species", () => {
   assert.equal(fn("Unknown species", ""), "");
 });
 
-test("first-visit onboarding shows location step first so permission is requested immediately", () => {
+test("guided onboarding keeps category groups separate and uses useful defaults", () => {
   const { ONBOARDING_STEPS: steps } = app;
-  const locationStep = steps.findIndex((step) => step.type === "location");
+  const permissionsStep = steps.findIndex((step) => step.type === "permissions");
   const compassStep = steps.findIndex((step) => step.type === "compass");
+  const groupSteps = steps.filter((step) => step.type === "group");
 
-  assert.ok(locationStep >= 0, "location onboarding step should exist");
-  assert.strictEqual(locationStep, 0, "location step must be first so permission is requested as soon as data starts loading");
+  assert.strictEqual(permissionsStep, 0, "the permissions step remains available for direct onboarding launches");
+  assert.strictEqual(groupSteps.length, app.FILTER_GROUPS.length, "each filter group should keep its own onboarding screen");
+  assert.deepEqual(Array.from(app.DEFAULT_FILTERS), ["trees", "cows", "events", "pubs", "churches", "campsites"]);
   // Compass step is only included on iOS (canRequestCompassPermission). In the test
   // environment DeviceOrientationEvent.requestPermission is not defined, so no step.
   if (compassStep >= 0) {

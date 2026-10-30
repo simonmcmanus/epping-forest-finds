@@ -33,10 +33,10 @@ function hasTrackingConsent() {
   }
 }
 
-// Usage analytics is one consent, asked on its own and never bundled with a feature permission:
-// the anonymous usage events below (positions while the app is open, navigation, taps) and the
-// Google Analytics cookies cookie-consent.js controls. Location is a separate question asked in
-// context (spec.md "Permissions and consent"). Stored "1" given, "0" declined, absent never asked.
+// Usage analytics is one consent covering the anonymous usage events below (positions while the
+// app is open, navigation, taps) and the Google Analytics cookies cookie-consent.js controls. On
+// first run it is presented with location as one combined decision; Settings can change the two
+// controls separately later. Stored "1" given, "0" declined, absent never asked.
 function analyticsChoice() {
   try {
     const stored = localStorage.getItem(TRACKER_CONSENT_KEY);
@@ -59,7 +59,7 @@ function trackerExistingUserId() {
   }
 }
 
-// Sets both halves together, so Settings and every ask stay one decision.
+// Sets both analytics halves together, so the combined first-run ask and Settings stay aligned.
 function setAnalyticsConsent(granted) {
   setTrackingConsent(granted);
   if (typeof window !== "undefined" && window.ForestFindsCookieConsent) {

@@ -1,7 +1,8 @@
 // @ts-check
 // Every point the app asks for a permission or a consent (spec.md "Permissions and consent"):
 // the app asks in its own words before any system dialog, a "not now" is remembered, and location
-// and usage analytics are separate questions asked one at a time.
+// and usage analytics share the first-run card's explicit fast path, with separate controls in
+// Settings for changing either choice later.
 const { test, expect } = require("@playwright/test");
 const { skipOnboarding, mockCowApi, gotoAndWaitForMap, waitForFrames } = require("./helpers");
 
@@ -49,58 +50,65 @@ test.describe("first-run onboarding", () => {
     await mockCowApi(page);
   });
 
-  test("enabling location asks only for location; usage analytics is the next, separate question", async ({ page }) => {
+  test("the combined first-run action enables location and analytics", async ({ page }) => {
     await stubLocation(page, { answer: "grant" });
+    await page.addInitScript(() => {
+      localStorage.removeItem("ff-track-v1");
+      localStorage.removeItem("ff-cookie-consent");
+    });
     await page.goto("/nearby");
-    const overlay = page.locator("#onboardingOverlay");
-    await overlay.locator(".ob-location").click();
-
-    await expect(overlay.getByRole("heading", { name: "Help improve the map?" })).toBeVisible();
-    expect(await stored(page, "ff-track-v1")).toBeNull();
-    expect(await stored(page, "ff-cookie-consent")).toBeNull();
-    // Refusing is exactly as easy as agreeing: two buttons side by side.
-    await expect(overlay.getByRole("button", { name: "No thanks" })).toBeVisible();
-    await expect(overlay.getByRole("button", { name: "Share usage data" })).toBeVisible();
-  });
-
-  test("'Share usage data' turns on usage data and analytics cookies together", async ({ page }) => {
-    await stubLocation(page);
-    await page.goto("/nearby");
-    const overlay = page.locator("#onboardingOverlay");
-    await overlay.locator(".ob-location-skip").click();
-    await overlay.getByRole("button", { name: "Share usage data" }).click();
+    const banner = page.locator("#consentBanner");
+    await banner.getByRole("button", { name: "Enable location & cookies" }).click();
+    expect(await stored(page, "ff-location-v1")).toBe("granted");
     expect(await stored(page, "ff-track-v1")).toBe("1");
     expect(await stored(page, "ff-cookie-consent")).toBe("granted");
+    await expect(banner.getByRole("button", { name: "Set up my map" })).toBeVisible();
   });
 
-  test("'No thanks' is recorded for both halves and onboarding carries on", async ({ page }) => {
+  test("the combined first-run action leaves the guided setup available", async ({ page }) => {
     await stubLocation(page);
+    await page.addInitScript(() => {
+      localStorage.removeItem("ff-track-v1");
+      localStorage.removeItem("ff-cookie-consent");
+    });
     await page.goto("/nearby");
-    const overlay = page.locator("#onboardingOverlay");
-    await overlay.locator(".ob-location-skip").click();
-    await overlay.getByRole("button", { name: "No thanks" }).click();
+    await page.locator("#consentBannerAccept").click();
+    expect(await stored(page, "ff-track-v1")).toBe("1");
+    expect(await stored(page, "ff-cookie-consent")).toBe("granted");
+    await expect(page.locator("#consentBannerAccept")).toHaveText("Set up my map");
+  });
+
+  test("'Maybe later' records a combined opt-out and onboarding carries on non-blocking", async ({ page }) => {
+    await stubLocation(page);
+    await page.addInitScript(() => {
+      localStorage.removeItem("ff-track-v1");
+      localStorage.removeItem("ff-cookie-consent");
+    });
+    await page.goto("/nearby");
+    const banner = page.locator("#consentBanner");
+    await banner.getByRole("button", { name: "Maybe later" }).click();
+    expect(await stored(page, "ff-location-v1")).toBe("declined");
     expect(await stored(page, "ff-track-v1")).toBe("0");
     expect(await stored(page, "ff-cookie-consent")).toBe("denied");
-    await expect(overlay.locator(".ob-primary")).toBeVisible();
+    await expect(banner.getByRole("button", { name: "Set up my map" })).toBeVisible();
   });
 
-  test("usage analytics already refused on the homepage is not asked again in onboarding", async ({ page }) => {
+  test("usage analytics already refused is not overwritten by the combined action", async ({ page }) => {
     await stubLocation(page);
     await setStored(page, { "ff-cookie-consent": "denied" });
     await page.goto("/nearby");
-    const overlay = page.locator("#onboardingOverlay");
-    await overlay.locator(".ob-location-skip").click();
-    await expect(overlay.locator(".ob-primary")).toBeVisible();
-    await expect(overlay.getByRole("heading", { name: "Help improve the map?" })).toHaveCount(0);
+    const banner = page.locator("#consentBanner");
+    await banner.getByRole("button", { name: "Enable location" }).click();
+    expect(await stored(page, "ff-cookie-consent")).toBe("denied");
+    await expect(banner.getByRole("button", { name: "Set up my map" })).toBeVisible();
   });
 
-  test("'Skip for now' is not followed by another location ask, then or on the next visit", async ({ page }) => {
+  test("'Maybe later' is not followed by another location ask, then or on the next visit", async ({ page }) => {
     await stubLocation(page);
     await page.goto("/nearby/search");
-    const overlay = page.locator("#onboardingOverlay");
-    await overlay.locator(".ob-location-skip").click();
-    await overlay.getByRole("button", { name: "No thanks" }).click();
-    await overlay.locator(".ob-skip").click();
+    const banner = page.locator("#consentBanner");
+    await banner.getByRole("button", { name: "Maybe later" }).click();
+    await banner.getByRole("button", { name: "Explore first" }).click();
     await page.waitForFunction(() => typeof state !== "undefined" && state.dataLoaded === true);
     await page.waitForFunction(() => document.querySelector("[data-load-step='location']")?.classList.contains("error"));
     await expect(page.locator("#locationInviteBanner")).toBeHidden();
@@ -210,22 +218,19 @@ test.describe("a landing-page arrival", () => {
     await mockCowApi(page);
   });
 
-  test("asks location, then usage analytics, one question at a time in the same card", async ({ page }) => {
+  test("asks for location and cookies with one combined action", async ({ page }) => {
     await stubLocation(page, { permission: "prompt" });
     await gotoAndWaitForMap(page, "/nearby/filter?show=pubs");
     const card = page.locator("#consentBanner");
     await expect(card).toBeVisible();
-    await expect(page.locator("#consentBannerAccept")).toHaveText("Enable location");
-    await expect(card).not.toContainText("cookies");
+    await expect(page.locator("#consentBannerAccept")).toHaveText("Enable location & cookies");
+    await expect(card).toContainText("cookies");
     // Led by the same oak logo as every other notice (spec.md "Logo on notices").
     const logo = card.locator("img.consent-banner-logo");
     await expect(logo).toBeVisible();
     expect(await logo.evaluate((img) => img.complete && img.naturalWidth > 0)).toBe(true);
     expect(await locationRequests(page)).toBe(0);
 
-    await page.locator("#consentBannerDecline").click();
-    await expect(card).toContainText("Help improve the map?");
-    await expect(page.locator("#consentBannerAccept")).toHaveText("Share usage data");
     await page.locator("#consentBannerDecline").click();
     await expect(card).toBeHidden();
 
@@ -236,13 +241,13 @@ test.describe("a landing-page arrival", () => {
     await expect(page.locator("#cookieConsentBanner")).toHaveCount(0);
   });
 
-  test("'Enable location' on the card applies a real fix live", async ({ page }) => {
+  test("'Enable location & cookies' on the card applies a real fix live", async ({ page }) => {
     await stubLocation(page, { permission: "prompt", answer: "grant" });
     await gotoAndWaitForMap(page, "/nearby/filter?show=pubs");
     await page.locator("#consentBannerAccept").click();
     await expect.poll(() => page.evaluate(() => Boolean(state.userLocation && !state.userLocation.isDefault))).toBe(true);
     expect(await locationRequests(page)).toBe(1);
-    expect(await stored(page, "ff-track-v1")).toBeNull();
+    expect(await stored(page, "ff-track-v1")).toBe("1");
   });
 
   test("with location already allowed, the card asks only about usage analytics", async ({ page }) => {
