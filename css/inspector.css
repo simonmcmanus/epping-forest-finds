@@ -1410,6 +1410,7 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   position: relative;
   isolation: isolate;
   overflow: hidden;
+  box-sizing: border-box;
   padding: 0 10px;
   border-radius: 20px;
   white-space: nowrap;
@@ -1439,6 +1440,9 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
 .rail-check {
   display: inline-flex;
   flex: 0 0 1.1em;
+  width: 1.1em;
+  min-width: 1.1em;
+  box-sizing: border-box;
   justify-content: center;
   margin-left: 1px;
   font-size: 1.1em;
