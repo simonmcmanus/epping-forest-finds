@@ -754,6 +754,7 @@ function animateRailIntro(row) {
 
 function selectOverview(animate = false) {
   if (state.filterScreenOpen || state.searchScreenOpen) return;
+  const preserveScroll = !animate && els.inspector.classList.contains("nearby-overview");
   els.inspector.classList.add("nearby-overview");
   if (typeof updateDocumentTitle === "function") updateDocumentTitle();
   if (findLandingAwaitingPlace()) return;
@@ -818,7 +819,7 @@ function selectOverview(animate = false) {
       animateNearestItemReorder(previousNearestPositions);
       if (typeof attachNearbyRailScrollHints === "function") attachNearbyRailScrollHints();
       maybePlayRailIntro(hadRail);
-    }, { preserveScroll: !animate });
+    }, { preserveScroll });
   }
   // A category landing path is already the user's navigation target.  Nearby is re-rendered
   // by location/radius updates after boot, but those incidental renders must not canonicalise
