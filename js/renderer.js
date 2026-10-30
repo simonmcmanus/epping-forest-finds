@@ -1561,13 +1561,13 @@ function easeOutCubic(t) {
 }
 
 // Filter changes are rendered on canvas, so a CSS transition cannot animate the pins without
-// also scaling the whole map bitmap. Keep the motion at the marker level instead: new pins pop
-// in from a slightly smaller size, while pins removed by a filter shrink away from their own
-// geographic anchor. The short duration keeps this perceptual polish from making a filter feel
-// slow, and the artwork itself is still drawn through the normal high-resolution icon paths.
+// also scaling the whole map bitmap. Keep the motion at the marker level instead: new pins fade
+// in at their normal size, while pins removed by a filter fade first and only shrink during the
+// final part of their exit. The short duration keeps this perceptual polish from making a filter
+// feel slow, and the artwork itself is still drawn through the normal high-resolution icon paths.
 const FILTER_PIN_ANIMATION_MS = 340;
-const FILTER_PIN_ENTER_SCALE = 0.72;
 const FILTER_PIN_EXIT_SCALE = 0.06;
+const FILTER_PIN_EXIT_SHRINK_START = 0.64;
 const _filterPinAnimations = new Map();
 
 function filterPinAnimationFor(item, now = performance.now()) {
@@ -1575,10 +1575,14 @@ function filterPinAnimationFor(item, now = performance.now()) {
   if (!animation) return null;
   const progress = clamp((now - animation.startedAt) / FILTER_PIN_ANIMATION_MS, 0, 1);
   if (progress >= 1) return null;
-  const eased = easeOutCubic(progress);
+  const alphaProgress = easeOutCubic(progress);
+  const shrinkProgress = animation.direction === "exit"
+    ? clamp((progress - FILTER_PIN_EXIT_SHRINK_START) / (1 - FILTER_PIN_EXIT_SHRINK_START), 0, 1)
+    : 0;
+  const scaleProgress = easeOutCubic(shrinkProgress);
   return {
-    scale: animation.fromScale + (animation.toScale - animation.fromScale) * eased,
-    alpha: animation.fromAlpha + (animation.toAlpha - animation.fromAlpha) * eased,
+    scale: animation.fromScale + (animation.toScale - animation.fromScale) * scaleProgress,
+    alpha: animation.fromAlpha + (animation.toAlpha - animation.fromAlpha) * alphaProgress,
   };
 }
 
@@ -1622,10 +1626,11 @@ function beginOverviewFilterPinTransition(previousLookup) {
       if (!before.has(item)) {
         _filterPinAnimations.set(item, {
           startedAt: now,
-          fromScale: FILTER_PIN_ENTER_SCALE,
+          fromScale: 1,
           toScale: 1,
           fromAlpha: 0,
           toAlpha: 1,
+          direction: "enter",
           type,
         });
       }
@@ -1638,6 +1643,7 @@ function beginOverviewFilterPinTransition(previousLookup) {
           toScale: FILTER_PIN_EXIT_SCALE,
           fromAlpha: 1,
           toAlpha: 0,
+          direction: "exit",
           type,
         });
       }
@@ -1667,7 +1673,7 @@ function drawFilterTransitionPins(ctx, toScreen) {
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
   const reveal = nearbyRevealOpacity();
   for (const [item, animation] of _filterPinAnimations) {
-    if (animation.toScale !== FILTER_PIN_EXIT_SCALE) continue;
+    if (animation.direction !== "exit") continue;
     const stateAtFrame = filterPinAnimationFor(item);
     if (!stateAtFrame || !item.point) continue;
     const point = toScreen(item.point);
