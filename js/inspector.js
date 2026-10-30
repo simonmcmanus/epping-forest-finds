@@ -1541,7 +1541,7 @@ function nearbyCardFilterKeys() {
 
 // Counts the entries in the given categories that sit within the reader's walking radius of a
 // point. An entry matching more than one of the categories (a pub that is also a food place, say)
- // is counted once. Reads the same nearest-entry helpers the Nearby list itself uses
+// is counted once. Reads the same nearest-entry helpers the Nearby list itself uses
 // (nearestOverviewEntriesForFilter, js/app.js), so the numbers agree with what the list would show
 // if the reader browsed from this spot.
 function countNearbyEntries(filterKeys, latitude, longitude) {
