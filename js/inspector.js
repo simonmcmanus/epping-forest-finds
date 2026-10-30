@@ -707,10 +707,27 @@ function swapStaticChipsForRail() {
 // width (still behind the boot overlay) leaves it owed until the rail is actually visible.
 let railIntroDue = true;
 const railIntroRows = new WeakSet();
+let railIntroPendingRow = null;
+let railIntroLoadListenerAttached = false;
 function maybePlayRailIntro(hadRail) {
   if (!hadRail) railIntroDue = true;
   const row = els.inspectorBody && els.inspectorBody.querySelector && els.inspectorBody.querySelector(".filter-rail .rail-pills");
   if (!railIntroDue || !row || !row.clientWidth || railIntroRows.has(row)) return;
+  if (document.readyState !== "complete") {
+    railIntroPendingRow = row;
+    if (!railIntroLoadListenerAttached) {
+      railIntroLoadListenerAttached = true;
+      window.addEventListener("load", () => {
+        railIntroLoadListenerAttached = false;
+        const pendingRow = railIntroPendingRow;
+        railIntroPendingRow = null;
+        if (!pendingRow?.isConnected) return;
+        // Let the map, images, and first data paint settle before moving the rail.
+        setTimeout(() => maybePlayRailIntro(true), 350);
+      }, { once: true });
+    }
+    return;
+  }
   railIntroRows.add(row);
   railIntroDue = false;
   animateRailIntro(row);
