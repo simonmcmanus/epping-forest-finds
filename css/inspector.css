@@ -1470,7 +1470,7 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
 }
 
 .rail-pill:active {
-  transform: scale(0.9);
+  transform: scale(0.98);
 }
 
 .rail-pill.is-on {

@@ -888,7 +888,14 @@ function patchRailPills(oldRail, newRail) {
       el.classList.toggle("is-on", next.classList.contains("is-on"));
       el.innerHTML = next.innerHTML;
       if (wasOn !== el.classList.contains("is-on")) {
-        el.animate([{ transform: "scale(0.9)" }, { transform: "scale(1.09)", offset: 0.55 }, { transform: "scale(1)" }], { duration: 380, easing: "cubic-bezier(0.34, 1.3, 0.64, 1)" });
+        if (typeof prefersReducedMotion !== "function" || !prefersReducedMotion()) {
+          const restingShadow = getComputedStyle(el).boxShadow;
+          el.animate([
+            { boxShadow: restingShadow },
+            { boxShadow: "0 0 0 3px rgba(81, 128, 91, 0.18)", offset: 0.55 },
+            { boxShadow: restingShadow },
+          ], { duration: 320, easing: "ease-out" });
+        }
       }
       el.setAttribute("aria-pressed", next.getAttribute("aria-pressed"));
       existing.delete(key);
