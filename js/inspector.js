@@ -1508,6 +1508,7 @@ function nearbyWithinWalkHtml(lat, lon, name = null) {
   // The count covers every category, the same set the card browses -- "342 locations within 30 min
   // walk of The Foresters" -- so the number matches what the Nearby list shows once it is opened.
   const { within } = countNearbyEntries(Array.from(ALL_OVERVIEW_FILTER_KEYS), Number(lat), Number(lon));
+  if (within === 0) return "";
   const copy = `${formatCount(within)} locations within ${minutes} min walk of ${name || "this spot"}`;
   return `<li><button class="nearest-item" type="button" data-action="walk-radius" data-lat="${Number(lat)}" data-lon="${Number(lon)}"${nameAttr}>` +
     `<span class="nearest-icon" aria-hidden="true">${appIconHtml("walking")}</span>` +
@@ -1640,35 +1641,43 @@ function nearbySectionsHtml({ latitude, longitude, name = null, subfilterKey = n
       // so the card waits for them rather than reporting a count of zero.
       if (!sub || (key === "cows" && !state.cows.length)) return "";
       const counts = countNearbyEntries([key], latitude, longitude);
+      if (counts.within === 0) return "";
       return cardHtml(`/nearby/${key.replace(/_/g, "-")}/#${anchorHash}`, sub.icon, sub.label, nearbyCountCopy(sub.label.toLowerCase(), counts, placeName));
     })
     .join("");
-  // The "Everything" card (nearbyWithinWalkHtml) joins the same list, so there is always at least
-  // this card for a point with coordinates.
+  // The "Everything" card (nearbyWithinWalkHtml) joins the same list when at least one location
+  // sits within the walking radius.
   const walkCardHtml = nearbyWithinWalkHtml(latitude, longitude, name);
+  const nearestCards = nearestCardsHtml + walkCardHtml;
   const nearestSectionHtml =
-    `<h3 class="detail-section-heading">Nearest</h3><ul class="nearest-list related-cards">` +
-    nearestCardsHtml +
-    walkCardHtml +
-    `</ul>`;
+    nearestCards ?
+      `<h3 class="detail-section-heading">Nearest</h3><ul class="nearest-list related-cards">${nearestCards}</ul>` : "";
 
   const subfilter = subfilterKey ? FILTER_SUBFILTERS_BY_KEY.get(subfilterKey) : null;
   const group = subfilter ? FILTER_GROUPS_BY_KEY.get(subfilter.groupKey) : null;
-  const relatedSectionHtml = subfilter && group
-    ? `<h3 class="detail-section-heading">Related</h3><ul class="nearest-list related-cards">` +
-      cardHtml(
+  const relatedCards = [];
+  if (subfilter && group) {
+    const subfilterCounts = countNearbyEntries([subfilter.key], latitude, longitude);
+    if (subfilterCounts.within > 0) {
+      relatedCards.push(cardHtml(
         `/nearby/${subfilter.key.replace(/_/g, "-")}/`,
         subfilter.icon,
         subfilter.label,
-        nearbyCountCopy(subfilter.label.toLowerCase(), countNearbyEntries([subfilter.key], latitude, longitude), placeName)
-      ) +
-      cardHtml(
+        nearbyCountCopy(subfilter.label.toLowerCase(), subfilterCounts, placeName)
+      ));
+    }
+    const groupCounts = countNearbyEntries(group.subfilters.map((s) => s.key), latitude, longitude);
+    if (groupCounts.within > 0) {
+      relatedCards.push(cardHtml(
         `/nearby/${subfilter.groupKey.replace(/_/g, "-")}/`,
         group.icon,
         group.label,
-        nearbyCountCopy(group.label.toLowerCase(), countNearbyEntries(group.subfilters.map((s) => s.key), latitude, longitude), placeName)
-      ) +
-      `</ul>`
+        nearbyCountCopy(group.label.toLowerCase(), groupCounts, placeName)
+      ));
+    }
+  }
+  const relatedSectionHtml = relatedCards.length
+    ? `<h3 class="detail-section-heading">Related</h3><ul class="nearest-list related-cards">${relatedCards.join("")}</ul>`
     : "";
 
   const placesHtml = findSlug ? nearbyPlacesSectionHtml(latitude, longitude, findSlug) : "";
