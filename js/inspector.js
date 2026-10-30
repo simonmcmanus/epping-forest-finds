@@ -1340,9 +1340,8 @@ function countNearbyEntries(filterKeys, latitude, longitude) {
   return { within, beyond };
 }
 
-// One plain sentence for a category: "43 trees within 30 min walk of The Foresters. 20 further away."
-// or, with none close enough, "No cows within 30 min walk of The Foresters. 11 further away." The
-// noun is the category's own label in lower case; a count of exactly one drops a trailing "s".
+// One plain sentence for a category: "43 trees within 30 min walk of The Foresters." The noun is
+// the category's own label in lower case; a count of exactly one drops a trailing "s".
 function formatCount(count) {
   return count.toLocaleString("en-GB");
 }
@@ -1357,7 +1356,7 @@ function nearbyCountCopy(noun, { within, beyond }, placeName) {
     const word = within === 1 ? noun.replace(/s$/, "") : noun;
     sentence = `${formatCount(within)} ${word} ${where}.`;
   }
-  return beyond ? `${sentence} ${formatCount(beyond)} further away.` : sentence;
+  return sentence;
 }
 
 // The Places close by, Nearest and Related sections for any selected point with coordinates -- a /find/ business,
