@@ -1409,7 +1409,8 @@ The full routing model — the URL for each screen, history entries, back/forwar
     for selected and a cross for unselected without moving the user's horizontal scroll position.
     It is a secondary selection state, not a primary CTA treatment. A phone gets an 8ms vibration on a tap where
     `navigator.vibrate` exists. With `prefers-reduced-motion`, or when the body has no rail yet, the
-    body is rebuilt the ordinary way. The Filters button is an ordinary link and still slides.
+    body is rebuilt the ordinary way. The rail has no right-hand Filters control; the existing
+    navigation and title affordances remain ordinary links and still slide when used.
   - **Arrival.** When the rail first appears on a Nearby screen (`animateRailIntro()`,
     js/inspector.js) the pills stream in from the right one after another, and if more pills exist
     than fit, the row drifts sideways and back once so it is clear it scrolls. It plays once per

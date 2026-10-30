@@ -4540,8 +4540,8 @@ function overviewHeadingText() {
 
 // The category label a /nearby/<slug>/ landing page's own heading names ("Nearby Nature",
 // "Nearby Pubs & bars") in place of the generic "Nearby" the plain screen, or a reader's own
-// filter choice, keeps -- same URL-path match used by the category landing generator, so the two can
-// never name a different category.
+// filter choice, keeps -- the same URL-path match used by nearbyRailGroup(), so the live rail and
+// the heading can never name different categories.
 function landingPageCategoryLabel() {
   const match = /^\/nearby\/([a-z0-9-]+)\/?$/.exec(window.location.pathname);
   if (!match) return null;

@@ -205,7 +205,7 @@ test.describe("generated find/nearby pages", () => {
       expect(staticKeys).toEqual(liveKeys);
     });
 
-    test("bare /nearby shows the location ask, the Filters button and the tree list with JavaScript disabled", async ({ browser, baseURL }) => {
+    test("bare /nearby shows the location ask and tree list with JavaScript disabled", async ({ browser, baseURL }) => {
       const context = await browser.newContext({ javaScriptEnabled: false, baseURL });
       const page = await context.newPage();
       await page.goto("/nearby");

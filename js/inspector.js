@@ -736,6 +736,7 @@ function animateRailIntro() {
 
 function selectOverview(animate = false) {
   if (state.filterScreenOpen || state.searchScreenOpen) return;
+  els.inspector.classList.add("nearby-overview");
   if (typeof updateDocumentTitle === "function") updateDocumentTitle();
   if (findLandingAwaitingPlace()) return;
   // A landing's server-rendered list already shows the High Beach default it would otherwise
@@ -764,6 +765,7 @@ function selectOverview(animate = false) {
   // when a browse anchor was moved: a /nearby/<slug>/ link tapped from another landing is a
   // Nearby-to-Nearby step with no anchor of its own, and it still has to be undoable here.
   setInspectorSelectionChrome({ emoji: appIconHtml("nearby", "app-icon title-icon"), titleLink: NEARBY_PATH, showBack: Boolean(state.nearbyAnchor) || canGoBackInApp(), captureSnapshot: animate, preserveNavHighlight: true });
+  els.inspector.classList.add("nearby-overview");
   setNavScreenActive(els.nearbyToggle);
   els.inspectorTools.hidden = false;
   // The overview keeps the tools row in the shared shell, but it is normally empty because the
@@ -1142,6 +1144,8 @@ function setInspectorSelectionChrome({ emoji, titleLink = null, showBack, captur
   } else {
     _transitionSnapshot = null;
   }
+
+  els.inspector.classList.remove("nearby-overview");
 
   // Apply chrome updates
   // Back lives in the nav bar and is always rendered, so it is disabled rather than hidden: showing

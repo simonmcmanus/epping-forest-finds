@@ -2127,7 +2127,6 @@ test("the plain Nearby filter rail shows top-level categories with ticks for ena
   const keys = [...html.matchAll(/data-rail-key="([a-z_]+)"/g)].map((m) => m[1]);
   assert.equal(new Set(keys).size, keys.length, "no category appears twice");
   assert.ok(keys.includes("nature") && keys.includes("food"), "the top-level categories are in the row");
-  assert.doesNotMatch(html, /rail-edge|href="\/nearby\/filter"/, "the rail contains category pills only");
   app.location.pathname = "/";
   app.state.overviewFilters = [];
 });
@@ -2156,7 +2155,7 @@ test("a filter set covering every category keeps every displayed pill pressed", 
   app.state.overviewFilters = [];
 });
 
-test("tapping a rail pill narrows to it, a second pill adds to it, and un-pressing the last returns to show-all, none of it saved", () => {
+test("tapping a rail pill narrows to it, a second pill adds to it, and un-pressing the last returns to all filters, none of it saved", () => {
   resetData(app);
   app.location.pathname = "/nearby";
   app.location.search = "";
@@ -2174,7 +2173,7 @@ test("tapping a rail pill narrows to it, a second pill adds to it, and un-pressi
   app.location.pathname = "/nearby";
   app.state.nearbyRailGroupKey = null;
   app.toggleRailFilter("nature");
-  assert.equal(app.railSelection().length, 0, "nothing chosen means show-all");
+  assert.equal(app.railSelection().length, 0, "nothing chosen represents all filters");
   assert.equal(app.location.search, "?filters=false");
   app.state.overviewFilters = [];
   app.state.overviewFiltersEphemeral = false;

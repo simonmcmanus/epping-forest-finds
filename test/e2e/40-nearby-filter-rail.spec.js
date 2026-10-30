@@ -84,6 +84,14 @@ test.describe("Nearby filter rail", () => {
     await expect(pill(page, "cafes")).toHaveAttribute("aria-pressed", "false");
     await expect(pill(page, "pubs")).toHaveCount(1);
     expect(await page.evaluate(() => window.__slides)).toBe(0);
+
+    // The category rail stays at the subcategory level after another toggle, even though
+    // the URL is now a shared ?show= lens rather than the original landing path.
+    await pill(page, "restaurants").click();
+    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?show=pubs,shops$/);
+    await expect(pill(page, "restaurants")).toHaveAttribute("aria-pressed", "false");
+    await expect(pill(page, "shops")).toHaveAttribute("aria-pressed", "true");
+    await expect(pill(page, "nature")).toHaveCount(0);
   });
 
   test("a pill that was pressed un-presses on a second tap, and the last one returns to all filters", async ({ page }) => {

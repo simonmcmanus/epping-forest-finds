@@ -534,7 +534,7 @@
   border-radius: 8px;
 }
 
-.inspector .type {
+.inspector.nearby-overview .type {
   margin: 6px 0 0;
   color: var(--muted);
   font-size: 0.88rem;
