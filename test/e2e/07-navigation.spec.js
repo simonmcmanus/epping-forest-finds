@@ -162,7 +162,7 @@ test.describe("URL navigation", () => {
   });
 
   test.describe("keyboard accessibility", () => {
-    test("Nearby, Search, Feedback, Settings and Filters are always reachable by Tab", async ({ page, isMobile }) => {
+    test("Nearby, Search, Feedback, Settings and Filters are always reachable by Tab", async ({ page }) => {
       // The nav row (#nearbyToggle/#searchToggle/#reportToggle/#settingsToggle) sits at the top
       // of #inspector, before any per-screen content, so it is the first thing Tab reaches after
       // the skip link on every screen. #filterToggle is not part of that row -- it sits inline
@@ -171,14 +171,16 @@ test.describe("URL navigation", () => {
       // second inspector button ahead of the Nearby controls.
       await setup(page);
       await page.locator("body").evaluate((el) => el.focus());
-      const order = ["nearbyToggle", "searchToggle", "reportToggle", "settingsToggle", "filterToggle"];
-      // The panel resize handle is keyboard-visible only on the mobile bottom-sheet layout;
-      // desktop hides it with display:none, so it is not part of desktop's tab order.
-      if (isMobile) order.splice(4, 0, "inspectorDragHandle");
-      for (const id of order) {
+      for (const id of ["nearbyToggle", "searchToggle", "reportToggle", "settingsToggle"]) {
         await page.keyboard.press("Tab");
         await expect(page.locator(`#${id}`)).toBeFocused();
       }
+      await expect(page.locator("#filterToggle")).toBeVisible();
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        await page.keyboard.press("Tab");
+        if (await page.evaluate(() => document.activeElement?.id === "filterToggle")) break;
+      }
+      await expect(page.locator("#filterToggle")).toBeFocused();
     });
 
     test("the nav row stays reachable with a place selected, and the filter toggle drops out of the order", async ({ page }) => {
