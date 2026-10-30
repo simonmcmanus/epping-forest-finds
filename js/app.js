@@ -4775,7 +4775,8 @@ function syncRailUrl() {
 function toggleRailFilter(key) {
   if (key === "all-nearby") {
     if (typeof navigator.vibrate === "function") navigator.vibrate(8);
-    state.nearbyRailGroupKey = null;
+    const displayedGroup = nearbyRailGroup();
+    state.nearbyRailGroupKey = displayedGroup ? displayedGroup.key : null;
     setOverviewFilters(Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: false, railTap: true });
     return;
   }

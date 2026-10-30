@@ -106,14 +106,14 @@ test.describe("Nearby filter rail", () => {
     await expect(pill(page, "nature")).toHaveCount(0);
   });
 
-  test("All nearby also resets a category landing", async ({ page }) => {
+  test("Everything also resets a category landing without changing its rail level", async ({ page }) => {
     await setup(page, "/nearby/food");
     await pill(page, "cafes").click();
     await pill(page, "all-nearby").click();
     await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?filters=false$/);
     await expect(pill(page, "all-nearby")).toHaveAttribute("aria-pressed", "true");
-    await expect(pill(page, "nature")).toHaveCount(1);
-    await expect(pill(page, "pubs")).toHaveCount(0);
+    await expect(pill(page, "pubs")).toHaveCount(1);
+    await expect(pill(page, "nature")).toHaveCount(0);
   });
 
   test("a pill that was pressed un-presses on a second tap, and the last one returns to all filters", async ({ page }) => {
