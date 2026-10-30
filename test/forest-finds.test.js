@@ -2000,11 +2000,11 @@ test("filterKeysFromFindPath reads a subfilter's category straight from a /nearb
 test("nearbyCountCopy reads as a plain count from the place, in the reader's own walking radius", () => {
   const saved = app.state.walkingDistanceMinutes;
   app.state.walkingDistanceMinutes = 30;
-  assert.equal(app.nearbyCountCopy("trees", { within: 43, beyond: 20 }, "The Foresters"), "43 trees within 30 min walk of The Foresters. 20 further away.");
-  assert.equal(app.nearbyCountCopy("cows", { within: 0, beyond: 11 }, "The Foresters"), "No cows within 30 min walk of The Foresters. 11 further away.");
+  assert.equal(app.nearbyCountCopy("trees", { within: 43, beyond: 20 }, "The Foresters"), "43 trees within 30 min walk of The Foresters.");
+  assert.equal(app.nearbyCountCopy("cows", { within: 0, beyond: 11 }, "The Foresters"), "No cows within 30 min walk of The Foresters.");
   assert.equal(app.nearbyCountCopy("cows", { within: 0, beyond: 0 }, "The Foresters"), "No cows nearby.");
   assert.equal(app.nearbyCountCopy("cows", { within: 1, beyond: 0 }, "The Foresters"), "1 cow within 30 min walk of The Foresters.", "a single match drops the plural");
-  assert.equal(app.nearbyCountCopy("trees", { within: 3032, beyond: 21864 }, "Bald Faced Stag"), "3,032 trees within 30 min walk of Bald Faced Stag. 21,864 further away.", "large counts get thousands separators");
+  assert.equal(app.nearbyCountCopy("trees", { within: 3032, beyond: 21864 }, "Bald Faced Stag"), "3,032 trees within 30 min walk of Bald Faced Stag.", "large counts get thousands separators");
   app.state.walkingDistanceMinutes = saved;
 });
 
@@ -9336,12 +9336,18 @@ test("openInMapsHtml is an icon-only control with an accessible name", () => {
   assert.equal(app.openInMapsHtml(null, null, "Test"), "", "no link without coordinates");
 });
 
-test("nearbyWithinWalkHtml renders a Nearby-list-styled card carrying the exact coordinates it should browse, and is empty without coordinates", () => {
+test("nearbyWithinWalkHtml renders a Nearby-list-styled card carrying the exact coordinates it should browse, and is empty without coordinates or nearby locations", () => {
   const html = app.nearbyWithinWalkHtml(51.65, 0.05);
   assert.match(html, /<li><button class="nearest-item" type="button" data-action="walk-radius" data-lat="51\.65" data-lon="0\.05">/);
   assert.ok(html.includes(`within ${app.state.walkingDistanceMinutes} min walk`), "copy names the reader's own walking radius, not a fixed 15");
   assert.ok(!html.includes("detail-map-link"), "shares the Nearby list's own card styling, not the unrelated pill");
   assert.equal(app.nearbyWithinWalkHtml(null, null), "", "no card when there are no coordinates to browse from");
+  const originalEntries = app.state.trees.splice(0);
+  try {
+    assert.equal(app.nearbyWithinWalkHtml(51.65, 0.05), "", "no Everything card when the walking radius contains no locations");
+  } finally {
+    app.state.trees.push(...originalEntries);
+  }
 });
 
 test("nearbySectionsHtml gives any point its headed Nearest section with the walk-radius card, and is empty without coordinates", () => {
@@ -11058,6 +11064,8 @@ test("routeValueFromLocation never treats /find/events/ as a place lookup", () =
 
 test("nearbySectionsHtml renders a headed Nearest section (tree/cow, the walk-radius card, real live distances) and a headed Related section (category/group), both as the same card style", () => {
   resetData(app);
+  const savedWalkingDistanceMinutes = app.state.walkingDistanceMinutes;
+  app.state.walkingDistanceMinutes = 30;
   const pub = { findSlug: "the-forresters", latitude: 51.65, longitude: 0.05, category: "pub" };
   app.state.trees.push({ latitude: 51.6505, longitude: 0.0505, id: "t1" }); // ~65m away
   app.state.cows.push({ latitude: 51.66, longitude: 0.06, id: "c1" }); // ~1.3km away
@@ -11089,6 +11097,7 @@ test("nearbySectionsHtml renders a headed Nearest section (tree/cow, the walk-ra
   // No mention of the data's source attached to these distances -- they're computed live, not
   // fetched from anywhere that would need crediting.
   assert.ok(!html.includes("OpenStreetMap"));
+  app.state.walkingDistanceMinutes = savedWalkingDistanceMinutes;
 });
 
 test("nearbySectionsHtml omits the cows link when no cow positions are currently loaded", () => {
@@ -11101,6 +11110,19 @@ test("nearbySectionsHtml omits the cows link when no cow positions are currently
   assert.ok(!html.includes("nearby/cows/"), "no cow data loaded -- no cows link to show");
 });
 
+test("nearbySectionsHtml omits category and group tiles with no locations within the walking radius", () => {
+  resetData(app);
+  const pub = { findSlug: "the-forresters", latitude: 51.65, longitude: 0.05, category: "pub" };
+  app.state.trees.push({ latitude: 51.7, longitude: 0.1, id: "t1" });
+  app.state.cows.push({ latitude: 51.7, longitude: 0.1, id: "c1" });
+
+  const html = app.nearbySectionsHtml({ latitude: pub.latitude, longitude: pub.longitude, name: "The Forresters", subfilterKey: "pubs" });
+  assert.ok(!html.includes('<h3 class="detail-section-heading">Nearest</h3>'), "no empty Nearest section");
+  assert.ok(!html.includes('<h3 class="detail-section-heading">Related</h3>'), "no empty Related section");
+  assert.ok(!html.includes("nearby/trees/"), "no tree tile beyond the walking radius");
+  assert.ok(!html.includes("nearby/pubs/"), "no pub tile beyond the walking radius");
+  assert.ok(!html.includes("nearby/food/"), "no group tile beyond the walking radius");
+});
 test("nearbySectionsHtml puts Places close by above Nearest on a /find/ business", () => {
   resetData(app);
   const pub = { findSlug: "the-forresters", latitude: 51.65, longitude: 0.05, category: "pub" };
