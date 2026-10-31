@@ -104,6 +104,15 @@ function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
     createElement(tag) { const el = createElementStub(); el.tagName = String(tag).toUpperCase(); return el; },
     getElementById(id) {
       if (!elements.has(id)) elements.set(id, createElementStub(id));
+      if (id === "onboardingOverlay") {
+        const overlay = elements.get(id);
+        const parts = new Map([
+          [".onboarding-progress", createElementStub("onboarding-progress")],
+          [".onboarding-content", createElementStub("onboarding-content")],
+          [".onboarding-actions", createElementStub("onboarding-actions")],
+        ]);
+        overlay.querySelector = (selector) => parts.get(selector) || null;
+      }
       return elements.get(id);
     },
     querySelector(selector) {
