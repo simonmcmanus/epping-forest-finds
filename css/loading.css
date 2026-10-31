@@ -225,8 +225,60 @@
 }
 
 .consent-banner.onboarding-invite .consent-banner-actions {
-  flex-direction: column;
+  position: static;
+  width: 0;
+  height: 0;
   gap: 0;
+}
+
+.consent-banner.onboarding-invite {
+  position: relative;
+  display: grid;
+  grid-template-columns: 42px minmax(0, 1fr);
+  align-items: start;
+  column-gap: 16px;
+  padding: 18px 18px 30px 20px;
+}
+
+.consent-banner.onboarding-invite .consent-banner-logo {
+  grid-column: 1;
+  grid-row: 1;
+  width: 42px;
+  height: 42px;
+}
+
+.consent-banner.onboarding-invite .consent-banner-copy {
+  grid-column: 2;
+  grid-row: 1;
+  padding-right: 28px;
+}
+
+.consent-banner.onboarding-invite #consentBannerDecline {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  margin: 0;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 1.8rem;
+  font-weight: 500;
+  line-height: 1;
+  transform-origin: center;
+  animation: consent-banner-close-bounce 780ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transition: color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.consent-banner.onboarding-invite #consentBannerDecline:hover,
+.consent-banner.onboarding-invite #consentBannerDecline:focus-visible {
+  color: var(--ink);
+  background: rgba(47, 111, 78, 0.1);
+  transform: rotate(9deg) scale(1.12);
 }
 
 .consent-banner-map-setup-arrow {
@@ -234,11 +286,22 @@
   width: 34px;
   height: 28px;
   place-items: center;
+  position: absolute;
+  right: 24px;
+  bottom: 3px;
+  pointer-events: none;
   color: var(--tree);
-  font-size: 1.7rem;
+  font-size: 1.9rem;
   font-weight: 900;
   line-height: 1;
   animation: map-setup-arrow-nudge 1.2s ease-in-out infinite;
+}
+
+@keyframes consent-banner-close-bounce {
+  0% { opacity: 0; transform: rotate(-14deg) scale(0.72); }
+  55% { opacity: 1; transform: rotate(8deg) scale(1.16); }
+  78% { transform: rotate(-4deg) scale(0.96); }
+  100% { opacity: 1; transform: rotate(0) scale(1); }
 }
 
 @keyframes map-setup-arrow-nudge {
@@ -264,6 +327,10 @@
   }
 
   .consent-banner-map-setup-arrow {
+    animation: none;
+  }
+
+  .consent-banner.onboarding-invite #consentBannerDecline {
     animation: none;
   }
 }

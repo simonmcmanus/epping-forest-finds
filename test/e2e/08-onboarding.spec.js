@@ -40,8 +40,18 @@ test.describe("Onboarding", () => {
       await page.locator("#consentBannerDecline").click();
       await expect(page.locator("#consentBannerText")).toContainText("Map setup button");
       await expect(page.locator("#consentBannerMapSetupArrow")).toBeVisible();
+      await expect(page.locator("#consentBannerDecline")).toHaveAccessibleName("Dismiss map setup hint");
       await expect(page.locator("#consentBannerAccept")).toBeHidden();
       await expect(page.locator("#filterToggle")).toBeVisible();
+      const arrowCenter = await page.locator("#consentBannerMapSetupArrow").evaluate((el) => {
+        const rect = el.getBoundingClientRect();
+        return rect.left + rect.width / 2;
+      });
+      const setupCenter = await page.locator("#filterToggle").evaluate((el) => {
+        const rect = el.getBoundingClientRect();
+        return rect.left + rect.width / 2;
+      });
+      expect(Math.abs(arrowCenter - setupCenter), "the hint arrow should point at Map setup").toBeLessThan(24);
       await page.waitForFunction(() => document.querySelector("#consentBanner")?.classList.contains("onboarding-attention"));
       await expect.poll(() => page.locator("#filterToggle").evaluate((el) => el.classList.contains("filter-toggle-hint"))).toBe(true);
       await expect(page.locator("#consentBanner")).toBeHidden();
@@ -121,7 +131,7 @@ test.describe("Onboarding", () => {
       await expect(dialog.getByRole("button", { name: "Done" })).toBeVisible();
     });
 
-    test("Explore first dismisses the setup invitation across visits", async ({ page }) => {
+    test("the close button dismisses the setup invitation across visits", async ({ page }) => {
       await page.goto("/nearby");
       await page.locator("#consentBannerDecline").click();
       await page.locator("#consentBannerDecline").click();
