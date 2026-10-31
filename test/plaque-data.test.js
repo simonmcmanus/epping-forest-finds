@@ -80,3 +80,20 @@ test('a linked plaque remains usable when either source is unavailable', () => {
   assert.equal(ctx.placeIconSlug(osmOnly[0]), 'blue-plaques');
   assert.equal(ctx.reconcileLinkedLandmarks([{ id: 'node/1', name: 'A Writer' }, { id: 'folklore-1', name: 'A Writer' }]).length, 2);
 });
+
+test('the audit accepts an explicitly linked ordinary plaque with matching classification', () => {
+  const result = auditPlaques({
+    features: [{ properties: { id: 'node/3', aliasIds: ['folklore-3'], category: 'plaque', memorial: 'plaque' }, geometry: { coordinates: [0.05, 51.65] } }],
+    locations: [{ id: 'folklore-3', osm_id: 'node/3', name: 'Plaque: A Writer', category: ['plaque'], coordinates: { latitude: 51.65, longitude: 0.05 } }],
+  });
+  assert.deepEqual(result.errors, []);
+});
+
+test('reviewed OSM data retains curated aliases when the curated download is unavailable', () => {
+  const data = loadData();
+  for (const curated of data.locations.filter(p => p.osm_id)) {
+    const feature = data.features.find(f => f.properties.id === curated.osm_id);
+    const available = ctx.reconcileLinkedLandmarks([feature.properties]);
+    assert.ok(available[0].aliasIds?.includes(curated.id), curated.name);
+  }
+});

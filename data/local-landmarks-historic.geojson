@@ -1901,7 +1901,10 @@
         "address": null,
         "distanceToForestBoundaryMetres": 461.1,
         "distanceLimitFromForestBoundaryMetres": 466.7,
-        "memorial": "blue_plaque"
+        "memorial": "blue_plaque",
+        "aliasIds": [
+          "folklore-153"
+        ]
       }
     },
     {
@@ -1935,7 +1938,10 @@
         "address": null,
         "distanceToForestBoundaryMetres": 461.0,
         "distanceLimitFromForestBoundaryMetres": 466.7,
-        "memorial": "blue_plaque"
+        "memorial": "blue_plaque",
+        "aliasIds": [
+          "folklore-148"
+        ]
       }
     },
     {
@@ -2037,7 +2043,10 @@
         "address": null,
         "distanceToForestBoundaryMetres": 441.3,
         "distanceLimitFromForestBoundaryMetres": 466.7,
-        "memorial": "blue_plaque"
+        "memorial": "blue_plaque",
+        "aliasIds": [
+          "folklore-81"
+        ]
       }
     },
     {

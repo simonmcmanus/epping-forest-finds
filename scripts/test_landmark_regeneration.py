@@ -20,7 +20,7 @@ class LandmarkRegenerationTests(unittest.TestCase):
                     'geometry': {'type': 'Polygon', 'coordinates': [[[0.05, 51.65], [0.051, 51.65], [0.051, 51.651], [0.05, 51.65]]]}
                 }]}))
                 (data / 'landmark-corrections.json').write_text(json.dumps({'corrections': {
-                    'node/1': {'properties': {'memorial': 'blue_plaque'}, 'source': 'https://example.org/survey', 'verifiedOn': '2026-10-31'}
+                    'node/1': {'properties': {'memorial': 'blue_plaque', 'aliasIds': ['folklore-1']}, 'source': 'https://example.org/survey', 'verifiedOn': '2026-10-31'}
                 }}))
                 tags = [
                     {'historic': 'memorial'},
@@ -36,6 +36,7 @@ class LandmarkRegenerationTests(unittest.TestCase):
                     self.assertEqual(run.returncode, 0, run.stderr)
                     places = {f['id']: f['properties'] for f in json.loads((data / 'local-landmarks.geojson').read_text())['features']}
                     self.assertEqual(places['node/1']['categoryLabel'], 'Blue plaque')
+                    self.assertEqual(places['node/1']['aliasIds'], ['folklore-1'])
                     self.assertEqual(places['node/2']['category'], 'plaque')
                     self.assertEqual(places['node/2']['colour'], 'blue')
                     self.assertEqual(places['node/3']['categoryLabel'], 'Plaque')

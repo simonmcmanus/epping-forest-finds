@@ -20,7 +20,7 @@ function auditPlaques({ features, locations, corrections = {} }) {
     if (!feature) { errors.push(`${id}: corrected OSM record missing`); continue; }
     const expected = correctedProperties(feature.properties, {}, corrections);
     for (const key of new Set([...Object.keys(correction.properties || {}), 'category', 'categoryLabel'])) {
-      if (feature.properties[key] !== expected[key]) errors.push(`${id}: saved correction not applied to ${key}`);
+      if (JSON.stringify(feature.properties[key]) !== JSON.stringify(expected[key])) errors.push(`${id}: saved correction not applied to ${key}`);
     }
   }
   for (const plaque of plaques) {
@@ -44,7 +44,9 @@ function auditPlaques({ features, locations, corrections = {} }) {
     const feature = byId.get(plaque.osm_id);
     if (!feature) { errors.push(`${plaque.osm_id}: linked OSM record missing`); continue; }
     const place = { ...feature.properties, categoryTags: rules.buildOsmCategoryTags(feature.properties) };
-    if (rules.placeIconSlug(place) !== 'blue-plaques') errors.push(`${plaque.osm_id}: blue plaque still displays with a different icon`);
+    const expectedIcon = rules.classifyFolkloreTopics(plaque).includes('blue_plaque') ? 'blue-plaques' : 'plaques';
+    if (rules.placeIconSlug(place) !== expectedIcon) errors.push(`${plaque.osm_id}: plaque classification disagrees with the curated source`);
+    if (!(feature.properties.aliasIds || []).includes(plaque.id)) errors.push(`${plaque.osm_id}: curated alias missing from OSM fallback`);
     const coords = rules.parseFolkloreCoordinates(plaque.coordinates);
     if (!coords || coords.longitude !== feature.geometry.coordinates[0] || coords.latitude !== feature.geometry.coordinates[1]) errors.push(`${plaque.osm_id}: linked source coordinates disagree`);
   }
