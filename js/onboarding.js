@@ -50,24 +50,49 @@ function mapSetupIconMarkup() {
 }
 
 function mapSetupSelectionPreviewMarkup(selected) {
-  const current = FILTER_GROUPS.flatMap((group) => group.subfilters)
+  const current = FILTER_GROUPS.flatMap((group) => group.subfilters.map((subfilter) => ({
+    ...subfilter,
+    groupLabel: group.label,
+  })))
     .filter((subfilter) => selected.has(subfilter.key));
   if (!current.length) {
-    return `<p class="onboarding-selection-empty">Nothing is selected yet.</p>`;
+    return `
+      <div class="onboarding-selection-card">
+        <div class="onboarding-selection-heading">
+          <span class="onboarding-selection-label">Currently set to</span>
+          <span class="onboarding-selection-count">0 shown</span>
+        </div>
+        <p class="onboarding-selection-empty">Nothing is selected yet.</p>
+      </div>
+    `;
   }
   return `
-    <div class="onboarding-selection-label">Currently showing</div>
-    <div class="onboarding-selection-preview" aria-label="Currently shown categories">
+    <div class="onboarding-selection-card">
+      <div class="onboarding-selection-heading">
+        <span class="onboarding-selection-label">Currently set to</span>
+        <span class="onboarding-selection-count">${current.length} shown</span>
+      </div>
+      <div class="onboarding-selection-preview" aria-label="Currently shown categories">
       ${current.map((subfilter) => `
         <span class="onboarding-selection-item">
-          <img src="data/icons/${subfilter.icon}.png" alt="">
-          <span>${subfilter.label}</span>
+          <span class="onboarding-selection-icon"><img src="data/icons/${subfilter.icon}.png" alt=""></span>
+          <span class="onboarding-selection-item-copy">
+            <span class="onboarding-selection-item-label">${subfilter.label}</span>
+            <span class="onboarding-selection-item-group">${subfilter.groupLabel}</span>
+          </span>
         </span>
       `).join("")}
+      </div>
     </div>
   `;
 }
 
+function mapSetupHiddenCategoryCopy(selected) {
+  const total = FILTER_GROUPS.reduce((count, group) => count + group.subfilters.length, 0);
+  const hidden = Math.max(0, total - selected.size);
+  if (!hidden) return "All categories are currently shown.";
+  return `There ${hidden === 1 ? "is" : "are"} ${hidden} categor${hidden === 1 ? "y" : "ies"} not currently shown.`;
+}
 // Returns a Promise resolving to { filters: string[]|null, cancelled: boolean }.
 function showOnboarding({ mode = "first-run" } = {}) {
   return new Promise((resolve) => {
@@ -132,13 +157,13 @@ function showOnboarding({ mode = "first-run" } = {}) {
       if (step.type === "filter-intro") {
         contentEl.innerHTML = `
           ${mapSetupIconMarkup()}
-          <h2 class="onboarding-step-title">Choose what appears on the map</h2>
-          <p class="onboarding-step-subtitle">Choose the kinds of finds you want to see as pins on the map and in your Nearby list. You can change these choices whenever you like.</p>
+          <h2 class="onboarding-step-title">What would you like to see?</h2>
+          <p class="onboarding-step-subtitle">You can customise what is shown in your Nearby list and on the map. ${mapSetupHiddenCategoryCopy(selected)}</p>
           ${mapSetupSelectionPreviewMarkup(selected)}
         `;
         actionsEl.innerHTML = `
-          <button class="button ob-primary">Choose categories</button>
-          <button class="onboarding-skip-btn ob-cancel" type="button">Keep current choices</button>
+          <button class="button ob-primary" type="button">Make changes</button>
+          <button class="onboarding-skip-btn ob-cancel" type="button">No changes</button>
         `;
       } else if (step.type === "welcome") {
         contentEl.innerHTML = `
