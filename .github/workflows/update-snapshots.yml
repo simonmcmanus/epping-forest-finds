@@ -73,6 +73,7 @@ jobs:
         env:
           SOURCE_BRANCH: ${{ env.SOURCE_BRANCH }}
           TARGET_BRANCH: ${{ steps.branches.outputs.target_branch }}
+        shell: bash
         run: |
           set -euo pipefail
           cd "$GITHUB_WORKSPACE"
@@ -102,6 +103,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           SOURCE_BRANCH: ${{ env.SOURCE_BRANCH }}
           TARGET_BRANCH: ${{ steps.branches.outputs.target_branch }}
+        shell: bash
         run: |
           set -euo pipefail
           cd "$GITHUB_WORKSPACE"
