@@ -105,6 +105,10 @@ function showOnboarding({ mode = "first-run" } = {}) {
       overlay.removeEventListener("transitionend", overlay._onboardingHideHandler);
       overlay._onboardingHideHandler = null;
     }
+    if (overlay._onboardingHideAnimationHandler && cardEl) {
+      cardEl.removeEventListener("animationend", overlay._onboardingHideAnimationHandler);
+      overlay._onboardingHideAnimationHandler = null;
+    }
     if (overlay._onboardingHideTimer) {
       clearTimeout(overlay._onboardingHideTimer);
       overlay._onboardingHideTimer = null;
@@ -340,18 +344,34 @@ function showOnboarding({ mode = "first-run" } = {}) {
       overlay.classList.remove("opening");
       overlay.classList.add("fading-out");
       let hideTimer = null;
+      let overlayFaded = false;
+      let cardFaded = !cardEl;
+      const maybeHide = () => {
+        if (overlayFaded && cardFaded) hide();
+      };
       const onTransitionEnd = (event) => {
-        if (event.target === overlay && event.propertyName === "opacity") hide();
+        if (event.target === overlay && event.propertyName === "opacity") {
+          overlayFaded = true;
+          maybeHide();
+        }
+      };
+      const onAnimationEnd = (event) => {
+        if (event.target === cardEl && event.animationName === "ob-card-out") {
+          cardFaded = true;
+          maybeHide();
+        }
       };
       const hide = () => {
         if (hideTimer) clearTimeout(hideTimer);
         clearCardResize();
         overlay._onboardingResizeCleanup = null;
         overlay.removeEventListener("transitionend", onTransitionEnd);
+        if (cardEl) cardEl.removeEventListener("animationend", onAnimationEnd);
         overlay.hidden = true;
         overlay._onboardingActive = false;
         overlay._onboardingCancel = null;
         overlay._onboardingHideHandler = null;
+        overlay._onboardingHideAnimationHandler = null;
         overlay._onboardingHideTimer = null;
         overlay.classList.remove("filter-setup");
         overlay.classList.remove("filter-intro");
@@ -363,7 +383,11 @@ function showOnboarding({ mode = "first-run" } = {}) {
         hide();
       } else {
         overlay.addEventListener("transitionend", onTransitionEnd);
-        hideTimer = setTimeout(hide, 420);
+        if (cardEl) {
+          cardEl.addEventListener("animationend", onAnimationEnd);
+          overlay._onboardingHideAnimationHandler = onAnimationEnd;
+        }
+        hideTimer = setTimeout(hide, 520);
         overlay._onboardingHideTimer = hideTimer;
       }
       resolve({ filters: cancelled ? null : Array.from(selected), cancelled });

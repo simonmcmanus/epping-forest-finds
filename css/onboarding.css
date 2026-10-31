@@ -8,7 +8,7 @@
   background: rgba(22, 39, 29, 0.34);
   backdrop-filter: blur(12px) saturate(1.05);
   padding: 16px;
-  transition: opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 0.34s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .onboarding-overlay[hidden] {
@@ -26,13 +26,13 @@
 }
 
 @keyframes ob-card-in {
-  from { opacity: 0; transform: translateY(-18px) scale(0.985); }
+  from { opacity: 0; transform: translate3d(0, var(--onboarding-card-entry-y), 0) scale(0.98); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @keyframes ob-card-out {
   from { opacity: 1; transform: translateY(0) scale(1); }
-  to { opacity: 0; transform: translateY(-18px) scale(0.985); }
+  to { opacity: 0; transform: translate3d(0, var(--onboarding-card-entry-y), 0) scale(0.98); }
 }
 
 .onboarding-overlay.opening {
@@ -73,6 +73,7 @@
 }
 
 .onboarding-card {
+  --onboarding-card-entry-y: -22px;
   width: 100%;
   max-width: 468px;
   height: auto;
