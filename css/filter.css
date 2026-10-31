@@ -107,6 +107,15 @@
   animation: filter-hint-pulse 0.8s cubic-bezier(0.16, 1, 0.3, 1) 1 both;
 }
 
+@keyframes filter-guidance-pulse {
+  0%, 100% { transform: scale(1); box-shadow: none; }
+  50% { transform: scale(1.06); box-shadow: 0 0 0 4px rgba(47, 121, 83, 0.12); }
+}
+
+.filter-toggle-guidance {
+  animation: filter-guidance-pulse 1.2s ease-in-out infinite;
+}
+
 @keyframes nav-reselect-bounce {
   0%   { transform: scale(1); }
   38%  { transform: scale(1.18); }
@@ -120,6 +129,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .filter-toggle-hint {
+    animation: none;
+  }
+
+  .filter-toggle-guidance {
     animation: none;
   }
 }

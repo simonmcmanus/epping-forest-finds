@@ -43,6 +43,7 @@ test.describe("Onboarding", () => {
       await expect(page.locator("#consentBannerDecline")).toHaveAccessibleName("Dismiss map setup hint");
       await expect(page.locator("#consentBannerAccept")).toBeHidden();
       await expect(page.locator("#filterToggle")).toBeVisible();
+      await expect(page.locator("#filterToggle")).toHaveClass(/filter-toggle-guidance/);
       const arrowCenter = await page.locator("#consentBannerMapSetupArrow").evaluate((el) => {
         const rect = el.getBoundingClientRect();
         return rect.left + rect.width / 2;

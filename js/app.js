@@ -1431,6 +1431,7 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
   function renderPermissionsStage() {
     banner.setAttribute("aria-label", "Location and usage analytics");
     banner.classList.remove("onboarding-invite");
+    els.filterToggle?.classList.remove("filter-toggle-guidance");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Allow location & cookies";
     if (els.consentBannerText) {
       els.consentBannerText.innerHTML = `Shows nearby finds and their distance from you, and helps us understand how people use this site — enabling covers both. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>`;
@@ -1448,6 +1449,7 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
   function renderLocationStage() {
     banner.setAttribute("aria-label", "Location");
     banner.classList.remove("onboarding-invite");
+    els.filterToggle?.classList.remove("filter-toggle-guidance");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "See what's near you";
     // Generated landing pages replace the shell's default paragraph with a lead that names the
     // category or place. Keep that useful server-rendered copy when the live page only needs the
@@ -1470,6 +1472,7 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
   function renderAnalyticsStage() {
     banner.setAttribute("aria-label", "Usage analytics");
     banner.classList.remove("onboarding-invite");
+    els.filterToggle?.classList.remove("filter-toggle-guidance");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Help improve the map?";
     if (els.consentBannerText) {
       els.consentBannerText.innerHTML = `Share anonymous usage data — which screens you use and where you are while the app is open — and allow Google Analytics cookies. It is never sold or used for advertising. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>`;
@@ -1487,6 +1490,7 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
   function renderOnboardingStage() {
     banner.setAttribute("aria-label", "Map setup");
     banner.classList.add("onboarding-invite");
+    els.filterToggle?.classList.add("filter-toggle-guidance");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Make the map yours";
     if (els.consentBannerText) {
       els.consentBannerText.innerHTML = "Choose the finds you want to see. Press the Map setup button below to set up your map. You can change it anytime.";
@@ -1517,6 +1521,7 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
 
   function cleanup() {
     clearOnboardingAttention();
+    els.filterToggle?.classList.remove("filter-toggle-guidance");
     els.consentBannerAccept?.removeEventListener("click", onAccept);
     els.consentBannerDecline?.removeEventListener("click", onDecline);
   }
