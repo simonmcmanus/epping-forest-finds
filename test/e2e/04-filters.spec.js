@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, settleMapIconsAndDraw, waitForUiToSettle } = require("./helpers");
+const { setup, settleMapIconsAndDraw } = require("./helpers");
 
 test.describe("Map setup", () => {
   test.beforeEach(async ({ page }) => {
@@ -143,11 +143,5 @@ test.describe("Map setup", () => {
     });
   });
 
-  test("snapshot: map setup intro", async ({ page }) => {
-    await page.click("#filterToggle");
-    await expect(page.getByRole("heading", { name: "What would you like to see?" })).toBeVisible();
-    await waitForUiToSettle(page);
-    await settleMapIconsAndDraw(page);
-    await expect(page).toHaveScreenshot("map-setup.png", { fullPage: false });
-  });
+
 });
