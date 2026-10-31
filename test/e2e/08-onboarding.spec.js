@@ -95,6 +95,18 @@ test.describe("Onboarding", () => {
       await expect(dialog).toContainText("Make the map yours");
     });
 
+    test("the final first-run step has no empty secondary action", async ({ page }) => {
+      await page.goto("/nearby");
+      await page.locator("#consentBannerDecline").click();
+      await page.locator("#consentBannerAccept").click();
+      await page.locator(".ob-primary").click();
+      for (let i = 0; i < 6; i += 1) await page.getByRole("button", { name: "Next" }).click();
+      const dialog = page.getByRole("dialog", { name: "Set up Epping Forest Finds" });
+      await expect(dialog.getByRole("heading", { name: "Events" })).toBeVisible();
+      await expect(dialog.locator(".onboarding-skip-btn")).toHaveCount(0);
+      await expect(dialog.getByRole("button", { name: "Done" })).toBeVisible();
+    });
+
     test("Explore first dismisses the setup invitation across visits", async ({ page }) => {
       await page.goto("/nearby");
       await page.locator("#consentBannerDecline").click();
