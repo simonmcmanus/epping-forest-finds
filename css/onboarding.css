@@ -30,12 +30,21 @@
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+@keyframes ob-card-out {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(18px) scale(0.97); }
+}
+
 .onboarding-overlay.opening {
   animation: ob-overlay-in 0.22s ease-out both;
 }
 
 .onboarding-overlay.opening .onboarding-card {
   animation: ob-card-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.onboarding-overlay.fading-out .onboarding-card {
+  animation: ob-card-out 0.28s cubic-bezier(0.4, 0, 1, 1) both;
 }
 
 .onboarding-overlay.filter-setup {
@@ -371,7 +380,8 @@
 
 @media (prefers-reduced-motion: reduce) {
   .onboarding-overlay.opening,
-  .onboarding-overlay.opening .onboarding-card {
+  .onboarding-overlay.opening .onboarding-card,
+  .onboarding-overlay.fading-out .onboarding-card {
     animation: none;
   }
 }
