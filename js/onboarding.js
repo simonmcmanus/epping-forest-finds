@@ -85,6 +85,13 @@ function mapSetupHiddenCategoryCopy(selected) {
   if (!hidden) return "All categories are currently shown.";
   return `There ${hidden === 1 ? "is" : "are"} ${hidden} categor${hidden === 1 ? "y" : "ies"} not currently shown.`;
 }
+
+function onboardingReducedMotion() {
+  return typeof window !== "undefined"
+    && typeof window.matchMedia === "function"
+    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 // Returns a Promise resolving to { filters: string[]|null, cancelled: boolean }.
 function showOnboarding({ mode = "first-run" } = {}) {
   return new Promise((resolve) => {
@@ -127,7 +134,9 @@ function showOnboarding({ mode = "first-run" } = {}) {
     overlay.classList.add("opening");
     overlay._onboardingActive = true;
     const deactivateFocus = typeof activateModalFocus === "function"
-      ? activateModalFocus(overlay, { onEscape: () => finish({ cancelled: filterSetupMode }) })
+      ? activateModalFocus(overlay, filterSetupMode
+        ? { onEscape: () => finish({ cancelled: true }) }
+        : {})
       : null;
 
     function renderProgress() {
@@ -167,8 +176,8 @@ function showOnboarding({ mode = "first-run" } = {}) {
           ${mapSetupSelectionPreviewMarkup(selected)}
         `;
         actionsEl.innerHTML = `
-          <button class="button ob-primary" type="button">Make changes</button>
-          <button class="onboarding-skip-btn ob-cancel" type="button">No changes</button>
+          <button class="button ob-primary" type="button">Choose categories</button>
+          <button class="onboarding-skip-btn ob-cancel" type="button">Keep current choices</button>
         `;
       } else if (step.type === "welcome") {
         contentEl.innerHTML = `
@@ -273,9 +282,13 @@ function showOnboarding({ mode = "first-run" } = {}) {
       overlay.removeEventListener("click", onOverlayClick);
       overlay.classList.remove("opening");
       overlay.classList.add("fading-out");
-      let hideTimer;
+      let hideTimer = null;
+      const onTransitionEnd = (event) => {
+        if (event.target === overlay && event.propertyName === "opacity") hide();
+      };
       const hide = () => {
-        clearTimeout(hideTimer);
+        if (hideTimer) clearTimeout(hideTimer);
+        overlay.removeEventListener("transitionend", onTransitionEnd);
         overlay.hidden = true;
         overlay._onboardingActive = false;
         overlay._onboardingCancel = null;
@@ -285,14 +298,18 @@ function showOnboarding({ mode = "first-run" } = {}) {
         overlay.classList.remove("opening");
         overlay.classList.remove("fading-out");
       };
-      overlay._onboardingHideHandler = hide;
-      overlay.addEventListener("transitionend", hide, { once: true });
-      overlay._onboardingHideTimer = setTimeout(hide, 450);
-      hideTimer = overlay._onboardingHideTimer;
+      overlay._onboardingHideHandler = onTransitionEnd;
+      if (onboardingReducedMotion()) {
+        hide();
+      } else {
+        overlay.addEventListener("transitionend", onTransitionEnd);
+        hideTimer = setTimeout(hide, 420);
+        overlay._onboardingHideTimer = hideTimer;
+      }
       resolve({ filters: cancelled ? null : Array.from(selected), cancelled });
     }
 
-    overlay._onboardingCancel = () => finish({ cancelled: true });
+    overlay._onboardingCancel = filterSetupMode ? () => finish({ cancelled: true }) : null;
     renderProgress();
     renderStep("forward");
   });

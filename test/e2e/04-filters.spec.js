@@ -29,13 +29,13 @@ test.describe("Map setup", () => {
     const toggle = page.locator("#filterToggle");
     await expect(toggle).toHaveAttribute("aria-label", /Map setup/);
     await expect(toggle).toHaveAttribute("title", "Choose what appears on the map");
-    await expect(toggle.locator("svg path").first()).toHaveAttribute("d", /8\.5/);
+    await expect(toggle.locator("svg path").first()).toHaveAttribute("d", /m3\.5 7 8\.5/);
   });
 
   test("cancel keeps the existing filter choices", async ({ page }) => {
     const before = await page.evaluate(() => state.overviewFilters.slice());
     await page.click("#filterToggle");
-    await page.getByRole("button", { name: "Make changes" }).click();
+    await page.getByRole("button", { name: "Choose categories" }).click();
     await page.locator('.onboarding-chip[data-key="trees"]').click();
     await page.getByRole("button", { name: "Cancel changes" }).click();
     await expect(page.locator("#onboardingOverlay")).toBeHidden();
@@ -44,7 +44,7 @@ test.describe("Map setup", () => {
 
   test("filter changes apply when the guided setup is done", async ({ page }) => {
     await page.click("#filterToggle");
-    await page.getByRole("button", { name: "Make changes" }).click();
+    await page.getByRole("button", { name: "Choose categories" }).click();
     // Move through Nature, Food, Transport, History, Locations and Stories to Events.
     for (let i = 0; i < 6; i += 1) {
       await page.getByRole("button", { name: "Next" }).click();
@@ -71,7 +71,7 @@ test.describe("Map setup", () => {
     await page.click("#filterToggle");
     const card = page.locator(".onboarding-card");
     const introHeight = await card.evaluate((el) => el.getBoundingClientRect().height);
-    await page.getByRole("button", { name: "Make changes" }).click();
+    await page.getByRole("button", { name: "Choose categories" }).click();
     await expect(page.getByRole("heading", { name: "Nature" })).toBeVisible();
     const categoryHeight = await card.evaluate((el) => el.getBoundingClientRect().height);
     expect(Math.abs(introHeight - categoryHeight)).toBeLessThanOrEqual(1);

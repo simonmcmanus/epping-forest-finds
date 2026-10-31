@@ -34,6 +34,18 @@ test.describe("Onboarding", () => {
       await expect(dialog).toHaveAttribute("aria-modal", "true");
     });
 
+    test("Escape does not accidentally finish first-run setup", async ({ page }) => {
+      await page.goto("/nearby");
+      await page.locator("#consentBannerDecline").click();
+      await page.locator("#consentBannerAccept").click();
+      await expect(page.locator("#onboardingOverlay")).toBeVisible();
+      await page.keyboard.press("Escape");
+      await expect(page.locator("#onboardingOverlay")).toBeVisible();
+      expect(await page.evaluate(() => localStorage.getItem("forest-finds-onboarding-v1"))).toBeNull();
+      expect(await page.evaluate(() => state.overviewFilters.length)).toBeGreaterThan(0);
+      await page.locator(".ob-skip").click();
+    });
+
     test("the non-blocking first-run card explains location and cookies", async ({ page }) => {
       await page.goto("/nearby");
       await expect(page.locator("#consentBanner")).toBeVisible();
@@ -103,7 +115,7 @@ test.describe("Onboarding", () => {
 
     test("the legacy filter route opens filter setup without permission steps", async ({ page }) => {
       await gotoAndWaitForMap(page, "/nearby/filter?show=pubs");
-      await expect(page.getByRole("heading", { name: "Choose what appears on the map" })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "What would you like to see?" })).toBeVisible();
       await expect(page.locator("#onboardingOverlay")).not.toContainText("Allow location");
     });
 

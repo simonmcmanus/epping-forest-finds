@@ -263,11 +263,11 @@ const state = {
     } catch {}
     return [];
   })(),
+  // Kept as a compatibility state for callers that still model the old /nearby/filter route.
+  // The current Map setup modal deliberately does not set it: Nearby stays active underneath.
   filterScreenOpen: false,
-  // The Search screen and the text currently in its field. Like filterScreenOpen this is a
-  // screen with no selection behind it, so the map keeps the Nearby framing while it is open
-  // (secondaryScreenActive, js/nav.js). The query is held here rather than read back off the
-  // input so re-entering Search from a result restores what was typed.
+  // The Search screen and the text currently in its field. The query is held here rather than
+  // read back off the input so re-entering Search from a result restores what was typed.
   searchScreenOpen: false,
   searchQuery: "",
   // The top SEARCH_HIGHLIGHT_LIMIT results for the current query, kept so the renderer can ring
@@ -784,11 +784,11 @@ function replaceHashInPlace(value) {
   history.replaceState(history.state, "", url);
 }
 
-// While the Filters screen is open, every change to state.overviewFilters corrects /filter's
-// own query string in place -- replaces rather than pushes, or every checkbox toggle would add
-// its own back-button step. Arriving at Filters already gets the right query string for free
-// (setHashFromSelection/replaceHashInPlace above both run searchStringForPath on push); this
-// is only for a change that happens without a screen transition alongside it.
+// While the compatibility /nearby/filter route is open, every change to state.overviewFilters
+// corrects its query string in place -- replaces rather than pushes, or every staged choice would
+// add its own back-button step. Arriving at the route already gets the right query string for free
+// (setHashFromSelection/replaceHashInPlace above both run searchStringForPath on push); this is
+// only for a change that happens without a screen transition alongside it.
 // Shared by setOverviewFilters (while on /filter) and setSearchQuery (while on /search) --
 // searchStringForPath already returns "" for a path with nothing live to carry, so this is a
 // no-op on every other screen without needing to ask which one called it.
@@ -809,12 +809,9 @@ function applyRouteFromUrl() {
   // A ?show= on whichever path was just navigated to (back/forward, or a hand-typed URL) is
   // applied before the route itself, the same way boot() applies it once up front -- so e.g.
   // routing to /nearby?show=pubs,cafes or /filter?show=pubs lands with the right filters on.
-  // Guarded the same way applyRoute() guards its own screen change: setOverviewFilters() (called
-  // from applyShowFilterFromQuery) looks at state.filterScreenOpen to decide whether to refresh
-  // the live overview or the Filter screen's own list, and at this point that flag still
-  // describes the screen being left, not the one the URL is about to open -- unguarded, that
-  // stale read pushed a /nearby correction of its own before the real route ever ran, stomping
-  // the forward-navigation entry the browser had just restored.
+  // Guarded the same way applyRoute() guards its own screen change: the compatibility route's
+  // staged filters are applied before the modal opens, so the current Nearby view remains the
+  // source of truth while the route is being resolved.
   routeApplyDepth += 1;
   let raw;
   try {
@@ -1424,7 +1421,7 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
     banner.setAttribute("aria-label", "Map setup");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Make the map yours";
     if (els.consentBannerText) {
-      els.consentBannerText.innerHTML = "Choose the finds you want to see. You can change these anytime in Filters.";
+      els.consentBannerText.innerHTML = "Choose the finds you want to see. You can change these anytime in Map setup.";
     }
     if (els.consentBannerDecline) els.consentBannerDecline.textContent = "Explore first";
     if (els.consentBannerAccept) els.consentBannerAccept.textContent = "Set up my map";
@@ -2774,44 +2771,11 @@ function setOverviewFilters(nextFilters, { persist = true, render = true, railTa
     requestDraw();
     return;
   }
-  if (isOverviewScreenActive() && !state.filterScreenOpen) {
+  if (isOverviewScreenActive() && (!state.filterScreenOpen || mapSetupModalActive())) {
     selectOverview();
     ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
   }
   requestDraw();
-}
-
-function setOverviewExpandedGroups(nextGroups) {
-  state.overviewExpandedGroups = sanitizeExpandedGroups(nextGroups);
-  saveFilterState();
-  updateFilterUi();
-}
-
-function toggleOverviewGroupExpansion(groupKey) {
-  if (!FILTER_GROUPS_BY_KEY.has(groupKey)) return;
-  const expanded = activeOverviewExpandedSet();
-  if (expanded.has(groupKey)) expanded.delete(groupKey);
-  else expanded.add(groupKey);
-  setOverviewExpandedGroups(Array.from(expanded));
-}
-
-function toggleOverviewFilterGroup(groupKey) {
-  const group = FILTER_GROUPS_BY_KEY.get(groupKey);
-  if (!group) return;
-  const current = activeOverviewFilterSet();
-  const keys = group.subfilters.map((subfilter) => subfilter.key);
-  const groupIsActive = keys.some((key) => current.has(key));
-  if (groupIsActive) keys.forEach((key) => current.delete(key));
-  else keys.forEach((key) => current.add(key));
-  setOverviewFilters(Array.from(current));
-}
-
-function toggleOverviewSubfilter(filterKey) {
-  if (!ALL_OVERVIEW_FILTER_KEYS.has(filterKey)) return;
-  const current = activeOverviewFilterSet();
-  if (current.has(filterKey)) current.delete(filterKey);
-  else current.add(filterKey);
-  setOverviewFilters(Array.from(current));
 }
 
 function updateFilterUi() {
@@ -2825,9 +2789,10 @@ function updateFilterUi() {
     const activeGroupCount = getActiveGroupKeys(currentSet).length;
     const hasActiveFilter = activeGroupCount > 0;
     const locationSelected = Boolean(state.selected);
-    els.filterToggle.hidden = locationSelected || findLandingAwaitingPlace() || state.searchScreenOpen || state.filterScreenOpen;
+    els.filterToggle.hidden = locationSelected || findLandingAwaitingPlace() || state.searchScreenOpen
+      || (state.filterScreenOpen && !mapSetupModalActive());
     els.filterToggle.classList.toggle("active", hasActiveFilter);
-    els.filterToggle.classList.toggle("screen-active", state.filterScreenOpen);
+    els.filterToggle.classList.toggle("screen-active", state.filterScreenOpen && !mapSetupModalActive());
     els.filterToggle.setAttribute("aria-pressed", hasActiveFilter ? "true" : "false");
     els.filterToggle.setAttribute("aria-label", hasActiveFilter
       ? `Map setup: ${activeGroupCount} top-level filter${activeGroupCount === 1 ? "" : "s"} selected`
@@ -2839,6 +2804,12 @@ function updateFilterUi() {
     }
   }
 }
+
+function mapSetupModalActive() {
+  const overlay = typeof document !== "undefined" ? document.getElementById("onboardingOverlay") : null;
+  return Boolean(overlay && !overlay.hidden && overlay._onboardingActive);
+}
+
 function filterMeta(filterKey) {
   return FILTER_SUBFILTERS_BY_KEY.get(filterKey) || null;
 }
@@ -2923,11 +2894,9 @@ function openFilterSetup() {
   // underneath the modal. This is deliberately not a replacement screen.
   exitClusterExpansion();
   state.filterScreenOpen = true;
-  syncHashFromSelection();
+  setHashFromSelection(ROUTE_FILTERS);
 
   showOnboarding({ mode: "filters" }).then((result) => {
-    // Drop the route flag before committing so setOverviewFilters refreshes the existing Nearby
-    // list in place instead of treating this as a separate live panel.
     state.filterScreenOpen = false;
     if (!result.cancelled && Array.isArray(result.filters)) setOverviewFilters(result.filters);
     updateFilterUi();
@@ -4433,8 +4402,8 @@ function updateDocumentTitle() {
             : (item.name || item.ref || item.commonName || "Map location");
       title = `${name} near Epping Forest`;
     }
-  } else if (state.filterScreenOpen) {
-    title = "Filters for Epping Forest";
+  } else if (state.filterScreenOpen && !mapSetupModalActive()) {
+    title = "Filters for Epping Forest Finds";
   } else if (state.searchScreenOpen) {
     title = "Search Epping Forest Finds";
   } else {

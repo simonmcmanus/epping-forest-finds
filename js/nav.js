@@ -113,7 +113,7 @@ function stableNearbyOrigin() {
 // drawWalkingRadius/buildNearbyIconLookup in renderer.js).
 function secondaryScreenActive() {
   return Boolean(
-    state.filterScreenOpen
+    (state.filterScreenOpen && !mapSetupModalActive())
     || state.searchScreenOpen
     || state.selected?.type === "settings"
     || state.selected?.type === "report"
@@ -1086,24 +1086,6 @@ function setupFilterPanelHandlers() {
     }
   }, true);
 
-  els.inspectorBody.addEventListener("click", (event) => {
-    const clearAllButton = event.target.closest("[data-filter-clear-all]");
-    if (clearAllButton) {
-      setOverviewFilters([]);
-      return;
-    }
-
-    const subfilterButton = event.target.closest("[data-filter-subfilter]");
-    if (subfilterButton) {
-      toggleOverviewSubfilter(subfilterButton.dataset.filterSubfilter);
-      return;
-    }
-
-    const groupButton = event.target.closest("[data-filter-group]");
-    if (groupButton) {
-      toggleOverviewFilterGroup(groupButton.dataset.filterGroup);
-    }
-  });
 }
 
 // Arrow-key navigation through whichever `.nearest-list` is currently rendered -- the Nearby
