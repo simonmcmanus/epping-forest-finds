@@ -313,17 +313,17 @@
 .onboarding-selection-icon {
   display: grid;
   place-items: center;
-  flex: 0 0 30px;
-  width: 30px;
-  height: 30px;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
   border: 0;
   border-radius: 9px;
   background: transparent;
 }
 
 .onboarding-selection-item img {
-  width: 23px;
-  height: 23px;
+  width: 29px;
+  height: 29px;
   object-fit: contain;
 }
 
@@ -593,14 +593,14 @@
   }
 
   .onboarding-selection-icon {
-    flex-basis: 28px;
-    width: 28px;
-    height: 28px;
+    flex-basis: 33px;
+    width: 33px;
+    height: 33px;
   }
 
   .onboarding-selection-item img {
-    width: 21px;
-    height: 21px;
+    width: 27px;
+    height: 27px;
   }
 
   .onboarding-selection-item-label {
