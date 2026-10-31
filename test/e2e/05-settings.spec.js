@@ -107,6 +107,9 @@ test.describe("Settings screen", () => {
               alpha, beta: 50, gamma: 0, absolute: true,
             })); // phone held up
             await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+            const expectedHeading = (360 - alpha) % 360;
+            if (i >= 5 && Number.isFinite(state.compassHeading)
+              && Math.abs(shortestCompassDelta(state.compassHeading, expectedHeading)) < 1) break;
           }
         };
         // The first reading faces north, so heading-up switches on without the camera fit
