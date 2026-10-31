@@ -316,20 +316,47 @@ test.describe("compass access on motion-permission browsers", () => {
     await setStored(page, { "ff-track-v1": "0" });
     await page.addInitScript(() => {
       if (!window.DeviceOrientationEvent) window.DeviceOrientationEvent = class {};
-      window.DeviceOrientationEvent.requestPermission = () => Promise.resolve("granted");
+      window.__compassRequests = 0;
+      window.DeviceOrientationEvent.requestPermission = () => {
+        window.__compassRequests += 1;
+        return Promise.resolve("granted");
+      };
     });
   });
 
-  test("dismissing the 'Enable compass' card is remembered across visits", async ({ page }) => {
+  test("a returning visitor with a slow compass is never shown a separate permission card", async ({ page }) => {
+    await setStored(page, { "forest-finds-compass-permission-v1": "granted" });
     await gotoAndWaitForMap(page);
-    await expect(page.locator("#compassCalibrationBannerEnable")).toBeVisible();
-    await page.locator("#compassCalibrationBannerDismiss").click();
+    // Past the old 1.2-second sensor probe: no readings do not mean permission was denied.
+    await waitForFrames(page, 150);
+    await page.screenshot({ path: "test-results/compass-returning.png" });
     await expect(page.locator("#compassCalibrationBanner")).toBeHidden();
-
     await page.reload();
     await gotoAndWaitForMap(page);
-    // Comfortably past the probe window (COMPASS_GRANT_PROBE_MS) in which the card would appear.
     await waitForFrames(page, 150);
+    await expect(page.locator("#compassCalibrationBanner")).toBeHidden();
+  });
+
+  test("a late heading confirms access before calibration settles", async ({ page }) => {
+    await setStored(page, { "forest-finds-compass-permission-v1": "granted" });
+    await gotoAndWaitForMap(page);
+    await waitForFrames(page, 150);
+    await page.evaluate(() => {
+      const event = new Event("deviceorientation");
+      Object.assign(event, { alpha: 120, beta: 10, gamma: 0, webkitCompassHeading: 240, webkitCompassAccuracy: 10 });
+      window.dispatchEvent(event);
+    });
+    await expect.poll(() => page.evaluate(() => state.compassPermission)).toBe("granted");
+    expect(await stored(page, "forest-finds-compass-permission-v1")).toBe("granted");
+    await expect(page.locator("#compassCalibrationBanner")).toBeHidden();
+  });
+
+  test("a navigation tap can request compass access when the browser needs it again", async ({ page }) => {
+    await gotoAndWaitForMap(page);
+    expect(await page.evaluate(() => window.__compassRequests)).toBe(0);
+    await page.locator("#inspectorBody .nearest-item").first().click();
+    await expect.poll(() => page.evaluate(() => window.__compassRequests)).toBe(1);
+    await expect.poll(() => page.evaluate(() => state.compassPermission)).toBe("granted");
     await expect(page.locator("#compassCalibrationBanner")).toBeHidden();
   });
 
@@ -345,7 +372,10 @@ test.describe("compass access on motion-permission browsers", () => {
     });
     await gotoAndWaitForMap(page);
     await expect.poll(() => page.evaluate(() => state.compassPermission)).toBe("granted");
-    await expect(page.locator("#compassCalibrationBannerEnable")).toBeHidden();
+    await page.locator("#inspectorBody .nearest-item").first().click();
+    await expect.poll(() => page.evaluate(() => Boolean(selectedCompassTarget()))).toBe(true);
+    expect(await page.evaluate(() => window.__compassRequests)).toBe(0);
+    await expect(page.locator("#compassCalibrationBanner")).toBeHidden();
   });
 });
 
@@ -361,9 +391,9 @@ test.describe("compass access before any real location", () => {
     await stubLocation(page, { permission: "prompt" });
     await gotoAndWaitForMap(page, "/nearby/filter?show=pubs");
     await expect(page.locator("#consentBanner")).toBeVisible();
-    // Comfortably past the probe window (COMPASS_GRANT_PROBE_MS) in which the card would appear.
+    // Past the former permission probe window.
     await waitForFrames(page, 150);
-    await expect(page.locator("#compassCalibrationBannerEnable")).toBeHidden();
+    await expect(page.locator("#compassCalibrationBanner")).toBeHidden();
   });
 });
 
