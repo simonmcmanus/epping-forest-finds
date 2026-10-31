@@ -256,6 +256,9 @@ function showOnboarding({ mode = "first-run" } = {}) {
           </button>`;
         }).join("");
         const isLast = stepIndex === total - 1;
+        const secondaryAction = filterSetupMode
+          ? `<button class="onboarding-skip-btn ob-cancel" type="button">Cancel changes</button>`
+          : isLast ? "" : `<button class="onboarding-skip-btn ob-skip" type="button">Skip remaining</button>`;
         contentEl.innerHTML = `
           <div class="onboarding-step-heading">
             <img class="onboarding-step-icon" src="data/icons/${group.icon}.png" alt="">
@@ -269,9 +272,8 @@ function showOnboarding({ mode = "first-run" } = {}) {
             <button class="button ob-back" type="button">← Back</button>
             <button class="button ob-next" type="button">${isLast ? "Done" : "Next"}</button>
           </div>
-          <button class="onboarding-skip-btn ${filterSetupMode ? "ob-cancel" : "ob-skip"}" type="button">${filterSetupMode ? "Cancel changes" : (!isLast ? "Skip remaining" : "")}</button>
+          ${secondaryAction}
         `;
-        if (isLast && !filterSetupMode) actionsEl.querySelector(".ob-cancel")?.remove();
       }
 
       // Chip toggles
