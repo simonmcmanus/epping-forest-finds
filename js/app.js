@@ -1669,6 +1669,22 @@ async function boot() {
     if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("water")) {
       await mapData.environmentPromise;
     }
+    // Named places and railway features arrive with the same environment dataset. Wait for it
+    // before the first reveal as well, otherwise the initial route lookup treats a valid #area
+    // link as stale and clears it before the layer has arrived.
+    if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("area")
+      || new URLSearchParams(window.location.hash.replace(/^#/, "")).has("railway")) {
+      await mapData.environmentPromise;
+    }
+    // Paths and roads have their own asynchronous layers, so preserve their deep links until the
+    // corresponding feature register is available rather than letting the early route pass fall
+    // back to Nearby and erase a valid link.
+    if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("path")) {
+      await mapData.pathsPromise;
+    }
+    if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("road")) {
+      await mapData.roadsPromise;
+    }
     // A place deep link is resolved from the landmarks plus business metadata. Wait for just
     // those sources before the first interactive reveal, otherwise their incremental updates
     // briefly call selectOverview() and replace the requested detail panel.

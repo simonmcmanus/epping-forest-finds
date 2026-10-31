@@ -1714,7 +1714,9 @@ function nearbySectionsHtml({ latitude, longitude, name = null, subfilterKey = n
   const anchorHash = nearbyAnchorRouteValue({ latitude, longitude, label: name });
   // One card per category the reader has chosen (state.overviewFilters, or the defaults when none
   // are set or on an SEO page), each saying how many sit within the walking radius of this point.
-  const nearestCardsHtml = nearbyCardFilterKeys()
+  const nearestCardKeys = nearbyCardFilterKeys();
+  const nearestCardKeySet = new Set(nearestCardKeys);
+  const nearestCardsHtml = nearestCardKeys
     .map((key) => {
       const sub = FILTER_SUBFILTERS_BY_KEY.get(key);
       // Cow positions arrive asynchronously; until they are loaded "no cows nearby" would be a lie,
@@ -1738,7 +1740,7 @@ function nearbySectionsHtml({ latitude, longitude, name = null, subfilterKey = n
   const relatedCards = [];
   if (subfilter && group) {
     const subfilterCounts = countNearbyEntries([subfilter.key], latitude, longitude);
-    if (subfilterCounts.within > 0) {
+    if (subfilterCounts.within > 0 && !nearestCardKeySet.has(subfilter.key)) {
       relatedCards.push(cardHtml(
         `/nearby/${subfilter.key.replace(/_/g, "-")}/#${anchorHash}`,
         subfilter.icon,
@@ -1747,7 +1749,7 @@ function nearbySectionsHtml({ latitude, longitude, name = null, subfilterKey = n
       ));
     }
     const groupCounts = countNearbyEntries(group.subfilters.map((s) => s.key), latitude, longitude);
-    if (groupCounts.within > 0) {
+    if (groupCounts.within > 0 && !nearestCardKeySet.has(subfilter.groupKey)) {
       relatedCards.push(cardHtml(
         `/nearby/${subfilter.groupKey.replace(/_/g, "-")}/#${anchorHash}`,
         group.icon,

@@ -376,7 +376,14 @@ async function loadMapData() {
   // while unrelated layers were still downloading.
   state.bounds = calculateBounds();
   initialMapDownloads = backgroundPromise;
-  return { treePromise, placesPromise, environmentPromise, backgroundPromise };
+  return {
+    treePromise,
+    placesPromise,
+    pathsPromise,
+    roadsPromise,
+    environmentPromise,
+    backgroundPromise,
+  };
 }
 
 function loadBuildingsIfNeeded() {
