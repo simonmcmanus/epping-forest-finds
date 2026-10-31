@@ -215,7 +215,8 @@ async function loadMapData() {
   const applyBusinessMetadata = (entries) => {
     for (const entry of entries || []) businessById.set(entry.id, entry);
     state.landmarks = state.landmarks.map((place) => {
-      const business = businessById.get(place.id);
+      const business = businessById.get(place.id)
+        || (place.aliasIds || []).map((id) => businessById.get(id)).find(Boolean);
       return business ? { ...place, findSlug: business.slug || null, verifiedAt: business.verifiedAt || null } : place;
     });
     notifyInteractiveDataChange();
@@ -229,9 +230,24 @@ async function loadMapData() {
       return data;
     });
 
+  const landmarkSources = [];
   const appendLandmarks = (places) => {
     if (!places.length) return;
-    state.landmarks = state.landmarks.concat(places);
+    landmarkSources.push(...places);
+    state.landmarks = reconcileLinkedLandmarks(landmarkSources);
+    state.landmarks = state.landmarks.map((place) => {
+      const business = businessById.get(place.id)
+        || (place.aliasIds || []).map((id) => businessById.get(id)).find(Boolean);
+      return business ? { ...place, findSlug: business.slug || null, verifiedAt: business.verifiedAt || null } : place;
+    });
+    if (state.selected?.type === "landmark"
+      && places.some((place) => (place.linkedOsmId || place.id) === state.selected.item.id)) {
+      const updated = state.landmarks.find((place) => place.id === state.selected.item.id);
+      if (updated?.linkedOsmId) {
+        state.selected.item = updated;
+        showLandmarkDetails(updated, distanceFromUser(updated));
+      }
+    }
     setLoadStep("places", "loading", state.landmarks.length);
     notifyInteractiveDataChange();
   };
@@ -245,6 +261,7 @@ async function loadMapData() {
       const business = businessById.get(properties.id);
       return {
         ...properties,
+        ...osmPlaqueProperties(properties),
         categoryTags: buildOsmCategoryTags(properties),
         latitude,
         longitude,
@@ -270,7 +287,8 @@ async function loadMapData() {
     .catch(() => ({ locations: [] }))
     .then((data) => {
       appendLandmarks(normalizeFolkloreLocations(data).map((place) => {
-        const business = businessById.get(place.id);
+        const business = businessById.get(place.id)
+        || (place.aliasIds || []).map((id) => businessById.get(id)).find(Boolean);
         return { ...place, findSlug: business?.slug || null, verifiedAt: business?.verifiedAt || null };
       }));
       return data;

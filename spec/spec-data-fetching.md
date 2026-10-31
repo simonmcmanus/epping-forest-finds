@@ -202,7 +202,7 @@ Each feature is normalized to:
 }
 ```
 
-`buildOsmCategoryTags` extracts tags from: `category`, `categoryLabel`, `amenity`, `shop`, `tourism`, `historic`, `railway` properties.
+`buildOsmCategoryTags` extracts tags from: `category`, `categoryLabel`, `amenity`, `shop`, `tourism`, `historic`, `railway`, `memorial`, `memorial:type` properties.
 
 ### Folklore Landmarks
 
@@ -212,13 +212,15 @@ Filter: Discard generic/imprecise locations.
 
 #### Blue Plaque coordinate quality
 
-All 62 blue plaque entries have been verified against authoritative sources and re-geocoded:
+Coordinate accuracy is recorded per entry, not assumed from the presence of an address. Approximate street/town or postcode coordinates remain explicitly uncertain until checked against a location source. A matched OSM point is a mapped location, not a GPS survey. `npm run audit:plaques` reports uncertain coordinates and possible cross-source classification conflicts without changing identities.
 
-- 15 entries carry **GPS-precise** coordinates sourced from [openplaques.org](https://openplaques.org)
-- 33 entries carry **geocoded_address** coordinates from Nominatim (OpenStreetMap)
-- 14 entries carry **postcode_centroid** coordinates from postcodes.io (accurate to ~100 m)
+#### Plaque classification and source reconciliation
 
-Three entries were removed as unverifiable: `William Morris birthplace site` (coordinate was 12 km off, plaque is in Walthamstow E17), `Old Watch House or Cage` (no address, wrong duplicate coordinate), and `Buckhurst Hill Heritage Locations` (vague summary, not a single physical plaque).
+Both landmark regeneration scripts retain `memorial`, `memorial:type`, and `colour`. A plaque subtype takes precedence over `historic=memorial`; `memorial=blue_plaque` and a plaque explicitly coloured blue use the blue-plaque icon. Colour alone does not turn a statue or other memorial into a plaque. The loader applies the same rules to older cached data that already contains these tags.
+
+Reviewed local corrections live in `data/landmark-corrections.json`, keyed by OSM object ID, with corrected properties, source URL, verification date and reason. Both regeneration paths reapply them before writing output; corrections do not recreate features absent from the fetched source. The plaque audit fails CI for missing linked/corrected objects, overwritten corrections or contradictory linked classifications/coordinates.
+
+Only reviewed explicit `osm_id` links combine curated plaques with OSM points. Linked curated records have stable `id` values. The combined place keeps the OSM ID/location and curated history, plaque classification and source links, independently of response order. With either source unavailable, the available record remains usable. Curated IDs remain aliases for previously shared place links. Co-located plaques, buildings and namesakes remain separate unless explicitly linked. No new runtime request is needed; links travel with the existing cached datasets.
 
 Each item is normalized to:
 
@@ -228,6 +230,7 @@ Each item is normalized to:
   name: item.name || "Folklore location",
   category: classifyFolkloreCategory(item),
   categoryTags: buildFolkloreCategoryTags(item),
+  linkedOsmId: item.osm_id || null,
   folkloreCategory,
   folkloreTopics: classifyFolkloreTopics(item),
   categoryLabel: "Folklore · {Category}",

@@ -517,5 +517,5 @@ The newsletter shows a compact statistics strip; its food/shop total is read
 from the food dataset when rendering. Historical editions retain their original
 totals. Local finds are not labelled as confirmed new openings.
 `scripts/report/map-inventory.js` remains available for the homepage and other
-count consumers. It classifies places using the app’s own filter rules; the
+count consumers. It reconciles explicitly linked OSM/curated records before counting and classifies places using the app’s own filter rules; the
 newsletter renderer does not load the full inventory to publish a report.

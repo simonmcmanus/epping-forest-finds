@@ -331,6 +331,8 @@ function buildOsmCategoryTags(properties) {
     properties && properties.shop,
     properties && properties.tourism,
     properties && properties.historic,
+    properties && properties.memorial,
+    properties && properties["memorial:type"],
     properties && properties.railway,
   ].forEach((value) => addExpandedTag(tags, value));
   return Array.from(tags);
@@ -659,8 +661,21 @@ function isTransportCategory(place) {
 // artwork a plaque draws is decided by PLACE_FILTER_PRIORITY instead:
 // `blue_plaques` sits ahead of `plaques`, so a blue one gets the roundel and
 // anything else gets the bronze plate.
+function osmPlaqueKind(place) {
+  if (!place) return null;
+  const kinds = [place.memorial, place["memorial:type"], place.historic, place.category].map(normalizeTag);
+  if (kinds.includes("blue_plaque")) return "blue_plaque";
+  if (!kinds.includes("plaque")) return null;
+  return normalizeTag(place.colour) === "blue" ? "blue_plaque" : "plaque";
+}
+
+function osmPlaqueProperties(place) {
+  const kind = osmPlaqueKind(place);
+  return kind ? { category: "plaque", categoryLabel: kind === "blue_plaque" ? "Blue plaque" : "Plaque" } : {};
+}
+
 function isPlaqueCategory(place) {
-  return Boolean(place) && (place.folkloreCategory === "plaque" || place.category === "plaque");
+  return Boolean(place) && (place.folkloreCategory === "plaque" || place.category === "plaque" || Boolean(osmPlaqueKind(place)));
 }
 
 function hasFolkloreTopic(place, topic) {
@@ -670,7 +685,7 @@ function hasFolkloreTopic(place, topic) {
 }
 
 function isBluePlaqueCategory(place) {
-  return hasFolkloreTopic(place, "blue_plaque");
+  return hasFolkloreTopic(place, "blue_plaque") || osmPlaqueKind(place) === "blue_plaque";
 }
 
 function isFilmTvCategory(place) {

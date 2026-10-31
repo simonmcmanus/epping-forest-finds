@@ -1885,8 +1885,8 @@
         "osmType": "node",
         "osmId": 13049742872,
         "name": "Diana Kennedy",
-        "category": "memorial",
-        "categoryLabel": "Memorial",
+        "category": "plaque",
+        "categoryLabel": "Blue plaque",
         "amenity": null,
         "shop": null,
         "highway": null,
@@ -1900,7 +1900,8 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 461.1,
-        "distanceLimitFromForestBoundaryMetres": 466.7
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "memorial": "blue_plaque"
       }
     },
     {
@@ -1918,8 +1919,8 @@
         "osmType": "node",
         "osmId": 13049742873,
         "name": "Arthur Bacot",
-        "category": "memorial",
-        "categoryLabel": "Memorial",
+        "category": "plaque",
+        "categoryLabel": "Blue plaque",
         "amenity": null,
         "shop": null,
         "highway": null,
@@ -1933,7 +1934,8 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 461.0,
-        "distanceLimitFromForestBoundaryMetres": 466.7
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "memorial": "blue_plaque"
       }
     },
     {
@@ -1951,8 +1953,8 @@
         "osmType": "node",
         "osmId": 13049742874,
         "name": "Edward Manley Cummings",
-        "category": "memorial",
-        "categoryLabel": "Memorial",
+        "category": "plaque",
+        "categoryLabel": "Plaque",
         "amenity": null,
         "shop": null,
         "highway": null,
@@ -1966,7 +1968,8 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 461.1,
-        "distanceLimitFromForestBoundaryMetres": 466.7
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "memorial": "plaque"
       }
     },
     {
@@ -1984,8 +1987,8 @@
         "osmType": "node",
         "osmId": 13049742875,
         "name": "Christopher Cutchey",
-        "category": "memorial",
-        "categoryLabel": "Memorial",
+        "category": "plaque",
+        "categoryLabel": "Plaque",
         "amenity": null,
         "shop": null,
         "highway": null,
@@ -1999,7 +2002,8 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 458.1,
-        "distanceLimitFromForestBoundaryMetres": 466.7
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "memorial": "plaque"
       }
     },
     {
@@ -2019,9 +2023,6 @@
         "name": "George Granville Barker",
         "category": "plaque",
         "categoryLabel": "Blue plaque",
-        "folkloreTopics": [
-          "blue_plaque"
-        ],
         "amenity": null,
         "shop": null,
         "highway": null,
@@ -2035,7 +2036,8 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 441.3,
-        "distanceLimitFromForestBoundaryMetres": 466.7
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "memorial": "blue_plaque"
       }
     },
     {
