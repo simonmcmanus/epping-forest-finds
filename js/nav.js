@@ -923,7 +923,6 @@ function clearReportKeyboardInset() {
 function setupResizeHandler() {
   updateFilterUi();
   window.addEventListener("resize", () => {
-    updateSubfilterScrollHints();
     const activeNavTab = document.querySelector(".inspector-actions > .screen-active");
     if (activeNavTab) navHighlightPosition(activeNavTab);
     resizeCanvas();
