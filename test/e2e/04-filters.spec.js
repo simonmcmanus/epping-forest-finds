@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, settleMapIconsAndDraw } = require("./helpers");
+const { setup } = require("./helpers");
 
 test.describe("Map setup", () => {
   test.beforeEach(async ({ page }) => {
