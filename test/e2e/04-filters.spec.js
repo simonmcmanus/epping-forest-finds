@@ -129,7 +129,7 @@ test.describe("Map setup", () => {
   test("can reopen setup while the previous modal is fading out", async ({ page }) => {
     await page.click("#filterToggle");
     await page.getByRole("button", { name: "Close map setup" }).click();
-    await page.waitForTimeout(50);
+    await expect(page.locator("#onboardingOverlay")).toHaveClass(/fading-out/);
     await page.locator("#filterToggle").click({ force: true });
     await expect(page.locator("#onboardingOverlay")).toBeVisible();
     await expect(page.locator("#onboardingOverlay")).not.toHaveClass(/fading-out/);
