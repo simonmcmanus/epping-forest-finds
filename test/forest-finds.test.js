@@ -5565,8 +5565,8 @@ test("the /nearby/filter path opens the filter screen on load", () => {
   app.location.pathname = "/nearby/filter";
   const opened = app.applySelectionFromHash(false);
   assert.ok(opened, "applySelectionFromHash returns true for /nearby/filter");
-  assert.ok(app.state.filterScreenOpen, "filter screen is open");
-  assert.equal(app.els.inspectorTitle.textContent, "Filters", "inspector shows Filters title");
+  assert.ok(app.state.filterScreenOpen, "map setup route is open");
+  assert.equal(app.els.inspectorTitle.textContent, "Nearby", "Nearby remains underneath the setup modal");
   app.location.pathname = "/";
 });
 
