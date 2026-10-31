@@ -2917,13 +2917,18 @@ function openFilterSetup() {
   if (overlay._onboardingActive) return;
 
   if (typeof trackGaScreenView === "function") trackGaScreenView("Map setup");
-  // This is a modal over Nearby, not a replacement screen. Leave the inspector chrome and
-  // list in place underneath it so opening and closing setup never makes the panel slide away
-  // and back again.
-  const openedFromFilterPath = window.location.pathname === ROUTE_PATHS[ROUTE_FILTERS];
+  // Keep the route for bookmarks/history, but leave the Nearby inspector and its list rendered
+  // underneath the modal. This is deliberately not a replacement screen.
+  state.filterScreenOpen = true;
+  syncHashFromSelection();
+
   showOnboarding({ mode: "filters" }).then((result) => {
+    // Drop the route flag before committing so setOverviewFilters refreshes the existing Nearby
+    // list in place instead of treating this as a separate live panel.
+    state.filterScreenOpen = false;
     if (!result.cancelled && Array.isArray(result.filters)) setOverviewFilters(result.filters);
-    if (openedFromFilterPath && window.location.pathname === ROUTE_PATHS[ROUTE_FILTERS]) {
+    updateFilterUi();
+    if (window.location.pathname === ROUTE_PATHS[ROUTE_FILTERS]) {
       replaceHashInPlace("");
     }
   });
