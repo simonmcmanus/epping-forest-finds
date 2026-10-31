@@ -1330,10 +1330,12 @@ function offerLocationInvite({ blocked = false } = {}) {
 function hideNoticeCard(banner, { collapse = false } = {}) {
   let finished = false;
   let hideTimer = null;
+  let collapseTimer = null;
   const finish = () => {
     if (finished) return;
     finished = true;
     if (hideTimer) clearTimeout(hideTimer);
+    if (collapseTimer) clearTimeout(collapseTimer);
     banner.removeEventListener("transitionend", onTransitionEnd);
     banner.hidden = true;
     banner.classList.remove("fading-out", "onboarding-collapsing", "onboarding-collapsed");
@@ -1352,10 +1354,13 @@ function hideNoticeCard(banner, { collapse = false } = {}) {
     banner.classList.add("onboarding-collapsing");
     banner.style.setProperty("--consent-banner-height", `${banner.getBoundingClientRect().height}px`);
     void banner.offsetWidth;
-    requestAnimationFrame(() => banner.classList.add("onboarding-collapsed"));
+    const reducedMotion = prefersReducedMotion();
+    const collapseDelay = reducedMotion ? 0 : 620;
+    collapseTimer = setTimeout(() => banner.classList.add("onboarding-collapsed"), collapseDelay);
+    hideTimer = setTimeout(finish, reducedMotion ? 160 : collapseDelay + 820);
   }
   banner.classList.add("fading-out");
-  hideTimer = setTimeout(finish, collapse ? 700 : 420);
+  if (!collapse) hideTimer = setTimeout(finish, 420);
 }
 
 // Non-blocking "get a more custom experience" nudge shown after revealNoRealLocation() -- the
@@ -1491,6 +1496,9 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
     banner.setAttribute("aria-label", "Map setup");
     banner.classList.add("onboarding-invite");
     els.filterToggle?.classList.add("filter-toggle-guidance");
+    // The invitation itself counts as the one-time first-run nudge. Its explicit close and the
+    // automatic fade use the same value, so a reload cannot show the notice again.
+    try { localStorage.setItem("forest-finds-onboarding-v1", "declined"); } catch {}
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Make the map yours";
     if (els.consentBannerText) {
       els.consentBannerText.innerHTML = "Choose the finds you want to see. Press the Map setup button below to set up your map. You can change it anytime.";

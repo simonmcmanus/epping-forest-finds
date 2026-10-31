@@ -159,12 +159,12 @@
   overflow: hidden;
   max-height: var(--consent-banner-height);
   transition:
-    opacity 0.32s ease,
-    max-height 0.52s cubic-bezier(0.4, 0, 0.2, 1),
-    margin-top 0.52s cubic-bezier(0.4, 0, 0.2, 1),
-    padding-top 0.52s cubic-bezier(0.4, 0, 0.2, 1),
-    padding-bottom 0.52s cubic-bezier(0.4, 0, 0.2, 1),
-    border-width 0.52s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity 0.56s ease,
+    max-height 0.76s cubic-bezier(0.4, 0, 0.2, 1),
+    margin-top 0.76s cubic-bezier(0.4, 0, 0.2, 1),
+    padding-top 0.76s cubic-bezier(0.4, 0, 0.2, 1),
+    padding-bottom 0.76s cubic-bezier(0.4, 0, 0.2, 1),
+    border-width 0.76s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .consent-banner.onboarding-collapsing.onboarding-collapsed {
@@ -309,7 +309,7 @@
   place-items: center;
   position: absolute;
   right: 6px;
-  bottom: 3px;
+  bottom: 10px;
   pointer-events: none;
   color: var(--tree);
   font-size: 1.9rem;

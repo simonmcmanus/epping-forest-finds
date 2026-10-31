@@ -56,6 +56,8 @@ test.describe("Onboarding", () => {
       await page.waitForFunction(() => document.querySelector("#consentBanner")?.classList.contains("onboarding-attention"));
       await expect.poll(() => page.locator("#filterToggle").evaluate((el) => el.classList.contains("filter-toggle-hint"))).toBe(true);
       await expect(page.locator("#consentBanner")).toBeHidden();
+      await page.reload();
+      await expect(page.locator("#consentBanner")).toBeHidden();
     });
 
     test("Escape does not accidentally finish first-run setup", async ({ page }) => {
