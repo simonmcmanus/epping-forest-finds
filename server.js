@@ -16,6 +16,7 @@ try {
 } catch {}
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
+const ENABLE_LOCAL_SERVICE_WORKER = process.env.ENABLE_LOCAL_SERVICE_WORKER === "1";
 
 const PORT = Number(process.env.PORT || 8080);
 const ROOT = process.cwd();
@@ -91,12 +92,14 @@ async function handleCowProxy(req, res, url) {
   }
 }
 
-// Flags the service worker as running under this local dev server, so sw.js can switch
+// Flags the service worker as running under this dev server, so sw.js can switch
 // to a network-first fetch strategy instead of its production cache-first one. Local edits
 // to cached files (JS, CSS, data) then show up on refresh without needing a CACHE_NAME
 // bump — that bump only ever happens in CI (see cache-version-bump.yml), so it never
 // fires while iterating locally before a commit/push. A
-// production deploy (Netlify) serves sw.js as a static file, untouched by this function.
+// production deploy (Netlify) serves sw.js as a static file, untouched by this function. Ordinary
+// loopback development does not register a worker at all; this path remains for tunnelled dev
+// sessions and the explicit service-worker opt-in used by browser tests.
 //
 // The imported version markers prefix cache names with "dev-" here so the About screen's app-version display — and any bug
 // report submitted while testing locally, see appVersion in js/app.js — reads e.g.
@@ -108,6 +111,10 @@ function injectDevFlag(source) {
   // network-first path never ran -- local edits were served from the production cache-first
   // strategy until the cache happened to be cleared by hand.
   return source.replace(/^const IS_DEV/m, "self.__DEV__ = true;\nconst IS_DEV");
+}
+
+function injectLocalServiceWorkerOptIn(source) {
+  return `window.__ENABLE_LOCAL_SERVICE_WORKER__ = true;\n${source}`;
 }
 
 function handleStatic(req, res, url) {
@@ -142,6 +149,17 @@ function handleStatic(req, res, url) {
         return;
       }
       send(res, 200, injectDevFlag(source), MIME[".js"]);
+    });
+    return;
+  }
+
+  if (requested === "/js/nav.js" && ENABLE_LOCAL_SERVICE_WORKER) {
+    fs.readFile(resolved, "utf8", (err, source) => {
+      if (err) {
+        send(res, 404, "Not found");
+        return;
+      }
+      send(res, 200, injectLocalServiceWorkerOptIn(source), MIME[".js"]);
     });
     return;
   }
@@ -334,4 +352,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { _private: { injectDevFlag }, server };
+module.exports = { _private: { injectDevFlag, injectLocalServiceWorkerOptIn }, server };

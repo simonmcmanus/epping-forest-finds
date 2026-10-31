@@ -214,7 +214,7 @@ function appUpdateStatusView() {
 
 function appUpdateStatusHtml() {
   // No service worker (a native shell, an old browser) means no web update flow to report.
-  if (!("serviceWorker" in navigator)) return "";
+  if (serviceWorkerDisabled || !("serviceWorker" in navigator)) return "";
   const view = appUpdateStatusView();
   const checkedAt = view.checkedAt ? ` <span id="appUpdateCheckedAt">${view.checkedAt}</span>` : "";
   return `<div id="appUpdateStatus" class="settings-update" data-status="${view.status}">
@@ -442,7 +442,7 @@ function waitForInstallingWorker(registration, installing) {
 // an app worker only after registration.update() has produced a fully installed waiting worker;
 // an offline/failed check simply leaves the current app in place.
 async function downloadAppUpdate() {
-  if (!("serviceWorker" in navigator)) return null;
+  if (serviceWorkerDisabled || !("serviceWorker" in navigator)) return null;
   let registration;
   try {
     // `ready` never resolves for a first install whose worker is still waiting. Refreshing an
@@ -475,7 +475,7 @@ function activateDownloadedAppUpdate(waiting) {
 }
 
 function requestDataRefresh({ target = null, force = true } = {}) {
-  if (!("serviceWorker" in navigator)) return Promise.resolve(false);
+  if (serviceWorkerDisabled || !("serviceWorker" in navigator)) return Promise.resolve(false);
   const controller = target || navigator.serviceWorker.controller;
   if (!controller) return Promise.resolve(false);
 
@@ -585,7 +585,7 @@ function requestPersistentStorage() {
 // js/loader.js): on a first visit the worker takes control mid-load, and its controllerchange would
 // otherwise start a sync that downloads again every file the page is still fetching.
 function requestBackgroundDataSync(options) {
-  if (!("serviceWorker" in navigator)) return Promise.resolve();
+  if (serviceWorkerDisabled || !("serviceWorker" in navigator)) return Promise.resolve();
   if (!navigator.onLine) return Promise.resolve();
   const controller = navigator.serviceWorker.controller;
   if (!controller) return Promise.resolve(); // First load — nothing cached yet to refresh
@@ -603,10 +603,28 @@ function requestBackgroundDataSync(options) {
 const APP_UPDATE_CHECK_MIN_INTERVAL_MS = 10 * 60 * 1000;
 let swRegistration = null;
 let lastAppUpdateCheckAt = 0;
+let serviceWorkerDisabled = false;
+
+function isLocalDevelopmentHost() {
+  // Browser tests explicitly opt back in so their service-worker scenarios can run against the
+  // local server. Ordinary loopback development stays worker-free.
+  return !window.__ENABLE_LOCAL_SERVICE_WORKER__
+    && ["localhost", "127.0.0.1", "::1", "[::1]"].includes(window.location.hostname);
+}
+
+async function disableLocalServiceWorker() {
+  serviceWorkerDisabled = true;
+  try {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map((registration) => registration.unregister()));
+  } catch (error) {
+    console.error("Could not unregister the local service worker", error);
+  }
+}
 
 // force: the Settings "Check for updates" button, which skips the throttle.
 async function requestAppUpdateCheck({ force = false } = {}) {
-  if (state.swUpdateAvailable || !navigator.onLine || !("serviceWorker" in navigator)) return;
+  if (serviceWorkerDisabled || state.swUpdateAvailable || !navigator.onLine || !("serviceWorker" in navigator)) return;
   // No controller yet means the first install is still making the app available offline: there
   // is no running release to update, and its installing worker is not "an update downloading".
   if (!navigator.serviceWorker.controller) return;
@@ -634,6 +652,7 @@ async function requestAppUpdateCheck({ force = false } = {}) {
 }
 
 function setupBackgroundDataSync() {
+  if (serviceWorkerDisabled) return;
   if (backgroundDataSyncListenersBound) return;
   backgroundDataSyncListenersBound = true;
   const syncWhenVisible = () => {
@@ -689,7 +708,14 @@ function setupPwa() {
   // Inside the native shell the app and its data are bundled files: a cache-first worker in front
   // of them would be a second, stale copy with an update prompt that has nothing to wait on.
   // App updates come from the store there (spec-native.md "Versioning and the update story").
-  if ("serviceWorker" in navigator && !Native.isNative) {
+  const canUseServiceWorker = "serviceWorker" in navigator && !Native.isNative;
+  if (canUseServiceWorker && isLocalDevelopmentHost()) {
+    // A worker registered by an earlier local run can still serve the old app shell before this
+    // code executes. Remove it as soon as the app loads; the next refresh then comes directly
+    // from the dev server and sees edits immediately.
+    disableLocalServiceWorker();
+  }
+  if (canUseServiceWorker && !isLocalDevelopmentHost()) {
     let _firstChange = !navigator.serviceWorker.controller;
 
     navigator.serviceWorker.addEventListener("message", (event) => {

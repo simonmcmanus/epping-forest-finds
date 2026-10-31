@@ -117,7 +117,9 @@ module.exports = defineConfig({
   webServer: {
     command: "node server.js",
     url: baseURL,
-    env: { PORT: new URL(baseURL).port || "80" },
+    // Playwright's service-worker scenarios run on localhost, where the app normally disables
+    // the worker for local development. Explicitly opt those browser tests back in.
+    env: { PORT: new URL(baseURL).port || "80", ENABLE_LOCAL_SERVICE_WORKER: "1" },
     // Separate worktrees must never test an unrelated checkout's running server.
     reuseExistingServer: false,
     timeout: 30_000,
