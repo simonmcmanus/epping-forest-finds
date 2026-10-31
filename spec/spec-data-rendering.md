@@ -1042,15 +1042,7 @@ Search, Filter, Settings, and Report share identical navigation behaviour, gated
   is the one exception, where the flag it depends on (`state.searchScreenOpen`) is only set true
   just after that chokepoint runs, so `openSearchScreen()` re-derives it once more immediately
   afterward.
-- **Map setup opens the guided onboarding flow.** `openFilterSetup()` sets the compatibility
-  `state.filterScreenOpen` flag, opens the onboarding overlay with `{ mode: "filters" }`, and
-  starts from the current saved `state.overviewFilters`. The first step says **Choose what appears
-  on the map** and explains that the choices control map pins and the Nearby list. Each group then
-  uses the standard onboarding chips. The dialog keeps edits in a local set; **Done** calls
-  `setOverviewFilters()` once, while **Cancel changes** or clicking the translucent blurred backdrop
-  closes it without persistence. Both paths return to Nearby. The intro also previews the currently
-  selected categories with their map icons. The old `/nearby/filter` URL remains a compatibility entry point, not a
-  separate live panel. `filterCount` remains a compact summary badge on the entry button.
+- **Map setup opens as a modal over Nearby.** `openFilterSetup()` opens the onboarding overlay with `{ mode: "filters" }` without setting `state.filterScreenOpen` or replacing the inspector chrome, so the Nearby panel stays in place underneath it. It starts from the current saved `state.overviewFilters`. The first step asks **What would you like to see?**, explains that the choices customise the Nearby list and map, reports how many categories are not currently shown, and presents the current selection as designed icon tiles. Each group then uses the standard onboarding chips. The dialog keeps edits in a local set; **Done** calls `setOverviewFilters()` once to refresh the existing Nearby view, while **No changes**, Escape, or clicking the translucent blurred backdrop closes it without persistence. The old `/nearby/filter` URL remains a compatibility entry point, not a separate live panel. `filterCount` remains a compact summary badge on the entry button.
 
 Filter groups (defined by `FILTER_GROUPS` in `js/categories.js`, the single source of truth):
 
