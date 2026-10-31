@@ -2017,8 +2017,11 @@
         "osmType": "node",
         "osmId": 13049742876,
         "name": "George Granville Barker",
-        "category": "memorial",
-        "categoryLabel": "Memorial",
+        "category": "plaque",
+        "categoryLabel": "Blue plaque",
+        "folkloreTopics": [
+          "blue_plaque"
+        ],
         "amenity": null,
         "shop": null,
         "highway": null,
