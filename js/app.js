@@ -2698,54 +2698,6 @@ function zoomAt(factor, screenPoint) {
   requestDraw();
 }
 
-function renderFilterBodyHtml() {
-  return `<div class="filter-body">
-    <div class="filter-actions">
-      <span id="filterResultsCount" class="filter-results-count"></span>
-      <button class="filter-action-btn filter-clear-all" type="button" data-filter-clear-all>
-        Clear all filters
-      </button>
-    </div>
-    <div class="filter-groups">
-      ${FILTER_GROUPS.map((group) => `
-        <section class="filter-group-card" data-filter-group-section="${escapeHtml(group.key)}">
-          <header class="filter-group-header" data-filter-group="${escapeHtml(group.key)}">
-            <div class="filter-group-title">
-              ${group.icon ? appIconHtml(group.icon, "app-icon filter-group-icon") : ""}
-              <span class="filter-group-label">${escapeHtml(group.label)}</span>
-            </div>
-            <span class="filter-group-count" data-group-count="${escapeHtml(group.key)}">0 of ${group.subfilters.length}</span>
-          </header>
-          <div class="filter-group-grid">
-            ${group.subfilters.map((subfilter) => `
-              <button class="filter-chip" type="button" data-filter-subfilter="${escapeHtml(subfilter.key)}">
-                ${subfilter.icon ? appIconHtml(subfilter.icon, "app-icon filter-chip-icon") : ""}
-                <span class="filter-chip-label">${escapeHtml(subfilter.label)}</span>
-                <span class="filter-chip-check" aria-hidden="true">✓</span>
-              </button>
-            `).join("")}
-          </div>
-          <p class="filter-group-outside" data-filter-group-outside="${escapeHtml(group.key)}" hidden></p>
-        </section>
-      `).join("")}
-    </div>
-  </div>`;
-}
-
-// The Filter screen's own body: the chip groups above, exactly as renderFilterBodyHtml() has
-// always built them, plus the same nearest-list markup the plain Nearby screen shows -- so
-// toggling a chip has a visible effect right there instead of only being provable by backing
-// out to Nearby again. refreshFilterScreenList() re-renders just the list half on every filter
-// change; the chip half is only ever patched in place by updateFilterUi(), never rebuilt, so a
-// keyboard user's focus stays on the chip they just pressed.
-function attachFilterScrollHints() {
-  const rows = els.inspectorBody.querySelectorAll(".filter-subfilters-row");
-  for (const row of rows) {
-    row.addEventListener("scroll", () => updateSingleSubfilterScrollHint(row), { passive: true });
-    updateSingleSubfilterScrollHint(row);
-  }
-}
-
 function attachNearbyRailScrollHints(root = els.inspectorBody) {
   if (!root?.querySelectorAll) return;
   for (const row of root.querySelectorAll(".filter-rail .rail-pills")) {
@@ -2767,117 +2719,10 @@ function updateNearbyRailScrollHint(row) {
   rail.classList.toggle("has-right-overflow", isScrollable && row.scrollLeft < maxScrollLeft - 2);
 }
 
-function updateSingleSubfilterScrollHint(row) {
-  if (!row) return;
-  const maxScrollLeft = row.scrollWidth - row.clientWidth;
-  const isScrollable = maxScrollLeft > 6;
-  const isAtStart = !isScrollable || row.scrollLeft <= 2;
-  const isAtEnd = !isScrollable || row.scrollLeft >= maxScrollLeft - 2;
-  row.classList.toggle("is-scrollable", isScrollable);
-  row.classList.toggle("is-scroll-start", isAtStart);
-  row.classList.toggle("is-scroll-end", isAtEnd);
-}
-
-function updateSubfilterScrollHints() {
-  const rows = els.inspectorBody ? els.inspectorBody.querySelectorAll(".filter-subfilters-row") : [];
-  for (const row of rows) {
-    updateSingleSubfilterScrollHint(row);
-  }
-}
-
 function prefersReducedMotion() {
   return Boolean(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 }
 
-function setSubfilterPanelExpanded(panel, expanded) {
-  if (!panel) return;
-
-  const wasExpanded = panel.dataset.expanded === "true";
-
-  if (wasExpanded === expanded && panel.dataset.animating !== "true") {
-    panel.hidden = !expanded;
-    if (!expanded) {
-      panel.style.maxHeight = "";
-      panel.style.opacity = "";
-      panel.style.transform = "";
-    } else {
-      updateSubfilterScrollHints();
-    }
-    return;
-  }
-
-  panel.dataset.expanded = expanded ? "true" : "false";
-
-  if (prefersReducedMotion()) {
-    panel.hidden = !expanded;
-    panel.classList.remove("animating");
-    panel.style.maxHeight = "";
-    panel.style.opacity = "";
-    panel.style.transform = "";
-    updateSubfilterScrollHints();
-    return;
-  }
-
-  if (expanded) {
-    if (panel.dataset.animating === "true") return;
-    panel.hidden = false;
-    panel.classList.add("animating");
-    panel.dataset.animating = "true";
-    panel.style.maxHeight = "0px";
-    panel.style.opacity = "0";
-    panel.style.transform = "translateY(-12px)";
-
-    requestAnimationFrame(() => {
-      panel.style.maxHeight = `${panel.scrollHeight}px`;
-      panel.style.opacity = "1";
-      panel.style.transform = "translateY(0)";
-    });
-
-    const onExpandDone = () => {
-      panel.classList.remove("animating");
-      panel.dataset.animating = "false";
-      panel.style.maxHeight = "";
-      panel.style.opacity = "";
-      panel.style.transform = "";
-      updateSubfilterScrollHints();
-    };
-
-    panel.addEventListener("transitionend", onExpandDone, { once: true });
-    return;
-  }
-
-  if (panel.hidden) return;
-  if (panel.dataset.animating === "true") return;
-
-  panel.classList.add("animating");
-  panel.dataset.animating = "true";
-  panel.style.maxHeight = `${panel.scrollHeight}px`;
-  panel.style.opacity = "1";
-  panel.style.transform = "translateY(0)";
-
-  requestAnimationFrame(() => {
-    panel.style.maxHeight = "0px";
-    panel.style.opacity = "0";
-    panel.style.transform = "translateY(-10px)";
-  });
-
-  const onCollapseDone = () => {
-    panel.hidden = true;
-    panel.classList.remove("animating");
-    panel.dataset.animating = "false";
-    panel.style.maxHeight = "";
-    panel.style.opacity = "";
-    panel.style.transform = "";
-    updateSubfilterScrollHints();
-  };
-
-  panel.addEventListener("transitionend", onCollapseDone, { once: true });
-}
-
-// persist:false is for a URL-driven pre-filter (a /nearby/<slug> page, or a shared ?show= link)
-// -- landing on one of those names what that page shows, not a preference the reader chose, so
-// it must not overwrite their own saved filters (saveFilterState) for every later visit to
-// /nearby. An actual chip tap, on that page or anywhere else, always persists as before.
 function setOverviewFilters(nextFilters, { persist = true, render = true, railTap = false } = {}) {
   const previousFilters = state.overviewFilters;
   const sanitizedFilters = sanitizeOverviewFilters(nextFilters);
@@ -2930,12 +2775,6 @@ function setOverviewFilters(nextFilters, { persist = true, render = true, railTa
   if (isOverviewScreenActive() && !state.filterScreenOpen) {
     selectOverview();
     ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
-  } else if (state.filterScreenOpen) {
-    // The whole point of the Filter screen showing the nearest list is that a chip tap proves
-    // its own effect right there (see filterScreenBodyHtml()) -- refresh just that list, never
-    // the chip panel above it, which updateFilterUi() patches in place a few lines up.
-    refreshFilterScreenList();
-    ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS, force: true });
   }
   requestDraw();
 }
