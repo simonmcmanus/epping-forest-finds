@@ -764,58 +764,6 @@ function swapStaticChipsForRail() {
   if (!nav || typeof filterRailHtml !== "function") return;
   nav.outerHTML = filterRailHtml();
   if (typeof attachNearbyRailScrollHints === "function") attachNearbyRailScrollHints();
-  maybePlayRailIntro(false);
-}
-
-// The rail arriving on screen keeps its server-rendered pills in place. If more than fit, the row
-// gives one short sideways peek and bounce so it is obvious it scrolls, without making the pills
-// themselves appear to be re-rendering. A rebuild that replaces a rail already on screen (a
-// location update, a radius change) does not replay it, and one that lands before the rail has any
-// width (still behind the boot overlay) leaves it owed until the rail is actually visible.
-let railIntroDue = true;
-const railIntroRows = new WeakSet();
-let railIntroPendingRow = null;
-let railIntroLoadListenerAttached = false;
-function maybePlayRailIntro(hadRail) {
-  if (!hadRail) railIntroDue = true;
-  const row = els.inspectorBody && els.inspectorBody.querySelector && els.inspectorBody.querySelector(".filter-rail .rail-pills");
-  if (!railIntroDue || !row || !row.clientWidth || railIntroRows.has(row)) return;
-  if (document.readyState !== "complete") {
-    railIntroPendingRow = row;
-    if (!railIntroLoadListenerAttached) {
-      railIntroLoadListenerAttached = true;
-      window.addEventListener("load", () => {
-        railIntroLoadListenerAttached = false;
-        const pendingRow = railIntroPendingRow;
-        railIntroPendingRow = null;
-        if (!pendingRow?.isConnected) return;
-        // Let the map, images, and first data paint settle before moving the rail.
-        setTimeout(() => maybePlayRailIntro(true), 350);
-      }, { once: true });
-    }
-    return;
-  }
-  railIntroRows.add(row);
-  railIntroDue = false;
-  animateRailIntro(row);
-}
-
-function animateRailIntro(row) {
-  if (!row || prefersReducedMotion()) return;
-  const overflow = row.scrollWidth - row.clientWidth;
-  if (overflow <= 8) return;
-  const peek = Math.min(48, overflow);
-  setTimeout(() => {
-    if (!row.isConnected) { railIntroDue = true; return; }
-    if (row.scrollLeft > 0) return;
-    const rail = row.closest(".filter-rail");
-    rail?.classList.add("has-more-right");
-    row.scrollTo({ left: peek, behavior: "smooth" });
-    setTimeout(() => {
-      rail?.classList.remove("has-more-right");
-      if (row.isConnected && Math.abs(row.scrollLeft - peek) < 24) row.scrollTo({ left: 0, behavior: "smooth" });
-    }, 550);
-  }, 450);
 }
 
 function selectOverview(animate = false) {
@@ -870,7 +818,6 @@ function selectOverview(animate = false) {
   }
 
   _overviewListKey = listKey;
-  const hadRail = Boolean(els.inspectorBody && els.inspectorBody.querySelector && els.inspectorBody.querySelector(".filter-rail"));
   const patchInPlace = railPatchPending && !animate;
   railPatchPending = false;
   if (patchInPlace && patchOverviewBody(nearestSummary)) {
@@ -884,7 +831,6 @@ function selectOverview(animate = false) {
       hydrateOverviewBusStopDirections();
       animateNearestItemReorder(previousNearestPositions);
       if (typeof attachNearbyRailScrollHints === "function") attachNearbyRailScrollHints();
-      maybePlayRailIntro(hadRail);
     }, { preserveScroll });
   }
   // A category landing path is already the user's navigation target.  Nearby is re-rendered
