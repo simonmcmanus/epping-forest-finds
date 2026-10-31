@@ -345,7 +345,7 @@ function showOnboarding({ mode = "first-run" } = {}) {
       renderStep("back");
     }
 
-    function finish({ cancelled = false } = {}) {
+    function finish() {
       if (finished) return;
       finished = true;
       if (!filterSetupMode) {
