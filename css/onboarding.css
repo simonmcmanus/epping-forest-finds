@@ -60,6 +60,9 @@
 
 .onboarding-overlay.filter-setup .onboarding-card {
   cursor: default;
+  height: min(400px, calc(100vh - 32px));
+  min-height: 0;
+  max-height: calc(100vh - 32px);
 }
 
 .onboarding-card {
@@ -235,13 +238,13 @@
   display: flex;
   align-items: center;
   min-width: 0;
-  flex-direction: column;
-  gap: 4px;
+  flex-direction: row;
+  gap: 5px;
   padding: 3px 2px;
   border: 0;
   background: transparent;
   color: var(--tree);
-  text-align: center;
+  text-align: left;
 }
 
 .onboarding-selection-item.is-empty {
@@ -251,11 +254,11 @@
 .onboarding-selection-icon {
   display: grid;
   place-items: center;
-  flex: 0 0 30px;
-  width: 30px;
-  height: 30px;
+  flex: 0 0 25px;
+  width: 25px;
+  height: 25px;
   border: 1px solid rgba(36, 56, 47, 0.09);
-  border-radius: 10px;
+  border-radius: 8px;
   background: var(--sage);
 }
 
@@ -271,7 +274,7 @@
   max-width: 100%;
   flex-direction: column;
   gap: 2px;
-  align-items: center;
+  align-items: flex-start;
 }
 
 .onboarding-selection-item-label,
