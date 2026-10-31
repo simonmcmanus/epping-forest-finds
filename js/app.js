@@ -1564,9 +1564,7 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
       banner.classList.remove("fading-out");
       banner.hidden = true;
       showOnboarding().then((onboardResult) => {
-        state.overviewFilters = sanitizeOverviewFilters(
-          onboardResult.cancelled ? state.overviewFilters : onboardResult.filters
-        );
+        state.overviewFilters = sanitizeOverviewFilters(onboardResult.filters);
         saveFilterState();
         updateFilterUi();
         if (isOverviewScreenActive()) selectOverview();

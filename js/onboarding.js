@@ -88,7 +88,8 @@ function onboardingReducedMotion() {
     && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-// Returns a Promise resolving to { filters: string[]|null, cancelled: boolean }.
+// Returns a Promise resolving to { filters: string[] }. Every exit path applies the current
+// staged selection, including the close button, Escape, and backdrop dismissal.
 function showOnboarding({ mode = "first-run" } = {}) {
   return new Promise((resolve) => {
     const filterSetupMode = mode === "filters";
@@ -422,7 +423,7 @@ function showOnboarding({ mode = "first-run" } = {}) {
         hideTimer = setTimeout(hide, 620);
         overlay._onboardingHideTimer = hideTimer;
       }
-      resolve({ filters: Array.from(selected), cancelled: false });
+      resolve({ filters: Array.from(selected) });
     }
 
     overlay._onboardingCancel = filterSetupMode ? () => finish() : null;
