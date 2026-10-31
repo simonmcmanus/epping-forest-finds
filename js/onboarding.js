@@ -50,10 +50,7 @@ function mapSetupIconMarkup() {
 }
 
 function mapSetupSelectionPreviewMarkup(selected) {
-  const current = FILTER_GROUPS.flatMap((group) => group.subfilters.map((subfilter) => ({
-    ...subfilter,
-    groupLabel: group.label,
-  })))
+  const current = FILTER_GROUPS.flatMap((group) => group.subfilters)
     .filter((subfilter) => selected.has(subfilter.key));
   if (!current.length) {
     return `
@@ -74,12 +71,8 @@ function mapSetupSelectionPreviewMarkup(selected) {
       </div>
       <div class="onboarding-selection-preview" aria-label="Currently shown categories">
       ${current.map((subfilter) => `
-        <span class="onboarding-selection-item">
-          <span class="onboarding-selection-icon"><img src="data/icons/${subfilter.icon}.png" alt=""></span>
-          <span class="onboarding-selection-item-copy">
-            <span class="onboarding-selection-item-label">${subfilter.label}</span>
-            <span class="onboarding-selection-item-group">${subfilter.groupLabel}</span>
-          </span>
+        <span class="onboarding-selection-item" role="img" aria-label="${subfilter.label}" title="${subfilter.label}">
+          <img src="data/icons/${subfilter.icon}.png" alt="">
         </span>
       `).join("")}
       </div>
