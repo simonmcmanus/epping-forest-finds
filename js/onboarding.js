@@ -136,6 +136,7 @@ function showOnboarding({ mode = "first-run" } = {}) {
       : DEFAULT_OVERVIEW_FILTER_KEYS;
     const selected = new Set(sanitizeOverviewFilters(startingFilters));
     let finished = false;
+    let returnToIntroOnBack = false;
 
     function clearCardResize() {
       if (!cardEl) return;
@@ -284,6 +285,7 @@ function showOnboarding({ mode = "first-run" } = {}) {
           );
           if (nextIndex < 0) return;
           const direction = nextIndex >= stepIndex ? "forward" : "back";
+          returnToIntroOnBack = true;
           stepIndex = nextIndex;
           renderProgress();
           renderStep(direction);
@@ -333,6 +335,7 @@ function showOnboarding({ mode = "first-run" } = {}) {
         finish();
         return;
       }
+      returnToIntroOnBack = false;
       stepIndex++;
       renderProgress();
       renderStep("forward");
@@ -340,7 +343,12 @@ function showOnboarding({ mode = "first-run" } = {}) {
 
     function goBack() {
       if (stepIndex <= 0) return;
-      stepIndex--;
+      if (returnToIntroOnBack) {
+        returnToIntroOnBack = false;
+        stepIndex = 0;
+      } else {
+        stepIndex--;
+      }
       renderProgress();
       renderStep("back");
     }

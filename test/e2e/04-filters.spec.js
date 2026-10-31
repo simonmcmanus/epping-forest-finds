@@ -31,6 +31,8 @@ test.describe("Map setup", () => {
     await page.locator('.onboarding-selection-item[data-group-key="food"]').click();
     await expect(page.getByRole("heading", { name: "Food" })).toBeVisible();
     await expect(page.locator(".onboarding-chip")).toHaveCount(4);
+    await page.locator(".onboarding-nav .ob-back").click();
+    await expect(page.getByRole("heading", { name: "What would you like to see?" })).toBeVisible();
   });
 
   test("the control reads as map setup and uses the layers icon", async ({ page }) => {
