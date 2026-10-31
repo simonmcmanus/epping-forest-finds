@@ -5792,7 +5792,8 @@ function startCompassSmoothing() {
   if (state.compassAnimationFrame != null) return;
 
   const tick = (timestamp) => {
-    state.compassAnimationFrameRequestedAt = null;
+    // Keep the watchdog timestamp until this frame completes or queues its successor.
+    // A render error must leave evidence of the stranded handle so recovery can restart it.
     _overlapRectCache = undefined;
     _tiltProjectionCache = undefined;
     _nearbyRenderOriginCache = undefined;
@@ -5800,6 +5801,7 @@ function startCompassSmoothing() {
     const hasBetaWork = Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) >= 0.05;
     if (!hasHeading && !hasBetaWork) {
       state.compassAnimationFrame = null;
+      state.compassAnimationFrameRequestedAt = null;
       state.compassAnimationTime = null;
       return;
     }
@@ -5867,6 +5869,7 @@ function startCompassSmoothing() {
     if (!hasHeading && betaSettled) {
       if (tiltActive()) requestDraw();
       state.compassAnimationFrame = null;
+      state.compassAnimationFrameRequestedAt = null;
       state.compassAnimationTime = null;
       return;
     }
@@ -5894,6 +5897,7 @@ function startCompassSmoothing() {
         requestDraw();
       }
       state.compassAnimationFrame = null;
+      state.compassAnimationFrameRequestedAt = null;
       state.compassAnimationTime = null;
       return;
     }

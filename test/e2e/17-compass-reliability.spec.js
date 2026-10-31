@@ -209,6 +209,37 @@ test.describe("compass reliability", () => {
     ).toBe(false);
   });
 
+  test("directions resume after a compass frame fails while new readings keep arriving", async ({ page }) => {
+    const result = await page.evaluate(async () => {
+      const fire = (heading) => window.dispatchEvent(new DeviceOrientationEvent("deviceorientationabsolute", {
+        alpha: 360 - heading, beta: 0, gamma: 0, absolute: true,
+      }));
+      for (let i = 0; i < 6; i += 1) fire(90);
+      const originalUpdate = updateOverviewDirectionArrows;
+      let failed = false;
+      updateOverviewDirectionArrows = function () {
+        failed = true;
+        throw new Error("simulated transient compass render failure");
+      };
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      updateOverviewDirectionArrows = originalUpdate;
+      const frozen = state.compassHeading;
+      fire(180);
+      const recovered = recoverWedgedAnimationFrames(performance.now() + ANIMATION_FRAME_WEDGED_MS + 1000);
+      return { failed, frozen, recovered };
+    });
+    expect(result.frozen).toBeCloseTo(90, 0);
+    expect(result.failed, "the actual compass animation callback must have failed").toBe(true);
+    expect(result.recovered, "the watchdog must restart directions even though the sensor never stopped").toBe(true);
+    await expect.poll(() => page.evaluate(() => state.compassHeading)).toBeGreaterThan(170);
+    // Flat navigation finishes the live turn with a CSS rotation over the last painted map.
+    await expect.poll(() => page.evaluate(() => {
+      const matrix = new DOMMatrix(getComputedStyle(els.canvas).transform);
+      const cssRotation = Math.atan2(matrix.b, matrix.a) * 180 / Math.PI;
+      return Math.abs(shortestCompassDelta(-180, navigationMapRotationDegrees() + cssRotation));
+    })).toBeLessThan(5);
+  });
+
   test("returning to the app in the same spot keeps the heading instead of spinning back to north", async ({ page }) => {
     // Reported from the field: putting the phone down (sensor goes stale) and picking it back
     // up re-rotated the map from north even though the walker had not moved an inch.
