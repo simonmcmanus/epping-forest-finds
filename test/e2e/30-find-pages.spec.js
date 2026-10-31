@@ -434,8 +434,8 @@ test.describe("generated find/nearby pages", () => {
       await expect(body.locator('h3.detail-section-heading:has-text("Related")')).toHaveCount(1);
       // Category/group links are the same .nearest-item card as the nearest-tree/cow entries, not
       // a different pill style -- one consistent list under each heading.
-      await expect(body.locator('a.nearest-item[href="/nearby/pubs/"]')).toHaveCount(1);
-      await expect(body.locator('a.nearest-item[href="/nearby/food/"]')).toHaveCount(1);
+      await expect(body.locator('a.nearest-item[href^="/nearby/pubs/#near="]')).toHaveCount(1);
+      await expect(body.locator('a.nearest-item[href^="/nearby/food/#near="]')).toHaveCount(1);
       // Carries the business's own position via the near= hash (see the dedicated test below),
       // so this is a prefix match rather than an exact href.
       await expect(body.locator('a.nearest-item[href^="/nearby/trees/#near="]')).toHaveCount(1);

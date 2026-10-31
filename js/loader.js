@@ -188,7 +188,7 @@ async function loadMapData() {
       // A /find/ landing's place is resolvable now that the data is in: select it rather than
       // replacing the server-rendered panel with the Nearby list.
       if (!state.selected && !state.filterScreenOpen && !state.searchScreenOpen) {
-        if (findLandingSlug()) applySelectionFromHash(false);
+        if (findLandingSlug() || routeValueFromLocation()) applySelectionFromHash(false);
         else selectOverview();
       } else {
         refreshSelectedDetailForNearbyData();
@@ -205,7 +205,7 @@ async function loadMapData() {
     if (!state.dataLoaded) return;
     state.bounds = calculateBounds();
     if (!state.selected && !state.filterScreenOpen && !state.searchScreenOpen) {
-      if (findLandingSlug()) applySelectionFromHash(false);
+      if (findLandingSlug() || routeValueFromLocation()) applySelectionFromHash(false);
       else selectOverview();
     }
     requestDraw();

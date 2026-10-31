@@ -9008,6 +9008,7 @@ function ensureSearchIndex() {
 // derived here, once per road, the first time that road turns up in a result.
 function ensureRoadAnchor(road) {
   if (!road || road.point) return road && road.point ? road.point : null;
+  if (!Array.isArray(road.segments)) return null;
   const anchor = pathLabelAnchor(road);
   if (!anchor) return null;
   const lonLat = unprojectPoint(anchor);
