@@ -67,14 +67,22 @@ test.describe("Map setup", () => {
     await expect(page.locator("#onboardingOverlay")).toBeVisible();
   });
 
-  test("keeps a constant wizard height between intro and category steps", async ({ page }) => {
+  test("keeps the category step compact with its actions visible", async ({ page }) => {
     await page.click("#filterToggle");
     const card = page.locator(".onboarding-card");
-    const introHeight = await card.evaluate((el) => el.getBoundingClientRect().height);
     await page.getByRole("button", { name: "Choose categories" }).click();
     await expect(page.getByRole("heading", { name: "Nature" })).toBeVisible();
-    const categoryHeight = await card.evaluate((el) => el.getBoundingClientRect().height);
-    expect(Math.abs(introHeight - categoryHeight)).toBeLessThanOrEqual(1);
+    const layout = await card.evaluate((el) => {
+      const cardRect = el.getBoundingClientRect();
+      const nextRect = el.querySelector(".ob-next").getBoundingClientRect();
+      const cancelRect = el.querySelector(".ob-cancel").getBoundingClientRect();
+      return {
+        height: cardRect.height,
+        actionsVisible: nextRect.bottom <= cardRect.bottom && cancelRect.bottom <= cardRect.bottom,
+      };
+    });
+    expect(layout.height).toBeLessThanOrEqual(380);
+    expect(layout.actionsVisible).toBe(true);
   });
 
   test("keeps the Nearby panel in place behind the setup dialog", async ({ page }) => {
