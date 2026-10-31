@@ -160,6 +160,7 @@ function showOnboarding({ mode = "first-run" } = {}) {
 
     function renderStep(direction) {
       const step = steps[stepIndex];
+      overlay.classList.toggle("filter-intro", filterSetupMode && step.type === "filter-intro");
       preloadStepImages(stepIndex + 1);
 
       contentEl.classList.remove("entering-forward", "entering-backward");
@@ -295,6 +296,7 @@ function showOnboarding({ mode = "first-run" } = {}) {
         overlay._onboardingHideHandler = null;
         overlay._onboardingHideTimer = null;
         overlay.classList.remove("filter-setup");
+        overlay.classList.remove("filter-intro");
         overlay.classList.remove("opening");
         overlay.classList.remove("fading-out");
       };

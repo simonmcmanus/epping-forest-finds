@@ -248,7 +248,7 @@
 .onboarding-selection-card {
   width: 100%;
   max-width: none;
-  margin-top: 12px;
+  margin-top: 8px;
 }
 
 .onboarding-selection-heading {
@@ -256,7 +256,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   padding: 0 2px;
 }
 
@@ -271,7 +271,7 @@
 .onboarding-selection-preview {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 8px;
+  gap: 4px 10px;
   width: 100%;
 }
 
@@ -280,19 +280,19 @@
   align-items: center;
   min-width: 0;
   flex-direction: row;
-  gap: 7px;
-  padding: 7px;
-  border: 1px solid var(--border-soft);
-  border-radius: 12px;
-  background: var(--surface-soft);
+  gap: 6px;
+  padding: 2px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--tree);
   text-align: left;
-  transition: background 180ms ease, border-color 180ms ease, opacity 180ms ease;
+  transition: opacity 180ms ease;
 }
 
 .onboarding-selection-item.is-empty {
   opacity: 0.38;
-  background: var(--surface-neutral);
+  background: transparent;
 }
 
 .onboarding-selection-icon {
@@ -518,12 +518,31 @@
 }
 
 .onboarding-overlay.filter-setup .onboarding-step-heading {
+  flex-direction: column;
   justify-content: flex-start;
+  align-items: center;
+  gap: 8px;
+  text-align: center;
 }
 
 .onboarding-overlay.filter-setup .onboarding-step-subtitle {
   max-width: none;
-  text-align: left;
+  text-align: center;
+}
+
+.onboarding-overlay.filter-setup .onboarding-step-heading .onboarding-step-title {
+  flex: 0 0 auto;
+  text-align: center;
+}
+
+.onboarding-overlay.filter-setup.filter-intro .onboarding-card {
+  height: auto;
+  min-height: 0;
+}
+
+.onboarding-overlay.filter-setup.filter-intro .onboarding-content {
+  flex: 0 1 auto;
+  overflow-y: visible;
 }
 
 .onboarding-overlay.filter-setup .onboarding-chips {
@@ -549,8 +568,8 @@
 
 @media (max-width: 430px) {
   .onboarding-selection-item {
-    gap: 5px;
-    padding: 5px;
+    gap: 4px;
+    padding: 1px 0;
   }
 
   .onboarding-selection-icon {
