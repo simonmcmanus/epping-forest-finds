@@ -60,7 +60,7 @@
 
 .onboarding-overlay.filter-setup .onboarding-card {
   cursor: default;
-  height: min(400px, calc(100vh - 32px));
+  height: min(520px, calc(100vh - 32px));
   min-height: 0;
   max-height: calc(100vh - 32px);
   padding-top: 18px;
@@ -221,6 +221,38 @@
 .onboarding-map-setup-icon svg {
   width: 56px;
   height: 56px;
+}
+
+.onboarding-step-heading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+}
+
+.onboarding-step-heading .onboarding-step-icon {
+  flex: 0 0 48px;
+  width: 48px;
+  height: 48px;
+  margin-bottom: 0;
+}
+
+.onboarding-step-heading .onboarding-map-setup-icon {
+  flex-basis: 42px;
+  width: 42px;
+  height: 42px;
+}
+
+.onboarding-step-heading .onboarding-map-setup-icon svg {
+  width: 42px;
+  height: 42px;
+}
+
+.onboarding-step-heading .onboarding-step-title {
+  flex: 1;
+  text-align: left;
 }
 
 .onboarding-selection-label {
