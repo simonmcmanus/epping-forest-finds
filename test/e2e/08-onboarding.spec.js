@@ -27,10 +27,11 @@ test.describe("Onboarding", () => {
     test("the guided dialog is announced after the reader asks for setup", async ({ page }) => {
       await page.goto("/nearby");
       await page.locator("#consentBannerDecline").click();
-      await expect(page.locator("#consentBannerAccept")).toHaveText("Set up my map");
-      await page.locator("#consentBannerAccept").click();
+      await expect(page.locator("#consentBannerMapSetupArrow")).toBeVisible();
+      await page.locator("#filterToggle").click();
       const dialog = page.getByRole("dialog", { name: "Set up Epping Forest Finds" });
       await expect(dialog).toBeVisible();
+      await expect(dialog.getByRole("heading", { name: "What would you like to see?" })).toBeVisible();
       await expect(dialog).toHaveAttribute("aria-modal", "true");
     });
 
@@ -38,6 +39,8 @@ test.describe("Onboarding", () => {
       await page.goto("/nearby");
       await page.locator("#consentBannerDecline").click();
       await expect(page.locator("#consentBannerText")).toContainText("Map setup button");
+      await expect(page.locator("#consentBannerMapSetupArrow")).toBeVisible();
+      await expect(page.locator("#consentBannerAccept")).toBeHidden();
       await expect(page.locator("#filterToggle")).toBeVisible();
       await page.waitForFunction(() => document.querySelector("#consentBanner")?.classList.contains("onboarding-attention"));
       await expect.poll(() => page.locator("#filterToggle").evaluate((el) => el.classList.contains("filter-toggle-hint"))).toBe(true);
@@ -47,13 +50,12 @@ test.describe("Onboarding", () => {
     test("Escape does not accidentally finish first-run setup", async ({ page }) => {
       await page.goto("/nearby");
       await page.locator("#consentBannerDecline").click();
-      await page.locator("#consentBannerAccept").click();
+      await page.locator("#filterToggle").click();
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
       await page.keyboard.press("Escape");
-      await expect(page.locator("#onboardingOverlay")).toBeVisible();
+      await expect(page.locator("#onboardingOverlay")).toBeHidden();
       expect(await page.evaluate(() => localStorage.getItem("forest-finds-onboarding-v1"))).toBeNull();
       expect(await page.evaluate(() => state.overviewFilters.length)).toBeGreaterThan(0);
-      await page.locator(".ob-skip").click();
     });
 
     test("the non-blocking first-run card explains location and cookies", async ({ page }) => {
@@ -78,7 +80,8 @@ test.describe("Onboarding", () => {
       await expect(page.locator("#consentBanner")).toBeVisible();
       await expect(page.locator("#consentBannerAccept")).toHaveText("Enable location & cookies");
       await page.locator("#consentBannerDecline").click();
-      await expect(page.locator("#consentBannerAccept")).toHaveText("Set up my map");
+      await expect(page.locator("#consentBannerAccept")).toBeHidden();
+      await expect(page.locator("#consentBannerMapSetupArrow")).toBeVisible();
       expect(await page.evaluate(() => localStorage.getItem("ff-location-v1"))).toBe("declined");
       expect(await page.evaluate(() => localStorage.getItem("ff-track-v1"))).toBe("0");
     });
@@ -87,14 +90,15 @@ test.describe("Onboarding", () => {
       await page.goto("/nearby");
       await expect(page.locator("#consentBanner")).toContainText("Allow location & cookies");
       await page.locator("#consentBannerAccept").click();
-      await expect(page.locator("#consentBannerAccept")).toHaveText("Set up my map");
+      await expect(page.locator("#consentBannerText")).toContainText("Map setup button");
+      await expect(page.locator("#consentBannerMapSetupArrow")).toBeVisible();
     });
 
     test("the guided flow toggles a chip and can go back to its welcome step", async ({ page }) => {
       await page.goto("/nearby");
       await page.locator("#consentBannerDecline").click();
-      await page.locator("#consentBannerAccept").click();
-      await page.locator(".ob-primary").click();
+      await page.locator("#filterToggle").click();
+      await page.getByRole("button", { name: "Choose categories" }).click();
       const dialog = page.getByRole("dialog", { name: "Set up Epping Forest Finds" });
       await expect(dialog).toContainText("Nature");
       const trees = dialog.locator('.onboarding-chip[data-key="trees"]');
@@ -102,14 +106,14 @@ test.describe("Onboarding", () => {
       await trees.click();
       await expect(trees).toHaveAttribute("aria-pressed", "false");
       await dialog.locator(".ob-back").click();
-      await expect(dialog).toContainText("Make the map yours");
+      await expect(dialog.getByRole("heading", { name: "What would you like to see?" })).toBeVisible();
     });
 
     test("the final first-run step has no empty secondary action", async ({ page }) => {
       await page.goto("/nearby");
       await page.locator("#consentBannerDecline").click();
-      await page.locator("#consentBannerAccept").click();
-      await page.locator(".ob-primary").click();
+      await page.locator("#filterToggle").click();
+      await page.getByRole("button", { name: "Choose categories" }).click();
       for (let i = 0; i < 6; i += 1) await page.getByRole("button", { name: "Next" }).click();
       const dialog = page.getByRole("dialog", { name: "Set up Epping Forest Finds" });
       await expect(dialog.getByRole("heading", { name: "Events" })).toBeVisible();
