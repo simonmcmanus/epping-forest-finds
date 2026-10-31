@@ -76,8 +76,6 @@
   width: 100%;
   max-width: 468px;
   height: auto;
-  min-height: min(420px, calc(100vh - 32px));
-  min-height: min(420px, calc(100dvh - 32px));
   max-height: calc(100vh - 32px);
   max-height: calc(100dvh - 32px);
   min-height: 0;
