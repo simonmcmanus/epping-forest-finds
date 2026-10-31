@@ -2,6 +2,30 @@
 const { test, expect } = require("@playwright/test");
 const { setup } = require("./helpers");
 
+test("loopback development leaves the service worker unregistered without the browser-test opt-in", async ({ browser, baseURL }) => {
+  const context = await browser.newContext({ baseURL, serviceWorkers: "allow" });
+  // playwright.config.js opts the normal e2e server back into workers so the offline/update
+  // scenarios can run. Make this isolated context behave like an ordinary local browser by
+  // rejecting that explicit opt-in before nav.js loads.
+  await context.addInitScript(() => {
+    Object.defineProperty(window, "__ENABLE_LOCAL_SERVICE_WORKER__", {
+      configurable: false,
+      get: () => false,
+      set: () => {},
+    });
+  });
+  const page = await context.newPage();
+  try {
+    await page.goto("/nearby");
+    await page.waitForSelector("#mapCanvas");
+    await expect.poll(() => page.evaluate(async () => (
+      (await navigator.serviceWorker.getRegistrations()).length
+    ))).toBe(0);
+  } finally {
+    await context.close();
+  }
+});
+
 test("checks for an app update on boot and when returning to the foreground", async ({ page }) => {
   await page.addInitScript(() => {
     let now = Date.now();
