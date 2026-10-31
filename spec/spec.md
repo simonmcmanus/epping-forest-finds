@@ -285,8 +285,10 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
 - **`/nearby`, `/nearby/filter` and `/nearby/search` each track their query string.**
   Search text and walking radius remain live URL state. Map setup accepts `?show=` as an initial
   selection for compatibility, but its category edits are staged inside the dialog: the saved
-  filters and Nearby view change only after Done, while Cancel returns to Nearby with the prior
-  choices. This keeps a half-configured setup out of the address bar and out of local storage.
+  filters and Nearby view change only after Done, while Close, Escape, or a backdrop click returns
+  to Nearby after applying the current staged selection. This keeps each intentional setup change
+  out of the address bar until the dialog is finished and avoids a half-configured intermediate
+  route.
   `?radius=` travels on all three paths, since the radius describes the Nearby view underneath
   each of them; `?show=` is the compatibility entry lens for `/nearby/filter` and `?q=` is
   `/nearby/search`'s own. The radius param is omitted at the 5-minute default, same as `?show=`
