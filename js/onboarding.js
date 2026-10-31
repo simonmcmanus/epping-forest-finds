@@ -1,4 +1,5 @@
 // First-visit onboarding: a short guided filter setup.
+// The same guided filter steps can also be opened later from Nearby in `filters` mode.
 // Runs while map data loads in the background.
 
 const ONBOARDING_KEY = "forest-finds-onboarding-v1";
@@ -44,20 +45,61 @@ function hasCompletedOnboarding() {
   }
 }
 
-// Returns a Promise resolving to { filters: string[] }.
-function showOnboarding() {
+function mapSetupIconMarkup() {
+  return `<span class="onboarding-step-icon onboarding-map-setup-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 7 8.5-3.5L20.5 7 12 10.5 3.5 7Z"/><path d="m3.5 12 8.5 3.5 8.5-3.5"/><path d="m3.5 17 8.5 3.5 8.5-3.5"/></svg></span>`;
+}
+
+function mapSetupSelectionPreviewMarkup(selected) {
+  const current = FILTER_GROUPS.flatMap((group) => group.subfilters)
+    .filter((subfilter) => selected.has(subfilter.key));
+  if (!current.length) {
+    return `<p class="onboarding-selection-empty">Nothing is selected yet.</p>`;
+  }
+  return `
+    <div class="onboarding-selection-label">Currently showing</div>
+    <div class="onboarding-selection-preview" aria-label="Currently shown categories">
+      ${current.map((subfilter) => `
+        <span class="onboarding-selection-item">
+          <img src="data/icons/${subfilter.icon}.png" alt="">
+          <span>${subfilter.label}</span>
+        </span>
+      `).join("")}
+    </div>
+  `;
+}
+
+// Returns a Promise resolving to { filters: string[]|null, cancelled: boolean }.
+function showOnboarding({ mode = "first-run" } = {}) {
   return new Promise((resolve) => {
+    const filterSetupMode = mode === "filters";
     const overlay = document.getElementById("onboardingOverlay");
     const progressEl = overlay.querySelector(".onboarding-progress");
     const contentEl = overlay.querySelector(".onboarding-content");
     const actionsEl = overlay.querySelector(".onboarding-actions");
 
-    const steps = ONBOARDING_STEPS;
+    const steps = filterSetupMode
+      ? [{ type: "filter-intro" }, ...FILTER_GROUPS.map((g) => ({ type: "group", group: g }))]
+      : ONBOARDING_STEPS;
     let stepIndex = 0;
     const total = steps.length;
-    const selected = new Set(DEFAULT_OVERVIEW_FILTER_KEYS);
+    const startingFilters = filterSetupMode
+      && typeof state !== "undefined"
+      && state
+      && Array.isArray(state.overviewFilters)
+      ? state.overviewFilters
+      : DEFAULT_OVERVIEW_FILTER_KEYS;
+    const selected = new Set(sanitizeOverviewFilters(startingFilters));
 
+    const onOverlayClick = (event) => {
+      if (filterSetupMode && event.target === overlay) finish({ cancelled: true });
+    };
+    overlay.addEventListener("click", onOverlayClick);
     overlay.hidden = false;
+    overlay.classList.toggle("filter-setup", filterSetupMode);
+    overlay.classList.remove("opening");
+    void overlay.offsetWidth;
+    overlay.classList.add("opening");
+    overlay._onboardingActive = true;
     const deactivateFocus = typeof activateModalFocus === "function" ? activateModalFocus(overlay) : null;
 
     function renderProgress() {
@@ -87,7 +129,18 @@ function showOnboarding() {
       void contentEl.offsetWidth;
       contentEl.classList.add(direction === "back" ? "entering-backward" : "entering-forward");
 
-      if (step.type === "welcome") {
+      if (step.type === "filter-intro") {
+        contentEl.innerHTML = `
+          ${mapSetupIconMarkup()}
+          <h2 class="onboarding-step-title">Choose what appears on the map</h2>
+          <p class="onboarding-step-subtitle">Choose the kinds of finds you want to see as pins on the map and in your Nearby list. You can change these choices whenever you like.</p>
+          ${mapSetupSelectionPreviewMarkup(selected)}
+        `;
+        actionsEl.innerHTML = `
+          <button class="button ob-primary">Choose categories</button>
+          <button class="onboarding-skip-btn ob-cancel" type="button">Keep current choices</button>
+        `;
+      } else if (step.type === "welcome") {
         contentEl.innerHTML = `
           <img class="onboarding-step-icon" src="data/icons/trees/logo.png" alt="">
           <h2 class="onboarding-step-title">Make the map yours</h2>
@@ -119,8 +172,9 @@ function showOnboarding() {
             <button class="button ob-back" type="button">← Back</button>
             <button class="button ob-next" type="button">${isLast ? "Done" : "Next"}</button>
           </div>
-          ${!isLast ? `<button class="onboarding-skip-btn ob-skip" type="button">Skip remaining</button>` : ""}
+          <button class="onboarding-skip-btn ${filterSetupMode ? "ob-cancel" : "ob-skip"}" type="button">${filterSetupMode ? "Cancel changes" : (!isLast ? "Skip remaining" : "")}</button>
         `;
+        if (isLast && !filterSetupMode) actionsEl.querySelector(".ob-cancel")?.remove();
       }
 
       // Chip toggles
@@ -146,6 +200,7 @@ function showOnboarding() {
       });
       actionsEl.querySelector(".ob-back")?.addEventListener("click", goBack);
       actionsEl.querySelector(".ob-skip")?.addEventListener("click", () => finish());
+      actionsEl.querySelector(".ob-cancel")?.addEventListener("click", () => finish({ cancelled: true }));
       // Each step replaces contentEl/actionsEl wholesale, which drops focus back to <body> for
       // a keyboard user — move it to the step's heading so screen readers announce the new step
       // and Tab resumes from a sane place, without stealing focus on the very first render
@@ -176,15 +231,26 @@ function showOnboarding() {
       renderStep("back");
     }
 
-    function finish() {
-      try { localStorage.setItem(ONBOARDING_KEY, "1"); } catch {}
+    function finish({ cancelled = false } = {}) {
+      if (!filterSetupMode) {
+        try { localStorage.setItem(ONBOARDING_KEY, "1"); } catch {}
+      }
       if (deactivateFocus) deactivateFocus();
+      overlay.removeEventListener("click", onOverlayClick);
+      overlay.classList.remove("opening");
       overlay.classList.add("fading-out");
-      overlay.addEventListener("transitionend", () => {
+      let hideTimer;
+      const hide = () => {
+        clearTimeout(hideTimer);
         overlay.hidden = true;
+        overlay._onboardingActive = false;
+        overlay.classList.remove("filter-setup");
+        overlay.classList.remove("opening");
         overlay.classList.remove("fading-out");
-      }, { once: true });
-      resolve({ filters: Array.from(selected) });
+      };
+      overlay.addEventListener("transitionend", hide, { once: true });
+      hideTimer = setTimeout(hide, 450);
+      resolve({ filters: cancelled ? null : Array.from(selected), cancelled });
     }
 
     renderProgress();

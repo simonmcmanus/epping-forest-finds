@@ -3046,19 +3046,18 @@ function updateFilterUi() {
     const activeGroupCount = getActiveGroupKeys(currentSet).length;
     const hasActiveFilter = activeGroupCount > 0;
     const locationSelected = Boolean(state.selected);
-    // Filters only ever changes what Nearby shows, so its inline toggle (next to the Nearby
-    // heading -- see app.html) is the way *in* from Nearby, and only shows there. On the Filter
-    // screen itself it would just sit in its active state doing nothing when tapped, so it hides
-    // in favour of the ordinary #inspectorBack arrow -- the way out, same as any other screen.
-    // A /find/ landing's place is not selected yet, but it is not the Nearby list either, so the
-    // toggle stays hidden until it is (findLandingAwaitingPlace, js/app.js).
+    // Map setup only changes what Nearby shows, so its inline toggle (next to the Nearby heading
+    // -- see app.html) is the way in from Nearby and opens the guided filter setup. A /find/
+    // landing's place is not selected yet, but it is not the Nearby list either, so the toggle
+    // stays hidden until it is (findLandingAwaitingPlace, js/app.js).
     els.filterToggle.hidden = locationSelected || findLandingAwaitingPlace() || state.searchScreenOpen || state.filterScreenOpen;
     els.filterToggle.classList.toggle("active", hasActiveFilter);
     els.filterToggle.classList.toggle("screen-active", state.filterScreenOpen);
     els.filterToggle.setAttribute("aria-pressed", hasActiveFilter ? "true" : "false");
     els.filterToggle.setAttribute("aria-label", hasActiveFilter
-      ? `Filters: ${activeGroupCount} top-level filter${activeGroupCount === 1 ? "" : "s"} selected`
-      : "Filters");
+      ? `Map setup: ${activeGroupCount} top-level filter${activeGroupCount === 1 ? "" : "s"} selected`
+      : "Map setup");
+    els.filterToggle.title = "Choose what appears on the map";
     if (els.filterCount) {
       els.filterCount.hidden = !hasActiveFilter;
       els.filterCount.textContent = String(activeGroupCount);
@@ -3135,43 +3134,47 @@ function setNavScreenActive(current = null, { preserveHighlight = false } = {}) 
   }
 }
 
-function openFiltersScreen() {
-  if (typeof trackGaScreenView === "function") trackGaScreenView("Filters");
-  // Filters/Settings/Report/Search all promise the same fixed, zoomed-out survey view of the
-  // walking radius (secondaryScreenActive) -- left set, an expanded cluster narrowed that to
-  // the tapped group's own members instead, and its borrowed radius looked like the user's own
-  // real setting on the Settings slider. Opening any of them is leaving that exact-membership
-  // view just as much as tapping open ground is.
+// Filter setup used to open a second, live panel that duplicated the onboarding controls and
+// also tried to keep a nearby list in sync beneath it. Reuse the guided setup instead: edits stay
+// local to the dialog until the reader taps Done, so backing out never leaves a half-configured
+// map behind. The old /nearby/filter path still enters here for bookmarked links.
+function openFilterSetup() {
+  if (typeof showOnboarding !== "function") return;
+  const overlay = document.getElementById("onboardingOverlay");
+  if (overlay?._onboardingActive) return;
+
+  if (typeof trackGaScreenView === "function") trackGaScreenView("Map setup");
   exitClusterExpansion();
   state.selected = null;
-  // showBack:true clears state.filterScreenOpen inside setInspectorSelectionChrome (the shared
-  // chokepoint every other showBack:true screen relies on to stand Filters down) -- set it again
-  // immediately after, now that Filters is the screen being entered rather than left.
-  setInspectorSelectionChrome({ emoji: appIconHtml("filter", "app-icon title-icon"), showBack: true, preserveNavHighlight: true });
+  setInspectorSelectionChrome({ emoji: mapSetupIconMarkup(), showBack: true, preserveNavHighlight: true });
   state.filterScreenOpen = true;
   if (els.nearbyToggle) els.nearbyToggle.hidden = false;
   setNavScreenActive(els.filterToggle);
   els.inspectorTools.hidden = true;
-  els.inspectorTitle.textContent = "Filters";
+  els.inspectorTitle.textContent = "Map setup";
   els.inspectorType.textContent = "Choose what appears on the map";
-  transitionInspectorBody(filterScreenBodyHtml(), "forward", () => {
-    updateOverviewDirectionArrows();
-    hydrateOverviewBusStopDirections();
-    attachNearbyRailScrollHints();
-  });
-  updateFilterUi();
   setInspectorMinimized(false);
   syncHashFromSelection();
   requestDraw();
-  if (state.userLocation) {
-    ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
-  }
+
+  // The browser shell always has this subtree; the guard keeps the routing behavior testable in
+  // the lightweight unit harness, which intentionally stubs only the app chrome.
+  if (!overlay || typeof overlay.querySelector !== "function" || !overlay.querySelector(".onboarding-progress")) return;
+
+  showOnboarding({ mode: "filters" }).then((result) => {
+    if (!result.cancelled && Array.isArray(result.filters)) setOverviewFilters(result.filters);
+    goToInitialView();
+  });
+}
+
+function openFiltersScreen() {
+  openFilterSetup();
 }
 
 function openSettings() {
   if (typeof trackGaScreenView === "function") trackGaScreenView("Settings");
-  // See the matching comment in openFiltersScreen -- without this the walk-radius slider here
-  // showed the tapped group's borrowed radius as if it were the user's own setting.
+  // Without this the walk-radius slider here showed the tapped group's borrowed radius as if it
+  // were the user's own setting.
   exitClusterExpansion();
   state.selected = { type: "settings", item: null };
   setInspectorSelectionChrome({ emoji: appIconHtml("settings", "app-icon title-icon"), showBack: true, preserveNavHighlight: true });

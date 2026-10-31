@@ -1,154 +1,71 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, settleMapIconsAndDraw, waitForFrames, waitForUiToSettle } = require("./helpers");
+const { setup, settleMapIconsAndDraw, waitForUiToSettle } = require("./helpers");
 
-test.describe("Filter panel", () => {
+test.describe("Map setup", () => {
   test.beforeEach(async ({ page }) => {
     await setup(page);
   });
 
-  test("filter toggle opens the filter screen", async ({ page }) => {
+  test("map setup control opens the guided filter setup", async ({ page }) => {
     await page.click("#filterToggle");
-    await expect(page.locator("#filterToggle")).toHaveClass(/screen-active/);
+    await expect(page.locator("#onboardingOverlay")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Choose what appears on the map" })).toBeVisible();
   });
 
-  test("Filters explains its purpose directly beneath the screen title", async ({ page }) => {
+  test("the first setup step explains what changing filters affects", async ({ page }) => {
     await page.click("#filterToggle");
-    await expect(page.locator(".inspector-title-copy #inspectorType").last())
-      .toHaveText("Choose what appears on the map");
+    await expect(page.locator("#onboardingOverlay")).toContainText("pins on the map");
+    await expect(page.locator("#onboardingOverlay")).toContainText("Nearby list");
   });
 
-  test("the URL becomes /nearby/filter when the filter screen opens", async ({ page }) => {
+  test("the control reads as map setup and uses the layers icon", async ({ page }) => {
+    const toggle = page.locator("#filterToggle");
+    await expect(toggle).toHaveAttribute("aria-label", /Map setup/);
+    await expect(toggle).toHaveAttribute("title", "Choose what appears on the map");
+    await expect(toggle.locator("svg path").first()).toHaveAttribute("d", /8\.5/);
+  });
+
+  test("cancel keeps the existing filter choices", async ({ page }) => {
+    const before = await page.evaluate(() => state.overviewFilters.slice());
     await page.click("#filterToggle");
-    await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
+    await page.getByRole("button", { name: "Choose categories" }).click();
+    await page.locator('.onboarding-chip[data-key="trees"]').click();
+    await page.getByRole("button", { name: "Cancel changes" }).click();
+    await expect(page.locator("#onboardingOverlay")).toBeHidden();
+    expect(await page.evaluate(() => state.overviewFilters)).toEqual(before);
   });
 
-  test("filter screen stays open when the map canvas is tapped", async ({ page }) => {
+  test("filter changes apply when the guided setup is done", async ({ page }) => {
     await page.click("#filterToggle");
-    await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
-    // Tap the canvas — filter screen must not close
-    await page.locator("#mapCanvas").click({ position: { x: 200, y: 200 } });
-    await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
+    await page.getByRole("button", { name: "Choose categories" }).click();
+    // Move through Nature, Food, Transport, History, Locations and Stories to Events.
+    for (let i = 0; i < 6; i += 1) {
+      await page.getByRole("button", { name: "Next" }).click();
+    }
+    await page.locator('.onboarding-chip[data-key="events"]').click();
+    await page.getByRole("button", { name: "Done" }).click();
+    await expect(page.locator("#onboardingOverlay")).toBeHidden();
+    await expect.poll(() => page.evaluate(() => state.overviewFilters.includes("events"))).toBe(false);
   });
 
-  test("Nearby button closes the filter screen and returns to overview", async ({ page }) => {
+  test("the legacy filter URL opens the guided setup", async ({ page }) => {
+    await page.goto("/nearby/filter");
+    await expect(page.locator("#onboardingOverlay")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Choose what appears on the map" })).toBeVisible();
+  });
+
+  test("the map stays visible behind the setup dialog", async ({ page }) => {
     await page.click("#filterToggle");
-    await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
-    await page.click("#nearbyToggle");
-    // transitionInspectorBody() briefly creates two #inspectorTitle elements; use waitForFunction
-    await page.waitForFunction(
-      () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby")
-    );
-    await expect(page).not.toHaveURL(/\/nearby\/filter(\?|$)/);
+    await expect(page.locator("#mapCanvas")).toBeVisible();
+    await expect(page.locator("#onboardingOverlay")).toBeVisible();
   });
 
-  test("filter button shows active count badge when filters are toggled on", async ({ page }) => {
-    const badge = page.locator("#filterCount");
-    const before = await badge.textContent();
+  test("clicking the translucent backdrop returns to the map", async ({ page }) => {
     await page.click("#filterToggle");
-    // Pubs is the only active food filter: turning it off drops the Food group from the count
-    await page.locator('.filter-chip[data-filter-subfilter="pubs"]').click();
-    // The toggle (and its badge) is the way in from Nearby, so it hides while Filters itself
-    // is open in favour of the ordinary back arrow -- the badge only has to be visible again
-    // once back on Nearby.
-    await page.click("#nearbyToggle");
-    await expect(badge).toBeVisible();
-    await expect(badge).not.toHaveText(before);
-  });
-
-  test.describe("map pin transitions", () => {
-    test.use({
-      reducedMotion: "no-preference",
-      geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 },
-      permissions: ["geolocation"],
-    });
-
-    test("changing a filter animates the map pins while the camera is held still", async ({ page }) => {
-      await page.click("#filterToggle");
-      await waitForUiToSettle(page);
-      const changed = await page.evaluate(() => {
-        // Encoding full canvases can outlast the animation on a busy mobile runner. Hold its
-        // clock still while capturing, then advance it explicitly rather than racing real frames.
-        const realNow = performance.now;
-        let frameNow = realNow.call(performance);
-        performance.now = () => frameNow;
-        try {
-          document.querySelector('.filter-chip[data-filter-subfilter="trees"]').click();
-          stopViewportAnimation();
-          const canvases = [document.getElementById("mapCanvas"), document.getElementById("overlayCanvas")];
-          draw();
-          const before = canvases.map(canvas => canvas.toDataURL());
-          frameNow += 120;
-          draw();
-          return canvases.some((canvas, index) => canvas.toDataURL() !== before[index]);
-        } finally {
-          performance.now = realNow;
-        }
-      });
-      expect(changed).toBe(true);
-    });
-  });
-
-  test.describe("the nearest list updates live on the Filter screen", () => {
-    test.use({
-      geolocation: { latitude: 51.654, longitude: 0.0296, accuracy: 10 },
-      permissions: ["geolocation"],
-    });
-
-    test("toggling a chip changes the results count and the list beneath it, without leaving the screen", async ({ page }) => {
-      await setup(page);
-      await page.click("#filterToggle");
-      const countEl = page.locator("#filterResultsCount");
-      await expect(countEl).toBeVisible();
-      await expect(countEl).toHaveText(/Showing \d+ nearby/);
-
-      const before = await countEl.textContent();
-
-      // Trees is on by default (DEFAULT_FILTERS) -- turning it off removes every tree row and
-      // the count the panel itself reports, proving the connection without backing out to Nearby.
-      await page.locator('.filter-chip[data-filter-subfilter="trees"]').click();
-
-      await expect(countEl).not.toHaveText(before);
-      await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
-      await expect(page.locator("#filterNearestListSection")).toBeVisible();
-    });
-
-    // Regression: the Filter screen's own copy of the nearest list sits lower than Nearby's
-    // (pushed down by the chip groups above it), so captureNearestItemPositions() -- meant only
-    // to animate a live reorder while already on Nearby -- used to also fire on the way back
-    // from Filters, reading the layout difference as a reorder and sliding every row into place
-    // right on top of the screen-slide transition. That read as the list refreshing itself.
-    // selectOverview(animate) now skips the capture entirely when animate is true (a
-    // screen-entry transition), since the slide alone is the transition here.
-    test("going back from Filters to Nearby does not replay a reorder animation on the list", async ({ page }) => {
-      await setup(page);
-      await page.click("#filterToggle");
-      await expect(page.locator("#filterNearestListSection")).toBeVisible();
-
-      await page.evaluate(() => {
-        window.__sawReorderStyle = false;
-        const body = document.getElementById("inspectorBody");
-        const observer = new MutationObserver((mutations) => {
-          for (const m of mutations) {
-            const style = m.target.getAttribute && m.target.getAttribute("style");
-            if (m.type === "attributes" && m.attributeName === "style" &&
-              m.target.classList?.contains("nearest-item") &&
-              style && (style.includes("transform") || style.includes("opacity"))) {
-              window.__sawReorderStyle = true;
-            }
-          }
-        });
-        observer.observe(body, { attributes: true, subtree: true, attributeFilter: ["style"] });
-      });
-
-      await page.click("#inspectorBack");
-      await page.waitForFunction(
-        () => document.getElementById("inspectorTitle")?.textContent === "Nearby"
-      );
-      await waitForFrames(page, 24);
-
-      expect(await page.evaluate(() => window.__sawReorderStyle)).toBe(false);
-    });
+    await page.locator("#onboardingOverlay").click({ position: { x: 4, y: 4 } });
+    await expect(page.locator("#onboardingOverlay")).toBeHidden();
+    await expect(page.locator("#inspectorTitle")).toHaveText("Nearby");
   });
 
   test.describe("adding a filter whose matches are all outside the radius", () => {
@@ -165,9 +82,6 @@ test.describe("Filter panel", () => {
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
       const framing = await page.evaluate(async () => {
-        // The re-fit animates, so wait it out rather than freezing the camera partway: a
-        // stopViewportAnimation() here measures wherever the ease had got to, not the framing
-        // the user ends up looking at.
         const settle = async () => {
           for (let i = 0; i < 200; i += 1) {
             await new Promise((resolve) => setTimeout(resolve, 25));
@@ -181,8 +95,6 @@ test.describe("Filter panel", () => {
         prepareCanvasForDraw();
         const ringOnlyScale = state.viewport.scale;
 
-        // Pick a real filter whose nearest match is outside the ring, so this exercises the
-        // app's own data rather than an injected fixture.
         const origin = nearbyOrigin();
         const radiusMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
         const candidate = ["underground", "national_rail", "bus"].find((key) => {
@@ -213,11 +125,11 @@ test.describe("Filter panel", () => {
     });
   });
 
-  test("snapshot: filter screen open", async ({ page }) => {
+  test("snapshot: map setup intro", async ({ page }) => {
     await page.click("#filterToggle");
-    await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
+    await expect(page.getByRole("heading", { name: "Choose what appears on the map" })).toBeVisible();
     await waitForUiToSettle(page);
     await settleMapIconsAndDraw(page);
-    await expect(page).toHaveScreenshot("filter-screen.png", { fullPage: false });
+    await expect(page).toHaveScreenshot("map-setup.png", { fullPage: false });
   });
 });

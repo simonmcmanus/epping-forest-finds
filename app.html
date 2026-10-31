@@ -232,12 +232,11 @@
                 <p id="inspectorType" class="type"></p>
               </div>
               <span id="compassArrow" class="title-compass-arrow" aria-label="Direction to selected location" hidden>↑</span>
-              <!-- Filters only ever changes what the Nearby list/map show, so it sits inline with
-                   the Nearby heading rather than as a fifth tab in the bottom nav -- see
-                   spec-data-rendering.md, "Filters is reached from Nearby". Visible on the Nearby
-                   and Filters screens only (updateFilterUi, js/app.js); shares the title section's
-                   reserved top-right corner with #compassArrow, which the two screens never show. -->
-              <button id="filterToggle" class="filter-toggle inspector-filter-toggle" type="button" aria-label="Filters" aria-pressed="false" hidden><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h7m4 0h5M4 12h2m4 0h10M4 18h10m4 0h2M11 3v6M6 9v6m8 0v6"/></svg><span id="filterCount" class="filter-count" aria-hidden="true" hidden>0</span></button>
+              <!-- Map setup only changes what the Nearby list/map show, so its entry sits inline
+                   with the Nearby heading rather than as a fifth tab in the bottom nav. It opens
+                   the guided filter setup and shares the title section's reserved top-right
+                   corner with #compassArrow. -->
+              <button id="filterToggle" class="filter-toggle inspector-filter-toggle" type="button" aria-label="Map setup" title="Choose what appears on the map" aria-pressed="false" hidden><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3.5 7 8.5-3.5L20.5 7 12 10.5 3.5 7Z"/><path d="m3.5 12 8.5 3.5 8.5-3.5"/><path d="m3.5 17 8.5 3.5 8.5-3.5"/></svg><span id="filterCount" class="filter-count" aria-hidden="true" hidden>0</span></button>
             </div>
             <div id="inspectorBody" class="inspector-body">
               <p class="empty">All veteran trees are shown. Use your location to mark yourself on the map and select the nearest tree, cow, or place.</p>
