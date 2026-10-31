@@ -125,7 +125,9 @@ function showOnboarding({ mode = "first-run" } = {}) {
     void overlay.offsetWidth;
     overlay.classList.add("opening");
     overlay._onboardingActive = true;
-    const deactivateFocus = typeof activateModalFocus === "function" ? activateModalFocus(overlay) : null;
+    const deactivateFocus = typeof activateModalFocus === "function"
+      ? activateModalFocus(overlay, { onEscape: () => finish({ cancelled: true }) })
+      : null;
 
     function renderProgress() {
       progressEl.innerHTML = steps.map((_, i) => {
