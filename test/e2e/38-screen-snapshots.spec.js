@@ -90,6 +90,14 @@ test("snapshot: guided onboarding after non-blocking consent", async ({ page }) 
   await expect(page).toHaveScreenshot("onboarding-analytics.png", { fullPage: false });
 });
 
+test("snapshot: map setup modal over Nearby", async ({ page }) => {
+  await setup(page);
+  await page.locator("#filterToggle").click();
+  await expect(page.getByRole("dialog", { name: "Set up Epping Forest Finds" })).toBeVisible();
+  await waitForUiToSettle(page);
+  await expect(page).toHaveScreenshot("map-setup.png", { fullPage: false });
+});
+
 test("snapshot: usage analytics card on the map", async ({ page }) => {
   // A returning visitor who has never answered: asked once the map is up, in the inspector chrome.
   await page.addInitScript(() => {

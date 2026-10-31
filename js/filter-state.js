@@ -1,4 +1,4 @@
-// Filter-state rules shared by the app's initial state and its Filter screen.
+// Filter-state rules shared by the app's initial state and Map setup.
 // Rendering and event handlers remain in js/app.js; this boundary owns validation,
 // persistence, and the derived filter sets used by both those consumers.
 

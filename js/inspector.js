@@ -819,7 +819,7 @@ function animateRailIntro(row) {
 }
 
 function selectOverview(animate = false) {
-  if (state.filterScreenOpen || state.searchScreenOpen) return;
+  if ((state.filterScreenOpen && !mapSetupModalActive()) || state.searchScreenOpen) return;
   const preserveScroll = !animate && els.inspector.classList.contains("nearby-overview");
   els.inspector.classList.add("nearby-overview");
   if (typeof updateDocumentTitle === "function") updateDocumentTitle();
@@ -1098,7 +1098,7 @@ function animateNearestItemReorder(previousPositions) {
 }
 
 function isOverviewScreenActive() {
-  return !state.selected && !state.filterScreenOpen && !state.searchScreenOpen;
+  return !state.selected && (!state.filterScreenOpen || mapSetupModalActive()) && !state.searchScreenOpen;
 }
 
 // --- Screen transition ---
@@ -1297,7 +1297,7 @@ function markerOpacityFor(kind, item) {
   if (kind === "tree") return 1;
   // Search results are their own set (buildSearchIconLookup, js/renderer.js), shown full
   // strength regardless of which category filters happen to be active -- a search should never
-  // come back dimmed just because the Filter screen was last left on a different category.
+  // come back dimmed just because Map setup was last left on a different category.
   if (state.searchScreenOpen) return 1;
   const locationSelected = state.selected && ["tree", "landmark", "cow", "path"].includes(state.selected.type);
   if (locationSelected) {
@@ -1630,14 +1630,16 @@ function countNearbyEntries(filterKeys, latitude, longitude) {
   const limit = walkingDistanceToMetres(state.walkingDistanceMinutes);
   const seen = new Set();
   let within = 0;
+  let beyond = 0;
   for (const key of filterKeys) {
     for (const entry of nearestOverviewEntriesForFilter(key, latitude, longitude, Infinity)) {
       if (seen.has(entry.item)) continue;
       seen.add(entry.item);
       if (entry.metres <= limit) within += 1;
+      else beyond += 1;
     }
   }
-  return { within };
+  return { within, beyond };
 }
 
 // One plain sentence for a category: "43 trees within 30 min walk of The Foresters." The noun is
@@ -1656,7 +1658,7 @@ function nearbyCountCopy(noun, { within, beyond = 0 }, placeName) {
     const word = within === 1 ? noun.replace(/s$/, "") : noun;
     sentence = `${formatCount(within)} ${word} ${where}.`;
   }
-  return sentence;
+  return beyond > 0 ? `${sentence} ${formatCount(beyond)} further away.` : sentence;
 }
 
 // The Places close by, Nearest and Related sections for any selected point with coordinates -- a /find/ business,
@@ -1723,7 +1725,7 @@ function nearbySectionsHtml({ latitude, longitude, name = null, subfilterKey = n
       // so the card waits for them rather than reporting a count of zero.
       if (!sub || (key === "cows" && !state.cows.length)) return "";
       const counts = countNearbyEntries([key], latitude, longitude);
-      if (counts.within === 0) return "";
+      if (counts.within === 0 && counts.beyond === 0) return "";
       return cardHtml(`/nearby/${key.replace(/_/g, "-")}/#${anchorHash}`, sub.icon, sub.label, nearbyCountCopy(sub.label.toLowerCase(), counts, placeName));
     })
     .join("");

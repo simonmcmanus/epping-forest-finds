@@ -26,7 +26,7 @@ Inspector state when a specific tree, landmark, cow, path, street, or railway is
 Inspector state when the search magnifier is open (`state.searchScreenOpen = true`). A query field over the whole dataset — trees by species or tag, places, roads, trails, water, railway lines and cows — listing matches as Nearby-style rows that open the location when chosen (`openSearchScreen()`, `searchMapFeatures()`, `openSearchResult()`). One of the four secondary screens; shares `secondaryScreenActive()` navigation behaviour with Filter, Settings and Feedback.
 
 **Map setup**
-The guided filter configuration dialog opened by the stacked-layers button next to the Nearby heading, or by the compatibility route `/nearby/filter` (`state.filterScreenOpen = true` while it is open). Its first step explains that the choices control visible map pins and the Nearby list. It starts from the saved filters, stages chip changes locally, and applies them on Done; Cancel changes leaves the saved choices untouched. GPS updates and cow refreshes do not close it.
+The guided filter configuration dialog opened by the stacked-layers button next to the Nearby heading, or by the compatibility route `/nearby/filter`. It is a modal over Nearby, not a secondary inspector screen. Its first step explains that the choices control visible map pins and the Nearby list. It starts from the saved filters, stages chip changes locally, and applies them on Done; Keep current choices leaves the saved choices untouched. GPS updates and cow refreshes do not close it.
 
 **Minimized mode**
 Inspector collapsed to a header strip only. Auto-reposition is paused; user can pan and zoom freely. Tapping the header restores the previous mode.
