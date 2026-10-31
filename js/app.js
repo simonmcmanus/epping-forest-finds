@@ -63,6 +63,7 @@ const TILT_HORIZON_GROUND_RATIO = 0.62; // fraction of the space above the pivot
 const TILT_PERSPECTIVE_MIN_PX = 260;    // floor so very short/cramped viewports don't collapse the camera distance towards an unstable near-0 value
 const TILT_PERSPECTIVE_MAX_PX = 2600;   // ceiling so very tall viewports (tablets) don't stretch the camera distance into an implausibly flat, barely-tilted look
 const TILT_ROTATEX_MAX = 75;       // max rotateX deg — 2× overscan hides the canvas edge even at this angle
+const TILT_GENTLE_ROTATEX_MAX = 15; // subtle perspective unless full 3D is enabled
 // Precomputed once: calibrating tiltPerspectivePx() against this fixed reference
 // angle (rather than the live, ever-changing tiltRotateXDeg()) keeps the camera
 // distance from collapsing at low/mid tilt angles -- see tiltPerspectivePx().
@@ -149,8 +150,7 @@ const NATIVE_HEADING_TRUSTED_ACCURACY_DEG = 25;
 // treats the loop that asked for it as wedged. A frame runs within ~16ms; two seconds is
 // far past any plausible scheduling delay on a loaded phone.
 const ANIMATION_FRAME_WEDGED_MS = 2000;
-// "1" when the walker has switched on the 3D map in Settings. Off by default: pitching the phone
-// leaves the map flat (heading-up still applies) until they opt in.
+// "1" enables full 3D in Settings. Otherwise pitch gives only a gentle tilt.
 const MAP_3D_KEY = "ff-map-3d-v1";
 const STORED_MAP_3D = (() => {
   try { return localStorage.getItem(MAP_3D_KEY) === "1"; } catch { return false; }
@@ -358,8 +358,7 @@ const state = {
   backgroundedUserLocation: null,
   tiltBetaTarget: 0,
   tiltBetaSmoothed: 0,
-  // Settings' "3D map" switch. Pitch is still tracked while it is off (the compass deadband
-  // reads it), it just never tilts the camera or collapses pins.
+  // Settings' "3D map" switch upgrades gentle tilt to full perspective and pin collapse.
   map3dEnabled: STORED_MAP_3D,
   motionSensorSeen: STORED_MOTION_SENSOR,
   // rotateX angle baked into the main canvas by the last draw() -- see tiltRenderStale().
@@ -3330,7 +3329,7 @@ function settingsFormHtml() {
     </section>
     <section class="settings-section" id="map3dSetting"${state.motionSensorSeen ? "" : " hidden"}>
       <h3 class="settings-section-title">Map</h3>
-      <label class="settings-switch"><span><strong>3D map</strong><span class="settings-description">Tilt your phone up to see the map laid out ahead of you.</span></span><input type="checkbox" id="map3dToggle"${state.map3dEnabled ? " checked" : ""}></label>
+      <label class="settings-switch"><span><strong>3D map</strong><span class="settings-description">Enable full 3D when you tilt your phone up. Off keeps a gentle tilt.</span></span><input type="checkbox" id="map3dToggle"${state.map3dEnabled ? " checked" : ""}></label>
       <img class="settings-preview" src="css/img/map-3d-preview.webp" width="480" height="346" alt="The map tilted in 3D, with paths and finds stretching away towards the horizon" loading="lazy" decoding="async">
     </section>
     <section class="settings-section">
@@ -6475,7 +6474,7 @@ function tiltActive() {
   // still waiting for iOS permission or magnetometer calibration, and the map can safely stay
   // north-up while still responding to the phone being lifted. Once a heading is available the
   // same path becomes the full heading-up radar view.
-  return Boolean(state.map3dEnabled) && Boolean(hasRealLocation()) && state.tiltBetaSmoothed > TILT_BETA_THRESHOLD;
+  return Boolean(hasRealLocation()) && state.tiltBetaSmoothed > TILT_BETA_THRESHOLD;
 }
 
 // Chrome on a laptop fires one deviceorientation event with every angle null, so only a finite
@@ -6487,8 +6486,7 @@ function markMotionSensorSeen() {
   if (section) section.hidden = false;
 }
 
-// Turning 3D off mid-tilt must flatten the map straight away, not on the next pitch change:
-// drop the frozen projection and re-fit, which re-solves the camera without the perspective.
+// Switching between full and gentle tilt must re-project and re-fit straight away.
 function setMap3dEnabled(on) {
   state.map3dEnabled = Boolean(on);
   try { localStorage.setItem(MAP_3D_KEY, state.map3dEnabled ? "1" : "0"); } catch {}
@@ -6500,7 +6498,7 @@ function setMap3dEnabled(on) {
 function tiltRotateXDeg() {
   if (!tiltActive()) return 0;
   const t = Math.min(1, (state.tiltBetaSmoothed - TILT_BETA_THRESHOLD) / (TILT_BETA_MAX - TILT_BETA_THRESHOLD));
-  return TILT_ROTATEX_MAX * t;
+  return (state.map3dEnabled ? TILT_ROTATEX_MAX : TILT_GENTLE_ROTATEX_MAX) * t;
 }
 
 // True when the tilt angle the main canvas was last drawn at no longer matches the current
@@ -6517,10 +6515,9 @@ function tiltRenderStale() {
   return Math.abs(tiltRotateXDeg() - rendered) > TILT_RENDER_STALE_DEG;
 }
 
-// 0 when tilt is inactive, 1 at TILT_BETA_MAX — same ramp as tiltRotateXDeg.
+// Follow the rendered angle so gentle tilt only moves the anchor a little.
 function tiltAnchorFraction() {
-  if (!tiltActive()) return 0;
-  return Math.min(1, (state.tiltBetaSmoothed - TILT_BETA_THRESHOLD) / (TILT_BETA_MAX - TILT_BETA_THRESHOLD));
+  return tiltRotateXDeg() / TILT_ROTATEX_MAX;
 }
 
 // The vertical anchor fraction the heading-up pivot sits at within the visible map
@@ -6720,7 +6717,7 @@ function tiltPerspectivePx(useFinalBrowseState = false) {
 // roads, paths and full-size pins. Shared by the cull, the pin collapse and the camera fit
 // so the three cannot disagree about which half of the view exists.
 function tiltHidesWhatIsBehind() {
-  return !state.nearbyAnchor;
+  return Boolean(state.map3dEnabled) && !state.nearbyAnchor;
 }
 
 function isBehindTiltHeading(worldPoint) {
@@ -7199,7 +7196,7 @@ function maxScaleForHeadingUpPoints(points, focus, focusRect, options = {}) {
   // isBehindTiltHeading's spec note), so maxHeadingUpNavigationScale passes
   // excludeBehindDuringTilt: false to keep the fit actually framing them even when
   // they're behind the user's current heading.
-  const excludeBehindDuringTilt = options.excludeBehindDuringTilt !== false;
+  const excludeBehindDuringTilt = Boolean(state.map3dEnabled) && options.excludeBehindDuringTilt !== false;
   // The point the camera will place at `focus`, which every constraint below measures its
   // point offsets from. It has to be the same point alignHeadingUpNavigationViewport
   // translates to `focus`, or the fit solves one framing and the camera applies another:
