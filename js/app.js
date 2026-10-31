@@ -2939,6 +2939,7 @@ function openFiltersScreen() {
 }
 
 function openSettings() {
+  if (typeof dismissOnboarding === "function") dismissOnboarding();
   if (typeof trackGaScreenView === "function") trackGaScreenView("Settings");
   // Without this the walk-radius slider here showed the tapped group's borrowed radius as if it
   // were the user's own setting.
@@ -3304,6 +3305,7 @@ function communityScreenOpen() {
 // Community is gated (see communityEnabled): people without it get the Feedback page in its place, and the
 // nav tab becomes the Feedback tab.
 function openCommunityOrFeedback() {
+  if (typeof dismissOnboarding === "function") dismissOnboarding();
   if (communityEnabled()) openCommunity(); else openReportModal();
 }
 
@@ -3371,6 +3373,7 @@ function communityScreenHtml() {
 }
 
 function openReportModal() {
+  if (typeof dismissOnboarding === "function") dismissOnboarding();
   if (typeof trackGaScreenView === "function") trackGaScreenView("Report");
   // See the matching comment in openFiltersScreen.
   exitClusterExpansion();
@@ -9095,6 +9098,7 @@ function renderSearchResults() {
 }
 
 function openSearchScreen() {
+  if (typeof dismissOnboarding === "function") dismissOnboarding();
   if (typeof trackGaScreenView === "function") trackGaScreenView("Search");
   // See the matching comment in openFiltersScreen.
   exitClusterExpansion();
