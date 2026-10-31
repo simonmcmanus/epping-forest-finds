@@ -8,7 +8,7 @@
   background: rgba(22, 39, 29, 0.34);
   backdrop-filter: blur(12px) saturate(1.05);
   padding: 16px;
-  transition: opacity 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: opacity 0.42s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .onboarding-overlay[hidden] {
@@ -26,22 +26,17 @@
 }
 
 @keyframes ob-card-in {
-  from { opacity: 0; transform: translate3d(0, var(--onboarding-card-entry-y), 0) scale(0.98); }
+  from { opacity: 0; transform: translate3d(0, var(--onboarding-card-entry-y), 0) scale(0.97); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-@keyframes ob-card-out {
-  from { opacity: 1; transform: translateY(0) scale(1); }
-  to { opacity: 0; transform: translate3d(0, var(--onboarding-card-entry-y), 0) scale(0.98); }
-}
-
 .onboarding-overlay.opening {
-  animation: ob-overlay-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: ob-overlay-in 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
   will-change: opacity;
 }
 
 .onboarding-overlay.opening .onboarding-card {
-  animation: ob-card-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: ob-card-in 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
   will-change: opacity, transform;
 }
 
@@ -50,7 +45,7 @@
 }
 
 .onboarding-overlay.fading-out .onboarding-card {
-  animation: ob-card-out 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: ob-card-in 0.42s cubic-bezier(0.16, 1, 0.3, 1) reverse both;
   will-change: opacity, transform;
 }
 
@@ -73,7 +68,7 @@
 }
 
 .onboarding-card {
-  --onboarding-card-entry-y: -22px;
+  --onboarding-card-entry-y: -30px;
   width: 100%;
   max-width: 468px;
   height: auto;
@@ -485,22 +480,14 @@
   outline-offset: 2px;
 }
 
-@keyframes ob-slide-in-right {
-  from { opacity: 0; transform: translateX(26px); }
-  to   { opacity: 1; transform: translateX(0); }
+@keyframes ob-content-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes ob-slide-in-left {
-  from { opacity: 0; transform: translateX(-26px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-
-.onboarding-content.entering-forward {
-  animation: ob-slide-in-right 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
+.onboarding-content.entering-forward,
 .onboarding-content.entering-backward {
-  animation: ob-slide-in-left 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: ob-content-in 0.24s 0.06s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .onboarding-overlay.filter-setup .onboarding-card {

@@ -358,7 +358,7 @@ function showOnboarding({ mode = "first-run" } = {}) {
         }
       };
       const onAnimationEnd = (event) => {
-        if (event.target === cardEl && event.animationName === "ob-card-out") {
+        if (event.target === cardEl && event.animationName === "ob-card-in") {
           cardFaded = true;
           maybeHide();
         }
@@ -389,7 +389,7 @@ function showOnboarding({ mode = "first-run" } = {}) {
           cardEl.addEventListener("animationend", onAnimationEnd);
           overlay._onboardingHideAnimationHandler = onAnimationEnd;
         }
-        hideTimer = setTimeout(hide, 520);
+        hideTimer = setTimeout(hide, 620);
         overlay._onboardingHideTimer = hideTimer;
       }
       resolve({ filters: cancelled ? null : Array.from(selected), cancelled });
