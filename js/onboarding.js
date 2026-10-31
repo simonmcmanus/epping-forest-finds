@@ -93,6 +93,14 @@ function showOnboarding({ mode = "first-run" } = {}) {
     const progressEl = overlay.querySelector(".onboarding-progress");
     const contentEl = overlay.querySelector(".onboarding-content");
     const actionsEl = overlay.querySelector(".onboarding-actions");
+    if (overlay._onboardingHideHandler) {
+      overlay.removeEventListener("transitionend", overlay._onboardingHideHandler);
+      overlay._onboardingHideHandler = null;
+    }
+    if (overlay._onboardingHideTimer) {
+      clearTimeout(overlay._onboardingHideTimer);
+      overlay._onboardingHideTimer = null;
+    }
 
     const steps = filterSetupMode
       ? [{ type: "filter-intro" }, ...FILTER_GROUPS.map((g) => ({ type: "group", group: g }))]
@@ -106,6 +114,7 @@ function showOnboarding({ mode = "first-run" } = {}) {
       ? state.overviewFilters
       : DEFAULT_OVERVIEW_FILTER_KEYS;
     const selected = new Set(sanitizeOverviewFilters(startingFilters));
+    let finished = false;
 
     const onOverlayClick = (event) => {
       if (filterSetupMode && event.target === overlay) finish({ cancelled: true });
@@ -251,6 +260,8 @@ function showOnboarding({ mode = "first-run" } = {}) {
     }
 
     function finish({ cancelled = false } = {}) {
+      if (finished) return;
+      finished = true;
       if (!filterSetupMode) {
         try { localStorage.setItem(ONBOARDING_KEY, "1"); } catch {}
       }
@@ -264,12 +275,16 @@ function showOnboarding({ mode = "first-run" } = {}) {
         overlay.hidden = true;
         overlay._onboardingActive = false;
         overlay._onboardingCancel = null;
+        overlay._onboardingHideHandler = null;
+        overlay._onboardingHideTimer = null;
         overlay.classList.remove("filter-setup");
         overlay.classList.remove("opening");
         overlay.classList.remove("fading-out");
       };
+      overlay._onboardingHideHandler = hide;
       overlay.addEventListener("transitionend", hide, { once: true });
-      hideTimer = setTimeout(hide, 450);
+      overlay._onboardingHideTimer = setTimeout(hide, 450);
+      hideTimer = overlay._onboardingHideTimer;
       resolve({ filters: cancelled ? null : Array.from(selected), cancelled });
     }
 
