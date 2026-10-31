@@ -2738,21 +2738,6 @@ function renderFilterBodyHtml() {
 // out to Nearby again. refreshFilterScreenList() re-renders just the list half on every filter
 // change; the chip half is only ever patched in place by updateFilterUi(), never rebuilt, so a
 // keyboard user's focus stays on the chip they just pressed.
-function filterScreenBodyHtml() {
-  return `${renderFilterBodyHtml()}<div id="filterNearestListSection" class="filter-nearest-list-section">${overviewNearestHtml()}</div>`;
-}
-
-function refreshFilterScreenList() {
-  const section = document.getElementById("filterNearestListSection");
-  if (!section) return;
-  const previousNearestPositions = captureNearestItemPositions();
-  section.innerHTML = overviewNearestHtml();
-  attachNearbyRailScrollHints(section);
-  updateOverviewDirectionArrows();
-  hydrateOverviewBusStopDirections();
-  animateNearestItemReorder(previousNearestPositions);
-}
-
 function attachFilterScrollHints() {
   const rows = els.inspectorBody.querySelectorAll(".filter-subfilters-row");
   for (const row of rows) {
@@ -3141,7 +3126,8 @@ function setNavScreenActive(current = null, { preserveHighlight = false } = {}) 
 function openFilterSetup() {
   if (typeof showOnboarding !== "function") return;
   const overlay = document.getElementById("onboardingOverlay");
-  if (overlay?._onboardingActive) return;
+  if (!overlay || typeof overlay.querySelector !== "function" || !overlay.querySelector(".onboarding-progress")) return;
+  if (overlay._onboardingActive) return;
 
   if (typeof trackGaScreenView === "function") trackGaScreenView("Map setup");
   exitClusterExpansion();
@@ -3156,10 +3142,6 @@ function openFilterSetup() {
   setInspectorMinimized(false);
   syncHashFromSelection();
   requestDraw();
-
-  // The browser shell always has this subtree; the guard keeps the routing behavior testable in
-  // the lightweight unit harness, which intentionally stubs only the app chrome.
-  if (!overlay || typeof overlay.querySelector !== "function" || !overlay.querySelector(".onboarding-progress")) return;
 
   showOnboarding({ mode: "filters" }).then((result) => {
     if (!result.cancelled && Array.isArray(result.filters)) setOverviewFilters(result.filters);
