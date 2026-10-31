@@ -107,6 +107,16 @@ test("snapshot: map setup category step", async ({ page }) => {
   await expect(page).toHaveScreenshot("map-setup-category.png", { fullPage: false });
 });
 
+test("snapshot: map setup dense category step", async ({ page }) => {
+  await setup(page);
+  await page.locator("#filterToggle").click();
+  await page.getByRole("button", { name: "Choose categories" }).click();
+  await page.getByRole("button", { name: "Next" }).click();
+  await expect(page.getByRole("heading", { name: "Food" })).toBeVisible();
+  await waitForUiToSettle(page);
+  await expect(page).toHaveScreenshot("map-setup-category-dense.png", { fullPage: false });
+});
+
 test("snapshot: usage analytics card on the map", async ({ page }) => {
   // A returning visitor who has never answered: asked once the map is up, in the inspector chrome.
   await page.addInitScript(() => {
