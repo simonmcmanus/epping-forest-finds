@@ -156,6 +156,12 @@ test.describe("Onboarding", () => {
       await expect(page.locator("#onboardingOverlay")).not.toContainText("Allow location");
     });
 
+    test("category landing pages do not show the Nearby setup hint", async ({ page }) => {
+      await gotoAndWaitForMap(page, "/nearby/food");
+      await expect(page.locator("#consentBanner")).not.toContainText("Map setup button");
+      await expect(page.locator("#consentBanner")).not.toHaveClass(/onboarding-invite/);
+    });
+
     test("onboarding is skipped on a first visit that selects a location via a hash", async ({ page }) => {
       await gotoAndWaitForMap(page, "/nearby#tree=r17338");
       await expect(page.locator("#onboardingOverlay")).toBeHidden();

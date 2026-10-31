@@ -347,14 +347,14 @@
 
 .onboarding-selection-item-label {
   color: var(--tree);
-  font-size: 0.66rem;
+  font-size: 0.8rem;
   font-weight: 800;
   line-height: 1.1;
 }
 
 .onboarding-selection-item-group {
   color: var(--muted);
-  font-size: 0.62rem;
+  font-size: 0.7rem;
   font-weight: 800;
   line-height: 1.1;
 }

@@ -1666,7 +1666,12 @@ async function boot() {
   // (a millisecond or two), so a returning visitor never sees it flash on and off.
   // Bare /nearby's static index shows the same banner pre-JS (renderNearbyIndexPage), so it takes the
   // landing-page path here too. First visits use the same card and offer onboarding from its slot.
-  const onboardsFirst = !hasCompletedOnboarding() && !isLandingPageArrival();
+  // The inline setup hint belongs to the plain Nearby screen, where the persistent Map setup
+  // control is present. Category/business landings, selected locations, and secondary screens may
+  // still show their own permission card, but must not suggest a control that is hidden there.
+  const onboardsFirst = !hasCompletedOnboarding()
+    && routeValueFromLocation() === ""
+    && !isLandingPageArrival();
   const asksFromBanner = onboardsFirst || isLandingPageArrival() || _staticNearbyIndex;
   const locationChoice = storedLocationChoice();
   const permissionPromise = Native.geolocation ? Native.locationPermissionState() : Promise.resolve("unsupported");
