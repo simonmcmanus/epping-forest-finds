@@ -127,7 +127,7 @@ function showOnboarding({ mode = "first-run" } = {}) {
     overlay.classList.add("opening");
     overlay._onboardingActive = true;
     const deactivateFocus = typeof activateModalFocus === "function"
-      ? activateModalFocus(overlay, { onEscape: () => finish({ cancelled: true }) })
+      ? activateModalFocus(overlay, { onEscape: () => finish({ cancelled: filterSetupMode }) })
       : null;
 
     function renderProgress() {
@@ -159,8 +159,10 @@ function showOnboarding({ mode = "first-run" } = {}) {
 
       if (step.type === "filter-intro") {
         contentEl.innerHTML = `
-          ${mapSetupIconMarkup()}
-          <h2 class="onboarding-step-title">What would you like to see?</h2>
+          <div class="onboarding-step-heading">
+            ${mapSetupIconMarkup()}
+            <h2 class="onboarding-step-title">What would you like to see?</h2>
+          </div>
           <p class="onboarding-step-subtitle">You can customise what is shown in your Nearby list and on the map. ${mapSetupHiddenCategoryCopy(selected)}</p>
           ${mapSetupSelectionPreviewMarkup(selected)}
         `;
@@ -190,8 +192,10 @@ function showOnboarding({ mode = "first-run" } = {}) {
         }).join("");
         const isLast = stepIndex === total - 1;
         contentEl.innerHTML = `
-          <img class="onboarding-step-icon" src="data/icons/${group.icon}.png" alt="">
-          <h2 class="onboarding-step-title">${group.label}</h2>
+          <div class="onboarding-step-heading">
+            <img class="onboarding-step-icon" src="data/icons/${group.icon}.png" alt="">
+            <h2 class="onboarding-step-title">${group.label}</h2>
+          </div>
           <p class="onboarding-step-subtitle">Tap to toggle what you'd like to see on the map.</p>
           <div class="onboarding-chips">${chips}</div>
         `;
@@ -296,7 +300,8 @@ function showOnboarding({ mode = "first-run" } = {}) {
 
 function dismissOnboarding() {
   const overlay = document.getElementById("onboardingOverlay");
-  if (typeof overlay?._onboardingCancel === "function") {
+  if (!overlay?.classList.contains("filter-setup")) return;
+  if (typeof overlay._onboardingCancel === "function") {
     overlay._onboardingCancel();
     overlay._onboardingActive = false;
   }
