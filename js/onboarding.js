@@ -70,7 +70,7 @@ function mapSetupSelectionPreviewMarkup(selected) {
           <span class="onboarding-selection-icon"><img src="data/icons/${group.icon}.png" alt=""></span>
           <span class="onboarding-selection-item-copy">
             <span class="onboarding-selection-item-label">${group.label}</span>
-            <span class="onboarding-selection-item-group">${group.shown}/${group.total}</span>
+            <span class="onboarding-selection-item-group">(${group.shown}/${group.total})</span>
           </span>
         </span>
       `).join("")}
