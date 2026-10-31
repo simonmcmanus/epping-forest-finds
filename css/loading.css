@@ -155,6 +155,26 @@
   pointer-events: none;
 }
 
+.consent-banner.onboarding-collapsing {
+  overflow: hidden;
+  max-height: var(--consent-banner-height);
+  transition:
+    opacity 0.32s ease,
+    max-height 0.52s cubic-bezier(0.4, 0, 0.2, 1),
+    margin-top 0.52s cubic-bezier(0.4, 0, 0.2, 1),
+    padding-top 0.52s cubic-bezier(0.4, 0, 0.2, 1),
+    padding-bottom 0.52s cubic-bezier(0.4, 0, 0.2, 1),
+    border-width 0.52s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.consent-banner.onboarding-collapsing.onboarding-collapsed {
+  max-height: 0;
+  margin-top: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-width: 0;
+}
+
 @keyframes consent-banner-attention {
   0%, 100% { transform: scale(1); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6); }
   38% { transform: scale(1.012); box-shadow: 0 0 0 4px rgba(47, 121, 83, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.6); }
@@ -162,7 +182,7 @@
 }
 
 .consent-banner.onboarding-attention {
-  animation: consent-banner-attention 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: consent-banner-attention 1.6s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .consent-banner-logo {
@@ -215,8 +235,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .consent-banner.onboarding-attention {
+  .consent-banner.onboarding-attention,
+  .consent-banner.onboarding-collapsing {
     animation: none;
+    transition: none;
   }
 }
 

@@ -1321,14 +1321,35 @@ function offerLocationInvite({ blocked = false } = {}) {
   }
 }
 
-function hideNoticeCard(banner) {
-  banner.classList.add("fading-out");
-  banner.addEventListener("transitionend", () => {
+function hideNoticeCard(banner, { collapse = false } = {}) {
+  let finished = false;
+  let hideTimer = null;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    if (hideTimer) clearTimeout(hideTimer);
+    banner.removeEventListener("transitionend", onTransitionEnd);
     banner.hidden = true;
-    banner.classList.remove("fading-out");
+    banner.classList.remove("fading-out", "onboarding-collapsing", "onboarding-collapsed");
+    banner.style.removeProperty("--consent-banner-height");
     // The next waiting question, if any, takes the slot once this one has gone.
     askAnalyticsWhenFree();
-  }, { once: true });
+  };
+  const onTransitionEnd = (event) => {
+    if (event.target !== banner) return;
+    if (collapse && event.propertyName !== "max-height") return;
+    if (!collapse && event.propertyName !== "opacity") return;
+    finish();
+  };
+  banner.addEventListener("transitionend", onTransitionEnd);
+  if (collapse) {
+    banner.classList.add("onboarding-collapsing");
+    banner.style.setProperty("--consent-banner-height", `${banner.getBoundingClientRect().height}px`);
+    void banner.offsetWidth;
+    requestAnimationFrame(() => banner.classList.add("onboarding-collapsed"));
+  }
+  banner.classList.add("fading-out");
+  hideTimer = setTimeout(finish, collapse ? 700 : 420);
 }
 
 // Non-blocking "get a more custom experience" nudge shown after revealNoRealLocation() -- the
@@ -1453,7 +1474,7 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
         clearOnboardingAttention();
         if (typeof pulseFilterSetupButton === "function") pulseFilterSetupButton();
         cleanup();
-        hideNoticeCard(banner);
+        hideNoticeCard(banner, { collapse: true });
       };
       onboardingAttentionEndHandler = finishAttention;
       banner.addEventListener("animationend", finishAttention, { once: true });
