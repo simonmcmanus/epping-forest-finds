@@ -281,5 +281,8 @@ function showOnboarding({ mode = "first-run" } = {}) {
 
 function dismissOnboarding() {
   const overlay = document.getElementById("onboardingOverlay");
-  if (typeof overlay?._onboardingCancel === "function") overlay._onboardingCancel();
+  if (typeof overlay?._onboardingCancel === "function") {
+    overlay._onboardingCancel();
+    overlay._onboardingActive = false;
+  }
 }
