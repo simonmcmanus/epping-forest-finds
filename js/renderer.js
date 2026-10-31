@@ -357,6 +357,8 @@ function draw() {
   drawTiltDistanceFade(ctx, width, height);
   drawOverlay();
 
+  if (filterPinTransitionActive()) requestDraw();
+
   if (Math.abs(animatedEmojiScale.target - animatedEmojiScale.value) > 0.001) {
     requestDraw();
   }
@@ -395,6 +397,7 @@ function drawOverlay() {
   if (useOverlayForPins) {
     drawAllPinsSorted(ctx, activeIconLookup(), toScreen);
   }
+  drawFilterTransitionPins(ctx, toScreen);
   drawUser(ctx, toScreen, isTilted);
   drawNearbyAnchorMarker(ctx, toScreen);
   drawCommunityMarks(ctx, toScreen);
@@ -1664,6 +1667,147 @@ function easeOutCubic(t) {
   return 1 - Math.pow(1 - t, 3);
 }
 
+// Filter changes are rendered on canvas, so a CSS transition cannot animate the pins without
+// also scaling the whole map bitmap. Keep the motion at the marker level instead: new pins fade
+// in at their normal size, while pins removed by a filter fade first and only shrink during the
+// final part of their exit. The short duration keeps this perceptual polish from making a filter
+// feel slow, and the artwork itself is still drawn through the normal high-resolution icon paths.
+const FILTER_PIN_ANIMATION_MS = 340;
+const FILTER_PIN_ENTER_POP_SCALE = 1.05;
+const FILTER_PIN_ENTER_POP_PEAK = 0.2;
+const FILTER_PIN_ENTER_POP_END = 0.58;
+const FILTER_PIN_EXIT_SCALE = 0.06;
+const FILTER_PIN_EXIT_SHRINK_START = 0.64;
+const _filterPinAnimations = new Map();
+
+function filterPinAnimationFor(item, now = performance.now()) {
+  const animation = _filterPinAnimations.get(item);
+  if (!animation) return null;
+  const progress = clamp((now - animation.startedAt) / FILTER_PIN_ANIMATION_MS, 0, 1);
+  if (progress >= 1) return null;
+  const alphaProgress = easeOutCubic(progress);
+  const enterPopProgress = animation.direction === "enter"
+    ? progress <= FILTER_PIN_ENTER_POP_PEAK
+      ? easeOutCubic(progress / FILTER_PIN_ENTER_POP_PEAK)
+      : 1 - Math.pow(
+        clamp((progress - FILTER_PIN_ENTER_POP_PEAK) /
+          (FILTER_PIN_ENTER_POP_END - FILTER_PIN_ENTER_POP_PEAK), 0, 1),
+        3,
+      )
+    : 0;
+  const shrinkProgress = animation.direction === "exit"
+    ? clamp((progress - FILTER_PIN_EXIT_SHRINK_START) / (1 - FILTER_PIN_EXIT_SHRINK_START), 0, 1)
+    : 0;
+  const scaleProgress = easeOutCubic(shrinkProgress);
+  return {
+    scale: animation.direction === "enter"
+      ? animation.fromScale + (FILTER_PIN_ENTER_POP_SCALE - animation.fromScale) * enterPopProgress
+      : animation.fromScale + (animation.toScale - animation.fromScale) * scaleProgress,
+    alpha: animation.fromAlpha + (animation.toAlpha - animation.fromAlpha) * alphaProgress,
+  };
+}
+
+function filterPinClusterScale(cluster, now = performance.now()) {
+  let scale = 1;
+  for (const item of cluster.items || []) {
+    const animation = filterPinAnimationFor(item, now);
+    if (animation) scale = Math.min(scale, animation.scale);
+  }
+  return scale;
+}
+
+function filterPinTransitionActive(now = performance.now()) {
+  let active = false;
+  for (const [item, animation] of _filterPinAnimations) {
+    if (now - animation.startedAt >= FILTER_PIN_ANIMATION_MS) {
+      _filterPinAnimations.delete(item);
+    } else {
+      active = true;
+    }
+  }
+  return active;
+}
+
+// Called immediately after state.overviewFilters changes, while `previousLookup` still holds
+// the pins from the previous filter set. The next lookup is built from the new state and the
+// two sets are compared by object identity, which matches the renderer's existing dataset
+// model and avoids introducing a synthetic marker key for every feature type.
+function beginOverviewFilterPinTransition(previousLookup) {
+  if (!previousLookup || (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches)) {
+    _filterPinAnimations.clear();
+    return;
+  }
+  const nextLookup = buildNearbyIconLookup();
+  const now = performance.now();
+  _filterPinAnimations.clear();
+  for (const type of ["tree", "landmark", "cow", "path", "water"]) {
+    const before = previousLookup[type] || new Set();
+    const after = nextLookup[type] || new Set();
+    for (const item of after) {
+      if (!before.has(item)) {
+        _filterPinAnimations.set(item, {
+          startedAt: now,
+          fromScale: 1,
+          toScale: 1,
+          fromAlpha: 0,
+          toAlpha: 1,
+          direction: "enter",
+          type,
+        });
+      }
+    }
+    for (const item of before) {
+      if (!after.has(item)) {
+        _filterPinAnimations.set(item, {
+          startedAt: now,
+          fromScale: 1,
+          toScale: FILTER_PIN_EXIT_SCALE,
+          fromAlpha: 1,
+          toAlpha: 0,
+          direction: "exit",
+          type,
+        });
+      }
+    }
+  }
+  if (_filterPinAnimations.size && typeof requestDraw === "function") requestDraw();
+}
+
+function drawFilterTransitionIcon(ctx, type, item, x, y, size) {
+  if (type === "tree") {
+    const src = (typeof treeSpeciesIconPath === "function" && treeSpeciesIconPath(item.commonName, item.latinName)) || iconPath("tree");
+    return drawPngMapIcon(ctx, src, x, y, size);
+  }
+  if (type === "landmark") return drawLandmarkIcon(ctx, item, x, y, size);
+  if (type === "cow") return drawPngMapIcon(ctx, iconPath("cow"), x, y, size);
+  if (type === "path") return drawPngMapIcon(ctx, iconPath("waymarked"), x, y, size);
+  if (type === "water") return drawPngMapIcon(ctx, iconPath("ponds"), x, y, size);
+  return false;
+}
+
+// Removed pins are no longer part of the active lookup, so draw them briefly on the overlay
+// while they shrink. This keeps the normal clustered renderer authoritative for visible pins,
+// and means the outgoing marker never has to be resurrected in the hit-test lookup.
+function drawFilterTransitionPins(ctx, toScreen) {
+  if (!filterPinTransitionActive()) return;
+  const dpr = pixelRatio();
+  const iconSize = MAP_PNG_ICON_SIZE * dpr * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
+  const reveal = nearbyRevealOpacity();
+  for (const [item, animation] of _filterPinAnimations) {
+    if (animation.direction !== "exit") continue;
+    const stateAtFrame = filterPinAnimationFor(item);
+    if (!stateAtFrame || !item.point) continue;
+    const point = toScreen(item.point);
+    const tiltScale = typeof tiltPinScale === "function" ? tiltPinScale(item.point) : 1;
+    const scale = stateAtFrame.scale * tiltScale;
+    if (!isNearCanvas(point, iconSize * 2)) continue;
+    ctx.save();
+    ctx.globalAlpha = reveal * stateAtFrame.alpha;
+    drawFilterTransitionIcon(ctx, animation.type, item, point.x, point.y, iconSize * scale);
+    ctx.restore();
+  }
+}
+
 // Resolves every in-flight cluster-join animation to its settled end state immediately, with
 // no further frames of shrinking/growing. stopViewportAnimation() (js/app.js) calls this: that
 // function already means "abruptly snap to now, no animation in flight" for the *camera*, and a
@@ -2053,7 +2197,8 @@ function drawGroupBadge(ctx, x, y, count, iconSources, mixed, dpr, scale = 1) {
 function drawSameCategoryCluster(ctx, cluster, itemType, dpr, scale = 1) {
   if (cluster.items.length < 2) return false;
   drawGroupBadge(ctx, cluster.screenPt.x, cluster.screenPt.y, cluster.items.length,
-    clusterPreviewEntries(itemType, cluster).sort((a, b) => b.count - a.count).map(entry => entry.src), false, dpr, scale);
+    clusterPreviewEntries(itemType, cluster).sort((a, b) => b.count - a.count).map(entry => entry.src), false, dpr,
+    scale * filterPinClusterScale(cluster));
   return true;
 }
 
@@ -2152,7 +2297,8 @@ function drawMegaClusters(ctx, megaGroups) {
     const cy = sy / totalItems;
     if (!isNearCanvas({ x: cx, y: cy }, megaClusterOuterRadius(totalItems, dpr) * 2)) continue;
     // The badge and expanded list describe the same underlying members.
-    drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr);
+    drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr,
+      filterPinClusterScale({ items: group.flatMap(member => member.cluster.items) }));
   }
   ctx.globalAlpha = 1;
   ctx.restore();
@@ -2180,12 +2326,14 @@ function drawTrees(ctx, nearbyIconLookup, toScreen, treeClusters) {
     ctx.globalAlpha = reveal;
     const joinState = clusterJoinAnimationState(cluster);
     const badgeSize = iconSize * (joinState ? joinState.badgeScale : 1);
+    const itemAnimation = items.length === 1 ? filterPinAnimationFor(items[0]) : null;
+    const itemScale = itemAnimation ? itemAnimation.scale : 1;
 
-    ctx.globalAlpha = reveal;
+    ctx.globalAlpha = reveal * (itemAnimation ? itemAnimation.alpha : 1);
 
     const src = clusterTreeIconSrc(items);
     if (!drawSameCategoryCluster(ctx, cluster, "tree", dpr, joinState ? joinState.badgeScale : 1)) {
-      drawPngMapIcon(ctx, src, screenPt.x, screenPt.y, badgeSize);
+      drawPngMapIcon(ctx, src, screenPt.x, screenPt.y, badgeSize * itemScale);
     }
 
     if (joinState) {
@@ -2604,13 +2752,16 @@ function drawLandmarks(ctx, nearbyIconLookup, toScreen, landmarkClusters) {
 
     const place = items[0];
     const baseOpacity = markerOpacityFor("landmark", place);
+    const itemAnimation = items.length === 1 ? filterPinAnimationFor(place) : null;
+    const itemScale = itemAnimation ? itemAnimation.scale : 1;
+    const itemAlpha = itemAnimation ? itemAnimation.alpha : 1;
     ctx.globalAlpha = markerOpacityFor("landmark", items[0]) * reveal;
     const joinState = clusterJoinAnimationState(cluster);
     const badgeScale = joinState ? joinState.badgeScale : 1;
-    ctx.globalAlpha = baseOpacity * reveal;
+    ctx.globalAlpha = baseOpacity * reveal * itemAlpha;
 
     if (!drawSameCategoryCluster(ctx, cluster, "landmark", dpr, joinState ? joinState.badgeScale : 1)) {
-      drawLandmarkIcon(ctx, place, screenPt.x, screenPt.y, iconSize * badgeScale);
+      drawLandmarkIcon(ctx, place, screenPt.x, screenPt.y, iconSize * badgeScale * itemScale);
     }
 
 
@@ -2645,9 +2796,13 @@ function drawPathPins(ctx, nearbyIconLookup, toScreen, pathClusters) {
     ctx.globalAlpha = reveal;
     const joinState = clusterJoinAnimationState(cluster);
     const badgeSize = iconSize * (joinState ? joinState.badgeScale : 1);
+    const itemAnimation = items.length === 1 ? filterPinAnimationFor(items[0]) : null;
+    const itemScale = itemAnimation ? itemAnimation.scale : 1;
+    const itemAlpha = itemAnimation ? itemAnimation.alpha : 1;
     ctx.globalAlpha = reveal;
     if (!drawSameCategoryCluster(ctx, cluster, "path", dpr, joinState ? joinState.badgeScale : 1)) {
-      drawPngMapIcon(ctx, iconPath("waymarked"), screenPt.x, screenPt.y, badgeSize);
+      ctx.globalAlpha = reveal * itemAlpha;
+      drawPngMapIcon(ctx, iconPath("waymarked"), screenPt.x, screenPt.y, badgeSize * itemScale);
     }
     if (joinState) {
       for (const r of joinState.shrinking) {
@@ -2679,9 +2834,13 @@ function drawWaterPins(ctx, nearbyIconLookup, toScreen, waterClusters) {
     ctx.globalAlpha = reveal;
     const joinState = clusterJoinAnimationState(cluster);
     const badgeSize = iconSize * (joinState ? joinState.badgeScale : 1);
+    const itemAnimation = items.length === 1 ? filterPinAnimationFor(items[0]) : null;
+    const itemScale = itemAnimation ? itemAnimation.scale : 1;
+    const itemAlpha = itemAnimation ? itemAnimation.alpha : 1;
     ctx.globalAlpha = reveal;
     if (!drawSameCategoryCluster(ctx, cluster, "water", dpr, joinState ? joinState.badgeScale : 1)) {
-      drawPngMapIcon(ctx, iconPath("ponds"), screenPt.x, screenPt.y, badgeSize);
+      ctx.globalAlpha = reveal * itemAlpha;
+      drawPngMapIcon(ctx, iconPath("ponds"), screenPt.x, screenPt.y, badgeSize * itemScale);
     }
     if (joinState) {
       for (const r of joinState.shrinking) {
@@ -2711,12 +2870,15 @@ function drawCows(ctx, nearbyIconLookup, toScreen, cowClusters) {
     const { screenPt, items } = cluster;
     if (!isNearCanvas(screenPt, items.length > 1 ? 84 * dpr : iconSize * 2)) continue;
     const baseOpacity = markerOpacityFor("cow", items[0]);
+    const itemAnimation = filterPinAnimationFor(items[0]);
+    const itemScale = itemAnimation ? itemAnimation.scale : 1;
+    const itemAlpha = itemAnimation ? itemAnimation.alpha : 1;
     ctx.globalAlpha = markerOpacityFor("cow", items[0]) * reveal;
     const joinState = clusterJoinAnimationState(cluster);
     const badgeSize = iconSize * (joinState ? joinState.badgeScale : 1);
-    ctx.globalAlpha = baseOpacity * reveal;
+    ctx.globalAlpha = baseOpacity * reveal * itemAlpha;
     if (!drawSameCategoryCluster(ctx, cluster, "cow", dpr, joinState ? joinState.badgeScale : 1)) {
-      drawPngMapIcon(ctx, iconPath("cow"), screenPt.x, screenPt.y, badgeSize);
+      drawPngMapIcon(ctx, iconPath("cow"), screenPt.x, screenPt.y, badgeSize * itemScale);
     }
     if (joinState) {
       for (const r of joinState.shrinking) {
@@ -2918,7 +3080,8 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     const cy = sy / totalItems;
     const worldPt = { x: swx / totalItems, y: swy / totalItems };
     if (!isNearCanvas({ x: cx, y: cy }, megaClusterOuterRadius(totalItems, dpr) * 2)) continue;
-    const pinScale = Math.max(0.65, tiltPinScale(worldPt));
+    const pinScale = Math.max(0.65, tiltPinScale(worldPt))
+      * filterPinClusterScale({ items: group.flatMap(member => member.cluster.items) });
     const badgeCount = totalItems;
     calls.push({ y: cy, fn(c) {
       c.globalAlpha = reveal;
@@ -2939,9 +3102,11 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     const pinScale = tiltPinScale(worldPt);
     const src = clusterTreeIconSrc(items);
+    const itemAnimation = filterPinAnimationFor(items[0]);
     calls.push({ y: screenPt.y, fn(c) {
-      c.globalAlpha = reveal;
-      const drawn = drawPngMapIcon(c, src, screenPt.x, screenPt.y, iconSize * pinScale);
+      c.globalAlpha = reveal * (itemAnimation ? itemAnimation.alpha : 1);
+      const drawn = drawPngMapIcon(c, src, screenPt.x, screenPt.y,
+        iconSize * pinScale * (itemAnimation ? itemAnimation.scale : 1));
     }});
   }
 
@@ -2959,6 +3124,7 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     const pinScale = tiltPinScale(worldPt);
     const place = items[0];
     const baseOpacity = markerOpacityFor("landmark", place);
+    const itemAnimation = filterPinAnimationFor(place);
     const isPub = isPubCategory(place);
     const isCafe = isCafeCategory(place);
     const isShop = isShopCategory(place);
@@ -2966,9 +3132,9 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     const transportType = isTransport ? getTransportType(place) : null;
     const iconSlug = (!isPub && !isCafe && !isShop && !isTransport) ? placeIconSlug(place) : null;
     calls.push({ y: screenPt.y, fn(c) {
-      c.globalAlpha = reveal * baseOpacity;
+      c.globalAlpha = reveal * baseOpacity * (itemAnimation ? itemAnimation.alpha : 1);
       let drawnAsPng = false;
-      const scaledIconSize = iconSize * pinScale;
+      const scaledIconSize = iconSize * pinScale * (itemAnimation ? itemAnimation.scale : 1);
       if (isPub) {
         drawnAsPng = drawPngMapIcon(c, iconPath("beer"), screenPt.x, screenPt.y, scaledIconSize);
       } else if (isCafe) {
@@ -3006,9 +3172,11 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     const pinScale = tiltPinScale(worldPt);
     const baseOpacity = markerOpacityFor("cow", items[0]);
+    const itemAnimation = filterPinAnimationFor(items[0]);
     calls.push({ y: screenPt.y, fn(c) {
-      c.globalAlpha = reveal * baseOpacity;
-      const drawn = drawPngMapIcon(c, iconPath("cow"), screenPt.x, screenPt.y, iconSize * pinScale);
+      c.globalAlpha = reveal * baseOpacity * (itemAnimation ? itemAnimation.alpha : 1);
+      const drawn = drawPngMapIcon(c, iconPath("cow"), screenPt.x, screenPt.y,
+        iconSize * pinScale * (itemAnimation ? itemAnimation.scale : 1));
     }});
   }
 
@@ -3024,9 +3192,11 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     const pinScale = tiltPinScale(worldPt);
+    const itemAnimation = filterPinAnimationFor(items[0]);
     calls.push({ y: screenPt.y, fn(c) {
-      c.globalAlpha = reveal;
-      const drawn = drawPngMapIcon(c, iconPath("waymarked"), screenPt.x, screenPt.y, iconSize * pinScale);
+      c.globalAlpha = reveal * (itemAnimation ? itemAnimation.alpha : 1);
+      const drawn = drawPngMapIcon(c, iconPath("waymarked"), screenPt.x, screenPt.y,
+        iconSize * pinScale * (itemAnimation ? itemAnimation.scale : 1));
     }});
   }
 
@@ -3042,9 +3212,11 @@ function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
     const { screenPt, items, worldPt } = cluster;
     if (!isNearCanvas(screenPt, iconSize * 2)) continue;
     const pinScale = tiltPinScale(worldPt);
+    const itemAnimation = filterPinAnimationFor(items[0]);
     calls.push({ y: screenPt.y, fn(c) {
-      c.globalAlpha = reveal;
-      const drawn = drawPngMapIcon(c, iconPath("ponds"), screenPt.x, screenPt.y, iconSize * pinScale);
+      c.globalAlpha = reveal * (itemAnimation ? itemAnimation.alpha : 1);
+      const drawn = drawPngMapIcon(c, iconPath("ponds"), screenPt.x, screenPt.y,
+        iconSize * pinScale * (itemAnimation ? itemAnimation.scale : 1));
     }});
   }
 

@@ -259,7 +259,10 @@ globalThis.__forestFindsTest = {
   formatWalkTime,
   overviewItemsForActiveFilter,
   overviewNearestHtml,
-  categoryLandingLinksHtml,
+  filterRailHtml,
+  railSelection,
+  railPillKeys,
+  toggleRailFilter,
   navigateInApp,
   overviewHeadingText,
   landingPageCategoryLabel,
@@ -467,6 +470,7 @@ globalThis.__forestFindsTest = {
   placeLabelFilterKey,
   resolvePlaceKind,
   FILTER_SUBFILTERS_BY_KEY,
+  FILTER_SUBFILTERS,
   nearestTreeTo,
   nearestCowTo,
   nearbySectionsHtml,
@@ -724,6 +728,7 @@ function resetData(app) {
   app.state.roads = [];
   app.state.nearbyAnchor = null;
   app.state.nearbyOriginTransition = null;
+  app.state.nearbyFilterChangeOrigin = null;
   app.state.cameraOriginTransition = null;
   app.state.clusterExpanded = null;
   app.state.clusterZoomed = false;
@@ -1135,18 +1140,13 @@ test("treeSpeciesIconHtml returns leaf icon for known species", () => {
 
 test("guided onboarding keeps category groups separate and uses useful defaults", () => {
   const { ONBOARDING_STEPS: steps } = app;
-  const permissionsStep = steps.findIndex((step) => step.type === "permissions");
   const compassStep = steps.findIndex((step) => step.type === "compass");
   const groupSteps = steps.filter((step) => step.type === "group");
 
-  assert.strictEqual(permissionsStep, 0, "the permissions step remains available for direct onboarding launches");
+  assert.equal(steps[0].type, "welcome", "permission questions belong to the non-blocking card, not the guided filter dialog");
   assert.strictEqual(groupSteps.length, app.FILTER_GROUPS.length, "each filter group should keep its own onboarding screen");
   assert.deepEqual(Array.from(app.DEFAULT_FILTERS), ["trees", "cows", "events", "pubs", "churches", "campsites"]);
-  // Compass step is only included on iOS (canRequestCompassPermission). In the test
-  // environment DeviceOrientationEvent.requestPermission is not defined, so no step.
-  if (compassStep >= 0) {
-    assert.ok(compassStep > locationStep, "compass onboarding should come after location setup");
-  }
+  assert.equal(compassStep, -1, "compass access is requested from the location card, not as a filter step");
 });
 
 test("compass onboarding renders permission and fallback states", () => {
@@ -1717,7 +1717,7 @@ test("nearby heading-up viewport frames the walking-radius circle and ignores wh
   );
 });
 
-test("a filter with nothing inside the radius pulls the nearby camera out far enough to show its nearest match", () => {
+test("a filter with nothing inside the radius does not pull the Nearby camera out to its fallback match", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 0;
@@ -1735,17 +1735,18 @@ test("a filter with nothing inside the radius pulls the nearby camera out far en
   const ringOnlyScale = app.state.viewport.scale;
 
   // Switch on a filter whose only match is a long walk outside the ring. The Nearby list
-  // already falls back to showing it (overviewItemsForActiveFilter marks it outOfRadius), so
-  // the map has to reach it too -- otherwise the list names a station the map never shows.
+  // still falls back to showing it (overviewItemsForActiveFilter marks it outOfRadius), but
+  // the Nearby camera stays focused on the walking radius rather than zooming out to a distant
+  // item that may not be drawn on screen.
   app.setOverviewFilters(["trees", "underground"]);
   app.stopViewportAnimation();
-  assert.deepEqual(Array.from(app.state.outOfRadiusRevealFilters), ["underground"], "the added filter is what the camera reaches for");
+  assert.deepEqual(Array.from(app.state.outOfRadiusRevealFilters), ["underground"], "the added filter is marked for secondary-screen reach");
   app.state.viewport = { scale: 1000, tx: 200, ty: 200 };
   app.alignHeadingUpNavigationViewport();
-  const revealedScale = app.state.viewport.scale;
+  const nearbyScale = app.state.viewport.scale;
   assert.ok(
-    revealedScale < ringOnlyScale * 0.9,
-    `the camera zooms out past the ring to reach the out-of-radius match (${revealedScale} vs ${ringOnlyScale})`,
+    Math.abs(nearbyScale - ringOnlyScale) < ringOnlyScale * 0.001,
+    `the Nearby camera stays on the ring (${nearbyScale} vs ${ringOnlyScale})`,
   );
 
   // It is a response to that action, not a standing property of the camera. A saved filter set
@@ -1811,6 +1812,7 @@ test("the Nearby nav button restores the reader's real filters after a /nearby/<
 
   app.goToInitialView();
   assert.deepEqual(Array.from(app.state.overviewFilters), ["cafes"], "\"Nearby\" takes the reader back to their own filters, not the page's");
+  assert.equal(app.location.pathname, "/nearby", "the Nearby nav also canonicalizes the category URL");
   app.location.pathname = "/";
 });
 
@@ -2005,7 +2007,8 @@ test("nearbyCountCopy reads as a plain count from the place, in the reader's own
   const saved = app.state.walkingDistanceMinutes;
   app.state.walkingDistanceMinutes = 30;
   assert.equal(app.nearbyCountCopy("trees", { within: 43, beyond: 20 }, "The Foresters"), "43 trees within 30 min walk of The Foresters.");
-  assert.equal(app.nearbyCountCopy("cows", { within: 0, beyond: 11 }, "The Foresters"), "0 cows within 30 min walk of The Foresters.");
+  assert.equal(app.nearbyCountCopy("cows", { within: 0, beyond: 11 }, "The Foresters"), "No cows within 30 min walk of The Foresters.");
+  assert.equal(app.nearbyCountCopy("cows", { within: 0, beyond: 0 }, "The Foresters"), "No cows nearby.");
   assert.equal(app.nearbyCountCopy("cows", { within: 1, beyond: 0 }, "The Foresters"), "1 cow within 30 min walk of The Foresters.", "a single match drops the plural");
   assert.equal(app.nearbyCountCopy("trees", { within: 3032, beyond: 21864 }, "Bald Faced Stag"), "3,032 trees within 30 min walk of Bald Faced Stag.", "large counts get thousands separators");
   app.state.walkingDistanceMinutes = 30.6;
@@ -2097,32 +2100,6 @@ test("isLandingPageArrival also recognises a /find/<slug>/ business page as a la
   app.location.search = "";
 });
 
-test("categoryLandingLinksHtml labels the category navigation and marks the current subfilter", () => {
-  app.location.pathname = "/nearby/pubs/";
-  const html = app.categoryLandingLinksHtml();
-  assert.match(html, /<nav class="nearby-category-nav" aria-label="Browse nearby categories">/);
-  assert.match(html, /Browse nearby categories/);
-  assert.match(html, /class="detail-map-link nearby-link nearby-link--current" href="\/nearby\/pubs\/" aria-current="page"[\s\S]*?Pubs &amp; bars<\/a>/);
-  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\/food\/">[\s\S]*?Food<\/a>/);
-  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\?filters=false">[\s\S]*?All nearby<\/a>/);
-  app.location.pathname = "/";
-});
-
-test("categoryLandingLinksHtml marks a group page's current category and links back to the full Nearby list", () => {
-  app.location.pathname = "/nearby/food/";
-  const html = app.categoryLandingLinksHtml();
-  assert.match(html, /class="detail-map-link nearby-link nearby-link--current" href="\/nearby\/food\/" aria-current="page"[\s\S]*?Food<\/a>/);
-  assert.match(html, /<a class="detail-map-link nearby-link" href="\/nearby\?filters=false">[\s\S]*?All nearby<\/a>/);
-  app.location.pathname = "/";
-});
-
-test("categoryLandingLinksHtml is empty on the plain Nearby screen and on /nearby/filter or /nearby/search", () => {
-  for (const pathname of ["/nearby", "/nearby/filter", "/nearby/search", "/"]) {
-    app.location.pathname = pathname;
-    assert.equal(app.categoryLandingLinksHtml(), "", `expected no breadcrumb on ${pathname}`);
-  }
-});
-
 test("overviewNearestHtml carries the labelled category navigation and results heading through every return path", () => {
   resetData(app);
   // Set directly rather than through setOverviewFilters(), whose own selectOverview()/
@@ -2132,7 +2109,7 @@ test("overviewNearestHtml carries the labelled category navigation and results h
   app.state.overviewFilters = ["pubs"];
   app.location.pathname = "/nearby/pubs/";
   app.state.userLocation = null;
-  assert.match(app.overviewNearestHtml(), /Browse nearby categories/, "no-location branch still shows the navigation label");
+  assert.match(app.overviewNearestHtml(), /<nav class="filter-rail"/, "no-location branch still shows the filter rail");
   assert.match(app.overviewNearestHtml(), /<h3 id="nearbyResultsHeading">Pubs &amp; bars nearby<\/h3>/, "no-location branch names the results");
 
   app.state.userLocation = makePoint(app, 51.9, 0.9); // far from any fixture data -- empty list
@@ -2141,40 +2118,98 @@ test("overviewNearestHtml carries the labelled category navigation and results h
   app.location.pathname = "/";
 });
 
-test("categoryLandingLinksHtml adds a pill per member on a group page (\"Browse by type\"), excluding cows from that row -- it still gets its own \"see also\" pill, matching the static generator's own page.members set", () => {
-  app.location.pathname = "/nearby/nature/";
-  const html = app.categoryLandingLinksHtml();
-  assert.match(html, /href="\/nearby\/trees\/"[\s\S]*?Trees/);
-  assert.match(html, /href="\/nearby\/ponds-streams\/"[\s\S]*?Ponds/);
-  // Cows is live-tracked with no fixed count, so it never gets a page through the ordinary
-  // inventory-driven category path (COW_KEY, scripts/report/map-inventory.js) and so is never one
-  // of the group's own "members" -- but it still appears once, via the see-also row below, not
-  // the type row.
-  assert.match(html, /href="\/nearby\/cows\/"[\s\S]*?Cows/);
+test("the plain Nearby filter rail shows top-level categories with ticks for enabled groups", () => {
+  resetData(app);
+  app.location.pathname = "/nearby";
+  app.state.overviewFilters = ["pubs", "trees"];
+  const html = app.filterRailHtml();
+  assert.match(html, /<nav class="filter-rail" aria-label="Filter nearby places">/);
+  assert.match(html, /class="rail-pill rail-pill--all" type="button" data-rail-key="all-nearby" aria-pressed="false"/);
+  assert.match(html, /class="rail-pill is-on" type="button" data-rail-key="nature" aria-pressed="true"/);
+  assert.match(html, /data-rail-key="nature"[^>]*>[^<]*[\s\S]*?<span class="rail-check"/, "enabled groups show a tick");
+  assert.match(html, /class="rail-pill is-on" type="button" data-rail-key="food" aria-pressed="true"/);
+  assert.match(html, /data-rail-key="transport" aria-pressed="false"/, "the rail uses top-level groups");
+  assert.match(html, /data-rail-key="transport"[^>]*>[\s\S]*?<span class="rail-check"[^>]*><\/span>/, "disabled groups reserve the indicator space without showing a close icon");
+  const keys = [...html.matchAll(/data-rail-key="([a-z_]+)"/g)].map((m) => m[1]);
+  assert.equal(new Set(keys).size, keys.length, "no category appears twice");
+  assert.ok(keys.includes("nature") && keys.includes("food"), "the top-level categories are in the row");
   app.location.pathname = "/";
+  app.state.overviewFilters = [];
 });
 
-test("categoryLandingLinksHtml adds \"see also\" trees/cows pills to every landing page, marking the current page and never doubling up with the nature group's own type pill", () => {
-  app.location.pathname = "/nearby/pubs/";
-  const pubsHtml = app.categoryLandingLinksHtml();
-  assert.match(pubsHtml, /href="\/nearby\/trees\/"[\s\S]*?Trees/);
-  assert.match(pubsHtml, /href="\/nearby\/cows\/"[\s\S]*?Cows/);
-
-  app.location.pathname = "/nearby/trees/";
-  const treesHtml = app.categoryLandingLinksHtml();
-  assert.match(treesHtml, /nearby-link--current[^>]*href="\/nearby\/trees\/"|href="\/nearby\/trees\/"[^>]*nearby-link--current/, "the trees page marks itself as current");
-  assert.match(treesHtml, /href="\/nearby\/cows\/"[\s\S]*?Cows/);
-
-  app.location.pathname = "/nearby/cows/";
-  const cowsHtml = app.categoryLandingLinksHtml();
-  assert.match(cowsHtml, /href="\/nearby\/trees\/"[\s\S]*?Trees/);
-  assert.match(cowsHtml, /nearby-link--current[^>]*href="\/nearby\/cows\/"|href="\/nearby\/cows\/"[^>]*nearby-link--current/, "the cows page marks itself as current");
-
-  app.location.pathname = "/nearby/nature/";
-  const natureHtml = app.categoryLandingLinksHtml();
-  assert.equal((natureHtml.match(/href="\/nearby\/trees\/"/g) || []).length, 1, "the nature group's own \"Trees\" type pill is the only trees link -- the see-also row doesn't repeat it");
-
+test("a category Nearby page shows its subcategories and ticks the enabled ones", () => {
+  resetData(app);
+  app.location.pathname = "/nearby/food/";
+  app.state.overviewFilters = ["pubs", "cafes"];
+  const html = app.filterRailHtml();
+  assert.match(html, /data-rail-key="all-nearby"[^>]*aria-pressed="false"/);
+  assert.deepEqual(Array.from(app.railPillKeys()), ["pubs", "restaurants", "cafes", "shops"]);
+  assert.match(html, /data-rail-key="pubs"[^>]*aria-pressed="true"[\s\S]*?rail-check/);
+  assert.match(html, /data-rail-key="cafes"[^>]*aria-pressed="true"[\s\S]*?rail-check/);
+  assert.match(html, /data-rail-key="restaurants"[^>]*aria-pressed="false"/);
+  assert.doesNotMatch(html, /data-rail-key="nature"/);
   app.location.pathname = "/";
+  app.state.overviewFilters = [];
+});
+
+test("a filter set covering every category keeps every displayed pill pressed", () => {
+  resetData(app);
+  app.state.overviewFilters = app.FILTER_SUBFILTERS.map((sub) => sub.key);
+  assert.equal(app.railSelection().length, 0);
+  const html = app.filterRailHtml();
+  assert.match(html, /class="rail-pill rail-pill--all is-on" type="button" data-rail-key="all-nearby" aria-pressed="true"/);
+  assert.match(html, /aria-pressed="true"/);
+  assert.match(html, /class="rail-check"/);
+  app.state.overviewFilters = [];
+});
+
+test("tapping a rail pill narrows to it, a second pill adds to it, and un-pressing the last returns to Everything, none of it saved", () => {
+  resetData(app);
+  app.location.pathname = "/nearby";
+  app.location.search = "";
+  app.state.overviewFilters = app.FILTER_SUBFILTERS.map((sub) => sub.key);
+  app.toggleRailFilter("nature");
+  assert.deepEqual(Array.from(app.state.overviewFilters), ["trees", "cows", "ponds_streams"]);
+  assert.equal(app.state.overviewFiltersEphemeral, true, "a rail tap is a lens, not the reader's saved filters");
+  assert.equal(app.location.pathname, "/nearby", "the plain Nearby rail stays at top-level groups");
+  assert.equal(app.location.search, "?show=trees,cows,ponds_streams");
+  app.state.nearbyRailGroupKey = "nature";
+  app.toggleRailFilter("ponds_streams");
+  assert.deepEqual(Array.from(app.state.overviewFilters), ["trees", "cows"]);
+  assert.equal(app.location.pathname, "/nearby");
+  assert.equal(app.location.search, "?show=trees,cows");
+  app.location.pathname = "/nearby";
+  app.state.nearbyRailGroupKey = null;
+  app.toggleRailFilter("nature");
+  assert.equal(app.railSelection().length, 0, "nothing chosen represents all filters");
+  assert.equal(app.location.search, "?filters=false");
+  assert.deepEqual(Array.from(app.state.overviewFilters), [], "the last pill remains visibly unselected");
+  assert.match(app.filterRailHtml(), /data-rail-key="all-nearby"[^>]*aria-pressed="true"/);
+  assert.match(app.filterRailHtml(), /data-rail-key="nature"[^>]*aria-pressed="false"/);
+  app.state.overviewFilters = [];
+  app.state.overviewFiltersEphemeral = false;
+  app.location.pathname = "/";
+  app.location.search = "";
+});
+
+test("the Everything rail pill restores every category and keeps a category rail", () => {
+  resetData(app);
+  app.location.pathname = "/nearby/food";
+  app.location.search = "?show=pubs,cafes";
+  app.state.nearbyRailGroupKey = "food";
+  app.state.overviewFilters = ["pubs", "cafes"];
+  app.toggleRailFilter("all-nearby");
+  assert.equal(Array.from(app.state.overviewFilters).join(","), app.FILTER_SUBFILTERS.map((sub) => sub.key).join(","));
+  assert.equal(app.state.nearbyRailGroupKey, "food");
+  assert.equal(app.location.pathname, "/nearby");
+  assert.equal(app.location.search, "?filters=false");
+  assert.match(app.filterRailHtml(), /data-rail-key="all-nearby"[^>]*aria-pressed="true"/);
+  assert.equal(Array.from(app.railPillKeys()).join(","), "pubs,restaurants,cafes,shops");
+  app.state.overviewFilters = [];
+  app.state.overviewFiltersEphemeral = false;
+  app.state.nearbyRailGroupKey = undefined;
+  app.location.pathname = "/";
+  app.location.search = "";
 });
 
 test("landingPageCategoryLabel names the current /nearby/<slug> landing's own category, and selectOverview() uses it to head the screen \"Nearby <Category>\" instead of the generic \"Nearby\"", () => {
@@ -3764,7 +3799,7 @@ test("maxNearbyHeadingUpScale does not depend on the compass heading, so the cam
   }
 });
 
-test("nearby and the filter screen both zoom out past the walking radius to reach the nearest match of every selected filter", () => {
+test("Nearby stays on the walking radius while the filter screen reaches selected matches outside it", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 0;
@@ -3801,16 +3836,15 @@ test("nearby and the filter screen both zoom out past the walking radius to reac
       filterPoints.some((p) => p.x === point.x && p.y === point.y),
       "the nearest match of each selected filter should be part of the filter-screen fit",
     );
-    // The Nearby screen reaches them too: a filter with nothing inside the ring is exactly
-    // the case where the list shows an out-of-radius fallback, and the map has to agree.
-    assert.ok(
+    assert.equal(
       nearbyPoints.some((p) => p.x === point.x && p.y === point.y),
-      "and part of the plain Nearby fit, since neither filter has anything inside the ring",
+      false,
+      "the plain Nearby fit stays on the walking-radius ring",
     );
   }
   assert.ok(
-    nearbyScale < ringOnlyScale,
-    `Nearby should zoom out past the ring-only fit (nearby=${nearbyScale}, ringOnly=${ringOnlyScale})`,
+    Math.abs(nearbyScale - ringOnlyScale) < ringOnlyScale * 0.001,
+    `Nearby should stay on the ring-only fit (nearby=${nearbyScale}, ringOnly=${ringOnlyScale})`,
   );
   assert.ok(
     filterScale <= nearbyScale * 1.001,
@@ -4233,6 +4267,15 @@ test("the nearby heading names the walking radius, not just the filter", () => {
   app.state.showAllOutsideRadius = true;
   assert.match(app.overviewHeadingText(), /Nearest Trees around you/);
   app.state.showAllOutsideRadius = false;
+});
+
+test("the nearby heading explains when Everything is selected", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.walkingDistanceMinutes = 5;
+  app.state.overviewFilters = app.FILTER_SUBFILTERS.map((subfilter) => subfilter.key);
+
+  assert.equal(app.overviewHeadingText(), "Showing everything within 5 min walk");
 });
 
 test("the nearby heading names the count too, so a /nearby/<slug> page answers 'how many' at a glance", () => {
@@ -5132,6 +5175,18 @@ test("the walking radius grows back to the nearest remaining find once the ring 
   app.state.walkingDistanceMinutes = 30;
   assert.equal(app.ensureWalkingRadiusCoversNearest(), false, "the radius is never pulled back in automatically");
   assert.equal(app.state.walkingDistanceMinutes, 30);
+});
+
+test("adding a filter does not widen an empty Nearby ring to its distant fallback", () => {
+  resetData(app);
+  app.state.landmarks.push({ id: "far-station", name: "Far Underground Station", category: "station", ...makePoint(app, 0.03, 0) });
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.walkingDistanceMinutes = 5;
+
+  app.setOverviewFilters(["underground"]);
+  assert.equal(app.nearbyRadiusIsEmpty(), true, "the selected transport kind has no match in the ring");
+  assert.equal(app.ensureWalkingRadiusCoversNearest(), false, "a filter change must not widen the ring");
+  assert.equal(app.state.walkingDistanceMinutes, 5, "the reader's radius remains unchanged");
 });
 
 test("an open settings slider follows a radius changed from outside it", () => {
@@ -9309,12 +9364,18 @@ test("openInMapsHtml is an icon-only control with an accessible name", () => {
   assert.equal(app.openInMapsHtml(null, null, "Test"), "", "no link without coordinates");
 });
 
-test("nearbyWithinWalkHtml renders a Nearby-list-styled card carrying the exact coordinates it should browse, and is empty without coordinates", () => {
+test("nearbyWithinWalkHtml renders a Nearby-list-styled card carrying the exact coordinates it should browse, and is empty without coordinates or nearby locations", () => {
   const html = app.nearbyWithinWalkHtml(51.65, 0.05);
   assert.match(html, /<li><button class="nearest-item" type="button" data-action="walk-radius" data-lat="51\.65" data-lon="0\.05">/);
   assert.ok(html.includes(`within ${app.state.walkingDistanceMinutes} min walk`), "copy names the reader's own walking radius, not a fixed 15");
   assert.ok(!html.includes("detail-map-link"), "shares the Nearby list's own card styling, not the unrelated pill");
   assert.equal(app.nearbyWithinWalkHtml(null, null), "", "no card when there are no coordinates to browse from");
+  const originalEntries = app.state.trees.splice(0);
+  try {
+    assert.equal(app.nearbyWithinWalkHtml(51.65, 0.05), "", "no Everything card when the walking radius contains no locations");
+  } finally {
+    app.state.trees.push(...originalEntries);
+  }
 });
 
 test("nearbySectionsHtml gives any point its headed Nearest section with the walk-radius card, and is empty without coordinates", () => {
@@ -11050,10 +11111,13 @@ test("routeValueFromLocation never treats /find/events/ as a place lookup", () =
 
 test("nearbySectionsHtml renders a headed Nearest section (tree/cow, the walk-radius card, real live distances) and a headed Related section (category/group), both as the same card style", () => {
   resetData(app);
+  const savedWalkingDistanceMinutes = app.state.walkingDistanceMinutes;
+  app.state.walkingDistanceMinutes = 30;
   const pub = { findSlug: "the-forresters", latitude: 51.65, longitude: 0.05, category: "pub" };
   app.state.landmarks.push(pub);
   app.state.trees.push({ latitude: 51.6505, longitude: 0.0505, id: "t1" }); // ~65m away
-  app.state.cows.push({ latitude: 51.66, longitude: 0.06, id: "c1" }); // ~1.3km away
+  app.state.cows.push({ latitude: 51.69, longitude: 0.10, id: "c1" }); // well beyond a 30-minute walk
+  app.state.landmarks.push(pub); // Related cards require a matching place within the radius.
 
   const html = app.nearbySectionsHtml({ latitude: pub.latitude, longitude: pub.longitude, name: "The Forresters", subfilterKey: "pubs" });
   // Section order and headings: Nearby first, then Related -- both plain <h3 class="detail-section-heading">.
@@ -11082,6 +11146,7 @@ test("nearbySectionsHtml renders a headed Nearest section (tree/cow, the walk-ra
   // No mention of the data's source attached to these distances -- they're computed live, not
   // fetched from anywhere that would need crediting.
   assert.ok(!html.includes("OpenStreetMap"));
+  app.state.walkingDistanceMinutes = savedWalkingDistanceMinutes;
 });
 
 test("nearbySectionsHtml omits the cows link when no cow positions are currently loaded", () => {
@@ -11094,6 +11159,19 @@ test("nearbySectionsHtml omits the cows link when no cow positions are currently
   assert.ok(!html.includes("nearby/cows/"), "no cow data loaded -- no cows link to show");
 });
 
+test("nearbySectionsHtml omits category and group tiles with no locations within the walking radius", () => {
+  resetData(app);
+  const pub = { findSlug: "the-forresters", latitude: 51.65, longitude: 0.05, category: "pub" };
+  app.state.trees.push({ latitude: 51.7, longitude: 0.1, id: "t1" });
+  app.state.cows.push({ latitude: 51.7, longitude: 0.1, id: "c1" });
+
+  const html = app.nearbySectionsHtml({ latitude: pub.latitude, longitude: pub.longitude, name: "The Forresters", subfilterKey: "pubs" });
+  assert.ok(!html.includes('<h3 class="detail-section-heading">Nearest</h3>'), "no empty Nearest section");
+  assert.ok(!html.includes('<h3 class="detail-section-heading">Related</h3>'), "no empty Related section");
+  assert.ok(!html.includes("nearby/trees/"), "no tree tile beyond the walking radius");
+  assert.ok(!html.includes("nearby/pubs/"), "no pub tile beyond the walking radius");
+  assert.ok(!html.includes("nearby/food/"), "no group tile beyond the walking radius");
+});
 test("nearbySectionsHtml puts Places close by above Nearest on a /find/ business", () => {
   resetData(app);
   const pub = { findSlug: "the-forresters", latitude: 51.65, longitude: 0.05, category: "pub" };
@@ -11109,9 +11187,10 @@ test("nearbySectionsHtml puts Places close by above Nearest on a /find/ business
 test("nearbySectionsHtml gives a place with no /find/ page of its own the same Nearest section, so no location is a dead end", () => {
   resetData(app);
   const busStop = { findSlug: null, latitude: 51.65, longitude: 0.05, category: "bus_stop" };
+  app.state.trees.push({ latitude: 51.6505, longitude: 0.0505, id: "t1" });
   const html = app.nearbySectionsHtml({ latitude: busStop.latitude, longitude: busStop.longitude, name: "Bus stop" });
   assert.ok(html.includes('<h3 class="detail-section-heading">Nearest</h3>'));
-  assert.match(html, /No nearby locations within \d+ min walk of Bus stop\./, "an empty radius is explained without a zero-count card");
+  assert.ok(html.includes("Everything"), "a location without its own page still gets the shared nearby card");
 });
 
 test("detailsHtml links a Phone row as a tel: link rather than inert text", () => {

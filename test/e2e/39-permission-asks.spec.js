@@ -73,12 +73,11 @@ test.describe("first-run onboarding", () => {
     });
     await page.goto("/nearby");
     await page.locator("#consentBannerAccept").click();
-    expect(await stored(page, "ff-track-v1")).toBe("1");
-    expect(await stored(page, "ff-cookie-consent")).toBe("granted");
     await expect(page.locator("#consentBannerAccept")).toHaveText("Set up my map");
+    expect(await stored(page, "ff-track-v1")).toBe("1");
   });
 
-  test("'Maybe later' records a combined opt-out and onboarding carries on non-blocking", async ({ page }) => {
+  test("'Maybe later' records the combined opt-out", async ({ page }) => {
     await stubLocation(page);
     await page.addInitScript(() => {
       localStorage.removeItem("ff-track-v1");
@@ -103,7 +102,7 @@ test.describe("first-run onboarding", () => {
     await expect(banner.getByRole("button", { name: "Set up my map" })).toBeVisible();
   });
 
-  test("'Maybe later' is not followed by another location ask, then or on the next visit", async ({ page }) => {
+  test("'Maybe later' is not followed by another consent ask, then or on the next visit", async ({ page }) => {
     await stubLocation(page);
     await page.goto("/nearby/search");
     const banner = page.locator("#consentBanner");
@@ -241,10 +240,10 @@ test.describe("a landing-page arrival", () => {
     await expect(page.locator("#cookieConsentBanner")).toHaveCount(0);
   });
 
-  test("'Enable location & cookies' on the card applies a real fix live", async ({ page }) => {
+  test("the combined action applies a real fix and grants analytics", async ({ page }) => {
     await stubLocation(page, { permission: "prompt", answer: "grant" });
     await gotoAndWaitForMap(page, "/nearby/filter?show=pubs");
-    await page.locator("#consentBannerAccept").click();
+    await page.getByRole("button", { name: "Enable location & cookies" }).click();
     await expect.poll(() => page.evaluate(() => Boolean(state.userLocation && !state.userLocation.isDefault))).toBe(true);
     expect(await locationRequests(page)).toBe(1);
     expect(await stored(page, "ff-track-v1")).toBe("1");

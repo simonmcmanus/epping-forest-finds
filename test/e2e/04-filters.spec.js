@@ -56,6 +56,39 @@ test.describe("Filter panel", () => {
     await expect(badge).not.toHaveText(before);
   });
 
+  test.describe("map pin transitions", () => {
+    test.use({
+      reducedMotion: "no-preference",
+      geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 },
+      permissions: ["geolocation"],
+    });
+
+    test("changing a filter animates the map pins while the camera is held still", async ({ page }) => {
+      await page.click("#filterToggle");
+      await waitForUiToSettle(page);
+      const changed = await page.evaluate(() => {
+        // Encoding full canvases can outlast the animation on a busy mobile runner. Hold its
+        // clock still while capturing, then advance it explicitly rather than racing real frames.
+        const realNow = performance.now;
+        let frameNow = realNow.call(performance);
+        performance.now = () => frameNow;
+        try {
+          document.querySelector('.filter-chip[data-filter-subfilter="trees"]').click();
+          stopViewportAnimation();
+          const canvases = [document.getElementById("mapCanvas"), document.getElementById("overlayCanvas")];
+          draw();
+          const before = canvases.map(canvas => canvas.toDataURL());
+          frameNow += 120;
+          draw();
+          return canvases.some((canvas, index) => canvas.toDataURL() !== before[index]);
+        } finally {
+          performance.now = realNow;
+        }
+      });
+      expect(changed).toBe(true);
+    });
+  });
+
   test.describe("the nearest list updates live on the Filter screen", () => {
     test.use({
       geolocation: { latitude: 51.654, longitude: 0.0296, accuracy: 10 },
@@ -124,12 +157,10 @@ test.describe("Filter panel", () => {
       permissions: ["geolocation"],
     });
 
-    // The Nearby list already falls back to naming the closest match for a filter with nothing
-    // inside the walking radius. The map has to agree: leaving the camera framed on the ring
-    // meant adding, say, Underground stations from inside the forest changed the list and
-    // changed nothing at all on the map, so the station the list had just named was nowhere
-    // to be seen.
-    test("the map zooms out far enough to show the nearest one", async ({ page }) => {
+    // The Nearby list still falls back to naming the closest match for a filter with nothing
+    // inside the walking radius, but the map remains a survey of that radius. A distant fallback
+    // must not make checking a category zoom the camera out to a place that is not shown.
+    test("the map stays focused on the walking radius", async ({ page }) => {
       await setup(page);
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
@@ -170,15 +201,15 @@ test.describe("Filter panel", () => {
         return {
           candidate,
           ringOnlyScale,
-          zoomedOutScale: state.viewport.scale,
+          afterFilterScale: state.viewport.scale,
           onScreen: screen.x >= rect.x && screen.x <= rect.x + rect.width
             && screen.y >= rect.y && screen.y <= rect.y + rect.height,
         };
       });
 
       expect(framing, "the dataset should have at least one transport kind outside a 5 min walk").not.toBeNull();
-      expect(framing.zoomedOutScale, "the camera reaches past the ring").toBeLessThan(framing.ringOnlyScale);
-      expect(framing.onScreen, `the nearest ${framing?.candidate} is on the map`).toBe(true);
+      expect(framing.afterFilterScale, "checking a distant fallback must not zoom out the Nearby map")
+        .toBeGreaterThanOrEqual(framing.ringOnlyScale * 0.999);
     });
   });
 

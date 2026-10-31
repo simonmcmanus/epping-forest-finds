@@ -1,0 +1,233 @@
+// @ts-check
+// Nearby's filter rail: a row of category pills that narrows the list in place (no panel slide).
+// See spec-data-rendering.md "Nearby filter rail".
+const { test, expect } = require("@playwright/test");
+const { setup, waitForUiToSettle } = require("./helpers");
+
+// A GPS fix inside Epping Forest, with trees, ponds and pubs around it.
+const FOREST_LOCATION = { latitude: 51.6650, longitude: 0.0450, accuracy: 10 };
+
+test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] });
+
+const rail = (page) => page.locator("#inspectorBody .filter-rail");
+const pill = (page, key) => page.locator(`#inspectorBody [data-rail-key="${key}"]`);
+
+/** Starts from the show-everything view, so a pill tap is the first narrowing. */
+async function showAll(page) {
+  await setup(page, "/nearby?filters=false");
+  await expect(rail(page)).toBeVisible();
+}
+
+/** Counts every outgoing-screen ghost the panel slide would create from now on. */
+async function watchForPanelSlide(page) {
+  await page.evaluate(() => {
+    window.__slides = 0;
+    new MutationObserver((records) => {
+      for (const record of records) {
+        record.addedNodes.forEach((node) => {
+          if (node instanceof HTMLElement && node.classList.contains("inspector-screen-ghost")) window.__slides += 1;
+        });
+      }
+    }).observe(document.querySelector(".inspector-scroll"), { childList: true, subtree: true });
+  });
+}
+
+test.describe("Nearby filter rail", () => {
+  test.beforeEach(async ({ page }) => {
+    await setup(page, "/nearby");
+    await expect(rail(page)).toBeVisible();
+  });
+
+  test("plain Nearby shows top-level categories with ticks for enabled groups", async ({ page }) => {
+    // The reader's saved filters are the starting selection, so their groups read as pressed.
+    await expect(pill(page, "nature")).toHaveAttribute("aria-pressed", "true");
+    await expect(pill(page, "nature").locator(".rail-check")).toHaveText("✓");
+    await expect(pill(page, "food")).toHaveAttribute("aria-pressed", "true");
+    await expect(pill(page, "transport")).toHaveAttribute("aria-pressed", "false");
+    await expect(pill(page, "transport").locator(".rail-check")).toHaveText("");
+    await expect(rail(page).locator("[data-rail-key]").first()).toBeVisible();
+  });
+
+  test("tapping a top-level category narrows in place while keeping top-level pills available", async ({ page }) => {
+    await showAll(page);
+    await watchForPanelSlide(page);
+    await pill(page, "nature").click();
+    await expect(page).toHaveURL(/\/nearby\?show=trees,cows,ponds_streams$/);
+    await expect(pill(page, "nature")).toHaveAttribute("aria-pressed", "true");
+    await expect(pill(page, "nature")).toHaveCount(1);
+    await expect(pill(page, "food")).toHaveCount(1);
+    await expect(page.locator("#inspectorBody .nearest-item")).not.toHaveCount(0);
+    expect(await page.evaluate(() => window.__slides)).toBe(0);
+    expect(await page.evaluate(() => state.overviewFilters.join())).toBe("trees,cows,ponds_streams");
+  });
+
+  test("All nearby restores every category and returns to the top-level rail", async ({ page }) => {
+    await showAll(page);
+    await pill(page, "nature").click();
+    await expect(page).toHaveURL(/\/nearby\?show=trees,cows,ponds_streams$/);
+    await pill(page, "all-nearby").click();
+    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?filters=false$/);
+    await expect(pill(page, "all-nearby")).toHaveAttribute("aria-pressed", "true");
+    await expect(pill(page, "nature")).toHaveAttribute("aria-pressed", "true");
+    await expect(pill(page, "food")).toHaveAttribute("aria-pressed", "true");
+    await expect(pill(page, "pubs")).toHaveCount(0);
+  });
+
+  test("a second top-level category can be selected without changing the rail level", async ({ page }) => {
+    await showAll(page);
+    await pill(page, "nature").click();
+    await pill(page, "food").click();
+    await expect(pill(page, "nature")).toHaveAttribute("aria-pressed", "true");
+    await expect(pill(page, "food")).toHaveAttribute("aria-pressed", "true");
+    await expect(pill(page, "pubs")).toHaveCount(0);
+  });
+
+  test("a category page shows subcategories and toggling one changes only that subcategory", async ({ page }) => {
+    await setup(page, "/nearby/food");
+    await expect(rail(page)).toBeVisible();
+    await expect(pill(page, "pubs")).toHaveAttribute("aria-pressed", "true");
+    await expect(pill(page, "restaurants")).toHaveAttribute("aria-pressed", "true");
+    await expect(pill(page, "cafes")).toHaveAttribute("aria-pressed", "true");
+    await expect(pill(page, "shops")).toHaveAttribute("aria-pressed", "true");
+    await expect(pill(page, "nature")).toHaveCount(0);
+    await watchForPanelSlide(page);
+    await pill(page, "cafes").click();
+    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?show=pubs,restaurants,shops$/);
+    await expect(pill(page, "cafes")).toHaveAttribute("aria-pressed", "false");
+    await expect(pill(page, "pubs")).toHaveCount(1);
+    expect(await page.evaluate(() => window.__slides)).toBe(0);
+
+    // The category rail stays at the subcategory level after another toggle, even though
+    // the URL is now a shared ?show= lens rather than the original landing path.
+    await pill(page, "restaurants").click();
+    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?show=pubs,shops$/);
+    await expect(pill(page, "restaurants")).toHaveAttribute("aria-pressed", "false");
+    await expect(pill(page, "shops")).toHaveAttribute("aria-pressed", "true");
+    await expect(pill(page, "nature")).toHaveCount(0);
+  });
+
+  test("Everything also resets a category landing without changing its rail level", async ({ page }) => {
+    await setup(page, "/nearby/food");
+    await pill(page, "cafes").click();
+    await pill(page, "all-nearby").click();
+    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?filters=false$/);
+    await expect(pill(page, "all-nearby")).toHaveAttribute("aria-pressed", "true");
+    await expect(pill(page, "pubs")).toHaveCount(1);
+    await expect(pill(page, "nature")).toHaveCount(0);
+  });
+
+  test("a pill that was pressed un-presses on a second tap, and the last one returns to Everything", async ({ page }) => {
+    await setup(page, "/nearby/trees");
+    await pill(page, "trees").click();
+    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?filters=false$/);
+    await expect(pill(page, "all-nearby")).toHaveAttribute("aria-pressed", "true");
+    await expect(pill(page, "trees")).toHaveAttribute("aria-pressed", "false");
+  });
+
+  test("a selected top-level Nature pill can be switched off", async ({ page }) => {
+    await expect(pill(page, "nature")).toHaveAttribute("aria-pressed", "true");
+    await pill(page, "nature").click();
+    await expect(pill(page, "nature")).toHaveAttribute("aria-pressed", "false");
+    await expect(pill(page, "food")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("adding Transport does not widen the walking radius to an invisible fallback", async ({ page }) => {
+    const before = await page.evaluate(() => state.walkingDistanceMinutes);
+    await pill(page, "transport").click();
+    await expect.poll(() => page.evaluate(() => state.walkingDistanceMinutes)).toBe(before);
+  });
+
+  test("tapping pills never changes the reader's saved filters", async ({ page }) => {
+    const saved = await page.evaluate(() => localStorage.getItem(FILTER_STATE_KEY));
+    await pill(page, "transport").click();
+    await pill(page, "food").click();
+    await expect(pill(page, "food")).toHaveAttribute("aria-pressed", "false");
+    expect(await page.evaluate(() => localStorage.getItem(FILTER_STATE_KEY))).toBe(saved);
+  });
+
+  test("rapidly toggling a category off and on keeps the returning rows visible", async ({ page }) => {
+    const nature = pill(page, "nature");
+    await nature.click();
+    await nature.click();
+    await expect(nature).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(".nearest-list .nearest-item")).not.toHaveCount(0);
+  });
+
+  for (const reducedMotion of ["reduce", "no-preference"]) {
+    test(`a location update keeps the sideways category list at its scrolled position (${reducedMotion})`, async ({ page, context }) => {
+      await page.emulateMedia({ reducedMotion });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await waitForUiToSettle(page);
+      const row = page.locator(".rail-pills");
+      await expect.poll(() => row.evaluate(el => el.scrollWidth - el.clientWidth)).toBeGreaterThan(100);
+      const position = await row.evaluate(el => { el.scrollLeft = el.scrollWidth; return el.scrollLeft; });
+      const previous = await page.locator("#inspectorBody").innerHTML();
+      await context.setGeolocation({ ...FOREST_LOCATION, latitude: FOREST_LOCATION.latitude + 0.0003 });
+      await expect.poll(() => page.locator("#inspectorBody").innerHTML()).not.toBe(previous);
+      await waitForUiToSettle(page);
+      await expect.poll(() => row.evaluate(el => el.scrollLeft)).toBeCloseTo(position, 0);
+      await expect(rail(page)).toHaveClass(/has-left-overflow/);
+    });
+  }
+
+  test("toggling a right-scrolled pill keeps the rail under the pointer", async ({ page, isMobile }) => {
+    test.skip(!isMobile, "the desktop rail does not need horizontal scrolling");
+    const row = page.locator(".rail-pills");
+    const stories = pill(page, "stories");
+    await stories.scrollIntoViewIfNeeded();
+    await row.evaluate((el) => {
+      const button = el.querySelector('[data-rail-key="stories"]');
+      el.scrollLeft = Math.max(0, button.offsetLeft + button.offsetWidth - el.clientWidth - 4);
+    });
+    const before = await row.evaluate((el) => el.scrollLeft);
+    await expect(rail(page)).toHaveClass(/has-left-overflow/);
+    await stories.click();
+    await expect(stories).toHaveAttribute("aria-pressed", "true");
+    await expect.poll(() => row.evaluate((el) => el.scrollLeft)).toBe(before);
+    await expect(stories.locator(".rail-check")).toHaveText("✓");
+    await row.evaluate((el) => { el.scrollLeft = 0; });
+    await expect(rail(page)).not.toHaveClass(/has-left-overflow/);
+  });
+
+  test("the Nearby rail contains category pills without a right-hand control", async ({ page }) => {
+    await expect(page.getByRole("link", { name: "Filters" })).toHaveCount(0);
+    await expect(rail(page).locator("[data-rail-key]")).not.toHaveCount(0);
+  });
+
+  test("the Nearby title icon links back to plain Nearby", async ({ page }) => {
+    await setup(page, "/nearby/food");
+    const titleLink = page.locator("#inspectorTitleEmoji a.inspector-title-link");
+    await expect(titleLink).toHaveAttribute("href", "/nearby");
+    await titleLink.click();
+    await expect(page).toHaveURL(/\/nearby(?:\?.*)?$/);
+    await expect(pill(page, "nature")).toHaveCount(1);
+  });
+
+  test("the Nearby nav button leaves a category landing at plain Nearby", async ({ page }) => {
+    await setup(page, "/nearby/nature/");
+    await page.locator("#nearbyToggle").click();
+    await expect(page).toHaveURL(/\/nearby(?:\?.*)?$/);
+  });
+});
+
+test("a category link opens with its subcategories available", async ({ page }) => {
+  await setup(page, "/nearby/food?show=pubs");
+  await expect(pill(page, "pubs")).toHaveAttribute("aria-pressed", "true");
+  await expect(pill(page, "trees")).toHaveCount(0);
+  await pill(page, "cafes").click();
+  await expect(page).toHaveURL(/\/nearby\?radius=30&show=pubs,restaurants,shops$/);
+  await expect(pill(page, "pubs")).toHaveCount(1);
+  await expect(pill(page, "nature")).toHaveCount(0);
+});
+
+test("when more pills fit than are visible, the row can scroll sideways and return to the start", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "the desktop panel is wide enough to show the whole row");
+  await setup(page, "/nearby");
+  await expect(rail(page)).toBeVisible();
+  const row = page.locator(".rail-pills");
+  await expect.poll(() => row.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeGreaterThan(10);
+  await row.evaluate((el) => { el.scrollLeft = el.scrollWidth; });
+  await expect.poll(() => row.evaluate((el) => el.scrollLeft)).toBeGreaterThan(10);
+  await row.evaluate((el) => { el.scrollLeft = 0; });
+  await expect.poll(() => page.evaluate(() => document.querySelector(".rail-pills").scrollLeft)).toBe(0);
+});

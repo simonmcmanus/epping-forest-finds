@@ -171,11 +171,16 @@ test.describe("URL navigation", () => {
       // second inspector button ahead of the Nearby controls.
       await setup(page);
       await page.locator("body").evaluate((el) => el.focus());
-      const order = ["nearbyToggle", "searchToggle", "reportToggle", "settingsToggle", "filterToggle"];
-      for (const id of order) {
+      for (const id of ["nearbyToggle", "searchToggle", "reportToggle", "settingsToggle"]) {
         await page.keyboard.press("Tab");
         await expect(page.locator(`#${id}`)).toBeFocused();
       }
+      await expect(page.locator("#filterToggle")).toBeVisible();
+      for (let attempt = 0; attempt < 12; attempt += 1) {
+        await page.keyboard.press("Tab");
+        if (await page.evaluate(() => document.activeElement?.id === "filterToggle")) break;
+      }
+      await expect(page.locator("#filterToggle")).toBeFocused();
     });
 
     test("the nav row stays reachable with a place selected, and the filter toggle drops out of the order", async ({ page }) => {

@@ -850,3 +850,47 @@ test.describe("Overview / Nearby screen", () => {
     });
   });
 });
+
+
+test.describe("Nearby scroll position during live updates", () => {
+  test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] });
+
+  test("entering Nearby without animation resets a scrolled Settings screen", async ({ page }) => {
+    await setup(page, "/settings");
+    await waitForUiToSettle(page);
+    const scroll = page.locator(".inspector-scroll");
+    await expect.poll(() => scroll.evaluate(el => el.scrollHeight - el.clientHeight)).toBeGreaterThan(100);
+    await scroll.evaluate(el => el.scrollTop = 180);
+    await expect.poll(() => scroll.evaluate(el => el.scrollTop)).toBe(180);
+    // Non-animated fallbacks clear the previous selection before entering Nearby.
+    await page.evaluate(() => {
+      state.selected = null;
+      selectOverview();
+    });
+    await expect(page.locator("#inspectorTitle")).toHaveText("Nearby");
+    await waitForUiToSettle(page);
+    await expect.poll(() => scroll.evaluate(el => el.scrollTop)).toBe(0);
+  });
+
+  for (const path of ["/nearby?radius=30", "/nearby/pubs/?radius=30"]) {
+    test(`keeps the scrolled list in view after a location update on ${path}`, async ({ page, context }) => {
+      await setup(page, path);
+      await waitForUiToSettle(page);
+      const scroll = page.locator(".inspector-scroll");
+      await expect.poll(() => scroll.evaluate(el => el.scrollHeight - el.clientHeight)).toBeGreaterThan(100);
+      const position = await scroll.evaluate(el => {
+        el.scrollTop = Math.min(180, el.scrollHeight - el.clientHeight);
+        return el.scrollTop;
+      });
+      const previousList = await page.locator("#inspectorBody").innerHTML();
+      await context.setGeolocation({ ...FOREST_LOCATION, latitude: FOREST_LOCATION.latitude + 0.0003 });
+      await expect.poll(() => page.locator("#inspectorBody").innerHTML()).not.toBe(previousList);
+      await waitForUiToSettle(page);
+      await expect.poll(() => scroll.evaluate(el => el.scrollTop)).toBeCloseTo(position, 0);
+      await page.click("#settingsToggle");
+      await page.click("#nearbyToggle");
+      await waitForUiToSettle(page);
+      await expect.poll(() => scroll.evaluate(el => el.scrollTop)).toBe(0);
+    });
+  }
+});

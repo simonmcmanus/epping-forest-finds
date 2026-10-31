@@ -242,12 +242,20 @@ const state = {
   // in range or walks in and out of the radius (see checkEventProximityAlert, js/nav.js).
   eventNearbyAlertedIds: new Set(),
   eventNearbyBannerEventId: null,
-  // Filter keys just switched on that have nothing inside the walking radius, so the Nearby
-  // camera reaches their nearest match once -- see refreshOutOfRadiusReveal/outOfRadiusFitPoints.
+  // Filter keys just switched on that have nothing inside the walking radius. Secondary screens
+  // may reach their nearest match once; the Nearby screen itself remains anchored to the radius.
+  // See refreshOutOfRadiusReveal/outOfRadiusFitPoints.
   outOfRadiusRevealFilters: [],
+  // A filter change must not make the automatic empty-ring recovery widen the user's radius to a
+  // distant fallback. It is cleared once the reader has actually moved away from this origin.
+  nearbyFilterChangeOrigin: null,
   overviewFilters: loadStoredOverviewFilters(),
   // Set by setOverviewFilters(persist:false) -- see its comment -- never true on first load.
   overviewFiltersEphemeral: false,
+  // The rail level is normally derived from the current /nearby/<slug> path. A rail tap keeps
+  // the level it was displayed at while replacing that path with a shareable query string, so
+  // a plain Nearby rail stays at groups and a category rail stays at subcategories.
+  nearbyRailGroupKey: undefined,
   overviewExpandedGroups: (() => {
     try {
       const d = JSON.parse(localStorage.getItem(FILTER_STATE_KEY) || "null");
@@ -684,7 +692,11 @@ function searchStringForPath(pathname) {
   // A shared /nearby?show= link is an ephemeral landing lens just like /nearby/<slug>.
   // Keep its query visible while that lens is active; otherwise the first selectOverview() during
   // a cold/nuke refresh rewrites the URL to bare /nearby before the caller can verify the refresh.
-  if ((pathname === ROUTE_PATHS[ROUTE_FILTERS]
+  // Every category on is the show-everything override, written as the "All nearby" link's own
+  // ?filters=false rather than a list of every key.
+  if (pathname === NEARBY_PATH && state.overviewFiltersEphemeral && railSelection().length === 0) {
+    parts.push("filters=false");
+  } else if ((pathname === ROUTE_PATHS[ROUTE_FILTERS]
     || (pathname === NEARBY_PATH && state.overviewFiltersEphemeral)) && state.overviewFilters.length) {
     parts.push(`show=${state.overviewFilters.join(",")}`);
   }
@@ -806,6 +818,9 @@ function applyRouteFromUrl() {
   routeApplyDepth += 1;
   let raw;
   try {
+    // A real route change should derive the rail level from its new path. A rail tap uses
+    // replaceState only, so it never comes through here and can retain its displayed level.
+    state.nearbyRailGroupKey = undefined;
     applyShowFilterFromQuery();
     applySearchQueryFromQuery();
     applyRadiusFromQuery();
@@ -1361,22 +1376,31 @@ function showLocationInviteBanner(message, { canRequest = true } = {}) {
 // The first ask for anyone onboarding did not reach -- a first visit, a landing-page arrival, or a
 // returning visitor with a question still unanswered. One non-blocking card in the inspector
 // chrome (#consentBanner, app.html, css/loading.css) leaves the map fully usable underneath. On a
-// first visit its single explicit action covers the two initial choices; after that it offers the
-// optional guided map setup in the same slot. Landing-page arrivals use that same combined action
+// first visit its single explicit action covers location and usage analytics, then offers the
+// optional guided map setup in the same slot. Landing-page arrivals use the same combined action
 // whenever both choices are still unanswered. On iOS the compass is asked from the same location
 // tap (locateUser), because only a user gesture can ask for it.
 function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnboarding = false } = {}) {
   const banner = els.consentBanner;
   if (!banner || (!askLocation && !askAnalytics && !offerOnboarding)) return false;
-  let stage = askLocation ? (askAnalytics ? "permissions" : "location")
-    : askAnalytics ? "analytics" : "onboarding";
+  let stage = askLocation && askAnalytics ? "permissions" : askLocation ? "location" : askAnalytics ? "analytics" : "onboarding";
+
+  function renderPermissionsStage() {
+    banner.setAttribute("aria-label", "Location and usage analytics");
+    if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Allow location & cookies";
+    if (els.consentBannerText) {
+      els.consentBannerText.innerHTML = `Shows nearby finds and their distance from you, and helps us understand how people use this site — enabling covers both. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>`;
+    }
+    if (els.consentBannerDecline) els.consentBannerDecline.textContent = "Maybe later";
+    if (els.consentBannerAccept) els.consentBannerAccept.textContent = "Enable location & cookies";
+  }
 
   function renderLocationStage() {
     banner.setAttribute("aria-label", "Location");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "See what's near you";
     // Generated landing pages replace the shell's default paragraph with a lead that names the
     // category or place. Keep that useful server-rendered copy when the live page only needs the
-    // location question; the combined first-run card still supplies its own copy below.
+    // location question; the first-run combined card supplies its own copy below.
     const pageSpecificCopy = els.consentBannerText
       && /^Enable location to get walking directions/.test(els.consentBannerText.textContent || "");
     if (els.consentBannerText && !pageSpecificCopy) {
@@ -1384,16 +1408,6 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
     }
     if (els.consentBannerDecline) els.consentBannerDecline.textContent = "Maybe later";
     if (els.consentBannerAccept) els.consentBannerAccept.textContent = "Enable location";
-  }
-
-  function renderPermissionsStage() {
-    banner.setAttribute("aria-label", "Location and cookies");
-    if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Allow location & cookies";
-    if (els.consentBannerText) {
-      els.consentBannerText.innerHTML = `Shows nearby finds and their distance from you, and helps us understand how people use this site — enabling covers both. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>`;
-    }
-    if (els.consentBannerDecline) els.consentBannerDecline.textContent = "Maybe later";
-    if (els.consentBannerAccept) els.consentBannerAccept.textContent = "Enable location & cookies";
   }
 
   function renderAnalyticsStage() {
@@ -1450,7 +1464,7 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
       cleanup();
       banner.classList.remove("fading-out");
       banner.hidden = true;
-      showOnboarding({ skipPermissions: true }).then((onboardResult) => {
+      showOnboarding().then((onboardResult) => {
         state.overviewFilters = sanitizeOverviewFilters(onboardResult.filters);
         saveFilterState();
         updateFilterUi();
@@ -1472,6 +1486,7 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
       cleanup();
       banner.classList.remove("fading-out");
       banner.hidden = true;
+      try { localStorage.setItem("forest-finds-onboarding-v1", "declined"); } catch {}
       return;
     }
     advance();
@@ -2716,6 +2731,7 @@ function refreshFilterScreenList() {
   if (!section) return;
   const previousNearestPositions = captureNearestItemPositions();
   section.innerHTML = overviewNearestHtml();
+  attachNearbyRailScrollHints(section);
   updateOverviewDirectionArrows();
   hydrateOverviewBusStopDirections();
   animateNearestItemReorder(previousNearestPositions);
@@ -2727,6 +2743,27 @@ function attachFilterScrollHints() {
     row.addEventListener("scroll", () => updateSingleSubfilterScrollHint(row), { passive: true });
     updateSingleSubfilterScrollHint(row);
   }
+}
+
+function attachNearbyRailScrollHints(root = els.inspectorBody) {
+  if (!root?.querySelectorAll) return;
+  for (const row of root.querySelectorAll(".filter-rail .rail-pills")) {
+    if (row.dataset.scrollHintsAttached !== "true") {
+      row.addEventListener("scroll", () => updateNearbyRailScrollHint(row), { passive: true });
+      row.dataset.scrollHintsAttached = "true";
+    }
+    updateNearbyRailScrollHint(row);
+  }
+}
+
+function updateNearbyRailScrollHint(row) {
+  if (!row) return;
+  const rail = row.closest(".filter-rail");
+  if (!rail) return;
+  const maxScrollLeft = row.scrollWidth - row.clientWidth;
+  const isScrollable = maxScrollLeft > 6;
+  rail.classList.toggle("has-left-overflow", isScrollable && row.scrollLeft > 2);
+  rail.classList.toggle("has-right-overflow", isScrollable && row.scrollLeft < maxScrollLeft - 2);
 }
 
 function updateSingleSubfilterScrollHint(row) {
@@ -2840,20 +2877,43 @@ function setSubfilterPanelExpanded(panel, expanded) {
 // -- landing on one of those names what that page shows, not a preference the reader chose, so
 // it must not overwrite their own saved filters (saveFilterState) for every later visit to
 // /nearby. An actual chip tap, on that page or anywhere else, always persists as before.
-function setOverviewFilters(nextFilters, { persist = true, render = true } = {}) {
+function setOverviewFilters(nextFilters, { persist = true, render = true, railTap = false } = {}) {
   const previousFilters = state.overviewFilters;
-  state.overviewFilters = sanitizeOverviewFilters(nextFilters);
+  const sanitizedFilters = sanitizeOverviewFilters(nextFilters);
+  const filtersChanged = previousFilters.length !== sanitizedFilters.length
+    || previousFilters.some((filterKey, index) => filterKey !== sanitizedFilters[index]);
+  // Capture the currently visible pin set before changing state so the canvas renderer can
+  // animate additions and removals by item identity. Initial boot calls this with render:false;
+  // that path should remain a quiet data/setup render rather than replaying a filter animation.
+  const previousPinLookup = render && filtersChanged && typeof buildNearbyIconLookup === "function"
+    ? buildNearbyIconLookup()
+    : null;
+  state.overviewFilters = sanitizedFilters;
+  if (filtersChanged) {
+    const origin = state.nearbyAnchor || state.userLocation;
+    state.nearbyFilterChangeOrigin = origin
+      ? { latitude: origin.latitude, longitude: origin.longitude }
+      : null;
+  }
   // Marks the current filters as a page's own lens rather than the reader's choice, so
   // goToInitialView (the Nearby nav button) knows to put their real filters back rather than
   // carrying a /nearby/<slug> page's single category over to the plain Nearby screen. Any real
   // change -- a chip tap, anywhere, persist:false page included -- clears it again.
   state.overviewFiltersEphemeral = !persist;
-  // Before the camera work below: a filter switched on with nothing inside the walking radius
-  // is what lets the fit reach its nearest match (outOfRadiusFitPoints).
+  // Before the camera work below: secondary screens may reach a newly selected filter's nearest
+  // match when it lies outside the walking radius (outOfRadiusFitPoints). Nearby stays framed on
+  // the radius itself, even when its list is using an out-of-radius fallback entry.
   refreshOutOfRadiusReveal(previousFilters);
+  if (previousPinLookup && typeof beginOverviewFilterPinTransition === "function") {
+    beginOverviewFilterPinTransition(previousPinLookup);
+  }
   if (persist) saveFilterState();
   updateFilterUi();
   syncLiveQueryStringForScreen();
+  if (railTap) {
+    syncRailUrl();
+    railPatchPending = true;
+  }
   // render:false -- boot()'s own call, before state.userLocation exists -- skips the render
   // this would otherwise force here: without it, selectOverview() ran once against no location
   // (activeFiltersShowFullListWithoutLocation()'s dataset-order full list) and then again
@@ -3081,6 +3141,7 @@ function openFiltersScreen() {
   transitionInspectorBody(filterScreenBodyHtml(), "forward", () => {
     updateOverviewDirectionArrows();
     hydrateOverviewBusStopDirections();
+    attachNearbyRailScrollHints();
   });
   updateFilterUi();
   setInspectorMinimized(false);
@@ -4518,6 +4579,11 @@ function overviewHeadingText() {
   // its own separate <p class="source-note"> paragraph (overviewNearestHtml below) -- said once,
   // here, in the one line every Nearby screen already shows, rather than twice.
   const radiusOrigin = state.userLocation.isDefault ? " of High Beach" : "";
+  if (railSelection().length === 0) {
+    return radiusLabel
+      ? `Showing everything within ${radiusLabel}${radiusOrigin}`
+      : `Showing everything ${aroundOrigin}`;
+  }
   // A single category (the common case on a /nearby/<slug> page) gets its count named too --
   // "5 Pubs and bars within 5 min walk" says at a glance whether the radius is worth widening,
   // which "Pubs and bars within 5 min walk" alone left the reader to count for themselves.
@@ -4532,8 +4598,8 @@ function overviewHeadingText() {
 
 // The category label a /nearby/<slug>/ landing page's own heading names ("Nearby Nature",
 // "Nearby Pubs & bars") in place of the generic "Nearby" the plain screen, or a reader's own
-// filter choice, keeps -- same URL-path match categoryLandingLinksHtml() uses, so the two can
-// never name a different category.
+// filter choice, keeps -- the same URL-path match used by nearbyRailGroup(), so the live rail and
+// the heading can never name different categories.
 function landingPageCategoryLabel() {
   const match = /^\/nearby\/([a-z0-9-]+)\/?$/.exec(window.location.pathname);
   if (!match) return null;
@@ -4669,64 +4735,130 @@ function renderNearestItemsHtml(entries) {
   }).join("");
 }
 
-// "/nearby/<slug>/"'s category navigation -- the current category, a chip up to its group, a
-// way back to the full, unfiltered Nearby list, a group page's own down-links to each member
-// subfilter ("Browse by type"), and the "see also veteran trees/grazing cattle" up-links every
-// /find/<slug>/ business page already carries. It is reproduced here because the static page's
-// own version (generate-find-pages.js's topChipsHtml, what a crawler or a no-JS visitor sees) is
-// silently dropped the moment JS boots: selectOverview() replaces that content with this live
-// list. Shown only on a real /nearby/<slug>/ landing -- the plain /nearby screen, or a reader's
-// own multi-filter choice from the Filters screen, has no single category to navigate from, so
-// filterKeysFromFindPath's own pathname-only regex (never a reader's live filter selection) is
-// what gates this, same as isLandingPageArrival.
-function categoryLandingLinksHtml() {
+// The filter rail at the top of every Nearby view: one toggle pill per category. The plain /nearby screen
+// shows top-level groups; a /nearby/<category> landing shows that group's subcategories. A pill
+// adds or removes its category from the current (ephemeral) filter set in place -- no screen
+// slide -- so the reader can keep tapping round. It replaces the old /nearby/<slug> breadcrumb
+// chips; generate-find-pages.js still server-renders anchor chips
+// for crawlers and no-JS visitors, and the first render after boot swaps them for this.
+// Set by a rail tap so the next selectOverview() patches the rail and list in place rather than
+// rebuilding the body, which is what lets pills glide and rows animate individually.
+let railPatchPending = false;
+
+function nearbyRailGroup() {
+  if (state.nearbyRailGroupKey !== undefined) {
+    return state.nearbyRailGroupKey ? FILTER_GROUPS_BY_KEY.get(state.nearbyRailGroupKey) || null : null;
+  }
   const match = /^\/nearby\/([a-z0-9-]+)\/?$/.exec(window.location.pathname);
-  if (!match) return "";
+  if (!match) return null;
   const key = match[1].replace(/-/g, "_");
+  const group = FILTER_GROUPS_BY_KEY.get(key);
+  if (group) return group;
   const subfilter = FILTER_SUBFILTERS_BY_KEY.get(key);
-  const group = subfilter ? FILTER_GROUPS_BY_KEY.get(subfilter.groupKey) : FILTER_GROUPS_BY_KEY.get(key);
-  if (!group) return "";
-  const current = subfilter || group;
-  const currentChip = `<a class="detail-map-link nearby-link nearby-link--current" href="/nearby/${key.replace(/_/g, "-")}/" aria-current="page">${appIconHtml(current.icon)}${escapeHtml(current.label)}</a>`;
-  const groupChip = subfilter
-    ? `<a class="detail-map-link nearby-link" href="/nearby/${subfilter.groupKey.replace(/_/g, "-")}/">${appIconHtml(group.icon)}${escapeHtml(group.label)}</a>`
-    : "";
-  const allChip = `<a class="detail-map-link nearby-link" href="/nearby?filters=false">${appIconHtml("nearby")}All nearby</a>`;
-
-  // A group page's own members -- cows is excluded the same way the static generator's own
-  // page.members already is (live-tracked, no fixed count, no page built through the ordinary
-  // inventory-driven path -- COW_KEY, scripts/report/map-inventory.js), so this never shows a
-  // 4th pill the static page's own generated set doesn't have.
-  const typeChips = !subfilter
-    ? group.subfilters
-        .filter((s) => s.key !== "cows")
-        .map((s) => `<a class="detail-map-link nearby-link" href="/nearby/${s.key.replace(/_/g, "-")}/">${appIconHtml(s.icon)}${escapeHtml(s.label)}</a>`)
-        .join("")
-    : "";
-
-  // Omits a duplicate trees/cows link, and omits trees entirely on the nature group page (its
-  // current/type chip above already covers it -- see topChipsHtml's matching comment,
-  // scripts/generate-find-pages.js).
-  const treesSubfilter = FILTER_SUBFILTERS_BY_KEY.get("trees");
-  const cowsSubfilter = FILTER_SUBFILTERS_BY_KEY.get("cows");
-  const treesAlreadyLinked = key === "trees" || (!subfilter && group.key === "nature");
-  const treesChip = treesAlreadyLinked || !treesSubfilter
-    ? ""
-    : `<a class="detail-map-link nearby-link" href="/nearby/trees/">${appIconHtml(treesSubfilter.icon)}${escapeHtml(treesSubfilter.label)}</a>`;
-  const cowsChip = key === "cows" || !cowsSubfilter
-    ? ""
-    : `<a class="detail-map-link nearby-link" href="/nearby/cows/">${appIconHtml(cowsSubfilter.icon)}${escapeHtml(cowsSubfilter.label)}</a>`;
-
-  return `<nav class="nearby-category-nav" aria-label="Browse nearby categories"><p class="nearby-category-nav-title">Browse nearby categories</p><div class="detail-top-row related-chips">${currentChip}${groupChip}${allChip}${typeChips}${treesChip}${cowsChip}</div></nav>`;
+  return subfilter ? FILTER_GROUPS_BY_KEY.get(subfilter.groupKey) : null;
 }
 
-// The top-level Nearby screen's way back out of a filter: while any filter is applied there, a
-// "Show all nearby" pill links to the same ?filters=false override as the category chip's "All
-// nearby", so it ignores the reader's saved filters for this visit only. Category landings already
-// carry their own "All nearby" chip, so they get no second pill.
-function showAllNearbyPillHtml() {
-  if (isNearbyCategoryLandingPath() || !state.overviewFilters.length) return "";
-  return `<div class="detail-top-row related-chips"><a class="detail-map-link nearby-link show-all-nearby" href="/nearby?filters=false">${appIconHtml("nearby")}Show all nearby</a></div>`;
+function railItems() {
+  const group = nearbyRailGroup();
+  if (group) {
+    return group.subfilters.map((subfilter) => ({
+      key: subfilter.key,
+      label: subfilter.label,
+      icon: subfilter.icon,
+      filterKeys: [subfilter.key],
+    }));
+  }
+  return FILTER_GROUPS.map((groupDefinition) => ({
+    key: groupDefinition.key,
+    label: groupDefinition.label,
+    icon: groupDefinition.icon,
+    filterKeys: groupDefinition.subfilters.map((subfilter) => subfilter.key),
+  }));
+}
+
+function railItemIsActive(item) {
+  const active = new Set(state.overviewFilters);
+  return item.filterKeys.some((key) => active.has(key));
+}
+
+// The categories the rail treats as chosen. A set covering every category is the URL-driven
+// "show all" state (?filters=false), which reads as nothing chosen so the first tap narrows to
+// that one. An empty set is also an explicit show-everything state after the reader switches off
+// their last pill; keeping it empty matters because it lets that pill visibly unselect.
+function railSelection() {
+  const chosen = state.overviewFilters.filter((key) => FILTER_SUBFILTERS_BY_KEY.has(key));
+  return chosen.length >= FILTER_SUBFILTERS.length ? [] : chosen;
+}
+
+function railPillKeys() {
+  return railItems().map((item) => item.key);
+}
+
+function filterRailHtml() {
+  const allOn = railSelection().length === 0;
+  const allStatus = `<span class="rail-check" aria-hidden="true">${allOn ? "✓" : ""}</span>`;
+  const allPill = `<button class="rail-pill rail-pill--all${allOn ? " is-on" : ""}" type="button" data-rail-key="all-nearby" aria-pressed="${allOn}">${appIconHtml("nearby")}<span>Everything</span>${allStatus}</button>`;
+  const pills = railItems().map((item) => {
+    const on = railItemIsActive(item);
+    const status = `<span class="rail-check" aria-hidden="true">${on ? "✓" : ""}</span>`;
+    return `<button class="rail-pill${on ? " is-on" : ""}" type="button" data-rail-key="${item.key}" aria-pressed="${on}">${appIconHtml(item.icon)}<span>${escapeHtml(item.label)}</span>${status}</button>`;
+  }).join("");
+  return `<nav class="filter-rail" aria-label="Filter nearby places">` +
+    `<div class="rail-pills">${allPill}${pills}</div>` +
+    `</nav>`;
+}
+
+// Where the address bar points for the current rail selection: one category is its own landing
+// path, several are /nearby?show=a,b, none is the show-everything override. Replaces the current
+// history entry (a tap is a refinement, not a new place to go back to).
+function syncRailUrl() {
+  if (routeApplyDepth > 0 || routerBooting) return;
+  const chosen = railSelection();
+  const matchingGroup = FILTER_GROUPS.find((group) =>
+    chosen.length === group.subfilters.length && group.subfilters.every((subfilter) => chosen.includes(subfilter.key))
+  );
+  const displayedGroup = nearbyRailGroup();
+  const pathname = !displayedGroup && matchingGroup
+    ? NEARBY_PATH
+    : matchingGroup
+    ? `/nearby/${matchingGroup.key.replace(/_/g, "-")}`
+    : chosen.length === 1 ? `/nearby/${chosen[0].replace(/_/g, "-")}` : NEARBY_PATH;
+  const search = searchStringForPath(pathname);
+  const url = `${pathname}${search}${window.location.hash}`;
+  if (`${window.location.pathname}${window.location.search}${window.location.hash}` === url) return;
+  history.replaceState(history.state, "", url);
+}
+
+function toggleRailFilter(key) {
+  if (key === "all-nearby") {
+    if (typeof navigator.vibrate === "function") navigator.vibrate(8);
+    const displayedGroup = nearbyRailGroup();
+    state.nearbyRailGroupKey = displayedGroup ? displayedGroup.key : null;
+    setOverviewFilters(Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: false, railTap: true });
+    return;
+  }
+  const displayedGroup = nearbyRailGroup();
+  const item = railItems().find((candidate) => candidate.key === key);
+  if (!item) return;
+  state.nearbyRailGroupKey = displayedGroup ? displayedGroup.key : null;
+  const current = new Set(state.overviewFilters.filter((filterKey) => FILTER_SUBFILTERS_BY_KEY.has(filterKey)));
+  const showingAll = state.overviewFilters.length === 0 || railSelection().length === 0;
+  const active = item.filterKeys.some((filterKey) => current.has(filterKey));
+  let next;
+  if (showingAll) {
+    next = item.filterKeys.slice();
+  } else if (active) {
+    item.filterKeys.forEach((filterKey) => current.delete(filterKey));
+    next = Array.from(current);
+  } else {
+    item.filterKeys.forEach((filterKey) => current.add(filterKey));
+    next = Array.from(current);
+  }
+  if (typeof navigator.vibrate === "function") navigator.vibrate(8);
+  // Do not expand an empty selection back to every key here. That made the last pill look
+  // selected again immediately after it was tapped off, so Nature (and any other final pill)
+  // could never visibly unselect. The Everything pill represents this empty, explicit state.
+  setOverviewFilters(next, { persist: false, railTap: true });
 }
 
 function overviewCategoryContentHtml(content) {
@@ -4737,7 +4869,7 @@ function overviewCategoryContentHtml(content) {
 }
 
 function overviewNearestHtml() {
-  const navigationHtml = `${categoryLandingLinksHtml()}${showAllNearbyPillHtml()}`;
+  const navigationHtml = filterRailHtml();
   if (!state.userLocation) {
     // A /nearby/<slug> category page -- a subfilter's own, or a whole group's -- lands here with
     // no location yet (no prompt answered, or declined), as does a reader who has deliberately
@@ -7292,11 +7424,10 @@ function nearestSelectedFilterPoints() {
 // view zooms out past the ring far enough to show that each selected kind exists and which
 // way it lies -- see nearestSelectedFilterPoints.
 //
-// Every screen also reaches the nearest match of a filter the user has *just switched on* that
-// turned out to have nothing inside the ring (see outOfRadiusFitPoints). Without that, adding a
-// filter whose nearest match is beyond the ring -- Underground stations from inside the forest,
-// say -- changed the list and left the map framed on a ring with nothing new in it, so the
-// station the list had just named was nowhere to be seen.
+// Secondary screens also reach the nearest match of a filter the user has *just switched on*
+// that turned out to have nothing inside the ring (see outOfRadiusFitPoints). Nearby deliberately
+// does not: its map is a survey of the walking radius, and changing filters must not zoom the
+// map out to a distant fallback that may not even be drawn on screen.
 // While a cluster is expanded (state.clusterExpanded), the camera fits the group's own member
 // points instead of the ring. This is not the "fit the item cluster" design the comment above
 // warns against reverting to: that one re-solved every frame against whichever matches
@@ -7330,8 +7461,13 @@ function expandedClusterFitPoints(group) {
 function nearbyCameraFitPoints(useFinalBrowseState = false) {
   if (state.clusterExpanded) return expandedClusterFitPoints(state.clusterExpanded);
   const ring = walkingRadiusCirclePoints(64, useFinalBrowseState);
+  // Nearby is always framed by the configured walking radius. In particular, don't append
+  // out-of-radius fallback matches here: selecting a category can name a distant nearest item
+  // in the list, but that must not pull the camera out to it. The secondary Filter/Settings/
+  // Report screens intentionally use the extra reach because their map explains the selected
+  // filters rather than surveying the reader's walking area.
+  if (!secondaryScreenActive()) return ring;
   const reach = ring.concat(outOfRadiusFitPoints());
-  if (!secondaryScreenActive()) return reach;
   const base = reach.concat(nearestSelectedFilterPoints());
   return state.selected?.type === "community" && typeof communityFitPoints === "function" ? base.concat(communityFitPoints()) : base;
 }
@@ -8502,19 +8638,28 @@ function normalizeCowApiData(payload) {
   return { cows, pastures };
 }
 
-// A selected tree or place leaves the cows card out of its Nearest section until cow positions have
-// loaded (nearbySectionsHtml, js/inspector.js), and nothing else redraws an open detail view when
-// they arrive -- so a deep-linked selection that rendered first never got the card.
-function refreshSelectedDetailForCows() {
+// A selected tree or place omits empty nearby cards until their datasets arrive. Refresh an
+// open detail when trees or cow positions load so it gains the newly available cards.
+function refreshSelectedDetailForNearbyData() {
   const selected = state.selected;
   if (!selected || !selected.item || (selected.type !== "tree" && selected.type !== "landmark")) return;
-  // Only while the inspector is still showing that detail (its Nearest section is on screen): a
-  // reader who has since moved to Settings, a form or a list is left where they are.
-  const showingDetail = els.inspectorBody
-    && Array.from(els.inspectorBody.querySelectorAll(".detail-section-heading")).some((heading) => heading.textContent.trim() === "Nearest");
-  if (!showingDetail) return;
-  const route = SELECTION_ROUTES.find((entry) => entry.type === selected.type);
-  if (route) route.show(selected.item);
+  // The slot belongs to the current detail, including when all nearby sections are empty.
+  // Patch only that slot so the surrounding detail, forms and view tracking stay intact.
+  const slot = els.inspectorBody && els.inspectorBody.querySelector("[data-live-nearby]");
+  if (!slot) return;
+  const item = selected.item;
+  const html = nearbySectionsHtml({
+    latitude: item.latitude,
+    longitude: item.longitude,
+    name: selected.type === "tree" ? item.commonName || null : item.name,
+    subfilterKey: selected.type === "tree" ? "trees" : placePrimaryFilterKey(item),
+    findSlug: selected.type === "landmark" ? item.findSlug : null,
+  });
+  if (slot.innerHTML === html) return;
+  const scroll = els.inspector.querySelector(".inspector-scroll");
+  const scrollTop = scroll ? scroll.scrollTop : 0;
+  slot.innerHTML = html;
+  if (scroll) scroll.scrollTop = scrollTop;
 }
 
 function applyCowData(cows, pastures, updatedAt, { persist } = { persist: true }) {
@@ -8543,7 +8688,7 @@ function applyCowData(cows, pastures, updatedAt, { persist } = { persist: true }
   }
 
   if (isOverviewScreenActive()) selectOverview();
-  else if (cowsWereMissing && cows.length > 0) refreshSelectedDetailForCows();
+  else if (cowsWereMissing && cows.length > 0) refreshSelectedDetailForNearbyData();
   // Refresh the "time ago" display if a cow detail panel is open
   updateCowTimeAgoField();
   requestDraw();
