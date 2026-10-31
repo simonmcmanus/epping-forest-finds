@@ -10,7 +10,7 @@ test.describe("Map setup", () => {
   test("map setup control opens the guided filter setup", async ({ page }) => {
     await page.click("#filterToggle");
     await expect(page.locator("#onboardingOverlay")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Choose what appears on the map" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "What would you like to see?" })).toBeVisible();
   });
 
   test("the first setup step explains what changing filters affects", async ({ page }) => {
@@ -56,7 +56,7 @@ test.describe("Map setup", () => {
   test("the legacy filter URL opens the guided setup", async ({ page }) => {
     await page.goto("/nearby/filter");
     await expect(page.locator("#onboardingOverlay")).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Choose what appears on the map" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "What would you like to see?" })).toBeVisible();
   });
 
   test("the map stays visible behind the setup dialog", async ({ page }) => {
@@ -145,7 +145,7 @@ test.describe("Map setup", () => {
 
   test("snapshot: map setup intro", async ({ page }) => {
     await page.click("#filterToggle");
-    await expect(page.getByRole("heading", { name: "Choose what appears on the map" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "What would you like to see?" })).toBeVisible();
     await waitForUiToSettle(page);
     await settleMapIconsAndDraw(page);
     await expect(page).toHaveScreenshot("map-setup.png", { fullPage: false });
