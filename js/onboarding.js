@@ -263,6 +263,7 @@ function showOnboarding({ mode = "first-run" } = {}) {
         clearTimeout(hideTimer);
         overlay.hidden = true;
         overlay._onboardingActive = false;
+        overlay._onboardingCancel = null;
         overlay.classList.remove("filter-setup");
         overlay.classList.remove("opening");
         overlay.classList.remove("fading-out");
@@ -272,7 +273,13 @@ function showOnboarding({ mode = "first-run" } = {}) {
       resolve({ filters: cancelled ? null : Array.from(selected), cancelled });
     }
 
+    overlay._onboardingCancel = () => finish({ cancelled: true });
     renderProgress();
     renderStep("forward");
   });
+}
+
+function dismissOnboarding() {
+  const overlay = document.getElementById("onboardingOverlay");
+  if (typeof overlay?._onboardingCancel === "function") overlay._onboardingCancel();
 }
