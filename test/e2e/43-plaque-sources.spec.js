@@ -93,3 +93,23 @@ for (const failedSource of ["osm", "curated"]) {
     await expect.poll(() => page.evaluate(() => findPlaceByFindSlug("blue-plaque-a-writer")?.id)).toBe("node/42");
   });
 }
+
+test("walking time finishes loading after the selected plaque record is refreshed", async ({ page }) => {
+  const { setup } = require("./helpers");
+  await page.context().grantPermissions(["geolocation"]);
+  await page.context().setGeolocation({ latitude: 51.64865, longitude: 0.0522 });
+  await setup(page);
+  await page.clock.install();
+  await page.clock.pauseAt(new Date(Date.now() + 100));
+  await page.evaluate(() => {
+    const place = state.landmarks.find(p => p.id === "node/13049742876");
+    if (!place || !hasRealLocation()) throw new Error("Plaque and shared location must be available");
+    state.selected = { type: "landmark", item: place };
+    showLandmarkDetails(place, distanceFromUser(place));
+    // Metadata/source updates replace the selected record without navigating away.
+    state.selected.item = { ...place };
+  });
+  await expect(page.locator('[data-live-field="distance"] .walk-chip--pending')).toBeVisible();
+  await page.clock.runFor(500);
+  await expect(page.locator('[data-live-field="distance"] .walk-chip--ready')).toBeVisible();
+});
