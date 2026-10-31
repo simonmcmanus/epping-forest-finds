@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Other Landmarks",
-  "generatedAt": "2026-10-23T06:01:34.793405Z",
+  "generatedAt": "2026-10-31T09:06:17.103733Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -7101,6 +7101,41 @@
         "openingHours": null,
         "distanceToForestBoundaryMetres": 22.0,
         "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/3food4u-community-hub",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.1129284,
+          51.6919931
+        ]
+      },
+      "properties": {
+        "id": "manual/3food4u-community-hub",
+        "osmType": "node",
+        "osmId": 14331031767,
+        "name": "3Food4U Community Hub",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Bower Hill Industrial Estate Epping",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 379.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "ledgerUrl": null
       }
     }
   ]

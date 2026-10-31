@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Food & Drink",
-  "generatedAt": "2026-10-23T06:01:34.771051Z",
+  "generatedAt": "2026-10-31T09:06:17.054704Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -45734,6 +45734,111 @@
         "address": "153 High Road, Loughton, Essex, IG10 4LF",
         "openingHours": null,
         "distanceToForestBoundaryMetres": 28.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "ledgerUrl": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/luca",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0365783,
+          51.6261795
+        ]
+      },
+      "properties": {
+        "id": "manual/luca",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Luca",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "163 Queens Road, Buckhurst Hill, Essex, IG9 5AZ",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 190.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "ledgerUrl": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/sugar-rush",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0077076,
+          51.5602669
+        ]
+      },
+      "properties": {
+        "id": "manual/sugar-rush",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "SUGAR RUSH",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "533 High Road Leytonstone, Leytonstone, London, E11 4PB",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 208.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "ledgerUrl": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/crop-and-cleaver",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0079468,
+          51.5701339
+        ]
+      },
+      "properties": {
+        "id": "manual/crop-and-cleaver",
+        "osmType": "node",
+        "osmId": 11064895200,
+        "name": "Crop and Cleaver",
+        "category": "butcher",
+        "categoryLabel": "Butcher",
+        "amenity": null,
+        "shop": "butcher",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 398.8,
         "distanceLimitFromForestBoundaryMetres": 466.7,
         "ledgerUrl": null
       }
