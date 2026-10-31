@@ -329,7 +329,6 @@ test.describe("compass access on motion-permission browsers", () => {
     await gotoAndWaitForMap(page);
     // Past the old 1.2-second sensor probe: no readings do not mean permission was denied.
     await waitForFrames(page, 150);
-    await page.screenshot({ path: "test-results/compass-returning.png" });
     await expect(page.locator("#compassCalibrationBanner")).toBeHidden();
     await page.reload();
     await gotoAndWaitForMap(page);
