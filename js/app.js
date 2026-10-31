@@ -2815,65 +2815,14 @@ function toggleOverviewSubfilter(filterKey) {
 function updateFilterUi() {
   const currentSet = activeOverviewFilterSet();
 
-  // Update group cards - show active state and counts
-  for (const group of FILTER_GROUPS) {
-    const groupKey = group.key;
-    const activeSubfilters = getActiveSubfiltersForGroup(groupKey, currentSet);
-    const groupActive = activeSubfilters.length > 0;
-
-    const groupCard = els.inspectorBody.querySelector(`[data-filter-group-section="${groupKey}"]`);
-    if (groupCard) {
-      groupCard.classList.toggle("active", groupActive);
-    }
-
-    const countEl = els.inspectorBody.querySelector(`[data-group-count="${groupKey}"]`);
-    if (countEl) {
-      countEl.textContent = `${activeSubfilters.length} of ${group.subfilters.length}`;
-      countEl.classList.toggle("has-active", activeSubfilters.length > 0);
-    }
-
-    const outsideEl = els.inspectorBody.querySelector(`[data-filter-group-outside="${groupKey}"]`);
-    const outsideRadiusCount = outOfRadiusCountForGroup(groupKey);
-    if (outsideEl) {
-      outsideEl.hidden = outsideRadiusCount === 0;
-      outsideEl.textContent = outsideRadiusCount > 0
-        ? `${outsideRadiusCount} outside selected walking radius`
-        : "";
-    }
-  }
-
-  // Update subfilter chips
-  const subfilterButtons = els.inspectorBody.querySelectorAll("[data-filter-subfilter]");
-  for (const button of subfilterButtons) {
-    const filterKey = button.dataset.filterSubfilter;
-    button.classList.toggle("active", currentSet.has(filterKey));
-  }
-
-  // Update "Clear all" button visibility
-  const clearAllBtn = els.inspectorBody.querySelector("[data-filter-clear-all]");
-  if (clearAllBtn) {
-    clearAllBtn.hidden = currentSet.size === 0;
-  }
-
-  // Live "Showing N nearby" line next to Clear all -- only present while the Filter screen's
-  // own body is on screen (filterScreenBodyHtml()), a no-op everywhere else since the lookup
-  // simply finds nothing.
-  const resultsCountEl = els.inspectorBody.querySelector("#filterResultsCount");
-  if (resultsCountEl) {
-    resultsCountEl.textContent = state.userLocation
-      ? `Showing ${overviewItemsForActiveFilter().length} nearby`
-      : "";
-  }
-
-  // Update filter toggle button
+  // Map setup changes what Nearby shows, so its inline toggle (next to the Nearby heading
+  // -- see app.html) is the way in from Nearby and opens the guided setup. The temporary
+  // selection inside that dialog is rendered by js/onboarding.js and is not written to
+  // state.overviewFilters until Done.
   if (els.filterToggle) {
     const activeGroupCount = getActiveGroupKeys(currentSet).length;
     const hasActiveFilter = activeGroupCount > 0;
     const locationSelected = Boolean(state.selected);
-    // Map setup only changes what Nearby shows, so its inline toggle (next to the Nearby heading
-    // -- see app.html) is the way in from Nearby and opens the guided filter setup. A /find/
-    // landing's place is not selected yet, but it is not the Nearby list either, so the toggle
-    // stays hidden until it is (findLandingAwaitingPlace, js/app.js).
     els.filterToggle.hidden = locationSelected || findLandingAwaitingPlace() || state.searchScreenOpen || state.filterScreenOpen;
     els.filterToggle.classList.toggle("active", hasActiveFilter);
     els.filterToggle.classList.toggle("screen-active", state.filterScreenOpen);
@@ -2888,7 +2837,6 @@ function updateFilterUi() {
     }
   }
 }
-
 function filterMeta(filterKey) {
   return FILTER_SUBFILTERS_BY_KEY.get(filterKey) || null;
 }
@@ -9464,8 +9412,8 @@ function overviewLandmarkItemSelector(placeKey) {
 }
 
 function shouldSkipOverviewBusStopHydration() {
-  // The Filter screen's own body now includes the same nearest list (filterScreenBodyHtml()),
-  // so it needs bus-stop hydration exactly like the plain Nearby screen -- no longer excluded.
+  // Overview and Nearby screens can show nearest bus stops, so hydrate them whenever a
+  // detail selection is not active.
   return !navigator.onLine || !els.inspectorBody || state.selected;
 }
 
