@@ -1424,16 +1424,20 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
 
   function renderPermissionsStage() {
     banner.setAttribute("aria-label", "Location and usage analytics");
+    banner.classList.remove("onboarding-invite");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Allow location & cookies";
     if (els.consentBannerText) {
       els.consentBannerText.innerHTML = `Shows nearby finds and their distance from you, and helps us understand how people use this site — enabling covers both. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>`;
     }
     if (els.consentBannerDecline) els.consentBannerDecline.textContent = "Maybe later";
     if (els.consentBannerAccept) els.consentBannerAccept.textContent = "Enable location & cookies";
+    if (els.consentBannerAccept) els.consentBannerAccept.hidden = false;
+    if (els.consentBannerMapSetupArrow) els.consentBannerMapSetupArrow.hidden = true;
   }
 
   function renderLocationStage() {
     banner.setAttribute("aria-label", "Location");
+    banner.classList.remove("onboarding-invite");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "See what's near you";
     // Generated landing pages replace the shell's default paragraph with a lead that names the
     // category or place. Keep that useful server-rendered copy when the live page only needs the
@@ -1445,26 +1449,33 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
     }
     if (els.consentBannerDecline) els.consentBannerDecline.textContent = "Maybe later";
     if (els.consentBannerAccept) els.consentBannerAccept.textContent = "Enable location";
+    if (els.consentBannerAccept) els.consentBannerAccept.hidden = false;
+    if (els.consentBannerMapSetupArrow) els.consentBannerMapSetupArrow.hidden = true;
   }
 
   function renderAnalyticsStage() {
     banner.setAttribute("aria-label", "Usage analytics");
+    banner.classList.remove("onboarding-invite");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Help improve the map?";
     if (els.consentBannerText) {
       els.consentBannerText.innerHTML = `Share anonymous usage data — which screens you use and where you are while the app is open — and allow Google Analytics cookies. It is never sold or used for advertising. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>`;
     }
     if (els.consentBannerDecline) els.consentBannerDecline.textContent = "No thanks";
     if (els.consentBannerAccept) els.consentBannerAccept.textContent = "Share usage data";
+    if (els.consentBannerAccept) els.consentBannerAccept.hidden = false;
+    if (els.consentBannerMapSetupArrow) els.consentBannerMapSetupArrow.hidden = true;
   }
 
   function renderOnboardingStage() {
     banner.setAttribute("aria-label", "Map setup");
+    banner.classList.add("onboarding-invite");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Make the map yours";
     if (els.consentBannerText) {
-      els.consentBannerText.innerHTML = "Choose the finds you want to see. You can change these anytime with the Map setup button.";
+      els.consentBannerText.innerHTML = "Choose the finds you want to see. Press the Map setup button below to set up your map. You can change it anytime.";
     }
     if (els.consentBannerDecline) els.consentBannerDecline.textContent = "Explore first";
-    if (els.consentBannerAccept) els.consentBannerAccept.textContent = "Set up my map";
+    if (els.consentBannerAccept) els.consentBannerAccept.hidden = true;
+    if (els.consentBannerMapSetupArrow) els.consentBannerMapSetupArrow.hidden = false;
     clearOnboardingAttention();
     onboardingAttentionTimer = setTimeout(() => {
       onboardingAttentionTimer = null;

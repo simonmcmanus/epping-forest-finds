@@ -224,6 +224,28 @@
   flex: 0 0 auto;
 }
 
+.consent-banner.onboarding-invite .consent-banner-actions {
+  flex-direction: column;
+  gap: 0;
+}
+
+.consent-banner-map-setup-arrow {
+  display: grid;
+  width: 34px;
+  height: 28px;
+  place-items: center;
+  color: var(--tree);
+  font-size: 1.7rem;
+  font-weight: 900;
+  line-height: 1;
+  animation: map-setup-arrow-nudge 1.2s ease-in-out infinite;
+}
+
+@keyframes map-setup-arrow-nudge {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(4px); }
+}
+
 .consent-banner-actions .button {
   min-height: 38px;
   padding: 0 14px;
@@ -239,6 +261,10 @@
   .consent-banner.onboarding-collapsing {
     animation: none;
     transition: none;
+  }
+
+  .consent-banner-map-setup-arrow {
+    animation: none;
   }
 }
 

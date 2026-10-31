@@ -21,6 +21,7 @@ const els = {
   consentBannerText: document.getElementById("consentBannerText"),
   consentBannerAccept: document.getElementById("consentBannerAccept"),
   consentBannerDecline: document.getElementById("consentBannerDecline"),
+  consentBannerMapSetupArrow: document.getElementById("consentBannerMapSetupArrow"),
   locationInviteBanner: document.getElementById("locationInviteBanner"),
   locationInviteTitle: document.getElementById("locationInviteTitle"),
   locationInviteMessage: document.getElementById("locationInviteMessage"),
