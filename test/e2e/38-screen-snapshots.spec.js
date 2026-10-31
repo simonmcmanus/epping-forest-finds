@@ -98,6 +98,15 @@ test("snapshot: map setup modal over Nearby", async ({ page }) => {
   await expect(page).toHaveScreenshot("map-setup.png", { fullPage: false });
 });
 
+test("snapshot: map setup category step", async ({ page }) => {
+  await setup(page);
+  await page.locator("#filterToggle").click();
+  await page.getByRole("button", { name: "Choose categories" }).click();
+  await expect(page.getByRole("heading", { name: "Nature" })).toBeVisible();
+  await waitForUiToSettle(page);
+  await expect(page).toHaveScreenshot("map-setup-category.png", { fullPage: false });
+});
+
 test("snapshot: usage analytics card on the map", async ({ page }) => {
   // A returning visitor who has never answered: asked once the map is up, in the inspector chrome.
   await page.addInitScript(() => {
