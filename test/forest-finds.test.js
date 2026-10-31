@@ -525,6 +525,7 @@ globalThis.__forestFindsTest = {
   CLUSTER_JOIN_COOLDOWN_MS,
   CLUSTER_JOIN_MIN_SCALE,
   cacheVersionLabel,
+  setupPwa,
   selectedNavigationTargetPoints,
   balancedNavigationAnchorY,
   ingestLocationFix,
@@ -6143,6 +6144,28 @@ test("local dev version markers prefix cache names with dev- so the About screen
   const local = readVersions(true);
   assert.equal(local.app, `dev-${production.app}`);
   assert.equal(local.data, `dev-${production.data}`);
+});
+
+test("local development unregisters an existing service worker and does not register a new one", async () => {
+  const localApp = loadAppForTests();
+  let registerCalls = 0;
+  let unregisterCalls = 0;
+  const messages = [];
+  const controller = { postMessage: (message) => messages.push(message) };
+  localApp.navigator.serviceWorker = {
+    controller,
+    getRegistrations: async () => [{ unregister: async () => { unregisterCalls += 1; return true; } }],
+    register: () => { registerCalls += 1; return Promise.reject(new Error("local service worker should not register")); },
+    addEventListener() {},
+  };
+
+  localApp.setupPwa();
+  await new Promise((resolve) => setImmediate(resolve));
+  await localApp.requestBackgroundDataSync();
+
+  assert.equal(registerCalls, 0, "local development must not register a service worker");
+  assert.equal(unregisterCalls, 1, "an earlier local registration must be removed");
+  assert.deepEqual(messages, [], "local development must not send background sync messages");
 });
 
 test("compass calibration trusts a heading once several readings agree within tolerance", () => {
