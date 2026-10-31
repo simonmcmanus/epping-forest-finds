@@ -107,6 +107,23 @@ jobs:
               core.warning(`Could not read data/business-slugs.json at ${sha} for example /find/ links: ${error.message}`);
             }
 
+            let reportName = "";
+            try {
+              const { data: reportFiles } = await github.rest.repos.getContent({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                path: "reports",
+                ref: sha,
+              });
+              reportName = reportFiles
+                .filter((file) => file.type === "file" && /^epping-forest-ledger-\d{4}-\d{2}-\d{2}\.html$/.test(file.name))
+                .map((file) => file.name)
+                .sort()
+                .at(-1) || "";
+            } catch (error) {
+              core.warning(`Could not read reports at ${sha} for the report preview link: ${error.message}`);
+            }
+
             const links = [
               "### Deploy preview",
               "",
@@ -120,9 +137,16 @@ jobs:
             for (const pr of pullRequests.filter((candidate) => candidate.state === "open")) {
               const body = pr.body || "";
               const replacement = `<!-- preview-links:start -->\n${links}\n<!-- preview-links:end -->`;
-              const nextBody = marker.test(body)
+              let nextBody = marker.test(body)
                 ? body.replace(marker, replacement)
                 : `${body.trim()}\n\n${replacement}\n`;
+              if (reportName) {
+                const reportPreview = `**Report preview:** ${previewUrl}/reports/${reportName}`;
+                const reportLine = /^\*\*Report preview:\*\*[^\r\n]*(?:\r?\n|$)/gm;
+                nextBody = reportLine.test(nextBody)
+                  ? nextBody.replace(reportLine, `${reportPreview}\n`)
+                  : `${reportPreview}\n\n${nextBody.trim()}\n`;
+              }
               if (nextBody === body) continue;
               await github.rest.pulls.update({
                 owner: context.repo.owner,

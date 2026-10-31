@@ -758,25 +758,18 @@ jobs:
                that is a week of patience banked towards next time, and
                throwing it away is what kept resetting the count to zero.
 
-            REPORT PREVIEW LINK: this site's Netlify Deploy Previews are
-            always reachable at a fixed, predictable address --
-            `https://deploy-preview-<PR_NUMBER>--epping-forest.netlify.app/<path>`
-            -- no API lookup needed, just the PR number `gh pr create` (or
-            `gh pr view --json number -q .number`) gives you. Once the PR
-            exists, build the report's URL from that pattern, e.g.
-            `https://deploy-preview-42--epping-forest.netlify.app/reports/epping-forest-ledger-<date>.html`
-            (the live site is https://www.eppingforestfinds.uk/ -- the
-            deploy-preview address is only for reviewing an unmerged change),
-            and put it near the top of the PR body with
-            `gh pr edit <number> --body "..."` (rewrite the full body: keep
-            everything the initial `gh pr create` body had, just add this
-            near the top -- and if this PR already had a report preview
-            line from an earlier run, replace it with tonight's report
-            rather than leaving the old one stacked above it), roughly:
-              **Report preview:** <url>
-              (Netlify usually finishes building the preview within a
-              minute or two of the PR opening -- if the link 404s right
-              away, give it a moment and reload.)
+            REPORT PREVIEW LINK: after Netlify successfully deploys the PR,
+            update-preview-links.yml adds or refreshes the report preview
+            line in the PR body from Netlify's actual target URL and the
+            report file at that commit. Do not write a guessed URL or leave
+            a placeholder such as `prnum`, `<PR_NUMBER>` or `<date>` in the
+            body. If you need to inspect the value before that status arrives,
+            get the real number with `gh pr view --json number -q .number`.
+            The resulting address is like
+            `https://deploy-preview-42--epping-forest.netlify.app/reports/epping-forest-ledger-2026-10-31.html`;
+            Netlify may take a minute or two to finish the preview. The live
+            site is https://www.eppingforestfinds.uk/; the deploy-preview
+            address is only for reviewing an unmerged change.
 
             6. Build reports/epping-forest-ledger-<date>.html by writing a
                report-data.json (see scripts/report/report-data.schema.md)
