@@ -2917,22 +2917,15 @@ function openFilterSetup() {
   if (overlay._onboardingActive) return;
 
   if (typeof trackGaScreenView === "function") trackGaScreenView("Map setup");
-  exitClusterExpansion();
-  state.selected = null;
-  setInspectorSelectionChrome({ emoji: mapSetupIconMarkup(), showBack: true, preserveNavHighlight: true });
-  state.filterScreenOpen = true;
-  if (els.nearbyToggle) els.nearbyToggle.hidden = false;
-  setNavScreenActive(els.filterToggle);
-  els.inspectorTools.hidden = true;
-  els.inspectorTitle.textContent = "Map setup";
-  els.inspectorType.textContent = "Choose what appears on the map";
-  setInspectorMinimized(false);
-  syncHashFromSelection();
-  requestDraw();
-
+  // This is a modal over Nearby, not a replacement screen. Leave the inspector chrome and
+  // list in place underneath it so opening and closing setup never makes the panel slide away
+  // and back again.
+  const openedFromFilterPath = window.location.pathname === ROUTE_PATHS[ROUTE_FILTERS];
   showOnboarding({ mode: "filters" }).then((result) => {
     if (!result.cancelled && Array.isArray(result.filters)) setOverviewFilters(result.filters);
-    goToInitialView();
+    if (openedFromFilterPath && window.location.pathname === ROUTE_PATHS[ROUTE_FILTERS]) {
+      replaceHashInPlace("");
+    }
   });
 }
 
