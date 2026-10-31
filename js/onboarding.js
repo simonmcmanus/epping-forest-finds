@@ -54,25 +54,21 @@ function mapSetupSelectionPreviewMarkup(selected) {
     const shown = group.subfilters.filter((subfilter) => selected.has(subfilter.key)).length;
     return { ...group, shown, total: group.subfilters.length };
   });
-  const selectedCount = groups.reduce((count, group) => count + group.shown, 0);
   return `
     <div class="onboarding-selection-card">
-      <div class="onboarding-selection-heading">
-        <span class="onboarding-selection-label">Currently set to</span>
-        <span class="onboarding-selection-count">${selectedCount} shown</span>
-      </div>
       <div class="onboarding-selection-preview" aria-label="Currently shown category groups">
       ${groups.map((group) => `
-        <span class="onboarding-selection-item${group.shown ? "" : " is-empty"}"
-          role="img"
-          aria-label="${group.label}: ${group.shown} of ${group.total} categories shown"
+        <button class="onboarding-selection-item${group.shown ? "" : " is-empty"}"
+          type="button"
+          data-group-key="${group.key}"
+          aria-label="${group.label}: ${group.shown} of ${group.total} categories shown. Open category settings."
           title="${group.label}: ${group.shown}/${group.total}">
           <span class="onboarding-selection-icon"><img src="data/icons/${group.icon}.png" alt=""></span>
           <span class="onboarding-selection-item-copy">
             <span class="onboarding-selection-item-label">${group.label}</span>
             <span class="onboarding-selection-item-group">(${group.shown}/${group.total})</span>
           </span>
-        </span>
+        </button>
       `).join("")}
       </div>
     </div>
@@ -101,6 +97,7 @@ function showOnboarding({ mode = "first-run" } = {}) {
     const contentEl = overlay.querySelector(".onboarding-content");
     const actionsEl = overlay.querySelector(".onboarding-actions");
     const cardEl = overlay.querySelector(".onboarding-card");
+    const closeButton = overlay.querySelector(".onboarding-close");
     if (overlay._onboardingHideHandler) {
       overlay.removeEventListener("transitionend", overlay._onboardingHideHandler);
       overlay._onboardingHideHandler = null;
@@ -116,6 +113,10 @@ function showOnboarding({ mode = "first-run" } = {}) {
     if (typeof overlay._onboardingResizeCleanup === "function") {
       overlay._onboardingResizeCleanup();
       overlay._onboardingResizeCleanup = null;
+    }
+    if (overlay._onboardingCloseHandler && closeButton) {
+      closeButton.removeEventListener("click", overlay._onboardingCloseHandler);
+      overlay._onboardingCloseHandler = null;
     }
     overlay.classList.remove("fading-out", "opening", "filter-intro");
 
@@ -178,18 +179,19 @@ function showOnboarding({ mode = "first-run" } = {}) {
     overlay._onboardingResizeCleanup = clearCardResize;
 
     const onOverlayClick = (event) => {
-      if (filterSetupMode && event.target === overlay) finish({ cancelled: true });
+      if (filterSetupMode && event.target === overlay) finish();
     };
     overlay.addEventListener("click", onOverlayClick);
     overlay.hidden = false;
     overlay.classList.toggle("filter-setup", filterSetupMode);
+    if (closeButton) closeButton.hidden = !filterSetupMode;
     overlay.classList.remove("opening");
     void overlay.offsetWidth;
     overlay.classList.add("opening");
     overlay._onboardingActive = true;
     const deactivateFocus = typeof activateModalFocus === "function"
       ? activateModalFocus(overlay, filterSetupMode
-        ? { onEscape: () => finish({ cancelled: true }) }
+        ? { onEscape: () => finish() }
         : {})
       : null;
 
@@ -233,7 +235,6 @@ function showOnboarding({ mode = "first-run" } = {}) {
         `;
         actionsEl.innerHTML = `
           <button class="button ob-primary" type="button">Choose categories</button>
-          <button class="onboarding-skip-btn ob-cancel" type="button">Keep current choices</button>
         `;
       } else if (step.type === "welcome") {
         contentEl.innerHTML = `
@@ -256,9 +257,9 @@ function showOnboarding({ mode = "first-run" } = {}) {
           </button>`;
         }).join("");
         const isLast = stepIndex === total - 1;
-        const secondaryAction = filterSetupMode
-          ? `<button class="onboarding-skip-btn ob-cancel" type="button">Cancel changes</button>`
-          : isLast ? "" : `<button class="onboarding-skip-btn ob-skip" type="button">Skip remaining</button>`;
+        const secondaryAction = !filterSetupMode && !isLast
+          ? `<button class="onboarding-skip-btn ob-skip" type="button">Skip remaining</button>`
+          : "";
         contentEl.innerHTML = `
           <div class="onboarding-step-heading">
             <img class="onboarding-step-icon" src="data/icons/${group.icon}.png" alt="">
@@ -275,6 +276,19 @@ function showOnboarding({ mode = "first-run" } = {}) {
           ${secondaryAction}
         `;
       }
+
+      contentEl.querySelectorAll(".onboarding-selection-item").forEach((item) => {
+        item.addEventListener("click", () => {
+          const nextIndex = steps.findIndex((candidate) =>
+            candidate.type === "group" && candidate.group.key === item.dataset.groupKey
+          );
+          if (nextIndex < 0) return;
+          const direction = nextIndex >= stepIndex ? "forward" : "back";
+          stepIndex = nextIndex;
+          renderProgress();
+          renderStep(direction);
+        });
+      });
 
       // Chip toggles
       contentEl.querySelectorAll(".onboarding-chip").forEach((chip) => {
@@ -299,7 +313,6 @@ function showOnboarding({ mode = "first-run" } = {}) {
       });
       actionsEl.querySelector(".ob-back")?.addEventListener("click", goBack);
       actionsEl.querySelector(".ob-skip")?.addEventListener("click", () => finish());
-      actionsEl.querySelector(".ob-cancel")?.addEventListener("click", () => finish({ cancelled: true }));
       // Each step replaces contentEl/actionsEl wholesale, which drops focus back to <body> for
       // a keyboard user — move it to the step's heading so screen readers announce the new step
       // and Tab resumes from a sane place, without stealing focus on the very first render
@@ -340,6 +353,10 @@ function showOnboarding({ mode = "first-run" } = {}) {
       }
       if (deactivateFocus) deactivateFocus();
       overlay.removeEventListener("click", onOverlayClick);
+      if (closeButton && overlay._onboardingCloseHandler) {
+        closeButton.removeEventListener("click", overlay._onboardingCloseHandler);
+        overlay._onboardingCloseHandler = null;
+      }
       // Release the guard immediately so a keyboard activation or a route-driven reopen during
       // the fade can start a fresh modal. The next show clears the stale fade/mode classes first.
       overlay._onboardingActive = false;
@@ -375,6 +392,8 @@ function showOnboarding({ mode = "first-run" } = {}) {
         overlay.hidden = true;
         overlay._onboardingActive = false;
         overlay._onboardingCancel = null;
+        if (closeButton) closeButton.hidden = true;
+        overlay._onboardingCloseHandler = null;
         overlay._onboardingHideHandler = null;
         overlay._onboardingHideAnimationHandler = null;
         overlay._onboardingHideTimer = null;
@@ -395,10 +414,15 @@ function showOnboarding({ mode = "first-run" } = {}) {
         hideTimer = setTimeout(hide, 620);
         overlay._onboardingHideTimer = hideTimer;
       }
-      resolve({ filters: cancelled ? null : Array.from(selected), cancelled });
+      resolve({ filters: Array.from(selected), cancelled: false });
     }
 
-    overlay._onboardingCancel = filterSetupMode ? () => finish({ cancelled: true }) : null;
+    overlay._onboardingCancel = filterSetupMode ? () => finish() : null;
+    if (closeButton) {
+      const onClose = () => finish();
+      closeButton.addEventListener("click", onClose);
+      overlay._onboardingCloseHandler = onClose;
+    }
     renderProgress();
     renderStep("forward");
   });

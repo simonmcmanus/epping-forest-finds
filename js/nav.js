@@ -815,11 +815,19 @@ function showFilterHintIfFirstVisit() {
     localStorage.setItem(FILTER_HINT_KEY, "1");
   } catch {}
   setTimeout(() => {
-    els.filterToggle.classList.add("filter-toggle-hint");
-    els.filterToggle.addEventListener("animationend", () => {
-      els.filterToggle.classList.remove("filter-toggle-hint");
-    }, { once: true });
-  }, 1400);
+    pulseFilterSetupButton();
+  }, 20_000);
+}
+
+function pulseFilterSetupButton() {
+  const button = els.filterToggle;
+  if (!button || button.hidden) return;
+  button.classList.remove("filter-toggle-hint");
+  void button.offsetWidth;
+  button.classList.add("filter-toggle-hint");
+  button.addEventListener("animationend", () => {
+    button.classList.remove("filter-toggle-hint");
+  }, { once: true });
 }
 
 function setupInteractions() {

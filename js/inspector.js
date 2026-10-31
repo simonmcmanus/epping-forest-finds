@@ -1630,16 +1630,14 @@ function countNearbyEntries(filterKeys, latitude, longitude) {
   const limit = walkingDistanceToMetres(state.walkingDistanceMinutes);
   const seen = new Set();
   let within = 0;
-  let beyond = 0;
   for (const key of filterKeys) {
     for (const entry of nearestOverviewEntriesForFilter(key, latitude, longitude, Infinity)) {
       if (seen.has(entry.item)) continue;
       seen.add(entry.item);
       if (entry.metres <= limit) within += 1;
-      else beyond += 1;
     }
   }
-  return { within, beyond };
+  return { within };
 }
 
 // One plain sentence for a category: "43 trees within 30 min walk of The Foresters." The noun is
@@ -1658,7 +1656,7 @@ function nearbyCountCopy(noun, { within, beyond = 0 }, placeName) {
     const word = within === 1 ? noun.replace(/s$/, "") : noun;
     sentence = `${formatCount(within)} ${word} ${where}.`;
   }
-  return beyond > 0 ? `${sentence} ${formatCount(beyond)} further away.` : sentence;
+  return sentence;
 }
 
 // The Places close by, Nearest and Related sections for any selected point with coordinates -- a /find/ business,
@@ -1725,7 +1723,7 @@ function nearbySectionsHtml({ latitude, longitude, name = null, subfilterKey = n
       // so the card waits for them rather than reporting a count of zero.
       if (!sub || (key === "cows" && !state.cows.length)) return "";
       const counts = countNearbyEntries([key], latitude, longitude);
-      if (counts.within === 0 && counts.beyond === 0) return "";
+      if (counts.within === 0) return "";
       return cardHtml(`/nearby/${key.replace(/_/g, "-")}/#${anchorHash}`, sub.icon, sub.label, nearbyCountCopy(sub.label.toLowerCase(), counts, placeName));
     })
     .join("");
