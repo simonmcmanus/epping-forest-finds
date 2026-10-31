@@ -104,6 +104,15 @@ function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
     createElement(tag) { const el = createElementStub(); el.tagName = String(tag).toUpperCase(); return el; },
     getElementById(id) {
       if (!elements.has(id)) elements.set(id, createElementStub(id));
+      if (id === "onboardingOverlay") {
+        const overlay = elements.get(id);
+        const parts = new Map([
+          [".onboarding-progress", createElementStub("onboarding-progress")],
+          [".onboarding-content", createElementStub("onboarding-content")],
+          [".onboarding-actions", createElementStub("onboarding-actions")],
+        ]);
+        overlay.querySelector = (selector) => parts.get(selector) || null;
+      }
       return elements.get(id);
     },
     querySelector(selector) {
@@ -743,6 +752,8 @@ function resetData(app) {
   app.state.filterScreenOpen = false;
   app.state.searchScreenOpen = false;
   app.state.searchQuery = "";
+  const onboardingOverlay = app.documentStub?.getElementById("onboardingOverlay");
+  if (onboardingOverlay) onboardingOverlay._onboardingActive = false;
   app.state.viewport = { scale: 1000, tx: 500, ty: 400 };
   // Realistic "whole forest fit" scale -- not read by the heading-up zoom ceiling itself
   // any more (that's the walking radius now, see maxNearbyHeadingUpScale), but still used
@@ -5565,8 +5576,8 @@ test("the /nearby/filter path opens the filter screen on load", () => {
   app.location.pathname = "/nearby/filter";
   const opened = app.applySelectionFromHash(false);
   assert.ok(opened, "applySelectionFromHash returns true for /nearby/filter");
-  assert.ok(app.state.filterScreenOpen, "filter screen is open");
-  assert.equal(app.els.inspectorTitle.textContent, "Filters", "inspector shows Filters title");
+  assert.ok(app.state.filterScreenOpen, "map setup route is open");
+  assert.equal(app.els.inspectorTitle.textContent, "Nearby", "Nearby remains underneath the setup modal");
   app.location.pathname = "/";
 });
 

@@ -1,4 +1,5 @@
 // First-visit onboarding: a short guided filter setup.
+// The same guided filter steps can also be opened later from Nearby in `filters` mode.
 // Runs while map data loads in the background.
 
 const ONBOARDING_KEY = "forest-finds-onboarding-v1";
@@ -44,21 +45,155 @@ function hasCompletedOnboarding() {
   }
 }
 
-// Returns a Promise resolving to { filters: string[] }.
-function showOnboarding() {
+function mapSetupIconMarkup() {
+  return `<span class="onboarding-step-icon onboarding-map-setup-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 7 8.5-3.5L20.5 7 12 10.5 3.5 7Z"/><path d="m3.5 12 8.5 3.5 8.5-3.5"/><path d="m3.5 17 8.5 3.5 8.5-3.5"/></svg></span>`;
+}
+
+function mapSetupSelectionPreviewMarkup(selected) {
+  const groups = FILTER_GROUPS.map((group) => {
+    const shown = group.subfilters.filter((subfilter) => selected.has(subfilter.key)).length;
+    return { ...group, shown, total: group.subfilters.length };
+  });
+  return `
+    <div class="onboarding-selection-card">
+      <div class="onboarding-selection-preview" aria-label="Currently shown category groups">
+      ${groups.map((group) => `
+        <button class="onboarding-selection-item${group.shown ? "" : " is-empty"}"
+          type="button"
+          data-group-key="${group.key}"
+          aria-label="${group.label}: ${group.shown} of ${group.total} categories shown. Open category settings."
+          title="${group.label}: ${group.shown}/${group.total}">
+          <span class="onboarding-selection-icon"><img src="data/icons/${group.icon}.png" alt=""></span>
+          <span class="onboarding-selection-item-copy">
+            <span class="onboarding-selection-item-label">${group.label}</span>
+            <span class="onboarding-selection-item-group">(${group.shown}/${group.total})</span>
+          </span>
+        </button>
+      `).join("")}
+      </div>
+    </div>
+  `;
+}
+
+function mapSetupHiddenCategoryCopy(selected) {
+  const total = FILTER_GROUPS.reduce((count, group) => count + group.subfilters.length, 0);
+  const hidden = Math.max(0, total - selected.size);
+  if (!hidden) return "All categories are currently shown.";
+  return `There ${hidden === 1 ? "is" : "are"} ${hidden} categor${hidden === 1 ? "y" : "ies"} not currently shown.`;
+}
+
+function onboardingReducedMotion() {
+  return typeof window !== "undefined"
+    && typeof window.matchMedia === "function"
+    && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+// Returns a Promise resolving to { filters: string[]|null, cancelled: boolean }.
+function showOnboarding({ mode = "first-run" } = {}) {
   return new Promise((resolve) => {
+    const filterSetupMode = mode === "filters";
     const overlay = document.getElementById("onboardingOverlay");
     const progressEl = overlay.querySelector(".onboarding-progress");
     const contentEl = overlay.querySelector(".onboarding-content");
     const actionsEl = overlay.querySelector(".onboarding-actions");
+    const cardEl = overlay.querySelector(".onboarding-card");
+    const closeButton = overlay.querySelector(".onboarding-close");
+    if (overlay._onboardingHideHandler) {
+      overlay.removeEventListener("transitionend", overlay._onboardingHideHandler);
+      overlay._onboardingHideHandler = null;
+    }
+    if (overlay._onboardingHideAnimationHandler && cardEl) {
+      cardEl.removeEventListener("transitionend", overlay._onboardingHideAnimationHandler);
+      overlay._onboardingHideAnimationHandler = null;
+    }
+    if (overlay._onboardingHideTimer) {
+      clearTimeout(overlay._onboardingHideTimer);
+      overlay._onboardingHideTimer = null;
+    }
+    if (typeof overlay._onboardingResizeCleanup === "function") {
+      overlay._onboardingResizeCleanup();
+      overlay._onboardingResizeCleanup = null;
+    }
+    if (overlay._onboardingCloseHandler && closeButton) {
+      closeButton.removeEventListener("click", overlay._onboardingCloseHandler);
+      overlay._onboardingCloseHandler = null;
+    }
+    overlay.classList.remove("fading-out", "opening", "filter-intro");
 
-    const steps = ONBOARDING_STEPS;
+    const steps = filterSetupMode
+      ? [{ type: "filter-intro" }, ...FILTER_GROUPS.map((g) => ({ type: "group", group: g }))]
+      : ONBOARDING_STEPS;
     let stepIndex = 0;
     const total = steps.length;
-    const selected = new Set(DEFAULT_OVERVIEW_FILTER_KEYS);
+    let hasRenderedStep = false;
+    let cardResizeFrame = null;
+    let cardResizeEnd = null;
+    const startingFilters = filterSetupMode
+      && typeof state !== "undefined"
+      && state
+      && Array.isArray(state.overviewFilters)
+      ? state.overviewFilters
+      : DEFAULT_OVERVIEW_FILTER_KEYS;
+    const selected = new Set(sanitizeOverviewFilters(startingFilters));
+    let finished = false;
 
+    function clearCardResize() {
+      if (!cardEl) return;
+      if (cardResizeFrame !== null) {
+        cancelAnimationFrame(cardResizeFrame);
+        cardResizeFrame = null;
+      }
+      if (cardResizeEnd) {
+        cardEl.removeEventListener("transitionend", cardResizeEnd);
+        cardResizeEnd = null;
+      }
+      cardEl.style.removeProperty("height");
+    }
+
+    function animateCardResize(previousHeight) {
+      if (!cardEl) {
+        hasRenderedStep = true;
+        return;
+      }
+      const targetHeight = cardEl.getBoundingClientRect().height;
+      if (!hasRenderedStep || onboardingReducedMotion() || Math.abs(targetHeight - previousHeight) < 1) {
+        cardEl.style.removeProperty("height");
+        hasRenderedStep = true;
+        return;
+      }
+
+      cardEl.style.height = `${previousHeight}px`;
+      cardResizeFrame = requestAnimationFrame(() => {
+        cardResizeFrame = null;
+        cardResizeEnd = (event) => {
+          if (event.target !== cardEl || event.propertyName !== "height") return;
+          cardEl.removeEventListener("transitionend", cardResizeEnd);
+          cardResizeEnd = null;
+          cardEl.style.removeProperty("height");
+        };
+        cardEl.addEventListener("transitionend", cardResizeEnd);
+        cardEl.style.height = `${targetHeight}px`;
+      });
+      hasRenderedStep = true;
+    }
+    overlay._onboardingResizeCleanup = clearCardResize;
+
+    const onOverlayClick = (event) => {
+      if (filterSetupMode && event.target === overlay) finish();
+    };
+    overlay.addEventListener("click", onOverlayClick);
     overlay.hidden = false;
-    const deactivateFocus = typeof activateModalFocus === "function" ? activateModalFocus(overlay) : null;
+    overlay.classList.toggle("filter-setup", filterSetupMode);
+    if (closeButton) closeButton.hidden = !filterSetupMode;
+    overlay.classList.remove("opening");
+    void overlay.offsetWidth;
+    overlay.classList.add("opening");
+    overlay._onboardingActive = true;
+    const deactivateFocus = typeof activateModalFocus === "function"
+      ? activateModalFocus(overlay, filterSetupMode
+        ? { onEscape: () => finish() }
+        : {})
+      : null;
 
     function renderProgress() {
       progressEl.innerHTML = steps.map((_, i) => {
@@ -81,13 +216,27 @@ function showOnboarding() {
 
     function renderStep(direction) {
       const step = steps[stepIndex];
+      const previousCardHeight = hasRenderedStep && cardEl ? cardEl.getBoundingClientRect().height : null;
+      overlay.classList.toggle("filter-intro", filterSetupMode && step.type === "filter-intro");
       preloadStepImages(stepIndex + 1);
 
       contentEl.classList.remove("entering-forward", "entering-backward");
       void contentEl.offsetWidth;
       contentEl.classList.add(direction === "back" ? "entering-backward" : "entering-forward");
 
-      if (step.type === "welcome") {
+      if (step.type === "filter-intro") {
+        contentEl.innerHTML = `
+          <div class="onboarding-step-heading">
+            ${mapSetupIconMarkup()}
+            <h2 class="onboarding-step-title">What would you like to see?</h2>
+          </div>
+          <p class="onboarding-step-subtitle">You can customise what is shown in your Nearby list and on the map. ${mapSetupHiddenCategoryCopy(selected)}</p>
+          ${mapSetupSelectionPreviewMarkup(selected)}
+        `;
+        actionsEl.innerHTML = `
+          <button class="button ob-primary" type="button">Choose categories</button>
+        `;
+      } else if (step.type === "welcome") {
         contentEl.innerHTML = `
           <img class="onboarding-step-icon" src="data/icons/trees/logo.png" alt="">
           <h2 class="onboarding-step-title">Make the map yours</h2>
@@ -108,9 +257,14 @@ function showOnboarding() {
           </button>`;
         }).join("");
         const isLast = stepIndex === total - 1;
+        const secondaryAction = !filterSetupMode && !isLast
+          ? `<button class="onboarding-skip-btn ob-skip" type="button">Skip remaining</button>`
+          : "";
         contentEl.innerHTML = `
-          <img class="onboarding-step-icon" src="data/icons/${group.icon}.png" alt="">
-          <h2 class="onboarding-step-title">${group.label}</h2>
+          <div class="onboarding-step-heading">
+            <img class="onboarding-step-icon" src="data/icons/${group.icon}.png" alt="">
+            <h2 class="onboarding-step-title">${group.label}</h2>
+          </div>
           <p class="onboarding-step-subtitle">Tap to toggle what you'd like to see on the map.</p>
           <div class="onboarding-chips">${chips}</div>
         `;
@@ -119,9 +273,22 @@ function showOnboarding() {
             <button class="button ob-back" type="button">← Back</button>
             <button class="button ob-next" type="button">${isLast ? "Done" : "Next"}</button>
           </div>
-          ${!isLast ? `<button class="onboarding-skip-btn ob-skip" type="button">Skip remaining</button>` : ""}
+          ${secondaryAction}
         `;
       }
+
+      contentEl.querySelectorAll(".onboarding-selection-item").forEach((item) => {
+        item.addEventListener("click", () => {
+          const nextIndex = steps.findIndex((candidate) =>
+            candidate.type === "group" && candidate.group.key === item.dataset.groupKey
+          );
+          if (nextIndex < 0) return;
+          const direction = nextIndex >= stepIndex ? "forward" : "back";
+          stepIndex = nextIndex;
+          renderProgress();
+          renderStep(direction);
+        });
+      });
 
       // Chip toggles
       contentEl.querySelectorAll(".onboarding-chip").forEach((chip) => {
@@ -157,6 +324,8 @@ function showOnboarding() {
           heading.focus();
         }
       }
+      if (previousCardHeight !== null) animateCardResize(previousCardHeight);
+      else hasRenderedStep = true;
     }
 
     function goNext() {
@@ -177,17 +346,93 @@ function showOnboarding() {
     }
 
     function finish() {
-      try { localStorage.setItem(ONBOARDING_KEY, "1"); } catch {}
+      if (finished) return;
+      finished = true;
+      if (!filterSetupMode) {
+        try { localStorage.setItem(ONBOARDING_KEY, "1"); } catch {}
+      }
       if (deactivateFocus) deactivateFocus();
+      overlay.removeEventListener("click", onOverlayClick);
+      if (closeButton && overlay._onboardingCloseHandler) {
+        closeButton.removeEventListener("click", overlay._onboardingCloseHandler);
+        overlay._onboardingCloseHandler = null;
+      }
+      // Release the guard immediately so a keyboard activation or a route-driven reopen during
+      // the fade can start a fresh modal. The next show clears the stale fade/mode classes first.
+      overlay._onboardingActive = false;
+      overlay.classList.remove("opening");
+      // Commit the card's resting transform before applying the exit target so the transform
+      // transition has a definite start point instead of being collapsed into the class change.
+      void overlay.offsetWidth;
       overlay.classList.add("fading-out");
-      overlay.addEventListener("transitionend", () => {
+      let hideTimer = null;
+      let overlayFaded = false;
+      let cardFaded = !cardEl;
+      const maybeHide = () => {
+        if (overlayFaded && cardFaded) hide();
+      };
+      const onTransitionEnd = (event) => {
+        if (event.target === overlay && event.propertyName === "opacity") {
+          overlayFaded = true;
+          maybeHide();
+        }
+      };
+      const onCardTransitionEnd = (event) => {
+        if (event.target === cardEl && (event.propertyName === "transform" || event.propertyName === "opacity")) {
+          cardFaded = true;
+          maybeHide();
+        }
+      };
+      const hide = () => {
+        if (hideTimer) clearTimeout(hideTimer);
+        clearCardResize();
+        overlay._onboardingResizeCleanup = null;
+        overlay.removeEventListener("transitionend", onTransitionEnd);
+        if (cardEl) cardEl.removeEventListener("transitionend", onCardTransitionEnd);
         overlay.hidden = true;
+        overlay._onboardingActive = false;
+        overlay._onboardingCancel = null;
+        if (closeButton) closeButton.hidden = true;
+        overlay._onboardingCloseHandler = null;
+        overlay._onboardingHideHandler = null;
+        overlay._onboardingHideAnimationHandler = null;
+        overlay._onboardingHideTimer = null;
+        overlay.classList.remove("filter-setup");
+        overlay.classList.remove("filter-intro");
+        overlay.classList.remove("opening");
         overlay.classList.remove("fading-out");
-      }, { once: true });
-      resolve({ filters: Array.from(selected) });
+      };
+      overlay._onboardingHideHandler = onTransitionEnd;
+      if (onboardingReducedMotion()) {
+        hide();
+      } else {
+        overlay.addEventListener("transitionend", onTransitionEnd);
+        if (cardEl) {
+          cardEl.addEventListener("transitionend", onCardTransitionEnd);
+          overlay._onboardingHideAnimationHandler = onCardTransitionEnd;
+        }
+        hideTimer = setTimeout(hide, 620);
+        overlay._onboardingHideTimer = hideTimer;
+      }
+      resolve({ filters: Array.from(selected), cancelled: false });
     }
 
+    overlay._onboardingCancel = filterSetupMode ? () => finish() : null;
+    if (closeButton) {
+      const onClose = () => finish();
+      closeButton.addEventListener("click", onClose);
+      overlay._onboardingCloseHandler = onClose;
+    }
     renderProgress();
     renderStep("forward");
   });
+}
+
+function dismissOnboarding() {
+  const overlay = document.getElementById("onboardingOverlay");
+  if (!overlay?.classList.contains("filter-setup")) return;
+  if (typeof overlay._onboardingCancel === "function") {
+    overlay._onboardingCancel();
+    overlay._onboardingActive = false;
+  }
 }

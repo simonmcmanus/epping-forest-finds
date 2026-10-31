@@ -263,11 +263,11 @@ const state = {
     } catch {}
     return [];
   })(),
+  // Kept as a compatibility state for callers that still model the old /nearby/filter route.
+  // The current Map setup modal deliberately does not set it: Nearby stays active underneath.
   filterScreenOpen: false,
-  // The Search screen and the text currently in its field. Like filterScreenOpen this is a
-  // screen with no selection behind it, so the map keeps the Nearby framing while it is open
-  // (secondaryScreenActive, js/nav.js). The query is held here rather than read back off the
-  // input so re-entering Search from a result restores what was typed.
+  // The Search screen and the text currently in its field. The query is held here rather than
+  // read back off the input so re-entering Search from a result restores what was typed.
   searchScreenOpen: false,
   searchQuery: "",
   // The top SEARCH_HIGHLIGHT_LIMIT results for the current query, kept so the renderer can ring
@@ -784,11 +784,11 @@ function replaceHashInPlace(value) {
   history.replaceState(history.state, "", url);
 }
 
-// While the Filters screen is open, every change to state.overviewFilters corrects /filter's
-// own query string in place -- replaces rather than pushes, or every checkbox toggle would add
-// its own back-button step. Arriving at Filters already gets the right query string for free
-// (setHashFromSelection/replaceHashInPlace above both run searchStringForPath on push); this
-// is only for a change that happens without a screen transition alongside it.
+// While the compatibility /nearby/filter route is open, every change to state.overviewFilters
+// corrects its query string in place -- replaces rather than pushes, or every staged choice would
+// add its own back-button step. Arriving at the route already gets the right query string for free
+// (setHashFromSelection/replaceHashInPlace above both run searchStringForPath on push); this is
+// only for a change that happens without a screen transition alongside it.
 // Shared by setOverviewFilters (while on /filter) and setSearchQuery (while on /search) --
 // searchStringForPath already returns "" for a path with nothing live to carry, so this is a
 // no-op on every other screen without needing to ask which one called it.
@@ -809,12 +809,9 @@ function applyRouteFromUrl() {
   // A ?show= on whichever path was just navigated to (back/forward, or a hand-typed URL) is
   // applied before the route itself, the same way boot() applies it once up front -- so e.g.
   // routing to /nearby?show=pubs,cafes or /filter?show=pubs lands with the right filters on.
-  // Guarded the same way applyRoute() guards its own screen change: setOverviewFilters() (called
-  // from applyShowFilterFromQuery) looks at state.filterScreenOpen to decide whether to refresh
-  // the live overview or the Filter screen's own list, and at this point that flag still
-  // describes the screen being left, not the one the URL is about to open -- unguarded, that
-  // stale read pushed a /nearby correction of its own before the real route ever ran, stomping
-  // the forward-navigation entry the browser had just restored.
+  // Guarded the same way applyRoute() guards its own screen change: the compatibility route's
+  // staged filters are applied before the modal opens, so the current Nearby view remains the
+  // source of truth while the route is being resolved.
   routeApplyDepth += 1;
   let raw;
   try {
@@ -885,6 +882,13 @@ function applyRoute(raw, announceMissing = false) {
 
 function applyRouteToScreen(raw, announceMissing) {
   const value = String(raw || "").replace(/^#/, "").trim();
+
+  // The setup route owns the modal. A browser Back/Forward traversal to any other route must
+  // dismiss it before that destination renders, otherwise the old dialog can remain over a new
+  // screen while its filter state still claims the compatibility route is active.
+  if (value !== ROUTE_FILTERS && mapSetupModalActive()) {
+    dismissOnboarding();
+  }
 
   // Whatever the route turns out to be, arriving at one is navigating away from an expanded
   // map group -- the one screen with no URL of its own (see urlMatchesCurrentScreen).
@@ -1324,14 +1328,35 @@ function offerLocationInvite({ blocked = false } = {}) {
   }
 }
 
-function hideNoticeCard(banner) {
-  banner.classList.add("fading-out");
-  banner.addEventListener("transitionend", () => {
+function hideNoticeCard(banner, { collapse = false } = {}) {
+  let finished = false;
+  let hideTimer = null;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    if (hideTimer) clearTimeout(hideTimer);
+    banner.removeEventListener("transitionend", onTransitionEnd);
     banner.hidden = true;
-    banner.classList.remove("fading-out");
+    banner.classList.remove("fading-out", "onboarding-collapsing", "onboarding-collapsed");
+    banner.style.removeProperty("--consent-banner-height");
     // The next waiting question, if any, takes the slot once this one has gone.
     askAnalyticsWhenFree();
-  }, { once: true });
+  };
+  const onTransitionEnd = (event) => {
+    if (event.target !== banner) return;
+    if (collapse && event.propertyName !== "max-height") return;
+    if (!collapse && event.propertyName !== "opacity") return;
+    finish();
+  };
+  banner.addEventListener("transitionend", onTransitionEnd);
+  if (collapse) {
+    banner.classList.add("onboarding-collapsing");
+    banner.style.setProperty("--consent-banner-height", `${banner.getBoundingClientRect().height}px`);
+    void banner.offsetWidth;
+    requestAnimationFrame(() => banner.classList.add("onboarding-collapsed"));
+  }
+  banner.classList.add("fading-out");
+  hideTimer = setTimeout(finish, collapse ? 700 : 420);
 }
 
 // Non-blocking "get a more custom experience" nudge shown after revealNoRealLocation() -- the
@@ -1384,19 +1409,46 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
   const banner = els.consentBanner;
   if (!banner || (!askLocation && !askAnalytics && !offerOnboarding)) return false;
   let stage = askLocation && askAnalytics ? "permissions" : askLocation ? "location" : askAnalytics ? "analytics" : "onboarding";
+  let onboardingAttentionTimer = null;
+  let onboardingAttentionFallbackTimer = null;
+  let onboardingAttentionEndHandler = null;
+
+  function clearOnboardingAttention() {
+    if (onboardingAttentionTimer !== null) {
+      clearTimeout(onboardingAttentionTimer);
+      onboardingAttentionTimer = null;
+    }
+    if (onboardingAttentionFallbackTimer !== null) {
+      clearTimeout(onboardingAttentionFallbackTimer);
+      onboardingAttentionFallbackTimer = null;
+    }
+    if (onboardingAttentionEndHandler) {
+      banner.removeEventListener("animationend", onboardingAttentionEndHandler);
+      onboardingAttentionEndHandler = null;
+    }
+    banner.classList.remove("onboarding-attention");
+  }
 
   function renderPermissionsStage() {
     banner.setAttribute("aria-label", "Location and usage analytics");
+    banner.classList.remove("onboarding-invite");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Allow location & cookies";
     if (els.consentBannerText) {
       els.consentBannerText.innerHTML = `Shows nearby finds and their distance from you, and helps us understand how people use this site — enabling covers both. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>`;
     }
-    if (els.consentBannerDecline) els.consentBannerDecline.textContent = "Maybe later";
+    if (els.consentBannerDecline) {
+      els.consentBannerDecline.textContent = "Maybe later";
+      els.consentBannerDecline.removeAttribute("aria-label");
+      els.consentBannerDecline.removeAttribute("title");
+    }
     if (els.consentBannerAccept) els.consentBannerAccept.textContent = "Enable location & cookies";
+    if (els.consentBannerAccept) els.consentBannerAccept.hidden = false;
+    if (els.consentBannerMapSetupArrow) els.consentBannerMapSetupArrow.hidden = true;
   }
 
   function renderLocationStage() {
     banner.setAttribute("aria-label", "Location");
+    banner.classList.remove("onboarding-invite");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "See what's near you";
     // Generated landing pages replace the shell's default paragraph with a lead that names the
     // category or place. Keep that useful server-rendered copy when the live page only needs the
@@ -1406,31 +1458,66 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
     if (els.consentBannerText && !pageSpecificCopy) {
       els.consentBannerText.innerHTML = `Enable location to centre the map on you and see real walking distances. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>`;
     }
-    if (els.consentBannerDecline) els.consentBannerDecline.textContent = "Maybe later";
+    if (els.consentBannerDecline) {
+      els.consentBannerDecline.textContent = "Maybe later";
+      els.consentBannerDecline.removeAttribute("aria-label");
+      els.consentBannerDecline.removeAttribute("title");
+    }
     if (els.consentBannerAccept) els.consentBannerAccept.textContent = "Enable location";
+    if (els.consentBannerAccept) els.consentBannerAccept.hidden = false;
+    if (els.consentBannerMapSetupArrow) els.consentBannerMapSetupArrow.hidden = true;
   }
 
   function renderAnalyticsStage() {
     banner.setAttribute("aria-label", "Usage analytics");
+    banner.classList.remove("onboarding-invite");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Help improve the map?";
     if (els.consentBannerText) {
       els.consentBannerText.innerHTML = `Share anonymous usage data — which screens you use and where you are while the app is open — and allow Google Analytics cookies. It is never sold or used for advertising. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>`;
     }
-    if (els.consentBannerDecline) els.consentBannerDecline.textContent = "No thanks";
+    if (els.consentBannerDecline) {
+      els.consentBannerDecline.textContent = "No thanks";
+      els.consentBannerDecline.removeAttribute("aria-label");
+      els.consentBannerDecline.removeAttribute("title");
+    }
     if (els.consentBannerAccept) els.consentBannerAccept.textContent = "Share usage data";
+    if (els.consentBannerAccept) els.consentBannerAccept.hidden = false;
+    if (els.consentBannerMapSetupArrow) els.consentBannerMapSetupArrow.hidden = true;
   }
 
   function renderOnboardingStage() {
     banner.setAttribute("aria-label", "Map setup");
+    banner.classList.add("onboarding-invite");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Make the map yours";
     if (els.consentBannerText) {
-      els.consentBannerText.innerHTML = "Choose the finds you want to see. You can change these anytime in Filters.";
+      els.consentBannerText.innerHTML = "Choose the finds you want to see. Press the Map setup button below to set up your map. You can change it anytime.";
     }
-    if (els.consentBannerDecline) els.consentBannerDecline.textContent = "Explore first";
-    if (els.consentBannerAccept) els.consentBannerAccept.textContent = "Set up my map";
+    if (els.consentBannerDecline) {
+      els.consentBannerDecline.textContent = "×";
+      els.consentBannerDecline.setAttribute("aria-label", "Dismiss map setup hint");
+      els.consentBannerDecline.title = "Dismiss map setup hint";
+    }
+    if (els.consentBannerAccept) els.consentBannerAccept.hidden = true;
+    if (els.consentBannerMapSetupArrow) els.consentBannerMapSetupArrow.hidden = false;
+    clearOnboardingAttention();
+    onboardingAttentionTimer = setTimeout(() => {
+      onboardingAttentionTimer = null;
+      if (stage !== "onboarding" || banner.hidden) return;
+      banner.classList.add("onboarding-attention");
+      const finishAttention = () => {
+        clearOnboardingAttention();
+        if (typeof pulseFilterSetupButton === "function") pulseFilterSetupButton();
+        cleanup();
+        hideNoticeCard(banner, { collapse: true });
+      };
+      onboardingAttentionEndHandler = finishAttention;
+      banner.addEventListener("animationend", finishAttention, { once: true });
+      onboardingAttentionFallbackTimer = setTimeout(finishAttention, 900);
+    }, 20_000);
   }
 
   function cleanup() {
+    clearOnboardingAttention();
     els.consentBannerAccept?.removeEventListener("click", onAccept);
     els.consentBannerDecline?.removeEventListener("click", onDecline);
   }
@@ -1465,7 +1552,9 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
       banner.classList.remove("fading-out");
       banner.hidden = true;
       showOnboarding().then((onboardResult) => {
-        state.overviewFilters = sanitizeOverviewFilters(onboardResult.filters);
+        state.overviewFilters = sanitizeOverviewFilters(
+          onboardResult.cancelled ? state.overviewFilters : onboardResult.filters
+        );
         saveFilterState();
         updateFilterUi();
         if (isOverviewScreenActive()) selectOverview();
@@ -2698,69 +2787,6 @@ function zoomAt(factor, screenPoint) {
   requestDraw();
 }
 
-function renderFilterBodyHtml() {
-  return `<div class="filter-body">
-    <div class="filter-actions">
-      <span id="filterResultsCount" class="filter-results-count"></span>
-      <button class="filter-action-btn filter-clear-all" type="button" data-filter-clear-all>
-        Clear all filters
-      </button>
-    </div>
-    <div class="filter-groups">
-      ${FILTER_GROUPS.map((group) => `
-        <section class="filter-group-card" data-filter-group-section="${escapeHtml(group.key)}">
-          <header class="filter-group-header" data-filter-group="${escapeHtml(group.key)}">
-            <div class="filter-group-title">
-              ${group.icon ? appIconHtml(group.icon, "app-icon filter-group-icon") : ""}
-              <span class="filter-group-label">${escapeHtml(group.label)}</span>
-            </div>
-            <span class="filter-group-count" data-group-count="${escapeHtml(group.key)}">0 of ${group.subfilters.length}</span>
-          </header>
-          <div class="filter-group-grid">
-            ${group.subfilters.map((subfilter) => `
-              <button class="filter-chip" type="button" data-filter-subfilter="${escapeHtml(subfilter.key)}">
-                ${subfilter.icon ? appIconHtml(subfilter.icon, "app-icon filter-chip-icon") : ""}
-                <span class="filter-chip-label">${escapeHtml(subfilter.label)}</span>
-                <span class="filter-chip-check" aria-hidden="true">✓</span>
-              </button>
-            `).join("")}
-          </div>
-          <p class="filter-group-outside" data-filter-group-outside="${escapeHtml(group.key)}" hidden></p>
-        </section>
-      `).join("")}
-    </div>
-  </div>`;
-}
-
-// The Filter screen's own body: the chip groups above, exactly as renderFilterBodyHtml() has
-// always built them, plus the same nearest-list markup the plain Nearby screen shows -- so
-// toggling a chip has a visible effect right there instead of only being provable by backing
-// out to Nearby again. refreshFilterScreenList() re-renders just the list half on every filter
-// change; the chip half is only ever patched in place by updateFilterUi(), never rebuilt, so a
-// keyboard user's focus stays on the chip they just pressed.
-function filterScreenBodyHtml() {
-  return `${renderFilterBodyHtml()}<div id="filterNearestListSection" class="filter-nearest-list-section">${overviewNearestHtml()}</div>`;
-}
-
-function refreshFilterScreenList() {
-  const section = document.getElementById("filterNearestListSection");
-  if (!section) return;
-  const previousNearestPositions = captureNearestItemPositions();
-  section.innerHTML = overviewNearestHtml();
-  attachNearbyRailScrollHints(section);
-  updateOverviewDirectionArrows();
-  hydrateOverviewBusStopDirections();
-  animateNearestItemReorder(previousNearestPositions);
-}
-
-function attachFilterScrollHints() {
-  const rows = els.inspectorBody.querySelectorAll(".filter-subfilters-row");
-  for (const row of rows) {
-    row.addEventListener("scroll", () => updateSingleSubfilterScrollHint(row), { passive: true });
-    updateSingleSubfilterScrollHint(row);
-  }
-}
-
 function attachNearbyRailScrollHints(root = els.inspectorBody) {
   if (!root?.querySelectorAll) return;
   for (const row of root.querySelectorAll(".filter-rail .rail-pills")) {
@@ -2782,117 +2808,10 @@ function updateNearbyRailScrollHint(row) {
   rail.classList.toggle("has-right-overflow", isScrollable && row.scrollLeft < maxScrollLeft - 2);
 }
 
-function updateSingleSubfilterScrollHint(row) {
-  if (!row) return;
-  const maxScrollLeft = row.scrollWidth - row.clientWidth;
-  const isScrollable = maxScrollLeft > 6;
-  const isAtStart = !isScrollable || row.scrollLeft <= 2;
-  const isAtEnd = !isScrollable || row.scrollLeft >= maxScrollLeft - 2;
-  row.classList.toggle("is-scrollable", isScrollable);
-  row.classList.toggle("is-scroll-start", isAtStart);
-  row.classList.toggle("is-scroll-end", isAtEnd);
-}
-
-function updateSubfilterScrollHints() {
-  const rows = els.inspectorBody ? els.inspectorBody.querySelectorAll(".filter-subfilters-row") : [];
-  for (const row of rows) {
-    updateSingleSubfilterScrollHint(row);
-  }
-}
-
 function prefersReducedMotion() {
   return Boolean(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 }
 
-function setSubfilterPanelExpanded(panel, expanded) {
-  if (!panel) return;
-
-  const wasExpanded = panel.dataset.expanded === "true";
-
-  if (wasExpanded === expanded && panel.dataset.animating !== "true") {
-    panel.hidden = !expanded;
-    if (!expanded) {
-      panel.style.maxHeight = "";
-      panel.style.opacity = "";
-      panel.style.transform = "";
-    } else {
-      updateSubfilterScrollHints();
-    }
-    return;
-  }
-
-  panel.dataset.expanded = expanded ? "true" : "false";
-
-  if (prefersReducedMotion()) {
-    panel.hidden = !expanded;
-    panel.classList.remove("animating");
-    panel.style.maxHeight = "";
-    panel.style.opacity = "";
-    panel.style.transform = "";
-    updateSubfilterScrollHints();
-    return;
-  }
-
-  if (expanded) {
-    if (panel.dataset.animating === "true") return;
-    panel.hidden = false;
-    panel.classList.add("animating");
-    panel.dataset.animating = "true";
-    panel.style.maxHeight = "0px";
-    panel.style.opacity = "0";
-    panel.style.transform = "translateY(-12px)";
-
-    requestAnimationFrame(() => {
-      panel.style.maxHeight = `${panel.scrollHeight}px`;
-      panel.style.opacity = "1";
-      panel.style.transform = "translateY(0)";
-    });
-
-    const onExpandDone = () => {
-      panel.classList.remove("animating");
-      panel.dataset.animating = "false";
-      panel.style.maxHeight = "";
-      panel.style.opacity = "";
-      panel.style.transform = "";
-      updateSubfilterScrollHints();
-    };
-
-    panel.addEventListener("transitionend", onExpandDone, { once: true });
-    return;
-  }
-
-  if (panel.hidden) return;
-  if (panel.dataset.animating === "true") return;
-
-  panel.classList.add("animating");
-  panel.dataset.animating = "true";
-  panel.style.maxHeight = `${panel.scrollHeight}px`;
-  panel.style.opacity = "1";
-  panel.style.transform = "translateY(0)";
-
-  requestAnimationFrame(() => {
-    panel.style.maxHeight = "0px";
-    panel.style.opacity = "0";
-    panel.style.transform = "translateY(-10px)";
-  });
-
-  const onCollapseDone = () => {
-    panel.hidden = true;
-    panel.classList.remove("animating");
-    panel.dataset.animating = "false";
-    panel.style.maxHeight = "";
-    panel.style.opacity = "";
-    panel.style.transform = "";
-    updateSubfilterScrollHints();
-  };
-
-  panel.addEventListener("transitionend", onCollapseDone, { once: true });
-}
-
-// persist:false is for a URL-driven pre-filter (a /nearby/<slug> page, or a shared ?show= link)
-// -- landing on one of those names what that page shows, not a preference the reader chose, so
-// it must not overwrite their own saved filters (saveFilterState) for every later visit to
-// /nearby. An actual chip tap, on that page or anywhere else, always persists as before.
 function setOverviewFilters(nextFilters, { persist = true, render = true, railTap = false } = {}) {
   const previousFilters = state.overviewFilters;
   const sanitizedFilters = sanitizeOverviewFilters(nextFilters);
@@ -2942,128 +2861,43 @@ function setOverviewFilters(nextFilters, { persist = true, render = true, railTa
     requestDraw();
     return;
   }
-  if (isOverviewScreenActive() && !state.filterScreenOpen) {
+  if (isOverviewScreenActive() && (!state.filterScreenOpen || mapSetupModalActive())) {
     selectOverview();
     ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
-  } else if (state.filterScreenOpen) {
-    // The whole point of the Filter screen showing the nearest list is that a chip tap proves
-    // its own effect right there (see filterScreenBodyHtml()) -- refresh just that list, never
-    // the chip panel above it, which updateFilterUi() patches in place a few lines up.
-    refreshFilterScreenList();
-    ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS, force: true });
   }
   requestDraw();
-}
-
-function setOverviewExpandedGroups(nextGroups) {
-  state.overviewExpandedGroups = sanitizeExpandedGroups(nextGroups);
-  saveFilterState();
-  updateFilterUi();
-}
-
-function toggleOverviewGroupExpansion(groupKey) {
-  if (!FILTER_GROUPS_BY_KEY.has(groupKey)) return;
-  const expanded = activeOverviewExpandedSet();
-  if (expanded.has(groupKey)) expanded.delete(groupKey);
-  else expanded.add(groupKey);
-  setOverviewExpandedGroups(Array.from(expanded));
-}
-
-function toggleOverviewFilterGroup(groupKey) {
-  const group = FILTER_GROUPS_BY_KEY.get(groupKey);
-  if (!group) return;
-  const current = activeOverviewFilterSet();
-  const keys = group.subfilters.map((subfilter) => subfilter.key);
-  const groupIsActive = keys.some((key) => current.has(key));
-  if (groupIsActive) keys.forEach((key) => current.delete(key));
-  else keys.forEach((key) => current.add(key));
-  setOverviewFilters(Array.from(current));
-}
-
-function toggleOverviewSubfilter(filterKey) {
-  if (!ALL_OVERVIEW_FILTER_KEYS.has(filterKey)) return;
-  const current = activeOverviewFilterSet();
-  if (current.has(filterKey)) current.delete(filterKey);
-  else current.add(filterKey);
-  setOverviewFilters(Array.from(current));
 }
 
 function updateFilterUi() {
   const currentSet = activeOverviewFilterSet();
 
-  // Update group cards - show active state and counts
-  for (const group of FILTER_GROUPS) {
-    const groupKey = group.key;
-    const activeSubfilters = getActiveSubfiltersForGroup(groupKey, currentSet);
-    const groupActive = activeSubfilters.length > 0;
-
-    const groupCard = els.inspectorBody.querySelector(`[data-filter-group-section="${groupKey}"]`);
-    if (groupCard) {
-      groupCard.classList.toggle("active", groupActive);
-    }
-
-    const countEl = els.inspectorBody.querySelector(`[data-group-count="${groupKey}"]`);
-    if (countEl) {
-      countEl.textContent = `${activeSubfilters.length} of ${group.subfilters.length}`;
-      countEl.classList.toggle("has-active", activeSubfilters.length > 0);
-    }
-
-    const outsideEl = els.inspectorBody.querySelector(`[data-filter-group-outside="${groupKey}"]`);
-    const outsideRadiusCount = outOfRadiusCountForGroup(groupKey);
-    if (outsideEl) {
-      outsideEl.hidden = outsideRadiusCount === 0;
-      outsideEl.textContent = outsideRadiusCount > 0
-        ? `${outsideRadiusCount} outside selected walking radius`
-        : "";
-    }
-  }
-
-  // Update subfilter chips
-  const subfilterButtons = els.inspectorBody.querySelectorAll("[data-filter-subfilter]");
-  for (const button of subfilterButtons) {
-    const filterKey = button.dataset.filterSubfilter;
-    button.classList.toggle("active", currentSet.has(filterKey));
-  }
-
-  // Update "Clear all" button visibility
-  const clearAllBtn = els.inspectorBody.querySelector("[data-filter-clear-all]");
-  if (clearAllBtn) {
-    clearAllBtn.hidden = currentSet.size === 0;
-  }
-
-  // Live "Showing N nearby" line next to Clear all -- only present while the Filter screen's
-  // own body is on screen (filterScreenBodyHtml()), a no-op everywhere else since the lookup
-  // simply finds nothing.
-  const resultsCountEl = els.inspectorBody.querySelector("#filterResultsCount");
-  if (resultsCountEl) {
-    resultsCountEl.textContent = state.userLocation
-      ? `Showing ${overviewItemsForActiveFilter().length} nearby`
-      : "";
-  }
-
-  // Update filter toggle button
+  // Map setup changes what Nearby shows, so its inline toggle (next to the Nearby heading
+  // -- see app.html) is the way in from Nearby and opens the guided setup. The temporary
+  // selection inside that dialog is rendered by js/onboarding.js and is not written to
+  // state.overviewFilters until Done.
   if (els.filterToggle) {
     const activeGroupCount = getActiveGroupKeys(currentSet).length;
     const hasActiveFilter = activeGroupCount > 0;
     const locationSelected = Boolean(state.selected);
-    // Filters only ever changes what Nearby shows, so its inline toggle (next to the Nearby
-    // heading -- see app.html) is the way *in* from Nearby, and only shows there. On the Filter
-    // screen itself it would just sit in its active state doing nothing when tapped, so it hides
-    // in favour of the ordinary #inspectorBack arrow -- the way out, same as any other screen.
-    // A /find/ landing's place is not selected yet, but it is not the Nearby list either, so the
-    // toggle stays hidden until it is (findLandingAwaitingPlace, js/app.js).
-    els.filterToggle.hidden = locationSelected || findLandingAwaitingPlace() || state.searchScreenOpen || state.filterScreenOpen;
+    els.filterToggle.hidden = locationSelected || findLandingAwaitingPlace() || state.searchScreenOpen
+      || (state.filterScreenOpen && !mapSetupModalActive());
     els.filterToggle.classList.toggle("active", hasActiveFilter);
-    els.filterToggle.classList.toggle("screen-active", state.filterScreenOpen);
+    els.filterToggle.classList.toggle("screen-active", state.filterScreenOpen && !mapSetupModalActive());
     els.filterToggle.setAttribute("aria-pressed", hasActiveFilter ? "true" : "false");
     els.filterToggle.setAttribute("aria-label", hasActiveFilter
-      ? `Filters: ${activeGroupCount} top-level filter${activeGroupCount === 1 ? "" : "s"} selected`
-      : "Filters");
+      ? `Map setup: ${activeGroupCount} top-level filter${activeGroupCount === 1 ? "" : "s"} selected`
+      : "Map setup");
+    els.filterToggle.title = "Choose what appears on the map";
     if (els.filterCount) {
       els.filterCount.hidden = !hasActiveFilter;
       els.filterCount.textContent = String(activeGroupCount);
     }
   }
+}
+
+function mapSetupModalActive() {
+  const overlay = typeof document !== "undefined" ? document.getElementById("onboardingOverlay") : null;
+  return Boolean(overlay && !overlay.hidden && overlay._onboardingActive);
 }
 
 function filterMeta(filterKey) {
@@ -3135,43 +2969,42 @@ function setNavScreenActive(current = null, { preserveHighlight = false } = {}) 
   }
 }
 
-function openFiltersScreen() {
-  if (typeof trackGaScreenView === "function") trackGaScreenView("Filters");
-  // Filters/Settings/Report/Search all promise the same fixed, zoomed-out survey view of the
-  // walking radius (secondaryScreenActive) -- left set, an expanded cluster narrowed that to
-  // the tapped group's own members instead, and its borrowed radius looked like the user's own
-  // real setting on the Settings slider. Opening any of them is leaving that exact-membership
-  // view just as much as tapping open ground is.
+// Filter setup used to open a second, live panel that duplicated the onboarding controls and
+// also tried to keep a nearby list in sync beneath it. Reuse the guided setup instead: edits stay
+// local to the dialog until the reader taps Done, so backing out never leaves a half-configured
+// map behind. The old /nearby/filter path still enters here for bookmarked links.
+function openFilterSetup() {
+  if (typeof showOnboarding !== "function") return;
+  const overlay = document.getElementById("onboardingOverlay");
+  if (!overlay || typeof overlay.querySelector !== "function" || !overlay.querySelector(".onboarding-progress")) return;
+  if (overlay._onboardingActive) return;
+
+  if (typeof trackGaScreenView === "function") trackGaScreenView("Map setup");
+  // Keep the route for bookmarks/history, but leave the Nearby inspector and its list rendered
+  // underneath the modal. This is deliberately not a replacement screen.
   exitClusterExpansion();
-  state.selected = null;
-  // showBack:true clears state.filterScreenOpen inside setInspectorSelectionChrome (the shared
-  // chokepoint every other showBack:true screen relies on to stand Filters down) -- set it again
-  // immediately after, now that Filters is the screen being entered rather than left.
-  setInspectorSelectionChrome({ emoji: appIconHtml("filter", "app-icon title-icon"), showBack: true, preserveNavHighlight: true });
   state.filterScreenOpen = true;
-  if (els.nearbyToggle) els.nearbyToggle.hidden = false;
-  setNavScreenActive(els.filterToggle);
-  els.inspectorTools.hidden = true;
-  els.inspectorTitle.textContent = "Filters";
-  els.inspectorType.textContent = "Choose what appears on the map";
-  transitionInspectorBody(filterScreenBodyHtml(), "forward", () => {
-    updateOverviewDirectionArrows();
-    hydrateOverviewBusStopDirections();
-    attachNearbyRailScrollHints();
+  setHashFromSelection(ROUTE_FILTERS);
+
+  showOnboarding({ mode: "filters" }).then((result) => {
+    state.filterScreenOpen = false;
+    if (Array.isArray(result.filters)) setOverviewFilters(result.filters);
+    updateFilterUi();
+    if (window.location.pathname === ROUTE_PATHS[ROUTE_FILTERS]) {
+      replaceHashInPlace("");
+    }
   });
-  updateFilterUi();
-  setInspectorMinimized(false);
-  syncHashFromSelection();
-  requestDraw();
-  if (state.userLocation) {
-    ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
-  }
+}
+
+function openFiltersScreen() {
+  openFilterSetup();
 }
 
 function openSettings() {
+  if (typeof dismissOnboarding === "function") dismissOnboarding();
   if (typeof trackGaScreenView === "function") trackGaScreenView("Settings");
-  // See the matching comment in openFiltersScreen -- without this the walk-radius slider here
-  // showed the tapped group's borrowed radius as if it were the user's own setting.
+  // Without this the walk-radius slider here showed the tapped group's borrowed radius as if it
+  // were the user's own setting.
   exitClusterExpansion();
   state.selected = { type: "settings", item: null };
   setInspectorSelectionChrome({ emoji: appIconHtml("settings", "app-icon title-icon"), showBack: true, preserveNavHighlight: true });
@@ -3534,6 +3367,7 @@ function communityScreenOpen() {
 // Community is gated (see communityEnabled): people without it get the Feedback page in its place, and the
 // nav tab becomes the Feedback tab.
 function openCommunityOrFeedback() {
+  if (typeof dismissOnboarding === "function") dismissOnboarding();
   if (communityEnabled()) openCommunity(); else openReportModal();
 }
 
@@ -3601,6 +3435,7 @@ function communityScreenHtml() {
 }
 
 function openReportModal() {
+  if (typeof dismissOnboarding === "function") dismissOnboarding();
   if (typeof trackGaScreenView === "function") trackGaScreenView("Report");
   // See the matching comment in openFiltersScreen.
   exitClusterExpansion();
@@ -4657,8 +4492,8 @@ function updateDocumentTitle() {
             : (item.name || item.ref || item.commonName || "Map location");
       title = `${name} near Epping Forest`;
     }
-  } else if (state.filterScreenOpen) {
-    title = "Filters for Epping Forest";
+  } else if (state.filterScreenOpen && !mapSetupModalActive()) {
+    title = "Filters for Epping Forest Finds";
   } else if (state.searchScreenOpen) {
     title = "Search Epping Forest Finds";
   } else {
@@ -9325,6 +9160,7 @@ function renderSearchResults() {
 }
 
 function openSearchScreen() {
+  if (typeof dismissOnboarding === "function") dismissOnboarding();
   if (typeof trackGaScreenView === "function") trackGaScreenView("Search");
   // See the matching comment in openFiltersScreen.
   exitClusterExpansion();
@@ -9640,8 +9476,8 @@ function overviewLandmarkItemSelector(placeKey) {
 }
 
 function shouldSkipOverviewBusStopHydration() {
-  // The Filter screen's own body now includes the same nearest list (filterScreenBodyHtml()),
-  // so it needs bus-stop hydration exactly like the plain Nearby screen -- no longer excluded.
+  // Overview and Nearby screens can show nearest bus stops, so hydrate them whenever a
+  // detail selection is not active.
   return !navigator.onLine || !els.inspectorBody || state.selected;
 }
 

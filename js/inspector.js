@@ -819,7 +819,7 @@ function animateRailIntro(row) {
 }
 
 function selectOverview(animate = false) {
-  if (state.filterScreenOpen || state.searchScreenOpen) return;
+  if ((state.filterScreenOpen && !mapSetupModalActive()) || state.searchScreenOpen) return;
   const preserveScroll = !animate && els.inspector.classList.contains("nearby-overview");
   els.inspector.classList.add("nearby-overview");
   if (typeof updateDocumentTitle === "function") updateDocumentTitle();
@@ -1098,7 +1098,7 @@ function animateNearestItemReorder(previousPositions) {
 }
 
 function isOverviewScreenActive() {
-  return !state.selected && !state.filterScreenOpen && !state.searchScreenOpen;
+  return !state.selected && (!state.filterScreenOpen || mapSetupModalActive()) && !state.searchScreenOpen;
 }
 
 // --- Screen transition ---
@@ -1297,7 +1297,7 @@ function markerOpacityFor(kind, item) {
   if (kind === "tree") return 1;
   // Search results are their own set (buildSearchIconLookup, js/renderer.js), shown full
   // strength regardless of which category filters happen to be active -- a search should never
-  // come back dimmed just because the Filter screen was last left on a different category.
+  // come back dimmed just because Map setup was last left on a different category.
   if (state.searchScreenOpen) return 1;
   const locationSelected = state.selected && ["tree", "landmark", "cow", "path"].includes(state.selected.type);
   if (locationSelected) {

@@ -1005,7 +1005,7 @@ bare records list:
 
 Settings groups preferences into rounded cards with a tinted walking-radius card, tree-reminder switch, About & updates, Account, and Privacy. Walking-time preset buttons only offer reachable radii and use the same live map/list updates as the slider; their pressed state follows slider changes. Controls support keyboard focus and touch targets of at least 44px; existing consent, cookie, account, copy-ID, offline and scoped-refresh actions remain available.
 
-Search, Filter, Settings, and Report share identical navigation behaviour, gated by the shared `secondaryScreenActive()` helper (`state.searchScreenOpen || state.filterScreenOpen || state.selected?.type === "settings" || state.selected?.type === "report"`). Where the points below say "all three", Search is the fourth and behaves the same — except for its camera fit and its highlighted set, which are its own (see "Search's camera and highlighting" below):
+Search, Settings, and Report share identical navigation behaviour, gated by the shared `secondaryScreenActive()` helper (`state.searchScreenOpen || state.selected?.type === "settings" || state.selected?.type === "report"`). Map setup is a modal over Nearby and does not participate in this secondary-screen state. Where the points below say "all three", Search is the third and behaves the same — except for its camera fit and its highlighted set, which are its own (see "Search's camera and highlighting" below):
 
 - **Map canvas tap on open ground does not dismiss the screen**, but it *does* move the browse anchor, exactly as on Nearby. Only the Nearby button, the header back arrow and the URL return to overview. The "any tap beyond the ring relocates" rule is Nearby-only: these screens deliberately frame the map wider than the ring, so most of what is on screen is outside it.
 - **Everything that removes or adjusts the browse anchor works here too.** All three screens draw the same walking-radius ring around the same `nearbyOrigin()`, and it would be incoherent for the ring to be visible and un-editable: the `#nearbyAnchorBar` "Use my location" control is inspector chrome and stays on screen across all of them, pinch-to-resize the radius engages here, and `overviewItemsForActiveFilter()` reads `nearbyOrigin()` so the matches inside the ring come from the spot the ring is actually drawn around.
@@ -1042,32 +1042,7 @@ Search, Filter, Settings, and Report share identical navigation behaviour, gated
   is the one exception, where the flag it depends on (`state.searchScreenOpen`) is only set true
   just after that chokepoint runs, so `openSearchScreen()` re-derives it once more immediately
   afterward.
-- **Filters has its own back arrow, like Settings and Report.** `openFiltersScreen()` passes
-  `showBack: true` to `setInspectorSelectionChrome()`, so `#inspectorBack` now shows on Filters too
-  and steps back through the trail the same way it does from any other screen. That chokepoint
-  clears `state.filterScreenOpen` for every `showBack: true` screen (so a selected place or
-  Settings correctly stands Filters down on the way in) — `openFiltersScreen()` sets it `true`
-  again immediately afterward, now that Filters is the screen being entered rather than left.
-- **The Filter screen shows the nearest list too, live.** `filterScreenBodyHtml()` (`js/app.js`)
-  appends the same nearest-list markup the Nearby screen shows (`overviewNearestHtml()`) below the
-  chip groups, with a `Showing N nearby` line next to Clear all at the top of the panel so the
-  count is provable without scrolling even when the groups below fill the sheet. Toggling a chip
-  or a group header only ever replaces the list half (`refreshFilterScreenList()`) — the chip
-  panel above it is never re-rendered, only patched in place by `updateFilterUi()` as before, so a
-  keyboard user's focus stays on the chip they just pressed. This exists so a filter's effect is
-  visible on the screen where you changed it, instead of only being provable by backing out to
-  Nearby again.
-- **Returning to Nearby from Filters does not replay the list's reorder animation.**
-  `selectOverview(animate)` only captures `.nearest-item` positions
-  (`captureNearestItemPositions()`/`animateNearestItemReorder()`, `js/inspector.js` — see the FLIP
-  reorder animation under "The order follows you round, but does not churn" above) when `animate`
-  is false, i.e. a live update to the list already on screen. `animate` is true only for a
-  screen-entry transition (`goToInitialView()`, returning from Filters/Settings/Report), where the
-  slide itself is the transition. Capturing positions there would instead measure wherever the
-  items sat on the screen being left — lower on Filters, pushed down by its own copy of this list
-  sitting below the chip groups — and animate every row sliding up into its Nearby position right
-  on top of the slide, reading as the list refreshing itself rather than just the screen changing.
-- Toggle button shows active filter count badge
+- **Map setup opens as a modal over Nearby.** `openFilterSetup()` opens the onboarding overlay with `{ mode: "filters" }` without replacing the inspector chrome, so the Nearby panel stays in place underneath it. The compatibility route keeps `state.filterScreenOpen` true while the modal is open for routing and screen-state compatibility, while `mapSetupModalActive()` prevents it being treated as a replacement inspector screen. It starts from the current saved `state.overviewFilters`. The first step asks **What would you like to see?**, places the map-setup icon beside the title, explains that the choices customise the Nearby list and map, reports how many categories are not currently shown, and presents prominent, readable, clickable group summaries such as Nature 2/3 without a separate count heading or icon boxes. Clicking a summary opens that group's step. Each group then uses the standard onboarding chips. The dialog keeps edits in a local set; the intro uses natural content height and category steps use a compact fixed height, with a smooth resize and directional step transition that respects reduced-motion preferences. **Done** calls `setOverviewFilters()` once to refresh the existing Nearby view, while the top-right close button, Escape, or clicking the translucent blurred backdrop closes it and applies the staged selection. Route changes away from `/nearby/filter` dismiss the modal before the destination renders. The old `/nearby/filter` URL remains a compatibility entry point, not a separate live panel. `filterCount` remains a compact summary badge on the entry button.
 
 Filter groups (defined by `FILTER_GROUPS` in `js/categories.js`, the single source of truth):
 

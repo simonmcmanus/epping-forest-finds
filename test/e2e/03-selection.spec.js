@@ -247,8 +247,10 @@ test.describe("Selection and Inspector", () => {
       await page.click("#nearbyToggle");
       await expect(page.locator("#filterToggle")).toBeVisible();
       await page.click("#filterToggle");
-      await expect(page.locator("#inspectorTitle")).toHaveText("Filters");
-      await expectFixedHeight();
+      await expect(page.getByRole("dialog", { name: "Set up Epping Forest Finds" })).toBeVisible();
+      const setupCard = page.locator(".onboarding-card");
+      const setupHeight = await setupCard.evaluate((card) => card.getBoundingClientRect().height);
+      expect(setupHeight).toBeLessThan((await page.evaluate(() => window.innerHeight)) * 0.75);
     });
   });
 

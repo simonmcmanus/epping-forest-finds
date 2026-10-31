@@ -113,7 +113,7 @@ function stableNearbyOrigin() {
 // drawWalkingRadius/buildNearbyIconLookup in renderer.js).
 function secondaryScreenActive() {
   return Boolean(
-    state.filterScreenOpen
+    (state.filterScreenOpen && !mapSetupModalActive())
     || state.searchScreenOpen
     || state.selected?.type === "settings"
     || state.selected?.type === "report"
@@ -815,11 +815,19 @@ function showFilterHintIfFirstVisit() {
     localStorage.setItem(FILTER_HINT_KEY, "1");
   } catch {}
   setTimeout(() => {
-    els.filterToggle.classList.add("filter-toggle-hint");
-    els.filterToggle.addEventListener("animationend", () => {
-      els.filterToggle.classList.remove("filter-toggle-hint");
-    }, { once: true });
-  }, 1400);
+    pulseFilterSetupButton();
+  }, 20_000);
+}
+
+function pulseFilterSetupButton() {
+  const button = els.filterToggle;
+  if (!button || button.hidden) return;
+  button.classList.remove("filter-toggle-hint");
+  void button.offsetWidth;
+  button.classList.add("filter-toggle-hint");
+  button.addEventListener("animationend", () => {
+    button.classList.remove("filter-toggle-hint");
+  }, { once: true });
 }
 
 function setupInteractions() {
@@ -923,7 +931,6 @@ function clearReportKeyboardInset() {
 function setupResizeHandler() {
   updateFilterUi();
   window.addEventListener("resize", () => {
-    updateSubfilterScrollHints();
     const activeNavTab = document.querySelector(".inspector-actions > .screen-active");
     if (activeNavTab) navHighlightPosition(activeNavTab);
     resizeCanvas();
@@ -1087,24 +1094,6 @@ function setupFilterPanelHandlers() {
     }
   }, true);
 
-  els.inspectorBody.addEventListener("click", (event) => {
-    const clearAllButton = event.target.closest("[data-filter-clear-all]");
-    if (clearAllButton) {
-      setOverviewFilters([]);
-      return;
-    }
-
-    const subfilterButton = event.target.closest("[data-filter-subfilter]");
-    if (subfilterButton) {
-      toggleOverviewSubfilter(subfilterButton.dataset.filterSubfilter);
-      return;
-    }
-
-    const groupButton = event.target.closest("[data-filter-group]");
-    if (groupButton) {
-      toggleOverviewFilterGroup(groupButton.dataset.filterGroup);
-    }
-  });
 }
 
 // Arrow-key navigation through whichever `.nearest-list` is currently rendered -- the Nearby

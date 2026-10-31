@@ -77,7 +77,7 @@ test.describe("Loading experience", () => {
     await expect(page.locator("#mapCanvas")).toBeVisible();
   });
 
-  test("opens Filters and its pubs option while tree chunks are still downloading", async ({ page }) => {
+  test("opens Map setup while tree chunks are still downloading", async ({ page }) => {
     // Hold the tree chunks until the assertions below have run, rather than for a fixed time.
     let releaseTrees;
     const treesReleased = new Promise((resolve) => { releaseTrees = resolve; });
@@ -88,8 +88,8 @@ test.describe("Loading experience", () => {
     await page.goto("/app#filters");
 
     await page.waitForFunction(() => document.getElementById("loadingOverlay")?.classList.contains("inline"));
-    await expect(page.locator("#inspectorTitle")).toHaveText("Filters");
-    await expect(page.locator("#inspectorBody")).toContainText("Pubs & bars");
+    await expect(page.locator("#onboardingOverlay")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "What would you like to see?" })).toBeVisible();
     await expect(page.locator('[data-load-step="trees"]')).toHaveClass(/loading/);
     await expect(page.locator("#mapCanvas")).toBeVisible();
     releaseTrees();
