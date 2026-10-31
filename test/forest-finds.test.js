@@ -752,6 +752,8 @@ function resetData(app) {
   app.state.filterScreenOpen = false;
   app.state.searchScreenOpen = false;
   app.state.searchQuery = "";
+  const onboardingOverlay = app.documentStub?.getElementById("onboardingOverlay");
+  if (onboardingOverlay) onboardingOverlay._onboardingActive = false;
   app.state.viewport = { scale: 1000, tx: 500, ty: 400 };
   // Realistic "whole forest fit" scale -- not read by the heading-up zoom ceiling itself
   // any more (that's the walking radius now, see maxNearbyHeadingUpScale), but still used
