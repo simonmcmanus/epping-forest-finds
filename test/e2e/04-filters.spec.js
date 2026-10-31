@@ -110,6 +110,16 @@ test.describe("Map setup", () => {
     expect(rows.every((offset) => offset <= 1)).toBe(true);
   });
 
+  test("can reopen setup while the previous modal is fading out", async ({ page }) => {
+    await page.click("#filterToggle");
+    await page.getByRole("button", { name: "Keep current choices" }).click();
+    await page.waitForTimeout(50);
+    await page.locator("#filterToggle").click({ force: true });
+    await expect(page.locator("#onboardingOverlay")).toBeVisible();
+    await expect(page.locator("#onboardingOverlay")).not.toHaveClass(/fading-out/);
+    await expect(page.getByRole("heading", { name: "What would you like to see?" })).toBeVisible();
+  });
+
   test("keeps the Nearby panel in place behind the setup dialog", async ({ page }) => {
     await page.click("#filterToggle");
     await expect(page.locator("#inspectorTitle")).toHaveText("Nearby");

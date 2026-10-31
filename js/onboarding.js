@@ -109,6 +109,11 @@ function showOnboarding({ mode = "first-run" } = {}) {
       clearTimeout(overlay._onboardingHideTimer);
       overlay._onboardingHideTimer = null;
     }
+    if (typeof overlay._onboardingResizeCleanup === "function") {
+      overlay._onboardingResizeCleanup();
+      overlay._onboardingResizeCleanup = null;
+    }
+    overlay.classList.remove("fading-out", "opening", "filter-intro");
 
     const steps = filterSetupMode
       ? [{ type: "filter-intro" }, ...FILTER_GROUPS.map((g) => ({ type: "group", group: g }))]
@@ -166,6 +171,7 @@ function showOnboarding({ mode = "first-run" } = {}) {
       });
       hasRenderedStep = true;
     }
+    overlay._onboardingResizeCleanup = clearCardResize;
 
     const onOverlayClick = (event) => {
       if (filterSetupMode && event.target === overlay) finish({ cancelled: true });
@@ -328,6 +334,9 @@ function showOnboarding({ mode = "first-run" } = {}) {
       }
       if (deactivateFocus) deactivateFocus();
       overlay.removeEventListener("click", onOverlayClick);
+      // Release the guard immediately so a keyboard activation or a route-driven reopen during
+      // the fade can start a fresh modal. The next show clears the stale fade/mode classes first.
+      overlay._onboardingActive = false;
       overlay.classList.remove("opening");
       overlay.classList.add("fading-out");
       let hideTimer = null;
@@ -337,6 +346,7 @@ function showOnboarding({ mode = "first-run" } = {}) {
       const hide = () => {
         if (hideTimer) clearTimeout(hideTimer);
         clearCardResize();
+        overlay._onboardingResizeCleanup = null;
         overlay.removeEventListener("transitionend", onTransitionEnd);
         overlay.hidden = true;
         overlay._onboardingActive = false;
