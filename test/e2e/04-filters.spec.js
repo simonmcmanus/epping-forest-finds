@@ -120,6 +120,14 @@ test.describe("Map setup", () => {
     await expect(page.getByRole("heading", { name: "What would you like to see?" })).toBeVisible();
   });
 
+  test("plays the card exit animation before closing", async ({ page }) => {
+    await page.click("#filterToggle");
+    const overlay = page.locator("#onboardingOverlay");
+    await page.getByRole("button", { name: "Keep current choices" }).click();
+    expect(await overlay.evaluate((el) => el.classList.contains("fading-out"))).toBe(true);
+    await expect(overlay).toBeHidden();
+  });
+
   test("keeps the Nearby panel in place behind the setup dialog", async ({ page }) => {
     await page.click("#filterToggle");
     await expect(page.locator("#inspectorTitle")).toHaveText("Nearby");
