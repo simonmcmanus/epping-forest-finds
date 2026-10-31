@@ -106,7 +106,7 @@ function showOnboarding({ mode = "first-run" } = {}) {
       overlay._onboardingHideHandler = null;
     }
     if (overlay._onboardingHideAnimationHandler && cardEl) {
-      cardEl.removeEventListener("animationend", overlay._onboardingHideAnimationHandler);
+      cardEl.removeEventListener("transitionend", overlay._onboardingHideAnimationHandler);
       overlay._onboardingHideAnimationHandler = null;
     }
     if (overlay._onboardingHideTimer) {
@@ -344,6 +344,9 @@ function showOnboarding({ mode = "first-run" } = {}) {
       // the fade can start a fresh modal. The next show clears the stale fade/mode classes first.
       overlay._onboardingActive = false;
       overlay.classList.remove("opening");
+      // Commit the card's resting transform before applying the exit target so the transform
+      // transition has a definite start point instead of being collapsed into the class change.
+      void overlay.offsetWidth;
       overlay.classList.add("fading-out");
       let hideTimer = null;
       let overlayFaded = false;
@@ -357,8 +360,8 @@ function showOnboarding({ mode = "first-run" } = {}) {
           maybeHide();
         }
       };
-      const onAnimationEnd = (event) => {
-        if (event.target === cardEl && event.animationName === "ob-card-in") {
+      const onCardTransitionEnd = (event) => {
+        if (event.target === cardEl && (event.propertyName === "transform" || event.propertyName === "opacity")) {
           cardFaded = true;
           maybeHide();
         }
@@ -368,7 +371,7 @@ function showOnboarding({ mode = "first-run" } = {}) {
         clearCardResize();
         overlay._onboardingResizeCleanup = null;
         overlay.removeEventListener("transitionend", onTransitionEnd);
-        if (cardEl) cardEl.removeEventListener("animationend", onAnimationEnd);
+        if (cardEl) cardEl.removeEventListener("transitionend", onCardTransitionEnd);
         overlay.hidden = true;
         overlay._onboardingActive = false;
         overlay._onboardingCancel = null;
@@ -386,8 +389,8 @@ function showOnboarding({ mode = "first-run" } = {}) {
       } else {
         overlay.addEventListener("transitionend", onTransitionEnd);
         if (cardEl) {
-          cardEl.addEventListener("animationend", onAnimationEnd);
-          overlay._onboardingHideAnimationHandler = onAnimationEnd;
+          cardEl.addEventListener("transitionend", onCardTransitionEnd);
+          overlay._onboardingHideAnimationHandler = onCardTransitionEnd;
         }
         hideTimer = setTimeout(hide, 620);
         overlay._onboardingHideTimer = hideTimer;
