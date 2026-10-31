@@ -2919,6 +2919,7 @@ function openFilterSetup() {
   if (typeof trackGaScreenView === "function") trackGaScreenView("Map setup");
   // Keep the route for bookmarks/history, but leave the Nearby inspector and its list rendered
   // underneath the modal. This is deliberately not a replacement screen.
+  exitClusterExpansion();
   state.filterScreenOpen = true;
   syncHashFromSelection();
 
