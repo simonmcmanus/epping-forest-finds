@@ -6123,6 +6123,14 @@ test("local dev server flags sw.js with self.__DEV__ without touching the produc
   );
 });
 
+test("the local server can explicitly opt browser tests back into the service worker", () => {
+  const { _private } = require("../server.js");
+  const source = "function setupPwa() {}";
+  const served = _private.injectLocalServiceWorkerOptIn(source);
+  assert.match(served, /^window\.__ENABLE_LOCAL_SERVICE_WORKER__ = true;/);
+  assert.ok(served.endsWith(source));
+});
+
 test("local dev version markers prefix cache names with dev- so the About screen and bug reports read as local", () => {
   // Without this, the About screen's app-version display (js/app.js) and any bug report's
   // appVersion (both read the live CACHE_NAME via caches.keys() in setupPwa, js/nav.js) would
@@ -6166,6 +6174,27 @@ test("local development unregisters an existing service worker and does not regi
   assert.equal(registerCalls, 0, "local development must not register a service worker");
   assert.equal(unregisterCalls, 1, "an earlier local registration must be removed");
   assert.deepEqual(messages, [], "local development must not send background sync messages");
+});
+
+test("the explicit browser-test opt-in keeps the service worker enabled on localhost", async () => {
+  const localApp = loadAppForTests();
+  localApp.windowStub.__ENABLE_LOCAL_SERVICE_WORKER__ = true;
+  let registerCalls = 0;
+  localApp.navigator.onLine = false;
+  localApp.navigator.serviceWorker = {
+    controller: null,
+    ready: Promise.resolve(),
+    addEventListener() {},
+    register: async () => {
+      registerCalls += 1;
+      return { waiting: null, installing: null, addEventListener() {} };
+    },
+  };
+
+  localApp.setupPwa();
+  await new Promise((resolve) => setImmediate(resolve));
+
+  assert.equal(registerCalls, 1, "the explicit browser-test opt-in must register a service worker");
 });
 
 test("compass calibration trusts a heading once several readings agree within tolerance", () => {

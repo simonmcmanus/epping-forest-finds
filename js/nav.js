@@ -606,7 +606,10 @@ let lastAppUpdateCheckAt = 0;
 let serviceWorkerDisabled = false;
 
 function isLocalDevelopmentHost() {
-  return ["localhost", "127.0.0.1", "::1", "[::1]"].includes(window.location.hostname);
+  // Browser tests explicitly opt back in so their service-worker scenarios can run against the
+  // local server. Ordinary loopback development stays worker-free.
+  return !window.__ENABLE_LOCAL_SERVICE_WORKER__
+    && ["localhost", "127.0.0.1", "::1", "[::1]"].includes(window.location.hostname);
 }
 
 async function disableLocalServiceWorker() {
