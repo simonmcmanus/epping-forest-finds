@@ -100,6 +100,7 @@ function showOnboarding({ mode = "first-run" } = {}) {
     const progressEl = overlay.querySelector(".onboarding-progress");
     const contentEl = overlay.querySelector(".onboarding-content");
     const actionsEl = overlay.querySelector(".onboarding-actions");
+    const cardEl = overlay.querySelector(".onboarding-card");
     if (overlay._onboardingHideHandler) {
       overlay.removeEventListener("transitionend", overlay._onboardingHideHandler);
       overlay._onboardingHideHandler = null;
@@ -114,6 +115,9 @@ function showOnboarding({ mode = "first-run" } = {}) {
       : ONBOARDING_STEPS;
     let stepIndex = 0;
     const total = steps.length;
+    let hasRenderedStep = false;
+    let cardResizeFrame = null;
+    let cardResizeEnd = null;
     const startingFilters = filterSetupMode
       && typeof state !== "undefined"
       && state
@@ -122,6 +126,46 @@ function showOnboarding({ mode = "first-run" } = {}) {
       : DEFAULT_OVERVIEW_FILTER_KEYS;
     const selected = new Set(sanitizeOverviewFilters(startingFilters));
     let finished = false;
+
+    function clearCardResize() {
+      if (!cardEl) return;
+      if (cardResizeFrame !== null) {
+        cancelAnimationFrame(cardResizeFrame);
+        cardResizeFrame = null;
+      }
+      if (cardResizeEnd) {
+        cardEl.removeEventListener("transitionend", cardResizeEnd);
+        cardResizeEnd = null;
+      }
+      cardEl.style.removeProperty("height");
+    }
+
+    function animateCardResize(previousHeight) {
+      if (!cardEl) {
+        hasRenderedStep = true;
+        return;
+      }
+      const targetHeight = cardEl.getBoundingClientRect().height;
+      if (!hasRenderedStep || onboardingReducedMotion() || Math.abs(targetHeight - previousHeight) < 1) {
+        cardEl.style.removeProperty("height");
+        hasRenderedStep = true;
+        return;
+      }
+
+      cardEl.style.height = `${previousHeight}px`;
+      cardResizeFrame = requestAnimationFrame(() => {
+        cardResizeFrame = null;
+        cardResizeEnd = (event) => {
+          if (event.target !== cardEl || event.propertyName !== "height") return;
+          cardEl.removeEventListener("transitionend", cardResizeEnd);
+          cardResizeEnd = null;
+          cardEl.style.removeProperty("height");
+        };
+        cardEl.addEventListener("transitionend", cardResizeEnd);
+        cardEl.style.height = `${targetHeight}px`;
+      });
+      hasRenderedStep = true;
+    }
 
     const onOverlayClick = (event) => {
       if (filterSetupMode && event.target === overlay) finish({ cancelled: true });
@@ -160,6 +204,7 @@ function showOnboarding({ mode = "first-run" } = {}) {
 
     function renderStep(direction) {
       const step = steps[stepIndex];
+      const previousCardHeight = hasRenderedStep && cardEl ? cardEl.getBoundingClientRect().height : null;
       overlay.classList.toggle("filter-intro", filterSetupMode && step.type === "filter-intro");
       preloadStepImages(stepIndex + 1);
 
@@ -254,6 +299,8 @@ function showOnboarding({ mode = "first-run" } = {}) {
           heading.focus();
         }
       }
+      if (previousCardHeight !== null) animateCardResize(previousCardHeight);
+      else hasRenderedStep = true;
     }
 
     function goNext() {
@@ -289,6 +336,7 @@ function showOnboarding({ mode = "first-run" } = {}) {
       };
       const hide = () => {
         if (hideTimer) clearTimeout(hideTimer);
+        clearCardResize();
         overlay.removeEventListener("transitionend", onTransitionEnd);
         overlay.hidden = true;
         overlay._onboardingActive = false;

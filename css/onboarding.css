@@ -26,13 +26,13 @@
 }
 
 @keyframes ob-card-in {
-  from { opacity: 0; transform: translateY(10px) scale(0.985); }
+  from { opacity: 0; transform: translateY(-18px) scale(0.985); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @keyframes ob-card-out {
   from { opacity: 1; transform: translateY(0) scale(1); }
-  to { opacity: 0; transform: translateY(10px) scale(0.985); }
+  to { opacity: 0; transform: translateY(-18px) scale(0.985); }
 }
 
 .onboarding-overlay.opening {
@@ -90,6 +90,7 @@
   flex-direction: column;
   gap: 0;
   overflow: hidden;
+  transition: height 0.34s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .onboarding-progress {
@@ -548,7 +549,7 @@
 }
 
 .onboarding-overlay.filter-setup .onboarding-chips {
-  justify-content: flex-start;
+  justify-content: center;
 }
 
 .onboarding-overlay.filter-setup .onboarding-map-setup-icon {
@@ -601,6 +602,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .onboarding-overlay,
+  .onboarding-card {
+    transition: none;
+  }
+
   .onboarding-overlay.opening,
   .onboarding-overlay.opening .onboarding-card,
   .onboarding-overlay.fading-out .onboarding-card {
