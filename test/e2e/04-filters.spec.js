@@ -35,7 +35,7 @@ test.describe("Map setup", () => {
   test("cancel keeps the existing filter choices", async ({ page }) => {
     const before = await page.evaluate(() => state.overviewFilters.slice());
     await page.click("#filterToggle");
-    await page.getByRole("button", { name: "Choose categories" }).click();
+    await page.getByRole("button", { name: "Make changes" }).click();
     await page.locator('.onboarding-chip[data-key="trees"]').click();
     await page.getByRole("button", { name: "Cancel changes" }).click();
     await expect(page.locator("#onboardingOverlay")).toBeHidden();
@@ -44,7 +44,7 @@ test.describe("Map setup", () => {
 
   test("filter changes apply when the guided setup is done", async ({ page }) => {
     await page.click("#filterToggle");
-    await page.getByRole("button", { name: "Choose categories" }).click();
+    await page.getByRole("button", { name: "Make changes" }).click();
     // Move through Nature, Food, Transport, History, Locations and Stories to Events.
     for (let i = 0; i < 6; i += 1) {
       await page.getByRole("button", { name: "Next" }).click();
