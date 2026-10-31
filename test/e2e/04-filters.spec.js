@@ -63,6 +63,12 @@ test.describe("Map setup", () => {
     await expect(page.locator("#onboardingOverlay")).toBeVisible();
   });
 
+  test("keeps the Nearby panel in place behind the setup dialog", async ({ page }) => {
+    await page.click("#filterToggle");
+    await expect(page.locator("#inspectorTitle")).toHaveText("Nearby");
+    await expect(page.locator("#inspector")).toHaveClass(/nearby-overview/);
+  });
+
   test("clicking the translucent backdrop returns to the map", async ({ page }) => {
     await page.click("#filterToggle");
     await page.locator("#onboardingOverlay").click({ position: { x: 4, y: 4 } });
