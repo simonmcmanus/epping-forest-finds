@@ -15,7 +15,9 @@ test.describe("Map setup", () => {
 
   test("the first setup step explains what changing filters affects", async ({ page }) => {
     await page.click("#filterToggle");
-    await expect(page.locator("#onboardingOverlay")).toContainText("pins on the map");
+    await expect(page.locator("#onboardingOverlay")).toContainText("What would you like to see?");
+    await expect(page.locator("#onboardingOverlay")).toContainText("customise what is shown");
+    await expect(page.locator("#onboardingOverlay")).toContainText("categories not currently shown");
     await expect(page.locator("#onboardingOverlay")).toContainText("Nearby list");
   });
 
@@ -64,6 +66,14 @@ test.describe("Map setup", () => {
   test("clicking the translucent backdrop returns to the map", async ({ page }) => {
     await page.click("#filterToggle");
     await page.locator("#onboardingOverlay").click({ position: { x: 4, y: 4 } });
+    await expect(page.locator("#onboardingOverlay")).toBeHidden();
+    await expect(page.locator("#inspectorTitle")).toHaveText("Nearby");
+  });
+
+  test("pressing Escape closes the setup modal", async ({ page }) => {
+    await page.click("#filterToggle");
+    await expect(page.locator("#onboardingOverlay")).toBeVisible();
+    await page.keyboard.press("Escape");
     await expect(page.locator("#onboardingOverlay")).toBeHidden();
     await expect(page.locator("#inspectorTitle")).toHaveText("Nearby");
   });
