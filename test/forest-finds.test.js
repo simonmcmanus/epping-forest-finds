@@ -11069,6 +11069,7 @@ test("nearbySectionsHtml renders a headed Nearest section (tree/cow, the walk-ra
   const pub = { findSlug: "the-forresters", latitude: 51.65, longitude: 0.05, category: "pub" };
   app.state.trees.push({ latitude: 51.6505, longitude: 0.0505, id: "t1" }); // ~65m away
   app.state.cows.push({ latitude: 51.66, longitude: 0.06, id: "c1" }); // ~1.3km away
+  app.state.landmarks.push(pub); // Related cards require a matching place within the radius.
 
   const html = app.nearbySectionsHtml({ latitude: pub.latitude, longitude: pub.longitude, name: "The Forresters", subfilterKey: "pubs" });
   // Section order and headings: Nearby first, then Related -- both plain <h3 class="detail-section-heading">.
@@ -11138,6 +11139,7 @@ test("nearbySectionsHtml puts Places close by above Nearest on a /find/ business
 test("nearbySectionsHtml gives a place with no /find/ page of its own the same Nearest section, so no location is a dead end", () => {
   resetData(app);
   const busStop = { findSlug: null, latitude: 51.65, longitude: 0.05, category: "bus_stop" };
+  app.state.trees.push({ latitude: 51.6505, longitude: 0.0505, id: "t1" });
   const html = app.nearbySectionsHtml({ latitude: busStop.latitude, longitude: busStop.longitude, name: "Bus stop" });
   assert.ok(html.includes('<h3 class="detail-section-heading">Nearest</h3>'));
   assert.ok(html.includes("Everything"), "the Everything card is there too");

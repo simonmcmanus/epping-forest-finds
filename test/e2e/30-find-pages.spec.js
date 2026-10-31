@@ -18,7 +18,7 @@ const { generate: generateBusinessPages } = require("../../scripts/generate-busi
 const { loadAppRules } = require("../../scripts/report/map-inventory.js");
 const { escapeHtml } = require("../../scripts/lib/html-template.js");
 const businessIndex = require("../../data/business-slugs.json");
-const { gotoAndWaitForMap, skipOnboarding, setup } = require("./helpers");
+const { gotoAndWaitForMap, skipOnboarding, setup, denyGeolocationUnlessGranted, mockCowApi, waitForUiToSettle } = require("./helpers");
 
 const REPO_ROOT = path.join(__dirname, "..", "..");
 
@@ -538,6 +538,38 @@ test.describe("generated find/nearby pages", () => {
         longitude: state.nearbyAnchor && Number(state.nearbyAnchor.longitude.toFixed(6)),
       }));
       expect(anchor).toEqual(placeCoords);
+    });
+
+    test("late tree data updates a scrolled place without reopening it or sending another view", async ({ page }) => {
+      await page.setViewportSize({ width: 1280, height: 500 });
+      await skipOnboarding(page);
+      await denyGeolocationUnlessGranted(page);
+      await mockCowApi(page);
+      let releaseTrees;
+      const treesReady = new Promise(resolve => { releaseTrees = resolve; });
+      await page.route("**/data/trees/index.json", async route => {
+        await treesReady;
+        await route.continue();
+      });
+      await page.goto(`/find/${EXAMPLE_PUB.slug}/`);
+      await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("landmark");
+      await waitForUiToSettle(page);
+      const scroll = page.locator(".inspector-scroll");
+      await expect.poll(() => scroll.evaluate(el => el.scrollHeight - el.clientHeight)).toBeGreaterThan(100);
+      const position = await scroll.evaluate(el => { el.scrollTop = 100; return el.scrollTop; });
+      await page.evaluate(() => {
+        window.__originalDetail = document.querySelector(".place-detail");
+        window.__extraViews = 0;
+        window.gtag = (command, name) => {
+          if (command === "event" && ["screen_view", "page_view", "select_item"].includes(name)) window.__extraViews++;
+        };
+      });
+      releaseTrees();
+      await expect(page.locator('#inspectorBody a.nearest-item[href^="/nearby/trees/"]')).toHaveCount(1);
+      await waitForUiToSettle(page);
+      await expect.poll(() => scroll.evaluate(el => el.scrollTop)).toBe(position);
+      expect(await page.evaluate(() => document.querySelector(".place-detail") === window.__originalDetail)).toBe(true);
+      expect(await page.evaluate(() => window.__extraViews)).toBe(0);
     });
 
     test("a place opened before the cow positions load gains its nearest-cow link once they arrive", async ({ page }) => {

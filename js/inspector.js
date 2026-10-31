@@ -415,7 +415,7 @@ function showTreeDetails(tree, distance, label) {
   // Read the tree first; community checks follow the record and stay in the same host as
   // the live verification slots so saved-report updates can still find the header actions.
   const factsHtml = `<section class="tree-facts" aria-label="Tree facts"><dl class="tree-summary">${tagHtml}${statusHtml}</dl>${topRow}${verified.detail}${measurementsHtml}${commentsHtml}</section>`;
-  transitionInspectorBody(`<article class="tree-detail">${factsHtml}${namedTreeHtml}${communitySectionHtml(tree)}${nearbySectionHtml}${issueHtml}${technicalHtml}</article>`, "forward");
+  transitionInspectorBody(`<article class="tree-detail">${factsHtml}${namedTreeHtml}${communitySectionHtml(tree)}<div data-live-nearby>${nearbySectionHtml}</div>${issueHtml}${technicalHtml}</article>`, "forward");
 }
 
 function showLandmarkDetails(place, distance) {
@@ -468,7 +468,7 @@ function showLandmarkDetails(place, distance) {
   // The check form belongs to the same top-of-detail stack as the community status, so a
   // submission can visibly transition into that status instead of leaving a second summary at
   // the bottom of the location details.
-  const landmarkHtml = `<article class="place-detail place-detail--${isEvent ? "event" : "landmark"}">${topRow}${communityPlaceStatus.detail}${communityPlaceMarker}${communityPlaceSection}${descriptionHtml}${ledgerHtml}${detailsHtml(rows, { labels: isEvent })}${isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : ""}${relatedLinksHtml}${issueHtml}</article>`;
+  const landmarkHtml = `<article class="place-detail place-detail--${isEvent ? "event" : "landmark"}">${topRow}${communityPlaceStatus.detail}${communityPlaceMarker}${communityPlaceSection}${descriptionHtml}${ledgerHtml}${detailsHtml(rows, { labels: isEvent })}${isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : ""}<div data-live-nearby>${relatedLinksHtml}</div>${issueHtml}</article>`;
   // A /find/ landing's place replaces its server-rendered panel in place: no slide-in from the side.
   transitionInspectorBody(landmarkHtml, findLandingSlug() ? null : "forward");
   if (navigator.onLine && !isEvent && place.latitude != null) loadCommunityPlaceIssues(place);
@@ -754,6 +754,7 @@ function animateRailIntro(row) {
 
 function selectOverview(animate = false) {
   if (state.filterScreenOpen || state.searchScreenOpen) return;
+  const preserveScroll = !animate && els.inspector.classList.contains("nearby-overview");
   els.inspector.classList.add("nearby-overview");
   if (typeof updateDocumentTitle === "function") updateDocumentTitle();
   if (findLandingAwaitingPlace()) return;
@@ -818,7 +819,7 @@ function selectOverview(animate = false) {
       animateNearestItemReorder(previousNearestPositions);
       if (typeof attachNearbyRailScrollHints === "function") attachNearbyRailScrollHints();
       maybePlayRailIntro(hadRail);
-    });
+    }, { preserveScroll });
   }
   // A category landing path is already the user's navigation target.  Nearby is re-rendered
   // by location/radius updates after boot, but those incidental renders must not canonicalise
@@ -1108,12 +1109,27 @@ function applyScreenTransition(direction, onDone) {
   }).catch(() => { /* cancelled by next transition */ });
 }
 
-function transitionInspectorBody(newHtml, direction, onDone) {
+function transitionInspectorBody(newHtml, direction, onDone, { preserveScroll = false } = {}) {
+  const scroll = els.inspector && els.inspector.querySelector(".inspector-scroll");
+  const scrollTop = scroll ? scroll.scrollTop : 0;
+  const oldRail = preserveScroll && els.inspectorBody.querySelector(".filter-rail .rail-pills");
+  const railScrollLeft = oldRail ? oldRail.scrollLeft : 0;
   // Replacing the initial Nearby content invalidates its server-rendered stand-in.
   _serverRenderedNearbyList = false;
   els.inspectorBody.innerHTML = newHtml;
   if (typeof updateDocumentTitle === "function") updateDocumentTitle();
-  applyScreenTransition(direction, onDone);
+  if (preserveScroll) {
+    // GPS/heading refreshes update the current list; only screen entry starts at the top.
+    // Restore after hydration/reordering too, since replacing rows can clamp the offset.
+    _transitionSnapshot = null;
+    // Restore the sideways category row before its overflow hints are attached.
+    const newRail = els.inspectorBody.querySelector(".filter-rail .rail-pills");
+    if (newRail) newRail.scrollLeft = railScrollLeft;
+    if (onDone) onDone();
+    if (scroll) scroll.scrollTop = scrollTop;
+  } else {
+    applyScreenTransition(direction, onDone);
+  }
 }
 
 let _inspectorMotionImage = null;
@@ -1564,7 +1580,7 @@ function formatCount(count) {
   return count.toLocaleString("en-GB");
 }
 
-function nearbyCountCopy(noun, { within }, placeName) {
+function nearbyCountCopy(noun, { within, beyond = 0 }, placeName) {
   const minutes = state.walkingDistanceMinutes;
   const where = `within ${minutes} min walk of ${placeName}`;
   let sentence;

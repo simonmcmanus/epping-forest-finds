@@ -2,7 +2,7 @@
 // Nearby's filter rail: a row of category pills that narrows the list in place (no panel slide).
 // See spec-data-rendering.md "Nearby filter rail".
 const { test, expect } = require("@playwright/test");
-const { setup } = require("./helpers");
+const { setup, waitForUiToSettle } = require("./helpers");
 
 // A GPS fix inside Epping Forest, with trees, ponds and pubs around it.
 const FOREST_LOCATION = { latitude: 51.6650, longitude: 0.0450, accuracy: 10 };
@@ -152,6 +152,23 @@ test.describe("Nearby filter rail", () => {
     await expect(nature).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator(".nearest-list .nearest-item")).not.toHaveCount(0);
   });
+
+  for (const reducedMotion of ["reduce", "no-preference"]) {
+    test(`a location update keeps the sideways category list at its scrolled position (${reducedMotion})`, async ({ page, context }) => {
+      await page.emulateMedia({ reducedMotion });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await waitForUiToSettle(page);
+      const row = page.locator(".rail-pills");
+      await expect.poll(() => row.evaluate(el => el.scrollWidth - el.clientWidth)).toBeGreaterThan(100);
+      const position = await row.evaluate(el => { el.scrollLeft = el.scrollWidth; return el.scrollLeft; });
+      const previous = await page.locator("#inspectorBody").innerHTML();
+      await context.setGeolocation({ ...FOREST_LOCATION, latitude: FOREST_LOCATION.latitude + 0.0003 });
+      await expect.poll(() => page.locator("#inspectorBody").innerHTML()).not.toBe(previous);
+      await waitForUiToSettle(page);
+      await expect.poll(() => row.evaluate(el => el.scrollLeft)).toBeCloseTo(position, 0);
+      await expect(rail(page)).toHaveClass(/has-left-overflow/);
+    });
+  }
 
   test("toggling a right-scrolled pill keeps the rail under the pointer", async ({ page, isMobile }) => {
     test.skip(!isMobile, "the desktop rail does not need horizontal scrolling");

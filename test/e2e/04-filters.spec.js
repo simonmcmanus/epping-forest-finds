@@ -57,30 +57,35 @@ test.describe("Filter panel", () => {
   });
 
   test.describe("map pin transitions", () => {
-    test.use({ reducedMotion: "no-preference" });
+    test.use({
+      reducedMotion: "no-preference",
+      geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 },
+      permissions: ["geolocation"],
+    });
 
     test("changing a filter animates the map pins while the camera is held still", async ({ page }) => {
       await page.click("#filterToggle");
-      await page.locator('.filter-chip[data-filter-subfilter="trees"]').click();
-
-      // The filter action also requests the ordinary camera refit. Stop that separate motion so
-      // this journey observes the pin transition itself, not a camera transform underneath it.
-      await page.evaluate(() => stopViewportAnimation());
-      const before = await page.evaluate(() => [
-        document.getElementById("mapCanvas").toDataURL(),
-        document.getElementById("overlayCanvas").toDataURL(),
-      ]);
-      const after = await page.evaluate(async () => {
-        for (let i = 0; i < 8; i += 1) {
-          await new Promise((resolve) => requestAnimationFrame(resolve));
+      await waitForUiToSettle(page);
+      const changed = await page.evaluate(() => {
+        // Encoding full canvases can outlast the animation on a busy mobile runner. Hold its
+        // clock still while capturing, then advance it explicitly rather than racing real frames.
+        const realNow = performance.now;
+        let frameNow = realNow.call(performance);
+        performance.now = () => frameNow;
+        try {
+          document.querySelector('.filter-chip[data-filter-subfilter="trees"]').click();
+          stopViewportAnimation();
+          const canvases = [document.getElementById("mapCanvas"), document.getElementById("overlayCanvas")];
+          draw();
+          const before = canvases.map(canvas => canvas.toDataURL());
+          frameNow += 120;
+          draw();
+          return canvases.some((canvas, index) => canvas.toDataURL() !== before[index]);
+        } finally {
+          performance.now = realNow;
         }
-        return [
-          document.getElementById("mapCanvas").toDataURL(),
-          document.getElementById("overlayCanvas").toDataURL(),
-        ];
       });
-
-      expect(after).not.toEqual(before);
+      expect(changed).toBe(true);
     });
   });
 
