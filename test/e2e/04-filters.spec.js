@@ -85,6 +85,31 @@ test.describe("Map setup", () => {
     expect(layout.actionsVisible).toBe(true);
   });
 
+  test("centers wrapped subcategories within the category step", async ({ page }) => {
+    await page.click("#filterToggle");
+    await page.getByRole("button", { name: "Choose categories" }).click();
+    await page.getByRole("button", { name: "Next" }).click();
+    await expect(page.getByRole("heading", { name: "Food" })).toBeVisible();
+    const rows = await page.locator(".onboarding-chips").evaluate((el) => {
+      const container = el.getBoundingClientRect();
+      const chips = [...el.querySelectorAll(".onboarding-chip")].map((chip) => chip.getBoundingClientRect());
+      const byTop = new Map();
+      chips.forEach((chip) => {
+        const top = Math.round(chip.top);
+        const row = byTop.get(top) || [];
+        row.push(chip);
+        byTop.set(top, row);
+      });
+      return [...byTop.values()].map((row) => {
+        const left = Math.min(...row.map((chip) => chip.left));
+        const right = Math.max(...row.map((chip) => chip.right));
+        return Math.abs((left + right) / 2 - (container.left + container.right) / 2);
+      });
+    });
+    expect(rows).toHaveLength(2);
+    expect(rows.every((offset) => offset <= 1)).toBe(true);
+  });
+
   test("keeps the Nearby panel in place behind the setup dialog", async ({ page }) => {
     await page.click("#filterToggle");
     await expect(page.locator("#inspectorTitle")).toHaveText("Nearby");
