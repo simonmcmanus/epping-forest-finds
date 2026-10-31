@@ -870,10 +870,10 @@ use for the homepage's counts.
   Once JS boots and the business is selected, `relatedCategoryLinksHtml()`
   (`js/inspector.js`) renders the live continuation as two
   `<h3 class="detail-section-heading">`-headed lists — **Nearby** (the
-  nearest tree, when any cow positions are currently loaded the cows, each
-  with a real live walk-time via `nearestTreeTo`/`nearestCowTo`,
-  `js/app.js`, and always the "Everything within 15 min walk" card, below)
-  and **Related** (this place's own subfilter and group) — so the reader
+  nearest in-radius tree, and when any in-radius cow positions are currently loaded the cows,
+  each with a real live walk-time via `nearestTreeTo`/`nearestCowTo`,
+  `js/app.js`, plus an "Everything" card when the selected walking radius contains anything)
+  and **Related** (this place's own subfilter and group, only when they have in-radius matches) — so the reader
   always knows which kind of link they're looking at. Both sections render
   the exact same `.nearest-item` card the Nearby list itself uses (icon,
   name, and — Nearby only — a walk-time chip; Related has no distance of

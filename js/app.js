@@ -527,6 +527,13 @@ const SELECTION_ROUTES = [
     show: (item) => showWaterDetails(item, distanceFromUser(item)),
   },
   {
+    type: "environment",
+    param: "area",
+    toKey: (item) => environmentHashKey(item),
+    find: (key) => findEnvironmentByHashKey(key),
+    show: (item) => showEnvironmentDetails(item),
+  },
+  {
     type: "road",
     param: "road",
     toKey: (item) => roadHashKey(item),
@@ -1661,6 +1668,22 @@ async function boot() {
     // that dataset while leaving ordinary category pages map-first and non-blocking.
     if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("water")) {
       await mapData.environmentPromise;
+    }
+    // Named places and railway features arrive with the same environment dataset. Wait for it
+    // before the first reveal as well, otherwise the initial route lookup treats a valid #area
+    // link as stale and clears it before the layer has arrived.
+    if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("area")
+      || new URLSearchParams(window.location.hash.replace(/^#/, "")).has("railway")) {
+      await mapData.environmentPromise;
+    }
+    // Paths and roads have their own asynchronous layers, so preserve their deep links until the
+    // corresponding feature register is available rather than letting the early route pass fall
+    // back to Nearby and erase a valid link.
+    if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("path")) {
+      await mapData.pathsPromise;
+    }
+    if (new URLSearchParams(window.location.hash.replace(/^#/, "")).has("road")) {
+      await mapData.roadsPromise;
     }
     // A place deep link is resolved from the landmarks plus business metadata. Wait for just
     // those sources before the first interactive reveal, otherwise their incremental updates
@@ -4190,7 +4213,7 @@ function nearestOverviewEntriesForFilter(filterKey, latitude, longitude, limit) 
     return nearestWaymarkedPathsToUser(limit, latitude, longitude).map(({ path, metres }) => ({ kind: "waymarked_trails", type: "path", item: path, metres }));
   }
   if (filterKey === "ponds_streams") {
-    if (!state.userLocation) return [];
+    if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return [];
     return nearestWaterFeaturesTo(latitude, longitude, limit).map(({ water, metres }) => ({ kind: "ponds_streams", type: "water", item: water, metres }));
   }
   return nearestPlacesByFilter(latitude, longitude, (place) => matchesPlaceFilter(place, filterKey), limit)
@@ -4629,6 +4652,8 @@ function updateDocumentTitle() {
           ? `Cow ${displayValue(item.serialNo)}`
           : selected.type === "railway"
             ? (item.properties?.name || item.properties?.ref || "Unnamed railway line")
+            : selected.type === "environment"
+              ? (item.properties?.name || "Map feature")
             : (item.name || item.ref || item.commonName || "Map location");
       title = `${name} near Epping Forest`;
     }
@@ -6022,7 +6047,7 @@ function ensureLocationWatch() {
 
 function selectedCompassTarget() {
   if (!state.selected) return null;
-  if (state.selected.type === "tree" || state.selected.type === "landmark" || state.selected.type === "cow" || state.selected.type === "path" || state.selected.type === "water") return state.selected.item;
+  if (state.selected.type === "tree" || state.selected.type === "landmark" || state.selected.type === "cow" || state.selected.type === "path" || state.selected.type === "water" || state.selected.type === "environment") return state.selected.item;
   if (state.selected.type === "road") {
     // Resolved lazily and then cached on the selection itself: the route-line memoization
     // (selectedRoutePoints, js/renderer.js) keys on target object identity, so this must
@@ -8517,6 +8542,8 @@ function updateCompassOverlay() {
 
   const title = state.selected.type === "tree"
     ? treeDisplayName(target)
+    : state.selected.type === "environment"
+      ? (target.properties?.name || "Map feature")
     : placeTitle(target);
   if (arrow) {
     // The first bearing after the search: spin two full turns and slow into the direction, rather
@@ -8997,6 +9024,7 @@ function ensureSearchIndex() {
 // derived here, once per road, the first time that road turns up in a result.
 function ensureRoadAnchor(road) {
   if (!road || road.point) return road && road.point ? road.point : null;
+  if (!Array.isArray(road.segments)) return null;
   const anchor = pathLabelAnchor(road);
   if (!anchor) return null;
   const lonLat = unprojectPoint(anchor);
@@ -9554,6 +9582,10 @@ function findRailwayByHashKey(key) {
     && feature.properties.featureType === "railway"
     && railwayHashKey(feature) === key
   )) || null;
+}
+
+function findEnvironmentByHashKey(key) {
+  return state.environmentFeatures.find((feature) => environmentHashKey(feature) === key) || null;
 }
 
 function nearbyWaterFeaturesWithinDistance(latitude, longitude, maxMetres) {

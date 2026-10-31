@@ -7,7 +7,6 @@ const INSPECTOR_MINIMIZE_TRANSITION_TIMEOUT_MS = 180 + 40; // Inspector transiti
 // --- Hit detection & map click ---
 
 function handleMapClick(event) {
-  if (!state.trees.length) return;
   const screen = canvasPoint(event);
 
   // Tapping a multi-item cluster -- same-category or the cross-category "mega" badge alike --
@@ -34,7 +33,13 @@ function handleMapClick(event) {
 
   const world = screenToWorld(screen.x, screen.y);
   const lonLat = unprojectPoint(world);
-  const hit = findHit(screen, world);
+  // Pins and drawn lines are the primary targets. A label's generous touch padding is only a
+  // fallback for the text itself, so tapping a tree/pin that happens to sit beside a label keeps
+  // selecting the visible pin rather than the label's feature.
+  const geometryHit = findHit(screen, world);
+  const hit = geometryHit.type !== "none"
+    ? geometryHit
+    : findMapLabelHit(screen) || geometryHit;
 
   // Two kinds of tap move the Nearby view instead of selecting something:
   //
@@ -57,7 +62,7 @@ function handleMapClick(event) {
   // A visible location remains a selection target even when it is the out-of-radius fallback
   // shown at the edge of Nearby. The browse-origin rule is for open ground and terrain lines
   // (especially roads crossing the outer map), not for a place the user deliberately tapped.
-  const isLocationHit = ["tree", "addedtree", "cow", "landmark", "path", "water"].includes(hit.type);
+  const isLocationHit = ["tree", "addedtree", "cow", "landmark", "path", "water", "environment"].includes(hit.type);
   if (hit.type === "none" || (beyondNearestArea && !isLocationHit)) {
     focusNearbyOnMapPoint(lonLat, world);
     return;
@@ -94,6 +99,18 @@ function handleMapClick(event) {
     state.selected = { type: "landmark", item: hit.item };
     syncHashFromSelection();
     showLandmarkDetails(hit.item, distanceFromUser(hit.item));
+    startCompassNavigation();
+    zoomToSelection();
+  } else if (hit.type === "water") {
+    state.selected = { type: "water", item: hit.item };
+    syncHashFromSelection();
+    showWaterDetails(hit.item, distanceFromUser(hit.item));
+    startCompassNavigation();
+    zoomToSelection();
+  } else if (hit.type === "environment") {
+    state.selected = { type: "environment", item: hit.item };
+    syncHashFromSelection();
+    showEnvironmentDetails(hit.item);
     startCompassNavigation();
     zoomToSelection();
   } else if (hit.type === "road") {
@@ -211,6 +228,17 @@ function findHit(screen, world) {
     }
   }
   if (bestTree) return bestTree;
+
+  let bestWater = null;
+  for (const water of state.waterFeatures) {
+    if (!isTappablePin("water", water)) continue;
+    const point = worldToScreen(water.point);
+    const distance = pinDistance(point);
+    if (distance < pinR && (!bestWater || distance < bestWater.distance)) {
+      bestWater = { type: "water", item: water, distance };
+    }
+  }
+  if (bestWater) return bestWater;
 
   let bestPath = null;
   const pathClickRadius = 12 * dpr;
@@ -541,7 +569,8 @@ function showPathDetails(path, distance) {
   ];
   const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const topRow = distancePill ? `<div class="detail-top-row">${distancePill}</div>` : "";
-  transitionInspectorBody(`<article class="place-detail place-detail--path">${topRow}${detailsHtml(rows)}</article>`, "forward");
+  const nearbyHtml = nearbySectionsHtml({ latitude: path.latitude, longitude: path.longitude, name: path.name || path.ref || "this trail" });
+  transitionInspectorBody(`<article class="place-detail place-detail--path">${topRow}${detailsHtml(rows)}${nearbyHtml}</article>`, "forward");
 }
 
 function distanceToSegment(px, py, x1, y1, x2, y2) {
@@ -600,7 +629,9 @@ function showRoadDetails(road, distance) {
   // somewhere you are being guided to rather than a bare records list.
   const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const topRow = distancePill ? `<div class="detail-top-row">${distancePill}</div>` : "";
-  transitionInspectorBody(`<article class="place-detail place-detail--road">${topRow}${detailsHtml(rows)}</article>`, "forward");
+  if (typeof ensureRoadAnchor === "function") ensureRoadAnchor(road);
+  const nearbyHtml = nearbySectionsHtml({ latitude: road.latitude, longitude: road.longitude, name: displayName });
+  transitionInspectorBody(`<article class="place-detail place-detail--road">${topRow}${detailsHtml(rows)}${nearbyHtml}</article>`, "forward");
 }
 
 function showRailwayDetails(railway) {
@@ -638,8 +669,13 @@ function showRailwayDetails(railway) {
   const technicalHtml = technicalRows.length
     ? `<details class="technical-details"><summary>Technical data</summary>${detailsHtml(technicalRows)}</details>`
     : "";
-
-  transitionInspectorBody(`<article class="place-detail place-detail--railway">${detailsHtml(primaryRows)}${technicalHtml}</article>`, "forward");
+  const anchor = typeof environmentFeatureAnchor === "function" ? environmentFeatureAnchor(railway) : null;
+  if (anchor) Object.assign(railway, anchor);
+  const distancePill = railway.latitude != null && typeof distanceFromUser === "function"
+    ? `<span data-live-field="distance">${walkInfoExpandableHtml(distanceFromUser(railway))}</span>` : "";
+  const topRow = distancePill ? `<div class="detail-top-row">${distancePill}</div>` : "";
+  const nearbyHtml = nearbySectionsHtml({ latitude: railway.latitude, longitude: railway.longitude, name: displayName });
+  transitionInspectorBody(`<article class="place-detail place-detail--railway">${topRow}${detailsHtml(primaryRows)}${technicalHtml}${nearbyHtml}</article>`, "forward");
 }
 
 function showWaterDetails(water, distance) {
@@ -655,7 +691,37 @@ function showWaterDetails(water, distance) {
     ["Type", typeLabel],
     ["Source", water.id ? `OpenStreetMap ${water.id}` : "OpenStreetMap"],
   ];
-  transitionInspectorBody(`<article class="place-detail place-detail--water">${detailsHtml(rows)}</article>`, "forward");
+  const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
+  const topRow = distancePill ? `<div class="detail-top-row">${distancePill}</div>` : "";
+  const nearbyHtml = nearbySectionsHtml({ latitude: water.latitude, longitude: water.longitude, name: water.name, subfilterKey: "ponds_streams" });
+  transitionInspectorBody(`<article class="place-detail place-detail--water">${topRow}${detailsHtml(rows)}${nearbyHtml}</article>`, "forward");
+}
+
+function showEnvironmentDetails(feature) {
+  const properties = feature && feature.properties ? feature.properties : {};
+  const anchor = typeof environmentFeatureAnchor === "function" ? environmentFeatureAnchor(feature) : null;
+  if (anchor) Object.assign(feature, anchor);
+  const typeLabel = properties.featureType === "nature_designation"
+    ? "Nature designation"
+    : properties.featureType === "open_land"
+      ? "Open land"
+      : properties.featureType === "named_locality"
+        ? "Named place"
+        : "Map feature";
+  const name = properties.name || "Map feature";
+  setInspectorSelectionChrome({ emoji: appIconHtml("pin", "app-icon title-icon"), showBack: true });
+  els.inspectorTools.hidden = true;
+  els.inspectorTitle.textContent = name;
+  els.inspectorType.textContent = typeLabel;
+  const rows = [
+    ["Type", typeLabel],
+    ["Source", properties.id ? `OpenStreetMap ${properties.id}` : "OpenStreetMap"],
+  ];
+  const distance = anchor && typeof distanceFromUser === "function" ? distanceFromUser(feature) : null;
+  const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
+  const topRow = distancePill ? `<div class="detail-top-row">${distancePill}</div>` : "";
+  const nearbyHtml = nearbySectionsHtml({ latitude: feature.latitude, longitude: feature.longitude, name });
+  transitionInspectorBody(`<article class="place-detail place-detail--environment">${topRow}${detailsHtml(rows)}${nearbyHtml}</article>`, "forward");
 }
 
 // --- Overview screen ---
@@ -1519,13 +1585,13 @@ function shareLocationHtml() {
 // override the way nearbySectionsHtml's own cards do.
 function nearbyWithinWalkHtml(lat, lon, name = null) {
   if (lat == null || lon == null) return "";
-  const minutes = state.walkingDistanceMinutes;
+  const minutes = formatWalkingRadius(state.walkingDistanceMinutes);
   const nameAttr = name ? ` data-name="${escapeHtml(name)}"` : "";
   // The count covers every category, the same set the card browses -- "342 locations within 30 min
   // walk of The Foresters" -- so the number matches what the Nearby list shows once it is opened.
   const { within } = countNearbyEntries(Array.from(ALL_OVERVIEW_FILTER_KEYS), Number(lat), Number(lon));
   if (within === 0) return "";
-  const copy = `${formatCount(within)} locations within ${minutes} min walk of ${name || "this spot"}`;
+  const copy = `${formatCount(within)} locations within ${minutes} walk of ${name || "this spot"}`;
   return `<li><button class="nearest-item" type="button" data-action="walk-radius" data-lat="${Number(lat)}" data-lon="${Number(lon)}"${nameAttr}>` +
     `<span class="nearest-icon" aria-hidden="true">${appIconHtml("walking")}</span>` +
     `<div class="nearest-content"><div class="nearest-header"><span class="nearest-name">Everything</span></div>` +
@@ -1581,8 +1647,8 @@ function formatCount(count) {
 }
 
 function nearbyCountCopy(noun, { within, beyond = 0 }, placeName) {
-  const minutes = state.walkingDistanceMinutes;
-  const where = `within ${minutes} min walk of ${placeName}`;
+  const radius = formatWalkingRadius(state.walkingDistanceMinutes);
+  const where = `within ${radius} walk of ${placeName}`;
   let sentence;
   if (within === 0) {
     sentence = beyond === 0 ? `No ${noun} nearby.` : `No ${noun} ${where}.`;
@@ -1648,7 +1714,9 @@ function nearbySectionsHtml({ latitude, longitude, name = null, subfilterKey = n
   const anchorHash = nearbyAnchorRouteValue({ latitude, longitude, label: name });
   // One card per category the reader has chosen (state.overviewFilters, or the defaults when none
   // are set or on an SEO page), each saying how many sit within the walking radius of this point.
-  const nearestCardsHtml = nearbyCardFilterKeys()
+  const nearestCardKeys = nearbyCardFilterKeys();
+  const nearestCardKeySet = new Set(nearestCardKeys);
+  const nearestCardsHtml = nearestCardKeys
     .map((key) => {
       const sub = FILTER_SUBFILTERS_BY_KEY.get(key);
       // Cow positions arrive asynchronously; until they are loaded "no cows nearby" would be a lie,
@@ -1672,18 +1740,18 @@ function nearbySectionsHtml({ latitude, longitude, name = null, subfilterKey = n
   const relatedCards = [];
   if (subfilter && group) {
     const subfilterCounts = countNearbyEntries([subfilter.key], latitude, longitude);
-    if (subfilterCounts.within > 0) {
+    if (subfilterCounts.within > 0 && !nearestCardKeySet.has(subfilter.key)) {
       relatedCards.push(cardHtml(
-        `/nearby/${subfilter.key.replace(/_/g, "-")}/`,
+        `/nearby/${subfilter.key.replace(/_/g, "-")}/#${anchorHash}`,
         subfilter.icon,
         subfilter.label,
         nearbyCountCopy(subfilter.label.toLowerCase(), subfilterCounts, placeName)
       ));
     }
     const groupCounts = countNearbyEntries(group.subfilters.map((s) => s.key), latitude, longitude);
-    if (groupCounts.within > 0) {
+    if (groupCounts.within > 0 && !nearestCardKeySet.has(subfilter.groupKey)) {
       relatedCards.push(cardHtml(
-        `/nearby/${subfilter.groupKey.replace(/_/g, "-")}/`,
+        `/nearby/${subfilter.groupKey.replace(/_/g, "-")}/#${anchorHash}`,
         group.icon,
         group.label,
         nearbyCountCopy(group.label.toLowerCase(), groupCounts, placeName)

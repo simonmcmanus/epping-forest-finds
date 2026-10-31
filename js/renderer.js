@@ -34,6 +34,66 @@ let _selectedIconMotionDrawn = false;
 let _iconMotionPreference = null;
 const _iconMotionSlugByPath = new Map(Object.entries(ICON_PATHS).map(([slug, src]) => [src, slug]));
 
+// Canvas text is not a DOM element, so keep the visible label bounds alongside the frame that
+// painted them. inspector.js uses these regions before falling back to line/pin hit testing.
+let _mapLabelHitRegions = [];
+let _waterLabelLookupSource = null;
+let _waterLabelLookupLength = -1;
+let _waterLabelById = new Map();
+let _waterLabelByName = new Map();
+
+function resetMapLabelHitRegions() {
+  _mapLabelHitRegions = [];
+}
+
+function waterFeatureForLabel(feature) {
+  const features = Array.isArray(state.waterFeatures) ? state.waterFeatures : [];
+  if (_waterLabelLookupSource !== features || _waterLabelLookupLength !== features.length) {
+    _waterLabelLookupSource = features;
+    _waterLabelLookupLength = features.length;
+    _waterLabelById = new Map();
+    _waterLabelByName = new Map();
+    for (const water of features) {
+      if (water && water.id != null && !_waterLabelById.has(String(water.id))) {
+        _waterLabelById.set(String(water.id), water);
+      }
+      if (water && water.name && !_waterLabelByName.has(water.name)) {
+        _waterLabelByName.set(water.name, water);
+      }
+    }
+  }
+  const properties = feature && feature.properties;
+  const id = properties && properties.id != null ? String(properties.id) : "";
+  const name = properties && properties.name ? properties.name : "";
+  return _waterLabelById.get(id) || _waterLabelByName.get(name) || null;
+}
+
+function registerMapLabelHit(type, item, point, text, ctx, padding = 10) {
+  if (!point || !text || !ctx) return;
+  const water = type === "water-label" ? waterFeatureForLabel(item) : null;
+  if (type === "water-label" && !water) return;
+  const width = ctx.measureText(String(text)).width;
+  const fontSize = Number(ctx.font && String(ctx.font).match(/([0-9]+(?:\.[0-9]+)?)px/)?.[1]) || 10;
+  _mapLabelHitRegions.push({
+    type: type === "water-label" ? "water" : type,
+    item: water || item,
+    minX: point.x - width / 2 - padding,
+    maxX: point.x + width / 2 + padding,
+    minY: point.y - fontSize / 2 - padding,
+    maxY: point.y + fontSize / 2 + padding,
+  });
+}
+
+function findMapLabelHit(screen) {
+  for (let i = _mapLabelHitRegions.length - 1; i >= 0; i -= 1) {
+    const label = _mapLabelHitRegions[i];
+    if (screen.x >= label.minX && screen.x <= label.maxX && screen.y >= label.minY && screen.y <= label.maxY) {
+      return { type: label.type, item: label.item, distance: 0 };
+    }
+  }
+  return null;
+}
+
 function stopSelectedIconMotion() {
   clearTimeout(_selectedIconMotionTimer);
   _selectedIconMotionTimer = null;
@@ -223,6 +283,7 @@ function draw() {
     startCompassSmoothing();
   }
   if (typeof prepareCanvasForDraw === "function") prepareCanvasForDraw();
+  resetMapLabelHitRegions();
   const ctx = els.canvas.getContext("2d");
   const width = els.canvas.width;
   const height = els.canvas.height;
@@ -593,6 +654,7 @@ function drawPaths(ctx) {
       ctx.strokeText(item.path.name, point.x, point.y);
       ctx.fillStyle = "rgba(45, 59, 52, 0.95)";
       ctx.fillText(item.path.name, point.x, point.y);
+      registerMapLabelHit("path", item.path, point, item.path.name, ctx, 12 * dpr);
     }
   }
 
@@ -691,6 +753,7 @@ function drawEnvironment(ctx) {
   const view = environmentViewWorldBounds();
   const greenSpaceLabels = [];
   const namedLocalityLabels = [];
+  const namedWaterLabels = [];
   ctx.save();
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
@@ -706,6 +769,8 @@ function drawEnvironment(ctx) {
         stroke: "rgba(47, 114, 178, 0.62)",
         width: 1.1 * dpr,
       });
+      const name = feature.properties && feature.properties.name;
+      if (name && name.trim()) namedWaterLabels.push({ feature, geometry, name });
       continue;
     }
 
@@ -716,7 +781,7 @@ function drawEnvironment(ctx) {
         width: 1.1 * dpr,
       });
       const name = feature.properties && feature.properties.name;
-      if (name && name.trim()) greenSpaceLabels.push({ geometry, name });
+      if (name && name.trim()) greenSpaceLabels.push({ feature, geometry, name });
       continue;
     }
 
@@ -727,13 +792,13 @@ function drawEnvironment(ctx) {
         width: 1 * dpr,
       });
       const name = feature.properties && feature.properties.name;
-      if (name && name.trim()) greenSpaceLabels.push({ geometry, name });
+      if (name && name.trim()) greenSpaceLabels.push({ feature, geometry, name });
       continue;
     }
 
     if (type === "named_locality") {
       const name = feature.properties && feature.properties.name;
-      if (name && name.trim()) namedLocalityLabels.push({ geometry, name });
+      if (name && name.trim()) namedLocalityLabels.push({ feature, geometry, name });
       continue;
     }
 
@@ -742,6 +807,8 @@ function drawEnvironment(ctx) {
         stroke: "rgba(47, 114, 178, 0.72)",
         width: 1.5 * dpr,
       });
+      const name = feature.properties && feature.properties.name;
+      if (name && name.trim()) namedWaterLabels.push({ feature, geometry, name });
     }
 
     if (type === "railway") {
@@ -772,6 +839,7 @@ function drawEnvironment(ctx) {
 
   if (greenSpaceLabels.length) drawGreenSpaceLabels(ctx, greenSpaceLabels, dpr);
   if (namedLocalityLabels.length) drawNamedLocalityLabels(ctx, namedLocalityLabels, dpr, zoomLevel);
+  if (namedWaterLabels.length) drawWaterFeatureLabels(ctx, namedWaterLabels, dpr, zoomLevel);
 
   loadBuildingsIfNeeded();
   if (state.buildingFeatures.length) {
@@ -933,7 +1001,7 @@ function drawGreenSpaceLabels(ctx, labels, dpr) {
   ctx.font = `600 ${fontSize}px system-ui`;
   const padding = 20 * dpr;
 
-  for (const { geometry, name } of labels) {
+  for (const { feature, geometry, name } of labels) {
     const bounds = projectedEnvironmentGeometry(geometry);
     const worldCenter = { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 };
     if (isBehindTiltHeading(worldCenter)) continue;
@@ -958,6 +1026,7 @@ function drawGreenSpaceLabels(ctx, labels, dpr) {
     ctx.strokeText(name, point.x, point.y);
     ctx.fillStyle = "rgba(42, 74, 44, 0.95)";
     ctx.fillText(name, point.x, point.y);
+    registerMapLabelHit("environment", feature, point, name, ctx, 12 * dpr);
   }
   ctx.restore();
 }
@@ -975,7 +1044,7 @@ function drawNamedLocalityLabels(ctx, labels, dpr, zoomLevel) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.font = `700 ${Math.max(isCoarsePointer ? 9 : 10, Math.round((isCoarsePointer ? 9 : 10) * dpr))}px system-ui`;
-  for (const { geometry, name } of labels) {
+  for (const { feature, geometry, name } of labels) {
     const worldPoint = projectedEnvironmentGeometry(geometry).point;
     if (!worldPoint || isBehindTiltHeading(worldPoint)) continue;
     const point = worldToScreen(worldPoint);
@@ -985,6 +1054,44 @@ function drawNamedLocalityLabels(ctx, labels, dpr, zoomLevel) {
     ctx.strokeText(name, point.x, point.y);
     ctx.fillStyle = "rgba(45, 59, 52, 0.95)";
     ctx.fillText(name, point.x, point.y);
+    registerMapLabelHit("environment", feature, point, name, ctx, 12 * dpr);
+  }
+  ctx.restore();
+}
+
+// Named water is both a visible map label and a searchable water record. Areas use the same
+// fit-to-footprint rule as green spaces; named streams use a zoom gate like localities.
+function drawWaterFeatureLabels(ctx, labels, dpr, zoomLevel) {
+  const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = `700 ${Math.max(isCoarsePointer ? 9 : 10, Math.round((isCoarsePointer ? 9 : 10) * dpr))}px system-ui`;
+  for (const { feature, geometry, name } of labels) {
+    const bounds = projectedEnvironmentGeometry(geometry);
+    const isArea = geometry.type === "Polygon";
+    const worldPoint = isArea
+      ? { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 }
+      : bounds.point;
+    if (!worldPoint || isBehindTiltHeading(worldPoint)) continue;
+    const point = worldToScreen(worldPoint);
+    if (!isNearCanvas(point, 28 * dpr)) continue;
+    if (!isArea && zoomLevel < (isCoarsePointer ? 1.45 : 1.15)) continue;
+    if (isArea) {
+      const corners = [
+        { x: bounds.minX, y: bounds.minY }, { x: bounds.maxX, y: bounds.minY },
+        { x: bounds.minX, y: bounds.maxY }, { x: bounds.maxX, y: bounds.maxY },
+      ].map(worldToScreen);
+      const screenWidth = Math.max(...corners.map((corner) => corner.x)) - Math.min(...corners.map((corner) => corner.x));
+      const screenHeight = Math.max(...corners.map((corner) => corner.y)) - Math.min(...corners.map((corner) => corner.y));
+      if (ctx.measureText(name).width + 20 * dpr > screenWidth || ctx.font.match(/([0-9]+(?:\.[0-9]+)?)px/)?.[1] * 1 + 20 * dpr > screenHeight) continue;
+    }
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.92)";
+    ctx.lineWidth = 3 * dpr;
+    ctx.strokeText(name, point.x, point.y);
+    ctx.fillStyle = "rgba(35, 92, 133, 0.95)";
+    ctx.fillText(name, point.x, point.y);
+    registerMapLabelHit("water-label", feature, point, name, ctx, 12 * dpr);
   }
   ctx.restore();
 }

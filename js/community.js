@@ -1640,7 +1640,8 @@ function showAddedTreeDetails(item) {
       </div>
       <button class="community-add" type="button" data-action="community-confirm-added" data-tag="${escapeHtml(item.tag)}">${communityIcon("plus")}<span>I found it</span></button>
     </div>`;
-  transitionInspectorBody(`<article class="place-detail place-detail--added-tree">${topRow}${detailsHtml(rows)}${cta}</article>`, "forward");
+  const nearbyHtml = nearbySectionsHtml({ latitude: item.latitude, longitude: item.longitude, name: item.name || "this tree", subfilterKey: "trees" });
+  transitionInspectorBody(`<article class="place-detail place-detail--added-tree">${topRow}${detailsHtml(rows)}${cta}${nearbyHtml}</article>`, "forward");
 }
 
 // "I found it too": the Feedback screen's add-a-tree form, with the tag filled in.

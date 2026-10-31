@@ -189,7 +189,7 @@ Rendered from `environmentFeatures`:
 - **Water/wetland polygons** — blue-tinted fills
 - **Nature designation polygons** (`featureType: "nature_designation"` — nature reserves, SSSIs, LNRs, Ancient Woodland) — green-tinted fills. A named polygon also gets its name drawn centered on it, but only when the name fits inside the polygon's on-screen footprint — the label is measured against the polygon's screen-space bounding box each frame and skipped entirely rather than drawn oversized or spilling past the outline.
 - **Open-land polygons** (`featureType: "open_land"` — parks, commons, grassland, heath, scrub, meadows, recreation grounds) — a lighter, more muted green-tinted fill than nature designations, since these aren't necessarily protected/designated land, just named open ground. Named ones get the same fits-the-footprint label treatment as nature designation polygons, drawn by the same `drawGreenSpaceLabels` (`js/renderer.js`).
-- **Named locality points** (`featureType: "named_locality"` — OSM `place=locality`: a known, named spot with no mapped boundary of its own, e.g. an informal forest "plain" like Deershelter Plain) — no fill or outline, just the name, drawn once zoomed in past the same threshold `drawPaths` uses for path names (`drawNamedLocalityLabels`, `js/renderer.js`). There's no polygon footprint to gate against here, so the gate is zoom level rather than "does it fit".
+- **Named locality points** (`featureType: "named_locality"` — OSM `place=locality`: a known, named spot with no mapped boundary of its own, e.g. an informal forest "plain" like Deershelter Plain) — no fill or outline, just the name, drawn once zoomed in past the same threshold `drawPaths` uses for path names (`drawNamedLocalityLabels`, `js/renderer.js`). There's no polygon footprint to gate against here, so the gate is zoom level rather than "does it fit". Named nature, open-land, locality and water labels register their visible canvas bounds as tap targets.
 - **Railway lines** — dashed dark strokes with specific styling
 - **Buildings** (lazy-loaded) — opaque light-gray fills in 2D footprints; in full 3D tilt, roofs keep that same opaque fill while walls use subtle opaque side shading (fixed light-from-upper-left look) so buildings read as solid blocks without transparency and still transition cleanly when flattening to 2D.
 
@@ -243,7 +243,7 @@ The rounded rectangular pin uses a compact layout with a large icon:
   fallback is itself a map pin, and a pin inside a pin reads as a mistake, so
   a place the data says nothing about (OSM `building=yes`, the last seven on
   the map) gets a plain `#76702f` dot in the head instead.
-- `findHit` resolves, in order: highlighted locations (places, cows, trees, waymarked trails) then streets (roads, railways), and nothing else. Background polygons are not hit-tested, so every remaining tap is "open ground" and relocates the Nearby browse origin (see "Browsing Another Spot").
+- Visible label bounds are hit-tested before the normal geometry hit test, so a named path, water feature, nature/open-land area or locality opens its corresponding detail view. Water pins are also selectable. `findHit` otherwise resolves, in order: highlighted locations (places, cows, trees, waymarked trails) then streets (roads, railways). Unnamed background polygons remain open ground and relocate the Nearby browse origin (see "Browsing Another Spot").
 - **Only what is drawn is tappable.** Pin hit-testing asks the renderer's own `shouldDrawMapIcon(type, item, buildNearbyIconLookup())` rather than sweeping the raw datasets, so a pin that is not on screen cannot be selected at the position it would occupy. This covers all three cases the renderer already distinguishes: outside the nearby set, hidden by an expanded group, and hidden because a location is selected — in that last case only the selected pin itself is drawn, so it stays tappable and everything around it is open ground. With ~25,000 trees in the register against the ~60 the map draws (`MAX_MAP_TREES`), the old dataset-wide sweep meant a tap "away from the selection" routinely landed on an invisible tree and re-selected it instead of returning to Nearby. Waymarked trails are the exception and are deliberately *not* gated on this: a trail is hit-tested along its whole drawn line, and that line is terrain — drawn whatever the nearby set, group, or selection happens to be, exactly like a street. Only its pin comes and goes.
 - **No taps just beside the panel.** The inspector sheet and nav bar float a few pixels in from the screen edges, leaving thin strips of map visible around them. A touch or pen tap within 16 CSS px of either panel's edge (`isTouchTapBesidePanel`, `js/nav.js`) is ignored, so a thumb that just misses the panel does not open whatever is drawn there. Drags and pinches starting in that margin still move the map, and mouse clicks are unaffected.
 
@@ -887,18 +887,20 @@ The figure itself is the real road/path-following distance (and the walk time de
 
 The inspector's top row offers **Open in Maps** and **Share link** as icon-only controls (`openInMapsHtml`, `shareLocationHtml`, js/inspector.js): a map-pin and a share glyph, inline SVG, in square 30px buttons with the same 5px corner radius as the walking-distance chip beside them, with `aria-label` and `title` carrying the accessible name, so no visible text is needed. They share the `.detail-map-link--icon` modifier (css/inspector.css).
 
-Any selected point (tree, place, cow) with coordinates also shows an **"Everything"** card whose
-line reads "N locations within M min walk of <name>", M being the reader's own walking radius
-(default when unset) and N the count across every category within it (`nearbyWithinWalkHtml`,
-js/inspector.js), under a "Nearest" heading, not in
+Any selected feature with an anchor coordinate (tree, place, cow, path, road, railway, water or
+named area) also shows a **"Nearest"** section. When at least one location is inside the reader's
+walking radius it includes an **"Everything"** card whose line reads "N locations within M min walk
+of <name>", M being the reader's own walking radius (rounded through `formatWalkingRadius()`) and N
+the count across every category within it (`nearbyWithinWalkHtml`, js/inspector.js), not in
 `.detail-top-row` alongside Open in Maps/Share: it shares the Nearby list's own `.nearest-item`
 card styling (a `<button>`, since it drives a live state change rather than a navigation) instead
 of the unrelated `.detail-map-link` pill those use. Every selected point with coordinates -- a `/find/`
 business, a veteran tree, a cow, or a landmark with no page of its own -- gets the same headed
 **Nearest** section and, where its category has a subfilter, a headed **Related** section
 (`nearbySectionsHtml`, js/inspector.js), with the walk-radius card as the last Nearest entry. A
-tree's Related section links its own category, a cow's its own, and a business or landmark the
-category its `placePrimaryFilterKey` names. It reuses the existing Nearby-browsing mechanism rather than
+tree's Related section links its own category, a cow's its own, a water feature's Ponds & streams
+category, and a business or landmark the category its `placePrimaryFilterKey` names. Related links
+carry the selected feature's `near=<lat>,<lon>` browse anchor. It reuses the existing Nearby-browsing mechanism rather than
 inventing a new one: tapping it drops the selection, moves the Nearby browse anchor to that exact
 point (`setNearbyAnchor`'s own mechanism -- the same one a tap on open ground or a shared
 `near=<lat>,<lon>` link already use), keeps the reader's own walking radius, and shows every category
@@ -940,7 +942,10 @@ is never moved by this -- only the browse anchor, exactly as any other anchor mo
   set, capped at six). Each card's line is a plain count from this place within the reader's walking
   radius: "43 trees within 30 min walk of The Foresters." or, with none close enough,
   "No cows within 30 min walk of The Foresters." (`nearbyCountCopy`, `countNearbyEntries`,
-  js/inspector.js). Tiles with no locations within the walking radius are omitted. Counts take thousands separators, and the line wraps inside the card rather than truncating. A cows card is held back until cow positions are loaded,
+  js/inspector.js). Counts include only locations inside the selected walking radius; zero-result
+  category cards and out-of-radius results are omitted rather than shown as a zero or a "further
+  away" total. Counts take thousands separators, and the line wraps inside the card rather than
+  truncating. A cows card is held back until cow positions are loaded,
   rather than reporting a zero; an already-open tree or place updates only its nearby-card slot when they first arrive
   (`refreshSelectedDetailForNearbyData`, js/app.js) so the card appears without reopening it. The same refresh runs when the background tree register finishes loading, so an already-open place gains its nearest-tree card. This patch keeps the surrounding detail and forms intact, preserves scroll position and does not replay screen entry or emit another view event. A headed **Related** section (its own category/group, with the same
   counted line for each) follows, both rendered as the same
@@ -988,7 +993,13 @@ bare records list:
   measure from yet, so the attempt has to be repeatable. It stays fixed at the point that was
   nearest when the street was selected, the way any other destination stays put.
 - The selected street itself keeps its existing pulsing overlay (`drawSelectedRoadOverlay`).
-- Railways are unchanged: still a plain detail view with no navigation target.
+- A selected street also shows the shared Nearest section, anchored at its nearest geometry point; roads have no category filter, so they do not get a Related section.
+
+#### Path, Water, Railway and Area Details
+
+- Named waymarked paths, water features, railway lines and named environment areas use the same inspector selection model as other map features.
+- Water, paths, roads, railways, community-added trees and named environment areas show a shared Nearest section whenever an anchor coordinate can be derived. Water features also show Related links for Ponds & streams/Nature; line and uncategorised area features have no false category relationship.
+- Water labels and pins select the named water record; named nature/open-land/locality labels select a lightweight area detail view with its source and nearby context.
 
 ### Secondary Screens (Search, Filter, Settings, Report)
 
