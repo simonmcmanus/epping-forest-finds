@@ -7,7 +7,7 @@ The panel that sits above the map. Called "modal" in user-facing language and "i
 The map canvas in the background, visible in the area not covered by the inspector.
 
 **Navigation buttons**
-The icon buttons in the nav bar, a fixed bottom tab bar separate from the Modal/Inspector (above it as its own card on desktop, pinned to the bottom of the screen on mobile) — in left-to-right order: Nearby, Search, Feedback, Settings. The active button is highlighted gold. Filters is not part of this row — its own icon button sits inline with the Nearby/Filters heading instead (see "Filter Panel" in `spec-data-rendering.md`).
+The icon buttons in the nav bar, a fixed bottom tab bar separate from the Modal/Inspector (above it as its own card on desktop, pinned to the bottom of the screen on mobile) — in left-to-right order: Nearby, Search, Feedback, Settings. The active button is highlighted gold. Map setup is not part of this row — its stacked-layers button sits inline with the Nearby heading instead (see "Map Setup" in `spec-data-rendering.md`).
 
 **Filter rail**
 The row of category pills at the top of every Nearby view: a toggle pill per related category. A tap narrows the list in place as a temporary lens without touching the reader's saved filters (see "Nearby filter rail" in `spec-data-rendering.md`).
@@ -20,13 +20,13 @@ The row of category pills at the top of every Nearby view: a toggle pill per rel
 The default inspector state: shows the nearest items list and filter controls. "Nearby mode" is the user-facing term; "overview mode" is the code term (`isOverviewScreenActive()`).
 
 **Selected-detail mode**
-Inspector state when a specific tree, landmark, cow, path, street, or railway is selected. Shows full item detail and hides the filter panel.
+Inspector state when a specific tree, landmark, cow, path, street, or railway is selected. Shows full item detail and hides the Map setup button.
 
 **Search screen**
 Inspector state when the search magnifier is open (`state.searchScreenOpen = true`). A query field over the whole dataset — trees by species or tag, places, roads, trails, water, railway lines and cows — listing matches as Nearby-style rows that open the location when chosen (`openSearchScreen()`, `searchMapFeatures()`, `openSearchResult()`). One of the four secondary screens; shares `secondaryScreenActive()` navigation behaviour with Filter, Settings and Feedback.
 
-**Filter screen / Filters screen**
-Inspector state when the filter toggle panel is open (`state.filterScreenOpen = true`). Shows the filter group chips and, below them, the same nearest list Nearby shows — live: toggling a chip narrows or widens it on the spot (see "Filter Panel" in `spec-data-rendering.md`). GPS updates and cow refreshes do not close it — only explicit navigation away does, including its own back arrow (`#inspectorBack`, shown here the same as on Settings/Feedback) or the Nearby nav button.
+**Map setup**
+The guided filter configuration dialog opened by the stacked-layers button next to the Nearby heading, or by the compatibility route `/nearby/filter` (`state.filterScreenOpen = true` while it is open). Its first step explains that the choices control visible map pins and the Nearby list. It starts from the saved filters, stages chip changes locally, and applies them on Done; Cancel changes leaves the saved choices untouched. GPS updates and cow refreshes do not close it.
 
 **Minimized mode**
 Inspector collapsed to a header strip only. Auto-reposition is paused; user can pan and zoom freely. Tapping the header restores the previous mode.
@@ -51,10 +51,10 @@ Default map orientation: north is always toward the top of the screen.
 Compass-driven map orientation: the direction the device is facing is always toward the top of the screen. The map rotates in real-time as the user turns. Active in both navigation mode (selected target) and nearby mode (when location and compass are available).
 
 **Foraging mode**
-Zoom behaviour when the filter panel is closed: the viewport anchors to the nearest 3–5 active trees, giving a tight in-forest view where individual tree positions are distinguishable. Falls back to nearest items of any active type if trees are filtered off.
+Zoom behaviour when Map setup is closed: the viewport anchors to the nearest 3–5 active trees, giving a tight in-forest view where individual tree positions are distinguishable. Falls back to nearest items of any active type if trees are filtered off.
 
 **Survey mode**
-Zoom behaviour on the Filter, Search, Settings and Report screens: the camera frames the walking-radius ring *plus* the nearest single match of each active filter, however far outside the ring that is (`nearestSelectedFilterPoints()`), and the map highlights those same out-of-ring matches alongside the ring's own contents. Allows the user to see how far away transport, food, or other points of interest are without leaving the screen. Everything else highlighted is the in-radius set the Nearby screen shows, so resizing the radius from these screens changes what is on the map. Snaps back to foraging zoom on close.
+Zoom behaviour while Map setup, Search, Settings or Report is open: the camera frames the walking-radius ring *plus* the nearest single match of each active filter, however far outside the ring that is (`nearestSelectedFilterPoints()`), and the map highlights those same out-of-ring matches alongside the ring's own contents. Allows the user to see how far away transport, food, or other points of interest are without leaving the screen. Everything else highlighted is the in-radius set the Nearby screen shows, so resizing the radius from these screens changes what is on the map. Snaps back to foraging zoom on close.
 
 **Tilt mode / Full 3D**
 Map orientation where the canvas is rendered with a `rotateX` CSS perspective so it appears to lie flat on the ground ahead of the user, active whenever `tiltActive()` is true (the Settings **3D map** switch is on — it is off by default — and the device is pitched beyond `TILT_BETA_THRESHOLD`, 12°). "Full 3D" is the term used in spec prose; `tiltActive()`/`tiltBetaSmoothed`/`tiltInfluence()` are the code terms. Available on every screen (nearby, navigation, filter, settings, feedback). Pins and route/road lines behind the user's heading shrink or are culled entirely — see "Full 3D — hiding what's behind" in spec-data-rendering.md.
@@ -79,7 +79,7 @@ The configurable distance (in minutes of walking time) used to filter nearby ite
 When no items of a given type exist within the walking radius, the nearest item of that type is shown in the list with an out-of-radius style. A notice explains no results were found within the selected walking time.
 
 **Browse anchor / nearby anchor**
-A map point (`state.nearbyAnchor`) the user has tapped on open map ground, previewing that spot's nearby items and radius without moving the real GPS "You" dot. Any open-ground tap sets it, at any distance, from any screen that draws the walking-radius ring — Nearby, Filters, Settings and Report alike. Cleared via the "Use my location" control in `#nearbyAnchorBar`, which is inspector chrome and so stays reachable from all four. Code term: `nearbyOrigin()` resolves to this when set, otherwise the real location.
+A map point (`state.nearbyAnchor`) the user has tapped on open map ground, previewing that spot's nearby items and radius without moving the real GPS "You" dot. Any open-ground tap sets it, at any distance, from any screen that draws the walking-radius ring — Nearby, Map setup, Settings and Report alike. Cleared via the "Use my location" control in `#nearbyAnchorBar`, which is inspector chrome and so stays reachable from all four. Code term: `nearbyOrigin()` resolves to this when set, otherwise the real location.
 
 ---
 
@@ -135,7 +135,7 @@ The background script (`sw.js`) that pre-caches the app shell and offline datase
 A flag `server.js` inserts into the `sw.js` response it serves (via `injectDevFlag()`), never present in the file on disk or in the production build Netlify serves untouched. It is used by tunnelled development and explicit browser-test opt-ins; ordinary loopback development does not register a worker. `sw.js` reads it into `IS_DEV` and, when true, fetches everything from the network first (cache as an offline-only fallback) instead of the production cache-first strategy. The imported cache-version markers also read the flag and prefix both cache names with `dev-` (e.g. `forest-finds-app-dev-v1`), so the About screen's app-version display and any bug report's `appVersion` read as local rather than a stuck release number.
 
 **Hash / deep link**
-The URL fragment (`#...`) that names the screen the app is on — a selection, or Filters / Settings / Report. It is navigation state, not a label: the router (`js/app.js`) pushes a history entry per screen change and applies whatever the URL says on `popstate` / `hashchange`, so back and forward retrace the trail and a shared link opens the screen it names. See spec.md § "URL hash / navigation state".
+The URL fragment (`#...`) that names the screen the app is on — a selection, or Map setup / Settings / Report. It is navigation state, not a label: the router (`js/app.js`) pushes a history entry per screen change and applies whatever the URL says on `popstate` / `hashchange`, so back and forward retrace the trail and a shared link opens the screen it names. See spec.md § "URL hash / navigation state".
 
 **Route**
 The canonical hash payload for a screen, without the leading `#`: `""` (Nearby), `"filters"`, `"settings"`, `"report"`, or `"<kind>=<key>"` for a selection. `currentScreenRoute()` writes one from state and `applyRoute()` reads one back into state.

@@ -5,7 +5,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(232, 240, 231, 0.92);
+  background: rgba(232, 240, 231, 0.80);
   backdrop-filter: blur(16px);
   padding: 20px;
   transition: opacity 0.35s ease;
@@ -18,6 +18,32 @@
 .onboarding-overlay.fading-out {
   opacity: 0;
   pointer-events: none;
+}
+
+@keyframes ob-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes ob-card-in {
+  from { opacity: 0; transform: translateY(18px) scale(0.97); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.onboarding-overlay.opening {
+  animation: ob-overlay-in 0.22s ease-out both;
+}
+
+.onboarding-overlay.opening .onboarding-card {
+  animation: ob-card-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.onboarding-overlay.filter-setup {
+  cursor: pointer;
+}
+
+.onboarding-overlay.filter-setup .onboarding-card {
+  cursor: default;
 }
 
 .onboarding-card {
@@ -138,6 +164,57 @@
   object-fit: contain;
   flex-shrink: 0;
   margin-bottom: 2px;
+}
+
+.onboarding-map-setup-icon {
+  display: grid;
+  place-items: center;
+  color: var(--tree);
+}
+
+.onboarding-map-setup-icon svg {
+  width: 56px;
+  height: 56px;
+}
+
+.onboarding-selection-label {
+  margin-top: 5px;
+  color: var(--ink);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.onboarding-selection-preview {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 7px 10px;
+  width: 100%;
+  max-width: 350px;
+  padding: 2px 4px 4px;
+}
+
+.onboarding-selection-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--tree);
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.onboarding-selection-item img {
+  width: 20px;
+  height: 20px;
+  object-fit: contain;
+}
+
+.onboarding-selection-empty {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-style: italic;
 }
 
 .onboarding-step-title {
@@ -290,4 +367,11 @@
 
 .onboarding-content.entering-backward {
   animation: ob-slide-in-left 0.26s cubic-bezier(0.25, 0.46, 0.45, 0.94) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .onboarding-overlay.opening,
+  .onboarding-overlay.opening .onboarding-card {
+    animation: none;
+  }
 }
