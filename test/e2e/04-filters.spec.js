@@ -20,7 +20,9 @@ test.describe("Map setup", () => {
     await expect(page.locator("#onboardingOverlay")).toContainText("categories not currently shown");
     await expect(page.locator("#onboardingOverlay")).toContainText("Nearby list");
     await expect(page.locator("#onboardingOverlay")).toContainText("Nature");
-    await expect(page.locator("#onboardingOverlay").locator(".onboarding-selection-item-group").first()).toHaveText(/\d+\/\d+/);
+    await expect(page.locator("#onboardingOverlay").locator(".onboarding-selection-item-group").first()).toHaveText(/\(\d+\/\d+\)/);
+    const summaryFits = await page.locator(".onboarding-selection-preview").evaluate((el) => el.scrollWidth <= el.clientWidth + 1);
+    expect(summaryFits, "all category groups should fit without horizontal scrolling").toBe(true);
   });
 
   test("the control reads as map setup and uses the layers icon", async ({ page }) => {
