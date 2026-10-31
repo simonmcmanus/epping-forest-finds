@@ -340,6 +340,16 @@
   display: none;
 }
 
+/* The mobile inspector's resize grip is an absolutely-positioned 20px strip at the top of the
+   sheet. Give the first-run setup invitation the same clearance as the nearby-anchor notice so
+   its rounded card never sits underneath the handle. */
+@media (max-width: 760px),
+(orientation: landscape) and (pointer: coarse) and (max-height: 500px) {
+  .consent-banner.onboarding-invite {
+    margin-top: 22px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .consent-banner.onboarding-attention,
   .consent-banner.onboarding-collapsing {
