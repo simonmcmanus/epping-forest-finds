@@ -20,9 +20,17 @@ test.describe("Map setup", () => {
     await expect(page.locator("#onboardingOverlay")).toContainText("categories not currently shown");
     await expect(page.locator("#onboardingOverlay")).toContainText("Nearby list");
     await expect(page.locator("#onboardingOverlay")).toContainText("Nature");
+    await expect(page.locator("#onboardingOverlay")).not.toContainText("Currently set to");
     await expect(page.locator("#onboardingOverlay").locator(".onboarding-selection-item-group").first()).toHaveText(/\(\d+\/\d+\)/);
     const summaryFits = await page.locator(".onboarding-selection-preview").evaluate((el) => el.scrollWidth <= el.clientWidth + 1);
     expect(summaryFits, "all category groups should fit without horizontal scrolling").toBe(true);
+  });
+
+  test("summary categories open their matching filter step", async ({ page }) => {
+    await page.click("#filterToggle");
+    await page.locator('.onboarding-selection-item[data-group-key="food"]').click();
+    await expect(page.getByRole("heading", { name: "Food" })).toBeVisible();
+    await expect(page.locator(".onboarding-chip")).toHaveCount(4);
   });
 
   test("the control reads as map setup and uses the layers icon", async ({ page }) => {
@@ -32,14 +40,15 @@ test.describe("Map setup", () => {
     await expect(toggle.locator("svg path").first()).toHaveAttribute("d", /m3\.5 7 8\.5/);
   });
 
-  test("cancel keeps the existing filter choices", async ({ page }) => {
-    const before = await page.evaluate(() => state.overviewFilters.slice());
+  test("the close button preserves staged filter choices", async ({ page }) => {
     await page.click("#filterToggle");
     await page.getByRole("button", { name: "Choose categories" }).click();
-    await page.locator('.onboarding-chip[data-key="trees"]').click();
-    await page.getByRole("button", { name: "Cancel changes" }).click();
+    const chip = page.locator('.onboarding-chip[aria-pressed="true"]').first();
+    const key = await chip.getAttribute("data-key");
+    await chip.click();
+    await page.getByRole("button", { name: "Close map setup" }).click();
     await expect(page.locator("#onboardingOverlay")).toBeHidden();
-    expect(await page.evaluate(() => state.overviewFilters)).toEqual(before);
+    expect(await page.evaluate((filterKey) => state.overviewFilters.includes(filterKey), key)).toBe(false);
   });
 
   test("filter changes apply when the guided setup is done", async ({ page }) => {
@@ -75,10 +84,9 @@ test.describe("Map setup", () => {
     const layout = await card.evaluate((el) => {
       const cardRect = el.getBoundingClientRect();
       const nextRect = el.querySelector(".ob-next").getBoundingClientRect();
-      const cancelRect = el.querySelector(".ob-cancel").getBoundingClientRect();
       return {
         height: cardRect.height,
-        actionsVisible: nextRect.bottom <= cardRect.bottom && cancelRect.bottom <= cardRect.bottom,
+        actionsVisible: nextRect.bottom <= cardRect.bottom,
       };
     });
     expect(layout.height).toBeLessThanOrEqual(380);
@@ -112,7 +120,7 @@ test.describe("Map setup", () => {
 
   test("can reopen setup while the previous modal is fading out", async ({ page }) => {
     await page.click("#filterToggle");
-    await page.getByRole("button", { name: "Keep current choices" }).click();
+    await page.getByRole("button", { name: "Close map setup" }).click();
     await page.waitForTimeout(50);
     await page.locator("#filterToggle").click({ force: true });
     await expect(page.locator("#onboardingOverlay")).toBeVisible();
@@ -121,10 +129,11 @@ test.describe("Map setup", () => {
   });
 
   test("plays the card exit animation before closing", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.click("#filterToggle");
     const overlay = page.locator("#onboardingOverlay");
-    await page.getByRole("button", { name: "Keep current choices" }).click();
-    expect(await overlay.evaluate((el) => el.classList.contains("fading-out"))).toBe(true);
+    await page.getByRole("button", { name: "Close map setup" }).dispatchEvent("click");
+    expect(await overlay.evaluate((el) => el.hidden || el.classList.contains("fading-out"))).toBe(true);
     await expect(overlay).toBeHidden();
   });
 
@@ -136,17 +145,27 @@ test.describe("Map setup", () => {
 
   test("clicking the translucent backdrop returns to the map", async ({ page }) => {
     await page.click("#filterToggle");
+    await page.getByRole("button", { name: "Choose categories" }).click();
+    const chip = page.locator('.onboarding-chip[aria-pressed="true"]').first();
+    const key = await chip.getAttribute("data-key");
+    await chip.click();
     await page.locator("#onboardingOverlay").click({ position: { x: 4, y: 4 } });
     await expect(page.locator("#onboardingOverlay")).toBeHidden();
     await expect(page.locator("#inspectorTitle")).toHaveText("Nearby");
+    expect(await page.evaluate((filterKey) => state.overviewFilters.includes(filterKey), key)).toBe(false);
   });
 
   test("pressing Escape closes the setup modal", async ({ page }) => {
     await page.click("#filterToggle");
     await expect(page.locator("#onboardingOverlay")).toBeVisible();
+    await page.getByRole("button", { name: "Choose categories" }).click();
+    const chip = page.locator('.onboarding-chip[aria-pressed="true"]').first();
+    const key = await chip.getAttribute("data-key");
+    await chip.click();
     await page.keyboard.press("Escape");
     await expect(page.locator("#onboardingOverlay")).toBeHidden();
     await expect(page.locator("#inspectorTitle")).toHaveText("Nearby");
+    expect(await page.evaluate((filterKey) => state.overviewFilters.includes(filterKey), key)).toBe(false);
   });
 
   test.describe("adding a filter whose matches are all outside the radius", () => {

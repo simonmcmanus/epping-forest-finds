@@ -1381,6 +1381,25 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
   const banner = els.consentBanner;
   if (!banner || (!askLocation && !askAnalytics && !offerOnboarding)) return false;
   let stage = askLocation && askAnalytics ? "permissions" : askLocation ? "location" : askAnalytics ? "analytics" : "onboarding";
+  let onboardingAttentionTimer = null;
+  let onboardingAttentionFallbackTimer = null;
+  let onboardingAttentionEndHandler = null;
+
+  function clearOnboardingAttention() {
+    if (onboardingAttentionTimer !== null) {
+      clearTimeout(onboardingAttentionTimer);
+      onboardingAttentionTimer = null;
+    }
+    if (onboardingAttentionFallbackTimer !== null) {
+      clearTimeout(onboardingAttentionFallbackTimer);
+      onboardingAttentionFallbackTimer = null;
+    }
+    if (onboardingAttentionEndHandler) {
+      banner.removeEventListener("animationend", onboardingAttentionEndHandler);
+      onboardingAttentionEndHandler = null;
+    }
+    banner.classList.remove("onboarding-attention");
+  }
 
   function renderPermissionsStage() {
     banner.setAttribute("aria-label", "Location and usage analytics");
@@ -1421,13 +1440,29 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
     banner.setAttribute("aria-label", "Map setup");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Make the map yours";
     if (els.consentBannerText) {
-      els.consentBannerText.innerHTML = "Choose the finds you want to see. You can change these anytime in Map setup.";
+      els.consentBannerText.innerHTML = "Choose the finds you want to see. You can change these anytime with the Map setup button.";
     }
     if (els.consentBannerDecline) els.consentBannerDecline.textContent = "Explore first";
     if (els.consentBannerAccept) els.consentBannerAccept.textContent = "Set up my map";
+    clearOnboardingAttention();
+    onboardingAttentionTimer = setTimeout(() => {
+      onboardingAttentionTimer = null;
+      if (stage !== "onboarding" || banner.hidden) return;
+      banner.classList.add("onboarding-attention");
+      const finishAttention = () => {
+        clearOnboardingAttention();
+        if (typeof pulseFilterSetupButton === "function") pulseFilterSetupButton();
+        cleanup();
+        hideNoticeCard(banner);
+      };
+      onboardingAttentionEndHandler = finishAttention;
+      banner.addEventListener("animationend", finishAttention, { once: true });
+      onboardingAttentionFallbackTimer = setTimeout(finishAttention, 900);
+    }, 20_000);
   }
 
   function cleanup() {
+    clearOnboardingAttention();
     els.consentBannerAccept?.removeEventListener("click", onAccept);
     els.consentBannerDecline?.removeEventListener("click", onDecline);
   }
@@ -2898,7 +2933,7 @@ function openFilterSetup() {
 
   showOnboarding({ mode: "filters" }).then((result) => {
     state.filterScreenOpen = false;
-    if (!result.cancelled && Array.isArray(result.filters)) setOverviewFilters(result.filters);
+    if (Array.isArray(result.filters)) setOverviewFilters(result.filters);
     updateFilterUi();
     if (window.location.pathname === ROUTE_PATHS[ROUTE_FILTERS]) {
       replaceHashInPlace("");

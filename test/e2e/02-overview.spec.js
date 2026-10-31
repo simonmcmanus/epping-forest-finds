@@ -146,7 +146,7 @@ test.describe("Overview / Nearby screen", () => {
     await expect(page.locator("#filterToggle")).not.toHaveAttribute("aria-current", "page");
     await page.getByRole("button", { name: "Choose categories" }).click();
     await page.locator('.onboarding-chip[data-key="trees"]').click();
-    await page.getByRole("button", { name: "Keep current choices" }).click();
+    await page.getByRole("button", { name: "Close map setup" }).click();
     await page.click("#nearbyToggle");
     await expect(page.locator("#filterToggle")).not.toHaveAttribute("aria-current", "page");
     await expect(page.locator("#filterToggle")).toHaveAccessibleName(/^Map setup/);
@@ -310,7 +310,7 @@ test.describe("Overview / Nearby screen", () => {
   test("Map setup keeps Nearby and the header controls in place behind the modal", async ({ page }) => {
     await page.click("#filterToggle");
     await expect(page.locator("#filterToggle")).toBeVisible();
-    await expect(page.locator("#inspectorBack")).toBeHidden();
+    await expect(page.locator("#inspectorBack")).toBeDisabled();
     await expect(page.locator("#inspectorTitle")).toHaveText("Nearby");
     await expect(page.locator("#filterToggle")).toBeVisible();
   });

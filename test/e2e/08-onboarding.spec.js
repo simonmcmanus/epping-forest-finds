@@ -34,6 +34,16 @@ test.describe("Onboarding", () => {
       await expect(dialog).toHaveAttribute("aria-modal", "true");
     });
 
+    test("the first-run invite points to persistent map setup and fades after a pause", async ({ page }) => {
+      await page.goto("/nearby");
+      await page.locator("#consentBannerDecline").click();
+      await expect(page.locator("#consentBannerText")).toContainText("Map setup button");
+      await expect(page.locator("#filterToggle")).toBeVisible();
+      await page.waitForFunction(() => document.querySelector("#consentBanner")?.classList.contains("onboarding-attention"));
+      await expect.poll(() => page.locator("#filterToggle").evaluate((el) => el.classList.contains("filter-toggle-hint"))).toBe(true);
+      await expect(page.locator("#consentBanner")).toBeHidden();
+    });
+
     test("Escape does not accidentally finish first-run setup", async ({ page }) => {
       await page.goto("/nearby");
       await page.locator("#consentBannerDecline").click();
@@ -139,7 +149,7 @@ test.describe("Onboarding", () => {
 
     test("closing filter setup does not mark first-visit onboarding as completed", async ({ page }) => {
       await gotoAndWaitForMap(page, "/nearby/filter?show=pubs");
-      await page.getByRole("button", { name: "Keep current choices" }).click();
+      await page.getByRole("button", { name: "Close map setup" }).click();
       await expect(page.locator("#onboardingOverlay")).toBeHidden();
       expect(await page.evaluate(() => localStorage.getItem("forest-finds-onboarding-v1"))).toBeNull();
     });
