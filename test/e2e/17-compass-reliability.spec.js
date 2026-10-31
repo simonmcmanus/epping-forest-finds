@@ -240,6 +240,27 @@ test.describe("compass reliability", () => {
     })).toBeLessThan(5);
   });
 
+  test("a failed camera animation does not leave compass following permanently blocked", async ({ page }) => {
+    const result = await page.evaluate(async () => {
+      const originalRequestDraw = requestDraw;
+      let failed = false;
+      requestDraw = () => {
+        failed = true;
+        throw new Error("simulated transient camera render failure");
+      };
+      animateViewportTo({ ...state.viewport, tx: state.viewport.tx + 100 }, 500);
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      requestDraw = originalRequestDraw;
+      const blockedBefore = selectionCameraTransitionActive();
+      const recovered = recoverWedgedAnimationFrames(performance.now() + ANIMATION_FRAME_WEDGED_MS + 1000);
+      return { failed, blockedBefore, recovered, blockedAfter: selectionCameraTransitionActive() };
+    });
+    expect(result.failed).toBe(true);
+    expect(result.blockedBefore).toBe(true);
+    expect(result.recovered, "a failed camera frame must remain visible to the watchdog").toBe(true);
+    expect(result.blockedAfter, "compass following must be allowed to fit the camera again").toBe(false);
+  });
+
   test("returning to the app in the same spot keeps the heading instead of spinning back to north", async ({ page }) => {
     // Reported from the field: putting the phone down (sensor goes stale) and picking it back
     // up re-rotated the map from north even though the walker had not moved an inch.

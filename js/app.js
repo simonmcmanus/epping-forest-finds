@@ -2529,7 +2529,8 @@ function animateViewportTo(targetViewport, durationMs, onComplete, options = {})
   state.viewportAnimationDuration = safeDuration;
 
   const tick = (timestamp) => {
-    state.viewportAnimationFrameRequestedAt = null;
+    // Keep the timestamp through rendering so a thrown frame cannot hide a stranded camera.
+    // stopViewportAnimation clears it on completion; scheduling the next frame replaces it.
     if (!state.viewportAnimationFrom || !state.viewportAnimationTo) {
       stopViewportAnimation();
       return;
@@ -5142,15 +5143,19 @@ function startNativeHeading() {
 
 function onNativeHeading(reading) {
   if (!reading) return;
-  const trueHeading = Number(reading.trueHeading);
-  const heading = trueHeading >= 0 ? trueHeading : Number(reading.magneticHeading);
+  // Negative accuracy means invalid, not merely imprecise. Agreement between invalid
+  // samples cannot calibrate them, and they must not refresh the last valid heading.
+  const accuracy = reading.accuracy;
+  if (!Number.isFinite(accuracy) || accuracy < 0) return;
+  const heading = Number.isFinite(reading.trueHeading) && reading.trueHeading >= 0
+    ? reading.trueHeading
+    : reading.magneticHeading;
   if (!Number.isFinite(heading) || heading < 0) return;
   if (state.compassHeadingSource < HEADING_SOURCE_NATIVE) {
     state.compassHeadingSource = HEADING_SOURCE_NATIVE;
     discardCompassHeadingFromWorseSource();
   }
-  const accuracy = Number(reading.accuracy);
-  applyCompassReading(heading % 360, { trusted: accuracy >= 0 && accuracy <= NATIVE_HEADING_TRUSTED_ACCURACY_DEG });
+  applyCompassReading(heading % 360, { trusted: accuracy <= NATIVE_HEADING_TRUSTED_ACCURACY_DEG });
 }
 
 // remove-then-add is deliberate: on iOS re-registering is what nudges the orientation
@@ -5288,8 +5293,9 @@ function releaseStrandedAnimationFrames() {
 // tilt again, and a stranded viewportAnimationTo keeps selectionCameraTransitionActive() true so
 // alignHeadingUpNavigationViewport() bails on every call. That is the "the map just stops
 // moving, and the 3D tilt with it" report, and nothing short of a reload recovered from it.
-// So each loop now stamps when it asked for a frame and clears the stamp when that frame runs,
-// and a request still pending ANIMATION_FRAME_WEDGED_MS later is a wedge by definition.
+// Each loop stamps when it requests a frame. Loops that retain their handle while rendering
+// also retain the stamp until they finish, so an exception remains detectable by the watchdog.
+// A request still pending ANIMATION_FRAME_WEDGED_MS later is a wedge by definition.
 function animationFrameWedged(handle, requestedAt, now) {
   return handle != null && requestedAt != null && (now - requestedAt) > ANIMATION_FRAME_WEDGED_MS;
 }
