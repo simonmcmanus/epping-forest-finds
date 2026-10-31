@@ -33,7 +33,13 @@ function handleMapClick(event) {
 
   const world = screenToWorld(screen.x, screen.y);
   const lonLat = unprojectPoint(world);
-  const hit = (typeof findMapLabelHit === "function" && findMapLabelHit(screen)) || findHit(screen, world);
+  // Pins and drawn lines are the primary targets. A label's generous touch padding is only a
+  // fallback for the text itself, so tapping a tree/pin that happens to sit beside a label keeps
+  // selecting the visible pin rather than the label's feature.
+  const geometryHit = findHit(screen, world);
+  const hit = geometryHit.type !== "none"
+    ? geometryHit
+    : findMapLabelHit(screen) || geometryHit;
 
   // Two kinds of tap move the Nearby view instead of selecting something:
   //

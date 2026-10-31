@@ -18,7 +18,13 @@ const { generate: generateBusinessPages } = require("../../scripts/generate-busi
 const { loadAppRules } = require("../../scripts/report/map-inventory.js");
 const { escapeHtml } = require("../../scripts/lib/html-template.js");
 const businessIndex = require("../../data/business-slugs.json");
-const { gotoAndWaitForMap, skipOnboarding, setup } = require("./helpers");
+const {
+  gotoAndWaitForMap,
+  skipOnboarding,
+  setup,
+  settleMapIconsAndDraw,
+  tapCanvasPoint,
+} = require("./helpers");
 
 const REPO_ROOT = path.join(__dirname, "..", "..");
 
@@ -554,6 +560,136 @@ test.describe("generated find/nearby pages", () => {
         applyCowData(window.__loadedCows.cows, window.__loadedCows.pastures, window.__loadedCows.updatedAt, { persist: false });
       });
       await expect(page.locator("#otherScreen")).toHaveCount(1);
+    });
+
+    test("a rendered water label selects its pond from the canvas", async ({ page }) => {
+      await gotoAndWaitForMap(page, "/nearby/ponds-streams/");
+
+      await page.evaluate((key) => {
+        const water = state.waterFeatures.find((item) => waterHashKey(item) === key);
+        if (!water) throw new Error("example water feature not loaded");
+        const point = water.point || projectLonLat(water.longitude, water.latitude);
+        const scale = Math.max(state.fitScale * 8, 200000);
+        state.viewport = {
+          scale,
+          tx: els.canvas.width / 2 - point.x * scale,
+          ty: els.canvas.height / 2 - point.y * scale,
+        };
+        stopViewportAnimation();
+      }, EXAMPLE_WATER.key);
+      await settleMapIconsAndDraw(page);
+
+      const target = await page.evaluate((key) => {
+        const water = state.waterFeatures.find((item) => waterHashKey(item) === key);
+        const point = worldToScreen(water.point || projectLonLat(water.longitude, water.latitude));
+        const screen = { x: point.x, y: point.y };
+        const labelHit = findMapLabelHit(screen);
+        if (!labelHit || labelHit.type !== "water") throw new Error("water label was not registered");
+        const rect = (els.mapStage || els.canvas).getBoundingClientRect();
+        const dpr = pixelRatio();
+        return {
+          clientX: rect.left + (screen.x - state.canvasInsetX) / dpr,
+          clientY: rect.top + (screen.y - state.canvasInsetY) / dpr,
+          name: water.name,
+        };
+      }, EXAMPLE_WATER.key);
+
+      await tapCanvasPoint(page, target, { alreadyClient: true });
+      await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("water");
+      await expect(page.locator("#inspectorTitle")).toHaveText(target.name);
+      await expect(page.locator("#inspectorBody > .place-detail")).toHaveClass(/place-detail--water/);
+      await expect(page).toHaveTitle(`${target.name} near Epping Forest | Epping Forest Finds`);
+    });
+
+    test("a rendered waymarked path label opens its trail detail", async ({ page }) => {
+      await gotoAndWaitForMap(page, "/nearby/nature/");
+
+      await page.evaluate(() => {
+        const path = state.paths.find((item) => item.key === "way/4472471");
+        if (!path) throw new Error("example waymarked path not loaded");
+        const anchor = pathLabelAnchor(path);
+        const scale = Math.max(state.fitScale * 8, 200000);
+        state.viewport = {
+          scale,
+          tx: els.canvas.width / 2 - anchor.x * scale,
+          ty: els.canvas.height / 2 - anchor.y * scale,
+        };
+        stopViewportAnimation();
+      });
+      await settleMapIconsAndDraw(page);
+
+      const target = await page.evaluate(() => {
+        const path = state.paths.find((item) => item.key === "way/4472471");
+        const anchor = pathLabelAnchor(path);
+        const screen = worldToScreen(anchor);
+        const labelHit = findMapLabelHit(screen);
+        if (!labelHit || labelHit.type !== "path") throw new Error("path label was not registered");
+        const rect = (els.mapStage || els.canvas).getBoundingClientRect();
+        const dpr = pixelRatio();
+        return {
+          clientX: rect.left + (screen.x - state.canvasInsetX) / dpr,
+          clientY: rect.top + (screen.y - state.canvasInsetY) / dpr,
+          name: path.name,
+        };
+      });
+
+      await tapCanvasPoint(page, target, { alreadyClient: true });
+      await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("path");
+      await expect(page.locator("#inspectorTitle")).toHaveText(target.name);
+      await expect(page.locator("#inspectorType")).toHaveText("Waymarked trail");
+      await expect(page).toHaveTitle(`${target.name} near Epping Forest | Epping Forest Finds`);
+    });
+
+    test("a rendered named-place label opens its area detail and round-trips through #area", async ({ page }) => {
+      await gotoAndWaitForMap(page, "/nearby/nature/");
+
+      await page.evaluate(() => {
+        const scale = Math.max(state.fitScale * 8, 200000);
+        const feature = state.environmentFeatures.find(
+          (item) => item.properties?.featureType === "named_locality" && item.properties?.name === "High Beach"
+        );
+        if (!feature) throw new Error("High Beach locality not loaded");
+        const anchor = environmentFeatureAnchor(feature);
+        state.viewport = {
+          scale,
+          tx: els.canvas.width / 2 - anchor.point.x * scale,
+          ty: els.canvas.height / 2 - anchor.point.y * scale,
+        };
+        stopViewportAnimation();
+      });
+      await settleMapIconsAndDraw(page);
+
+      const target = await page.evaluate(() => {
+        const feature = state.environmentFeatures.find(
+          (item) => item.properties?.featureType === "named_locality" && item.properties?.name === "High Beach"
+        );
+        const anchor = environmentFeatureAnchor(feature);
+        const point = worldToScreen(anchor.point);
+        const rect = (els.mapStage || els.canvas).getBoundingClientRect();
+        const dpr = pixelRatio();
+        return {
+          clientX: rect.left + (point.x - state.canvasInsetX) / dpr,
+          clientY: rect.top + (point.y - state.canvasInsetY) / dpr,
+          name: feature.properties.name,
+          key: environmentHashKey(feature),
+        };
+      });
+
+      await tapCanvasPoint(page, target, { alreadyClient: true });
+      await expect(page.locator("#inspectorTitle")).toHaveText(target.name);
+      await expect(page.locator("#inspectorType")).toHaveText("Named place");
+      await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("environment");
+      const selection = await page.evaluate(() => ({
+        hash: window.location.hash,
+        compassTargetMatchesSelection: selectedCompassTarget() === state.selected.item,
+      }));
+      expect(selection.hash).toBe(`#area=${encodeURIComponent(target.key)}`);
+      expect(selection.compassTargetMatchesSelection).toBe(true);
+
+      await gotoAndWaitForMap(page, `/nearby/nature/#area=${encodeURIComponent(target.key)}`);
+      await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("environment");
+      await expect(page.locator("#inspectorTitle")).toHaveText(target.name);
+      await expect(page).toHaveTitle(`${target.name} near Epping Forest | Epping Forest Finds`);
     });
 
     test("a water feature's link on /nearby/ponds-streams/ selects that exact feature live, through the app's own #water= deep link -- no separate mechanism of its own", async ({ page }) => {

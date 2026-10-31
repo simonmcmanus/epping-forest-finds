@@ -37,20 +37,46 @@ const _iconMotionSlugByPath = new Map(Object.entries(ICON_PATHS).map(([slug, src
 // Canvas text is not a DOM element, so keep the visible label bounds alongside the frame that
 // painted them. inspector.js uses these regions before falling back to line/pin hit testing.
 let _mapLabelHitRegions = [];
+let _waterLabelLookupSource = null;
+let _waterLabelLookupLength = -1;
+let _waterLabelById = new Map();
+let _waterLabelByName = new Map();
 
 function resetMapLabelHitRegions() {
   _mapLabelHitRegions = [];
 }
 
+function waterFeatureForLabel(feature) {
+  const features = Array.isArray(state.waterFeatures) ? state.waterFeatures : [];
+  if (_waterLabelLookupSource !== features || _waterLabelLookupLength !== features.length) {
+    _waterLabelLookupSource = features;
+    _waterLabelLookupLength = features.length;
+    _waterLabelById = new Map();
+    _waterLabelByName = new Map();
+    for (const water of features) {
+      if (water && water.id != null && !_waterLabelById.has(String(water.id))) {
+        _waterLabelById.set(String(water.id), water);
+      }
+      if (water && water.name && !_waterLabelByName.has(water.name)) {
+        _waterLabelByName.set(water.name, water);
+      }
+    }
+  }
+  const properties = feature && feature.properties;
+  const id = properties && properties.id != null ? String(properties.id) : "";
+  const name = properties && properties.name ? properties.name : "";
+  return _waterLabelById.get(id) || _waterLabelByName.get(name) || null;
+}
+
 function registerMapLabelHit(type, item, point, text, ctx, padding = 10) {
   if (!point || !text || !ctx) return;
+  const water = type === "water-label" ? waterFeatureForLabel(item) : null;
+  if (type === "water-label" && !water) return;
   const width = ctx.measureText(String(text)).width;
   const fontSize = Number(ctx.font && String(ctx.font).match(/([0-9]+(?:\.[0-9]+)?)px/)?.[1]) || 10;
   _mapLabelHitRegions.push({
     type: type === "water-label" ? "water" : type,
-    item: type === "water-label"
-      ? (state.waterFeatures.find((water) => water.id === item?.properties?.id || water.name === item?.properties?.name) || item)
-      : item,
+    item: water || item,
     minX: point.x - width / 2 - padding,
     maxX: point.x + width / 2 + padding,
     minY: point.y - fontSize / 2 - padding,

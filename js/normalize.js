@@ -241,7 +241,7 @@ function environmentFeatureAnchor(feature) {
 
 function environmentHashKey(feature) {
   const properties = feature && feature.properties;
-  return (properties && properties.id) || (feature && feature.id) || (properties && properties.name) || "";
+  return (properties && properties.id) || (feature && feature.id) || "";
 }
 
 function isWaymarkedTrail(path) {
