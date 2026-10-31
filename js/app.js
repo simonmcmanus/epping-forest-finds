@@ -883,6 +883,13 @@ function applyRoute(raw, announceMissing = false) {
 function applyRouteToScreen(raw, announceMissing) {
   const value = String(raw || "").replace(/^#/, "").trim();
 
+  // The setup route owns the modal. A browser Back/Forward traversal to any other route must
+  // dismiss it before that destination renders, otherwise the old dialog can remain over a new
+  // screen while its filter state still claims the compatibility route is active.
+  if (value !== ROUTE_FILTERS && mapSetupModalActive()) {
+    dismissOnboarding();
+  }
+
   // Whatever the route turns out to be, arriving at one is navigating away from an expanded
   // map group -- the one screen with no URL of its own (see urlMatchesCurrentScreen).
   state.clusterZoomed = false;

@@ -70,6 +70,14 @@ test.describe("Map setup", () => {
     await expect(page.getByRole("heading", { name: "What would you like to see?" })).toBeVisible();
   });
 
+  test("browser Back dismisses setup before returning to Nearby", async ({ page }) => {
+    await page.click("#filterToggle");
+    await expect(page.locator("#onboardingOverlay")).toBeVisible();
+    await page.goBack();
+    await expect(page.locator("#onboardingOverlay")).toBeHidden();
+    await expect(page.locator("#inspector")).toContainText("Nearby");
+  });
+
   test("the map stays visible behind the setup dialog", async ({ page }) => {
     await page.click("#filterToggle");
     await expect(page.locator("#mapCanvas")).toBeVisible();
