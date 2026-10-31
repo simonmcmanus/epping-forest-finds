@@ -8,7 +8,7 @@
   background: rgba(232, 240, 231, 0.80);
   backdrop-filter: blur(16px);
   padding: 20px;
-  transition: opacity 0.35s ease;
+  transition: opacity 0.34s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .onboarding-overlay[hidden] {
@@ -26,25 +26,32 @@
 }
 
 @keyframes ob-card-in {
-  from { opacity: 0; transform: translateY(18px) scale(0.97); }
+  from { opacity: 0; transform: translateY(10px) scale(0.985); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
 @keyframes ob-card-out {
   from { opacity: 1; transform: translateY(0) scale(1); }
-  to { opacity: 0; transform: translateY(18px) scale(0.97); }
+  to { opacity: 0; transform: translateY(10px) scale(0.985); }
 }
 
 .onboarding-overlay.opening {
-  animation: ob-overlay-in 0.22s ease-out both;
+  animation: ob-overlay-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: opacity;
 }
 
 .onboarding-overlay.opening .onboarding-card {
   animation: ob-card-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: opacity, transform;
+}
+
+.onboarding-overlay.fading-out {
+  will-change: opacity;
 }
 
 .onboarding-overlay.fading-out .onboarding-card {
-  animation: ob-card-out 0.28s cubic-bezier(0.4, 0, 1, 1) both;
+  animation: ob-card-out 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: opacity, transform;
 }
 
 .onboarding-overlay.filter-setup {
