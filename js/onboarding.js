@@ -50,29 +50,28 @@ function mapSetupIconMarkup() {
 }
 
 function mapSetupSelectionPreviewMarkup(selected) {
-  const current = FILTER_GROUPS.flatMap((group) => group.subfilters)
-    .filter((subfilter) => selected.has(subfilter.key));
-  if (!current.length) {
-    return `
-      <div class="onboarding-selection-card">
-        <div class="onboarding-selection-heading">
-          <span class="onboarding-selection-label">Currently set to</span>
-          <span class="onboarding-selection-count">0 shown</span>
-        </div>
-        <p class="onboarding-selection-empty">Nothing is selected yet.</p>
-      </div>
-    `;
-  }
+  const groups = FILTER_GROUPS.map((group) => {
+    const shown = group.subfilters.filter((subfilter) => selected.has(subfilter.key)).length;
+    return { ...group, shown, total: group.subfilters.length };
+  });
+  const selectedCount = groups.reduce((count, group) => count + group.shown, 0);
   return `
     <div class="onboarding-selection-card">
       <div class="onboarding-selection-heading">
         <span class="onboarding-selection-label">Currently set to</span>
-        <span class="onboarding-selection-count">${current.length} shown</span>
+        <span class="onboarding-selection-count">${selectedCount} shown</span>
       </div>
-      <div class="onboarding-selection-preview" aria-label="Currently shown categories">
-      ${current.map((subfilter) => `
-        <span class="onboarding-selection-item" role="img" aria-label="${subfilter.label}" title="${subfilter.label}">
-          <img src="data/icons/${subfilter.icon}.png" alt="">
+      <div class="onboarding-selection-preview" aria-label="Currently shown category groups">
+      ${groups.map((group) => `
+        <span class="onboarding-selection-item${group.shown ? "" : " is-empty"}"
+          role="img"
+          aria-label="${group.label}: ${group.shown} of ${group.total} categories shown"
+          title="${group.label}: ${group.shown}/${group.total}">
+          <span class="onboarding-selection-icon"><img src="data/icons/${group.icon}.png" alt=""></span>
+          <span class="onboarding-selection-item-copy">
+            <span class="onboarding-selection-item-label">${group.label}</span>
+            <span class="onboarding-selection-item-group">${group.shown}/${group.total}</span>
+          </span>
         </span>
       `).join("")}
       </div>
