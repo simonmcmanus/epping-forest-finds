@@ -299,9 +299,7 @@ globalThis.__forestFindsTest = {
   SEARCH_RANK_SUBSTRING,
   SEARCH_RANK_TOKENS,
   SEARCH_HIGHLIGHT_LIMIT,
-  SEARCH_CAMERA_FIT_DEBOUNCE_MS,
   updateSearchHighlight,
-  fitSearchCameraToHighlight,
   buildSearchIconLookup,
   activeIconLookup,
   markerOpacityFor,
@@ -3321,45 +3319,6 @@ test("minimized inspector preserves user-controlled map position on GPS updates"
   assert.deepEqual(app.state.viewport, { scale: 1000, tx: 123, ty: 456 });
 });
 
-test("a GPS fix or compass tick while Search is open leaves the camera on the search fit, not the Nearby ring", () => {
-  // alignHeadingUpNavigationViewport is the walking-radius ring's own framing, applied directly
-  // (no animation) and reached both from every watchPosition fix -- nearbyNavigationAnchorActive()
-  // is true throughout Search, same as plain Nearby, since neither has a real selection -- and
-  // from ensureOverviewTargetsVisible, which every other caller (compass ticks, filter changes)
-  // routes through under the same condition. Before this test's fix, any of those silently
-  // snapped a still-open search back to the ring, sometimes long after the search's own fit
-  // (updateSearchHighlight/fitSearchCameraToHighlight) had settled.
-  resetSearchData(app);
-  app.els.inspector.classList.remove("minimized");
-  app.state.userLocation = makePoint(app, 0, 0);
-  addSearchFixtures(app);
-  app.state.landmarks.push({ id: "far-pub", name: "Distant Forest Tavern", category: "pub", categoryTags: ["pub"], ...makePoint(app, 0.3, 0.3) });
-  app.state.searchScreenOpen = true;
-  app.searchResultsHtml("distant forest tavern");
-  assert.ok(app.state.searchHighlightResults.length > 0);
-
-  // Settle the search's own (debounced) fit first, exactly as a real session would before any
-  // GPS fix arrives.
-  app.fitSearchCameraToHighlight();
-  assert.ok(app.state.viewportAnimationTo, "the search fit should have started a camera animation");
-  app.state.viewport = { ...app.state.viewportAnimationTo };
-  app.state.viewportAnimationTo = null;
-  const searchViewport = { ...app.state.viewport };
-
-  // Sanity check: with Search closed, this same call *does* re-fit to the ring (it is not
-  // simply inert) -- proving the guard below is what's holding it back, not some other reason.
-  app.state.searchScreenOpen = false;
-  const changedOutsideSearch = app.alignHeadingUpNavigationViewport();
-  assert.equal(changedOutsideSearch, true, "sanity: this call really does move the camera outside Search");
-  app.state.searchScreenOpen = true;
-  app.state.viewport = { ...searchViewport };
-
-  const changed = app.alignHeadingUpNavigationViewport();
-
-  assert.equal(changed, false, "should decline to touch the camera while Search has results");
-  assert.deepEqual(app.state.viewport, searchViewport, "and leave it exactly on the search fit");
-});
-
 test("heading-up viewport alignment defers when camera transition is pending", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
@@ -4708,71 +4667,66 @@ test("nearest-first: searching a whole category (cows) leads with the closest on
   assert.equal(results[1].item.serialNo, "far-cow");
 });
 
-test("the camera fit for a search keeps the user's own position in view, not just the matches", () => {
+// Centres the map on the user's own position at a close zoom: a match right beside the user is on
+// screen, one a few kilometres away is not.
+function centreViewportOnUser(app) {
+  app.state.viewport = { scale: 2000, tx: 0, ty: 0 };
+  const at = app.worldToScreen(app.state.userLocation.point);
+  app.state.viewport.tx += 500 - at.x;
+  app.state.viewport.ty += 400 - at.y;
+}
+
+test("searching never moves the map camera, even when a match lies off screen", () => {
   resetSearchData(app);
-  app.els.canvas.width = 1000;
-  app.els.canvas.height = 800;
   app.state.userLocation = makePoint(app, 0, 0);
   addSearchFixtures(app);
-  // A match far enough away that framing it alone would push the user's own position, at the
-  // opposite side of the view, off the edge of the canvas.
   app.state.landmarks.push({ id: "far-pub", name: "Distant Forest Tavern", category: "pub", categoryTags: ["pub"], ...makePoint(app, 0.3, 0.3) });
-
+  centreViewportOnUser(app);
+  const before = { ...app.state.viewport };
   app.state.searchScreenOpen = true;
   app.searchResultsHtml("distant forest tavern");
-
-  assert.ok(app.state.searchHighlightResults.length > 0, "the far match is in the highlighted set");
-  // The very first match to appear fits immediately, with no debounce -- see
-  // updateSearchHighlight's comment -- so state.viewportAnimationTo is set synchronously here.
-  // fitToPoints animates: it only sets the animation's target rather than state.viewport itself,
-  // so jump straight to that target rather than driving the animation loop forward.
-  assert.ok(app.state.viewportAnimationTo, "the search fit should start a camera animation");
-  app.state.viewport = { ...app.state.viewportAnimationTo };
-  const userScreenPoint = app.worldToScreen(app.state.userLocation.point);
-  assert.ok(
-    userScreenPoint.x >= 0 && userScreenPoint.x <= app.els.canvas.width
-      && userScreenPoint.y >= 0 && userScreenPoint.y <= app.els.canvas.height,
-    "the user's own position stays inside the fitted viewport alongside the match"
-  );
+  app.searchResultsHtml("english oak");
+  assert.ok(app.state.searchHighlightResults.length > 0, "the query still has matches to highlight");
+  assert.deepEqual({ ...app.state.viewport }, before, "the viewport is untouched by the search");
+  assert.equal(app.state.viewportAnimationTo, null, "no camera animation is started by the search");
 });
 
-test("a second, narrower query waits for a typing pause before re-fitting, but the first match never does", async () => {
+test("a search match that lies outside the visible map is still listed, marked as off the map", () => {
   resetSearchData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   addSearchFixtures(app);
-
+  app.state.landmarks.push({ id: "far-pub", name: "Distant Forest Tavern", category: "pub", categoryTags: ["pub"], ...makePoint(app, 0.3, 0.3) });
+  centreViewportOnUser(app);
   app.state.searchScreenOpen = true;
-  app.searchResultsHtml("english oak");
-  const firstFitTarget = app.state.viewportAnimationTo;
-  assert.ok(firstFitTarget, "the first match fits immediately, not after a debounce");
-  app.state.viewport = { ...firstFitTarget };
-  app.state.viewportAnimationTo = null;
+  const html = app.searchResultsHtml("distant forest tavern");
 
-  // Narrows to just the nearer tree -- a real result-set change, not a no-op.
-  app.searchResultsHtml("1234");
-  assert.equal(app.state.viewportAnimationTo, null, "a later change waits for the debounce rather than re-fitting immediately");
-
-  await new Promise((resolve) => setTimeout(resolve, app.SEARCH_CAMERA_FIT_DEBOUNCE_MS + 50));
-  assert.ok(app.state.viewportAnimationTo, "and the debounced fit lands once the pause elapses");
+  const row = html.split("<li>").find((chunk) => chunk.includes("Distant Forest Tavern"));
+  assert.ok(row, "the far match is listed in the results");
+  assert.match(row, /Off the map/, "the far match says it is off the map");
 });
 
-test("losing every match falls back to the Nearby ring instead of leaving the camera on the last search fit", () => {
+test("a search match that is on screen is not marked as off the map", () => {
   resetSearchData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   addSearchFixtures(app);
-  app.state.walkingDistanceMinutes = 60; // a ring wide enough to actually contain the fixtures
-
+  centreViewportOnUser(app);
   app.state.searchScreenOpen = true;
-  app.searchResultsHtml("english oak");
-  assert.ok(app.state.viewportAnimationTo, "the search fit lands immediately for the first match");
-  app.state.viewport = { ...app.state.viewportAnimationTo };
-  app.state.viewportAnimationTo = null;
+  const html = app.searchResultsHtml("english oak");
+  assert.ok(html.includes("english oak") || html.includes("English Oak"), "the nearby oak is listed");
+  assert.doesNotMatch(html, /Off the map/, "nothing on screen is marked off the map");
+});
 
-  // The query changes to something nothing on the map answers.
-  app.searchResultsHtml("zzzznothinghere");
-
-  assert.equal(app.state.searchHighlightResults.length, 0);
-  assert.ok(app.state.viewportAnimationTo, "losing every match should re-fit immediately, to the Nearby ring");
+test("moving to Settings or Feedback keeps the map's zoom where it was", () => {
+  resetSearchData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  addSearchFixtures(app);
+  centreViewportOnUser(app);
+  const before = { ...app.state.viewport };
+  for (const open of ["openSettings", "openReportModal"]) {
+    app[open]();
+    assert.equal(app.state.viewportAnimationTo, null, "no camera animation starts when the screen opens");
+    assert.equal(app.state.viewport.scale, before.scale, "the zoom level is unchanged");
+  }
 });
 
 test("the search index picks up data that arrived after the last search", () => {
