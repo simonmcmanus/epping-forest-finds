@@ -79,7 +79,35 @@ function ceilWalkingMinutes(minutes) {
 // "You" dot, the compass, or real navigation-to-a-selection -- those always reflect where the
 // user actually is.
 function nearbyOrigin() {
-  return state.nearbyAnchor || state.userLocation;
+  if (state.nearbyAnchor) return state.nearbyAnchor;
+  return isFarFromForest() ? highBeachStandIn() : state.userLocation;
+}
+
+// Beyond this from the forest boundary (15 minutes on foot) a visitor is "far": the map and Nearby
+// show the forest from High Beach, and nothing tries to walk them to a place.
+const FAR_FROM_FOREST_METRES = 1250;
+
+// True when a real, shared fix sits well outside the forest. state.farFromForest is kept current by
+// updateFarFromForest (js/app.js) on every fix and when the forest outline lands.
+function isFarFromForest() {
+  return Boolean(state.farFromForest) && hasRealLocation();
+}
+
+// Whether the app may give directions (route line, compass arrow, walk chip, keep-awake): needs a
+// real fix that is also within walking reach of the forest.
+function canGuideToPlaces() {
+  return hasRealLocation() && !state.farFromForest;
+}
+
+// DEFAULT_LOCATION as a location object, for Nearby while the visitor is far from the forest.
+// Rebuilt only if the projection changes the point, so identity stays stable between calls.
+let _highBeachStandIn = null;
+function highBeachStandIn() {
+  const point = projectLonLat(DEFAULT_LOCATION.longitude, DEFAULT_LOCATION.latitude);
+  if (!_highBeachStandIn || _highBeachStandIn.point.x !== point.x || _highBeachStandIn.point.y !== point.y) {
+    _highBeachStandIn = { latitude: DEFAULT_LOCATION.latitude, longitude: DEFAULT_LOCATION.longitude, accuracy: null, point, isDefault: true };
+  }
+  return _highBeachStandIn;
 }
 
 // A real GPS fix never holds perfectly still -- even standing on one spot, especially under

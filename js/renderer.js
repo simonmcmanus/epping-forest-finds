@@ -1431,7 +1431,7 @@ function selectedRouteIsFallback(target) {
 // time chip can never disagree with the drawn line, and so it benefits from the same movement-
 // threshold memoization -- calling this is not itself a source of extra Dijkstra runs.
 function selectedRouteMetres(target) {
-  if (!hasRealLocation() || !target || !target.point) return null;
+  if (!canGuideToPlaces() || !target || !target.point) return null;
   const points = selectedRoutePoints(target);
   if (!points || points.length < 2) return null;
   let metres = 0;
@@ -1451,7 +1451,7 @@ function selectedRouteMetres(target) {
 function drawSelectedRoute(ctx) {
   const target = selectedCompassTarget();
   // No shared location means no route: the stand-in origin is not where the reader is.
-  if (!hasRealLocation() || !target) return;
+  if (!canGuideToPlaces() || !target) return;
   if (!state.routingGraphReady) return;
 
   const dpr = pixelRatio();
