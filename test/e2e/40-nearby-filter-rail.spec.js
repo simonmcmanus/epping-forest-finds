@@ -2,7 +2,7 @@
 // Nearby's filter rail: a row of category pills that narrows the list in place (no panel slide).
 // See spec-data-rendering.md "Nearby filter rail".
 const { test, expect } = require("@playwright/test");
-const { setup, waitForUiToSettle } = require("./helpers");
+const { setup, waitForUiToSettle, waitForFrames } = require("./helpers");
 
 // A GPS fix inside Epping Forest, with trees, ponds and pubs around it.
 const FOREST_LOCATION = { latitude: 51.6650, longitude: 0.0450, accuracy: 10 };
@@ -251,8 +251,8 @@ test.describe("Nearby pill arrival", () => {
       const row = rail(page).locator(".rail-pills");
       await expect(row).toBeVisible();
       expect(await row.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeGreaterThan(8);
-      // Observe the complete arrival, including any delayed automatic movement.
-      await page.waitForTimeout(2200);
+      // Nothing should move: let frames render, then assert no automatic scroll happened.
+      await waitForFrames(page, 120);
       await testInfo.attach(`${label}-arrival`, { body: await rail(page).screenshot(), contentType: "image/png" });
       expect(await page.evaluate(() => window.__arrivalScroll)).toBe(0);
       await row.evaluate((el) => { el.scrollLeft = 48; });
