@@ -124,7 +124,7 @@ The point of the wrapper. The rules are the app's own and identical on every pla
 
 - `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `INTERNET`; `android.hardware.location.gps` declared not required.
 - Portrait only.
-- `allowBackup="false"`: a restored Android backup would bring back the downloaded-data index (see Delta updates) without the files it points to, so the app always starts from its bundled data.
+- `allowBackup="false"`: nothing is restored from an Android backup onto a new install, so a fresh install always starts from its bundled data (see Delta updates) and never from stale downloaded data or stored settings carried over from another device.
 
 ### Hard constraint: background location is for the user, not for analytics
 
