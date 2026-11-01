@@ -561,6 +561,35 @@ function traceAheadOnlyPath(ctx, worldPoints) {
 // Used for roads and paths which should remain visible even when behind the user's
 // heading direction in tilt mode (unlike terrain/sky which is culled). Returns false
 // when no points were drawn (nothing to stroke).
+// Items carrying a world-space `bbox` ({minX,maxX,minY,maxY}), filtered to those overlapping `view`
+// without touching each item every frame: boxes live in one flat typed array built once per array
+// (rebuilt if its length changes). An item with no bbox is never culled. Order is preserved.
+const _bboxItemIndex = new WeakMap();
+function itemsOverlappingView(items, view) {
+  if (!view) return items;
+  let index = _bboxItemIndex.get(items);
+  if (!index || index.length !== items.length) {
+    const boxes = new Float64Array(items.length * 4);
+    for (let i = 0; i < items.length; i += 1) {
+      const b = items[i] && items[i].bbox;
+      boxes[i * 4] = b ? b.minX : -Infinity;
+      boxes[i * 4 + 1] = b ? b.maxX : Infinity;
+      boxes[i * 4 + 2] = b ? b.minY : -Infinity;
+      boxes[i * 4 + 3] = b ? b.maxY : Infinity;
+    }
+    index = { length: items.length, boxes };
+    _bboxItemIndex.set(items, index);
+  }
+  const { boxes } = index;
+  const visible = [];
+  for (let i = 0; i < items.length; i += 1) {
+    const o = i * 4;
+    if (boxes[o + 1] < view.minX || boxes[o] > view.maxX || boxes[o + 3] < view.minY || boxes[o + 2] > view.maxY) continue;
+    visible.push(items[i]);
+  }
+  return visible;
+}
+
 function traceAllPath(ctx, worldPoints) {
   let any = false;
   for (let i = 0; i < worldPoints.length; i += 1) {
@@ -593,11 +622,8 @@ function drawPaths(ctx) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
-  for (const path of state.paths) {
-    if (path.bbox) {
-      if (path.bbox.maxX < minWorldX - margin || path.bbox.minX > maxWorldX + margin) continue;
-      if (path.bbox.maxY < minWorldY - margin || path.bbox.minY > maxWorldY + margin) continue;
-    }
+  const view = { minX: minWorldX - margin, maxX: maxWorldX + margin, minY: minWorldY - margin, maxY: maxWorldY + margin };
+  for (const path of itemsOverlappingView(state.paths, view)) {
 
     const pathColor = path.pathType === "bridleway"
       ? "rgba(113, 77, 35, 0.9)"
@@ -681,11 +707,8 @@ function drawRoads(ctx) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
-  for (const road of state.roads) {
-    if (road.bbox) {
-      if (road.bbox.maxX < minWorldX - margin || road.bbox.minX > maxWorldX + margin) continue;
-      if (road.bbox.maxY < minWorldY - margin || road.bbox.minY > maxWorldY + margin) continue;
-    }
+  const view = { minX: minWorldX - margin, maxX: maxWorldX + margin, minY: minWorldY - margin, maxY: maxWorldY + margin };
+  for (const road of itemsOverlappingView(state.roads, view)) {
 
     let roadColor, roadWidth;
     switch (road.roadType) {
@@ -758,10 +781,9 @@ function drawEnvironment(ctx) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
-  for (const feature of state.environmentFeatures) {
+  for (const feature of environmentFeaturesInView(state.environmentFeatures, view)) {
     const geometry = feature.geometry || {};
     const type = feature.properties && feature.properties.featureType;
-    if (!environmentGeometryInView(geometry, view)) continue;
 
     if (type === "hydrology_area") {
       drawEnvironmentPolygon(ctx, geometry, {
@@ -850,11 +872,10 @@ function drawEnvironment(ctx) {
 
     ctx.save();
     ctx.globalAlpha = fadeAlpha;
-    for (const feature of state.buildingFeatures) {
+    // Whole-footprint bbox rather than the first vertex alone: never culls a building that
+    // pokes into view, and reads a cached bbox instead of re-projecting ~20k vertices a frame.
+    for (const feature of environmentFeaturesInView(state.buildingFeatures, view)) {
       const geom = feature.geometry || {};
-      // Whole-footprint bbox rather than the first vertex alone: never culls a building that
-      // pokes into view, and reads a cached bbox instead of re-projecting ~20k vertices a frame.
-      if (!environmentGeometryInView(geom, view)) continue;
       drawEnvironmentPolygon(ctx, geom, {
         fill: BUILDING_FILL,
         stroke: BUILDING_OUTLINE,
@@ -944,6 +965,36 @@ function environmentGeometryInView(geometry, view) {
   if (!view) return true;
   const g = projectedEnvironmentGeometry(geometry);
   return !(g.maxX < view.minX || g.minX > view.maxX || g.maxY < view.minY || g.minY > view.maxY);
+}
+
+// Flat [minX, maxX, minY, maxY, ...] boxes for a feature array, built once per array (rebuilt if
+// its length changes). Scanning ~28k features a frame through a WeakMap lookup each was the
+// largest single cost of a pan at default zoom, where only a couple of hundred are on screen.
+const _environmentBoundsIndex = new WeakMap();
+
+function environmentFeaturesInView(features, view) {
+  if (!view) return features;
+  let index = _environmentBoundsIndex.get(features);
+  if (!index || index.length !== features.length) {
+    const boxes = new Float64Array(features.length * 4);
+    for (let i = 0; i < features.length; i += 1) {
+      const g = projectedEnvironmentGeometry((features[i] && features[i].geometry) || {});
+      boxes[i * 4] = g.minX;
+      boxes[i * 4 + 1] = g.maxX;
+      boxes[i * 4 + 2] = g.minY;
+      boxes[i * 4 + 3] = g.maxY;
+    }
+    index = { length: features.length, boxes };
+    _environmentBoundsIndex.set(features, index);
+  }
+  const { boxes } = index;
+  const visible = [];
+  for (let i = 0; i < features.length; i += 1) {
+    const o = i * 4;
+    if (boxes[o + 1] < view.minX || boxes[o] > view.maxX || boxes[o + 3] < view.minY || boxes[o + 2] > view.maxY) continue;
+    visible.push(features[i]);
+  }
+  return visible;
 }
 
 function drawEnvironmentLines(ctx, geometry, style) {
