@@ -27,10 +27,12 @@ public class ForestHeadingPlugin extends Plugin implements SensorEventListener {
     // a second, far more than the map can draw and each one is a message across the bridge.
     private static final long MIN_INTERVAL_MS = 50;
     private static final float MIN_CHANGE_DEG = 0.5f;
+    private static final float UPRIGHT_THRESHOLD = 0.5f;
 
     private SensorManager sensorManager;
     private Sensor rotationSensor;
     private final float[] rotationMatrix = new float[9];
+    private final float[] remappedMatrix = new float[9];
     private final float[] orientation = new float[3];
     private int sensorStatus = SensorManager.SENSOR_STATUS_UNRELIABLE;
     private Float declination = null;
@@ -91,8 +93,16 @@ public class ForestHeadingPlugin extends Plugin implements SensorEventListener {
     @Override
     public void onSensorChanged(SensorEvent event) {
         SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values);
-        SensorManager.getOrientation(rotationMatrix, orientation);
-        // The app is portrait-locked, so the device's top edge is the reference with no remap.
+        // Flat (or nearly) the device's top edge is the reference. Held upright, as it is when
+        // walking with the map in front of you, the top edge points at the sky and its azimuth
+        // swings wildly; the direction the back of the phone faces is the stable one then.
+        // rotationMatrix[8] is how far the screen faces up or down: 1 flat, 0 upright.
+        if (Math.abs(rotationMatrix[8]) < UPRIGHT_THRESHOLD) {
+            SensorManager.remapCoordinateSystem(rotationMatrix, SensorManager.AXIS_X, SensorManager.AXIS_Z, remappedMatrix);
+            SensorManager.getOrientation(remappedMatrix, orientation);
+        } else {
+            SensorManager.getOrientation(rotationMatrix, orientation);
+        }
         float magnetic = normalise((float) Math.toDegrees(orientation[0]));
         float heading = declination == null ? magnetic : normalise(magnetic + declination);
 

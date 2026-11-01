@@ -210,7 +210,7 @@ a.nearest-item {
     top: auto;
     left: 10px;
     right: 10px;
-    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(10px + var(--safe-bottom));
     border-radius: 20px;
     width: auto;
   }
@@ -219,14 +219,14 @@ a.nearest-item {
     top: auto;
     left: 10px;
     right: 10px;
-    bottom: calc(10px + env(safe-area-inset-bottom, 0px) + var(--nav-bar-h) + 10px);
+    bottom: calc(10px + var(--safe-bottom) + var(--nav-bar-h) + 10px);
     width: auto;
     /* Keep one expanded footprint for every screen and selection. The nav bar lives outside the
        sheet, so subtract its footprint from the available space. A manual drag stores its chosen
        height in --inspector-height and takes precedence over the default 50% footprint. */
-    height: min(var(--inspector-height, 50%), calc(100% - var(--nav-bar-h) - 10px - env(safe-area-inset-bottom, 0px)));
-    min-height: min(90px, calc(100% - var(--nav-bar-h) - 10px - env(safe-area-inset-bottom, 0px)));
-    max-height: calc(100% - var(--nav-bar-h) - 10px - env(safe-area-inset-bottom, 0px));
+    height: min(var(--inspector-height, 50%), calc(100% - var(--nav-bar-h) - 10px - var(--safe-bottom)));
+    min-height: min(90px, calc(100% - var(--nav-bar-h) - 10px - var(--safe-bottom)));
+    max-height: calc(100% - var(--nav-bar-h) - 10px - var(--safe-bottom));
     transition: height 420ms cubic-bezier(0.22, 0.61, 0.36, 1);
   }
 
@@ -278,7 +278,7 @@ a.nearest-item {
 (orientation: landscape) and (pointer: coarse) and (max-height: 500px) {
   .inspector.keyboard-avoiding {
     /* Keep the fixed panel height and only shift it above the keyboard. */
-    bottom: calc(10px + env(safe-area-inset-bottom, 0px) + var(--nav-bar-h) + 10px + var(--keyboard-inset, 0px));
+    bottom: calc(10px + var(--safe-bottom) + var(--nav-bar-h) + 10px + var(--keyboard-inset, 0px));
   }
 
 }
@@ -292,7 +292,7 @@ a.nearest-item {
    (top-right) and the mobile bottom-sheet inspector. */
 .compass-calibration-banner {
   position: absolute;
-  top: calc(14px + env(safe-area-inset-top, 0px));
+  top: calc(14px + var(--safe-top));
   left: 14px;
   z-index: 3;
   max-width: min(320px, calc(100vw - 84px));
@@ -365,7 +365,7 @@ a.nearest-item {
    the rare occasion both are visible at once. */
 .event-nearby-banner {
   position: absolute;
-  top: calc(74px + env(safe-area-inset-top, 0px));
+  top: calc(74px + var(--safe-top));
   left: 14px;
   z-index: 3;
   max-width: min(320px, calc(100vw - 84px));

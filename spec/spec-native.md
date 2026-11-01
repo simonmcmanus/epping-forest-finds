@@ -124,6 +124,7 @@ The point of the wrapper. The rules are the app's own and identical on every pla
 
 - `ACCESS_FINE_LOCATION`, `ACCESS_COARSE_LOCATION`, `INTERNET`; `android.hardware.location.gps` declared not required.
 - Portrait only.
+- `allowBackup="false"`: nothing is restored from an Android backup onto a new install, so a fresh install always starts from its bundled data (see Delta updates) and never from stale downloaded data or stored settings carried over from another device.
 
 ### Hard constraint: background location is for the user, not for analytics
 
@@ -138,7 +139,7 @@ Lives in the app projects, not an npm package: `native/ios/App/App/ForestHeading
 - `setLocation({ latitude, longitude })` → the declination Android needs for true north (iOS corrects itself and ignores it). The client re-sends it only after a move of 0.1° or more.
 - `heading` event `{ trueHeading, magneticHeading, accuracy, timestamp }`; `trueHeading` is negative until there is a position to correct from, and the client uses `magneticHeading` until then; `accuracy` is degrees, negative when unreliable.
 - **iOS** — `CLLocationManager.startUpdatingHeading()` with a 1° filter, portrait reference, and `locationManagerShouldDisplayHeadingCalibration` returning `true` so the OS runs the figure-8 calibration.
-- **Android** — `TYPE_ROTATION_VECTOR` at `SENSOR_DELAY_GAME`, corrected with `GeomagneticField`, sent at most every 50 ms and only on a change of 0.5° or more; accuracy from the rotation vector's own estimate, else the sensor status.
+- **Android** — `TYPE_ROTATION_VECTOR` at `SENSOR_DELAY_GAME`, corrected with `GeomagneticField`, sent at most every 50 ms and only on a change of 0.5° or more; accuracy from the rotation vector's own estimate, else the sensor status. Held upright (screen more than 60° off flat) the azimuth is taken from the direction the back of the phone faces (`remapCoordinateSystem(AXIS_X, AXIS_Z)`), because the top edge points at the sky there and its azimuth is unstable.
 
 The plugin replaces the heading *source*, not the pipeline: the existing smoothing, heading-up rotation, radar cone and tilt projection consume the same value. A reading at or under `NATIVE_HEADING_TRUSTED_ACCURACY_DEG` (25°) skips the calibration gate (`applyCompassReading(…, { trusted })`); an imprecise but valid one goes through it as WebKit's do. Negative or missing/non-numeric accuracy marks a reading unusable: it is ignored before source promotion, calibration, or freshness updates. Heading fields must also be finite numbers; an unavailable true heading falls back to a valid magnetic heading. The staleness watchdog (`recoverStalledCompass`) returns early for a native source. WebKit's orientation events still supply beta for the 3D tilt.
 
@@ -149,6 +150,7 @@ The plugin replaces the heading *source*, not the pipeline: the existing smoothi
 - **Keep-awake** — only while walking to a selected find with a real fix and the app in the foreground; released when the selection ends, the fix is lost or the app is backgrounded.
 - **Haptics** — a light tap on picking a Nearby row, one success haptic on arriving at the find (once per find). Nothing else.
 - **Share** — the native share sheet, always with the website address so a link shared from the app opens for anyone. The share button shows whenever the plugin is there (`Native.canShare()`), even in a WebView that exposes neither `navigator.share` nor the clipboard.
+- **Android system bars and cost** — the app targets an edge-to-edge window, so insets come from `--safe-top` / `--safe-bottom`, the larger of `env(safe-area-inset-*)` and the `--safe-area-inset-*` variables Capacitor injects for WebViews older than 140 (which report `env()` as 0). On Android the shell adds `html.native-android`: `backdrop-filter` blur is off, the canvas device pixel ratio is capped at 2 and its bitmap budget at 4 MP (9 MP elsewhere).
 - **Android back button** — the WebView handles it, and the web router already gives it the right behaviour ([spec.md](spec.md) § URL / navigation state).
 - **Follow-on (with signing):** universal links / app links on the production domain (`apple-app-site-association`, `assetlinks.json`), which need the Apple team id and the Play signing certificate.
 
