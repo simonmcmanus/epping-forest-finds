@@ -61,6 +61,25 @@ async function runAsNativeApp(page, { permission = "granted" } = {}) {
 const calls = (page) => page.evaluate(() => window.__nativeCalls);
 
 test.describe("the native app shell", () => {
+  test("on Android the map is drawn at a capped pixel ratio, without blurred panels, and clear of the system bars", async ({ page }) => {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await runAsNativeApp(page);
+    await page.addInitScript(() => {
+      window.__FORCE_NATIVE_SHIM__.platform = "android";
+      Object.defineProperty(window, "devicePixelRatio", { value: 3 });
+      // What Capacitor injects on a WebView that reports env() as 0.
+      document.documentElement.style.setProperty("--safe-area-inset-bottom", "48px");
+    });
+    await page.addInitScript(() => localStorage.setItem("ff-track-v1", "0"));
+    await gotoAndWaitForMap(page);
+
+    await expect(page.locator("html")).toHaveClass(/native-android/);
+    await expect.poll(() => page.evaluate(() => Number(document.getElementById("mapCanvas").dataset.dpr))).toBeLessThanOrEqual(2);
+    expect(await page.evaluate(() => getComputedStyle(document.querySelector(".inspector")).backdropFilter)).toBe("none");
+    expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--safe-bottom").trim())).not.toBe("");
+  });
+
   test("locates through the native plugin only, with no service worker and no compass ask", async ({ page }) => {
     await skipOnboarding(page);
     await mockCowApi(page);
