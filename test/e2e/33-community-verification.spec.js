@@ -796,6 +796,24 @@ test.describe("Trees added by walkers", () => {
   });
 });
 
+test.describe("Feedback form field sizing", () => {
+  test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ["geolocation"] });
+
+  test("single-line place fields are one line tall, not textarea-sized", async ({ page }) => {
+    await page.route(OVERLAY_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {} }) }));
+    await setup(page, "/feedback");
+    await page.selectOption("#reportType", "place");
+    const name = page.locator("#communityPlaceName");
+    const note = page.locator("#communityPlaceNote");
+    await expect(name).toBeVisible();
+    const nameBox = await name.boundingBox();
+    const noteBox = await note.boundingBox();
+    expect(nameBox.height).toBeLessThan(60);
+    expect(noteBox.height).toBeLessThan(60);
+  });
+});
+
 test.describe("Add a missing place", () => {
   test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ["geolocation"] });
 
