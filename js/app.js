@@ -104,6 +104,9 @@ const MAX_CANVAS_DIMENSION = 3072;
 // on the CPU path for much of the range, so the app shell draws them at a lower budget.
 const MAX_CANVAS_PIXEL_COUNT = Native.platform === "android" ? 4194304 : 9437184;
 const MAX_DEVICE_PIXEL_RATIO = Native.platform === "android" ? 2 : Infinity;
+function cappedDevicePixelRatio() {
+  return Math.min(window.devicePixelRatio || 1, MAX_DEVICE_PIXEL_RATIO);
+}
 const APP_VERSION = APP_CACHE_VERSION; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js).
 const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
 // The person's own answer to the in-app location ask (storedLocationChoice). Up here because boot()
@@ -2371,7 +2374,7 @@ function visibleCanvasRect() {
   // Fallback before first resizeCanvas() (early-boot only): read CSS layout dimensions.
   // Using els.canvas.width would return the oversized bitmap, not the visible viewport size.
   const stageEl = els.mapStage || els.canvas;
-  const dpr = window.devicePixelRatio || 1;
+  const dpr = cappedDevicePixelRatio();
   const r = stageEl.getBoundingClientRect();
   return { x: 0, y: 0, width: Math.max(1, Math.round(r.width * dpr)), height: Math.max(1, Math.round(r.height * dpr)) };
 }
@@ -2381,7 +2384,7 @@ function resizeCanvas() {
   _tiltProjectionCache = undefined;
   _nearbyRenderOriginCache = undefined;
   const rect = (els.mapStage || els.canvas).getBoundingClientRect();
-  const requestedDpr = Math.min(window.devicePixelRatio || 1, MAX_DEVICE_PIXEL_RATIO);
+  const requestedDpr = cappedDevicePixelRatio();
   const rawWidth = Math.max(1, rect.width);
   const rawHeight = Math.max(1, rect.height);
   // Overscan while heading-up is active, to cover the corners the CSS heading rotation
@@ -10034,7 +10037,7 @@ function escapeHtml(value) {
 }
 
 function pixelRatio() {
-  return Number(els.canvas.dataset.dpr || window.devicePixelRatio || 1);
+  return Number(els.canvas.dataset.dpr || cappedDevicePixelRatio());
 }
 
 function clamp(value, min, max) {
