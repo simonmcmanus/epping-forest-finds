@@ -159,7 +159,7 @@
   overflow: hidden;
   max-height: var(--consent-banner-height);
   transition:
-    opacity 0.56s ease,
+    opacity 0.32s ease,
     max-height 0.76s cubic-bezier(0.4, 0, 0.2, 1),
     margin-top 0.76s cubic-bezier(0.4, 0, 0.2, 1),
     padding-top 0.76s cubic-bezier(0.4, 0, 0.2, 1),
@@ -173,28 +173,6 @@
   padding-top: 0;
   padding-bottom: 0;
   border-width: 0;
-}
-
-/* Let the invitation's content leave in a small sequence: the copy and leaf settle first, then
-   the arrow and close affordance follow as the card's reserved space glides away. This keeps the
-   20-second nudge from reading like an abrupt DOM removal. */
-.consent-banner.onboarding-collapsing .consent-banner-logo,
-.consent-banner.onboarding-collapsing .consent-banner-copy,
-.consent-banner.onboarding-collapsing .consent-banner-map-setup-arrow,
-.consent-banner.onboarding-collapsing #consentBannerDecline {
-  transition: opacity 220ms ease, transform 320ms cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.consent-banner.onboarding-collapsing.onboarding-collapsed .consent-banner-logo,
-.consent-banner.onboarding-collapsing.onboarding-collapsed .consent-banner-copy {
-  opacity: 0;
-  transform: translateY(-6px);
-}
-
-.consent-banner.onboarding-collapsing.onboarding-collapsed .consent-banner-map-setup-arrow,
-.consent-banner.onboarding-collapsing.onboarding-collapsed #consentBannerDecline {
-  opacity: 0;
-  transform: translateY(8px) scale(0.82);
 }
 
 @keyframes consent-banner-attention {

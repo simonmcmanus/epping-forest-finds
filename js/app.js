@@ -1355,7 +1355,8 @@ function hideNoticeCard(banner, { collapse = false } = {}) {
     banner.style.setProperty("--consent-banner-height", `${banner.getBoundingClientRect().height}px`);
     void banner.offsetWidth;
     const reducedMotion = prefersReducedMotion();
-    const collapseDelay = reducedMotion ? 0 : 620;
+    // Fade out first (opacity 0.32s in css/loading.css), pause 100ms, then shrink the space.
+    const collapseDelay = reducedMotion ? 0 : 420;
     collapseTimer = setTimeout(() => banner.classList.add("onboarding-collapsed"), collapseDelay);
     hideTimer = setTimeout(finish, reducedMotion ? 160 : collapseDelay + 820);
   }
