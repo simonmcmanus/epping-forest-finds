@@ -35,10 +35,26 @@ test.describe("Onboarding", () => {
       await expect(dialog).toHaveAttribute("aria-modal", "true");
     });
 
+    test("the map setup hint scrolls away with the Nearby heading", async ({ page }) => {
+      await page.goto("/nearby");
+      await page.locator("#consentBannerDecline").click();
+      await expect(page.locator("#consentBannerMapSetupArrow")).toBeVisible();
+      const scroller = page.locator(".inspector-scroll");
+      const tops = () => page.evaluate(() => ({
+        hint: document.querySelector("#consentBanner").getBoundingClientRect().top,
+        setup: document.querySelector("#filterToggle").getBoundingClientRect().top,
+      }));
+      const before = await tops();
+      await scroller.evaluate((el) => { el.scrollTop = 60; });
+      await expect.poll(async () => (await tops()).hint).toBeLessThan(before.hint - 40);
+      const after = await tops();
+      expect(Math.abs((before.hint - after.hint) - (before.setup - after.setup)), "the hint moves with the button it points to").toBeLessThan(2);
+    });
+
     test("the first-run invite points to persistent map setup and fades after a pause", async ({ page }) => {
       await page.goto("/nearby");
       await page.locator("#consentBannerDecline").click();
-      await expect(page.locator("#consentBannerText")).toContainText("Map setup button");
+      await expect(page.locator("#consentBannerText")).toContainText("layers button");
       await expect(page.locator("#consentBannerMapSetupArrow")).toBeVisible();
       await expect(page.locator("#consentBannerDecline")).toHaveAccessibleName("Dismiss map setup hint");
       await expect(page.locator("#consentBannerAccept")).toBeHidden();
@@ -103,7 +119,7 @@ test.describe("Onboarding", () => {
       await page.goto("/nearby");
       await expect(page.locator("#consentBanner")).toContainText("Allow location & cookies");
       await page.locator("#consentBannerAccept").click();
-      await expect(page.locator("#consentBannerText")).toContainText("Map setup button");
+      await expect(page.locator("#consentBannerText")).toContainText("layers button");
       await expect(page.locator("#consentBannerMapSetupArrow")).toBeVisible();
     });
 
@@ -160,7 +176,7 @@ test.describe("Onboarding", () => {
 
     test("category landing pages do not show the Nearby setup hint", async ({ page }) => {
       await gotoAndWaitForMap(page, "/nearby/food");
-      await expect(page.locator("#consentBanner")).not.toContainText("Map setup button");
+      await expect(page.locator("#consentBanner")).not.toContainText("layers button");
       await expect(page.locator("#consentBanner")).not.toHaveClass(/onboarding-invite/);
     });
 

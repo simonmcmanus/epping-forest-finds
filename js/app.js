@@ -1327,6 +1327,20 @@ function offerLocationInvite({ blocked = false } = {}) {
   }
 }
 
+// The map setup hint points at the Map setup button, which scrolls away with the Nearby heading,
+// so while that hint shows it lives at the top of the scrolling screen and leaves with the heading.
+// Every other notice stays in the fixed chrome slot above the scroll area.
+function dockConsentBanner(inScroll) {
+  const banner = els.consentBanner;
+  if (!banner) return;
+  if (inScroll) {
+    const screen = document.querySelector(".inspector-scroll .inspector-screen");
+    if (screen && banner.parentElement !== screen) screen.prepend(banner);
+  } else if (banner.parentElement?.classList.contains("inspector-screen")) {
+    (els.locationInviteBanner || document.getElementById("locationInviteBanner"))?.before(banner);
+  }
+}
+
 function hideNoticeCard(banner, { collapse = false } = {}) {
   let finished = false;
   let hideTimer = null;
@@ -1338,6 +1352,7 @@ function hideNoticeCard(banner, { collapse = false } = {}) {
     if (collapseTimer) clearTimeout(collapseTimer);
     banner.removeEventListener("transitionend", onTransitionEnd);
     banner.hidden = true;
+    if (banner === els.consentBanner) dockConsentBanner(false);
     banner.classList.remove("fading-out", "onboarding-collapsing", "onboarding-collapsed");
     banner.style.removeProperty("--consent-banner-height");
     // The next waiting question, if any, takes the slot once this one has gone.
@@ -1436,6 +1451,7 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
 
   function renderPermissionsStage() {
     banner.setAttribute("aria-label", "Location and usage analytics");
+    dockConsentBanner(false);
     banner.classList.remove("onboarding-invite");
     els.filterToggle?.classList.remove("filter-toggle-guidance");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Allow location & cookies";
@@ -1454,6 +1470,7 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
 
   function renderLocationStage() {
     banner.setAttribute("aria-label", "Location");
+    dockConsentBanner(false);
     banner.classList.remove("onboarding-invite");
     els.filterToggle?.classList.remove("filter-toggle-guidance");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "See what's near you";
@@ -1477,6 +1494,7 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
 
   function renderAnalyticsStage() {
     banner.setAttribute("aria-label", "Usage analytics");
+    dockConsentBanner(false);
     banner.classList.remove("onboarding-invite");
     els.filterToggle?.classList.remove("filter-toggle-guidance");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Help improve the map?";
@@ -1495,6 +1513,7 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
 
   function renderOnboardingStage() {
     banner.setAttribute("aria-label", "Map setup");
+    dockConsentBanner(true);
     banner.classList.add("onboarding-invite");
     els.filterToggle?.classList.add("filter-toggle-guidance");
     // The invitation itself counts as the one-time first-run nudge. Its explicit close and the
