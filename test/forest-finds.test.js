@@ -1306,9 +1306,13 @@ test("full 3D is off by default, so pitching the phone gives a gentle tilt", () 
   freshApp.state.tiltBetaSmoothed = 60;
   assert.equal(freshApp.state.map3dEnabled, false);
   assert.equal(freshApp.tiltActive(), true);
-  assert.ok(freshApp.tiltRotateXDeg() > 0 && freshApp.tiltRotateXDeg() <= 15);
+  assert.ok(freshApp.tiltRotateXDeg() > 0 && freshApp.tiltRotateXDeg() <= 35);
+  freshApp.state.tiltBetaSmoothed = 45;
+  assert.ok(freshApp.tiltRotateXDeg() >= 20, "normal phone viewing shows noticeable depth");
+  freshApp.state.tiltBetaSmoothed = 60;
+  assert.equal(freshApp.tiltRotateXDeg(), 35, "default perspective reaches its cap without holding the phone upright");
   freshApp.state.tiltBetaSmoothed = 85;
-  assert.equal(freshApp.tiltRotateXDeg(), 15, "gentle tilt stays capped when held upright");
+  assert.equal(freshApp.tiltRotateXDeg(), 35, "gentle tilt stays capped when held upright");
   assert.equal(freshApp.isBehindTiltHeading({ x: 0, y: 100 }), false, "gentle tilt keeps surrounding items");
   assert.equal(freshApp.tiltInfluence(), 0, "pins do not collapse with pitch while 3D is off");
 });
@@ -1345,7 +1349,7 @@ test("turning full 3D off returns to gentle tilt straight away", () => {
   app.setMap3dEnabled(false);
   assert.equal(app.tiltActive(), true);
   assert.ok(app.tiltRotateXDeg() > 0 && app.tiltRotateXDeg() < fullAngle);
-  assert.ok(app.tiltRotateXDeg() <= 15);
+  assert.ok(app.tiltRotateXDeg() <= 35);
   app.setMap3dEnabled(true);
 });
 

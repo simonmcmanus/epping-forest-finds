@@ -63,7 +63,8 @@ const TILT_HORIZON_GROUND_RATIO = 0.62; // fraction of the space above the pivot
 const TILT_PERSPECTIVE_MIN_PX = 260;    // floor so very short/cramped viewports don't collapse the camera distance towards an unstable near-0 value
 const TILT_PERSPECTIVE_MAX_PX = 2600;   // ceiling so very tall viewports (tablets) don't stretch the camera distance into an implausibly flat, barely-tilted look
 const TILT_ROTATEX_MAX = 75;       // max rotateX deg — 2× overscan hides the canvas edge even at this angle
-const TILT_GENTLE_ROTATEX_MAX = 15; // subtle perspective unless full 3D is enabled
+const TILT_GENTLE_ROTATEX_MAX = 35; // visible depth while keeping the surrounding map in view
+const TILT_GENTLE_BETA_MAX = 60;    // reach the default tilt at a normal viewing angle
 // Precomputed once: calibrating tiltPerspectivePx() against this fixed reference
 // angle (rather than the live, ever-changing tiltRotateXDeg()) keeps the camera
 // distance from collapsing at low/mid tilt angles -- see tiltPerspectivePx().
@@ -6497,7 +6498,8 @@ function setMap3dEnabled(on) {
 
 function tiltRotateXDeg() {
   if (!tiltActive()) return 0;
-  const t = Math.min(1, (state.tiltBetaSmoothed - TILT_BETA_THRESHOLD) / (TILT_BETA_MAX - TILT_BETA_THRESHOLD));
+  const betaMax = state.map3dEnabled ? TILT_BETA_MAX : TILT_GENTLE_BETA_MAX;
+  const t = Math.min(1, (state.tiltBetaSmoothed - TILT_BETA_THRESHOLD) / (betaMax - TILT_BETA_THRESHOLD));
   return (state.map3dEnabled ? TILT_ROTATEX_MAX : TILT_GENTLE_ROTATEX_MAX) * t;
 }
 
