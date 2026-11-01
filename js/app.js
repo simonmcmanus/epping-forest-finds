@@ -1907,7 +1907,9 @@ async function boot() {
         // fix and the location dot have moved. The fallback view is already painted, so it is safe
         // to hand the camera to the real-location fly-to now.
         stopViewportAnimation();
-        if (state.selected) {
+        // The Community screen has no map target for the selection fit, so it takes the overview fit,
+        // which frames the user's own marks when they are away from the forest.
+        if (state.selected && !communityScreenOpen()) {
           ensureUserAndSelectionVisible({
             animate: true,
             cinematic: true,
