@@ -292,10 +292,11 @@
   display: flex;
   align-items: center;
   min-width: 0;
-  min-height: 56px;
-  flex-direction: row;
-  gap: 8px;
-  padding: 8px 10px;
+  min-height: 84px;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 6px;
   border: 1.5px solid rgba(61, 122, 87, 0.28);
   border-radius: 8px;
   background: #fff;
@@ -303,7 +304,7 @@
   color: var(--tree);
   font: inherit;
   cursor: pointer;
-  text-align: left;
+  text-align: center;
   transition: opacity 180ms ease, transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
 }
 
@@ -350,7 +351,7 @@
   max-width: 100%;
   flex-direction: column;
   gap: 3px;
-  align-items: flex-start;
+  align-items: center;
 }
 
 .onboarding-selection-item-label,
@@ -521,15 +522,45 @@
   outline-offset: 2px;
 }
 
-@keyframes ob-content-in {
-  from { opacity: 0; transform: translateY(-6px); }
-  to   { opacity: 1; transform: translateY(0); }
+@keyframes ob-content-in-forward {
+  from { opacity: 0; transform: translateX(28px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
-.onboarding-content.entering-forward,
-.onboarding-content.entering-backward {
-  animation: ob-content-in 0.24s 0.06s cubic-bezier(0.16, 1, 0.3, 1) both;
+@keyframes ob-content-in-backward {
+  from { opacity: 0; transform: translateX(-28px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
+
+@keyframes ob-item-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+
+.onboarding-content.entering-forward {
+  animation: ob-content-in-forward 0.36s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.onboarding-content.entering-backward {
+  animation: ob-content-in-backward 0.36s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Tiles and chips settle in one after another once the step has slid into place. */
+.onboarding-content.entering-forward .onboarding-selection-item,
+.onboarding-content.entering-backward .onboarding-selection-item,
+.onboarding-content.entering-forward .onboarding-chip,
+.onboarding-content.entering-backward .onboarding-chip {
+  animation: ob-item-in 0.34s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.onboarding-content .onboarding-selection-item:nth-child(2),
+.onboarding-content .onboarding-chip:nth-child(2) { animation-delay: 50ms; }
+.onboarding-content .onboarding-selection-item:nth-child(3),
+.onboarding-content .onboarding-chip:nth-child(3) { animation-delay: 100ms; }
+.onboarding-content .onboarding-selection-item:nth-child(4),
+.onboarding-content .onboarding-chip:nth-child(4) { animation-delay: 150ms; }
+.onboarding-content .onboarding-selection-item:nth-child(n+5),
+.onboarding-content .onboarding-chip:nth-child(n+5) { animation-delay: 200ms; }
 
 .onboarding-overlay.filter-setup .onboarding-card {
   cursor: default;
@@ -610,9 +641,9 @@
 
 @media (max-width: 430px) {
   .onboarding-selection-item {
-    gap: 4px;
-    min-height: 50px;
-    padding: 6px 8px;
+    gap: 3px;
+    min-height: 76px;
+    padding: 8px 4px;
   }
 
   .onboarding-selection-icon {
@@ -650,6 +681,13 @@
   .onboarding-overlay.opening,
   .onboarding-overlay.opening .onboarding-card,
   .onboarding-overlay.fading-out .onboarding-card {
+    animation: none;
+  }
+
+  .onboarding-content.entering-forward,
+  .onboarding-content.entering-backward,
+  .onboarding-content .onboarding-selection-item,
+  .onboarding-content .onboarding-chip {
     animation: none;
   }
 }
