@@ -1418,17 +1418,26 @@ function onInspectorHeightTransitionEnd(callback, timeoutMs = INSPECTOR_MINIMIZE
 // Defers the selection camera zoom until after the inspector's max-height CSS
 // transition completes, so getBoundingClientRect() returns the correct
 // minimized height when bestVisibleCanvasRect() measures the focus rect.
-function zoomToSelection() {
-  const waitForInspectorTransition = state.inspectorMinimizeTransitionPending;
-  state.inspectorMinimizeTransitionPending = false;
+// Keeps the map in its selection state (the selected item's pins and route, not the Nearby pins and
+// walking ring) from the moment a selection starts until its camera move has landed. Every
+// selection entry point must call this: the renderer hides Nearby content while a selection is
+// up and this flag is off, so a path that skips it blanks the map for the whole camera move.
+// Waits on any pending inspector transition, the camera tween and the origin slide.
+function holdSelectionMapUntilCameraSettles() {
   const transitionToken = {};
   state.selectionMapTransitionActive = true;
   state.selectionMapTransitionToken = transitionToken;
   const settleMapTransition = () => {
     if (state.selectionMapTransitionToken !== transitionToken) return;
+    // cameraOriginTransition is only cleared lazily, when cameraOriginPoint() is next read. Nothing
+    // reads it after a deep link or a camera-free frame, so judge the slide by its own end time
+    // rather than by whether the field is still set, or the map stays in selection state forever.
+    const origin = state.cameraOriginTransition;
+    const originSliding = Boolean(origin) && performance.now() - origin.startedAt < origin.durationMs;
+    if (origin && !originSliding) state.cameraOriginTransition = null;
     if (state.selectionViewportTransitionPending
         || state.viewportAnimationTo != null
-        || state.cameraOriginTransition != null) {
+        || originSliding) {
       requestAnimationFrame(settleMapTransition);
       return;
     }
@@ -1438,6 +1447,13 @@ function zoomToSelection() {
     state.selectionMapTransitionOriginPoint = null;
     requestDraw();
   };
+  requestAnimationFrame(settleMapTransition);
+}
+
+function zoomToSelection() {
+  const waitForInspectorTransition = state.inspectorMinimizeTransitionPending;
+  state.inspectorMinimizeTransitionPending = false;
+  holdSelectionMapUntilCameraSettles();
   const doZoom = () => {
     state.selectionViewportTransitionPending = false;
     if (typeof animateToHeadingUpNavigationViewport === "function" && selectedNavigationHeadingUpActive()) {
@@ -1445,7 +1461,6 @@ function zoomToSelection() {
     } else {
       ensureUserAndSelectionVisible({ animate: true, force: true, durationMs: HEADING_UP_NAV_ANIMATION_MS });
     }
-    requestAnimationFrame(settleMapTransition);
   };
 
   if (!els.inspector.classList.contains("minimized")) {

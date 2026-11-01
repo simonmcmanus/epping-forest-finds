@@ -34,4 +34,20 @@ test.describe("Camera after a quick change of screen", () => {
     expect(Math.abs(settled.tx - fresh.tx)).toBeLessThan(1);
     expect(Math.abs(settled.ty - fresh.ty)).toBeLessThan(1);
   });
+
+  test("a deep link to a tree keeps the selection map up while the camera moves", async ({ page }) => {
+    await setup(page, "/nearby");
+    await page.evaluate(() => navigateInApp("/nearby/trees/#near=51.667617,0.037559&label=Hornbeam"));
+    await page.waitForFunction(() => state.nearbyAnchor != null);
+    await waitForUiToSettle(page);
+
+    await page.evaluate(() => navigateInApp("/nearby?radius=30&show=trees#tree=r10867"));
+    // Straight after the link is followed, before the camera has landed, the map must be in its
+    // selection state. Otherwise the renderer hides the Nearby pins and ring and the map blanks.
+    await expect.poll(() => page.evaluate(() => state.selected?.type === "tree")).toBe(true);
+    expect(await page.evaluate(() => state.selectionMapTransitionActive)).toBe(true);
+
+    await waitForUiToSettle(page);
+    await expect.poll(() => page.evaluate(() => state.selectionMapTransitionActive)).toBe(false);
+  });
 });

@@ -1002,6 +1002,9 @@ function showRoutedSelection(route, item) {
     // later resize or camera correction happens.
     fitToPoints([item.point], false, { animate: true, focusVisibleArea: true, assumeInspectorOpen: true });
   }
+  // Hold the selection's map state until this camera move lands, as zoomToSelection does. Without it
+  // the renderer hid the Nearby pins and ring for the whole move, so a #tree= link blanked the map.
+  holdSelectionMapUntilCameraSettles();
   requestDraw();
 }
 
