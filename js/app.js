@@ -103,6 +103,8 @@ const MAX_CANVAS_DIMENSION = 3072;
 const MAX_CANVAS_PIXEL_COUNT = 9437184;
 const APP_VERSION = APP_CACHE_VERSION; // Fallback shown before state.swVersion loads from caches.keys() (see setupPwa in nav.js).
 const COMPASS_PERMISSION_KEY = "forest-finds-compass-permission-v1";
+// "declined" once the motion ask (showMotionPrompt) was refused, so it is not raised again on a later visit.
+const MOTION_CHOICE_KEY = "ff-motion-v1";
 // The person's own answer to the in-app location ask (storedLocationChoice). Up here because boot()
 // reads it, and boot() runs before the rest of this file's declarations have.
 const LOCATION_CHOICE_KEY = "ff-location-v1";
@@ -1450,6 +1452,55 @@ function showHighBeachNotice() {
   timer = setTimeout(dismiss, HIGH_BEACH_NOTICE_MS);
 }
 
+// iPhone's motion access (needed for the 3D tilt and the compass) can only be requested from a tap.
+// A returning visitor whose location is already allowed never meets the first card's tap, so once a
+// real fix exists the same floating card offers one tap that turns 3D on. Nothing is asked by itself.
+function showMotionPrompt() {
+  const banner = els.consentBanner;
+  if (!banner || !banner.hidden) return;
+  if (!compassPermissionCanBeRequested() || state.compassPermission === "granted") return;
+  if (!hasRealLocation()) return;
+  try { if (localStorage.getItem(MOTION_CHOICE_KEY) === "declined") return; } catch {}
+  if (els.locationInviteBanner && !els.locationInviteBanner.hidden) return;
+
+  function cleanup() {
+    els.consentBannerAccept?.removeEventListener("click", onAccept);
+    els.consentBannerDecline?.removeEventListener("click", onDecline);
+  }
+  function onAccept() {
+    cleanup();
+    hideNoticeCard(banner);
+    // Called straight from the tap so the system prompt is allowed.
+    requestCompassPermissionIfNeeded({ fromGesture: true });
+  }
+  function onDecline() {
+    cleanup();
+    try { localStorage.setItem(MOTION_CHOICE_KEY, "declined"); } catch {}
+    hideNoticeCard(banner);
+  }
+
+  banner.setAttribute("aria-label", "Turn on 3D view");
+  banner.classList.remove("onboarding-invite", "onboarding-attention", "fading-out");
+  if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Turn on the 3D view";
+  if (els.consentBannerText) {
+    els.consentBannerText.textContent = "Tilt your phone up to see the forest in 3D. Your phone will ask once for motion access.";
+  }
+  if (els.consentBannerAccept) {
+    els.consentBannerAccept.textContent = "Turn on 3D view";
+    els.consentBannerAccept.hidden = false;
+    els.consentBannerAccept.addEventListener("click", onAccept);
+  }
+  if (els.consentBannerDecline) {
+    els.consentBannerDecline.textContent = "Maybe later";
+    els.consentBannerDecline.removeAttribute("aria-label");
+    els.consentBannerDecline.removeAttribute("title");
+    els.consentBannerDecline.addEventListener("click", onDecline);
+  }
+  if (els.consentBannerMapSetupArrow) els.consentBannerMapSetupArrow.hidden = true;
+  banner.classList.remove("fading-out");
+  banner.hidden = false;
+}
+
 // The first ask for anyone onboarding did not reach -- a first visit, a landing-page arrival, or a
 // returning visitor with a question still unanswered. One non-blocking card in the inspector
 // chrome (#consentBanner, app.html, css/loading.css) leaves the map fully usable underneath. On a
@@ -1922,6 +1973,9 @@ async function boot() {
         if (state.compassPermission === "unknown" && !compassPermissionCanBeRequested()) {
           requestCompassPermissionIfNeeded({ fromGesture: false });
         }
+        // iOS only allows the motion prompt from a tap. A returning visitor whose location was already
+        // allowed never sees the first card's tap, so the same card offers the one tap that enables 3D.
+        if (compassPermissionCanBeRequested() && state.compassPermission !== "granted") showMotionPrompt();
 
         // The map is already visible at High Beach. Fly to the real origin on a longer, gently
         // zoomed-out arc so the camera has time to establish the journey instead of jolting

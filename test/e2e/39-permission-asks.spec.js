@@ -417,6 +417,44 @@ test.describe("compass access on motion-permission browsers", () => {
   });
 });
 
+test.describe("3D view for a returning visitor on iPhone", () => {
+  test.use({ geolocation: { latitude: 51.665, longitude: 0.045 }, permissions: ["geolocation"] });
+
+  test.beforeEach(async ({ page }) => {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await setStored(page, { "ff-track-v1": "0", "ff-location-v1": "granted" });
+    await page.addInitScript(() => {
+      if (!window.DeviceOrientationEvent) window.DeviceOrientationEvent = class {};
+      window.__compassRequests = 0;
+      window.DeviceOrientationEvent.requestPermission = () => {
+        window.__compassRequests += 1;
+        return Promise.resolve("granted");
+      };
+    });
+  });
+
+  test("with location already allowed, one tap on the card turns on 3D and only that tap asks for motion", async ({ page }) => {
+    await gotoAndWaitForMap(page);
+    const card = page.locator("#consentBanner");
+    await expect(card).toContainText("Turn on the 3D view");
+    expect(await page.evaluate(() => window.__compassRequests)).toBe(0);
+    await page.locator("#consentBannerAccept").click();
+    await expect(card).toBeHidden();
+    expect(await page.evaluate(() => window.__compassRequests)).toBe(1);
+  });
+
+  test("'Maybe later' on the 3D card is remembered across visits", async ({ page }) => {
+    await gotoAndWaitForMap(page);
+    await page.locator("#consentBannerDecline").click();
+    await expect(page.locator("#consentBanner")).toBeHidden();
+    await page.reload();
+    await gotoAndWaitForMap(page);
+    await expect(page.locator("#consentBanner")).toBeHidden();
+    expect(await page.evaluate(() => window.__compassRequests)).toBe(0);
+  });
+});
+
 test.describe("compass access before any real location", () => {
   test("the High Beach stand-in never brings up the compass card on top of the location ask", async ({ page }) => {
     await skipOnboarding(page);
