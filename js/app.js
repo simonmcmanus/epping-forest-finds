@@ -1916,7 +1916,9 @@ async function boot() {
         // fix and the location dot have moved. The fallback view is already painted, so it is safe
         // to hand the camera to the real-location fly-to now.
         stopViewportAnimation();
-        if (state.selected) {
+        // The Community screen has no map target for the selection fit, so it takes the overview fit,
+        // which frames the user's own marks when they are away from the forest.
+        if (state.selected && !communityScreenOpen()) {
           ensureUserAndSelectionVisible({
             animate: true,
             cinematic: true,
@@ -3075,9 +3077,6 @@ function openSettings() {
   updateCompassOverlay();
   syncHashFromSelection();
   requestDraw();
-  if (state.userLocation) {
-    ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
-  }
 }
 
 // window.ForestFindsCookieConsent (cookie-consent.js) is the one store of truth for the GA
@@ -3459,9 +3458,6 @@ function openCommunity() {
   updateCompassOverlay();
   syncHashFromSelection();
   requestDraw();
-  if (state.userLocation) {
-    ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
-  }
 }
 
 // Frames every mark the user has made (or the whole forest when there are none), not where they stand.
@@ -3515,9 +3511,6 @@ function openReportModal() {
   updateCompassOverlay();
   syncHashFromSelection();
   requestDraw();
-  if (state.userLocation) {
-    ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
-  }
 }
 
 function reportFormHtml() {
@@ -7482,7 +7475,7 @@ function alignHeadingUpNavigationViewport(options = {}) {
   // Search too -- and via ensureOverviewTargetsVisible, which every one of this function's other
   // callers (compass ticks, filter changes, GPS fixes) ultimately routes through under the same
   // "no selection" condition. Search frames its own highlighted matches instead
-  // (updateSearchHighlight/fitSearchCameraToHighlight), so applying the ring's framing here,
+  // (updateSearchHighlight), so applying the ring's framing here,
   // unconditionally and without animation, was silently snapping a still-open search back to the
   // ring on the next GPS fix or compass tick, sometimes long after the search fit had settled.
   // Leaving the camera alone here means it simply stays on the search fit until the query next
@@ -9054,60 +9047,21 @@ function searchMapFeatures(query) {
 // point searchResultDistance measures every match's walk chip from, so "nearest first" stays
 // legible against where you actually are, rather than zooming out to a view that only shows the
 // matches themselves.
-function fitSearchCameraToHighlight() {
-  const points = state.searchHighlightResults
-    .map((result) => searchResultPoint(result.type, result.item))
-    .filter(Boolean);
-  if (!points.length) return;
-  const origin = nearbyOrigin();
-  if (origin && origin.point) points.push(origin.point);
-  fitToPoints(points, false, { focusVisibleArea: true, animate: true, assumeInspectorOpen: true });
+function updateSearchHighlight(results) {
+  // Highlights only. The camera never moves for a search: matches that lie outside the
+  // current view are still listed in Search and Nearby, marked as off the map.
+  state.searchHighlightResults = results.slice(0, SEARCH_HIGHLIGHT_LIMIT);
+  requestDraw();
 }
 
-// How long a typing pause has to hold before the camera re-fits. Refitting on every keystroke
-// -- what this used to do -- meant every transient result set a fast typist passed through on
-// the way to their actual query got its own camera move: a single very-close match a few
-// characters into a longer name is common, and zooming tight onto it only to zoom back out two
-// keystrokes later read as jumpy rather than "live". The highlighted pins and results list still
-// update every keystroke (see below); only the camera waits.
-const SEARCH_CAMERA_FIT_DEBOUNCE_MS = 350;
-let _searchCameraFitTimer = null;
-
-function updateSearchHighlight(results) {
-  const top = results.slice(0, SEARCH_HIGHLIGHT_LIMIT);
-  const hadResults = state.searchHighlightResults.length > 0;
-  state.searchHighlightResults = top;
-  requestDraw();
-  if (_searchCameraFitTimer != null) {
-    clearTimeout(_searchCameraFitTimer);
-    _searchCameraFitTimer = null;
-  }
-  if (!top.length) {
-    // No matches -- an empty/too-short query, or a query nothing on the map answers. The camera
-    // has no search fit to hold any more, so it's the Nearby ring's turn: without this it stayed
-    // wherever the last search fit left it, which read as "stuck" rather than "back to normal".
-    // Only worth doing if there *were* results a moment ago -- an empty query on first opening
-    // Search has nothing to fall back from (openSearchScreen's own fallback already covers it).
-    if (hadResults && state.userLocation) {
-      ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
-    }
-    return;
-  }
-  if (!hadResults) {
-    // The first match to appear (query just became long enough, or the very first keystroke
-    // already matched something): fit immediately rather than leaving the camera on the ring for
-    // the length of the debounce below -- that gap read as the map "still showing Nearby" even
-    // though a match already existed. Only a result set that already has something on screen
-    // waits for a typing pause before re-fitting again (see SEARCH_CAMERA_FIT_DEBOUNCE_MS above).
-    fitSearchCameraToHighlight();
-    return;
-  }
-  _searchCameraFitTimer = setTimeout(() => {
-    _searchCameraFitTimer = null;
-    // The screen may have moved on (a result picked, search closed) during the pause -- this
-    // fit is only still wanted if Search is still open and looking at this same set.
-    if (state.searchScreenOpen) fitSearchCameraToHighlight();
-  }, SEARCH_CAMERA_FIT_DEBOUNCE_MS);
+// True when a search match lies outside the visible map area (the camera is not moved to show it).
+function searchResultOffMap(result) {
+  const point = searchResultPoint(result.type, result.item);
+  if (!point) return false;
+  const rect = visibleCanvasRect();
+  const screen = worldToScreen(point);
+  return screen.x < rect.x || screen.x > rect.x + rect.width
+    || screen.y < rect.y || screen.y > rect.y + rect.height;
 }
 
 function searchResultsHtml(query) {
@@ -9140,7 +9094,7 @@ function searchResultsHtml(query) {
           <span class="nearest-name">${escapeHtml(searchResultName(result.type, result.item))}</span>
         </div>
         <div class="nearest-footer">
-          <span class="nearest-meta">${walkChip ? `${walkChip} · ` : ""}${escapeHtml(typeLabel)}${treeTagChip}</span>
+          <span class="nearest-meta">${searchResultOffMap(result) ? "Off the map · " : ""}${walkChip ? `${walkChip} · ` : ""}${escapeHtml(typeLabel)}${treeTagChip}</span>
           <span class="nearest-arrow" data-item-lat="${position ? position.latitude : ""}" data-item-lon="${position ? position.longitude : ""}" aria-hidden="true"${isFarFromForest() ? " hidden" : ""}>↑</span>
         </div>
       </div>
@@ -9210,12 +9164,6 @@ function openSearchScreen() {
   setInspectorMinimized(false);
   syncHashFromSelection();
   requestDraw();
-  // searchScreenHtml (just rendered above) already fit the camera to the restored query's own
-  // highlighted matches via updateSearchHighlight -- only fall back to the Nearby-ring framing
-  // when there is no query to frame yet.
-  if (state.userLocation && !state.searchHighlightResults.length) {
-    ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
-  }
 }
 
 // One render per frame: scanning the index is fast but not free, and a fast typist would
