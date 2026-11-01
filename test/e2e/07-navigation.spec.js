@@ -4,7 +4,7 @@ const { setup, skipOnboarding, mockCowApi, gotoAndWaitForMap, FIXTURE_TREE } = r
 
 test.describe("URL navigation", () => {
   test.describe("a URL opens the screen it names", () => {
-    test("navigating to /nearby/filter opens Map setup over Nearby", async ({ page }) => {
+    test("navigating to /nearby/filter opens the Map setup modal over Nearby", async ({ page }) => {
       await skipOnboarding(page);
       await mockCowApi(page);
       await gotoAndWaitForMap(page, "/nearby/filter");
