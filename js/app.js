@@ -63,7 +63,7 @@ const TILT_HORIZON_GROUND_RATIO = 0.62; // fraction of the space above the pivot
 const TILT_PERSPECTIVE_MIN_PX = 260;    // floor so very short/cramped viewports don't collapse the camera distance towards an unstable near-0 value
 const TILT_PERSPECTIVE_MAX_PX = 2600;   // ceiling so very tall viewports (tablets) don't stretch the camera distance into an implausibly flat, barely-tilted look
 const TILT_ROTATEX_MAX = 75;       // max rotateX deg — 2× overscan hides the canvas edge even at this angle
-const TILT_GENTLE_ROTATEX_MAX = 35; // visible depth while keeping the surrounding map in view
+const TILT_GENTLE_ROTATEX_MAX = 70; // visible depth while keeping the surrounding map in view
 const TILT_GENTLE_BETA_MAX = 60;    // reach the default tilt at a normal viewing angle
 // Precomputed once: calibrating tiltPerspectivePx() against this fixed reference
 // angle (rather than the live, ever-changing tiltRotateXDeg()) keeps the camera
@@ -3330,7 +3330,7 @@ function settingsFormHtml() {
     </section>
     <section class="settings-section" id="map3dSetting"${state.motionSensorSeen ? "" : " hidden"}>
       <h3 class="settings-section-title">Map</h3>
-      <label class="settings-switch"><span><strong>3D map</strong><span class="settings-description">Enable full 3D when you tilt your phone up. Off keeps a gentle tilt.</span></span><input type="checkbox" id="map3dToggle"${state.map3dEnabled ? " checked" : ""}></label>
+      <label class="settings-switch"><span><strong>3D map</strong><span class="settings-description">Enable full 3D when you tilt your phone up. Off uses the default tilt.</span></span><input type="checkbox" id="map3dToggle"${state.map3dEnabled ? " checked" : ""}></label>
       <img class="settings-preview" src="css/img/map-3d-preview.webp" width="480" height="346" alt="The map tilted in 3D, with paths and finds stretching away towards the horizon" loading="lazy" decoding="async">
     </section>
     <section class="settings-section">
