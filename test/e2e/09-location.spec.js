@@ -114,6 +114,16 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("#compassArrow, .title-compass-arrow").first()).toBeHidden();
     });
 
+    test("a place page shows the place but no walking distance or compass arrow", async ({ page }) => {
+      await page.getByRole("dialog", { name: "You're not near the forest yet" }).getByRole("button", { name: "Explore the map" }).click();
+      const key = await page.evaluate(() => placeHashKey(state.landmarks.find((p) => p.latitude != null && p.name)));
+      const name = await page.evaluate(() => state.landmarks.find((p) => p.latitude != null && p.name).name);
+      await page.goto(`/nearby#place=${key}`);
+      await expect(page.locator("#inspectorBody")).toContainText(name);
+      await expect(page.locator("#inspectorBody .walk-chip, #inspectorBody .walk-chip-pending")).toHaveCount(0);
+      await expect(page.locator("#compassArrow")).toBeHidden();
+    });
+
     test("snapshot: far from the forest notice", async ({ page }) => {
       await expect(page.locator("#distanceWarning")).toBeVisible();
       await waitForUiToSettle(page);

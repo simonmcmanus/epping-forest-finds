@@ -12702,3 +12702,39 @@ test("far from the forest the compass arrow stays hidden for a selected place", 
   assert.equal(app.selectedNavigationHeadingUpActive(), false);
   app.state.selected = null;
 });
+
+test("far from the forest no route line is drawn to a selected place, even with the routing graph ready", () => {
+  resetData(app);
+  useSmallForest(app);
+  const place = { name: "Pub", categoryLabel: "Pub", ...makePoint(app, 51.6676, 0.0375) };
+  app.state.selected = { type: "landmark", item: place };
+  app.state.routingGraphReady = true;
+  app.state.selectedRouteCache = null;
+  try {
+    withRealFix(app, 51.6675, 0.0373);
+    const near = recordingContext();
+    app.drawSelectedRoute(near.ctx);
+    assert.ok(near.calls.moveTo.length > 0, "near the forest the route is drawn");
+    withRealFix(app, 51.508, -0.1281);
+    const far = recordingContext();
+    app.drawSelectedRoute(far.ctx);
+    assert.equal(far.calls.moveTo.length, 0, "far away nothing is drawn");
+  } finally {
+    app.state.routingGraphReady = false;
+    app.state.selected = null;
+    app.state.selectedRouteCache = null;
+  }
+});
+
+test("the Nearby list hides its direction arrows while far from the forest", () => {
+  resetData(app);
+  useSmallForest(app);
+  app.state.trees = [{ id: 1, commonName: "Oak", ...makePoint(app, 51.6676, 0.0375) }];
+  withRealFix(app, 51.6675, 0.0375);
+  assert.match(app.overviewNearestHtml(), /aria-hidden="true">↑/, "near the forest the arrow is shown");
+  withRealFix(app, 51.508, -0.1281);
+  const html = app.overviewNearestHtml();
+  assert.match(html, /nearest-arrow/, "the list is still shown");
+  assert.match(html, /aria-hidden="true" hidden>↑/, "but its arrow is hidden");
+  assert.doesNotMatch(html, /aria-hidden="true">↑/);
+});
