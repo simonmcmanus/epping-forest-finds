@@ -859,6 +859,23 @@ test.describe("Overview / Nearby screen", () => {
 });
 
 
+test.describe("Resize-grip clearance", () => {
+  test.beforeEach(async ({ page }) => { await setup(page); });
+
+  test("the inspector reserves room for the resize grip only where it can be resized", async ({ page }, testInfo) => {
+    const handleBox = await page.locator("#inspectorDragHandle").boundingBox();
+    const panel = await page.locator("#inspector").boundingBox();
+    const title = await page.locator(".inspector-title-section").boundingBox();
+    if (testInfo.project.name === "mobile") {
+      expect(handleBox, "the grip is shown").not.toBeNull();
+      expect(title.y - panel.y, "the heading starts below the grip").toBeGreaterThanOrEqual(handleBox.height);
+    } else {
+      expect(handleBox, "desktop has no grip").toBeNull();
+      expect(title.y - panel.y, "desktop spends no space on it").toBeLessThan(10);
+    }
+  });
+});
+
 test.describe("Nearby scroll position during live updates", () => {
   test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] });
 

@@ -229,15 +229,6 @@
   height: 16px;
 }
 
-/* On the mobile sheet the bar is the first thing under the absolutely-positioned drag handle
-   (20px tall, css/map-ui.css), so it needs to start below it or it sits under the grip. */
-@media (max-width: 760px),
-(orientation: landscape) and (pointer: coarse) and (max-height: 500px) {
-  .nearby-anchor-bar {
-    margin-top: 22px;
-  }
-}
-
 /* On the narrowest phones the icon is what gives way, so the notice text keeps its width. */
 @media (max-width: 359px) {
   .nearby-anchor-bar .walk-chip-btn {
