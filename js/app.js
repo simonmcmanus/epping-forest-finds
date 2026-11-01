@@ -1332,9 +1332,6 @@ function offerLocationInvite({ blocked = false } = {}) {
   }
 }
 
-// The map setup hint points at the Map setup button, which scrolls away with the Nearby heading,
-// so while that hint shows it lives at the top of the scrolling screen and leaves with the heading.
-// Every other notice stays in the fixed chrome slot above the scroll area.
 // The permission prompts float over the map as their own layer. Inside the inspector they pushed
 // the Nearby list down (the list is a scrolling panel) and, on phones, the transformed sheet would
 // trap a fixed child. Boot moves them to <body> once, so they stay put whatever the panel shows.
@@ -1381,8 +1378,7 @@ function hideNoticeCard(banner, { collapse = false } = {}) {
 
 // Non-blocking "get a more custom experience" nudge shown after revealNoRealLocation() -- the
 // map and Nearby list behind it are already usable, so this never covers the whole screen. Same
-// inline, dismissible treatment as showConsentBanner()'s own card, in the same inspector-chrome
-// slot, and never at the same time as it. With canRequest false (location blocked or unsupported)
+// floating treatment as showConsentBanner()'s own card, and never at the same time as it. With canRequest false (location blocked or unsupported)
 // it explains instead of offering a button that could not work.
 function showLocationInviteBanner(message, { canRequest = true } = {}) {
   const banner = els.locationInviteBanner;
@@ -1422,17 +1418,31 @@ function showLocationInviteBanner(message, { canRequest = true } = {}) {
 // How long the "location is off" notice stays up after "Maybe later" before it clears on its own.
 const HIGH_BEACH_NOTICE_MS = 60_000;
 
+// Removes whichever card currently owns the floating #consentBanner: its timer and its button
+// handlers. Every card calls this before it takes the banner, so a stale timer cannot hide a newer
+// card and a stale "OK" cannot answer a question that is no longer on screen.
+let consentCardTeardown = null;
+function tearDownConsentCard() {
+  const teardown = consentCardTeardown;
+  consentCardTeardown = null;
+  if (teardown) teardown();
+}
+
 // Said in the same floating card once location is refused: the map is set to High Beach, the same
 // stand-in a failed request gets. It has one button and clears itself after a minute.
 function showHighBeachNotice() {
   const banner = els.consentBanner;
   if (!banner) return;
+  tearDownConsentCard();
   let timer = null;
   const dismiss = () => {
+    tearDownConsentCard();
+    hideNoticeCard(banner);
+  };
+  consentCardTeardown = () => {
     if (timer !== null) clearTimeout(timer);
     timer = null;
     els.consentBannerDecline?.removeEventListener("click", dismiss);
-    hideNoticeCard(banner);
   };
   banner.setAttribute("aria-label", "Location is off");
   banner.classList.remove("onboarding-invite", "onboarding-attention", "fading-out");
@@ -1463,18 +1473,19 @@ function showMotionPrompt() {
   try { if (localStorage.getItem(MOTION_CHOICE_KEY) === "declined") return; } catch {}
   if (els.locationInviteBanner && !els.locationInviteBanner.hidden) return;
 
-  function cleanup() {
+  tearDownConsentCard();
+  consentCardTeardown = () => {
     els.consentBannerAccept?.removeEventListener("click", onAccept);
     els.consentBannerDecline?.removeEventListener("click", onDecline);
-  }
+  };
   function onAccept() {
-    cleanup();
+    tearDownConsentCard();
     hideNoticeCard(banner);
     // Called straight from the tap so the system prompt is allowed.
     requestCompassPermissionIfNeeded({ fromGesture: true });
   }
   function onDecline() {
-    cleanup();
+    tearDownConsentCard();
     try { localStorage.setItem(MOTION_CHOICE_KEY, "declined"); } catch {}
     hideNoticeCard(banner);
   }
@@ -1511,6 +1522,7 @@ function showMotionPrompt() {
 function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnboarding = false } = {}) {
   const banner = els.consentBanner;
   if (!banner || (!askLocation && !askAnalytics && !offerOnboarding)) return false;
+  tearDownConsentCard();
   let stage = askLocation && askAnalytics ? "permissions" : askLocation ? "location" : askAnalytics ? "analytics" : "onboarding";
   let onboardingAttentionTimer = null;
   let onboardingAttentionFallbackTimer = null;

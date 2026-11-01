@@ -111,6 +111,25 @@ test.describe("first-run onboarding", () => {
     await expect(card).toBeHidden();
   });
 
+  test("on iPhone, 'OK' on the location-off notice does not switch off the 3D offer", async ({ page }) => {
+    await page.addInitScript(() => {
+      if (!window.DeviceOrientationEvent) window.DeviceOrientationEvent = class {};
+      window.DeviceOrientationEvent.requestPermission = () => Promise.resolve("granted");
+    });
+    await stubLocation(page);
+    await page.addInitScript(() => {
+      localStorage.removeItem("ff-track-v1");
+      localStorage.removeItem("ff-cookie-consent");
+    });
+    await page.goto("/nearby");
+    const card = page.locator("#consentBanner");
+    await card.getByRole("button", { name: "Maybe later" }).click();
+    await expect(card).toContainText("Location is off");
+    await card.getByRole("button", { name: "OK" }).click();
+    await expect(card).toBeHidden();
+    expect(await stored(page, "ff-motion-v1")).toBeNull();
+  });
+
   test("'Maybe later' records the combined opt-out and says the map is set to High Beach", async ({ page }) => {
     await stubLocation(page);
     await page.addInitScript(() => {
