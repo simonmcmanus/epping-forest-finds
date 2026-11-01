@@ -1,5 +1,9 @@
 :root {
   color-scheme: light;
+  /* System-bar insets. Android WebView older than 140 reports env() as 0 under edge-to-edge, so
+     the Capacitor shell's injected --safe-area-inset-* values are taken when they are larger. */
+  --safe-top: max(env(safe-area-inset-top, 0px), var(--safe-area-inset-top, 0px));
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), var(--safe-area-inset-bottom, 0px));
   --icon-scale: 1;
   --ink: #1b2a22;
   --muted: #617168;
@@ -244,4 +248,12 @@ canvas.dragging {
   border: 1px solid rgba(36, 56, 47, 0.15);
   box-shadow: var(--shadow);
   backdrop-filter: blur(12px);
+}
+
+/* Android WebView re-blurs everything behind a backdrop-filter on every canvas frame, which costs
+   more than the effect is worth on mid-range phones. The panels are already near-opaque. */
+html.native-android :is(.inspector, .inspector-actions, .update-banner, .loading-overlay,
+  .compass-calibration-banner-card, .event-nearby-banner-card, .onboarding-overlay) {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
