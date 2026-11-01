@@ -197,6 +197,25 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Two commits so HEAD^1 (the base side of the PR merge ref) is available below.
+          fetch-depth: 2
+      - name: Show which changed files can move pixels
+        if: github.event_name == 'pull_request'
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          files=$(git diff --name-only HEAD^1 HEAD -- app.html css js sw.js data/icons assets test/e2e/__screenshots__ || true)
+          {
+            echo "### Files in this PR that can change a snapshot"
+            echo
+            if [ -z "$files" ]; then
+              echo "None. Any snapshot difference below is noise or drift, not this PR."
+            else
+              echo "A snapshot difference is expected if these changed. If this PR should not touch the app, it is probably stacked on an unmerged branch: rebase it onto main."
+              echo
+              echo "$files" | sed 's/^/- `/; s/$/`/'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/setup-node@v5
         with:
           node-version: 22
