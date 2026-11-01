@@ -2716,6 +2716,15 @@ function viewportAnimationAlreadyHeadedTo(targetViewport) {
     && Math.abs(inFlight.ty - targetViewport.ty) < VIEWPORT_ANIMATION_SAME_TARGET_PX;
 }
 
+// Scale is a ratio on screen, so a zoom reads as even only when it is interpolated geometrically.
+// A linear blend between a 125k and a 22k scale spends most of its change in the middle of the
+// ease, which looks like the view snapping out; a geometric ramp changes by the same proportion on
+// every frame. Falls back to a linear blend for a non-positive scale, which a ratio cannot express.
+function zoomAlongTween(fromScale, toScale, eased) {
+  if (!(fromScale > 0) || !(toScale > 0)) return fromScale + (toScale - fromScale) * eased;
+  return fromScale * Math.pow(toScale / fromScale, eased);
+}
+
 function animateViewportTo(targetViewport, durationMs, onComplete, options = {}) {
   const safeDuration = Math.max(MIN_VIEWPORT_ANIMATION_MS, Number(durationMs) || DEFAULT_VIEWPORT_ANIMATION_MS);
   const cinematic = Boolean(options.cinematic);
@@ -2792,7 +2801,7 @@ function animateViewportTo(targetViewport, durationMs, onComplete, options = {})
       : 1 - Math.pow(-2 * progress + 2, 3) / 2;
 
     if (cinematic && fromCenter && targetCenter) {
-      const baseScale = from.scale + (targetViewport.scale - from.scale) * eased;
+      const baseScale = zoomAlongTween(from.scale, targetViewport.scale, eased);
       const zoomArc = Math.sin(Math.PI * eased) * zoomOutRatio;
       state.viewport.scale = Math.max(cinematicScaleFloor, baseScale * (1 - zoomArc));
       const centreX = fromCenter.x + (targetCenter.x - fromCenter.x) * eased;
@@ -2800,7 +2809,7 @@ function animateViewportTo(targetViewport, durationMs, onComplete, options = {})
       state.viewport.tx = focusPoint.x - centreX * state.viewport.scale;
       state.viewport.ty = focusPoint.y - centreY * state.viewport.scale;
     } else {
-      state.viewport.scale = state.viewportAnimationFrom.scale + (state.viewportAnimationTo.scale - state.viewportAnimationFrom.scale) * eased;
+      state.viewport.scale = zoomAlongTween(state.viewportAnimationFrom.scale, state.viewportAnimationTo.scale, eased);
       state.viewport.tx = state.viewportAnimationFrom.tx + (state.viewportAnimationTo.tx - state.viewportAnimationFrom.tx) * eased;
       state.viewport.ty = state.viewportAnimationFrom.ty + (state.viewportAnimationTo.ty - state.viewportAnimationFrom.ty) * eased;
     }

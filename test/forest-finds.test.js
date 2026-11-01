@@ -541,6 +541,7 @@ globalThis.__forestFindsTest = {
   drawMegaClusters,
   clusterJoinAnimationState,
   settleClusterJoinAnimations,
+  zoomAlongTween,
   drawLandmarkIcon,
   CLUSTER_JOIN_ANIMATION_MS,
   CLUSTER_JOIN_COOLDOWN_MS,
@@ -1006,6 +1007,16 @@ test("buildSuperClusters does not chain far-apart clusters into one mega cluster
   assert.ok(superClusters.length > 1, "a long, roughly-uniform run of clusters must not collapse into a single mega cluster");
   // Directly-close pairs still merge: this isn't a regression to "never merge anything".
   assert.equal(groupOf(a), groupOf(b), "clusters within the merge radius of each other still merge");
+});
+
+test("a zoom between two scales eases geometrically, so each step changes the view by the same proportion", () => {
+  // Halfway through a zoom out from 125k to 22k, the view should be the geometric mean of the two
+  // scales (the same ratio on each side), not their arithmetic mean, which reads as a late snap.
+  const halfway = app.zoomAlongTween(125000, 22000, 0.5);
+  assert.ok(Math.abs(halfway - Math.sqrt(125000 * 22000)) < 1,
+    `expected the geometric mean, got ${halfway}`);
+  assert.equal(app.zoomAlongTween(125000, 22000, 0), 125000, "a zoom starts at its source scale");
+  assert.ok(Math.abs(app.zoomAlongTween(125000, 22000, 1) - 22000) < 1e-6, "and lands on its target");
 });
 
 test("clusterJoinAnimationState leaves a lone pin undisturbed", () => {
