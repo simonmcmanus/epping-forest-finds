@@ -635,6 +635,37 @@ test.describe("Overview / Nearby screen", () => {
       expect(ring.smallerDimensionFraction).toBeLessThanOrEqual(1);
     });
 
+    test("on a portrait phone with the sheet open, the walking-radius circle sits on the map's bottom edge with a label strip above", async ({ page }) => {
+      await page.setViewportSize({ width: 390, height: 844 });
+      await setup(page);
+      await page.waitForFunction(() => Boolean(state.userLocation));
+      await waitForUiToSettle(page);
+
+      const edges = await page.evaluate(() => {
+        stopViewportAnimation();
+        const rect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+        const ring = walkingRadiusCirclePoints(64).map((p) => worldToScreen(p));
+        const xs = ring.map((p) => p.x);
+        const ys = ring.map((p) => p.y);
+        return {
+          leftGap: Math.min(...xs) - rect.x,
+          rightGap: rect.x + rect.width - Math.max(...xs),
+          bottomGap: rect.y + rect.height - Math.max(...ys),
+          topRoom: Math.min(...ys) - rect.y,
+          pr: pixelRatio(),
+          tolerance: 12 * pixelRatio(),
+        };
+      });
+
+      // The open sheet leaves a short map, so the height is the constraint: the whole circle stays
+      // inside the visible map, resting on its bottom edge, with a strip above for the label.
+      expect(edges.leftGap).toBeGreaterThanOrEqual(0);
+      expect(edges.rightGap).toBeGreaterThanOrEqual(0);
+      expect(edges.bottomGap).toBeGreaterThanOrEqual(0);
+      expect(edges.bottomGap).toBeLessThanOrEqual(edges.tolerance);
+      expect(edges.topRoom).toBeGreaterThan(20 * edges.pr);
+    });
+
     test("the zoom does not change as the compass heading turns", async ({ page }) => {
       // A circle centred on the user looks the same from every heading, so the fit is
       // heading-invariant by construction and the map must not breathe as you turn on the spot.

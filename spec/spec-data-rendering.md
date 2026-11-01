@@ -610,6 +610,8 @@ moving the real GPS fix:
   all the way down to `WALKING_RADIUS_TIGHT_MIN_MINUTES` (0.25 min, ~21 m), so a find a few
   seconds away can be closed right in on, ring and camera together. The camera follows because
   the Nearby fit frames the ring and nothing else (see "Heading-up nearby mode" below).
+
+  The default plain Nearby view (nothing selected, no tilt, no expanded cluster, no secondary screen) pins the ring to the bottom edge of the visible map rather than centring it: `bottomEdgeRadiusFrame` (`js/app.js`) sizes it to the width fit or the height fit, whichever is smaller, with a small edge inset and a strip above the ring for its label. `alignHeadingUpNavigationViewport` uses that frame as its focus and scale, so the framing is the same at every compass heading. With the inspector sheet open on a phone the visible map is short, so the height fit applies and the whole circle stays on screen.
   The floor itself is rounded *up* onto a grid — `WALKING_RADIUS_STEP_MINUTES` (0.5) at a minute
   and above, `WALKING_RADIUS_FINE_STEP_MINUTES` (0.25) below it, where half-minute steps would be
   a third of what is left (`walkingMinutesStep`/`ceilWalkingMinutes`) — so it can never land just
