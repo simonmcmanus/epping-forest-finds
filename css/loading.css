@@ -154,6 +154,17 @@
   transition: opacity 0.32s ease;
 }
 
+/* Desktop: the inspector is a 390px column on the right, so the prompt sits in the map space to its
+   left rather than running underneath it. */
+@media (min-width: 761px) {
+  .consent-banner {
+    left: 16px;
+    right: calc(14px + 390px + 16px);
+    max-width: 560px;
+    margin: 0;
+  }
+}
+
 .consent-banner[hidden] {
   display: none;
 }
