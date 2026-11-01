@@ -8379,7 +8379,8 @@ function findTreeByHashKey(key) {
 function findPlaceByHashKey(key) {
   const probe = String(key).trim().toLowerCase();
   for (const place of state.landmarks) {
-    if (placeHashKey(place).toLowerCase() === probe) return place;
+    if (placeHashKey(place).toLowerCase() === probe
+      || (place.aliasIds || []).some((id) => `id:${id}`.toLowerCase() === probe)) return place;
   }
   return null;
 }

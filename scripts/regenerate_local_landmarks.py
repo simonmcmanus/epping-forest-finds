@@ -6,6 +6,7 @@ import urllib.error
 from datetime import datetime, timezone
 from pathlib import Path
 import math
+from landmark_corrections import load_corrections, corrected_properties
 
 ROOT = Path.cwd()
 DATA = ROOT / "data"
@@ -242,6 +243,7 @@ lat_values = [seg[1] for seg in boundary_segments] + [seg[3] for seg in boundary
 ref_lat_rad = math.radians(sum(lat_values) / max(1, len(lat_values)))
 projected_boundary_segments = project_segments(boundary_segments, ref_lat_rad)
 
+corrections = load_corrections(DATA)
 features = []
 for element in parsed.get("elements", []):
     tags = element.get("tags", {})
@@ -304,6 +306,7 @@ for element in parsed.get("elements", []):
             "highway": tags.get("highway"),
             "tourism": tags.get("tourism"),
             "historic": tags.get("historic"),
+            **{key: tags[key] for key in ("memorial", "memorial:type", "colour") if key in tags},
             "railway": tags.get("railway"),
             "barrier": tags.get("barrier"),
             "entrance": tags.get("entrance"),
@@ -315,6 +318,9 @@ for element in parsed.get("elements", []):
             "distanceLimitFromForestBoundaryMetres": round(distance_limit_m, 1),
         },
     })
+
+for feature in features:
+    feature["properties"] = corrected_properties(feature["properties"], {}, corrections)
 
 known_ids = {feature["properties"]["id"] for feature in features}
 preserved_manual_count = 0

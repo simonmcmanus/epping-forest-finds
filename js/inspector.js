@@ -477,7 +477,8 @@ function showLandmarkDetails(place, distance) {
   const distancePill = `<span data-live-field="distance">${hasRealLocation() ? walkChipPendingHtml() : ""}</span>`;
   if (hasRealLocation()) {
     setTimeout(() => {
-      if (state.selected && state.selected.item === place) updateSelectedDetailFields();
+      if (state.selected?.type === "landmark"
+        && placeHashKey(state.selected.item) === placeHashKey(place)) updateSelectedDetailFields();
     }, WALK_CHIP_MIN_LOADING_MS);
   }
   const mapsLink = place.latitude != null ? openInMapsHtml(place.latitude, place.longitude, place.name) : "";

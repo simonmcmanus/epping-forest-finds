@@ -1,0 +1,53 @@
+{
+  "corrections": {
+    "node/13049742876": {
+      "properties": {
+        "memorial": "blue_plaque",
+        "aliasIds": [
+          "folklore-81"
+        ]
+      },
+      "source": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf",
+      "verifiedOn": "2026-10-31",
+      "reason": "Council identifies this as a physical plaque; retain its subtype when refreshing the broad OSM memorial category."
+    },
+    "node/13049742872": {
+      "properties": {
+        "memorial": "blue_plaque",
+        "aliasIds": [
+          "folklore-153"
+        ]
+      },
+      "source": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Agendas/183704-E_and_H_Agenda_18.9.24.pdf",
+      "verifiedOn": "2026-10-31",
+      "reason": "Council identifies this as a physical plaque; retain its subtype when refreshing the broad OSM memorial category."
+    },
+    "node/13049742873": {
+      "properties": {
+        "memorial": "blue_plaque",
+        "aliasIds": [
+          "folklore-148"
+        ]
+      },
+      "source": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Agendas/183704-E_and_H_Agenda_18.9.24.pdf",
+      "verifiedOn": "2026-10-31",
+      "reason": "Council identifies this as a physical plaque; retain its subtype when refreshing the broad OSM memorial category."
+    },
+    "node/13049742874": {
+      "properties": {
+        "memorial": "plaque"
+      },
+      "source": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Agendas/183704-E_and_H_Agenda_18.9.24.pdf",
+      "verifiedOn": "2026-10-31",
+      "reason": "Council identifies this as a physical plaque; retain its subtype when refreshing the broad OSM memorial category."
+    },
+    "node/13049742875": {
+      "properties": {
+        "memorial": "plaque"
+      },
+      "source": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Agendas/183704-E_and_H_Agenda_18.9.24.pdf",
+      "verifiedOn": "2026-10-31",
+      "reason": "Council identifies this as a physical plaque; retain its subtype when refreshing the broad OSM memorial category."
+    }
+  }
+}
