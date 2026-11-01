@@ -19,6 +19,7 @@
     || Boolean(capacitor && typeof capacitor.isNativePlatform === "function" && capacitor.isNativePlatform());
   const platform = !isNative ? "web" : (shim ? shim.platform || "ios" : capacitor.getPlatform());
   const plugins = (shim && shim.plugins) || (capacitor && capacitor.Plugins) || {};
+  if (platform === "android" && document.documentElement) document.documentElement.classList.add("native-android");
   const apiBase = isNative ? (window.__FOREST_FINDS_API_BASE__ || PRODUCTION_ORIGIN) : "";
 
   function remoteUrl(url) {
