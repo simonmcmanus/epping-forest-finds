@@ -1263,7 +1263,7 @@
       ],
       "coordinates": {
         "latitude": 51.6341,
-        "longitude": 0.0,
+        "longitude": 0,
         "accuracy": "approximate"
       },
       "location_description": "Pole Hill, Chingford, on the western edge of Epping Forest.",
@@ -3078,11 +3078,11 @@
         "poetry"
       ],
       "coordinates": {
-        "latitude": 51.649,
-        "longitude": 0.0495,
-        "accuracy": "street/area approximate"
+        "latitude": 51.6486967,
+        "longitude": 0.0522046,
+        "accuracy": "OSM mapped point"
       },
-      "location_precision": "public_address_known_coordinates_approximate",
+      "location_precision": "mapped_plaque_point",
       "address": "116 Forest Road, Loughton IG10 1EQ",
       "location_description": "116 Forest Road, Loughton IG10 1EQ",
       "story": "Poet George Barker was born here.",
@@ -3092,8 +3092,8 @@
         "inscription_or_summary": "Poet George Barker was born here.",
         "public_location": true
       },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
+      "notes": "Plaque identity matched to the OSM point using its subject and the council plaque list. Coordinates come from that mapped point; they are not a GPS survey.",
+      "confidence": "high for plaque/address; coordinates from the matched OSM point",
       "sources": [
         "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Aug%202024.pdf"
       ],
@@ -3104,7 +3104,10 @@
           "type": "blue_plaque_or_council_source"
         }
       ],
-      "has_more_detail_links": true
+      "has_more_detail_links": true,
+      "id": "folklore-81",
+      "osm_id": "node/13049742876",
+      "coordinate_source": "https://www.openstreetmap.org/node/13049742876"
     },
     {
       "name": "Blue Plaque: Marine William Sparks DSM",
@@ -5719,11 +5722,11 @@
         "natural history"
       ],
       "coordinates": {
-        "latitude": 51.648,
-        "longitude": 0.056,
-        "accuracy": "street/area approximate"
+        "latitude": 51.6526357,
+        "longitude": 0.0562509,
+        "accuracy": "OSM mapped point"
       },
-      "location_precision": "public_address_known_coordinates_approximate",
+      "location_precision": "mapped_plaque_point",
       "address": "19 York Hill, Loughton IG10 1RL",
       "location_description": "19 York Hill, Loughton IG10 1RL",
       "story": "Medical entomologist Arthur Bacot (1866-1922) lived here.",
@@ -5733,8 +5736,8 @@
         "inscription_or_summary": "Medical entomologist Arthur Bacot (1866-1922) lived here.",
         "public_location": true
       },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
+      "notes": "Plaque identity matched to the OSM point using its subject and the council plaque list. Coordinates come from that mapped point; they are not a GPS survey.",
+      "confidence": "high for plaque/address; coordinates from the matched OSM point",
       "sources": [
         "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Feb%2026.pdf"
       ],
@@ -5745,7 +5748,10 @@
           "type": "blue_plaque_or_council_source"
         }
       ],
-      "has_more_detail_links": true
+      "has_more_detail_links": true,
+      "id": "folklore-148",
+      "osm_id": "node/13049742873",
+      "coordinate_source": "https://www.openstreetmap.org/node/13049742873"
     },
     {
       "name": "Blue Plaque: Sir Leonard Hill and Austin Bradford Hill",
@@ -5931,11 +5937,11 @@
         "Mexico"
       ],
       "coordinates": {
-        "latitude": 51.648,
-        "longitude": 0.056,
-        "accuracy": "street/area approximate"
+        "latitude": 51.6526439,
+        "longitude": 0.056235,
+        "accuracy": "OSM mapped point"
       },
-      "location_precision": "public_address_known_coordinates_approximate",
+      "location_precision": "mapped_plaque_point",
       "address": "19 York Hill, Loughton IG10 1RL",
       "location_description": "19 York Hill, Loughton IG10 1RL",
       "story": "Diana Kennedy née Southwood (1923-2022), celebrated Mexicanist and food writer, was born here.",
@@ -5945,8 +5951,8 @@
         "inscription_or_summary": "Diana Kennedy née Southwood (1923-2022), Mexicanist, was born here.",
         "public_location": true
       },
-      "notes": "Public plaque/address included. Coordinates are approximate from street/town level and should be geocoded before exact navigation.",
-      "confidence": "high for plaque/address, approximate for coordinate",
+      "notes": "Plaque identity matched to the OSM point using its subject and the council plaque list. Coordinates come from that mapped point; they are not a GPS survey.",
+      "confidence": "high for plaque/address; coordinates from the matched OSM point",
       "sources": [
         "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Other/Website%20list%20-%20Feb%2026.pdf"
       ],
@@ -5957,7 +5963,10 @@
           "type": "blue_plaque_or_council_source"
         }
       ],
-      "has_more_detail_links": true
+      "has_more_detail_links": true,
+      "id": "folklore-153",
+      "osm_id": "node/13049742872",
+      "coordinate_source": "https://www.openstreetmap.org/node/13049742872"
     },
     {
       "name": "Blue Plaque: Barbara Harmer",

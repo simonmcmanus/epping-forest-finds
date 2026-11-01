@@ -41,7 +41,7 @@ function loadAppRules() {
   // scope rather than becoming properties of the context object, so the ones
   // this script needs are read back out with an expression.
   return vm.runInContext(
-    "({ FILTER_GROUPS, placeLabelFilterKey, buildOsmCategoryTags, normalizeFolkloreLocations, extractWaterFeatures, waterHashKey, filterKindEmoji, appIconHtml, treeSpeciesIconHtml, normalizeTreeNumber, treeHashKey, treeTagLabel, treeDisplayName, DEFAULT_WALKING_DISTANCE_MINUTES, LANDING_PAGE_WALKING_DISTANCE_MINUTES, DEFAULT_LOCATION, DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES, bearingDegrees, distanceMetres, formatDistance, walkingDistanceToMetres, formatWalkingRadius })",
+    "({ FILTER_GROUPS, placeLabelFilterKey, buildOsmCategoryTags, normalizeFolkloreLocations, reconcileLinkedLandmarks, extractWaterFeatures, waterHashKey, filterKindEmoji, appIconHtml, treeSpeciesIconHtml, normalizeTreeNumber, treeHashKey, treeTagLabel, treeDisplayName, DEFAULT_WALKING_DISTANCE_MINUTES, LANDING_PAGE_WALKING_DISTANCE_MINUTES, DEFAULT_LOCATION, DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES, bearingDegrees, distanceMetres, formatDistance, walkingDistanceToMetres, formatWalkingRadius })",
     context
   );
 }
@@ -79,7 +79,7 @@ function loadPlaces(rules, root) {
   });
   const folkloreData = readJsonIfPresent(root, "data/epping_forest_folklore_locations.json");
   const folklore = folkloreData ? rules.normalizeFolkloreLocations(folkloreData) : [];
-  return [...osm, ...folklore];
+  return rules.reconcileLinkedLandmarks([...osm, ...folklore]);
 }
 
 function countTrees(root) {

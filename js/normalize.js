@@ -425,6 +425,7 @@ function normalizeFolkloreLocations(data) {
       const summary = item.folklore_summary || item.story_summary || item.story || "";
       return {
         id: item.id || `folklore-${index + 1}`,
+        linkedOsmId: /^(node|way|relation)\/\d+$/.test(item.osm_id || "") ? item.osm_id : null,
         name: item.name || "Folklore location",
         category: folkloreCategory,
         categoryTags: buildFolkloreCategoryTags(item),
@@ -439,13 +440,45 @@ function normalizeFolkloreLocations(data) {
         longitude: coords.longitude,
         point: projectLonLat(coords.longitude, coords.latitude),
         folkloreSummary: summary,
-        sourceLinks: Array.isArray(item.source_links) ? item.source_links : [],
+        sourceLinks: Array.isArray(item.source_links) ? item.source_links : (Array.isArray(item.sources) ? item.sources : []),
         externalLinks: Array.isArray(item.external_links) ? item.external_links : [],
         source: "Folklore dataset",
         dataSource: "folklore",
       };
     })
     .filter(Boolean);
+}
+
+// Only reviewed ID links combine sources. A building and a plaque on its wall,
+// or two different plaques on one house, must remain separate map objects.
+function reconcileLinkedLandmarks(places) {
+  const byId = new Map(places.map((place) => [place.id, place]));
+  const links = new Map(places.filter((place) => place.linkedOsmId).map((place) => [place.linkedOsmId, place]));
+  const seen = new Set();
+  return places.flatMap((place) => {
+    const id = place.linkedOsmId || place.id;
+    const curated = links.get(id);
+    if (!curated) return [place];
+    if (seen.has(id)) return [];
+    seen.add(id);
+    const osm = byId.get(id);
+    const merged = { ...curated, ...(osm || {}), id, linkedOsmId: id };
+    return [{
+      ...merged,
+      aliasIds: Array.from(new Set([curated.id, ...(curated.aliasIds || [])])).filter((alias) => alias !== id),
+      category: curated.category,
+      categoryLabel: isBluePlaqueCategory(curated) ? "Blue plaque" : curated.categoryLabel,
+      categoryTags: Array.from(new Set([...(merged.categoryTags || []), ...(curated.categoryTags || [])])),
+      findSlug: osm?.findSlug || curated.findSlug || null,
+      verifiedAt: osm?.verifiedAt || curated.verifiedAt || null,
+      folkloreTopics: curated.folkloreTopics,
+      folkloreSummary: curated.folkloreSummary,
+      sourceLinks: curated.sourceLinks,
+      externalLinks: curated.externalLinks,
+      address: merged.address || curated.address,
+      source: "OpenStreetMap + Folklore dataset",
+    }];
+  });
 }
 
 function isGenericFolkloreLocation(item) {
