@@ -212,12 +212,20 @@ async function loadMapData() {
   };
 
   const businessById = new Map();
-  const applyBusinessMetadata = (entries) => {
-    for (const entry of entries || []) businessById.set(entry.id, entry);
+  const attachBusinessMetadata = () => {
     state.landmarks = state.landmarks.map((place) => {
-      const business = businessById.get(place.id);
+      const business = businessById.get(place.id)
+        || (place.aliasIds || []).map((id) => businessById.get(id)).find(Boolean);
       return business ? { ...place, findSlug: business.slug || null, verifiedAt: business.verifiedAt || null } : place;
     });
+    if (state.selected?.type === "landmark") {
+      const updated = state.landmarks.find((place) => place.id === state.selected.item.id);
+      if (updated) state.selected.item = updated;
+    }
+  };
+  const applyBusinessMetadata = (entries) => {
+    for (const entry of entries || []) businessById.set(entry.id, entry);
+    attachBusinessMetadata();
     notifyInteractiveDataChange();
   };
 
@@ -229,9 +237,17 @@ async function loadMapData() {
       return data;
     });
 
+  const landmarkSources = [];
   const appendLandmarks = (places) => {
     if (!places.length) return;
-    state.landmarks = state.landmarks.concat(places);
+    landmarkSources.push(...places);
+    state.landmarks = reconcileLinkedLandmarks(landmarkSources);
+    attachBusinessMetadata();
+    const selected = state.selected;
+    if (selected?.type === "landmark" && selected.item.linkedOsmId
+      && places.some((place) => (place.linkedOsmId || place.id) === selected.item.id)) {
+      showLandmarkDetails(selected.item, distanceFromUser(selected.item));
+    }
     setLoadStep("places", "loading", state.landmarks.length);
     notifyInteractiveDataChange();
   };
@@ -242,9 +258,11 @@ async function loadMapData() {
       const properties = feature.properties || {};
       const longitude = Number(feature.geometry.coordinates[0]);
       const latitude = Number(feature.geometry.coordinates[1]);
-      const business = businessById.get(properties.id);
+      const business = businessById.get(properties.id)
+        || (properties.aliasIds || []).map((id) => businessById.get(id)).find(Boolean);
       return {
         ...properties,
+        ...osmPlaqueProperties(properties),
         categoryTags: buildOsmCategoryTags(properties),
         latitude,
         longitude,
@@ -270,7 +288,8 @@ async function loadMapData() {
     .catch(() => ({ locations: [] }))
     .then((data) => {
       appendLandmarks(normalizeFolkloreLocations(data).map((place) => {
-        const business = businessById.get(place.id);
+        const business = businessById.get(place.id)
+        || (place.aliasIds || []).map((id) => businessById.get(id)).find(Boolean);
         return { ...place, findSlug: business?.slug || null, verifiedAt: business?.verifiedAt || null };
       }));
       return data;

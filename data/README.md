@@ -2,6 +2,12 @@
 
 This folder stores local GeoJSON files used by the PWA when offline.
 
+## Reviewed landmark corrections
+
+`landmark-corrections.json` records verified property corrections by OSM object ID, with a source URL, verification date and reason. Both landmark regeneration commands reapply them. Keep the corrected split dataset in sync when adding a correction; `npm run audit:plaques` checks for drift and reports unresolved coordinate quality and possible duplicate plaques. `npm test` checks the verified invariants without rejecting existing uncertainty.
+
+A curated plaque may link to an OSM point with `osm_id` and a stable `id`. Add a link only after checking the physical object and address against a source; a shared subject, building or approximate location alone is insufficient. Keep distinct plaques at the same address separate.
+
 ## Sources
 
 - `trees/index.json` and `trees/chunk-*.json`

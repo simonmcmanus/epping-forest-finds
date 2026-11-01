@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const https = require("https");
+const { loadCorrections, correctedProperties } = require("./landmark-corrections");
 
 const ROOT = process.cwd();
 const DATA_DIR = path.join(ROOT, "data");
@@ -216,7 +217,9 @@ function toFeature(element, boundarySegments, refLatRad) {
 
 async function main() {
   const queryText = fs.readFileSync(QUERY_PATH, "utf8");
-  const raw = await postOverpass(queryText);
+  const raw = process.argv.includes("--use-cache") && fs.existsSync(OVERPASS_JSON_PATH)
+    ? fs.readFileSync(OVERPASS_JSON_PATH, "utf8")
+    : await postOverpass(queryText);
   fs.writeFileSync(OVERPASS_JSON_PATH, raw);
 
   const parsed = JSON.parse(raw);
@@ -228,7 +231,12 @@ async function main() {
   const refLat = latValues.reduce((sum, value) => sum + value, 0) / Math.max(1, latValues.length);
   const refLatRad = (refLat * Math.PI) / 180;
 
-  const features = (parsed.elements || []).map((element) => toFeature(element, boundarySegments, refLatRad)).filter(Boolean);
+  const corrections = loadCorrections(DATA_DIR);
+  const features = (parsed.elements || []).map((element) => {
+    const feature = toFeature(element, boundarySegments, refLatRad);
+    if (feature) feature.properties = correctedProperties(feature.properties, element.tags || {}, corrections);
+    return feature;
+  }).filter(Boolean);
 
   const geojson = {
     type: "FeatureCollection",
