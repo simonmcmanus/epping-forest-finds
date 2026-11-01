@@ -68,8 +68,6 @@ test.describe("the native app shell", () => {
     await page.addInitScript(() => {
       window.__FORCE_NATIVE_SHIM__.platform = "android";
       Object.defineProperty(window, "devicePixelRatio", { value: 3 });
-      // What Capacitor injects on a WebView that reports env() as 0.
-      document.documentElement.style.setProperty("--safe-area-inset-bottom", "48px");
     });
     await page.addInitScript(() => localStorage.setItem("ff-track-v1", "0"));
     await gotoAndWaitForMap(page);
@@ -77,8 +75,10 @@ test.describe("the native app shell", () => {
     await expect(page.locator("html")).toHaveClass(/native-android/);
     await expect.poll(() => page.evaluate(() => Number(document.getElementById("mapCanvas").dataset.dpr))).toBeLessThanOrEqual(2);
     expect(await page.evaluate(() => getComputedStyle(document.querySelector(".inspector")).backdropFilter)).toBe("none");
-    // The injected inset is honoured: an element sized by it measures at least 48px.
+    // What Capacitor injects on a WebView that reports env() as 0; an element sized by the
+    // app's own inset must then measure at least that much.
     expect(await page.evaluate(() => {
+      document.documentElement.style.setProperty("--safe-area-inset-bottom", "48px");
       const probe = document.createElement("div");
       probe.style.cssText = "position:absolute;visibility:hidden;height:var(--safe-bottom)";
       document.body.appendChild(probe);
