@@ -487,7 +487,7 @@ writing a standalone page. Only two things are swapped:
   with `numberOfItems` set to the live count.
 - The static `<title>` remains specific to the category or business for crawlers and no-JS
   visitors. After the shared app shell boots, `document.title` is updated for the live screen
-  (`Nearby <Category> in Epping Forest` for category landings and `<name> near Epping Forest`
+  (`Nearby <Category> in Epping Forest` for category landings and `<name> in Epping Forest`
   for individual locations), including in-app navigation without a document reload.
 - The app's own "nothing selected yet" placeholder inside `#inspectorBody`
   (the one static, pre-boot paragraph `app.html` ships) is replaced with real,

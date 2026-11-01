@@ -294,12 +294,12 @@ function renderBusinessPage(entry, appHtml, rules, index) {
 
 function renderEventsIndexPage(appHtml, events) {
   const canonical = `${SITE_ORIGIN}/find/events/`;
-  const titleTag = `Events near Epping Forest | ${SITE_NAME}`;
+  const titleTag = `Events in Epping Forest | ${SITE_NAME}`;
   const description = `${events.length} upcoming and recent events in and around Epping Forest, from guided walks to litter picks and local fairs.`;
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
-    name: "Events near Epping Forest",
+    name: "Events in Epping Forest",
     description,
     url: canonical,
     isPartOf: { "@type": "WebSite", name: SITE_NAME, url: `${SITE_ORIGIN}/` },
