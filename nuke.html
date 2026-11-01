@@ -9,6 +9,33 @@
   <p>Refreshing the app cache…</p>
   <script>
     (async () => {
+      // Forget the visitor: local/session storage, cookies and IndexedDB, so the next load is
+      // indistinguishable from a brand-new user (onboarding, consent and settings all reset).
+      try { localStorage.clear(); } catch {}
+      try { sessionStorage.clear(); } catch {}
+      try {
+        for (const cookie of document.cookie.split(";")) {
+          const name = cookie.split("=")[0].trim();
+          if (!name) continue;
+          const parts = location.hostname.split(".");
+          const domains = [undefined];
+          for (let i = 0; i < parts.length - 1; i++) domains.push("." + parts.slice(i).join("."));
+          for (const domain of domains) {
+            document.cookie = `${name}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/` +
+              (domain ? `; domain=${domain}` : "");
+          }
+        }
+      } catch {}
+      try {
+        if (indexedDB.databases) {
+          const dbs = await indexedDB.databases();
+          await Promise.all(dbs.filter((db) => db.name).map((db) => new Promise((resolve) => {
+            const req = indexedDB.deleteDatabase(db.name);
+            req.onsuccess = req.onerror = req.onblocked = () => resolve();
+          })));
+        }
+      } catch {}
+
       // A controlled page already has the current worker available to do the safe, transactional
       // data refresh. Ask it to revalidate instead of deleting the offline shell underneath the
       // reader; the old delete-first recovery was especially surprising when the connection was

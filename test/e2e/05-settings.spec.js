@@ -559,6 +559,23 @@ test.describe("?nuke=true URL parameter", () => {
     expect(new URL(page.url()).searchParams.get("show")).toBe("trees");
   });
 
+  test("forgets stored data and cookies so the next visit is a brand-new user", async ({ page }) => {
+    await page.goto("/nearby");
+    await expect(page.locator("#settingsToggle")).toBeVisible();
+    await page.evaluate(() => {
+      localStorage.setItem("nuke-sentinel", "1");
+      document.cookie = "nuke-sentinel=1; path=/";
+    });
+    await page.goto("/nearby?nuke=true");
+    await expect.poll(() => new URL(page.url()).searchParams.has("nuke")).toBe(false);
+    await expect(page.locator("#settingsToggle")).toBeVisible();
+    const left = await page.evaluate(() => ({
+      storage: localStorage.getItem("nuke-sentinel"),
+      cookie: document.cookie.includes("nuke-sentinel"),
+    }));
+    expect(left).toEqual({ storage: null, cookie: false });
+  });
+
   test("a page without the flag clears nothing", async ({ page }) => {
     await page.goto("/nearby");
     await expect(page.locator("#settingsToggle")).toBeVisible();
