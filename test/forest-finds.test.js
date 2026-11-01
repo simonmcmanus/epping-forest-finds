@@ -368,6 +368,7 @@ globalThis.__forestFindsTest = {
   centerOverviewOnUserLocation,
   setInspectorMinimized,
   maxScaleForRadiusVisible,
+  bottomEdgeRadiusFrame,
   bestVisibleCanvasRect,
   walkingRadiusCirclePoints,
   drawWalkingRadius,
@@ -851,9 +852,10 @@ function resetData(app) {
 // area, so hardcoding tx/ty here would bake in one particular inspector geometry and turn a
 // zoom-deferral test into a re-centring test.
 function seedViewportAtHeadingUpAnchor(app, scale) {
-  const focus = app.nearbyNavigationFocusPoint();
+  // The plain Nearby anchor is the bottom-edge frame's centre (see bottomEdgeRadiusFrame).
+  const frame = app.bottomEdgeRadiusFrame(app.bestVisibleCanvasRect());
   const point = app.state.userLocation.point;
-  app.state.viewport = { scale, tx: focus.x - point.x * scale, ty: focus.y - point.y * scale };
+  app.state.viewport = { scale, tx: frame.centreX - point.x * scale, ty: frame.centreY - point.y * scale };
   return { ...app.state.viewport };
 }
 
@@ -1700,7 +1702,7 @@ test("nearby heading-up map rotation applies compass heading to worldToScreen", 
   assert.ok(Math.abs(northScreen.y - userScreen.y) < 0.01, "north point should be on same horizontal level as user");
 });
 
-test("nearby heading-up viewport centres the user, because the walking-radius circle it frames is centred on them", () => {
+test("nearby heading-up viewport centres the user horizontally and sits them low, so the walking-radius circle rests on the bottom edge", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 90;
@@ -1714,8 +1716,8 @@ test("nearby heading-up viewport centres the user, because the walking-radius ci
   const focusCenter = app.els.canvas.clientWidth / 2;
   assert.equal(Math.round(app.state.viewport.tx), Math.round(focusCenter), "user should stay horizontally centered");
   assert.ok(
-    Math.abs(userAnchorFractionOfVisibleArea(app) - 0.5) < 0.001,
-    "flat (2D) nearby puts the user dead centre so the radius circle is centred in the map space"
+    userAnchorFractionOfVisibleArea(app) > 0.5,
+    "flat (2D) nearby sits the user below centre so the radius circle rests on the bottom edge with a label strip above"
   );
 });
 
@@ -2618,22 +2620,22 @@ test("nearby heading-up zoom is not dragged in by a location right next to the u
 
   app.alignHeadingUpNavigationViewport();
 
-  // The applied scale is the ring fit with the standard zoom-buffer ratio applied (see
-  // HEADING_UP_SCALE_BUFFER_RATIO / resolveHeadingUpTargetScale) -- an exact match here (not
-  // just an upper bound) proves the fit followed the circle rather than merely staying under
-  // some looser ceiling by coincidence.
-  const bufferedExpected = ringScale * 0.96;
+  // The applied scale frames the walking-radius circle (see bottomEdgeRadiusFrame), so it must
+  // not be dragged in toward the tree at the user's feet.
+  // Exact match: the applied scale is the bottom-edge frame with the standard zoom buffer, so the
+  // fit provably follows the circle rather than landing under some looser ceiling by coincidence.
+  const expectedScale = app.bottomEdgeRadiusFrame(focusRect).scale * 0.96;
   assert.ok(
-    Math.abs(app.state.viewport.scale - bufferedExpected) < bufferedExpected * 0.001,
-    `expected buffered scale ~${bufferedExpected}, got ${app.state.viewport.scale}`,
+    Math.abs(app.state.viewport.scale - expectedScale) < expectedScale * 0.001,
+    `expected buffered frame scale ~${expectedScale}, got ${app.state.viewport.scale}`,
   );
   assert.ok(
-    ringScale < atFeetScale / 100,
+    app.state.viewport.scale < atFeetScale / 100,
     "framing the circle should avoid the near-infinite scale fitting the at-feet tree would demand",
   );
 });
 
-test("nearby filter updates trigger a heading-up refit that keeps the radius circle centred", () => {
+test("nearby filter updates trigger a heading-up refit that keeps the user horizontally centred and the radius circle on the bottom edge", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 0;
@@ -2653,10 +2655,13 @@ test("nearby filter updates trigger a heading-up refit that keeps the radius cir
 
   const rect = app.bestVisibleCanvasRect();
   const userScreen = app.worldToScreen(app.state.userLocation.point);
+  const circleRadiusPx = app.walkingRadiusWorldUnits() * app.state.viewport.scale;
+  assert.ok(Math.abs(userScreen.x - (rect.x + rect.width / 2)) < 1, "the flat nearby refit centres the user horizontally");
+  // The zoom buffer (HEADING_UP_SCALE_BUFFER_RATIO) leaves a few pixels of slack under the circle.
+  const bottomGap = (rect.y + rect.height) - (userScreen.y + circleRadiusPx);
   assert.ok(
-    Math.abs(userScreen.x - (rect.x + rect.width / 2)) < 1
-    && Math.abs(userScreen.y - (rect.y + rect.height / 2)) < 1,
-    "the flat nearby refit centres the user, and with them the radius circle",
+    bottomGap >= -1 && bottomGap < 20 * app.pixelRatio(),
+    "the flat nearby refit rests the radius circle on the bottom edge of the visible map",
   );
 });
 
@@ -3113,8 +3118,8 @@ test("overview GPS updates keep the user centered even before a compass heading 
   assert.deepEqual(app.state.viewport, afterAlign, "keepOverviewCenteredOnUser should not fight the anchored fit");
   const userScreen = app.worldToScreen(app.state.userLocation.point);
   const focus = app.nearbyNavigationFocusPoint();
-  assert.equal(Math.round(userScreen.x), Math.round(focus.x), "user should land on the nearby anchor point");
-  assert.equal(Math.round(userScreen.y), Math.round(focus.y), "user should land on the nearby anchor point");
+  assert.equal(Math.round(userScreen.x), Math.round(focus.x), "user should land horizontally centred on the nearby framing");
+  assert.ok(userScreen.y > focus.y, "user should sit low on screen, so the walking-radius circle rests on the bottom edge");
 });
 
 test("first location fix immediately scales and centers nearby map icons", () => {
@@ -6440,18 +6445,15 @@ test("the nearby zoom is set by the walking radius, not by a ratio against a dri
   app.state.compassLastEventAt = null; // sensor quiet -- isolates this from the defer/force path tested elsewhere
 
   const focusRect = app.bestVisibleCanvasRect();
-  const focus = app.nearbyNavigationFocusPoint();
-  const ceiling = app.maxScaleForHeadingUpPoints(app.walkingRadiusCirclePoints(), focus, focusRect, { projectTilt: true });
-
   const changed = app.alignHeadingUpNavigationViewport();
   assert.equal(changed, true, "a viewport frozen at an absurd scale must still self-correct");
   // Exact match (with the standard zoom-buffer ratio applied), not just an upper bound --
   // proves the fit tracked the radius circle rather than merely landing under some looser
   // ceiling, and that the very close tree did not drag it in.
-  const bufferedCeiling = ceiling * 0.96;
+  const expectedScale = app.bottomEdgeRadiusFrame(focusRect).scale * 0.96;
   assert.ok(
-    Math.abs(app.state.viewport.scale - bufferedCeiling) < bufferedCeiling * 0.001,
-    `expected buffered scale ~${bufferedCeiling}, got ${app.state.viewport.scale}`
+    Math.abs(app.state.viewport.scale - expectedScale) < expectedScale * 0.001,
+    `expected buffered frame scale ~${expectedScale}, got ${app.state.viewport.scale}`
   );
 });
 
@@ -6478,14 +6480,17 @@ test("the nearby zoom tracks the user's walking distance setting", () => {
     "a longer walking radius covers more ground, so its fit scale should be smaller (more zoomed out) than a shorter radius's"
   );
 
-  app.state.viewport = { scale: 50000000, tx: 500, ty: 440 };
   app.state.compassLastEventAt = null;
-  app.alignHeadingUpNavigationViewport();
-  const bufferedLongCeiling = longRadiusCeiling * 0.96;
-  assert.ok(
-    Math.abs(app.state.viewport.scale - bufferedLongCeiling) < bufferedLongCeiling * 0.001,
-    `with the 30-minute radius active, expected buffered scale ~${bufferedLongCeiling}, got ${app.state.viewport.scale}`
-  );
+  for (const minutes of [5, 30]) {
+    app.state.walkingDistanceMinutes = minutes;
+    app.state.viewport = { scale: 50000000, tx: 500, ty: 440 };
+    app.alignHeadingUpNavigationViewport();
+    const expected = app.bottomEdgeRadiusFrame(app.bestVisibleCanvasRect()).scale * 0.96;
+    assert.ok(
+      Math.abs(app.state.viewport.scale - expected) < expected * 0.001,
+      `with a ${minutes}-minute radius, expected buffered frame scale ~${expected}, got ${app.state.viewport.scale}`
+    );
+  }
 });
 
 test("calibration's zoom fit is applied immediately, never deferred by the actively-firing sensor", () => {

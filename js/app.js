@@ -1214,8 +1214,17 @@ async function revealMapCenteredOnUser() {
   // of whichever items happened to be nearest and then pulling back out to the circle.
   {
     const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
-    const targetScale = maxScaleForRadiusVisible(focusRect);
-    centerOverviewOnUserLocation({ scale: targetScale * 0.82, focusVisibleArea: true });
+    const startFrame = bottomEdgeRadiusFrame(focusRect, 0.82);
+    const origin = nearbyOrigin();
+    if (startFrame && origin) {
+      stopViewportAnimation();
+      state.viewport.scale = startFrame.scale;
+      state.viewport.tx = startFrame.centreX - origin.point.x * startFrame.scale;
+      state.viewport.ty = startFrame.centreY - origin.point.y * startFrame.scale;
+    } else {
+      const targetScale = maxScaleForRadiusVisible(focusRect);
+      centerOverviewOnUserLocation({ scale: targetScale * 0.82, focusVisibleArea: true });
+    }
   }
   draw();
 
@@ -7500,14 +7509,27 @@ function alignHeadingUpNavigationViewport(options = {}) {
   // nearby branch only -- selected navigation's own basis-switch ease (cameraOriginTransition)
   // is a different, still-wanted slide (see cameraOriginPoint's comment on "very jumpy").
   const useFinalBrowseState = Boolean(options.animate) && !selectedNavigationHeadingUpActive();
-  const focus = selectedNavigationHeadingUpActive()
-    ? navigationFocusPoint(focusRect)
-    : nearbyNavigationFocusPoint(focusRect, useFinalBrowseState);
-  const maxScale = selectedNavigationHeadingUpActive()
-    ? maxHeadingUpNavigationScale(focus, focusRect)
-    : maxNearbyHeadingUpScale(focus, focusRect, useFinalBrowseState);
   // The one shared definition of where the camera is looking -- see cameraOriginPoint().
   const userPoint = cameraOriginPoint(useFinalBrowseState);
+  // The plain Nearby view (nothing selected, no tilt, no expanded cluster, no secondary screen)
+  // pins the ring to the bottom edge instead of centring it -- see bottomEdgeRadiusFrame. The
+  // ring is a circle around the user, so this is the same framing at every compass heading.
+  const bottomFrame = !selectedNavigationHeadingUpActive()
+    && !tiltActive()
+    && !state.clusterExpanded
+    && !secondaryScreenActive()
+    ? bottomEdgeRadiusFrame(focusRect)
+    : null;
+  const focus = bottomFrame
+    ? { x: bottomFrame.centreX, y: bottomFrame.centreY }
+    : selectedNavigationHeadingUpActive()
+      ? navigationFocusPoint(focusRect)
+      : nearbyNavigationFocusPoint(focusRect, useFinalBrowseState);
+  const maxScale = bottomFrame
+    ? bottomFrame.scale
+    : selectedNavigationHeadingUpActive()
+      ? maxHeadingUpNavigationScale(focus, focusRect)
+      : maxNearbyHeadingUpScale(focus, focusRect, useFinalBrowseState);
   // Use maxScale directly: heading-up mode always fits all targets in the
   // rotated focus rect. Math.min would leave scale too low when the map
   // was previously at a wider zoom (e.g. walking-radius level on first load).
@@ -8037,6 +8059,33 @@ function maxScaleForRadiusVisible(focusRect) {
   const availableHalf = Math.min(focusRect.width / 2, focusRect.height / 2) - headingUpFitMarginPx(focusRect);
   if (availableHalf <= 0) return Number.POSITIVE_INFINITY;
   return availableHalf / worldRadius;
+}
+
+// The default Nearby framing (no selection, no tilt): the walking-radius circle touches the left and
+// right edges of the visible map and sits on the bottom edge, leaving the strip above it free so the
+// label can poke up into it. The radius is the width fit, or the height fit when the map is shorter
+// than that allows (landscape), so the whole circle always stays on screen. Returns the scale and the
+// screen point the ring's centre should land on; the caller places `worldPoint` there. `scaleFactor`
+// lets the boot reveal start a little wider or tighter than the final frame.
+const RADIUS_FRAME_EDGE_INSET_PX = 6;
+const RADIUS_FRAME_TOP_LABEL_ROOM_PX = 44;
+
+function bottomEdgeRadiusFrame(focusRect, scaleFactor = 1) {
+  const worldRadius = walkingRadiusWorldUnits();
+  if (!(worldRadius > 0)) return null;
+  const px = pixelRatio();
+  const edgeInset = RADIUS_FRAME_EDGE_INSET_PX * px;
+  const topRoom = RADIUS_FRAME_TOP_LABEL_ROOM_PX * px;
+  const radiusPx = Math.min(
+    focusRect.width / 2 - edgeInset,
+    (focusRect.height - edgeInset - topRoom) / 2,
+  ) * scaleFactor;
+  if (!(radiusPx > 0)) return null;
+  return {
+    scale: radiusPx / worldRadius,
+    centreX: focusRect.x + focusRect.width / 2,
+    centreY: focusRect.y + focusRect.height - edgeInset - radiusPx,
+  };
 }
 
 // A ring of points approximating the walking-radius circle around the user, in world
