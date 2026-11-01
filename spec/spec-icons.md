@@ -503,8 +503,8 @@ top-left to #e2a13c bottom-right) and writes:
   circular crop.
 - `apple-touch-icon.png` — 180px, square and opaque: iOS ignores transparency
   and applies its own mask.
-- `favicon.png` — 128px, the bare oak on a transparent background (no gold
-  tile), leaf at 92% of the height so it still reads at 16px in a browser tab.
+- `favicon.png` — 128px, the oak on a gold tile with rounded corners, leaf at
+  92% of the height so it still reads at 16px in a browser tab.
   Linked from `app.html`, `admin.html`, `terms.html` and the generated reports
   index.
 - `trees/logo.png` — a bare copy of the oak, used by the loading screen, the
