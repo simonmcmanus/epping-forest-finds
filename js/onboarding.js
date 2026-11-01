@@ -21,12 +21,12 @@ function canRequestCompassPermission() {
 function compassStepMarkup({ blocked = false }) {
   if (blocked) {
     return {
-      subtitle: "Compass access was blocked. The map will still load, and nearby guidance will do the best it can without heading data.",
+      subtitle: "No compass access. The map works fine without it.",
       actionsHtml: `<button class="button ob-compass-finish" type="button">Continue</button>`,
     };
   }
   return {
-    subtitle: "Enable compass access to unlock heading-up navigation — the map will rotate to face the direction you're walking.",
+    subtitle: "Turn on the compass and the map will rotate to match the way you're facing.",
     actionsHtml: `
       <button class="button ob-compass-enable" type="button">Enable compass</button>
       <button class="onboarding-skip-btn ob-compass-skip" type="button">Continue without compass</button>
@@ -75,11 +75,10 @@ function mapSetupSelectionPreviewMarkup(selected) {
   `;
 }
 
-function mapSetupHiddenCategoryCopy(selected) {
+function mapSetupShownCategoryCopy(selected) {
   const total = FILTER_GROUPS.reduce((count, group) => count + group.subfilters.length, 0);
-  const hidden = Math.max(0, total - selected.size);
-  if (!hidden) return "All categories are currently shown.";
-  return `There ${hidden === 1 ? "is" : "are"} ${hidden} categor${hidden === 1 ? "y" : "ies"} not currently shown.`;
+  const shown = Math.min(total, selected.size);
+  return `Showing ${shown} of ${total}. Tap a group to change it.`;
 }
 
 function onboardingReducedMotion() {
@@ -232,7 +231,7 @@ function showOnboarding({ mode = "first-run" } = {}) {
             ${mapSetupIconMarkup()}
             <h2 class="onboarding-step-title">What would you like to see?</h2>
           </div>
-          <p class="onboarding-step-subtitle">You can customise what is shown in your Nearby list and on the map. ${mapSetupHiddenCategoryCopy(selected)}</p>
+          <p class="onboarding-step-subtitle">Choose what appears on the map and in your Nearby list. ${mapSetupShownCategoryCopy(selected)}</p>
           ${mapSetupSelectionPreviewMarkup(selected)}
         `;
         actionsEl.innerHTML = `
@@ -241,11 +240,11 @@ function showOnboarding({ mode = "first-run" } = {}) {
       } else if (step.type === "welcome") {
         contentEl.innerHTML = `
           <img class="onboarding-step-icon" src="data/icons/trees/logo.png" alt="">
-          <h2 class="onboarding-step-title">Make the map yours</h2>
-          <p class="onboarding-step-subtitle">Take a quick tour of the map setup. Pick the finds you want to see, then you can start exploring.</p>
+          <h2 class="onboarding-step-title">Choose what you see</h2>
+          <p class="onboarding-step-subtitle">Pick the kinds of places you want to see. It takes about 20 seconds, and you can change it anytime.</p>
         `;
         actionsEl.innerHTML = `
-          <button class="button ob-primary">Set up my map</button>
+          <button class="button ob-primary">Choose what I see</button>
           <button class="onboarding-skip-btn ob-skip">Explore first</button>
         `;
       } else if (step.type === "group") {
@@ -260,14 +259,14 @@ function showOnboarding({ mode = "first-run" } = {}) {
         }).join("");
         const isLast = stepIndex === total - 1;
         const secondaryAction = !filterSetupMode && !isLast
-          ? `<button class="onboarding-skip-btn ob-skip" type="button">Skip remaining</button>`
+          ? `<button class="onboarding-skip-btn ob-skip" type="button">Skip the rest</button>`
           : "";
         contentEl.innerHTML = `
           <div class="onboarding-step-heading">
             <img class="onboarding-step-icon" src="data/icons/${group.icon}.png" alt="">
             <h2 class="onboarding-step-title">${group.label}</h2>
           </div>
-          <p class="onboarding-step-subtitle">Tap to toggle what you'd like to see on the map.</p>
+          <p class="onboarding-step-subtitle">Tap to show or hide on the map and in Nearby.</p>
           <div class="onboarding-chips">${chips}</div>
         `;
         actionsEl.innerHTML = `

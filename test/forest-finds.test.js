@@ -1165,12 +1165,12 @@ test("compass onboarding renders permission and fallback states", () => {
   const { compassStepMarkup: fn } = app;
 
   const prompt = fn({});
-  assert.match(prompt.subtitle, /heading-up navigation/);
+  assert.match(prompt.subtitle, /rotate to match the way you're facing/);
   assert.match(prompt.actionsHtml, /ob-compass-enable/);
   assert.match(prompt.actionsHtml, /Continue without compass/);
 
   const blocked = fn({ blocked: true });
-  assert.match(blocked.subtitle, /Compass access was blocked/);
+  assert.match(blocked.subtitle, /No compass access/);
   assert.match(blocked.actionsHtml, /ob-compass-finish/);
 });
 

@@ -1499,9 +1499,9 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
     // The invitation itself counts as the one-time first-run nudge. Its explicit close and the
     // automatic fade use the same value, so a reload cannot show the notice again.
     try { localStorage.setItem("forest-finds-onboarding-v1", "declined"); } catch {}
-    if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Make the map yours";
+    if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Choose what you see";
     if (els.consentBannerText) {
-      els.consentBannerText.innerHTML = "Choose the finds you want to see. Press the Map setup button below to set up your map. You can change it anytime.";
+      els.consentBannerText.innerHTML = "Tap the layers button below to pick what shows on the map and in Nearby.";
     }
     if (els.consentBannerDecline) {
       els.consentBannerDecline.textContent = "×";

@@ -16,12 +16,12 @@ test.describe("Map setup", () => {
   test("the first setup step explains what changing filters affects", async ({ page }) => {
     await page.click("#filterToggle");
     await expect(page.locator("#onboardingOverlay")).toContainText("What would you like to see?");
-    await expect(page.locator("#onboardingOverlay")).toContainText("customise what is shown");
-    await expect(page.locator("#onboardingOverlay")).toContainText("categories not currently shown");
+    await expect(page.locator("#onboardingOverlay")).toContainText("Choose what appears on the map");
+    await expect(page.locator("#onboardingOverlay")).toContainText("Tap a group to change it");
     await expect(page.locator("#onboardingOverlay")).toContainText("Nearby list");
     await expect(page.locator("#onboardingOverlay")).toContainText("Nature");
     await expect(page.locator("#onboardingOverlay")).not.toContainText("Currently set to");
-    await expect(page.locator("#onboardingOverlay").locator(".onboarding-selection-item-group").first()).toHaveText(/\(\d+\/\d+\)/);
+    await expect(page.locator("#onboardingOverlay").locator(".onboarding-selection-item-group").first()).toHaveText(/^\d+\/\d+$/);
     const summaryFits = await page.locator(".onboarding-selection-preview").evaluate((el) => el.scrollWidth <= el.clientWidth + 1);
     expect(summaryFits, "all category groups should fit without horizontal scrolling").toBe(true);
   });
