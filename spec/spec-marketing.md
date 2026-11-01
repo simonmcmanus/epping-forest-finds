@@ -321,8 +321,8 @@ The walking-distance pillar uses a shaded folded map (`assets/home/distance.png`
 and the location pillar uses the emerald-and-gold Nearby beacon
 (`assets/home/logo.png`), stored as independent homepage copies.
 
-The homepage's favicon and Apple touch icon (`assets/home/favicon.png`,
-`assets/home/apple-touch-icon.png`) are copies of the app's oak-on-gold icons,
+The homepage's favicon (`assets/home/favicon.png`, a bare oak on transparency)
+and Apple touch icon (`assets/home/apple-touch-icon.png`, oak-on-gold) are copies of the app's icons,
 written by `scripts/generate-app-icon.py`, and `apple-mobile-web-app-title`
 names a saved homepage "Epping Forest Finds".
 
