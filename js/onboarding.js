@@ -63,11 +63,11 @@ function mapSetupSelectionPreviewMarkup(selected) {
           data-group-key="${group.key}"
           aria-label="${group.label}: ${group.shown} of ${group.total} categories shown. Open category settings."
           title="${group.label}: ${group.shown}/${group.total}">
-          <span class="onboarding-selection-icon"><img src="data/icons/${group.icon}.png" alt=""></span>
-          <span class="onboarding-selection-item-copy">
-            <span class="onboarding-selection-item-label">${group.label}</span>
-            <span class="onboarding-selection-item-group">(${group.shown}/${group.total})</span>
+          <span class="onboarding-selection-item-top">
+            <span class="onboarding-selection-icon"><img src="data/icons/${group.icon}.png" alt=""></span>
+            <span class="onboarding-selection-item-group">${group.shown}/${group.total}</span>
           </span>
+          <span class="onboarding-selection-item-label">${group.label}</span>
         </button>
       `).join("")}
       </div>
