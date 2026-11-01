@@ -25,10 +25,9 @@ test.describe("Secondary screens preserve a consistent map view", () => {
     }));
   }
 
-  test("Map setup, Settings, and Feedback preserve the same camera fit", async ({ page }) => {
+  test("Settings and Feedback preserve the same camera fit after Map setup closes", async ({ page }) => {
     await page.click("#filterToggle");
     await expect(page.locator("#onboardingOverlay")).toBeVisible();
-    const mapSetupViewport = await readViewport(page);
     await page.getByRole("button", { name: "Close map setup" }).click();
     await expect(page.locator("#onboardingOverlay")).toBeHidden();
 
@@ -42,10 +41,10 @@ test.describe("Secondary screens preserve a consistent map view", () => {
     const feedbackViewport = await readViewport(page);
 
     const tolerance = 0.5;
-    for (const other of [settingsViewport, feedbackViewport]) {
-      expect(Math.abs(other.scale - mapSetupViewport.scale)).toBeLessThan(tolerance);
-      expect(Math.abs(other.tx - mapSetupViewport.tx)).toBeLessThan(tolerance);
-      expect(Math.abs(other.ty - mapSetupViewport.ty)).toBeLessThan(tolerance);
+    // Map setup is a modal over the full Nearby map, while inspector screens refit the map
+    // around their taller visible rail. The two inspector screens should still share that fit.
+    for (const key of ["scale", "tx", "ty"]) {
+      expect(Math.abs(feedbackViewport[key] - settingsViewport[key])).toBeLessThan(tolerance);
     }
   });
 
