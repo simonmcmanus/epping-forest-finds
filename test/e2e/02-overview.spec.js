@@ -120,6 +120,12 @@ test.describe("Overview / Nearby screen", () => {
   test("screen title icons match the back button size even when Back is hidden", async ({ page }) => {
     for (const id of ["settingsToggle", "searchToggle", "nearbyToggle", "filterToggle", "reportToggle"]) {
       await page.locator(`#${id}`).click();
+      if (id === "filterToggle") {
+        await expect(page.locator("#onboardingOverlay")).toBeVisible();
+        await page.getByRole("button", { name: "Close map setup" }).click();
+        await expect(page.locator("#onboardingOverlay")).toBeHidden();
+        continue;
+      }
       const icon = page.locator("#inspectorTitleEmoji .title-icon").last();
       await expect(icon).toBeVisible();
       await expect.poll(async () => icon.evaluate(el => {
@@ -535,6 +541,10 @@ test.describe("Overview / Nearby screen", () => {
       for (const toggle of ["#filterToggle", "#settingsToggle", "#reportToggle"]) {
         await page.click(toggle);
         await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeVisible();
+        if (toggle === "#filterToggle") {
+          await page.getByRole("button", { name: "Close map setup" }).click();
+          await expect(page.locator("#onboardingOverlay")).toBeHidden();
+        }
       }
 
       // Cleared from the Report screen, which is the furthest from where the browse started.

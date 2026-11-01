@@ -4,12 +4,14 @@ const { setup, skipOnboarding, mockCowApi, gotoAndWaitForMap, FIXTURE_TREE } = r
 
 test.describe("URL navigation", () => {
   test.describe("a URL opens the screen it names", () => {
-    test("navigating to /nearby/filter opens the filter screen on load", async ({ page }) => {
+    test("navigating to /nearby/filter opens Map setup over Nearby", async ({ page }) => {
       await skipOnboarding(page);
       await mockCowApi(page);
       await gotoAndWaitForMap(page, "/nearby/filter");
       await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
-      await expect(page.locator("#filterToggle")).toHaveClass(/screen-active/);
+      await expect(page.locator("#onboardingOverlay")).toBeVisible();
+      await expect(page.getByRole("heading", { name: "What would you like to see?" })).toBeVisible();
+      await expect(page.locator("#nearbyToggle")).toHaveClass(/screen-active/);
     });
 
     test("navigating to /settings opens the settings screen on load", async ({ page }) => {
@@ -87,21 +89,14 @@ test.describe("URL navigation", () => {
   });
 
   test.describe("back retraces the trail", () => {
-    test("Nearby → Filters → Settings comes back out a screen at a time", async ({ page }) => {
+    test("browser Back dismisses Map setup and returns to Nearby", async ({ page }) => {
       await setup(page);
 
       await page.click("#filterToggle");
       await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
-
-      await page.click("#settingsToggle");
-      await expect(page).toHaveURL(/\/settings$/);
-
-      await page.goBack();
-      await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
-      await expect(page.locator("#filterToggle")).toHaveClass(/screen-active/);
-
       await page.goBack();
       await expect(page).toHaveURL(/\/nearby$/);
+      await expect(page.locator("#onboardingOverlay")).toBeHidden();
       await expect(page.locator("#nearbyToggle")).toHaveClass(/screen-active/);
     });
 
@@ -114,18 +109,18 @@ test.describe("URL navigation", () => {
 
       await page.goForward();
       await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
-      await expect(page.locator("#filterToggle")).toHaveClass(/screen-active/);
+      await expect(page.locator("#onboardingOverlay")).toBeVisible();
+      await expect(page.locator("#nearbyToggle")).toHaveClass(/screen-active/);
     });
 
-    test("the inspector back arrow steps back through the trail, not straight to Nearby", async ({ page }) => {
+    test("the inspector back arrow still returns from Settings to Nearby", async ({ page }) => {
       await setup(page);
-      await page.click("#filterToggle");
       await page.click("#settingsToggle");
       await expect(page.locator("#inspectorBack")).toBeVisible();
 
       await page.click("#inspectorBack");
-      await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
-      await expect(page.locator("#filterToggle")).toHaveClass(/screen-active/);
+      await expect(page).toHaveURL(/\/nearby$/);
+      await expect(page.locator("#nearbyToggle")).toHaveClass(/screen-active/);
     });
 
     test("the inspector back arrow returns to Nearby when the app was opened straight onto a screen", async ({ page }) => {

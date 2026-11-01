@@ -223,7 +223,7 @@ test("generated bare Nearby uses the same six default filter groups as the app",
   ).length;
   assert.match(
     html,
-    new RegExp(`aria-label="Filters: ${expectedGroupCount} top-level filters selected"`),
+    new RegExp(`aria-label="Map setup: ${expectedGroupCount} top-level filters selected"`),
     "the generated index must advertise the complete default filter set"
   );
 });

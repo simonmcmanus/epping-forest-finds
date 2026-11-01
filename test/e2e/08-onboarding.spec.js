@@ -67,7 +67,7 @@ test.describe("Onboarding", () => {
       await expect(page.locator("#onboardingOverlay")).toBeVisible();
       await page.keyboard.press("Escape");
       await expect(page.locator("#onboardingOverlay")).toBeHidden();
-      expect(await page.evaluate(() => localStorage.getItem("forest-finds-onboarding-v1"))).toBeNull();
+      expect(await page.evaluate(() => localStorage.getItem("forest-finds-onboarding-v1"))).toBe("declined");
       expect(await page.evaluate(() => state.overviewFilters.length)).toBeGreaterThan(0);
     });
 

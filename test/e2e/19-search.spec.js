@@ -259,15 +259,20 @@ test.describe("Searching the map", () => {
   });
 
   test("the map shows only the matching pin for a search, ignoring the active filters", async ({ page }) => {
-    await page.click("#searchToggle");
-    await page.click("#nearbyToggle");
-    await page.waitForFunction(
-      () => document.getElementById("inspectorTitle")?.textContent?.includes("Nearby")
-    );
-
-    // Filter down to just Cows, then search for the pub -- a category Cows-only would hide.
     await page.click("#filterToggle");
-    await page.click('[data-filter-subfilter="cows"]');
+    await page.getByRole("button", { name: "Choose categories" }).click();
+    // Keep only Cows selected, then search for the pub -- a Cows-only map would hide it.
+    for (let step = 0; step < 7; step += 1) {
+      const chips = page.locator(".onboarding-chip");
+      const count = await chips.count();
+      for (let i = 0; i < count; i += 1) {
+        const chip = chips.nth(i);
+        const key = await chip.getAttribute("data-key");
+        if (key !== "cows" && await chip.getAttribute("aria-pressed") === "true") await chip.click();
+      }
+      if (step < 6) await page.getByRole("button", { name: "Next" }).click();
+      else await page.getByRole("button", { name: "Done" }).click();
+    }
     await page.click("#searchToggle");
     await page.fill("#mapSearchInput", FIXTURE_PLACE);
     await page.waitForFunction(

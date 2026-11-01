@@ -62,7 +62,7 @@ test.describe("first-run onboarding", () => {
     expect(await stored(page, "ff-location-v1")).toBe("granted");
     expect(await stored(page, "ff-track-v1")).toBe("1");
     expect(await stored(page, "ff-cookie-consent")).toBe("granted");
-    await expect(banner.getByRole("button", { name: "Set up my map" })).toBeVisible();
+    await expect(page.locator("#consentBannerMapSetupArrow")).toBeVisible();
   });
 
   test("the combined first-run action leaves the guided setup available", async ({ page }) => {
@@ -73,7 +73,8 @@ test.describe("first-run onboarding", () => {
     });
     await page.goto("/nearby");
     await page.locator("#consentBannerAccept").click();
-    await expect(page.locator("#consentBannerAccept")).toHaveText("Set up my map");
+    await expect(page.locator("#consentBannerMapSetupArrow")).toBeVisible();
+    await expect(page.locator("#consentBannerAccept")).toBeHidden();
     expect(await stored(page, "ff-track-v1")).toBe("1");
   });
 
@@ -89,7 +90,7 @@ test.describe("first-run onboarding", () => {
     expect(await stored(page, "ff-location-v1")).toBe("declined");
     expect(await stored(page, "ff-track-v1")).toBe("0");
     expect(await stored(page, "ff-cookie-consent")).toBe("denied");
-    await expect(banner.getByRole("button", { name: "Set up my map" })).toBeVisible();
+    await expect(page.locator("#consentBannerMapSetupArrow")).toBeVisible();
   });
 
   test("usage analytics already refused is not overwritten by the combined action", async ({ page }) => {
@@ -99,7 +100,7 @@ test.describe("first-run onboarding", () => {
     const banner = page.locator("#consentBanner");
     await banner.getByRole("button", { name: "Enable location" }).click();
     expect(await stored(page, "ff-cookie-consent")).toBe("denied");
-    await expect(banner.getByRole("button", { name: "Set up my map" })).toBeVisible();
+    await expect(page.locator("#consentBannerMapSetupArrow")).toBeVisible();
   });
 
   test("'Maybe later' is not followed by another consent ask, then or on the next visit", async ({ page }) => {
