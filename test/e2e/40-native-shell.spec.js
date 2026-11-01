@@ -73,11 +73,11 @@ test.describe("the native app shell", () => {
     expect(seen.getCurrentPosition).toBe(1);
     expect(seen.browserGeolocation).toBe(0);
     expect(seen.serviceWorker).toBe(0);
-    await expect(page.locator("#compassCalibrationBannerEnable")).toBeHidden();
+    await expect(page.locator("#compassCalibrationBanner")).toBeHidden();
     // The shell's grant is collected silently from the first tap, never with a card.
     await page.locator("#searchToggle").click();
     await expect.poll(async () => (await calls(page)).compassAsked).toBe(1);
-    await expect(page.locator("#compassCalibrationBannerEnable")).toBeHidden();
+    await expect(page.locator("#compassCalibrationBanner")).toBeHidden();
   });
 
   test("calls the website's API, not the app bundle, for live data", async ({ page }) => {

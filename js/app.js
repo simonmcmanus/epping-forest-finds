@@ -167,7 +167,7 @@ const STORED_COMPASS_PERMISSION = (() => {
     // iOS requires DeviceOrientationEvent.requestPermission() from a user gesture
     // each session before orientation events fire — even if previously granted.
     // Restoring "granted" would skip that per-session call, so treat it as "unknown"
-    // to ensure the gate shows and the user can tap to re-enable.
+    // so the next location/navigation tap can request access if no heading has arrived.
     if (stored === "granted"
         && Native.compassNeedsPrompt
         && typeof DeviceOrientationEvent !== "undefined"
@@ -292,7 +292,6 @@ const state = {
   compassTargetMovedAt: 0,
   nearbyListHeading: null, // heading the Nearby list is ordered by -- see headsUpSortedEntries
   compassPermission: STORED_COMPASS_PERMISSION,
-  compassPermissionPromptVisible: false,
   compassCalibrationSamples: [],
   compassCalibrationStartedAt: null,
   compassCalibrationPromptVisible: false,
@@ -2039,10 +2038,6 @@ function applyLocationFix(position) {
   // must Settings' own "Use my location": that answer shows in place, on the row that asked.
   if (!communityScreenOpen() && state.selected?.type !== "settings") state.selected = null;
   if (typeof communityNudgeCheck === "function") setTimeout(communityNudgeCheck, 0);
-  // GPS and motion permissions are separate on iOS. A returning visitor can already have a
-  // location dot without ever having granted DeviceOrientation access, so surface the compass
-  // action as soon as a real fix exists instead of waiting for a destination selection.
-  maybeShowCompassPermissionPrompt();
   return { latitude, longitude, previousPoint };
 }
 
@@ -5044,47 +5039,6 @@ function compassPermissionCanBeRequested() {
     && typeof DeviceOrientationEvent.requestPermission === "function";
 }
 
-const COMPASS_PROMPT_DISMISSED_KEY = "forest-finds-compass-prompt-dismissed-v1";
-// iOS forgets a motion grant on its own schedule, so a stored "granted" is read as unknown each
-// launch (STORED_COMPASS_PERMISSION). Often it has not actually been forgotten: orientation events
-// simply start arriving. This is how long they get to do that before the "Enable compass" card is
-// shown, so someone whose grant still holds is not asked for it again.
-const COMPASS_GRANT_PROBE_MS = 1200;
-
-function compassPromptDismissed() {
-  try { return localStorage.getItem(COMPASS_PROMPT_DISMISSED_KEY) === "1"; } catch { return false; }
-}
-
-// Dismissing the card is an answer: it is not shown unprompted again. The compass is still asked
-// for in context, from the tap that starts navigation to a find (startCompassNavigation).
-function dismissCompassPermissionPrompt() {
-  try { localStorage.setItem(COMPASS_PROMPT_DISMISSED_KEY, "1"); } catch {}
-  hideCompassPermissionPrompt();
-}
-
-function maybeShowCompassPermissionPrompt() {
-  if (!hasRealLocation()) return;
-  if (!compassPermissionCanBeRequested()) return;
-  if (state.compassPermission !== "unknown") return;
-  if (compassPromptDismissed() || state.compassPromptProbePending) return;
-  state.compassPromptProbePending = true;
-  setTimeout(() => {
-    state.compassPromptProbePending = false;
-    // Re-checked here, not only on entry: the High Beach stand-in runs through the same fix
-    // pipeline (applyDefaultLocation) and is only flagged as a stand-in once that returns. Without
-    // this, a visitor with no location yet got the compass card stacked on the location ask.
-    if (!hasRealLocation()) return;
-    if (state.compassPermission !== "unknown") return;
-    // A heading, not just an event: Chromium fires one empty orientation event on attach.
-    if (Number.isFinite(compassEventAgeMs())) {
-      state.compassPermission = "granted";
-      try { localStorage.setItem(COMPASS_PERMISSION_KEY, "granted"); } catch {}
-      return;
-    }
-    showCompassPermissionPrompt();
-  }, COMPASS_GRANT_PROBE_MS);
-}
-
 async function requestCompassPermissionIfNeeded({ fromGesture = false } = {}) {
   if (typeof DeviceOrientationEvent === "undefined") {
     if (fromGesture && state.userLocation) {
@@ -5110,7 +5064,6 @@ async function requestCompassPermissionIfNeeded({ fromGesture = false } = {}) {
       localStorage.setItem(COMPASS_PERMISSION_KEY, state.compassPermission);
     } catch {}
     if (state.compassPermission === "granted") {
-      hideCompassPermissionPrompt();
       reattachCompassListeners();
     }
   } catch {
@@ -5483,6 +5436,12 @@ function onDeviceOrientation(event) {
 // accuracy already says it is good (the native heading plugin's), which is what lets a native
 // heading rotate the map at once instead of waiting for several readings to agree.
 function applyCompassReading(heading, { trusted = false } = {}) {
+  // A usable heading proves access, even when Safari's stored grant was reset on launch.
+  // Sensor startup/calibration can be slow; neither should cause another permission request.
+  if (state.compassPermission !== "granted") {
+    state.compassPermission = "granted";
+    try { localStorage.setItem(COMPASS_PERMISSION_KEY, "granted"); } catch {}
+  }
   state.compassLastEventAt = performance.now();
 
   if (!Number.isFinite(state.compassHeading) && trusted) {
@@ -5638,7 +5597,6 @@ function completeCompassCalibration(heading) {
   state.compassCalibrationSamples = [];
   state.compassCalibrationStartedAt = null;
   stopCalibrationViewportSync();
-  hideCompassPermissionPrompt();
   hideCompassCalibrationPrompt();
   startCompassSmoothing();
 }
@@ -5656,7 +5614,6 @@ function resetCompassCalibration() {
 }
 
 function showCompassCalibrationPrompt() {
-  if (state.compassPermissionPromptVisible) return;
   if (state.compassCalibrationPromptDismissed) return;
   if (state.compassCalibrationPromptVisible) return;
   if (!els.compassCalibrationBanner) return;
@@ -5665,57 +5622,13 @@ function showCompassCalibrationPrompt() {
     els.compassCalibrationBannerText.hidden = false;
     els.compassCalibrationBannerText.textContent = "Move your phone in a figure-8 to help it find your direction";
   }
-  if (els.compassCalibrationBannerEnable) els.compassCalibrationBannerEnable.hidden = true;
   els.compassCalibrationBanner.classList.remove("fading-out");
   els.compassCalibrationBanner.hidden = false;
-}
-
-function showCompassPermissionPrompt() {
-  if (state.compassPermissionPromptVisible) return;
-  if (!els.compassCalibrationBanner) return;
-  state.compassPermissionPromptVisible = true;
-  state.compassCalibrationPromptVisible = false;
-  if (els.compassCalibrationBannerText) {
-    // Not blocked: the "Enable compass" button speaks for itself, so no explanatory line.
-    const blocked = state.compassPermission === "denied";
-    els.compassCalibrationBannerText.hidden = !blocked;
-    els.compassCalibrationBannerText.textContent = blocked
-      ? "Compass access is blocked. Enable Motion & Orientation access in your browser settings to use map movement."
-      : "";
-  }
-  if (els.compassCalibrationBannerEnable) {
-    els.compassCalibrationBannerEnable.textContent = "Enable compass";
-    els.compassCalibrationBannerEnable.hidden = false;
-  }
-  els.compassCalibrationBanner.classList.remove("fading-out");
-  els.compassCalibrationBanner.hidden = false;
-}
-
-async function enableCompassFromGesture() {
-  await requestCompassPermissionIfNeeded({ fromGesture: true });
-  if (state.compassPermission === "granted") {
-    hideCompassPermissionPrompt();
-    reattachCompassListeners();
-    setStatus("");
-    requestDraw();
-  } else if (state.compassPermissionPromptVisible && els.compassCalibrationBannerText) {
-    els.compassCalibrationBannerText.hidden = false;
-    els.compassCalibrationBannerText.textContent = "Compass access is still blocked. Enable Motion & Orientation access in your browser settings, then try again.";
-  }
 }
 
 function hideCompassCalibrationPrompt() {
-  if (state.compassPermissionPromptVisible) return;
   state.compassCalibrationPromptVisible = false;
   if (!els.compassCalibrationBanner) return;
-  if (els.compassCalibrationBannerEnable) els.compassCalibrationBannerEnable.hidden = true;
-  hideWithFade(els.compassCalibrationBanner);
-}
-
-function hideCompassPermissionPrompt() {
-  state.compassPermissionPromptVisible = false;
-  if (!els.compassCalibrationBanner) return;
-  if (els.compassCalibrationBannerEnable) els.compassCalibrationBannerEnable.hidden = true;
   hideWithFade(els.compassCalibrationBanner);
 }
 

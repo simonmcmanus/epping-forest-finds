@@ -9,7 +9,6 @@ const els = {
   compassArrow: document.getElementById("compassArrow"),
   compassCalibrationBanner: document.getElementById("compassCalibrationBanner"),
   compassCalibrationBannerText: document.getElementById("compassCalibrationBannerText"),
-  compassCalibrationBannerEnable: document.getElementById("compassCalibrationBannerEnable"),
   compassCalibrationBannerDismiss: document.getElementById("compassCalibrationBannerDismiss"),
   filterToggle: document.getElementById("filterToggle"),
   filterCount: document.getElementById("filterCount"),
