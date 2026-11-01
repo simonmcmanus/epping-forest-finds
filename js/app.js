@@ -282,6 +282,9 @@ const state = {
   // to [] wherever Search stands down (setInspectorSelectionChrome, js/inspector.js).
   searchHighlightResults: [],
   distanceWarningShown: false,
+  // A real fix more than FAR_FROM_FOREST_METRES from the forest boundary (updateFarFromForest):
+  // Nearby is centred on High Beach and no directions are offered.
+  farFromForest: false,
   nearestItemsCount: 10,
   walkingDistanceMinutes: DEFAULT_WALKING_DISTANCE_MINUTES,
   walkingRadiusAtFloor: false,
@@ -2287,24 +2290,34 @@ function locateUser({ initial }) {
   );
 }
 
+// Metres from the forest boundary, or null while the outline has not loaded.
+function distanceToForestMetres(latitude, longitude) {
+  const forestLayer = state.layers.find(layer => layer.key === "forest");
+  if (!forestLayer || !forestLayer.data || !forestLayer.data.features) return null;
+  return getMinDistanceToForest(latitude, longitude, forestLayer);
+}
+
+// Keeps state.farFromForest in step with a real fix (and re-run when the outline lands). When it
+// flips, the Nearby list/camera re-centre (nearbyOrigin) and the compass/route aids switch on/off.
+function updateFarFromForest(latitude, longitude) {
+  const metres = hasRealLocation() ? distanceToForestMetres(latitude, longitude) : null;
+  const far = metres != null && metres > FAR_FROM_FOREST_METRES;
+  if (far === state.farFromForest) return;
+  state.farFromForest = far;
+  if (isOverviewScreenActive()) selectOverview();
+  updateCompassOverlay();
+  requestDraw();
+}
+
 function checkDistanceToForest(latitude, longitude) {
+  updateFarFromForest(latitude, longitude);
   // Don't show warning if already dismissed, or open now
   if (state.distanceWarningShown || (els.distanceWarning && !els.distanceWarning.hidden)) return;
-  
-  // Find the forest layer
-  const forestLayer = state.layers.find(layer => layer.key === "forest");
-  if (!forestLayer || !forestLayer.data || !forestLayer.data.features) return;
-  
-  // Calculate minimum distance to forest boundary
-  const minDistance = getMinDistanceToForest(latitude, longitude, forestLayer);
-  
-  // 15 minutes walk at 5 km/h = ~1250 meters
-  const FIFTEEN_MIN_WALK_METRES = 1250;
-  
-  if (minDistance > FIFTEEN_MIN_WALK_METRES) {
-    const distanceKm = (minDistance / 1000).toFixed(1);
-    const walkMins = Math.ceil(minDistance / 80); // 80m/min walking speed
-    
+
+  const minDistance = distanceToForestMetres(latitude, longitude);
+  if (minDistance == null) return;
+
+  if (minDistance > FAR_FROM_FOREST_METRES) {
     if (els.distanceWarningMessage) {
       els.distanceWarningMessage.textContent = `You're about ${formatDistance(minDistance)} from the forest boundary — roughly ${Math.round(minDistance / (5000 / 60))} minutes on foot. The map is fully loaded and ready to explore when you visit.`;
     }
@@ -4447,6 +4460,7 @@ function headsUpSortedEntries(entries) {
 
 function overviewHeadingText() {
   if (!state.userLocation) return "";
+  const origin = nearbyOrigin();
   const activePointFilters = getActivePointFilterKeys();
   // The radius is the whole premise of this list, so the heading names it rather than the
   // vaguer "around you" -- "Trees within 5 min walk" answers "how far is this list reaching?"
@@ -4464,11 +4478,11 @@ function overviewHeadingText() {
   // "around you" would misname applyDefaultLocation()'s High Beach stand-in as the reader's
   // own position -- only reachable with showAllOutsideRadius on, since radiusLabel otherwise
   // always names the radius instead, but worth getting right for that case too.
-  const aroundOrigin = state.userLocation.isDefault ? "around High Beach" : "around you";
+  const aroundOrigin = origin.isDefault ? "around High Beach" : "around you";
   // Folds in the same "measuring from High Beach, not you" fact the list itself used to carry as
   // its own separate <p class="source-note"> paragraph (overviewNearestHtml below) -- said once,
   // here, in the one line every Nearby screen already shows, rather than twice.
-  const radiusOrigin = state.userLocation.isDefault ? " of High Beach" : "";
+  const radiusOrigin = origin.isDefault ? " of High Beach" : "";
   if (railSelection().length === 0) {
     return radiusLabel
       ? `Showing everything within ${radiusLabel}${radiusOrigin}`
@@ -4618,7 +4632,7 @@ function renderNearestItemsHtml(entries) {
         </div>
         <div class="nearest-footer">
           <span class="nearest-meta">${walkChip ? `${walkChip} · ` : ""}${escapeHtml(typeLabel)}${treeTagChip}</span>
-          <span class="nearest-arrow" data-item-lat="${entry.item.latitude ?? ""}" data-item-lon="${entry.item.longitude ?? ""}" aria-hidden="true">↑</span>
+          <span class="nearest-arrow" data-item-lat="${entry.item.latitude ?? ""}" data-item-lon="${entry.item.longitude ?? ""}" aria-hidden="true"${isFarFromForest() ? " hidden" : ""}>↑</span>
         </div>
       </div>
     </button></li>`;
@@ -4894,7 +4908,7 @@ async function startCompassNavigation({ fromGesture = Boolean(navigator.userActi
   // A default location is only a map-centering stand-in. Do not ask for compass access, or
   // show its blocking permission gate, until the visitor has shared a real position. The
   // no-location view already explains this in its source note and remains fully browseable.
-  if (!hasRealLocation()) {
+  if (!canGuideToPlaces()) {
     updateCompassOverlay();
     return;
   }
@@ -5791,6 +5805,7 @@ function ensureLocationWatch() {
       if (Native.heading) Native.heading.setLocation(latitude, longitude);
       const point = state.userLocation.point;
       state.userInMapArea = pointInsideBounds(point, state.bounds);
+      updateFarFromForest(latitude, longitude);
       const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
       state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;
       state.nearestCow = nearestCowTo(latitude, longitude);
@@ -5994,6 +6009,7 @@ const HEADING_UP_ANCHOR_HOLD_RATIO = 0.12; // deadband, as a fraction of the foc
 function selectedNavigationHeadingUpActive() {
   return Boolean(
     state.userLocation
+    && !isFarFromForest()
     && selectedCompassTarget()
     && Number.isFinite(state.compassHeading)
   );
@@ -7819,7 +7835,7 @@ function ensureUserAndSelectionVisible(options = {}) {
 
   // No shared location: there is no origin to fit the selection against, so the view simply centres
   // on the selected place (no route, no walking distance, no direction arrow).
-  if (!hasRealLocation()) {
+  if (!canGuideToPlaces()) {
     if (target.point) {
       // Never open deeper than the forest-wide base: keeping whatever scale the camera had (at boot,
       // the deepest zoom) left the place alone in an empty, over-zoomed view.
@@ -8303,7 +8319,7 @@ const ARRIVAL_METRES = 20;
 // as one haptic, once per find. Both are no-ops on the web.
 function syncNativeWalkingAids() {
   const target = selectedCompassTarget();
-  const navigating = Boolean(target) && hasRealLocation()
+  const navigating = Boolean(target) && canGuideToPlaces()
     && (typeof document === "undefined" || document.visibilityState !== "hidden");
   Native.keepAwake.set(navigating);
   if (!navigating) return;
@@ -8330,7 +8346,7 @@ function updateCompassOverlay() {
     }
     return;
   }
-  if (!target || !hasRealLocation()) {
+  if (!target || !canGuideToPlaces()) {
     if (arrow) arrow.hidden = true;
     state.compassArrowAngle = null;
     return;
@@ -8365,7 +8381,7 @@ function updateCompassOverlay() {
 }
 
 function updateOverviewDirectionArrows() {
-  if (state.selected || !state.userLocation || !els.inspectorBody) return;
+  if (state.selected || !state.userLocation || isFarFromForest() || !els.inspectorBody) return;
   const arrows = els.inspectorBody.querySelectorAll(".nearest-arrow[data-item-lat]");
   if (!arrows.length) return;
   const { latitude, longitude } = state.userLocation;
@@ -9082,7 +9098,7 @@ function searchResultsHtml(query) {
         </div>
         <div class="nearest-footer">
           <span class="nearest-meta">${walkChip ? `${walkChip} · ` : ""}${escapeHtml(typeLabel)}${treeTagChip}</span>
-          <span class="nearest-arrow" data-item-lat="${position ? position.latitude : ""}" data-item-lon="${position ? position.longitude : ""}" aria-hidden="true">↑</span>
+          <span class="nearest-arrow" data-item-lat="${position ? position.latitude : ""}" data-item-lon="${position ? position.longitude : ""}" aria-hidden="true"${isFarFromForest() ? " hidden" : ""}>↑</span>
         </div>
       </div>
     </button></li>`;
@@ -9270,8 +9286,9 @@ function expandBounds(bounds, point) {
   };
 }
 
+// null while far from the forest: no walking distance to a place the visitor cannot walk to.
 function distanceFromUser(item) {
-  if (!state.userLocation) return null;
+  if (!state.userLocation || isFarFromForest()) return null;
   return distanceMetres(state.userLocation.latitude, state.userLocation.longitude, item.latitude, item.longitude);
 }
 
@@ -9882,8 +9899,8 @@ function updateSelectedDetailFields() {
   // The first figure replaces the loading chip and opens out into its slot (.walk-chip--enter). Later
   // updates only swap the numbers, so the chip never replays its entrance.
   // No shared location: there is no walking figure to show, so the slot stays empty.
-  if (distancePill && !hasRealLocation()) distancePill.innerHTML = "";
-  if (distancePill && hasRealLocation() && Number.isFinite(metres)) {
+  if (distancePill && !canGuideToPlaces()) distancePill.innerHTML = "";
+  if (distancePill && canGuideToPlaces() && Number.isFinite(metres)) {
     const isFirstFigure = !distancePill.querySelector(".walk-chip--ready");
     distancePill.innerHTML = walkInfoExpandableHtml(metres);
     if (isFirstFigure) distancePill.querySelector(".walk-chip--ready")?.classList.add("walk-chip--enter");
