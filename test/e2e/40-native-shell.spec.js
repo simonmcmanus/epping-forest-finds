@@ -73,11 +73,11 @@ test.describe("the native app shell", () => {
     expect(seen.getCurrentPosition).toBe(1);
     expect(seen.browserGeolocation).toBe(0);
     expect(seen.serviceWorker).toBe(0);
-    await expect(page.locator("#compassCalibrationBannerEnable")).toBeHidden();
+    await expect(page.locator("#compassCalibrationBanner")).toBeHidden();
     // The shell's grant is collected silently from the first tap, never with a card.
     await page.locator("#searchToggle").click();
     await expect.poll(async () => (await calls(page)).compassAsked).toBe(1);
-    await expect(page.locator("#compassCalibrationBannerEnable")).toBeHidden();
+    await expect(page.locator("#compassCalibrationBanner")).toBeHidden();
   });
 
   test("calls the website's API, not the app bundle, for live data", async ({ page }) => {
@@ -147,6 +147,49 @@ test.describe("the native app shell", () => {
     });
     await waitForFrames(page, 10);
     expect(await page.evaluate(() => state.compassHeadingTarget)).toBe(90);
+  });
+
+  test("a native bearing marked invalid cannot acquire or change the compass heading", async ({ page }) => {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await runAsNativeApp(page);
+    await gotoAndWaitForMap(page);
+    const result = await page.evaluate(() => {
+      const fire = (heading, accuracy) => window.__emitHeading({ trueHeading: heading, magneticHeading: heading, accuracy });
+      const invalidReadings = [
+        { trueHeading: 210, magneticHeading: 210, accuracy: -1 },
+        { trueHeading: 210, magneticHeading: 210, accuracy: null },
+        { trueHeading: null, magneticHeading: null, accuracy: 5 },
+      ];
+      for (let i = 0; i < 6; i += 1) {
+        for (const reading of invalidReadings) window.__emitHeading(reading);
+      }
+      const invalidStart = { heading: state.compassHeading, acceptedAt: state.compassLastEventAt };
+      fire(90, 5);
+      const goodAcceptedAt = state.compassLastEventAt;
+      for (const reading of invalidReadings) window.__emitHeading(reading);
+      return { invalidStart, target: state.compassHeadingTarget, acceptedAt: state.compassLastEventAt, goodAcceptedAt };
+    });
+    expect(result.invalidStart.heading, "agreement cannot make explicitly invalid readings trustworthy").toBeNull();
+    expect(result.invalidStart.acceptedAt).toBeNull();
+    expect(result.target, "an invalid sample must not replace the last valid direction").toBe(90);
+    expect(result.acceptedAt, "an invalid sample must not refresh compass freshness").toBe(result.goodAcceptedAt);
+  });
+
+  test("an imprecise native magnetic fallback can still calibrate when true north is unavailable", async ({ page }) => {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await runAsNativeApp(page);
+    await gotoAndWaitForMap(page);
+    const result = await page.evaluate(() => {
+      const fire = () => window.__emitHeading({ trueHeading: -1, magneticHeading: 120, accuracy: 35 });
+      fire();
+      const firstHeading = state.compassHeading;
+      for (let i = 0; i < 6; i += 1) fire();
+      return { firstHeading, calibratedHeading: state.compassHeading };
+    });
+    expect(result.firstHeading, "an imprecise reading still waits for calibration").toBeNull();
+    expect(result.calibratedHeading, "valid magnetic readings remain usable after calibration").toBe(120);
   });
 
   test("walking to a find keeps the screen awake, arriving is felt once, and leaving lets the screen sleep", async ({ page }) => {
