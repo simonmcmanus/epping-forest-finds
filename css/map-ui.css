@@ -232,6 +232,19 @@ a.nearest-item {
 
   .inspector-drag-handle { display: flex; }
 
+  /* Reserve the grip's 20px strip on every screen that can be resized (desktop has no grip, so
+     no strip). It takes the heading box's own colour, so it reads as that box's top edge. */
+  .inspector::before {
+    content: "";
+    flex: 0 0 20px;
+    background: var(--surface-soft);
+  }
+
+  .inspector:has(.tree-detail)::before,
+  .inspector:has(.place-detail)::before {
+    background: transparent;
+  }
+
   /* With an explicit height on the sheet, grow the scrollable body into the space the fixed-size
      header does not need. */
   .inspector-scroll { flex-grow: 1; }

@@ -120,6 +120,12 @@ test.describe("Overview / Nearby screen", () => {
   test("screen title icons match the back button size even when Back is hidden", async ({ page }) => {
     for (const id of ["settingsToggle", "searchToggle", "nearbyToggle", "filterToggle", "reportToggle"]) {
       await page.locator(`#${id}`).click();
+      if (id === "filterToggle") {
+        await expect(page.locator("#onboardingOverlay")).toBeVisible();
+        await page.getByRole("button", { name: "Close map setup" }).click();
+        await expect(page.locator("#onboardingOverlay")).toBeHidden();
+        continue;
+      }
       const icon = page.locator("#inspectorTitleEmoji .title-icon").last();
       await expect(icon).toBeVisible();
       await expect.poll(async () => icon.evaluate(el => {
@@ -129,7 +135,7 @@ test.describe("Overview / Nearby screen", () => {
     }
   });
 
-  test("navigation announces the current screen and keeps filter status separate", async ({ page }) => {
+  test("navigation keeps Map setup as an overlay over Nearby", async ({ page }) => {
     const nav = page.getByRole("navigation", { name: "Main navigation" });
     for (const [id, title] of [["searchToggle", "Search"], ["reportToggle", "Community"], ["settingsToggle", "Settings"], ["nearbyToggle", "Nearby"]]) {
       await page.locator(`#${id}`).click();
@@ -138,17 +144,18 @@ test.describe("Overview / Nearby screen", () => {
       await expect(page.locator("#inspectorTitle").last()).toContainText(title);
     }
 
-    // #filterToggle sits inline next to the Nearby heading, not in the nav row -- same gold
-    // highlight when it is the current screen, but outside the nav landmark's own bookkeeping.
+    // #filterToggle sits inline next to the Nearby heading and opens a modal, so Nearby stays
+    // the current screen while the map setup is in progress.
     await page.click("#filterToggle");
-    await expect(page.locator("#filterToggle")).toHaveAttribute("aria-current", "page");
-    await expect(page.locator("#inspectorTitle").last()).toContainText("Filters");
-
-    await page.locator(".filter-chip").first().click();
-    await page.click("#nearbyToggle");
-    await expect(page.locator("#filterCount")).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Set up Epping Forest Finds" })).toBeVisible();
+    await expect(page.locator("#inspectorTitle").last()).toContainText("Nearby");
     await expect(page.locator("#filterToggle")).not.toHaveAttribute("aria-current", "page");
-    await expect(page.locator("#filterToggle")).toHaveAccessibleName(/^Filters/);
+    await page.getByRole("button", { name: "Choose categories" }).click();
+    await page.locator('.onboarding-chip[data-key="trees"]').click();
+    await page.getByRole("button", { name: "Close map setup" }).click();
+    await page.click("#nearbyToggle");
+    await expect(page.locator("#filterToggle")).not.toHaveAttribute("aria-current", "page");
+    await expect(page.locator("#filterToggle")).toHaveAccessibleName(/^Map setup/);
   });
 
   test("nav press previews clear when released outside, but remain through the tab click", async ({ page }) => {
@@ -302,18 +309,15 @@ test.describe("Overview / Nearby screen", () => {
     await page.click("#nearbyToggle");
     await expect(page.locator("#filterToggle")).toBeVisible();
     await page.click("#filterToggle");
-    await expect(page.locator(".filter-chip").first()).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Set up Epping Forest Finds" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "What would you like to see?" })).toBeVisible();
   });
 
-  test("the Filter screen shows a back arrow instead of the (now inert) filter toggle", async ({ page }) => {
-    // Previously the toggle stayed on screen in its "current" state once Filters opened --
-    // visibly highlighted, but doing nothing when tapped again. The ordinary back arrow is the
-    // way out instead, exactly as on Settings/Report.
+  test("Map setup keeps Nearby and the header controls in place behind the modal", async ({ page }) => {
     await page.click("#filterToggle");
-    await expect(page.locator("#filterToggle")).toBeHidden();
-    await expect(page.locator("#inspectorBack")).toBeVisible();
-    await page.click("#inspectorBack");
-    await expect(page.locator("#inspectorTitle")).toContainText("Nearby");
+    await expect(page.locator("#filterToggle")).toBeVisible();
+    await expect(page.locator("#inspectorBack")).toBeDisabled();
+    await expect(page.locator("#inspectorTitle")).toHaveText("Nearby");
     await expect(page.locator("#filterToggle")).toBeVisible();
   });
 
@@ -537,6 +541,10 @@ test.describe("Overview / Nearby screen", () => {
       for (const toggle of ["#filterToggle", "#settingsToggle", "#reportToggle"]) {
         await page.click(toggle);
         await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeVisible();
+        if (toggle === "#filterToggle") {
+          await page.getByRole("button", { name: "Close map setup" }).click();
+          await expect(page.locator("#onboardingOverlay")).toBeHidden();
+        }
       }
 
       // Cleared from the Report screen, which is the furthest from where the browse started.
@@ -563,19 +571,18 @@ test.describe("Overview / Nearby screen", () => {
       await expect(page.locator("#inspectorTitle")).toContainText("Settings");
     });
 
-    test("pinching resizes the walking radius from the filter screen", async ({ page }) => {
-      await page.click("#filterToggle");
-      await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
+    test("pinching resizes the walking radius from the settings screen", async ({ page }) => {
+      await page.click("#settingsToggle");
+      await expect(page).toHaveURL(/\/settings(\?|$)/);
 
       const before = await page.evaluate(() => state.walkingDistanceMinutes);
       await firePinch(page, { startHalfGap: 140, endHalfGap: 20 });
       const grown = await page.evaluate(() => state.walkingDistanceMinutes);
 
       expect(grown).toBeGreaterThan(before);
-      // The screen it was performed on survives: refreshNearbyRadiusView must not re-render
-      // the Nearby list over the top of it.
-      await expect(page).toHaveURL(/\/nearby\/filter(\?|$)/);
-      await expect(page.locator("#inspectorTitle")).toContainText("Filters");
+      // The screen it was performed on survives: refreshNearbyRadiusView must not navigate away.
+      await expect(page).toHaveURL(/\/settings(\?|$)/);
+      await expect(page.locator("#inspectorTitle")).toContainText("Settings");
     });
   });
 
@@ -851,6 +858,23 @@ test.describe("Overview / Nearby screen", () => {
   });
 });
 
+
+test.describe("Resize-grip clearance", () => {
+  test.beforeEach(async ({ page }) => { await setup(page); });
+
+  test("the inspector reserves room for the resize grip only where it can be resized", async ({ page }, testInfo) => {
+    const handleBox = await page.locator("#inspectorDragHandle").boundingBox();
+    const panel = await page.locator("#inspector").boundingBox();
+    const title = await page.locator(".inspector-title-section").boundingBox();
+    if (testInfo.project.name === "mobile") {
+      expect(handleBox, "the grip is shown").not.toBeNull();
+      expect(title.y - panel.y, "the heading starts below the grip").toBeGreaterThanOrEqual(handleBox.height);
+    } else {
+      expect(handleBox, "desktop has no grip").toBeNull();
+      expect(title.y - panel.y, "desktop spends no space on it").toBeLessThan(10);
+    }
+  });
+});
 
 test.describe("Nearby scroll position during live updates", () => {
   test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] });

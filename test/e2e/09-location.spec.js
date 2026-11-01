@@ -348,7 +348,7 @@ test.describe("compass access on motion-permission browsers", () => {
         return Promise.resolve("granted");
       };
     });
-    await gotoAndWaitForMap(page, "/nearby/filter?show=pubs");
+    await gotoAndWaitForMap(page, "/nearby?show=pubs");
     expect(await page.evaluate(() => window.__compassRequests)).toBe(0);
     await page.locator("#consentBannerAccept").click();
     await expect.poll(() => page.evaluate(() => state.compassPermission)).toBe("granted");

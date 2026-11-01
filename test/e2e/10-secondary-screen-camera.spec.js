@@ -2,18 +2,12 @@
 const { test, expect } = require("@playwright/test");
 const { skipOnboarding, mockCowApi, gotoAndWaitForMap, waitForUiToSettle } = require("./helpers");
 
-// A GPS fix inside Epping Forest, reused from 09-location.spec.js
 const FOREST_LOCATION = { latitude: 51.6650, longitude: 0.0450, accuracy: 10 };
 
-// The Filter, Settings, and Feedback screens all show the map in the background and
-// must present the same fixed view: zoomed out to show every highlighted (filtered)
-// location, with the walking-radius circle visible. Regression coverage for the map
-// view changing between these three screens.
-test.describe("Secondary screens (Filter, Settings, Feedback) show a consistent map view", () => {
-  test.use({
-    geolocation: FOREST_LOCATION,
-    permissions: ["geolocation"],
-  });
+// Map setup is a modal over Nearby; Settings and Feedback remain inspector screens. All three
+// leave the same map framing and walking-radius context visible behind them.
+test.describe("Secondary screens preserve a consistent map view", () => {
+  test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] });
 
   test.beforeEach(async ({ page }) => {
     await skipOnboarding(page);
@@ -23,7 +17,6 @@ test.describe("Secondary screens (Filter, Settings, Feedback) show a consistent 
   });
 
   async function readViewport(page) {
-    // Let any in-flight camera animation (max ~520ms in this codebase) settle.
     await waitForUiToSettle(page);
     return page.evaluate(() => ({
       scale: state.viewport.scale,
@@ -32,10 +25,11 @@ test.describe("Secondary screens (Filter, Settings, Feedback) show a consistent 
     }));
   }
 
-  test("filter, settings, and feedback screens converge on the same camera fit", async ({ page }) => {
+  test("Settings and Feedback preserve the same camera fit after Map setup closes", async ({ page }) => {
     await page.click("#filterToggle");
-    await expect(page.locator("#filterToggle")).toHaveClass(/screen-active/);
-    const filterViewport = await readViewport(page);
+    await expect(page.locator("#onboardingOverlay")).toBeVisible();
+    await page.getByRole("button", { name: "Close map setup" }).click();
+    await expect(page.locator("#onboardingOverlay")).toBeHidden();
 
     await page.click("#settingsToggle");
     await expect(page.locator("#settingsWalkMins")).toBeVisible();
@@ -47,74 +41,28 @@ test.describe("Secondary screens (Filter, Settings, Feedback) show a consistent 
     const feedbackViewport = await readViewport(page);
 
     const tolerance = 0.5;
-    for (const other of [settingsViewport, feedbackViewport]) {
-      expect(Math.abs(other.scale - filterViewport.scale)).toBeLessThan(tolerance);
-      expect(Math.abs(other.tx - filterViewport.tx)).toBeLessThan(tolerance);
-      expect(Math.abs(other.ty - filterViewport.ty)).toBeLessThan(tolerance);
+    // Map setup is a modal over the full Nearby map, while inspector screens refit the map
+    // around their taller visible rail. The two inspector screens should still share that fit.
+    for (const key of ["scale", "tx", "ty"]) {
+      expect(Math.abs(feedbackViewport[key] - settingsViewport[key])).toBeLessThan(tolerance);
     }
   });
 
-  test("the filter screen zooms out to reach the nearest match of every selected filter, even outside the walking radius", async ({ page }) => {
-    // The Nearby screen frames the walking-radius circle alone. The filter screen is where you
-    // choose what you are looking for, so it has to show that the nearest match of each
-    // selected kind exists at all and which way it lies -- however far outside the radius that
-    // is. Previously the ring was a hard floor on the fit, so an out-of-radius match simply
-    // stayed off the map.
+  test("opening Map setup does not change the Nearby camera", async ({ page }) => {
     const before = await readViewport(page);
-
-    const result = await page.evaluate(async () => {
-      state.overviewFilters = ["pubs", "ponds_streams", "waymarked_trails"];
-      openFiltersScreen();
-      // The inspector's max-height transition changes how much map area is left, and the fit is
-      // solved against that area -- so let it settle before fitting, or the fit is computed for
-      // a taller map than the one we then measure against.
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      stopViewportAnimation();
-      ensureOverviewTargetsVisible({ force: true });
-
-      const { latitude, longitude, point: originPoint } = state.userLocation;
-      const radiusMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
-      // Ask the app which filters it considers active rather than assuming the raw
-      // state.overviewFilters entries map one-to-one onto point-filter keys.
-      const reached = getActivePointFilterKeys()
-        .map((key) => ({ key, entry: nearestOverviewEntryForFilter(key, latitude, longitude) }))
-        .map(({ key, entry }) => ({ key, entry, point: nearestFitPointForEntry(entry, originPoint) }))
-        .filter(({ point }) => Boolean(point));
-
-      // Measured against the same rect the fit itself used.
-      const rect = bestVisibleCanvasRect();
-      const inside = (point) => {
-        const screen = worldToScreen(point);
-        return screen.x >= rect.x && screen.x <= rect.x + rect.width
-          && screen.y >= rect.y && screen.y <= rect.y + rect.height;
-      };
-
-      return {
-        reachedCount: reached.length,
-        outsideRadiusCount: reached.filter(({ entry }) => entry.metres > radiusMetres).length,
-        offScreen: reached.filter(({ point }) => !inside(point)).map(({ key }) => key),
-        ringOffScreen: walkingRadiusCirclePoints().filter((point) => !inside(point)).length,
-        scale: state.viewport.scale,
-      };
-    });
-
-    expect(result.reachedCount).toBeGreaterThan(0);
-    expect(result.outsideRadiusCount, "fixture sanity: at least one selected filter's nearest match is outside the walking radius").toBeGreaterThan(0);
-    expect(result.offScreen, "every selected filter's nearest match should be on the map").toEqual([]);
-    expect(result.ringOffScreen, "the walking-radius ring stays fully framed too").toBe(0);
-    expect(result.scale, "reaching an out-of-radius match must zoom out, not in").toBeLessThan(before.scale);
+    await page.click("#filterToggle");
+    await expect(page.locator("#onboardingOverlay")).toBeVisible();
+    await expect(page.locator("#inspectorTitle")).toContainText("Nearby");
+    const during = await readViewport(page);
+    expect(Math.abs(during.scale - before.scale)).toBeLessThan(0.5);
+    expect(Math.abs(during.tx - before.tx)).toBeLessThan(0.5);
+    expect(Math.abs(during.ty - before.ty)).toBeLessThan(0.5);
   });
 
-  // The ring can be resized from these screens (the Settings slider, and the pinch/wheel
-  // gesture that engages behind all of them), so what it holds has to follow it here exactly
-  // as it does on Nearby. It used to not: these screens built their own radius-blind icon set,
-  // and moving the slider redrew the circle with the same pins inside it.
-  test("resizing the walking radius from the Settings screen re-derives the highlighted locations", async ({ page }) => {
+  test("resizing the walking radius from Settings re-derives highlighted locations", async ({ page }) => {
     await page.click("#settingsToggle");
     await expect(page.locator("#settingsWalkMins")).toBeVisible();
 
-    // Reads what the map is highlighting, keyed so the two rounds can be compared, plus the
-    // furthest in-radius item so "everything highlighted is inside the ring" can be checked.
     const readHighlights = () => page.evaluate(() => {
       const lookup = buildNearbyIconLookup();
       const origin = nearbyOrigin();
@@ -136,8 +84,6 @@ test.describe("Secondary screens (Filter, Settings, Feedback) show a consistent 
       };
     });
 
-    // Drive the slider itself rather than the state behind it: the "input" handler is the
-    // path a dragging finger takes.
     const setRadius = (minutes) => page.evaluate((value) => {
       const range = document.getElementById("settingsWalkMins");
       range.value = String(value);
@@ -150,78 +96,23 @@ test.describe("Secondary screens (Filter, Settings, Feedback) show a consistent 
     await setRadius(3);
     const tight = await readHighlights();
 
-    expect(wide.keys.length, "fixture sanity: the wide ring highlights something").toBeGreaterThan(0);
-    expect(
-      wide.furthestInRadius,
-      "everything highlighted inside the ring is actually inside the ring",
-    ).toBeLessThanOrEqual(wide.radiusMetres);
+    expect(wide.keys.length, "the wide ring should highlight something").toBeGreaterThan(0);
+    expect(wide.furthestInRadius).toBeLessThanOrEqual(wide.radiusMetres);
     expect(tight.furthestInRadius).toBeLessThanOrEqual(tight.radiusMetres);
-    expect(
-      wide.furthestInRadius,
-      "the wide ring reaches further than the tight one, so the two sets are genuinely different",
-    ).toBeGreaterThan(tight.furthestInRadius);
+    expect(wide.furthestInRadius).toBeGreaterThan(tight.furthestInRadius);
     expect(
       tight.keys.some((key) => !wide.keys.includes(key)) || wide.keys.some((key) => !tight.keys.includes(key)),
-      "shrinking the radius changes which locations are highlighted",
     ).toBe(true);
   });
 
-  // Out-of-radius pins used to be drawn at 0.4 opacity. The walking-radius wash already darkens
-  // everything beyond the ring, so a pin out there is visibly outside it — fading it as well only
-  // made the thing the user is trying to read the hardest thing on that part of the map.
-  test("a highlighted location outside the walking radius is drawn at full strength, not faded", async ({ page }) => {
-    const result = await page.evaluate(async () => {
-      state.overviewFilters = ["pubs", "ponds_streams", "underground"];
-      openFiltersScreen();
-      await new Promise((resolve) => setTimeout(resolve, 600));
-      stopViewportAnimation();
-      ensureOverviewTargetsVisible({ force: true });
-      stopViewportAnimation();
-
-      const lookup = buildNearbyIconLookup();
-      const outside = [...lookup.landmark].filter((place) => lookup.outOfRadius.has(place));
-
-      // A real 2d context, so every call drawLandmarks makes behaves normally; only the
-      // globalAlpha setter is shadowed, which is where the dim used to be applied.
-      const probe = document.createElement("canvas");
-      probe.width = els.canvas.width;
-      probe.height = els.canvas.height;
-      const ctx = probe.getContext("2d");
-      const descriptor = Object.getOwnPropertyDescriptor(Object.getPrototypeOf(ctx), "globalAlpha");
-      const alphas = [];
-      Object.defineProperty(ctx, "globalAlpha", {
-        configurable: true,
-        get() { return descriptor.get.call(ctx); },
-        set(value) { alphas.push(value); descriptor.set.call(ctx, value); },
-      });
-
-      drawLandmarks(ctx, lookup, worldToScreen);
-
-      return {
-        outsideCount: outside.length,
-        highlightedCount: lookup.landmark.size,
-        reveal: nearbyRevealOpacity(),
-        alphas,
-      };
-    });
-
-    expect(result.reveal, "no slide is running, so nothing is legitimately mid-fade").toBe(1);
-    expect(
-      result.outsideCount,
-      "fixture sanity: the filter screen is highlighting at least one match beyond the ring",
-    ).toBeGreaterThan(0);
-    expect(result.alphas.length, "drawLandmarks set an opacity for the pins it drew").toBeGreaterThan(0);
-    // Every highlighted landmark matches an active place filter, so markerOpacityFor gives them
-    // all a base opacity of 1 — anything below it here could only be the out-of-radius dim.
-    expect(
-      Math.min(...result.alphas),
-      "no landmark pin is faded for being outside the ring",
-    ).toBe(1);
-  });
-
-  test("walking radius circle is drawn on all three secondary screens", async ({ page }) => {
+  test("the walking radius is drawn behind Map setup, Settings, and Feedback", async ({ page }) => {
     for (const toggleId of ["#filterToggle", "#settingsToggle", "#reportToggle"]) {
       await page.click(toggleId);
+      if (toggleId === "#filterToggle") {
+        await expect(page.locator("#onboardingOverlay")).toBeVisible();
+        await page.getByRole("button", { name: "Close map setup" }).click();
+        await expect(page.locator("#onboardingOverlay")).toBeHidden();
+      }
       await waitForUiToSettle(page);
       const radiusDrawn = await page.evaluate(() => {
         let arcCount = 0;
