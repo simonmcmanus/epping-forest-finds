@@ -249,6 +249,7 @@ globalThis.__forestFindsTest = {
   cowCenterForRequest,
   projectLonLat,
   environmentFeaturesInView,
+  itemsOverlappingView,
   unprojectPoint,
   distanceMetres,
   buildRoutingGraph,
@@ -1339,6 +1340,14 @@ test("only environment features overlapping the view are drawn, in their origina
   assert.equal(visible.length, 2);
   assert.ok(visible[0] === features[0] && visible[1] === features[2]);
   assert.equal(app.environmentFeaturesInView(features, null), features, "no view means nothing is culled");
+});
+
+test("roads and paths overlapping the view are kept, and ones without a bbox are never culled", () => {
+  const box = (minX, maxX) => ({ bbox: { minX, maxX, minY: 0, maxY: 10 } });
+  const items = [box(0, 5), box(100, 105), { name: "no bbox" }, box(8, 20)];
+  const visible = Array.from(app.itemsOverlappingView(items, { minX: 4, maxX: 9, minY: 0, maxY: 10 }));
+  assert.equal(visible.length, 3);
+  assert.ok(visible[0] === items[0] && visible[1] === items[2] && visible[2] === items[3]);
 });
 
 test("turning the 3D map on in Settings tilts the map and is remembered for next time", () => {
