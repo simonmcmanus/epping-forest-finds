@@ -474,8 +474,8 @@ function showLandmarkDetails(place, distance) {
   // worked out (updateSelectedDetailFields, js/app.js), so it always has a slot that does not move the
   // actions beside it. The resolve waits a short minimum so the loading form reads as loading.
   // Without a shared location there is no walking distance to work out, so the slot stays empty.
-  const distancePill = `<span data-live-field="distance">${hasRealLocation() ? walkChipPendingHtml() : ""}</span>`;
-  if (hasRealLocation()) {
+  const distancePill = `<span data-live-field="distance">${canGuideToPlaces() ? walkChipPendingHtml() : ""}</span>`;
+  if (canGuideToPlaces()) {
     setTimeout(() => {
       if (state.selected?.type === "landmark"
         && placeHashKey(state.selected.item) === placeHashKey(place)) updateSelectedDetailFields();
