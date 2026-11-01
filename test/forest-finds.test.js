@@ -459,6 +459,13 @@ globalThis.__forestFindsTest = {
   startCameraOriginTransition,
   distanceFromUserToRoad,
   nearbyOrigin,
+  isFarFromForest,
+  canGuideToPlaces,
+  updateFarFromForest,
+  checkDistanceToForest,
+  distanceToForestMetres,
+  FAR_FROM_FOREST_METRES,
+  updateCompassOverlay,
   setNearbyAnchor,
   clearNearbyAnchor,
   focusNearbyWithinWalkMinutes,
@@ -12568,4 +12575,130 @@ test("the cow request the app builds is one the proxy accepts", async () => {
   } finally {
     global.fetch = original;
   }
+});
+
+// --- Far from the forest: Nearby at High Beach, no directions ---------------------------------
+
+// A forest outline ~110 m square near High Beach, so distances to it are easy to reason about.
+function useSmallForest(app) {
+  const d = 0.001;
+  const lon = 0.037;
+  const lat = 51.667;
+  app.state.layers = [{ key: "forest", data: { features: [{ geometry: { type: "Polygon", coordinates: [[[lon, lat], [lon + d, lat], [lon + d, lat + d], [lon, lat + d], [lon, lat]]] } }] } }];
+}
+
+function withRealFix(app, latitude, longitude) {
+  app.state.userLocation = { ...makePoint(app, latitude, longitude), isDefault: false };
+  app.state.farFromForest = false;
+  app.updateFarFromForest(latitude, longitude);
+}
+
+test("a real fix well outside the forest is far from it, and Nearby is centred on High Beach", () => {
+  resetData(app);
+  useSmallForest(app);
+  withRealFix(app, 51.508, -0.1281); // Trafalgar Square
+  assert.equal(app.isFarFromForest(), true);
+  assert.equal(app.canGuideToPlaces(), false, "no directions from too far away");
+  const origin = app.nearbyOrigin();
+  assert.equal(origin.latitude, app.DEFAULT_LOCATION.latitude);
+  assert.equal(origin.longitude, app.DEFAULT_LOCATION.longitude);
+  assert.equal(origin.isDefault, true);
+  assert.equal(app.hasRealLocation(), true, "the shared location itself is untouched");
+  assert.equal(app.state.userLocation.latitude, 51.508, "the You position stays the real one");
+});
+
+test("a real fix inside walking reach of the forest keeps Nearby on the visitor and allows directions", () => {
+  resetData(app);
+  useSmallForest(app);
+  withRealFix(app, 51.6675, 0.0375);
+  assert.equal(app.isFarFromForest(), false);
+  assert.equal(app.canGuideToPlaces(), true);
+  assert.equal(app.nearbyOrigin(), app.state.userLocation);
+});
+
+test("far-from-the-forest threshold is a 15 minute walk (1,250 m) from the boundary", () => {
+  resetData(app);
+  useSmallForest(app);
+  assert.equal(app.FAR_FROM_FOREST_METRES, 1250);
+  const metresPerDegLat = 111320;
+  const south = 51.667 - 1200 / metresPerDegLat;
+  withRealFix(app, south, 0.0375);
+  assert.equal(app.isFarFromForest(), false, "1.2 km away is still a walk");
+  withRealFix(app, 51.667 - 1300 / metresPerDegLat, 0.0375);
+  assert.equal(app.isFarFromForest(), true, "1.3 km away is too far");
+});
+
+test("until the forest outline loads nobody is treated as far away, and it is re-checked once it lands", () => {
+  resetData(app);
+  app.state.layers = [];
+  withRealFix(app, 51.508, -0.1281);
+  assert.equal(app.isFarFromForest(), false, "no outline yet, so no verdict");
+  assert.equal(app.distanceToForestMetres(51.508, -0.1281), null);
+  useSmallForest(app);
+  app.checkDistanceToForest(51.508, -0.1281);
+  assert.equal(app.isFarFromForest(), true);
+});
+
+test("walking back towards the forest returns Nearby to the visitor", () => {
+  resetData(app);
+  useSmallForest(app);
+  withRealFix(app, 51.508, -0.1281);
+  assert.equal(app.nearbyOrigin().isDefault, true);
+  withRealFix(app, 51.6675, 0.0375);
+  assert.equal(app.nearbyOrigin(), app.state.userLocation);
+  assert.equal(app.canGuideToPlaces(), true);
+});
+
+test("the stand-in and a missing fix are never 'far from the forest'", () => {
+  resetData(app);
+  useSmallForest(app);
+  app.state.userLocation = null;
+  app.updateFarFromForest(51.508, -0.1281);
+  assert.equal(app.isFarFromForest(), false);
+  app.applyDefaultLocation();
+  app.updateFarFromForest(51.508, -0.1281);
+  assert.equal(app.state.farFromForest, false, "the High Beach stand-in is not a shared location");
+  assert.equal(app.canGuideToPlaces(), false, "and still gives no directions");
+});
+
+test("a browse anchor still wins over the High Beach stand-in while far away", () => {
+  resetData(app);
+  useSmallForest(app);
+  withRealFix(app, 51.508, -0.1281);
+  app.state.nearbyAnchor = { ...makePoint(app, 51.66, 0.02), label: "Anchor" };
+  assert.equal(app.nearbyOrigin(), app.state.nearbyAnchor);
+  app.state.nearbyAnchor = null;
+});
+
+test("far from the forest, a place has no walking distance, route or walk-time figure", () => {
+  resetData(app);
+  useSmallForest(app);
+  const place = { name: "Pub", ...makePoint(app, 51.6676, 0.0375) };
+  withRealFix(app, 51.6675, 0.0375);
+  assert.ok(app.distanceFromUser(place) > 0, "near the forest the distance is shown");
+  withRealFix(app, 51.508, -0.1281);
+  assert.equal(app.distanceFromUser(place), null);
+  assert.equal(app.selectedRouteMetres(place), null);
+});
+
+test("the Nearby heading names High Beach, not 'you', while far from the forest", () => {
+  resetData(app);
+  useSmallForest(app);
+  withRealFix(app, 51.508, -0.1281);
+  assert.match(app.overviewHeadingText(), /of High Beach/);
+  withRealFix(app, 51.6675, 0.0375);
+  assert.doesNotMatch(app.overviewHeadingText(), /High Beach/);
+});
+
+test("far from the forest the compass arrow stays hidden for a selected place", () => {
+  resetData(app);
+  useSmallForest(app);
+  const place = { name: "Pub", categoryLabel: "Pub", ...makePoint(app, 51.6676, 0.0375) };
+  app.state.selected = { type: "landmark", item: place };
+  withRealFix(app, 51.508, -0.1281);
+  app.els.compassArrow.hidden = false;
+  app.updateCompassOverlay();
+  assert.equal(app.els.compassArrow.hidden, true);
+  assert.equal(app.selectedNavigationHeadingUpActive(), false);
+  app.state.selected = null;
 });
