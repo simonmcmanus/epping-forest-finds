@@ -220,7 +220,7 @@ test.describe("a landing-page arrival", () => {
 
   test("asks for location and cookies with one combined action", async ({ page }) => {
     await stubLocation(page, { permission: "prompt" });
-    await gotoAndWaitForMap(page, "/nearby/filter?show=pubs");
+    await gotoAndWaitForMap(page, "/nearby?show=pubs");
     const card = page.locator("#consentBanner");
     await expect(card).toBeVisible();
     await expect(page.locator("#consentBannerAccept")).toHaveText("Enable location & cookies");
@@ -243,7 +243,7 @@ test.describe("a landing-page arrival", () => {
 
   test("the combined action applies a real fix and grants analytics", async ({ page }) => {
     await stubLocation(page, { permission: "prompt", answer: "grant" });
-    await gotoAndWaitForMap(page, "/nearby/filter?show=pubs");
+    await gotoAndWaitForMap(page, "/nearby?show=pubs");
     await page.getByRole("button", { name: "Enable location & cookies" }).click();
     await expect.poll(() => page.evaluate(() => Boolean(state.userLocation && !state.userLocation.isDefault))).toBe(true);
     expect(await locationRequests(page)).toBe(1);
@@ -252,7 +252,7 @@ test.describe("a landing-page arrival", () => {
 
   test("with location already allowed, the card asks only about usage analytics", async ({ page }) => {
     await stubLocation(page, { permission: "granted", answer: "grant" });
-    await gotoAndWaitForMap(page, "/nearby/filter?show=pubs");
+    await gotoAndWaitForMap(page, "/nearby?show=pubs");
     await expect(page.locator("#consentBanner")).toContainText("Help improve the map?");
     await page.locator("#consentBannerAccept").click();
     expect(await stored(page, "ff-track-v1")).toBe("1");
@@ -262,7 +262,7 @@ test.describe("a landing-page arrival", () => {
   test("a repeat visit with both questions answered shows no card", async ({ page }) => {
     await stubLocation(page, { permission: "prompt" });
     await setStored(page, { "ff-location-v1": "declined", "ff-track-v1": "0" });
-    await gotoAndWaitForMap(page, "/nearby/filter?show=pubs");
+    await gotoAndWaitForMap(page, "/nearby?show=pubs");
     await expect(page.locator("#consentBanner")).toBeHidden();
     await expect(page.locator("#locationInviteBanner")).toBeHidden();
   });
@@ -389,7 +389,7 @@ test.describe("compass access before any real location", () => {
       window.DeviceOrientationEvent.requestPermission = () => Promise.resolve("granted");
     });
     await stubLocation(page, { permission: "prompt" });
-    await gotoAndWaitForMap(page, "/nearby/filter?show=pubs");
+    await gotoAndWaitForMap(page, "/nearby?show=pubs");
     await expect(page.locator("#consentBanner")).toBeVisible();
     // Past the former permission probe window.
     await waitForFrames(page, 150);
