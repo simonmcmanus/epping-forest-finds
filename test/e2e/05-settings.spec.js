@@ -107,6 +107,9 @@ test.describe("Settings screen", () => {
               alpha, beta: 50, gamma: 0, absolute: true,
             })); // phone held up
             await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+            const expectedHeading = (360 - alpha) % 360;
+            if (i >= 5 && Number.isFinite(state.compassHeading)
+              && Math.abs(shortestCompassDelta(state.compassHeading, expectedHeading)) < 1) break;
           }
         };
         // The first reading faces north, so heading-up switches on without the camera fit
@@ -114,22 +117,29 @@ test.describe("Settings screen", () => {
         await face(0);
         await face(270); // facing east
       });
-      expect(await page.evaluate(() => tiltActive()), "3D is off").toBe(false);
+      expect(await page.evaluate(() => state.map3dEnabled), "full 3D is off").toBe(false);
+      expect(await page.evaluate(() => tiltRotateXDeg())).toBeLessThanOrEqual(70);
       await expect.poll(async () => {
         const deg = await paintedRotation();
         return Math.round(Math.abs(((deg - 270) + 540) % 360 - 180)); // distance from -90 (=270)
       }, { message: "facing east turns the map a quarter-turn anticlockwise" }).toBeLessThan(5);
     });
 
-    test("is off by default, so lifting the phone keeps the map flat until it is switched on", async ({ page }) => {
+    test("uses the doubled default tilt and offers full 3D through the remembered setting", async ({ page }) => {
       const toggle = page.getByRole("checkbox", { name: /3D map/ });
-      expect(await pitchPhone(page, 55), "the map stays flat while 3D is off").toBe(0);
+      await pitchPhone(page, 55);
+      await expect.poll(() => page.evaluate(() => state.renderedTiltRotateXDeg), { message: "normal viewing angle shows noticeable depth" }).toBeGreaterThan(55);
+      const gentle = await pitchPhone(page, 85);
+      expect(gentle, "default tilt stays below full 3D even upright").toBeLessThanOrEqual(70);
       await expect(toggle).not.toBeChecked();
 
       await toggle.check();
-      expect(await pitchPhone(page, 60), "the map tilts once 3D is on").toBeGreaterThan(0);
+      expect(await pitchPhone(page, 85), "full 3D gives a stronger perspective").toBeGreaterThan(60);
 
       await toggle.uncheck();
+      await page.waitForFunction(() => state.renderedTiltRotateXDeg > 0 && state.renderedTiltRotateXDeg <= 70);
+      expect(await page.evaluate(() => isBehindTiltHeading({ x: state.userLocation.point.x, y: state.userLocation.point.y + 100 })), "surrounding items remain visible").toBe(false);
+      await pitchPhone(page, 0);
       await page.waitForFunction(() => state.renderedTiltRotateXDeg === 0);
 
       await toggle.check();
