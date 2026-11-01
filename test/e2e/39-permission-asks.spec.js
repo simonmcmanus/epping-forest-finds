@@ -105,10 +105,10 @@ test.describe("first-run onboarding", () => {
 
   test("'Maybe later' is not followed by another consent ask, then or on the next visit", async ({ page }) => {
     await stubLocation(page);
-    await page.goto("/nearby/search");
+    await page.goto("/nearby");
     const banner = page.locator("#consentBanner");
     await banner.getByRole("button", { name: "Maybe later" }).click();
-    await banner.getByRole("button", { name: "Explore first" }).click();
+    await banner.getByRole("button", { name: "Dismiss map setup hint" }).click();
     await page.waitForFunction(() => typeof state !== "undefined" && state.dataLoaded === true);
     await page.waitForFunction(() => document.querySelector("[data-load-step='location']")?.classList.contains("error"));
     await expect(page.locator("#locationInviteBanner")).toBeHidden();
