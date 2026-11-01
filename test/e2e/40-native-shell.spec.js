@@ -77,7 +77,15 @@ test.describe("the native app shell", () => {
     await expect(page.locator("html")).toHaveClass(/native-android/);
     await expect.poll(() => page.evaluate(() => Number(document.getElementById("mapCanvas").dataset.dpr))).toBeLessThanOrEqual(2);
     expect(await page.evaluate(() => getComputedStyle(document.querySelector(".inspector")).backdropFilter)).toBe("none");
-    expect(await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--safe-bottom").trim())).not.toBe("");
+    // The injected inset is honoured: an element sized by it measures at least 48px.
+    expect(await page.evaluate(() => {
+      const probe = document.createElement("div");
+      probe.style.cssText = "position:absolute;visibility:hidden;height:var(--safe-bottom)";
+      document.body.appendChild(probe);
+      const height = probe.getBoundingClientRect().height;
+      probe.remove();
+      return height;
+    })).toBeGreaterThanOrEqual(48);
   });
 
   test("locates through the native plugin only, with no service worker and no compass ask", async ({ page }) => {
