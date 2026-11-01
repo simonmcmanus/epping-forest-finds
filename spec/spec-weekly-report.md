@@ -49,9 +49,11 @@ nights it has accumulated changes from.
 
 **Deploy-preview links.** Once Netlify reports a successful deploy, the
 `update-preview-links.yml` workflow uses that status's target URL and the
-dated ledger file at the deployed commit to add or refresh the report preview
-link in the PR body. It replaces older report links, including malformed
-placeholder URLs, so the link always points at the current preview and report.
+dated ledger file the PR itself adds or changes to add or refresh the report
+preview link in the PR body. A PR that touches no ledger edition gets no report
+link, and any stale one is removed. It replaces older report links, including
+malformed placeholder URLs, so the link always points at the current preview
+and report.
 
 **The sources.** Three, deliberately unalike, so no one blind spot is the
 system's:
