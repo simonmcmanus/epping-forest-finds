@@ -1333,14 +1333,12 @@ function offerLocationInvite({ blocked = false } = {}) {
 // The map setup hint points at the Map setup button, which scrolls away with the Nearby heading,
 // so while that hint shows it lives at the top of the scrolling screen and leaves with the heading.
 // Every other notice stays in the fixed chrome slot above the scroll area.
-function dockConsentBanner(inScroll) {
-  const banner = els.consentBanner;
-  if (!banner) return;
-  if (inScroll) {
-    const screen = document.querySelector(".inspector-scroll .inspector-screen");
-    if (screen && banner.parentElement !== screen) screen.prepend(banner);
-  } else if (banner.parentElement?.classList.contains("inspector-screen")) {
-    (els.locationInviteBanner || document.getElementById("locationInviteBanner"))?.before(banner);
+// The permission prompts float over the map as their own layer. Inside the inspector they pushed
+// the Nearby list down (the list is a scrolling panel) and, on phones, the transformed sheet would
+// trap a fixed child. Boot moves them to <body> once, so they stay put whatever the panel shows.
+function floatConsentPrompts() {
+  for (const el of [els.consentBanner, els.locationInviteBanner]) {
+    if (el && el.parentElement !== document.body) document.body.appendChild(el);
   }
 }
 
@@ -1355,11 +1353,8 @@ function hideNoticeCard(banner, { collapse = false } = {}) {
     if (collapseTimer) clearTimeout(collapseTimer);
     banner.removeEventListener("transitionend", onTransitionEnd);
     banner.hidden = true;
-    if (banner === els.consentBanner) dockConsentBanner(false);
     banner.classList.remove("fading-out", "onboarding-collapsing", "onboarding-collapsed");
     banner.style.removeProperty("--consent-banner-height");
-    // The next waiting question, if any, takes the slot once this one has gone.
-    askAnalyticsWhenFree();
   };
   const onTransitionEnd = (event) => {
     if (event.target !== banner) return;
@@ -1412,6 +1407,7 @@ function showLocationInviteBanner(message, { canRequest = true } = {}) {
     cleanup();
     rememberLocationChoice("declined");
     hideNoticeCard(banner);
+    if (canRequest) showHighBeachNotice();
   }
 
   els.locationInviteButton?.addEventListener("click", onAccept);
@@ -1419,6 +1415,39 @@ function showLocationInviteBanner(message, { canRequest = true } = {}) {
 
   banner.classList.remove("fading-out");
   banner.hidden = false;
+}
+
+// How long the "location is off" notice stays up after "Maybe later" before it clears on its own.
+const HIGH_BEACH_NOTICE_MS = 60_000;
+
+// Said in the same floating card once location is refused: the map is set to High Beach, the same
+// stand-in a failed request gets. It has one button and clears itself after a minute.
+function showHighBeachNotice() {
+  const banner = els.consentBanner;
+  if (!banner) return;
+  let timer = null;
+  const dismiss = () => {
+    if (timer !== null) clearTimeout(timer);
+    timer = null;
+    els.consentBannerDecline?.removeEventListener("click", dismiss);
+    hideNoticeCard(banner);
+  };
+  banner.setAttribute("aria-label", "Location is off");
+  banner.classList.remove("onboarding-invite", "onboarding-attention", "fading-out");
+  if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Location is off";
+  if (els.consentBannerText) {
+    els.consentBannerText.textContent = "We'll set your location as High Beach, so you can still browse finds around the forest. Turn location on any time in Settings.";
+  }
+  if (els.consentBannerDecline) {
+    els.consentBannerDecline.textContent = "OK";
+    els.consentBannerDecline.removeAttribute("aria-label");
+    els.consentBannerDecline.removeAttribute("title");
+    els.consentBannerDecline.addEventListener("click", dismiss);
+  }
+  if (els.consentBannerAccept) els.consentBannerAccept.hidden = true;
+  if (els.consentBannerMapSetupArrow) els.consentBannerMapSetupArrow.hidden = true;
+  banner.hidden = false;
+  timer = setTimeout(dismiss, HIGH_BEACH_NOTICE_MS);
 }
 
 // The first ask for anyone onboarding did not reach -- a first visit, a landing-page arrival, or a
@@ -1454,12 +1483,11 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
 
   function renderPermissionsStage() {
     banner.setAttribute("aria-label", "Location and usage analytics");
-    dockConsentBanner(false);
     banner.classList.remove("onboarding-invite");
     els.filterToggle?.classList.remove("filter-toggle-guidance");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Allow location & cookies";
     if (els.consentBannerText) {
-      els.consentBannerText.innerHTML = `Shows nearby finds and their distance from you, and helps us understand how people use this site — enabling covers both. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>`;
+      els.consentBannerText.innerHTML = `Shows nearby finds, how far away they are and which way to walk, and helps us understand how people use this site — enabling covers both. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>`;
     }
     if (els.consentBannerDecline) {
       els.consentBannerDecline.textContent = "Maybe later";
@@ -1473,7 +1501,6 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
 
   function renderLocationStage() {
     banner.setAttribute("aria-label", "Location");
-    dockConsentBanner(false);
     banner.classList.remove("onboarding-invite");
     els.filterToggle?.classList.remove("filter-toggle-guidance");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "See what's near you";
@@ -1497,7 +1524,6 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
 
   function renderAnalyticsStage() {
     banner.setAttribute("aria-label", "Usage analytics");
-    dockConsentBanner(false);
     banner.classList.remove("onboarding-invite");
     els.filterToggle?.classList.remove("filter-toggle-guidance");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Help improve the map?";
@@ -1516,7 +1542,6 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
 
   function renderOnboardingStage() {
     banner.setAttribute("aria-label", "Map setup");
-    dockConsentBanner(true);
     banner.classList.add("onboarding-invite");
     els.filterToggle?.classList.add("filter-toggle-guidance");
     // The invitation itself counts as the one-time first-run nudge. Its explicit close and the
@@ -1611,6 +1636,17 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
       try { localStorage.setItem("forest-finds-onboarding-v1", "declined"); } catch {}
       return;
     }
+    // Refusing location is explained in place rather than passed over: the map carries on around
+    // High Beach, and the notice clears itself after a minute. Guided setup is not offered after
+    // it, so the one question is not followed by another card; Map setup stays on the toolbar.
+    if (stage === "permissions" || stage === "location") {
+      cleanup();
+      if (offerOnboarding) {
+        try { localStorage.setItem("forest-finds-onboarding-v1", "declined"); } catch {}
+      }
+      showHighBeachNotice();
+      return;
+    }
     advance();
   }
 
@@ -1624,17 +1660,6 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
   banner.classList.remove("fading-out");
   banner.hidden = false;
   return true;
-}
-
-// Usage analytics for a returning visitor who has never answered it, held back until no other
-// card or the onboarding dialog is on screen, so two questions never stack.
-function askAnalyticsWhenFree() {
-  if (typeof analyticsChoice !== "function" || analyticsChoice() !== "undecided") return;
-  if (!state.dataLoaded) return;
-  const busy = [els.consentBanner, els.locationInviteBanner, document.getElementById("onboardingOverlay")]
-    .some((el) => el && !el.hidden);
-  if (busy) return;
-  showConsentBanner({ askAnalytics: true });
 }
 
 // ?nuke=true clears exactly what Settings' "Refresh both" clears, then returns to the same URL
@@ -1658,6 +1683,7 @@ function nukeIfRequested() {
 
 async function boot() {
   if (nukeIfRequested()) return;
+  floatConsentPrompts();
 
   // A /nearby/<slug>/ landing already shows its server-rendered list (see
   // _serverRenderedNearbyList, js/inspector.js); keep it there until a real fix or the reveal.
@@ -1744,8 +1770,8 @@ async function boot() {
   const locationUnasked = Boolean(Native.geolocation) && locationChoice === null
     && permission !== "granted" && permission !== "denied";
   const analyticsUnasked = analyticsChoice() === "undecided";
-  if (asksFromBanner && (locationUnasked || analyticsUnasked || onboardsFirst)) {
-    // First visits and landing-page arrivals use the non-blocking inspector card so the map is
+  if (locationUnasked || analyticsUnasked || onboardsFirst) {
+    // Every unanswered question is asked in the one non-blocking card, which floats over the map so the map is
     // usable immediately. A first visit moves from the permission card to the guided setup in
     // this same slot; the dialog opens only after the reader explicitly chooses it.
     showConsentBanner({
@@ -1756,7 +1782,7 @@ async function boot() {
   } else if (els.consentBanner) {
     els.consentBanner.hidden = true;
   }
-  if (locationUnasked && asksFromBanner) {
+  if (locationUnasked) {
     locationAlreadyAsked = true;
   } else if (Native.geolocation && bootMayRequestLocation(permission, locationChoice)) {
     setLoadStep("location", "loading");
@@ -1944,7 +1970,6 @@ async function boot() {
       await revealNoRealLocation({ locationAlreadyAsked, locationBlocked });
     }
     showFilterHintIfFirstVisit();
-    askAnalyticsWhenFree();
 
     // Everything above was served from the service worker's caches on a return visit, which
     // is what makes the reload instant — but also means nothing here ever noticed newer data

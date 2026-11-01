@@ -78,7 +78,40 @@ test.describe("first-run onboarding", () => {
     expect(await stored(page, "ff-track-v1")).toBe("1");
   });
 
-  test("'Maybe later' records the combined opt-out", async ({ page }) => {
+  test("the one prompt floats over the map, outside the Nearby panel, so the list is not pushed down", async ({ page }) => {
+    await stubLocation(page);
+    await page.addInitScript(() => {
+      localStorage.removeItem("ff-track-v1");
+      localStorage.removeItem("ff-cookie-consent");
+    });
+    await page.goto("/nearby");
+    const card = page.locator("#consentBanner");
+    await expect(card).toBeVisible();
+    expect(await card.evaluate((el) => Boolean(el.closest("#inspector")))).toBe(false);
+    const box = await card.boundingBox();
+    expect(box).not.toBeNull();
+    expect(box.y).toBeLessThan(100);
+  });
+
+  test("the location-off notice clears itself after a minute", async ({ page }) => {
+    // Fake clock: time still flows, so the first check stays well inside the minute.
+    await page.clock.install();
+    await stubLocation(page);
+    await page.addInitScript(() => {
+      localStorage.removeItem("ff-track-v1");
+      localStorage.removeItem("ff-cookie-consent");
+    });
+    await page.goto("/nearby");
+    const card = page.locator("#consentBanner");
+    await card.getByRole("button", { name: "Maybe later" }).click();
+    await expect(card).toContainText("We'll set your location as High Beach");
+    await page.clock.runFor(55_000);
+    await expect(card).toBeVisible();
+    await page.clock.runFor(10_000);
+    await expect(card).toBeHidden();
+  });
+
+  test("'Maybe later' records the combined opt-out and says the map is set to High Beach", async ({ page }) => {
     await stubLocation(page);
     await page.addInitScript(() => {
       localStorage.removeItem("ff-track-v1");
@@ -90,7 +123,9 @@ test.describe("first-run onboarding", () => {
     expect(await stored(page, "ff-location-v1")).toBe("declined");
     expect(await stored(page, "ff-track-v1")).toBe("0");
     expect(await stored(page, "ff-cookie-consent")).toBe("denied");
-    await expect(page.locator("#consentBannerMapSetupArrow")).toBeVisible();
+    await expect(banner).toContainText("We'll set your location as High Beach");
+    await expect(banner.getByRole("button", { name: "Enable location & cookies" })).toBeHidden();
+    await expect(page.locator("#consentBannerMapSetupArrow")).toBeHidden();
   });
 
   test("usage analytics already refused is not overwritten by the combined action", async ({ page }) => {
@@ -108,7 +143,8 @@ test.describe("first-run onboarding", () => {
     await page.goto("/nearby");
     const banner = page.locator("#consentBanner");
     await banner.getByRole("button", { name: "Maybe later" }).click();
-    await banner.getByRole("button", { name: "Dismiss map setup hint" }).click();
+    await banner.getByRole("button", { name: "OK" }).click();
+    await expect(banner).toBeHidden();
     await page.waitForFunction(() => typeof state !== "undefined" && state.dataLoaded === true);
     await page.waitForFunction(() => document.querySelector("[data-load-step='location']")?.classList.contains("error"));
     await expect(page.locator("#locationInviteBanner")).toBeHidden();
@@ -127,12 +163,12 @@ test.describe("a returning visit", () => {
     await setStored(page, { "ff-track-v1": "0" });
   });
 
-  test("never puts a system location prompt up by itself: the in-app invite asks first", async ({ page }) => {
+  test("never puts a system location prompt up by itself: the in-app card asks first", async ({ page }) => {
     await stubLocation(page, { permission: "prompt" });
     await gotoAndWaitForMap(page, "/nearby/search");
     expect(await locationRequests(page)).toBe(0);
-    await expect(page.locator("#locationInviteBanner")).toBeVisible();
-    await expect(page.locator("#locationInviteButton")).toBeVisible();
+    await expect(page.locator("#consentBannerAccept")).toHaveText("Enable location");
+    await expect(page.locator("#locationInviteBanner")).toBeHidden();
   });
 
   test("asks for a position straight away when the permission is already granted", async ({ page }) => {
@@ -165,14 +201,17 @@ test.describe("a returning visit", () => {
     await expect(page.locator("#locationInviteBanner")).toBeHidden();
   });
 
-  test("'Maybe later' on the invite is remembered across visits", async ({ page }) => {
+  test("'Maybe later' on the location ask is remembered across visits", async ({ page }) => {
     await stubLocation(page, { permission: "prompt" });
     await gotoAndWaitForMap(page, "/nearby/search");
-    await page.locator("#locationInviteDismiss").click();
-    await expect(page.locator("#locationInviteBanner")).toBeHidden();
+    await page.locator("#consentBannerDecline").click();
+    await expect(page.locator("#consentBannerTitle")).toHaveText("Location is off");
+    await page.locator("#consentBannerDecline").click();
+    await expect(page.locator("#consentBanner")).toBeHidden();
 
     await page.reload();
     await gotoAndWaitForMap(page, "/nearby/search");
+    await expect(page.locator("#consentBanner")).toBeHidden();
     await expect(page.locator("#locationInviteBanner")).toBeHidden();
     expect(await locationRequests(page)).toBe(0);
   });
@@ -186,17 +225,14 @@ test.describe("a returning visit", () => {
     await expect(page.locator("#locationInviteDismiss")).toHaveText("OK");
   });
 
-  test("usage analytics never answered is asked once the map is up, and only after the location invite has gone", async ({ page }) => {
+  test("usage analytics never answered is asked in the card at the first visit, and never raised again after the map is up", async ({ page }) => {
     await page.addInitScript(() => localStorage.removeItem("ff-track-v1"));
-    await stubLocation(page, { permission: "prompt" });
+    await stubLocation(page, { permission: "granted", answer: "grant" });
     await gotoAndWaitForMap(page, "/nearby/search");
-    await expect(page.locator("#locationInviteBanner")).toBeVisible();
-    await expect(page.locator("#consentBanner")).toBeHidden();
-
-    await page.locator("#locationInviteDismiss").click();
     const card = page.locator("#consentBanner");
     await expect(card).toBeVisible();
     await expect(card).toContainText("Help improve the map?");
+    await expect(page.locator("#locationInviteBanner")).toBeHidden();
     await page.locator("#consentBannerDecline").click();
     await expect(card).toBeHidden();
     expect(await stored(page, "ff-track-v1")).toBe("0");
@@ -231,6 +267,8 @@ test.describe("a landing-page arrival", () => {
     expect(await logo.evaluate((img) => img.complete && img.naturalWidth > 0)).toBe(true);
     expect(await locationRequests(page)).toBe(0);
 
+    await page.locator("#consentBannerDecline").click();
+    await expect(card).toContainText("Location is off");
     await page.locator("#consentBannerDecline").click();
     await expect(card).toBeHidden();
 

@@ -21,42 +21,17 @@ async function expectOakLogo(page, logo) {
 }
 
 test.describe("Cookie consent banner", () => {
-  test("early testing notice is omitted from the homepage, then shown once in the page flow with a feedback link", async ({ page }) => {
-    await page.goto("/");
-    await expect(page.locator("#earlyTestingBanner")).toHaveCount(0);
-
+  test("no work-in-progress notice is shown on public pages or in the app", async ({ page }) => {
     await page.goto("/terms.html");
-    const banner = page.locator("#earlyTestingBanner");
-    await expect(banner).toBeVisible();
-    await expect(banner).toContainText("Epping Forest Finds is still a work in progress");
-    await expect(banner).toContainText("You may find data problems or bugs");
-    await expect(banner.getByRole("link", { name: "report any you find" })).toHaveAttribute("href", "/report");
+    await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
+    await expect(page.getByText("still a work in progress")).toHaveCount(0);
 
-    await expectOakLogo(page, banner.locator("img.early-testing-logo"));
-
-    await page.reload();
-    await expect(page.locator("#earlyTestingBanner")).toHaveCount(0);
-  });
-
-  test("early testing notice lives inside the app inspector instead of overlaying the map", async ({ page }) => {
     await skipOnboarding(page);
     await mockCowApi(page);
     await denyGeolocationUnlessGranted(page);
     await page.goto("/nearby");
-
-    const banner = page.locator("#earlyTestingBanner");
-    await expect(banner).toBeVisible();
-    await expect(banner.locator("..")).toHaveAttribute("id", "earlyTestingNoticeSlot");
-    await expect(banner).toHaveCSS("position", "static");
-
-    // A no-location visit can receive the app's separate, non-blocking location invite banner.
-    // It is asynchronous, so CI may instead reach the completed no-location state without
-    // showing that prompt. Clear it when present before exercising the notice's own control.
     await expect(page.locator("#loadingOverlay")).toBeHidden({ timeout: 30_000 });
-    const locationInviteDismiss = page.locator("#locationInviteDismiss");
-    if (await locationInviteDismiss.isVisible()) await locationInviteDismiss.click();
-    await banner.getByRole("button", { name: "Dismiss early testing notice" }).evaluate(button => button.click());
-    await expect(banner).toBeHidden();
+    await expect(page.getByText("still a work in progress")).toHaveCount(0);
   });
 
   test("the short /report link opens the app feedback screen", async ({ page }) => {
@@ -91,20 +66,6 @@ test.describe("Cookie consent banner", () => {
 
     await page.reload();
     await expect(page.locator("#cookieConsentBanner")).toBeHidden();
-  });
-
-  test("mobile keeps the early-testing notice above the map and out of the Nearby sheet", async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== "mobile", "Mobile layout only");
-    await skipOnboarding(page);
-    await mockCowApi(page);
-    await denyGeolocationUnlessGranted(page);
-    await page.goto("/app");
-
-    const notice = page.locator("#earlyTestingBanner");
-    await expect(notice).toBeVisible();
-    await expect(notice).toContainText("Epping Forest Finds is still a work in progress");
-    expect(await notice.evaluate((element) => element.parentElement === document.body)).toBe(true);
-    expect((await notice.boundingBox()).y).toBeLessThan(80);
   });
 
   test("a cookie choice made on the homepage is not asked again by a cookie banner in the app", async ({ page }) => {

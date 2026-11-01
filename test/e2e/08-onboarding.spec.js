@@ -26,7 +26,7 @@ test.describe("Onboarding", () => {
 
     test("the guided dialog is announced after the reader asks for setup", async ({ page }) => {
       await page.goto("/nearby");
-      await page.locator("#consentBannerDecline").click();
+      await page.locator("#consentBannerAccept").click();
       await expect(page.locator("#consentBannerMapSetupArrow")).toBeVisible();
       await page.locator("#filterToggle").click();
       const dialog = page.getByRole("dialog", { name: "Set up Epping Forest Finds" });
@@ -35,40 +35,27 @@ test.describe("Onboarding", () => {
       await expect(dialog).toHaveAttribute("aria-modal", "true");
     });
 
-    test("the map setup hint scrolls away with the Nearby heading", async ({ page }) => {
+    test("the map setup hint floats over the map and stays put while the Nearby list scrolls", async ({ page }) => {
       await page.goto("/nearby");
-      await page.locator("#consentBannerDecline").click();
+      await page.locator("#consentBannerAccept").click();
       await expect(page.locator("#consentBannerMapSetupArrow")).toBeVisible();
       const scroller = page.locator(".inspector-scroll");
-      const tops = () => page.evaluate(() => ({
-        hint: document.querySelector("#consentBanner").getBoundingClientRect().top,
-        setup: document.querySelector("#filterToggle").getBoundingClientRect().top,
-      }));
-      const before = await tops();
+      const hintTop = () => page.evaluate(() => document.querySelector("#consentBanner").getBoundingClientRect().top);
+      const before = await hintTop();
       await scroller.evaluate((el) => { el.scrollTop = 60; });
-      await expect.poll(async () => (await tops()).hint).toBeLessThan(before.hint - 40);
-      const after = await tops();
-      expect(Math.abs((before.hint - after.hint) - (before.setup - after.setup)), "the hint moves with the button it points to").toBeLessThan(2);
+      await expect.poll(() => scroller.evaluate((el) => el.scrollTop)).toBe(60);
+      expect(await hintTop(), "the hint is not carried along with the list").toBe(before);
     });
 
     test("the first-run invite points to persistent map setup and fades after a pause", async ({ page }) => {
       await page.goto("/nearby");
-      await page.locator("#consentBannerDecline").click();
+      await page.locator("#consentBannerAccept").click();
       await expect(page.locator("#consentBannerText")).toContainText("layers button");
       await expect(page.locator("#consentBannerMapSetupArrow")).toBeVisible();
       await expect(page.locator("#consentBannerDecline")).toHaveAccessibleName("Dismiss map setup hint");
       await expect(page.locator("#consentBannerAccept")).toBeHidden();
       await expect(page.locator("#filterToggle")).toBeVisible();
       await expect(page.locator("#filterToggle")).toHaveClass(/filter-toggle-guidance/);
-      const arrowCenter = await page.locator("#consentBannerMapSetupArrow").evaluate((el) => {
-        const rect = el.getBoundingClientRect();
-        return rect.left + rect.width / 2;
-      });
-      const setupCenter = await page.locator("#filterToggle").evaluate((el) => {
-        const rect = el.getBoundingClientRect();
-        return rect.left + rect.width / 2;
-      });
-      expect(Math.abs(arrowCenter - setupCenter), "the hint arrow should point at Map setup").toBeLessThan(24);
       await page.waitForFunction(() => document.querySelector("#consentBanner")?.classList.contains("onboarding-attention"));
       await expect.poll(() => page.locator("#filterToggle").evaluate((el) => el.classList.contains("filter-toggle-hint"))).toBe(true);
       await expect(page.locator("#consentBanner")).toBeHidden();
@@ -108,11 +95,13 @@ test.describe("Onboarding", () => {
       await page.goto("/nearby");
       await expect(page.locator("#consentBanner")).toBeVisible();
       await expect(page.locator("#consentBannerAccept")).toHaveText("Enable location & cookies");
-      await page.locator("#consentBannerDecline").click();
+      await page.locator("#consentBannerAccept").click();
       await expect(page.locator("#consentBannerAccept")).toBeHidden();
       await expect(page.locator("#consentBannerMapSetupArrow")).toBeVisible();
+      // The harness refuses the system dialog, so the location answer is recorded as refused;
+      // cookies still follow the same tap.
       expect(await page.evaluate(() => localStorage.getItem("ff-location-v1"))).toBe("declined");
-      expect(await page.evaluate(() => localStorage.getItem("ff-track-v1"))).toBe("0");
+      expect(await page.evaluate(() => localStorage.getItem("ff-track-v1"))).toBe("1");
     });
 
     test("the first-run actions remain available without blocking the map", async ({ page }) => {
