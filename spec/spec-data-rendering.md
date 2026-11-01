@@ -1402,11 +1402,9 @@ The full routing model — the URL for each screen, history entries, back/forwar
     `navigator.vibrate` exists. With `prefers-reduced-motion`, or when the body has no rail yet, the
     body is rebuilt the ordinary way. The rail has no right-hand Filters control; the existing
     navigation and title affordances remain ordinary links and still slide when used.
-  - **Arrival.** When the rail first appears on a Nearby screen (`animateRailIntro()`,
-    js/inspector.js) its server-rendered pills stay in place; after the window load and a short
-    settling delay, if more pills exist than fit, the row gives one short sideways peek and bounce,
-    with a soft pulse at the clipped right edge, so it is clear it scrolls. It plays once per
-    rendered rail row: a rebuild that replaces a rail already on screen does not replay it.
+  - **Arrival.** Category and subcategory pills appear without an automatic scroll, bounce,
+    or decorative edge pulse. The row stays at its initial horizontal position until the reader
+    scrolls it; manual scrolling and the left overflow fade remain available.
   - **Static landings.** The server-rendered `/nearby/<slug>/` page keeps its anchor chips for
     crawlers and no-JavaScript visitors (`spec-marketing.md` § "Category pages"); while that list
     stays on screen, `swapStaticChipsForRail()` replaces just the chips with the rail.
