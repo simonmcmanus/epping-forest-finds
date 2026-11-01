@@ -379,7 +379,7 @@
 
 .onboarding-selection-item-group {
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   font-weight: 800;
   line-height: 1.1;
 }
@@ -669,7 +669,7 @@
   }
 
   .onboarding-selection-item-group {
-    font-size: 0.72rem;
+    font-size: 0.65rem;
   }
 }
 
