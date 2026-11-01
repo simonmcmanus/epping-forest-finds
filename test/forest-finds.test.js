@@ -1310,13 +1310,21 @@ test("tiltActive can respond to pitch before heading-up is active when a real lo
   assert.equal(app.tiltActive(), true, "pitch should not wait for a compass heading");
 });
 
-test("the 3D map is off by default, so pitching the phone leaves the map flat", () => {
+test("full 3D is off by default, so pitching the phone gives a gentle tilt", () => {
   const freshApp = loadAppForTests();
   freshApp.state.userLocation = makePoint(freshApp, 0, 0);
   freshApp.state.compassHeading = 90;
   freshApp.state.tiltBetaSmoothed = 60;
-  assert.equal(freshApp.tiltActive(), false, "no 3D until the walker turns it on");
-  assert.equal(freshApp.tiltRotateXDeg(), 0);
+  assert.equal(freshApp.state.map3dEnabled, false);
+  assert.equal(freshApp.tiltActive(), true);
+  assert.ok(freshApp.tiltRotateXDeg() > 0 && freshApp.tiltRotateXDeg() <= 70);
+  freshApp.state.tiltBetaSmoothed = 45;
+  assert.ok(freshApp.tiltRotateXDeg() >= 45, "normal phone viewing shows noticeable depth");
+  freshApp.state.tiltBetaSmoothed = 60;
+  assert.equal(freshApp.tiltRotateXDeg(), 70, "default perspective reaches its cap without holding the phone upright");
+  freshApp.state.tiltBetaSmoothed = 85;
+  assert.equal(freshApp.tiltRotateXDeg(), 70, "gentle tilt stays capped when held upright");
+  assert.equal(freshApp.isBehindTiltHeading({ x: 0, y: 100 }), false, "gentle tilt keeps surrounding items");
   assert.equal(freshApp.tiltInfluence(), 0, "pins do not collapse with pitch while 3D is off");
 });
 
@@ -1343,14 +1351,14 @@ test("Settings only offers the 3D map once the device has reported a real tilt r
   assert.doesNotMatch(reloaded.settingsFormHtml(), /id="map3dSetting" hidden/, "shown straight away on the next visit");
 });
 
-test("turning the 3D map off flattens a tilted map straight away", () => {
+test("turning full 3D off returns to gentle tilt straight away", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.tiltBetaSmoothed = 60;
   assert.equal(app.tiltActive(), true, "sanity: tilted with 3D on");
   app.setMap3dEnabled(false);
-  assert.equal(app.tiltActive(), false);
-  assert.equal(app.tiltRotateXDeg(), 0);
+  assert.equal(app.tiltActive(), true);
+  assert.equal(app.tiltRotateXDeg(), 70, "switching off restores the doubled default tilt");
   app.setMap3dEnabled(true);
 });
 
