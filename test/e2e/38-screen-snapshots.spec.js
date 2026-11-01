@@ -81,7 +81,7 @@ test("snapshot: guided onboarding after non-blocking consent", async ({ page }) 
   await denyGeolocationUnlessGranted(page);
   await page.goto("/nearby");
   await page.locator("#consentBannerAccept").click();
-  await page.locator("#consentBannerAccept").click();
+  await page.locator("#filterToggle").click();
   await expect(page.getByRole("dialog", { name: "Set up Epping Forest Finds" })).toBeVisible();
   for (const step of ["trees", "places", "paths", "roads", "environment", "forest"]) {
     await expect(page.locator(`[data-load-step="${step}"]`)).toHaveClass(/\b(done|error)\b/);
