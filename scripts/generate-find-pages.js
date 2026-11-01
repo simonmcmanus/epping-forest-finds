@@ -67,7 +67,7 @@ const RESERVED_SLUGS = new Set(["filter", "search"]);
 // template placeholder app.html doesn't otherwise need) so a future edit to app.html that
 // removes one of these breaks the build loudly here, rather than silently generating a page
 // that still carries the generic /app meta tags.
-const APP_TITLE = "<title>Nearby in Epping Forest | Epping Forest Finds</title>";
+const APP_TITLE = "<title>Nearby | Epping Forest Finds</title>";
 const APP_DESCRIPTION_META =
   '<meta name="description" content="A free offline map of Epping Forest. Find veteran trees, pubs, cafés, car parks, toilets, paths and stations near you, see where the forest\'s grazing cattle are, and keep working with no phone signal.">';
 const APP_CANONICAL = '<link rel="canonical" href="https://www.eppingforestfinds.uk/nearby">';
@@ -689,12 +689,12 @@ const NEARBY_INDEX_FILTERS = ["trees", "cows", "events", "pubs", "churches", "ca
 function renderNearbyIndexPage(appHtml, enrichment) {
   const { trees = [], rules = loadAppRules() } = enrichment;
   const canonical = `${SITE_ORIGIN}/nearby`;
-  const titleTag = `Nearby in Epping Forest | ${SITE_NAME}`;
+  const titleTag = `Nearby | ${SITE_NAME}`;
   const description = "Veteran trees within a 30-minute walk of High Beach in Epping Forest, mapped offline. Enable location to measure from where you are.";
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
-    name: "Nearby in Epping Forest",
+    name: "Nearby",
     description,
     url: canonical,
     isPartOf: { "@type": "WebSite", name: SITE_NAME, url: `${SITE_ORIGIN}/` },
@@ -710,7 +710,7 @@ function renderNearbyIndexPage(appHtml, enrichment) {
   html = replaceOnce(html, APP_TITLE, `<title>${escapeHtml(titleTag)}</title>`, "title");
   html = replaceOnce(html, APP_DESCRIPTION_META, `<meta name="description" content="${escapeHtml(description)}">`, "meta description");
   html = replaceOnce(html, APP_CANONICAL, `<link rel="canonical" href="${canonical}">`, "canonical link");
-  html = replaceOnce(html, APP_OG_TITLE, `<meta property="og:title" content="Nearby in Epping Forest">`, "og:title");
+  html = replaceOnce(html, APP_OG_TITLE, `<meta property="og:title" content="Nearby">`, "og:title");
   html = replaceOnce(html, APP_OG_DESCRIPTION, `<meta property="og:description" content="${escapeHtml(description)}">`, "og:description");
   html = replaceOnce(html, APP_OG_URL, `<meta property="og:url" content="${canonical}">`, "og:url");
   html = replaceOnce(html, "</head>", `  <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>\n</head>`, "</head>");

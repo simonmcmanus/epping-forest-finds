@@ -4538,7 +4538,7 @@ function updateDocumentTitle() {
     title = "Search Epping Forest Finds";
   } else {
     const landingLabel = landingPageCategoryLabel();
-    title = landingLabel ? `Nearby ${landingLabel} in Epping Forest` : "Nearby in Epping Forest";
+    title = landingLabel ? `Nearby ${landingLabel} in Epping Forest` : "Nearby";
   }
 
   const nextTitle = `${title} | ${DOCUMENT_TITLE_SITE_NAME}`;
