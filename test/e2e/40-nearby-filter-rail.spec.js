@@ -2,7 +2,7 @@
 // Nearby's filter rail: a row of category pills that narrows the list in place (no panel slide).
 // See spec-data-rendering.md "Nearby filter rail".
 const { test, expect } = require("@playwright/test");
-const { setup, waitForUiToSettle } = require("./helpers");
+const { setup, waitForUiToSettle, waitForFrames } = require("./helpers");
 
 // A GPS fix inside Epping Forest, with trees, ponds and pubs around it.
 const FOREST_LOCATION = { latitude: 51.6650, longitude: 0.0450, accuracy: 10 };
@@ -230,4 +230,34 @@ test("when more pills fit than are visible, the row can scroll sideways and retu
   await expect.poll(() => row.evaluate((el) => el.scrollLeft)).toBeGreaterThan(10);
   await row.evaluate((el) => { el.scrollLeft = 0; });
   await expect.poll(() => page.evaluate(() => document.querySelector(".rail-pills").scrollLeft)).toBe(0);
+});
+
+// Keep motion enabled: ordinary rail coverage uses reduced motion and would hide an intro nudge.
+test.describe("Nearby pill arrival", () => {
+  test.use({ reducedMotion: "no-preference" });
+
+  for (const [label, path] of [["category", "/nearby"], ["subcategory", "/nearby/food"]]) {
+    test(`${label} pills stay still on first display and can be scrolled manually`, async ({ page }, testInfo) => {
+      await page.setViewportSize({ width: 393, height: 851 });
+      await page.addInitScript(() => {
+        window.__arrivalScroll = 0;
+        document.addEventListener("scroll", (event) => {
+          if (event.target instanceof HTMLElement && event.target.matches(".rail-pills")) {
+            window.__arrivalScroll = Math.max(window.__arrivalScroll, event.target.scrollLeft);
+          }
+        }, true);
+      });
+      await setup(page, path);
+      const row = rail(page).locator(".rail-pills");
+      await expect(row).toBeVisible();
+      expect(await row.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeGreaterThan(8);
+      // Nothing should move: let frames render, then assert no automatic scroll happened.
+      await waitForFrames(page, 120);
+      await testInfo.attach(`${label}-arrival`, { body: await rail(page).screenshot(), contentType: "image/png" });
+      expect(await page.evaluate(() => window.__arrivalScroll)).toBe(0);
+      await row.evaluate((el) => { el.scrollLeft = 48; });
+      await expect.poll(() => row.evaluate((el) => el.scrollLeft)).toBeGreaterThan(0);
+      await expect(rail(page)).toHaveClass(/has-left-overflow/);
+    });
+  }
 });
