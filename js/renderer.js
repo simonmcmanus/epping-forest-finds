@@ -758,10 +758,9 @@ function drawEnvironment(ctx) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
-  for (const feature of state.environmentFeatures) {
+  for (const feature of environmentFeaturesInView(state.environmentFeatures, view)) {
     const geometry = feature.geometry || {};
     const type = feature.properties && feature.properties.featureType;
-    if (!environmentGeometryInView(geometry, view)) continue;
 
     if (type === "hydrology_area") {
       drawEnvironmentPolygon(ctx, geometry, {
@@ -850,11 +849,10 @@ function drawEnvironment(ctx) {
 
     ctx.save();
     ctx.globalAlpha = fadeAlpha;
-    for (const feature of state.buildingFeatures) {
+    // Whole-footprint bbox rather than the first vertex alone: never culls a building that
+    // pokes into view, and reads a cached bbox instead of re-projecting ~20k vertices a frame.
+    for (const feature of environmentFeaturesInView(state.buildingFeatures, view)) {
       const geom = feature.geometry || {};
-      // Whole-footprint bbox rather than the first vertex alone: never culls a building that
-      // pokes into view, and reads a cached bbox instead of re-projecting ~20k vertices a frame.
-      if (!environmentGeometryInView(geom, view)) continue;
       drawEnvironmentPolygon(ctx, geom, {
         fill: BUILDING_FILL,
         stroke: BUILDING_OUTLINE,
@@ -944,6 +942,36 @@ function environmentGeometryInView(geometry, view) {
   if (!view) return true;
   const g = projectedEnvironmentGeometry(geometry);
   return !(g.maxX < view.minX || g.minX > view.maxX || g.maxY < view.minY || g.minY > view.maxY);
+}
+
+// Flat [minX, maxX, minY, maxY, ...] boxes for a feature array, built once per array (rebuilt if
+// its length changes). Scanning ~28k features a frame through a WeakMap lookup each was the
+// largest single cost of a pan at default zoom, where only a couple of hundred are on screen.
+const _environmentBoundsIndex = new WeakMap();
+
+function environmentFeaturesInView(features, view) {
+  if (!view) return features;
+  let index = _environmentBoundsIndex.get(features);
+  if (!index || index.length !== features.length) {
+    const boxes = new Float64Array(features.length * 4);
+    for (let i = 0; i < features.length; i += 1) {
+      const g = projectedEnvironmentGeometry((features[i] && features[i].geometry) || {});
+      boxes[i * 4] = g.minX;
+      boxes[i * 4 + 1] = g.maxX;
+      boxes[i * 4 + 2] = g.minY;
+      boxes[i * 4 + 3] = g.maxY;
+    }
+    index = { length: features.length, boxes };
+    _environmentBoundsIndex.set(features, index);
+  }
+  const { boxes } = index;
+  const visible = [];
+  for (let i = 0; i < features.length; i += 1) {
+    const o = i * 4;
+    if (boxes[o + 1] < view.minX || boxes[o] > view.maxX || boxes[o + 3] < view.minY || boxes[o + 2] > view.maxY) continue;
+    visible.push(features[i]);
+  }
+  return visible;
 }
 
 function drawEnvironmentLines(ctx, geometry, style) {
