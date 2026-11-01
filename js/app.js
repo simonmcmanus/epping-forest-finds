@@ -2983,8 +2983,9 @@ function setNavScreenActive(current = null, { preserveHighlight = false } = {}) 
 
 // Filter setup used to open a second, live panel that duplicated the onboarding controls and
 // also tried to keep a nearby list in sync beneath it. Reuse the guided setup instead: edits stay
-// local to the dialog until the reader taps Done, so backing out never leaves a half-configured
-// map behind. The old /nearby/filter path still enters here for bookmarked links.
+// local to the dialog until it exits, then the current staged set is applied on every exit. Done
+// remains the explicit final-step action, and backing out never leaves a half-configured map
+// behind. The old /nearby/filter path still enters here for bookmarked links.
 function openFilterSetup() {
   if (typeof showOnboarding !== "function") return;
   const overlay = document.getElementById("onboardingOverlay");
