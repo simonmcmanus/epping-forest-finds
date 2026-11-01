@@ -21,7 +21,7 @@ GOLD_TOP    = (247, 220, 130)   # #f7dc82 -- gradient starts top-left
 GOLD_BOTTOM = (226, 161, 60)    # #e2a13c -- and ends bottom-right
 LEAF_HEIGHT = 0.62              # leaf height as a fraction of the tile
 MASKABLE_LEAF_HEIGHT = 0.50     # smaller, to clear Android's circular crop
-FAVICON_LEAF_HEIGHT = 0.72      # larger: a browser tab draws this at 16 px
+FAVICON_LEAF_HEIGHT = 0.92      # larger leaf: a tab draws this at 16 px
 
 
 def gold_tile(size):
@@ -96,7 +96,7 @@ if __name__ == "__main__":
     make_icon(512, os.path.join(OUT, "icon-maskable-512.png"),
               shape="square", height_fraction=MASKABLE_LEAF_HEIGHT)
     make_icon(180, os.path.join(OUT, "apple-touch-icon.png"), shape="square")
-    make_icon(128, os.path.join(OUT, "favicon.png"), shape="square",
+    make_icon(128, os.path.join(OUT, "favicon.png"), shape="rounded",
               height_fraction=FAVICON_LEAF_HEIGHT)
 
     # The bare oak is the logo on the loading screen and onboarding welcome.
