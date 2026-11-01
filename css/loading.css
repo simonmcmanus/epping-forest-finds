@@ -160,7 +160,7 @@
   .consent-banner {
     left: 16px;
     right: calc(14px + 390px + 16px);
-    max-width: 560px;
+    max-width: none;
     margin: 0;
   }
 }
