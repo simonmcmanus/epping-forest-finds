@@ -331,23 +331,28 @@ test.describe("Location and GPS — happy path", () => {
 test.describe("compass access on motion-permission browsers", () => {
   test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] });
 
-  test("offers a user-gesture compass action after GPS has already resolved", async ({ page }) => {
+  test("requests compass access from the shared location notice", async ({ page }) => {
     await skipOnboarding(page);
     await mockCowApi(page);
     await page.addInitScript(() => {
+      window.__forestFindsGeolocationStubbed = true;
+      navigator.permissions.query = () => Promise.resolve({ state: "prompt" });
+      navigator.geolocation.getCurrentPosition = (success) => success({
+        coords: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, timestamp: Date.now(),
+      });
+      navigator.geolocation.watchPosition = () => 1;
       if (!window.DeviceOrientationEvent) window.DeviceOrientationEvent = class {};
+      window.__compassRequests = 0;
       window.DeviceOrientationEvent.requestPermission = () => {
-        window.__forestFindsCompassPermissionRequested = true;
+        window.__compassRequests += 1;
         return Promise.resolve("granted");
       };
     });
-    await gotoAndWaitForMap(page);
-
-    await expect(page.locator("#compassCalibrationBanner")).toBeVisible();
-    await expect(page.locator("#compassCalibrationBannerEnable")).toBeVisible();
-    await page.locator("#compassCalibrationBannerEnable").click();
+    await gotoAndWaitForMap(page, "/nearby/filter?show=pubs");
+    expect(await page.evaluate(() => window.__compassRequests)).toBe(0);
+    await page.locator("#consentBannerAccept").click();
     await expect.poll(() => page.evaluate(() => state.compassPermission)).toBe("granted");
-    await expect.poll(() => page.evaluate(() => Boolean(window.__forestFindsCompassPermissionRequested))).toBe(true);
+    expect(await page.evaluate(() => window.__compassRequests)).toBe(1);
     await expect(page.locator("#compassCalibrationBanner")).toBeHidden();
   });
 });
