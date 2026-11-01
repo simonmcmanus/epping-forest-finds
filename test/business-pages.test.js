@@ -125,7 +125,7 @@ test("renderBusinessPage's no-JS panel carries the same headings and actions the
 test("renderEventsIndexPage lists every event with its date and source link", () => {
   const events = [{ title: "Autumn Fair", date: "2026-10-13", place: "Visitor Centre", body: "Stalls and crafts.", sourceUrl: "https://example.com/fair" }];
   const html = renderEventsIndexPage(APP_HTML, events);
-  assert.match(html, /<title>Events near Epping Forest \| Epping Forest Finds<\/title>/);
+  assert.match(html, /<title>Events in Epping Forest \| Epping Forest Finds<\/title>/);
   assert.match(html, /Autumn Fair/);
   assert.match(html, /href="https:\/\/example\.com\/fair"/);
 });

@@ -323,7 +323,7 @@ test.describe("generated find/nearby pages", () => {
       expect(nearbyEvents).toMatch(/<title>\d+ Events in Epping Forest \| Epping Forest Finds<\/title>/);
       expect(nearbyEvents).toContain('href="/find/events/"');
 
-      expect(findEvents).toMatch(/<title>Events near Epping Forest \| Epping Forest Finds<\/title>/);
+      expect(findEvents).toMatch(/<title>Events in Epping Forest \| Epping Forest Finds<\/title>/);
 
       // Not a copy-pasted pair of pages: /find/events/ carries each event's own description,
       // which /nearby/events/'s deliberately brief title-and-date list does not.
@@ -409,7 +409,7 @@ test.describe("generated find/nearby pages", () => {
       const selected = await page.evaluate(() => ({ type: state.selected.type, findSlug: state.selected.item && state.selected.item.findSlug }));
       expect(selected.type).toBe("landmark");
       expect(selected.findSlug).toBe(EXAMPLE_PUB.slug);
-      await expect(page).toHaveTitle(`${EXAMPLE_PUB.name} near Epping Forest | Epping Forest Finds`);
+      await expect(page).toHaveTitle(`${EXAMPLE_PUB.name} in Epping Forest | Epping Forest Finds`);
       await expect(page.locator("#inspectorTitle")).toHaveText(EXAMPLE_PUB.name);
       await expect(page.locator("#inspectorBody > .place-detail")).toHaveClass(/place-detail--landmark/);
     });
@@ -650,7 +650,7 @@ test.describe("generated find/nearby pages", () => {
       await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("water");
       await expect(page.locator("#inspectorTitle")).toHaveText(target.name);
       await expect(page.locator("#inspectorBody > .place-detail")).toHaveClass(/place-detail--water/);
-      await expect(page).toHaveTitle(`${target.name} near Epping Forest | Epping Forest Finds`);
+      await expect(page).toHaveTitle(`${target.name} in Epping Forest | Epping Forest Finds`);
     });
 
     test("a rendered waymarked path label opens its trail detail", async ({ page }) => {
@@ -689,7 +689,7 @@ test.describe("generated find/nearby pages", () => {
       await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("path");
       await expect(page.locator("#inspectorTitle")).toHaveText(target.name);
       await expect(page.locator("#inspectorType")).toHaveText("Waymarked trail");
-      await expect(page).toHaveTitle(`${target.name} near Epping Forest | Epping Forest Finds`);
+      await expect(page).toHaveTitle(`${target.name} in Epping Forest | Epping Forest Finds`);
     });
 
     test("a rendered named-place label opens its area detail and round-trips through #area", async ({ page }) => {
@@ -741,7 +741,7 @@ test.describe("generated find/nearby pages", () => {
       await gotoAndWaitForMap(page, `/nearby/nature/#area=${encodeURIComponent(target.key)}`);
       await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("environment");
       await expect(page.locator("#inspectorTitle")).toHaveText(target.name);
-      await expect(page).toHaveTitle(`${target.name} near Epping Forest | Epping Forest Finds`);
+      await expect(page).toHaveTitle(`${target.name} in Epping Forest | Epping Forest Finds`);
     });
 
     test("a water feature's link on /nearby/ponds-streams/ selects that exact feature live, through the app's own #water= deep link -- no separate mechanism of its own", async ({ page }) => {

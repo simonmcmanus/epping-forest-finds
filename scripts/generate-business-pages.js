@@ -39,7 +39,7 @@ const SAMPLE_EVENTS_PATH = path.join(__dirname, "..", "data", "events.json");
 // RESERVED_SLUGS).
 const RESERVED_SLUGS = new Set(["events"]);
 
-const APP_TITLE = "<title>Nearby in Epping Forest | Epping Forest Finds</title>";
+const APP_TITLE = "<title>Nearby | Epping Forest Finds</title>";
 const APP_DESCRIPTION_META =
   '<meta name="description" content="A free offline map of Epping Forest. Find veteran trees, pubs, cafés, car parks, toilets, paths and stations near you, see where the forest\'s grazing cattle are, and keep working with no phone signal.">';
 const APP_CANONICAL = '<link rel="canonical" href="https://www.eppingforestfinds.uk/nearby">';
@@ -294,12 +294,12 @@ function renderBusinessPage(entry, appHtml, rules, index) {
 
 function renderEventsIndexPage(appHtml, events) {
   const canonical = `${SITE_ORIGIN}/find/events/`;
-  const titleTag = `Events near Epping Forest | ${SITE_NAME}`;
+  const titleTag = `Events in Epping Forest | ${SITE_NAME}`;
   const description = `${events.length} upcoming and recent events in and around Epping Forest, from guided walks to litter picks and local fairs.`;
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "CollectionPage",
-    name: "Events near Epping Forest",
+    name: "Events in Epping Forest",
     description,
     url: canonical,
     isPartOf: { "@type": "WebSite", name: SITE_NAME, url: `${SITE_ORIGIN}/` },

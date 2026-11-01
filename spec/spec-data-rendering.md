@@ -473,8 +473,8 @@ invisible control.
 
 - **The browser page title follows the live screen.** `updateDocumentTitle()` (`js/app.js`) keeps
   `document.title` aligned with the app's current content across SPA navigation: a category
-  landing reads `Nearby <Category> in Epping Forest | Epping Forest Finds`, a selected place or
-  other map item reads `<name> near Epping Forest | Epping Forest Finds`, and the plain Nearby,
+  landing reads `Nearby <Category> in Epping Forest |`<name> in Epping Forest | Epping Forest Finds`, a selected place or
+  other map item reads `<name> in Epping Forest | Epping Forest Finds`| Epping Forest Finds`, and the plain Nearby,
   Search, Filters, Feedback and Settings screens use their own Epping Forest-specific titles.
   It runs for map selections, search results, deep links, back/forward navigation and
   server-rendered landings once the shared shell boots; generated SEO pages retain their

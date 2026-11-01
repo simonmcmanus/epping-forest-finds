@@ -2284,16 +2284,16 @@ test("landingPageCategoryLabel names the current /nearby/<slug> landing's own ca
   assert.equal(app.landingPageCategoryLabel(), null);
   app.selectOverview();
   assert.equal(app.els.inspectorTitle.textContent, "Nearby");
-  assert.equal(app.documentStub.title, "Nearby in Epping Forest | Epping Forest Finds");
+  assert.equal(app.documentStub.title, "Nearby | Epping Forest Finds");
 
   app.location.pathname = "/";
 });
 
-test("updateDocumentTitle names a selected place near Epping Forest", () => {
+test("updateDocumentTitle names a selected place in Epping Forest", () => {
   resetData(app);
   app.state.selected = { type: "landmark", item: { name: "Hillside Tandoori" } };
-  assert.equal(app.updateDocumentTitle(), "Hillside Tandoori near Epping Forest | Epping Forest Finds");
-  assert.equal(app.documentStub.title, "Hillside Tandoori near Epping Forest | Epping Forest Finds");
+  assert.equal(app.updateDocumentTitle(), "Hillside Tandoori in Epping Forest | Epping Forest Finds");
+  assert.equal(app.documentStub.title, "Hillside Tandoori in Epping Forest | Epping Forest Finds");
   app.state.selected = null;
   app.updateDocumentTitle();
 });

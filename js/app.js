@@ -4545,7 +4545,7 @@ function updateDocumentTitle() {
             : selected.type === "environment"
               ? (item.properties?.name || "Map feature")
             : (item.name || item.ref || item.commonName || "Map location");
-      title = `${name} near Epping Forest`;
+      title = `${name} in Epping Forest`;
     }
   } else if (state.filterScreenOpen && !mapSetupModalActive()) {
     title = "Filters for Epping Forest Finds";
@@ -4553,7 +4553,7 @@ function updateDocumentTitle() {
     title = "Search Epping Forest Finds";
   } else {
     const landingLabel = landingPageCategoryLabel();
-    title = landingLabel ? `Nearby ${landingLabel} in Epping Forest` : "Nearby in Epping Forest";
+    title = landingLabel ? `Nearby ${landingLabel} in Epping Forest` : "Nearby";
   }
 
   const nextTitle = `${title} | ${DOCUMENT_TITLE_SITE_NAME}`;
