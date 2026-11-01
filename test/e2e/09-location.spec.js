@@ -145,16 +145,16 @@ test.describe("Location and GPS — happy path", () => {
     // (as on CI), the same first ask is #consentBanner's location stage instead (39-permission-asks).
     const SCREEN = "/nearby/search";
 
-    test("the location invite banner is shown after geolocation is denied or times out, not a blocking gate", async ({ page }) => {
+    test("the first location ask is the non-blocking card, not a blocking gate", async ({ page }) => {
       await gotoAndWaitForMap(page, SCREEN);
       // A returning visit with no real fix falls back to DEFAULT_LOCATION (see "No real
       // location fix" in spec.md), so what invites a real fix here is the same non-blocking,
       // dismissible banner showCombinedConsentBanner() uses for its own ask — never the opaque,
       // full-screen #locationGate modal the hard-stop prompts elsewhere on this page use. The map
       // and list behind it are already usable, so there is nothing to block.
-      await expect(page.locator("#locationInviteBanner")).toBeVisible();
+      await expect(page.locator("#consentBanner")).toBeVisible();
       await expect(page.locator("#locationGate")).toBeHidden();
-      await expect(page.locator("#locationInviteButton")).toBeEnabled();
+      await expect(page.locator("#consentBannerAccept")).toBeEnabled();
     });
 
     test("the invite is not a modal — it has no dialog role and does not trap focus", async ({ page }) => {
@@ -169,10 +169,12 @@ test.describe("Location and GPS — happy path", () => {
 
     test("the invite is dismissible, and the map behind it is already usable centred on High Beach", async ({ page }) => {
       await gotoAndWaitForMap(page, SCREEN);
-      const banner = page.locator("#locationInviteBanner");
-      const dismiss = page.locator("#locationInviteDismiss");
-      await expect(dismiss).toBeVisible();
+      const banner = page.locator("#consentBanner");
+      const dismiss = page.locator("#consentBannerDecline");
+      await expect(dismiss).toHaveText("Maybe later");
 
+      await dismiss.click();
+      await expect(banner).toContainText("We'll set your location as High Beach");
       await dismiss.click();
       await expect(banner).toBeHidden();
 
@@ -184,7 +186,7 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("#inspectorBody .nearest-list li").first()).toBeVisible();
     });
 
-    test("tapping the invite's own button requests a real fix, the same way the location consent card does", async ({ page }) => {
+    test("tapping the card's own button requests a real fix", async ({ page }) => {
       await gotoAndWaitForMap(page, SCREEN);
       await page.evaluate(() => {
         navigator.geolocation.getCurrentPosition = (success) => success({
@@ -192,9 +194,9 @@ test.describe("Location and GPS — happy path", () => {
           timestamp: Date.now(),
         });
       });
-      await page.locator("#locationInviteButton").click();
+      await page.locator("#consentBannerAccept").click();
       await expect.poll(() => page.evaluate(() => Boolean(state.userLocation && !state.userLocation.isDefault))).toBe(true);
-      await expect(page.locator("#locationInviteBanner")).toBeHidden();
+      await expect(page.locator("#consentBanner")).toBeHidden();
     });
   });
 
