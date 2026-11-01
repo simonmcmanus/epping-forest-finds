@@ -410,23 +410,29 @@
 .onboarding-chip {
   display: inline-flex;
   align-items: center;
-  gap: 7px;
-  padding: 8px 14px;
-  border-radius: 999px;
-  border: 1.5px solid rgba(47, 111, 78, 0.3);
-  background: #f0f9f4;
-  color: var(--tree);
-  font-size: 0.83rem;
+  gap: 6px;
+  min-height: 40px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border-radius: 20px;
+  border: 1px solid #b1bbc5;
+  background: #eef0f3;
+  color: #45525d;
+  font-size: 0.85rem;
   font-weight: 700;
   cursor: pointer;
-  transition: background 180ms ease, border-color 180ms ease, color 180ms ease, opacity 180ms ease, transform 180ms ease;
+  transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease, transform 120ms ease;
   user-select: none;
   font-family: inherit;
 }
 
+.onboarding-chip:active {
+  transform: scale(0.98);
+}
+
 .onboarding-chip img {
-  width: 17px;
-  height: 17px;
+  width: 1.6em;
+  height: 1.6em;
   object-fit: contain;
   flex-shrink: 0;
 }
@@ -446,10 +452,9 @@
 }
 
 .onboarding-chip.off {
-  background: var(--paper);
-  border-color: var(--line);
-  color: var(--muted);
-  opacity: 0.65;
+  background: #fff;
+  border-color: var(--forest);
+  color: var(--tree);
 }
 
 .onboarding-chip:focus-visible {

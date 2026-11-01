@@ -253,9 +253,9 @@ function showOnboarding({ mode = "first-run" } = {}) {
         const chips = group.subfilters.map((sf) => {
           const on = selected.has(sf.key);
           return `<button class="onboarding-chip${on ? "" : " off"}" data-key="${sf.key}" type="button" aria-pressed="${on}">
-            <span class="chip-tick">✓</span>
             <img src="data/icons/${sf.icon}.png" alt="" onerror="this.style.display='none'">
-            ${sf.label}
+            <span>${sf.label}</span>
+            <span class="chip-tick" aria-hidden="true">✓</span>
           </button>`;
         }).join("");
         const isLast = stepIndex === total - 1;
