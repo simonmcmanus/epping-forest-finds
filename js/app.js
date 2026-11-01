@@ -7556,6 +7556,29 @@ function nearbyFirstPersonFitZoom(browsing) {
   return 1 + (NEARBY_TILT_FIT_ZOOM - 1) * tiltAnchorFraction();
 }
 
+// The single animated Nearby refit waiting for an in-flight camera move to land (see the guard in
+// alignHeadingUpNavigationViewport). Latest request wins: it is re-derived from current state when
+// it runs, so an older request's options never need merging.
+let pendingNearbyRefitOptions = null;
+let pendingNearbyRefitFrame = null;
+
+function deferAnimatedNearbyRefit(options) {
+  pendingNearbyRefitOptions = { ...options };
+  if (pendingNearbyRefitFrame != null) return;
+  const retry = () => {
+    pendingNearbyRefitFrame = null;
+    if (!pendingNearbyRefitOptions) return;
+    if (selectionCameraTransitionActive()) {
+      pendingNearbyRefitFrame = requestAnimationFrame(retry);
+      return;
+    }
+    const next = pendingNearbyRefitOptions;
+    pendingNearbyRefitOptions = null;
+    alignHeadingUpNavigationViewport(next);
+  };
+  pendingNearbyRefitFrame = requestAnimationFrame(retry);
+}
+
 function alignHeadingUpNavigationViewport(options = {}) {
   // Before real map data loads, state.trees/state.landmarks/etc are still empty, so the
   // points fed into maxHeadingUpNavigationScale/maxNearbyHeadingUpScale don't yet reflect
@@ -7564,7 +7587,14 @@ function alignHeadingUpNavigationViewport(options = {}) {
   // startCompassSmoothing) before mapPromise resolves, so this must wait for real data.
   if (!state.dataLoaded) return false;
   if (!navigationAnchorActive()) return false;
-  if (selectionCameraTransitionActive()) return false;
+  if (selectionCameraTransitionActive()) {
+    // An animated refit that lands while another camera tween is running (tapping a place and
+    // then Nearby quickly, or a filter pill mid-ease) used to be dropped here, so the camera
+    // stopped on the earlier tween's framing until some later un-animated tick snapped it right.
+    // Queue it instead and run it once the in-flight move has landed.
+    if (options.animate) deferAnimatedNearbyRefit(options);
+    return false;
+  }
   if (state.clusterZoomed) return false;
   // This is the walking-radius ring's own framing (nearbyNavigationFocusPoint/
   // maxNearbyHeadingUpScale below), reached both directly -- every watchPosition fix calls it
