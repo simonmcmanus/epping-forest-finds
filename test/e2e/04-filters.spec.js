@@ -129,10 +129,19 @@ test.describe("Map setup", () => {
   });
 
   test("can reopen setup while the previous modal is fading out", async ({ page }) => {
+    // The suite runs with reduced motion, where the fade is skipped and its class never lingers.
+    await page.emulateMedia({ reducedMotion: "no-preference" });
     await page.click("#filterToggle");
-    await page.getByRole("button", { name: "Close map setup" }).click();
-    await expect(page.locator("#onboardingOverlay")).toHaveClass(/fading-out/);
-    await page.locator("#filterToggle").click({ force: true });
+    // Close and reopen in one browser task, so the reopen lands inside the fade however loaded
+    // the runner is; separate Playwright calls can outlast the fade itself.
+    const fadingWhenReopened = await page.evaluate(() => {
+      const overlay = document.getElementById("onboardingOverlay");
+      overlay.querySelector('[aria-label="Close map setup"]').click();
+      const fading = overlay.classList.contains("fading-out");
+      document.getElementById("filterToggle").click();
+      return fading;
+    });
+    expect(fadingWhenReopened).toBe(true);
     await expect(page.locator("#onboardingOverlay")).toBeVisible();
     await expect(page.locator("#onboardingOverlay")).not.toHaveClass(/fading-out/);
     await expect(page.getByRole("heading", { name: "What would you like to see?" })).toBeVisible();
