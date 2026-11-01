@@ -1040,7 +1040,7 @@ a.settings-btn-link { display: inline-block; text-decoration: none; text-align: 
   font-weight: 700;
 }
 
-.report-textarea {
+textarea.report-textarea {
   min-height: 120px;
   resize: vertical;
   line-height: 1.4;
@@ -2405,7 +2405,7 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 .report-screen .report-form { gap: 18px; padding: 16px; border-radius: var(--c-radius); border: var(--c-hairline); background: #fff; }
 .report-screen .report-form label { gap: 8px; font-size: 0.95rem; }
 .report-screen .report-intro { margin: 0; font-size: 0.9rem; line-height: 1.5; color: var(--muted); }
-.report-screen .report-textarea { min-height: 150px; padding: 12px; }
+.report-screen textarea.report-textarea { min-height: 150px; padding: 12px; }
 .report-screen .report-photo-field { padding: 12px; border-radius: 10px; border: 1px dashed rgba(36, 56, 47, 0.3); background: #f8faf7; gap: 8px; }
 .report-screen .report-form-actions { gap: 10px; padding-top: 2px; }
 .report-screen .report-form-actions .button { min-height: 46px; padding: 0 20px; }
