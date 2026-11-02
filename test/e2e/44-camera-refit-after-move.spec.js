@@ -50,6 +50,30 @@ test.describe("Camera after a quick change of screen", () => {
     await expect(page.locator("#inspector")).toHaveClass(/minimized/);
   });
 
+  test("a tap on a place inside a minimised panel opens the panel", async ({ page }) => {
+    await setup(page, "/nearby");
+    await page.evaluate(() => setInspectorMinimized(true));
+    await expect(page.locator("#inspector")).toHaveClass(/minimized/);
+
+    // The panel is closed; tapping what is on it must open it, as it always did. Dispatched on the
+    // row itself because a minimised panel clips most of its content.
+    await page.evaluate(() => {
+      document.querySelector("#inspectorBody [data-overview-type][data-overview-key]")
+        .dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+    });
+    await expect(page.locator("#inspector")).not.toHaveClass(/minimized/);
+  });
+
+  test("tapping the minimised panel's title opens it", async ({ page }) => {
+    await setup(page, "/nearby");
+    await page.locator("#inspectorBody [data-overview-type][data-overview-key]").nth(0).click();
+    await waitForUiToSettle(page);
+    await expect(page.locator("#inspector")).toHaveClass(/minimized/);
+
+    await page.locator("#inspectorTitle").click();
+    await expect(page.locator("#inspector")).not.toHaveClass(/minimized/);
+  });
+
   test("a deep link to a tree keeps the selection map up while the camera moves", async ({ page }) => {
     await setup(page, "/nearby");
     await page.evaluate(() => navigateInApp("/nearby/trees/#near=51.667617,0.037559&label=Hornbeam"));
