@@ -541,6 +541,11 @@ globalThis.__forestFindsTest = {
   drawMegaClusters,
   clusterJoinAnimationState,
   settleClusterJoinAnimations,
+  zoomAlongTween,
+  viewportAlongTween,
+  zoomAwareDurationMs,
+  rotateScreenPoint,
+  navigationMapRotationDegrees,
   drawLandmarkIcon,
   CLUSTER_JOIN_ANIMATION_MS,
   CLUSTER_JOIN_COOLDOWN_MS,
@@ -1006,6 +1011,106 @@ test("buildSuperClusters does not chain far-apart clusters into one mega cluster
   assert.ok(superClusters.length > 1, "a long, roughly-uniform run of clusters must not collapse into a single mega cluster");
   // Directly-close pairs still merge: this isn't a regression to "never merge anything".
   assert.equal(groupOf(a), groupOf(b), "clusters within the merge radius of each other still merge");
+});
+
+test("a zoom between two scales eases geometrically, so each step changes the view by the same proportion", () => {
+  // Halfway through a zoom out from 125k to 22k, the view should be the geometric mean of the two
+  // scales (the same ratio on each side), not their arithmetic mean, which reads as a late snap.
+  const halfway = app.zoomAlongTween(125000, 22000, 0.5);
+  assert.ok(Math.abs(halfway - Math.sqrt(125000 * 22000)) < 1,
+    `expected the geometric mean, got ${halfway}`);
+  assert.equal(app.zoomAlongTween(125000, 22000, 0), 125000, "a zoom starts at its source scale");
+  assert.ok(Math.abs(app.zoomAlongTween(125000, 22000, 1) - 22000) < 1e-6, "and lands on its target");
+});
+
+test("a zoom keeps the point under the camera focus still, so the view does not drift while it zooms", () => {
+  // A view that has a world point `w` at screen point `focus`, zoomed from 100 to 400: at every
+  // step the same world point must still be at that screen point.
+  const focus = { x: 200, y: 600 };
+  const world = { x: 3.5, y: -2.25 };
+  const viewAt = (scale) => ({ scale, tx: focus.x - world.x * scale, ty: focus.y - world.y * scale });
+  const from = viewAt(100);
+  const to = viewAt(400);
+  for (const eased of [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1]) {
+    const frame = app.viewportAlongTween(from, to, eased);
+    const screenX = world.x * frame.scale + frame.tx;
+    const screenY = world.y * frame.scale + frame.ty;
+    assert.ok(Math.abs(screenX - focus.x) < 1e-6 && Math.abs(screenY - focus.y) < 1e-6,
+      `at ${eased} the focus point drifted to ${screenX}, ${screenY}`);
+  }
+  const mid = app.viewportAlongTween(from, to, 0.5);
+  assert.ok(Math.abs(mid.scale - 200) < 1e-6, "halfway through a 4x zoom is a 2x view, not 2.5x");
+});
+
+test("the heading-up flat projection matches the plain formula, and follows every change that should move it", () => {
+  resetData(app);
+  app.state.dataLoaded = true;
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.trees.push({ id: "t1", commonName: "Oak", ...makePoint(app, 0.0004, 0.0002) });
+  app.state.compassHeading = 70;
+  app.state.renderedNavigationHeading = 70;
+  const points = [makePoint(app, 0.0003, 0.0001).point, makePoint(app, -0.0002, 0.0005).point, app.state.userLocation.point];
+
+  // The unhurried way, spelled out: raw transform, rotated about the camera origin.
+  const reference = (point) => {
+    const raw = app.rawWorldToScreen(point);
+    const rotation = app.navigationMapRotationDegrees();
+    if (!rotation || !app.state.userLocation) return raw;
+    return app.rotateScreenPoint(raw, app.rawWorldToScreen(app.cameraOriginPoint()), rotation);
+  };
+  const assertSame = (label) => {
+    for (const point of points) {
+      const got = app.worldToScreenFlat(point);
+      const want = reference(point);
+      assert.ok(Math.abs(got.x - want.x) < 1e-6 && Math.abs(got.y - want.y) < 1e-6,
+        `${label}: got ${got.x}, ${got.y} wanted ${want.x}, ${want.y}`);
+    }
+  };
+
+  app.state.viewport = { scale: 20000, tx: 120, ty: -340 };
+  app.prepareCanvasForDraw();
+  assertSame("heading-up");
+  assertSame("heading-up, asked again in the same frame");
+
+  // Each of these must be picked up even though no new frame has started.
+  app.state.viewport = { scale: 35000, tx: -80, ty: 410 };
+  assertSame("after the viewport moved");
+  app.state.renderedNavigationHeading = 200;
+  assertSame("after the heading changed");
+  app.state.compassHeading = null;
+  app.state.renderedNavigationHeading = null;
+  assertSame("with no heading, north-up");
+  app.state.compassHeading = 70;
+  app.state.renderedNavigationHeading = 70;
+  assertSame("heading back");
+  app.state.userLocation = null;
+  assertSame("with no location");
+});
+
+test("a big zoom is given more time than a small one, up to a cap", () => {
+  assert.equal(app.zoomAwareDurationMs(500, 1.2), 500, "a small zoom keeps the requested duration");
+  assert.equal(app.zoomAwareDurationMs(500, 3), 500, "so does a zoom of exactly the minimum ratio");
+  const sixX = app.zoomAwareDurationMs(500, 6.7);
+  assert.ok(sixX > 700 && sixX < 1000, `a 6.7x zoom should take noticeably longer, got ${sixX}`);
+  assert.ok(app.zoomAwareDurationMs(500, 12) > sixX, "and a bigger zoom takes longer still");
+  assert.equal(app.zoomAwareDurationMs(500, 100000), 1200, "capped so a huge zoom does not drag");
+});
+
+test("a zoom with a pan still lands exactly on both ends", () => {
+  const from = { scale: 21954, tx: -300, ty: 4200 };
+  const to = { scale: 125436, tx: 900, ty: -52000 };
+  for (const [eased, end] of [[0, from], [1, to]]) {
+    const frame = app.viewportAlongTween(from, to, eased);
+    assert.ok(Math.abs(frame.scale - end.scale) < 1e-6 && Math.abs(frame.tx - end.tx) < 1e-6 && Math.abs(frame.ty - end.ty) < 1e-6,
+      `eased ${eased} should be the ${eased ? "target" : "source"} view`);
+  }
+});
+
+test("a pan with almost no zoom is blended straight across", () => {
+  const from = { scale: 13603, tx: -558, ty: 823639 };
+  const to = { scale: 13571, tx: -554, ty: 821680 };
+  const mid = app.viewportAlongTween(from, to, 0.5);
+  assert.ok(Math.abs(mid.tx - -556) < 0.01 && Math.abs(mid.ty - 822659.5) < 0.01, "offsets are the straight midpoint");
 });
 
 test("clusterJoinAnimationState leaves a lone pin undisturbed", () => {
@@ -3155,7 +3260,8 @@ test("filter screen with active filters zooms to fit only filtered items, not al
 
   app.state.filterScreenOpen = true;
   app.state.overviewFilters = ["pubs"];
-  app.ensureOverviewTargetsVisible({ animate: false });
+  // A deliberate refit (what a filter change does). A plain tick no longer moves the camera here.
+  app.ensureOverviewTargetsVisible({ animate: false, force: true });
   const pubPoint = app.worldToScreen(app.state.landmarks[0].point);
 
   assert.ok(app.state.viewport.scale > 8, "filter screen should zoom in from the initial full-map scale");
@@ -3172,7 +3278,7 @@ test("filter screen with no active filters falls through to foraging zoom (neare
 
   app.state.filterScreenOpen = true;
   // no overviewFilters set — falls through to foraging mode
-  app.ensureOverviewTargetsVisible({ animate: false });
+  app.ensureOverviewTargetsVisible({ animate: false, force: true });
   const treePoint = app.worldToScreen(app.state.trees[0].point);
 
   assert.ok(app.state.viewport.scale > 8, "should zoom in to tree level, not stay at full-map scale");
@@ -3236,7 +3342,7 @@ test("settings screen zooms to fit only filtered items, same as filter screen", 
 
   app.state.selected = { type: "settings", item: null };
   app.state.overviewFilters = ["pubs"];
-  app.ensureOverviewTargetsVisible({ animate: false });
+  app.ensureOverviewTargetsVisible({ animate: false, force: true });
   const pubPoint = app.worldToScreen(app.state.landmarks[0].point);
 
   assert.ok(app.state.viewport.scale > 8, "settings screen should zoom in from the initial full-map scale");
@@ -3252,26 +3358,33 @@ test("report screen zooms to fit only filtered items, same as filter screen", ()
 
   app.state.selected = { type: "report", item: null };
   app.state.overviewFilters = ["pubs"];
-  app.ensureOverviewTargetsVisible({ animate: false });
+  app.ensureOverviewTargetsVisible({ animate: false, force: true });
   const pubPoint = app.worldToScreen(app.state.landmarks[0].point);
 
   assert.ok(app.state.viewport.scale > 8, "report screen should zoom in from the initial full-map scale");
   assert.equal(app.isNearCanvas(pubPoint, 16), true, JSON.stringify({ pubPoint, viewport: app.state.viewport }));
 });
 
-test("GPS updates keep re-centering the map on settings and report screens, not just overview", () => {
-  resetData(app);
-  const previous = makePoint(app, 0, 0).point;
-  app.state.userLocation = makePoint(app, 0.2, 0.2);
-  app.state.viewport = { scale: 1000, tx: 500, ty: 400 };
-  app.state.selected = { type: "settings", item: null };
+test("GPS updates leave the map where it was on the settings and report screens", () => {
+  // Opening a secondary screen leaves the camera alone, so a GPS fix while one is open must too: it used
+  // to re-fit to the ring and pull the map out from wherever the user had it.
+  for (const type of ["settings", "report"]) {
+    resetData(app);
+    const previous = makePoint(app, 0, 0).point;
+    app.state.dataLoaded = true;
+    app.state.userLocation = makePoint(app, 0.2, 0.2);
+    app.state.viewport = { scale: 1000, tx: 500, ty: 400 };
+    app.state.selected = { type, item: null };
 
-  // Same call pattern as ensureLocationWatch()'s watchPosition callback (see the overview
-  // version of this test above for why keepOverviewCenteredOnUser alone no longer re-fits).
-  const changed = app.alignHeadingUpNavigationViewport();
-  app.keepOverviewCenteredOnUser(previous);
+    // Same call pattern as ensureLocationWatch()'s watchPosition callback (see the overview
+    // version of this test above for why keepOverviewCenteredOnUser alone no longer re-fits).
+    const changed = app.alignHeadingUpNavigationViewport();
+    app.keepOverviewCenteredOnUser(previous);
 
-  assert.equal(changed, true, "large movement should re-fit the settings screen too");
+    assert.equal(changed, false, `${type}: a large movement must not re-fit the screen`);
+    assert.deepEqual({ ...app.state.viewport }, { scale: 1000, tx: 500, ty: 400 },
+      `${type}: the map stays where it was`);
+  }
 });
 
 test("walking radius marker draws on the report (feedback) screen", () => {
@@ -3338,6 +3451,51 @@ test("heading-up viewport alignment defers when camera transition is pending", (
   assert.equal(app.state.viewport.ty, 456);
 });
 
+test("a GPS fix or compass tick while Search is open leaves the camera where it was, even before anything is typed", () => {
+  resetData(app);
+  app.state.dataLoaded = true;
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.trees.push({ id: "t1", commonName: "Oak", ...makePoint(app, 0.0005, 0) });
+  app.state.selected = null;
+  app.state.searchScreenOpen = true;
+  app.state.searchHighlightResults = [];
+  // Zoomed far in, as it is just after opening Search from a place.
+  app.state.viewport = { scale: 123456, tx: 11, ty: 22 };
+
+  // What every GPS fix and compass tick does while nothing is animating.
+  app.alignHeadingUpNavigationViewport({ animate: false });
+
+  assert.deepEqual({ ...app.state.viewport }, { scale: 123456, tx: 11, ty: 22 },
+    "Search never frames the map, so a tick must not pull the camera out to the Nearby ring");
+});
+
+test("a GPS fix or compass tick on any secondary screen leaves the camera where it was, but a deliberate refit still frames the ring", () => {
+  const open = {
+    Settings: () => { app.state.selected = { type: "settings" }; },
+    Feedback: () => { app.state.selected = { type: "report" }; },
+    Community: () => { app.state.selected = { type: "community" }; },
+    Filters: () => { app.state.filterScreenOpen = true; },
+  };
+  for (const [name, openScreen] of Object.entries(open)) {
+    resetData(app);
+    app.state.dataLoaded = true;
+    app.state.userLocation = makePoint(app, 0, 0);
+    app.state.trees.push({ id: "t1", commonName: "Oak", ...makePoint(app, 0.0005, 0) });
+    app.state.viewport = { scale: 123456, tx: 11, ty: 22 };
+    openScreen();
+    assert.equal(app.secondaryScreenActive(), true, `${name} is a secondary screen`);
+
+    // What every GPS fix and compass tick does while nothing is animating: no options at all.
+    app.alignHeadingUpNavigationViewport();
+    assert.deepEqual({ ...app.state.viewport }, { scale: 123456, tx: 11, ty: 22 },
+      `${name}: a tick must not pull the map out to the Nearby ring`);
+
+    // The radius slider, a filter change and a screen opening refit on purpose, and say so.
+    app.alignHeadingUpNavigationViewport({ force: true });
+    assert.notEqual(app.state.viewport.scale, 123456, `${name}: a forced refit still frames the ring`);
+  }
+});
+
 test("heading-up viewport alignment preserves animation target when rotation starts", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
@@ -3347,11 +3505,13 @@ test("heading-up viewport alignment preserves animation target when rotation sta
 
   app.animateToHeadingUpNavigationViewport(500);
   const target = { ...app.state.viewportAnimationTo };
+  // The duration the tween was actually given (a big zoom is given more time than requested).
+  const duration = app.state.viewportAnimationDuration;
 
   const changed = app.alignHeadingUpNavigationViewport();
 
   assert.ok(app.state.headingUpEntryAnim, "heading-up rotation should animate in");
-  assert.equal(app.state.viewportAnimationDuration, 500);
+  assert.equal(app.state.viewportAnimationDuration, duration, "the tween in flight is left as it was");
   assert.equal(app.state.viewportAnimationTo.scale, target.scale);
   assert.equal(app.state.viewportAnimationTo.tx, target.tx);
   assert.equal(app.state.viewportAnimationTo.ty, target.ty);
@@ -10120,7 +10280,7 @@ test("moving the nearby point holds the circle still on screen and slides the ma
   );
 });
 
-test("the new nearby set is held back until the map has finished moving, then fades in", () => {
+test("the new nearby set fades in while the map moves, so the move is never a blank stretch", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.665, 0.045);
   app.state.trees.push({ id: "t1", commonName: "Oak", ...makePoint(app, 51.6653, 0.045) });
@@ -10130,23 +10290,25 @@ test("the new nearby set is held back until the map has finished moving, then fa
   const anchor = makePoint(app, 51.66, 0.033);
   app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
   const transition = app.state.nearbyOriginTransition;
+  // Offsets are taken from the slide's own start time: the app runs in its own context with its own
+  // clock, so mixing in this file's clock would measure nothing.
+  const startedAt = transition.startedAt;
+  const at = (fraction) => {
+    transition.startedAt = startedAt - fraction * transition.durationMs;
+    return app.nearbyRevealOpacity();
+  };
 
-  assert.equal(app.nearbyRevealOpacity(), 0, "nothing of the new set is drawn while the map moves");
-  transition.startedAt -= transition.durationMs / 2;
-  assert.equal(app.nearbyRevealOpacity(), 0, "still nothing mid-slide");
+  assert.equal(at(0.02), 0, "the map starts to leave before the new area appears");
+  const early = at(0.3);
+  const middle = at(0.55);
+  const late = at(0.85);
+  assert.ok(early > 0, `pins are already arriving a third of the way through, got ${early}`);
+  assert.ok(early < middle && middle < late, `the set arrives steadily: ${early}, ${middle}, ${late}`);
+  assert.ok(late <= 1, "and never overshoots");
+  assert.equal(at(1.001), 1, "it is fully drawn the moment the slide lands");
 
-  // Landed: the fade starts from here rather than the set snapping on.
-  transition.startedAt -= transition.durationMs / 2 + 1;
-  const justLanded = app.nearbyRevealOpacity();
-  assert.ok(justLanded >= 0 && justLanded < 0.2, `the fade starts from nothing, got ${justLanded}`);
-
-  transition.startedAt -= app.NEARBY_REVEAL_MS / 2;
-  const midFade = app.nearbyRevealOpacity();
-  assert.ok(midFade > justLanded && midFade < 1, `mid-fade should be partway, got ${midFade}`);
-
-  transition.startedAt -= app.NEARBY_REVEAL_MS;
-  assert.equal(app.nearbyRevealOpacity(), 1, "and it ends fully drawn");
-  // The transition object has to outlive the slide itself, or the fade would have no frames.
+  // The transition object has to outlive the slide itself, so the camera keeps re-deriving.
+  transition.startedAt = startedAt - transition.durationMs - app.NEARBY_REVEAL_MS - 1;
   assert.equal(app.nearbyRevealInProgress(), false);
 });
 

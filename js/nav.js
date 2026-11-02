@@ -999,7 +999,20 @@ function setupInspectorHandlers() {
     navigateInApp(internalLink.getAttribute("href"));
   });
 
+  // Whether the panel was already minimised when this tap began. A tap on a place in a list selects it
+  // and minimises the panel on purpose (focusOverviewItem) so the map can frame it; that happens in a
+  // handler lower down, before the bubble handler below runs, so reading the class there cannot tell
+  // "the tap that just closed the panel" from "a tap on a panel that was already closed". Recorded in
+  // the capture phase, before anything has run.
   els.inspector.addEventListener("click", (event) => {
+    event.inspectorWasMinimizedAtStart = els.inspector.classList.contains("minimized");
+  }, true);
+
+  els.inspector.addEventListener("click", (event) => {
+    // Only a tap that started on a minimised panel opens it. The tap that selects a place and so
+    // minimises the panel must not also reopen it: that re-centred the camera at the old scale and
+    // cut across the selection zoom, which read as a jolt when switching between places.
+    if (!event.inspectorWasMinimizedAtStart) return;
     if (!els.inspector.classList.contains("minimized")) return;
     if (els.closeInspector && event.target === els.closeInspector) return;
     setInspectorMinimized(false);

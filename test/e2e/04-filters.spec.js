@@ -108,7 +108,7 @@ test.describe("Map setup", () => {
     await page.getByRole("button", { name: "Choose categories" }).click();
     await page.getByRole("button", { name: "Next" }).click();
     await expect(page.getByRole("heading", { name: "Food" })).toBeVisible();
-    const rows = await page.locator(".onboarding-chips").evaluate((el) => {
+    const measureRows = () => page.locator(".onboarding-chips").evaluate((el) => {
       const container = el.getBoundingClientRect();
       const chips = [...el.querySelectorAll(".onboarding-chip")].map((chip) => chip.getBoundingClientRect());
       const byTop = new Map();
@@ -124,8 +124,12 @@ test.describe("Map setup", () => {
         return Math.abs((left + right) / 2 - (container.left + container.right) / 2);
       });
     });
-    expect(rows).toHaveLength(2);
-    expect(rows.every((offset) => offset <= 1)).toBe(true);
+    // The chips animate in, and a single read can land while they are still settling into rows. Wait for
+    // the layout to reach two centred rows; if it never does, this still fails with what it measured.
+    await expect.poll(async () => {
+      const rows = await measureRows();
+      return rows.length === 2 && rows.every((offset) => offset <= 1);
+    }, { message: "the wrapped subcategories settle into two centred rows" }).toBe(true);
   });
 
   test("can reopen setup while the previous modal is fading out", async ({ page }) => {

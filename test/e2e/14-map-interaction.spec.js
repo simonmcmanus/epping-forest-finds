@@ -409,7 +409,7 @@ test.describe("Map interaction", () => {
       expect(Math.abs(settled.mapX - before.mapX), "while the map behind it moved").toBeGreaterThan(10);
     });
 
-    test("the new nearby set is held back until the map lands, then fades in", async ({ page }) => {
+    test("the new nearby set fades in while the map moves, rather than appearing after a blank stretch", async ({ page }) => {
       await setup(page);
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
       await waitForViewportToSettle(page);
@@ -430,10 +430,14 @@ test.describe("Map interaction", () => {
       };
 
       const during = await sampleEvery(page, startSlide, sampleBody, 5, 60);
-      for (const [i, sample] of during.entries()) {
-        if (sample.sliding) expect(sample.reveal, `frame ${i}: nothing drawn while the map moves`).toBe(0);
+      const sliding = during.filter((s) => s.sliding);
+      expect(sliding.length, "the slide should have been observed running").toBeGreaterThan(0);
+      // Arrives steadily: never goes back down while the map is travelling.
+      for (let i = 1; i < sliding.length; i++) {
+        expect(sliding[i].reveal, `frame ${i}: the set only ever fades in`).toBeGreaterThanOrEqual(sliding[i - 1].reveal);
       }
-      expect(during.some((sample) => sample.sliding), "the slide should have been observed running").toBe(true);
+      // And is visible before the slide ends, so there is no blank screen to wait out.
+      expect(Math.max(...sliding.map((s) => s.reveal)), "pins are showing before the map lands").toBeGreaterThan(0.3);
 
       await page.waitForFunction(() => nearbyRevealOpacity() === 1);
     });

@@ -45,6 +45,7 @@ const FEATURE_LAYERS = [
 // specific transition are left as plain literals rather than forced into single-use
 // names.
 const NEARBY_ORIGIN_TRANSITION_MS = 520; // slide between two browse origins -- see nearbyRenderOriginPoint()
+const NEARBY_REVEAL_START_FRACTION = 0.1; // share of a browse-origin slide that passes before the new pins start to appear -- see nearbyRevealOpacity()
 const NEARBY_REVEAL_MS = 180; // how quickly the new nearby set fades in once a slide lands -- see nearbyRevealOpacity()
 const OVERVIEW_REFIT_ANIMATION_MS = 420; // recompute the overview/secondary-screen camera fit after a UI state change (filter change, opening Filter/Settings/Report, radius toggle, a late location fix)
 const OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS = 520; // ensureOverviewTargetsVisible's (and centerOverviewOnUserLocation's) own default when a caller doesn't specify one
@@ -431,6 +432,10 @@ let _overlapRectCache = undefined;
 // points with _overlapRectCache — the camera distance is derived from the same visible
 // rect, so anything that invalidates one invalidates the other.
 let _tiltProjectionCache = undefined;
+// See flatProjectionFrame. Declared up here, not beside it: boot() runs before the script reaches the
+// bottom of this file, and a `let` that late would still be in its temporal dead zone.
+let _flatProjectionFrame = null;
+let _flatProjectionEpoch = 0;
 // Per-frame freeze of the interpolated browse origin -- see computeNearbyRenderOriginPoint().
 // Keyed on the anchor object it was computed for, so any reassignment of state.nearbyAnchor
 // invalidates it without the assigning code having to remember to (focusNearbyOnMapPoint's
@@ -994,14 +999,25 @@ function showRoutedSelection(route, item) {
   // already minimized doesn't stay collapsed.
   setInspectorMinimized(false);
   startCompassNavigation();
-  if (state.userLocation) ensureUserAndSelectionVisible({ animate: true, force: true, assumeInspectorOpen: true });
-  else if (item.point) {
+  if (state.userLocation) {
+    // The same choice zoomToSelection makes: while heading-up navigation is on, the camera frames the
+    // place the way the heading-up follow will keep it. The flat fit used here before landed about
+    // twice as far in, so the next compass or GPS update pulled the camera back out after the move.
+    if (selectedNavigationHeadingUpActive()) {
+      animateToHeadingUpNavigationViewport(HEADING_UP_NAV_ANIMATION_MS, { assumeInspectorOpen: true });
+    } else {
+      ensureUserAndSelectionVisible({ animate: true, force: true, assumeInspectorOpen: true });
+    }
+  } else if (item.point) {
     // A deep-linked selection can arrive before a location fix exists. The inspector has already
     // been opened above, so the first fit must use the map area that remains visible beside/above
     // that panel; fitting against the full canvas leaves the destination underneath it until a
     // later resize or camera correction happens.
     fitToPoints([item.point], false, { animate: true, focusVisibleArea: true, assumeInspectorOpen: true });
   }
+  // Hold the selection's map state until this camera move lands, as zoomToSelection does. Without it
+  // the renderer hid the Nearby pins and ring for the whole move, so a #tree= link blanked the map.
+  holdSelectionMapUntilCameraSettles();
   requestDraw();
 }
 
@@ -2713,17 +2729,77 @@ function viewportAnimationAlreadyHeadedTo(targetViewport) {
     && Math.abs(inFlight.ty - targetViewport.ty) < VIEWPORT_ANIMATION_SAME_TARGET_PX;
 }
 
+// Scale is a ratio on screen, so a zoom reads as even only when it is interpolated geometrically.
+// A linear blend between a 125k and a 22k scale spends most of its change in the middle of the
+// ease, which looks like the view snapping out; a geometric ramp changes by the same proportion on
+// every frame. Falls back to a linear blend for a non-positive scale, which a ratio cannot express.
+function zoomAlongTween(fromScale, toScale, eased) {
+  if (!(fromScale > 0) || !(toScale > 0)) return fromScale + (toScale - fromScale) * eased;
+  return fromScale * Math.pow(toScale / fromScale, eased);
+}
+
+// The viewport part-way through a tween. Scale is interpolated geometrically (zoomAlongTween), and
+// the offsets must follow it: a screen point is `world * scale + offset`, so interpolating the
+// offsets linearly while the scale is geometric lets the point under the camera focus drift
+// sideways during every zoom, which reads as jitter. When the two views differ in scale, they
+// agree on one world point (the zoom's invariant point); the offsets are then
+// `offset0 + world0 * (scale0 - scale)`, which keeps that point still while everything zooms about
+// it and lands exactly on both ends. A near-equal scale is a pure pan, so the offsets are blended
+// directly.
+function viewportAlongTween(from, to, eased) {
+  const scale = zoomAlongTween(from.scale, to.scale, eased);
+  const ratio = from.scale > 0 && to.scale > 0 ? to.scale / from.scale : 1;
+  if (!(Math.abs(Math.log(ratio)) >= VIEWPORT_TWEEN_ZOOM_ABOUT_POINT_MIN_LOG_RATIO)) {
+    return { scale, tx: from.tx + (to.tx - from.tx) * eased, ty: from.ty + (to.ty - from.ty) * eased };
+  }
+  const worldX = (to.tx - from.tx) / (from.scale - to.scale);
+  const worldY = (to.ty - from.ty) / (from.scale - to.scale);
+  return {
+    scale,
+    tx: from.tx + worldX * (from.scale - scale),
+    ty: from.ty + worldY * (from.scale - scale),
+  };
+}
+
+// Below this |ln(scale ratio)| (about a 5% zoom) a tween is treated as a pan: the zoom-about-a-point
+// form divides by the scale difference, which is ill-conditioned for tiny zooms.
+const VIEWPORT_TWEEN_ZOOM_ABOUT_POINT_MIN_LOG_RATIO = 0.05;
+
+// A big zoom needs longer than a small one. The ease puts most of a zoom into the middle of the move,
+// so a 6x zoom out in 500ms is visibly zooming for only about 250ms and reads as a snap. Beyond
+// ZOOM_DURATION_MIN_RATIO (3x) the duration grows with the number of doublings, up to a cap; below
+// it, and for any tween the caller marks `fixedDuration`, the requested duration stands.
+const ZOOM_DURATION_MIN_RATIO = 3;
+const ZOOM_DURATION_PER_DOUBLING = 0.6; // extra share of the requested duration per doubling beyond the minimum
+const ZOOM_DURATION_MAX_MS = 1200;
+
+function zoomAwareDurationMs(baseMs, zoomRatio) {
+  if (!(zoomRatio > ZOOM_DURATION_MIN_RATIO)) return baseMs;
+  const extraDoublings = Math.log2(zoomRatio) - Math.log2(ZOOM_DURATION_MIN_RATIO);
+  return Math.min(Math.max(baseMs, ZOOM_DURATION_MAX_MS), baseMs * (1 + ZOOM_DURATION_PER_DOUBLING * extraDoublings));
+}
+
 function animateViewportTo(targetViewport, durationMs, onComplete, options = {}) {
-  const safeDuration = Math.max(MIN_VIEWPORT_ANIMATION_MS, Number(durationMs) || DEFAULT_VIEWPORT_ANIMATION_MS);
+  let safeDuration = Math.max(MIN_VIEWPORT_ANIMATION_MS, Number(durationMs) || DEFAULT_VIEWPORT_ANIMATION_MS);
   const cinematic = Boolean(options.cinematic);
   if (!cinematic && viewportAnimationAlreadyHeadedTo(targetViewport)) return;
   stopViewportAnimation();
+  // A real camera tween owns the zoom from here, so a browse-origin slide must not keep easing back
+  // towards the zoom it started from once this tween has landed.
+  if (state.nearbyOriginTransition) state.nearbyOriginTransition.fromScale = null;
 
   const from = {
     scale: state.viewport.scale,
     tx: state.viewport.tx,
     ty: state.viewport.ty,
   };
+  // Not while a browse-origin slide is running: its callers pass a duration chosen so the tween and the
+  // slide land on the same frame (see nearbyRevealOpacity), and stretching one would pull them apart.
+  if (!cinematic && !options.fixedDuration && !state.nearbyOriginTransition
+    && from.scale > 0 && targetViewport.scale > 0) {
+    const zoomRatio = Math.max(from.scale / targetViewport.scale, targetViewport.scale / from.scale);
+    safeDuration = zoomAwareDurationMs(safeDuration, zoomRatio);
+  }
 
   // A normal viewport tween interpolates the transform components directly. That is right for
   // small refits, but it makes a High Beach -> GPS handoff feel like a hard yank when both the
@@ -2789,7 +2865,7 @@ function animateViewportTo(targetViewport, durationMs, onComplete, options = {})
       : 1 - Math.pow(-2 * progress + 2, 3) / 2;
 
     if (cinematic && fromCenter && targetCenter) {
-      const baseScale = from.scale + (targetViewport.scale - from.scale) * eased;
+      const baseScale = zoomAlongTween(from.scale, targetViewport.scale, eased);
       const zoomArc = Math.sin(Math.PI * eased) * zoomOutRatio;
       state.viewport.scale = Math.max(cinematicScaleFloor, baseScale * (1 - zoomArc));
       const centreX = fromCenter.x + (targetCenter.x - fromCenter.x) * eased;
@@ -2797,9 +2873,10 @@ function animateViewportTo(targetViewport, durationMs, onComplete, options = {})
       state.viewport.tx = focusPoint.x - centreX * state.viewport.scale;
       state.viewport.ty = focusPoint.y - centreY * state.viewport.scale;
     } else {
-      state.viewport.scale = state.viewportAnimationFrom.scale + (state.viewportAnimationTo.scale - state.viewportAnimationFrom.scale) * eased;
-      state.viewport.tx = state.viewportAnimationFrom.tx + (state.viewportAnimationTo.tx - state.viewportAnimationFrom.tx) * eased;
-      state.viewport.ty = state.viewportAnimationFrom.ty + (state.viewportAnimationTo.ty - state.viewportAnimationFrom.ty) * eased;
+      const frame = viewportAlongTween(state.viewportAnimationFrom, state.viewportAnimationTo, eased);
+      state.viewport.scale = frame.scale;
+      state.viewport.tx = frame.tx;
+      state.viewport.ty = frame.ty;
     }
     requestDraw();
 
@@ -6306,6 +6383,11 @@ function startNearbyOriginTransition(fromPoint) {
     // can tell entering/leaving a browsed spot (where the 3D pivot moves) from hopping
     // between two browsed spots (where it does not).
     fromBrowsing: Boolean(state.nearbyAnchor),
+    // The zoom the slide starts from. The slide moves the map under a still ring, so a move that also
+    // needs a different zoom (Back from a zoomed-in place to the browse view) would otherwise get its
+    // new scale in one step on the first frame. alignHeadingUpNavigationViewport eases from this to the
+    // final scale across the slide. Cleared if a real camera tween takes over (animateViewportTo).
+    fromScale: state.viewport.scale,
     startedAt: performance.now(),
     durationMs: NEARBY_ORIGIN_TRANSITION_MS,
   };
@@ -6324,9 +6406,10 @@ function nearbyOriginTransitionEasedProgress() {
     : 1 - Math.pow(-2 * progress + 2, 3) / 2;
 }
 
-// Opacity for everything that describes the *nearby set* -- the highlighted pins and the
-// ambient route lines to them. Zero while a browse-origin slide is running *with the camera
-// otherwise pinned in place*, then a quick fade in once it lands.
+// Opacity for everything that describes the *nearby set* -- the highlighted pins. A smooth ramp
+// from 0 to 1 across a browse-origin slide that runs *with the camera otherwise pinned in place*,
+// so the new surroundings arrive with the map instead of appearing after a blank stretch.
+// (It used to be 0 for the whole slide and a fade after it, which read as a blank screen.)
 //
 // Those pins and lines belong to the destination, but the map underneath them is still
 // travelling: drawing them straight away means a fan of lines pinned to a stationary circle
@@ -6352,8 +6435,15 @@ function nearbyRevealOpacity() {
   if (state.selectionMapTransitionActive) return 1;
   if (state.viewportAnimationTo != null) return 1;
   const sinceStart = performance.now() - transition.startedAt;
-  if (sinceStart < transition.durationMs) return 0;
-  return clamp((sinceStart - transition.durationMs) / NEARBY_REVEAL_MS, 0, 1);
+  if (sinceStart >= transition.durationMs) return 1;
+  // The destination's pins fade in while the map travels, rather than being absent for the whole
+  // slide and then appearing. A move between two places should show how they relate, which needs
+  // the surroundings visible on the way; the pins are world-anchored, so they slide in with the
+  // terrain. Starts after the first tenth so the move reads as the map leaving before the new
+  // area arrives, and is fully drawn by the time it lands.
+  const progress = sinceStart / transition.durationMs;
+  const t = clamp((progress - NEARBY_REVEAL_START_FRACTION) / (1 - NEARBY_REVEAL_START_FRACTION), 0, 1);
+  return t * t * (3 - 2 * t);
 }
 
 // True while the reveal fade still has frames left to draw, so prepareCanvasForDraw keeps
@@ -7556,6 +7646,29 @@ function nearbyFirstPersonFitZoom(browsing) {
   return 1 + (NEARBY_TILT_FIT_ZOOM - 1) * tiltAnchorFraction();
 }
 
+// The single animated Nearby refit waiting for an in-flight camera move to land (see the guard in
+// alignHeadingUpNavigationViewport). Latest request wins: it is re-derived from current state when
+// it runs, so an older request's options never need merging.
+let pendingNearbyRefitOptions = null;
+let pendingNearbyRefitFrame = null;
+
+function deferAnimatedNearbyRefit(options) {
+  pendingNearbyRefitOptions = { ...options };
+  if (pendingNearbyRefitFrame != null) return;
+  const retry = () => {
+    pendingNearbyRefitFrame = null;
+    if (!pendingNearbyRefitOptions) return;
+    if (selectionCameraTransitionActive()) {
+      pendingNearbyRefitFrame = requestAnimationFrame(retry);
+      return;
+    }
+    const next = pendingNearbyRefitOptions;
+    pendingNearbyRefitOptions = null;
+    alignHeadingUpNavigationViewport(next);
+  };
+  pendingNearbyRefitFrame = requestAnimationFrame(retry);
+}
+
 function alignHeadingUpNavigationViewport(options = {}) {
   // Before real map data loads, state.trees/state.landmarks/etc are still empty, so the
   // points fed into maxHeadingUpNavigationScale/maxNearbyHeadingUpScale don't yet reflect
@@ -7564,20 +7677,33 @@ function alignHeadingUpNavigationViewport(options = {}) {
   // startCompassSmoothing) before mapPromise resolves, so this must wait for real data.
   if (!state.dataLoaded) return false;
   if (!navigationAnchorActive()) return false;
-  if (selectionCameraTransitionActive()) return false;
+  if (selectionCameraTransitionActive()) {
+    // An animated refit that lands while another camera tween is running (tapping a place and
+    // then Nearby quickly, or a filter pill mid-ease) used to be dropped here, so the camera
+    // stopped on the earlier tween's framing until some later un-animated tick snapped it right.
+    // Queue it instead and run it once the in-flight move has landed.
+    if (options.animate) deferAnimatedNearbyRefit(options);
+    return false;
+  }
   if (state.clusterZoomed) return false;
   // This is the walking-radius ring's own framing (nearbyNavigationFocusPoint/
   // maxNearbyHeadingUpScale below), reached both directly -- every watchPosition fix calls it
   // whenever nothing is selected, which nearbyNavigationAnchorActive() makes true throughout
   // Search too -- and via ensureOverviewTargetsVisible, which every one of this function's other
   // callers (compass ticks, filter changes, GPS fixes) ultimately routes through under the same
-  // "no selection" condition. Search frames its own highlighted matches instead
-  // (updateSearchHighlight), so applying the ring's framing here,
-  // unconditionally and without animation, was silently snapping a still-open search back to the
-  // ring on the next GPS fix or compass tick, sometimes long after the search fit had settled.
-  // Leaving the camera alone here means it simply stays on the search fit until the query next
-  // changes, rather than fighting it.
-  if (state.searchScreenOpen && state.searchHighlightResults.length) return false;
+  // "no selection" condition. Search never moves the camera (updateSearchHighlight only highlights;
+  // matches off the map are marked "Off the map"), so applying the ring's framing here, unconditionally
+  // and without animation, snapped an open Search back out to the Nearby ring on the next GPS fix or
+  // compass tick. That held only once there were results to frame, so it still happened between opening
+  // Search and typing, and after clearing a query. The camera stays wherever it was for as long as
+  // Search is open; leaving Search runs its own refit (goToInitialView) after the screen is closed.
+  if (state.searchScreenOpen) return false;
+  // Every secondary screen (Filters, Settings, Feedback, Community) holds the camera the same way:
+  // opening one leaves the camera where it was, and so does a plain GPS fix or compass tick, which
+  // call this with no options. Without it, opening one from a zoomed-in place and then getting a fix
+  // snapped the map out to the ring. A deliberate refit still happens: the radius slider, a filter
+  // change and Filters opening (an animated survey fit) all pass `force` or `animate`.
+  if (secondaryScreenActive() && !options.force && !options.animate) return false;
   clearHeadingUpCanvasTransform();
   const previousScale = state.viewport.scale;
   const previousTx = state.viewport.tx;
@@ -7624,7 +7750,15 @@ function alignHeadingUpNavigationViewport(options = {}) {
   // Use maxScale directly: heading-up mode always fits all targets in the
   // rotated focus rect. Math.min would leave scale too low when the map
   // was previously at a wider zoom (e.g. walking-radius level on first load).
-  const targetScale = resolveHeadingUpTargetScale(maxScale, previousScale, Boolean(options.force));
+  let targetScale = resolveHeadingUpTargetScale(maxScale, previousScale, Boolean(options.force));
+  // A browse-origin slide that started from a different zoom carries the zoom change with it, on the
+  // slide's own curve, so the map zooms and pans as one move instead of snapping to the final scale and
+  // then sliding. Un-animated per-frame calls only: an animated call already hands the whole move to a tween.
+  const slideProgress = options.animate ? null : nearbyOriginTransitionEasedProgress();
+  const slideFromScale = state.nearbyOriginTransition ? state.nearbyOriginTransition.fromScale : null;
+  if (slideProgress != null && slideFromScale > 0 && targetScale > 0) {
+    targetScale = zoomAlongTween(slideFromScale, targetScale, slideProgress);
+  }
   // The scale above is fit against the instantaneous anchor (focus.y) so it always keeps the
   // destination on screen; the camera's own vertical placement is damped separately (see
   // dampedHeadingUpFocusY) so simply rotating on the spot does not bob the user's own marker.
@@ -7697,7 +7831,7 @@ function clearHeadingUpCanvasTransform() {
   }
 }
 
-function animateToHeadingUpNavigationViewport(durationMs = HEADING_UP_NAV_ANIMATION_MS) {
+function animateToHeadingUpNavigationViewport(durationMs = HEADING_UP_NAV_ANIMATION_MS, options = {}) {
   if (!selectedNavigationHeadingUpActive()) return;
   clearHeadingUpCanvasTransform();
   state.selectionViewportTransitionPending = false;
@@ -7726,7 +7860,9 @@ function animateToHeadingUpNavigationViewport(durationMs = HEADING_UP_NAV_ANIMAT
       }
     }
   }
-  const focusRect = bestVisibleCanvasRect();
+  // assumeInspectorOpen: a caller that has just expanded the panel (a followed link) fits against its
+  // full footprint, as the flat fit does; measuring now would report the panel mid-transition.
+  const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: Boolean(options.assumeInspectorOpen) });
   const focus = navigationFocusPoint(focusRect);
   const maxScale = maxHeadingUpNavigationScale(focus, focusRect);
   // Use maxScale directly so the viewport always zooms to fit the selected
@@ -7753,6 +7889,7 @@ function prepareCanvasForDraw() {
   _overlapRectCache = undefined;
   _tiltProjectionCache = undefined;
   _nearbyRenderOriginCache = undefined;
+  _flatProjectionEpoch++;
   clearHeadingUpCanvasTransform();
   // A browse-origin slide is driven from here rather than by animateViewportTo: the camera
   // is re-derived from the interpolated origin every frame (see nearbyRenderOriginPoint),
@@ -9303,7 +9440,8 @@ function openSearchResult(type, key) {
   // Update the URL before rendering, so the selected place and browser history stay in sync.
   syncHashFromSelection();
   route.show(item);
-  setInspectorMinimized(true);
+  // The panel stays open, as for a list selection (focusOverviewItem): minimising here was undone by the
+  // panel's own tap handler on the same tap, after re-centring the camera at the old scale.
   startCompassNavigation();
   if (state.userLocation) {
     zoomToSelection();
@@ -9824,12 +9962,59 @@ function tiltFarClipCssPx() {
 // frame.
 function worldToScreenFlat(point) {
   const raw = rawWorldToScreen(point);
-  const rotation = navigationMapRotationDegrees();
-  if (!rotation || !state.userLocation) return raw;
+  const frame = flatProjectionFrame();
+  if (!frame.rotating) return raw;
   // Rotates about the camera origin (cameraOriginPoint), the same point the viewport
   // transform anchors at the focus -- pivoting on the GPS fix instead would swing a browse
   // anchor's framing around the screen every time the compass moved.
-  return rotateScreenPoint(raw, rawWorldToScreen(cameraOriginPoint()), rotation);
+  const dx = raw.x - frame.pivot.x;
+  const dy = raw.y - frame.pivot.y;
+  return {
+    x: frame.pivot.x + dx * frame.cos - dy * frame.sin,
+    y: frame.pivot.y + dx * frame.sin + dy * frame.cos,
+  };
+}
+
+// The heading-up rotation and the point it pivots on, for the current frame. worldToScreenFlat runs
+// for every vertex of every road, path and polygon, and each call used to re-derive both (whether
+// heading-up is active, the rotation, the camera origin and its projection), none of which change
+// within a frame. In the tilted view that was a large share of the frame's cost. Reused only while
+// everything they are derived from is unchanged, and never past the frame they were made in, so a
+// fit or hit test that changes the viewport or selection between calls still gets fresh values.
+function flatProjectionFrame() {
+  const cached = _flatProjectionFrame;
+  const view = state.viewport;
+  if (cached
+    && cached.epoch === _flatProjectionEpoch
+    && cached.scale === view.scale && cached.tx === view.tx && cached.ty === view.ty
+    && cached.userLocation === state.userLocation
+    && cached.selected === state.selected
+    && cached.compassHeading === state.compassHeading
+    && cached.renderedHeading === state.renderedNavigationHeading
+    && cached.nearbyAnchor === state.nearbyAnchor
+    && cached.slide === state.nearbyOriginTransition
+    && cached.cameraSlide === state.cameraOriginTransition) {
+    return cached;
+  }
+  const rotation = navigationMapRotationDegrees();
+  const rotating = Boolean(rotation) && Boolean(state.userLocation);
+  const radians = rotating ? toRadians(rotation) : 0;
+  _flatProjectionFrame = {
+    epoch: _flatProjectionEpoch,
+    scale: view.scale, tx: view.tx, ty: view.ty,
+    userLocation: state.userLocation,
+    selected: state.selected,
+    compassHeading: state.compassHeading,
+    renderedHeading: state.renderedNavigationHeading,
+    nearbyAnchor: state.nearbyAnchor,
+    slide: state.nearbyOriginTransition,
+    cameraSlide: state.cameraOriginTransition,
+    rotating,
+    pivot: rotating ? rawWorldToScreen(cameraOriginPoint()) : null,
+    cos: Math.cos(radians),
+    sin: Math.sin(radians),
+  };
+  return _flatProjectionFrame;
 }
 
 // Screen position everything on the main canvas is drawn at, tilt included.
