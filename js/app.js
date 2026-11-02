@@ -45,6 +45,7 @@ const FEATURE_LAYERS = [
 // specific transition are left as plain literals rather than forced into single-use
 // names.
 const NEARBY_ORIGIN_TRANSITION_MS = 520; // slide between two browse origins -- see nearbyRenderOriginPoint()
+const NEARBY_REVEAL_START_FRACTION = 0.1; // share of a browse-origin slide that passes before the new pins start to appear -- see nearbyRevealOpacity()
 const NEARBY_REVEAL_MS = 180; // how quickly the new nearby set fades in once a slide lands -- see nearbyRevealOpacity()
 const OVERVIEW_REFIT_ANIMATION_MS = 420; // recompute the overview/secondary-screen camera fit after a UI state change (filter change, opening Filter/Settings/Report, radius toggle, a late location fix)
 const OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS = 520; // ensureOverviewTargetsVisible's (and centerOverviewOnUserLocation's) own default when a caller doesn't specify one
@@ -6336,9 +6337,10 @@ function nearbyOriginTransitionEasedProgress() {
     : 1 - Math.pow(-2 * progress + 2, 3) / 2;
 }
 
-// Opacity for everything that describes the *nearby set* -- the highlighted pins and the
-// ambient route lines to them. Zero while a browse-origin slide is running *with the camera
-// otherwise pinned in place*, then a quick fade in once it lands.
+// Opacity for everything that describes the *nearby set* -- the highlighted pins. A smooth ramp
+// from 0 to 1 across a browse-origin slide that runs *with the camera otherwise pinned in place*,
+// so the new surroundings arrive with the map instead of appearing after a blank stretch.
+// (It used to be 0 for the whole slide and a fade after it, which read as a blank screen.)
 //
 // Those pins and lines belong to the destination, but the map underneath them is still
 // travelling: drawing them straight away means a fan of lines pinned to a stationary circle
@@ -6364,8 +6366,15 @@ function nearbyRevealOpacity() {
   if (state.selectionMapTransitionActive) return 1;
   if (state.viewportAnimationTo != null) return 1;
   const sinceStart = performance.now() - transition.startedAt;
-  if (sinceStart < transition.durationMs) return 0;
-  return clamp((sinceStart - transition.durationMs) / NEARBY_REVEAL_MS, 0, 1);
+  if (sinceStart >= transition.durationMs) return 1;
+  // The destination's pins fade in while the map travels, rather than being absent for the whole
+  // slide and then appearing. A move between two places should show how they relate, which needs
+  // the surroundings visible on the way; the pins are world-anchored, so they slide in with the
+  // terrain. Starts after the first tenth so the move reads as the map leaving before the new
+  // area arrives, and is fully drawn by the time it lands.
+  const progress = sinceStart / transition.durationMs;
+  const t = clamp((progress - NEARBY_REVEAL_START_FRACTION) / (1 - NEARBY_REVEAL_START_FRACTION), 0, 1);
+  return t * t * (3 - 2 * t);
 }
 
 // True while the reveal fade still has frames left to draw, so prepareCanvasForDraw keeps

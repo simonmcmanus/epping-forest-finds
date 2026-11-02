@@ -10131,7 +10131,7 @@ test("moving the nearby point holds the circle still on screen and slides the ma
   );
 });
 
-test("the new nearby set is held back until the map has finished moving, then fades in", () => {
+test("the new nearby set fades in while the map moves, so the move is never a blank stretch", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.665, 0.045);
   app.state.trees.push({ id: "t1", commonName: "Oak", ...makePoint(app, 51.6653, 0.045) });
@@ -10141,23 +10141,25 @@ test("the new nearby set is held back until the map has finished moving, then fa
   const anchor = makePoint(app, 51.66, 0.033);
   app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
   const transition = app.state.nearbyOriginTransition;
+  // Offsets are taken from the slide's own start time: the app runs in its own context with its own
+  // clock, so mixing in this file's clock would measure nothing.
+  const startedAt = transition.startedAt;
+  const at = (fraction) => {
+    transition.startedAt = startedAt - fraction * transition.durationMs;
+    return app.nearbyRevealOpacity();
+  };
 
-  assert.equal(app.nearbyRevealOpacity(), 0, "nothing of the new set is drawn while the map moves");
-  transition.startedAt -= transition.durationMs / 2;
-  assert.equal(app.nearbyRevealOpacity(), 0, "still nothing mid-slide");
+  assert.equal(at(0.02), 0, "the map starts to leave before the new area appears");
+  const early = at(0.3);
+  const middle = at(0.55);
+  const late = at(0.85);
+  assert.ok(early > 0, `pins are already arriving a third of the way through, got ${early}`);
+  assert.ok(early < middle && middle < late, `the set arrives steadily: ${early}, ${middle}, ${late}`);
+  assert.ok(late <= 1, "and never overshoots");
+  assert.equal(at(1.001), 1, "it is fully drawn the moment the slide lands");
 
-  // Landed: the fade starts from here rather than the set snapping on.
-  transition.startedAt -= transition.durationMs / 2 + 1;
-  const justLanded = app.nearbyRevealOpacity();
-  assert.ok(justLanded >= 0 && justLanded < 0.2, `the fade starts from nothing, got ${justLanded}`);
-
-  transition.startedAt -= app.NEARBY_REVEAL_MS / 2;
-  const midFade = app.nearbyRevealOpacity();
-  assert.ok(midFade > justLanded && midFade < 1, `mid-fade should be partway, got ${midFade}`);
-
-  transition.startedAt -= app.NEARBY_REVEAL_MS;
-  assert.equal(app.nearbyRevealOpacity(), 1, "and it ends fully drawn");
-  // The transition object has to outlive the slide itself, or the fade would have no frames.
+  // The transition object has to outlive the slide itself, so the camera keeps re-deriving.
+  transition.startedAt = startedAt - transition.durationMs - app.NEARBY_REVEAL_MS - 1;
   assert.equal(app.nearbyRevealInProgress(), false);
 });
 

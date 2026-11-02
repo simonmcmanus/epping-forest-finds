@@ -704,13 +704,12 @@ moving the real GPS fix:
     the origin a whole map-draw later — tens of milliseconds on a dense frame — so the circle
     lands slightly off the focus it is pinned to, which is a visible wobble on exactly the
     motion this exists to smooth.
-  - **The new nearby set is held back until the map lands.** `nearbyRevealOpacity()` is 0 for the
-    duration of the slide and then fades the highlighted pins in over
-    `NEARBY_REVEAL_MS` (180ms). Those belong to the destination, but the map underneath them is
-    still travelling: drawing them straight away puts a fan of lines pinned to a stationary
-    circle sweeping across moving terrain, with pins sliding under a marker that is not moving —
-    it reads as jitter even though every element is where it should be. The transition object
-    deliberately outlives the slide by `NEARBY_REVEAL_MS` so the fade has frames. The camera is
+  - **The new nearby set fades in while the map travels.** `nearbyRevealOpacity()` stays 0 for the
+    first tenth of the slide (`NEARBY_REVEAL_START_FRACTION`), then ramps smoothly to 1 so the
+    destination's pins are fully drawn the moment the map lands. It used to be 0 for the whole
+    slide and a fade afterwards, which read as a blank screen between two places and hid how they
+    relate; the pins are world-anchored, so they now slide in with the terrain. The transition object
+    deliberately outlives the slide by `NEARBY_REVEAL_MS` so the camera keeps re-deriving for the frames after it lands. The camera is
     re-derived on every frame that object is alive, including the fade tail after the slide has
     landed: `nearbyRenderOriginPoint()` snaps from the interpolated origin to the final one the
     moment the slide ends, so a frame that skipped the re-derive left the camera on the last
