@@ -995,8 +995,16 @@ function showRoutedSelection(route, item) {
   // already minimized doesn't stay collapsed.
   setInspectorMinimized(false);
   startCompassNavigation();
-  if (state.userLocation) ensureUserAndSelectionVisible({ animate: true, force: true, assumeInspectorOpen: true });
-  else if (item.point) {
+  if (state.userLocation) {
+    // The same choice zoomToSelection makes: while heading-up navigation is on, the camera frames the
+    // place the way the heading-up follow will keep it. The flat fit used here before landed about
+    // twice as far in, so the next compass or GPS update pulled the camera back out after the move.
+    if (selectedNavigationHeadingUpActive()) {
+      animateToHeadingUpNavigationViewport(HEADING_UP_NAV_ANIMATION_MS, { assumeInspectorOpen: true });
+    } else {
+      ensureUserAndSelectionVisible({ animate: true, force: true, assumeInspectorOpen: true });
+    }
+  } else if (item.point) {
     // A deep-linked selection can arrive before a location fix exists. The inspector has already
     // been opened above, so the first fit must use the map area that remains visible beside/above
     // that panel; fitting against the full canvas leaves the destination underneath it until a
@@ -7776,7 +7784,7 @@ function clearHeadingUpCanvasTransform() {
   }
 }
 
-function animateToHeadingUpNavigationViewport(durationMs = HEADING_UP_NAV_ANIMATION_MS) {
+function animateToHeadingUpNavigationViewport(durationMs = HEADING_UP_NAV_ANIMATION_MS, options = {}) {
   if (!selectedNavigationHeadingUpActive()) return;
   clearHeadingUpCanvasTransform();
   state.selectionViewportTransitionPending = false;
@@ -7805,7 +7813,9 @@ function animateToHeadingUpNavigationViewport(durationMs = HEADING_UP_NAV_ANIMAT
       }
     }
   }
-  const focusRect = bestVisibleCanvasRect();
+  // assumeInspectorOpen: a caller that has just expanded the panel (a followed link) fits against its
+  // full footprint, as the flat fit does; measuring now would report the panel mid-transition.
+  const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: Boolean(options.assumeInspectorOpen) });
   const focus = navigationFocusPoint(focusRect);
   const maxScale = maxHeadingUpNavigationScale(focus, focusRect);
   // Use maxScale directly so the viewport always zooms to fit the selected

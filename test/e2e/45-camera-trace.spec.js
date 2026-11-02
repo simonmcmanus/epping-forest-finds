@@ -42,6 +42,44 @@ async function cameraMoves(page) {
   return page.evaluate(() => window.__cameraTrace.map(({ t, ...rest }) => rest));
 }
 
+test.describe("Camera framing with the phone held up (heading-up)", () => {
+  test("following a link to another place lands where heading-up navigation keeps it, so nothing pulls the camera afterwards", async ({ page }) => {
+    // Two places a few hundred metres apart: close enough together the flat fit and the heading-up
+    // fit both hit the zoom cap and agree, which would let a wrong camera call pass unnoticed.
+    await setup(page, "/nearby");
+    await page.evaluate(() => navigateInApp("/find/onest/"));
+    await page.waitForFunction(() => state.selected?.type === "landmark");
+    await waitForUiToSettle(page);
+
+    // Hold the phone up: a fresh heading keeps heading-up navigation on.
+    await page.evaluate(() => {
+      const heading = 40;
+      state.compassHeadingTarget = heading;
+      state.compassHeading = heading;
+      state.renderedNavigationHeading = heading;
+      window.__keepCompassFresh = setInterval(() => { state.compassLastEventAt = performance.now(); }, 50);
+      state.compassLastEventAt = performance.now();
+    });
+    expect(await page.evaluate(() => selectedNavigationHeadingUpActive()), "heading-up navigation must be on").toBe(true);
+
+    await page.evaluate(() => navigateInApp("/find/hillside-tandoori/"));
+    await page.waitForFunction(() => state.selected?.item?.name === "Hillside Tandoori" || state.selected?.item?.name?.toLowerCase().includes("hillside"));
+    await waitForUiToSettle(page);
+    await expect.poll(() => page.evaluate(() => state.viewportAnimationTo == null)).toBe(true);
+
+    const result = await page.evaluate(() => {
+      const landed = { scale: state.viewport.scale, tx: state.viewport.tx, ty: state.viewport.ty };
+      // What the heading-up follow wants for this place, asked for directly.
+      alignHeadingUpNavigationViewport({ force: true, animate: false });
+      const wanted = { scale: state.viewport.scale, tx: state.viewport.tx, ty: state.viewport.ty };
+      clearInterval(window.__keepCompassFresh);
+      return { landed, wanted };
+    });
+    const scaleGap = Math.abs(result.landed.scale - result.wanted.scale) / result.wanted.scale;
+    expect(scaleGap, `landed at ${result.landed.scale}, heading-up wants ${result.wanted.scale}`).toBeLessThan(0.05);
+  });
+});
+
 test.describe("Camera trace of user transitions", () => {
   test("opening a place from Nearby is one zoom, with no un-animated jumps", async ({ page }) => {
     await setup(page, "/nearby");
