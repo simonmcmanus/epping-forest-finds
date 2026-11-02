@@ -169,15 +169,15 @@ test.describe("Camera animation continuity", () => {
         tx: state.viewport.tx - 400,
         ty: state.viewport.ty - 260,
       };
-      animateViewportTo(target, 600);
+      moveCamera(target, 600);
       const firstStart = state.viewportAnimationStartTime;
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
       const started = state.viewportAnimationStartTime;
       // Same destination, re-requested mid-flight, exactly as a GPS fix would.
-      animateViewportTo({ ...target }, 600);
+      moveCamera({ ...target }, 600);
       const afterRepeat = state.viewportAnimationStartTime;
       // A genuinely different destination must still take over.
-      animateViewportTo({ scale: target.scale, tx: target.tx + 900, ty: target.ty }, 600);
+      moveCamera({ scale: target.scale, tx: target.tx + 900, ty: target.ty }, 600);
       return {
         firstStart,
         unchangedByRepeat: afterRepeat === started && started != null,

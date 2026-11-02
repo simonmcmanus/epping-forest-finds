@@ -9828,7 +9828,7 @@ test("tapping a nearby cluster pans to it at today's zoom, then zooms in -- two 
   app.state.userLocation = makePoint(app, 51.65, 0.05);
   // A couple of hundred metres from the user's own location -- on screen at the walking-radius
   // framing the camera already has, but not so coincident with its current pivot that the pan
-  // leg below is a zero-distance no-op (animateViewportTo's own near-identical-target snap,
+  // leg below is a zero-distance no-op (moveCamera's own near-identical-target snap,
   // which would resolve synchronously and skip straight to the chained zoom leg).
   const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6520, 0.0510) };
   const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65201797, 0.0510) };

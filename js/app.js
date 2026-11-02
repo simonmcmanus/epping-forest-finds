@@ -52,7 +52,7 @@ const OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS = 520; // ensureOverviewTargetsVisib
 const HEADING_UP_NAV_ANIMATION_MS = 500; // standard duration for heading-up alignment and selection-commit transitions (goToInitialView, zoomToSelection)
 const MIN_HEADING_UP_ANIMATION_MS = 200; // floor for animateToHeadingUpNavigationViewport's duration
 const DEFAULT_VIEWPORT_ANIMATION_MS = 480; // generic fallback duration for the low-level viewport animators when nothing else is specified
-const MIN_VIEWPORT_ANIMATION_MS = 180; // floor for animateViewportTo's duration
+const MIN_VIEWPORT_ANIMATION_MS = 180; // floor for moveCamera's duration
 const FIRST_LOAD_REVEAL_ANIMATION_MS = 700; // the first-time "reveal the map" animation, in all its variants (fit to user+items, centered-on-user)
 const FIRST_LOCATION_FLY_TO_ANIMATION_MS = 1250; // the High Beach stand-in -> real GPS handoff, with a cinematic fly-to arc
 const HEADING_UP_CANVAS_OVERSCAN_RATIO = 1.5; // sqrt(2)≈1.414 is the 45° corner case minimum; 1.5 keeps safety margin
@@ -2905,12 +2905,6 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
   return "started";
 }
 
-// Thin wrapper kept so existing callers (and the camera trace test, which records through this name)
-// keep working while call sites migrate onto moveCamera.
-function animateViewportTo(targetViewport, durationMs, onComplete, options = {}) {
-  return moveCamera(targetViewport, durationMs, onComplete, options);
-}
-
 function bestVisibleCanvasRect({ assumeInspectorOpen = false } = {}) {
   const full = visibleCanvasRect();
   const overlapRaw = inspectorCanvasOverlapRect({ assumeInspectorOpen });
@@ -3540,7 +3534,7 @@ function bindSettingsHandlers() {
     // uses: it re-derives the nearest list and re-fits the camera through
     // ensureOverviewTargetsVisible, so the new radius is framed by whichever fit is
     // actually active (heading-up/3D included). This used to run its own flat, centred
-    // animateViewportTo, which the next compass frame then re-fitted on top of.
+    // moveCamera, which the next compass frame then re-fitted on top of.
     // "input" fires continuously while dragging -- animate:false snaps the camera straight
     // to each intermediate fit rather than queuing an animation per tick; "change" fires
     // once on release for the smooth settling motion (default animate:true).
@@ -6289,7 +6283,7 @@ function cameraOriginPoint(useFinalBrowseState = false) {
     state.cameraOriginTransition = null;
     return logical;
   }
-  // Same cubic ease-in-out animateViewportTo and nearbyRenderOriginPoint use, so this reads as
+  // Same cubic ease-in-out moveCamera and nearbyRenderOriginPoint use, so this reads as
   // the same family of motion as every other camera move in the app.
   const eased = progress < 0.5
     ? 4 * progress * progress * progress
@@ -6370,7 +6364,7 @@ function computeNearbyRenderOriginPoint() {
   if (!transition) return origin.point;
   const progress = clamp((performance.now() - transition.startedAt) / transition.durationMs, 0, 1);
   if (progress >= 1) return origin.point;
-  // Same cubic ease-in-out animateViewportTo uses, so a slide feels like every other camera
+  // Same cubic ease-in-out moveCamera uses, so a slide feels like every other camera
   // move in the app rather than like a second, differently-tuned animation system.
   const eased = progress < 0.5
     ? 4 * progress * progress * progress
@@ -6399,7 +6393,7 @@ function startNearbyOriginTransition(fromPoint) {
     // The zoom the slide starts from. The slide moves the map under a still ring, so a move that also
     // needs a different zoom (Back from a zoomed-in place to the browse view) would otherwise get its
     // new scale in one step on the first frame. alignHeadingUpNavigationViewport eases from this to the
-    // final scale across the slide. Cleared if a real camera tween takes over (animateViewportTo).
+    // final scale across the slide. Cleared if a real camera tween takes over (moveCamera).
     fromScale: state.viewport.scale,
     startedAt: performance.now(),
     durationMs: NEARBY_ORIGIN_TRANSITION_MS,
@@ -6407,7 +6401,7 @@ function startNearbyOriginTransition(fromPoint) {
 }
 
 // Eased 0-1 progress of the in-flight browse-origin slide, or null when none is running.
-// Shares animateViewportTo's cubic ease-in-out, so anything blended across a slide moves in
+// Shares moveCamera's cubic ease-in-out, so anything blended across a slide moves in
 // step with the slide itself.
 function nearbyOriginTransitionEasedProgress() {
   const transition = state.nearbyOriginTransition;
@@ -6435,7 +6429,7 @@ function nearbyOriginTransitionEasedProgress() {
 // anchor move (tap open ground, a Settings/pinch radius change), where the camera itself does
 // not animate and nearbyRenderOriginPoint's slide is what fakes the ring holding still while
 // the terrain pans beneath it. A cluster-tap expansion also re-zooms the camera
-// (focusNearbyOnClusterGroup -> ensureOverviewTargetsVisible's own animateViewportTo tween),
+// (focusNearbyOnClusterGroup -> ensureOverviewTargetsVisible's own moveCamera tween),
 // so nothing is pinned: ring, pins and terrain are all being redrawn every frame under one
 // live, moving transform, exactly like any other selection fit. Gating opacity here on top of
 // that hid the group's own members for the whole ~450ms flight and then popped them in once
@@ -6557,11 +6551,11 @@ function tiltAnchorFraction() {
 // construction (HEADING_UP_ANCHOR_* constants). Factored out so tiltAvailableAheadCssPx
 // can use it as a safety floor -- see that function's comment for why.
 // useFinalBrowseState: true when the caller is computing the *destination* of a camera move
-// it is about to hand to animateViewportTo (alignHeadingUpNavigationViewport's animate:true
+// it is about to hand to moveCamera (alignHeadingUpNavigationViewport's animate:true
 // path) rather than this frame's instantaneous value. The progress blend below exists for
 // per-frame tracking -- sampled once at the instant a browse-origin transition starts (when
 // nearbyOriginTransitionEasedProgress() is still ~0), it reports almost exactly the *from*
-// end, not the slide's actual destination. animateViewportTo then eased smoothly toward that
+// end, not the slide's actual destination. moveCamera then eased smoothly toward that
 // wrong, stale target, and the next un-animated per-frame call (prepareCanvasForDraw, or a
 // live compass tick once the tween's own selectionCameraTransitionActive() guard lifts)
 // snapped straight to the real one the instant the tween finished -- the camera "zooms past
@@ -7569,7 +7563,7 @@ function refreshOutOfRadiusReveal(previousFilters) {
 
 // useFinalBrowseState: see tiltRampedAnchor's comment -- skips the progress blend below and
 // solves straight for the slide's destination, for a caller (alignHeadingUpNavigationViewport's
-// animate:true path) that is about to hand the result to animateViewportTo and ease to it
+// animate:true path) that is about to hand the result to moveCamera and ease to it
 // itself.
 function maxNearbyHeadingUpScale(focus, focusRect, useFinalBrowseState = false) {
   if (!state.userLocation) return state.viewport.scale;
@@ -7731,7 +7725,7 @@ function alignHeadingUpNavigationViewport(options = {}) {
   const focusRect = bestVisibleCanvasRect({
     assumeInspectorOpen: Boolean(options.assumeInspectorOpen),
   });
-  // A caller passing animate:true is about to hand the result to animateViewportTo and ease
+  // A caller passing animate:true is about to hand the result to moveCamera and ease
   // to it itself -- so the nearby pivot/scale/origin must solve for the browse-origin slide's
   // actual destination, not a progress snapshot of it taken at the instant the slide starts
   // (see tiltRampedAnchor's comment: that snapshot is what used to make the tween zoom past
@@ -7904,7 +7898,7 @@ function prepareCanvasForDraw() {
   _nearbyRenderOriginCache = undefined;
   _flatProjectionEpoch++;
   clearHeadingUpCanvasTransform();
-  // A browse-origin slide is driven from here rather than by animateViewportTo: the camera
+  // A browse-origin slide is driven from here rather than by moveCamera: the camera
   // is re-derived from the interpolated origin every frame (see nearbyRenderOriginPoint),
   // which is what holds the walking-radius circle still while the map moves behind it.
   if (state.nearbyOriginTransition) {

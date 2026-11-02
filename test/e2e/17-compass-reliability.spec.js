@@ -248,7 +248,7 @@ test.describe("compass reliability", () => {
         failed = true;
         throw new Error("simulated transient camera render failure");
       };
-      animateViewportTo({ ...state.viewport, tx: state.viewport.tx + 100 }, 500);
+      moveCamera({ ...state.viewport, tx: state.viewport.tx + 100 }, 500);
       await new Promise((resolve) => requestAnimationFrame(resolve));
       requestDraw = originalRequestDraw;
       const blockedBefore = selectionCameraTransitionActive();

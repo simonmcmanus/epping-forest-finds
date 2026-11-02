@@ -211,7 +211,7 @@ test.describe('Cluster badges and geographic footprints', () => {
     // Field report: "going from nearby to a cluster does not have a smooth transition, it
     // seems to animate to the position and then suddenly snap afterwards". focusNearbyOnClusterGroup
     // starts a browse-origin slide (startNearbyOriginTransition) *and* a real camera zoom/pan
-    // tween (refreshNearbyRadiusView's animateViewportTo) together, but nearbyRevealOpacity --
+    // tween (refreshNearbyRadiusView's moveCamera) together, but nearbyRevealOpacity --
     // built for a plain anchor move where the camera does *not* animate and only the ring's own
     // render position slides -- held the group's own member pins at opacity 0 for the entire
     // ~500ms flight, then faded them in only once both tweens happened to finish. The camera
@@ -268,7 +268,7 @@ test.describe('Cluster badges and geographic footprints', () => {
     // and then snap"). alignHeadingUpNavigationViewport's animate:true path (the one
     // focusNearbyOnClusterGroup/refreshNearbyRadiusView/restoreNearbyAnchorFromHistory all
     // use) fed maxNearbyHeadingUpScale and nearbyNavigationFocusPoint straight into
-    // animateViewportTo as a *fixed* target -- but both of those functions blend across the
+    // moveCamera as a *fixed* target -- but both of those functions blend across the
     // browse-origin slide via nearbyOriginTransitionEasedProgress(), which is still ~0 the
     // instant the slide starts. Sampled once at that instant, the "fixed" target the tween
     // eased toward was close to the slide's *starting* framing, not its destination --
