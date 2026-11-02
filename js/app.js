@@ -2779,10 +2779,15 @@ function zoomAwareDurationMs(baseMs, zoomRatio) {
   return Math.min(Math.max(baseMs, ZOOM_DURATION_MAX_MS), baseMs * (1 + ZOOM_DURATION_PER_DOUBLING * extraDoublings));
 }
 
-function animateViewportTo(targetViewport, durationMs, onComplete, options = {}) {
+// The single owner of an in-flight camera move. Every tween goes through here: it decides whether the
+// request is a repeat of the move already running (ignored), and otherwise replaces that move.
+// The queueing of animated Nearby refits that arrive mid-move stays with the refit path
+// (alignHeadingUpNavigationViewport -> deferAnimatedNearbyRefit) until its callers migrate.
+// `options.reason` is a diagnostic label only; it changes nothing about the move.
+function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
   let safeDuration = Math.max(MIN_VIEWPORT_ANIMATION_MS, Number(durationMs) || DEFAULT_VIEWPORT_ANIMATION_MS);
   const cinematic = Boolean(options.cinematic);
-  if (!cinematic && viewportAnimationAlreadyHeadedTo(targetViewport)) return;
+  if (!cinematic && viewportAnimationAlreadyHeadedTo(targetViewport)) return "ignored";
   stopViewportAnimation();
   // A real camera tween owns the zoom from here, so a browse-origin slide must not keep easing back
   // towards the zoom it started from once this tween has landed.
@@ -2836,7 +2841,7 @@ function animateViewportTo(targetViewport, durationMs, onComplete, options = {})
     state.viewport.ty = targetViewport.ty;
     requestDraw();
     if (typeof onComplete === "function") onComplete();
-    return;
+    return "snapped";
   }
 
   state.viewportAnimationFrom = from;
@@ -2896,6 +2901,13 @@ function animateViewportTo(targetViewport, durationMs, onComplete, options = {})
 
   state.viewportAnimationFrame = requestAnimationFrame(tick);
   state.viewportAnimationFrameRequestedAt = performance.now();
+  return "started";
+}
+
+// Thin wrapper kept so existing callers (and the camera trace test, which records through this name)
+// keep working while call sites migrate onto moveCamera.
+function animateViewportTo(targetViewport, durationMs, onComplete, options = {}) {
+  return moveCamera(targetViewport, durationMs, onComplete, options);
 }
 
 function bestVisibleCanvasRect({ assumeInspectorOpen = false } = {}) {
