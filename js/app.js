@@ -2787,7 +2787,7 @@ function zoomAwareDurationMs(baseMs, zoomRatio) {
 // `options.reason` is a diagnostic label only; it changes nothing about the move.
 function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
   let safeDuration = Math.max(MIN_VIEWPORT_ANIMATION_MS, Number(durationMs) || DEFAULT_VIEWPORT_ANIMATION_MS);
-  const cinematic = Boolean(options.cinematic);
+  const cinematic = options.cinematic !== false;
   if (!cinematic && viewportAnimationAlreadyHeadedTo(targetViewport)) return "ignored";
   stopViewportAnimation();
   // A real camera tween owns the zoom from here, so a browse-origin slide must not keep easing back
