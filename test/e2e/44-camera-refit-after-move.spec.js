@@ -35,6 +35,21 @@ test.describe("Camera after a quick change of screen", () => {
     expect(Math.abs(settled.ty - fresh.ty)).toBeLessThan(1);
   });
 
+  test("tapping a place in the list keeps the panel minimised, so the map frames it without a jolt", async ({ page }) => {
+    await setup(page, "/nearby");
+    await page.locator("#inspectorBody [data-overview-type][data-overview-key]").nth(0).click();
+    await waitForUiToSettle(page);
+    await page.locator("#nearbyToggle").click();
+    await waitForUiToSettle(page);
+
+    await page.locator("#inspectorBody [data-overview-type][data-overview-key]").nth(1).click();
+    // The list tap that selects a place must not also re-expand the panel it just minimised: that
+    // second expansion re-centred the camera at the old scale and cut into the selection zoom.
+    await expect(page.locator("#inspector")).toHaveClass(/minimized/);
+    await waitForUiToSettle(page);
+    await expect(page.locator("#inspector")).toHaveClass(/minimized/);
+  });
+
   test("a deep link to a tree keeps the selection map up while the camera moves", async ({ page }) => {
     await setup(page, "/nearby");
     await page.evaluate(() => navigateInApp("/nearby/trees/#near=51.667617,0.037559&label=Hornbeam"));

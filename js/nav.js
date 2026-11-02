@@ -1002,6 +1002,10 @@ function setupInspectorHandlers() {
   els.inspector.addEventListener("click", (event) => {
     if (!els.inspector.classList.contains("minimized")) return;
     if (els.closeInspector && event.target === els.closeInspector) return;
+    // Tapping a place in a list selects it and minimises the panel on purpose so the map can frame
+    // it (focusOverviewItem). Expanding again here, on the same tap, re-centred the camera at the
+    // old scale and cut across it into the selection zoom, which read as a jolt when switching places.
+    if (event.target.closest && event.target.closest("[data-overview-type][data-overview-key]")) return;
     setInspectorMinimized(false);
   });
 
