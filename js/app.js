@@ -2726,6 +2726,33 @@ function zoomAlongTween(fromScale, toScale, eased) {
   return fromScale * Math.pow(toScale / fromScale, eased);
 }
 
+// The viewport part-way through a tween. Scale is interpolated geometrically (zoomAlongTween), and
+// the offsets must follow it: a screen point is `world * scale + offset`, so interpolating the
+// offsets linearly while the scale is geometric lets the point under the camera focus drift
+// sideways during every zoom, which reads as jitter. When the two views differ in scale, they
+// agree on one world point (the zoom's invariant point); the offsets are then
+// `offset0 + world0 * (scale0 - scale)`, which keeps that point still while everything zooms about
+// it and lands exactly on both ends. A near-equal scale is a pure pan, so the offsets are blended
+// directly.
+function viewportAlongTween(from, to, eased) {
+  const scale = zoomAlongTween(from.scale, to.scale, eased);
+  const ratio = from.scale > 0 && to.scale > 0 ? to.scale / from.scale : 1;
+  if (!(Math.abs(Math.log(ratio)) >= VIEWPORT_TWEEN_ZOOM_ABOUT_POINT_MIN_LOG_RATIO)) {
+    return { scale, tx: from.tx + (to.tx - from.tx) * eased, ty: from.ty + (to.ty - from.ty) * eased };
+  }
+  const worldX = (to.tx - from.tx) / (from.scale - to.scale);
+  const worldY = (to.ty - from.ty) / (from.scale - to.scale);
+  return {
+    scale,
+    tx: from.tx + worldX * (from.scale - scale),
+    ty: from.ty + worldY * (from.scale - scale),
+  };
+}
+
+// Below this |ln(scale ratio)| (about a 5% zoom) a tween is treated as a pan: the zoom-about-a-point
+// form divides by the scale difference, which is ill-conditioned for tiny zooms.
+const VIEWPORT_TWEEN_ZOOM_ABOUT_POINT_MIN_LOG_RATIO = 0.05;
+
 function animateViewportTo(targetViewport, durationMs, onComplete, options = {}) {
   const safeDuration = Math.max(MIN_VIEWPORT_ANIMATION_MS, Number(durationMs) || DEFAULT_VIEWPORT_ANIMATION_MS);
   const cinematic = Boolean(options.cinematic);
@@ -2810,9 +2837,10 @@ function animateViewportTo(targetViewport, durationMs, onComplete, options = {})
       state.viewport.tx = focusPoint.x - centreX * state.viewport.scale;
       state.viewport.ty = focusPoint.y - centreY * state.viewport.scale;
     } else {
-      state.viewport.scale = zoomAlongTween(state.viewportAnimationFrom.scale, state.viewportAnimationTo.scale, eased);
-      state.viewport.tx = state.viewportAnimationFrom.tx + (state.viewportAnimationTo.tx - state.viewportAnimationFrom.tx) * eased;
-      state.viewport.ty = state.viewportAnimationFrom.ty + (state.viewportAnimationTo.ty - state.viewportAnimationFrom.ty) * eased;
+      const frame = viewportAlongTween(state.viewportAnimationFrom, state.viewportAnimationTo, eased);
+      state.viewport.scale = frame.scale;
+      state.viewport.tx = frame.tx;
+      state.viewport.ty = frame.ty;
     }
     requestDraw();
 

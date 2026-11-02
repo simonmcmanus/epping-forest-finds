@@ -542,6 +542,7 @@ globalThis.__forestFindsTest = {
   clusterJoinAnimationState,
   settleClusterJoinAnimations,
   zoomAlongTween,
+  viewportAlongTween,
   drawLandmarkIcon,
   CLUSTER_JOIN_ANIMATION_MS,
   CLUSTER_JOIN_COOLDOWN_MS,
@@ -1017,6 +1018,42 @@ test("a zoom between two scales eases geometrically, so each step changes the vi
     `expected the geometric mean, got ${halfway}`);
   assert.equal(app.zoomAlongTween(125000, 22000, 0), 125000, "a zoom starts at its source scale");
   assert.ok(Math.abs(app.zoomAlongTween(125000, 22000, 1) - 22000) < 1e-6, "and lands on its target");
+});
+
+test("a zoom keeps the point under the camera focus still, so the view does not drift while it zooms", () => {
+  // A view that has a world point `w` at screen point `focus`, zoomed from 100 to 400: at every
+  // step the same world point must still be at that screen point.
+  const focus = { x: 200, y: 600 };
+  const world = { x: 3.5, y: -2.25 };
+  const viewAt = (scale) => ({ scale, tx: focus.x - world.x * scale, ty: focus.y - world.y * scale });
+  const from = viewAt(100);
+  const to = viewAt(400);
+  for (const eased of [0, 0.1, 0.25, 0.5, 0.75, 0.9, 1]) {
+    const frame = app.viewportAlongTween(from, to, eased);
+    const screenX = world.x * frame.scale + frame.tx;
+    const screenY = world.y * frame.scale + frame.ty;
+    assert.ok(Math.abs(screenX - focus.x) < 1e-6 && Math.abs(screenY - focus.y) < 1e-6,
+      `at ${eased} the focus point drifted to ${screenX}, ${screenY}`);
+  }
+  const mid = app.viewportAlongTween(from, to, 0.5);
+  assert.ok(Math.abs(mid.scale - 200) < 1e-6, "halfway through a 4x zoom is a 2x view, not 2.5x");
+});
+
+test("a zoom with a pan still lands exactly on both ends", () => {
+  const from = { scale: 21954, tx: -300, ty: 4200 };
+  const to = { scale: 125436, tx: 900, ty: -52000 };
+  for (const [eased, end] of [[0, from], [1, to]]) {
+    const frame = app.viewportAlongTween(from, to, eased);
+    assert.ok(Math.abs(frame.scale - end.scale) < 1e-6 && Math.abs(frame.tx - end.tx) < 1e-6 && Math.abs(frame.ty - end.ty) < 1e-6,
+      `eased ${eased} should be the ${eased ? "target" : "source"} view`);
+  }
+});
+
+test("a pan with almost no zoom is blended straight across", () => {
+  const from = { scale: 13603, tx: -558, ty: 823639 };
+  const to = { scale: 13571, tx: -554, ty: 821680 };
+  const mid = app.viewportAlongTween(from, to, 0.5);
+  assert.ok(Math.abs(mid.tx - -556) < 0.01 && Math.abs(mid.ty - 822659.5) < 0.01, "offsets are the straight midpoint");
 });
 
 test("clusterJoinAnimationState leaves a lone pin undisturbed", () => {

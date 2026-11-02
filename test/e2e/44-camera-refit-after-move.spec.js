@@ -56,11 +56,14 @@ test.describe("Camera after a quick change of screen", () => {
     await page.waitForFunction(() => state.nearbyAnchor != null);
     await waitForUiToSettle(page);
 
-    await page.evaluate(() => navigateInApp("/nearby?radius=30&show=trees#tree=r10867"));
+    // Followed and read in one task: reading it from the test side races the move on a loaded runner.
     // Straight after the link is followed, before the camera has landed, the map must be in its
     // selection state. Otherwise the renderer hides the Nearby pins and ring and the map blanks.
-    await expect.poll(() => page.evaluate(() => state.selected?.type === "tree")).toBe(true);
-    expect(await page.evaluate(() => state.selectionMapTransitionActive)).toBe(true);
+    const duringMove = await page.evaluate(() => {
+      navigateInApp("/nearby?radius=30&show=trees#tree=r10867");
+      return { selected: state.selected?.type, holding: state.selectionMapTransitionActive };
+    });
+    expect(duringMove).toEqual({ selected: "tree", holding: true });
 
     await waitForUiToSettle(page);
     await expect.poll(() => page.evaluate(() => state.selectionMapTransitionActive)).toBe(false);
