@@ -7698,6 +7698,12 @@ function alignHeadingUpNavigationViewport(options = {}) {
   // Search and typing, and after clearing a query. The camera stays wherever it was for as long as
   // Search is open; leaving Search runs its own refit (goToInitialView) after the screen is closed.
   if (state.searchScreenOpen) return false;
+  // Every secondary screen (Filters, Settings, Feedback, Community) holds the camera the same way:
+  // opening one leaves the camera where it was, and so does a plain GPS fix or compass tick, which
+  // call this with no options. Without it, opening one from a zoomed-in place and then getting a fix
+  // snapped the map out to the ring. A deliberate refit still happens: the radius slider, a filter
+  // change and Filters opening (an animated survey fit) all pass `force` or `animate`.
+  if (secondaryScreenActive() && !options.force && !options.animate) return false;
   clearHeadingUpCanvasTransform();
   const previousScale = state.viewport.scale;
   const previousTx = state.viewport.tx;

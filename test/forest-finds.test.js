@@ -3260,7 +3260,8 @@ test("filter screen with active filters zooms to fit only filtered items, not al
 
   app.state.filterScreenOpen = true;
   app.state.overviewFilters = ["pubs"];
-  app.ensureOverviewTargetsVisible({ animate: false });
+  // A deliberate refit (what a filter change does). A plain tick no longer moves the camera here.
+  app.ensureOverviewTargetsVisible({ animate: false, force: true });
   const pubPoint = app.worldToScreen(app.state.landmarks[0].point);
 
   assert.ok(app.state.viewport.scale > 8, "filter screen should zoom in from the initial full-map scale");
@@ -3277,7 +3278,7 @@ test("filter screen with no active filters falls through to foraging zoom (neare
 
   app.state.filterScreenOpen = true;
   // no overviewFilters set — falls through to foraging mode
-  app.ensureOverviewTargetsVisible({ animate: false });
+  app.ensureOverviewTargetsVisible({ animate: false, force: true });
   const treePoint = app.worldToScreen(app.state.trees[0].point);
 
   assert.ok(app.state.viewport.scale > 8, "should zoom in to tree level, not stay at full-map scale");
@@ -3341,7 +3342,7 @@ test("settings screen zooms to fit only filtered items, same as filter screen", 
 
   app.state.selected = { type: "settings", item: null };
   app.state.overviewFilters = ["pubs"];
-  app.ensureOverviewTargetsVisible({ animate: false });
+  app.ensureOverviewTargetsVisible({ animate: false, force: true });
   const pubPoint = app.worldToScreen(app.state.landmarks[0].point);
 
   assert.ok(app.state.viewport.scale > 8, "settings screen should zoom in from the initial full-map scale");
@@ -3357,26 +3358,33 @@ test("report screen zooms to fit only filtered items, same as filter screen", ()
 
   app.state.selected = { type: "report", item: null };
   app.state.overviewFilters = ["pubs"];
-  app.ensureOverviewTargetsVisible({ animate: false });
+  app.ensureOverviewTargetsVisible({ animate: false, force: true });
   const pubPoint = app.worldToScreen(app.state.landmarks[0].point);
 
   assert.ok(app.state.viewport.scale > 8, "report screen should zoom in from the initial full-map scale");
   assert.equal(app.isNearCanvas(pubPoint, 16), true, JSON.stringify({ pubPoint, viewport: app.state.viewport }));
 });
 
-test("GPS updates keep re-centering the map on settings and report screens, not just overview", () => {
-  resetData(app);
-  const previous = makePoint(app, 0, 0).point;
-  app.state.userLocation = makePoint(app, 0.2, 0.2);
-  app.state.viewport = { scale: 1000, tx: 500, ty: 400 };
-  app.state.selected = { type: "settings", item: null };
+test("GPS updates leave the map where it was on the settings and report screens", () => {
+  // Opening a secondary screen leaves the camera alone, so a GPS fix while one is open must too: it used
+  // to re-fit to the ring and pull the map out from wherever the user had it.
+  for (const type of ["settings", "report"]) {
+    resetData(app);
+    const previous = makePoint(app, 0, 0).point;
+    app.state.dataLoaded = true;
+    app.state.userLocation = makePoint(app, 0.2, 0.2);
+    app.state.viewport = { scale: 1000, tx: 500, ty: 400 };
+    app.state.selected = { type, item: null };
 
-  // Same call pattern as ensureLocationWatch()'s watchPosition callback (see the overview
-  // version of this test above for why keepOverviewCenteredOnUser alone no longer re-fits).
-  const changed = app.alignHeadingUpNavigationViewport();
-  app.keepOverviewCenteredOnUser(previous);
+    // Same call pattern as ensureLocationWatch()'s watchPosition callback (see the overview
+    // version of this test above for why keepOverviewCenteredOnUser alone no longer re-fits).
+    const changed = app.alignHeadingUpNavigationViewport();
+    app.keepOverviewCenteredOnUser(previous);
 
-  assert.equal(changed, true, "large movement should re-fit the settings screen too");
+    assert.equal(changed, false, `${type}: a large movement must not re-fit the screen`);
+    assert.deepEqual({ ...app.state.viewport }, { scale: 1000, tx: 500, ty: 400 },
+      `${type}: the map stays where it was`);
+  }
 });
 
 test("walking radius marker draws on the report (feedback) screen", () => {
@@ -3459,6 +3467,33 @@ test("a GPS fix or compass tick while Search is open leaves the camera where it 
 
   assert.deepEqual({ ...app.state.viewport }, { scale: 123456, tx: 11, ty: 22 },
     "Search never frames the map, so a tick must not pull the camera out to the Nearby ring");
+});
+
+test("a GPS fix or compass tick on any secondary screen leaves the camera where it was, but a deliberate refit still frames the ring", () => {
+  const open = {
+    Settings: () => { app.state.selected = { type: "settings" }; },
+    Feedback: () => { app.state.selected = { type: "report" }; },
+    Community: () => { app.state.selected = { type: "community" }; },
+    Filters: () => { app.state.filterScreenOpen = true; },
+  };
+  for (const [name, openScreen] of Object.entries(open)) {
+    resetData(app);
+    app.state.dataLoaded = true;
+    app.state.userLocation = makePoint(app, 0, 0);
+    app.state.trees.push({ id: "t1", commonName: "Oak", ...makePoint(app, 0.0005, 0) });
+    app.state.viewport = { scale: 123456, tx: 11, ty: 22 };
+    openScreen();
+    assert.equal(app.secondaryScreenActive(), true, `${name} is a secondary screen`);
+
+    // What every GPS fix and compass tick does while nothing is animating: no options at all.
+    app.alignHeadingUpNavigationViewport();
+    assert.deepEqual({ ...app.state.viewport }, { scale: 123456, tx: 11, ty: 22 },
+      `${name}: a tick must not pull the map out to the Nearby ring`);
+
+    // The radius slider, a filter change and a screen opening refit on purpose, and say so.
+    app.alignHeadingUpNavigationViewport({ force: true });
+    assert.notEqual(app.state.viewport.scale, 123456, `${name}: a forced refit still frames the ring`);
+  }
 });
 
 test("heading-up viewport alignment preserves animation target when rotation starts", () => {
