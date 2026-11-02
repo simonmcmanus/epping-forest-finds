@@ -1149,7 +1149,7 @@ Behavior:
 
 Every write to `state.viewport` (scale, `tx`, `ty`), grouped by how it moves the camera. This is the baseline the camera consolidation (one owner for camera moves) works from; a row changes only when its call site migrates. Line numbers are approximate.
 
-**Tween-driven (through `animateViewportTo`, `js/app.js`):**
+**Tween-driven (through `moveCamera`, `js/app.js`, the single owner of every camera tween; it returns `ignored`, `snapped` or `started`. `animateViewportTo` is a wrapper kept for existing callers):**
 
 | Caller | Path | Notes |
 |---|---|---|

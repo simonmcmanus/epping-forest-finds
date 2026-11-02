@@ -2671,7 +2671,7 @@ function applyBoundsToViewport(bounds, options = {}) {
   const targetTy = focusRect.y + (viewportHeight - rangeY * targetScale) / 2 - bounds.minY * targetScale;
 
   if (options.animate) {
-    animateViewportTo(
+    moveCamera(
       { scale: targetScale, tx: targetTx, ty: targetTy },
       options.durationMs || DEFAULT_VIEWPORT_ANIMATION_MS,
       undefined,
@@ -7815,9 +7815,9 @@ function alignHeadingUpNavigationViewport(options = {}) {
     const totalMs = options.durationMs || HEADING_UP_NAV_ANIMATION_MS;
     const panMs = Math.round(totalMs * 0.4);
     const zoomMs = Math.max(MIN_VIEWPORT_ANIMATION_MS, totalMs - panMs);
-    animateViewportTo(panViewport, panMs, () => animateViewportTo(targetViewport, zoomMs));
+    moveCamera(panViewport, panMs, () => moveCamera(targetViewport, zoomMs));
   } else if (options.animate) {
-    animateViewportTo(
+    moveCamera(
       targetViewport,
       options.durationMs || HEADING_UP_NAV_ANIMATION_MS,
       undefined,
@@ -7886,7 +7886,7 @@ function animateToHeadingUpNavigationViewport(durationMs = HEADING_UP_NAV_ANIMAT
   // settled (it also seeds state for the compass-follow frames that come after this one).
   const focusY = dampedHeadingUpFocusY(focus, focusRect, true);
   const userPoint = state.userLocation.point;
-  animateViewportTo({
+  moveCamera({
     scale: targetScale,
     tx: focus.x - userPoint.x * targetScale,
     ty: focusY - userPoint.y * targetScale,
@@ -8378,7 +8378,7 @@ function centerOverviewOnUserLocation(options = {}) {
   };
 
   if (options.animate) {
-    animateViewportTo(
+    moveCamera(
       targetViewport,
       options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
       undefined,
@@ -8466,7 +8466,7 @@ function centerViewportOnPointsKeepScale(points, options = {}) {
   };
 
   if (options.animate) {
-    animateViewportTo(targetViewport, options.durationMs || 420);
+    moveCamera(targetViewport, options.durationMs || 420);
     return;
   }
 
