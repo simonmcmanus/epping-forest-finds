@@ -1187,8 +1187,8 @@ Every write to `state.viewport` (scale, `tx`, `ty`), grouped by how it moves the
 - `state.viewportAnimationFrame`, `viewportAnimationFrom`, `viewportAnimationTo`, `locationRevealAnimationActive`: tween bookkeeping.
 - `state.nearbyOriginTransition` (browse-origin slide, owns `fromScale` and `nearbyRenderOriginPoint`).
 - `state.cameraOriginTransition` (selection basis slide).
-- `state.selectionMapTransitionActive` (holds the Nearby map until a selection camera move lands, set in `js/inspector.js`).
-- `state.selectionViewportTransitionPending`, and `selectionCameraTransitionActive()` in `js/app.js`.
+- `state.selectionTransition.mapHeld` (holds the Nearby map until a selection camera move lands, set in `js/inspector.js`).
+- `state.selectionTransition.viewportPending`, and `selectionCameraTransitionActive()` in `js/app.js`.
 - `deferAnimatedNearbyRefit` (queues an animated Nearby refit that arrives mid-tween) and `viewportAnimationAlreadyHeadedTo` (drops a repeat request for the same target).
 
 **Entry points and the path each takes today:**

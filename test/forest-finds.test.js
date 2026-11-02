@@ -780,9 +780,9 @@ function resetData(app) {
   app.state.viewportAnimationStartTime = null;
   app.state.viewportAnimationDuration = 0;
   app.state.dataLoaded = true;
-  app.state.selectionViewportTransitionPending = false;
+  app.state.selectionTransition.viewportPending = false;
   app.state.inspectorMinimizeTransitionPending = false;
-  app.state.selectionMapTransitionActive = false;
+  app.state.selectionTransition.mapHeld = false;
   app.state.selectionMapTransitionToken = null;
   app.state.selectionMapTransitionIconLookup = null;
   app.state.selectionMapTransitionOriginPoint = null;
@@ -3441,7 +3441,7 @@ test("heading-up viewport alignment defers when camera transition is pending", (
   app.state.selected = { type: "tree", item: { id: "near-tree", ...makePoint(app, 0.001, 0) } };
   app.state.compassHeading = 90;
   app.state.viewport = { scale: 1000, tx: 123, ty: 456 };
-  app.state.selectionViewportTransitionPending = true;
+  app.state.selectionTransition.viewportPending = true;
 
   const changed = app.alignHeadingUpNavigationViewport();
 
@@ -10198,7 +10198,7 @@ test("selection entry points capture the browse pivot before clearing the anchor
   const outgoingIconLookup = app.activeIconLookup();
   app.focusOverviewItem("tree", "r1");
   assert.equal(app.state.nearbyAnchor, null, "selection should still clear the browse anchor");
-  assert.equal(app.state.selectionMapTransitionActive, true,
+  assert.equal(app.state.selectionTransition.mapHeld, true,
     "the outgoing Nearby map should remain visible during selection");
   assert.ok(app.activeIconLookup().tree.size > 0,
     "Nearby pins should remain available during the handoff");
@@ -10917,7 +10917,7 @@ test("tapping a location from a browsed Nearby anchor keeps the outgoing map dur
   tapMap(app, treeTap);
 
   assert.equal(app.state.selected?.type, "tree", "the Nearby pin should open the location");
-  assert.equal(app.state.selectionMapTransitionActive, true,
+  assert.equal(app.state.selectionTransition.mapHeld, true,
     "the outgoing map should remain active during a direct map selection");
   assert.equal(app.activeIconLookup(), outgoingIconLookup,
     "direct map selection should retain the pins from the browsed Nearby view");

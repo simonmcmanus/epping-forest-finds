@@ -473,7 +473,7 @@ function drawCommunityMarks(ctx, toScreen) {
 // it's clear the radius/list have pivoted away from the user's actual GPS position without
 // moving it.
 function drawNearbyAnchorMarker(ctx, toScreen) {
-  const transitionOrigin = state.selectionMapTransitionActive && state.selectionMapTransitionOriginPoint;
+  const transitionOrigin = state.selectionTransition.mapHeld && state.selectionMapTransitionOriginPoint;
   if (!state.nearbyAnchor && !transitionOrigin) return;
   if (!toScreen) toScreen = worldToScreen;
   // Rides the slide with the circle it sits at the centre of, rather than jumping to the new
@@ -1273,11 +1273,11 @@ function drawWalkingRadiusRimHighlight(ctx, center, radiusPx, tilted, dpr) {
 function drawWalkingRadius(ctx) {
   // The *rendered* origin, so the circle stays still on screen while a browse-origin slide moves
   // the map behind it (nearbyRenderOriginPoint, index.html).
-  const originPoint = state.selectionMapTransitionActive && state.selectionMapTransitionOriginPoint
+  const originPoint = state.selectionTransition.mapHeld && state.selectionMapTransitionOriginPoint
     ? state.selectionMapTransitionOriginPoint
     : nearbyRenderOriginPoint();
   if (!originPoint) return;
-  if (hasRealSelection() && !state.selectionMapTransitionActive) return;
+  if (hasRealSelection() && !state.selectionTransition.mapHeld) return;
 
   const dpr = pixelRatio();
   // Centre and radius are measured on the flat (untilted) map, then projected as a whole —
@@ -2289,7 +2289,7 @@ function clusterFootprintPoints(items, toFlat, project, padding) {
 function drawClusterFootprints(ctx, clusters, megaGroups, overlay = false) {
   // Match the per-type pin visibility; the flat renderer can still show mixed badges
   // beside a selected destination, so those retain their footprints too.
-  const hideSameType = state.selected && !state.selectionMapTransitionActive
+  const hideSameType = state.selected && !state.selectionTransition.mapHeld
     && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type);
   const tilted = tiltActive();
   const toFlat = overlay ? worldToScreenForOverlay : worldToScreenFlat;
@@ -2356,7 +2356,7 @@ function drawMegaClusters(ctx, megaGroups) {
 }
 
 function drawTrees(ctx, nearbyIconLookup, toScreen, treeClusters) {
-  if (state.selected && !state.selectionMapTransitionActive && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type)) return;
+  if (state.selected && !state.selectionTransition.mapHeld && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type)) return;
   const resolvedToScreen = toScreen || worldToScreen;
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
@@ -2617,10 +2617,10 @@ function activeIconLookup() {
   // handoff is in flight. The selected route/icon may not be drawable on the first frame (the
   // routing graph and map artwork can both still be loading), and clearing the Nearby lookup at
   // that exact moment leaves a blank map between the two states.
-  if (state.selectionMapTransitionActive && state.selectionMapTransitionIconLookup) {
+  if (state.selectionTransition.mapHeld && state.selectionMapTransitionIconLookup) {
     return state.selectionMapTransitionIconLookup;
   }
-  if (state.selectionMapTransitionActive) return buildNearbyIconLookup();
+  if (state.selectionTransition.mapHeld) return buildNearbyIconLookup();
   if (selectedNavigationMapModeActive()) return SELECTED_NAVIGATION_EMPTY_ICON_LOOKUP;
   if (state.searchScreenOpen && state.searchHighlightResults.length) return buildSearchIconLookup();
   return buildNearbyIconLookup();
@@ -2737,7 +2737,7 @@ function buildFullNearbyIconLookup() {
 }
 
 function shouldDrawMapIcon(type, item, nearbyIconLookup) {
-  if (state.selected && !state.selectionMapTransitionActive
+  if (state.selected && !state.selectionTransition.mapHeld
       && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type)) return false;
   const typeSet = nearbyIconLookup && nearbyIconLookup[type];
   return Boolean(typeSet && typeSet.has(item));
@@ -2779,7 +2779,7 @@ function drawLandmarkIcon(ctx, place, x, y, iconSize) {
 }
 
 function drawLandmarks(ctx, nearbyIconLookup, toScreen, landmarkClusters) {
-  if (state.selected && !state.selectionMapTransitionActive && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type)) return;
+  if (state.selected && !state.selectionTransition.mapHeld && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type)) return;
   const resolvedToScreen = toScreen || worldToScreen;
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
@@ -2829,7 +2829,7 @@ function drawLandmarks(ctx, nearbyIconLookup, toScreen, landmarkClusters) {
 }
 
 function drawPathPins(ctx, nearbyIconLookup, toScreen, pathClusters) {
-  if (state.selected && !state.selectionMapTransitionActive && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type)) return;
+  if (state.selected && !state.selectionTransition.mapHeld && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type)) return;
   const resolvedToScreen = toScreen || worldToScreen;
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
@@ -2867,7 +2867,7 @@ function drawPathPins(ctx, nearbyIconLookup, toScreen, pathClusters) {
 }
 
 function drawWaterPins(ctx, nearbyIconLookup, toScreen, waterClusters) {
-  if (state.selected && !state.selectionMapTransitionActive && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type)) return;
+  if (state.selected && !state.selectionTransition.mapHeld && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type)) return;
   const resolvedToScreen = toScreen || worldToScreen;
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
@@ -2906,7 +2906,7 @@ function drawWaterPins(ctx, nearbyIconLookup, toScreen, waterClusters) {
 
 function drawCows(ctx, nearbyIconLookup, toScreen, cowClusters) {
   if (!state.cows.length) return;
-  if (state.selected && !state.selectionMapTransitionActive && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type)) return;
+  if (state.selected && !state.selectionTransition.mapHeld && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type)) return;
   const resolvedToScreen = toScreen || worldToScreen;
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
@@ -3072,7 +3072,7 @@ function drawUserRadarOverlayTilted(ctx) {
 // to the user (higher Y in heading-up mode) paint over distant ones (painter's algorithm),
 // then draws them in a single pass. Selected item is still drawn last via drawSelectedOverlay.
 function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
-  if (selectedNavigationMapModeActive() && !state.selectionMapTransitionActive) return;
+  if (selectedNavigationMapModeActive() && !state.selectionTransition.mapHeld) return;
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
   const uScale = MAP_ICON_SCALE_UNSELECTED;

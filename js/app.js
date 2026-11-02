@@ -376,9 +376,10 @@ const state = {
   // rotateX angle baked into the main canvas by the last draw() -- see tiltRenderStale().
   renderedTiltRotateXDeg: 0,
   tiltWasActive: false,
-  selectionViewportTransitionPending: false,
+  // One owner for the selection-driven camera hold: the viewport move a selection has queued but not
+  // yet started (viewportPending), and whether the Nearby map is held hidden until that move lands (mapHeld).
+  selectionTransition: { viewportPending: false, mapHeld: false },
   inspectorMinimizeTransitionPending: false,
-  selectionMapTransitionActive: false,
   selectionMapTransitionToken: null,
   selectionMapTransitionIconLookup: null,
   selectionMapTransitionOriginPoint: null,
@@ -6444,7 +6445,7 @@ function nearbyOriginTransitionEasedProgress() {
 function nearbyRevealOpacity() {
   const transition = state.nearbyOriginTransition;
   if (!transition) return 1;
-  if (state.selectionMapTransitionActive) return 1;
+  if (state.selectionTransition.mapHeld) return 1;
   if (state.viewportAnimationTo != null) return 1;
   const sinceStart = performance.now() - transition.startedAt;
   if (sinceStart >= transition.durationMs) return 1;
@@ -6464,7 +6465,7 @@ function nearbyRevealOpacity() {
 function nearbyRevealInProgress() {
   const transition = state.nearbyOriginTransition;
   if (!transition) return false;
-  if (state.selectionMapTransitionActive) return false;
+  if (state.selectionTransition.mapHeld) return false;
   if (state.viewportAnimationTo != null) return false;
   return performance.now() - transition.startedAt < transition.durationMs + NEARBY_REVEAL_MS;
 }
@@ -6803,7 +6804,7 @@ function selectionCameraTransitionActive() {
     && typeof selectedCompassTarget === "function"
     && selectedCompassTarget(),
   );
-  return state.selectionViewportTransitionPending
+  return state.selectionTransition.viewportPending
     || state.viewportAnimationTo != null
     || selectedNavigationBasisTransition;
 }
@@ -7846,7 +7847,7 @@ function clearHeadingUpCanvasTransform() {
 function animateToHeadingUpNavigationViewport(durationMs = HEADING_UP_NAV_ANIMATION_MS, options = {}) {
   if (!selectedNavigationHeadingUpActive()) return;
   clearHeadingUpCanvasTransform();
-  state.selectionViewportTransitionPending = false;
+  state.selectionTransition.viewportPending = false;
   const safeDuration = Math.max(MIN_HEADING_UP_ANIMATION_MS, Number(durationMs) || HEADING_UP_NAV_ANIMATION_MS);
   if (state.renderedNavigationHeading == null) {
     const targetHeading = normalizeDegrees(state.compassHeading);
