@@ -1282,6 +1282,9 @@ function focusOverviewItem(type, key) {
   startCameraOriginTransition();
   state.nearbyAnchor = null;
 
+  // Selecting from a list leaves the panel as it is (open), and the camera frames the place against it
+  // in one zoom. It used to minimise here and be reopened by the panel's own tap handler on the same tap,
+  // which re-centred the camera at the old scale and then cut across it into the zoom.
   if (type === "tree") {
     const tree = findTreeByHashKey(key);
     if (!tree) return;
@@ -1289,7 +1292,6 @@ function focusOverviewItem(type, key) {
     state.selected = { type: "tree", item: tree };
     syncHashFromSelection();
     showTreeDetails(tree, metres, "Nearest tree");
-    setInspectorMinimized(true);
     startCompassNavigation();
     zoomToSelection();
     trackSelectionClick("tree", tree, "overview");
@@ -1304,7 +1306,6 @@ function focusOverviewItem(type, key) {
     state.selected = { type: "landmark", item: place };
     syncHashFromSelection();
     showLandmarkDetails(place, metres);
-    setInspectorMinimized(true);
     startCompassNavigation();
     zoomToSelection();
     trackSelectionClick("landmark", place, "overview");
@@ -1319,7 +1320,6 @@ function focusOverviewItem(type, key) {
     state.selected = { type: "cow", item: cow };
     syncHashFromSelection();
     showCowDetails(cow, metres);
-    setInspectorMinimized(true);
     startCompassNavigation();
     zoomToSelection();
     trackSelectionClick("cow", cow, "overview");
@@ -1334,7 +1334,6 @@ function focusOverviewItem(type, key) {
     state.selected = { type: "path", item: path };
     syncHashFromSelection();
     showPathDetails(path, metres);
-    setInspectorMinimized(true);
     startCompassNavigation();
     zoomToSelection();
     trackSelectionClick("path", path, "overview");
@@ -1349,7 +1348,6 @@ function focusOverviewItem(type, key) {
     state.selected = { type: "water", item: water };
     syncHashFromSelection();
     showWaterDetails(water, metres);
-    setInspectorMinimized(true);
     startCompassNavigation();
     zoomToSelection();
     trackSelectionClick("water", water, "overview");

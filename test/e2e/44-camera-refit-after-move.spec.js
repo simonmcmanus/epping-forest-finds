@@ -35,7 +35,7 @@ test.describe("Camera after a quick change of screen", () => {
     expect(Math.abs(settled.ty - fresh.ty)).toBeLessThan(1);
   });
 
-  test("tapping a place in the list keeps the panel minimised, so the map frames it without a jolt", async ({ page }) => {
+  test("tapping a place in the list leaves the panel open and zooms once", async ({ page }) => {
     await setup(page, "/nearby");
     await page.locator("#inspectorBody [data-overview-type][data-overview-key]").nth(0).click();
     await waitForUiToSettle(page);
@@ -43,11 +43,11 @@ test.describe("Camera after a quick change of screen", () => {
     await waitForUiToSettle(page);
 
     await page.locator("#inspectorBody [data-overview-type][data-overview-key]").nth(1).click();
-    // The list tap that selects a place must not also re-expand the panel it just minimised: that
-    // second expansion re-centred the camera at the old scale and cut into the selection zoom.
-    await expect(page.locator("#inspector")).toHaveClass(/minimized/);
+    // Selecting a place from the list must not close the panel, then reopen it, then zoom: the panel
+    // stays open from the tap and the camera frames the place against it.
+    await expect(page.locator("#inspector")).not.toHaveClass(/minimized/);
     await waitForUiToSettle(page);
-    await expect(page.locator("#inspector")).toHaveClass(/minimized/);
+    await expect(page.locator("#inspector")).not.toHaveClass(/minimized/);
   });
 
   test("a tap on a place inside a minimised panel opens the panel", async ({ page }) => {
@@ -68,6 +68,8 @@ test.describe("Camera after a quick change of screen", () => {
     await setup(page, "/nearby");
     await page.locator("#inspectorBody [data-overview-type][data-overview-key]").nth(0).click();
     await waitForUiToSettle(page);
+    // A list tap leaves the panel open, so close it the way the drag handle does.
+    await page.evaluate(() => setInspectorMinimized(true));
     await expect(page.locator("#inspector")).toHaveClass(/minimized/);
 
     await page.locator("#inspectorTitle").click();

@@ -9429,7 +9429,8 @@ function openSearchResult(type, key) {
   // Update the URL before rendering, so the selected place and browser history stay in sync.
   syncHashFromSelection();
   route.show(item);
-  setInspectorMinimized(true);
+  // The panel stays open, as for a list selection (focusOverviewItem): minimising here was undone by the
+  // panel's own tap handler on the same tap, after re-centring the camera at the old scale.
   startCompassNavigation();
   if (state.userLocation) {
     zoomToSelection();
