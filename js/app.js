@@ -2761,8 +2761,22 @@ function viewportAlongTween(from, to, eased) {
 // form divides by the scale difference, which is ill-conditioned for tiny zooms.
 const VIEWPORT_TWEEN_ZOOM_ABOUT_POINT_MIN_LOG_RATIO = 0.05;
 
+// A big zoom needs longer than a small one. The ease puts most of a zoom into the middle of the move,
+// so a 6x zoom out in 500ms is visibly zooming for only about 250ms and reads as a snap. Beyond
+// ZOOM_DURATION_MIN_RATIO (3x) the duration grows with the number of doublings, up to a cap; below
+// it, and for any tween the caller marks `fixedDuration`, the requested duration stands.
+const ZOOM_DURATION_MIN_RATIO = 3;
+const ZOOM_DURATION_PER_DOUBLING = 0.6; // extra share of the requested duration per doubling beyond the minimum
+const ZOOM_DURATION_MAX_MS = 1200;
+
+function zoomAwareDurationMs(baseMs, zoomRatio) {
+  if (!(zoomRatio > ZOOM_DURATION_MIN_RATIO)) return baseMs;
+  const extraDoublings = Math.log2(zoomRatio) - Math.log2(ZOOM_DURATION_MIN_RATIO);
+  return Math.min(Math.max(baseMs, ZOOM_DURATION_MAX_MS), baseMs * (1 + ZOOM_DURATION_PER_DOUBLING * extraDoublings));
+}
+
 function animateViewportTo(targetViewport, durationMs, onComplete, options = {}) {
-  const safeDuration = Math.max(MIN_VIEWPORT_ANIMATION_MS, Number(durationMs) || DEFAULT_VIEWPORT_ANIMATION_MS);
+  let safeDuration = Math.max(MIN_VIEWPORT_ANIMATION_MS, Number(durationMs) || DEFAULT_VIEWPORT_ANIMATION_MS);
   const cinematic = Boolean(options.cinematic);
   if (!cinematic && viewportAnimationAlreadyHeadedTo(targetViewport)) return;
   stopViewportAnimation();
@@ -2775,6 +2789,13 @@ function animateViewportTo(targetViewport, durationMs, onComplete, options = {})
     tx: state.viewport.tx,
     ty: state.viewport.ty,
   };
+  // Not while a browse-origin slide is running: its callers pass a duration chosen so the tween and the
+  // slide land on the same frame (see nearbyRevealOpacity), and stretching one would pull them apart.
+  if (!cinematic && !options.fixedDuration && !state.nearbyOriginTransition
+    && from.scale > 0 && targetViewport.scale > 0) {
+    const zoomRatio = Math.max(from.scale / targetViewport.scale, targetViewport.scale / from.scale);
+    safeDuration = zoomAwareDurationMs(safeDuration, zoomRatio);
+  }
 
   // A normal viewport tween interpolates the transform components directly. That is right for
   // small refits, but it makes a High Beach -> GPS handoff feel like a hard yank when both the

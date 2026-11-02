@@ -543,6 +543,7 @@ globalThis.__forestFindsTest = {
   settleClusterJoinAnimations,
   zoomAlongTween,
   viewportAlongTween,
+  zoomAwareDurationMs,
   drawLandmarkIcon,
   CLUSTER_JOIN_ANIMATION_MS,
   CLUSTER_JOIN_COOLDOWN_MS,
@@ -1037,6 +1038,15 @@ test("a zoom keeps the point under the camera focus still, so the view does not 
   }
   const mid = app.viewportAlongTween(from, to, 0.5);
   assert.ok(Math.abs(mid.scale - 200) < 1e-6, "halfway through a 4x zoom is a 2x view, not 2.5x");
+});
+
+test("a big zoom is given more time than a small one, up to a cap", () => {
+  assert.equal(app.zoomAwareDurationMs(500, 1.2), 500, "a small zoom keeps the requested duration");
+  assert.equal(app.zoomAwareDurationMs(500, 3), 500, "so does a zoom of exactly the minimum ratio");
+  const sixX = app.zoomAwareDurationMs(500, 6.7);
+  assert.ok(sixX > 700 && sixX < 1000, `a 6.7x zoom should take noticeably longer, got ${sixX}`);
+  assert.ok(app.zoomAwareDurationMs(500, 12) > sixX, "and a bigger zoom takes longer still");
+  assert.equal(app.zoomAwareDurationMs(500, 100000), 1200, "capped so a huge zoom does not drag");
 });
 
 test("a zoom with a pan still lands exactly on both ends", () => {
@@ -3395,11 +3405,13 @@ test("heading-up viewport alignment preserves animation target when rotation sta
 
   app.animateToHeadingUpNavigationViewport(500);
   const target = { ...app.state.viewportAnimationTo };
+  // The duration the tween was actually given (a big zoom is given more time than requested).
+  const duration = app.state.viewportAnimationDuration;
 
   const changed = app.alignHeadingUpNavigationViewport();
 
   assert.ok(app.state.headingUpEntryAnim, "heading-up rotation should animate in");
-  assert.equal(app.state.viewportAnimationDuration, 500);
+  assert.equal(app.state.viewportAnimationDuration, duration, "the tween in flight is left as it was");
   assert.equal(app.state.viewportAnimationTo.scale, target.scale);
   assert.equal(app.state.viewportAnimationTo.tx, target.tx);
   assert.equal(app.state.viewportAnimationTo.ty, target.ty);

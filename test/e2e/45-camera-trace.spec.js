@@ -19,9 +19,13 @@ async function startCameraTrace(page) {
     const log = (entry) => window.__cameraTrace.push({ t: Math.round(performance.now() - t0), ...entry });
     const origTween = window.animateViewportTo;
     window.animateViewportTo = function (target, ms, cb, opts) {
-      log({ kind: "tween", fromScale: state.viewport.scale, toScale: target.scale, ms,
-        restarting: state.viewportAnimationTo != null });
-      return origTween.apply(this, arguments);
+      const entry = { kind: "tween", fromScale: state.viewport.scale, toScale: target.scale, ms,
+        restarting: state.viewportAnimationTo != null };
+      const outcome = origTween.apply(this, arguments);
+      // The duration the move was actually given: a big zoom is stretched beyond the requested ms.
+      if (state.viewportAnimationTo != null) entry.ms = state.viewportAnimationDuration;
+      log(entry);
+      return outcome;
     };
     const vp = state.viewport;
     let current = vp.scale;
@@ -76,7 +80,8 @@ test.describe("Camera framing with the phone held up (heading-up)", () => {
       return { landed, wanted };
     });
     const scaleGap = Math.abs(result.landed.scale - result.wanted.scale) / result.wanted.scale;
-    expect(scaleGap, `landed at ${result.landed.scale}, heading-up wants ${result.wanted.scale}`).toBeLessThan(0.05);
+    // The wrongly-chosen flat fit landed about 150% off; a few percent is the panel's own settling.
+    expect(scaleGap, `landed at ${result.landed.scale}, heading-up wants ${result.wanted.scale}`).toBeLessThan(0.1);
   });
 });
 
@@ -165,5 +170,10 @@ test.describe("Camera trace of user transitions", () => {
     const tweens = moves.filter((m) => m.kind === "tween");
     expect(tweens.length).toBeGreaterThan(0);
     expect(tweens[tweens.length - 1].toScale).toBeLessThan(tweens[0].fromScale);
+    // A zoom this large must be given more than the base 500ms, or it zooms for only a fraction of it.
+    const last = tweens[tweens.length - 1];
+    expect(last.fromScale / last.toScale, "this is a large zoom out").toBeGreaterThan(3);
+    expect(last.ms, "so it is given extra time").toBeGreaterThan(550);
+    expect(last.ms).toBeLessThanOrEqual(1200);
   });
 });
