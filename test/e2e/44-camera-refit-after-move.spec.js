@@ -87,11 +87,11 @@ test.describe("Camera after a quick change of screen", () => {
     // selection state. Otherwise the renderer hides the Nearby pins and ring and the map blanks.
     const duringMove = await page.evaluate(() => {
       navigateInApp("/nearby?radius=30&show=trees#tree=r10867");
-      return { selected: state.selected?.type, holding: state.selectionMapTransitionActive };
+      return { selected: state.selected?.type, holding: state.selectionTransition.mapHeld };
     });
     expect(duringMove).toEqual({ selected: "tree", holding: true });
 
     await waitForUiToSettle(page);
-    await expect.poll(() => page.evaluate(() => state.selectionMapTransitionActive)).toBe(false);
+    await expect.poll(() => page.evaluate(() => state.selectionTransition.mapHeld)).toBe(false);
   });
 });

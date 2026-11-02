@@ -1423,7 +1423,7 @@ function onInspectorHeightTransitionEnd(callback, timeoutMs = INSPECTOR_MINIMIZE
 // Waits on any pending inspector transition, the camera tween and the origin slide.
 function holdSelectionMapUntilCameraSettles() {
   const transitionToken = {};
-  state.selectionMapTransitionActive = true;
+  state.selectionTransition.mapHeld = true;
   state.selectionMapTransitionToken = transitionToken;
   const settleMapTransition = () => {
     if (state.selectionMapTransitionToken !== transitionToken) return;
@@ -1433,13 +1433,13 @@ function holdSelectionMapUntilCameraSettles() {
     const origin = state.cameraOriginTransition;
     const originSliding = Boolean(origin) && performance.now() - origin.startedAt < origin.durationMs;
     if (origin && !originSliding) state.cameraOriginTransition = null;
-    if (state.selectionViewportTransitionPending
+    if (state.selectionTransition.viewportPending
         || state.viewportAnimationTo != null
         || originSliding) {
       requestAnimationFrame(settleMapTransition);
       return;
     }
-    state.selectionMapTransitionActive = false;
+    state.selectionTransition.mapHeld = false;
     state.selectionMapTransitionToken = null;
     state.selectionMapTransitionIconLookup = null;
     state.selectionMapTransitionOriginPoint = null;
@@ -1453,7 +1453,7 @@ function zoomToSelection() {
   state.inspectorMinimizeTransitionPending = false;
   holdSelectionMapUntilCameraSettles();
   const doZoom = () => {
-    state.selectionViewportTransitionPending = false;
+    state.selectionTransition.viewportPending = false;
     if (typeof animateToHeadingUpNavigationViewport === "function" && selectedNavigationHeadingUpActive()) {
       animateToHeadingUpNavigationViewport(500);
     } else {
@@ -1475,7 +1475,7 @@ function zoomToSelection() {
     doZoom();
     return;
   }
-  state.selectionViewportTransitionPending = true;
+  state.selectionTransition.viewportPending = true;
   // The helper follows the inspector's current CSS. This remains correct if a height transition
   // is restored later, while fixed-height panels proceed on the next layout frame.
   onInspectorHeightTransitionEnd(doZoom);

@@ -17,8 +17,8 @@ async function startCameraTrace(page) {
     window.__cameraTrace = [];
     const t0 = performance.now();
     const log = (entry) => window.__cameraTrace.push({ t: Math.round(performance.now() - t0), ...entry });
-    const origTween = window.animateViewportTo;
-    window.animateViewportTo = function (target, ms, cb, opts) {
+    const origTween = window.moveCamera;
+    window.moveCamera = function (target, ms, cb, opts) {
       const entry = { kind: "tween", fromScale: state.viewport.scale, toScale: target.scale, ms,
         restarting: state.viewportAnimationTo != null };
       const outcome = origTween.apply(this, arguments);

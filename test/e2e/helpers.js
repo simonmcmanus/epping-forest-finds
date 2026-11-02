@@ -273,7 +273,7 @@ async function waitForStableBoundingBox(locator, { timeout = 2000, interval = 50
 }
 
 /**
- * Wait until no viewport slide is in flight. animateViewportTo() (js/app.js) keeps
+ * Wait until no viewport slide is in flight. moveCamera() (js/app.js) keeps
  * state.viewportAnimationFrame set for the length of a slide and clears it on landing, so
  * this is the real end of a pan or zoom rather than a guessed-at number of milliseconds.
  */
