@@ -2766,6 +2766,9 @@ function animateViewportTo(targetViewport, durationMs, onComplete, options = {})
   const cinematic = Boolean(options.cinematic);
   if (!cinematic && viewportAnimationAlreadyHeadedTo(targetViewport)) return;
   stopViewportAnimation();
+  // A real camera tween owns the zoom from here, so a browse-origin slide must not keep easing back
+  // towards the zoom it started from once this tween has landed.
+  if (state.nearbyOriginTransition) state.nearbyOriginTransition.fromScale = null;
 
   const from = {
     scale: state.viewport.scale,
@@ -6355,6 +6358,11 @@ function startNearbyOriginTransition(fromPoint) {
     // can tell entering/leaving a browsed spot (where the 3D pivot moves) from hopping
     // between two browsed spots (where it does not).
     fromBrowsing: Boolean(state.nearbyAnchor),
+    // The zoom the slide starts from. The slide moves the map under a still ring, so a move that also
+    // needs a different zoom (Back from a zoomed-in place to the browse view) would otherwise get its
+    // new scale in one step on the first frame. alignHeadingUpNavigationViewport eases from this to the
+    // final scale across the slide. Cleared if a real camera tween takes over (animateViewportTo).
+    fromScale: state.viewport.scale,
     startedAt: performance.now(),
     durationMs: NEARBY_ORIGIN_TRANSITION_MS,
   };
@@ -7711,7 +7719,15 @@ function alignHeadingUpNavigationViewport(options = {}) {
   // Use maxScale directly: heading-up mode always fits all targets in the
   // rotated focus rect. Math.min would leave scale too low when the map
   // was previously at a wider zoom (e.g. walking-radius level on first load).
-  const targetScale = resolveHeadingUpTargetScale(maxScale, previousScale, Boolean(options.force));
+  let targetScale = resolveHeadingUpTargetScale(maxScale, previousScale, Boolean(options.force));
+  // A browse-origin slide that started from a different zoom carries the zoom change with it, on the
+  // slide's own curve, so the map zooms and pans as one move instead of snapping to the final scale and
+  // then sliding. Un-animated per-frame calls only: an animated call already hands the whole move to a tween.
+  const slideProgress = options.animate ? null : nearbyOriginTransitionEasedProgress();
+  const slideFromScale = state.nearbyOriginTransition ? state.nearbyOriginTransition.fromScale : null;
+  if (slideProgress != null && slideFromScale > 0 && targetScale > 0) {
+    targetScale = zoomAlongTween(slideFromScale, targetScale, slideProgress);
+  }
   // The scale above is fit against the instantaneous anchor (focus.y) so it always keeps the
   // destination on screen; the camera's own vertical placement is damped separately (see
   // dampedHeadingUpFocusY) so simply rotating on the spot does not bob the user's own marker.

@@ -80,6 +80,46 @@ test.describe("Camera framing with the phone held up (heading-up)", () => {
   });
 });
 
+test.describe("Back from a zoomed-in place to a browse view", () => {
+  test("the zoom out is eased across the slide, not applied in one step", async ({ page }) => {
+    await setup(page, "/nearby");
+    await page.evaluate(() => navigateInApp("/nearby/pubs/#near=51.655204,0.065731&label=Onest"));
+    await page.waitForFunction(() => state.nearbyAnchor != null);
+    await waitForUiToSettle(page);
+    await page.evaluate(() => navigateInApp("/find/the-plume-of-feathers/"));
+    await page.waitForFunction(() => state.selected?.type === "landmark");
+    await waitForUiToSettle(page);
+
+    // Press the real browser Back. Inside the app's own browse-point move, the slide's clock is moved by
+    // hand and the zoom is read, all in one task, so the result does not depend on how many frames a
+    // loaded runner manages to draw.
+    await page.evaluate(() => {
+      const original = window.setNearbyAnchor;
+      window.setNearbyAnchor = function (...args) {
+        const zoomedIn = state.viewport.scale;
+        const outcome = original.apply(this, args);
+        const slide = state.nearbyOriginTransition;
+        const at = (fraction) => {
+          slide.startedAt = performance.now() - fraction * slide.durationMs;
+          prepareCanvasForDraw();
+          return state.viewport.scale;
+        };
+        window.__backZoom = { zoomedIn, start: at(0.001), middle: at(0.5), landed: at(1.5) };
+        slide.startedAt = performance.now();
+        return outcome;
+      };
+    });
+    await page.goBack();
+    await page.waitForFunction(() => window.__backZoom != null);
+    const result = await page.evaluate(() => window.__backZoom);
+    // On the first frame it is still where it was; by the end it has zoomed out; in between it is partway.
+    expect(Math.abs(result.start - result.zoomedIn) / result.zoomedIn, "no jump on the first frame").toBeLessThan(0.02);
+    expect(result.landed, "it ends zoomed out").toBeLessThan(result.zoomedIn * 0.9);
+    expect(result.middle, "and is part-way through the slide").toBeLessThan(result.start * 0.98);
+    expect(result.middle).toBeGreaterThan(result.landed * 1.02);
+  });
+});
+
 test.describe("Camera trace of user transitions", () => {
   test("opening a place from Nearby is one zoom, with no un-animated jumps", async ({ page }) => {
     await setup(page, "/nearby");
