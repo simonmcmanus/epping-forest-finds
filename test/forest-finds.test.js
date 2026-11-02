@@ -3396,6 +3396,24 @@ test("heading-up viewport alignment defers when camera transition is pending", (
   assert.equal(app.state.viewport.ty, 456);
 });
 
+test("a GPS fix or compass tick while Search is open leaves the camera where it was, even before anything is typed", () => {
+  resetData(app);
+  app.state.dataLoaded = true;
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.trees.push({ id: "t1", commonName: "Oak", ...makePoint(app, 0.0005, 0) });
+  app.state.selected = null;
+  app.state.searchScreenOpen = true;
+  app.state.searchHighlightResults = [];
+  // Zoomed far in, as it is just after opening Search from a place.
+  app.state.viewport = { scale: 123456, tx: 11, ty: 22 };
+
+  // What every GPS fix and compass tick does while nothing is animating.
+  app.alignHeadingUpNavigationViewport({ animate: false });
+
+  assert.deepEqual({ ...app.state.viewport }, { scale: 123456, tx: 11, ty: 22 },
+    "Search never frames the map, so a tick must not pull the camera out to the Nearby ring");
+});
+
 test("heading-up viewport alignment preserves animation target when rotation starts", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);

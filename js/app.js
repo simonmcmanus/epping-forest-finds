@@ -7687,13 +7687,13 @@ function alignHeadingUpNavigationViewport(options = {}) {
   // whenever nothing is selected, which nearbyNavigationAnchorActive() makes true throughout
   // Search too -- and via ensureOverviewTargetsVisible, which every one of this function's other
   // callers (compass ticks, filter changes, GPS fixes) ultimately routes through under the same
-  // "no selection" condition. Search frames its own highlighted matches instead
-  // (updateSearchHighlight), so applying the ring's framing here,
-  // unconditionally and without animation, was silently snapping a still-open search back to the
-  // ring on the next GPS fix or compass tick, sometimes long after the search fit had settled.
-  // Leaving the camera alone here means it simply stays on the search fit until the query next
-  // changes, rather than fighting it.
-  if (state.searchScreenOpen && state.searchHighlightResults.length) return false;
+  // "no selection" condition. Search never moves the camera (updateSearchHighlight only highlights;
+  // matches off the map are marked "Off the map"), so applying the ring's framing here, unconditionally
+  // and without animation, snapped an open Search back out to the Nearby ring on the next GPS fix or
+  // compass tick. That held only once there were results to frame, so it still happened between opening
+  // Search and typing, and after clearing a query. The camera stays wherever it was for as long as
+  // Search is open; leaving Search runs its own refit (goToInitialView) after the screen is closed.
+  if (state.searchScreenOpen) return false;
   clearHeadingUpCanvasTransform();
   const previousScale = state.viewport.scale;
   const previousTx = state.viewport.tx;
