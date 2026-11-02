@@ -432,6 +432,10 @@ let _overlapRectCache = undefined;
 // points with _overlapRectCache — the camera distance is derived from the same visible
 // rect, so anything that invalidates one invalidates the other.
 let _tiltProjectionCache = undefined;
+// See flatProjectionFrame. Declared up here, not beside it: boot() runs before the script reaches the
+// bottom of this file, and a `let` that late would still be in its temporal dead zone.
+let _flatProjectionFrame = null;
+let _flatProjectionEpoch = 0;
 // Per-frame freeze of the interpolated browse origin -- see computeNearbyRenderOriginPoint().
 // Keyed on the anchor object it was computed for, so any reassignment of state.nearbyAnchor
 // invalidates it without the assigning code having to remember to (focusNearbyOnMapPoint's
@@ -7879,6 +7883,7 @@ function prepareCanvasForDraw() {
   _overlapRectCache = undefined;
   _tiltProjectionCache = undefined;
   _nearbyRenderOriginCache = undefined;
+  _flatProjectionEpoch++;
   clearHeadingUpCanvasTransform();
   // A browse-origin slide is driven from here rather than by animateViewportTo: the camera
   // is re-derived from the interpolated origin every frame (see nearbyRenderOriginPoint),
@@ -9951,12 +9956,59 @@ function tiltFarClipCssPx() {
 // frame.
 function worldToScreenFlat(point) {
   const raw = rawWorldToScreen(point);
-  const rotation = navigationMapRotationDegrees();
-  if (!rotation || !state.userLocation) return raw;
+  const frame = flatProjectionFrame();
+  if (!frame.rotating) return raw;
   // Rotates about the camera origin (cameraOriginPoint), the same point the viewport
   // transform anchors at the focus -- pivoting on the GPS fix instead would swing a browse
   // anchor's framing around the screen every time the compass moved.
-  return rotateScreenPoint(raw, rawWorldToScreen(cameraOriginPoint()), rotation);
+  const dx = raw.x - frame.pivot.x;
+  const dy = raw.y - frame.pivot.y;
+  return {
+    x: frame.pivot.x + dx * frame.cos - dy * frame.sin,
+    y: frame.pivot.y + dx * frame.sin + dy * frame.cos,
+  };
+}
+
+// The heading-up rotation and the point it pivots on, for the current frame. worldToScreenFlat runs
+// for every vertex of every road, path and polygon, and each call used to re-derive both (whether
+// heading-up is active, the rotation, the camera origin and its projection), none of which change
+// within a frame. In the tilted view that was a large share of the frame's cost. Reused only while
+// everything they are derived from is unchanged, and never past the frame they were made in, so a
+// fit or hit test that changes the viewport or selection between calls still gets fresh values.
+function flatProjectionFrame() {
+  const cached = _flatProjectionFrame;
+  const view = state.viewport;
+  if (cached
+    && cached.epoch === _flatProjectionEpoch
+    && cached.scale === view.scale && cached.tx === view.tx && cached.ty === view.ty
+    && cached.userLocation === state.userLocation
+    && cached.selected === state.selected
+    && cached.compassHeading === state.compassHeading
+    && cached.renderedHeading === state.renderedNavigationHeading
+    && cached.nearbyAnchor === state.nearbyAnchor
+    && cached.slide === state.nearbyOriginTransition
+    && cached.cameraSlide === state.cameraOriginTransition) {
+    return cached;
+  }
+  const rotation = navigationMapRotationDegrees();
+  const rotating = Boolean(rotation) && Boolean(state.userLocation);
+  const radians = rotating ? toRadians(rotation) : 0;
+  _flatProjectionFrame = {
+    epoch: _flatProjectionEpoch,
+    scale: view.scale, tx: view.tx, ty: view.ty,
+    userLocation: state.userLocation,
+    selected: state.selected,
+    compassHeading: state.compassHeading,
+    renderedHeading: state.renderedNavigationHeading,
+    nearbyAnchor: state.nearbyAnchor,
+    slide: state.nearbyOriginTransition,
+    cameraSlide: state.cameraOriginTransition,
+    rotating,
+    pivot: rotating ? rawWorldToScreen(cameraOriginPoint()) : null,
+    cos: Math.cos(radians),
+    sin: Math.sin(radians),
+  };
+  return _flatProjectionFrame;
 }
 
 // Screen position everything on the main canvas is drawn at, tilt included.

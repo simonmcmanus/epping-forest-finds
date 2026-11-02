@@ -544,6 +544,8 @@ globalThis.__forestFindsTest = {
   zoomAlongTween,
   viewportAlongTween,
   zoomAwareDurationMs,
+  rotateScreenPoint,
+  navigationMapRotationDegrees,
   drawLandmarkIcon,
   CLUSTER_JOIN_ANIMATION_MS,
   CLUSTER_JOIN_COOLDOWN_MS,
@@ -1038,6 +1040,51 @@ test("a zoom keeps the point under the camera focus still, so the view does not 
   }
   const mid = app.viewportAlongTween(from, to, 0.5);
   assert.ok(Math.abs(mid.scale - 200) < 1e-6, "halfway through a 4x zoom is a 2x view, not 2.5x");
+});
+
+test("the heading-up flat projection matches the plain formula, and follows every change that should move it", () => {
+  resetData(app);
+  app.state.dataLoaded = true;
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.trees.push({ id: "t1", commonName: "Oak", ...makePoint(app, 0.0004, 0.0002) });
+  app.state.compassHeading = 70;
+  app.state.renderedNavigationHeading = 70;
+  const points = [makePoint(app, 0.0003, 0.0001).point, makePoint(app, -0.0002, 0.0005).point, app.state.userLocation.point];
+
+  // The unhurried way, spelled out: raw transform, rotated about the camera origin.
+  const reference = (point) => {
+    const raw = app.rawWorldToScreen(point);
+    const rotation = app.navigationMapRotationDegrees();
+    if (!rotation || !app.state.userLocation) return raw;
+    return app.rotateScreenPoint(raw, app.rawWorldToScreen(app.cameraOriginPoint()), rotation);
+  };
+  const assertSame = (label) => {
+    for (const point of points) {
+      const got = app.worldToScreenFlat(point);
+      const want = reference(point);
+      assert.ok(Math.abs(got.x - want.x) < 1e-6 && Math.abs(got.y - want.y) < 1e-6,
+        `${label}: got ${got.x}, ${got.y} wanted ${want.x}, ${want.y}`);
+    }
+  };
+
+  app.state.viewport = { scale: 20000, tx: 120, ty: -340 };
+  app.prepareCanvasForDraw();
+  assertSame("heading-up");
+  assertSame("heading-up, asked again in the same frame");
+
+  // Each of these must be picked up even though no new frame has started.
+  app.state.viewport = { scale: 35000, tx: -80, ty: 410 };
+  assertSame("after the viewport moved");
+  app.state.renderedNavigationHeading = 200;
+  assertSame("after the heading changed");
+  app.state.compassHeading = null;
+  app.state.renderedNavigationHeading = null;
+  assertSame("with no heading, north-up");
+  app.state.compassHeading = 70;
+  app.state.renderedNavigationHeading = 70;
+  assertSame("heading back");
+  app.state.userLocation = null;
+  assertSame("with no location");
 });
 
 test("a big zoom is given more time than a small one, up to a cap", () => {
