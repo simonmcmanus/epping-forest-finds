@@ -281,9 +281,14 @@ test.describe("Feedback / Report screen — keyboard avoidance (VisualViewport)"
     expect(beforeBox.y - afterBox.y).toBeGreaterThan(insetPx - 20);
 
     await page.locator("#reportDetails").focus();
-    const visible = await visibleTextareaBand(page);
-    expect(visible.bottom, "the visible textarea must clear the keyboard").toBeLessThanOrEqual(844 - insetPx + 2);
-    expect(visible.height, "and enough of it must be left to type into").toBeGreaterThan(60);
+    // Focusing scrolls the textarea into view, so wait for the layout to land on the answer instead of
+    // reading it once, mid-scroll. A genuine failure still fails: the poll gives up after the timeout.
+    await expect.poll(async () => (await visibleTextareaBand(page)).bottom, {
+      message: "the visible textarea must clear the keyboard",
+    }).toBeLessThanOrEqual(844 - insetPx + 2);
+    await expect.poll(async () => (await visibleTextareaBand(page)).height, {
+      message: "and enough of it must be left to type into",
+    }).toBeGreaterThan(60);
 
     // Closing the keyboard clears the avoidance state
     await simulateKeyboardInset(page, 0);
@@ -323,9 +328,14 @@ test.describe("Feedback / Report screen — keyboard avoidance (VisualViewport)"
     // measuring the unclipped layout box instead reported the textarea 100px into the keyboard
     // while the pixels actually drawn ended a comfortable 11px above it.
     await page.locator("#reportDetails").focus();
-    const visible = await visibleTextareaBand(page);
-    expect(visible.bottom, "the visible textarea must clear the keyboard").toBeLessThanOrEqual(380 - insetPx + 2);
-    expect(visible.height, "and enough of it must be left to type into").toBeGreaterThan(60);
+    // Focusing scrolls the textarea into view, so wait for the layout to land on the answer instead of
+    // reading it once, mid-scroll. A genuine failure still fails: the poll gives up after the timeout.
+    await expect.poll(async () => (await visibleTextareaBand(page)).bottom, {
+      message: "the visible textarea must clear the keyboard",
+    }).toBeLessThanOrEqual(380 - insetPx + 2);
+    await expect.poll(async () => (await visibleTextareaBand(page)).height, {
+      message: "and enough of it must be left to type into",
+    }).toBeGreaterThan(60);
 
     await context.close();
   });
