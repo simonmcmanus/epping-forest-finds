@@ -1145,6 +1145,68 @@ Behavior:
 - `animateToHeadingUpNavigationViewport(durationMs)` is the single authoritative function for transitioning to heading-up view — it starts the viewport animation while heading interpolation is redrawn frame-by-frame on canvas.
 - `setInspectorMinimized(true)` no longer makes any direct viewport change; the caller (`zoomToSelection`, `goToInitialView`, etc.) is responsible for the camera transition after the inspector settles.
 
+### Camera writers inventory
+
+Every write to `state.viewport` (scale, `tx`, `ty`), grouped by how it moves the camera. This is the baseline the camera consolidation (one owner for camera moves) works from; a row changes only when its call site migrates. Line numbers are approximate.
+
+**Tween-driven (through `animateViewportTo`, `js/app.js`):**
+
+| Caller | Path | Notes |
+|---|---|---|
+| `applyBoundsToViewport` (`options.animate`) | `fitToPoints`, `fitToBounds`, and everything that fits through them | Optional `cinematic` flag; caller passes `durationMs` |
+| `alignHeadingUpNavigationViewport`, staged pan-then-zoom | two chained `animateViewportTo` calls | Used when a fit needs a pan before its zoom |
+| `alignHeadingUpNavigationViewport`, animated branch | single `animateViewportTo` via `animateToHeadingUpNavigationViewport` | Heading-up selection and entry |
+| `animateToHeadingUpNavigationViewport` | `animateViewportTo` | The authoritative heading-up transition |
+| `centerOverviewOnUserLocation` (`options.animate`) | `animateViewportTo` | Overview GPS follow |
+| `centerViewportOnPointsKeepScale` (`options.animate`) | `animateViewportTo` | Keep-scale recentre |
+| `refreshNearbyRadiusView` (`animate !== false`, default on) | `alignHeadingUpNavigationViewport` / `ensureOverviewTargetsVisible`; `stagePanThenZoom` runs a pan then a zoom | Nearby refit after a radius or cluster change |
+| `ensureUserAndSelectionVisible` (`animate: true`) | the selection fit | Window resize on a selected place uses `durationMs: 360` |
+| `boot()` first location fix (`cinematic: true`) | `ensureUserAndSelectionVisible` / `ensureOverviewTargetsVisible` with `animate` | The High Beach -> GPS fly-to |
+
+**Direct writes (no tween, applied in the same call):**
+
+| Writer | Function | Notes |
+|---|---|---|
+| `applyBoundsToViewport` (no `animate`) | `fitToPoints`, `fitToBounds` | Stops any running tween first |
+| `alignHeadingUpNavigationViewport`, un-animated branch | heading-up fit, plain nearby fit | Holds on secondary screens and during Search |
+| `centerOverviewOnUserLocation` (no `animate`) | GPS follow | |
+| `centerViewportOnPointsKeepScale` (no `animate`) | recentre | |
+| `ensureUserAndSelectionVisible` (no fix) | 1.2 km framing around the place | Written directly, about line 8092 |
+| `zoomAt` | wheel and pinch zoom | Keeps the point under the pointer fixed |
+| `setupMapCanvasHandlers` (`js/nav.js`) | drag pan | Writes `tx`/`ty` from drag start |
+| `revealMapCenteredOnUser` | boot reveal start frame | Writes the 0.82x frame before the reveal tween |
+| `animateViewportTo` internals | tween tick and its settle at progress 1 | The tween's own writes, owned by the tween |
+| `animateViewportTo` same-target shortcut | when `from` already equals the target | Writes the target and calls `onComplete` |
+
+**Per-frame derivation (outside any tween):**
+
+- `prepareCanvasForDraw` (`js/app.js`) re-derives the camera from the interpolated origin every frame while `state.nearbyOriginTransition` is alive (the browse-origin slide). It writes no `state.viewport` field itself; it calls the un-animated fit path, which reads `fromScale` for the zoom ease.
+
+**Flags and state that decide between these paths:**
+
+- `state.viewportAnimationFrame`, `viewportAnimationFrom`, `viewportAnimationTo`, `locationRevealAnimationActive`: tween bookkeeping.
+- `state.nearbyOriginTransition` (browse-origin slide, owns `fromScale` and `nearbyRenderOriginPoint`).
+- `state.cameraOriginTransition` (selection basis slide).
+- `state.selectionMapTransitionActive` (holds the Nearby map until a selection camera move lands, set in `js/inspector.js`).
+- `state.selectionViewportTransitionPending`, and `selectionCameraTransitionActive()` in `js/app.js`.
+- `deferAnimatedNearbyRefit` (queues an animated Nearby refit that arrives mid-tween) and `viewportAnimationAlreadyHeadedTo` (drops a repeat request for the same target).
+
+**Entry points and the path each takes today:**
+
+| Entry point | Path |
+|---|---|
+| `goToInitialView` | heading-up or flat fit; `force` clears the manual override |
+| `zoomToSelection` (`js/inspector.js`) | heading-up tween or flat user-and-place fit, behind `holdSelectionMapUntilCameraSettles` |
+| `showRoutedSelection` | same as `zoomToSelection`; forces the inspector open first |
+| `setNearbyAnchor`, `restoreNearbyAnchorFromHistory`, `applyNearbyAnchorFromRoute` | browse-origin slide plus a fit; `setNearbyAnchor` clears the out-of-radius reveal |
+| `focusNearbyOnClusterGroup` | `refreshNearbyRadiusView({ animate, durationMs: NEARBY_ORIGIN_TRANSITION_MS, stagePanThenZoom: true })` |
+| `setOverviewFilters` | nearby refit; out-of-radius reveal for newly added filters |
+| `refreshNearbyRadiusView` | nearby refit, animated unless `animate: false` |
+| `keepOverviewCenteredOnUser` | GPS-driven overview follow; skips the off-screen check while a tween runs |
+| GPS and compass ticks | `alignHeadingUpNavigationViewport` with no options (un-animated), held on secondary screens and during Search |
+| window resize (`js/nav.js`) | heading-up: `alignHeadingUpNavigationViewport()`; selected place: `ensureUserAndSelectionVisible({ animate: true, durationMs: 360 })`; overview or secondary screen: `ensureOverviewTargetsVisible({ animate: false })`; otherwise `fitToBounds(false)` |
+| `visualViewport` resize (`js/nav.js`) | `handleReportViewportChange` |
+
 ---
 
 ## Zoom & Input
