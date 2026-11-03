@@ -48,6 +48,14 @@
       "source": "https://www.loughton-tc.gov.uk/_UserFiles/Files/_Agendas/183704-E_and_H_Agenda_18.9.24.pdf",
       "verifiedOn": "2026-10-31",
       "reason": "Council identifies this as a physical plaque; retain its subtype when refreshing the broad OSM memorial category."
+    },
+    "way/717846043": {
+      "properties": {
+        "address": "119 Church Hill, Loughton, Essex, IG10 1QR"
+      },
+      "source": "https://www.hygienescore.co.uk/business/sainsburys-store-ig10-1qr",
+      "verifiedOn": "2026-11-03",
+      "reason": "Food hygiene register lists this Sainsbury's Local at 119 Church Hill; the OSM node has no address. Also the only record for this store once the hand-added duplicate was merged into it."
     }
   }
 }

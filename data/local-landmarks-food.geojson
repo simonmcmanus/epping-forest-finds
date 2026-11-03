@@ -18267,7 +18267,7 @@
         "heritage": null,
         "website": "https://stores.sainsburys.co.uk/6490/loughton-church-hill-local",
         "phone": "+44 330 013 7794",
-        "address": null,
+        "address": "119 Church Hill, Loughton, Essex, IG10 1QR",
         "distanceToForestBoundaryMetres": 403.6,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
@@ -37877,74 +37877,6 @@
         "address": "123 Belgrave Road, Ilford, IG1 3LG",
         "openingHours": null,
         "distanceToForestBoundaryMetres": 259.6,
-        "distanceLimitFromForestBoundaryMetres": 466.7
-      }
-    },
-    {
-      "type": "Feature",
-      "id": "manual/sainsbury-s",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          0.0095726,
-          51.5682114
-        ]
-      },
-      "properties": {
-        "id": "manual/sainsbury-s",
-        "osmType": "manual",
-        "osmId": null,
-        "name": "Sainsbury's",
-        "category": "supermarket",
-        "categoryLabel": "Supermarket",
-        "amenity": null,
-        "shop": "supermarket",
-        "highway": null,
-        "tourism": null,
-        "historic": null,
-        "railway": null,
-        "barrier": null,
-        "entrance": null,
-        "heritage": null,
-        "website": null,
-        "phone": null,
-        "address": "Ground Floor Sainsburys Supermarkets Ltd 14 - 15 Church Lane, Leytonstone, London, E11 1HG",
-        "openingHours": null,
-        "distanceToForestBoundaryMetres": 443.0,
-        "distanceLimitFromForestBoundaryMetres": 466.7
-      }
-    },
-    {
-      "type": "Feature",
-      "id": "manual/sainsburys-loughton-church-hill-local",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          0.0662625,
-          51.6549504
-        ]
-      },
-      "properties": {
-        "id": "manual/sainsburys-loughton-church-hill-local",
-        "osmType": "manual",
-        "osmId": null,
-        "name": "Sainsburys Loughton Church Hill Local",
-        "category": "supermarket",
-        "categoryLabel": "Supermarket",
-        "amenity": null,
-        "shop": "supermarket",
-        "highway": null,
-        "tourism": null,
-        "historic": null,
-        "railway": null,
-        "barrier": null,
-        "entrance": null,
-        "heritage": null,
-        "website": null,
-        "phone": null,
-        "address": "Sainsburys Store, 119 Church Hill, Loughton, Essex, IG10 1QR",
-        "openingHours": null,
-        "distanceToForestBoundaryMetres": 204.2,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },

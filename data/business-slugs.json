@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-31",
+  "generatedAt": "2026-11-03",
   "entries": [
     {
       "slug": "042",
@@ -16514,22 +16514,6 @@
       "id": "way/105608385"
     },
     {
-      "slug": "sainsbury-s-e11",
-      "key": "shops",
-      "groupKey": "food",
-      "name": "Sainsbury's",
-      "address": "Ground Floor Sainsburys Supermarkets Ltd 14 - 15 Church Lane, Leytonstone, London, E11 1HG",
-      "phone": null,
-      "website": null,
-      "lat": 51.5682114,
-      "lon": 0.0095726,
-      "distanceToForestBoundaryMetres": 443,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/sainsbury-s"
-    },
-    {
       "slug": "sainsbury-s-e18",
       "key": "shops",
       "groupKey": "food",
@@ -16562,22 +16546,6 @@
       "id": "way/23061412"
     },
     {
-      "slug": "sainsbury-s-local-846043",
-      "key": "shops",
-      "groupKey": "food",
-      "name": "Sainsbury's Local",
-      "address": null,
-      "phone": "+44 330 013 7794",
-      "website": "https://stores.sainsburys.co.uk/6490/loughton-church-hill-local",
-      "lat": 51.6549179,
-      "lon": 0.0662854,
-      "distanceToForestBoundaryMetres": 403.6,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": "2026-10-31",
-      "id": "way/717846043"
-    },
-    {
       "slug": "sainsbury-s-local-e11",
       "key": "shops",
       "groupKey": "food",
@@ -16594,20 +16562,20 @@
       "id": "node/2299920898"
     },
     {
-      "slug": "sainsburys-loughton-church-hill-local",
+      "slug": "sainsbury-s-local-ig10",
       "key": "shops",
       "groupKey": "food",
-      "name": "Sainsburys Loughton Church Hill Local",
-      "address": "Sainsburys Store, 119 Church Hill, Loughton, Essex, IG10 1QR",
-      "phone": null,
-      "website": null,
-      "lat": 51.6549504,
-      "lon": 0.0662625,
-      "distanceToForestBoundaryMetres": 204.2,
+      "name": "Sainsbury's Local",
+      "address": "119 Church Hill, Loughton, Essex, IG10 1QR",
+      "phone": "+44 330 013 7794",
+      "website": "https://stores.sainsburys.co.uk/6490/loughton-church-hill-local",
+      "lat": 51.6549179,
+      "lon": 0.0662854,
+      "distanceToForestBoundaryMetres": 403.6,
       "openingHours": null,
       "summary": null,
-      "verifiedAt": null,
-      "id": "manual/sainsburys-loughton-church-hill-local"
+      "verifiedAt": "2026-10-31",
+      "id": "way/717846043"
     },
     {
       "slug": "saint-andrew",
