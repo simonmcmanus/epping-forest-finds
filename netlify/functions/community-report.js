@@ -3,8 +3,11 @@
 const { openStore, MINE_LOG_MAX } = require("./lib/community-store");
 const { validateReport } = require("./lib/community-consensus");
 const { checkRateLimit, configuredCommunityLimits, clientIp } = require("./lib/report-rate-limit");
+const { parsePhoto, savePhoto } = require("./lib/report-photo");
 
-const MAX_BODY_BYTES = 8 * 1024;
+// Large enough for one tag photo (base64 of REPORT_PHOTO_MAX_BYTES plus its JSON wrapper); a report
+// without a photo is a few hundred bytes.
+const MAX_BODY_BYTES = 5 * 1024 * 1024;
 const MAX_REPORTS_PER_DEVICE_PER_DAY = 200;
 
 function respond(statusCode, body) {
@@ -45,6 +48,8 @@ exports.handler = async (event) => {
   };
   const problem = validateReport(report);
   if (problem) return respond(400, { error: problem });
+  let photo;
+  try { photo = parsePhoto(input.photo); } catch (error) { return respond(400, { error: error.message }); }
 
   const store = storeOverride || openStore(event);
   const key = `reports/${report.id}`;
@@ -65,6 +70,12 @@ exports.handler = async (event) => {
   const dayKey = `devices/${report.deviceId}-${new Date().toISOString().slice(0, 10)}`;
   const day = (await store.get(dayKey)) || { n: 0 };
   if (day.n >= MAX_REPORTS_PER_DEVICE_PER_DAY) return respond(429, { error: "Too many reports today" });
+  // The photo of the tree tag is kept for the review. It is stored privately and never published: a tree
+  // report is not a public issue (spec/spec-community.md). Saved after the duplicate check, so a retry
+  // does not store a second copy; a storage failure is a 503, so the outbox sends the report again.
+  if (photo) {
+    try { report.photoId = await savePhoto(event, photo); } catch { return respond(503, { error: "Could not save the photo. Please try again." }); }
+  }
   await store.put(dayKey, { n: day.n + 1 });
   await store.put(key, report);
   // Per-device index so a contributor can read their own log back without scanning the ledger.

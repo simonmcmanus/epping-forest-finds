@@ -3939,6 +3939,11 @@ function getOrCreateReportRequestId() {
 // Sends a feedback/report payload; if the device is offline or the request cannot reach the
 // server, it is parked in the outbox (js/outbox.js) and re-sent automatically, so the user is
 // never asked to come back later. Resolves {queued:true} or {response, data}.
+// A send that has not answered within REPORT_SEND_TIMEOUT_MS is queued rather than awaited: on a weak
+// signal the browser can hold a request for a long time, and the user should not wait on it. The
+// server de-duplicates on requestId, so a request that does land late cannot file the report twice.
+const REPORT_SEND_TIMEOUT_MS = 8000;
+
 async function sendOrQueueReport(payload) {
   const url = "/.netlify/functions/report-missing-data";
   if (typeof communityDeviceId === "function") {
@@ -3950,16 +3955,20 @@ async function sendOrQueueReport(payload) {
     return { queued: true };
   };
   if (!navigator.onLine) return queue();
-  try {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    return { response, data: await response.json().catch(() => ({})) };
-  } catch {
-    return queue();
-  }
+  const TIMED_OUT = Symbol("timed-out");
+  let timeoutId;
+  const timeout = new Promise((resolve) => { timeoutId = setTimeout(() => resolve(TIMED_OUT), REPORT_SEND_TIMEOUT_MS); });
+  const send = fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  }).then(async (response) => ({ response, data: await response.json().catch(() => ({})) }), () => null);
+  const result = await Promise.race([send, timeout]);
+  clearTimeout(timeoutId);
+  if (result && result !== TIMED_OUT) return result;
+  // Failed or timed out: keep a copy in the outbox (same requestId, so the server files it once) and
+  // let the outbox send it again when the connection allows.
+  return queue();
 }
 
 const REPORT_QUEUED_MESSAGE = "Saved. It will be sent automatically when you're back online.";
@@ -3987,11 +3996,16 @@ async function submitReportForm() {
   // Claim the submission before awaiting photo processing: even an empty-photo async
   // preparation yields once, which otherwise lets two rapid submit events both proceed.
   state.reportSubmitting = true;
+  // Answer the tap at once: preparing a phone photo can take seconds, and a blank button reads as broken.
+  const submitButton = document.getElementById("reportSubmit");
+  if (submitButton) submitButton.disabled = true;
+  setReportStatus("Saving your report…");
   let photo;
   try {
     photo = await prepareReportPhoto(document.getElementById("reportPhoto")?.files?.[0]);
   } catch (error) {
     state.reportSubmitting = false;
+    if (submitButton) submitButton.disabled = false;
     setReportStatus(error.message || "Could not prepare that photo.", "error");
     return;
   }
@@ -4008,10 +4022,6 @@ async function submitReportForm() {
     requestId: getOrCreateReportRequestId(),
     photo,
   };
-
-  const submitButton = document.getElementById("reportSubmit");
-  if (submitButton) submitButton.disabled = true;
-  setReportStatus("Submitting report…");
 
   try {
     const { queued, response, data } = await sendOrQueueReport(payload);

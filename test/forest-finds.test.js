@@ -12279,6 +12279,39 @@ test("'My reports' keeps a device's latest 1,000 reports, dropping the oldest", 
   }
 });
 
+test("a tree report with a tag photo that is not a JPEG, PNG or WebP is refused and nothing is filed", async () => {
+  const reportEndpoint = require("../netlify/functions/community-report");
+  const store = memoryStore();
+  reportEndpoint.setStore(store);
+  try {
+    const result = await reportEndpoint.handler({
+      httpMethod: "POST",
+      headers: { "x-nf-client-connection-ip": "198.51.100.30" },
+      body: JSON.stringify({ id: "report-badphoto-0001", deviceId: "device-badphoto-1", kind: "tree", status: "NEW_TREE", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01, accuracy: 5, tagNumber: "11383", photo: { contentType: "image/gif", dataUrl: "data:image/gif;base64,R0lGOD" } }),
+    });
+    assert.equal(result.statusCode, 400);
+    assert.match(JSON.parse(result.body).error, /JPEG, PNG, or WebP/);
+    assert.ok(!(await store.get("reports/report-badphoto-0001")));
+  } finally {
+    reportEndpoint.setStore(null);
+  }
+});
+
+test("a tree report whose tag photo cannot be kept is refused so the outbox sends it again, rather than filed without the photo", async () => {
+  const reportEndpoint = require("../netlify/functions/community-report");
+  const store = memoryStore();
+  reportEndpoint.setStore(store);
+  try {
+    const body = { id: "report-photo-retry-1", deviceId: "device-photo-retry-1", kind: "tree", status: "NEW_TREE", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01, accuracy: 5, tagNumber: "11383", photo: { contentType: "image/jpeg", dataUrl: `data:image/jpeg;base64,${Buffer.from("jpegbytes").toString("base64")}` } };
+    // No Netlify blob context in a unit test, so the photo cannot be stored.
+    const result = await reportEndpoint.handler({ httpMethod: "POST", headers: { "x-nf-client-connection-ip": "198.51.100.31" }, body: JSON.stringify(body) });
+    assert.equal(result.statusCode, 503);
+    assert.ok(!(await store.get("reports/report-photo-retry-1")), "the report is not filed without its photo");
+  } finally {
+    reportEndpoint.setStore(null);
+  }
+});
+
 const communityDelete = require("../netlify/functions/lib/community-delete");
 
 async function deletionFixture() {
@@ -12324,6 +12357,25 @@ test("a failed read of any record a deletion depends on stops it, and nothing is
     const broken = { ...store, getStrict: async (key) => { if (key.startsWith(failing)) throw new Error("read failed"); return store.get(key); } };
     await assert.rejects(communityDelete.deleteCommunityData(broken, { deviceId: "phone-device-a1" }), /read failed/, failing);
   }
+});
+
+test("deleting a person's data also removes the tag photos their tree reports kept", async () => {
+  const store = await deletionFixture();
+  const report = await store.get("reports/report-tagphoto-1");
+  await store.put("reports/report-tagphoto-1", { ...(report || { deviceId: "phone-device-a1", kind: "tree", status: "NEW_TREE", id: "report-tagphoto-1" }), deviceId: "phone-device-a1", photoId: "photo-abc.jpg" });
+  const removed = [];
+  const summary = await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1", photos: { delete: async (id) => removed.push(id) } });
+  assert.deepEqual(removed, ["photo-abc.jpg"]);
+  assert.ok(!(await store.get("reports/report-tagphoto-1")), "the report goes with its photo");
+  assert.ok(summary.reports >= 1);
+});
+
+test("a tag photo that cannot be removed keeps its report, so the deletion can be sent again", async () => {
+  const store = await deletionFixture();
+  await store.put("reports/report-tagphoto-2", { id: "report-tagphoto-2", deviceId: "phone-device-a1", kind: "tree", status: "NEW_TREE", photoId: "photo-def.jpg" });
+  const photos = { delete: async () => { throw new Error("photo store down"); } };
+  await assert.rejects(communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1", photos }), /photo store down/);
+  assert.ok(await store.get("reports/report-tagphoto-2"), "nothing is confirmed deleted while the photo is still there");
 });
 
 test("a data deletion leaves no cached copy of the deleted person's reports", async () => {

@@ -27,7 +27,9 @@ const REDACTED_BODY = "_The reporter asked for this report to be removed._";
 const listAll = (store, prefix) => store.list(prefix);
 const strict = (store, key) => (store.getStrict ? store.getStrict(key) : store.get(key));
 
-async function deleteCommunityData(store, { deviceId, includeAccount = false, github = null, redactIssues = false } = {}) {
+// `photos` (optional) removes the tag photo a tree report kept: { delete(photoId) }. A failure throws, so the
+// report is kept and the request can be sent again, the same as any other storage failure here.
+async function deleteCommunityData(store, { deviceId, includeAccount = false, github = null, redactIssues = false, photos = null } = {}) {
   if (typeof deviceId !== "string" || !/^[A-Za-z0-9_-]{8,64}$/.test(deviceId)) throw new Error("a device id is required");
   const summary = { devices: 0, reports: 0, links: 0, refs: 0, rewards: 0, counters: 0, issues: { redacted: [], pending: [], failed: [] } };
 
@@ -54,7 +56,11 @@ async function deleteCommunityData(store, { deviceId, includeAccount = false, gi
   const reportKeys = await listAll(store, "reports/");
   const reports = await mapLimit(reportKeys, READ_CONCURRENCY, (key) => strict(store, key));
   for (const [i, key] of reportKeys.entries()) {
-    if (reports[i] && devices.has(reports[i].deviceId)) { await store.delete(key); summary.reports += 1; }
+    if (reports[i] && devices.has(reports[i].deviceId)) {
+      if (reports[i].photoId && photos) await photos.delete(reports[i].photoId);
+      await store.delete(key);
+      summary.reports += 1;
+    }
   }
 
   // 4. Per-device records, links and counters.

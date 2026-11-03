@@ -3,34 +3,7 @@ const { randomUUID, createHmac } = require("crypto");
 const { openStore, MINE_LOG_MAX } = require("./lib/community-store");
 const { checkRateLimit, clientIp } = require("./lib/report-rate-limit");
 const { connectLambda, getStore } = require("@netlify/blobs");
-const REPORT_PHOTO_MAX_BYTES = 3 * 1024 * 1024;
-const REPORT_PHOTO_STORE = "report-photos";
-
-function configureBlobContext(event) {
-  if (!event?.blobs) return false;
-  try {
-    const headers = Object.fromEntries(
-      Object.entries(event.headers || {}).map(([key, value]) => [key.toLowerCase(), value])
-    );
-    connectLambda({ ...event, headers });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function parsePhoto(photo) {
-  if (photo == null) return null;
-  if (!photo || typeof photo !== "object") throw new Error("Photo must be an image file");
-  const contentType = String(photo.contentType || "").toLowerCase();
-  const extensions = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
-  if (!extensions[contentType]) throw new Error("Please use a JPEG, PNG, or WebP photo");
-  const match = /^data:([^;,]+);base64,([a-z0-9+/=]+)$/i.exec(String(photo.dataUrl || ""));
-  if (!match || match[1].toLowerCase() !== contentType) throw new Error("Photo data is invalid");
-  const bytes = Buffer.from(match[2], "base64");
-  if (!bytes.length || bytes.length > REPORT_PHOTO_MAX_BYTES) throw new Error("Photo is too large");
-  return { contentType, extension: extensions[contentType], bytes };
-}
+const { REPORT_PHOTO_MAX_BYTES, REPORT_PHOTO_STORE, configureBlobContext, parsePhoto } = require("./lib/report-photo");
 
 function reportPhotoUrl(photoId, pageUrl) {
   // `URL` is the production site even during a deploy preview, while Blobs are scoped to

@@ -427,7 +427,7 @@ function communityDisplayScore(score, local, waitingIds) {
 }
 
 // Builds, saves locally (optimistic) and queues one report. Resolves the stored local record.
-async function communitySubmitReport({ kind = "tree", target, status, targetLat, targetLon, newLat, newLon, note, tagNumber, accuracy }) {
+async function communitySubmitReport({ kind = "tree", target, status, targetLat, targetLon, newLat, newLon, note, tagNumber, accuracy, photo }) {
   const here = typeof hasRealLocation === "function" && hasRealLocation() ? state.userLocation : null;
   const id = communityRandomId();
   const payload = {
@@ -445,6 +445,7 @@ async function communitySubmitReport({ kind = "tree", target, status, targetLat,
     note,
     tagNumber,
     accuracy,
+    ...(photo ? { photo } : {}),
   };
   const local = communityReadLocal();
   const key = target || `new:${tagNumber || `${payload.lat},${payload.lon}`}`;
@@ -1102,6 +1103,7 @@ function communityAddTreeFormHtml() {
       <label class="community-field"><span class="community-field-label">Anything else? <span class="community-optional">(optional)</span></span>
         <input id="communityTreeNote" class="report-textarea community-input" type="text" autocomplete="off" maxlength="120" placeholder="Species, size, what's nearby…">
       </label>
+      ${reportPhotoFieldHtml("communityTreePhoto").replace("Take a photo of the tree tag, or choose an existing picture.", "A photo of the tag helps us check the number. It is kept for the review and not published.")}
       <p id="communityAddTreeStatus" class="report-note community-status" aria-live="polite"></p>
       <div class="community-note-actions">
         <button class="community-link" type="button" data-action="community-add-cancel">Cancel</button>
@@ -1147,6 +1149,7 @@ function communityStartAddTree() {
   communityLocationTimer = setInterval(communityUpdateAddTreeState, 1500);
   const input = document.getElementById("communityTagInput");
   if (input) input.addEventListener("input", communityUpdateAddTreeState);
+  bindReportPhotoInput(document.getElementById("communityTreePhoto"));
   const form = document.getElementById("communityAddTreeForm");
   if (form) form.addEventListener("submit", (event) => { event.preventDefault(); communitySubmitNewTree(); });
 }
@@ -1162,6 +1165,12 @@ async function communitySubmitNewTree() {
   const note = ((document.getElementById("communityTreeNote") || {}).value || "").trim();
   const fix = communityCurrentFix();
   if (!tag) return say("Please enter the tree's tag number.");
+  let photo = null;
+  try {
+    photo = await prepareReportPhoto(document.getElementById("communityTreePhoto")?.files?.[0]);
+  } catch (error) {
+    return say(error.message || "Could not prepare that photo.");
+  }
   if (normalizeTreeNumber(tag) === "0" || !normalizeTreeNumber(tag)) return say("That isn't a usable tag number. Look for the number printed on the tag.");
   if (!fix.ok) return say("We need a close, accurate location. Stand next to the tree and wait for a better GPS fix.");
   const known = (state.trees || []).find((tree) => tree.tagNumber != null && normalizeTreeNumber(tree.tagNumber) === normalizeTreeNumber(tag));
@@ -1170,7 +1179,7 @@ async function communitySubmitNewTree() {
   }
   const lat = Number(state.userLocation.latitude.toFixed(6));
   const lon = Number(state.userLocation.longitude.toFixed(6));
-  await communitySubmitReport({ kind: "tree", status: "NEW_TREE", target: undefined, targetLat: lat, targetLon: lon, tagNumber: tag, accuracy: Math.round(fix.accuracy), note });
+  await communitySubmitReport({ kind: "tree", status: "NEW_TREE", target: undefined, targetLat: lat, targetLon: lon, tagNumber: tag, accuracy: Math.round(fix.accuracy), note, photo });
   clearInterval(communityLocationTimer);
   communityLocationTimer = null;
   const body = document.getElementById("communityAddBody");
