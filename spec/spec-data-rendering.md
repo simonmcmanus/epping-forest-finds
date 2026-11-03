@@ -512,7 +512,7 @@ invisible control.
 ### Browsing Another Spot
 
 Every screen that draws the walking-radius ring — the plain Nearby/overview screen *and*
-Filter/Settings/Report — supports previewing what's near a different point on the map without
+Filter/Report (Settings draws no ring, see spec.md) — supports previewing what's near a different point on the map without
 moving the real GPS fix:
 
 - **Tap-to-relocate:** tapping open ground anywhere on the map sets `state.nearbyAnchor` to that
@@ -569,7 +569,7 @@ moving the real GPS fix:
   from a selection is unaffected — that is the bullet above, a deliberate re-browse, not a
   selection.
 - **Pinch-to-resize the radius:** a two-finger pinch on the map canvas while any screen that
-  draws the ring is active (Nearby, or Filter/Settings/Report) scales `state.walkingDistanceMinutes` continuously (no fixed stops, and no rounding to a value grid — see "Walking-radius floor"
+  draws the ring is active (Nearby, or Filter/Report) scales `state.walkingDistanceMinutes` continuously (no fixed stops, and no rounding to a value grid — see "Walking-radius floor"
   above) — spreading fingers apart shrinks the radius (zoom in), pinching together grows it
   (zoom out), tracking the pinch distance ratio from where the gesture started. Each pointermove
   applies its raw value directly, so the ring tracks the gesture with no perceptible snap; only

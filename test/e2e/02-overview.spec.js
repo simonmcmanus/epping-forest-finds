@@ -519,8 +519,8 @@ test.describe("Overview / Nearby screen", () => {
     });
   });
 
-  // Filters, Settings and Report all keep drawing the walking-radius ring around the browse
-  // anchor behind them, so everything that removes or adjusts that ring has to work from them
+  // Filters and Report keep drawing the walking-radius ring around the browse anchor behind them
+  // (Settings hides it), so everything that removes or adjusts that ring has to work from them
   // too -- otherwise opening one of the three strands the user on a browsed spot with nothing
   // on screen offering to undo it.
   test.describe("Adjusting the browsed spot from Filters, Settings and Report", () => {
