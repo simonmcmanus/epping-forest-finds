@@ -2805,7 +2805,7 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 .tree-detail .detail-top-row > [data-live-field="distance"] { flex: 1 1 130px; }
 .tree-detail .detail-top-actions { gap: 8px; }
 .tree-detail .detail-map-link--icon { box-sizing: border-box; width: 36px; height: 36px; min-height: 36px; border-radius: 8px; border-color: var(--line); }
-.tree-detail .walk-chip { box-sizing: border-box; width: 100%; justify-content: center; gap: 5px; height: 36px; padding: 0 8px; border-radius: 8px; border-color: var(--line); background: var(--surface-soft); font-size: 0.88rem; font-weight: 650; }
+.tree-detail .walk-chip { box-sizing: border-box; width: 100%; justify-content: center; gap: 5px; height: 36px; padding: 0 8px; border-radius: 8px; font-size: 0.88rem; font-weight: 650; }
 /* Extend the compact controls’ hit areas without adding visible padding. */
 .tree-detail .detail-map-link--icon, .tree-detail .walk-chip { position: relative; }
 .tree-detail .detail-map-link--icon::after, .tree-detail .walk-chip::after { content: ""; position: absolute; inset: -4px; }
