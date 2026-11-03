@@ -92,9 +92,13 @@ test.describe("Overview / Nearby screen", () => {
       || window.matchMedia("(orientation: landscape) and (pointer: coarse) and (max-height: 500px)").matches);
     test.skip(!mobileSheet, "the inspector is a side panel on desktop");
 
-    const title = await page.locator(".inspector-title-section").boundingBox();
-    const firstBodyChild = await page.locator("#inspectorBody > :first-child").boundingBox();
-    expect(firstBodyChild.y - (title.y + title.height)).toBeGreaterThanOrEqual(13);
+    // The sheet lays out after it slides in, so poll for the gap rather than
+    // measuring once while the first body child may still be at the title's edge.
+    await expect.poll(async () => {
+      const title = await page.locator(".inspector-title-section").boundingBox();
+      const firstBodyChild = await page.locator("#inspectorBody > :first-child").boundingBox();
+      return title && firstBodyChild ? firstBodyChild.y - (title.y + title.height) : -1;
+    }).toBeGreaterThanOrEqual(13);
 
     const panel = page.locator("#inspector");
     const before = (await panel.boundingBox()).height;
