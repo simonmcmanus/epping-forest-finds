@@ -1434,6 +1434,8 @@ The full routing model — the URL for each screen, history entries, back/forwar
   landing, a shared `?show=` link) is `filterRailHtml()` (js/app.js), prepended by
   `overviewNearestHtml()` to every return path, empty states included. It replaces the old
   `/nearby/<slug>/` breadcrumb chips.
+  The pills sit vertically centred in the rail band: the rail pulls up over the body's top padding so
+  the space above and below the row is equal. The rail keeps the panel colour.
   - **Layout.** A sticky row of sideways-scrolling category pills. Pills are `button`s with `aria-pressed`; the row is a `nav` labelled
     "Filter nearby places".
   - **Which pills.** The plain `/nearby` screen shows one pill per top-level group (`Nature`,

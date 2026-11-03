@@ -249,8 +249,7 @@ Marker rules:
 - Minimized mode: collapsed header only.
 - The inspector is always expanded after a map-tap selection, on both desktop and mobile, so the detail panel opens immediately. This also applies to a selection made via a hash/deep link (`applySelectionFromHash`) — including a `hashchange` to a new linked location while the inspector was already minimized, which forces it back open. Selecting from the overview/nearby list or a search result leaves it open too.
 - Tapping the Nearby button always calls `goToInitialView()` (clears selection, refits camera) rather than `selectOverview()` alone. It is the one-tap way home; the header's back arrow steps back through the trail instead (see "URL hash / navigation state").
-- Re-tapping an already-active nav button (one with `screen-active` while the inspector is not minimized) plays a spring bounce animation (`.nav-reselect`) on the button instead of re-entering the screen. This gives tactile confirmation that the user is already on that screen.
-- Re-tapping the Nearby button while already on Nearby shakes the sheet sideways in place (`.sheet-shake`) rather than sliding it out and back in. If a browse anchor or Nearby query is set, the list is refreshed at the same time without the screen-entry slide, so the panel shows the reset list straight away.
+- Re-tapping an already-active nav button (one with `screen-active` while the inspector is not minimized) shakes the sheet sideways in place (`.sheet-shake`) instead of re-entering the screen. This applies to every tab (Nearby, Search, Filters, Community/Feedback, Settings). If a browse anchor or Nearby query is set, the Nearby list is refreshed at the same time without the screen-entry slide, so the panel shows the reset list straight away.
 
 ### URL / navigation state
 

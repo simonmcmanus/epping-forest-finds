@@ -1048,13 +1048,6 @@ function setupInspectorHandlers() {
   }
 }
 
-function pulseNavButton(el) {
-  el.classList.remove("nav-reselect");
-  void el.offsetWidth;
-  el.classList.add("nav-reselect");
-  el.addEventListener("animationend", () => el.classList.remove("nav-reselect"), { once: true });
-}
-
 function shakeInspectorSheet() {
   els.inspector.classList.remove("sheet-shake");
   void els.inspector.offsetWidth;
@@ -1065,7 +1058,7 @@ function shakeInspectorSheet() {
 function setupFilterPanelHandlers() {
   els.filterToggle.addEventListener("click", () => {
     if (els.filterToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
-      pulseNavButton(els.filterToggle);
+      shakeInspectorSheet();
       return;
     }
     if (els.inspector.classList.contains("minimized")) {
@@ -1100,7 +1093,7 @@ function setupFilterPanelHandlers() {
       // The tab is lit on its Feedback sub-page too, but tapping it there goes back up to Community.
       const here = communityEnabled() ? "community" : "report";
       if (state.selected?.type === here && !els.inspector.classList.contains("minimized")) {
-        pulseNavButton(els.reportToggle);
+        shakeInspectorSheet();
         return;
       }
       openCommunityOrFeedback();
@@ -1111,7 +1104,7 @@ function setupFilterPanelHandlers() {
     els.settingsToggle.addEventListener("click", (event) => {
       event.preventDefault();
       if (els.settingsToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
-        pulseNavButton(els.settingsToggle);
+        shakeInspectorSheet();
         return;
       }
       openSettings();
@@ -1179,7 +1172,7 @@ function setupSearchAndNavHandlers() {
     els.searchToggle.addEventListener("click", (event) => {
       event.preventDefault();
       if (els.searchToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
-        pulseNavButton(els.searchToggle);
+        shakeInspectorSheet();
         return;
       }
       openSearchScreen();

@@ -75,4 +75,19 @@ test.describe("Nearby re-tap", () => {
     await expect(listed(page).first()).toBeVisible();
     await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeVisible();
   });
+  test("re-tapping Search while on Search shakes the sheet in place without a slide", async ({ page }) => {
+    await setup(page, "/nearby");
+    await expect(nearbyButton(page)).toBeVisible();
+    await page.locator("#searchToggle").click();
+    await expect(page.locator("#searchToggle")).toHaveClass(/screen-active/);
+    await watchForPanelSlide(page);
+
+    await page.locator("#searchToggle").click();
+
+    await expect.poll(() => page.evaluate(() =>
+      document.getElementById("inspector").getAnimations().some((a) => a.animationName === "sheet-shake")
+    )).toBe(true);
+    expect(await page.evaluate(() => window.__slides)).toBe(0);
+    await expect(page.locator("#searchToggle")).toHaveClass(/screen-active/);
+  });
 });
