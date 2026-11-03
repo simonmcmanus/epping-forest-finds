@@ -99,8 +99,8 @@
 
 @keyframes filter-hint-pulse {
   0%, 100% { transform: scale(1); box-shadow: none; }
-  38% { transform: scale(1.08); box-shadow: 0 0 0 5px rgba(47, 121, 83, 0.16); }
-  68% { transform: scale(0.98); box-shadow: 0 0 0 2px rgba(47, 121, 83, 0.08); }
+  38% { transform: scale(1.08); box-shadow: 0 0 0 5px rgba(var(--accent-rgb), 0.16); }
+  68% { transform: scale(0.98); box-shadow: 0 0 0 2px rgba(var(--accent-rgb), 0.08); }
 }
 
 .filter-toggle-hint {
@@ -109,7 +109,7 @@
 
 @keyframes filter-guidance-pulse {
   0%, 100% { transform: scale(1); box-shadow: none; }
-  50% { transform: scale(1.06); box-shadow: 0 0 0 4px rgba(47, 121, 83, 0.12); }
+  50% { transform: scale(1.06); box-shadow: 0 0 0 4px rgba(var(--accent-rgb), 0.12); }
 }
 
 .filter-toggle-guidance {
