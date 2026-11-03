@@ -67,14 +67,13 @@ function handleMapClick(event) {
   // screen there and would make almost any tap relocate. An open-ground tap still does, though
   // -- they draw the same ring, and moving it is one of the things it must stay possible to do
   // from them. Neither ever dismisses the screen itself.
-  // On the Nearby screen a location pin is selectable only while it is highlighted, i.e. inside
-  // the walking ring. A pin beyond the ring relocates the browse point instead of opening.
-  // Streets and trails keep the outside-the-ring rule below.
+  // On the Nearby screen only a highlighted location -- a pin inside the walking ring -- is a
+  // selection target. Everything else (open ground, streets, trails, and pins beyond the ring)
+  // moves the browse point, so a tap never opens a road or an out-of-radius place by accident.
   const isLocationHit = ["tree", "addedtree", "cow", "landmark", "path", "water", "environment"].includes(hit.type);
-  const beyondNearestArea = isOverviewScreenActive() && isOutsideNearestArea(lonLat);
-  const outOfRingPin = isOverviewScreenActive() && isLocationHit
-    && isOutsideNearestArea(itemLonLatForTap(hit.item, lonLat));
-  if (hit.type === "none" || (beyondNearestArea && !isLocationHit) || outOfRingPin) {
+  const onHighlightedLocation = isLocationHit
+    && !isOutsideNearestArea(itemLonLatForTap(hit.item, lonLat));
+  if (hit.type === "none" || (isOverviewScreenActive() && !onHighlightedLocation)) {
     focusNearbyOnMapPoint(lonLat, world);
     return;
   }

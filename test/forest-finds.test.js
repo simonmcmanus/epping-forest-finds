@@ -10822,7 +10822,7 @@ function addTestStreet(app, longitude) {
   return road;
 }
 
-test("in the nearby view, tapping a street inside the nearest area opens navigation to it", () => {
+test("in the nearby view, tapping a street inside the nearest area moves the browse point instead of opening it", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.65, 0.05);
   app.state.trees.push({ id: "t1", commonName: "Oak", ...makePoint(app, 51.6503, 0.05) });
@@ -10834,8 +10834,8 @@ test("in the nearby view, tapping a street inside the nearest area opens navigat
 
   tapMap(app, app.worldToScreen(app.projectLonLat(0.051, 51.65)));
 
-  assert.equal(app.state.selected?.type, "road", "a street you could walk to now is a destination");
-  assert.equal(app.state.nearbyAnchor, null, "the nearest area stays where it was");
+  assert.equal(app.state.selected, null, "a street is not a highlighted location, so it is not selected");
+  assert.ok(app.state.nearbyAnchor, "the tap moves the Nearby browse point");
 });
 
 test("in the nearby view, tapping a street beyond the nearest area moves the nearest area there", () => {

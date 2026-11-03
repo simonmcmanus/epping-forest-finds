@@ -544,8 +544,9 @@ moving the real GPS fix:
   `nearbyOrigin()` so it follows the browse anchor once one is set). This exists for streets and
   waymarked trails: their lines are terrain, drawn right across the map, so without this rule a
   tap into the out-of-radius corners of the Nearby screen opened a navigation view to whichever
-  road ran through there instead of browsing that spot. Inside the ring, taps select as normal —
-  a street you could actually walk to now is a destination. The rule also catches out-of-radius
+  road ran through there instead of browsing that spot. Inside the ring, streets and trails
+  do not select either: on Nearby only a highlighted location pin inside the ring opens, and every
+  other tap moves the browse point. The rule also catches out-of-radius
   *pins*, which are only ever drawn when the radius filter is toggled off
   (`state.showAllOutsideRadius`); those items stay reachable from the nearby list, which is
   unaffected. It does not apply once something is selected: from a selected-detail view, a tap
