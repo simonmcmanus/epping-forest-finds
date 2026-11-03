@@ -11959,7 +11959,11 @@ test("a tree report only counts when it was made close to the tree, and says so 
 // --- Place checks go to GitHub issues for manual review (netlify/functions/report-missing-data.js) ---
 function escalationStoreForReports() {
   const data = new Map();
-  return { async get(k) { return data.has(k) ? JSON.parse(JSON.stringify(data.get(k))) : null; }, async put(k, v) { data.set(k, JSON.parse(JSON.stringify(v))); } };
+  return {
+    async get(k) { return data.has(k) ? JSON.parse(JSON.stringify(data.get(k))) : null; },
+    async put(k, v) { data.set(k, JSON.parse(JSON.stringify(v))); },
+    async delete(k) { data.delete(k); },
+  };
 }
 async function withStubbedGithub(responder, run) {
   const reportFunction = require("../netlify/functions/report-missing-data");
@@ -11968,6 +11972,7 @@ async function withStubbedGithub(responder, run) {
   const calls = [];
   process.env.GITHUB_TOKEN = "test-token";
   reportFunction.setRateLimitStore(escalationStoreForReports());
+  reportFunction.setClaimStore(escalationStoreForReports());
   global.fetch = async (url, options = {}) => {
     calls.push({ url: String(url), method: options.method || "GET", body: options.body ? JSON.parse(options.body) : null });
     return responder(String(url), options.method || "GET");
@@ -11976,11 +11981,22 @@ async function withStubbedGithub(responder, run) {
     return await run(reportFunction.handler, calls);
   } finally {
     reportFunction.setRateLimitStore(null);
+    reportFunction.setClaimStore(null);
     global.fetch = originalFetch;
     if (originalToken === undefined) delete process.env.GITHUB_TOKEN; else process.env.GITHUB_TOKEN = originalToken;
   }
 }
 const jsonResponse = (status, body) => ({ ok: status < 300, status, json: async () => body });
+const feedbackEvent = (overrides = {}) => ({
+  httpMethod: "POST",
+  body: JSON.stringify({
+    reportType: "feedback",
+    details: "The tag is hard to read",
+    location: { latitude: 51.66, longitude: 0.04 },
+    requestId: "req-feedback",
+    ...overrides,
+  }),
+});
 const placeCheckEvent = (overrides = {}) => ({
   httpMethod: "POST",
   body: JSON.stringify({
@@ -12029,12 +12045,47 @@ test("a second report about the same place is added to its open issue instead of
   );
 });
 
+test("the same report sent twice files one GitHub issue, even when GitHub's search has not indexed the first yet", async () => {
+  await withStubbedGithub(
+    // Search finds nothing, as it does while GitHub's index lags behind a new issue.
+    (url, method) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 21, html_url: "https://github.com/x/y/issues/21" })),
+    async (handler, calls) => {
+      const first = await handler(feedbackEvent({ requestId: "req-twice-1" }));
+      const second = await handler(feedbackEvent({ requestId: "req-twice-1" }));
+      assert.equal(first.statusCode, 200);
+      assert.equal(second.statusCode, 200);
+      assert.equal(JSON.parse(second.body).duplicate, true);
+      assert.equal(JSON.parse(second.body).issueNumber, 21, "the second copy is told which issue it is");
+      assert.equal(calls.filter((c) => c.method === "POST" && c.url.endsWith("/issues")).length, 1);
+    }
+  );
+});
+
+test("a report whose GitHub filing failed can be sent again and is filed", async () => {
+  let fail = true;
+  await withStubbedGithub(
+    (url) => {
+      if (url.includes("/search/issues")) return jsonResponse(200, { items: [] });
+      if (fail) { fail = false; return jsonResponse(500, { message: "boom" }); }
+      return jsonResponse(201, { number: 22, html_url: "https://github.com/x/y/issues/22" });
+    },
+    async (handler, calls) => {
+      const failed = await handler(feedbackEvent({ requestId: "req-retry-1" }));
+      assert.equal(failed.statusCode, 500);
+      const retried = await handler(feedbackEvent({ requestId: "req-retry-1" }));
+      assert.equal(retried.statusCode, 200, "the failed attempt did not leave the report marked as sent");
+      assert.equal(JSON.parse(retried.body).issueNumber, 22);
+      assert.equal(calls.filter((c) => c.method === "POST" && c.url.endsWith("/issues")).length, 2);
+    }
+  );
+});
+
 test("a place check keyed by a real OSM or manual place id is accepted", async () => {
   await withStubbedGithub(
     (url, method) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 8, html_url: "https://github.com/x/y/issues/8" })),
     async (handler, calls) => {
-      for (const key of ["place:id:node/5903400322", "place:id:manual/onest"]) {
-        const result = await handler(placeCheckEvent({ placeCheck: { status: "DETAILS_CHANGED", key, name: "Onest" } }));
+      for (const [n, key] of ["place:id:node/5903400322", "place:id:manual/onest"].entries()) {
+        const result = await handler(placeCheckEvent({ requestId: `req-osm-${n}`, placeCheck: { status: "DETAILS_CHANGED", key, name: "Onest" } }));
         assert.equal(result.statusCode, 200, key);
       }
       assert.equal(calls.filter((c) => c.method === "POST" && c.url.endsWith("/issues")).length, 2);

@@ -3939,12 +3939,18 @@ async function sendOrQueueReport(payload) {
   };
   if (!navigator.onLine) return queue();
   const TIMED_OUT = Symbol("timed-out");
+  // Abandoned on timeout, so only the outbox's copy is still in flight (the server also refuses a second
+  // copy of the same requestId that is being filed; see report-missing-data).
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
   let timeoutId;
-  const timeout = new Promise((resolve) => { timeoutId = setTimeout(() => resolve(TIMED_OUT), REPORT_SEND_TIMEOUT_MS); });
+  const timeout = new Promise((resolve) => {
+    timeoutId = setTimeout(() => { if (controller) controller.abort(); resolve(TIMED_OUT); }, REPORT_SEND_TIMEOUT_MS);
+  });
   const send = fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),
+    ...(controller ? { signal: controller.signal } : {}),
   }).then(async (response) => ({ response, data: await response.json().catch(() => ({})) }), () => null);
   const result = await Promise.race([send, timeout]);
   clearTimeout(timeoutId);

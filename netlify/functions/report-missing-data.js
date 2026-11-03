@@ -115,6 +115,11 @@ function response(statusCode, body) {
 
 // Tests swap the store so a rate-limit document never lands on disk.
 let rateLimitStoreOverride = null;
+// Claims one request id at a time, so two copies of a report in flight (a send that timed out on the
+// phone plus the outbox's retry) cannot both file an issue. GitHub's search index lags, so the search
+// below cannot be relied on for this on its own. A claim older than REPORT_CLAIM_STALE_MS is taken over.
+let claimStoreOverride = null;
+const REPORT_CLAIM_STALE_MS = 2 * 60 * 1000;
 
 exports.handler = async (event) => {
   if (event.httpMethod === "GET" && event.queryStringParameters?.photo) {
@@ -255,7 +260,27 @@ exports.handler = async (event) => {
     "X-GitHub-Api-Version": "2022-11-28",
   };
 
+  // The claim (see claimStoreOverride) is made inside the try so a store failure is a 502 and the outbox retries.
+  let claimKey = null;
+  let claimStore = null;
+  const releaseClaim = async () => { if (claimKey) await claimStore.delete(claimKey).catch(() => {}); };
+  const finishClaim = async (issue) => {
+    if (claimKey) await claimStore.put(claimKey, { status: "filed", at: Date.now(), issueNumber: issue.number, issueUrl: issue.html_url }).catch(() => {});
+  };
   try {
+    if (requestId) {
+      claimStore = claimStoreOverride || openStore(event);
+      claimKey = `report-claims/${requestId}`;
+      const claim = await claimStore.get(claimKey);
+      if (claim && claim.status === "filed") {
+        return response(200, { ok: true, duplicate: true, issueNumber: claim.issueNumber, issueUrl: claim.issueUrl });
+      }
+      if (claim && Date.now() - claim.at < REPORT_CLAIM_STALE_MS) {
+        return response(503, { error: "This report is already being sent. Please try again in a moment." });
+      }
+      await claimStore.put(claimKey, { status: "pending", at: Date.now() });
+    }
+
     // Same report retried (e.g. after a dropped response, or a double-tap
     // that slipped past the client-side guard) carries the same requestId.
     // Look for an issue we already filed for it before creating another.
@@ -269,6 +294,7 @@ exports.handler = async (event) => {
         const searchData = await searchResponse.json().catch(() => ({}));
         const existingIssue = Array.isArray(searchData.items) ? searchData.items[0] : null;
         if (existingIssue) {
+          await finishClaim(existingIssue);
           return response(200, {
             ok: true,
             duplicate: true,
@@ -304,6 +330,7 @@ exports.handler = async (event) => {
           });
           if (commentResponse.ok) {
             if (ref) await recordReporter(event, deviceId, ref, { id: requestId, kind: "place", status: placeCheck.status, target: placeCheck.key, issue: openIssue.number });
+            await finishClaim(openIssue);
             return response(200, { ok: true, merged: true, issueNumber: openIssue.number, issueUrl: openIssue.html_url });
           }
         }
@@ -312,16 +339,18 @@ exports.handler = async (event) => {
 
     if (photo) {
       if (!configureBlobContext(event)) {
+        await releaseClaim();
         return response(503, { error: "Photo storage is unavailable. Please try again without the photo." });
       }
       const photoId = `${randomUUID()}.${photo.extension}`;
       try {
         await getStore(REPORT_PHOTO_STORE).set(`photos/${photoId}`, photo.bytes, { metadata: { contentType: photo.contentType } });
       } catch {
+        await releaseClaim();
         return response(503, { error: "Could not save the photo. Please try again." });
       }
       const photoUrl = reportPhotoUrl(photoId, pageUrl);
-      if (!photoUrl) return response(503, { error: "Could not link the photo. Please try again." });
+      if (!photoUrl) { await releaseClaim(); return response(503, { error: "Could not link the photo. Please try again." }); }
       issuePayload.body += `\n\n## Photo\n![Photo attached to report](${photoUrl})`;
     }
 
@@ -344,6 +373,7 @@ exports.handler = async (event) => {
     const issueData = await issueResponse.json().catch(() => ({}));
 
     if (!issueResponse.ok) {
+      await releaseClaim();
       return response(issueResponse.status, {
         error: issueData && issueData.message ? issueData.message : "Failed to create GitHub issue",
       });
@@ -354,17 +384,20 @@ exports.handler = async (event) => {
         ? { id: requestId, kind: "place", status: placeCheck.status, target: placeCheck.key, issue: issueData.number }
         : { id: requestId, kind: "feedback", status: "FEEDBACK", issue: issueData.number });
     }
+    await finishClaim(issueData);
     return response(200, {
       ok: true,
       issueNumber: issueData.number,
       issueUrl: issueData.html_url,
     });
   } catch {
+    await releaseClaim();
     return response(502, { error: "Failed to reach GitHub API" });
   }
 };
 
 exports.setRateLimitStore = (store) => { rateLimitStoreOverride = store; };
+exports.setClaimStore = (store) => { claimStoreOverride = store; };
 exports.REPORT_PHOTO_MAX_BYTES = REPORT_PHOTO_MAX_BYTES;
 exports.parsePhoto = parsePhoto;
 exports.parsePlaceCheck = parsePlaceCheck;
