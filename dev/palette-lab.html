@@ -146,7 +146,12 @@ textarea#css-output {
     { title: "Accent", tokens: [
       ["--accent", "Action"], ["--accent-ink", "Action text"], ["--accent-soft", "Action tint"] ] },
     { title: "Hover", tokens: [
-      ["--hover-tint", "Nav back hover"], ["--hover-surface", "Button hover"] ] }
+      ["--hover-tint", "Nav back hover"], ["--hover-surface", "Button hover"] ] },
+    { title: "Primary button", tokens: [
+      ["--cta-hi", "Button top"], ["--cta", "Button bottom"] ] },
+    { title: "Nav active tab", tokens: [
+      ["--nav-active-hi", "Pill top"], ["--nav-active-lo", "Pill bottom"], ["--nav-active-edge", "Pill edge"],
+      ["--nav-active-shadow", "Pill shadow"], ["--nav-active-ink", "Pill text"] ] }
   ];
 
   // The app's own values, as base.css and inspector.css define them today.
@@ -159,7 +164,10 @@ textarea#css-output {
     "--inspector-shadow": "0 22px 52px rgba(26, 58, 39, 0.15), 0 3px 12px rgba(26, 58, 39, 0.07)",
     "--ink": "#1b2a22", "--muted": "#617168", "--tree": "#2f7953",
     "--accent": "#2f7953", "--accent-ink": "#245d3e", "--accent-soft": "#eaf4ec",
-    "--hover-tint": "rgba(36, 56, 47, 0.06)", "--hover-surface": "#f2f6f1"
+    "--hover-tint": "rgba(36, 56, 47, 0.06)", "--hover-surface": "#f2f6f1",
+    "--cta-hi": "#39845d", "--cta": "#2f7953",
+    "--nav-active-hi": "#fff8e7", "--nav-active-lo": "#f7edd2", "--nav-active-edge": "rgba(182, 145, 49, 0.14)",
+    "--nav-active-shadow": "rgba(132, 99, 0, 0.08)", "--nav-active-ink": "#806100"
   };
 
   const PRESETS = [
@@ -197,13 +205,16 @@ textarea#css-output {
     { name: "Graphite and sand", values: {
       "--paper": "#e7e5e1", "--panel": "#ffffff", "--surface-soft": "#f6f5f2",
       "--surface-tint": "#eeeceb", "--surface-selected": "#e3e1dd", "--surface-neutral": "#f2f1ee",
-      "--border-soft": "rgba(46, 58, 70, 0.14)", "--border-accent": "rgba(46, 58, 70, 0.28)",
-      "--line": "#d6d4cf", "--nav-edge": "rgba(30, 30, 30, 0.14)",
+      "--border-soft": "rgba(46, 58, 70, 0.22)", "--border-accent": "rgba(46, 58, 70, 0.55)",
+      "--line": "#cdcac4", "--nav-edge": "rgba(30, 30, 30, 0.42)",
       "--shadow": "0 18px 46px rgba(20, 20, 20, 0.13), 0 3px 10px rgba(20, 20, 20, 0.07)",
       "--inspector-shadow": "0 22px 52px rgba(20, 20, 20, 0.14), 0 3px 12px rgba(20, 20, 20, 0.06)",
       "--ink": "#1f2226", "--muted": "#62666d", "--tree": "#2e3a46",
       "--accent": "#2e3a46", "--accent-ink": "#1f2830", "--accent-soft": "#e9ebee",
-      "--hover-tint": "rgba(30, 30, 30, 0.06)", "--hover-surface": "#f3f2ef" } },
+      "--hover-tint": "rgba(30, 30, 30, 0.06)", "--hover-surface": "#f3f2ef",
+      "--cta-hi": "#4a5866", "--cta": "#2e3a46",
+      "--nav-active-hi": "#e3e6ea", "--nav-active-lo": "#d6dae0", "--nav-active-edge": "rgba(46, 58, 70, 0.3)",
+      "--nav-active-shadow": "rgba(20, 20, 20, 0.12)", "--nav-active-ink": "#1f2830" } },
     { name: "Charcoal and brass", values: {
       "--paper": "#2a2d32", "--panel": "#25282d", "--surface-soft": "#2d3137",
       "--surface-tint": "#33373e", "--surface-selected": "#3b4048", "--surface-neutral": "#2a2e34",

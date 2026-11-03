@@ -290,8 +290,8 @@
   width: var(--nav-highlight-width, 0px);
   height: var(--nav-highlight-height, 0px);
   border-radius: 12px;
-  background: linear-gradient(145deg, #fff8e7, #f7edd2);
-  box-shadow: inset 0 0 0 1px rgba(182, 145, 49, 0.14), 0 3px 8px rgba(132, 99, 0, 0.08);
+  background: linear-gradient(145deg, var(--nav-active-hi), var(--nav-active-lo));
+  box-shadow: inset 0 0 0 1px var(--nav-active-edge), 0 3px 8px var(--nav-active-shadow);
   opacity: 0;
   pointer-events: none;
   transform: translate3d(var(--nav-highlight-x, 0px), var(--nav-highlight-y, 0px), 0);
@@ -645,7 +645,7 @@ button.settings-toggle.has-update::after {
 }
 
 .inspector-actions.nav-has-highlight > :is(button, a).nav-pressing {
-  color: var(--gold-ink);
+  color: var(--nav-active-ink);
   z-index: 2;
 }
 
@@ -1547,8 +1547,8 @@ textarea.report-textarea {
 
 .inspector-actions > :is(button, a).screen-active {
   background: var(--current-soft);
-  color: var(--current-ink);
-  box-shadow: inset 0 0 0 1px rgba(182, 145, 49, 0.14), 0 3px 8px rgba(132, 99, 0, 0.08);
+  color: var(--nav-active-ink);
+  box-shadow: inset 0 0 0 1px var(--nav-active-edge), 0 3px 8px var(--nav-active-shadow);
 }
 
 .inspector-actions.nav-has-highlight > :is(button, a).screen-active {

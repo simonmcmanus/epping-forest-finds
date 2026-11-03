@@ -44,6 +44,15 @@
      nav bar's own light panel background -- and --gold-tint is the soft pill behind it. */
   --gold-ink: #806100;
   --gold-tint: rgba(240, 184, 58, 0.19);
+  /* Nav active pill, the nav text on it, and the primary button gradient. Defaults are the values
+     they replaced, so the default look is unchanged; the palette lab retunes them. */
+  --nav-active-hi: #fff8e7;
+  --nav-active-lo: #f7edd2;
+  --nav-active-edge: rgba(182, 145, 49, 0.14);
+  --nav-active-shadow: rgba(132, 99, 0, 0.08);
+  --nav-active-ink: #806100;
+  --cta-hi: #39845d;
+  --cta: #2f7953;
   /* The fixed bottom nav bar's own height, reused wherever something else (the inspector sheet,
      the keyboard-avoidance math) needs to leave room for it. Matches the button min-height plus
      the bar's own padding/border (see the last .inspector-actions rule, css/inspector.css). */
@@ -132,7 +141,7 @@ textarea:focus-visible,
   gap: 8px;
   font-weight: 800;
   color: #fff;
-  background: linear-gradient(135deg, #39845d, var(--tree));
+  background: linear-gradient(135deg, var(--cta-hi), var(--cta));
   box-shadow: 0 10px 22px rgba(20, 58, 38, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.2);
   white-space: nowrap;
   transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease;
