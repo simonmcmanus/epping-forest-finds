@@ -2573,33 +2573,16 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 3px 10px rgba(27, 65, 43, 0.05);
 }
 
-.search-field::before {
-  content: "";
+.search-field-icon {
   position: absolute;
   left: 14px;
   top: 50%;
   width: 20px;
   height: 20px;
-  border: 3px solid var(--tree);
-  border-radius: 50%;
-  transform: translateY(-62%);
+  transform: translateY(-50%);
+  color: var(--ink);
+  pointer-events: none;
   z-index: 1;
-  opacity: 0.82;
-}
-
-.search-field::after {
-  content: "";
-  position: absolute;
-  left: 30px;
-  top: calc(50% + 8px);
-  width: 13px;
-  height: 4px;
-  border-radius: 999px;
-  background: var(--tree);
-  transform: rotate(45deg);
-  transform-origin: left center;
-  z-index: 1;
-  opacity: 0.82;
 }
 
 .search-field .search-number {
