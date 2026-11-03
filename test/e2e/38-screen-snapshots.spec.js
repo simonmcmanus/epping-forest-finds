@@ -42,6 +42,24 @@ test("snapshot: feedback screen", async ({ page }) => {
   await expect(page).toHaveScreenshot("feedback-screen.png", { fullPage: false });
 });
 
+test("snapshot: add a missing tree form, with its tag photo field", async ({ page }) => {
+  await setup(page, "/feedback");
+  await page.selectOption("#reportType", "tree");
+  await expect(page.locator("#communityTreePhoto")).toBeAttached();
+  await page.locator("#communityTreePhoto").scrollIntoViewIfNeeded();
+  await settle(page);
+  await expect(page).toHaveScreenshot("feedback-add-tree.png", { fullPage: false });
+});
+
+test("snapshot: add a missing place form, with its photo field", async ({ page }) => {
+  await setup(page, "/feedback");
+  await page.selectOption("#reportType", "place");
+  await expect(page.locator("#communityPlacePhoto")).toBeAttached();
+  await page.locator("#communityPlacePhoto").scrollIntoViewIfNeeded();
+  await settle(page);
+  await expect(page).toHaveScreenshot("feedback-add-place.png", { fullPage: false });
+});
+
 test("snapshot: onboarding on a first visit", async ({ page }) => {
   // No skipOnboarding(): this is the first-visit state. The map remains usable beneath the
   // non-blocking combined consent card.

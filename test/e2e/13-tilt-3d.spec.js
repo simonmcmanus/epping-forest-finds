@@ -54,6 +54,9 @@ async function tiltToSettled(page, beta) {
     }
     await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
   });
+  // Settled means still: the canvas stays at its capped resolution until the camera has been
+  // still for MOTION_STILL_MS, so wait for that restore before anything measures the frame.
+  await expect.poll(() => page.evaluate(() => state.canvasMotion.capped)).toBe(false);
 }
 
 test.describe("3D tilt view", () => {
@@ -291,17 +294,20 @@ test.describe("3D tilt view", () => {
     }
   });
 
-  test("tilting never resizes the canvas", async ({ page }) => {
+  test("tilting never grows the canvas beyond the visible stage", async ({ page }) => {
     // Tilt is projected per point now, so it needs no canvas overscan. Oversizing for
-    // tilt is what used to push the rotated plane through the camera plane; a resize
-    // mid-gesture would also read as a visible snap.
+    // tilt is what used to push the rotated plane through the camera plane. The measure is the
+    // canvas's CSS size: the device-pixel bitmap also follows the moving-camera resolution cap
+    // (syncCanvasMotionResolution), a deliberate, temporary change of pixel ratio and not overscan.
     await tiltTo(page, 0);
-    const flat = await page.evaluate(() => ({ w: els.canvas.width, h: els.canvas.height }));
+    const cssSize = () => page.evaluate(() => ({ w: parseFloat(els.canvas.style.width), h: parseFloat(els.canvas.style.height) }));
+    const flat = await cssSize();
 
     for (const beta of TILT_SWEEP) {
       await tiltTo(page, beta);
-      const size = await page.evaluate(() => ({ w: els.canvas.width, h: els.canvas.height }));
-      expect(size, `canvas size must not change at beta ${beta}`).toEqual(flat);
+      const size = await cssSize();
+      expect(size.w, `canvas CSS width must not grow at beta ${beta}`).toBeLessThanOrEqual(flat.w + 1);
+      expect(size.h, `canvas CSS height must not grow at beta ${beta}`).toBeLessThanOrEqual(flat.h + 1);
     }
   });
 
@@ -563,5 +569,27 @@ test.describe("3D tilt view", () => {
     await tiltTo(page, 85);
     const transform = await page.evaluate(() => els.canvas.style.transform || "");
     expect(transform).not.toMatch(/perspective\(|rotateX\(/);
+  });
+
+  test("moving the map draws it at a lower canvas resolution, and full resolution returns once it is still", async ({ page }, testInfo) => {
+    // The cap is 1.5 device pixels; desktop renders at 1, so there is nothing to cap there.
+    test.skip(testInfo.project.name !== "mobile", "Only phones render above the 1.5 device-pixel cap");
+    await tiltToSettled(page, 55);
+    const bitmap = () => page.evaluate(() => ({ w: els.canvas.width, h: els.canvas.height, logicalW: state.canvasLogicalWidth }));
+    const still = await bitmap();
+    expect(still.w, "a still map is drawn at full resolution").toBe(still.logicalW);
+
+    // A tilt change is camera movement: the very next frame is drawn into a smaller bitmap.
+    await page.evaluate(() => {
+      state.tiltBetaTarget = 62;
+      state.tiltBetaSmoothed = 62;
+      state.compassLastEventAt = performance.now();
+      draw();
+    });
+    const moving = await bitmap();
+    expect(moving.w, "a moving map is drawn into a smaller bitmap").toBeLessThan(still.w);
+
+    // Nothing else moves the camera, so the restoring frame must come from the still timer alone.
+    await expect.poll(async () => (await bitmap()).w).toBe(still.w);
   });
 });

@@ -283,10 +283,12 @@ function draw() {
     startCompassSmoothing();
   }
   if (typeof prepareCanvasForDraw === "function") prepareCanvasForDraw();
+  if (typeof syncCanvasMotionResolution === "function") syncCanvasMotionResolution();
   resetMapLabelHitRegions();
   const ctx = els.canvas.getContext("2d");
-  const width = els.canvas.width;
-  const height = els.canvas.height;
+  ctx.setTransform(state.canvasMotion.scale, 0, 0, state.canvasMotion.scale, 0, 0);
+  const width = state.canvasLogicalWidth;
+  const height = state.canvasLogicalHeight;
   const animatedEmojiScale = updateAnimatedEmojiScale();
   // During heading-up/tilt movement every pin is drawn through drawOverlay(), where it is
   // projected and depth-sorted against the live camera. Rebuilding the main-canvas clusters as
@@ -378,7 +380,8 @@ function drawOverlay() {
   const canvas = els.overlayCanvas;
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.setTransform(state.canvasMotion.scale, 0, 0, state.canvasMotion.scale, 0, 0);
+  ctx.clearRect(0, 0, state.canvasLogicalWidth, state.canvasLogicalHeight);
   if (!state.bounds) return;
   const isTilted = typeof tiltActive === "function" && tiltActive();
   const useOverlayForPins = (typeof nearbyHeadingUpActive === "function" && nearbyHeadingUpActive())
@@ -424,8 +427,8 @@ function drawCommunityMarks(ctx, toScreen) {
   if (!marks.length) return;
   if (!toScreen) toScreen = worldToScreen;
   const dpr = pixelRatio();
-  const w = ctx.canvas.width;
-  const h = ctx.canvas.height;
+  const w = state.canvasLogicalWidth;
+  const h = state.canvasLogicalHeight;
   for (const mark of marks) {
     const p = toScreen(projectLonLat(mark.lon, mark.lat));
     if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
@@ -610,7 +613,7 @@ function drawPaths(ctx) {
   const isCoarsePointer = window.matchMedia("(pointer: coarse)").matches;
   const baseWidth = clamp(1.35 + zoomLevel * 0.18, 1.35, isCoarsePointer ? 2.5 : 2.2) * dpr;
   const namedLabels = [];
-  const w = els.canvas.width, h = els.canvas.height;
+  const w = state.canvasLogicalWidth, h = state.canvasLogicalHeight;
   const corners = [screenToWorld(0, 0), screenToWorld(w, 0), screenToWorld(0, h), screenToWorld(w, h)];
   const minWorldX = Math.min(...corners.map(c => c.x));
   const maxWorldX = Math.max(...corners.map(c => c.x));
@@ -695,7 +698,7 @@ function drawRoads(ctx) {
 
   if (zoomLevel < -0.5) return;
 
-  const w = els.canvas.width, h = els.canvas.height;
+  const w = state.canvasLogicalWidth, h = state.canvasLogicalHeight;
   const corners = [screenToWorld(0, 0), screenToWorld(w, 0), screenToWorld(0, h), screenToWorld(w, h)];
   const minWorldX = Math.min(...corners.map(c => c.x));
   const maxWorldX = Math.max(...corners.map(c => c.x));
@@ -937,11 +940,11 @@ function projectedEnvironmentGeometry(geometry) {
   return cached;
 }
 
-// World-space bounds of the whole canvas bitmap (which is the visible stage), padded 5% -- the same
-// corner test drawPaths already culls with, including under tilt, where screenToWorld clamps to
-// the far clip. Null when the corners do not unproject to finite points: then nothing is culled.
+// World-space bounds of the whole logical stage (the visible map at full resolution, with no overscan),
+// padded 5% -- the same corner test drawPaths already culls with, including under tilt, where screenToWorld
+// clamps to the far clip. Null when the corners do not unproject to finite points: then nothing is culled.
 function environmentViewWorldBounds() {
-  const w = els.canvas.width, h = els.canvas.height;
+  const w = state.canvasLogicalWidth, h = state.canvasLogicalHeight;
   const corners = [screenToWorld(0, 0), screenToWorld(w, 0), screenToWorld(0, h), screenToWorld(w, h)];
   if (!corners.every((c) => c && Number.isFinite(c.x) && Number.isFinite(c.y))) return null;
   const minX = Math.min(...corners.map((c) => c.x));
@@ -1234,7 +1237,7 @@ function drawWalkingRadiusDimming(ctx, center, radiusPx, tilted, cone) {
   }
 
   ctx.beginPath();
-  ctx.rect(0, 0, els.canvas.width, els.canvas.height);
+  ctx.rect(0, 0, state.canvasLogicalWidth, state.canvasLogicalHeight);
   if (tilted) traceGroundCirclePath(ctx, center, radiusPx);
   else ctx.arc(center.x, center.y, radiusPx, 0, Math.PI * 2);
   ctx.closePath();

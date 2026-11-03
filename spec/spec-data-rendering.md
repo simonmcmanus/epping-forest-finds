@@ -159,6 +159,8 @@ Draw order (back to front):
 
 ### Performance Rules
 
+- **Canvas resolution while the camera moves.** When the camera pose changes between frames (scale, pan, 3D tilt or heading-up rotation, above small thresholds that ignore sensor jitter), the map canvases are drawn at a device pixel ratio of at most 1.5. Once the camera has been still for 350ms the full device pixel ratio is restored and a frame is scheduled to paint it. Raster cost scales with bitmap pixel count, so this trades sharpness during movement for frame time; a still map is always full resolution, so screenshots and settled views are unchanged. Implemented in `syncCanvasMotionResolution()` (`js/app.js`), called from `draw()`. The logical size stays the full-resolution stage, so the road, path and environment culls and every camera calculation are unchanged; only the bitmap written by `applyCanvasBitmapSize()` is smaller, and `draw()` and `drawOverlay()` scale their context to match.
+
 - Roads are **not drawn** when zoomed out beyond scale threshold (< -0.5 zoom level)
 - Roads rendering limited to **2,000 segments per frame**
 - Only markers within canvas bounds (+ padding) are drawn (`isNearCanvas` check)
@@ -1539,6 +1541,19 @@ gently; and `--border-accent` separates the inspector and navigation panels from
 `--status-error` is reserved for errors. Selected trees use the specialised `.tree-detail` layout;
 other selected places share `.place-detail` for the same title rhythm, action controls, field cards,
 and related-content treatment.
+
+The nav bar's border (`--nav-edge`) and the two hover tints (`--hover-tint`, `--hover-surface`) are
+tokens too. The nav's active pill uses `--nav-active-hi`, `--nav-active-lo`, `--nav-active-edge`,
+`--nav-active-shadow` and `--nav-active-ink`, which replace the text colour `--current-ink` on that
+pill. The primary button gradient runs from `--cta-hi` to `--cta`, and no longer uses `--tree`.
+`--action-solid` is the solid action colour. The forest and accent tints are `rgba(var(--forest-rgb), α)`
+and `rgba(var(--accent-rgb), α)`, so a palette can retune a whole family from its R, G, B channels. Every
+panel surface is retuned from `:root`. The map is drawn in JavaScript and does not read these tokens,
+so a palette change never recolours the map. The default palette is Graphite and sand. Primary buttons
+are a solid `--cta` fill with `--cta-ink` text and no gradient. The location and cookie notice takes
+`--panel` and `--border-accent`, so it matches the panels rather than standing out. `dev/palette-lab.html` is a developer
+tool that loads the real app in a phone-sized frame and writes a palette onto the frame's `:root`. It
+offers presets and per-token editing, and generates the `:root` block to paste into `css/base.css`.
 
 ---
 
