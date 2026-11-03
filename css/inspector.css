@@ -180,8 +180,9 @@
 }
 
 /* A badge holding a miniature of the amber browse-anchor marker drawn on the map
-   (drawNearbyAnchorMarker, js/renderer.js), so the notice visibly refers to that dot. The white
-   border is the badge; the outline, pulled inside it, is the marker's ring. The rest of the bar
+   (drawNearbyAnchorMarker, js/renderer.js), so the notice visibly refers to that dot. The transparent
+   border lets the bar's own tint show through as the badge, so there is no white disc; the
+   outline, pulled inside it, is the marker's ring. The rest of the bar
    stays in the brand greens. */
 .nearby-anchor-bar-text::before {
   content: "";
@@ -189,12 +190,11 @@
   box-sizing: content-box;
   width: 6px;
   height: 6px;
-  border: 8px solid #fff;
+  border: 8px solid transparent;
   border-radius: 50%;
   background: #c9660c;
   outline: 2px solid #c9660c;
   outline-offset: -6px;
-  box-shadow: 0 1px 3px rgba(19, 31, 25, 0.18);
 }
 
 /* The bar's one action: a pill-shaped take on the primary .button (css/base.css) rather than
