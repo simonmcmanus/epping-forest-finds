@@ -985,7 +985,7 @@ function communityNudgeShow(tree, metres) {
   el.className = "community-nudge";
   el.setAttribute("role", "status");
   el.innerHTML = `<span class="community-nudge-icon">${communityIcon("shield")}</span>
-    <div class="community-nudge-text"><strong>You're next to ${name}</strong><span>Is it where the map says? About ${Math.max(1, Math.round(metres))} m away.</span></div>
+    <div class="community-nudge-text"><strong>You're next to ${name}</strong><span>Tap to confirm · ${Math.max(1, Math.round(metres))} m away</span></div>
     ${communityPointsChipHtml(1)}
     <button type="button" class="community-nudge-go" data-community-nudge-go>Check it</button>
     <button type="button" class="community-nudge-close" data-community-nudge-close aria-label="Not now">${communityIcon("x")}</button>`;
