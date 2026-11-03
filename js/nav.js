@@ -1055,6 +1055,13 @@ function pulseNavButton(el) {
   el.addEventListener("animationend", () => el.classList.remove("nav-reselect"), { once: true });
 }
 
+function shakeInspectorSheet() {
+  els.inspector.classList.remove("sheet-shake");
+  void els.inspector.offsetWidth;
+  els.inspector.classList.add("sheet-shake");
+  els.inspector.addEventListener("animationend", () => els.inspector.classList.remove("sheet-shake"), { once: true });
+}
+
 function setupFilterPanelHandlers() {
   els.filterToggle.addEventListener("click", () => {
     if (els.filterToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
@@ -1074,10 +1081,13 @@ function setupFilterPanelHandlers() {
         && !window.location.search
         && !window.location.hash
         && !state.nearbyAnchor;
-      if (els.nearbyToggle.classList.contains("screen-active")
-        && !els.inspector.classList.contains("minimized")
-        && onPlainNearby) {
-        pulseNavButton(els.nearbyToggle);
+      const alreadyOnNearby = els.nearbyToggle.classList.contains("screen-active")
+        && !els.inspector.classList.contains("minimized");
+      if (alreadyOnNearby) {
+        // Already on the Nearby screen: shake it in place rather than sliding it out and back in.
+        // A browse anchor or query still needs the list refreshed, but without the screen-entry slide.
+        shakeInspectorSheet();
+        if (!onPlainNearby) goToInitialView(true, { enterAnimated: false });
         return;
       }
       goToInitialView();
@@ -2472,7 +2482,7 @@ function setInspectorMinimized(minimized) {
   if (typeof updateCompassOverlay === "function") updateCompassOverlay();
 }
 
-function goToInitialView(updateHash = true) {
+function goToInitialView(updateHash = true, { enterAnimated = true } = {}) {
   // If compass hasn't fired in >5 s, clear the heading so the map goes north-up
   // rather than showing a frozen direction when the user returns to the overview.
   // New orientation events will re-enable heading-up naturally.
@@ -2520,7 +2530,7 @@ function goToInitialView(updateHash = true) {
   // The Nearby button always shows the real list. A landing's server-rendered list is kept only
   // while the reader is still on that landing (selectOverview's own check), so clear it here.
   _serverRenderedNearbyList = false;
-  selectOverview(true);
+  selectOverview(enterAnimated);
   setInspectorMinimized(false);
   const refitOverview = () => {
     if (state.userLocation) {
