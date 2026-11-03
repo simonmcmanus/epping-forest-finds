@@ -1541,8 +1541,13 @@ other selected places share `.place-detail` for the same title rhythm, action co
 and related-content treatment.
 
 The nav bar's border (`--nav-edge`) and the two hover tints (`--hover-tint`, `--hover-surface`) are
-tokens too, so every panel surface is retuned from `:root`. The map is drawn in JavaScript and does not
-read these tokens, so a palette change never recolours the map. `dev/palette-lab.html` is a developer
+tokens too. The nav's active pill uses `--nav-active-hi`, `--nav-active-lo`, `--nav-active-edge`,
+`--nav-active-shadow` and `--nav-active-ink`, which replace the text colour `--current-ink` on that
+pill. The primary button gradient runs from `--cta-hi` to `--cta`, and no longer uses `--tree`.
+`--action-solid` is the solid action colour. The forest and accent tints are `rgba(var(--forest-rgb), α)`
+and `rgba(var(--accent-rgb), α)`, so a palette can retune a whole family from its R, G, B channels. Every
+panel surface is retuned from `:root`. The map is drawn in JavaScript and does not read these tokens,
+so a palette change never recolours the map. `dev/palette-lab.html` is a developer
 tool that loads the real app in a phone-sized frame and writes a palette onto the frame's `:root`. It
 offers presets and per-token editing, and generates the `:root` block to paste into `css/base.css`.
 

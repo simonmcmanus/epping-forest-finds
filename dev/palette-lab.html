@@ -148,7 +148,9 @@ textarea#css-output {
     { title: "Hover", tokens: [
       ["--hover-tint", "Nav back hover"], ["--hover-surface", "Button hover"] ] },
     { title: "Primary button", tokens: [
-      ["--cta-hi", "Button top"], ["--cta", "Button bottom"] ] },
+      ["--cta-hi", "Button top"], ["--cta", "Button bottom"], ["--action-solid", "Solid action and links"] ] },
+    { title: "Tint channels (R, G, B)", tokens: [
+      ["--forest-rgb", "Forest tints"], ["--accent-rgb", "Accent tints"] ] },
     { title: "Nav active tab", tokens: [
       ["--nav-active-hi", "Pill top"], ["--nav-active-lo", "Pill bottom"], ["--nav-active-edge", "Pill edge"],
       ["--nav-active-shadow", "Pill shadow"], ["--nav-active-ink", "Pill text"] ] }
@@ -167,12 +169,28 @@ textarea#css-output {
     "--hover-tint": "rgba(36, 56, 47, 0.06)", "--hover-surface": "#f2f6f1",
     "--cta-hi": "#39845d", "--cta": "#2f7953",
     "--nav-active-hi": "#fff8e7", "--nav-active-lo": "#f7edd2", "--nav-active-edge": "rgba(182, 145, 49, 0.14)",
-    "--nav-active-shadow": "rgba(132, 99, 0, 0.08)", "--nav-active-ink": "#806100"
+    "--nav-active-shadow": "rgba(132, 99, 0, 0.08)", "--nav-active-ink": "#806100",
+    "--accent-rgb": "47, 121, 83", "--forest-rgb": "47, 111, 78", "--action-solid": "#2f6f4e"
   };
+
+  // A palette's accent drives the colours that were green: primary buttons, the nav pill and the
+  // forest tints. Presets set only their accent and text; these follow from it unless a preset overrides them.
+  const hexToRgb = (hex) => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+  const mixWhite = (hex, t) => "#" + hexToRgb(hex).map((v) => Math.round(v + (255 - v) * t).toString(16).padStart(2, "0")).join("");
+  function deriveFromAccent({ accent, accentInk }) {
+    const rgb = hexToRgb(accent).join(", ");
+    return {
+      "--accent-rgb": rgb, "--forest-rgb": rgb, "--action-solid": accent,
+      "--cta": accent, "--cta-hi": mixWhite(accent, 0.12),
+      "--nav-active-hi": mixWhite(accent, 0.92), "--nav-active-lo": mixWhite(accent, 0.84),
+      "--nav-active-edge": `rgba(${rgb}, 0.22)`, "--nav-active-shadow": `rgba(${rgb}, 0.12)`,
+      "--nav-active-ink": accentInk
+    };
+  }
 
   const PRESETS = [
     { name: "Current (green)", values: CURRENT },
-    { name: "Warm stone", values: {
+    { name: "Warm stone", derive: { accent: "#8a5a34", accentInk: "#6b4425" }, values: {
       "--paper": "#ebe6df", "--panel": "#fffdfa", "--surface-soft": "#f6f1ea",
       "--surface-tint": "#f1ebe2", "--surface-selected": "#ece3d6", "--surface-neutral": "#f3efe9",
       "--border-soft": "rgba(138, 90, 52, 0.16)", "--border-accent": "rgba(138, 90, 52, 0.3)",
@@ -182,7 +200,7 @@ textarea#css-output {
       "--ink": "#2a2420", "--muted": "#6e645b", "--tree": "#7a4f2a",
       "--accent": "#8a5a34", "--accent-ink": "#6b4425", "--accent-soft": "#f4ebe0",
       "--hover-tint": "rgba(80, 60, 40, 0.06)", "--hover-surface": "#f6f1ea" } },
-    { name: "Slate harbour", values: {
+    { name: "Slate harbour", derive: { accent: "#3d5a7a", accentInk: "#2c4560" }, values: {
       "--paper": "#e4e8ee", "--panel": "#fdfeff", "--surface-soft": "#f3f6fa",
       "--surface-tint": "#e9eef4", "--surface-selected": "#dde6f0", "--surface-neutral": "#f1f4f8",
       "--border-soft": "rgba(61, 90, 122, 0.16)", "--border-accent": "rgba(61, 90, 122, 0.3)",
@@ -192,7 +210,7 @@ textarea#css-output {
       "--ink": "#1c2530", "--muted": "#5d6876", "--tree": "#2c4560",
       "--accent": "#3d5a7a", "--accent-ink": "#2c4560", "--accent-soft": "#e6edf5",
       "--hover-tint": "rgba(30, 50, 80, 0.06)", "--hover-surface": "#eef3f8" } },
-    { name: "Heather", values: {
+    { name: "Heather", derive: { accent: "#6b4a7d", accentInk: "#523862" }, values: {
       "--paper": "#ece7ee", "--panel": "#fffcfe", "--surface-soft": "#faf7fb",
       "--surface-tint": "#f1ebf3", "--surface-selected": "#e8dfeb", "--surface-neutral": "#f5f1f6",
       "--border-soft": "rgba(107, 74, 125, 0.16)", "--border-accent": "rgba(107, 74, 125, 0.3)",
@@ -202,7 +220,7 @@ textarea#css-output {
       "--ink": "#241d28", "--muted": "#6a5f70", "--tree": "#523862",
       "--accent": "#6b4a7d", "--accent-ink": "#523862", "--accent-soft": "#f1eaf4",
       "--hover-tint": "rgba(60, 40, 70, 0.06)", "--hover-surface": "#f5f0f7" } },
-    { name: "Graphite and sand", values: {
+    { name: "Graphite and sand", derive: { accent: "#2e3a46", accentInk: "#1f2830" }, values: {
       "--paper": "#e7e5e1", "--panel": "#ffffff", "--surface-soft": "#f6f5f2",
       "--surface-tint": "#eeeceb", "--surface-selected": "#e3e1dd", "--surface-neutral": "#f2f1ee",
       "--border-soft": "rgba(46, 58, 70, 0.22)", "--border-accent": "rgba(46, 58, 70, 0.55)",
@@ -215,7 +233,7 @@ textarea#css-output {
       "--cta-hi": "#4a5866", "--cta": "#2e3a46",
       "--nav-active-hi": "#e3e6ea", "--nav-active-lo": "#d6dae0", "--nav-active-edge": "rgba(46, 58, 70, 0.3)",
       "--nav-active-shadow": "rgba(20, 20, 20, 0.12)", "--nav-active-ink": "#1f2830" } },
-    { name: "Charcoal and brass", values: {
+    { name: "Charcoal and brass", derive: { accent: "#d6b25e", accentInk: "#e8c97a" }, values: {
       "--paper": "#2a2d32", "--panel": "#25282d", "--surface-soft": "#2d3137",
       "--surface-tint": "#33373e", "--surface-selected": "#3b4048", "--surface-neutral": "#2a2e34",
       "--border-soft": "rgba(214, 178, 94, 0.18)", "--border-accent": "rgba(214, 178, 94, 0.32)",
@@ -279,7 +297,7 @@ textarea#css-output {
       btn.textContent = preset.name;
       btn.setAttribute("aria-pressed", String(preset.name === presetName));
       btn.addEventListener("click", () => {
-        values = { ...CURRENT, ...preset.values };
+        values = { ...CURRENT, ...(preset.derive ? deriveFromAccent(preset.derive) : {}), ...preset.values };
         presetName = preset.name;
         refresh(true);
       });
@@ -324,7 +342,8 @@ textarea#css-output {
     for (const row of document.querySelectorAll(".token")) {
       const name = row.dataset.token;
       const value = values[name];
-      row.querySelector(".sw").style.background = value;
+      // Tint channels hold "R, G, B" rather than a colour, so the swatch shows them as an rgb().
+      row.querySelector(".sw").style.background = /^\d+, \d+, \d+$/.test(value) ? `rgb(${value})` : value;
       const text = row.querySelector('input[type="text"]');
       if (document.activeElement !== text) text.value = value;
       row.classList.toggle("changed", value !== CURRENT[name]);

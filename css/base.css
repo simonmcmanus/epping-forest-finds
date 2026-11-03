@@ -16,8 +16,13 @@
   --surface-selected: #e4f0e6;
   --surface-warning: #fff1cf;
   --surface-neutral: #f2f4f1;
-  --border-soft: rgba(47, 121, 83, 0.14);
-  --border-accent: rgba(47, 121, 83, 0.28);
+  /* Colour channels (R, G, B) behind the rgba() tints, so a palette can retune a whole family in one
+     place. Defaults are the values they replaced. */
+  --accent-rgb: 47, 121, 83;
+  --forest-rgb: 47, 111, 78;
+  --action-solid: #2f6f4e;
+  --border-soft: rgba(var(--accent-rgb), 0.14);
+  --border-accent: rgba(var(--accent-rgb), 0.28);
   /* Panel chrome that used to be hard-coded. Defaults are the values they replaced, so the look
      is unchanged; the palette lab (dev/palette-lab.html) retunes them with the other panel tokens. */
   --nav-edge: rgba(36, 56, 47, 0.15);
