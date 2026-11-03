@@ -937,7 +937,9 @@ is never moved by this -- only the browse anchor, exactly as any other anchor mo
 - The direction is only ever a place a bus is heading for, or wording such as `northbound`/`via …` from the stop's own flag. A compass bearing is never used: TfL's `bearing`, `CompassPoint` and similar metadata (`225`, `NE`, `north-east`) are discarded rather than shown, because a bearing tells a rider nothing they can act on. A stop with no usable direction shows no direction line, and its Nearby entry keeps its plain name.
 - A place's detail header shows only the working Open in Maps and Share actions. Crawlable
   `/find/<slug>/` pages remain available through the site's landing-page and marketing links;
-  the inspector does not render a separate Full details action.
+  the inspector does not render a separate Full details action. A `/find/<slug>/` address whose
+  place was merged into another record answers with a permanent (301) redirect to the surviving
+  place's page; the redirects are listed in `netlify.toml`.
 - Opening hours (when known) and a `tel:`-linked phone number — see `spec-marketing.md` § 6.7,
   "Opening hours and a tappable phone number are not static-page-only".
 - A `findSlug` place also shows a headed **Nearest** section (one card per category the reader has
