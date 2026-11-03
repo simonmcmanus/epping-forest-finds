@@ -4322,6 +4322,22 @@
       "id": "way/512168196"
     },
     {
+      "slug": "costa-305989",
+      "key": "cafes",
+      "groupKey": "food",
+      "name": "Costa",
+      "address": null,
+      "phone": null,
+      "website": null,
+      "lat": 51.6255626,
+      "lon": 0.0454821,
+      "distanceToForestBoundaryMetres": 455.9,
+      "openingHours": null,
+      "summary": null,
+      "verifiedAt": "2026-10-31",
+      "id": "node/4320305989"
+    },
+    {
       "slug": "costa-318043",
       "key": "cafes",
       "groupKey": "food",
@@ -6338,6 +6354,22 @@
       "id": "way/887798490"
     },
     {
+      "slug": "forest-gate-food-and-wine",
+      "key": "shops",
+      "groupKey": "food",
+      "name": "Forest Gate Food and Wine",
+      "address": "90 Woodgrange Road, London E7 0EW",
+      "phone": null,
+      "website": null,
+      "lat": 51.5506388,
+      "lon": 0.0252631,
+      "distanceToForestBoundaryMetres": 447.5,
+      "openingHours": null,
+      "summary": null,
+      "verifiedAt": "2026-10-31",
+      "id": "node/13232734165"
+    },
+    {
       "slug": "forest-grill-and-dessert-bar",
       "key": "restaurants",
       "groupKey": "food",
@@ -6480,6 +6512,22 @@
       "summary": null,
       "verifiedAt": null,
       "id": "manual/frenford-club"
+    },
+    {
+      "slug": "fresh-as-a-daisy",
+      "key": "cafes",
+      "groupKey": "food",
+      "name": "Fresh as a Daisy",
+      "address": "11 Mulberry Way London E18 1EB",
+      "phone": "+44 20 8532 9654",
+      "website": "https://www.freshasadaisyltd.co.uk/",
+      "lat": 51.5924422,
+      "lon": 0.0284773,
+      "distanceToForestBoundaryMetres": 424.6,
+      "openingHours": null,
+      "summary": null,
+      "verifiedAt": null,
+      "id": "manual/fresh-as-a-daisy"
     },
     {
       "slug": "fresh-event",
@@ -8578,6 +8626,22 @@
       "id": "way/462067083"
     },
     {
+      "slug": "hugs-w-mugs-store",
+      "key": "shops",
+      "groupKey": "food",
+      "name": "Hugs w Mugs Store",
+      "address": "64 Parade Gardens, London E4 8DF",
+      "phone": null,
+      "website": null,
+      "lat": 51.603355,
+      "lon": -0.015159,
+      "distanceToForestBoundaryMetres": 164.8,
+      "openingHours": null,
+      "summary": null,
+      "verifiedAt": "2026-10-31",
+      "id": "way/550432139"
+    },
+    {
       "slug": "hugs-with-mugs-store",
       "key": "shops",
       "groupKey": "food",
@@ -10048,6 +10112,22 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "node/12909529516"
+    },
+    {
+      "slug": "la-valentino",
+      "key": "shops",
+      "groupKey": "food",
+      "name": "La Valentino",
+      "address": null,
+      "phone": null,
+      "website": null,
+      "lat": 51.5566727,
+      "lon": 0.006261,
+      "distanceToForestBoundaryMetres": 134.8,
+      "openingHours": null,
+      "summary": null,
+      "verifiedAt": "2026-10-31",
+      "id": "node/11974778779"
     },
     {
       "slug": "la-vita",
@@ -12736,6 +12816,22 @@
       "summary": null,
       "verifiedAt": null,
       "id": "manual/nightingale-on-the-green"
+    },
+    {
+      "slug": "nightingale-village-store",
+      "key": "shops",
+      "groupKey": "food",
+      "name": "Nightingale Village Store",
+      "address": "86 Nightingale Lane, London E11 2EZ",
+      "phone": null,
+      "website": null,
+      "lat": 51.5812484,
+      "lon": 0.0283366,
+      "distanceToForestBoundaryMetres": 35.7,
+      "openingHours": null,
+      "summary": null,
+      "verifiedAt": "2026-10-31",
+      "id": "way/1361995225"
     },
     {
       "slug": "nilam-s-news",
@@ -15568,6 +15664,22 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "node/12000396378"
+    },
+    {
+      "slug": "rusty-bike",
+      "key": "pubs",
+      "groupKey": "food",
+      "name": "Rusty Bike",
+      "address": "134-138 Station Road, London E4 6AN",
+      "phone": "+44 20 8501 7465",
+      "website": "http://rustybike.pub/rusty-bike-pub-chingford/",
+      "lat": 51.6336623,
+      "lon": 0.0094566,
+      "distanceToForestBoundaryMetres": 461.2,
+      "openingHours": "We-Th 12:00-24:00; Fr-Sa 12:00-01:00; Su-Tu 12:00-23:00",
+      "summary": null,
+      "verifiedAt": "2026-10-31",
+      "id": "way/680295876"
     },
     {
       "slug": "s-h-easter-pharmacy",

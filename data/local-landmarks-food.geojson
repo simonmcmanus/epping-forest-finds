@@ -43298,6 +43298,239 @@
         "distanceLimitFromForestBoundaryMetres": 466.7,
         "ledgerUrl": null
       }
+    },
+    {
+      "type": "Feature",
+      "id": "node/4320305989",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0454821,
+          51.6255626
+        ]
+      },
+      "properties": {
+        "id": "node/4320305989",
+        "osmType": "node",
+        "osmId": 4320305989,
+        "name": "Costa",
+        "category": "cafe",
+        "categoryLabel": "Caf\u00e9",
+        "amenity": "cafe",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 455.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/11974778779",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.006261,
+          51.5566727
+        ]
+      },
+      "properties": {
+        "id": "node/11974778779",
+        "osmType": "node",
+        "osmId": 11974778779,
+        "name": "La Valentino",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 134.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "node/13232734165",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0252631,
+          51.5506388
+        ]
+      },
+      "properties": {
+        "id": "node/13232734165",
+        "osmType": "node",
+        "osmId": 13232734165,
+        "name": "Forest Gate Food and Wine",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "90 Woodgrange Road, London E7 0EW",
+        "distanceToForestBoundaryMetres": 447.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/550432139",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.015159,
+          51.603355
+        ]
+      },
+      "properties": {
+        "id": "way/550432139",
+        "osmType": "way",
+        "osmId": 550432139,
+        "name": "Hugs w Mugs Store",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "64 Parade Gardens, London E4 8DF",
+        "distanceToForestBoundaryMetres": 164.8,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/680295876",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0094566,
+          51.6336623
+        ]
+      },
+      "properties": {
+        "id": "way/680295876",
+        "osmType": "way",
+        "osmId": 680295876,
+        "name": "Rusty Bike",
+        "category": "pub",
+        "categoryLabel": "Pub",
+        "amenity": "pub",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "http://rustybike.pub/rusty-bike-pub-chingford/",
+        "phone": "+44 20 8501 7465",
+        "address": "134-138 Station Road, London E4 6AN",
+        "distanceToForestBoundaryMetres": 461.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "openingHours": "We-Th 12:00-24:00; Fr-Sa 12:00-01:00; Su-Tu 12:00-23:00"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/1361995225",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0283366,
+          51.5812484
+        ]
+      },
+      "properties": {
+        "id": "way/1361995225",
+        "osmType": "way",
+        "osmId": 1361995225,
+        "name": "Nightingale Village Store",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "86 Nightingale Lane, London E11 2EZ",
+        "distanceToForestBoundaryMetres": 35.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/fresh-as-a-daisy",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0284773,
+          51.5924422
+        ]
+      },
+      "properties": {
+        "id": "manual/fresh-as-a-daisy",
+        "osmType": "node",
+        "osmId": 2091280682,
+        "name": "Fresh as a Daisy",
+        "category": "cafe",
+        "categoryLabel": "Caf\u00e9",
+        "amenity": "cafe",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": "https://www.freshasadaisyltd.co.uk/",
+        "phone": "+44 20 8532 9654",
+        "address": "11 Mulberry Way London E18 1EB",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 424.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
     }
   ]
 }

@@ -7036,6 +7036,73 @@
         "distanceLimitFromForestBoundaryMetres": 466.7,
         "ledgerUrl": null
       }
+    },
+    {
+      "type": "Feature",
+      "id": "way/513305723",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0097741,
+          51.5652258
+        ]
+      },
+      "properties": {
+        "id": "way/513305723",
+        "osmType": "way",
+        "osmId": 513305723,
+        "name": "Stone Mini Market",
+        "category": "alcohol",
+        "categoryLabel": "Alcohol",
+        "amenity": "bar",
+        "shop": "alcohol",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "719 High Road Leytonstone, London E11 4RD",
+        "distanceToForestBoundaryMetres": 461.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "openingHours": "Tu-Su 11:00-20:00"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "way/885126728",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0999223,
+          51.6696058
+        ]
+      },
+      "properties": {
+        "id": "way/885126728",
+        "osmType": "way",
+        "osmId": 885126728,
+        "name": "Heathfield Cottage",
+        "category": "building",
+        "categoryLabel": "Building",
+        "amenity": null,
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": "building",
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": "2",
+        "website": null,
+        "phone": null,
+        "address": null,
+        "distanceToForestBoundaryMetres": 398.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
     }
   ]
 }
