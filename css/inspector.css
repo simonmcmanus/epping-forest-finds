@@ -2190,17 +2190,17 @@ dd {
 
 /* Nudge: a dismissible prompt when you are next to an unchecked tree, on every screen, and a one-off pulse on the check card.
    A solid deep-green card on a fixed grid: species art and title on top, the points chip and the one action underneath. */
-.community-nudge { position: fixed; z-index: 40; left: 12px; right: 12px; bottom: calc(var(--safe-bottom) + 92px); display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; grid-template-areas: "icon text close" "icon chip go"; column-gap: 12px; row-gap: 10px; align-items: center; max-width: 460px; margin: 0 auto; padding: 14px 12px 14px 14px; border-radius: 20px; background: var(--accent-ink); color: #fff; box-shadow: 0 16px 36px rgba(20, 60, 36, .38), inset 0 1px 0 rgba(255, 255, 255, .12); animation: community-nudge-in .3s ease-out; }
+.community-nudge { position: fixed; z-index: 40; left: 12px; right: 12px; bottom: calc(var(--safe-bottom) + 92px); display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; grid-template-areas: "icon text close" "icon chip go"; column-gap: 12px; row-gap: 10px; align-items: center; max-width: 460px; margin: 0 auto; padding: 14px 12px 14px 14px; border-radius: 20px; background: var(--accent-ink); color: #fff; box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, .12); animation: community-nudge-in .3s ease-out; }
 .community-nudge-icon { grid-area: icon; display: inline-grid; place-items: center; align-self: start; width: 56px; height: 56px; border-radius: 16px; background: #fff; color: var(--accent-ink); }
 .community-nudge-icon svg { width: 28px; height: 28px; }
 .community-nudge-art { width: 42px; height: 42px; object-fit: contain; }
 .community-nudge-text { grid-area: text; display: flex; flex-direction: column; gap: 2px; min-width: 0; line-height: 1.25; }
-.community-nudge-eyebrow { font-style: normal; font-size: .66rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: rgba(255, 255, 255, .72); }
+.community-nudge-eyebrow { font-style: normal; font-size: .66rem; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--cta); }
 .community-nudge-text strong { font-size: 1rem; font-weight: 800; color: #fff; }
 .community-nudge-text span { color: rgba(255, 255, 255, .8); font-size: .82rem; }
-.community-nudge > .community-points-chip { grid-area: chip; justify-self: start; margin: 0; background: #ffd66b; color: #4a3300; font-weight: 800; }
-.community-nudge-go { grid-area: go; justify-self: end; padding: 10px 18px; border: 0; border-radius: 999px; background: #fff; color: var(--accent-ink); font: inherit; font-size: .92rem; font-weight: 800; cursor: pointer; box-shadow: 0 4px 12px rgba(0, 0, 0, .18); }
-.community-nudge-go:hover, .community-nudge-go:focus-visible { background: #eef6f0; }
+.community-nudge > .community-points-chip { grid-area: chip; justify-self: start; margin: 0; background: var(--cta); color: var(--cta-ink); font-weight: 800; }
+.community-nudge-go { grid-area: go; justify-self: end; padding: 10px 18px; border: 0; border-radius: 999px; background: var(--cta); color: var(--cta-ink); font: inherit; font-size: .92rem; font-weight: 800; cursor: pointer; box-shadow: 0 4px 12px var(--cta-shadow); }
+.community-nudge-go:hover, .community-nudge-go:focus-visible { background: var(--cta-hi); }
 .community-nudge-close { grid-area: close; align-self: start; display: inline-grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%; background: rgba(255, 255, 255, .12); color: #fff; cursor: pointer; }
 .community-nudge-close:hover, .community-nudge-close:focus-visible { background: rgba(255, 255, 255, .24); }
 @media (max-width: 420px) { .community-nudge { grid-template-columns: 46px minmax(0, 1fr) auto; column-gap: 10px; padding: 12px 10px 12px 12px; } .community-nudge-icon { width: 46px; height: 46px; border-radius: 14px; } .community-nudge-art { width: 34px; height: 34px; } .community-nudge-icon svg { width: 24px; height: 24px; } .community-nudge-text strong { font-size: .94rem; } .community-nudge-go { padding: 9px 14px; font-size: .86rem; } }
