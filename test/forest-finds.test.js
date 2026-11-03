@@ -11908,9 +11908,9 @@ test("bulk reads run a bounded number at a time, so a large ledger never opens a
   assert.ok(most > 1, "but they do run in parallel");
 });
 
-test("nudges: a card on the overview, a pulse on the tree's own page, and quiet otherwise", () => {
+test("nudges: a card on any screen, a pulse on the tree's own page, and quiet otherwise", () => {
   const now = 10 * 60 * 60 * 1000;
-  const base = { on: true, fixOk: true, isDefault: false, nearest: { metres: 6 }, target: "tree:1", alreadyReported: false, seenAt: 0, now, onThisTree: false, lastCardAt: 0, overviewActive: true };
+  const base = { on: true, fixOk: true, isDefault: false, nearest: { metres: 6 }, target: "tree:1", alreadyReported: false, seenAt: 0, now, onThisTree: false, lastCardAt: 0 };
   const decide = (over) => app.communityNudgeDecision({ ...base, ...over });
   assert.equal(decide({}), "card");
   assert.equal(decide({ onThisTree: true }), "pulse");
@@ -11923,8 +11923,7 @@ test("nudges: a card on the overview, a pulse on the tree's own page, and quiet 
   assert.equal(decide({ seenAt: now - 60 * 1000 }), "none", "asked about this tree within the day");
   assert.equal(decide({ seenAt: now - 25 * 60 * 60 * 1000 }), "card", "a day later it may ask again");
   assert.equal(decide({ lastCardAt: now - 60 * 1000 }), "none", "at most one card every ten minutes");
-  assert.equal(decide({ overviewActive: false }), "none", "never over another screen");
-  assert.equal(decide({ onThisTree: true, lastCardAt: now - 60 * 1000, overviewActive: false }), "pulse", "the pulse ignores the card limits");
+  assert.equal(decide({ onThisTree: true, lastCardAt: now - 60 * 1000 }), "pulse", "the pulse ignores the card limits");
 });
 
 test("a recovery code is accepted as shown, in any case or spacing, and anything else is refused", () => {
