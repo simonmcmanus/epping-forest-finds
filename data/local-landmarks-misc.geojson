@@ -883,40 +883,6 @@
     },
     {
       "type": "Feature",
-      "id": "way/513305723",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          0.0097741,
-          51.5652258
-        ]
-      },
-      "properties": {
-        "id": "way/513305723",
-        "osmType": "way",
-        "osmId": 513305723,
-        "name": "Stone Mini Market",
-        "category": "alcohol",
-        "categoryLabel": "Alcohol",
-        "amenity": "bar",
-        "shop": "alcohol",
-        "highway": null,
-        "tourism": null,
-        "historic": null,
-        "railway": null,
-        "barrier": null,
-        "entrance": null,
-        "heritage": null,
-        "website": null,
-        "phone": null,
-        "address": "719 High Road Leytonstone, London E11 4RD",
-        "distanceToForestBoundaryMetres": 461.9,
-        "distanceLimitFromForestBoundaryMetres": 466.7,
-        "openingHours": "Tu-Su 11:00-20:00"
-      }
-    },
-    {
-      "type": "Feature",
       "id": "way/550447411",
       "geometry": {
         "type": "Point",
@@ -1042,7 +1008,7 @@
         "heritage": "2",
         "website": null,
         "phone": null,
-        "address": null,
+        "address": "Epping Forest Conservators The Warren, Nursery Road, Loughton, Essex, IG10 4RN",
         "distanceToForestBoundaryMetres": 100.8,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
@@ -1407,39 +1373,6 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 434.9,
-        "distanceLimitFromForestBoundaryMetres": 466.7
-      }
-    },
-    {
-      "type": "Feature",
-      "id": "way/885126728",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          0.0999223,
-          51.6696058
-        ]
-      },
-      "properties": {
-        "id": "way/885126728",
-        "osmType": "way",
-        "osmId": 885126728,
-        "name": "Heathfield Cottage",
-        "category": "building",
-        "categoryLabel": "Building",
-        "amenity": null,
-        "shop": null,
-        "highway": null,
-        "tourism": null,
-        "historic": "building",
-        "railway": null,
-        "barrier": null,
-        "entrance": null,
-        "heritage": "2",
-        "website": null,
-        "phone": null,
-        "address": null,
-        "distanceToForestBoundaryMetres": 398.7,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },
@@ -3128,40 +3061,6 @@
         "address": "IG9 6LN",
         "openingHours": null,
         "distanceToForestBoundaryMetres": 259.4,
-        "distanceLimitFromForestBoundaryMetres": 466.7
-      }
-    },
-    {
-      "type": "Feature",
-      "id": "manual/st-anne-s-parish-centre",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          0.0006652,
-          51.6176518
-        ]
-      },
-      "properties": {
-        "id": "manual/st-anne-s-parish-centre",
-        "osmType": "node",
-        "osmId": 3163720403,
-        "name": "St Anne's Parish Centre",
-        "category": "community_centre",
-        "categoryLabel": "Community Centre",
-        "amenity": "community_centre",
-        "shop": null,
-        "highway": null,
-        "tourism": null,
-        "historic": null,
-        "railway": null,
-        "barrier": null,
-        "entrance": null,
-        "heritage": null,
-        "website": null,
-        "phone": null,
-        "address": null,
-        "openingHours": null,
-        "distanceToForestBoundaryMetres": 41.0,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },

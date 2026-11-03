@@ -56,6 +56,54 @@
       "source": "https://www.hygienescore.co.uk/business/sainsburys-store-ig10-1qr",
       "verifiedOn": "2026-11-03",
       "reason": "Food hygiene register lists this Sainsbury's Local at 119 Church Hill; the OSM node has no address. Also the only record for this store once the hand-added duplicate was merged into it."
+    },
+    "node/11064895198": {
+      "properties": {
+        "address": "660 High Road Leyton, Leyton, London, E10 6JP"
+      },
+      "source": "https://www.hygienescore.co.uk/",
+      "verifiedOn": "2026-11-03",
+      "reason": "Address carried over from a hand-added duplicate when the two records were merged."
+    },
+    "way/511586594": {
+      "properties": {
+        "address": "Ground Floor 877 High Road Leytonstone, Leytonstone, London, E11 1HR"
+      },
+      "source": "https://www.hygienescore.co.uk/",
+      "verifiedOn": "2026-11-03",
+      "reason": "Address carried over from a hand-added duplicate when the two records were merged."
+    },
+    "node/11974778780": {
+      "properties": {
+        "address": "328 High Road Leytonstone, Leytonstone, London, E11 3HS"
+      },
+      "source": "https://www.hygienescore.co.uk/",
+      "verifiedOn": "2026-11-03",
+      "reason": "Address carried over from a hand-added duplicate when the two records were merged."
+    },
+    "node/12000529215": {
+      "properties": {
+        "address": "Green Owl Cafe & Deli, 44 Queens Road, Buckhurst Hill, Essex, IG9 5BY"
+      },
+      "source": "https://www.hygienescore.co.uk/",
+      "verifiedOn": "2026-11-03",
+      "reason": "Address carried over from a hand-added duplicate when the two records were merged."
+    },
+    "way/1423250001": {
+      "properties": {
+        "address": "Aldi 829 - 837 High Road Leytonstone, Leytonstone, London, E11 1HH"
+      },
+      "source": "https://www.hygienescore.co.uk/",
+      "verifiedOn": "2026-11-03",
+      "reason": "Address carried over from a hand-added duplicate when the two records were merged."
+    },
+    "way/815832344": {
+      "properties": {
+        "address": "Epping Forest Conservators The Warren, Nursery Road, Loughton, Essex, IG10 4RN"
+      },
+      "source": "https://www.hygienescore.co.uk/",
+      "verifiedOn": "2026-11-03",
+      "reason": "Address carried over from a hand-added duplicate when the two records were merged."
     }
   }
 }
