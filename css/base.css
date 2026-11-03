@@ -57,7 +57,7 @@
   /* Primary buttons are a solid gold fill with dark text: no gradient. */
   --cta-hi: #e3a72f;
   --cta: #e3a72f;
-  --cta-ink: #1f2226;
+  --cta-ink: #0b0c0e;
   --cta-shadow: rgba(20, 20, 20, 0.2);
   --cta-shadow-hover: rgba(20, 20, 20, 0.24);
   /* The fixed bottom nav bar's own height, reused wherever something else (the inspector sheet,
