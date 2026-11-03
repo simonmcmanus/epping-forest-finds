@@ -4206,16 +4206,15 @@ test("heading-up resize limits effective pixel ratio so oversized canvas stays w
   }
 });
 
-test("tilt never resizes the canvas, so no resize can land mid-gesture", () => {
+test("tilt never grows the canvas, and under full tilt the canvas is exactly the visible map", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.selected = null;
   app.state.compassHeading = 90;
 
-  // Tilt is projected per point (worldToScreen), not applied as a CSS transform to the
-  // finished bitmap, so the canvas needs no extra room for it at any angle. Oversizing for
-  // tilt was in fact what broke 3D: the extra canvas below the pivot swung through the
-  // camera plane, and CSS clipped the whole layer away.
+  // Flat heading-up keeps the overscan margin, which the CSS heading rotation needs to cover its corners.
+  // Under tilt the map is redrawn at each heading instead, so the margin is dropped and the bitmap is the
+  // visible area. Tilt must never make the canvas larger than it is flat.
   app.state.tiltBetaSmoothed = 0;
   app.prepareCanvasForDraw();
   const flatWidth = app.els.canvas.width;
@@ -4225,9 +4224,14 @@ test("tilt never resizes the canvas, so no resize can land mid-gesture", () => {
   for (const beta of [9, 30, 60, 85, 6, 2]) {
     app.state.tiltBetaSmoothed = beta;
     app.prepareCanvasForDraw();
-    assert.equal(app.els.canvas.width, flatWidth, `canvas width must not change at beta ${beta}`);
-    assert.equal(app.els.canvas.height, flatHeight, `canvas height must not change at beta ${beta}`);
+    assert.ok(app.els.canvas.width <= flatWidth, `canvas width must not grow at beta ${beta}`);
+    assert.ok(app.els.canvas.height <= flatHeight, `canvas height must not grow at beta ${beta}`);
   }
+
+  app.state.tiltBetaSmoothed = 85;
+  app.prepareCanvasForDraw();
+  assert.equal(app.state.canvasLogicalWidth, app.state.canvasVisibleWidth, "under full tilt the logical canvas is the visible map");
+  assert.equal(app.state.canvasLogicalHeight, app.state.canvasVisibleHeight, "under full tilt the logical canvas is the visible map");
 });
 
 test("the tilt projection never goes singular, at any angle or distance", () => {

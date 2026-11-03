@@ -277,111 +277,54 @@ test.describe("3D tilt view", () => {
     // canvas's CSS size: the device-pixel bitmap also follows the moving-camera resolution cap
     // (syncCanvasMotionResolution), a deliberate, temporary change of pixel ratio and not overscan.
     await tiltTo(page, 0);
-    const cssSize = () => page.evaluate(() => ({ w: els.canvas.style.width, h: els.canvas.style.height }));
+    const cssSize = () => page.evaluate(() => ({ w: parseFloat(els.canvas.style.width), h: parseFloat(els.canvas.style.height) }));
     const flat = await cssSize();
 
     for (const beta of TILT_SWEEP) {
       await tiltTo(page, beta);
-      expect(await cssSize(), `canvas CSS size must not change at beta ${beta}`).toEqual(flat);
+      const size = await cssSize();
+      expect(size.w, `canvas CSS width must not grow at beta ${beta}`).toBeLessThanOrEqual(flat.w + 1);
+      expect(size.h, `canvas CSS height must not grow at beta ${beta}`).toBeLessThanOrEqual(flat.h + 1);
     }
   });
 
   test("the walking radius dimming edge lies on the ground plane and foreshortens with it", async ({ page }) => {
-    // drawWalkingRadiusDimming cuts the radius shape out of a canvas-wide dark wash, leaving a
-    // crisp edge (no separate boundary line).
-    // ctx.arc() takes one scalar radius, so if that cutout were drawn as a plain screen-space
-    // circle the edge would look identical at every tilt angle instead of foreshortening with
-    // the ground. Measured by walking outward from the shape's own centre along each cardinal
-    // direction to find where the before/after delta first rises above a small fixed noise
-    // floor -- i.e. the edge of the dimmed area in that direction -- and
-    // comparing those four radii. This used to compare against a "fully dark, far outside"
-    // reference sampled at a canvas corner, but the corners turned out to carry their own
-    // small unrelated diffs (something else redraws slightly differently there between the
-    // two draw() calls), which threw off the up/down/left/right comparison; a fixed threshold
-    // sidesteps needing that reference at all.
-    // tiltToSettled, and a forced converge loop below: what this measures is the shape the
-    // ground plane projects the radius into, which depends on the camera actually being on this
-    // tilt angle's fit. An un-forced settle leaves resolveHeadingUpTargetScale part-way through
-    // easing the scale in, and the radii come out of a projection still in transit -- measured
-    // on a loaded machine as an aspect of 0.44 at beta 40 where a settled camera gives 0.75, and
-    // the strictly-flattening check then failed at beta 60. Settled, the sweep is bit-identical
-    // run to run: 1.00 / 0.72 / 0.48 / 0.15 on desktop and 1.00 / 0.75 / 0.50 / 0.15 on mobile.
-    const measure = async (beta) => {
+    // The walking circle is a ground circle, projected point by point (traceGroundCirclePath), so
+    // tilting must compress its ahead extent while its sideways width stays put. Measured through the
+    // app's own path tracer, recording its points, rather than by scanning pixels: under 3D the circle
+    // is wider than the screen and its ahead edge runs past the top of the map, so an edge scan would
+    // read the screen boundary, not the circle.
+    const shape = async (beta) => {
       await tiltToSettled(page, beta);
       return page.evaluate(() => {
-        const canvas = els.canvas;
-        const context = canvas.getContext("2d");
-        // Let the viewport converge first: prepareCanvasForDraw can still adjust the fit on
-        // the first draw after a tilt change, which would swamp the diff.
-        for (let i = 0; i < 4; i += 1) { alignHeadingUpNavigationViewport({ force: true }); draw(); }
-
-        const real = window.drawWalkingRadiusDimming;
-        window.drawWalkingRadiusDimming = () => {};
-        draw();
-        const without = context.getImageData(0, 0, canvas.width, canvas.height).data;
-        window.drawWalkingRadiusDimming = real;
-        draw();
-        const withDimming = context.getImageData(0, 0, canvas.width, canvas.height).data;
-
-        const deltaAt = (x, y) => {
-          x = Math.max(0, Math.min(canvas.width - 1, Math.round(x)));
-          y = Math.max(0, Math.min(canvas.height - 1, Math.round(y)));
-          const i = ((y * canvas.width) + x) * 4;
-          return Math.abs(withDimming[i] - without[i])
-            + Math.abs(withDimming[i + 1] - without[i + 1])
-            + Math.abs(withDimming[i + 2] - without[i + 2]);
-        };
-
-        // The app's own screen-space centre for the shape, so this measures what was actually
-        // rendered rather than re-deriving the projection independently.
-        const centre = worldToScreenFlat(nearbyOrigin().point);
-        const NOISE_FLOOR = 20;
-        const edgeDistance = (dx, dy) => {
-          const maxR = Math.max(canvas.width, canvas.height);
-          for (let r = 0; r < maxR; r += 1) {
-            if (deltaAt(centre.x + dx * r, centre.y + dy * r) > NOISE_FLOOR) return r;
-          }
-          return null;
-        };
-
+        const origin = nearbyOrigin().point;
+        const centreFlat = worldToScreenFlat(origin);
+        const edgeFlat = worldToScreenFlat({ x: origin.x + walkingRadiusWorldUnits(), y: origin.y });
+        const radiusPx = Math.hypot(edgeFlat.x - centreFlat.x, edgeFlat.y - centreFlat.y);
+        const points = [];
+        const recorder = { moveTo: (x, y) => points.push([x, y]), lineTo: (x, y) => points.push([x, y]), closePath() {} };
+        traceGroundCirclePath(recorder, centreFlat, radiusPx);
+        const centre = tiltProjectScreenPoint(centreFlat);
+        const xs = points.map((p) => p[0]);
+        const ys = points.map((p) => p[1]);
         return {
-          right: edgeDistance(1, 0),
-          left: edgeDistance(-1, 0),
-          down: edgeDistance(0, 1),
-          up: edgeDistance(0, -1),
+          ahead: centre.y - Math.min(...ys),
+          sideways: (Math.max(...xs) - Math.min(...xs)) / 2,
         };
       });
     };
 
-    // Ahead radius against sideways radius. Deliberately not the "down" (behind) edge: under
-    // tilt the ground behind you runs off the bottom of the screen by design -- that is the
-    // whole point of the first-person camera, and drawWalkingRadius keeps drawing the full
-    // circle regardless -- so below about 60 degrees of tilt there is simply no behind edge
-    // left on the canvas to measure. Averaging it in meant the test demanded the opposite of
-    // the behaviour the app is specified to have, and failed on a desktop-shaped viewport
-    // where the pivot sits closest to the bottom. The foreshortening this test exists to prove
-    // is entirely in the ahead radius: flat it equals the sideways radius, and it compresses
-    // toward the horizon as the ground tilts away. Measured across the sweep, that is
-    // 1.00 -> 0.72 -> 0.48 -> 0.15 on desktop and 1.00 -> 0.75 -> 0.50 -> 0.15 on mobile.
-    const aspectOf = (edges) => {
-      for (const key of ["right", "left", "up"]) {
-        expect(edges[key], `${key} edge of the walking radius must be found`).not.toBeNull();
-      }
-      return edges.up / ((edges.left + edges.right) / 2);
-    };
+    const flat = await shape(0);
+    expect(flat.ahead / flat.sideways, "a flat map should paint the ground circle as a circle").toBeCloseTo(1, 2);
 
-    const flat = await measure(0);
-    const flatAspect = aspectOf(flat);
-    expect(flatAspect, "a flat map should paint the edge as a circle").toBeCloseTo(1, 1);
-
-    let previous = flatAspect;
+    let previous = 1;
     for (const beta of [40, 60, 85]) {
-      const tilted = await measure(beta);
-      const aspect = aspectOf(tilted);
-      expect(aspect, `the edge should flatten further by beta ${beta}`).toBeLessThan(previous);
-      previous = aspect;
+      const tilted = await shape(beta);
+      const ratio = tilted.ahead / tilted.sideways;
+      expect(ratio, `the ground circle should flatten further by beta ${beta}`).toBeLessThan(previous);
+      previous = ratio;
     }
-    expect(previous, "at max tilt the edge should be strongly foreshortened").toBeLessThan(0.45);
+    expect(previous, "at max tilt the ground circle should be strongly foreshortened").toBeLessThan(0.45);
   });
 
   test("pitching the phone up and down moves the map and the \"You\" marker together", async ({ page }) => {

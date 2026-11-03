@@ -350,6 +350,8 @@ const state = {
   canvasMotion: { sig: null, lastMotionAt: -Infinity, capped: false, scale: 1, stillTimer: null },
   canvasLogicalWidth: 0,
   canvasLogicalHeight: 0,
+  // True while the map is tilted in 3D (see canvasOverscanRatio). Held with hysteresis.
+  canvasTiltHold: false,
   // Best heading source seen so far this session -- see orientationHeadingSource().
   compassHeadingSource: HEADING_SOURCE_NONE,
   headingUpScaleEaseAt: null, // timestamp the heading-up scale ease last integrated (see resolveHeadingUpTargetScale)
@@ -2552,6 +2554,24 @@ function cameraPoseMoved(a, b) {
     || Math.abs(a.tilt - b.tilt) > 0.1 || Math.abs(a.rotation - b.rotation) > 0.1;
 }
 
+// The heading-up margin the bitmap needs this frame. In flat heading-up the rotation is a CSS delta on
+// the bitmap, and the margin covers its corners. Under 3D tilt the map is redrawn at each heading
+// instead, so the margin is not needed and the bitmap can be the visible area, a 2.25x cut in pixels.
+// The tilt switch has hysteresis so sensor noise at the threshold cannot resize the canvas each frame.
+// updateHeadingUpCanvasRotationTransform reads the same hold, so the CSS rotation and the margin never
+// disagree.
+function canvasOverscanRatio() {
+  if (!headingUpActive()) {
+    state.canvasTiltHold = false;
+    return 1;
+  }
+  const tilted = tiltRotateXDeg() > 0;
+  state.canvasTiltHold = state.canvasTiltHold
+    ? (state.map3dEnabled && state.tiltBetaSmoothed > TILT_BETA_THRESHOLD - 4)
+    : tilted;
+  return state.canvasTiltHold ? 1 : HEADING_UP_CANVAS_OVERSCAN_RATIO;
+}
+
 function resizeCanvas() {
   _overlapRectCache = undefined;
   _tiltProjectionCache = undefined;
@@ -2566,7 +2586,7 @@ function resizeCanvas() {
   // for it — and oversizing for tilt was actively harmful, since the extra canvas below
   // the pivot is what used to swing through the camera plane and take the whole layer
   // with it.
-  const overscanRatio = headingUpActive() ? HEADING_UP_CANVAS_OVERSCAN_RATIO : 1;
+  const overscanRatio = canvasOverscanRatio();
   const requestedOverscanWidth = Math.round(rawWidth * requestedDpr * overscanRatio);
   const requestedOverscanHeight = Math.round(rawHeight * requestedDpr * overscanRatio);
   let overscanWidth = Math.max(1, Math.min(MAX_CANVAS_DIMENSION, requestedOverscanWidth));
@@ -2589,6 +2609,12 @@ function resizeCanvas() {
   const insetX = Math.max(0, Math.round((overscanWidth - visibleWidth) / 2));
   const insetY = Math.max(0, Math.round((overscanHeight - visibleHeight) / 2));
 
+  // The viewport is in bitmap pixels, so moving the inset moves the whole map by the same amount. Shift it
+  // so every world point keeps its place on the visible map across the resize.
+  if (state.canvasVisibleWidth > 0) {
+    state.viewport.tx += insetX - state.canvasInsetX;
+    state.viewport.ty += insetY - state.canvasInsetY;
+  }
   state.canvasInsetX = insetX;
   state.canvasInsetY = insetY;
   state.canvasVisibleWidth = visibleWidth;
@@ -7981,7 +8007,7 @@ function prepareCanvasForDraw() {
   // oversized while the heading rotation actually needs it. Tilt no longer changes the
   // canvas size at all, so the tilt-ratio hysteresis that used to live here — and the
   // mid-gesture resize it existed to schedule safely — is gone with it.
-  const needsOverscan = headingUpActive();
+  const needsOverscan = canvasOverscanRatio() > 1;
   const hasOverscan = state.canvasVisibleWidth > 0 && state.canvasLogicalWidth > state.canvasVisibleWidth;
   if (needsOverscan !== hasOverscan) resizeCanvas();
   if (headingUpActive()) {
@@ -8062,7 +8088,7 @@ function updateHeadingUpCanvasRotationTransform() {
   const dpr = pixelRatio();
   const originCss = `${origin.x / dpr}px ${origin.y / dpr}px`;
   els.canvas.style.transformOrigin = originCss;
-  if (tiltRotateXDeg() > 0) {
+  if (state.canvasTiltHold || tiltRotateXDeg() > 0) {
     // No CSS perspective()/rotateX() any more — tilt is baked into the drawn pixels by
     // worldToScreen. That also retires the inter-frame shortcut used in the flat case
     // below (spin the finished bitmap by the heading delta instead of redrawing):
