@@ -937,7 +937,7 @@ function projectedEnvironmentGeometry(geometry) {
   return cached;
 }
 
-// World-space bounds of the whole canvas bitmap (overscan included), padded 5% -- the same
+// World-space bounds of the whole canvas bitmap (which is the visible stage), padded 5% -- the same
 // corner test drawPaths already culls with, including under tilt, where screenToWorld clamps to
 // the far clip. Null when the corners do not unproject to finite points: then nothing is culled.
 function environmentViewWorldBounds() {
