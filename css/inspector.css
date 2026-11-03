@@ -2523,17 +2523,14 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 }
 
 .inspector-title-emoji {
+  /* Title icons are drawn bare: no tile, border or background behind the artwork. The 2px
+     inset keeps the child artwork at the promised 44px inside the 48px box. */
   width: calc(48px * var(--icon-scale));
   height: calc(48px * var(--icon-scale));
-  /* The global border-box sizing means the 48px shell includes its border and padding. Keep
-     one pixel of inset so the child artwork remains the promised 44px title icon rather than
-     shrinking to 42px. */
-  padding: 1px;
-  border: 1px solid var(--border-soft);
-  border-radius: 14px;
+  padding: 2px;
   display: grid;
   place-items: center;
-  background: var(--surface-tint);
+  background: transparent;
   color: var(--accent);
   font-size: calc(40px * var(--icon-scale));
 }

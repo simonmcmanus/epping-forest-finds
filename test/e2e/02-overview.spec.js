@@ -135,6 +135,16 @@ test.describe("Overview / Nearby screen", () => {
     }
   });
 
+  test("screen title icons are drawn bare, with no border or tile behind them", async ({ page }) => {
+    for (const id of ["settingsToggle", "searchToggle", "nearbyToggle", "reportToggle"]) {
+      await page.locator(`#${id}`).click();
+      const wrapper = page.locator("#inspectorTitleEmoji");
+      await expect(wrapper.locator(".title-icon").last()).toBeVisible();
+      await expect(wrapper).toHaveCSS("border-top-width", "0px");
+      await expect(wrapper).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    }
+  });
+
   test("navigation keeps Map setup as an overlay over Nearby", async ({ page }) => {
     const nav = page.getByRole("navigation", { name: "Main navigation" });
     for (const [id, title] of [["searchToggle", "Search"], ["reportToggle", "Community"], ["settingsToggle", "Settings"], ["nearbyToggle", "Nearby"]]) {
