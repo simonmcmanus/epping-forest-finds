@@ -2323,8 +2323,6 @@ function updateMapHoverState(screen) {
 function setupInspectorDragResize() {
   const dragHandle = els.inspectorDragHandle;
   if (!dragHandle) return;
-  let recenterFrame = null;
-
   function isBottomSheetLayout() {
     return window.innerWidth <= 760
       || window.matchMedia("(orientation: landscape) and (pointer: coarse) and (max-height: 500px)").matches;
@@ -2359,24 +2357,14 @@ function setupInspectorDragResize() {
     }
   }
 
-  function scheduleLiveRecenter() {
-    if (recenterFrame != null) return;
-    recenterFrame = requestAnimationFrame(() => {
-      recenterFrame = null;
-      recenterMap();
-    });
-  }
-
+  // The map is re-fitted once, on release, rather than on every pointer move: re-fitting the
+  // camera per frame while the sheet is still following the finger made the map behind jump.
   function finishResize(event) {
     if (!state.inspectorDragging) return;
     state.inspectorDragging = false;
     els.inspector.classList.remove("is-dragging");
     dragHandle.classList.remove("dragging");
     if (event && event.pointerId != null) releasePointerSafely(dragHandle, event.pointerId);
-    if (recenterFrame != null) {
-      cancelAnimationFrame(recenterFrame);
-      recenterFrame = null;
-    }
     recenterMap({ animate: true, durationMs: 240 });
   }
 
@@ -2398,7 +2386,6 @@ function setupInspectorDragResize() {
     const deltaY = state.inspectorDragStart.y - event.clientY;
     const deltaPercent = (deltaY / window.innerHeight) * 100;
     setInspectorHeight(state.inspectorDragStart.heightPercent + deltaPercent);
-    scheduleLiveRecenter();
   });
 
   dragHandle.addEventListener("pointerup", finishResize);
