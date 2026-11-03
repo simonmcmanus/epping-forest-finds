@@ -1346,13 +1346,8 @@ textarea.report-textarea {
 
 /* Nearby's filter rail: a row of toggle pills that scrolls sideways. Sticky so the reader can keep
    tapping while the list scrolls. */
-/* The rail is a band on the off-white Nearby body (see .nearby-overview .inspector-body below), so
-   the white pills read as raised. It pulls up over the body's own top padding so the pills sit
-   centred in the band, with equal space above and below. */
-.inspector.nearby-overview .inspector-body {
-  background: linear-gradient(180deg, #f2f0eb 0, #f7f6f2 200px, #fbfaf8 100%);
-}
-
+/* The rail pulls up over the body's own top padding so the pills sit centred in the band, with
+   equal space above and below. */
 .filter-rail {
   position: sticky;
   top: 0;
@@ -1363,7 +1358,7 @@ textarea.report-textarea {
   margin: -14px -16px 12px;
   padding: 12px 0;
   border-bottom: 1px solid rgba(0, 0, 0, 0.07);
-  background: #f2f0eb;
+  background: var(--panel);
 }
 
 /* Once the rail has moved, soften the clipped pill at the left edge. At scrollLeft 0 the first
@@ -1377,7 +1372,7 @@ textarea.report-textarea {
   z-index: 1;
   width: 28px;
   pointer-events: none;
-  background: linear-gradient(90deg, #f2f0eb, transparent);
+  background: linear-gradient(90deg, var(--panel), transparent);
 }
 
 .rail-pills {
