@@ -984,8 +984,9 @@ function communityNudgeShow(tree, metres) {
   el.id = "communityNudge";
   el.className = "community-nudge";
   el.setAttribute("role", "status");
-  el.innerHTML = `<span class="community-nudge-icon">${communityIcon("shield")}</span>
-    <div class="community-nudge-text"><strong>You're next to ${name}</strong><span>Tap to confirm · ${Math.max(1, Math.round(metres))} m away</span></div>
+  const species = typeof treeSpeciesIconHtml === "function" ? treeSpeciesIconHtml(tree.commonName, tree.latinName, "community-nudge-art") : "";
+  el.innerHTML = `<span class="community-nudge-icon">${species || communityIcon("shield")}</span>
+    <div class="community-nudge-text"><em class="community-nudge-eyebrow">Nearby tree</em><strong>You're next to ${name}</strong><span>Tap to confirm · ${Math.max(1, Math.round(metres))} m away</span></div>
     ${communityPointsChipHtml(1)}
     <button type="button" class="community-nudge-go" data-community-nudge-go>Check it</button>
     <button type="button" class="community-nudge-close" data-community-nudge-close aria-label="Not now">${communityIcon("x")}</button>`;
