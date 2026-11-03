@@ -105,6 +105,11 @@ const MAX_CANVAS_DIMENSION = 3072;
 // on the CPU path for much of the range, so the app shell draws them at a lower budget.
 const MAX_CANVAS_PIXEL_COUNT = Native.platform === "android" ? 4194304 : 9437184;
 const MAX_DEVICE_PIXEL_RATIO = Native.platform === "android" ? 2 : Infinity;
+// While the camera is moving the canvas is drawn at this device pixel ratio at most, and returns to
+// full resolution after MOTION_STILL_MS without movement. Raster work scales with the bitmap pixel
+// count, so a moving frame is the one that has to be cheap. See syncCanvasMotionResolution().
+const MOTION_CANVAS_PIXEL_RATIO = 1.5;
+const MOTION_STILL_MS = 350;
 function cappedDevicePixelRatio() {
   return Math.min(window.devicePixelRatio || 1, MAX_DEVICE_PIXEL_RATIO);
 }
@@ -341,6 +346,10 @@ const state = {
   compassArrowAngle: null,
   compassLastEventAt: null,
   orientationLastEventAt: null,
+  // Canvas resolution while the camera moves -- see syncCanvasMotionResolution().
+  canvasMotion: { sig: null, lastMotionAt: -Infinity, capped: false, scale: 1, stillTimer: null },
+  canvasLogicalWidth: 0,
+  canvasLogicalHeight: 0,
   // Best heading source seen so far this session -- see orientationHeadingSource().
   compassHeadingSource: HEADING_SOURCE_NONE,
   headingUpScaleEaseAt: null, // timestamp the heading-up scale ease last integrated (see resolveHeadingUpTargetScale)
@@ -2511,6 +2520,38 @@ function visibleCanvasRect() {
   return { x: 0, y: 0, width: Math.max(1, Math.round(r.width * dpr)), height: Math.max(1, Math.round(r.height * dpr)) };
 }
 
+// Decides this frame's canvas resolution from whether the camera moved since the last frame. Called
+// from draw() after prepareCanvasForDraw(), so the pose it reads is the one being painted. Movement
+// is a change in scale, pan, 3D tilt or rotation above a small threshold, so sensor jitter on a
+// phone held still does not count. A change of resolution resizes the canvas, which the frame
+// about to be painted then uses. A timer schedules the restoring frame, since nothing else draws
+// once the camera is still.
+function syncCanvasMotionResolution() {
+  const m = state.canvasMotion;
+  const now = performance.now();
+  const pose = { scale: state.viewport.scale, tx: state.viewport.tx, ty: state.viewport.ty,
+    tilt: tiltRotateXDeg(), rotation: navigationMapRotationDegrees() };
+  const prev = m.sig;
+  m.sig = pose;
+  if (prev && cameraPoseMoved(prev, pose)) {
+    m.lastMotionAt = now;
+    clearTimeout(m.stillTimer);
+    m.stillTimer = setTimeout(() => { m.stillTimer = null; requestDraw(); }, MOTION_STILL_MS);
+  }
+  const moving = now - m.lastMotionAt < MOTION_STILL_MS;
+  if (moving !== m.capped) {
+    m.capped = moving;
+    m.scale = moving ? Math.min(1, MOTION_CANVAS_PIXEL_RATIO / Number(els.canvas.dataset.dpr || 1)) : 1;
+    applyCanvasBitmapSize();
+  }
+}
+
+function cameraPoseMoved(a, b) {
+  return Math.abs(a.tx - b.tx) > 0.5 || Math.abs(a.ty - b.ty) > 0.5
+    || Math.abs(a.scale - b.scale) > a.scale * 1e-4
+    || Math.abs(a.tilt - b.tilt) > 0.1 || Math.abs(a.rotation - b.rotation) > 0.1;
+}
+
 function resizeCanvas() {
   _overlapRectCache = undefined;
   _tiltProjectionCache = undefined;
@@ -2553,8 +2594,10 @@ function resizeCanvas() {
   state.canvasVisibleWidth = visibleWidth;
   state.canvasVisibleHeight = visibleHeight;
 
-  els.canvas.width = overscanWidth;
-  els.canvas.height = overscanHeight;
+  // The logical size (what every camera, cull and hit test works in) is kept at full resolution; only
+  // the bitmap written by applyCanvasBitmapSize() may be smaller.
+  state.canvasLogicalWidth = overscanWidth;
+  state.canvasLogicalHeight = overscanHeight;
   els.canvas.dataset.dpr = String(dpr);
   els.canvas.style.position = "absolute";
   els.canvas.style.left = `${-insetX / dpr}px`;
@@ -2562,14 +2605,30 @@ function resizeCanvas() {
   els.canvas.style.width = `${overscanWidth / dpr}px`;
   els.canvas.style.height = `${overscanHeight / dpr}px`;
   if (els.overlayCanvas) {
-    els.overlayCanvas.width = overscanWidth;
-    els.overlayCanvas.height = overscanHeight;
     els.overlayCanvas.dataset.dpr = String(dpr);
     els.overlayCanvas.style.position = "absolute";
     els.overlayCanvas.style.left = `${-insetX / dpr}px`;
     els.overlayCanvas.style.top = `${-insetY / dpr}px`;
     els.overlayCanvas.style.width = `${overscanWidth / dpr}px`;
     els.overlayCanvas.style.height = `${overscanHeight / dpr}px`;
+  }
+  applyCanvasBitmapSize();
+}
+
+// Writes the bitmap of both map canvases: the logical size scaled by the moving-camera factor. Every
+// frame starts with that factor applied to its context (draw(), drawOverlay()), so drawing still happens
+// in logical coordinates and only the pixel count changes. The browser stretches the bitmap over the
+// unchanged CSS size.
+function applyCanvasBitmapSize() {
+  if (!state.canvasLogicalWidth) return;
+  const k = state.canvasMotion.scale;
+  const w = Math.max(1, Math.round(state.canvasLogicalWidth * k));
+  const h = Math.max(1, Math.round(state.canvasLogicalHeight * k));
+  els.canvas.width = w;
+  els.canvas.height = h;
+  if (els.overlayCanvas) {
+    els.overlayCanvas.width = w;
+    els.overlayCanvas.height = h;
   }
 }
 
@@ -7923,7 +7982,7 @@ function prepareCanvasForDraw() {
   // canvas size at all, so the tilt-ratio hysteresis that used to live here — and the
   // mid-gesture resize it existed to schedule safely — is gone with it.
   const needsOverscan = headingUpActive();
-  const hasOverscan = state.canvasVisibleWidth > 0 && els.canvas.width > state.canvasVisibleWidth;
+  const hasOverscan = state.canvasVisibleWidth > 0 && state.canvasLogicalWidth > state.canvasVisibleWidth;
   if (needsOverscan !== hasOverscan) resizeCanvas();
   if (headingUpActive()) {
     if (state.headingUpEntryAnim != null) {
@@ -9492,7 +9551,7 @@ function nearbyPlacesByFilterWithinDistance(latitude, longitude, filter, maxMetr
 }
 
 function nearestToViewport(items, limit) {
-  const center = screenToWorld(els.canvas.width / 2, els.canvas.height / 2);
+  const center = screenToWorld(state.canvasLogicalWidth / 2, state.canvasLogicalHeight / 2);
   return items
     .map((item) => ({ item, distance: Math.hypot(item.point.x - center.x, item.point.y - center.y) }))
     .sort((a, b) => a.distance - b.distance)

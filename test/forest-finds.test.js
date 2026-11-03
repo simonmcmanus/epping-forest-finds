@@ -65,6 +65,7 @@ function createElementStub(id = "") {
         stroke() {},
         fillRect() {},
         clearRect() {},
+        setTransform() {},
         setLineDash() {},
         createLinearGradient() { return { addColorStop() {} }; },
         createRadialGradient() { return { addColorStop() {} }; },
