@@ -1869,7 +1869,7 @@ function updateNearbyRadiusPinch() {
   const distance = currentPinchDistance();
   if (distance == null || !state.pinchBaseDistance) return;
   const ratio = distance / state.pinchBaseDistance;
-  applyWalkingRadiusGesture(state.pinchBaseMinutes / ratio);
+  applyWalkingRadiusGesture(state.pinchBaseMinutes * ratio);
 }
 
 // The shared body of every continuous radius gesture -- the two-finger pinch above and the
@@ -1993,7 +1993,11 @@ function normalizeWheelPixels(event) {
 function updateNearbyRadiusWheel(event) {
   const pixels = normalizeWheelPixels(event);
   if (!pixels) return;
-  const rate = WHEEL_RADIUS_RATE_PER_PIXEL * (event.ctrlKey ? TRACKPAD_PINCH_RATE_MULTIPLIER : 1);
+  // A trackpad pinch (ctrlKey) is reported with negative deltaY when fingers spread; it grows the
+  // radius, so its rate is negated. A plain mouse wheel keeps its own direction.
+  const rate = event.ctrlKey
+    ? -WHEEL_RADIUS_RATE_PER_PIXEL * TRACKPAD_PINCH_RATE_MULTIPLIER
+    : WHEEL_RADIUS_RATE_PER_PIXEL;
   const base = Number.isFinite(state.wheelRadiusMinutes) ? state.wheelRadiusMinutes : state.walkingDistanceMinutes;
   const rawMinutes = base * Math.exp(pixels * rate);
   const floor = applyWalkingRadiusGesture(rawMinutes);
@@ -2031,7 +2035,7 @@ function updateNearbyRadiusGesture(event) {
   const base = Number.isFinite(state.gestureRadiusBaseMinutes)
     ? state.gestureRadiusBaseMinutes
     : state.walkingDistanceMinutes;
-  applyWalkingRadiusGesture(base / scale);
+  applyWalkingRadiusGesture(base * scale);
 }
 
 function endNearbyRadiusGesture() {

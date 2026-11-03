@@ -5442,14 +5442,14 @@ test("a wheel gesture keeps its own running value, so small trackpad deltas stil
 
   // The radius moves continuously -- no value grid to round away to -- so even one tiny delta
   // nudges it immediately.
-  app.updateNearbyRadiusWheel(wheelEvent(-2, { ctrlKey: true }));
+  app.updateNearbyRadiusWheel(wheelEvent(-2, { ctrlKey: true })); // fingers spreading apart
   const afterOne = app.state.walkingDistanceMinutes;
-  assert.ok(afterOne < 5, "a single trackpad delta already moves the ring");
+  assert.ok(afterOne > 5, "a single trackpad delta already moves the ring");
   assert.equal(app.state.wheelRadiusMinutes, afterOne, "the gesture's running value matches what was applied");
 
   // ...and a run of them keeps moving it further in the same direction.
   for (let i = 0; i < 20; i += 1) app.updateNearbyRadiusWheel(wheelEvent(-2, { ctrlKey: true }));
-  assert.ok(app.state.walkingDistanceMinutes < afterOne, "a continued trackpad pinch should keep shrinking the ring");
+  assert.ok(app.state.walkingDistanceMinutes > afterOne, "a continued spreading trackpad pinch should keep growing the ring");
 });
 
 test("a trackpad pinch moves the radius further than the same wheel delta", () => {
@@ -5459,7 +5459,8 @@ test("a trackpad pinch moves the radius further than the same wheel delta", () =
 
   setUpWheelNearby(app);
   app.updateNearbyRadiusWheel(wheelEvent(-30, { ctrlKey: true }));
-  assert.ok(app.state.wheelRadiusMinutes < byWheel, "the trackpad rate should be the faster of the two");
+  const byPinch = app.state.wheelRadiusMinutes;
+  assert.ok(Math.abs(Math.log(byPinch / 5)) > Math.abs(Math.log(byWheel / 5)), "the trackpad rate should be the faster of the two");
 });
 
 test("normalizeWheelPixels converts line and page deltas to pixels", () => {
@@ -5501,10 +5502,10 @@ test("Safari's own trackpad pinch events resize the radius too", () => {
   // ctrl+wheel Chrome and Firefox report, so without this path a Mac pinch would do nothing.
   app.startNearbyRadiusGesture();
   app.updateNearbyRadiusGesture({ scale: 2 }); // fingers spread apart -- zoom in
-  assert.ok(app.state.walkingDistanceMinutes < 5, "spreading apart should close the ring in");
+  assert.ok(app.state.walkingDistanceMinutes > 5, "spreading apart should grow the ring");
 
   app.updateNearbyRadiusGesture({ scale: 0.5 }); // and back past where it started
-  assert.ok(app.state.walkingDistanceMinutes > 5, "pinching together should widen it");
+  assert.ok(app.state.walkingDistanceMinutes < 5, "pinching together should shrink it");
 
   // Measured from where the gesture began, not from the last frame, so it tracks the fingers.
   app.updateNearbyRadiusGesture({ scale: 1 });

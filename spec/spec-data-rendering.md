@@ -642,8 +642,9 @@ moving the real GPS fix:
   handler routes to the radius gesture on exactly the screens the two-finger pinch engages on
   (`wheelResizesNearbyRadius()`: a user location plus `isOverviewScreenActive()` or
   `secondaryScreenActive()`); anywhere else it falls through to the old `zoomAt()` map zoom.
-  `deltaY < 0` (zoom in) shrinks the radius, matching both the pinch's direction and what the
-  wheel used to do to the map. Deltas are normalised to pixels first (`normalizeWheelPixels`
+  `deltaY < 0` (scroll up) shrinks the radius, as the wheel always has. A trackpad pinch
+  (ctrl+wheel) runs the other way: spreading the fingers (`deltaY < 0`) grows the radius, so the
+  rate is negated for `ctrlKey`. Deltas are normalised to pixels first (`normalizeWheelPixels`
   handles Firefox's line mode and page mode), then applied as `Math.exp(pixels * rate)` —
   `WHEEL_RADIUS_RATE_PER_PIXEL` puts a ~100px wheel notch at the 1.22x step the map zoom took,
   and a trackpad pinch (reported as ctrl+wheel, in far smaller deltas) multiplies that rate by
@@ -673,7 +674,8 @@ moving the real GPS fix:
   ratio the two-finger pinch already speaks in, so `startNearbyRadiusGesture`/
   `updateNearbyRadiusGesture`/`endNearbyRadiusGesture` (js/nav.js) map it straight onto
   `applyWalkingRadiusGesture` from a `state.gestureRadiusBaseMinutes` baseline — measured from
-  where the gesture began, so returning the fingers returns the radius. Only Safari fires these
+  where the gesture began, so returning the fingers returns the radius. Spreading (`scale > 1`)
+  grows the radius, the same direction as the two-finger pinch. Only Safari fires these
   events, so the handlers are inert everywhere else, and the Playwright projects (Chromium) can
   only cover this path in unit tests.
 - **Automatic grow-back:** a radius closed down onto one find becomes an empty circle as soon as
