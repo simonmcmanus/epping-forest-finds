@@ -940,9 +940,6 @@ function projectedEnvironmentGeometry(geometry) {
   return cached;
 }
 
-// World-space bounds of the whole canvas bitmap (overscan included), padded 5% -- the same
-// corner test drawPaths already culls with, including under tilt, where screenToWorld clamps to
-// the far clip. Null when the corners do not unproject to finite points: then nothing is culled.
 // World points at the corners of the area the culls cover. That is the visible map padded by the heading-up
 // margin the bitmap used to carry (HEADING_UP_CANVAS_OVERSCAN_RATIO), so the culls admit exactly the
 // features they did with the larger bitmap, whatever its size is now. Taken in bitmap coordinates, which
@@ -956,6 +953,10 @@ function cullCornerWorldPoints() {
   return [screenToWorld(x0, y0), screenToWorld(x1, y0), screenToWorld(x0, y1), screenToWorld(x1, y1)];
 }
 
+// World-space bounds of the cull area (the visible map plus the heading-up margin, see
+// cullCornerWorldPoints), padded 5% -- the same corner test drawPaths already culls with, including under
+// tilt, where screenToWorld clamps to the far clip. Null when the corners do not unproject to finite points:
+// then nothing is culled.
 function environmentViewWorldBounds() {
   const w = state.canvasLogicalWidth, h = state.canvasLogicalHeight;
   const corners = cullCornerWorldPoints();
