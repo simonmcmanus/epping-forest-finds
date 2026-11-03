@@ -663,6 +663,23 @@ button.settings-toggle.has-update::after {
   animation: nav-press-bump var(--nav-slide-duration) cubic-bezier(0.2, 0.75, 0.25, 1) both;
 }
 
+/* Re-tapping Nearby while already on it: a small side-to-side shake, the sheet stays in place. */
+.inspector.sheet-shake {
+  animation: sheet-shake 380ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes sheet-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(2px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inspector.sheet-shake { animation: none; }
+}
+
 @keyframes nav-press-bump {
   0%, 100% { transform: scale(1); }
   20% { transform: scale(1.045); }
@@ -1329,6 +1346,8 @@ textarea.report-textarea {
 
 /* Nearby's filter rail: a row of toggle pills that scrolls sideways. Sticky so the reader can keep
    tapping while the list scrolls. */
+/* The rail pulls up over the body's own top padding so the pills sit centred in the band, with
+   equal space above and below. */
 .filter-rail {
   position: sticky;
   top: 0;
@@ -1336,9 +1355,9 @@ textarea.report-textarea {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 -4px 12px;
-  padding: 4px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  margin: -14px -4px 12px;
+  padding: 12px 4px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
   background: var(--panel);
 }
 
