@@ -489,3 +489,74 @@ test.describe("Reporting a problem with a landmark", () => {
     await expect(page.locator("[data-action='report-issue']")).toContainText("Noticed a problem with this location?");
   });
 });
+
+test.describe("Feedback sends without making the user wait", () => {
+  test.beforeEach(async ({ page }) => {
+    await setup(page, "/feedback");
+    await expect(page.locator("#reportDetails")).toBeVisible();
+  });
+
+  test("tapping Submit answers at once, and a send that gets no reply is kept for later", async ({ page }) => {
+    // A request that never answers, as on a half-connected network.
+    await page.route("**/.netlify/functions/report-missing-data", () => {});
+
+    await page.fill("#reportDetails", "Sent over a weak signal");
+    await page.click("#reportSubmit");
+    await expect(page.locator("#reportStatus")).toContainText("Saving your report");
+    await expect(page.locator("#reportSubmit")).toBeDisabled();
+
+    // After the send's bounded wait the report is parked in the outbox and the user is told so.
+    await expect(page.locator("#reportStatus")).toContainText("sent automatically");
+    await expect(page.locator("#reportOutboxNote")).toContainText("1 report waiting to send");
+    await expect(page.locator("#reportSubmit")).toBeEnabled();
+  });
+});
+
+test.describe("Photos on the missing tree and missing place forms", () => {
+  test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ["geolocation"] });
+
+  const TAG_PHOTO = { name: "tag.png", mimeType: "image/png", buffer: Buffer.from("tag-image") };
+
+  test.beforeEach(async ({ page }) => {
+    await setup(page, "/feedback");
+    await expect(page.locator("#reportType")).toBeVisible();
+  });
+
+  test("a missing tree report can carry a photo of its tag", async ({ page }) => {
+    let posted;
+    await page.route("**/api/community/report", async (route) => {
+      posted = route.request().postDataJSON();
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+    });
+
+    await page.selectOption("#reportType", "tree");
+    await expect(page.locator("#communityTreePhoto")).toBeAttached();
+    await page.setInputFiles("#communityTreePhoto", TAG_PHOTO);
+    await page.fill("#communityTagInput", "99901");
+    await expect(page.locator("#communityAddTreeSubmit")).toBeEnabled();
+    await page.click("#communityAddTreeSubmit");
+
+    await expect.poll(() => posted && posted.kind).toBe("tree");
+    expect(posted.tagNumber).toBe("99901");
+    expect(posted.photo).toMatchObject({ contentType: "image/png" });
+    expect(posted.photo.dataUrl).toMatch(/^data:image\/png;base64,/);
+  });
+
+  test("a missing place report can carry a photo of the entrance or sign", async ({ page }) => {
+    let posted;
+    await page.route("**/.netlify/functions/report-missing-data", async (route) => {
+      posted = route.request().postDataJSON();
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
+    });
+
+    await page.selectOption("#reportType", "place");
+    await page.fill("#communityPlaceName", "The Test Cafe");
+    await page.setInputFiles("#communityPlacePhoto", TAG_PHOTO);
+    await expect(page.locator("#communityAddPlaceSubmit")).toBeEnabled();
+    await page.click("#communityAddPlaceSubmit");
+
+    await expect.poll(() => posted && posted.reportType).toBe("place-check");
+    expect(posted.placeCheck).toMatchObject({ status: "NEW_PLACE", name: "The Test Cafe" });
+    expect(posted.photo).toMatchObject({ contentType: "image/png" });
+  });
+});
