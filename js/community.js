@@ -1103,7 +1103,7 @@ function communityAddTreeFormHtml() {
       <label class="community-field"><span class="community-field-label">Anything else? <span class="community-optional">(optional)</span></span>
         <input id="communityTreeNote" class="report-textarea community-input" type="text" autocomplete="off" maxlength="120" placeholder="Species, size, what's nearby…">
       </label>
-      ${reportPhotoFieldHtml("communityTreePhoto").replace("Take a photo of the tree tag, or choose an existing picture.", "A photo of the tag helps us check the number. It is kept for the review and not published.")}
+      ${reportPhotoFieldHtml("communityTreePhoto", "A photo of the tag helps us check the number. It is kept for the review and not published.")}
       <p id="communityAddTreeStatus" class="report-note community-status" aria-live="polite"></p>
       <div class="community-note-actions">
         <button class="community-link" type="button" data-action="community-add-cancel">Cancel</button>
@@ -1213,6 +1213,7 @@ function communityAddPlaceFormHtml() {
       <label class="community-field"><span class="community-field-label">Anything else? <span class="community-optional">(optional)</span></span>
         <input id="communityPlaceNote" class="report-textarea community-input" type="text" autocomplete="off" maxlength="200" placeholder="Opening hours, website, what's nearby…">
       </label>
+      ${reportPhotoFieldHtml("communityPlacePhoto", "A photo of the entrance or sign helps us check the place. It is published with the review, like your note.")}
       ${communityPublicNoticeHtml()}
       <p id="communityAddPlaceStatus" class="report-note community-status" aria-live="polite"></p>
       <div class="community-note-actions">
@@ -1251,6 +1252,7 @@ function communityStartAddPlace() {
   communityPlaceLocationTimer = setInterval(communityUpdateAddPlaceState, 1500);
   const input = document.getElementById("communityPlaceName");
   if (input) input.addEventListener("input", communityUpdateAddPlaceState);
+  bindReportPhotoInput(document.getElementById("communityPlacePhoto"));
   const form = document.getElementById("communityAddPlaceForm");
   if (form) form.addEventListener("submit", (event) => { event.preventDefault(); communitySubmitNewPlace(); });
 }
@@ -1268,6 +1270,12 @@ async function communitySubmitNewPlace() {
   const fix = communityCurrentFix();
   if (!name) return say("Please enter the place's name.");
   if (!fix.ok) return say("We need a close, accurate location. Stand at the place and wait for a better GPS fix.");
+  let photo = null;
+  try {
+    photo = await prepareReportPhoto(document.getElementById("communityPlacePhoto")?.files?.[0]);
+  } catch (error) {
+    return say(error.message || "Could not prepare that photo.");
+  }
   const lat = Number(state.userLocation.latitude.toFixed(6));
   const lon = Number(state.userLocation.longitude.toFixed(6));
   const key = `new:${lat.toFixed(5)},${lon.toFixed(5)}`;
@@ -1286,6 +1294,7 @@ async function communitySubmitNewPlace() {
     userAgent: navigator.userAgent,
     pageUrl: window.location.href,
     requestId: id,
+    ...(photo ? { photo } : {}),
   } }).then(() => { if (navigator.onLine) outboxFlush(); }).catch(() => {});
   clearInterval(communityPlaceLocationTimer);
   communityPlaceLocationTimer = null;
@@ -1318,6 +1327,7 @@ function communityPlaceInnerHtml(section) {
     return `<div class="community-note">
         <p class="community-note-title">${communityIcon(pending.icon)}<span>${escapeHtml(pending.label)}</span></p>
         <textarea class="report-textarea community-note-input" rows="3" maxlength="400" placeholder="${escapeHtml(pending.notePlaceholder || "")}"></textarea>
+        ${reportPhotoFieldHtml(`communityPlacePhoto-${section.dataset.communityTarget.replace(/[^a-z0-9]/gi, "")}`, "A photo helps us check. It is published with the review, like your note.")}
         ${communityPublicNoticeHtml()}
         <p class="report-note community-status" aria-live="polite"></p>
         <div class="community-note-actions">
@@ -1455,7 +1465,7 @@ function communityRefreshPlaceConfirmation(target) {
   });
 }
 
-async function communitySubmitPlace(section, status, note) {
+async function communitySubmitPlace(section, status, note, photo = null) {
   const target = section.dataset.communityTarget;
   const lat = Number(section.dataset.lat);
   const lon = Number(section.dataset.lon);
@@ -1482,6 +1492,7 @@ async function communitySubmitPlace(section, status, note) {
       userAgent: navigator.userAgent,
       pageUrl: window.location.href,
       requestId: id,
+      ...(photo ? { photo } : {}),
     } }).then(() => { if (navigator.onLine) outboxFlush(); }).catch(() => {});
   }
   if (typeof requestDraw === "function") requestDraw();
@@ -1515,12 +1526,19 @@ async function communitySendPlace(button) {
   if (!choice) return;
   const input = section.querySelector(".community-note-input");
   const note = input ? input.value.trim() : "";
+  const statusEl = section.querySelector(".community-status");
   if (choice.noteRequired && !note) {
-    const statusEl = section.querySelector(".community-status");
     if (statusEl) statusEl.textContent = "Please add a few words so we can check it.";
     return;
   }
-  await communitySubmitPlace(section, choice.status, note);
+  let photo = null;
+  try {
+    photo = await prepareReportPhoto(section.querySelector(".report-photo-input")?.files?.[0]);
+  } catch (error) {
+    if (statusEl) statusEl.textContent = error.message || "Could not prepare that photo.";
+    return;
+  }
+  await communitySubmitPlace(section, choice.status, note, photo);
   delete section.dataset.pending;
   delete section.dataset.editing;
   communityRefreshSections();

@@ -3734,12 +3734,12 @@ function reportFormHtml() {
 // `capture="environment"` asks a phone for its rear camera, where supported. Browsers which
 // do not expose a camera still present their normal image picker, so reporting stays simple on
 // desktop and for users who already have a useful picture.
-function reportPhotoFieldHtml(inputId) {
+function reportPhotoFieldHtml(inputId, hint = "Take a photo of the tree tag, or choose an existing picture.") {
   return `<div class="report-photo-field">
       <label for="${inputId}">Photo (optional)
         <input id="${inputId}" class="report-photo-input" type="file" accept="image/*" capture="environment">
       </label>
-      <p class="report-note report-photo-note">Take a photo of the tree tag, or choose an existing picture.</p>
+      <p class="report-note report-photo-note">${escapeHtml(hint)}</p>
       <p class="report-photo-status" aria-live="polite"></p>
     </div>`;
 }
