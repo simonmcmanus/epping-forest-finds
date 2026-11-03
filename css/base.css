@@ -18,6 +18,11 @@
   --surface-neutral: #f2f4f1;
   --border-soft: rgba(47, 121, 83, 0.14);
   --border-accent: rgba(47, 121, 83, 0.28);
+  /* Panel chrome that used to be hard-coded. Defaults are the values they replaced, so the look
+     is unchanged; the palette lab (dev/palette-lab.html) retunes them with the other panel tokens. */
+  --nav-edge: rgba(36, 56, 47, 0.15);
+  --hover-tint: rgba(36, 56, 47, 0.06);
+  --hover-surface: #f2f6f1;
   --accent: #2f7953;
   --accent-ink: #245d3e;
   --accent-soft: #eaf4ec;

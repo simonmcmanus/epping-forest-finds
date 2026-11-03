@@ -1540,6 +1540,12 @@ gently; and `--border-accent` separates the inspector and navigation panels from
 other selected places share `.place-detail` for the same title rhythm, action controls, field cards,
 and related-content treatment.
 
+The nav bar's border (`--nav-edge`) and the two hover tints (`--hover-tint`, `--hover-surface`) are
+tokens too, so every panel surface is retuned from `:root`. The map is drawn in JavaScript and does not
+read these tokens, so a palette change never recolours the map. `dev/palette-lab.html` is a developer
+tool that loads the real app in a phone-sized frame and writes a palette onto the frame's `:root`. It
+offers presets and per-token editing, and generates the `:root` block to paste into `css/base.css`.
+
 ---
 
 ## Performance Constraints
