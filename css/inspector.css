@@ -2951,6 +2951,25 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   grid-template-columns: minmax(0, 1fr);
 }
 
+/* Value-only rows (an address, a website) read as one quiet block: a single soft panel with hairline
+   dividers, not a box per line. Rows with field names keep their own cards. */
+.place-detail > dl:has(> .row--value-only) {
+  gap: 0;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+.place-detail > dl > .row.row--value-only {
+  padding: 10px 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.place-detail > dl > .row.row--value-only + .row.row--value-only {
+  border-top: 1px solid var(--line);
+}
+
 .place-detail > dl > .row dt {
   align-self: start;
   color: var(--muted);
