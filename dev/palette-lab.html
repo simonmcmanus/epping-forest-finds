@@ -1,0 +1,446 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Palette lab</title>
+<style>
+/* Lab chrome. Neutral on purpose, so it does not compete with the palettes it is showing. */
+:root {
+  color-scheme: light;
+  --lab-bg: #f4f4f2;
+  --lab-panel: #ffffff;
+  --lab-ink: #1d1f22;
+  --lab-muted: #65686d;
+  --lab-line: #dcdcd8;
+  --lab-accent: #3a4a5c;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--lab-bg);
+  color: var(--lab-ink);
+  font: 14px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  min-height: 100vh;
+}
+.lab {
+  display: grid;
+  grid-template-columns: minmax(300px, 380px) 1fr;
+  gap: 24px;
+  padding: 20px max(16px, env(safe-area-inset-left, 0px)) 32px max(16px, env(safe-area-inset-left, 0px));
+  align-items: start;
+}
+@media (max-width: 860px) { .lab { grid-template-columns: 1fr; } }
+h1 { font-size: 18px; margin: 0 0 4px; }
+.lead { margin: 0 0 16px; color: var(--lab-muted); font-size: 13px; }
+.card {
+  background: var(--lab-panel);
+  border: 1px solid var(--lab-line);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 16px;
+  min-width: 0;
+}
+.card h2 { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--lab-muted); margin: 0 0 10px; font-weight: 600; }
+.row-buttons { display: flex; flex-wrap: wrap; gap: 6px; }
+button.chip {
+  font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 999px;
+  border: 1px solid var(--lab-line); background: #fafaf8; color: var(--lab-ink); cursor: pointer;
+}
+button.chip[aria-pressed="true"] { background: var(--lab-accent); border-color: var(--lab-accent); color: #fff; }
+button.action {
+  font: inherit; font-size: 13px; padding: 7px 12px; border-radius: 8px;
+  border: 1px solid var(--lab-line); background: #fff; color: var(--lab-ink); cursor: pointer;
+}
+button.action:focus-visible, button.chip:focus-visible, input:focus-visible, select:focus-visible {
+  outline: 2px solid var(--lab-accent); outline-offset: 2px;
+}
+.group + .group { margin-top: 14px; }
+.group h3 { font-size: 12px; margin: 0 0 6px; color: var(--lab-muted); font-weight: 600; }
+.token { display: grid; grid-template-columns: 26px 1fr; gap: 4px 8px; align-items: center; margin-bottom: 6px; }
+.token .sw { width: 26px; height: 26px; border-radius: 6px; border: 1px solid rgba(0,0,0,.12); }
+.token label { grid-column: 2; font-size: 12px; color: var(--lab-muted); }
+.token .fields { grid-column: 2; display: flex; gap: 6px; align-items: center; min-width: 0; }
+.token input[type="text"] {
+  flex: 1; min-width: 0; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+  padding: 5px 7px; border: 1px solid var(--lab-line); border-radius: 6px; background: #fff; color: var(--lab-ink);
+}
+.token input[type="color"] { width: 30px; height: 26px; padding: 0; border: 1px solid var(--lab-line); border-radius: 6px; background: #fff; flex: none; }
+.token.changed input[type="text"] { border-color: var(--lab-accent); }
+textarea#css-output {
+  width: 100%; min-height: 180px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+  border: 1px solid var(--lab-line); border-radius: 8px; padding: 8px; background: #fff; color: var(--lab-ink);
+}
+.note { font-size: 12px; color: var(--lab-muted); margin: 8px 0 0; }
+
+/* Stage: the real app in a phone-sized frame, scaled to fit the window height. */
+.stage { min-width: 0; }
+.stage-top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+.stage-wrap { display: flex; justify-content: center; }
+.device-box { position: relative; }
+.device {
+  width: 390px; height: 844px; transform-origin: top left;
+  border-radius: 34px; overflow: hidden; background: #111;
+  padding: 10px; box-shadow: 0 20px 40px rgba(0,0,0,.18);
+}
+.device iframe {
+  display: block; width: 100%; height: 100%; border: 0; border-radius: 26px; background: #fff;
+}
+</style>
+</head>
+<body>
+<div class="lab">
+  <aside>
+    <h1>Palette lab</h1>
+    <p class="lead">Pick a palette or edit its tokens. The app on the right updates live. The green map is not affected: it is drawn in JavaScript, not from these tokens.</p>
+
+    <section class="card">
+      <h2>Presets</h2>
+      <div class="row-buttons" id="preset-list"></div>
+    </section>
+
+    <section class="card">
+      <h2>Tokens</h2>
+      <div id="token-form"></div>
+      <div class="row-buttons" style="margin-top:12px">
+        <button class="action" id="reset" type="button">Reset to app defaults</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>CSS for base.css</h2>
+      <textarea id="css-output" readonly spellcheck="false" aria-label="Generated CSS custom properties"></textarea>
+      <div class="row-buttons" style="margin-top:8px">
+        <button class="action" id="copy" type="button">Copy CSS</button>
+      </div>
+      <p class="note" id="copy-note"></p>
+    </section>
+  </aside>
+
+  <main class="stage">
+    <div class="stage-top">
+      <div class="row-buttons" id="screen-list" role="group" aria-label="Screen"></div>
+    </div>
+    <div class="stage-wrap">
+      <div class="device-box" id="device-box">
+        <div class="device" id="device">
+          <iframe id="app-frame" title="The app" src="/nearby"></iframe>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+(() => {
+  // Each token the lab can change. Groups mirror how the panel uses them.
+  const GROUPS = [
+    { title: "Surfaces", tokens: [
+      ["--paper", "Page background"], ["--panel", "Panel"], ["--surface-soft", "Title band"],
+      ["--surface-tint", "Chips and tints"], ["--surface-selected", "Selected row"], ["--surface-neutral", "Neutral area"] ] },
+    { title: "Edges and shadows", tokens: [
+      ["--border-soft", "Soft border"], ["--border-accent", "Panel border"], ["--line", "Divider line"],
+      ["--nav-edge", "Nav bar border"], ["--shadow", "Nav bar shadow"], ["--inspector-shadow", "Panel shadow"] ] },
+    { title: "Text", tokens: [
+      ["--ink", "Body text"], ["--muted", "Secondary text"], ["--tree", "Heading accent"] ] },
+    { title: "Accent", tokens: [
+      ["--accent", "Action"], ["--accent-ink", "Action text"], ["--accent-soft", "Action tint"] ] },
+    { title: "Hover", tokens: [
+      ["--hover-tint", "Nav back hover"], ["--hover-surface", "Button hover"] ] },
+    { title: "Primary button", tokens: [
+      ["--cta-hi", "Button top"], ["--cta", "Button bottom"], ["--action-solid", "Solid action and links"],
+      ["--cta-ink", "Button text"], ["--cta-shadow", "Button shadow"], ["--cta-shadow-hover", "Button shadow (hover)"] ] },
+    { title: "Tint channels (R, G, B)", tokens: [
+      ["--forest-rgb", "Forest tints"], ["--accent-rgb", "Accent tints"] ] },
+    { title: "Nav active tab", tokens: [
+      ["--nav-active-hi", "Pill top"], ["--nav-active-lo", "Pill bottom"], ["--nav-active-edge", "Pill edge"],
+      ["--nav-active-shadow", "Pill shadow"], ["--nav-active-ink", "Pill text"] ] }
+  ];
+
+  // The app's own values, as base.css and inspector.css define them: the Graphite and sand palette.
+  const CURRENT = {
+    "--paper": "#e7e5e1", "--panel": "#ffffff", "--surface-soft": "#f6f5f2",
+    "--surface-tint": "#eeeceb", "--surface-selected": "#e3e1dd", "--surface-neutral": "#f2f1ee",
+    "--border-soft": "rgba(46, 58, 70, 0.22)", "--border-accent": "rgba(46, 58, 70, 0.7)",
+    "--line": "#cdcac4", "--nav-edge": "rgba(30, 30, 30, 0.6)",
+    "--shadow": "0 18px 46px rgba(20, 20, 20, 0.13), 0 3px 10px rgba(20, 20, 20, 0.07)",
+    "--inspector-shadow": "0 22px 52px rgba(20, 20, 20, 0.14), 0 3px 12px rgba(20, 20, 20, 0.06)",
+    "--ink": "#1f2226", "--muted": "#62666d", "--tree": "#2e3a46",
+    "--accent": "#2e3a46", "--accent-ink": "#1f2830", "--accent-soft": "#e9ebee",
+    "--hover-tint": "rgba(30, 30, 30, 0.06)", "--hover-surface": "#f3f2ef",
+    "--cta-hi": "#e4cc85", "--cta": "#e4cc85", "--cta-ink": "#000000",
+    "--cta-shadow": "rgba(20, 20, 20, 0.2)", "--cta-shadow-hover": "rgba(20, 20, 20, 0.24)",
+    "--nav-active-hi": "#e3e6ea", "--nav-active-lo": "#d6dae0", "--nav-active-edge": "rgba(46, 58, 70, 0.3)",
+    "--nav-active-shadow": "rgba(20, 20, 20, 0.12)", "--nav-active-ink": "#1f2830",
+    "--accent-rgb": "46, 58, 70", "--forest-rgb": "46, 58, 70", "--action-solid": "#2e3a46"
+  };
+
+  // The previous green palette, kept as a comparison preset.
+  const GREEN = {
+    "--paper": "#e9f0e7", "--panel": "rgba(255, 255, 255, 0.965)", "--surface-soft": "#f7fbf7",
+    "--surface-tint": "#edf6ee", "--surface-selected": "#e4f0e6", "--surface-neutral": "#f2f4f1",
+    "--border-soft": "rgba(47, 121, 83, 0.14)", "--border-accent": "rgba(47, 121, 83, 0.28)",
+    "--line": "#d3dfd4", "--nav-edge": "rgba(36, 56, 47, 0.15)",
+    "--shadow": "0 18px 46px rgba(28, 55, 39, 0.15), 0 3px 10px rgba(28, 55, 39, 0.08)",
+    "--inspector-shadow": "0 22px 52px rgba(26, 58, 39, 0.15), 0 3px 12px rgba(26, 58, 39, 0.07)",
+    "--ink": "#1b2a22", "--muted": "#617168", "--tree": "#2f7953",
+    "--accent": "#2f7953", "--accent-ink": "#245d3e", "--accent-soft": "#eaf4ec",
+    "--hover-tint": "rgba(36, 56, 47, 0.06)", "--hover-surface": "#f2f6f1",
+    "--cta-hi": "#39845d", "--cta": "#2f7953",
+    "--nav-active-hi": "#fff8e7", "--nav-active-lo": "#f7edd2", "--nav-active-edge": "rgba(182, 145, 49, 0.14)",
+    "--nav-active-shadow": "rgba(132, 99, 0, 0.08)", "--nav-active-ink": "#806100",
+    "--accent-rgb": "47, 121, 83", "--forest-rgb": "47, 111, 78", "--action-solid": "#2f6f4e",
+    "--cta-shadow": "rgba(20, 58, 38, 0.2)", "--cta-shadow-hover": "rgba(20, 58, 38, 0.23)",
+    "--cta-ink": "#ffffff"
+  };
+
+  // A palette's accent drives the colours that were green: primary buttons, the nav pill and the
+  // forest tints. Presets set only their accent and text; these follow from it unless a preset overrides them.
+  const hexToRgb = (hex) => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+  // WCAG relative luminance: decides whether a button's text should be dark or white on its fill.
+  const relativeLuminance = (hex) => {
+    const [r, g, b] = hexToRgb(hex).map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
+  const mixWhite = (hex, t) => "#" + hexToRgb(hex).map((v) => Math.round(v + (255 - v) * t).toString(16).padStart(2, "0")).join("");
+  function deriveFromAccent({ accent, accentInk }) {
+    const rgb = hexToRgb(accent).join(", ");
+    return {
+      "--accent-rgb": rgb, "--forest-rgb": rgb, "--action-solid": accent,
+      "--cta": accent, "--cta-hi": accent, "--cta-ink": relativeLuminance(accent) > 0.3 ? "#1f2226" : "#ffffff",
+      "--cta-shadow": `rgba(${rgb}, 0.2)`, "--cta-shadow-hover": `rgba(${rgb}, 0.24)`,
+      "--nav-active-hi": mixWhite(accent, 0.92), "--nav-active-lo": mixWhite(accent, 0.84),
+      "--nav-active-edge": `rgba(${rgb}, 0.22)`, "--nav-active-shadow": `rgba(${rgb}, 0.12)`,
+      "--nav-active-ink": accentInk
+    };
+  }
+
+  const PRESETS = [
+    { name: "Graphite and sand", values: CURRENT },
+    { name: "Warm stone", derive: { accent: "#8a5a34", accentInk: "#6b4425" }, values: {
+      "--paper": "#ebe6df", "--panel": "#fffdfa", "--surface-soft": "#f6f1ea",
+      "--surface-tint": "#f1ebe2", "--surface-selected": "#ece3d6", "--surface-neutral": "#f3efe9",
+      "--border-soft": "rgba(138, 90, 52, 0.16)", "--border-accent": "rgba(138, 90, 52, 0.3)",
+      "--line": "#e0d8cc", "--nav-edge": "rgba(80, 60, 40, 0.16)",
+      "--shadow": "0 18px 46px rgba(60, 40, 20, 0.14), 0 3px 10px rgba(60, 40, 20, 0.08)",
+      "--inspector-shadow": "0 22px 52px rgba(60, 40, 20, 0.15), 0 3px 12px rgba(60, 40, 20, 0.07)",
+      "--ink": "#2a2420", "--muted": "#6e645b", "--tree": "#7a4f2a",
+      "--accent": "#8a5a34", "--accent-ink": "#6b4425", "--accent-soft": "#f4ebe0",
+      "--hover-tint": "rgba(80, 60, 40, 0.06)", "--hover-surface": "#f6f1ea" } },
+    { name: "Slate harbour", derive: { accent: "#3d5a7a", accentInk: "#2c4560" }, values: {
+      "--paper": "#e4e8ee", "--panel": "#fdfeff", "--surface-soft": "#f3f6fa",
+      "--surface-tint": "#e9eef4", "--surface-selected": "#dde6f0", "--surface-neutral": "#f1f4f8",
+      "--border-soft": "rgba(61, 90, 122, 0.16)", "--border-accent": "rgba(61, 90, 122, 0.3)",
+      "--line": "#d3dae3", "--nav-edge": "rgba(30, 50, 80, 0.16)",
+      "--shadow": "0 18px 46px rgba(20, 35, 55, 0.15), 0 3px 10px rgba(20, 35, 55, 0.08)",
+      "--inspector-shadow": "0 22px 52px rgba(20, 35, 55, 0.16), 0 3px 12px rgba(20, 35, 55, 0.07)",
+      "--ink": "#1c2530", "--muted": "#5d6876", "--tree": "#2c4560",
+      "--accent": "#3d5a7a", "--accent-ink": "#2c4560", "--accent-soft": "#e6edf5",
+      "--hover-tint": "rgba(30, 50, 80, 0.06)", "--hover-surface": "#eef3f8" } },
+    { name: "Heather", derive: { accent: "#6b4a7d", accentInk: "#523862" }, values: {
+      "--paper": "#ece7ee", "--panel": "#fffcfe", "--surface-soft": "#faf7fb",
+      "--surface-tint": "#f1ebf3", "--surface-selected": "#e8dfeb", "--surface-neutral": "#f5f1f6",
+      "--border-soft": "rgba(107, 74, 125, 0.16)", "--border-accent": "rgba(107, 74, 125, 0.3)",
+      "--line": "#ddd3e0", "--nav-edge": "rgba(60, 40, 70, 0.16)",
+      "--shadow": "0 18px 46px rgba(50, 30, 60, 0.14), 0 3px 10px rgba(50, 30, 60, 0.08)",
+      "--inspector-shadow": "0 22px 52px rgba(50, 30, 60, 0.15), 0 3px 12px rgba(50, 30, 60, 0.07)",
+      "--ink": "#241d28", "--muted": "#6a5f70", "--tree": "#523862",
+      "--accent": "#6b4a7d", "--accent-ink": "#523862", "--accent-soft": "#f1eaf4",
+      "--hover-tint": "rgba(60, 40, 70, 0.06)", "--hover-surface": "#f5f0f7" } },
+    { name: "Previous green", values: GREEN },
+    { name: "Charcoal and brass", derive: { accent: "#d6b25e", accentInk: "#e8c97a" }, values: {
+      "--paper": "#2a2d32", "--panel": "#25282d", "--surface-soft": "#2d3137",
+      "--surface-tint": "#33373e", "--surface-selected": "#3b4048", "--surface-neutral": "#2a2e34",
+      "--border-soft": "rgba(214, 178, 94, 0.18)", "--border-accent": "rgba(214, 178, 94, 0.32)",
+      "--line": "#3d424a", "--nav-edge": "rgba(214, 178, 94, 0.22)",
+      "--shadow": "0 18px 46px rgba(0, 0, 0, 0.45), 0 3px 10px rgba(0, 0, 0, 0.3)",
+      "--inspector-shadow": "0 22px 52px rgba(0, 0, 0, 0.5), 0 3px 12px rgba(0, 0, 0, 0.3)",
+      "--ink": "#eceae5", "--muted": "#a6a9ad", "--tree": "#d6b25e",
+      "--accent": "#d6b25e", "--accent-ink": "#e8c97a", "--accent-soft": "rgba(214, 178, 94, 0.16)",
+      "--hover-tint": "rgba(255, 255, 255, 0.06)", "--hover-surface": "#33373e" } }
+  ];
+
+  const SCREENS = [
+    ["Nearby", "/nearby"], ["Settings", "/settings"], ["Feedback", "/feedback"], ["Community", "/community"]
+  ];
+  const STORAGE_KEY = "ff-palette-lab-v1";
+
+  const frame = document.getElementById("app-frame");
+  const $ = (id) => document.getElementById(id);
+  let values = { ...CURRENT };
+  let presetName = PRESETS[0].name;
+
+  // Per-viewer convenience only: remember the last palette across reloads. Never fails the page.
+  function loadSaved() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+      if (saved && saved.values) {
+        values = { ...CURRENT, ...saved.values };
+        presetName = saved.preset || "Custom";
+      }
+    } catch (_) { /* storage blocked or corrupt: start from the app's own values */ }
+  }
+  function save() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ preset: presetName, values })); } catch (_) { /* ignore */ }
+  }
+
+  // Writes the palette onto the app's own :root, so every rule that reads a token repaints.
+  function applyToFrame() {
+    const root = frame.contentDocument && frame.contentDocument.documentElement;
+    if (!root) return;
+    for (const name of Object.keys(values)) root.style.setProperty(name, values[name]);
+  }
+  // Removes every inline override, so the frame shows the app's own stylesheet again.
+  function clearFrame() {
+    const root = frame.contentDocument && frame.contentDocument.documentElement;
+    if (!root) return;
+    for (const name of Object.keys(CURRENT)) root.style.removeProperty(name);
+  }
+
+  function cssText() {
+    const lines = Object.keys(values).map((name) => `  ${name}: ${values[name]};`);
+    return `:root {\n${lines.join("\n")}\n}`;
+  }
+
+  function renderPresets() {
+    const list = $("preset-list");
+    list.innerHTML = "";
+    for (const preset of PRESETS) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "chip";
+      btn.textContent = preset.name;
+      btn.setAttribute("aria-pressed", String(preset.name === presetName));
+      btn.addEventListener("click", () => {
+        values = { ...CURRENT, ...(preset.derive ? deriveFromAccent(preset.derive) : {}), ...preset.values };
+        presetName = preset.name;
+        refresh(true);
+      });
+      list.appendChild(btn);
+    }
+  }
+
+  function renderTokens() {
+    const form = $("token-form");
+    form.innerHTML = "";
+    for (const group of GROUPS) {
+      const wrap = document.createElement("div");
+      wrap.className = "group";
+      wrap.innerHTML = `<h3>${group.title}</h3>`;
+      for (const [name, label] of group.tokens) {
+        const row = document.createElement("div");
+        row.className = "token";
+        row.dataset.token = name;
+        const id = `tok${name.slice(2)}`;
+        row.innerHTML = `
+          <div class="sw" aria-hidden="true"></div>
+          <label for="${id}">${label} <span style="font-family:ui-monospace,monospace">${name}</span></label>
+          <div class="fields">
+            <input type="text" id="${id}" spellcheck="false" autocomplete="off">
+          </div>`;
+        const text = row.querySelector('input[type="text"]');
+        text.value = values[name];
+        text.addEventListener("change", () => {
+          values[name] = text.value.trim() || CURRENT[name];
+          presetName = "Custom";
+          refresh(false);
+        });
+        wrap.appendChild(row);
+      }
+      form.appendChild(wrap);
+    }
+    syncTokenRows();
+  }
+
+  // Keeps each row's swatch, colour picker and "changed" marker in step with its value.
+  function syncTokenRows() {
+    for (const row of document.querySelectorAll(".token")) {
+      const name = row.dataset.token;
+      const value = values[name];
+      // Tint channels hold "R, G, B" rather than a colour, so the swatch shows them as an rgb().
+      row.querySelector(".sw").style.background = /^\d+, \d+, \d+$/.test(value) ? `rgb(${value})` : value;
+      const text = row.querySelector('input[type="text"]');
+      if (document.activeElement !== text) text.value = value;
+      row.classList.toggle("changed", value !== CURRENT[name]);
+      const fields = row.querySelector(".fields");
+      let picker = fields.querySelector('input[type="color"]');
+      if (/^#[0-9a-f]{6}$/i.test(value)) {
+        if (!picker) {
+          picker = document.createElement("input");
+          picker.type = "color";
+          picker.title = "Pick a colour";
+          picker.addEventListener("input", () => {
+            values[name] = picker.value;
+            presetName = "Custom";
+            refresh(false);
+          });
+          fields.appendChild(picker);
+        }
+        picker.value = value.toLowerCase();
+      } else if (picker) {
+        picker.remove();
+      }
+    }
+  }
+
+  function renderScreens() {
+    const list = $("screen-list");
+    list.innerHTML = "";
+    for (const [label, path] of SCREENS) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "chip";
+      btn.textContent = label;
+      btn.setAttribute("aria-pressed", String(frame.getAttribute("src") === path));
+      btn.addEventListener("click", () => frame.setAttribute("src", path));
+      list.appendChild(btn);
+    }
+  }
+
+  // Called after any change. `fromPreset` true means the values were set wholesale.
+  function refresh(fromPreset) {
+    applyToFrame();
+    save();
+    renderPresets();
+    if (fromPreset) renderTokens(); else syncTokenRows();
+    $("css-output").value = cssText();
+  }
+
+  function fitDevice() {
+    const scale = Math.min(1, (window.innerHeight - 40) / 864);
+    $("device").style.transform = `scale(${scale})`;
+    $("device-box").style.width = `${390 * scale}px`;
+    $("device-box").style.height = `${864 * scale}px`;
+  }
+
+  $("reset").addEventListener("click", () => {
+    values = { ...CURRENT };
+    presetName = PRESETS[0].name;
+    clearFrame();
+    refresh(true);
+  });
+
+  $("copy").addEventListener("click", async () => {
+    const note = $("copy-note");
+    try {
+      await navigator.clipboard.writeText(cssText());
+      note.textContent = "Copied. Paste it over the :root block in css/base.css.";
+    } catch (_) {
+      $("css-output").select();
+      note.textContent = "Clipboard unavailable here. The text is selected, so copy it by hand.";
+    }
+  });
+
+  frame.addEventListener("load", () => { applyToFrame(); renderScreens(); });
+  window.addEventListener("resize", fitDevice);
+
+  loadSaved();
+  renderPresets();
+  renderTokens();
+  renderScreens();
+  $("css-output").value = cssText();
+  fitDevice();
+})();
+</script>
+</body>
+</html>
