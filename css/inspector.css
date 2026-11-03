@@ -206,15 +206,15 @@
   padding: 0 13px 0 10px;
   border: 0;
   border-radius: 999px;
-  background: linear-gradient(180deg, var(--cta-hi), var(--cta));
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.25), 0 4px 10px rgba(20, 36, 28, 0.22);
-  color: #fff;
+  background: var(--cta);
+  box-shadow: 0 4px 10px var(--cta-shadow);
+  color: var(--cta-ink);
   font-size: 0.82rem;
   transition: transform 120ms ease, box-shadow 120ms ease, filter 120ms ease;
 }
 
 .nearby-anchor-bar .walk-chip-btn:hover {
-  background: linear-gradient(180deg, var(--cta-hi), var(--cta));
+  background: var(--cta);
   filter: brightness(1.07);
 }
 
@@ -2506,8 +2506,8 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 /* Screen interiors: give each panel a clear rhythm and a designed empty state. */
 :root {
   /* Keep the inspector's later polish on the same surface vocabulary as the base controls. */
-  --inspector-shadow: 0 22px 52px rgba(26, 58, 39, 0.15), 0 3px 12px rgba(26, 58, 39, 0.07);
-  --inspector-shadow-small: 0 2px 8px rgba(27, 65, 43, 0.06);
+  --inspector-shadow: 0 22px 52px rgba(20, 20, 20, 0.14), 0 3px 12px rgba(20, 20, 20, 0.06);
+  --inspector-shadow-small: 0 2px 8px rgba(20, 20, 20, 0.05);
 }
 
 .inspector,

@@ -149,7 +149,7 @@ textarea#css-output {
       ["--hover-tint", "Nav back hover"], ["--hover-surface", "Button hover"] ] },
     { title: "Primary button", tokens: [
       ["--cta-hi", "Button top"], ["--cta", "Button bottom"], ["--action-solid", "Solid action and links"],
-      ["--cta-shadow", "Button shadow"], ["--cta-shadow-hover", "Button shadow (hover)"] ] },
+      ["--cta-ink", "Button text"], ["--cta-shadow", "Button shadow"], ["--cta-shadow-hover", "Button shadow (hover)"] ] },
     { title: "Tint channels (R, G, B)", tokens: [
       ["--forest-rgb", "Forest tints"], ["--accent-rgb", "Accent tints"] ] },
     { title: "Nav active tab", tokens: [
@@ -157,8 +157,26 @@ textarea#css-output {
       ["--nav-active-shadow", "Pill shadow"], ["--nav-active-ink", "Pill text"] ] }
   ];
 
-  // The app's own values, as base.css and inspector.css define them today.
+  // The app's own values, as base.css and inspector.css define them: the Graphite and sand palette.
   const CURRENT = {
+    "--paper": "#e7e5e1", "--panel": "#ffffff", "--surface-soft": "#f6f5f2",
+    "--surface-tint": "#eeeceb", "--surface-selected": "#e3e1dd", "--surface-neutral": "#f2f1ee",
+    "--border-soft": "rgba(46, 58, 70, 0.22)", "--border-accent": "rgba(46, 58, 70, 0.7)",
+    "--line": "#cdcac4", "--nav-edge": "rgba(30, 30, 30, 0.6)",
+    "--shadow": "0 18px 46px rgba(20, 20, 20, 0.13), 0 3px 10px rgba(20, 20, 20, 0.07)",
+    "--inspector-shadow": "0 22px 52px rgba(20, 20, 20, 0.14), 0 3px 12px rgba(20, 20, 20, 0.06)",
+    "--ink": "#1f2226", "--muted": "#62666d", "--tree": "#2e3a46",
+    "--accent": "#2e3a46", "--accent-ink": "#1f2830", "--accent-soft": "#e9ebee",
+    "--hover-tint": "rgba(30, 30, 30, 0.06)", "--hover-surface": "#f3f2ef",
+    "--cta-hi": "#e3a72f", "--cta": "#e3a72f", "--cta-ink": "#1f2226",
+    "--cta-shadow": "rgba(20, 20, 20, 0.2)", "--cta-shadow-hover": "rgba(20, 20, 20, 0.24)",
+    "--nav-active-hi": "#e3e6ea", "--nav-active-lo": "#d6dae0", "--nav-active-edge": "rgba(46, 58, 70, 0.3)",
+    "--nav-active-shadow": "rgba(20, 20, 20, 0.12)", "--nav-active-ink": "#1f2830",
+    "--accent-rgb": "46, 58, 70", "--forest-rgb": "46, 58, 70", "--action-solid": "#2e3a46"
+  };
+
+  // The previous green palette, kept as a comparison preset.
+  const GREEN = {
     "--paper": "#e9f0e7", "--panel": "rgba(255, 255, 255, 0.965)", "--surface-soft": "#f7fbf7",
     "--surface-tint": "#edf6ee", "--surface-selected": "#e4f0e6", "--surface-neutral": "#f2f4f1",
     "--border-soft": "rgba(47, 121, 83, 0.14)", "--border-accent": "rgba(47, 121, 83, 0.28)",
@@ -172,18 +190,24 @@ textarea#css-output {
     "--nav-active-hi": "#fff8e7", "--nav-active-lo": "#f7edd2", "--nav-active-edge": "rgba(182, 145, 49, 0.14)",
     "--nav-active-shadow": "rgba(132, 99, 0, 0.08)", "--nav-active-ink": "#806100",
     "--accent-rgb": "47, 121, 83", "--forest-rgb": "47, 111, 78", "--action-solid": "#2f6f4e",
-    "--cta-shadow": "rgba(20, 58, 38, 0.2)", "--cta-shadow-hover": "rgba(20, 58, 38, 0.23)"
+    "--cta-shadow": "rgba(20, 58, 38, 0.2)", "--cta-shadow-hover": "rgba(20, 58, 38, 0.23)",
+    "--cta-ink": "#ffffff"
   };
 
   // A palette's accent drives the colours that were green: primary buttons, the nav pill and the
   // forest tints. Presets set only their accent and text; these follow from it unless a preset overrides them.
   const hexToRgb = (hex) => { const n = parseInt(hex.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+  // WCAG relative luminance: decides whether a button's text should be dark or white on its fill.
+  const relativeLuminance = (hex) => {
+    const [r, g, b] = hexToRgb(hex).map((v) => { const c = v / 255; return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  };
   const mixWhite = (hex, t) => "#" + hexToRgb(hex).map((v) => Math.round(v + (255 - v) * t).toString(16).padStart(2, "0")).join("");
   function deriveFromAccent({ accent, accentInk }) {
     const rgb = hexToRgb(accent).join(", ");
     return {
       "--accent-rgb": rgb, "--forest-rgb": rgb, "--action-solid": accent,
-      "--cta": accent, "--cta-hi": mixWhite(accent, 0.12),
+      "--cta": accent, "--cta-hi": accent, "--cta-ink": relativeLuminance(accent) > 0.3 ? "#1f2226" : "#ffffff",
       "--cta-shadow": `rgba(${rgb}, 0.2)`, "--cta-shadow-hover": `rgba(${rgb}, 0.24)`,
       "--nav-active-hi": mixWhite(accent, 0.92), "--nav-active-lo": mixWhite(accent, 0.84),
       "--nav-active-edge": `rgba(${rgb}, 0.22)`, "--nav-active-shadow": `rgba(${rgb}, 0.12)`,
@@ -192,7 +216,7 @@ textarea#css-output {
   }
 
   const PRESETS = [
-    { name: "Current (green)", values: CURRENT },
+    { name: "Graphite and sand", values: CURRENT },
     { name: "Warm stone", derive: { accent: "#8a5a34", accentInk: "#6b4425" }, values: {
       "--paper": "#ebe6df", "--panel": "#fffdfa", "--surface-soft": "#f6f1ea",
       "--surface-tint": "#f1ebe2", "--surface-selected": "#ece3d6", "--surface-neutral": "#f3efe9",
@@ -223,19 +247,7 @@ textarea#css-output {
       "--ink": "#241d28", "--muted": "#6a5f70", "--tree": "#523862",
       "--accent": "#6b4a7d", "--accent-ink": "#523862", "--accent-soft": "#f1eaf4",
       "--hover-tint": "rgba(60, 40, 70, 0.06)", "--hover-surface": "#f5f0f7" } },
-    { name: "Graphite and sand", derive: { accent: "#2e3a46", accentInk: "#1f2830" }, values: {
-      "--paper": "#e7e5e1", "--panel": "#ffffff", "--surface-soft": "#f6f5f2",
-      "--surface-tint": "#eeeceb", "--surface-selected": "#e3e1dd", "--surface-neutral": "#f2f1ee",
-      "--border-soft": "rgba(46, 58, 70, 0.22)", "--border-accent": "rgba(46, 58, 70, 0.55)",
-      "--line": "#cdcac4", "--nav-edge": "rgba(30, 30, 30, 0.42)",
-      "--shadow": "0 18px 46px rgba(20, 20, 20, 0.13), 0 3px 10px rgba(20, 20, 20, 0.07)",
-      "--inspector-shadow": "0 22px 52px rgba(20, 20, 20, 0.14), 0 3px 12px rgba(20, 20, 20, 0.06)",
-      "--ink": "#1f2226", "--muted": "#62666d", "--tree": "#2e3a46",
-      "--accent": "#2e3a46", "--accent-ink": "#1f2830", "--accent-soft": "#e9ebee",
-      "--hover-tint": "rgba(30, 30, 30, 0.06)", "--hover-surface": "#f3f2ef",
-      "--cta-hi": "#5a6673", "--cta": "#3c4755",
-      "--nav-active-hi": "#e3e6ea", "--nav-active-lo": "#d6dae0", "--nav-active-edge": "rgba(46, 58, 70, 0.3)",
-      "--nav-active-shadow": "rgba(20, 20, 20, 0.12)", "--nav-active-ink": "#1f2830" } },
+    { name: "Previous green", values: GREEN },
     { name: "Charcoal and brass", derive: { accent: "#d6b25e", accentInk: "#e8c97a" }, values: {
       "--paper": "#2a2d32", "--panel": "#25282d", "--surface-soft": "#2d3137",
       "--surface-tint": "#33373e", "--surface-selected": "#3b4048", "--surface-neutral": "#2a2e34",
