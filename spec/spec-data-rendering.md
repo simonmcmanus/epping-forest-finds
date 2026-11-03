@@ -159,6 +159,8 @@ Draw order (back to front):
 
 ### Performance Rules
 
+- **Canvas resolution while the camera moves.** When the camera pose changes between frames (scale, pan, 3D tilt or heading-up rotation, above small thresholds that ignore sensor jitter), the map canvases are drawn at a device pixel ratio of at most 1.5. Once the camera has been still for 350ms the full device pixel ratio is restored and a frame is scheduled to paint it. Raster cost scales with bitmap pixel count, so this trades sharpness during movement for frame time; a still map is always full resolution, so screenshots and settled views are unchanged. Implemented in `syncCanvasMotionResolution()` (`js/app.js`), called from `draw()`. The logical size stays the full-resolution stage, so the road, path and environment culls and every camera calculation are unchanged; only the bitmap written by `applyCanvasBitmapSize()` is smaller, and `draw()` and `drawOverlay()` scale their context to match.
+
 - Roads are **not drawn** when zoomed out beyond scale threshold (< -0.5 zoom level)
 - Roads rendering limited to **2,000 segments per frame**
 - Only markers within canvas bounds (+ padding) are drawn (`isNearCanvas` check)
