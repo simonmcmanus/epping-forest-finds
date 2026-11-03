@@ -9409,6 +9409,7 @@ function searchIconHtml(className = "app-icon title-icon") {
 function searchScreenHtml() {
   return `<div class="search-screen">
     <div class="search-field">
+      <svg class="search-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="7"/><path d="m16 16 5 5"/></svg>
       <input id="mapSearchInput" class="search-number" type="search" inputmode="search" autocomplete="off"
         autocapitalize="off" spellcheck="false" enterkeyhint="search"
         placeholder="Search trees, places, roads…" aria-label="Search the map"

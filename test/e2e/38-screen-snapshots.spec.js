@@ -183,3 +183,29 @@ test.describe("Event snapshots", () => {
     await expect(page).toHaveScreenshot("event-detail.png", { fullPage: false });
   });
 });
+
+test.describe("Tree nudge snapshot", () => {
+  test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] });
+
+  test("snapshot: tree nudge card next to an unchecked tree", async ({ page }) => {
+    await page.route("**/api/community/overlay", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {} }) }));
+    await setup(page, "/nearby");
+    await page.waitForFunction(() => state.userLocation && !state.userLocation.isDefault && state.trees.length > 0);
+    // Pin the nearest tree and distance so the card's text is the same on every run.
+    await page.evaluate(() => {
+      localStorage.removeItem("ff-community-nudge-seen-v1");
+      localStorage.removeItem("ff-community-nudges-off-v1");
+      localStorage.removeItem("ff-community-local-v1");
+      const tree = state.trees[0];
+      state.userLocation = { ...state.userLocation, accuracy: 8, isDefault: false };
+      state.nearestTree = { tree, metres: 6 };
+      window.nearestTreesTo = () => [{ tree, metres: 6 }];
+      communityNudgeCheck();
+    });
+    await expect(page.locator("#communityNudge")).toContainText("You're next to");
+    await settle(page);
+    await expect(page.locator("#communityNudge")).toBeVisible();
+    await expect(page).toHaveScreenshot("tree-nudge.png", { fullPage: false });
+  });
+});
