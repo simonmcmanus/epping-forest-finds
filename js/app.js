@@ -55,7 +55,6 @@ const DEFAULT_VIEWPORT_ANIMATION_MS = 480; // generic fallback duration for the 
 const MIN_VIEWPORT_ANIMATION_MS = 180; // floor for moveCamera's duration
 const FIRST_LOAD_REVEAL_ANIMATION_MS = 700; // the first-time "reveal the map" animation, in all its variants (fit to user+items, centered-on-user)
 const FIRST_LOCATION_FLY_TO_ANIMATION_MS = 1250; // the High Beach stand-in -> real GPS handoff, with a cinematic fly-to arc
-const HEADING_UP_CANVAS_OVERSCAN_RATIO = 1.5; // sqrt(2)≈1.414 is the 45° corner case minimum; 1.5 keeps safety margin
 const DEFAULT_FIT_PADDING_PX = 54; // default screen-space padding for fitToPoints (around content bounds)
 const OVERVIEW_FIT_PADDING_PX = 28; // tighter padding for overview targets fit
 const TILT_BETA_THRESHOLD = 12;    // deg above flat before perspective kicks in
@@ -63,7 +62,7 @@ const TILT_BETA_MAX = 85;          // deg where max perspective angle is reached
 const TILT_HORIZON_GROUND_RATIO = 0.62; // fraction of the space above the pivot that shows ground (vs. sky) at TILT_ROTATEX_MAX -- see tiltPerspectivePx()
 const TILT_PERSPECTIVE_MIN_PX = 260;    // floor so very short/cramped viewports don't collapse the camera distance towards an unstable near-0 value
 const TILT_PERSPECTIVE_MAX_PX = 2600;   // ceiling so very tall viewports (tablets) don't stretch the camera distance into an implausibly flat, barely-tilted look
-const TILT_ROTATEX_MAX = 75;       // max rotateX deg — 2× overscan hides the canvas edge even at this angle
+const TILT_ROTATEX_MAX = 75;       // max rotateX deg — the angle the horizon and tilt fit are calibrated to (see tiltPerspectivePx)
 const TILT_GENTLE_ROTATEX_MAX = 64; // visible depth while keeping the surrounding map in view
 const TILT_GENTLE_BETA_MAX = 60;    // reach the default tilt at a normal viewing angle
 // Precomputed once: calibrating tiltPerspectivePx() against this fixed reference
@@ -71,11 +70,10 @@ const TILT_GENTLE_BETA_MAX = 60;    // reach the default tilt at a normal viewin
 // distance from collapsing at low/mid tilt angles -- see tiltPerspectivePx().
 const TILT_HORIZON_REFERENCE_TAN = Math.tan(TILT_ROTATEX_MAX * Math.PI / 180);
 // Tilt is projected in JS (see tiltProjectOffsets), not by CSS-rotating the finished
-// bitmap, so the canvas never needs to be oversized for tilt — only for the heading-up
-// rotation, which HEADING_UP_CANVAS_OVERSCAN_RATIO already covers. The former
-// HEADING_UP_CANVAS_OVERSCAN_RATIO_TILT (3.5) and its grow/shrink hysteresis are gone:
-// extra canvas below the pivot actively *caused* the 3D drop-outs it was meant to fix,
-// by pushing the rotated plane through the camera at ever lower tilt angles.
+// bitmap, so the canvas never needs to be oversized for tilt. Heading-up does not oversize
+// it either: the bitmap is exactly the visible stage (see resizeCanvas), so the pivot, the
+// fit and the culls all share one rect. Extra canvas below the pivot used to push the
+// rotated plane through the camera at low tilt angles, which is why tilt never grew it.
 
 // Smallest rotateX difference between the drawn main canvas and the live camera worth a
 // redraw for (see tiltRenderStale). Small enough that no drift is visible, large enough that
@@ -420,6 +418,8 @@ const state = {
   transportLookupCache: new Map(),
   transportLookupRequests: new Map(),
   dataLoaded: false,
+  // Always 0 now that the bitmap is exactly the visible stage (see resizeCanvas). Kept because the
+  // e2e helpers convert canvas to client coordinates through them.
   canvasInsetX: 0,
   canvasInsetY: 0,
   canvasVisibleWidth: 0,
@@ -2501,10 +2501,10 @@ function getMinDistanceToRing(userLat, userLon, ring) {
 
 function visibleCanvasRect() {
   if (state.canvasVisibleWidth > 0) {
-    return { x: state.canvasInsetX, y: state.canvasInsetY, width: state.canvasVisibleWidth, height: state.canvasVisibleHeight };
+    return { x: 0, y: 0, width: state.canvasVisibleWidth, height: state.canvasVisibleHeight };
   }
   // Fallback before first resizeCanvas() (early-boot only): read CSS layout dimensions.
-  // Using els.canvas.width would return the oversized bitmap, not the visible viewport size.
+  // The bitmap is only sized by resizeCanvas(), so this is the one place that can read the stage.
   const stageEl = els.mapStage || els.canvas;
   const dpr = cappedDevicePixelRatio();
   const r = stageEl.getBoundingClientRect();
@@ -2519,57 +2519,45 @@ function resizeCanvas() {
   const requestedDpr = cappedDevicePixelRatio();
   const rawWidth = Math.max(1, rect.width);
   const rawHeight = Math.max(1, rect.height);
-  // Overscan while heading-up is active, to cover the corners the CSS heading rotation
-  // sweeps in. Tilt adds nothing here any more: it is projected per point rather than
-  // applied to the finished bitmap, so no amount of canvas has to be hidden off-screen
-  // for it — and oversizing for tilt was actively harmful, since the extra canvas below
-  // the pivot is what used to swing through the camera plane and take the whole layer
-  // with it.
-  const overscanRatio = headingUpActive() ? HEADING_UP_CANVAS_OVERSCAN_RATIO : 1;
-  const requestedOverscanWidth = Math.round(rawWidth * requestedDpr * overscanRatio);
-  const requestedOverscanHeight = Math.round(rawHeight * requestedDpr * overscanRatio);
-  let overscanWidth = Math.max(1, Math.min(MAX_CANVAS_DIMENSION, requestedOverscanWidth));
-  let overscanHeight = Math.max(1, Math.min(MAX_CANVAS_DIMENSION, requestedOverscanHeight));
-  const cappedPixels = overscanWidth * overscanHeight;
+  // The bitmap is exactly the visible stage: no heading-up overscan. Tilt never needed one (it
+  // is projected per point, see tiltProjectOffsets). Overscan used to make the visible rect a
+  // sub-rect of the bitmap, which left the viewport fit solved against the pre-resize origin
+  // (alignHeadingUpNavigationViewport runs before this in the same frame) until the next fit, and
+  // spent the label and path culls on the hidden margin.
+  let bitmapWidth = Math.max(1, Math.min(MAX_CANVAS_DIMENSION, Math.round(rawWidth * requestedDpr)));
+  let bitmapHeight = Math.max(1, Math.min(MAX_CANVAS_DIMENSION, Math.round(rawHeight * requestedDpr)));
+  const cappedPixels = bitmapWidth * bitmapHeight;
   if (cappedPixels > MAX_CANVAS_PIXEL_COUNT) {
     const scaleDown = Math.sqrt(MAX_CANVAS_PIXEL_COUNT / cappedPixels);
-    overscanWidth = Math.max(1, Math.floor(overscanWidth * scaleDown));
-    overscanHeight = Math.max(1, Math.floor(overscanHeight * scaleDown));
+    bitmapWidth = Math.max(1, Math.floor(bitmapWidth * scaleDown));
+    bitmapHeight = Math.max(1, Math.floor(bitmapHeight * scaleDown));
   }
-  // Derive effective DPR from the capped overscan dimensions so bitmap allocation
-  // stays within safe limits while preserving as much detail as possible.
-  const dpr = Math.max(1, Math.min(
-    requestedDpr,
-    overscanWidth / (rawWidth * overscanRatio),
-    overscanHeight / (rawHeight * overscanRatio)
-  ));
-  const visibleWidth = Math.max(1, Math.min(overscanWidth, Math.round(rawWidth * dpr)));
-  const visibleHeight = Math.max(1, Math.min(overscanHeight, Math.round(rawHeight * dpr)));
-  const insetX = Math.max(0, Math.round((overscanWidth - visibleWidth) / 2));
-  const insetY = Math.max(0, Math.round((overscanHeight - visibleHeight) / 2));
+  // Derive effective DPR from the capped bitmap so bitmap allocation stays within safe limits
+  // while the bitmap still maps exactly onto the stage.
+  const dpr = Math.max(1, Math.min(requestedDpr, bitmapWidth / rawWidth, bitmapHeight / rawHeight));
 
-  state.canvasInsetX = insetX;
-  state.canvasInsetY = insetY;
-  state.canvasVisibleWidth = visibleWidth;
-  state.canvasVisibleHeight = visibleHeight;
+  state.canvasInsetX = 0;
+  state.canvasInsetY = 0;
+  state.canvasVisibleWidth = bitmapWidth;
+  state.canvasVisibleHeight = bitmapHeight;
 
-  els.canvas.width = overscanWidth;
-  els.canvas.height = overscanHeight;
+  els.canvas.width = bitmapWidth;
+  els.canvas.height = bitmapHeight;
   els.canvas.dataset.dpr = String(dpr);
   els.canvas.style.position = "absolute";
-  els.canvas.style.left = `${-insetX / dpr}px`;
-  els.canvas.style.top = `${-insetY / dpr}px`;
-  els.canvas.style.width = `${overscanWidth / dpr}px`;
-  els.canvas.style.height = `${overscanHeight / dpr}px`;
+  els.canvas.style.left = "0px";
+  els.canvas.style.top = "0px";
+  els.canvas.style.width = `${bitmapWidth / dpr}px`;
+  els.canvas.style.height = `${bitmapHeight / dpr}px`;
   if (els.overlayCanvas) {
-    els.overlayCanvas.width = overscanWidth;
-    els.overlayCanvas.height = overscanHeight;
+    els.overlayCanvas.width = bitmapWidth;
+    els.overlayCanvas.height = bitmapHeight;
     els.overlayCanvas.dataset.dpr = String(dpr);
     els.overlayCanvas.style.position = "absolute";
-    els.overlayCanvas.style.left = `${-insetX / dpr}px`;
-    els.overlayCanvas.style.top = `${-insetY / dpr}px`;
-    els.overlayCanvas.style.width = `${overscanWidth / dpr}px`;
-    els.overlayCanvas.style.height = `${overscanHeight / dpr}px`;
+    els.overlayCanvas.style.left = "0px";
+    els.overlayCanvas.style.top = "0px";
+    els.overlayCanvas.style.width = `${bitmapWidth / dpr}px`;
+    els.overlayCanvas.style.height = `${bitmapHeight / dpr}px`;
   }
 }
 
@@ -2948,12 +2936,7 @@ function inspectorCanvasOverlapRect({ assumeInspectorOpen = false } = {}) {
     els.inspector.classList.remove("minimized");
   }
 
-  // Use mapStage as the reference rect when available: its left/top align with
-  // the canvas visible origin, so adding canvasInsetX/Y converts to bitmap coords.
-  // When falling back to els.canvas, the element's left/top already incorporate
-  // the CSS −insetX/Y offset, so (overlap − canvas.left) * dpr already lands in
-  // bitmap coords and canvasInsetX/Y must not be added again.
-  const useMapStage = Boolean(els.mapStage);
+  // The canvas sits at its stage's origin, so a stage-relative offset is already a bitmap offset.
   const canvasRect = (els.mapStage || els.canvas).getBoundingClientRect();
   // The nav bar (js/app.html's <nav class="inspector-actions">) is its own fixed bar, separate
   // from #inspector, and stays visible whatever the sheet is doing -- so the obstructed area is
@@ -2987,8 +2970,8 @@ function inspectorCanvasOverlapRect({ assumeInspectorOpen = false } = {}) {
 
   const dpr = pixelRatio();
   const result = {
-    x: (useMapStage ? state.canvasInsetX : 0) + (overlapLeft - canvasRect.left) * dpr,
-    y: (useMapStage ? state.canvasInsetY : 0) + (overlapTop - canvasRect.top) * dpr,
+    x: (overlapLeft - canvasRect.left) * dpr,
+    y: (overlapTop - canvasRect.top) * dpr,
     width: (overlapRight - overlapLeft) * dpr,
     height: (overlapBottom - overlapTop) * dpr,
   };
@@ -7084,11 +7067,10 @@ function resolveHeadingUpTargetScale(maxScale, previousScale, force = false, now
 // Holds/eases the heading-up navigation focus's vertical anchor toward targetFraction
 // exactly the way resolveHeadingUpTargetScale holds/eases the scale -- see
 // HEADING_UP_ANCHOR_HOLD_RATIO. Deliberately a fraction of focusRect's height rather than an
-// absolute canvas y: the rect itself can shift (a window resize, the inspector opening, the
-// canvas's own heading-up overscan sizing in for the first time) between one call and the
-// next for reasons that have nothing to do with the compass, and holding a stale *absolute*
-// pixel position across that shift places it nonsensically inside the new rect -- measured
-// as a ~5.5x scale collapse when the canvas gained its overscan inset between two calls in
+// absolute canvas y: the rect itself can shift (a window resize, the inspector opening) between
+// one call and the next for reasons that have nothing to do with the compass, and holding a
+// stale *absolute* pixel position across that shift places it nonsensically inside the new
+// rect -- measured as a ~5.5x scale collapse when the rect's origin moved between two calls in
 // the same frame. A fraction of the rect's own height is invariant to exactly that shift.
 //
 // state.headingUpAnchorFractionSmoothed is the anchor actually on screen; targetFraction is
@@ -7928,13 +7910,8 @@ function prepareCanvasForDraw() {
     alignHeadingUpNavigationViewport({ animate: false, force: true });
     if (fading) requestDraw();
   }
-  // Resize whenever heading-up mode activates or deactivates so the canvas is only
-  // oversized while the heading rotation actually needs it. Tilt no longer changes the
-  // canvas size at all, so the tilt-ratio hysteresis that used to live here — and the
-  // mid-gesture resize it existed to schedule safely — is gone with it.
-  const needsOverscan = headingUpActive();
-  const hasOverscan = state.canvasVisibleWidth > 0 && els.canvas.width > state.canvasVisibleWidth;
-  if (needsOverscan !== hasOverscan) resizeCanvas();
+  // The canvas size no longer depends on heading-up or tilt (see resizeCanvas), so nothing here
+  // resizes it.
   if (headingUpActive()) {
     if (state.headingUpEntryAnim != null) {
       const elapsed = performance.now() - state.headingUpEntryAnim.startTime;
@@ -10126,8 +10103,8 @@ function canvasPoint(event) {
   const rect = (els.mapStage || els.canvas).getBoundingClientRect();
   const dpr = pixelRatio();
   return {
-    x: state.canvasInsetX + (event.clientX - rect.left) * dpr,
-    y: state.canvasInsetY + (event.clientY - rect.top) * dpr,
+    x: (event.clientX - rect.left) * dpr,
+    y: (event.clientY - rect.top) * dpr,
   };
 }
 

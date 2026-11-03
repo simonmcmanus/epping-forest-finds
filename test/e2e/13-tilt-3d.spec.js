@@ -71,6 +71,29 @@ test.describe("3D tilt view", () => {
     });
   });
 
+  test("tilting the map leaves the user where a fresh heading-up fit puts them", async ({ page }) => {
+    // Tilting solves the heading-up fit, then the canvas can change its visible origin. A fit
+    // solved against the old origin is stale until the next compass reading, so the user's
+    // marker would sit away from where the same fit lands when run again. A settled fit is
+    // stable: refitting it must not move the user relative to the visible map.
+    const userInVisibleMap = () => page.evaluate(() => {
+      const rect = visibleCanvasRect();
+      const user = worldToScreen(state.userLocation.point);
+      return { x: user.x - rect.x, y: user.y - rect.y };
+    });
+
+    await tiltTo(page, 55);
+    const afterTilt = await userInVisibleMap();
+    await page.evaluate(() => {
+      alignHeadingUpNavigationViewport({ force: true });
+      draw();
+    });
+    const afterRefit = await userInVisibleMap();
+
+    expect(Math.abs(afterTilt.x - afterRefit.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(afterTilt.y - afterRefit.y)).toBeLessThanOrEqual(1);
+  });
+
   test("responds to a phone pitch even before a compass heading is available", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name !== "mobile", "Device orientation is only exercised in the mobile project");
 
@@ -287,21 +310,17 @@ test.describe("3D tilt view", () => {
     // crisp edge (no separate boundary line).
     // ctx.arc() takes one scalar radius, so if that cutout were drawn as a plain screen-space
     // circle the edge would look identical at every tilt angle instead of foreshortening with
-    // the ground. Measured by walking outward from the shape's own centre along each cardinal
-    // direction to find where the before/after delta first rises above a small fixed noise
-    // floor -- i.e. the edge of the dimmed area in that direction -- and
-    // comparing those four radii. This used to compare against a "fully dark, far outside"
-    // reference sampled at a canvas corner, but the corners turned out to carry their own
-    // small unrelated diffs (something else redraws slightly differently there between the
-    // two draw() calls), which threw off the up/down/left/right comparison; a fixed threshold
-    // sidesteps needing that reference at all.
+    // the ground. Measured by walking straight up the screen from the shape's own centre to where the
+    // before/after delta first rises above a small fixed noise floor: the ahead edge of the dimmed
+    // area. A fixed threshold avoids needing a 'fully dark' reference sampled at a canvas corner,
+    // where something else redraws slightly differently between the two draw() calls.
     // tiltToSettled, and a forced converge loop below: what this measures is the shape the
     // ground plane projects the radius into, which depends on the camera actually being on this
     // tilt angle's fit. An un-forced settle leaves resolveHeadingUpTargetScale part-way through
     // easing the scale in, and the radii come out of a projection still in transit -- measured
     // on a loaded machine as an aspect of 0.44 at beta 40 where a settled camera gives 0.75, and
     // the strictly-flattening check then failed at beta 60. Settled, the sweep is bit-identical
-    // run to run: 1.00 / 0.72 / 0.48 / 0.15 on desktop and 1.00 / 0.75 / 0.50 / 0.15 on mobile.
+    // run to run. Ahead-edge ratios on mobile at beta 0 / 40 / 60 / 85: 1.00 / 0.71 / 0.49 / 0.18.
     const measure = async (beta) => {
       await tiltToSettled(page, beta);
       return page.evaluate(() => {
@@ -341,41 +360,31 @@ test.describe("3D tilt view", () => {
         };
 
         return {
-          right: edgeDistance(1, 0),
-          left: edgeDistance(-1, 0),
-          down: edgeDistance(0, 1),
           up: edgeDistance(0, -1),
+          // The ring's full radius at this zoom, which the ahead edge is compared against.
+          radiusPx: walkingRadiusWorldUnits() * state.viewport.scale,
         };
       });
     };
 
-    // Ahead radius against sideways radius. Deliberately not the "down" (behind) edge: under
-    // tilt the ground behind you runs off the bottom of the screen by design -- that is the
-    // whole point of the first-person camera, and drawWalkingRadius keeps drawing the full
-    // circle regardless -- so below about 60 degrees of tilt there is simply no behind edge
-    // left on the canvas to measure. Averaging it in meant the test demanded the opposite of
-    // the behaviour the app is specified to have, and failed on a desktop-shaped viewport
-    // where the pivot sits closest to the bottom. The foreshortening this test exists to prove
-    // is entirely in the ahead radius: flat it equals the sideways radius, and it compresses
-    // toward the horizon as the ground tilts away. Measured across the sweep, that is
-    // 1.00 -> 0.72 -> 0.48 -> 0.15 on desktop and 1.00 -> 0.75 -> 0.50 -> 0.15 on mobile.
-    const aspectOf = (edges) => {
-      for (const key of ["right", "left", "up"]) {
-        expect(edges[key], `${key} edge of the walking radius must be found`).not.toBeNull();
-      }
-      return edges.up / ((edges.left + edges.right) / 2);
+    // Only the ahead edge is measured. At steep tilt the ring is wider than the stage, so its
+    // sideways edges fall off screen: the canvas (which is the stage, with no overscan) has no
+    // pixels there to find. The foreshortening is the ahead edge against the full radius at this
+    // zoom: flat it is a circle (1.0), and it compresses towards the horizon as the ground tilts
+    // away. The behind edge is not used either, since it runs off the bottom of the screen by design.
+    const foreshortening = (edges) => {
+      expect(edges.up, "the ahead edge of the walking radius must be on screen").not.toBeNull();
+      return edges.up / edges.radiusPx;
     };
 
-    const flat = await measure(0);
-    const flatAspect = aspectOf(flat);
-    expect(flatAspect, "a flat map should paint the edge as a circle").toBeCloseTo(1, 1);
+    const flatRatio = foreshortening(await measure(0));
+    expect(flatRatio, "a flat map should paint the edge as a circle").toBeCloseTo(1, 1);
 
-    let previous = flatAspect;
+    let previous = flatRatio;
     for (const beta of [40, 60, 85]) {
-      const tilted = await measure(beta);
-      const aspect = aspectOf(tilted);
-      expect(aspect, `the edge should flatten further by beta ${beta}`).toBeLessThan(previous);
-      previous = aspect;
+      const ratio = foreshortening(await measure(beta));
+      expect(ratio, `the edge should flatten further by beta ${beta}`).toBeLessThan(previous);
+      previous = ratio;
     }
     expect(previous, "at max tilt the edge should be strongly foreshortened").toBeLessThan(0.45);
   });
