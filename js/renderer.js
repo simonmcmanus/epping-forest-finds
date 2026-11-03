@@ -614,7 +614,7 @@ function drawPaths(ctx) {
   const baseWidth = clamp(1.35 + zoomLevel * 0.18, 1.35, isCoarsePointer ? 2.5 : 2.2) * dpr;
   const namedLabels = [];
   const w = state.canvasLogicalWidth, h = state.canvasLogicalHeight;
-  const corners = cullCornerWorldPoints();
+  const corners = [screenToWorld(0, 0), screenToWorld(w, 0), screenToWorld(0, h), screenToWorld(w, h)];
   const minWorldX = Math.min(...corners.map(c => c.x));
   const maxWorldX = Math.max(...corners.map(c => c.x));
   const minWorldY = Math.min(...corners.map(c => c.y));
@@ -699,7 +699,7 @@ function drawRoads(ctx) {
   if (zoomLevel < -0.5) return;
 
   const w = state.canvasLogicalWidth, h = state.canvasLogicalHeight;
-  const corners = cullCornerWorldPoints();
+  const corners = [screenToWorld(0, 0), screenToWorld(w, 0), screenToWorld(0, h), screenToWorld(w, h)];
   const minWorldX = Math.min(...corners.map(c => c.x));
   const maxWorldX = Math.max(...corners.map(c => c.x));
   const minWorldY = Math.min(...corners.map(c => c.y));
@@ -940,26 +940,12 @@ function projectedEnvironmentGeometry(geometry) {
   return cached;
 }
 
-// World points at the corners of the area the culls cover. That is the visible map padded by the heading-up
-// margin the bitmap used to carry (HEADING_UP_CANVAS_OVERSCAN_RATIO), so the culls admit exactly the
-// features they did with the larger bitmap, whatever its size is now. Taken in bitmap coordinates, which
-// is what screenToWorld reads.
-function cullCornerWorldPoints() {
-  const e = headingUpActive() ? (HEADING_UP_CANVAS_OVERSCAN_RATIO - 1) / 2 : 0;
-  const x0 = state.canvasInsetX - e * state.canvasVisibleWidth;
-  const y0 = state.canvasInsetY - e * state.canvasVisibleHeight;
-  const x1 = x0 + (1 + 2 * e) * state.canvasVisibleWidth;
-  const y1 = y0 + (1 + 2 * e) * state.canvasVisibleHeight;
-  return [screenToWorld(x0, y0), screenToWorld(x1, y0), screenToWorld(x0, y1), screenToWorld(x1, y1)];
-}
-
-// World-space bounds of the cull area (the visible map plus the heading-up margin, see
-// cullCornerWorldPoints), padded 5% -- the same corner test drawPaths already culls with, including under
-// tilt, where screenToWorld clamps to the far clip. Null when the corners do not unproject to finite points:
-// then nothing is culled.
+// World-space bounds of the whole logical stage (the visible map at full resolution, with no overscan),
+// padded 5% -- the same corner test drawPaths already culls with, including under tilt, where screenToWorld
+// clamps to the far clip. Null when the corners do not unproject to finite points: then nothing is culled.
 function environmentViewWorldBounds() {
   const w = state.canvasLogicalWidth, h = state.canvasLogicalHeight;
-  const corners = cullCornerWorldPoints();
+  const corners = [screenToWorld(0, 0), screenToWorld(w, 0), screenToWorld(0, h), screenToWorld(w, h)];
   if (!corners.every((c) => c && Number.isFinite(c.x) && Number.isFinite(c.y))) return null;
   const minX = Math.min(...corners.map((c) => c.x));
   const maxX = Math.max(...corners.map((c) => c.x));

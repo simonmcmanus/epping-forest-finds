@@ -4171,7 +4171,7 @@ test("maxNearbyHeadingUpScale delegates to the shared heading-up scale helper", 
   assert.equal(actual, expected);
 });
 
-test("heading-up resize uses oversized canvas draw area so rotation does not expose viewport edges", () => {
+test("heading-up does not oversize the map canvas: the bitmap is exactly the visible stage", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.selected = { type: "tree", item: { id: "t1", ...makePoint(app, 0.001, 0) } };
@@ -4180,12 +4180,12 @@ test("heading-up resize uses oversized canvas draw area so rotation does not exp
 
   assert.equal(app.state.canvasVisibleWidth, 1000, "visible canvas width should match map stage width");
   assert.equal(app.state.canvasVisibleHeight, 800, "visible canvas height should match map stage height");
-  assert.ok(app.els.canvas.width > app.state.canvasVisibleWidth, "map canvas bitmap should be oversized for rotation");
-  assert.ok(app.els.canvas.height > app.state.canvasVisibleHeight, "map canvas bitmap should be oversized for rotation");
-  assert.ok(app.state.canvasInsetX > 0 && app.state.canvasInsetY > 0, "oversized map canvas should keep centered insets");
+  assert.equal(app.els.canvas.width, app.state.canvasVisibleWidth, "map canvas bitmap should be the visible stage width, not an overscan");
+  assert.equal(app.els.canvas.height, app.state.canvasVisibleHeight, "map canvas bitmap should be the visible stage height, not an overscan");
+  assert.equal(app.els.overlayCanvas.width, app.state.canvasVisibleWidth, "overlay canvas should match the map canvas bitmap");
 });
 
-test("heading-up resize limits effective pixel ratio so oversized canvas stays within safe limits", () => {
+test("resize limits effective pixel ratio so the map canvas bitmap stays within safe limits", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.selected = { type: "tree", item: { id: "t1", ...makePoint(app, 0.001, 0) } };
@@ -4200,7 +4200,7 @@ test("heading-up resize limits effective pixel ratio so oversized canvas stays w
     assert.ok(app.els.canvas.width <= 3072, "oversized map canvas width should stay within safe dimension limits");
     assert.ok(app.els.canvas.height <= 3072, "oversized map canvas height should stay within safe dimension limits");
     assert.ok(app.els.canvas.width * app.els.canvas.height <= 9437184, "oversized map canvas pixel area should stay within safe limits");
-    assert.ok(app.els.canvas.width > app.state.canvasVisibleWidth, "oversized map canvas should still render beyond the visible viewport");
+    assert.equal(app.els.canvas.width, app.state.canvasVisibleWidth, "the capped bitmap should be the visible stage, not a larger overscan");
   } finally {
     app.windowStub.devicePixelRatio = originalDpr;
   }
@@ -7932,9 +7932,8 @@ test("heading-up align honours assumeInspectorOpen so a just-expanded inspector 
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.trees.push({ id: "ahead-tree", commonName: "Ahead tree", ...makePoint(app, 0.001, 0) });
   // Deliberately no compassHeading: the anchored fit engages on a location fix alone
-  // (nearbyNavigationAnchorActive), and leaving heading-up off keeps resizeCanvas from
-  // applying its heading-up overscan, which would change the canvas dimensions underneath
-  // the two measurements being compared here.
+  // (nearbyNavigationAnchorActive), and leaving heading-up off keeps the fit on the flat
+  // frame the two measurements being compared here are taken on.
   app.els.inspector.classList.add("minimized"); // as it still measures during the transition
   app.resizeCanvas(); // drop the memoized overlap rect so both calls measure fresh
 
@@ -8671,8 +8670,7 @@ test("a crow-flies fallback line has nothing to balance, so the plain bearing an
 // Unlike the scale fit (resolveHeadingUpTargetScale), this had no hysteresis at all: it was
 // recomputed and applied fresh on every compass frame. The fix mirrors the scale one exactly,
 // held/eased as a fraction of the focus rect's own height rather than an absolute canvas y --
-// the rect can itself shift between calls (a resize, the inspector opening, the canvas's own
-// heading-up overscan sizing in for the first time) for reasons that have nothing to do with
+// the rect can itself shift between calls (a resize, the inspector opening) for reasons that have nothing to do with
 // the compass, and holding a stale *absolute* position across that shift places it
 // nonsensically inside the new rect (measured as a ~5.5x scale collapse between two calls in
 // the same frame, when an absolute-pixel version of this was tried first).
