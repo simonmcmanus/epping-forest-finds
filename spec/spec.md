@@ -577,8 +577,8 @@ the only one.
 The Search, Filter, Settings, and Feedback screens all display the same fixed map view in the background, so switching between them never changes what's shown:
 
 - The camera zooms out past the walking radius far enough to reach the nearest match of every selected filter — even when each one is a long walk outside the radius — so the screen where you pick what to look for actually shows that it exists and which way it lies (survey mode — see `spec-data-rendering.md`). With no filters selected there is nothing extra to reach for and the view is the plain walking-radius framing.
-- The walking-radius ring is always visible on all four screens, and everything that removes or
-  adjusts it works from them: the "Use my location" control that clears a browse anchor stays on
+- The walking-radius ring is visible on the Nearby, Search, Filter and Feedback screens; the Settings screen hides it, while its slider and the two-finger pinch still change the radius. Everything that removes or
+  adjusts the ring works from the screens that show it: the "Use my location" control that clears a browse anchor stays on
   screen, a tap on open ground moves the anchor (without dismissing the screen), and the
   two-finger pinch resizes the radius. The nearby list and map pins read from the same browse
   anchor the ring is drawn around.
