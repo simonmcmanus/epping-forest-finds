@@ -10859,7 +10859,7 @@ test("in the nearby view, tapping a street beyond the nearest area moves the nea
   assert.ok(Math.abs(app.state.nearbyAnchor.longitude - 0.07) < 1e-4);
 });
 
-test("in the nearby view, tapping a visible location beyond the nearest area selects it", async () => {
+test("in the nearby view, tapping a location beyond the nearest area moves the browse point instead of selecting it", async () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.65, 0.05);
   const tree = {
@@ -10884,10 +10884,10 @@ test("in the nearby view, tapping a visible location beyond the nearest area sel
   assert.equal(app.findHit(treeTap, app.screenToWorld(treeTap.x, treeTap.y)).type, "tree", "the outside-radius location is actually drawn and tappable");
   tapMap(app, treeTap);
 
-  assert.equal(app.state.selected?.type, "tree", "a visible location remains selectable outside the ring");
-  assert.equal(app.state.nearbyAnchor, null, "selecting a location should not move the Nearby anchor");
-  await new Promise((resolve) => setTimeout(resolve, 260));
-  assert.ok(app.state.viewportAnimationTo || app.state.viewport.scale !== 100000, "selection should start a camera fit");
+  assert.equal(app.state.selected, null, "a location outside the ring is not highlighted, so it is not selected");
+  assert.ok(app.state.nearbyAnchor, "the tap moves the Nearby browse point to the tapped spot");
+  assert.ok(Math.abs(app.state.nearbyAnchor.latitude - tapLonLat.latitude) < 0.001, "the browse point is where the user tapped (latitude)");
+  assert.ok(Math.abs(app.state.nearbyAnchor.longitude - tapLonLat.longitude) < 0.001, "the browse point is where the user tapped (longitude)");
   app.stopViewportAnimation();
 });
 

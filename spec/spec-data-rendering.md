@@ -539,7 +539,8 @@ moving the real GPS fix:
   Filter/Settings/Report — those deliberately frame the map wider than the ring to show where
   each selected kind lies, so "outside the ring" is most of what is on screen there and this
   rule would make almost any tap relocate), *any* tap beyond the ring relocates, whatever it
-  landed on, not just taps on open ground (`isOutsideNearestArea` in `js/nav.js`, measured from
+  landed on, including a location pin beyond the ring (only highlighted pins inside the ring are
+  selectable), not just taps on open ground (`isOutsideNearestArea` in `js/nav.js`, measured from
   `nearbyOrigin()` so it follows the browse anchor once one is set). This exists for streets and
   waymarked trails: their lines are terrain, drawn right across the map, so without this rule a
   tap into the out-of-radius corners of the Nearby screen opened a navigation view to whichever

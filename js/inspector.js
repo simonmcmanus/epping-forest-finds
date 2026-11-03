@@ -6,6 +6,15 @@ const INSPECTOR_MINIMIZE_TRANSITION_TIMEOUT_MS = 180 + 40; // Inspector transiti
 
 // --- Hit detection & map click ---
 
+// Where a tapped location sits, for the Nearby ring test. Point items carry their own coordinates;
+// a line or area hit (path, water, environment) falls back to the tap itself.
+function itemLonLatForTap(item, tapLonLat) {
+  if (item && Number.isFinite(item.latitude) && Number.isFinite(item.longitude)) {
+    return { latitude: item.latitude, longitude: item.longitude };
+  }
+  return tapLonLat;
+}
+
 function handleMapClick(event) {
   const screen = canvasPoint(event);
 
@@ -58,12 +67,14 @@ function handleMapClick(event) {
   // screen there and would make almost any tap relocate. An open-ground tap still does, though
   // -- they draw the same ring, and moving it is one of the things it must stay possible to do
   // from them. Neither ever dismisses the screen itself.
-  const beyondNearestArea = isOverviewScreenActive() && isOutsideNearestArea(lonLat);
-  // A visible location remains a selection target even when it is the out-of-radius fallback
-  // shown at the edge of Nearby. The browse-origin rule is for open ground and terrain lines
-  // (especially roads crossing the outer map), not for a place the user deliberately tapped.
+  // On the Nearby screen a location pin is selectable only while it is highlighted, i.e. inside
+  // the walking ring. A pin beyond the ring relocates the browse point instead of opening.
+  // Streets and trails keep the outside-the-ring rule below.
   const isLocationHit = ["tree", "addedtree", "cow", "landmark", "path", "water", "environment"].includes(hit.type);
-  if (hit.type === "none" || (beyondNearestArea && !isLocationHit)) {
+  const beyondNearestArea = isOverviewScreenActive() && isOutsideNearestArea(lonLat);
+  const outOfRingPin = isOverviewScreenActive() && isLocationHit
+    && isOutsideNearestArea(itemLonLatForTap(hit.item, lonLat));
+  if (hit.type === "none" || (beyondNearestArea && !isLocationHit) || outOfRingPin) {
     focusNearbyOnMapPoint(lonLat, world);
     return;
   }
