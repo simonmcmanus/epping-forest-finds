@@ -8,6 +8,8 @@
 // The procedure around it is in docs/community-data-deletion.md.
 const { openStore } = require("./lib/community-store");
 const { deleteCommunityData } = require("./lib/community-delete");
+const { configureBlobContext, REPORT_PHOTO_STORE } = require("./lib/report-photo");
+const { getStore } = require("@netlify/blobs");
 const { makeGithubIssueEditor } = require("./lib/community-fetch");
 
 function respond(statusCode, body) {
@@ -24,7 +26,12 @@ exports.handler = async (event) => {
   if (input.confirm !== "delete") return respond(400, { error: 'Send "confirm": "delete" to confirm: this cannot be undone.' });
   const redact = input.redactIssues === true && process.env.CONTEXT === "production";
   try {
+    const photos = { delete: async (photoId) => {
+      if (!configureBlobContext(event)) throw new Error("Photo storage is unavailable");
+      await getStore(REPORT_PHOTO_STORE).delete(`photos/${photoId}`);
+    } };
     const summary = await deleteCommunityData(openStore(event), {
+      photos,
       deviceId: input.deviceId,
       includeAccount: input.includeAccount === true,
       github: redact ? makeGithubIssueEditor() : null,

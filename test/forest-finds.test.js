@@ -11964,7 +11964,11 @@ test("a tree report only counts when it was made close to the tree, and says so 
 // --- Place checks go to GitHub issues for manual review (netlify/functions/report-missing-data.js) ---
 function escalationStoreForReports() {
   const data = new Map();
-  return { async get(k) { return data.has(k) ? JSON.parse(JSON.stringify(data.get(k))) : null; }, async put(k, v) { data.set(k, JSON.parse(JSON.stringify(v))); } };
+  return {
+    async get(k) { return data.has(k) ? JSON.parse(JSON.stringify(data.get(k))) : null; },
+    async put(k, v) { data.set(k, JSON.parse(JSON.stringify(v))); },
+    async delete(k) { data.delete(k); },
+  };
 }
 async function withStubbedGithub(responder, run) {
   const reportFunction = require("../netlify/functions/report-missing-data");
@@ -11973,6 +11977,7 @@ async function withStubbedGithub(responder, run) {
   const calls = [];
   process.env.GITHUB_TOKEN = "test-token";
   reportFunction.setRateLimitStore(escalationStoreForReports());
+  reportFunction.setClaimStore(escalationStoreForReports());
   global.fetch = async (url, options = {}) => {
     calls.push({ url: String(url), method: options.method || "GET", body: options.body ? JSON.parse(options.body) : null });
     return responder(String(url), options.method || "GET");
@@ -11981,11 +11986,22 @@ async function withStubbedGithub(responder, run) {
     return await run(reportFunction.handler, calls);
   } finally {
     reportFunction.setRateLimitStore(null);
+    reportFunction.setClaimStore(null);
     global.fetch = originalFetch;
     if (originalToken === undefined) delete process.env.GITHUB_TOKEN; else process.env.GITHUB_TOKEN = originalToken;
   }
 }
 const jsonResponse = (status, body) => ({ ok: status < 300, status, json: async () => body });
+const feedbackEvent = (overrides = {}) => ({
+  httpMethod: "POST",
+  body: JSON.stringify({
+    reportType: "feedback",
+    details: "The tag is hard to read",
+    location: { latitude: 51.66, longitude: 0.04 },
+    requestId: "req-feedback",
+    ...overrides,
+  }),
+});
 const placeCheckEvent = (overrides = {}) => ({
   httpMethod: "POST",
   body: JSON.stringify({
@@ -12034,12 +12050,47 @@ test("a second report about the same place is added to its open issue instead of
   );
 });
 
+test("the same report sent twice files one GitHub issue, even when GitHub's search has not indexed the first yet", async () => {
+  await withStubbedGithub(
+    // Search finds nothing, as it does while GitHub's index lags behind a new issue.
+    (url, method) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 21, html_url: "https://github.com/x/y/issues/21" })),
+    async (handler, calls) => {
+      const first = await handler(feedbackEvent({ requestId: "req-twice-1" }));
+      const second = await handler(feedbackEvent({ requestId: "req-twice-1" }));
+      assert.equal(first.statusCode, 200);
+      assert.equal(second.statusCode, 200);
+      assert.equal(JSON.parse(second.body).duplicate, true);
+      assert.equal(JSON.parse(second.body).issueNumber, 21, "the second copy is told which issue it is");
+      assert.equal(calls.filter((c) => c.method === "POST" && c.url.endsWith("/issues")).length, 1);
+    }
+  );
+});
+
+test("a report whose GitHub filing failed can be sent again and is filed", async () => {
+  let fail = true;
+  await withStubbedGithub(
+    (url) => {
+      if (url.includes("/search/issues")) return jsonResponse(200, { items: [] });
+      if (fail) { fail = false; return jsonResponse(500, { message: "boom" }); }
+      return jsonResponse(201, { number: 22, html_url: "https://github.com/x/y/issues/22" });
+    },
+    async (handler, calls) => {
+      const failed = await handler(feedbackEvent({ requestId: "req-retry-1" }));
+      assert.equal(failed.statusCode, 500);
+      const retried = await handler(feedbackEvent({ requestId: "req-retry-1" }));
+      assert.equal(retried.statusCode, 200, "the failed attempt did not leave the report marked as sent");
+      assert.equal(JSON.parse(retried.body).issueNumber, 22);
+      assert.equal(calls.filter((c) => c.method === "POST" && c.url.endsWith("/issues")).length, 2);
+    }
+  );
+});
+
 test("a place check keyed by a real OSM or manual place id is accepted", async () => {
   await withStubbedGithub(
     (url, method) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 8, html_url: "https://github.com/x/y/issues/8" })),
     async (handler, calls) => {
-      for (const key of ["place:id:node/5903400322", "place:id:manual/onest"]) {
-        const result = await handler(placeCheckEvent({ placeCheck: { status: "DETAILS_CHANGED", key, name: "Onest" } }));
+      for (const [n, key] of ["place:id:node/5903400322", "place:id:manual/onest"].entries()) {
+        const result = await handler(placeCheckEvent({ requestId: `req-osm-${n}`, placeCheck: { status: "DETAILS_CHANGED", key, name: "Onest" } }));
         assert.equal(result.statusCode, 200, key);
       }
       assert.equal(calls.filter((c) => c.method === "POST" && c.url.endsWith("/issues")).length, 2);
@@ -12282,6 +12333,39 @@ test("'My reports' keeps a device's latest 1,000 reports, dropping the oldest", 
   }
 });
 
+test("a tree report with a tag photo that is not a JPEG, PNG or WebP is refused and nothing is filed", async () => {
+  const reportEndpoint = require("../netlify/functions/community-report");
+  const store = memoryStore();
+  reportEndpoint.setStore(store);
+  try {
+    const result = await reportEndpoint.handler({
+      httpMethod: "POST",
+      headers: { "x-nf-client-connection-ip": "198.51.100.30" },
+      body: JSON.stringify({ id: "report-badphoto-0001", deviceId: "device-badphoto-1", kind: "tree", status: "NEW_TREE", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01, accuracy: 5, tagNumber: "11383", photo: { contentType: "image/gif", dataUrl: "data:image/gif;base64,R0lGOD" } }),
+    });
+    assert.equal(result.statusCode, 400);
+    assert.match(JSON.parse(result.body).error, /JPEG, PNG, or WebP/);
+    assert.ok(!(await store.get("reports/report-badphoto-0001")));
+  } finally {
+    reportEndpoint.setStore(null);
+  }
+});
+
+test("a tree report whose tag photo cannot be kept is refused so the outbox sends it again, rather than filed without the photo", async () => {
+  const reportEndpoint = require("../netlify/functions/community-report");
+  const store = memoryStore();
+  reportEndpoint.setStore(store);
+  try {
+    const body = { id: "report-photo-retry-1", deviceId: "device-photo-retry-1", kind: "tree", status: "NEW_TREE", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01, accuracy: 5, tagNumber: "11383", photo: { contentType: "image/jpeg", dataUrl: `data:image/jpeg;base64,${Buffer.from("jpegbytes").toString("base64")}` } };
+    // No Netlify blob context in a unit test, so the photo cannot be stored.
+    const result = await reportEndpoint.handler({ httpMethod: "POST", headers: { "x-nf-client-connection-ip": "198.51.100.31" }, body: JSON.stringify(body) });
+    assert.equal(result.statusCode, 503);
+    assert.ok(!(await store.get("reports/report-photo-retry-1")), "the report is not filed without its photo");
+  } finally {
+    reportEndpoint.setStore(null);
+  }
+});
+
 const communityDelete = require("../netlify/functions/lib/community-delete");
 
 async function deletionFixture() {
@@ -12327,6 +12411,25 @@ test("a failed read of any record a deletion depends on stops it, and nothing is
     const broken = { ...store, getStrict: async (key) => { if (key.startsWith(failing)) throw new Error("read failed"); return store.get(key); } };
     await assert.rejects(communityDelete.deleteCommunityData(broken, { deviceId: "phone-device-a1" }), /read failed/, failing);
   }
+});
+
+test("deleting a person's data also removes the tag photos their tree reports kept", async () => {
+  const store = await deletionFixture();
+  const report = await store.get("reports/report-tagphoto-1");
+  await store.put("reports/report-tagphoto-1", { ...(report || { deviceId: "phone-device-a1", kind: "tree", status: "NEW_TREE", id: "report-tagphoto-1" }), deviceId: "phone-device-a1", photoId: "photo-abc.jpg" });
+  const removed = [];
+  const summary = await communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1", photos: { delete: async (id) => removed.push(id) } });
+  assert.deepEqual(removed, ["photo-abc.jpg"]);
+  assert.ok(!(await store.get("reports/report-tagphoto-1")), "the report goes with its photo");
+  assert.ok(summary.reports >= 1);
+});
+
+test("a tag photo that cannot be removed keeps its report, so the deletion can be sent again", async () => {
+  const store = await deletionFixture();
+  await store.put("reports/report-tagphoto-2", { id: "report-tagphoto-2", deviceId: "phone-device-a1", kind: "tree", status: "NEW_TREE", photoId: "photo-def.jpg" });
+  const photos = { delete: async () => { throw new Error("photo store down"); } };
+  await assert.rejects(communityDelete.deleteCommunityData(store, { deviceId: "phone-device-a1", photos }), /photo store down/);
+  assert.ok(await store.get("reports/report-tagphoto-2"), "nothing is confirmed deleted while the photo is still there");
 });
 
 test("a data deletion leaves no cached copy of the deleted person's reports", async () => {
