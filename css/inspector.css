@@ -2583,9 +2583,9 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   content: "";
   position: absolute;
   left: 30px;
-  top: calc(50% + 8px);
-  width: 13px;
-  height: 4px;
+  top: calc(50% + 2px);
+  width: 12px;
+  height: 3px;
   border-radius: 999px;
   background: var(--tree);
   transform: rotate(45deg);
