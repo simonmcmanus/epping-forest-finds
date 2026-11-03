@@ -55,8 +55,8 @@
   --nav-active-shadow: rgba(20, 20, 20, 0.12);
   --nav-active-ink: #1f2830;
   /* Primary buttons are a solid gold fill with dark text: no gradient. */
-  --cta-hi: #e3a72f;
-  --cta: #e3a72f;
+  --cta-hi: #d99a22;
+  --cta: #d99a22;
   --cta-ink: #0b0c0e;
   --cta-shadow: rgba(20, 20, 20, 0.2);
   --cta-shadow-hover: rgba(20, 20, 20, 0.24);

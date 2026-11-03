@@ -331,7 +331,7 @@
 .consent-banner-actions .button {
   min-height: 38px;
   padding: 0 14px;
-  font-size: 0.82rem;
+  font-size: 0.95rem;
 }
 
 @media (prefers-reduced-motion: reduce) {
