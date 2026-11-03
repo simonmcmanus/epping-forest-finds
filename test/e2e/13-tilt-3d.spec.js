@@ -503,7 +503,9 @@ test.describe("3D tilt view", () => {
     expect(transform).not.toMatch(/perspective\(|rotateX\(/);
   });
 
-  test("moving the map draws it at a lower canvas resolution, and full resolution returns once it is still", async ({ page }) => {
+  test("moving the map draws it at a lower canvas resolution, and full resolution returns once it is still", async ({ page }, testInfo) => {
+    // The cap is 1.5 device pixels; desktop renders at 1, so there is nothing to cap there.
+    test.skip(testInfo.project.name !== "mobile", "Only phones render above the 1.5 device-pixel cap");
     await tiltToSettled(page, 55);
     const bitmap = () => page.evaluate(() => ({ w: els.canvas.width, h: els.canvas.height, logicalW: state.canvasLogicalWidth }));
     const still = await bitmap();
