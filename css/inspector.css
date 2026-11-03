@@ -1346,6 +1346,13 @@ textarea.report-textarea {
 
 /* Nearby's filter rail: a row of toggle pills that scrolls sideways. Sticky so the reader can keep
    tapping while the list scrolls. */
+/* The rail is a band on the off-white Nearby body (see .nearby-overview .inspector-body below), so
+   the white pills read as raised. It pulls up over the body's own top padding so the pills sit
+   centred in the band, with equal space above and below. */
+.inspector.nearby-overview .inspector-body {
+  background: linear-gradient(180deg, #f2f0eb 0, #f7f6f2 200px, #fbfaf8 100%);
+}
+
 .filter-rail {
   position: sticky;
   top: 0;
@@ -1353,10 +1360,10 @@ textarea.report-textarea {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 -4px 12px;
-  padding: 4px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
-  background: var(--panel);
+  margin: -14px -16px 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+  background: #f2f0eb;
 }
 
 /* Once the rail has moved, soften the clipped pill at the left edge. At scrollLeft 0 the first
@@ -1370,7 +1377,7 @@ textarea.report-textarea {
   z-index: 1;
   width: 28px;
   pointer-events: none;
-  background: linear-gradient(90deg, var(--panel), transparent);
+  background: linear-gradient(90deg, #f2f0eb, transparent);
 }
 
 .rail-pills {
@@ -1378,7 +1385,7 @@ textarea.report-textarea {
   flex: 1;
   gap: 8px;
   min-width: 0;
-  padding: 2px;
+  padding: 2px 16px;
   overflow-x: auto;
   scrollbar-width: none;
   -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 14px), transparent);
