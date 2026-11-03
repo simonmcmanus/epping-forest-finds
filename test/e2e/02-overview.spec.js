@@ -135,6 +135,16 @@ test.describe("Overview / Nearby screen", () => {
     }
   });
 
+  test("screen title icons are drawn bare, with no border or tile behind them", async ({ page }) => {
+    for (const id of ["settingsToggle", "searchToggle", "nearbyToggle", "reportToggle"]) {
+      await page.locator(`#${id}`).click();
+      const wrapper = page.locator("#inspectorTitleEmoji");
+      await expect(wrapper.locator(".title-icon").last()).toBeVisible();
+      await expect(wrapper).toHaveCSS("border-top-width", "0px");
+      await expect(wrapper).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+    }
+  });
+
   test("navigation keeps Map setup as an overlay over Nearby", async ({ page }) => {
     const nav = page.getByRole("navigation", { name: "Main navigation" });
     for (const [id, title] of [["searchToggle", "Search"], ["reportToggle", "Community"], ["settingsToggle", "Settings"], ["nearbyToggle", "Nearby"]]) {
@@ -519,8 +529,8 @@ test.describe("Overview / Nearby screen", () => {
     });
   });
 
-  // Filters, Settings and Report all keep drawing the walking-radius ring around the browse
-  // anchor behind them, so everything that removes or adjusts that ring has to work from them
+  // Filters and Report keep drawing the walking-radius ring around the browse anchor behind them
+  // (Settings hides it), so everything that removes or adjusts that ring has to work from them
   // too -- otherwise opening one of the three strands the user on a browsed spot with nothing
   // on screen offering to undo it.
   test.describe("Adjusting the browsed spot from Filters, Settings and Report", () => {

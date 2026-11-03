@@ -1048,17 +1048,17 @@ function setupInspectorHandlers() {
   }
 }
 
-function pulseNavButton(el) {
-  el.classList.remove("nav-reselect");
-  void el.offsetWidth;
-  el.classList.add("nav-reselect");
-  el.addEventListener("animationend", () => el.classList.remove("nav-reselect"), { once: true });
+function shakeInspectorSheet() {
+  els.inspector.classList.remove("sheet-shake");
+  void els.inspector.offsetWidth;
+  els.inspector.classList.add("sheet-shake");
+  els.inspector.addEventListener("animationend", () => els.inspector.classList.remove("sheet-shake"), { once: true });
 }
 
 function setupFilterPanelHandlers() {
   els.filterToggle.addEventListener("click", () => {
     if (els.filterToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
-      pulseNavButton(els.filterToggle);
+      shakeInspectorSheet();
       return;
     }
     if (els.inspector.classList.contains("minimized")) {
@@ -1074,10 +1074,13 @@ function setupFilterPanelHandlers() {
         && !window.location.search
         && !window.location.hash
         && !state.nearbyAnchor;
-      if (els.nearbyToggle.classList.contains("screen-active")
-        && !els.inspector.classList.contains("minimized")
-        && onPlainNearby) {
-        pulseNavButton(els.nearbyToggle);
+      const alreadyOnNearby = els.nearbyToggle.classList.contains("screen-active")
+        && !els.inspector.classList.contains("minimized");
+      if (alreadyOnNearby) {
+        // Already on the Nearby screen: shake it in place rather than sliding it out and back in.
+        // A browse anchor or query still needs the list refreshed, but without the screen-entry slide.
+        shakeInspectorSheet();
+        if (!onPlainNearby) goToInitialView(true, { enterAnimated: false });
         return;
       }
       goToInitialView();
@@ -1090,7 +1093,7 @@ function setupFilterPanelHandlers() {
       // The tab is lit on its Feedback sub-page too, but tapping it there goes back up to Community.
       const here = communityEnabled() ? "community" : "report";
       if (state.selected?.type === here && !els.inspector.classList.contains("minimized")) {
-        pulseNavButton(els.reportToggle);
+        shakeInspectorSheet();
         return;
       }
       openCommunityOrFeedback();
@@ -1101,7 +1104,7 @@ function setupFilterPanelHandlers() {
     els.settingsToggle.addEventListener("click", (event) => {
       event.preventDefault();
       if (els.settingsToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
-        pulseNavButton(els.settingsToggle);
+        shakeInspectorSheet();
         return;
       }
       openSettings();
@@ -1169,7 +1172,7 @@ function setupSearchAndNavHandlers() {
     els.searchToggle.addEventListener("click", (event) => {
       event.preventDefault();
       if (els.searchToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
-        pulseNavButton(els.searchToggle);
+        shakeInspectorSheet();
         return;
       }
       openSearchScreen();
@@ -2323,8 +2326,6 @@ function updateMapHoverState(screen) {
 function setupInspectorDragResize() {
   const dragHandle = els.inspectorDragHandle;
   if (!dragHandle) return;
-  let recenterFrame = null;
-
   function isBottomSheetLayout() {
     return window.innerWidth <= 760
       || window.matchMedia("(orientation: landscape) and (pointer: coarse) and (max-height: 500px)").matches;
@@ -2359,24 +2360,14 @@ function setupInspectorDragResize() {
     }
   }
 
-  function scheduleLiveRecenter() {
-    if (recenterFrame != null) return;
-    recenterFrame = requestAnimationFrame(() => {
-      recenterFrame = null;
-      recenterMap();
-    });
-  }
-
+  // The map is re-fitted once, on release, rather than on every pointer move: re-fitting the
+  // camera per frame while the sheet is still following the finger made the map behind jump.
   function finishResize(event) {
     if (!state.inspectorDragging) return;
     state.inspectorDragging = false;
     els.inspector.classList.remove("is-dragging");
     dragHandle.classList.remove("dragging");
     if (event && event.pointerId != null) releasePointerSafely(dragHandle, event.pointerId);
-    if (recenterFrame != null) {
-      cancelAnimationFrame(recenterFrame);
-      recenterFrame = null;
-    }
     recenterMap({ animate: true, durationMs: 240 });
   }
 
@@ -2398,7 +2389,6 @@ function setupInspectorDragResize() {
     const deltaY = state.inspectorDragStart.y - event.clientY;
     const deltaPercent = (deltaY / window.innerHeight) * 100;
     setInspectorHeight(state.inspectorDragStart.heightPercent + deltaPercent);
-    scheduleLiveRecenter();
   });
 
   dragHandle.addEventListener("pointerup", finishResize);
@@ -2472,7 +2462,7 @@ function setInspectorMinimized(minimized) {
   if (typeof updateCompassOverlay === "function") updateCompassOverlay();
 }
 
-function goToInitialView(updateHash = true) {
+function goToInitialView(updateHash = true, { enterAnimated = true } = {}) {
   // If compass hasn't fired in >5 s, clear the heading so the map goes north-up
   // rather than showing a frozen direction when the user returns to the overview.
   // New orientation events will re-enable heading-up naturally.
@@ -2520,7 +2510,7 @@ function goToInitialView(updateHash = true) {
   // The Nearby button always shows the real list. A landing's server-rendered list is kept only
   // while the reader is still on that landing (selectOverview's own check), so clear it here.
   _serverRenderedNearbyList = false;
-  selectOverview(true);
+  selectOverview(enterAnimated);
   setInspectorMinimized(false);
   const refitOverview = () => {
     if (state.userLocation) {

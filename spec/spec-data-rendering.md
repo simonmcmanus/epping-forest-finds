@@ -512,7 +512,7 @@ invisible control.
 ### Browsing Another Spot
 
 Every screen that draws the walking-radius ring — the plain Nearby/overview screen *and*
-Filter/Settings/Report — supports previewing what's near a different point on the map without
+Filter/Report (Settings draws no ring, see spec.md) — supports previewing what's near a different point on the map without
 moving the real GPS fix:
 
 - **Tap-to-relocate:** tapping open ground anywhere on the map sets `state.nearbyAnchor` to that
@@ -539,12 +539,14 @@ moving the real GPS fix:
   Filter/Settings/Report — those deliberately frame the map wider than the ring to show where
   each selected kind lies, so "outside the ring" is most of what is on screen there and this
   rule would make almost any tap relocate), *any* tap beyond the ring relocates, whatever it
-  landed on, not just taps on open ground (`isOutsideNearestArea` in `js/nav.js`, measured from
+  landed on, including a location pin beyond the ring (only highlighted pins inside the ring are
+  selectable), not just taps on open ground (`isOutsideNearestArea` in `js/nav.js`, measured from
   `nearbyOrigin()` so it follows the browse anchor once one is set). This exists for streets and
   waymarked trails: their lines are terrain, drawn right across the map, so without this rule a
   tap into the out-of-radius corners of the Nearby screen opened a navigation view to whichever
-  road ran through there instead of browsing that spot. Inside the ring, taps select as normal —
-  a street you could actually walk to now is a destination. The rule also catches out-of-radius
+  road ran through there instead of browsing that spot. Inside the ring, streets and trails
+  do not select either: on Nearby only a highlighted location pin inside the ring opens, and every
+  other tap moves the browse point. The rule also catches out-of-radius
   *pins*, which are only ever drawn when the radius filter is toggled off
   (`state.showAllOutsideRadius`); those items stay reachable from the nearby list, which is
   unaffected. It does not apply once something is selected: from a selected-detail view, a tap
@@ -567,7 +569,7 @@ moving the real GPS fix:
   from a selection is unaffected — that is the bullet above, a deliberate re-browse, not a
   selection.
 - **Pinch-to-resize the radius:** a two-finger pinch on the map canvas while any screen that
-  draws the ring is active (Nearby, or Filter/Settings/Report) scales `state.walkingDistanceMinutes` continuously (no fixed stops, and no rounding to a value grid — see "Walking-radius floor"
+  draws the ring is active (Nearby, or Filter/Report) scales `state.walkingDistanceMinutes` continuously (no fixed stops, and no rounding to a value grid — see "Walking-radius floor"
   above) — spreading fingers apart shrinks the radius (zoom in), pinching together grows it
   (zoom out), tracking the pinch distance ratio from where the gesture started. Each pointermove
   applies its raw value directly, so the ring tracks the gesture with no perceptible snap; only
@@ -1434,6 +1436,8 @@ The full routing model — the URL for each screen, history entries, back/forwar
   landing, a shared `?show=` link) is `filterRailHtml()` (js/app.js), prepended by
   `overviewNearestHtml()` to every return path, empty states included. It replaces the old
   `/nearby/<slug>/` breadcrumb chips.
+  The pills sit vertically centred in the rail band: the rail pulls up over the body's top padding so
+  the space above and below the row is equal. The rail keeps the panel colour.
   - **Layout.** A sticky row of sideways-scrolling category pills. Pills are `button`s with `aria-pressed`; the row is a `nav` labelled
     "Filter nearby places".
   - **Which pills.** The plain `/nearby` screen shows one pill per top-level group (`Nature`,
@@ -1492,7 +1496,7 @@ The full routing model — the URL for each screen, history entries, back/forwar
 
 - Mobile-first: controls compact, avoid overflow
 - **Inspector height is fixed by default while expanded.** On mobile the panel starts at 50% of the stage height, capped where necessary to leave the navigation card and safe area visible; on desktop it fills the available height beneath the navigation card. This applies to Nearby, Filters, Search, Settings, Community, Feedback, and every selected location. Content scrolls inside the panel, so switching screens, entering navigation mode, arriving at a destination, or opening the keyboard does not resize the panel or change the map's available area. The panel can still be deliberately minimized by the existing selection/navigation controls; that is an open/closed state, not a screen-specific height.
-- **The mobile inspector can be manually resized.** The visible drag handle at the top of the bottom sheet (which reserves its own 20px strip above every screen, tinted like the heading box so it blends into it; the desktop side panel has no handle and no strip) is a horizontal splitter (`#inspectorDragHandle`, `role="separator"`) with a 20–85% height range. Dragging it changes the panel height continuously and recentres the selected destination or Nearby view against the newly visible map area; releasing it adds one settling animation. Keyboard users can focus the handle and use Arrow Up/Down in 5-point steps, Home for 20% and End for 85%; `aria-valuenow` tracks the current height. The chosen height remains while moving between screens and selected locations in the bottom-sheet layout, but is cleared when switching to the desktop side-panel layout. A location loaded before a real fix exists uses the open panel's visible map area for its first camera fit, so its pin does not start underneath the sheet.
+- **The mobile inspector can be manually resized.** The visible drag handle at the top of the bottom sheet (which reserves its own 20px strip above every screen, tinted like the heading box so it blends into it; the desktop side panel has no handle and no strip) is a horizontal splitter (`#inspectorDragHandle`, `role="separator"`) with a 20–85% height range. Dragging it changes the panel height continuously while the map stays still behind it; on release the selected destination or Nearby view recentres against the newly visible map area in one animated move, so the map never jumps while the panel is still moving. Keyboard users can focus the handle and use Arrow Up/Down in 5-point steps, Home for 20% and End for 85%; `aria-valuenow` tracks the current height. The chosen height remains while moving between screens and selected locations in the bottom-sheet layout, but is cleared when switching to the desktop side-panel layout. A location loaded before a real fix exists uses the open panel's visible map area for its first camera fit, so its pin does not start underneath the sheet.
 - **Nav bar is a fixed bottom tab bar, separate from the inspector sheet.** `<nav class="inspector-actions">` (`app.html`) is a sibling of `#inspector`, not nested inside it — the common pattern in apps like Monzo. On the mobile bottom-sheet layouts (`max-width: 760px` and the landscape `pointer: coarse`/`max-height: 500px` override, `css/map-ui.css`) it is `position: fixed` to the bottom of the screen, its own rounded card with a shadow, 20px corners and a bottom gap of 10px plus `env(safe-area-inset-bottom, 0px)` to clear rounded screens and the home indicator. The inspector sheet reserves the same additional inset in its bottom offset and height budget, retaining its 10px gap above the nav; on desktop it sits in the same spot as a card above the (top-right) inspector panel instead. Either way `#inspector`'s own `top`/`bottom` offset leaves a 10px gap above/below the bar (via the shared `--nav-bar-h` custom property, `css/base.css`) so the two read as distinct panels rather than one tall one. `bestVisibleCanvasRect()`/`inspectorCanvasOverlapRect()` (`js/app.js`) treat the nav bar's footprint as obstructing the map the same as the inspector sheet's — the union of both elements' rects, since the bar is always present regardless of the sheet's own open/minimized state.
 - The active tab (`.screen-active`) is highlighted with the current/reward role (`--current-soft` background, `--current-ink` icon/label, `css/base.css`/`css/inspector.css`), not a solid dark block. `#nearbyToggle` carries `.screen-active`/`aria-current="page"` already in `app.html`'s own markup (the other three carry `aria-current="false"`), rather than only gaining it once `setNavScreenActive(els.nearbyToggle)` (`js/inspector.js`'s `selectOverview()`) runs — Nearby is always the screen a fresh load lands on, so a no-JS visitor or the instant before boot() runs saw a flat, unhighlighted nav row that then visibly changed the moment JS took over. The static page now already looks like the screen it's showing.
 - **Selection camera timing follows the panel's actual motion.** `zoomToSelection()` and the return-to-Nearby refit (`js/inspector.js`/`js/nav.js`) wait for the inspector's computed `height`/`max-height` transition only when the current CSS has one, matching the inspector event and property rather than accepting a descendant's `transitionend`. Desktop and fixed-height states refit on the next layout frame; the manually resized mobile sheet waits for its height transition, with a timeout guard for interrupted or reduced-motion cases.

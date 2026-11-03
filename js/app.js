@@ -9403,7 +9403,7 @@ function searchResultsHtml(query) {
 // registry (js/categories.js) and the inspector's back arrow sets the precedent for a UI
 // glyph drawn inline; app.html carries its own copy because that file holds no logic.
 function searchIconHtml(className = "app-icon title-icon") {
-  return `<svg class="${className}" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" aria-hidden="true"><circle cx="9.5" cy="9.5" r="6"/><line x1="14" y1="14" x2="19" y2="19"/></svg>`;
+  return `<svg class="${className}" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="6.5"/><line x1="15" y1="15" x2="20" y2="20"/></svg>`;
 }
 
 function searchScreenHtml() {
