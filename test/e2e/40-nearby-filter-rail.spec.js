@@ -54,6 +54,7 @@ test.describe("Nearby filter rail", () => {
     // Nature's defaults are Trees and Cows out of its three subcategories.
     await expect(pill(page, "nature")).toHaveAttribute("aria-pressed", "true");
     await expect(pill(page, "nature").locator(".rail-count")).toHaveText("2/3");
+    await expect(pill(page, "nature").locator(".rail-check")).toHaveText("✓");
     await expect(pill(page, "food")).toHaveAttribute("aria-pressed", "true");
     await expect(pill(page, "transport")).toHaveAttribute("aria-pressed", "false");
     await expect(pill(page, "transport").locator(".rail-count")).toHaveCount(0);
@@ -207,6 +208,7 @@ test.describe("Nearby filter rail", () => {
     await expect(stories).toHaveAttribute("aria-pressed", "true");
     await expect.poll(() => row.evaluate((el) => el.scrollLeft)).toBe(before);
     await expect(stories.locator(".rail-count")).toHaveText("4/4");
+    await expect(stories.locator(".rail-check")).toHaveText("✓");
     await row.evaluate((el) => { el.scrollLeft = 0; });
     await expect(rail(page)).not.toHaveClass(/has-left-overflow/);
   });

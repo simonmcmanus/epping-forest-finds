@@ -4957,7 +4957,9 @@ function filterRailHtml() {
     if (groupLevel) {
       const shown = item.filterKeys.filter((key) => activeKeys.has(key)).length;
       const total = item.filterKeys.length;
-      const status = on ? `<span class="rail-count" aria-hidden="true">${shown}/${total}</span>` : `<span class="rail-check" aria-hidden="true"></span>`;
+      // The tick stays where a subcategory's tick is; the small count sits just before it.
+      const count = on ? `<span class="rail-count" aria-hidden="true">${shown}/${total}</span>` : "";
+      const status = `${count}<span class="rail-check" aria-hidden="true">${on ? "✓" : ""}</span>`;
       const label = `${escapeHtml(item.label)}: ${shown} of ${total} categories shown`;
       return `<button class="rail-pill${on ? " is-on" : ""}" type="button" data-rail-key="${item.key}" aria-pressed="${on}" aria-label="${label}" title="Hold to choose ${escapeHtml(item.label)} categories">${appIconHtml(item.icon)}<span>${escapeHtml(item.label)}</span>${status}</button>`;
     }

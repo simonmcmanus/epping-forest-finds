@@ -2286,8 +2286,8 @@ test("the plain Nearby filter rail counts how many subcategories each enabled gr
   assert.match(html, /<nav class="filter-rail" aria-label="Filter nearby places">/);
   assert.match(html, /class="rail-pill rail-pill--all" type="button" data-rail-key="all-nearby" aria-pressed="false"/);
   assert.match(html, /class="rail-pill is-on" type="button" data-rail-key="nature" aria-pressed="true"/);
-  assert.equal(pillText("nature"), "Nature 1/3", "one of Nature's three subcategories is on");
-  assert.equal(pillText("food"), "Food 1/4", "one of Food's four subcategories is on");
+  assert.equal(pillText("nature"), "Nature 1/3 ✓", "one of Nature's three subcategories is on, and the group keeps its tick");
+  assert.equal(pillText("food"), "Food 1/4 ✓", "one of Food's four subcategories is on, and the group keeps its tick");
   assert.match(html, /data-rail-key="nature"[^>]*aria-label="Nature: 1 of 3 categories shown"/, "the count is read out with its meaning");
   assert.match(html, /class="rail-pill is-on" type="button" data-rail-key="food" aria-pressed="true"/);
   assert.match(html, /data-rail-key="transport" aria-pressed="false"/, "the rail uses top-level groups");
