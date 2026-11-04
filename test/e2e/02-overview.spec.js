@@ -92,9 +92,14 @@ test.describe("Overview / Nearby screen", () => {
       || window.matchMedia("(orientation: landscape) and (pointer: coarse) and (max-height: 500px)").matches);
     test.skip(!mobileSheet, "the inspector is a side panel on desktop");
 
+    // The Nearby filter rail sits flush against the title by design (its negative top margin), so
+    // the space that matters is between the rail and the content below it; without a rail, between
+    // the title and the first content.
     const title = await page.locator(".inspector-title-section").boundingBox();
-    const firstBodyChild = await page.locator("#inspectorBody > :first-child").boundingBox();
-    expect(firstBodyChild.y - (title.y + title.height)).toBeGreaterThanOrEqual(13);
+    const rail = page.locator("#inspectorBody > .filter-rail");
+    const above = (await rail.count()) ? await rail.boundingBox() : title;
+    const firstBodyChild = await page.locator("#inspectorBody > :not(.filter-rail)").first().boundingBox();
+    expect(firstBodyChild.y - (above.y + above.height)).toBeGreaterThanOrEqual(13);
 
     const panel = page.locator("#inspector");
     const before = (await panel.boundingBox()).height;

@@ -653,7 +653,26 @@ test.describe("generated find/nearby pages", () => {
       await expect(page).toHaveTitle(`${target.name} in Epping Forest | Epping Forest Finds`);
     });
 
-    test("a rendered waymarked path label opens its trail detail", async ({ page }) => {
+    // Screen point of a waymarked trail's label, read after the camera has settled. The label
+    // must be registered for hit-testing, or the tap would not reach the label at all.
+    async function waymarkedLabelTarget(page) {
+      return page.evaluate(() => {
+        const path = state.paths.find((item) => item.key === "way/4472471");
+        const anchor = pathLabelAnchor(path);
+        const screen = worldToScreen(anchor);
+        const labelHit = findMapLabelHit(screen);
+        if (!labelHit || labelHit.type !== "path") throw new Error("path label was not registered");
+        const rect = (els.mapStage || els.canvas).getBoundingClientRect();
+        const dpr = pixelRatio();
+        return {
+          clientX: rect.left + (screen.x - state.canvasInsetX) / dpr,
+          clientY: rect.top + (screen.y - state.canvasInsetY) / dpr,
+          name: path.name,
+        };
+      });
+    }
+
+    test("a waymarked trail label moves the Nearby browse point, then opens its trail detail from inside the ring", async ({ page }) => {
       await gotoAndWaitForMap(page, "/nearby/nature/");
 
       await page.evaluate(() => {
@@ -670,21 +689,15 @@ test.describe("generated find/nearby pages", () => {
       });
       await settleMapIconsAndDraw(page);
 
-      const target = await page.evaluate(() => {
-        const path = state.paths.find((item) => item.key === "way/4472471");
-        const anchor = pathLabelAnchor(path);
-        const screen = worldToScreen(anchor);
-        const labelHit = findMapLabelHit(screen);
-        if (!labelHit || labelHit.type !== "path") throw new Error("path label was not registered");
-        const rect = (els.mapStage || els.canvas).getBoundingClientRect();
-        const dpr = pixelRatio();
-        return {
-          clientX: rect.left + (screen.x - state.canvasInsetX) / dpr,
-          clientY: rect.top + (screen.y - state.canvasInsetY) / dpr,
-          name: path.name,
-        };
-      });
+      // From outside the walking ring a trail is terrain: the tap moves the browse point to it and
+      // does not open the trail (spec-data-rendering, "Browsing Another Spot").
+      await tapCanvasPoint(page, await waymarkedLabelTarget(page), { alreadyClient: true });
+      await expect.poll(() => page.evaluate(() => state.nearbyAnchor != null)).toBe(true);
+      expect(await page.evaluate(() => state.selected)).toBeNull();
 
+      // The browse point now sits on the trail, so its label is inside the ring and opens the detail.
+      await waitForUiToSettle(page);
+      const target = await waymarkedLabelTarget(page);
       await tapCanvasPoint(page, target, { alreadyClient: true });
       await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("path");
       await expect(page.locator("#inspectorTitle")).toHaveText(target.name);
