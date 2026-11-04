@@ -1065,14 +1065,103 @@ let _transitionAnimation = null;
 
 function _cleanupTransition() {
   const scroll = els.inspector && els.inspector.querySelector(".inspector-scroll");
-  const screen = scroll && scroll.querySelector(".inspector-screen");
   const ghost  = scroll && scroll.querySelector(".inspector-screen-ghost");
   if (ghost)  ghost.remove();
-  // Only the outgoing screen animation is owned by this transition. Cancelling every animation
-  // on the screen also cancels child animations (walk chips, icons, etc.) that entered with the
+  // Only the outgoing body animation is owned by this transition. Cancelling every animation on
+  // the body also cancels child animations (walk chips, icons, etc.) that entered with the
   // replacement markup, cutting their reveal off when the parent slide finishes.
-  if (screen) screen.style.willChange = "";
+  if (els.inspectorBody) els.inspectorBody.style.willChange = "";
   if (scroll) { scroll.style.overflow = ""; scroll.style.height = ""; }
+}
+
+// --- Row-to-place morph ---
+// Opening a place from a Nearby row makes the row's icon and name fly up into the place header, and
+// going back sends the header's icon and name down into the row they came from. The header box
+// itself does not move (one geometry for every screen, css/inspector.css); only the list or detail
+// body slides, so the motion in the title is the icon and name travelling between the two.
+const MORPH_MS = 340;
+const MORPH_EASING = "cubic-bezier(0.2, 0.75, 0.25, 1)";
+const MORPH_WINDOW_MS = 1000; // a row tap only morphs the place it opens, not one opened much later
+let _rowMorph = null;          // { key, icon, name, at } -- the row just tapped (focusOverviewItem)
+let _placeMorphKey = null;     // "type:key" of the place on screen, when it was opened from a row
+let _leavingPlaceMorph = null; // { key, icon, name } -- that place's header rects as it is left
+
+function morphRect(el) {
+  return el && el.isConnected && !el.hidden ? el.getBoundingClientRect() : null;
+}
+
+function recordRowMorph(type, key) {
+  const id = `${type}:${key}`;
+  const row = nearbyRowFor(id);
+  _rowMorph = row ? {
+    key: id,
+    icon: morphRect(row.querySelector(".nearest-icon")),
+    name: morphRect(row.querySelector(".nearest-name")),
+    at: performance.now(),
+  } : null;
+}
+
+// The Nearby row for a `type:key` id (the same id nearestItemDomKey builds), if the list shows it.
+function nearbyRowFor(id) {
+  return Array.from(els.inspectorBody.querySelectorAll(".nearest-item[data-overview-key]"))
+    .find((node) => `${node.dataset.overviewType}:${node.dataset.overviewKey}` === id) || null;
+}
+
+// Takes the row a place is opening from, if it was tapped a moment ago. Also remembers which row
+// that place came from, so going back can fly it home.
+function takeRowMorph(direction) {
+  const row = _rowMorph;
+  _rowMorph = null;
+  if (direction !== "forward" || !row || performance.now() - row.at > MORPH_WINDOW_MS) return null;
+  _placeMorphKey = row.key;
+  return row;
+}
+
+// Moves `el` so that it starts on `from` (a viewport rect) and glides to where it rests now (`to`).
+// Anchored on the top-left corner, so the text and icon start on the row's own left edge and scale
+// with its height as they travel. Callers measure both rects before anything else moves.
+function flipMorph(el, from, to) {
+  if (!el || !from || !to || !el.animate || !to.height) return;
+  const dx = from.left - to.left;
+  const dy = from.top - to.top;
+  const scale = from.height / to.height;
+  el.style.transformOrigin = "0 0";
+  const anim = el.animate([
+    { transform: `translate(${dx}px, ${dy}px) scale(${scale})` },
+    { transform: "none" },
+  ], { duration: MORPH_MS, easing: MORPH_EASING });
+  anim.finished.then(() => { el.style.transformOrigin = ""; }).catch(() => { el.style.transformOrigin = ""; });
+}
+
+// Runs the morph for this transition. Called before the body starts to slide, so the row and the
+// header are measured at rest. Returns true when the return to a row is morphing, which the caller
+// uses to fade the list in place instead of sliding it.
+function playHeaderMorph(direction, rowMorph, leaving) {
+  const icon = els.inspectorTitleEmoji;
+  const title = els.inspectorTitle;
+  if (rowMorph) {
+    flipMorph(icon, rowMorph.icon, morphRect(icon));
+    flipMorph(title, rowMorph.name, morphRect(title));
+    // The subtitle waits for the title to land, so the travelling name never reads over it.
+    const type = els.inspectorType;
+    if (type && type.isConnected) {
+      type.animate([{ opacity: 0 }, { opacity: 1 }], { duration: MORPH_MS * 0.5, delay: MORPH_MS * 0.5, fill: "backwards", easing: "ease-out" });
+    }
+    return false;
+  }
+  if (direction !== "back" || !leaving || performance.now() - leaving.at > MORPH_WINDOW_MS) return false;
+  const row = nearbyRowFor(leaving.key);
+  if (!row) return false;
+  const rowIcon = row.querySelector(".nearest-icon");
+  const rowName = row.querySelector(".nearest-name");
+  flipMorph(rowIcon, leaving.icon, morphRect(rowIcon));
+  flipMorph(rowName, leaving.name, morphRect(rowName));
+  // The header's own icon and title ease in while the place's name leaves it, so the two never
+  // read as one overlapping word.
+  [icon, title].forEach((el) => {
+    if (el && el.isConnected) el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: "ease-out" });
+  });
+  return true;
 }
 
 function resetInspectorScrollPosition(scroll = els.inspector && els.inspector.querySelector(".inspector-scroll")) {
@@ -1081,24 +1170,30 @@ function resetInspectorScrollPosition(scroll = els.inspector && els.inspector.qu
 
 function applyScreenTransition(direction, onDone) {
   const scroll    = els.inspector && els.inspector.querySelector(".inspector-scroll");
-  const screen    = scroll && scroll.querySelector(".inspector-screen");
+  const body      = els.inspectorBody;
   const snapshot  = _transitionSnapshot;
   _transitionSnapshot = null;
+  const rowMorph  = takeRowMorph(direction);
+  const leaving   = _leavingPlaceMorph;
+  _leavingPlaceMorph = null;
 
   // Every newly-entered screen starts at its own top, including reduced-motion and
   // no-snapshot paths where there is no animation to perform.
   resetInspectorScrollPosition(scroll);
-  if (!direction || !snapshot || !screen || !scroll || prefersReducedMotion()) {
+  if (!direction || !snapshot || !body || !scroll || prefersReducedMotion()) {
     if (onDone) onDone();
     resetInspectorScrollPosition(scroll);
     return;
   }
 
-  // Build ghost (outgoing overlay) from pre-captured snapshot
+  const returningToRow = playHeaderMorph(direction, rowMorph, leaving);
+
+  // The header stays put: only the body moves, so the outgoing body is the one ghost. It sits
+  // where the body was, under the same header box that stays in place.
   const ghost = snapshot;
   ghost.classList.add("inspector-screen-ghost");
   ghost.setAttribute("aria-hidden", "true");
-  ghost.style.cssText = "position:absolute;top:0;left:0;right:0;pointer-events:none;z-index:1;background:var(--panel);backdrop-filter:blur(12px);";
+  ghost.style.cssText = `position:absolute;top:${body.offsetTop}px;left:${body.offsetLeft}px;width:${body.offsetWidth}px;pointer-events:none;z-index:1;background:var(--panel);`;
 
   // Lock height so the panel doesn't jump as content height changes
   scroll.style.height = scroll.offsetHeight + "px";
@@ -1110,17 +1205,19 @@ function applyScreenTransition(direction, onDone) {
   const outX   = direction === "forward" ? "-62%" : "62%";
   const inX    = direction === "forward" ?  "62%" : "-62%";
 
-  screen.style.willChange = "transform, opacity";
+  body.style.willChange = "transform, opacity";
 
-  ghost.animate([
-    { transform: "translateX(0)",   opacity: 1 },
-    { transform: `translateX(${outX})`, opacity: 0 },
-  ], { duration: dur, easing: ease });
+  // Returning to a row fades the list in place rather than sliding it: the row's icon is flying up
+  // out of the header and would otherwise be carried off-screen by the slide before it arrives.
+  const outFrames = returningToRow
+    ? [{ transform: "translateY(0)", opacity: 1 }, { transform: "translateY(-6px)", opacity: 0 }]
+    : [{ transform: "translateX(0)", opacity: 1 }, { transform: `translateX(${outX})`, opacity: 0 }];
+  const inFrames = returningToRow
+    ? [{ transform: "translateY(10px)", opacity: 0 }, { transform: "translateY(0)", opacity: 1 }]
+    : [{ transform: `translateX(${inX})`, opacity: 0 }, { transform: "translateX(0)", opacity: 1 }];
+  ghost.animate(outFrames, { duration: dur, easing: ease });
 
-  const inAnim = screen.animate([
-    { transform: `translateX(${inX})`, opacity: 0 },
-    { transform: "translateX(0)",      opacity: 1 },
-  ], { duration: dur, easing: ease, fill: "backwards" });
+  const inAnim = body.animate(inFrames, { duration: dur, easing: ease, fill: "backwards" });
 
   _transitionAnimation = inAnim;
 
@@ -1193,15 +1290,29 @@ function setInspectorSelectionChrome({ emoji, titleLink = null, showBack, captur
     _transitionAnimation = null;
     _cleanupTransition();
   }
+  // A place's header is read before anything below changes it, so a return to the Nearby row it
+  // came from can fly the icon and name back into that row (applyScreenTransition).
+  // The header is read as if the panel were at its top: the new screen resets the scroll to 0, so a
+  // place left scrolled down still has its header at rest where the flight should start.
+  const panelScroll = els.inspector && els.inspector.querySelector(".inspector-scroll");
+  const scrolledBy = panelScroll ? panelScroll.scrollTop : 0;
+  const restingRect = (el) => {
+    const rect = morphRect(el);
+    return rect && { left: rect.left, top: rect.top + scrolledBy, width: rect.width, height: rect.height };
+  };
+  _leavingPlaceMorph = captureSnapshot && _placeMorphKey && morphRect(els.inspectorTitle)
+    ? { key: _placeMorphKey, icon: restingRect(els.inspectorTitleEmoji), name: restingRect(els.inspectorTitle), at: performance.now() }
+    : null;
+  _placeMorphKey = null;
   if (captureSnapshot) {
+    // Only the outgoing body is cloned, ids and all -- #inspectorBody and friends live inside
+    // the live panel. Leaving the ids on the ghost put duplicate ids in the live DOM for the
+    // 310ms of the slide, so any getElementById/#id lookup running during a transition could
+    // answer with the frozen outgoing copy instead of the real element. The ghost is aria-hidden
+    // and pointer-events:none; nothing needs to address it.
     const scroll = els.inspector && els.inspector.querySelector(".inspector-scroll");
-    const screen = scroll && scroll.querySelector(".inspector-screen");
-    _transitionSnapshot = screen ? screen.cloneNode(true) : null;
-    // The outgoing screen is cloned wholesale, ids and all -- and #inspectorTitle,
-    // #inspectorBody and friends live inside it. Leaving those on the ghost put duplicate ids
-    // in the live DOM for the 310ms of the slide, so any getElementById/#id lookup running
-    // during a transition could answer with the frozen outgoing copy instead of the real
-    // element. The ghost is aria-hidden and pointer-events:none; nothing needs to address it.
+    const body = scroll && scroll.querySelector(".inspector-body");
+    _transitionSnapshot = body ? body.cloneNode(true) : null;
     if (_transitionSnapshot) {
       _transitionSnapshot.removeAttribute("id");
       _transitionSnapshot.querySelectorAll("[id]").forEach((node) => node.removeAttribute("id"));
@@ -1283,6 +1394,8 @@ function focusOverviewItem(type, key) {
     setStatus("Use my location first.");
     return;
   }
+  // Read the tapped row before the list is replaced; the place it opens morphs out of it.
+  recordRowMorph(type, key);
   state.clusterZoomed = false;
   exitClusterExpansion();
   // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
