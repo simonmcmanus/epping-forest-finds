@@ -2972,7 +2972,7 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   padding: 0 12px;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: var(--surface-soft);
+  background: var(--surface);
 }
 .place-detail > dl > .row.row--value-only {
   padding: 10px 0;

@@ -507,7 +507,9 @@ function showLandmarkDetails(place, distance) {
   // The check form belongs to the same top-of-detail stack as the community status, so a
   // submission can visibly transition into that status instead of leaving a second summary at
   // the bottom of the location details.
-  const landmarkHtml = `<article class="place-detail place-detail--${isEvent ? "event" : "landmark"}">${topRow}${communityPlaceStatus.detail}${communityPlaceMarker}${communityPlaceSection}${descriptionHtml}${ledgerHtml}${detailsHtml(rows, { labels: isEvent })}${isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : ""}<div data-live-nearby>${relatedLinksHtml}</div>${issueHtml}</article>`;
+  // The place's own details (address, website, phone, hours) come straight under the action row, so
+  // they are read before the community check card asks anything of the visitor.
+  const landmarkHtml = `<article class="place-detail place-detail--${isEvent ? "event" : "landmark"}">${topRow}${detailsHtml(rows, { labels: isEvent })}${communityPlaceStatus.detail}${communityPlaceMarker}${communityPlaceSection}${descriptionHtml}${ledgerHtml}${isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : ""}<div data-live-nearby>${relatedLinksHtml}</div>${issueHtml}</article>`;
   // A /find/ landing's place replaces its server-rendered panel in place: no slide-in from the side.
   transitionInspectorBody(landmarkHtml, findLandingSlug() ? null : "forward");
   if (navigator.onLine && !isEvent && place.latitude != null) loadCommunityPlaceIssues(place);
