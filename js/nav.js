@@ -87,6 +87,11 @@ function nearbyOrigin() {
 // show the forest from High Beach, and nothing tries to walk them to a place.
 const FAR_FROM_FOREST_METRES = 1250;
 
+// The furthest any part of the forest land outline is from the High Beach stand-in (its south-western
+// end, about 12.75 km away). A real fix beyond this plus FAR_FROM_FOREST_METRES is far even before the
+// outline has loaded (isFarFromForestFix, js/app.js). Data invariant guarded by a unit test.
+const FOREST_OUTLINE_REACH_FROM_HIGH_BEACH_METRES = 13000;
+
 // True when a real, shared fix sits well outside the forest. state.farFromForest is kept current by
 // updateFarFromForest (js/app.js) on every fix and when the forest outline lands.
 function isFarFromForest() {
@@ -1018,17 +1023,6 @@ function setupInspectorHandlers() {
     setInspectorMinimized(false);
   });
 
-  if (els.distanceWarningButton) {
-    els.distanceWarningButton.addEventListener("click", () => {
-      state.distanceWarningShown = true;
-      if (els.distanceWarning._deactivateFocus) {
-        els.distanceWarning._deactivateFocus();
-        els.distanceWarning._deactivateFocus = null;
-      }
-      hideWithFade(els.distanceWarning);
-    });
-  }
-
   if (els.compassCalibrationBannerDismiss) {
     els.compassCalibrationBannerDismiss.addEventListener("click", () => {
       if (typeof dismissCompassCalibrationPrompt === "function") dismissCompassCalibrationPrompt();
@@ -1775,6 +1769,10 @@ function updateNearbyAnchorBar() {
   } else if (!bar.hidden) {
     hideNearbyAnchorBar(bar);
   }
+  // Far from the forest the walking radius is centred on High Beach whatever the visitor's real fix
+  // says, so "Use my location" would only put them back on the same view. Keep the wording, drop the button.
+  const resetButton = bar.querySelector('[data-action="reset-nearby-anchor"]');
+  if (resetButton) resetButton.hidden = isFarFromForest();
   // Mid-exit the card keeps its old wording; the generic fallback would flash in as it fades out.
   if (bar.classList && bar.classList.contains("is-leaving")) return;
   // Names the spot when the browse point came from a place (its own inspector's walk card or a

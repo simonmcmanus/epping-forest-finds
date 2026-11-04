@@ -464,9 +464,13 @@ globalThis.__forestFindsTest = {
   isFarFromForest,
   canGuideToPlaces,
   updateFarFromForest,
-  checkDistanceToForest,
+  isFarFromForestFix,
   distanceToForestMetres,
   FAR_FROM_FOREST_METRES,
+  FOREST_OUTLINE_REACH_FROM_HIGH_BEACH_METRES,
+  navigationOriginPoint,
+  highBeachStandIn,
+  currentNavigationMapRotationDegrees,
   updateCompassOverlay,
   setNearbyAnchor,
   clearNearbyAnchor,
@@ -10891,6 +10895,35 @@ test("in the nearby view, tapping a location beyond the nearest area moves the b
   app.stopViewportAnimation();
 });
 
+test("far from the forest, a location beyond the nearest area opens rather than moving the browse point", () => {
+  resetData(app);
+  useSmallForest(app);
+  withRealFix(app, 51.508, -0.1281);
+  const tree = {
+    id: "far-away-tree",
+    commonName: "Far Away Oak",
+    recordNumber: 2,
+    location: { britishNationalGrid: {} },
+    ...makePoint(app, 51.65, 0.07),
+  };
+  app.state.trees.push(tree);
+  app.state.showAllOutsideRadius = true;
+  app.state.map3dEnabled = false;
+  app.selectOverview();
+  app.state.viewport = { scale: 100000, tx: 0, ty: 0 };
+  app.state.viewport.tx = 500 - tree.point.x * 100000;
+  app.state.viewport.ty = 400 - tree.point.y * 100000;
+
+  assert.equal(app.isOutsideNearestArea({ latitude: 51.65, longitude: 0.07 }), true, "sanity: the tree is outside the High Beach ring");
+  const treeTap = pinTapPoint(app, tree.point);
+  assert.equal(app.findHit(treeTap, app.screenToWorld(treeTap.x, treeTap.y)).type, "tree", "the location is drawn and tappable");
+  tapMap(app, treeTap);
+
+  assert.equal(app.state.selected?.type, "tree", "a visitor who cannot walk to the ring can still open any place they tap");
+  assert.equal(app.state.nearbyAnchor, null, "and the browse point does not move");
+  app.stopViewportAnimation();
+});
+
 test("tapping a location from a browsed Nearby anchor keeps the outgoing map during handoff", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.65, 0.05);
@@ -12876,15 +12909,65 @@ test("far-from-the-forest threshold is a 15 minute walk (1,250 m) from the bound
   assert.equal(app.isFarFromForest(), true, "1.3 km away is too far");
 });
 
-test("until the forest outline loads nobody is treated as far away, and it is re-checked once it lands", () => {
+test("a fix beyond the forest's reach is far before the outline loads, so the camera never frames it", () => {
   resetData(app);
   app.state.layers = [];
-  withRealFix(app, 51.508, -0.1281);
-  assert.equal(app.isFarFromForest(), false, "no outline yet, so no verdict");
-  assert.equal(app.distanceToForestMetres(51.508, -0.1281), null);
+  app.state.userLocation = { ...makePoint(app, 51.508, -0.1281), isDefault: false };
+  app.state.farFromForest = false;
+  app.updateFarFromForest(51.508, -0.1281);
+  assert.equal(app.distanceToForestMetres(51.508, -0.1281), null, "the outline has not loaded");
+  assert.equal(app.isFarFromForest(), true, "central London is far without the outline");
+  assert.equal(app.nearbyOrigin().isDefault, true, "Nearby is on High Beach from the first frame");
+});
+
+test("a fix within the forest's reach gets no verdict until the outline loads, then is checked against it", () => {
+  resetData(app);
+  app.state.layers = [];
+  const fiveKmNorth = 51.667 + 5000 / 111320;
+  app.state.userLocation = { ...makePoint(app, fiveKmNorth, 0.0375), isDefault: false };
+  app.state.farFromForest = false;
+  app.updateFarFromForest(fiveKmNorth, 0.0375);
+  assert.equal(app.isFarFromForest(), false, "no outline, and inside the reach: no verdict yet");
   useSmallForest(app);
-  app.checkDistanceToForest(51.508, -0.1281);
-  assert.equal(app.isFarFromForest(), true);
+  app.updateFarFromForest(fiveKmNorth, 0.0375);
+  assert.equal(app.isFarFromForest(), true, "once the outline lands, 5 km from it is far");
+});
+
+test("the forest outline lies within the reach used for a fix before the outline loads", () => {
+  const fs = require("node:fs");
+  const path = require("node:path");
+  const outline = JSON.parse(fs.readFileSync(path.join(__dirname, "..", "data", "epping-forest-land.geojson"), "utf8"));
+  let furthest = 0;
+  const visit = (coords) => {
+    if (typeof coords[0] === "number") {
+      const [longitude, latitude] = coords;
+      furthest = Math.max(furthest, app.distanceMetres(app.DEFAULT_LOCATION.latitude, app.DEFAULT_LOCATION.longitude, latitude, longitude));
+      return;
+    }
+    coords.forEach(visit);
+  };
+  outline.features.forEach((feature) => visit(feature.geometry.coordinates));
+  assert.ok(furthest < app.FOREST_OUTLINE_REACH_FROM_HIGH_BEACH_METRES,
+    `the furthest outline point is ${Math.round(furthest)} m from High Beach, so the reach constant must cover it`);
+});
+
+test("far from the forest the map still turns with the compass for a selected place, pivoting on High Beach", () => {
+  resetData(app);
+  useSmallForest(app);
+  const place = { name: "Pub", categoryLabel: "Pub", ...makePoint(app, 51.6676, 0.0375) };
+  app.state.selected = { type: "landmark", item: place };
+  withRealFix(app, 51.508, -0.1281);
+  app.state.compassHeading = 60;
+  try {
+    assert.equal(app.selectedNavigationHeadingUpActive(), true, "a heading turns the view even with no directions offered");
+    assert.equal(app.navigationOriginPoint(), app.highBeachStandIn().point, "the view pivots on High Beach, not on the real fix");
+    assert.equal(app.currentNavigationMapRotationDegrees(), -60, "the map rotates with the heading");
+    const targets = app.selectedNavigationTargetPoints();
+    assert.ok(targets.some((point) => point === app.highBeachStandIn().point), "High Beach stays in the framing with the place");
+  } finally {
+    app.state.compassHeading = null;
+    app.state.selected = null;
+  }
 });
 
 test("walking back towards the forest returns Nearby to the visitor", () => {

@@ -4,7 +4,7 @@ const { skipOnboarding, mockCowApi, gotoAndWaitForMap, FIXTURE_TREE, waitForFram
 
 // A GPS fix inside Epping Forest, reused from 09-location.spec.js / 10-secondary-screen-camera.spec.js.
 // Genuinely inside the forest boundary polygon (see data/epping-forest-land.geojson), so
-// checkDistanceToForest() never shows the "not near the forest" banner for these tests.
+// updateFarFromForest() never raises the far-from-the-forest notice for these tests.
 const FOREST_LOCATION = { latitude: 51.6650, longitude: 0.0450, accuracy: 10 };
 
 async function dragCanvas(page, from, to, steps = 4) {
