@@ -2141,21 +2141,22 @@ const LOCATION_SMOOTHING_ACCURACY_DIVISOR = 10;
 const LOCATION_SMOOTHING_SNAP_METRES = 30;
 // Smoothing is for walking-pace wander. Travelling faster than this -- a bike, a bus, a train --
 // the wander is nothing against the motion, and easing toward each fix trails the real position
-// by speed x time constant. So above it the position is carried between fixes on their velocity
-// instead (see ingestLocationFix), which keeps it moving every frame rather than stepping once a
-// second.
+// by speed x time constant. So above it the position is carried between fixes along the track
+// the recent fixes describe instead (see ingestLocationFix), which keeps it moving every frame
+// rather than stepping once a second.
 const LOCATION_FAST_TRAVEL_MPS = 5;
 // Consecutive fixes cannot tell travel from wander (two fixes 12m apart a second apart is
 // ordinary wander under trees), so without the device's own speed reading the speed is judged
 // over at least this long, where the wander averages out and real travel does not.
 const LOCATION_SPEED_BASELINE_MIN_MS = 8000;
 const LOCATION_SPEED_HISTORY_MS = 15000;
-// Travel is carried between fixes, not stepped to (see ingestLocationFix). Its velocity is the
-// chord from the oldest fix within these ages to the newest: long enough that GPS wander
-// averages out, short enough to follow a train pulling away from a platform.
-const LOCATION_VELOCITY_MIN_AGE_MS = 1000;
-const LOCATION_VELOCITY_MAX_AGE_MS = 6000;
-// How far past its last fix the travelling position is carried on that velocity. With no new
+// Travel is carried between fixes, not stepped to (see ingestLocationFix). The track is a
+// straight line fitted through the fixes of the last LOCATION_TRACK_WINDOW_MS: GPS wander is
+// independent from fix to fix, so across a window it averages out, where any two fixes (a
+// chord) carry their own noise into the direction and speed of travel.
+const LOCATION_TRACK_WINDOW_MS = 15000;
+const LOCATION_TRACK_MIN_SPAN_MS = 3000;
+// How far past its last fix the travelling position is carried along the track. With no new
 // fix after this (a tunnel, a dead signal) it stops, rather than running on down the track.
 const LOCATION_DRIFT_MAX_MS = 2000;
 // Walking-pace snapping is tuned for wander, and a train covers 15-30m between one fix and the
@@ -2197,49 +2198,73 @@ function ingestLocationFix(latitude, longitude, accuracy, now = performance.now(
   if (!previous || !previous.point) return landRaw();
 
   if (travellingFast) {
-    // Carried, not stepped: between fixes the position moves on the velocity they show, so a
-    // train at 15 m/s moves every frame instead of holding still for a second and then jumping
-    // 15m. Without a velocity yet (the first fix of a journey) there is nothing to carry on.
-    const velocity = travelVelocityFromHistory(state.locationFixHistory, now);
+    // Carried, not stepped: between fixes the position moves along the track the recent fixes
+    // describe, so a train at 15 m/s moves every frame instead of holding still for a second and
+    // then jumping. Until there are enough fixes to fit a track (the first few seconds of a
+    // journey) the fix is eased as walking would be, rather than landed raw: raw GPS noise is
+    // exactly what this must not show.
     const gapMetres = priorFix ? distanceMetres(priorFix.latitude, priorFix.longitude, latitude, longitude) : Infinity;
-    if (!velocity || !Number.isFinite(gapMetres) || gapMetres >= LOCATION_FAST_SNAP_METRES) return landRaw();
-    return startLocationGlide(previous, raw, now, velocity);
+    if (!Number.isFinite(gapMetres) || gapMetres >= LOCATION_FAST_SNAP_METRES) {
+      // Lost fixes: the track from before the gap no longer describes the train, so start again from this one.
+      state.locationFixHistory = (state.locationFixHistory || []).slice(-1);
+      return landRaw();
+    }
+    const track = fitTravelTrack(state.locationFixHistory, now);
+    if (track) return startLocationGlide(previous, raw, now, track);
+    // No track yet: ease toward the fix at travelling speed, so the position does not trail the train.
+    return startLocationGlide(previous, raw, now, null, true);
   }
 
   const movedMetres = distanceMetres(previous.latitude, previous.longitude, latitude, longitude);
   // Not wander: a first fix after a gap, coming out of a tunnel, a genuine teleport. Easing
   // across that reads as the map sliding away on its own.
   if (!Number.isFinite(movedMetres) || movedMetres >= LOCATION_SMOOTHING_SNAP_METRES) return landRaw();
-  return startLocationGlide(previous, raw, now, null);
+  return startLocationGlide(previous, raw, now, null, false);
 }
 
-// Velocity of travel in projected units per millisecond: the chord from the oldest fix in the
-// LOCATION_VELOCITY_MIN..MAX_AGE window to the newest. Null when no fix is old enough yet.
-function travelVelocityFromHistory(history, now) {
-  if (!Array.isArray(history) || history.length < 2) return null;
-  const newest = history[history.length - 1];
-  const older = history.find((fix) => {
-    const ageMs = now - fix.at;
-    return fix !== newest && ageMs >= LOCATION_VELOCITY_MIN_AGE_MS && ageMs <= LOCATION_VELOCITY_MAX_AGE_MS;
-  });
-  if (!older || !older.point || !newest.point) return null;
-  const elapsedMs = newest.at - older.at;
-  if (!(elapsedMs > 0)) return null;
+// The straight line the recent fixes describe while travelling: a least-squares fit of x and y
+// against time over the fixes of the last LOCATION_TRACK_WINDOW_MS. Returns the fit's time
+// reference (atMs), its position there (x, y), its velocity (vx, vy, projected units per ms) and
+// the newest fix's time (fixAt), or null when there are too few fixes, or they span too short a
+// time, to give a direction.
+function fitTravelTrack(history, now) {
+  const fixes = (history || []).filter((fix) => fix.point && fix.at <= now && now - fix.at <= LOCATION_TRACK_WINDOW_MS);
+  if (fixes.length < 3) return null;
+  const spanMs = fixes[fixes.length - 1].at - fixes[0].at;
+  if (!(spanMs >= LOCATION_TRACK_MIN_SPAN_MS)) return null;
+  const count = fixes.length;
+  const meanAt = fixes.reduce((sum, fix) => sum + fix.at, 0) / count;
+  const meanX = fixes.reduce((sum, fix) => sum + fix.point.x, 0) / count;
+  const meanY = fixes.reduce((sum, fix) => sum + fix.point.y, 0) / count;
+  let sxx = 0;
+  let sxt = 0;
+  let syt = 0;
+  for (const fix of fixes) {
+    const dt = fix.at - meanAt;
+    sxx += dt * dt;
+    sxt += dt * (fix.point.x - meanX);
+    syt += dt * (fix.point.y - meanY);
+  }
+  if (!(sxx > 0)) return null;
   return {
-    x: (newest.point.x - older.point.x) / elapsedMs,
-    y: (newest.point.y - older.point.y) / elapsedMs,
+    atMs: meanAt,
+    x: meanX,
+    y: meanY,
+    vx: sxt / sxx,
+    vy: syt / sxx,
+    fixAt: fixes[fixes.length - 1].at,
   };
 }
 
-// Records where the position should head for. While travelling, `drift` is the velocity the
-// target is carried on between fixes (see glideTargetAt); walking passes null.
-function startLocationGlide(previous, raw, now, drift) {
+// Records where the position should head for. While travelling, `track` is the line the target
+// is carried along between fixes (see glideTargetAt); walking passes null.
+function startLocationGlide(previous, raw, now, track, travelling = false) {
   state.locationGlide = {
     to: raw.point,
     // The filter's time constant, from this fix's own reported accuracy: a 5m fix is
     // followed almost as given, a 25m one is leaned on hard. Travelling uses the quickest
     // one, because a slow ease trails a moving target by its speed times this constant.
-    tau: drift
+    tau: track || travelling
       ? LOCATION_SMOOTHING_MIN_TAU_S
       : clamp(
         (Number.isFinite(raw.accuracy) ? raw.accuracy : 10) / LOCATION_SMOOTHING_ACCURACY_DIVISOR,
@@ -2247,8 +2272,7 @@ function startLocationGlide(previous, raw, now, drift) {
         LOCATION_SMOOTHING_MAX_TAU_S
       ),
     accuracy: raw.accuracy,
-    fixAt: now,
-    drift,
+    track,
   };
   // Start the ease clock at this fix, so the first frame after it integrates ~one frame
   // rather than the whole gap since the previous fix (which the staleness guard would then
@@ -2259,14 +2283,16 @@ function startLocationGlide(previous, raw, now, drift) {
 }
 
 // Where the glide is heading at `now`. A walking glide heads for its fix and stays there. A
-// travelling one heads for the fix carried on its velocity, for at most LOCATION_DRIFT_MAX_MS:
-// the target keeps moving between fixes, so the position does too.
+// travelling one heads for the point on its track at `now`, carried at most LOCATION_DRIFT_MAX_MS
+// past the newest fix: the target moves continuously between fixes, and a new fix only shifts
+// the line slightly rather than moving the target.
 function glideTargetAt(glide, now) {
-  if (!glide.drift) return glide.to;
-  const carriedMs = clamp(now - glide.fixAt, 0, LOCATION_DRIFT_MAX_MS);
+  if (!glide.track) return glide.to;
+  const { track } = glide;
+  const at = Math.min(now, track.fixAt + LOCATION_DRIFT_MAX_MS);
   return {
-    x: glide.to.x + glide.drift.x * carriedMs,
-    y: glide.to.y + glide.drift.y * carriedMs,
+    x: track.x + track.vx * (at - track.atMs),
+    y: track.y + track.vy * (at - track.atMs),
   };
 }
 
@@ -2345,7 +2371,7 @@ function advanceLocationGlide(now = performance.now()) {
   const next = { x: from.x + dx * alpha, y: from.y + dy * alpha };
   state.userLocation = locationAtPoint(next, glide.accuracy);
   state.userInMapArea = pointInsideBounds(state.userLocation.point, state.bounds);
-  if (glide.drift) panViewportWithUser(from, next);
+  if (glide.track) panViewportWithUser(from, next);
   return true;
 }
 

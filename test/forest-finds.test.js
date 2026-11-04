@@ -8937,7 +8937,8 @@ const metresBetweenLatitudes = (a, b) => Math.abs(a - b) * 111320;
 test("on a train with a device speed, the position keeps moving between fixes and stays near the train", () => {
   const frames = travelNorthward({ fixes: 12, speed: 15 });
   // Once two fixes give a velocity, every frame between fixes moves the marker...
-  const steady = frames.filter((frame) => frame.at >= 3000);
+  // A track needs about LOCATION_TRACK_MIN_SPAN_MS (3s) of fixes, so the carry starts after the fourth.
+  const steady = frames.filter((frame) => frame.at >= 4000);
   for (let i = 1; i < steady.length; i += 1) {
     assert.ok(
       steady[i].latitude !== steady[i - 1].latitude,
@@ -8947,7 +8948,8 @@ test("on a train with a device speed, the position keeps moving between fixes an
     assert.ok(frameStepMetres < 1, `no single frame should jump: ${frameStepMetres.toFixed(2)}m at ${steady[i].at}ms`);
   }
   // ...and stays close to where the train is, rather than trailing it or running ahead.
-  for (const frame of steady) {
+  // The marker catches up from the start-up fixes over about a second before it can be held to account.
+  for (const frame of steady.filter((frame) => frame.at >= 5000)) {
     const errorMetres = metresBetweenLatitudes(frame.latitude, frame.truthLatitude);
     assert.ok(errorMetres < 8, `the marker is ${errorMetres.toFixed(1)}m from the train at ${frame.at}ms`);
   }
@@ -8995,6 +8997,70 @@ test("a train's fix that leaves a long gap since the last one lands at once rath
   const landed = app.ingestLocationFix(51.665 + 0.004, 0.045, 25, 32000, 15);
   assert.equal(app.state.locationGlide, null, "a gap this long is lost fixes, not carried travel");
   assert.equal(landed.latitude, 51.665 + 0.004, "the position lands on the fix");
+});
+
+// A repeatable stream of GPS noise: a fixed seed, so the test gives the same answer every run.
+function gpsNoise(seed) {
+  let state = seed;
+  const uniform = () => {
+    state = (state * 1664525 + 1013904223) % 4294967296;
+    return (state + 1) / 4294967297;
+  };
+  return () => Math.sqrt(-2 * Math.log(uniform())) * Math.cos(2 * Math.PI * uniform());
+}
+
+test("on a train with noisy GPS, the position never jumps sideways or backwards between frames", () => {
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  const noise = gpsNoise(12345);
+  const sigmaM = 8; // a typical phone's accuracy under a train's roof
+  const metresPerDegLat = 111320;
+  const metresPerDegLon = 111320 * Math.cos((51.665 * Math.PI) / 180);
+  const frames = [];
+  for (let i = 0; i <= 40; i += 1) {
+    // One fix a second, delivered a little late or early, each carrying its own error.
+    const at = 1000 + i * 1000 + Math.round(noise() * 150);
+    const trueLatAt = (ms) => 51.665 + ((ms - 1000) / 1000) * TRAIN_STEP_DEG;
+    app.state.userLocation = app.ingestLocationFix(
+      trueLatAt(at) + (sigmaM * noise()) / metresPerDegLat,
+      0.045 + (sigmaM * noise()) / metresPerDegLon,
+      sigmaM,
+      at,
+      15
+    );
+    for (let t = at + 16; t < at + 1000; t += 16) {
+      app.advanceLocationGlide(t);
+      if (i >= 5) {
+        const { latitude, longitude } = app.state.userLocation;
+        frames.push({
+          northM: (latitude - 51.665) * metresPerDegLat,
+          eastM: (longitude - 0.045) * metresPerDegLon,
+          trueNorthM: (trueLatAt(t) - 51.665) * metresPerDegLat,
+          at: t,
+        });
+      }
+    }
+  }
+  let worstStep = 0;
+  let worstSideways = 0;
+  let mostBackward = 0;
+  for (let i = 1; i < frames.length; i += 1) {
+    const stepNorth = frames[i].northM - frames[i - 1].northM;
+    const stepEast = frames[i].eastM - frames[i - 1].eastM;
+    worstStep = Math.max(worstStep, Math.hypot(stepNorth, stepEast));
+    worstSideways = Math.max(worstSideways, Math.abs(stepEast));
+    mostBackward = Math.min(mostBackward, stepNorth);
+  }
+  // A fix is worth 15m. Landing each one raw under this noise stepped the marker 40m or more.
+  assert.ok(worstStep < 2, `no frame should move the marker more than 2m, one moved ${worstStep.toFixed(1)}m`);
+  assert.ok(worstSideways < 2, `no frame should move the marker sideways by more than 2m, one moved ${worstSideways.toFixed(1)}m`);
+  assert.ok(mostBackward > -1, `the marker should not step backwards along the line, one stepped ${mostBackward.toFixed(1)}m`);
+  // And it stays with the train: within a few metres of where it actually is, despite 8m fixes.
+  const worstAlong = Math.max(...frames.map((frame) => Math.abs(frame.northM - frame.trueNorthM)));
+  const worstAcross = Math.max(...frames.map((frame) => Math.abs(frame.eastM)));
+  assert.ok(worstAlong < 15, `the marker should stay with the train, ${worstAlong.toFixed(1)}m off along the line at worst`);
+  assert.ok(worstAcross < 12, `the marker should not wander off the line, ${worstAcross.toFixed(1)}m sideways at worst`);
 });
 
 test("a walker's wander under trees is still smoothed however long it goes on", () => {
