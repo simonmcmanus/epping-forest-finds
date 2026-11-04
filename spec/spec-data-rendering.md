@@ -971,7 +971,7 @@ is never moved by this -- only the browse anchor, exactly as any other anchor mo
 
 #### Cow Details
 
-- Serial number, type, coordinates
+- Serial number, type, direction (values without field names, in the same white details block and panel rhythm as a place, `.place-detail`)
 - Last update timestamp
 - Source attribution
 - Inspector title icon: `cow.png`

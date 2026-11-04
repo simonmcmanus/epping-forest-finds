@@ -552,7 +552,9 @@ function showCowDetails(cow, distance) {
   const mapsLink = openInMapsHtml(cow.latitude, cow.longitude, `Cow ${cow.serialNo}`);
   const topRow = `<div class="detail-top-row">${distancePill}${mapsLink}</div>`;
   const nearbySectionHtml = nearbySectionsHtml({ latitude: cow.latitude, longitude: cow.longitude, name: `Cow ${cow.serialNo}`, subfilterKey: "cows" });
-  transitionInspectorBody(`<article class="place-detail place-detail--cow">${topRow}${detailsHtml(rows)}${nearbySectionHtml}</article>`, "forward");
+  // Same panel as a place: the values sit in the white details block without field names, and the
+  // nearby lists sit in the live slot, so the gaps between panels follow .place-detail's rhythm.
+  transitionInspectorBody(`<article class="place-detail place-detail--cow">${topRow}${detailsHtml(rows, { labels: false })}<div data-live-nearby>${nearbySectionHtml}</div></article>`, "forward");
 
   if (state.cowDetailTimerId != null) clearInterval(state.cowDetailTimerId);
   state.cowDetailTimerId = setInterval(() => {
