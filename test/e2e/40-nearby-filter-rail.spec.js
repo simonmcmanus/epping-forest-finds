@@ -57,18 +57,31 @@ test.describe("Nearby filter rail", () => {
     await expect(pill(page, "nature").locator(".rail-check")).toHaveText("✓");
     await expect(pill(page, "food")).toHaveAttribute("aria-pressed", "true");
     await expect(pill(page, "transport")).toHaveAttribute("aria-pressed", "false");
-    await expect(pill(page, "transport").locator(".rail-count")).toHaveCount(0);
+    await expect(pill(page, "transport").locator(".rail-count")).toHaveText("0/4");
     await expect(rail(page).locator("[data-rail-key]").first()).toBeVisible();
   });
 
-  test("a group's count shows how many subcategories are on, and disappears when the group is off", async ({ page }) => {
+  test("a group's count shows how many subcategories are on, even when the group is off", async ({ page }) => {
     await setup(page, "/nearby?show=trees,ponds_streams");
     await expect(pill(page, "nature").locator(".rail-count")).toHaveText("2/3");
     await pill(page, "nature").click();
     await expect(pill(page, "nature")).toHaveAttribute("aria-pressed", "false");
-    await expect(pill(page, "nature").locator(".rail-count")).toHaveCount(0);
+    await expect(pill(page, "nature").locator(".rail-count")).toHaveText("0/3");
     await pill(page, "nature").click();
     await expect(pill(page, "nature").locator(".rail-count")).toHaveText("3/3");
+  });
+
+  test("a group pill keeps the same width when it is switched on or off", async ({ page }) => {
+    await setup(page, "/nearby?show=trees,ponds_streams");
+    const on = await pill(page, "nature").boundingBox();
+    await pill(page, "nature").click();
+    await expect(pill(page, "nature")).toHaveAttribute("aria-pressed", "false");
+    const off = await pill(page, "nature").boundingBox();
+    await pill(page, "nature").click();
+    await expect(pill(page, "nature")).toHaveAttribute("aria-pressed", "true");
+    const onAgain = await pill(page, "nature").boundingBox();
+    expect(off.width).toBeCloseTo(on.width, 0);
+    expect(onAgain.width).toBeCloseTo(on.width, 0);
   });
 
   test("tapping a top-level category narrows in place while keeping top-level pills available", async ({ page }) => {

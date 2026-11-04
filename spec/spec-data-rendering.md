@@ -1446,10 +1446,12 @@ The full routing model — the URL for each screen, history entries, back/forwar
     `Food`, `Transport`, `History`, `Locations`, `Stories`, `Events`). A `/nearby/<category>`
     landing shows that category's subcategory pills instead; a subcategory landing shows the same
     sibling list. A pill is pressed when one of its filter keys is enabled. On the group view that
-    means any subcategory in the group is enabled, and the pill then shows a count of how many are on
-    (`2/3`), in place of a tick. On the subcategory view it means that exact subcategory is enabled,
-    and it shows a tick. The count's accessible name reads "Nature: 1 of 3 categories shown". The
-    saved filters are the starting selection and read as pressed.
+    means any subcategory in the group is enabled. Every group pill shows how many of its
+    subcategories are on (`2/3`, `0/4` when none), and a pressed group also shows a tick after it.
+    The count and tick slot are present in both states, so a group pill keeps one width when it is
+    switched on or off. On the subcategory view a pill means that exact subcategory is enabled, and
+    it shows a tick. The count's accessible name reads "Nature: 1 of 3 categories shown". The saved
+    filters are the starting selection and read as pressed.
   - **Holding a pill opens its category.** Pressing and holding any category pill (not Everything)
     for about 450ms opens the map setup dialog (see spec.md, "Map setup dialog") straight at that
     group's category step: a group pill opens its own group, a subcategory pill opens its parent

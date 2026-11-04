@@ -2291,7 +2291,7 @@ test("the plain Nearby filter rail counts how many subcategories each enabled gr
   assert.match(html, /data-rail-key="nature"[^>]*aria-label="Nature: 1 of 3 categories shown"/, "the count is read out with its meaning");
   assert.match(html, /class="rail-pill is-on" type="button" data-rail-key="food" aria-pressed="true"/);
   assert.match(html, /data-rail-key="transport" aria-pressed="false"/, "the rail uses top-level groups");
-  assert.equal(pillText("transport"), "Transport", "a group with nothing on shows no count");
+  assert.equal(pillText("transport"), "Transport 0/4", "a group with nothing on still shows how many it has, with no tick");
   const keys = [...html.matchAll(/data-rail-key="([a-z_]+)"/g)].map((m) => m[1]);
   assert.equal(new Set(keys).size, keys.length, "no category appears twice");
   assert.ok(keys.includes("nature") && keys.includes("food"), "the top-level categories are in the row");

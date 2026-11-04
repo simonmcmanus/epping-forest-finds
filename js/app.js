@@ -4957,8 +4957,10 @@ function filterRailHtml() {
     if (groupLevel) {
       const shown = item.filterKeys.filter((key) => activeKeys.has(key)).length;
       const total = item.filterKeys.length;
-      // The tick stays where a subcategory's tick is; the small count sits just before it.
-      const count = on ? `<span class="rail-count" aria-hidden="true">${shown}/${total}</span>` : "";
+      // The count is always shown, so "0/4" reads on a group that is off too, and the tick slot is
+      // always reserved. Both are present in every state, so the pill keeps one width when it is
+      // switched on or off; the tabular figures keep "0/4" and "4/4" the same width.
+      const count = `<span class="rail-count${on ? "" : " is-off"}" aria-hidden="true">${shown}/${total}</span>`;
       const status = `${count}<span class="rail-check" aria-hidden="true">${on ? "✓" : ""}</span>`;
       const label = `${escapeHtml(item.label)}: ${shown} of ${total} categories shown`;
       return `<button class="rail-pill${on ? " is-on" : ""}" type="button" data-rail-key="${item.key}" aria-pressed="${on}" aria-label="${label}" title="Hold to choose ${escapeHtml(item.label)} categories">${appIconHtml(item.icon)}<span>${escapeHtml(item.label)}</span>${status}</button>`;

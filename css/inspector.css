@@ -1475,6 +1475,12 @@ textarea.report-textarea {
   line-height: 1;
 }
 
+/* A group that is off keeps its count but drops the tinted fill, so the on groups read first. */
+.rail-count.is-off {
+  background: transparent;
+  color: #6b7785;
+}
+
 .rail-check {
   display: inline-flex;
   flex: 0 0 1.1em;
