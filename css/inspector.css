@@ -1348,6 +1348,10 @@ textarea.report-textarea {
    tapping while the list scrolls. */
 /* The rail pulls up over the body's own top padding so the pills sit centred in the band, with
    equal space above and below. */
+/* The slider band is white (--panel) on its own, set apart from the grey title and grip above it by
+   the rule on its top edge. It carries a thin rule above and below the pills: the top rule is the edge between the resize grip
+   and the slider, and the bottom rule separates the slider from the list. The grip sits outside
+   the scroller (.inspector::before), so top: 0 pins the band directly beneath it. */
 .filter-rail {
   position: sticky;
   top: 0;
@@ -1355,10 +1359,16 @@ textarea.report-textarea {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: -14px -4px 12px;
-  padding: 12px 4px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.07);
+  margin: -14px -16px 12px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border-soft);
   background: var(--panel);
+}
+
+/* The title's own bottom rule would double the band's top rule where the two meet. */
+.inspector:has(.filter-rail) .inspector-title-section {
+  border-bottom-color: transparent;
 }
 
 /* Once the rail has moved, soften the clipped pill at the left edge. At scrollLeft 0 the first
