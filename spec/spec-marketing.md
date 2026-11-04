@@ -214,7 +214,7 @@ Sections, in order:
    responsive `srcset`/`sizes` and the original JPEG fallback. Its high-priority
    preload matches the WebP candidates and sizes, downloading only the selected
    image. Preserve the full-width crop and intrinsic 4:3 dimensions.
-2. **What's on the map** — directly after the hero, one neutral inventory card, matching the Ledger's
+2. **What's on the map** — directly after the hero, followed by the Ledger card (item 8) and then sign-up; one neutral inventory card, matching the Ledger's
    categorisation: a headline total with a 44px map-pin icon
    (`map-icons/all-finds.png`) to its left, the six app filter groups (Nature, Food,
    Transport, History, Locations and Stories), every subfilter and count, then
@@ -296,7 +296,7 @@ Sections, in order:
    No battery-use question. All answers stay visible (no accordion) in one
    white rounded card, each question-and-answer pair divided by a hairline;
    on wide screens the question sits in a left column beside its answer.
-8. **From the Ledger** — the last section before the footer, after the FAQ: an
+8. **From the Ledger** — directly after the map inventory (item 2) and before sign-up, so the map content leads the page: an
    inset editorial card matching the sign-up card's layout: responsive padding, a green left border and shadow, the “Round the forest · Every week”
    eyebrow above a 44px newspaper icon (`assets/home/ledger.png`, same style as
    the envelope) centred beside the heading, aligned like the sign-up card.
