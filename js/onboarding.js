@@ -89,7 +89,7 @@ function onboardingReducedMotion() {
 
 // Returns a Promise resolving to { filters: string[] }. Every exit path applies the current
 // staged selection, including the close button, Escape, and backdrop dismissal.
-function showOnboarding({ mode = "first-run" } = {}) {
+function showOnboarding({ mode = "first-run", groupKey = null } = {}) {
   return new Promise((resolve) => {
     const filterSetupMode = mode === "filters";
     const overlay = document.getElementById("onboardingOverlay");
@@ -123,7 +123,12 @@ function showOnboarding({ mode = "first-run" } = {}) {
     const steps = filterSetupMode
       ? [{ type: "filter-intro" }, ...FILTER_GROUPS.map((g) => ({ type: "group", group: g }))]
       : ONBOARDING_STEPS;
-    let stepIndex = 0;
+    // A held rail pill opens straight at its group's step. Back from there returns to the summary,
+    // as it does for a group opened from the summary itself.
+    const openedGroupIndex = filterSetupMode && groupKey
+      ? steps.findIndex((step) => step.type === "group" && step.group.key === groupKey)
+      : -1;
+    let stepIndex = openedGroupIndex > 0 ? openedGroupIndex : 0;
     const total = steps.length;
     let hasRenderedStep = false;
     let cardResizeFrame = null;
@@ -136,7 +141,7 @@ function showOnboarding({ mode = "first-run" } = {}) {
       : DEFAULT_OVERVIEW_FILTER_KEYS;
     const selected = new Set(sanitizeOverviewFilters(startingFilters));
     let finished = false;
-    let returnToIntroOnBack = false;
+    let returnToIntroOnBack = openedGroupIndex > 0;
 
     function clearCardResize() {
       if (!cardEl) return;

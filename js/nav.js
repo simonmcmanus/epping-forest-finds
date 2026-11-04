@@ -868,6 +868,7 @@ function setupInteractions() {
   setupInspectorDragResize();
   setupFilterPanelHandlers();
   setupSearchAndNavHandlers();
+  setupRailLongPress();
   setupMapCanvasHandlers();
 }
 
@@ -1167,6 +1168,55 @@ function handleNearestListArrowKey(event) {
   }
 }
 
+// Holding a Nearby filter-rail pill for RAIL_LONG_PRESS_MS opens the map setup dialog at that pill's
+// category (openFilterSetup in js/app.js), so a reader can change a category's subcategories
+// without tapping through the whole dialog. The hold is cancelled once the finger drifts, so
+// scrolling the rail never opens it, and the click a completed hold would send is swallowed, so the
+// pill is not also toggled. The Everything pill has no category and keeps its plain tap.
+const RAIL_LONG_PRESS_MS = 450;
+const RAIL_LONG_PRESS_SLOP_PX = 10;
+const railLongPress = { timer: null, x: 0, y: 0, swallowClick: false };
+
+function cancelRailLongPress() {
+  if (railLongPress.timer !== null) clearTimeout(railLongPress.timer);
+  railLongPress.timer = null;
+}
+
+function setupRailLongPress() {
+  const railPillSelector = ".filter-rail button[data-rail-key]";
+  // The rail is inside #inspectorBody, which is replaced whole on each screen change, so it is
+  // bound by delegation.
+  els.inspectorBody.addEventListener("pointerdown", (event) => {
+    cancelRailLongPress();
+    railLongPress.swallowClick = false;
+    const pill = event.target.closest?.(railPillSelector);
+    if (!pill || event.button > 0) return;
+    const groupKey = railPillGroupKey(pill.dataset.railKey);
+    if (!groupKey) return;
+    railLongPress.x = event.clientX;
+    railLongPress.y = event.clientY;
+    railLongPress.timer = setTimeout(() => {
+      railLongPress.timer = null;
+      railLongPress.swallowClick = true;
+      if (typeof navigator.vibrate === "function") navigator.vibrate(12);
+      openFilterSetup({ groupKey });
+    }, RAIL_LONG_PRESS_MS);
+  });
+  els.inspectorBody.addEventListener("pointermove", (event) => {
+    if (railLongPress.timer === null) return;
+    if (Math.hypot(event.clientX - railLongPress.x, event.clientY - railLongPress.y) > RAIL_LONG_PRESS_SLOP_PX) {
+      cancelRailLongPress();
+    }
+  });
+  for (const type of ["pointerup", "pointercancel", "pointerleave"]) {
+    els.inspectorBody.addEventListener(type, cancelRailLongPress);
+  }
+  // A held pill should not open the phone's own long-press menu or start a text selection.
+  els.inspectorBody.addEventListener("contextmenu", (event) => {
+    if (event.target.closest?.(railPillSelector)) event.preventDefault();
+  });
+}
+
 function setupSearchAndNavHandlers() {
   if (els.searchToggle) {
     els.searchToggle.addEventListener("click", (event) => {
@@ -1308,7 +1358,12 @@ function setupSearchAndNavHandlers() {
     // toggle; leave static anchors to the ordinary internal-link handler below, including
     // modified clicks that should open the link in a new tab.
     const railPill = event.target.closest("button[data-rail-key]");
-    if (railPill) { toggleRailFilter(railPill.dataset.railKey); return; }
+    if (railPill) {
+      // A completed hold has already opened the dialog; its click must not also toggle the pill.
+      if (railLongPress.swallowClick) { railLongPress.swallowClick = false; return; }
+      toggleRailFilter(railPill.dataset.railKey);
+      return;
+    }
     const radiusToggle = event.target.closest("[data-action='toggle-radius']");
     if (radiusToggle) {
       state.showAllOutsideRadius = !state.showAllOutsideRadius;

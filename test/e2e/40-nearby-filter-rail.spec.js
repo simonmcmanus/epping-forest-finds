@@ -18,6 +18,17 @@ async function showAll(page) {
   await expect(rail(page)).toBeVisible();
 }
 
+/** Presses and holds a pill until the map setup dialog opens, then lets go. */
+async function holdPill(page, key) {
+  const target = pill(page, key);
+  await target.scrollIntoViewIfNeeded();
+  const box = await target.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await expect(page.locator("#onboardingOverlay")).toBeVisible();
+  await page.mouse.up();
+}
+
 /** Counts every outgoing-screen ghost the panel slide would create from now on. */
 async function watchForPanelSlide(page) {
   await page.evaluate(() => {
@@ -38,14 +49,25 @@ test.describe("Nearby filter rail", () => {
     await expect(rail(page)).toBeVisible();
   });
 
-  test("plain Nearby shows top-level categories with ticks for enabled groups", async ({ page }) => {
+  test("plain Nearby shows top-level categories, each enabled group counting its subcategories that are on", async ({ page }) => {
     // The reader's saved filters are the starting selection, so their groups read as pressed.
+    // Nature's defaults are Trees and Cows out of its three subcategories.
     await expect(pill(page, "nature")).toHaveAttribute("aria-pressed", "true");
-    await expect(pill(page, "nature").locator(".rail-check")).toHaveText("✓");
+    await expect(pill(page, "nature").locator(".rail-count")).toHaveText("2/3");
     await expect(pill(page, "food")).toHaveAttribute("aria-pressed", "true");
     await expect(pill(page, "transport")).toHaveAttribute("aria-pressed", "false");
-    await expect(pill(page, "transport").locator(".rail-check")).toHaveText("");
+    await expect(pill(page, "transport").locator(".rail-count")).toHaveCount(0);
     await expect(rail(page).locator("[data-rail-key]").first()).toBeVisible();
+  });
+
+  test("a group's count shows how many subcategories are on, and disappears when the group is off", async ({ page }) => {
+    await setup(page, "/nearby?show=trees,ponds_streams");
+    await expect(pill(page, "nature").locator(".rail-count")).toHaveText("2/3");
+    await pill(page, "nature").click();
+    await expect(pill(page, "nature")).toHaveAttribute("aria-pressed", "false");
+    await expect(pill(page, "nature").locator(".rail-count")).toHaveCount(0);
+    await pill(page, "nature").click();
+    await expect(pill(page, "nature").locator(".rail-count")).toHaveText("3/3");
   });
 
   test("tapping a top-level category narrows in place while keeping top-level pills available", async ({ page }) => {
@@ -184,9 +206,33 @@ test.describe("Nearby filter rail", () => {
     await stories.click();
     await expect(stories).toHaveAttribute("aria-pressed", "true");
     await expect.poll(() => row.evaluate((el) => el.scrollLeft)).toBe(before);
-    await expect(stories.locator(".rail-check")).toHaveText("✓");
+    await expect(stories.locator(".rail-count")).toHaveText("4/4");
     await row.evaluate((el) => { el.scrollLeft = 0; });
     await expect(rail(page)).not.toHaveClass(/has-left-overflow/);
+  });
+
+  test("holding a group pill opens map setup at that group without toggling it", async ({ page }) => {
+    const before = await page.evaluate(() => state.overviewFilters.slice().sort().join());
+    await holdPill(page, "transport");
+    await expect(page.locator("#onboardingOverlay .onboarding-step-title")).toHaveText("Transport");
+    await expect(page.locator("#onboardingOverlay .onboarding-chip")).not.toHaveCount(0);
+    expect(await page.evaluate(() => state.overviewFilters.slice().sort().join())).toBe(before);
+  });
+
+  test("holding a subcategory pill opens map setup at its own group", async ({ page }) => {
+    await setup(page, "/nearby/food/");
+    await expect(pill(page, "cafes")).toBeVisible();
+    await holdPill(page, "cafes");
+    await expect(page.locator("#onboardingOverlay .onboarding-step-title")).toHaveText("Food");
+  });
+
+  test("a category changed in a held group's dialog updates that group's count when the dialog closes", async ({ page }) => {
+    await expect(pill(page, "food").locator(".rail-count")).toHaveText("1/4");
+    await holdPill(page, "food");
+    await page.locator("#onboardingOverlay .onboarding-chip[data-key='restaurants']").click();
+    await page.locator("#onboardingOverlay .onboarding-close").click();
+    await expect(page.locator("#onboardingOverlay")).toBeHidden();
+    await expect(pill(page, "food").locator(".rail-count")).toHaveText("2/4");
   });
 
   test("the Nearby rail contains category pills without a right-hand control", async ({ page }) => {

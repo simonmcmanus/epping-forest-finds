@@ -3252,7 +3252,9 @@ function setNavScreenActive(current = null, { preserveHighlight = false } = {}) 
 // local to the dialog until it exits, then the current staged set is applied on every exit. Done
 // remains the explicit final-step action, and backing out never leaves a half-configured map
 // behind. The old /nearby/filter path still enters here for bookmarked links.
-function openFilterSetup() {
+// groupKey opens the dialog straight at that group's category step (a held rail pill), the same
+// place a tap on its summary in the first step reaches.
+function openFilterSetup({ groupKey = null } = {}) {
   if (typeof showOnboarding !== "function") return;
   const overlay = document.getElementById("onboardingOverlay");
   if (!overlay || typeof overlay.querySelector !== "function" || !overlay.querySelector(".onboarding-progress")) return;
@@ -3265,7 +3267,7 @@ function openFilterSetup() {
   state.filterScreenOpen = true;
   setHashFromSelection(ROUTE_FILTERS);
 
-  showOnboarding({ mode: "filters" }).then((result) => {
+  showOnboarding({ mode: "filters", groupKey }).then((result) => {
     state.filterScreenOpen = false;
     if (Array.isArray(result.filters)) setOverviewFilters(result.filters);
     updateFilterUi();
@@ -4932,12 +4934,33 @@ function railPillKeys() {
   return railItems().map((item) => item.key);
 }
 
+// The category a rail pill stands for, for holding it open in map setup: a group pill is its own
+// group, a subcategory pill is its parent group. The Everything pill is not a category.
+function railPillGroupKey(key) {
+  const group = FILTER_GROUPS_BY_KEY.get(key);
+  if (group) return group.key;
+  const subfilter = FILTER_SUBFILTERS_BY_KEY.get(key);
+  return subfilter ? subfilter.groupKey : null;
+}
+
+// The group pill that is on says how many of its subcategories are on ("2/3"), so the reader can
+// see how much of the group they have chosen without opening it. A subcategory pill is one
+// category, so it keeps the plain tick.
 function filterRailHtml() {
   const allOn = railSelection().length === 0;
   const allStatus = `<span class="rail-check" aria-hidden="true">${allOn ? "✓" : ""}</span>`;
   const allPill = `<button class="rail-pill rail-pill--all${allOn ? " is-on" : ""}" type="button" data-rail-key="all-nearby" aria-pressed="${allOn}">${appIconHtml("nearby")}<span>Everything</span>${allStatus}</button>`;
+  const groupLevel = !nearbyRailGroup();
+  const activeKeys = new Set(state.overviewFilters);
   const pills = railItems().map((item) => {
     const on = railItemIsActive(item);
+    if (groupLevel) {
+      const shown = item.filterKeys.filter((key) => activeKeys.has(key)).length;
+      const total = item.filterKeys.length;
+      const status = on ? `<span class="rail-count" aria-hidden="true">${shown}/${total}</span>` : `<span class="rail-check" aria-hidden="true"></span>`;
+      const label = `${escapeHtml(item.label)}: ${shown} of ${total} categories shown`;
+      return `<button class="rail-pill${on ? " is-on" : ""}" type="button" data-rail-key="${item.key}" aria-pressed="${on}" aria-label="${label}" title="Hold to choose ${escapeHtml(item.label)} categories">${appIconHtml(item.icon)}<span>${escapeHtml(item.label)}</span>${status}</button>`;
+    }
     const status = `<span class="rail-check" aria-hidden="true">${on ? "✓" : ""}</span>`;
     return `<button class="rail-pill${on ? " is-on" : ""}" type="button" data-rail-key="${item.key}" aria-pressed="${on}">${appIconHtml(item.icon)}<span>${escapeHtml(item.label)}</span>${status}</button>`;
   }).join("");

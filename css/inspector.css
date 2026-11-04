@@ -1426,6 +1426,8 @@ textarea.report-textarea {
 }
 
 .rail-pill {
+  -webkit-touch-callout: none;
+  user-select: none;
   position: relative;
   isolation: isolate;
   overflow: hidden;
@@ -1454,6 +1456,23 @@ textarea.report-textarea {
 .rail-pill .app-icon {
   width: 1.6em;
   height: 1.6em;
+}
+
+/* A group pill's "2/3": how many of its subcategories are on. Sits where the tick does on a
+   subcategory pill, so both pills keep the same trailing space. */
+.rail-count {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 1.35em;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: rgba(42, 84, 53, 0.12);
+  color: var(--tree);
+  font-size: 0.72rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
 .rail-check {

@@ -1445,10 +1445,19 @@ The full routing model — the URL for each screen, history entries, back/forwar
   - **Which pills.** The plain `/nearby` screen shows one pill per top-level group (`Nature`,
     `Food`, `Transport`, `History`, `Locations`, `Stories`, `Events`). A `/nearby/<category>`
     landing shows that category's subcategory pills instead; a subcategory landing shows the same
-    sibling list. A pill is pressed and carries a visible tick when one of its filter keys is
-    enabled. On the group view that means any subcategory in the group is enabled; on the
-    subcategory view it means that exact subcategory is enabled. The saved filters are the starting
-    selection and read as pressed.
+    sibling list. A pill is pressed when one of its filter keys is enabled. On the group view that
+    means any subcategory in the group is enabled, and the pill then shows a count of how many are on
+    (`2/3`), in place of a tick. On the subcategory view it means that exact subcategory is enabled,
+    and it shows a tick. The count's accessible name reads "Nature: 1 of 3 categories shown". The
+    saved filters are the starting selection and read as pressed.
+  - **Holding a pill opens its category.** Pressing and holding any category pill (not Everything)
+    for about 450ms opens the map setup dialog (see spec.md, "Map setup dialog") straight at that
+    group's category step: a group pill opens its own group, a subcategory pill opens its parent
+    group. Moving more than about 10px cancels the hold, so scrolling the rail never opens it, and the
+    release does not also toggle the pill. Changes made in the dialog apply when it closes, and the
+    pill's count updates with them. Implemented by `setupRailLongPress()` (`js/nav.js`), which calls
+    `openFilterSetup({ groupKey })` (`js/app.js`); the dialog's own `groupKey` option is in
+    `showOnboarding()` (`js/onboarding.js`).
   - **Toggling.** Tapping a top-level pill enables or disables all of its subcategories. Tapping a
     subcategory pill enables or disables only that subcategory. The row remains at the level it
     was displayed at: `/nearby` keeps top-level groups available, while a category landing keeps
