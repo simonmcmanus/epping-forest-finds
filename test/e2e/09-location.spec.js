@@ -49,19 +49,37 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page).toHaveScreenshot("map-with-location.png", { fullPage: false });
     });
 
-    test("on a train, the position on Nearby is the latest GPS fix rather than easing along behind it", async ({ page, context }) => {
+    test("on a train, the You marker keeps moving between GPS fixes rather than holding still and then jumping", async ({ page, context }) => {
       await page.waitForFunction((start) => state.rawUserLocation && state.rawUserLocation.latitude === start, FOREST_LOCATION.latitude);
-      // 15m north, at 20 m/s: the speed the phone's own GPS reports on a moving train. Playwright's
-      // setGeolocation has no speed field, so the fix goes through the DevTools protocol.
-      const next = FOREST_LOCATION.latitude + 0.000135;
+      // A fix a second, 15m north each, at 15 m/s: the speed the phone's own GPS reports on a moving
+      // train. Playwright's setGeolocation has no speed field, so the fixes go through the DevTools protocol.
       const cdp = await context.newCDPSession(page);
-      await cdp.send("Emulation.setGeolocationOverride", { ...FOREST_LOCATION, latitude: next, speed: 20 });
-      // Read on the first frame the fix is seen, before any easing could close the gap.
-      const gap = await page.waitForFunction(
-        (target) => state.rawUserLocation.latitude === target && { metres: Math.abs(state.userLocation.latitude - target) * 111320 },
-        next
-      ).then((handle) => handle.jsonValue());
-      expect(gap.metres).toBeLessThan(0.01);
+      // Sample the marker on every animation frame, in the page, tagged with the fix it last saw.
+      await page.evaluate(() => {
+        window.__trainFrames = [];
+        const sample = () => {
+          window.__trainFrames.push({ lat: state.userLocation.latitude, fix: state.rawUserLocation.latitude });
+          if (window.__trainFrames.length < 600) requestAnimationFrame(sample);
+        };
+        requestAnimationFrame(sample);
+      });
+      for (let step = 1; step <= 4; step += 1) {
+        const target = FOREST_LOCATION.latitude + step * 0.000135;
+        await cdp.send("Emulation.setGeolocationOverride", { ...FOREST_LOCATION, latitude: target, speed: 15 });
+        await page.waitForFunction((fix) => state.rawUserLocation.latitude === fix, target);
+        await page.evaluate(() => { window.__fixAt = performance.now(); });
+        // A GPS receiver delivers about one fix a second: wait for the next one's second to come round.
+        if (step < 4) await page.waitForFunction(() => performance.now() >= window.__fixAt + 1000);
+      }
+      const frames = await page.evaluate(() => window.__trainFrames);
+      // Frame pairs with no new fix between them: the marker should still be moving across them.
+      const pairs = [];
+      for (let i = 1; i < frames.length; i += 1) {
+        if (frames[i].fix === frames[i - 1].fix) pairs.push(frames[i].lat !== frames[i - 1].lat);
+      }
+      const moved = pairs.filter(Boolean).length;
+      expect(pairs.length).toBeGreaterThan(30);
+      expect(moved / pairs.length).toBeGreaterThan(0.8);
     });
 
     test("a visitor inside the forest is not told they are far from it", async ({ page }) => {
