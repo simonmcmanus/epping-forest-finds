@@ -675,15 +675,18 @@ function drawPaths(ctx) {
     ctx.textBaseline = "middle";
     ctx.font = `700 ${Math.max(isCoarsePointer ? 9 : 10, Math.round((isCoarsePointer ? 9 : 10) * dpr))}px system-ui`;
     for (const item of limitedLabels) {
-      if (isBehindTiltHeading(item.anchor)) continue;
+      const alpha = tiltLabelAlpha(item.anchor);
+      if (alpha < 0.05) continue;
       const point = worldToScreen(item.anchor);
       if (!isNearCanvas(point, 28 * dpr)) continue;
+      ctx.globalAlpha = alpha;
       ctx.strokeStyle = "rgba(255, 255, 255, 0.92)";
       ctx.lineWidth = 3 * dpr;
       ctx.strokeText(item.path.name, point.x, point.y);
       ctx.fillStyle = "rgba(45, 59, 52, 0.95)";
       ctx.fillText(item.path.name, point.x, point.y);
       registerMapLabelHit("path", item.path, point, item.path.name, ctx, 12 * dpr);
+      ctx.globalAlpha = 1;
     }
   }
 
@@ -1058,7 +1061,8 @@ function drawGreenSpaceLabels(ctx, labels, dpr) {
   for (const { feature, geometry, name } of labels) {
     const bounds = projectedEnvironmentGeometry(geometry);
     const worldCenter = { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 };
-    if (isBehindTiltHeading(worldCenter)) continue;
+    const alpha = tiltLabelAlpha(worldCenter);
+    if (alpha < 0.05) continue;
 
     const corners = [
       { x: bounds.minX, y: bounds.minY }, { x: bounds.maxX, y: bounds.minY },
@@ -1075,12 +1079,14 @@ function drawGreenSpaceLabels(ctx, labels, dpr) {
     if (textWidth + padding > screenMaxX - screenMinX) continue;
     if (fontSize + padding > screenMaxY - screenMinY) continue;
 
+    ctx.globalAlpha = alpha;
     ctx.strokeStyle = "rgba(255, 255, 255, 0.85)";
     ctx.lineWidth = 3 * dpr;
     ctx.strokeText(name, point.x, point.y);
     ctx.fillStyle = "rgba(42, 74, 44, 0.95)";
     ctx.fillText(name, point.x, point.y);
     registerMapLabelHit("environment", feature, point, name, ctx, 12 * dpr);
+    ctx.globalAlpha = 1;
   }
   ctx.restore();
 }
@@ -1100,15 +1106,19 @@ function drawNamedLocalityLabels(ctx, labels, dpr, zoomLevel) {
   ctx.font = `700 ${Math.max(isCoarsePointer ? 9 : 10, Math.round((isCoarsePointer ? 9 : 10) * dpr))}px system-ui`;
   for (const { feature, geometry, name } of labels) {
     const worldPoint = projectedEnvironmentGeometry(geometry).point;
-    if (!worldPoint || isBehindTiltHeading(worldPoint)) continue;
+    if (!worldPoint) continue;
+    const alpha = tiltLabelAlpha(worldPoint);
+    if (alpha < 0.05) continue;
     const point = worldToScreen(worldPoint);
     if (!isNearCanvas(point, 28 * dpr)) continue;
+    ctx.globalAlpha = alpha;
     ctx.strokeStyle = "rgba(255, 255, 255, 0.92)";
     ctx.lineWidth = 3 * dpr;
     ctx.strokeText(name, point.x, point.y);
     ctx.fillStyle = "rgba(45, 59, 52, 0.95)";
     ctx.fillText(name, point.x, point.y);
     registerMapLabelHit("environment", feature, point, name, ctx, 12 * dpr);
+    ctx.globalAlpha = 1;
   }
   ctx.restore();
 }
@@ -1127,7 +1137,9 @@ function drawWaterFeatureLabels(ctx, labels, dpr, zoomLevel) {
     const worldPoint = isArea
       ? { x: (bounds.minX + bounds.maxX) / 2, y: (bounds.minY + bounds.maxY) / 2 }
       : bounds.point;
-    if (!worldPoint || isBehindTiltHeading(worldPoint)) continue;
+    if (!worldPoint) continue;
+    const alpha = tiltLabelAlpha(worldPoint);
+    if (alpha < 0.05) continue;
     const point = worldToScreen(worldPoint);
     if (!isNearCanvas(point, 28 * dpr)) continue;
     if (!isArea && zoomLevel < (isCoarsePointer ? 1.45 : 1.15)) continue;
@@ -1140,12 +1152,14 @@ function drawWaterFeatureLabels(ctx, labels, dpr, zoomLevel) {
       const screenHeight = Math.max(...corners.map((corner) => corner.y)) - Math.min(...corners.map((corner) => corner.y));
       if (ctx.measureText(name).width + 20 * dpr > screenWidth || ctx.font.match(/([0-9]+(?:\.[0-9]+)?)px/)?.[1] * 1 + 20 * dpr > screenHeight) continue;
     }
+    ctx.globalAlpha = alpha;
     ctx.strokeStyle = "rgba(255, 255, 255, 0.92)";
     ctx.lineWidth = 3 * dpr;
     ctx.strokeText(name, point.x, point.y);
     ctx.fillStyle = "rgba(35, 92, 133, 0.95)";
     ctx.fillText(name, point.x, point.y);
     registerMapLabelHit("water-label", feature, point, name, ctx, 12 * dpr);
+    ctx.globalAlpha = 1;
   }
   ctx.restore();
 }

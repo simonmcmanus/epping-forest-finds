@@ -98,6 +98,7 @@ const TILT_FAR_FADE_RATIO = 0.1;
 const TILT_FIT_MIN_PERSPECTIVE_SCALE = 0.45;
 const TILT_PIN_COLLAPSE_BAND_PX = 130; // screen-px width of the ahead/behind transition band pins shrink across
 const TILT_PIN_COLLAPSE_MIN_SCALE = 0.3; // size pins settle at once fully behind, rather than vanishing
+const TILT_FRAMING_BLEND_DEG = 8;       // rotateX over which the flat Nearby framing hands over to the tilted one (see alignHeadingUpNavigationViewport)
 const MAX_CANVAS_DIMENSION = 3072;
 // Android phones report a device pixel ratio of 2.6-3.5 and their WebView rasterises a 2D canvas
 // on the CPU path for much of the range, so the app shell draws them at a lower budget.
@@ -6567,6 +6568,12 @@ function tiltRotateXDeg() {
   return (state.map3dEnabled ? TILT_ROTATEX_MAX : TILT_GENTLE_ROTATEX_MAX) * t;
 }
 
+// 0 when flat, rising to 1 by TILT_FRAMING_BLEND_DEG: how far the tilted framing has taken over
+// from the flat Nearby ring framing. Continuous through the activation threshold, unlike tiltActive().
+function tiltFramingBlend() {
+  return clamp(tiltRotateXDeg() / TILT_FRAMING_BLEND_DEG, 0, 1);
+}
+
 // True when the tilt angle the main canvas was last drawn at no longer matches the current
 // one. The compass smoothing loop only repaints the main canvas when the viewport or the
 // heading moved, so pitching the phone up or down without turning it used to redraw the
@@ -6823,6 +6830,20 @@ function tiltRotatedHeadingOffset(worldPoint) {
 function tiltInfluence() {
   if (!state.map3dEnabled || !headingUpActive()) return 0;
   return clamp((state.tiltBetaSmoothed - TILT_BETA_THRESHOLD) / (TILT_BETA_MAX - TILT_BETA_THRESHOLD), 0, 1);
+}
+
+// Opacity of a map label under tilt. Labels behind the heading fade with the same ramp that
+// collapses pins (tiltInfluence, across the same ahead/behind band) instead of being culled the
+// instant 3D activates, which removed about half the labels on screen in one tenth of a degree.
+// 1 for anything ahead, flat, or when 3D is not allowed.
+function tiltLabelAlpha(worldPoint) {
+  const influence = tiltInfluence();
+  if (influence <= 0 || !state.userLocation || !worldPoint) return 1;
+  if (!tiltHidesWhatIsBehind()) return 1;
+  const bandWorld = TILT_PIN_COLLAPSE_BAND_PX / state.viewport.scale;
+  const raw = clamp(0.5 - tiltRotatedHeadingOffset(worldPoint) / bandWorld, 0, 1);
+  const ahead = raw * raw * (3 - 2 * raw);
+  return 1 - influence * (1 - ahead);
 }
 
 function tiltPinScale(worldPoint) {
@@ -7794,22 +7815,40 @@ function alignHeadingUpNavigationViewport(options = {}) {
   // The plain Nearby view (nothing selected, no tilt, no expanded cluster, no secondary screen)
   // pins the ring to the bottom edge instead of centring it -- see bottomEdgeRadiusFrame. The
   // ring is a circle around the user, so this is the same framing at every compass heading.
+  // The flat Nearby ring framing (bottom edge) hands over to the tilted framing across the first
+  // few degrees of tilt, not at the activation threshold: switching there moved the whole map and
+  // the "You" marker about 50px in one tenth of a degree. bottomWeight is 1 when flat, 0 once tilt
+  // has reached TILT_FRAMING_BLEND_DEG, and both framings are blended by it in between.
   const bottomFrame = !selectedNavigationHeadingUpActive()
-    && !tiltActive()
     && !state.clusterExpanded
     && !secondaryScreenActive()
     ? bottomEdgeRadiusFrame(focusRect)
     : null;
-  const focus = bottomFrame
-    ? { x: bottomFrame.centreX, y: bottomFrame.centreY }
-    : selectedNavigationHeadingUpActive()
+  const bottomWeight = bottomFrame ? 1 - tiltFramingBlend() : 0;
+  let focus;
+  let maxScale;
+  if (bottomWeight >= 1) {
+    focus = { x: bottomFrame.centreX, y: bottomFrame.centreY };
+    maxScale = bottomFrame.scale;
+  } else {
+    const tiltedFocus = selectedNavigationHeadingUpActive()
       ? navigationFocusPoint(focusRect)
       : nearbyNavigationFocusPoint(focusRect, useFinalBrowseState);
-  const maxScale = bottomFrame
-    ? bottomFrame.scale
-    : selectedNavigationHeadingUpActive()
-      ? maxHeadingUpNavigationScale(focus, focusRect)
-      : maxNearbyHeadingUpScale(focus, focusRect, useFinalBrowseState);
+    const tiltedMaxScale = selectedNavigationHeadingUpActive()
+      ? maxHeadingUpNavigationScale(tiltedFocus, focusRect)
+      : maxNearbyHeadingUpScale(tiltedFocus, focusRect, useFinalBrowseState);
+    if (bottomWeight <= 0 || !Number.isFinite(tiltedMaxScale)) {
+      focus = tiltedFocus;
+      maxScale = tiltedMaxScale;
+    } else {
+      const w = bottomWeight;
+      focus = {
+        x: bottomFrame.centreX * w + tiltedFocus.x * (1 - w),
+        y: bottomFrame.centreY * w + tiltedFocus.y * (1 - w),
+      };
+      maxScale = bottomFrame.scale * w + tiltedMaxScale * (1 - w);
+    }
+  }
   // Use maxScale directly: heading-up mode always fits all targets in the
   // rotated focus rect. Math.min would leave scale too low when the map
   // was previously at a wider zoom (e.g. walking-radius level on first load).

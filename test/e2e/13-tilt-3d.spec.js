@@ -592,4 +592,41 @@ test.describe("3D tilt view", () => {
     // Nothing else moves the camera, so the restoring frame must come from the still timer alone.
     await expect.poll(async () => (await bitmap()).w).toBe(still.w);
   });
+
+  // Draws one frame at a pitch, with the fit forced so the measurement is the framing the
+  // target angle asks for rather than a glide still in progress. Returns the "You" marker's
+  // position within the visible map and how many map labels that frame drew.
+  const drawAtPitch = (page, beta) => page.evaluate((b) => {
+    state.compassHeadingTarget = 0;
+    state.compassHeading = 0;
+    state.renderedNavigationHeading = 0;
+    state.compassLastEventAt = performance.now();
+    state.tiltBetaTarget = b;
+    state.tiltBetaSmoothed = b;
+    stopViewportAnimation();
+    alignHeadingUpNavigationViewport({ force: true });
+    draw();
+    const rect = visibleCanvasRect();
+    const me = worldToScreen(state.userLocation.point);
+    return { youY: me.y - rect.y, labels: _mapLabelHitRegions.length };
+  }, beta);
+
+  test("pitching the phone past the activation threshold does not jump the map", async ({ page }) => {
+    // Tilt used to switch the framing in one step: the flat Nearby ring pinned to the bottom edge
+    // handed over to the tilted framing the instant tilt activated, moving the whole map and the
+    // "You" marker about 50px between two tenths of a degree. The framing now hands over across
+    // the first few degrees of tilt, so the first tenth of a degree moves the marker a pixel or so.
+    const before = await drawAtPitch(page, 12);
+    const after = await drawAtPitch(page, 12.1);
+    expect(Math.abs(after.youY - before.youY), "the You marker moves only a pixel or so as tilt begins").toBeLessThan(3);
+  });
+
+  test("labels behind the heading fade out as tilt begins rather than vanishing at once", async ({ page }) => {
+    // Labels behind the heading were culled the moment 3D activated: about half the labels on
+    // screen disappeared in one tenth of a degree. They now fade with the same ramp that
+    // collapses pins, so the first tenth of a degree keeps every label.
+    const before = await drawAtPitch(page, 12);
+    const after = await drawAtPitch(page, 12.1);
+    expect(after.labels, "no label disappears as tilt begins").toBeGreaterThanOrEqual(before.labels - 2);
+  });
 });
