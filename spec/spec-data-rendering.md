@@ -971,7 +971,7 @@ is never moved by this -- only the browse anchor, exactly as any other anchor mo
 
 #### Cow Details
 
-- Serial number, type, coordinates
+- Serial number, type, direction (values without field names, in the same white details block and panel rhythm as a place, `.place-detail`)
 - Last update timestamp
 - Source attribution
 - Inspector title icon: `cow.png`
@@ -983,7 +983,8 @@ Tapping a street on the map opens the same navigation view a highlighted locatio
 bare records list:
 
 - Road type, name, reference, highway tag
-- A place's detail table (address, website, phone, opening hours) shows the values without field names on the left, since the values say what they are (`detailsHtml(rows, { labels: false })`, `.row--value-only`, js/inspector.js). Event details keep their labels. The static `/find/<slug>/` panel matches it.
+- Every panel on a place's detail screen (action row, details table, community check, description, ledger note, nearby lists, report link) is a direct child of `.place-detail`, a flex column with one `--place-panel-gap` (16px) between panels. Empty or closed status slots take no room.
+- A place's detail table (address, website, phone, opening hours) sits directly under the top action row, above the community check card. It is a white block (`.place-detail > dl:has(> .row--value-only)`) and shows the values without field names on the left, since the values say what they are (`detailsHtml(rows, { labels: false })`, `.row--value-only`, js/inspector.js). Event details keep their labels. The static `/find/<slug>/` panel matches it.
 - The top row's Open in Maps and Share buttons sit as one group at the right (`.detail-top-actions`, `margin-left: auto`), and the walking pill has its own slot on the left (`data-live-field="distance"`). It starts as a loading chip (`.walk-chip--pending`: a spinner beside the walker). Once its figure is worked out (at least 450 ms after the place opens) it expands to its full width and the values slide in from the left (`.walk-chip--ready.walk-chip--enter`, `css/inspector.css`). The delayed completion follows the selected place’s stable identity, so a source or metadata refresh during loading does not leave the pill pending. Later updates swap the numbers without replaying that, and reduced-motion users get no animation. The actions never move when the pill renders.
 - Live distance + walking time chip (`.detail-top-row`, the same `data-live-field="distance"`
   element the other navigable selections use)
