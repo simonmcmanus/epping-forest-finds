@@ -931,14 +931,14 @@ function communityNudgeDismiss() {
   if (el) el.remove();
 }
 
-// The decision, with no DOM: what should happen for this GPS fix? Returns "card" (offer on the
-// overview), "pulse" (draw the eye on the tree's own page) or "none".
-function communityNudgeDecision({ on, fixOk, isDefault, nearest, target, alreadyReported, seenAt, now, onThisTree, lastCardAt, overviewActive }) {
+// The decision, with no DOM: what should happen for this GPS fix? Returns "card" (offer on any
+// screen), "pulse" (draw the eye on the tree's own page) or "none".
+function communityNudgeDecision({ on, fixOk, isDefault, nearest, target, alreadyReported, seenAt, now, onThisTree, lastCardAt }) {
   if (!on || !fixOk || isDefault) return "none";
   if (!nearest || !(nearest.metres <= COMMUNITY_NUDGE_METRES) || !target || alreadyReported) return "none";
   if (seenAt && now - seenAt < COMMUNITY_NUDGE_TREE_COOLDOWN_MS) return "none";
   if (onThisTree) return "pulse";
-  if (now - lastCardAt < COMMUNITY_NUDGE_GLOBAL_GAP_MS || !overviewActive) return "none";
+  if (now - lastCardAt < COMMUNITY_NUDGE_GLOBAL_GAP_MS) return "none";
   return "card";
 }
 
@@ -946,9 +946,7 @@ function communityNudgeDecision({ on, fixOk, isDefault, nearest, target, already
 // and this device has not already checked it or been nudged about it today.
 function communityNudgeCheck(now = Date.now()) {
   if (!communityEnabled()) return;
-  // A card is only an offer on the Nearby overview; once you have gone to another screen, drop it.
   communityUpdateRangeNotes();
-  if (document.getElementById("communityNudge") && typeof isOverviewScreenActive === "function" && !isOverviewScreenActive()) communityNudgeDismiss();
   const nearest = state.nearestTree;
   const tree = nearest && nearest.tree;
   const target = tree ? communityTreeTarget(tree) : null;
@@ -963,7 +961,6 @@ function communityNudgeCheck(now = Date.now()) {
     seenAt: target ? seen[target] : 0,
     now, onThisTree,
     lastCardAt: communityNudgeLastAt,
-    overviewActive: typeof isOverviewScreenActive !== "function" || isOverviewScreenActive(),
   });
   if (decision === "none") return;
   if (decision === "pulse") {
@@ -988,8 +985,9 @@ function communityNudgeShow(tree, metres) {
   el.id = "communityNudge";
   el.className = "community-nudge";
   el.setAttribute("role", "status");
-  el.innerHTML = `<span class="community-nudge-icon">${communityIcon("shield")}</span>
-    <div class="community-nudge-text"><strong>You're next to ${name}</strong><span>Is it where the map says? About ${Math.max(1, Math.round(metres))} m away.</span></div>
+  const species = typeof treeSpeciesIconHtml === "function" ? treeSpeciesIconHtml(tree.commonName, tree.latinName, "community-nudge-art") : "";
+  el.innerHTML = `<span class="community-nudge-icon">${species || communityIcon("shield")}</span>
+    <div class="community-nudge-text"><em class="community-nudge-eyebrow">Nearby tree</em><strong>You're next to ${name}</strong><span>Tap to confirm · ${Math.max(1, Math.round(metres))} m away</span></div>
     ${communityPointsChipHtml(1)}
     <button type="button" class="community-nudge-go" data-community-nudge-go>Check it</button>
     <button type="button" class="community-nudge-close" data-community-nudge-close aria-label="Not now">${communityIcon("x")}</button>`;

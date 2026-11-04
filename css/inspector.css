@@ -2207,19 +2207,32 @@ dd {
   font-weight: 700;
 }
 
-/* Nudge: a dismissible prompt when you are next to an unchecked tree, and a one-off pulse on the check card. */
-.community-nudge { position: fixed; z-index: 40; left: 12px; right: 12px; bottom: calc(var(--safe-bottom) + 88px); display: flex; align-items: center; gap: 10px; max-width: 460px; margin: 0 auto; padding: 10px 12px; border: 1px solid var(--line, #d9ddd0); border-left: 4px solid #2f6b3a; border-radius: 12px; background: #fff; box-shadow: 0 8px 24px rgba(20, 40, 25, .22); animation: community-nudge-in .25s ease-out; }
-.community-nudge-icon { display: inline-flex; width: 28px; height: 28px; color: #2f6b3a; flex: none; }
-.community-nudge-icon svg { width: 100%; height: 100%; }
-.community-nudge-text { display: flex; flex: 1; flex-direction: column; min-width: 0; font-size: .85rem; line-height: 1.3; }
-.community-nudge-text span { color: #5b665b; }
-.community-nudge-go { flex: none; padding: 8px 12px; border: 0; border-radius: 8px; background: #2f6b3a; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
-.community-nudge-close { display: inline-flex; flex: none; width: 28px; height: 28px; padding: 4px; border: 0; background: none; color: #5b665b; cursor: pointer; }
+/* Nudge: a dismissible prompt when you are next to an unchecked tree, on every screen, and a one-off pulse on the check card.
+   A dark graphite card with a gold hairline edge, a single sheen that crosses it once, and the gold primary action.
+   The art spans both rows, is centred on them, and carries a soft gold glow. */
+.community-nudge { --nudge-gold: var(--cta); position: fixed; z-index: 40; left: 12px; right: 12px; bottom: calc(var(--safe-bottom) + 92px); display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; grid-template-rows: auto auto; grid-template-areas: "icon text ." "icon chip go"; column-gap: 14px; row-gap: 10px; align-items: center; max-width: 460px; margin: 0 auto; padding: 16px 16px 16px 14px; overflow: hidden; border: 1px solid rgba(228, 204, 133, .42); border-radius: 20px; background: linear-gradient(160deg, #262e37 0%, #161b21 100%); color: #fff; box-shadow: 0 22px 48px rgba(10, 14, 18, .45), 0 2px 0 rgba(255, 255, 255, .06) inset, 0 0 0 1px rgba(0, 0, 0, .25); animation: community-nudge-in .55s cubic-bezier(.2, .8, .2, 1) both; }
+.community-nudge::after { content: ""; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgba(255, 240, 200, .16) 50%, transparent 65%); transform: translateX(-120%); pointer-events: none; animation: community-nudge-sheen 1.6s ease-out .45s 1 both; }
+.community-nudge-icon { grid-area: icon; display: grid; place-items: center; align-self: center; width: 56px; height: 56px; padding: 0; border: 0; background: none; color: var(--nudge-gold); }
+.community-nudge-icon svg { width: 30px; height: 30px; }
+.community-nudge-art { width: 52px; height: 52px; object-fit: contain; filter: drop-shadow(0 0 12px rgba(228, 204, 133, .45)); animation: community-nudge-glow 2.4s ease-in-out .5s 3; }
+.community-nudge-text { grid-area: text; display: flex; flex-direction: column; gap: 3px; min-width: 0; line-height: 1.25; }
+.community-nudge-eyebrow { font-style: normal; font-size: .66rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--nudge-gold); }
+.community-nudge-text strong { font-size: 1.02rem; font-weight: 800; letter-spacing: -.01em; color: #fff; }
+.community-nudge-text span { color: rgba(255, 255, 255, .68); font-size: .82rem; }
+.community-nudge > .community-points-chip { grid-area: chip; justify-self: start; align-self: center; margin: 0; background: rgba(228, 204, 133, .16); color: var(--nudge-gold); box-shadow: inset 0 0 0 1px rgba(228, 204, 133, .45); font-weight: 800; }
+.community-nudge-go { grid-area: go; justify-self: end; align-self: center; display: inline-flex; align-items: center; height: 42px; padding: 0 20px; border: 0; border-radius: 999px; background: linear-gradient(180deg, #ecd796, var(--cta)); color: var(--cta-ink); font: inherit; font-size: .92rem; font-weight: 800; letter-spacing: .01em; cursor: pointer; box-shadow: 0 6px 16px rgba(228, 204, 133, .28), inset 0 1px 0 rgba(255, 255, 255, .5); transition: transform .15s ease, box-shadow .15s ease; }
+.community-nudge-go:hover, .community-nudge-go:focus-visible { transform: translateY(-1px); box-shadow: 0 9px 22px rgba(228, 204, 133, .36), inset 0 1px 0 rgba(255, 255, 255, .5); }
+.community-nudge-close { position: absolute; top: 10px; right: 10px; display: inline-grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: rgba(255, 255, 255, .6); cursor: pointer; }
+.community-nudge-close:hover, .community-nudge-close:focus-visible { background: rgba(255, 255, 255, .1); color: #fff; }
+@keyframes community-nudge-glow { 0%, 100% { filter: drop-shadow(0 0 6px rgba(228, 204, 133, .25)); } 50% { filter: drop-shadow(0 0 16px rgba(228, 204, 133, .75)); } }
+@keyframes community-nudge-sheen { from { transform: translateX(-120%); } to { transform: translateX(120%); } }
+@media (max-width: 420px) { .community-nudge { grid-template-columns: 46px minmax(0, 1fr) auto; column-gap: 11px; padding: 14px 12px; } .community-nudge-icon { width: 46px; height: 46px; } .community-nudge-art { width: 42px; height: 42px; } .community-nudge-icon svg { width: 25px; height: 25px; } .community-nudge-text strong { font-size: .95rem; } .community-nudge-go { height: 38px; padding: 0 15px; font-size: .86rem; } }
+@media (prefers-reduced-motion: reduce) { .community-nudge, .community-nudge::after, .community-nudge-art { animation: none; } .community-nudge::after { display: none; } }
 .community-nudge-setting { display: flex; gap: 8px; align-items: center; margin: 12px 2px; color: #5b665b; font-size: .85rem; }
 .community-check.community-nudge-pulse { animation: community-pulse 1.3s ease-in-out 2; }
 @keyframes community-nudge-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes community-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(47, 107, 58, 0); } 50% { box-shadow: 0 0 0 6px rgba(47, 107, 58, .28); } }
-@media (prefers-reduced-motion: reduce) { .community-nudge { animation: none; } .community-check.community-nudge-pulse { animation: none; outline: 2px solid #2f6b3a; } }
+@media (prefers-reduced-motion: reduce) {  .community-check.community-nudge-pulse { animation: none; outline: 2px solid #2f6b3a; } }
 
 /* Recovery code: back up or restore the device id that owns your points. */
 .community-recover { margin: 12px 0; padding: 10px 12px; border: 1px solid var(--line, #d9ddd0); border-radius: 12px; background: #fff; }
@@ -2581,33 +2594,16 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 3px 10px rgba(27, 65, 43, 0.05);
 }
 
-.search-field::before {
-  content: "";
+.search-field-icon {
   position: absolute;
   left: 14px;
   top: 50%;
   width: 20px;
   height: 20px;
-  border: 3px solid var(--tree);
-  border-radius: 50%;
-  transform: translateY(-62%);
+  transform: translateY(-50%);
+  color: var(--ink);
+  pointer-events: none;
   z-index: 1;
-  opacity: 0.82;
-}
-
-.search-field::after {
-  content: "";
-  position: absolute;
-  left: 30px;
-  top: calc(50% + 2px);
-  width: 12px;
-  height: 3px;
-  border-radius: 999px;
-  background: var(--tree);
-  transform: rotate(45deg);
-  transform-origin: left center;
-  z-index: 1;
-  opacity: 0.82;
 }
 
 .search-field .search-number {
@@ -2780,10 +2776,10 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 .inspector:has(.tree-detail) .inspector-title-section { padding-top: 16px; padding-bottom: 12px; background: transparent; align-items: center; gap: 12px; }
 .inspector:has(.tree-detail) h2 { font-size: 1.6rem; line-height: 1.15; letter-spacing: -0.035em; }
 .inspector:has(.tree-detail) .type { margin-top: 5px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.055em; }
-.tree-detail { --tree-rule: #e3e8de; --tree-card: #f6f8f2; --tree-inset: 12px; }
+.tree-detail { --tree-rule: var(--line); --tree-card: var(--surface-soft); --tree-inset: 12px; }
 .tree-facts { margin: 0; }
 .tree-facts .row { min-width: 0; border: 0; background: transparent; }
-.tree-facts dt { color: #62705f; font-size: 0.72rem; font-weight: 600; line-height: 1.4; letter-spacing: 0.015em; }
+.tree-facts dt { color: var(--muted); font-size: 0.72rem; font-weight: 600; line-height: 1.4; letter-spacing: 0.015em; }
 .tree-facts dd { color: var(--ink); font-size: 0.95rem; line-height: 1.45; }
 .tree-facts dl.tree-summary { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; margin: 0 0 10px; }
 .tree-facts .tree-tag, .tree-facts .tree-status { display: block; padding: 0; }
@@ -2808,12 +2804,12 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 .tree-facts .tree-tag--missing dd { padding: 0; border: 0; background: none; box-shadow: none; color: var(--muted); font-family: inherit; font-size: 0.78rem; font-weight: 400; letter-spacing: 0; }
 .tree-facts .tree-tag--missing dd::before, .tree-facts .tree-tag--missing dd::after { display: none; }
 .tree-status-icon { width: 24px; height: 24px; flex: 0 0 24px; object-fit: contain; }
-.tree-facts .tree-status dd { display: flex; align-items: center; gap: 4px; font-size: 0.78rem; font-weight: 600; color: #52634c; }
+.tree-facts .tree-status dd { display: flex; align-items: center; gap: 4px; font-size: 0.78rem; font-weight: 600; color: var(--muted); }
 .tree-detail .detail-top-row { padding-bottom: 12px; margin-bottom: 0; gap: 8px; }
 .tree-detail .detail-top-row > [data-live-field="distance"] { flex: 1 1 130px; }
 .tree-detail .detail-top-actions { gap: 8px; }
-.tree-detail .detail-map-link--icon { box-sizing: border-box; width: 36px; height: 36px; min-height: 36px; border-radius: 8px; border-color: #dce4d6; }
-.tree-detail .walk-chip { box-sizing: border-box; width: 100%; justify-content: center; gap: 5px; height: 36px; padding: 0 8px; border-radius: 8px; border-color: #dce4d6; background: #f3f7ef; font-size: 0.88rem; font-weight: 650; }
+.tree-detail .detail-map-link--icon { box-sizing: border-box; width: 36px; height: 36px; min-height: 36px; border-radius: 8px; border-color: var(--line); }
+.tree-detail .walk-chip { box-sizing: border-box; width: 100%; justify-content: center; gap: 5px; height: 36px; padding: 0 8px; border-radius: 8px; font-size: 0.88rem; font-weight: 650; }
 /* Extend the compact controls’ hit areas without adding visible padding. */
 .tree-detail .detail-map-link--icon, .tree-detail .walk-chip { position: relative; }
 .tree-detail .detail-map-link--icon::after, .tree-detail .walk-chip::after { content: ""; position: absolute; inset: -4px; }
@@ -2957,6 +2953,25 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 
 .place-detail > dl > .row.row--value-only {
   grid-template-columns: minmax(0, 1fr);
+}
+
+/* Value-only rows (an address, a website) read as one quiet block: a single soft panel with hairline
+   dividers, not a box per line. Rows with field names keep their own cards. */
+.place-detail > dl:has(> .row--value-only) {
+  gap: 0;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+.place-detail > dl > .row.row--value-only {
+  padding: 10px 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.place-detail > dl > .row.row--value-only + .row.row--value-only {
+  border-top: 1px solid var(--line);
 }
 
 .place-detail > dl > .row dt {
