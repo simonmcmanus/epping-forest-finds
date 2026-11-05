@@ -133,10 +133,8 @@ test.describe("Overview / Nearby screen", () => {
       }
       const icon = page.locator("#inspectorTitleEmoji .title-icon").last();
       await expect(icon).toBeVisible();
-      await expect.poll(async () => icon.evaluate(el => {
-        const iconStyle = getComputedStyle(el);
-        return { width: iconStyle.width, height: iconStyle.height };
-      })).toEqual({ width: "44px", height: "44px" });
+      await expect(icon).toHaveCSS("width", "44px");
+      await expect(icon).toHaveCSS("height", "44px");
     }
   });
 

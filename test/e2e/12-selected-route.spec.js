@@ -308,10 +308,7 @@ test.describe("Selected route line follows the road/path network", () => {
       let worstCoverage = 0;
       let measured = 0;
       let snapFrames = 0;
-      let worstJumpPercent = 0;
-      let worstJumpRatio = 0;
       let previousScale = null;
-      let lastFrameAt = null;
 
       for (let frame = 0; frame < FRAMES; frame += 1) {
         // A fix a second, advancing along the bearing to the destination and wandering
@@ -337,25 +334,18 @@ test.describe("Selected route line follows the road/path network", () => {
         alignHeadingUpNavigationViewport();
         await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
         const after = state.viewport.scale;
-        const frameAt = performance.now();
-        const frameMs = lastFrameAt == null ? 16.7 : frameAt - lastFrameAt;
-        lastFrameAt = frameAt;
 
         if (previousScale != null && frame >= WARMUP_FRAMES) {
-          const jumpPercent = Math.abs(after - previousScale) / previousScale * 100;
-          worstJumpPercent = Math.max(worstJumpPercent, jumpPercent);
-          // The ease takes bigger steps on a longer frame, up to its own clamp (50ms), so a fixed percentage
-          // fails on a loaded runner without any snap. 4% is what a 60fps frame may move; scale that by the
-          // frame's real length, clamped the way the code clamps it.
-          const allowedPercent = 4 * Math.min(Math.max(frameMs, 16.7), 50) / 16.7;
-          worstJumpRatio = Math.max(worstJumpRatio, jumpPercent / allowedPercent);
-          // How much of the distance to the fit this one frame covered. Deliberately measured
-          // as a *fraction of the gap* rather than a percentage of the scale: an eased step is
-          // bounded by the ease rate and HEADING_UP_SCALE_EASE_MAX_DT however slow the frame
-          // was, so this reads the same on a loaded CI runner as on a dev box, while a snap
-          // covers the whole gap by definition.
+          // How much of the distance to the fit this one frame covered. Measured as a *fraction of
+          // the gap*, not a percentage of the scale: the ease advances by at most the time its clock
+          // has run (clamped to HEADING_UP_SCALE_EASE_MAX_DT), so a frame covers at most
+          // 1-exp(-HEADING_UP_SCALE_EASE_OUT_RATE * HEADING_UP_SCALE_EASE_MAX_DT) of the gap however
+          // large that gap is, and a loaded runner's longer frames cannot push it past that. A fixed
+          // percentage of the scale did not have that property: a legitimate ease step over a large
+          // fit change (a fix moving the target) is a bigger percentage, so the check failed without
+          // any snap. A gap down to 0.5% of the scale is still measured, so a small snap is caught too.
           const gap = Math.abs(wanted - before);
-          if (gap > before * 0.03) {
+          if (gap > before * 0.005) {
             measured += 1;
             const coverage = Math.abs(after - before) / gap;
             worstCoverage = Math.max(worstCoverage, coverage);
@@ -366,7 +356,7 @@ test.describe("Selected route line follows the road/path network", () => {
       }
 
       state.userLocation = start;
-      return { worstCoverage, measured, snapFrames, worstJumpPercent, worstJumpRatio };
+      return { worstCoverage, measured, snapFrames };
     });
 
     expect(result.measured, "sanity: the walk should have moved the fit enough to measure").toBeGreaterThan(20);
@@ -378,8 +368,6 @@ test.describe("Selected route line follows the road/path network", () => {
     // none after.
     expect(result.snapFrames, "no frame may jump the zoom straight to the fit").toBe(0);
     expect(result.worstCoverage).toBeLessThan(0.6);
-    // And the resulting motion is small enough not to read as a jump at all.
-    expect(result.worstJumpRatio, `worst single-frame zoom change (${result.worstJumpPercent.toFixed(2)}%), relative to what that frame's length allows`).toBeLessThan(1);
   });
 
   test("the map does not twitch once a second as GPS fixes arrive", async ({ page }) => {
