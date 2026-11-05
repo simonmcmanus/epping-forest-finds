@@ -2934,6 +2934,36 @@ test("fallback notice names the selected walking distance", () => {
   assert.match(html, /Showing the closest match for each selected type instead/);
 });
 
+test("out-of-radius rows in a mixed list sit below a label that names the walking radius", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.walkingDistanceMinutes = 10;
+  app.state.overviewFilters = ["trees", "cows"];
+  app.state.trees.push({ id: "near-tree", commonName: "Near tree", ...makePoint(app, 0.002, 0) });
+  app.state.cows.push({ serialNo: "far-cow", ...makePoint(app, 0.11, 0) });
+
+  const html = app.overviewNearestHtml();
+  const labelAt = html.indexOf("Outside the 10 min walk");
+
+  assert.ok(labelAt > -1, "a label names the walking radius above the greyed rows");
+  assert.ok(html.indexOf("Near tree") < labelAt, "the tree inside the radius is listed above the label");
+  assert.ok(html.indexOf("out-of-radius") > labelAt, "the cow outside the radius is listed below the label");
+  assert.doesNotMatch(html, /Nothing found within/, "a list with an in-radius match is not the all-fallback notice case");
+});
+
+test("no out-of-radius label when every nearby row is inside the walking radius", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.walkingDistanceMinutes = 10;
+  app.state.overviewFilters = ["trees"];
+  app.state.trees.push({ id: "near-tree", commonName: "Near tree", ...makePoint(app, 0.002, 0) });
+
+  const html = app.overviewNearestHtml();
+
+  assert.match(html, /Near tree/);
+  assert.doesNotMatch(html, /Outside the/, "nothing is outside the radius, so nothing is labelled");
+});
+
 test("walking radius marker still draws when nearest results use fallback", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);

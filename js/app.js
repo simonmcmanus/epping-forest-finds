@@ -4993,6 +4993,19 @@ function renderNearestItemsHtml(entries) {
   }).join("");
 }
 
+// The Nearby list's rows, with the out-of-radius fallbacks (the nearest match for a selected type that
+// has nothing inside the walking radius) grouped after the in-radius rows under one label naming the
+// radius. Heads-up ordering can interleave the two -- a close item behind you can outscore a far one
+// ahead -- so the split is by the outOfRadius flag, never by position. Without the label the greyed
+// rows look disabled rather than "further than you asked for".
+function renderNearestItemsWithBeyondLabel(entries) {
+  const beyond = entries.filter((entry) => entry.outOfRadius);
+  if (!beyond.length) return renderNearestItemsHtml(entries);
+  const inRadius = entries.filter((entry) => !entry.outOfRadius);
+  const label = `<li class="nearest-beyond-label">Outside the ${formatWalkingRadius(state.walkingDistanceMinutes)} walk</li>`;
+  return `${renderNearestItemsHtml(inRadius)}${label}${renderNearestItemsHtml(beyond)}`;
+}
+
 // The filter rail at the top of every Nearby view: one toggle pill per category. The plain /nearby screen
 // shows top-level groups; a /nearby/<category> landing shows that group's subcategories. A pill
 // adds or removes its category from the current (ephemeral) filter set in place -- no screen
@@ -5183,7 +5196,7 @@ function overviewNearestHtml() {
   }
 
 
-  const itemsHtml = renderNearestItemsHtml(entries);
+  const itemsHtml = renderNearestItemsWithBeyondLabel(entries);
 
   const fallbackNotice = state.overviewOutsideRadiusFallback
     ? `<p class="source-note"><strong>Nothing found within ${formatWalkingRadius(state.walkingDistanceMinutes)} walking distance.</strong><br><small>Showing the closest match for each selected type instead.</small></p>`
