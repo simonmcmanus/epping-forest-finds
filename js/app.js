@@ -3252,9 +3252,7 @@ function setNavScreenActive(current = null, { preserveHighlight = false } = {}) 
 // local to the dialog until it exits, then the current staged set is applied on every exit. Done
 // remains the explicit final-step action, and backing out never leaves a half-configured map
 // behind. The old /nearby/filter path still enters here for bookmarked links.
-// groupKey opens the dialog straight at that group's category step (a held rail pill), the same
-// place a tap on its summary in the first step reaches.
-function openFilterSetup({ groupKey = null } = {}) {
+function openFilterSetup() {
   if (typeof showOnboarding !== "function") return;
   const overlay = document.getElementById("onboardingOverlay");
   if (!overlay || typeof overlay.querySelector !== "function" || !overlay.querySelector(".onboarding-progress")) return;
@@ -3267,7 +3265,7 @@ function openFilterSetup({ groupKey = null } = {}) {
   state.filterScreenOpen = true;
   setHashFromSelection(ROUTE_FILTERS);
 
-  showOnboarding({ mode: "filters", groupKey }).then((result) => {
+  showOnboarding({ mode: "filters" }).then((result) => {
     state.filterScreenOpen = false;
     if (Array.isArray(result.filters)) setOverviewFilters(result.filters);
     updateFilterUi();
@@ -3279,6 +3277,21 @@ function openFilterSetup({ groupKey = null } = {}) {
 
 function openFiltersScreen() {
   openFilterSetup();
+}
+
+// A held rail pill edits just that category: its chips and a Done button, not the whole map setup
+// flow. Done, the close button, a backdrop tap or Escape all apply the staged set, as in map setup,
+// and the Nearby view behind it is left where it is (no route change).
+function openCategorySetup(groupKey) {
+  if (typeof showOnboarding !== "function") return;
+  const overlay = document.getElementById("onboardingOverlay");
+  if (!overlay || typeof overlay.querySelector !== "function" || !overlay.querySelector(".onboarding-progress")) return;
+  if (overlay._onboardingActive || !FILTER_GROUPS_BY_KEY.has(groupKey)) return;
+
+  showOnboarding({ mode: "category", groupKey }).then((result) => {
+    if (Array.isArray(result.filters)) setOverviewFilters(result.filters);
+    updateFilterUi();
+  });
 }
 
 function openSettings() {

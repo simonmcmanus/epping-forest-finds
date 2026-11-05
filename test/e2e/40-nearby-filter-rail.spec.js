@@ -226,28 +226,50 @@ test.describe("Nearby filter rail", () => {
     await expect(rail(page)).not.toHaveClass(/has-left-overflow/);
   });
 
-  test("holding a group pill opens map setup at that group without toggling it", async ({ page }) => {
+  test("holding a group pill opens just that category's chips, without toggling the pill", async ({ page }) => {
     const before = await page.evaluate(() => state.overviewFilters.slice().sort().join());
     await holdPill(page, "transport");
-    await expect(page.locator("#onboardingOverlay .onboarding-step-title")).toHaveText("Transport");
-    await expect(page.locator("#onboardingOverlay .onboarding-chip")).not.toHaveCount(0);
+    const overlay = page.locator("#onboardingOverlay");
+    await expect(overlay.locator(".onboarding-step-title")).toHaveText("Transport");
+    await expect(overlay.locator(".onboarding-chip")).toHaveCount(4);
+    // Not the full map setup: no intro, no progress dots, no Back.
+    await expect(overlay.locator(".onboarding-dot")).toHaveCount(0);
+    await expect(overlay.locator(".ob-back")).toHaveCount(0);
+    await expect(overlay.locator(".ob-next")).toHaveText("Done");
     expect(await page.evaluate(() => state.overviewFilters.slice().sort().join())).toBe(before);
   });
 
-  test("holding a subcategory pill opens map setup at its own group", async ({ page }) => {
+  test("holding a subcategory pill opens the dialog for its own group", async ({ page }) => {
     await setup(page, "/nearby/food/");
     await expect(pill(page, "cafes")).toBeVisible();
     await holdPill(page, "cafes");
     await expect(page.locator("#onboardingOverlay .onboarding-step-title")).toHaveText("Food");
+    await expect(page.locator("#onboardingOverlay .onboarding-chip")).toHaveCount(4);
   });
 
-  test("a category changed in a held group's dialog updates that group's count when the dialog closes", async ({ page }) => {
+  test("a category changed in a held group's dialog updates that group's count when Done is pressed", async ({ page }) => {
     await expect(pill(page, "food").locator(".rail-count")).toHaveText("1/4");
     await holdPill(page, "food");
     await page.locator("#onboardingOverlay .onboarding-chip[data-key='restaurants']").click();
-    await page.locator("#onboardingOverlay .onboarding-close").click();
+    await page.locator("#onboardingOverlay .ob-next").click();
     await expect(page.locator("#onboardingOverlay")).toBeHidden();
     await expect(pill(page, "food").locator(".rail-count")).toHaveText("2/4");
+  });
+
+  test("a long hold selects no text on the pill or anywhere else", async ({ page }) => {
+    const label = pill(page, "food").locator("span").first();
+    // A double-click would select the word under the pointer if the pill allowed it.
+    const selectable = await label.evaluate((el) => getComputedStyle(el).userSelect);
+    await holdPill(page, "food");
+    expect(await page.evaluate(() => window.getSelection().toString())).toBe("");
+    expect(selectable).toBe("none");
+  });
+
+  test("a press that starts on a pill cannot start a text selection", async ({ page }) => {
+    const started = await pill(page, "food").locator("span").first().evaluate((el) =>
+      !el.dispatchEvent(new Event("selectstart", { bubbles: true, cancelable: true }))
+    );
+    expect(started).toBe(true);
   });
 
   test("the Nearby rail contains category pills without a right-hand control", async ({ page }) => {

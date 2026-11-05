@@ -1199,7 +1199,7 @@ function setupRailLongPress() {
       railLongPress.timer = null;
       railLongPress.swallowClick = true;
       if (typeof navigator.vibrate === "function") navigator.vibrate(12);
-      openFilterSetup({ groupKey });
+      openCategorySetup(groupKey);
     }, RAIL_LONG_PRESS_MS);
   });
   els.inspectorBody.addEventListener("pointermove", (event) => {
@@ -1211,8 +1211,13 @@ function setupRailLongPress() {
   for (const type of ["pointerup", "pointercancel", "pointerleave"]) {
     els.inspectorBody.addEventListener(type, cancelRailLongPress);
   }
-  // A held pill should not open the phone's own long-press menu or start a text selection.
+  // A held pill should not open the phone's own long-press menu or start a text selection. The CSS
+  // covers the browsers that honour it; cancelling selectstart also stops a selection from starting
+  // on a pill in any browser, so the press selects nothing.
   els.inspectorBody.addEventListener("contextmenu", (event) => {
+    if (event.target.closest?.(railPillSelector)) event.preventDefault();
+  });
+  els.inspectorBody.addEventListener("selectstart", (event) => {
     if (event.target.closest?.(railPillSelector)) event.preventDefault();
   });
 }
