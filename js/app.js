@@ -2144,15 +2144,28 @@ const LOCATION_SMOOTHING_ACCURACY_DIVISOR = 10;
 // genuine teleport should land at once rather than crawl there over seconds.
 const LOCATION_SMOOTHING_SNAP_METRES = 30;
 // Smoothing is for walking-pace wander. Travelling faster than this -- a bike, a bus, a train --
-// the easing trails the real position by speed x time constant (2.5s at 20 m/s is 50m), and
-// the Nearby list, built from that trailing position, lags with it. So above it each fix is
-// used as delivered: at that speed a few metres of wander is nothing against the motion.
+// the wander is nothing against the motion, and easing toward each fix trails the real position
+// by speed x time constant. So above it the position is carried between fixes along the track
+// the recent fixes describe instead (see ingestLocationFix), which keeps it moving every frame
+// rather than stepping once a second.
 const LOCATION_FAST_TRAVEL_MPS = 5;
 // Consecutive fixes cannot tell travel from wander (two fixes 12m apart a second apart is
 // ordinary wander under trees), so without the device's own speed reading the speed is judged
 // over at least this long, where the wander averages out and real travel does not.
 const LOCATION_SPEED_BASELINE_MIN_MS = 8000;
 const LOCATION_SPEED_HISTORY_MS = 15000;
+// Travel is carried between fixes, not stepped to (see ingestLocationFix). The track is a
+// straight line fitted through the fixes of the last LOCATION_TRACK_WINDOW_MS: GPS wander is
+// independent from fix to fix, so across a window it averages out, where any two fixes (a
+// chord) carry their own noise into the direction and speed of travel.
+const LOCATION_TRACK_WINDOW_MS = 15000;
+const LOCATION_TRACK_MIN_SPAN_MS = 3000;
+// How far past its last fix the travelling position is carried along the track. With no new
+// fix after this (a tunnel, a dead signal) it stops, rather than running on down the track.
+const LOCATION_DRIFT_MAX_MS = 2000;
+// Walking-pace snapping is tuned for wander, and a train covers 15-30m between one fix and the
+// next. A travelling gap this long means fixes were lost, so the position lands on the new fix.
+const LOCATION_FAST_SNAP_METRES = 150;
 // How close counts as arrived, in projected units -- comfortably sub-metre, so the ease
 // lands on the fix rather than crawling at it forever.
 const LOCATION_GLIDE_EPSILON = 1e-7;
@@ -2160,9 +2173,9 @@ const LOCATION_GLIDE_EPSILON = 1e-7;
 // Whether the person is travelling faster than walking pace: the device's own speed reading
 // (coords.speed, from the GPS itself) when it gives one, or the distance covered over the last
 // LOCATION_SPEED_BASELINE_MIN_MS or more of fixes.
-function recordFixAndDetectFastTravel(latitude, longitude, now, speed) {
+function recordFixAndDetectFastTravel(latitude, longitude, now, speed, point) {
   const history = (state.locationFixHistory || []).filter((fix) => fix.at <= now && now - fix.at <= LOCATION_SPEED_HISTORY_MS);
-  history.push({ at: now, latitude, longitude });
+  history.push({ at: now, latitude, longitude, point });
   state.locationFixHistory = history;
   if (Number.isFinite(speed) && speed >= LOCATION_FAST_TRAVEL_MPS) return true;
   const baseline = history.find((fix) => now - fix.at >= LOCATION_SPEED_BASELINE_MIN_MS);
@@ -2176,8 +2189,9 @@ function recordFixAndDetectFastTravel(latitude, longitude, now, speed) {
 function ingestLocationFix(latitude, longitude, accuracy, now = performance.now(), speed = null) {
   const rawPoint = projectLonLat(longitude, latitude);
   const raw = { latitude, longitude, accuracy, point: rawPoint };
+  const priorFix = (state.locationFixHistory || []).at(-1) || null;
   state.rawUserLocation = raw;
-  const travellingFast = recordFixAndDetectFastTravel(latitude, longitude, now, speed);
+  const travellingFast = recordFixAndDetectFastTravel(latitude, longitude, now, speed, rawPoint);
 
   const previous = state.userLocation;
   const landRaw = () => {
@@ -2186,22 +2200,83 @@ function ingestLocationFix(latitude, longitude, accuracy, now = performance.now(
     return raw;
   };
   if (!previous || !previous.point) return landRaw();
+
+  if (travellingFast) {
+    // Carried, not stepped: between fixes the position moves along the track the recent fixes
+    // describe, so a train at 15 m/s moves every frame instead of holding still for a second and
+    // then jumping. Until there are enough fixes to fit a track (the first few seconds of a
+    // journey) the fix is eased as walking would be, rather than landed raw: raw GPS noise is
+    // exactly what this must not show.
+    const gapMetres = priorFix ? distanceMetres(priorFix.latitude, priorFix.longitude, latitude, longitude) : Infinity;
+    if (!Number.isFinite(gapMetres) || gapMetres >= LOCATION_FAST_SNAP_METRES) {
+      // Lost fixes: the track from before the gap no longer describes the train, so start again from this one.
+      state.locationFixHistory = (state.locationFixHistory || []).slice(-1);
+      return landRaw();
+    }
+    const track = fitTravelTrack(state.locationFixHistory, now);
+    if (track) return startLocationGlide(previous, raw, now, track);
+    // No track yet: ease toward the fix at travelling speed, so the position does not trail the train.
+    return startLocationGlide(previous, raw, now, null, true);
+  }
+
   const movedMetres = distanceMetres(previous.latitude, previous.longitude, latitude, longitude);
   // Not wander: a first fix after a gap, coming out of a tunnel, a genuine teleport. Easing
   // across that reads as the map sliding away on its own.
   if (!Number.isFinite(movedMetres) || movedMetres >= LOCATION_SMOOTHING_SNAP_METRES) return landRaw();
-  if (travellingFast) return landRaw();
+  return startLocationGlide(previous, raw, now, null, false);
+}
 
+// The straight line the recent fixes describe while travelling: a least-squares fit of x and y
+// against time over the fixes of the last LOCATION_TRACK_WINDOW_MS. Returns the fit's time
+// reference (atMs), its position there (x, y), its velocity (vx, vy, projected units per ms) and
+// the newest fix's time (fixAt), or null when there are too few fixes, or they span too short a
+// time, to give a direction.
+function fitTravelTrack(history, now) {
+  const fixes = (history || []).filter((fix) => fix.point && fix.at <= now && now - fix.at <= LOCATION_TRACK_WINDOW_MS);
+  if (fixes.length < 3) return null;
+  const spanMs = fixes[fixes.length - 1].at - fixes[0].at;
+  if (!(spanMs >= LOCATION_TRACK_MIN_SPAN_MS)) return null;
+  const count = fixes.length;
+  const meanAt = fixes.reduce((sum, fix) => sum + fix.at, 0) / count;
+  const meanX = fixes.reduce((sum, fix) => sum + fix.point.x, 0) / count;
+  const meanY = fixes.reduce((sum, fix) => sum + fix.point.y, 0) / count;
+  let sxx = 0;
+  let sxt = 0;
+  let syt = 0;
+  for (const fix of fixes) {
+    const dt = fix.at - meanAt;
+    sxx += dt * dt;
+    sxt += dt * (fix.point.x - meanX);
+    syt += dt * (fix.point.y - meanY);
+  }
+  if (!(sxx > 0)) return null;
+  return {
+    atMs: meanAt,
+    x: meanX,
+    y: meanY,
+    vx: sxt / sxx,
+    vy: syt / sxx,
+    fixAt: fixes[fixes.length - 1].at,
+  };
+}
+
+// Records where the position should head for. While travelling, `track` is the line the target
+// is carried along between fixes (see glideTargetAt); walking passes null.
+function startLocationGlide(previous, raw, now, track, travelling = false) {
   state.locationGlide = {
-    to: rawPoint,
+    to: raw.point,
     // The filter's time constant, from this fix's own reported accuracy: a 5m fix is
-    // followed almost as given, a 25m one is leaned on hard.
-    tau: clamp(
-      (Number.isFinite(accuracy) ? accuracy : 10) / LOCATION_SMOOTHING_ACCURACY_DIVISOR,
-      LOCATION_SMOOTHING_MIN_TAU_S,
-      LOCATION_SMOOTHING_MAX_TAU_S
-    ),
-    accuracy,
+    // followed almost as given, a 25m one is leaned on hard. Travelling uses the quickest
+    // one, because a slow ease trails a moving target by its speed times this constant.
+    tau: track || travelling
+      ? LOCATION_SMOOTHING_MIN_TAU_S
+      : clamp(
+        (Number.isFinite(raw.accuracy) ? raw.accuracy : 10) / LOCATION_SMOOTHING_ACCURACY_DIVISOR,
+        LOCATION_SMOOTHING_MIN_TAU_S,
+        LOCATION_SMOOTHING_MAX_TAU_S
+      ),
+    accuracy: raw.accuracy,
+    track,
   };
   // Start the ease clock at this fix, so the first frame after it integrates ~one frame
   // rather than the whole gap since the previous fix (which the staleness guard would then
@@ -2209,6 +2284,20 @@ function ingestLocationFix(latitude, longitude, accuracy, now = performance.now(
   state.locationSmoothedAt = now;
   ensureLocationGlideLoop();
   return previous;
+}
+
+// Where the glide is heading at `now`. A walking glide heads for its fix and stays there. A
+// travelling one heads for the point on its track at `now`, carried at most LOCATION_DRIFT_MAX_MS
+// past the newest fix: the target moves continuously between fixes, and a new fix only shifts
+// the line slightly rather than moving the target.
+function glideTargetAt(glide, now) {
+  if (!glide.track) return glide.to;
+  const { track } = glide;
+  const at = Math.min(now, track.fixAt + LOCATION_DRIFT_MAX_MS);
+  return {
+    x: track.x + track.vx * (at - track.atMs),
+    y: track.y + track.vy * (at - track.atMs),
+  };
 }
 
 // The location object for a projected point, with lat/lon kept consistent with it so
@@ -2259,8 +2348,9 @@ function advanceLocationGlide(now = performance.now()) {
   const glide = state.locationGlide;
   if (!glide || !state.userLocation || !state.userLocation.point) return false;
   const from = state.userLocation.point;
-  const dx = glide.to.x - from.x;
-  const dy = glide.to.y - from.y;
+  const to = glideTargetAt(glide, now);
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
 
   const lastAt = state.locationSmoothedAt;
   const gapMs = Number.isFinite(lastAt) ? (now - lastAt) : null;
@@ -2274,17 +2364,47 @@ function advanceLocationGlide(now = performance.now()) {
   const arrived = Math.abs(dx) < LOCATION_GLIDE_EPSILON && Math.abs(dy) < LOCATION_GLIDE_EPSILON;
   if (arrived || gapMs == null || gapMs > HEADING_UP_SCALE_EASE_STALE_MS) {
     state.locationGlide = null;
-    if (arrived && from.x === glide.to.x && from.y === glide.to.y) return false;
-    state.userLocation = locationAtPoint(glide.to, glide.accuracy);
+    if (arrived && from.x === to.x && from.y === to.y) return false;
+    state.userLocation = locationAtPoint(to, glide.accuracy);
     state.userInMapArea = pointInsideBounds(state.userLocation.point, state.bounds);
     return true;
   }
 
   const dt = Math.min(gapMs, HEADING_UP_SCALE_EASE_MAX_DT * 1000) / 1000;
   const alpha = 1 - Math.exp(-dt / glide.tau);
-  state.userLocation = locationAtPoint({ x: from.x + dx * alpha, y: from.y + dy * alpha }, glide.accuracy);
+  const next = { x: from.x + dx * alpha, y: from.y + dy * alpha };
+  state.userLocation = locationAtPoint(next, glide.accuracy);
   state.userInMapArea = pointInsideBounds(state.userLocation.point, state.bounds);
+  if (glide.track) panViewportWithUser(from, next);
   return true;
+}
+
+// Whether the camera is the overview that follows the user: the north-up Nearby framing, not a
+// selected place, a secondary screen, a cluster zoom or a heading-up anchor. keepOverviewCenteredOnUser
+// uses the same test before it re-fits anything.
+function overviewFollowsUser() {
+  if (!state.dataLoaded) return false;
+  if (!state.userLocation) return false;
+  if (state.selected && !secondaryScreenActive()) return false;
+  if (state.clusterZoomed) return false;
+  if (els.inspector.classList.contains("minimized")) return false;
+  if (nearbyNavigationAnchorActive()) return false;
+  if (communityFramesOwnMarksOnly()) return false;
+  return true;
+}
+
+// While travelling, the map moves with the You marker frame by frame: the marker keeps its
+// place on screen and the map slides under it. The alternative -- re-easing the camera once a
+// second, behind a marker that has already moved on -- is the same sit-then-jump as the marker
+// used to have. Skipped while a camera tween is in flight (it would be overwritten), and in
+// heading-up or 3D views, which re-fit from the live position on every compass frame instead.
+function panViewportWithUser(fromPoint, toPoint) {
+  if (state.viewportAnimationFrame != null) return;
+  if (headingUpActive() || tiltActive() || !overviewFollowsUser()) return;
+  const scale = state.viewport.scale;
+  state.viewport.tx -= (toPoint.x - fromPoint.x) * scale;
+  state.viewport.ty -= (toPoint.y - fromPoint.y) * scale;
+  requestDraw();
 }
 
 function applyLocationFix(position) {
@@ -4907,6 +5027,19 @@ function renderNearestItemsHtml(entries) {
   }).join("");
 }
 
+// The Nearby list's rows, with the out-of-radius fallbacks (the nearest match for a selected type that
+// has nothing inside the walking radius) grouped after the in-radius rows under one label naming the
+// radius. Heads-up ordering can interleave the two -- a close item behind you can outscore a far one
+// ahead -- so the split is by the outOfRadius flag, never by position. Without the label the greyed
+// rows look disabled rather than "further than you asked for".
+function renderNearestItemsWithBeyondLabel(entries) {
+  const beyond = entries.filter((entry) => entry.outOfRadius);
+  if (!beyond.length) return renderNearestItemsHtml(entries);
+  const inRadius = entries.filter((entry) => !entry.outOfRadius);
+  const label = `<li class="nearest-beyond-label">Outside the ${formatWalkingRadius(state.walkingDistanceMinutes)} walk</li>`;
+  return `${renderNearestItemsHtml(inRadius)}${label}${renderNearestItemsHtml(beyond)}`;
+}
+
 // The filter rail at the top of every Nearby view: one toggle pill per category. The plain /nearby screen
 // shows top-level groups; a /nearby/<category> landing shows that group's subcategories. A pill
 // adds or removes its category from the current (ephemeral) filter set in place -- no screen
@@ -5097,7 +5230,7 @@ function overviewNearestHtml() {
   }
 
 
-  const itemsHtml = renderNearestItemsHtml(entries);
+  const itemsHtml = renderNearestItemsWithBeyondLabel(entries);
 
   const fallbackNotice = state.overviewOutsideRadiusFallback
     ? `<p class="source-note"><strong>Nothing found within ${formatWalkingRadius(state.walkingDistanceMinutes)} walking distance.</strong><br><small>Showing the closest match for each selected type instead.</small></p>`
@@ -8490,13 +8623,7 @@ function centerOverviewOnUserLocation(options = {}) {
 }
 
 function keepOverviewCenteredOnUser(previousPoint) {
-  if (!state.dataLoaded) return;
-  if (!state.userLocation) return;
-  if (state.selected && !secondaryScreenActive()) return;
-  if (state.clusterZoomed) return;
-  if (els.inspector.classList.contains("minimized")) return;
-  if (nearbyNavigationAnchorActive()) return;
-  if (communityFramesOwnMarksOnly()) return;
+  if (!overviewFollowsUser()) return;
 
   const previousScreen = previousPoint ? worldToScreen(previousPoint) : null;
   const nextScreen = worldToScreen(state.userLocation.point);
