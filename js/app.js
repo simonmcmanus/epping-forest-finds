@@ -287,7 +287,9 @@ const state = {
   // them on the map and the camera can frame all of them at once (updateSearchHighlight). Reset
   // to [] wherever Search stands down (setInspectorSelectionChrome, js/inspector.js).
   searchHighlightResults: [],
-  distanceWarningShown: false,
+  farNoticeShown: false,
+  farNoticeOpen: false,
+  farNoticeWaiting: false,
   // A real fix more than FAR_FROM_FOREST_METRES from the forest boundary (updateFarFromForest):
   // Nearby is centred on High Beach and no directions are offered.
   farFromForest: false,
@@ -1421,11 +1423,12 @@ function hideNoticeCard(banner, { collapse = false } = {}) {
 // map and Nearby list behind it are already usable, so this never covers the whole screen. Same
 // floating treatment as showConsentBanner()'s own card, and never at the same time as it. With canRequest false (location blocked or unsupported)
 // it explains instead of offering a button that could not work.
-function showLocationInviteBanner(message, { canRequest = true } = {}) {
+function showLocationInviteBanner(message, { canRequest = true, title = "Get a more custom experience", recordsChoice = true, onClose = null } = {}) {
   const banner = els.locationInviteBanner;
   if (!banner) return;
   if (els.consentBanner && !els.consentBanner.hidden) return;
 
+  if (els.locationInviteTitle) els.locationInviteTitle.textContent = title;
   if (els.locationInviteMessage) els.locationInviteMessage.textContent = message;
   if (els.locationInviteButton) els.locationInviteButton.hidden = !canRequest;
   if (els.locationInviteDismiss) els.locationInviteDismiss.textContent = canRequest ? "Maybe later" : "OK";
@@ -1444,8 +1447,9 @@ function showLocationInviteBanner(message, { canRequest = true } = {}) {
 
   function onDecline() {
     cleanup();
-    rememberLocationChoice("declined");
+    if (recordsChoice) rememberLocationChoice("declined");
     hideNoticeCard(banner);
+    if (onClose) onClose();
     if (canRequest) showHighBeachNotice();
   }
 
@@ -2019,7 +2023,7 @@ async function boot() {
           applyRoute(bootRoute, false);
         }
         setLoadStep("location", "done");
-        checkDistanceToForest(latitude, longitude);
+        updateFarFromForest(latitude, longitude);
         ensureLocationWatch();
 
         // Request compass only if not already handled (e.g. by onboarding).
@@ -2492,7 +2496,7 @@ function locateUser({ initial }) {
         requestCompassPermissionIfNeeded({ fromGesture: false });
       }
 
-      checkDistanceToForest(latitude, longitude);
+      updateFarFromForest(latitude, longitude);
 
       if (isOverviewScreenActive()) selectOverview();
       if (!previousPoint) {
@@ -2546,39 +2550,69 @@ function distanceToForestMetres(latitude, longitude) {
 }
 
 // Keeps state.farFromForest in step with a real fix (and re-run when the outline lands). When it
-// flips, the Nearby list/camera re-centre (nearbyOrigin) and the compass/route aids switch on/off.
+// flips, the Nearby list/camera re-centre (nearbyOrigin) and the compass/route aids switch on/off,
+// and the one far-from-the-forest notice is raised or cleared. Nothing here blocks the map.
 function updateFarFromForest(latitude, longitude) {
-  const metres = hasRealLocation() ? distanceToForestMetres(latitude, longitude) : null;
-  const far = metres != null && metres > FAR_FROM_FOREST_METRES;
+  const far = isFarFromForestFix(latitude, longitude);
   if (far === state.farFromForest) return;
   state.farFromForest = far;
   if (isOverviewScreenActive()) selectOverview();
   updateCompassOverlay();
   requestDraw();
+  if (far) showFarFromForestNotice();
+  else hideFarFromForestNotice();
 }
 
-function checkDistanceToForest(latitude, longitude) {
-  updateFarFromForest(latitude, longitude);
-  // Don't show warning if already dismissed, or open now
-  if (state.distanceWarningShown || (els.distanceWarning && !els.distanceWarning.hidden)) return;
+// Whether a real fix is far from the forest. Exact once the outline has loaded. Before that, a fix
+// beyond the outline's furthest reach plus the walking limit is already far: otherwise the camera
+// framed the raw fix (central London, say) until the outline arrived and then flew across to High
+// Beach, and the map was blank for that whole stretch.
+function isFarFromForestFix(latitude, longitude) {
+  if (!hasRealLocation()) return false;
+  const metres = distanceToForestMetres(latitude, longitude);
+  if (metres != null) return metres > FAR_FROM_FOREST_METRES;
+  return distanceMetres(DEFAULT_LOCATION.latitude, DEFAULT_LOCATION.longitude, latitude, longitude)
+    > FOREST_OUTLINE_REACH_FROM_HIGH_BEACH_METRES + FAR_FROM_FOREST_METRES;
+}
 
-  const minDistance = distanceToForestMetres(latitude, longitude);
-  if (minDistance == null) return;
+const FAR_FROM_FOREST_NOTICE_TITLE = "You're too far away to use the app fully";
+const FAR_FROM_FOREST_NOTICE_TEXT = "We're showing you finds around High Beach. Directions and walking times come back once you're within 15 minutes' walk of the forest.";
 
-  if (minDistance > FAR_FROM_FOREST_METRES) {
-    if (els.distanceWarningMessage) {
-      els.distanceWarningMessage.textContent = `You're about ${formatDistance(minDistance)} from the forest boundary — roughly ${Math.round(minDistance / (5000 / 60))} minutes on foot. The map is fully loaded and ready to explore when you visit.`;
-    }
-    
-    if (els.distanceWarning) {
-      els.distanceWarning.hidden = false;
-      els.distanceWarning._deactivateFocus = typeof activateModalFocus === "function"
-        ? activateModalFocus(els.distanceWarning, {
-            onEscape: () => els.distanceWarningButton?.click(),
-          })
-        : null;
-    }
+// The far-from-the-forest message is a non-blocking card, not a modal: the map, the Nearby list and the
+// High Beach framing behind it all stay usable. It reuses the location invite's floating card
+// (#locationInviteBanner) with no request button, since a real fix already exists and asking again
+// would only land the visitor back on the same far-away fix. Its OK does not record a location choice.
+// Raised once per page load, and held back while the consent card is up so the two never overlap.
+function showFarFromForestNotice() {
+  if (state.farNoticeShown || state.farNoticeWaiting || !isFarFromForest()) return;
+  if (els.consentBanner && !els.consentBanner.hidden) {
+    if (typeof MutationObserver !== "function") return;
+    state.farNoticeWaiting = true;
+    const observer = new MutationObserver(() => {
+      if (!els.consentBanner.hidden) return;
+      observer.disconnect();
+      state.farNoticeWaiting = false;
+      showFarFromForestNotice();
+    });
+    observer.observe(els.consentBanner, { attributes: true, attributeFilter: ["hidden"] });
+    return;
   }
+  state.farNoticeShown = true;
+  state.farNoticeOpen = true;
+  showLocationInviteBanner(FAR_FROM_FOREST_NOTICE_TEXT, {
+    canRequest: false,
+    title: FAR_FROM_FOREST_NOTICE_TITLE,
+    recordsChoice: false,
+    onClose: () => { state.farNoticeOpen = false; },
+  });
+}
+
+// Walking back inside the walking limit clears the notice, so it never describes a place the visitor
+// is no longer far from.
+function hideFarFromForestNotice() {
+  if (!state.farNoticeOpen || !els.locationInviteBanner) return;
+  state.farNoticeOpen = false;
+  hideNoticeCard(els.locationInviteBanner);
 }
 
 function getMinDistanceToForest(userLat, userLon, forestLayer) {
@@ -6373,13 +6407,21 @@ const HEADING_UP_SCALE_EASE_OUT_RATE = 9;
 // existing scale fit already is one.
 const HEADING_UP_ANCHOR_HOLD_RATIO = 0.12; // deadband, as a fraction of the focus rect's height
 
+// Far from the forest the map still turns with the compass for a selected place, pivoting on the
+// High Beach stand-in (navigationOriginPoint) rather than the real fix. No directions are offered
+// there (canGuideToPlaces), so this only rotates the view.
 function selectedNavigationHeadingUpActive() {
   return Boolean(
     state.userLocation
-    && !isFarFromForest()
     && selectedCompassTarget()
     && Number.isFinite(state.compassHeading)
   );
+}
+
+// The point heading-up navigation pivots on and measures bearings from: the real fix, or the High
+// Beach stand-in while far from the forest, so the view is framed as if the visitor were there.
+function navigationOriginPoint() {
+  return isFarFromForest() ? highBeachStandIn().point : state.userLocation.point;
 }
 
 function nearbyHeadingUpActive() {
@@ -6460,7 +6502,7 @@ function navigationAnchorActive() {
 // tx/ty built from it) around a point the camera was about to move away from.
 function cameraOriginPoint(useFinalBrowseState = false) {
   const logical = selectedNavigationHeadingUpActive()
-    ? state.userLocation.point
+    ? navigationOriginPoint()
     : (useFinalBrowseState
       ? ((nearbyOrigin() && nearbyOrigin().point) || (state.userLocation ? state.userLocation.point : null))
       : (nearbyRenderOriginPoint() || (state.userLocation ? state.userLocation.point : null)));
@@ -6814,8 +6856,9 @@ function selectedNavigationTargetBearingOffsetRadians() {
     sumX += point.x;
     sumY += point.y;
   }
-  const dx = sumX / points.length - state.userLocation.point.x;
-  const dy = sumY / points.length - state.userLocation.point.y;
+  const origin = navigationOriginPoint();
+  const dx = sumX / points.length - origin.x;
+  const dy = sumY / points.length - origin.y;
   if (dx === 0 && dy === 0) return null;
   const radians = toRadians(currentNavigationMapRotationDegrees());
   const rotatedX = dx * Math.cos(radians) - dy * Math.sin(radians);
@@ -7035,6 +7078,7 @@ function balancedNavigationAnchorY(focusRect, anchorFraction) {
   // routed line, with junctions of its own, has an ahead/behind split worth taking.
   if (points.length < 3) return anchoredY;
 
+  const origin = navigationOriginPoint();
   const radians = toRadians(currentNavigationMapRotationDegrees());
   const cos = Math.cos(radians);
   const sin = Math.sin(radians);
@@ -7043,8 +7087,8 @@ function balancedNavigationAnchorY(focusRect, anchorFraction) {
   let side = 0;
   for (const point of points) {
     if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
-    const dx = point.x - state.userLocation.point.x;
-    const dy = point.y - state.userLocation.point.y;
+    const dx = point.x - origin.x;
+    const dy = point.y - origin.y;
     const rotatedX = dx * cos - dy * sin;
     const rotatedY = dx * sin + dy * cos;
     if (rotatedY < 0) ahead = Math.max(ahead, -rotatedY);
@@ -7162,6 +7206,9 @@ function selectedNavigationTargetPoints() {
     return target.segments.flat();
   }
   if (!target.point) return [];
+  // Far from the forest there is no walk to frame, but the High Beach stand-in the view pivots on
+  // must stay in the fit with the place, or the rotated view would not show where it is turning about.
+  if (isFarFromForest()) return [navigationOriginPoint(), target.point];
   // Frame the whole walk, not just its far end. This is the fit used by
   // maxHeadingUpNavigationScale (and the bearing behind headingUpAnchorFraction) in
   // heading-up navigation -- the mode in use outdoors whenever the compass is live -- and

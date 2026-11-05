@@ -549,7 +549,8 @@ moving the real GPS fix:
   tap into the out-of-radius corners of the Nearby screen opened a navigation view to whichever
   road ran through there instead of browsing that spot. Inside the ring, streets and trails
   do not select either: on Nearby only a highlighted location pin inside the ring opens, and every
-  other tap moves the browse point. The rule also catches out-of-radius
+  other tap moves the browse point. Far from the forest (`isFarFromForest()`) the ring is centred on
+  High Beach, so every location on screen opens instead (`handleMapClick`, `js/inspector.js`). The rule also catches out-of-radius
   *pins*, which are only ever drawn when the radius filter is toggled off
   (`state.showAllOutsideRadius`); those items stay reachable from the nearby list, which is
   unaffected. It does not apply once something is selected: from a selected-detail view, a tap
@@ -796,7 +797,8 @@ moving the real GPS fix:
   browse point came from a place's own inspector, carried as the anchor's `label`, which also rides
   along in a related link's `near=` route as `label=`) with a **Use my location**
   (`data-action="reset-nearby-anchor"`) button that clears `state.nearbyAnchor`
-  (`clearNearbyAnchor`) and re-renders/re-fits back to the real GPS fix. The bar is an inset
+  (`clearNearbyAnchor`) and re-renders/re-fits back to the real GPS fix. Far from the forest the
+  button is hidden, since the view is centred on High Beach whatever the real fix says. The bar is an inset
   card in the brand greens. When a browse anchor is set it animates in: the space above the
   sheet content opens first (~560ms, height and margins grow from nothing), then just before it
   finishes the card fades in with a slight scale pop, so the content below does not jump down in
@@ -1351,13 +1353,12 @@ The location gate (`#locationGate`) must work fully offline:
 Keyboard and screen-reader support for the app shell, on top of the arrow-key/Enter navigation
 already documented for Nearby/Search result rows under Overview Content and Secondary Screens.
 
-- **Modal dialogs.** The three full-screen overlays — `#locationGate`, `#distanceWarning`,
-  `#onboardingOverlay` — carry `role="dialog"` and `aria-modal="true"`,
+- **Modal dialogs.** The two full-screen overlays — `#locationGate`, `#onboardingOverlay` — carry `role="dialog"` and `aria-modal="true"`,
   each labelled via `aria-labelledby` (or `aria-label` for onboarding, whose heading text changes
   per step). Opening one calls `activateModalFocus(container, { onEscape })` (`js/nav.js`), which:
   moves focus to the dialog's first focusable control; traps Tab/Shift+Tab so focus cycles within
   the dialog instead of escaping to the map behind it; closes the dialog on Escape where an
-  `onEscape` handler is supplied (the distance warning treats it as dismiss; the location gate and
+  `onEscape` handler is supplied (the location gate and
   onboarding have no dismiss action and ignore Escape); and restores
   focus to whatever triggered the dialog once the returned `deactivate()` runs. The onboarding
   overlay additionally moves focus to each step's `<h2>` (given `tabindex="-1"`) as the step's

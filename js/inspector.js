@@ -70,9 +70,11 @@ function handleMapClick(event) {
   // On the Nearby screen only a highlighted location -- a pin inside the walking ring -- is a
   // selection target. Everything else (open ground, streets, trails, and pins beyond the ring)
   // moves the browse point, so a tap never opens a road or an out-of-radius place by accident.
+  // Far from the forest the ring is centred on High Beach, which a visitor cannot walk from, so the
+  // ring does not decide what is worth opening: every location on screen is selectable there.
   const isLocationHit = ["tree", "addedtree", "cow", "landmark", "path", "water", "environment"].includes(hit.type);
   const onHighlightedLocation = isLocationHit
-    && !isOutsideNearestArea(itemLonLatForTap(hit.item, lonLat));
+    && (isFarFromForest() || !isOutsideNearestArea(itemLonLatForTap(hit.item, lonLat)));
   if (hit.type === "none" || (isOverviewScreenActive() && !onHighlightedLocation)) {
     focusNearbyOnMapPoint(lonLat, world);
     return;
