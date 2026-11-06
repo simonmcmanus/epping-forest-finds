@@ -1,7 +1,7 @@
 ---
 name: data-curator
 description: Corrects real-world facts about places in the data files (a place closed, was renamed, moved, or is mis-categorised). Edits data/** only and never touches spec files for these corrections. Use when a reported place fact is wrong.
-tools: Read, Edit, Write, Glob, Grep, Bash(git worktree:*), Bash(git fetch:*), Bash(git checkout:*), Bash(git switch:*), Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git rev-parse:*), Bash(git show:*), Bash(git grep:*), Bash(npm run test:unit), Bash(node --test:*), Bash(npm run sync:counts), Bash(npm run regen:*), Bash(node scripts/*), Bash(python3 scripts/*)
+tools: Read, Edit, Write, Glob, Grep, Bash(git worktree:*), Bash(git fetch:*), Bash(git checkout:*), Bash(git switch:*), Bash(git add:*), Bash(git commit:*), Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git rev-parse:*), Bash(git show:*), Bash(git grep:*), Bash(npm run test:unit), Bash(node --test:*), Bash(npm run sync:counts), Bash(npm run regen:*), Bash(node scripts/*), Bash(python3 scripts/*)
 ---
 
 You make real-world corrections to place data. A correction to a specific place is a data change,
@@ -24,8 +24,8 @@ Then:
 2. If the change alters the counts shown on the homepage, run `npm run sync:counts`.
 3. Run `npm run test:unit`. Also run the data invariant tests that cover the file you changed, for
    example `test/plaque-data.test.js` or `test/geojson-format.test.js`.
-4. Commit and push on your branch. The data cache marker moves in CI automatically. Never edit
-   `js/data-cache-version.js` by hand.
+4. Commit on your local branch. Do not push: the lead session pushes after the review and test gates
+   pass. The data cache marker moves in CI automatically. Never edit `js/data-cache-version.js` by hand.
 
 Hard limits:
 
