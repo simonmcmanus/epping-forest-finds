@@ -15,6 +15,7 @@ const { createHash } = require("crypto");
 const { connectLambda, getStore } = require("@netlify/blobs");
 const tracking = require("./lib/tracking-store");
 const { checkRateLimit, clientIp } = require("./lib/report-rate-limit");
+const { isAdminRequest } = require("./lib/admin-auth");
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 // TRACKING_DIR lets a test point the local fallback at a scratch directory.
@@ -170,13 +171,9 @@ function response(statusCode, body, extraHeaders = {}) {
   };
 }
 
+// The password comes only from the Authorization header (lib/admin-auth.js), never the address.
 function checkAuth(event) {
-  if (!ADMIN_PASSWORD) return false;
-  const auth = event.headers?.authorization || "";
-  if (auth === `Bearer ${ADMIN_PASSWORD}`) return true;
-  const pw = queryParam(event, "pw");
-  if (pw === ADMIN_PASSWORD) return true;
-  return false;
+  return isAdminRequest(event, ADMIN_PASSWORD);
 }
 
 // The admin response packs locations and clicks (lib/tracking-store.js packEvents); js/admin.js

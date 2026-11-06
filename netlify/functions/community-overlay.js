@@ -11,6 +11,7 @@ const { sessionFrom } = require("./lib/auth-session");
 const { devicesForRequest, mergeScores } = require("./lib/community-account");
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
+const { isAdminRequest } = require("./lib/admin-auth");
 
 function queryParam(event, name) {
   return event.queryStringParameters?.[name] || new URLSearchParams(event.rawQuery || "").get(name);
@@ -19,8 +20,7 @@ function queryParam(event, name) {
 // Admin stats come from the last rebuild (community-computed.js), so an admin view never reads the
 // whole ledger; "Rebuild snapshot now" on the dashboard refreshes them on demand.
 async function adminStats(event) {
-  const auth = (event.headers && (event.headers.authorization || event.headers.Authorization)) || "";
-  if (!ADMIN_PASSWORD || auth !== `Bearer ${ADMIN_PASSWORD}`) {
+  if (!isAdminRequest(event, ADMIN_PASSWORD)) {
     return { statusCode: 401, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ error: "Unauthorized" }) };
   }
   const stats = await loadAdminStats(openStore(event));

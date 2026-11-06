@@ -368,15 +368,6 @@ function communityBadgeChipsHtml(score, local) {
   return `<span class="community-badge-chips" role="group" aria-label="Badges earned">${earned.map((b) => `<button type="button" class="community-badge-chip" data-action="community-badge" data-badge="${b.id}" aria-pressed="false" aria-label="${escapeHtml(b.name)}" title="${escapeHtml(b.name)}">${communityIcon(b.icon)}</button>`).join("")}</span>`;
 }
 
-function communityStreakHtml(local) {
-  const streak = communityStreaks(local).current;
-  const week = communityWeekDays(local);
-  return `<div class="community-streak-row">
-      <p class="community-streak">${streak > 0 ? `<strong>${streak}-day streak</strong> · keep it going by checking something today` : "Check something today to start a streak"}</p>
-      <ol class="community-week" aria-label="Last seven days">${week.map((d) => `<li class="community-week-day${d.done ? " is-done" : ""}${d.today ? " is-today" : ""}"><span class="community-week-dot">${d.done ? communityIcon("check") : ""}</span><span class="community-week-label">${d.label.slice(0, 2)}</span><span class="community-sr">${d.label}${d.done ? ", checked" : ""}</span></li>`).join("")}</ol>
-    </div>`;
-}
-
 // Progress towards a badge as { have, goal }, capped at the goal.
 function communityBadgeProgress(badge, metrics) {
   return { have: Math.min(badge.goal, Number(metrics && metrics[badge.metric]) || 0), goal: badge.goal };
@@ -386,21 +377,6 @@ function communityBadgeDetailHtml(badge, metrics) {
   const { have, goal } = communityBadgeProgress(badge, metrics);
   const earned = have >= goal;
   return `<strong>${escapeHtml(badge.name)}${earned ? " · earned" : ""}</strong><span>${escapeHtml(badge.how)}${earned ? "" : ` You're at ${have} of ${goal}.`}</span>`;
-}
-
-function communityBadgesHtml(score, local) {
-  const { earned } = communityBadges(score, local);
-  if (!earned.length) return "";
-  const tile = (b) => `<li class="community-badge-item is-earned"><button type="button" class="community-badge-tile" data-action="community-badge" data-badge="${b.id}" aria-pressed="false" aria-label="${escapeHtml(b.name)}, earned">
-        <span class="community-badge-medal">${communityIcon(b.icon)}</span>
-        <span class="community-badge-name">${escapeHtml(b.name)}</span>
-        <span class="community-badge-state">Earned</span>
-      </button></li>`;
-  return `<div class="community-badges">
-      <div class="community-badges-head"><h3 class="settings-section-title">Badges</h3><span class="community-badges-count">${earned.length} earned</span></div>
-      <ul class="community-badge-list" aria-label="Badges">${earned.map(tile).join("")}</ul>
-      <p class="community-badge-detail" role="status" hidden></p>
-    </div>`;
 }
 
 // Tapping a badge explains how it is earned, in place under the scroller; tapping it again closes it.
@@ -1052,14 +1028,6 @@ if (typeof window !== "undefined" && window.addEventListener) {
 // The short summary at the top of the Community screen, linking on to the full explainer page
 // (community/index.html, a static public page).
 const COMMUNITY_EXPLAINER_URL = "/contribute";
-
-function communityIntroHtml() {
-  return `<a class="community-intro" href="${COMMUNITY_EXPLAINER_URL}" target="_blank" rel="noopener">
-      <span class="community-intro-icon">${communityIcon("shield")}</span>
-      <span class="community-intro-text"><strong>Help keep the map right</strong><span>Check, add and fix data to earn points</span></span>
-      ${communityIcon("chevron")}
-    </a>`;
-}
 
 // --- "Add a missing tree" on the Community screen ---
 // A new tree needs its tag number (what identifies it) and a close, accurate GPS fix (where it is),
@@ -1762,10 +1730,6 @@ function communityContributionsHtml() {
     </section>`;
 }
 
-function communityBadgesSectionHtml() {
-  return `<section class="settings-section community-badges-section"><div id="communityBadgesHost"></div></section>`;
-}
-
 function communityLogSectionHtml() {
   return `<section class="settings-section community-reports">
       <details id="communityReportsDetails">
@@ -2035,10 +1999,6 @@ function communityReadAccount() {
 }
 
 const COMMUNITY_SIGNIN_DISMISSED_KEY = "ff-community-signin-dismissed-v1";
-
-function communitySigninDismissed() {
-  try { return localStorage.getItem(COMMUNITY_SIGNIN_DISMISSED_KEY) === "1"; } catch { return false; }
-}
 
 function communityDismissSignin() {
   try { localStorage.setItem(COMMUNITY_SIGNIN_DISMISSED_KEY, "1"); } catch {}

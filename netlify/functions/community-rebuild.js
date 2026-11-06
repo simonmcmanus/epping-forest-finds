@@ -7,10 +7,10 @@ const { escalateConflicts } = require("./lib/community-escalation");
 const { originOf, makeGithubIssuePoster } = require("./lib/community-fetch");
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
+const { isAdminRequest } = require("./lib/admin-auth");
 
 exports.handler = async (event) => {
-  const auth = (event.headers && (event.headers.authorization || event.headers.Authorization)) || "";
-  if (!ADMIN_PASSWORD || auth !== `Bearer ${ADMIN_PASSWORD}`) {
+  if (!isAdminRequest(event, ADMIN_PASSWORD)) {
     return { statusCode: 401, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ error: "Unauthorized" }) };
   }
   const store = openStore(event);

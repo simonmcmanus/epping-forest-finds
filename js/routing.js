@@ -207,9 +207,9 @@ function nearestRoutingNode(graph, point, componentId, preferredDirection) {
   let bestId = -1;
   let bestScore = Infinity;
   
-  // Vector from reference to destination (used for direction preference)
-  const toDestX = point.x - (preferredDirection?.x || 0);
-  const toDestY = point.y - (preferredDirection?.y || 0);
+  // Direction of travel: from the point being snapped toward the preferred point (the destination).
+  const toDestX = preferredDirection ? preferredDirection.x - point.x : 0;
+  const toDestY = preferredDirection ? preferredDirection.y - point.y : 0;
   const toDestLen = Math.sqrt(toDestX * toDestX + toDestY * toDestY);
   
   for (let i = 0; i < nodes.length; i += 1) {
@@ -220,11 +220,11 @@ function nearestRoutingNode(graph, point, componentId, preferredDirection) {
     
     let score = distSq;
     
-    // If we have a direction preference, apply a strong directional multiplier
-    if (preferredDirection && toDestLen > 0) {
-      // Dot product: positive means node is in roughly same direction as destination
-      const dot = (nodes[i].x - preferredDirection.x) * toDestX + 
-                  (nodes[i].y - preferredDirection.y) * toDestY;
+    // If we have a direction preference, apply a strong directional multiplier. A node exactly under the
+    // point has no direction and is simply the nearest possible.
+    if (preferredDirection && toDestLen > 0 && distSq > 0) {
+      // Cosine of the angle between the direction of travel and the way to this node, from the same point.
+      const dot = (nodes[i].x - point.x) * toDestX + (nodes[i].y - point.y) * toDestY;
       const cosAngle = dot / (Math.sqrt(distSq) * toDestLen);
       
       // Apply directional multiplier: nodes in the right direction get a bonus,
@@ -384,13 +384,15 @@ function findRoutePoints(graph, fromPoint, toPoint, options) {
   if (!(straightLineMetres > 0)) return null;
 
   const mainComponent = graph.largestComponentId;
-  // Snap user location with preference toward the destination
+  // Snap the walker's own location with preference toward the destination
   // This prevents the user from snapping to a road node that's the wrong direction
-  // (e.g., around a building instead of toward the destination)
+  // (e.g., around a building instead of toward the destination). The destination itself snaps to its
+  // nearest node: pulling it toward the start as well would let both ends collapse onto one node in between.
   const fromSnap = nearestRoutingNode(graph, fromPoint, mainComponent, toPoint);
-  const toSnap = nearestRoutingNode(graph, toPoint, mainComponent, fromSnap.point);
+  if (!fromSnap) return null;
+  const toSnap = nearestRoutingNode(graph, toPoint, mainComponent);
 
-  if (!fromSnap || !toSnap || fromSnap.nodeId === toSnap.nodeId) return null;
+  if (!toSnap || fromSnap.nodeId === toSnap.nodeId) return null;
 
   const fromSnapLatLon = toLatLon(fromSnap.point);
   const toSnapLatLon = toLatLon(toSnap.point);

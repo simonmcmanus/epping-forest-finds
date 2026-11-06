@@ -136,20 +136,6 @@ function invalidateMapFit() {
   _mapFitCache = null;
 }
 
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function escapeHtml(value) {
-  return String(value ?? "").replace(/[&<>"']/g, (char) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    "\"": "&quot;",
-    "'": "&#39;",
-  }[char]));
-}
-
 function finiteNumber(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
@@ -276,35 +262,6 @@ function calculateBaseMapBounds(layers) {
     });
   }
   return points.length ? boundsFromPoints(points) : fallbackWorldBounds();
-}
-
-function lineSegmentsFromGeometry(geometry) {
-  if (!geometry) return [];
-  if (geometry.type === "LineString") return [geometry.coordinates || []];
-  if (geometry.type === "MultiLineString") return geometry.coordinates || [];
-  return [];
-}
-
-function polygonRingsFromGeometry(geometry) {
-  if (!geometry) return [];
-  if (geometry.type === "Polygon") return [geometry.coordinates || []];
-  if (geometry.type === "MultiPolygon") return geometry.coordinates || [];
-  return [];
-}
-
-function forEachGeojsonCoordinate(collection, visit) {
-  for (const feature of collection.features || []) {
-    walkCoordinates(feature.geometry && feature.geometry.coordinates, visit);
-  }
-}
-
-function walkCoordinates(value, visit) {
-  if (!Array.isArray(value)) return;
-  if (typeof value[0] === "number" && typeof value[1] === "number") {
-    visit(value);
-    return;
-  }
-  for (const item of value) walkCoordinates(item, visit);
 }
 
 function projectLineFeature(feature) {
@@ -1188,7 +1145,7 @@ function buildUserList() {
     div.setAttribute("aria-pressed", uid === selectedUid ? "true" : "false");
     div.innerHTML = `
       <span class="admin-user-dot" style="background:${colour}"></span>
-      <span class="admin-user-label">${shortUid(uid)}</span>
+      <span class="admin-user-label">${escapeHtml(shortUid(uid))}</span>
       <span class="admin-user-meta">${info.count} pts · ${info.clicks} taps</span>
     `;
     div.title = `Last seen: ${lastSeen}`;
@@ -1365,9 +1322,7 @@ async function loadData(password) {
   let url;
   for (const days of ADMIN_WINDOW_FALLBACKS) {
     url = days ? `/api/admin/tracks?days=${days}` : "/api/admin/tracks";
-    console.log("[admin] fetching", url);
     resp = await fetch(url, { headers: { "Authorization": `Bearer ${password}` } });
-    console.log("[admin] response status", resp.status);
     if (resp.status === 401) throw new Error("wrong-password");
     if (resp.ok || resp.status < 500) break;
   }
@@ -1378,10 +1333,6 @@ async function loadData(password) {
   const data = await resp.json();
   data.locations = unpackTrackingEvents(data.locations);
   data.clicks = unpackTrackingEvents(data.clicks);
-  console.log("[admin] data received", {
-    locations: Array.isArray(data.locations) ? data.locations.length : 0,
-    clicks: Array.isArray(data.clicks) ? data.clicks.length : 0,
-  });
   updateEnvBadge(data.meta);
   lastMeta = data.meta;
   return data;
@@ -1501,13 +1452,9 @@ async function adminBoot() {
     loginError.textContent = "";
     try {
       allData = await loadData(pw);
-      console.log("[admin] login ok, switching screens");
       password = pw;
       saveSessionPassword(pw);
-      console.log("[admin] building UI");
       showAdminApp();
-      console.log("[admin] rendering canvas");
-      console.log("[admin] done");
     } catch (err) {
       console.error("[admin] login failed:", err);
       clearSessionPassword();

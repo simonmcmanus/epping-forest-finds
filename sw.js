@@ -35,6 +35,7 @@ const APP_SHELL = [
   "./css/onboarding.css",
   "./css/tracking.css",
   "./js/native.js",
+  "./js/shared.js",
   "./js/categories.js",
   "./js/app-cache-version.js",
   "./js/data-cache-version.js",
@@ -49,6 +50,8 @@ const APP_SHELL = [
   "./js/inspector.js",
   "./js/nav.js",
   "./js/onboarding.js",
+  "./js/permission-asks.js",
+  "./js/map-search.js",
   "./js/tracker.js",
   "./js/outbox.js",
   "./js/community.js",
@@ -677,8 +680,11 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          const copy = response.clone();
-          caches.open(cacheName).then((cache) => cache.put(event.request, copy));
+          // Only a successful answer is kept: a 404 or 5xx stored here would be served offline later.
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(cacheName).then((cache) => cache.put(event.request, copy));
+          }
           return response;
         })
         .catch(() => caches.match(event.request))
@@ -692,8 +698,11 @@ self.addEventListener("fetch", (event) => {
     caches.open(cacheName).then((cache) => cache.match(event.request)).then((cached) => {
       if (cached) return cached;
       return fetch(event.request).then((response) => {
-        const copy = response.clone();
-        caches.open(cacheName).then((cache) => cache.put(event.request, copy));
+        // A failed response goes to the page as it is but is never stored as the file's body.
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(cacheName).then((cache) => cache.put(event.request, copy));
+        }
         return response;
       });
     })

@@ -148,6 +148,7 @@ exports.handler = async (event) => {
   } catch {
     return response(400, { error: "Invalid JSON payload" });
   }
+  if (!payload || typeof payload !== "object") return response(400, { error: "Invalid JSON payload" });
 
   const reportType = String(payload.reportType || "missing-data").trim();
   const details = String(payload.details || "").trim();

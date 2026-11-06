@@ -7,9 +7,9 @@
 //    without it, the issue numbers are returned as `pending` for a person to handle.
 // The procedure around it is in docs/community-data-deletion.md.
 const { openStore } = require("./lib/community-store");
+const { isAdminRequest } = require("./lib/admin-auth");
 const { deleteCommunityData } = require("./lib/community-delete");
-const { configureBlobContext, REPORT_PHOTO_STORE } = require("./lib/report-photo");
-const { getStore } = require("@netlify/blobs");
+const { deletePhoto } = require("./lib/report-photo");
 const { makeGithubIssueEditor } = require("./lib/community-fetch");
 
 function respond(statusCode, body) {
@@ -17,19 +17,15 @@ function respond(statusCode, body) {
 }
 
 exports.handler = async (event) => {
-  const adminPassword = process.env.ADMIN_PASSWORD || "";
-  const auth = (event.headers && (event.headers.authorization || event.headers.Authorization)) || "";
-  if (!adminPassword || auth !== `Bearer ${adminPassword}`) return respond(401, { error: "Unauthorized" });
+  if (!isAdminRequest(event, process.env.ADMIN_PASSWORD || "")) return respond(401, { error: "Unauthorized" });
   if (event.httpMethod !== "POST") return respond(405, { error: "POST only" });
   let input;
   try { input = JSON.parse(event.body || "{}"); } catch { return respond(400, { error: "Invalid JSON" }); }
+  if (!input || typeof input !== "object") return respond(400, { error: "Invalid request" });
   if (input.confirm !== "delete") return respond(400, { error: 'Send "confirm": "delete" to confirm: this cannot be undone.' });
   const redact = input.redactIssues === true && process.env.CONTEXT === "production";
   try {
-    const photos = { delete: async (photoId) => {
-      if (!configureBlobContext(event)) throw new Error("Photo storage is unavailable");
-      await getStore(REPORT_PHOTO_STORE).delete(`photos/${photoId}`);
-    } };
+    const photos = { delete: (photoId) => deletePhoto(event, photoId) };
     const summary = await deleteCommunityData(openStore(event), {
       photos,
       deviceId: input.deviceId,

@@ -100,6 +100,9 @@ Rules:
 - `native/` — Capacitor shell for the App Store / Google Play: its own `package.json`, `scripts/sync-www.js` (allowlisted bundle of the client), committed `ios/` and `android/` projects
 - `netlify/functions/subscribe.js` — mailing-list sign-up endpoint for the homepage
 - `js/app.js` — application boot and wiring (state, boot sequence, settings/report/compass handlers). Loaded last, after every other `js/*.js`
+- `js/shared.js` — helpers both the app and the admin page use (`escapeHtml`, `clamp`, the GeoJSON coordinate walkers). Loaded first
+- `js/permission-asks.js` — the consent and permission prompts (location, analytics, motion, the first-visit card). Loaded before `app.js`
+- `js/map-search.js` — map search: the search index, ranking and results. Loaded before `app.js`
 - `js/loader.js` — data fetching, parallel fetch, normalisation triggers
 - `js/routing.js` — walkable road/path graph builder and pathfinding for the selected-route line (pure, no state/DOM access)
 - `js/normalize.js` — data normalisation utilities

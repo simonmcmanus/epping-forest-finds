@@ -239,12 +239,13 @@ pages").
 
 ## 7. Testing
 
-- **Unit** — the sign-up endpoint's validation and bot checks
-  (`test/subscribe.test.js`). The gate's own helpers are **not** unit-tested:
-  the edge function is an ES module running on Netlify's Deno runtime, and this
-  project's Node test runner loads `.js` as CommonJS, so it cannot import them.
-  Extracting them to a shared module would mean duplicating it for Deno, which
-  is worse than the gap.
+- **Unit** — `test/alpha-gate.test.js` runs the edge function's default handler
+  with a `Request` and checks every branch in §3.2, the cookie's attributes, a
+  rotated secret locking out its old cookies, and that every app route in
+  `netlify.toml` is in the gate's `config.path`. The module is ES syntax; Node
+  imports it dynamically, so no shared module or copy is needed.
+  The sign-up endpoint's validation and bot checks are in
+  `test/subscribe.test.js`.
 - **E2E** — the suite runs against `server.js`, where the gate is absent, so
   specs navigate to the screen paths directly. `test/e2e/helpers.js` defaults
   to `/nearby`, the app's entry point.
@@ -252,7 +253,7 @@ pages").
   absent from the sitemap and present in the robots disallow list, and that
   `/app` is in neither.
 
-Gate behaviour is therefore not covered by either suite: the e2e suite cannot
-see it (§3.4) and the unit suite cannot import it. **It is verified by hand on
-a deploy preview**, checking all four branches in §3.2 — no secret configured,
-a valid `?k=`, a returning cookie, and an uninvited visitor.
+The unit suite exercises the gate's logic; the e2e suite still cannot see it
+(§3.4). Netlify's runtime is not reproduced locally, so **a deploy preview remains
+the end-to-end check**: the four branches in §3.2 — no secret configured, a valid
+`?k=`, a returning cookie, and an uninvited visitor.

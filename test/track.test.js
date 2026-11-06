@@ -406,3 +406,20 @@ test("a daily file that fails to read marks the day incomplete instead of quietl
   assert.strictEqual(result.oldestDayIncomplete, true);
   assert.strictEqual(result.oldestDay, tracking.dayOf(now));
 });
+
+test("the admin read takes the password from the Authorization header only, never from the address", async () => {
+  track.setStore(memoryStore());
+  const byAddress = await track.handler({ httpMethod: "GET", headers: {}, queryStringParameters: { days: "all", pw: "admin-pw" } });
+  assert.strictEqual(byAddress.statusCode, 401, "a password in the URL would be written to logs and history");
+  const byHeader = await track.handler({ httpMethod: "GET", headers: { authorization: "Bearer admin-pw" }, queryStringParameters: { days: "all" } });
+  assert.strictEqual(byHeader.statusCode, 200);
+});
+
+test("an event whose device id is not a plain identifier is refused, so markup in an id never reaches the admin dashboard", () => {
+  const now = Date.now();
+  const at = { type: "location", ts: new Date(now).toISOString(), lat: 51.65, lng: 0.04 };
+  assert.ok(tracking.sanitizeEvent({ ...at, uid: "3f2a9c1e-7b4d-4e8a-9c61-2d5f0a8b7e10" }, { now }), "a UUID is kept");
+  assert.ok(tracking.sanitizeEvent({ ...at, uid: "local-u1" }, { now }), "a short dashed id is kept");
+  assert.equal(tracking.sanitizeEvent({ ...at, uid: '"><img src=x onerror=alert(1)>' }, { now }), null);
+  assert.equal(tracking.sanitizeEvent({ ...at, uid: "device one" }, { now }), null, "a space is not an identifier character");
+});

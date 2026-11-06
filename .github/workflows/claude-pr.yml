@@ -15,9 +15,11 @@ jobs:
     name: Respond to @claude on pull requests
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    # Only people who can already write to the repository may start this job, which holds write tokens.
     if: >
       github.event.issue.pull_request &&
       github.event.sender.login != 'claude[bot]' &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) &&
       contains(github.event.comment.body, '@claude')
     steps:
       - name: Checkout repository

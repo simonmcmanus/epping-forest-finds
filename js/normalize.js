@@ -34,9 +34,19 @@ function distanceMetres(lat1, lon1, lat2, lon2) {
   return 2 * EARTH_RADIUS_METRES * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
+// A coordinate that is missing or blank is null, never 0: Number(null) and Number("") are both 0, which
+// would place the item at null island (0,0).
+function finiteCoordinate(value) {
+  if (value === null || value === undefined || typeof value === "boolean") return null;
+  if (typeof value === "string" && value.trim() === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 function formatDistance(metres) {
   if (!Number.isFinite(metres)) return "Not recorded";
-  if (metres < 1000) return `${Math.round(metres)} m`;
+  // Decide on the rounded figure, so 999.6 m reads as 1 km rather than "1000 m".
+  if (Math.round(metres) < 1000) return `${Math.round(metres)} m`;
   const km = metres / 1000;
   const decimals = km < 10 ? 1 : 0;
   const kmStr = km.toFixed(decimals).replace(/\.0$/, "");
@@ -111,35 +121,6 @@ function normalizeTreeNumber(value) {
 }
 
 // --- Geometry helpers ---
-
-function lineSegmentsFromGeometry(geometry) {
-  if (!geometry) return [];
-  if (geometry.type === "LineString") return [geometry.coordinates || []];
-  if (geometry.type === "MultiLineString") return geometry.coordinates || [];
-  return [];
-}
-
-function polygonRingsFromGeometry(geometry) {
-  if (!geometry) return [];
-  if (geometry.type === "Polygon") return [geometry.coordinates || []];
-  if (geometry.type === "MultiPolygon") return geometry.coordinates || [];
-  return [];
-}
-
-function forEachGeojsonCoordinate(collection, visit) {
-  for (const feature of collection.features || []) {
-    walkCoordinates(feature.geometry && feature.geometry.coordinates, visit);
-  }
-}
-
-function walkCoordinates(value, visit) {
-  if (!Array.isArray(value)) return;
-  if (typeof value[0] === "number" && typeof value[1] === "number") {
-    visit(value);
-    return;
-  }
-  for (const item of value) walkCoordinates(item, visit);
-}
 
 // --- Path utilities ---
 
@@ -497,9 +478,9 @@ function isGenericFolkloreLocation(item) {
 
 function parseFolkloreCoordinates(coordinates) {
   if (!coordinates || typeof coordinates !== "object") return null;
-  const latitude = Number(coordinates.lat ?? coordinates.latitude);
-  const longitude = Number(coordinates.lng ?? coordinates.lon ?? coordinates.longitude);
-  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  const latitude = finiteCoordinate(coordinates.lat ?? coordinates.latitude);
+  const longitude = finiteCoordinate(coordinates.lng ?? coordinates.lon ?? coordinates.longitude);
+  if (latitude == null || longitude == null) return null;
   return { latitude, longitude };
 }
 
@@ -550,9 +531,9 @@ function normalizeEventLocations(data, nowMs = Date.now()) {
   const input = Array.isArray(data && data.events) ? data.events : [];
   return input
     .map((item, index) => {
-      const latitude = Number(item && (item.lat ?? item.latitude));
-      const longitude = Number(item && (item.lon ?? item.lng ?? item.longitude));
-      if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+      const latitude = finiteCoordinate(item && (item.lat ?? item.latitude));
+      const longitude = finiteCoordinate(item && (item.lon ?? item.lng ?? item.longitude));
+      if (latitude == null || longitude == null) return null;
       return {
         id: (item && item.id) || `event-${index + 1}`,
         name: (item && item.name) || "Forest event",
