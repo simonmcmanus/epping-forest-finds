@@ -27,7 +27,7 @@ const INCLUDE = [
   /^tree-icon\.svg$/,
   /^js\/[^/]+\.js$/,
   /^css\/[^/]+\.css$/,
-  // Images the app shell references from CSS and markup (the Settings 3D map preview).
+  // Images the app shell references from CSS and markup.
   /^css\/img\/[^/]+\.(png|svg|jpg|webp)$/,
   /^data\/.+\.(json|geojson|png|svg|jpg|webp)$/,
 ];
