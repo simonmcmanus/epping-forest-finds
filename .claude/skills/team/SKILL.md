@@ -45,11 +45,12 @@ Dispatch reviewers on the local branch, diffed against `origin/main`, all in par
 - markup, styles, interaction or icons: `accessibility-reviewer` and `design-reviewer`
 - rendering, data loading, assets or the service worker: `performance-reviewer`
 - a user flow, copy or a permission ask: `ux-reviewer`
-- a data change: `reviewer` only. The same gate applies to data items as to code items.
+- a data change: `reviewer` only. Data items still run sections 4 to 6; only the specialists are skipped.
 
 Collect every report. Only findings a reviewer has verified count. Blockers and majors go back to the
 implementer as a new local commit, with the finding text and `file:line`. Re-run the reviewers that
-raised them after each fix. Do not push a fix to test a review.
+raised them after each fix. After any fix that came from a test failure, re-run the full reviewer gate,
+because the fix itself is new code. Do not push a fix to test a review.
 
 Stop after three rounds of findings on the same item, and report the open findings to the user. Do not
 push that branch.
@@ -57,15 +58,17 @@ push that branch.
 ## 4. Test gate, before the push
 
 Dispatch `test-runner` on the local branch: the complete unit suite, and the e2e specs the change
-touches. A failure goes back to the implementer, the same as a finding. Do not treat a failure as
+touches. A failure goes back to the implementer, and the fix is then re-reviewed under section 3 and
+re-tested on the new commit. Do not treat a failure as
 pre-existing without the CI check on the base branch.
 
 ## 5. Push, then pull request
 
-Only when every reviewer in the gate has no open blockers or majors, and the test gate is green, push
+Only when every reviewer in the gate has no open blockers or majors, and the test gate is green on the
+exact commit being pushed, push
 from the lead session: `git push -u origin <branch>`. Retry network failures only.
 
-Open the PR by default, as `spec/agents.md` requires. CI only runs on PRs, so a pushed branch without
+Open the PR by default, as `spec/agents.md` requires. CI runs on pull requests, so a pushed branch without
 one has no verdict. Skip it only when the user has said not to open one.
 
 When the PR is open, dispatch `pr-steward` with the PR number and head branch. The steward drives CI and
