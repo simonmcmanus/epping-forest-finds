@@ -77,8 +77,9 @@ the lead session's own edits:
 - Any open PR goes to `pr-steward` on each event and safety-net check-in.
 - Any corrected place fact goes to `data-curator`.
 
-The lead session plans, dispatches and reports. It edits app code, tests or specs itself only when
-the user asks for that directly. If the agents are not loaded in a session, say so and then do the
+The lead session plans, dispatches and reports. Subagents cannot dispatch other agents, so the lead
+runs the team playbook itself: the `/orchestrate` skill (`.claude/skills/orchestrate/SKILL.md`). It
+edits app code, tests or specs itself only when the user asks for that directly. If the agents are not loaded in a session, say so and then do the
 work directly.
 
 Rules:
