@@ -1450,10 +1450,23 @@ The full routing model — the URL for each screen, history entries, back/forwar
   - **Which pills.** The plain `/nearby` screen shows one pill per top-level group (`Nature`,
     `Food`, `Transport`, `History`, `Locations`, `Stories`, `Events`). A `/nearby/<category>`
     landing shows that category's subcategory pills instead; a subcategory landing shows the same
-    sibling list. A pill is pressed and carries a visible tick when one of its filter keys is
-    enabled. On the group view that means any subcategory in the group is enabled; on the
-    subcategory view it means that exact subcategory is enabled. The saved filters are the starting
-    selection and read as pressed.
+    sibling list. A pill is pressed when one of its filter keys is enabled. On the group view that
+    means any subcategory in the group is enabled. Every group pill shows how many of its
+    subcategories are on (`2/3`, `0/4` when none), and a pressed group also shows a tick after it.
+    The count and tick slot are present in both states, so a group pill keeps one width when it is
+    switched on or off. On the subcategory view a pill means that exact subcategory is enabled, and
+    it shows a tick. The count's accessible name reads "Nature: 1 of 3 categories shown". The saved
+    filters are the starting selection and read as pressed.
+  - **Holding a pill edits its category.** Pressing and holding any category pill (not Everything)
+    for about 450ms opens a small dialog with just that category's subcategory chips and a **Done**
+    button. It is not the full map setup flow: there is no intro, no other groups and no progress
+    dots. A group pill edits its own group; a subcategory pill edits its parent group. **Done**, the
+    close button, a backdrop tap or Escape applies the chips, and the pill's count updates with them.
+    Moving more than about 10px cancels the hold, so scrolling the rail never opens it, and the
+    release does not also toggle the pill. A hold selects no text: the pill is `user-select: none`
+    (with the `-webkit-` prefix for Safari) and cancels `selectstart`. Implemented by
+    `setupRailLongPress()` (`js/nav.js`), which calls `openCategorySetup(groupKey)` (`js/app.js`);
+    the dialog is `showOnboarding({ mode: "category" })` (`js/onboarding.js`).
   - **Toggling.** Tapping a top-level pill enables or disables all of its subcategories. Tapping a
     subcategory pill enables or disables only that subcategory. The row remains at the level it
     was displayed at: `/nearby` keeps top-level groups available, while a category landing keeps

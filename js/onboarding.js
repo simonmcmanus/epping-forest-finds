@@ -89,9 +89,13 @@ function onboardingReducedMotion() {
 
 // Returns a Promise resolving to { filters: string[] }. Every exit path applies the current
 // staged selection, including the close button, Escape, and backdrop dismissal.
-function showOnboarding({ mode = "first-run" } = {}) {
+// mode "category" is a held rail pill: one group's chips and Done, nothing else. It uses the
+// filter-setup behaviour (Done, close, backdrop and Escape all apply the staged set) but skips the
+// intro, the other groups and the progress dots.
+function showOnboarding({ mode = "first-run", groupKey = null } = {}) {
   return new Promise((resolve) => {
-    const filterSetupMode = mode === "filters";
+    const categoryOnly = mode === "category";
+    const filterSetupMode = mode === "filters" || categoryOnly;
     const overlay = document.getElementById("onboardingOverlay");
     const progressEl = overlay.querySelector(".onboarding-progress");
     const contentEl = overlay.querySelector(".onboarding-content");
@@ -120,9 +124,11 @@ function showOnboarding({ mode = "first-run" } = {}) {
     }
     overlay.classList.remove("fading-out", "opening", "filter-intro");
 
-    const steps = filterSetupMode
-      ? [{ type: "filter-intro" }, ...FILTER_GROUPS.map((g) => ({ type: "group", group: g }))]
-      : ONBOARDING_STEPS;
+    const steps = categoryOnly
+      ? FILTER_GROUPS.filter((g) => g.key === groupKey).map((g) => ({ type: "group", group: g }))
+      : filterSetupMode
+        ? [{ type: "filter-intro" }, ...FILTER_GROUPS.map((g) => ({ type: "group", group: g }))]
+        : ONBOARDING_STEPS;
     let stepIndex = 0;
     const total = steps.length;
     let hasRenderedStep = false;
@@ -197,6 +203,10 @@ function showOnboarding({ mode = "first-run" } = {}) {
       : null;
 
     function renderProgress() {
+      if (categoryOnly) {
+        progressEl.innerHTML = "";
+        return;
+      }
       progressEl.innerHTML = steps.map((_, i) => {
         const cls = i === stepIndex ? "active" : i < stepIndex ? "done" : "";
         return `<span class="onboarding-dot ${cls}"></span>`;
@@ -269,7 +279,9 @@ function showOnboarding({ mode = "first-run" } = {}) {
           <p class="onboarding-step-subtitle">Tap to show or hide on the map and in Nearby.</p>
           <div class="onboarding-chips">${chips}</div>
         `;
-        actionsEl.innerHTML = `
+        actionsEl.innerHTML = categoryOnly
+          ? `<button class="button ob-next" type="button">Done</button>`
+          : `
           <div class="onboarding-nav">
             <button class="button ob-back" type="button">← Back</button>
             <button class="button ob-next" type="button">${isLast ? "Done" : "Next"}</button>

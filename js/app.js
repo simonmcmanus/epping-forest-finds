@@ -3433,6 +3433,21 @@ function openFiltersScreen() {
   openFilterSetup();
 }
 
+// A held rail pill edits just that category: its chips and a Done button, not the whole map setup
+// flow. Done, the close button, a backdrop tap or Escape all apply the staged set, as in map setup,
+// and the Nearby view behind it is left where it is (no route change).
+function openCategorySetup(groupKey) {
+  if (typeof showOnboarding !== "function") return;
+  const overlay = document.getElementById("onboardingOverlay");
+  if (!overlay || typeof overlay.querySelector !== "function" || !overlay.querySelector(".onboarding-progress")) return;
+  if (overlay._onboardingActive || !FILTER_GROUPS_BY_KEY.has(groupKey)) return;
+
+  showOnboarding({ mode: "category", groupKey }).then((result) => {
+    if (Array.isArray(result.filters)) setOverviewFilters(result.filters);
+    updateFilterUi();
+  });
+}
+
 function openSettings() {
   if (typeof dismissOnboarding === "function") dismissOnboarding();
   if (typeof trackGaScreenView === "function") trackGaScreenView("Settings");
@@ -5099,12 +5114,37 @@ function railPillKeys() {
   return railItems().map((item) => item.key);
 }
 
+// The category a rail pill stands for, for holding it open in map setup: a group pill is its own
+// group, a subcategory pill is its parent group. The Everything pill is not a category.
+function railPillGroupKey(key) {
+  const group = FILTER_GROUPS_BY_KEY.get(key);
+  if (group) return group.key;
+  const subfilter = FILTER_SUBFILTERS_BY_KEY.get(key);
+  return subfilter ? subfilter.groupKey : null;
+}
+
+// The group pill that is on says how many of its subcategories are on ("2/3"), so the reader can
+// see how much of the group they have chosen without opening it. A subcategory pill is one
+// category, so it keeps the plain tick.
 function filterRailHtml() {
   const allOn = railSelection().length === 0;
   const allStatus = `<span class="rail-check" aria-hidden="true">${allOn ? "✓" : ""}</span>`;
   const allPill = `<button class="rail-pill rail-pill--all${allOn ? " is-on" : ""}" type="button" data-rail-key="all-nearby" aria-pressed="${allOn}">${appIconHtml("nearby")}<span>Everything</span>${allStatus}</button>`;
+  const groupLevel = !nearbyRailGroup();
+  const activeKeys = new Set(state.overviewFilters);
   const pills = railItems().map((item) => {
     const on = railItemIsActive(item);
+    if (groupLevel) {
+      const shown = item.filterKeys.filter((key) => activeKeys.has(key)).length;
+      const total = item.filterKeys.length;
+      // The count is always shown, so "0/4" reads on a group that is off too, and the tick slot is
+      // always reserved. Both are present in every state, so the pill keeps one width when it is
+      // switched on or off; the tabular figures keep "0/4" and "4/4" the same width.
+      const count = `<span class="rail-count${on ? "" : " is-off"}" aria-hidden="true">${shown}/${total}</span>`;
+      const status = `${count}<span class="rail-check" aria-hidden="true">${on ? "✓" : ""}</span>`;
+      const label = `${escapeHtml(item.label)}: ${shown} of ${total} categories shown`;
+      return `<button class="rail-pill${on ? " is-on" : ""}" type="button" data-rail-key="${item.key}" aria-pressed="${on}" aria-label="${label}" title="Hold to choose ${escapeHtml(item.label)} categories">${appIconHtml(item.icon)}<span>${escapeHtml(item.label)}</span>${status}</button>`;
+    }
     const status = `<span class="rail-check" aria-hidden="true">${on ? "✓" : ""}</span>`;
     return `<button class="rail-pill${on ? " is-on" : ""}" type="button" data-rail-key="${item.key}" aria-pressed="${on}">${appIconHtml(item.icon)}<span>${escapeHtml(item.label)}</span>${status}</button>`;
   }).join("");

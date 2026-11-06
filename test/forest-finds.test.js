@@ -2277,18 +2277,25 @@ test("overviewNearestHtml carries the labelled category navigation and results h
   app.location.pathname = "/";
 });
 
-test("the plain Nearby filter rail shows top-level categories with ticks for enabled groups", () => {
+test("the plain Nearby filter rail counts how many subcategories each enabled group has on", () => {
   resetData(app);
   app.location.pathname = "/nearby";
   app.state.overviewFilters = ["pubs", "trees"];
   const html = app.filterRailHtml();
+  // The visible text of one pill, without its markup: its label, then its count when on.
+  const pillText = (key) => {
+    const match = new RegExp(`data-rail-key="${key}"[^>]*>([\\s\\S]*?)</button>`).exec(html);
+    return match ? match[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() : null;
+  };
   assert.match(html, /<nav class="filter-rail" aria-label="Filter nearby places">/);
   assert.match(html, /class="rail-pill rail-pill--all" type="button" data-rail-key="all-nearby" aria-pressed="false"/);
   assert.match(html, /class="rail-pill is-on" type="button" data-rail-key="nature" aria-pressed="true"/);
-  assert.match(html, /data-rail-key="nature"[^>]*>[^<]*[\s\S]*?<span class="rail-check"/, "enabled groups show a tick");
+  assert.equal(pillText("nature"), "Nature 1/3 ✓", "one of Nature's three subcategories is on, and the group keeps its tick");
+  assert.equal(pillText("food"), "Food 1/4 ✓", "one of Food's four subcategories is on, and the group keeps its tick");
+  assert.match(html, /data-rail-key="nature"[^>]*aria-label="Nature: 1 of 3 categories shown"/, "the count is read out with its meaning");
   assert.match(html, /class="rail-pill is-on" type="button" data-rail-key="food" aria-pressed="true"/);
   assert.match(html, /data-rail-key="transport" aria-pressed="false"/, "the rail uses top-level groups");
-  assert.match(html, /data-rail-key="transport"[^>]*>[\s\S]*?<span class="rail-check"[^>]*><\/span>/, "disabled groups reserve the indicator space without showing a close icon");
+  assert.equal(pillText("transport"), "Transport 0/4", "a group with nothing on still shows how many it has, with no tick");
   const keys = [...html.matchAll(/data-rail-key="([a-z_]+)"/g)].map((m) => m[1]);
   assert.equal(new Set(keys).size, keys.length, "no category appears twice");
   assert.ok(keys.includes("nature") && keys.includes("food"), "the top-level categories are in the row");
