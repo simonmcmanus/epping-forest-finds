@@ -550,7 +550,7 @@ the only one.
   - Caches belonging to other apps are never touched. All three are disabled, with one shared inline note, while offline; a false online signal is also handled safely because refresh failure never clears the working cache.
 - When the background data sync (see `spec/spec-data-fetching.md`) has cached newer map data, the About section shows a "New map data has been downloaded. Reload now to see it." note with an inline **Reload now** action (`#dataUpdateReloadButton`, a plain `location.reload()` — lighter than routing the user through one of the Refresh buttons, which also clear caches that don't need clearing here) and the settings icon carries the same update marker used for a pending app update.
 - Contains a **Privacy** section with one row per question (see "Permissions and Consent"): **Location** — on/off, with **Use my location** (`#settingsLocateButton`) as the way back for anyone who said not now, replaced by an explanation (`#locationBlockedNote`) when the permission is blocked in browser or phone settings, where a button could not work; answering there updates the row in place rather than leaving Settings. **Usage analytics** — on/off, and one toggle (`#analyticsToggle`) that sets usage data and analytics cookies together (`js/app.js` `settingsFormHtml`/`setupSettingsLocationRow`). There is no separate cookie control in the app.
-- Changing the walking radius stays on the settings screen, immediately animates the map to fit the new radius, updates the nearby list and nearest tree selection, and keeps the walking radius ring visible on the screens that draw it (not Settings, which hides the ring).
+- Changing the walking radius stays on the settings screen, immediately animates the map to fit the new radius, updates the nearby list and nearest tree selection, and keeps the walking radius ring visible on the screens that draw it, Settings included.
 - Opening Settings shows the same map view as the Filter and Feedback screens (see below).
 
 ## Feedback Screen
@@ -576,7 +576,7 @@ the only one.
 The Search, Filter, Settings, and Feedback screens all display the same fixed map view in the background, so switching between them never changes what's shown:
 
 - The camera zooms out past the walking radius far enough to reach the nearest match of every selected filter — even when each one is a long walk outside the radius — so the screen where you pick what to look for actually shows that it exists and which way it lies (survey mode — see `spec-data-rendering.md`). With no filters selected there is nothing extra to reach for and the view is the plain walking-radius framing.
-- The walking-radius ring is visible on the Nearby, Search, Filter and Feedback screens; the Settings screen hides it, while its slider and the two-finger pinch still change the radius. Everything that removes or
+- The walking-radius ring is visible on the Nearby, Search, Filter, Settings and Feedback screens; its slider and the two-finger pinch change the radius from Settings too. Everything that removes or
   adjusts the ring works from the screens that show it: the "Use my location" control that clears a browse anchor stays on
   screen, a tap on open ground moves the anchor (without dismissing the screen), and the
   two-finger pinch resizes the radius. The nearby list and map pins read from the same browse

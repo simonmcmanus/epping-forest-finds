@@ -1274,9 +1274,6 @@ function drawWalkingRadiusRimHighlight(ctx, center, radiusPx, tilted, dpr) {
 }
 
 function drawWalkingRadius(ctx) {
-  // The Settings screen shows the map without the walking-radius ring (its circle, dimming wash
-  // and rim); the radius is still set from there by the slider and the pinch gesture.
-  if (state.selected && state.selected.type === "settings") return;
   // The *rendered* origin, so the circle stays still on screen while a browse-origin slide moves
   // the map behind it (nearbyRenderOriginPoint, index.html).
   const originPoint = state.selectionTransition.mapHeld && state.selectionMapTransitionOriginPoint

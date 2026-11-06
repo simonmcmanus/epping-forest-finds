@@ -515,7 +515,7 @@ invisible control.
 ### Browsing Another Spot
 
 Every screen that draws the walking-radius ring — the plain Nearby/overview screen *and*
-Filter/Report (Settings draws no ring, see spec.md) — supports previewing what's near a different point on the map without
+Filter/Settings/Report — supports previewing what's near a different point on the map without
 moving the real GPS fix:
 
 - **Tap-to-relocate:** tapping open ground anywhere on the map sets `state.nearbyAnchor` to that
