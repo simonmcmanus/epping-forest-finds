@@ -423,3 +423,19 @@ test("an event whose device id is not a plain identifier is refused, so markup i
   assert.equal(tracking.sanitizeEvent({ ...at, uid: '"><img src=x onerror=alert(1)>' }, { now }), null);
   assert.equal(tracking.sanitizeEvent({ ...at, uid: "device one" }, { now }), null, "a space is not an identifier character");
 });
+
+test("Tracking days=all reads back the retention period, and a year when retention is switched off", async () => {
+  process.env.TRACKING_RETENTION_DAYS = "0";
+  try {
+    const store = memoryStore();
+    track.setStore(store);
+    const now = Date.now();
+    for (const age of [0, 200, 400]) await tracking.storeBatch(store, [location(`age${age}`, now - age * DAY)], { now });
+    const read = await track.handler({ httpMethod: "GET", headers: { authorization: "Bearer admin-pw" }, queryStringParameters: { days: "all" } });
+    const body = JSON.parse(read.body);
+    assert.strictEqual(body.meta.windowDays, null);
+    assert.deepStrictEqual(tracking.unpackEvents(body.locations).map((e) => e.uid).sort(), ["age0", "age200"]);
+  } finally {
+    delete process.env.TRACKING_RETENTION_DAYS;
+  }
+});

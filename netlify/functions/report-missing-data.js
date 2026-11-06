@@ -94,6 +94,13 @@ async function recordReporter(event, deviceId, ref, entry) {
   }
 }
 
+// GitHub refuses an issue body over 65,536 characters, and the visitor only ever sees the refusal. A
+// message this long is turned away here, with a sentence the visitor can act on, before anything is sent.
+const REPORT_DETAILS_MAX = 5000;
+// What a visitor sees when the report could not be filed for a reason on our side. The developer detail
+// (which setting is missing, GitHub's own message) goes to the server log, never into the response.
+const REPORT_UNAVAILABLE = "We could not send your report just now. Your text is still here.";
+
 function normalizedToken(value) {
   if (typeof value !== "string") return "";
   return value.trim().replace(/^['\"]|['\"]$/g, "");
@@ -181,6 +188,9 @@ exports.handler = async (event) => {
   if (!isPlaceCheck && !details) {
     return response(400, { error: "Details are required" });
   }
+  if (details.length > REPORT_DETAILS_MAX) {
+    return response(400, { error: "Your message is too long. Please keep it to 5,000 characters or fewer." });
+  }
 
   const githubToken = normalizedToken(
     process.env.GITHUB_TOKEN
@@ -191,9 +201,8 @@ exports.handler = async (event) => {
   const githubRepo = process.env.GITHUB_REPO || DEFAULT_REPO;
 
   if (!githubToken) {
-    return response(501, {
-      error: "GitHub issue integration is not configured at runtime. Set GITHUB_TOKEN (or GH_TOKEN / GITHUB_FINE_GRAINED_TOKEN / GITHUB_PAT) in Netlify Site settings → Environment variables for the active deploy context, then redeploy.",
-    });
+    console.error("report-missing-data: GitHub issue integration is not configured at runtime. Set GITHUB_TOKEN (or GH_TOKEN / GITHUB_FINE_GRAINED_TOKEN / GITHUB_PAT) in Netlify Site settings → Environment variables for the active deploy context, then redeploy.");
+    return response(503, { error: REPORT_UNAVAILABLE });
   }
 
   // Past this point a report costs a GitHub call and may create an issue: cap how many one network,
@@ -375,9 +384,10 @@ exports.handler = async (event) => {
 
     if (!issueResponse.ok) {
       await releaseClaim();
-      return response(issueResponse.status, {
-        error: issueData && issueData.message ? issueData.message : "Failed to create GitHub issue",
-      });
+      // GitHub's own status and message are for the log. The visitor's report is not filed, so this is a 502
+      // (an upstream failure, which the client outbox retries) rather than GitHub's status passed through.
+      console.error(`report-missing-data: GitHub answered ${issueResponse.status} creating an issue: ${(issueData && issueData.message) || "no message"}`);
+      return response(502, { error: REPORT_UNAVAILABLE });
     }
 
     if (ref) {
@@ -391,9 +401,10 @@ exports.handler = async (event) => {
       issueNumber: issueData.number,
       issueUrl: issueData.html_url,
     });
-  } catch {
+  } catch (error) {
+    console.error(`report-missing-data: request to GitHub failed: ${error && error.message}`);
     await releaseClaim();
-    return response(502, { error: "Failed to reach GitHub API" });
+    return response(502, { error: REPORT_UNAVAILABLE });
   }
 };
 

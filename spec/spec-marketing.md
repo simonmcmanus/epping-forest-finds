@@ -1050,7 +1050,12 @@ which addresses are on the list is an enumeration oracle.
   was sent or exposing whether the address is already listed.
 - While sending, the form stays visible with a disabled submit button and busy
   state; repeated submissions are ignored. Errors preserve the address and restore
-  the button so the visitor can retry.
+  the button so the visitor can retry. An address that EmailOctopus itself
+  refuses (a 400 or 422 answer, for example one that passes the loose local
+  check but is not a deliverable address) gets a 400 reading "We could not add
+  that address. Please check it and try again."; a refusal for any other reason
+  (a rate limit, a service fault, a configuration problem) gets the
+  "temporarily unavailable" message as a 502.
 - On success, the entire signup introduction and form are hidden and replaced by
   a dedicated panel: an envelope illustration marked with a gold **2** badge,
   **“Step 2 of 2”**, **“Confirm your email to finish”**, instructions to check

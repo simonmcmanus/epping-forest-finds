@@ -150,7 +150,7 @@ Location pings report the **raw GPS fix** (`state.rawUserLocation`), not `state.
 Returns stored events from a recent time window. Requires the Bearer header (see Authentication above).
 
 **Query params:**
-- `days` — size of the window in days. Defaults to **30**. `days=all` reads back to the retention period (a year by default).
+- `days` — size of the window in days. Defaults to **30**. `days=all` reads back to the retention period (a year by default). With `TRACKING_RETENTION_DAYS=0` nothing is deleted, but `days=all` still reads back only a year, so one dashboard request stays bounded.
 
 **Response:** events are packed to fit about six times as many into the response — one table of uids (and of navigation targets) and one short array per event. `js/admin.js` `unpackTrackingEvents()` turns them back into the event objects above; a plain array of events (an older server, a test fixture) is used as it is.
 ```json
@@ -215,7 +215,7 @@ An admin read lists only `raw/<type>/<day>/` for the days in its window and read
 
 **Compaction.** `netlify/functions/track-compact-scheduled.js` runs every 10 minutes (`netlify.toml`). It lists every raw batch (cheap, since it runs every 10 minutes and so only ever finds the last few minutes' batches plus any that arrived late from an offline queue), and for each day, newest first, reads that day's batches, merges them into the day's daily file, writes it, and only then deletes the batches it absorbed; a batch filed under a day already past the retention period is deleted instead; events are de-duplicated on merge, so a run that dies between the write and the delete never double-counts. A batch that fails to read is left in place for the next run rather than deleted unseen, and a failure reading a day's existing daily file stops the run instead of overwriting the day with only the new events. It then migrates one listing page of the old flat layout per prefix into daily files (by each event's own date) and deletes those blobs, so a long-lived store converts over successive runs without ever listing the whole of it at once. Each run stops at 20 seconds (scheduled functions get 30) and leaves the rest to the next. Between runs, an admin read also merges any raw batches not yet compacted, so nothing is missing from the dashboard while a day is still open. Until the old layout has been fully migrated, the history it holds appears day by day as it converts, oldest first.
 
-**Retention.** Daily files, and any raw batch, older than `TRACKING_RETENTION_DAYS` (default **365**) are deleted by the compaction run. `TRACKING_RETENTION_DAYS=0` keeps everything. The period is the owner's decision and should match the privacy page; the default exists so the store does not grow without end.
+**Retention.** Daily files, and any raw batch, older than `TRACKING_RETENTION_DAYS` (default **365**) are deleted by the compaction run. `TRACKING_RETENTION_DAYS=0` keeps everything on disk (nothing is deleted); the dashboard's `days=all` read is still capped at a year (see the admin read above). The period is the owner's decision and should match the privacy page; the default exists so the store does not grow without end.
 
 The local NDJSON fallback has no day layout, so it reads the whole file and filters by each event's own `ts` — fine at local-dev data volumes.
 
