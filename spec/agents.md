@@ -68,6 +68,19 @@ and merges. The subagents in `.claude/agents/` do the work:
   Subagents cannot subscribe to PR events or wake themselves, so the lead session holds the PR
   subscription and dispatches the steward on each event and each safety-net check-in.
 
+Default delegation. In any session that has these agents, the work goes through them, not through
+the lead session's own edits:
+
+- Any change to app code, tests or specs goes to an `implementer`, in its own worktree.
+- Any change ready to hand over goes through `reviewer`, `test-runner`, and the specialist reviewers
+  that match what changed, before it is handed over.
+- Any open PR goes to `pr-steward` on each event and safety-net check-in.
+- Any corrected place fact goes to `data-curator`.
+
+The lead session plans, dispatches and reports. It edits app code, tests or specs itself only when
+the user asks for that directly. If the agents are not loaded in a session, say so and then do the
+work directly.
+
 Rules:
 
 - **One worktree and branch per work item:** `git worktree add .worktrees/<topic> -b claude/<topic> origin/main`.
