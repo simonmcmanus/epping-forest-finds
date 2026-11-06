@@ -900,6 +900,44 @@ test.describe("Overview / Nearby screen", () => {
       expect(after.selectedType).toBe("tree");
     });
   });
+
+  // Safari reports a page pinch as gesturestart/gesturechange/gestureend, aimed at whatever was
+  // under the first finger. Chromium never fires these, so a synthetic event is the signal: the
+  // browser zooms the page unless the event is cancelled.
+  test.describe("Page pinch-zoom", () => {
+    test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] });
+
+    async function dispatchPagePinch(page, selector) {
+      return page.evaluate((selector) => {
+        const target = document.querySelector(selector);
+        return ["gesturestart", "gesturechange", "gestureend"].map((type) => {
+          const event = new Event(type, { cancelable: true, bubbles: true });
+          target.dispatchEvent(event);
+          return event.defaultPrevented;
+        });
+      }, selector);
+    }
+
+    test("a pinch that starts outside the map is left to the browser, so the list and inspector can be zoomed", async ({ page }) => {
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+
+      for (const selector of ["#inspectorBody .nearest-item", "#inspectorTitle", ".inspector-actions"]) {
+        expect(await dispatchPagePinch(page, selector), `a pinch starting on ${selector}`).toEqual([false, false, false]);
+      }
+    });
+
+    // On the plain Nearby screen the map's own canvas handlers cancel a page pinch anyway, so this
+    // is checked with a tree selected: there only the page-wide cancel covers the map.
+    test("a pinch that starts on the map is still cancelled, so the map keeps its own zoom", async ({ page }) => {
+      await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+      await page.waitForFunction(
+        (name) => document.getElementById("inspectorTitle")?.textContent?.includes(name),
+        FIXTURE_TREE.commonName
+      );
+
+      expect(await dispatchPagePinch(page, "#mapCanvas")).toEqual([true, true, true]);
+    });
+  });
 });
 
 

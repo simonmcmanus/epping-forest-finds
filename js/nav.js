@@ -824,9 +824,15 @@ function setupUiZoomLock() {
     if (event.ctrlKey) event.preventDefault();
   }, { passive: false });
 
-  document.addEventListener("gesturestart", (event) => event.preventDefault(), { passive: false });
-  document.addEventListener("gesturechange", (event) => event.preventDefault(), { passive: false });
-  document.addEventListener("gestureend", (event) => event.preventDefault(), { passive: false });
+  // Safari's page pinch (gesturestart/gesturechange/gestureend) is cancelled only when it starts
+  // on the map, where the map's own pinch needs it. Everywhere else it is left to the browser, so
+  // the Nearby list, the inspector and Settings can be zoomed. A gesture's target is fixed by where
+  // it starts, so a pinch that begins on the map and drifts off it is still the map's.
+  for (const type of ["gesturestart", "gesturechange", "gestureend"]) {
+    document.addEventListener(type, (event) => {
+      if (event.target === els.canvas) event.preventDefault();
+    }, { passive: false });
+  }
 
   document.addEventListener("touchmove", (event) => {
     if (event.touches.length > 1) event.preventDefault();
