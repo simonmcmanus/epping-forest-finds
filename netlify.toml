@@ -264,9 +264,9 @@
     Access-Control-Allow-Origin = "*"
     Cache-Control = "no-cache"
 
-# Places merged as duplicates: their old /find/<slug>/ pages moved to the surviving
-# record's page. Permanent, so search results and bookmarks follow the record.
-# Generated once from the pre-merge slug index; slugs with no surviving page are not listed.
+# Places merged as duplicates or renamed: their old /find/<slug>/ pages move to the
+# record's current page. Permanent, so search results and bookmarks follow the record.
+# Generated from the slug index on main against this branch, matched by record id.
 [[redirects]]
   from = "/find/1-stop-halal-at-tesco/"
   to = "/find/tesco-e11/"
@@ -300,6 +300,16 @@
 [[redirects]]
   from = "/find/cafe-chicchi-trading-as-sensei-burgers-n-zalad-maki-kazzo/"
   to = "/find/cafe-chicchi/"
+  status = 301
+
+[[redirects]]
+  from = "/find/co-op-e18/"
+  to = "/find/co-op-e11/"
+  status = 301
+
+[[redirects]]
+  from = "/find/co-op-ig8/"
+  to = "/find/co-op-e11/"
   status = 301
 
 [[redirects]]
@@ -348,6 +358,16 @@
   status = 301
 
 [[redirects]]
+  from = "/find/greggs-the-bakers-e11/"
+  to = "/find/greggs-the-bakers/"
+  status = 301
+
+[[redirects]]
+  from = "/find/greggs-the-bakers-e18/"
+  to = "/find/greggs-the-bakers/"
+  status = 301
+
+[[redirects]]
   from = "/find/harleys-bistro-lounge/"
   to = "/find/harley-s/"
   status = 301
@@ -365,6 +385,11 @@
 [[redirects]]
   from = "/find/hokkaido-japanese-restaurant/"
   to = "/find/hokkaido/"
+  status = 301
+
+[[redirects]]
+  from = "/find/jaipur-367234/"
+  to = "/find/jaipur/"
   status = 301
 
 [[redirects]]
@@ -478,6 +503,11 @@
   status = 301
 
 [[redirects]]
+  from = "/find/sainsbury-s-local-846043/"
+  to = "/find/sainsbury-s-local-ig10/"
+  status = 301
+
+[[redirects]]
   from = "/find/sainsburys-loughton-church-hill-local/"
   to = "/find/sainsbury-s-local-ig10/"
   status = 301
@@ -503,6 +533,26 @@
   status = 301
 
 [[redirects]]
+  from = "/find/tesco/"
+  to = "/find/tesco-e4/"
+  status = 301
+
+[[redirects]]
+  from = "/find/tesco-2/"
+  to = "/find/tesco-e4/"
+  status = 301
+
+[[redirects]]
+  from = "/find/tesco-712730/"
+  to = "/find/tesco-ig8/"
+  status = 301
+
+[[redirects]]
+  from = "/find/tesco-808114/"
+  to = "/find/tesco-e11/"
+  status = 301
+
+[[redirects]]
   from = "/find/tesco-stores/"
   to = "/find/tesco-ig8/"
   status = 301
@@ -525,6 +575,11 @@
 [[redirects]]
   from = "/find/warren-wood-kitchen/"
   to = "/find/the-warren-wood/"
+  status = 301
+
+[[redirects]]
+  from = "/find/wesleyan-christian-centre-052941/"
+  to = "/find/wesleyan-christian-centre/"
   status = 301
 
 [[redirects]]
