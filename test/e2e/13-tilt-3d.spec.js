@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { skipOnboarding, mockCowApi, gotoAndWaitForMap, tapCanvasPoint } = require("./helpers");
+const { skipOnboarding, mockCowApi, gotoAndWaitForMap, tapCanvasPoint, waitForUiToSettle } = require("./helpers");
 
 // A GPS fix inside Epping Forest
 const FOREST_LOCATION = { latitude: 51.6538, longitude: 0.0400, accuracy: 10 };
@@ -562,6 +562,36 @@ test.describe("3D tilt view", () => {
       worstStep,
       `worst single-frame zoom step was ${worstStep.toFixed(2)}x against a ${(high / low).toFixed(2)}x slide`,
     ).toBeLessThanOrEqual((high / low) * 1.02);
+  });
+
+  test("opening a place off to one side keeps the 3D horizon where Nearby holds it", async ({ page }) => {
+    // Opening a place from the Nearby list used to pull the 3D pivot toward the centre of the
+    // screen by the cosine of the place's bearing. A place off to one side therefore lifted the
+    // horizon on opening and dropped it again on returning to Nearby, on every hop between places.
+    // Only a place behind the user pulls the pivot now, so a sideways place leaves it where it is.
+    await tiltToSettled(page, 60);
+    const nearbyHorizon = await page.evaluate(() => tiltHorizonCanvasY());
+    expect(nearbyHorizon, "sanity: 3D is on, so the horizon is defined").not.toBeNull();
+
+    await page.locator("#inspectorBody .nearest-item").first().click();
+    await expect(page.locator("#inspectorTitle")).not.toHaveText("Nearby");
+
+    // Precondition, not the behaviour under test: the first listed place sits off to one side of
+    // straight ahead, the case that used to move the pivot.
+    const offset = await page.evaluate(() => Math.abs(selectedNavigationTargetBearingOffsetRadians()));
+    expect(offset, "sanity: the first place should sit off to one side").toBeLessThan(Math.PI / 2);
+
+    await waitForUiToSettle(page);
+    // Settling leaves a few canvas pixels of drift even for a place dead ahead, so the bound is
+    // 6 CSS px. The pull this guards against moved the horizon by roughly 30 CSS px.
+    const { selectedHorizon, dpr } = await page.evaluate(() => ({
+      selectedHorizon: tiltHorizonCanvasY(),
+      dpr: pixelRatio(),
+    }));
+    expect(
+      Math.abs(selectedHorizon - nearbyHorizon),
+      "the horizon should stay where Nearby put it when the place opens",
+    ).toBeLessThan(6 * dpr);
   });
 
   test("the canvas carries no CSS 3D transform of its own", async ({ page }) => {

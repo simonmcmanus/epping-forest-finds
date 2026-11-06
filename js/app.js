@@ -6812,7 +6812,7 @@ function tiltAnchorFraction() {
 // is (selectedNavigationTargetBearingOffsetRadians()) -- dead ahead leaves it
 // untouched (matching the previous fixed-anchor behaviour exactly), dead behind
 // flips it to `1 - anchor` (as much room below the user as the old anchor gave
-// above), and a target to the side lands near the centre. Without this, a
+// above), and a target to the side leaves it untouched (see headingUpBearingMirrorFactor). Without this, a
 // destination behind the user got squeezed into the small margin below a pivot
 // fixed near the bottom of the screen, forcing a needlessly wide zoom-out instead of
 // making use of the screen space that's actually available in the destination's own
@@ -6873,7 +6873,20 @@ function headingUpAnchorFraction(isSelected, useFinalBrowseState = false) {
   if (!isSelected) return aheadAnchor;
   const offset = selectedNavigationTargetBearingOffsetRadians();
   if (offset == null) return aheadAnchor;
-  return 0.5 + (aheadAnchor - 0.5) * Math.cos(offset);
+  return 0.5 + (aheadAnchor - 0.5) * headingUpBearingMirrorFactor(offset);
+}
+
+// How much of the forward anchor's distance from the screen centre survives for a destination at
+// this bearing (radians: 0 = dead ahead, +-PI/2 = a side, +-PI = dead behind). Full strength across
+// the whole ahead half, so a destination off to one side keeps the pivot where Nearby has it --
+// sideways hops between places no longer glide the view up and back down. Only a destination
+// behind the user pulls the pivot toward the centre, which is what leaves room in front of it.
+// The fall from 1 at PI/2 to -1 at PI is continuous, so the pivot never jumps as a target
+// crosses the side.
+function headingUpBearingMirrorFactor(offset) {
+  const magnitude = Math.abs(offset);
+  if (magnitude <= Math.PI / 2) return 1;
+  return -Math.cos(2 * magnitude);
 }
 
 // Signed-magnitude offset (radians) of the selected navigation target's bearing from
@@ -6937,8 +6950,8 @@ function tiltAvailableAheadCssPx(useFinalBrowseState = false) {
   const isSelected = selectedNavigationHeadingUpActive();
   const anchor = headingUpAnchorFraction(isSelected, useFinalBrowseState);
   // max(anchor, 1 - anchor) alone still dips as low as 0.5 for a destination
-  // directly to a side (offset ~= +-pi/2, where headingUpAnchorFraction's
-  // cos(offset) mirroring passes through the screen's exact 50% centre) -- lower
+  // about 135 degrees round (offset ~= +-3pi/4, where headingUpBearingMirrorFactor is zero and
+  // the mirrored anchor reaches the screen's exact 50% centre) -- lower
   // than the historically-safe floor (tiltRampedAnchor(), always >= 0.5 by
   // construction, e.g. 0.62-0.88 for selected navigation) that this calculation
   // always used before bearing-based mirroring existed. That dip shrank the camera

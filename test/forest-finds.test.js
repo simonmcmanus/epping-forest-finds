@@ -3807,10 +3807,16 @@ test("headingUpAnchorFraction mirrors the selected-navigation anchor around the 
   assert.ok(Math.abs(app.headingUpAnchorFraction(true) - (1 - plainSelectedAnchor)) < 1e-9,
     `dead-behind anchor should mirror to 1 - ${plainSelectedAnchor}, got ${app.headingUpAnchorFraction(true)}`);
 
-  // Directly to a side (target due north): lands at the screen's vertical centre.
+  // Directly to a side (target due north): keeps the plain anchor, so sideways hops between
+  // places do not move the pivot up and back down.
   app.state.selected = { type: "tree", item: { id: "side", ...makePoint(app, 0.001, 0) } };
-  assert.ok(Math.abs(app.headingUpAnchorFraction(true) - 0.5) < 1e-9,
-    `side anchor should land at the centre (0.5), got ${app.headingUpAnchorFraction(true)}`);
+  assert.ok(Math.abs(app.headingUpAnchorFraction(true) - plainSelectedAnchor) < 1e-9,
+    `side anchor should keep the plain anchor (${plainSelectedAnchor}), got ${app.headingUpAnchorFraction(true)}`);
+
+  // Well off ahead to one side (about 63 degrees from straight ahead): still a side, still plain.
+  app.state.selected = { type: "tree", item: { id: "offAhead", ...makePoint(app, 0.001, 0.0005) } };
+  assert.ok(Math.abs(app.headingUpAnchorFraction(true) - plainSelectedAnchor) < 1e-9,
+    `off-ahead side anchor should keep the plain anchor (${plainSelectedAnchor}), got ${app.headingUpAnchorFraction(true)}`);
 
   // Nearby mode has no single destination to adapt toward -- its anchor must stay exactly
   // the plain tilt-ramped value regardless of whatever "selected" happens to be sitting in
@@ -7568,10 +7574,12 @@ test("tiltAvailableAheadCssPx / tiltPerspectivePx do not dip below the historica
   app.els.inspectorActions.hidden = true; // nav bar is its own bar now; hide it too for a clean canvas
   app.state.canvasVisibleHeight = 800;
 
-  // Due north while facing east: directly to a side (offset exactly +-pi/2).
-  app.state.selected = { type: "tree", item: { id: "side", ...makePoint(app, 0.001, 0) } };
+  // Facing east, target 135 degrees round from straight ahead (between a side and dead behind):
+  // the bearing mirror (headingUpBearingMirrorFactor) is at zero there, so the anchor lands on
+  // the centre -- the exact condition this regression is about.
+  app.state.selected = { type: "tree", item: { id: "side", ...makePoint(app, 0.001, -0.001) } };
   const sideAnchor = app.headingUpAnchorFraction(true);
-  assert.ok(Math.abs(sideAnchor - 0.5) < 1e-9, `side anchor should be exactly 0.5, got ${sideAnchor}`);
+  assert.ok(Math.abs(sideAnchor - 0.5) < 1e-9, `mirrored anchor should be exactly 0.5 at 135 degrees, got ${sideAnchor}`);
 
   const rampedAnchor = app.tiltRampedAnchor(true);
   assert.ok(Math.abs(rampedAnchor - 0.88) < 1e-9, `ramped (pre-mirror) anchor should be 0.88 at max tilt, got ${rampedAnchor}`);
