@@ -119,6 +119,8 @@ function hideNoticeCard(banner, { collapse = false } = {}) {
     finish();
   };
   banner.addEventListener("transitionend", onTransitionEnd);
+  // A card that replaces this one while it is still fading out finishes the hide at once.
+  banner.cancelPendingHide = finish;
   if (collapse) {
     banner.classList.add("onboarding-collapsing");
     banner.style.setProperty("--consent-banner-height", `${banner.getBoundingClientRect().height}px`);
@@ -145,7 +147,7 @@ function showLocationInviteBanner(message, { canRequest = true, title = "Get a m
   if (els.locationInviteTitle) els.locationInviteTitle.textContent = title;
   if (els.locationInviteMessage) els.locationInviteMessage.textContent = message;
   if (els.locationInviteButton) els.locationInviteButton.hidden = !canRequest;
-  if (els.locationInviteDismiss) els.locationInviteDismiss.textContent = canRequest ? "Maybe later" : "OK";
+  if (els.locationInviteDismiss) els.locationInviteDismiss.textContent = canRequest ? "Not now" : "OK";
 
   function cleanup() {
     els.locationInviteButton?.removeEventListener("click", onAccept);
@@ -174,7 +176,7 @@ function showLocationInviteBanner(message, { canRequest = true, title = "Get a m
   banner.hidden = false;
 }
 
-// How long the "location is off" notice stays up after "Maybe later" before it clears on its own.
+// How long the "location is off" notice stays up after "Not now" before it clears on its own.
 const HIGH_BEACH_NOTICE_MS = 60_000;
 
 // Removes whichever card currently owns the floating #consentBanner: its timer and its button
@@ -187,12 +189,14 @@ function tearDownConsentCard() {
   if (teardown) teardown();
 }
 
-// Said in the same floating card once location is refused: the map is set to High Beach, the same
-// stand-in a failed request gets. It has one button and clears itself after a minute.
-function showHighBeachNotice() {
+// The OK-only card a location answer leaves behind: a title, the reason, and one button. It takes
+// over the floating #consentBanner, so any card still on screen is torn down first. autoDismissMs
+// clears it by itself; 0 keeps it until OK is tapped.
+function showOkNotice({ title, text, autoDismissMs = 0 }) {
   const banner = els.consentBanner;
   if (!banner) return;
   tearDownConsentCard();
+  if (typeof banner.cancelPendingHide === "function") banner.cancelPendingHide();
   let timer = null;
   const dismiss = () => {
     tearDownConsentCard();
@@ -203,12 +207,10 @@ function showHighBeachNotice() {
     timer = null;
     els.consentBannerDecline?.removeEventListener("click", dismiss);
   };
-  banner.setAttribute("aria-label", "Location is off");
+  banner.setAttribute("aria-label", title);
   banner.classList.remove("onboarding-invite", "onboarding-attention", "fading-out");
-  if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Location is off";
-  if (els.consentBannerText) {
-    els.consentBannerText.textContent = "We'll set your location as High Beach, so you can still browse finds around the forest. Turn location on any time in Settings.";
-  }
+  if (els.consentBannerTitle) els.consentBannerTitle.textContent = title;
+  if (els.consentBannerText) els.consentBannerText.textContent = text;
   if (els.consentBannerDecline) {
     els.consentBannerDecline.textContent = "OK";
     els.consentBannerDecline.removeAttribute("aria-label");
@@ -218,7 +220,34 @@ function showHighBeachNotice() {
   if (els.consentBannerAccept) els.consentBannerAccept.hidden = true;
   if (els.consentBannerMapSetupArrow) els.consentBannerMapSetupArrow.hidden = true;
   banner.hidden = false;
-  timer = setTimeout(dismiss, HIGH_BEACH_NOTICE_MS);
+  if (autoDismissMs > 0) timer = setTimeout(dismiss, autoDismissMs);
+}
+
+// Said in the same floating card once location is refused: the map is set to High Beach, the same
+// stand-in a failed request gets. It has one button and clears itself after a minute.
+function showHighBeachNotice() {
+  showOkNotice({
+    title: "Location is off",
+    text: "We'll set your location as High Beach, so you can still browse finds around the forest. Turn location on any time in Settings.",
+    autoDismissMs: HIGH_BEACH_NOTICE_MS,
+  });
+}
+
+// An explicit "Use my location" or "Enable location" that did not get a fix says so, rather than
+// moving on as if nothing happened. A refusal also hides the request button in Settings
+// (syncSettingsLocationRow), since asking again cannot succeed while the permission reads as denied.
+const LOCATION_FAILED_MESSAGE = "We couldn't get your location just now. The map stays on High Beach.";
+let locationRequestRefusal = null; // "denied" | "failed" | null
+function explainRefusedLocationRequest({ denied }) {
+  locationRequestRefusal = denied ? "denied" : "failed";
+  syncSettingsLocationRow();
+  // Settings shows the reason in its own row, so the floating card stays out of its way.
+  if (state.selected?.type === "settings") return;
+  if (denied) {
+    showOkNotice({ title: "Location is off", text: `${locationBlockedMessage()} The map stays on High Beach.` });
+  } else {
+    showOkNotice({ title: "Can't find your location", text: LOCATION_FAILED_MESSAGE });
+  }
 }
 
 // iPhone's motion access (needed for the 3D tilt and the compass) can only be requested from a tap.
@@ -227,7 +256,7 @@ function showHighBeachNotice() {
 function showMotionPrompt() {
   const banner = els.consentBanner;
   if (!banner || !banner.hidden) return;
-  if (!compassPermissionCanBeRequested() || state.compassPermission === "granted") return;
+  if (!compassPermissionCanBeRequested() || state.compassPermission !== "unknown") return;
   if (!hasRealLocation()) return;
   try { if (localStorage.getItem(MOTION_CHOICE_KEY) === "declined") return; } catch {}
   if (els.locationInviteBanner && !els.locationInviteBanner.hidden) return;
@@ -261,7 +290,7 @@ function showMotionPrompt() {
     els.consentBannerAccept.addEventListener("click", onAccept);
   }
   if (els.consentBannerDecline) {
-    els.consentBannerDecline.textContent = "Maybe later";
+    els.consentBannerDecline.textContent = "Not now";
     els.consentBannerDecline.removeAttribute("aria-label");
     els.consentBannerDecline.removeAttribute("title");
     els.consentBannerDecline.addEventListener("click", onDecline);
@@ -309,10 +338,13 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
     els.filterToggle?.classList.remove("filter-toggle-guidance");
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Allow location & cookies";
     if (els.consentBannerText) {
-      els.consentBannerText.innerHTML = `Shows nearby finds, how far away they are and which way to walk, and helps us understand how people use this site — enabling covers both. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>`;
+      const motionClause = compassPermissionCanBeRequested() && state.compassPermission === "unknown"
+        ? " On iPhone you will also be asked for motion access, which turns on the compass."
+        : "";
+      els.consentBannerText.innerHTML = `Shows nearby finds, how far away they are and which way to walk, and helps us understand how people use this site — enabling covers both.${motionClause} <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>`;
     }
     if (els.consentBannerDecline) {
-      els.consentBannerDecline.textContent = "Maybe later";
+      els.consentBannerDecline.textContent = "Not now";
       els.consentBannerDecline.removeAttribute("aria-label");
       els.consentBannerDecline.removeAttribute("title");
     }
@@ -335,7 +367,7 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
       els.consentBannerText.innerHTML = `Enable location to centre the map on you and see real walking distances. <a href="/terms.html" target="_blank" rel="noopener">Privacy Policy</a>`;
     }
     if (els.consentBannerDecline) {
-      els.consentBannerDecline.textContent = "Maybe later";
+      els.consentBannerDecline.textContent = "Not now";
       els.consentBannerDecline.removeAttribute("aria-label");
       els.consentBannerDecline.removeAttribute("title");
     }
@@ -474,6 +506,7 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
 
   els.consentBannerAccept?.addEventListener("click", onAccept);
   els.consentBannerDecline?.addEventListener("click", onDecline);
+  consentCardTeardown = cleanup;
 
   if (stage === "permissions") renderPermissionsStage();
   else if (stage === "location") renderLocationStage();
