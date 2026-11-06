@@ -123,7 +123,7 @@
         <!-- Alpha call to action. One swappable element: at launch this becomes
              a link to /nearby, the app's entry point. Nothing else on the page changes. -->
         <div class="cta">
-          <a class="cta-btn hero-ledger-link" href="/reports/">Read the latest Ledger →</a>
+          <a class="cta-btn cta-ghost hero-ledger-link" href="/reports/">Read the latest Ledger →</a>
           <a class="cta-btn" href="#signup"><svg class="cta-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3a5 5 0 0 0-5 5v3.2c0 .7-.24 1.38-.68 1.93L4.6 15.4A1 1 0 0 0 5.4 17h13.2a1 1 0 0 0 .8-1.6l-1.72-2.27A3.2 3.2 0 0 1 17 11.2V8a5 5 0 0 0-5-5Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M9.5 19a2.5 2.5 0 0 0 5 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>Keep me in the loop</a>
           <p class="cta-note">Sign up for launch news, to take part as an early tester, and for weekly Ledger updates when they launch.</p>
         </div>
@@ -138,7 +138,7 @@
     </section>
 
     <section class="counts">
-      <h2>What's on the map</h2>
+      <h2>What’s on the map</h2>
       <p class="counts-intro">Explore the categories to see the places and features included.</p>
       <div class="map-inventory">
         <div class="inventory-total"><img src="assets/home/map-icons/all-finds.png" width="44" height="44" alt=""><strong>31,815</strong><span>places and features</span></div>
@@ -184,7 +184,7 @@
       <p>
         Local discoveries, road closures, events and cattle updates — a weekly round-up from around Epping Forest.
       </p>
-      <div class="ledger-latest" id="ledgerLatest" aria-live="polite">
+      <div class="ledger-latest" id="ledgerLatest" aria-live="polite" hidden>
         <p class="ledger-latest-label">Latest field notes</p>
         <p class="ledger-latest-summary">The newest edition’s local stories appear here when available.</p>
       </div>
@@ -218,7 +218,7 @@
 
             <p class="form-msg" id="formMsg" role="status" aria-live="polite"></p>
             <p class="form-small">
-              We'll only use your address for this. Unsubscribe from any message.
+              We’ll only use your address for this. Unsubscribe from any message.
               See the <a href="/terms.html">privacy notice</a>.
             </p>
           </form>
@@ -244,7 +244,7 @@
     <section class="pillars">
       <article>
         <img class="pillar-icon" src="assets/home/distance.png" width="80" height="80" alt="" aria-hidden="true">
-        <h2>Works where your phone doesn't</h2>
+        <h2>Works where your phone doesn’t</h2>
         <p>Download once, then explore the trees, paths and landmarks without a signal.</p>
       </article>
       <article>
@@ -276,7 +276,7 @@
       <div class="tag-story">
         <figure class="app-shot app-shot-search">
           <img src="assets/home/app-search.jpg" width="600" height="1303" loading="lazy" decoding="async" alt="The app’s search screen with the number 440 entered, listing matching trees by tag number with their walking distance.">
-          <figcaption>Search veteran trees by tag, common or Latin name — or find places by name or category. Results are ranked by relevance and nearby distance.</figcaption>
+          <figcaption><strong>1. Look it up.</strong> Search veteran trees by tag, common or Latin name — or find places by name or category. Results are ranked by relevance and nearby distance.</figcaption>
         </figure>
         <figure class="app-shot app-shot-route">
           <img src="assets/home/app-nearby-route.png" width="1320" height="2868" loading="lazy" decoding="async" alt="The app’s tilted 3D map with oak markers ahead of you, and the nearest English Oaks and a monument listed by walking distance and direction.">
@@ -291,7 +291,7 @@
 
     <section class="how community-how" id="community" aria-labelledby="community-heading">
       <div class="card-head">
-        <img class="card-icon" src="assets/home/tree-tag.png" width="44" height="44" alt="">
+        <img class="card-icon" src="assets/home/map-icons/pin.png" width="44" height="44" alt="">
         <h2 id="community-heading">Help keep the map right</h2>
       </div>
       <div class="community-panel">

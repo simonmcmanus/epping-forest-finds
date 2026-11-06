@@ -448,7 +448,7 @@
 }
 
 .inspector-filter-toggle:hover {
-  background: #f5f5f0;
+  background: var(--surface-soft);
 }
 
 .inspector-filter-toggle.screen-active {
@@ -754,7 +754,7 @@ button.settings-toggle.has-update::after {
 }
 
 .search-clear:hover {
-  background: #eef2ed;
+  background: var(--surface-tint);
 }
 
 .search-results .nearest-list {
@@ -1134,7 +1134,7 @@ textarea.report-textarea {
 }
 
 .report-status.error {
-  color: #b34733;
+  color: var(--status-error);
 }
 
 .report-status.success {
