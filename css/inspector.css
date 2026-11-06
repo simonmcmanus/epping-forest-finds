@@ -368,6 +368,10 @@
   overflow-x: hidden;
   min-height: 0;
   position: relative; /* clipping anchor for transition snapshots */
+  /* Own stacking context, so sticky children such as the Nearby filter rail (z-index 2) stay inside
+     the scroller's layers rather than painting over its scrollbar -- on iOS the rail covered the
+     overlay thumb as it passed through the rail's band. */
+  isolation: isolate;
 }
 
 .inspector-title-section {
