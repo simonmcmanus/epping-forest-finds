@@ -1403,7 +1403,10 @@ async function boot() {
           setLocationRequestPending(false);
           resolve({ ok: false, code: error && error.code });
         },
-        { enableHighAccuracy: true, timeout: BOOT_GEOLOCATION_TIMEOUT_MS, maximumAge: 30000 }
+        // maximumAge 0: a position the browser cached before this page opened can be tens of metres
+        // behind the device. Boot would land it raw (it is far from the High Beach stand-in) and the
+        // first live fix would then snap the You marker back, so boot asks for a live fix instead.
+        { enableHighAccuracy: true, timeout: BOOT_GEOLOCATION_TIMEOUT_MS, maximumAge: 0 }
       );
     });
   } else if (locationChoice === "declined") {
