@@ -445,9 +445,12 @@ test.describe("Location and GPS — happy path", () => {
 // has one hands it back, as Chromium's position cache does.
 const CACHED_FIX = { latitude: FOREST_LOCATION.latitude + 0.00072, longitude: FOREST_LOCATION.longitude, accuracy: 10, ageMs: 20_000 };
 
-// Stubs only the navigator boundary: a request that accepts a cached position gets the cached one, and
-// one that refuses it (maximumAge 0) gets the live position from Playwright's mock.
-function answerRequestsFromBrowserCache(cachedFix) {
+// Stubs only the navigator boundary, in two parts. A one-shot request that accepts a cached position gets
+// the cached one; one that refuses it (maximumAge 0) gets the live position from Playwright's mock. The
+// live watch's callbacks are held back until the test releases them, so the cached point is on the marker
+// for a sustained period before the first live fix can move the marker. Without the hold, that fix could
+// arrive before any animation frame had shown the cached point, and the test would pass on the bug.
+function stubLocationAtBrowserBoundary(cachedFix) {
   const geolocation = navigator.geolocation;
   const liveGetCurrentPosition = geolocation.getCurrentPosition.bind(geolocation);
   geolocation.getCurrentPosition = (onSuccess, onError, options = {}) => {
@@ -457,11 +460,26 @@ function answerRequestsFromBrowserCache(cachedFix) {
       timestamp: Date.now() - cachedFix.ageMs,
     }), 50);
   };
+
+  const liveWatchPosition = geolocation.watchPosition.bind(geolocation);
+  const heldFixes = [];
+  let holding = true;
+  window.__releaseLiveFixes = () => {
+    holding = false;
+    window.__liveFixesReleased = true;
+    for (const { onSuccess, position } of heldFixes.splice(0)) onSuccess(position);
+  };
+  geolocation.watchPosition = (onSuccess, onError, options) => liveWatchPosition((position) => {
+    if (holding) heldFixes.push({ onSuccess, position });
+    else onSuccess(position);
+  }, onError, options);
 }
 
 // Records every position the You marker stands at once a real fix has been applied, one entry per change.
+// Once the marker has stood on one position for a second, it releases the held live fixes.
 function recordYouMarkerPositions() {
   window.__youMarkerPositions = [];
+  let standingSince = null;
   const sample = () => {
     const location = typeof state !== "undefined" ? state.userLocation : null;
     // The High Beach stand-in is marked isDefault; it is not where the device is.
@@ -469,6 +487,10 @@ function recordYouMarkerPositions() {
       const last = window.__youMarkerPositions.at(-1);
       if (!last || last.latitude !== location.latitude || last.longitude !== location.longitude) {
         window.__youMarkerPositions.push({ latitude: location.latitude, longitude: location.longitude });
+        standingSince = performance.now();
+      }
+      if (!window.__liveFixesReleased && window.__releaseLiveFixes && performance.now() - standingSince >= 1000) {
+        window.__releaseLiveFixes();
       }
     }
     requestAnimationFrame(sample);
@@ -488,18 +510,21 @@ test.describe("the first fix on launch", () => {
   test("a position the browser cached before the page opened never becomes the You marker's position", async ({ page }) => {
     await skipOnboarding(page);
     await mockCowApi(page);
-    await page.addInitScript(answerRequestsFromBrowserCache, CACHED_FIX);
+    await page.addInitScript(stubLocationAtBrowserBoundary, CACHED_FIX);
     await page.addInitScript(recordYouMarkerPositions);
     await page.goto("/nearby");
-    // Wait for the live fix to have landed and the camera to finish its arrival, not for a fixed delay.
+    // Wait on state, not a delay: the held live fix has been released, it has landed, and the camera has
+    // finished its arrival.
     await page.waitForFunction(
-      (latitude) => typeof state !== "undefined" && state.dataLoaded === true && state.rawUserLocation?.latitude === latitude && state.viewportAnimationFrame == null,
+      (latitude) => typeof state !== "undefined" && window.__liveFixesReleased === true && state.dataLoaded === true && state.rawUserLocation?.latitude === latitude && state.viewportAnimationFrame == null,
       FOREST_LOCATION.latitude,
     );
     const positions = await page.evaluate(() => window.__youMarkerPositions);
     expect(positions.length, "the You marker was placed at least once").toBeGreaterThan(0);
     const farthestMetres = Math.max(...positions.map((position) => metresApart(position, FOREST_LOCATION)));
     expect(farthestMetres, "farthest the You marker stood from the live fix, in metres").toBeLessThan(5);
+    // And the marker ends on the live fix, so holding it back changed nothing once it arrived.
+    expect(metresApart(positions.at(-1), FOREST_LOCATION), "where the You marker settled, in metres from the live fix").toBeLessThan(5);
   });
 });
 
