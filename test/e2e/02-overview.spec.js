@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, FIXTURE_TREE, settleMapIconsAndDraw, waitForUiToSettle } = require("./helpers");
+const { setup, FIXTURE_TREE, settleMapIconsAndDraw, waitForFrames, waitForUiToSettle } = require("./helpers");
 
 const FOREST_LOCATION = { latitude: 51.665, longitude: 0.045, accuracy: 10 };
 
@@ -917,6 +917,49 @@ test.describe("Resize-grip clearance", () => {
       expect(handleBox, "desktop has no grip").toBeNull();
       expect(title.y - panel.y, "desktop spends no space on it").toBeLessThan(10);
     }
+  });
+});
+
+// Pulling the sheet's content down past its top (an iOS rubber-band or trackpad bounce) uncovers the
+// scroller's own background above the heading. That band must take the heading's colour, not the
+// white panel. Playwright cannot trigger a native bounce, so the test moves the scrolled content down
+// by the distance a bounce would, then reads the pixels a visitor would see.
+test.describe("Sheet overscroll colour", () => {
+  // The phone bottom sheet is where the bounce shows. On the desktop side panel the nav bar's own
+  // box-shadow falls across the top of the panel and darkens the sampled pixels, which would measure
+  // that shadow rather than the band.
+  test.skip(({ isMobile }) => !isMobile, "the bottom sheet is the phone layout");
+  test.beforeEach(async ({ page }) => { await setup(page, "/settings"); });
+
+  test("pulling the sheet past its top shows the heading's colour, not white", async ({ page }) => {
+    const pull = 40;
+    const scroll = await page.locator(".inspector-scroll").boundingBox();
+    expect(scroll, "the sheet's scroller is rendered").not.toBeNull();
+    await page.evaluate((px) => {
+      document.querySelector(".inspector-screen").style.transform = `translateY(${px}px)`;
+    }, pull);
+    await waitForFrames(page, 2);
+    const shot = await page.screenshot({
+      clip: { x: scroll.x, y: scroll.y, width: scroll.width, height: pull + 12 },
+    });
+    const dpr = await page.evaluate(() => window.devicePixelRatio);
+    // Sample x inside the sheet's left gutter, clear of any text: the band above the heading, and
+    // the heading's own top padding, which the pull has moved down by `pull` px.
+    const x = Math.round(20 * dpr);
+    const [band, heading] = await page.evaluate(async ({ b64, dpr, x, pull }) => {
+      const img = new Image();
+      img.src = `data:image/png;base64,${b64}`;
+      await img.decode();
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+      const pixelAt = (cssY) => Array.from(ctx.getImageData(x, Math.round(cssY * dpr), 1, 1).data).slice(0, 3);
+      return [pixelAt(4), pixelAt(pull + 6)];
+    }, { b64: shot.toString("base64"), dpr, x, pull });
+    expect(band, "the exposed band matches the heading").toEqual(heading);
+    expect(band, "the exposed band is not the white panel").not.toEqual([255, 255, 255]);
   });
 });
 

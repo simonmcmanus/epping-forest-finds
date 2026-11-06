@@ -372,6 +372,10 @@
      the scroller's layers rather than painting over its scrollbar -- on iOS the rail covered the
      overlay thumb as it passed through the rail's band. */
   isolation: isolate;
+  /* No rubber-band past the top or bottom of the sheet's list. The bounce is what uncovers the
+     white panel above the heading (see the title band below); browsers that honour this stop it
+     at the edge, and the band remains as the fallback for the ones that do not. */
+  overscroll-behavior-y: none;
 }
 
 .inspector-title-section {
@@ -2592,6 +2596,22 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 .inspector-title-section {
   background: var(--surface-soft);
   border-bottom: 1px solid var(--border-soft);
+}
+
+/* Pulling the content down past the top of the sheet (iOS rubber-band, trackpad bounce) exposes
+   the scroller's own background above the title, which is white. This band sits just above the
+   title, outside the scrollport while the sheet is at rest so nothing shows, and inherits the
+   title's colour -- so the exposed area matches the grip strip and the title, and stays
+   transparent on location screens, whose heading is transparent (see the tree and place
+   heading rules further down this file). */
+.inspector-title-section::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 50vh;
+  background: inherit;
 }
 
 .inspector-title-emoji {
