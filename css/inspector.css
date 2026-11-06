@@ -368,6 +368,10 @@
   overflow-x: hidden;
   min-height: 0;
   position: relative; /* clipping anchor for transition snapshots */
+  /* No rubber-band past the top or bottom of the sheet's list. The bounce is what uncovers the
+     white panel above the heading (see the title band below); browsers that honour this stop it
+     at the edge, and the band remains as the fallback for the ones that do not. */
+  overscroll-behavior-y: none;
 }
 
 .inspector-title-section {
