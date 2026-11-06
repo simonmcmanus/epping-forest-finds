@@ -1686,7 +1686,8 @@ function recordFixAndDetectFastTravel(latitude, longitude, now, speed, point) {
 // advanceLocationGlide() every frame; this only records where to head for.
 function ingestLocationFix(latitude, longitude, accuracy, now = performance.now(), speed = null) {
   const rawPoint = projectLonLat(longitude, latitude);
-  const raw = { latitude, longitude, accuracy, point: rawPoint };
+  // receivedAt is wall-clock time, so analytics can tell how old the fix it would repeat is (js/tracker.js).
+  const raw = { latitude, longitude, accuracy, point: rawPoint, receivedAt: Date.now() };
   const priorFix = (state.locationFixHistory || []).at(-1) || null;
   state.rawUserLocation = raw;
   const travellingFast = recordFixAndDetectFastTravel(latitude, longitude, now, speed, rawPoint);
