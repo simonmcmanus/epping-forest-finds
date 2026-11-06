@@ -47,6 +47,33 @@ GitHub Issues via `gh`. See `docs/agents/issue-tracker.md`.
 
 Glossary and decisions live in `spec/`, not `GLOSSARY.md`/`docs/adr/`. See `docs/agents/domain.md`.
 
+## Team of agents
+
+Several Claude Code agents can work on this repo at once. The lead session plans, dispatches and
+merges. The subagents in `.claude/agents/` do the work:
+
+- `implementer` — one scoped change in its own worktree: tests, code, spec update, commit, push.
+- `test-runner` — runs the unit suite and named e2e specs; read-only; reports exact counts.
+- `reviewer` — read-only review against the checklist above; reports verified findings only.
+- `data-curator` — real-world place corrections in `data/**`; never edits specs for these.
+
+Rules:
+
+- **One worktree and branch per work item:** `git worktree add .worktrees/<topic> -b claude/<topic> origin/main`.
+  `.worktrees/` is gitignored. No agent works in the lead's checkout or commits to `main`.
+- **Branch from `origin/main`, never from another open PR** (see Testing).
+- **Own your files.** Two agents never edit the same file in parallel. Hot files are `app.html`,
+  `js/app.js`, `sw.js`, `spec/*.md` and `test/forest-finds.test.js`. Serialise work items that touch
+  the same one.
+- **Cache markers are never agent-edited:** `js/app-cache-version.js` and `js/data-cache-version.js`.
+- **The lead dispatches; subagents report back.** Subagents do not spawn further agents.
+- **Local results are local.** The lead reads the CI run for the head SHA before reporting anything
+  done (see "CI is the verdict").
+- **Hand-off report from every agent:** branch, worktree path, commits, files changed, spec file(s)
+  updated or the implementation-only reason, test commands with counts, and open risks.
+- **Safe to run in parallel:** tests-only, data-only, spec-only and review work. Two changes to
+  renderer or app wiring are not.
+
 ## Marketing and app surfaces
 
 - `index.html` (marketing homepage, `/`) and `assets/home/**` are a separate surface from the app (`app.html`, `js/**`, `css/**`). Marketing must not import app CSS/JS or reference app icons at runtime; small brand assets are independent copies in `assets/home/`.
