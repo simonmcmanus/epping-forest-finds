@@ -1,6 +1,6 @@
 ---
 name: orchestrate
-description: "Run the team playbook: triage issues, implement locally, run every review and the tests before anything is pushed, then push, open the PR if asked, and hand it to the steward. The lead session runs this itself, because subagents cannot dispatch other agents."
+description: "Run the team playbook: triage issues, implement locally, run every review and the tests before anything is pushed, then push and open the PR by default, and hand it to the steward. The lead session runs this itself, because subagents cannot dispatch other agents."
 disable-model-invocation: true
 ---
 
@@ -15,7 +15,7 @@ test gate has passed on the local branch.
 
 ## 1. Triage
 
-For each issue, read it (`mcp__github__issue_read`) and state its title. Classify it:
+For each issue, read it (`gh issue view <n>` where `gh` is available, otherwise `mcp__github__issue_read`) and state its title. Classify it:
 
 - **code**: app code, tests, specs or styles. Goes to an `implementer`.
 - **data**: a place fact is wrong (closed, renamed, moved, mis-categorised). Goes to `data-curator`.

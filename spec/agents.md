@@ -54,7 +54,7 @@ Several Claude Code agents can work on this repo at once. Agent teams are enable
 when the session runs inside tmux, and run in-process otherwise. The lead session plans, dispatches
 and merges. The subagents in `.claude/agents/` do the work:
 
-- `implementer` — one scoped change in its own worktree: tests, code, spec update, commit, push.
+- `implementer` — one scoped change in its own worktree: tests, code, spec update, local commit. The lead session pushes after review.
 - `test-runner` — runs the unit suite and named e2e specs; read-only; reports exact counts.
 - `reviewer` — read-only review against the checklist above; reports verified findings only.
 - Specialist reviewers, each read-only and each reporting verified findings only:
@@ -321,7 +321,7 @@ If you do edit a shared one, re-run every spec that uses it, on **every** Playwr
    reproduces the runner's 2 vCPUs.
 3. Relevant `spec/` file is updated, or reason documented.
 4. Create a commit with a good concise description summarising the change.
-5. Push and open the PR with screenshots of the change in its description (see "Screenshots in
+5. After the review and test gates pass, the lead session pushes and opens the PR with screenshots of the change in its description (see "Screenshots in
    every PR" above), then confirm every `E2E tests (<project>, shard <n>)` job is **green on
    your branch**, and review warnings from `Visual snapshots (desktop + mobile)` — per "CI is the verdict"
    above. That PR run is the full sweep; do not also run the suite locally or dispatch CI by
