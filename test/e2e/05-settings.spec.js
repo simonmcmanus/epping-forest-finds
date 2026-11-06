@@ -76,12 +76,11 @@ test.describe("Settings screen", () => {
       }, beta);
     }
 
-    test("is not offered on a device without a motion sensor, and appears once one reports a tilt", async ({ page }) => {
-      const toggle = page.getByRole("checkbox", { name: /3D map/ });
-      await expect(toggle, "a laptop never reports a tilt, so there is nothing to switch on").toBeHidden();
+    test("Settings has no 3D map switch, even once the phone reports a tilt", async ({ page }) => {
       await pitchPhone(page, 20);
-      await expect(toggle).toBeVisible();
-      await expect(page.getByRole("img", { name: /map tilted in 3D/ })).toBeVisible();
+      await page.click("#settingsToggle");
+      await expect(page.getByRole("heading", { name: "Reminders" }), "the Settings screen is open").toBeVisible();
+      await expect(page.getByRole("checkbox", { name: /3D map/ })).toHaveCount(0);
     });
 
     test("with 3D off, the map still turns with the phone so the radar keeps pointing ahead", async ({ page }) => {
@@ -125,27 +124,15 @@ test.describe("Settings screen", () => {
       }, { message: "facing east turns the map a quarter-turn anticlockwise" }).toBeLessThan(5);
     });
 
-    test("uses the doubled default tilt and offers full 3D through the remembered setting", async ({ page }) => {
-      const toggle = page.getByRole("checkbox", { name: /3D map/ });
+    test("the phone's pitch gives the gentle tilt only, however far it is lifted", async ({ page }) => {
       await pitchPhone(page, 55);
       await expect.poll(() => page.evaluate(() => state.renderedTiltRotateXDeg), { message: "normal viewing angle shows noticeable depth" }).toBeGreaterThan(55);
-      const gentle = await pitchPhone(page, 85);
-      expect(gentle, "default tilt stays below full 3D even upright").toBeLessThanOrEqual(70);
-      await expect(toggle).not.toBeChecked();
-
-      await toggle.check();
-      expect(await pitchPhone(page, 85), "full 3D gives a stronger perspective").toBeGreaterThan(60);
-
-      await toggle.uncheck();
-      await page.waitForFunction(() => state.renderedTiltRotateXDeg > 0 && state.renderedTiltRotateXDeg <= 70);
+      const upright = await pitchPhone(page, 85);
+      expect(upright, "held upright, the tilt stays at the gentle cap").toBeLessThanOrEqual(70);
+      expect(await page.evaluate(() => state.map3dEnabled), "full 3D stays off").toBe(false);
       expect(await page.evaluate(() => isBehindTiltHeading({ x: state.userLocation.point.x, y: state.userLocation.point.y + 100 })), "surrounding items remain visible").toBe(false);
       await pitchPhone(page, 0);
       await page.waitForFunction(() => state.renderedTiltRotateXDeg === 0);
-
-      await toggle.check();
-      await page.reload();
-      await page.click("#settingsToggle");
-      await expect(page.getByRole("checkbox", { name: /3D map/ }), "the choice is remembered").toBeChecked();
     });
   });
 
