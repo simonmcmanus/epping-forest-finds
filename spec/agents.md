@@ -57,6 +57,11 @@ and merges. The subagents in `.claude/agents/` do the work:
 - `implementer` — one scoped change in its own worktree: tests, code, spec update, commit, push.
 - `test-runner` — runs the unit suite and named e2e specs; read-only; reports exact counts.
 - `reviewer` — read-only review against the checklist above; reports verified findings only.
+- Specialist reviewers, each read-only and each reporting verified findings only:
+  - `accessibility-reviewer` — names and roles, keyboard and focus, touch targets, contrast, reduced motion, and text alternatives for the canvas map.
+  - `performance-reviewer` — draw loop and per-frame work, redundant paints, payloads, service-worker caching, battery and memory. Judged on mobile first.
+  - `design-reviewer` — consistency with the existing CSS, tokens and icon registry, mobile and dark-mode polish, and marketing brand voice.
+  - `ux-reviewer` — whether each journey completes end to end, flow and copy clarity, permission asks, and the state each error or empty screen shows.
 - `data-curator` — real-world place corrections in `data/**`; never edits specs for these.
 
 Rules:
