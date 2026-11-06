@@ -1227,9 +1227,10 @@ Every write to `state.viewport` (scale, `tx`, `ty`), grouped by how it moves the
 - Ctrl+wheel zoom disabled at document level
 - Map zoom via: map interactions only (wheel/drag) — there is no on-screen zoom control in the main map UI
 - Touch double-tap zoom prevented
-- **Two-finger pinch on the map canvas is repurposed** (rather than left inert once native
-  pinch-zoom is disabled): on any screen that draws the walking radius — Nearby, Filters,
-  Settings, Report — it resizes that radius instead of the map scale directly, see "Browsing
+- **Two-finger pinch on the map canvas is repurposed**: the two-finger pinch is cancelled only
+  on the map canvas, so a pinch that starts anywhere else zooms the page. On any screen that
+  draws the walking radius — Nearby, Filters, Settings, Report — the map's pinch resizes that
+  radius instead of the map scale directly, see "Browsing
   Another Spot" under Inspector Panel above. Over a real selection a second touch point is still
   just ignored, same as before this feature existed.
 
