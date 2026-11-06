@@ -48,9 +48,9 @@ Dispatch reviewers on the local branch, diffed against `origin/main`, all in par
 - a data change: `reviewer` only. Data items still run sections 4 to 6; only the specialists are skipped.
 
 Collect every report. Only findings a reviewer has verified count. Blockers and majors go back to the
-implementer as a new local commit, with the finding text and `file:line`. Re-run the reviewers that
-raised them after each fix. After any fix that came from a test failure, re-run the full reviewer gate,
-because the fix itself is new code. Do not push a fix to test a review.
+implementer as a new local commit, with the finding text and `file:line`. After each fix, re-run every
+reviewer that ran on the previous commit, not only the ones that raised findings, because the fix is new
+code. Do not push a fix to test a review.
 
 Stop after three rounds of findings on the same item, and report the open findings to the user. Do not
 push that branch.
@@ -59,8 +59,8 @@ push that branch.
 
 Dispatch `test-runner` on the local branch: the complete unit suite, and the e2e specs the change
 touches. A failure goes back to the implementer, and the fix is then re-reviewed under section 3 and
-re-tested on the new commit. Do not treat a failure as
-pre-existing without the CI check on the base branch.
+re-tested on the new commit. Count test-failure rounds the same way as review rounds: after three, stop
+and report to the user. Do not treat a failure as pre-existing without the CI check on the base branch.
 
 ## 5. Push, then pull request
 
