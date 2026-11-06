@@ -64,7 +64,8 @@ pre-existing without the CI check on the base branch.
 Only when every reviewer in the gate has no open blockers or majors, and the test gate is green, push
 from the lead session: `git push -u origin <branch>`. Retry network failures only.
 
-Open the PR only when the user has asked for PRs. Otherwise report the pushed branch and stop.
+Open the PR by default, as `spec/agents.md` requires. CI only runs on PRs, so a pushed branch without
+one has no verdict. Skip it only when the user has said not to open one.
 
 When the PR is open, dispatch `pr-steward` with the PR number and head branch. The steward drives CI and
 review threads. Subscribe this session to the PR so its events reach you, and dispatch the steward

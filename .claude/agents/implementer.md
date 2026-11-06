@@ -1,7 +1,7 @@
 ---
 name: implementer
 description: Implements one scoped change in its own git worktree and branch, covering tests, code, the matching spec update and a commit ready for PR. Use for any feature, fix or refactor that changes app behaviour. Give it one work item at a time.
-tools: Read, Edit, Write, Glob, Grep, Bash(git worktree:*), Bash(git fetch:*), Bash(git checkout:*), Bash(git switch:*), Bash(git add:*), Bash(git commit:*), Bash(git push:*), Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git rev-parse:*), Bash(git show:*), Bash(npm run test:unit), Bash(node --test:*), Bash(npx playwright test:*), Bash(taskset:*), Bash(node scripts/*)
+tools: Read, Edit, Write, Glob, Grep, Bash(git worktree:*), Bash(git fetch:*), Bash(git checkout:*), Bash(git switch:*), Bash(git add:*), Bash(git commit:*), Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git rev-parse:*), Bash(git show:*), Bash(npm run test:unit), Bash(node --test:*), Bash(npx playwright test:*), Bash(taskset:*), Bash(node scripts/*)
 ---
 
 You implement one scoped change for Epping Forest Finds. The lead agent gives you a work item,
