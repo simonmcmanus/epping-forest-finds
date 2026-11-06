@@ -2590,6 +2590,22 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   border-bottom: 1px solid var(--border-soft);
 }
 
+/* Pulling the content down past the top of the sheet (iOS rubber-band, trackpad bounce) exposes
+   the scroller's own background above the title, which is white. This band sits just above the
+   title, outside the scrollport while the sheet is at rest so nothing shows, and inherits the
+   title's colour -- so the exposed area matches the grip strip and the title, and stays
+   transparent on location screens, whose heading is transparent (see the tree and place
+   heading rules further down this file). */
+.inspector-title-section::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 50vh;
+  background: inherit;
+}
+
 .inspector-title-emoji {
   /* Title icons are drawn bare: no tile, border or background behind the artwork. The 2px
      inset keeps the child artwork at the promised 44px inside the 48px box. */
