@@ -2673,18 +2673,18 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   gap: 8px;
   margin: 0;
   padding: 18px 16px;
-  border: 1px dashed var(--border-accent);
+  border: 1px dashed var(--border-soft);
   border-radius: 14px;
-  background: var(--surface-tint);
+  background: transparent;
   color: var(--muted);
   line-height: 1.5;
 }
 
 .search-results .empty::before {
   content: "Start with a name, tag number, or place";
-  color: var(--accent-ink);
+  color: var(--muted);
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
