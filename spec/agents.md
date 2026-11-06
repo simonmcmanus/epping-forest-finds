@@ -78,7 +78,7 @@ the lead session's own edits:
 - Any corrected place fact goes to `data-curator`.
 
 The lead session plans, dispatches and reports. Subagents cannot dispatch other agents, so the lead
-runs the team playbook itself: the `/orchestrate` skill (`.claude/skills/orchestrate/SKILL.md`). It
+runs the team playbook itself: the `/team` skill (`.claude/skills/team/SKILL.md`). It
 edits app code, tests or specs itself only when the user asks for that directly. If the agents are not loaded in a session, say so and then do the
 work directly.
 
@@ -93,7 +93,7 @@ Rules:
 - **Cache markers are never agent-edited:** `js/app-cache-version.js` and `js/data-cache-version.js`.
 - **The lead dispatches; subagents report back.** Subagents do not spawn further agents.
 - **Review before push.** Implementers commit locally. The reviewers and the test-runner run on the
-  local branch, and the lead session pushes only after they pass (see `/orchestrate`).
+  local branch, and the lead session pushes only after they pass (see `/team`).
 - **Local results are local.** The lead reads the CI run for the head SHA before reporting anything
   done (see "CI is the verdict").
 - **Hand-off report from every agent:** branch, worktree path, commits, files changed, spec file(s)
@@ -211,7 +211,7 @@ When removing a source-grep test, check that an executed test or e2e journey cov
 
 ### CI is the verdict, and the PR is how you get it
 
-**Open the PR as soon as the work is pushed, and let its `E2E tests` shards and `Visual
+**Open the PR as soon as the lead session has pushed the reviewed work, and let its `E2E tests` shards and `Visual
 snapshots (mobile)` be the one full run of the suite.** CI only fires on `pull_request` (plus a
 push to `main` and a manual dispatch), so a branch pushed without a PR gets no checks at all —
 and reaching for `workflow_dispatch` to fix that just means two runs of the same suite on the
@@ -233,7 +233,7 @@ the full sweep is not.
 
 So, before a PR is done — every time, no exceptions:
 
-1. **Push, open the PR, then read the CI run for your head SHA.** `actions_list` →
+1. **After the review and test gates pass, the lead session pushes and opens the PR, then reads the CI run for the head SHA.** `actions_list` →
    `list_workflow_runs` filtered to your branch, then `list_workflow_jobs`, then `get_job_logs`
    on each `E2E tests (<project>, shard <n>)` job and on `Visual snapshots (desktop + mobile)`. Read the
    `N failed / N passed` line and the failure list under it.

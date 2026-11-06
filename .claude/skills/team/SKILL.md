@@ -1,5 +1,5 @@
 ---
-name: orchestrate
+name: team
 description: "Run the team playbook: triage issues, implement locally, run every review and the tests before anything is pushed, then push and open the PR by default, and hand it to the steward. The lead session runs this itself, because subagents cannot dispatch other agents."
 disable-model-invocation: true
 ---
@@ -30,11 +30,12 @@ wait for a go-ahead. For a single item, go straight on.
 
 ## 2. Implement locally
 
-Dispatch one `implementer` per item, with its work item, its branch name `claude/<topic>` and its
-worktree `.worktrees/<topic>` from `origin/main`. Run at most three at once.
+Dispatch one `implementer` per code item, or one `data-curator` per data item, with its work item, its
+branch name `claude/<topic>` and its worktree `.worktrees/<topic>` from `origin/main`. Run at most three
+at once.
 
-The implementer commits on its local branch and does not push. Wait for its report: branch, local
-commit SHAs, files changed, spec updated or the implementation-only reason, and test counts.
+Both commit on their local branch and do not push. Wait for each report: branch, local commit SHAs,
+files changed, spec updated or the implementation-only reason, and test counts.
 
 ## 3. Review gate, before the push
 
@@ -44,7 +45,7 @@ Dispatch reviewers on the local branch, diffed against `origin/main`, all in par
 - markup, styles, interaction or icons: `accessibility-reviewer` and `design-reviewer`
 - rendering, data loading, assets or the service worker: `performance-reviewer`
 - a user flow, copy or a permission ask: `ux-reviewer`
-- a data change: `reviewer` only
+- a data change: `reviewer` only. The same gate applies to data items as to code items.
 
 Collect every report. Only findings a reviewer has verified count. Blockers and majors go back to the
 implementer as a new local commit, with the finding text and `file:line`. Re-run the reviewers that
