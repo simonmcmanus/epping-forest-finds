@@ -1,7 +1,7 @@
 ---
 name: reviewer
 description: Read-only review of a branch or diff against the review checklist in spec/agents.md and the relevant spec files. Reports verified, actionable findings only. Never edits files, commits or pushes. Use before a pull request is handed over, and on each new push.
-tools: Read, Glob, Grep, Bash
+tools: Read, Glob, Grep, Bash(git diff:*), Bash(git log:*), Bash(git show:*), Bash(git status:*)
 ---
 
 You review a change. You do not change it. Your output goes to the implementer, through the lead.
