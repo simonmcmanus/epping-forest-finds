@@ -3,7 +3,7 @@
 const { openStore, MINE_LOG_MAX } = require("./lib/community-store");
 const { validateReport } = require("./lib/community-consensus");
 const { checkRateLimit, configuredCommunityLimits, clientIp } = require("./lib/report-rate-limit");
-const { parsePhoto, savePhoto } = require("./lib/report-photo");
+const { parsePhoto, savePhoto, PRIVATE_TREE_PHOTOS } = require("./lib/report-photo");
 
 // Large enough for one tag photo (base64 of REPORT_PHOTO_MAX_BYTES plus its JSON wrapper); a report
 // without a photo is a few hundred bytes.
@@ -75,7 +75,7 @@ exports.handler = async (event) => {
   // report is not a public issue (spec/spec-community.md). Saved after the duplicate check, so a retry
   // does not store a second copy; a storage failure is a 503, so the outbox sends the report again.
   if (photo) {
-    try { report.photoId = await savePhoto(event, photo); } catch { return respond(503, { error: "Could not save the photo. Please try again." }); }
+    try { report.photoId = await savePhoto(event, photo, { namespace: PRIVATE_TREE_PHOTOS }); } catch { return respond(503, { error: "Could not save the photo. Please try again." }); }
   }
   await store.put(dayKey, { n: day.n + 1 });
   await store.put(key, report);

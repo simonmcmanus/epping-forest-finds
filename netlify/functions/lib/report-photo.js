@@ -33,13 +33,45 @@ function parsePhoto(photo) {
   return { contentType, extension: extensions[contentType], bytes };
 }
 
+// Namespaces. A photo attached to a public GitHub issue lives under "photos" and is served by the public photo
+// address. A tag photo a tree report keeps lives under "tree-photos", which that address never reads: it is
+// private to the review (spec/spec-community.md "Photo of the tag").
+const PUBLIC_PHOTOS = "photos";
+const PRIVATE_TREE_PHOTOS = "tree-photos";
+
+// Tests hand in a store of their own so nothing touches Blobs.
+let storeOverride = null;
+function setPhotoStore(store) { storeOverride = store; }
+
+function photoStore(event) {
+  if (storeOverride) return storeOverride;
+  return configureBlobContext(event) ? getStore(REPORT_PHOTO_STORE) : null;
+}
+
+// A new id in a namespace, e.g. "tree-photos/<uuid>.jpg". The id is the storage key, so a reader can tell where a
+// photo lives from the id alone.
+function photoIdFor(namespace, extension) {
+  return `${namespace}/${randomUUID()}.${extension}`;
+}
+
 // Stores a parsed photo and returns its id. Throws when storage is unavailable, so the caller can refuse
 // the report (the outbox retries a 5xx) rather than file it without the photo.
-async function savePhoto(event, photo) {
-  if (!configureBlobContext(event)) throw new Error("Photo storage is unavailable");
-  const photoId = `${randomUUID()}.${photo.extension}`;
-  await getStore(REPORT_PHOTO_STORE).set(`photos/${photoId}`, photo.bytes, { metadata: { contentType: photo.contentType } });
+async function savePhoto(event, photo, { namespace = PUBLIC_PHOTOS } = {}) {
+  const store = photoStore(event);
+  if (!store) throw new Error("Photo storage is unavailable");
+  const photoId = photoIdFor(namespace, photo.extension);
+  await store.set(photoId, photo.bytes, { metadata: { contentType: photo.contentType } });
   return photoId;
 }
 
-module.exports = { REPORT_PHOTO_MAX_BYTES, REPORT_PHOTO_STORE, configureBlobContext, parsePhoto, savePhoto };
+// Removes a stored photo. An id with no namespace is an older public photo ("photos/<id>").
+async function deletePhoto(event, photoId) {
+  const store = photoStore(event);
+  if (!store) throw new Error("Photo storage is unavailable");
+  await store.delete(photoId.includes("/") ? photoId : `${PUBLIC_PHOTOS}/${photoId}`);
+}
+
+module.exports = {
+  REPORT_PHOTO_MAX_BYTES, REPORT_PHOTO_STORE, PUBLIC_PHOTOS, PRIVATE_TREE_PHOTOS,
+  configureBlobContext, parsePhoto, savePhoto, deletePhoto, photoIdFor, setPhotoStore,
+};

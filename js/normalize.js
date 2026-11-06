@@ -122,35 +122,6 @@ function normalizeTreeNumber(value) {
 
 // --- Geometry helpers ---
 
-function lineSegmentsFromGeometry(geometry) {
-  if (!geometry) return [];
-  if (geometry.type === "LineString") return [geometry.coordinates || []];
-  if (geometry.type === "MultiLineString") return geometry.coordinates || [];
-  return [];
-}
-
-function polygonRingsFromGeometry(geometry) {
-  if (!geometry) return [];
-  if (geometry.type === "Polygon") return [geometry.coordinates || []];
-  if (geometry.type === "MultiPolygon") return geometry.coordinates || [];
-  return [];
-}
-
-function forEachGeojsonCoordinate(collection, visit) {
-  for (const feature of collection.features || []) {
-    walkCoordinates(feature.geometry && feature.geometry.coordinates, visit);
-  }
-}
-
-function walkCoordinates(value, visit) {
-  if (!Array.isArray(value)) return;
-  if (typeof value[0] === "number" && typeof value[1] === "number") {
-    visit(value);
-    return;
-  }
-  for (const item of value) walkCoordinates(item, visit);
-}
-
 // --- Path utilities ---
 
 function pathLabelAnchor(path) {

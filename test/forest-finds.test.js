@@ -665,7 +665,7 @@ globalThis.__forestFindsTest = {
   vm.createContext(context);
 
   const rootDir = path.join(__dirname, "..");
-  const externalScripts = ["js/native.js", "js/app-cache-version.js", "js/data-cache-version.js", "js/categories.js", "js/normalize.js", "js/router-rules.js", "js/dom-elements.js", "js/filter-state.js", "js/tracker.js", "js/outbox.js", "js/community.js", "js/onboarding.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/icon-motion.js", "js/renderer.js", "js/inspector.js"];
+  const externalScripts = ["js/native.js", "js/app-cache-version.js", "js/data-cache-version.js", "js/shared.js", "js/categories.js", "js/normalize.js", "js/router-rules.js", "js/dom-elements.js", "js/filter-state.js", "js/tracker.js", "js/outbox.js", "js/community.js", "js/onboarding.js", "js/permission-asks.js", "js/map-search.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/icon-motion.js", "js/renderer.js", "js/inspector.js"];
   for (const externalSrc of externalScripts) {
     const externalPath = path.join(rootDir, externalSrc);
     if (fs.existsSync(externalPath)) {
@@ -12624,6 +12624,38 @@ test("a tree report whose tag photo cannot be kept is refused so the outbox send
   } finally {
     reportEndpoint.setStore(null);
   }
+});
+
+test("a tag photo a tree report keeps is stored in a private namespace, not beside the public issue photos", async () => {
+  const reportEndpoint = require("../netlify/functions/community-report");
+  const photoStore = require("../netlify/functions/lib/report-photo");
+  const store = memoryStore();
+  const photos = memoryStore();
+  photos.set = (key, bytes) => photos.put(key, Buffer.from(bytes).toString("base64")); // the Blobs store's own call
+  reportEndpoint.setStore(store);
+  photoStore.setPhotoStore(photos);
+  try {
+    const tiny = Buffer.from("not really a jpeg, but bytes").toString("base64");
+    const body = { id: "report-privphoto-1", deviceId: "device-privphoto-1", kind: "tree", status: "NEW_TREE", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01, accuracy: 5, tagNumber: "11383",
+      photo: { contentType: "image/jpeg", dataUrl: `data:image/jpeg;base64,${tiny}` } };
+    const result = await reportEndpoint.handler({ httpMethod: "POST", headers: { "x-nf-client-connection-ip": "198.51.100.41" }, body: JSON.stringify(body) });
+    assert.equal(result.statusCode, 200);
+    const saved = await store.get("reports/report-privphoto-1");
+    assert.ok(saved.photoId.startsWith("tree-photos/"), `the report should point at a private photo, not ${saved.photoId}`);
+    assert.ok(photos.data.has(saved.photoId), "the photo is kept under that id");
+    assert.deepEqual([...photos.data.keys()].filter((k) => k.startsWith("photos/")), [], "nothing lands where the public photo address reads");
+  } finally {
+    reportEndpoint.setStore(null);
+    photoStore.setPhotoStore(null);
+  }
+});
+
+test("the public photo address never serves a tag photo a tree report kept, even knowing its id", async () => {
+  const { handler } = require("../netlify/functions/report-missing-data");
+  const { photoIdFor } = require("../netlify/functions/lib/report-photo");
+  const kept = photoIdFor("tree-photos", "jpg");
+  const result = await handler({ httpMethod: "GET", queryStringParameters: { photo: kept }, headers: {} });
+  assert.equal(result.statusCode, 404);
 });
 
 const communityDelete = require("../netlify/functions/lib/community-delete");

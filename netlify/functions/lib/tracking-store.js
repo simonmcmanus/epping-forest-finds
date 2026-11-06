@@ -52,8 +52,10 @@ function sanitizeEvent(event, { now = Date.now(), maxAgeMs = MAX_EVENT_AGE_MS } 
   if (!event || typeof event !== "object") return null;
   const ms = eventMs(event);
   if (ms == null || ms > now + DAY_MS || ms < now - maxAgeMs) return null;
+  // The device id is what the client generates (a UUID, or hex on old browsers): letters, digits, dashes and
+  // underscores only. Anything else is not an identifier, and the admin dashboard shows it, so it is refused here.
   const uid = text(event.uid, 64);
-  if (!uid) return null;
+  if (!uid || !/^[A-Za-z0-9_-]+$/.test(uid)) return null;
   const base = { type: event.type, uid, ts: new Date(ms).toISOString() };
 
   if (event.type === "location") {
