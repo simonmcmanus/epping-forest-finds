@@ -494,6 +494,37 @@ test.describe("Overview / Nearby screen", () => {
       expect(boxes.button.height, "the button is a comfortable tap target").toBeGreaterThanOrEqual(36);
     });
 
+    test("the browse notice is on the same background as the sheet directly below it, with no white showing around it", async ({ page }) => {
+      await setup(page);
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+      await page.evaluate(() => {
+        const latitude = state.userLocation.latitude + 0.02;
+        const longitude = state.userLocation.longitude;
+        setNearbyAnchor(latitude, longitude, projectLonLat(longitude, latitude));
+      });
+      await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeVisible();
+      await page.evaluate(() => Promise.all(
+        document.getElementById("nearbyAnchorBar").getAnimations().map((animation) => animation.finished)
+      ));
+
+      const measured = await page.evaluate(() => {
+        const bar = document.getElementById("nearbyAnchorBar");
+        const title = document.querySelector(".inspector-title-section");
+        const rect = (el) => el.getBoundingClientRect().toJSON();
+        return {
+          barBackground: getComputedStyle(bar).backgroundColor,
+          titleBackground: getComputedStyle(title).backgroundColor,
+          bar: rect(bar),
+          title: rect(title),
+        };
+      });
+
+      expect(measured.barBackground, "the notice uses the sheet's surface colour, not a tint over white").toBe(measured.titleBackground);
+      expect(measured.bar.left, "the notice reaches the sheet's left edge, leaving no white gutter").toBeCloseTo(measured.title.left, 0);
+      expect(measured.bar.right, "the notice reaches the sheet's right edge, leaving no white gutter").toBeCloseTo(measured.title.right, 0);
+      expect(measured.bar.bottom, "the notice sits directly on top of the sheet's title band").toBeCloseTo(measured.title.top, 0);
+    });
+
     test("moving the browsed spot updates the URL hash so it can be shared", async ({ page }) => {
       await setup(page);
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();

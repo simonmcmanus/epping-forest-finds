@@ -799,8 +799,9 @@ moving the real GPS fix:
   along in a related link's `near=` route as `label=`) with a **Use my location**
   (`data-action="reset-nearby-anchor"`) button that clears `state.nearbyAnchor`
   (`clearNearbyAnchor`) and re-renders/re-fits back to the real GPS fix. Far from the forest the
-  button is hidden, since the view is centred on High Beach whatever the real fix says. The bar is an inset
-  card in the brand greens. When a browse anchor is set it animates in: the space above the
+  button is hidden, since the view is centred on High Beach whatever the real fix says. The bar is a full-width
+  band on the sheet's own surface, the same colour as the title section it sits against, so no white
+  shows around it. When a browse anchor is set it animates in: the space above the
   sheet content opens first (~560ms, height and margins grow from nothing), then just before it
   finishes the card fades in with a slight scale pop, so the content below does not jump down in
   one step. When the anchor clears it plays the same animation in reverse: the card fades and
