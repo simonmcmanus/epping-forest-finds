@@ -65,10 +65,15 @@ function streamFile(res, filePath, type, req = null, stats = null) {
   stream.pipe(res);
 }
 
+// True when `candidate` is `base` or something inside it. The separator matters: "/site-private" starts with
+// "/site" but is a different folder.
+function isInside(base, candidate) {
+  return candidate === base || candidate.startsWith(base + path.sep);
+}
+
 function safeResolve(filePath) {
   const resolved = path.resolve(ROOT, filePath);
-  if (!resolved.startsWith(ROOT)) return null;
-  return resolved;
+  return isInside(ROOT, resolved) ? resolved : null;
 }
 
 async function handleCowProxy(req, res, url) {
@@ -304,7 +309,7 @@ const server = http.createServer((req, res) => {
     const fnName = url.pathname.replace("/.netlify/functions/", "");
     const fnPath = path.join(ROOT, "netlify", "functions", fnName + ".js");
     const resolved = path.resolve(fnPath);
-    if (!resolved.startsWith(path.join(ROOT, "netlify", "functions"))) {
+    if (!isInside(path.join(ROOT, "netlify", "functions"), resolved)) {
       send(res, 403, "Forbidden");
       return;
     }

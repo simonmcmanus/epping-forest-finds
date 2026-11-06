@@ -677,8 +677,11 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(event.request)
         .then((response) => {
-          const copy = response.clone();
-          caches.open(cacheName).then((cache) => cache.put(event.request, copy));
+          // Only a successful answer is kept: a 404 or 5xx stored here would be served offline later.
+          if (response.ok) {
+            const copy = response.clone();
+            caches.open(cacheName).then((cache) => cache.put(event.request, copy));
+          }
           return response;
         })
         .catch(() => caches.match(event.request))
@@ -692,8 +695,11 @@ self.addEventListener("fetch", (event) => {
     caches.open(cacheName).then((cache) => cache.match(event.request)).then((cached) => {
       if (cached) return cached;
       return fetch(event.request).then((response) => {
-        const copy = response.clone();
-        caches.open(cacheName).then((cache) => cache.put(event.request, copy));
+        // A failed response goes to the page as it is but is never stored as the file's body.
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(cacheName).then((cache) => cache.put(event.request, copy));
+        }
         return response;
       });
     })

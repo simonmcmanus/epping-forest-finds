@@ -479,6 +479,7 @@ test("me reports who is signed in and never an error for a visitor; link refuses
     const cookie = `ff_session=${encodeURIComponent(token)}`;
     assert.strictEqual((await linkHandler.handler({ httpMethod: "POST", headers: { cookie }, body: JSON.stringify({ deviceId: "x" }) })).statusCode, 400);
     assert.strictEqual((await linkHandler.handler({ httpMethod: "POST", headers: { cookie }, body: "{not json" })).statusCode, 400);
+    assert.strictEqual((await linkHandler.handler({ httpMethod: "POST", headers: { cookie }, body: "null" })).statusCode, 400, "a body of null is not a device");
   });
 });
 test("cookies are Secure over https and not over plain http on localhost, where a Secure cookie could never come back", async () => {

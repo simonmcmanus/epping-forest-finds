@@ -1132,17 +1132,6 @@ function isLandingPageArrival() {
 // top progress bar (the same element, styled via the "inline" class in css/loading.css) while
 // the same data loads behind the map and static content, which stay visible and interactive the
 // whole time.
-function isInstalledAppContext() {
-  try {
-    if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) return true;
-  } catch {
-    // matchMedia missing or the query unsupported -- fall through to the other checks.
-  }
-  if (window.navigator && window.navigator.standalone === true) return true;
-  if (window.Capacitor && typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform()) return true;
-  return false;
-}
-
 function applyShowFilterFromQuery({ render = true } = {}) {
   if (showsEverythingFromQuery(window.location.search)) {
     setOverviewFilters(Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: false, render });
@@ -4385,77 +4374,6 @@ function resolvePlaceKind(place) {
   return placeLabelFilterKey(place) || "landmark";
 }
 
-function outOfRadiusCountForGroup(groupKey) {
-  if (!state.userLocation) return 0;
-
-  const group = FILTER_GROUPS_BY_KEY.get(groupKey);
-  if (!group || !Array.isArray(group.subfilters) || !group.subfilters.length) return 0;
-
-  const currentSet = activeOverviewFilterSet();
-  const activeSubfilters = group.subfilters.filter((subfilter) => currentSet.has(subfilter.key));
-  const subfiltersToCount = state.overviewFilters.length > 0 ? activeSubfilters : group.subfilters;
-  if (!subfiltersToCount.length) return 0;
-
-  const radiusMetres = walkingDistanceToMetres(state.walkingDistanceMinutes);
-  const { latitude, longitude } = state.userLocation;
-  const unique = new Set();
-
-  for (const subfilter of subfiltersToCount) {
-    const filterKey = subfilter.key;
-    if (filterKey === "trees") {
-      for (const tree of state.trees) {
-        const metres = distanceMetres(latitude, longitude, tree.latitude, tree.longitude);
-        if (metres > radiusMetres) unique.add(`tree:${treeHashKey(tree)}`);
-      }
-      continue;
-    }
-    if (filterKey === "cows") {
-      for (const cow of state.cows) {
-        const metres = distanceMetres(latitude, longitude, cow.latitude, cow.longitude);
-        if (metres > radiusMetres) unique.add(`cow:${cowKey(cow)}`);
-      }
-      continue;
-    }
-
-    if (filterKey === "waymarked_trails") {
-      for (const path of state.paths) {
-        if (!isWaymarkedTrail(path)) continue;
-        const metres = distanceFromUserToPath(path);
-        if (metres > radiusMetres) unique.add(`path:${pathHashKey(path)}`);
-      }
-      continue;
-    }
-
-    for (const place of state.landmarks) {
-      if (!matchesPlaceFilter(place, filterKey)) continue;
-      const metres = distanceMetres(latitude, longitude, place.latitude, place.longitude);
-      if (metres > radiusMetres) unique.add(`place:${placeHashKey(place)}`);
-    }
-  }
-
-  return unique.size;
-}
-
-function isLayerVisibleForFilter(layerKey) {
-  if (!state.overviewFilters.length) return true;
-  return isSubfilterActive(layerKey);
-}
-
-function isTreeVisibleForFilter() {
-  return state.overviewFilters.length === 0 || isSubfilterActive("trees");
-}
-
-function isCowVisibleForFilter() {
-  return state.overviewFilters.length === 0 || isSubfilterActive("cows");
-}
-
-function isPlaceVisibleForFilter(place) {
-  if (state.overviewFilters.length === 0) return true;
-  const activePlaceFilters = getActivePlaceFilterKeys();
-  if (!activePlaceFilters.length) return false;
-  return activePlaceFilters.some((filterKey) => matchesPlaceFilter(place, filterKey));
-}
-
 function overviewEntryKey(entry) {
   if (!entry || !entry.item) return "";
   if (entry.type === "tree") return `tree:${treeHashKey(entry.item)}`;
@@ -5310,23 +5228,10 @@ function hasAnyPlaceTag(place, tags) {
   return tags.some((tag) => hasPlaceTag(place, tag));
 }
 
-function directionLabelFor(item) {
-  if (!state.userLocation || !item || !Number.isFinite(item.latitude) || !Number.isFinite(item.longitude)) return null;
-  const bearing = bearingDegrees(state.userLocation.latitude, state.userLocation.longitude, item.latitude, item.longitude);
-  const arrow = bearingArrow(bearing);
-  const cardinal = bearingCardinal(bearing);
-  return `${arrow} ${cardinal} (${Math.round(bearing)}°)`;
-}
-
 function directionTextFor(item) {
   if (!state.userLocation || !item || !Number.isFinite(item.latitude) || !Number.isFinite(item.longitude)) return null;
   const bearing = bearingDegrees(state.userLocation.latitude, state.userLocation.longitude, item.latitude, item.longitude);
   return `${bearingCardinal(bearing)} (${Math.round(bearing)}°)`;
-}
-
-function bearingForItem(item) {
-  if (!state.userLocation || !item || !Number.isFinite(item.latitude) || !Number.isFinite(item.longitude)) return null;
-  return bearingDegrees(state.userLocation.latitude, state.userLocation.longitude, item.latitude, item.longitude);
 }
 
 async function startCompassNavigation({ fromGesture = Boolean(navigator.userActivation?.isActive) } = {}) {
@@ -9722,15 +9627,6 @@ function nearbyPlacesByFilterWithinDistance(latitude, longitude, filter, maxMetr
     .sort((a, b) => a.metres - b.metres);
 }
 
-function nearestToViewport(items, limit) {
-  const center = screenToWorld(state.canvasLogicalWidth / 2, state.canvasLogicalHeight / 2);
-  return items
-    .map((item) => ({ item, distance: Math.hypot(item.point.x - center.x, item.point.y - center.y) }))
-    .sort((a, b) => a.distance - b.distance)
-    .slice(0, limit)
-    .map(({ item }) => item);
-}
-
 function pointInsideBounds(point, bounds) {
   if (!bounds) return false;
   const padX = (bounds.maxX - bounds.minX) * 0.08;
@@ -10373,16 +10269,6 @@ function postDraw() {
   if (headingUpActive()) updateHeadingUpCanvasRotationTransform();
 }
 
-function requestOverlayDraw() {
-  if (state.overlayAnimationFrame) return;
-  state.overlayAnimationFrame = requestAnimationFrame(() => {
-    state.overlayAnimationFrame = null;
-    state.overlayAnimationFrameRequestedAt = null;
-    if (typeof drawOverlay === "function") drawOverlay();
-  });
-  state.overlayAnimationFrameRequestedAt = performance.now();
-}
-
 function setStatus(_message) {
 }
 
@@ -10556,7 +10442,8 @@ function parseLooseDate(value) {
 // buildOsmCategoryTags, hasPlaceTag, filterKindEmoji, filterKindColor → js/categories.js
 
 function escapeHtml(value) {
-  return String(value)
+  // A missing value is empty text, not the word "undefined" or "null" on the screen.
+  return String(value ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")

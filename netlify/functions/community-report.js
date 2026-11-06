@@ -28,6 +28,7 @@ exports.handler = async (event) => {
   if (raw.length > MAX_BODY_BYTES) return respond(413, { error: "Report too large" });
   let input;
   try { input = JSON.parse(raw); } catch { return respond(400, { error: "Invalid JSON" }); }
+  if (!input || typeof input !== "object") return respond(400, { error: "Invalid report" });
 
   const report = {
     id: input.id,

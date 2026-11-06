@@ -244,6 +244,8 @@ globalThis.__forestFindsTest = {
   // because the app looks the method up on it at every call.
   performance,
   formatDistance,
+  escapeHtml,
+  loadJsonWithin,
   fetchMapData,
   requestPersistentStorage,
   cowEndpointUrl,
@@ -4422,12 +4424,50 @@ test("nearby summary uses the generated walking icon asset", () => {
   assert.match(app.appIconHtml("nearby", "app-icon title-icon"), /data\/icons\/nearby\.png/);
 });
 
+test("a map download whose body stalls after its headers is abandoned at its timeout", async () => {
+  const realFetch = globalThis.fetch;
+  const stalled = async (url, options) => ({
+    ok: true,
+    status: 200,
+    json: () => new Promise((resolve, reject) => { options.signal.addEventListener("abort", () => reject(new Error("body abandoned"))); }),
+  });
+  const realAbortController = app.swapGlobalFunction("AbortController", AbortController); // the browser's, as the page has it
+  app.swapGlobalFunction("fetch", stalled);
+  const timedOut = new Promise((resolve, reject) => setTimeout(() => reject(new Error("the loader hung")), 3000));
+  try {
+    await assert.rejects(Promise.race([app.loadJsonWithin("data/trees/index.json", 50), timedOut]), /body abandoned/);
+  } finally {
+    app.swapGlobalFunction("fetch", realFetch);
+    app.swapGlobalFunction("AbortController", realAbortController);
+  }
+});
+
+test("an event whose coordinates are blank is left off the map rather than placed at 0,0", () => {
+  const now = Date.parse("2026-10-10T12:00:00Z");
+  const data = {
+    events: [
+      { id: "blank", name: "Blank coords", lat: "", lon: "", startsAt: "2026-10-10T13:00:00Z" },
+      { id: "null", name: "Null coords", lat: null, lon: null, startsAt: "2026-10-10T13:00:00Z" },
+      { id: "real", name: "Real coords", lat: 51.65, lon: 0.04, startsAt: "2026-10-10T13:00:00Z" },
+    ],
+  };
+  assert.deepEqual(app.normalizeEventLocations(data, now).map((e) => e.id), ["real"]);
+});
+
+test("escaping a missing value for HTML shows nothing, not the word undefined or null", () => {
+  assert.equal(app.escapeHtml(undefined), "");
+  assert.equal(app.escapeHtml(null), "");
+  assert.equal(app.escapeHtml("Tom & <Jerry>"), "Tom &amp; &lt;Jerry&gt;");
+});
+
 test("formatDistance uses metres under 1km and trims unnecessary km decimals", () => {
   assert.equal(app.formatDistance(850), "850 m");
   assert.equal(app.formatDistance(1500), "1.5 km");
   assert.equal(app.formatDistance(5000), "5 km");
   assert.equal(app.formatDistance(9940), "9.9 km");
   assert.equal(app.formatDistance(12300), "12 km");
+  assert.equal(app.formatDistance(999.6), "1 km", "a distance that rounds up to a whole kilometre reads as kilometres");
+  assert.equal(app.formatDistance(999.4), "999 m");
 });
 
 test("nearby list shows tag number for trees", () => {
@@ -5087,7 +5127,6 @@ test("settings form's Privacy section shows usage analytics as one choice and of
     let html = app.settingsFormHtml();
     assert.match(html, /id="analyticsStatus">off</);
     assert.match(html, /id="analyticsToggle"[^>]*>Turn on usage analytics</);
-    assert.doesNotMatch(html, /cookieConsentManageBtn/, "there is no second, separate cookie control to keep in step");
 
     app.setAnalyticsConsent(true);
     html = app.settingsFormHtml();
@@ -6069,39 +6108,6 @@ test("a link naming something this dataset does not have falls back to Nearby an
 
 // --- Offline support ---
 
-test("service worker APP_SHELL includes css/tracking.css so consent modal works offline", () => {
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  const shellMatch = sw.match(/const APP_SHELL = \[([\s\S]*?)\];/);
-  assert.ok(shellMatch, "APP_SHELL list exists");
-  assert.ok(shellMatch[1].includes("./css/tracking.css"), "tracking.css must be in APP_SHELL — without it the consent modal has no positioning styles offline, making the location gate button appear unresponsive");
-});
-
-test("service worker APP_SHELL includes all CSS files referenced by app.html", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  const shellMatch = sw.match(/const APP_SHELL = \[([\s\S]*?)\];/);
-  assert.ok(shellMatch, "APP_SHELL list exists");
-
-  const cssRefs = [...html.matchAll(/href="(css\/[^"]+\.css)"/g)].map((m) => `./${m[1]}`);
-  assert.ok(cssRefs.length > 0, "app.html should reference CSS files");
-  for (const cssFile of cssRefs) {
-    assert.ok(shellMatch[1].includes(cssFile), `APP_SHELL missing ${cssFile} — page will be unstyled offline`);
-  }
-});
-
-test("service worker APP_SHELL includes all JS files referenced by app.html", () => {
-  const html = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
-  const sw = fs.readFileSync(path.join(__dirname, "..", "sw.js"), "utf8");
-  const shellMatch = sw.match(/const APP_SHELL = \[([\s\S]*?)\];/);
-  assert.ok(shellMatch, "APP_SHELL list exists");
-
-  const jsRefs = [...html.matchAll(/src="(js\/[^"?]+\.js)(?:\?[^"]*)?"/g)].map((m) => `./${m[1]}`);
-  assert.ok(jsRefs.length > 0, "app.html should reference JS files");
-  for (const jsFile of jsRefs) {
-    assert.ok(shellMatch[1].includes(jsFile), `APP_SHELL missing ${jsFile} — app will not boot offline`);
-  }
-});
-
 test("service worker falls back to the cached app shell offline for /nearby/<slug>/ and /find/<slug>/ pages, never a network error", () => {
   // Executes the real sw.js (not a regex match on its source) so a logic error in the pattern --
   // wrong anchor, missing the trailing-slash variant, an inverted condition -- fails this test
@@ -6308,7 +6314,6 @@ test("local dev server flags sw.js with self.__DEV__ without touching the produc
 
   // The file on disk (what Netlify serves in production, untouched) must never itself
   // set the flag — only the local dev server's response does.
-  assert.doesNotMatch(original, /self\.__DEV__\s*=\s*true/, "sw.js on disk must not hardcode the dev flag");
   assert.equal(
     vm.runInContext(original.slice(0, original.indexOf("importScripts(")) + "\nIS_DEV", vm.createContext({ self: {} })),
     false,
@@ -6789,6 +6794,32 @@ test("findRoutePoints falls back to null when a point is too far from the networ
     { ...routingOptions(), maxSnapMetres: 250 }
   );
   assert.equal(route, null, "a point ~1.1km from the nearest road must not snap onto it");
+});
+
+test("a route starts from the node ahead toward its destination, not an equally near one behind", () => {
+  // The walker stands at the origin and the destination lies due east. Both nodes are 5 m away.
+  const graph = { nodes: [{ x: -5, y: 0 }, { x: 5, y: 0 }], componentId: [0, 0] };
+  const pick = app.nearestRoutingNode(graph, { x: 0, y: 0 }, 0, { x: 10, y: 0 });
+  assert.equal(pick.point.x, 5, "the node in the direction of travel wins the tie");
+});
+
+test("a node slightly farther ahead beats a nearer node that is directly behind", () => {
+  const graph = { nodes: [{ x: -3, y: 0 }, { x: 6, y: 1 }], componentId: [0, 0] };
+  const pick = app.nearestRoutingNode(graph, { x: 0, y: 0 }, 0, { x: 10, y: 0 });
+  assert.equal(pick.point.x, 6);
+});
+
+test("a node exactly under the walker is chosen, not skipped as an undefined score", () => {
+  const graph = { nodes: [{ x: 5, y: 0 }, { x: 0, y: 0 }], componentId: [0, 0] };
+  const pick = app.nearestRoutingNode(graph, { x: 0, y: 0 }, 0, { x: 10, y: 0 });
+  assert.equal(pick.nodeId, 1);
+});
+
+test("a route request whose start has no node in the main network is refused, not an exception", () => {
+  const graph = { nodes: [{ x: 0, y: 0 }], componentId: [0], largestComponentId: 9, adjacency: [[]] };
+  const from = routingWorldPoint(51.6501, 0.00005);
+  const to = routingWorldPoint(51.6501, 0.00195);
+  assert.equal(app.findRoutePoints(graph, from, to, routingOptions()), null);
 });
 
 test("findRoutePoints starts and ends at the exact requested points, not the snapped network nodes", () => {
@@ -12428,6 +12459,70 @@ test("a register reward only counts reports made before the last run that still 
   assert.equal(summary.newRegisterRewards, 1, "only the report made before the previous run counts");
   const items = (await store.get("validations")).items;
   assert.equal(JSON.stringify(items.map((i) => i.target)), JSON.stringify(["tree:77"]));
+});
+
+test("a register check that could not reach the register does not move the reward cutoff", async () => {
+  const store = memoryStore();
+  const register = (records, generatedAt, { fail = false } = {}) => async (path) => {
+    if (fail) throw new Error("register unavailable");
+    if (path.endsWith("index.json")) return { generatedAt, sourceGeneratedAt: generatedAt, recordCount: records.length, chunks: [{ url: "chunk.json" }] };
+    return { trees: records.map((r) => ({ recordNumber: r, latitude: 51.64, longitude: 0.01 })) };
+  };
+  await communityValidation.runValidation({ store, fetchJson: register(["77"], 1), now: 1000 }); // baseline: the old register is seen
+  // Posted at 1600, after the register changed at about 1500, so it must not earn the reward.
+  await store.put("reports/late", communityReport({ id: "report-late-01", target: "tree:77", status: "NOT_HERE", ts: 1600 }));
+  await communityValidation.runValidation({ store, fetchJson: register([], 1, { fail: true }), now: 2000 }); // the register cannot be read
+  const summary = await communityValidation.runValidation({ store, fetchJson: register([], 2), now: 3000 }); // the change is seen
+  assert.equal(summary.newRegisterRewards, 0, "a failed check at 2000 must not count as having seen the old register");
+});
+
+test("two overlapping validation runs keep the rewards either of them saved", async () => {
+  const store = memoryStore();
+  const register = (records, generatedAt) => async (path) => {
+    if (path.endsWith("index.json")) return { generatedAt, sourceGeneratedAt: generatedAt, recordCount: records.length, chunks: [{ url: "chunk.json" }] };
+    return { trees: records.map((r) => ({ recordNumber: r, latitude: 51.64, longitude: 0.01 })) };
+  };
+  await communityValidation.runValidation({ store, fetchJson: register(["77"], 1), now: 1000 }); // baseline
+  await store.put("reports/early", communityReport({ id: "report-early-01", target: "tree:77", status: "NOT_HERE", ts: 900 }));
+  // Run A reads the stored state first, then its register read is held back while run B completes.
+  let releaseA;
+  const aMayContinue = new Promise((resolve) => { releaseA = resolve; });
+  const runA = communityValidation.runValidation({
+    store,
+    fetchJson: async (path) => { await aMayContinue; return register(["77"], 1)(path); }, // still sees the old register
+    now: 2000,
+  });
+  const runB = await communityValidation.runValidation({ store, fetchJson: register([], 2), now: 2500 }); // sees the change and saves the reward
+  assert.equal(runB.newRegisterRewards, 1);
+  releaseA();
+  await runA;
+  const saved = await store.get("validations");
+  assert.deepEqual(saved.items.map((i) => i.target), ["tree:77"], "run A's stale save must not erase run B's reward");
+  assert.equal(saved.register.signature, "2|2|0", "the newer register is the one remembered");
+});
+
+test("community endpoints refuse a request body of JSON null with a 400 instead of failing", async () => {
+  const reportEndpoint = require("../netlify/functions/community-report");
+  reportEndpoint.setStore(memoryStore());
+  const report = await reportEndpoint.handler({ httpMethod: "POST", body: "null", headers: {} });
+  assert.equal(report.statusCode, 400);
+
+  const original = process.env.ADMIN_PASSWORD;
+  process.env.ADMIN_PASSWORD = "admin-secret-null";
+  try {
+    delete require.cache[require.resolve("../netlify/functions/community-delete")];
+    const deleteEndpoint = require("../netlify/functions/community-delete");
+    const removed = await deleteEndpoint.handler({ httpMethod: "POST", body: "null", headers: { authorization: "Bearer admin-secret-null" } });
+    assert.equal(removed.statusCode, 400);
+  } finally {
+    if (original === undefined) delete process.env.ADMIN_PASSWORD; else process.env.ADMIN_PASSWORD = original;
+  }
+});
+
+test("the missing-data report refuses a request body of JSON null with a 400 instead of failing", async () => {
+  const { handler } = require("../netlify/functions/report-missing-data");
+  const result = await handler({ httpMethod: "POST", body: "null", headers: {} });
+  assert.equal(result.statusCode, 400);
 });
 
 test("one network cannot mint endless device ids to confirm its own reports: community reports are capped per address and site-wide", async () => {

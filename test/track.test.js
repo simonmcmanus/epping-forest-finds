@@ -406,3 +406,11 @@ test("a daily file that fails to read marks the day incomplete instead of quietl
   assert.strictEqual(result.oldestDayIncomplete, true);
   assert.strictEqual(result.oldestDay, tracking.dayOf(now));
 });
+
+test("the admin read takes the password from the Authorization header only, never from the address", async () => {
+  track.setStore(memoryStore());
+  const byAddress = await track.handler({ httpMethod: "GET", headers: {}, queryStringParameters: { days: "all", pw: "admin-pw" } });
+  assert.strictEqual(byAddress.statusCode, 401, "a password in the URL would be written to logs and history");
+  const byHeader = await track.handler({ httpMethod: "GET", headers: { authorization: "Bearer admin-pw" }, queryStringParameters: { days: "all" } });
+  assert.strictEqual(byHeader.statusCode, 200);
+});

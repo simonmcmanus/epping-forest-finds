@@ -19,10 +19,6 @@ function activeOverviewFilterSet() {
   return new Set(sanitizeOverviewFilters(state.overviewFilters));
 }
 
-function activeOverviewExpandedSet() {
-  return new Set(sanitizeExpandedGroups(state.overviewExpandedGroups));
-}
-
 function getActiveSubfiltersForGroup(groupKey, currentSet = activeOverviewFilterSet()) {
   const group = FILTER_GROUPS_BY_KEY.get(groupKey);
   if (!group) return [];

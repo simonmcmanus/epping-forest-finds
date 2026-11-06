@@ -77,6 +77,11 @@ exports.handler = async (event, context) => {
     return response(400, { error: "Invalid request" });
   }
 
+  if (!payload || typeof payload !== "object") {
+    log("rejected a body that is not an object");
+    return response(400, { error: "Invalid request" });
+  }
+
   if (!isPlausibleEmail(payload.email)) {
     log("rejected invalid email format");
     return response(400, { error: "Please enter a valid email address." });

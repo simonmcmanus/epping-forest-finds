@@ -32,13 +32,20 @@ function normalizeList(raw) {
   return out;
 }
 
+// Tests hand in a store of their own so nothing touches disk or Blobs.
+let storeOverride = null;
+function setStore(store) { storeOverride = store; }
+function storeFor(event) { return storeOverride || openStore(event); }
+
+// A list that cannot be read is an error, not an empty list: an empty list means the gate is off and everyone
+// has the feature, so reading a storage failure as "nothing there" would open testers-only features to all.
 async function readList(event) {
-  return normalizeList(await openStore(event).get(LIST_KEY));
+  return normalizeList(await storeFor(event).getStrict(LIST_KEY));
 }
 
 async function writeList(event, list) {
   const clean = normalizeList(list);
-  await openStore(event).put(LIST_KEY, clean);
+  await storeFor(event).put(LIST_KEY, clean);
   return clean;
 }
 
@@ -64,4 +71,4 @@ function enabledFor(list, ids) {
   return result;
 }
 
-module.exports = { testerHash, normalizeList, readList, writeList, enabledFor, vouchedIds, FEATURES, ID_RE };
+module.exports = { testerHash, normalizeList, readList, writeList, enabledFor, vouchedIds, storeFor, setStore, FEATURES, ID_RE };

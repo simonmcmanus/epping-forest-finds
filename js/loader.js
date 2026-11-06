@@ -53,6 +53,20 @@ async function mapDataHandOverSettled() {
   while (pendingDataHandOvers.size) await Promise.allSettled([...pendingDataHandOvers]);
 }
 
+// One JSON download, abandoned after timeoutMs. The timer runs until the body is read as well as the
+// headers: a server that sends its headers and then stalls must not hang the loader.
+async function loadJsonWithin(url, timeoutMs = 60000) {
+  const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+  const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+  try {
+    const response = await fetchMapData(url, controller ? { signal: controller.signal } : undefined);
+    if (!response.ok) throw new Error(`${url} HTTP ${response.status}`);
+    return await response.json();
+  } finally {
+    if (timeoutId != null) clearTimeout(timeoutId);
+  }
+}
+
 async function fetchMapData(url, options) {
   const response = await fetch(url, options);
   shareWithDataCache(url, response);
@@ -69,17 +83,7 @@ async function loadMapData() {
 
   const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  const loadJson = async (url, timeoutMs = 60000) => {
-    const controller = typeof AbortController !== "undefined" ? new AbortController() : null;
-    const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
-    try {
-      const response = await fetchMapData(url, controller ? { signal: controller.signal } : undefined);
-      if (!response.ok) throw new Error(`${url} HTTP ${response.status}`);
-      return response.json();
-    } finally {
-      if (timeoutId != null) clearTimeout(timeoutId);
-    }
-  };
+  const loadJson = loadJsonWithin;
 
   const loadTreeDataset = async (url, timeoutMs = 60000) => {
     const data = await loadJson(url, timeoutMs);

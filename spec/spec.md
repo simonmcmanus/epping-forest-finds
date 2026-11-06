@@ -848,7 +848,7 @@ Events are stored in `localStorage` (`ff-track-queue`) when offline and flushed 
 - Toggle between **Tracks view** (coloured route lines + direction arrows) and **Heatmap view** (density grid)
 - Yellow dots show click/tap events; coloured dots show last known user position
 - Auto-refreshes every 5 minutes; manual refresh button available
-- Data served from `GET /api/admin/tracks?pw=...`
+- Data served from `GET /api/admin/tracks` (Bearer header)
 
 ## GitHub Issue Clarification Workflow
 

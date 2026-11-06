@@ -216,3 +216,19 @@ test("events whose send fails after consent is withdrawn are not kept to send la
   await api.trackerFlushQueue();
   assert.equal(sent.length, 1, "nothing from before the withdrawal goes out after consent is given again");
 });
+
+test("a click on an item with null coordinates is located by its geometry, not at null island", () => {
+  const { api, queued } = loadTracker();
+  api.trackClick("tree", { id: "t1", lat: null, lon: null, geometry: { type: "Point", coordinates: [0.04, 51.65] } }, 51.6, 0.03);
+  const [event] = queued();
+  assert.equal(event.targetLat, 51.65);
+  assert.equal(event.targetLng, 0.04);
+});
+
+test("an item with no usable coordinates at all is recorded without a target rather than at 0,0", () => {
+  const { api, queued } = loadTracker();
+  api.trackClick("tree", { id: "t2", lat: null, lon: null }, 51.6, 0.03);
+  const [event] = queued();
+  assert.equal(event.targetLat, null);
+  assert.equal(event.targetLng, null);
+});

@@ -199,9 +199,12 @@ test.describe("Selected route line follows the road/path network", () => {
         // Drive the same state the compass/orientation handlers write, and force the fit so
         // this measures the fit itself rather than the ease that smooths it (covered by the
         // unit tests). Then draw, so worldToScreen reads the settled viewport.
-        state.compassHeadingTarget = 0;
-        state.compassHeading = 0;
-        state.renderedNavigationHeading = 0;
+        // Face the walker toward the tree, so the route lies ahead: the framing this measures is the view
+        // of a route in front of the walker. (Facing north put a tree to the south-west behind them.)
+        const towardTree = bearingDegrees(state.userLocation.latitude, state.userLocation.longitude, 51.6437884, 0.0236671);
+        state.compassHeadingTarget = towardTree;
+        state.compassHeading = towardTree;
+        state.renderedNavigationHeading = towardTree;
         state.compassLastEventAt = performance.now();
         state.map3dEnabled = true;
         state.tiltBetaTarget = b;
