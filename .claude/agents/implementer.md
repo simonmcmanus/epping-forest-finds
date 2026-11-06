@@ -35,8 +35,9 @@ Hard limits:
 - Do not spawn other agents. Report back to the lead.
 - Do not open a pull request unless the lead asks for one.
 
-Commit with a concise message that describes the change. Push with
-`git push -u origin <branch>`, retrying network failures only, with backoff.
+Commit with a concise message that describes the change, on your local branch. Do not push. The lead
+session pushes only after the reviewers and the test-runner have passed your branch. When it sends
+review findings back, fix them as new local commits, and do not amend or rebase earlier ones.
 
 Your final report:
 

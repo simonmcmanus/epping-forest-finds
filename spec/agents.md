@@ -92,6 +92,8 @@ Rules:
   the same one.
 - **Cache markers are never agent-edited:** `js/app-cache-version.js` and `js/data-cache-version.js`.
 - **The lead dispatches; subagents report back.** Subagents do not spawn further agents.
+- **Review before push.** Implementers commit locally. The reviewers and the test-runner run on the
+  local branch, and the lead session pushes only after they pass (see `/orchestrate`).
 - **Local results are local.** The lead reads the CI run for the head SHA before reporting anything
   done (see "CI is the verdict").
 - **Hand-off report from every agent:** branch, worktree path, commits, files changed, spec file(s)
