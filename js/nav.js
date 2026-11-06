@@ -87,6 +87,11 @@ function nearbyOrigin() {
 // show the forest from High Beach, and nothing tries to walk them to a place.
 const FAR_FROM_FOREST_METRES = 1250;
 
+// The furthest any part of the forest land outline is from the High Beach stand-in (its south-western
+// end, about 12.75 km away). A real fix beyond this plus FAR_FROM_FOREST_METRES is far even before the
+// outline has loaded (isFarFromForestFix, js/app.js). Data invariant guarded by a unit test.
+const FOREST_OUTLINE_REACH_FROM_HIGH_BEACH_METRES = 13000;
+
 // True when a real, shared fix sits well outside the forest. state.farFromForest is kept current by
 // updateFarFromForest (js/app.js) on every fix and when the forest outline lands.
 function isFarFromForest() {
@@ -868,6 +873,7 @@ function setupInteractions() {
   setupInspectorDragResize();
   setupFilterPanelHandlers();
   setupSearchAndNavHandlers();
+  setupRailLongPress();
   setupMapCanvasHandlers();
 }
 
@@ -1018,17 +1024,6 @@ function setupInspectorHandlers() {
     setInspectorMinimized(false);
   });
 
-  if (els.distanceWarningButton) {
-    els.distanceWarningButton.addEventListener("click", () => {
-      state.distanceWarningShown = true;
-      if (els.distanceWarning._deactivateFocus) {
-        els.distanceWarning._deactivateFocus();
-        els.distanceWarning._deactivateFocus = null;
-      }
-      hideWithFade(els.distanceWarning);
-    });
-  }
-
   if (els.compassCalibrationBannerDismiss) {
     els.compassCalibrationBannerDismiss.addEventListener("click", () => {
       if (typeof dismissCompassCalibrationPrompt === "function") dismissCompassCalibrationPrompt();
@@ -1048,17 +1043,17 @@ function setupInspectorHandlers() {
   }
 }
 
-function pulseNavButton(el) {
-  el.classList.remove("nav-reselect");
-  void el.offsetWidth;
-  el.classList.add("nav-reselect");
-  el.addEventListener("animationend", () => el.classList.remove("nav-reselect"), { once: true });
+function shakeInspectorSheet() {
+  els.inspector.classList.remove("sheet-shake");
+  void els.inspector.offsetWidth;
+  els.inspector.classList.add("sheet-shake");
+  els.inspector.addEventListener("animationend", () => els.inspector.classList.remove("sheet-shake"), { once: true });
 }
 
 function setupFilterPanelHandlers() {
   els.filterToggle.addEventListener("click", () => {
     if (els.filterToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
-      pulseNavButton(els.filterToggle);
+      shakeInspectorSheet();
       return;
     }
     if (els.inspector.classList.contains("minimized")) {
@@ -1074,10 +1069,13 @@ function setupFilterPanelHandlers() {
         && !window.location.search
         && !window.location.hash
         && !state.nearbyAnchor;
-      if (els.nearbyToggle.classList.contains("screen-active")
-        && !els.inspector.classList.contains("minimized")
-        && onPlainNearby) {
-        pulseNavButton(els.nearbyToggle);
+      const alreadyOnNearby = els.nearbyToggle.classList.contains("screen-active")
+        && !els.inspector.classList.contains("minimized");
+      if (alreadyOnNearby) {
+        // Already on the Nearby screen: shake it in place rather than sliding it out and back in.
+        // A browse anchor or query still needs the list refreshed, but without the screen-entry slide.
+        shakeInspectorSheet();
+        if (!onPlainNearby) goToInitialView(true, { enterAnimated: false });
         return;
       }
       goToInitialView();
@@ -1090,7 +1088,7 @@ function setupFilterPanelHandlers() {
       // The tab is lit on its Feedback sub-page too, but tapping it there goes back up to Community.
       const here = communityEnabled() ? "community" : "report";
       if (state.selected?.type === here && !els.inspector.classList.contains("minimized")) {
-        pulseNavButton(els.reportToggle);
+        shakeInspectorSheet();
         return;
       }
       openCommunityOrFeedback();
@@ -1101,7 +1099,7 @@ function setupFilterPanelHandlers() {
     els.settingsToggle.addEventListener("click", (event) => {
       event.preventDefault();
       if (els.settingsToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
-        pulseNavButton(els.settingsToggle);
+        shakeInspectorSheet();
         return;
       }
       openSettings();
@@ -1164,12 +1162,66 @@ function handleNearestListArrowKey(event) {
   }
 }
 
+// Holding a Nearby filter-rail pill for RAIL_LONG_PRESS_MS opens the map setup dialog at that pill's
+// category (openFilterSetup in js/app.js), so a reader can change a category's subcategories
+// without tapping through the whole dialog. The hold is cancelled once the finger drifts, so
+// scrolling the rail never opens it, and the click a completed hold would send is swallowed, so the
+// pill is not also toggled. The Everything pill has no category and keeps its plain tap.
+const RAIL_LONG_PRESS_MS = 450;
+const RAIL_LONG_PRESS_SLOP_PX = 10;
+const railLongPress = { timer: null, x: 0, y: 0, swallowClick: false };
+
+function cancelRailLongPress() {
+  if (railLongPress.timer !== null) clearTimeout(railLongPress.timer);
+  railLongPress.timer = null;
+}
+
+function setupRailLongPress() {
+  const railPillSelector = ".filter-rail button[data-rail-key]";
+  // The rail is inside #inspectorBody, which is replaced whole on each screen change, so it is
+  // bound by delegation.
+  els.inspectorBody.addEventListener("pointerdown", (event) => {
+    cancelRailLongPress();
+    railLongPress.swallowClick = false;
+    const pill = event.target.closest?.(railPillSelector);
+    if (!pill || event.button > 0) return;
+    const groupKey = railPillGroupKey(pill.dataset.railKey);
+    if (!groupKey) return;
+    railLongPress.x = event.clientX;
+    railLongPress.y = event.clientY;
+    railLongPress.timer = setTimeout(() => {
+      railLongPress.timer = null;
+      railLongPress.swallowClick = true;
+      if (typeof navigator.vibrate === "function") navigator.vibrate(12);
+      openCategorySetup(groupKey);
+    }, RAIL_LONG_PRESS_MS);
+  });
+  els.inspectorBody.addEventListener("pointermove", (event) => {
+    if (railLongPress.timer === null) return;
+    if (Math.hypot(event.clientX - railLongPress.x, event.clientY - railLongPress.y) > RAIL_LONG_PRESS_SLOP_PX) {
+      cancelRailLongPress();
+    }
+  });
+  for (const type of ["pointerup", "pointercancel", "pointerleave"]) {
+    els.inspectorBody.addEventListener(type, cancelRailLongPress);
+  }
+  // A held pill should not open the phone's own long-press menu or start a text selection. The CSS
+  // covers the browsers that honour it; cancelling selectstart also stops a selection from starting
+  // on a pill in any browser, so the press selects nothing.
+  els.inspectorBody.addEventListener("contextmenu", (event) => {
+    if (event.target.closest?.(railPillSelector)) event.preventDefault();
+  });
+  els.inspectorBody.addEventListener("selectstart", (event) => {
+    if (event.target.closest?.(railPillSelector)) event.preventDefault();
+  });
+}
+
 function setupSearchAndNavHandlers() {
   if (els.searchToggle) {
     els.searchToggle.addEventListener("click", (event) => {
       event.preventDefault();
       if (els.searchToggle.classList.contains("screen-active") && !els.inspector.classList.contains("minimized")) {
-        pulseNavButton(els.searchToggle);
+        shakeInspectorSheet();
         return;
       }
       openSearchScreen();
@@ -1305,7 +1357,12 @@ function setupSearchAndNavHandlers() {
     // toggle; leave static anchors to the ordinary internal-link handler below, including
     // modified clicks that should open the link in a new tab.
     const railPill = event.target.closest("button[data-rail-key]");
-    if (railPill) { toggleRailFilter(railPill.dataset.railKey); return; }
+    if (railPill) {
+      // A completed hold has already opened the dialog; its click must not also toggle the pill.
+      if (railLongPress.swallowClick) { railLongPress.swallowClick = false; return; }
+      toggleRailFilter(railPill.dataset.railKey);
+      return;
+    }
     const radiusToggle = event.target.closest("[data-action='toggle-radius']");
     if (radiusToggle) {
       state.showAllOutsideRadius = !state.showAllOutsideRadius;
@@ -1772,6 +1829,10 @@ function updateNearbyAnchorBar() {
   } else if (!bar.hidden) {
     hideNearbyAnchorBar(bar);
   }
+  // Far from the forest the walking radius is centred on High Beach whatever the visitor's real fix
+  // says, so "Use my location" would only put them back on the same view. Keep the wording, drop the button.
+  const resetButton = bar.querySelector('[data-action="reset-nearby-anchor"]');
+  if (resetButton) resetButton.hidden = isFarFromForest();
   // Mid-exit the card keeps its old wording; the generic fallback would flash in as it fades out.
   if (bar.classList && bar.classList.contains("is-leaving")) return;
   // Names the spot when the browse point came from a place (its own inspector's walk card or a
@@ -2459,7 +2520,7 @@ function setInspectorMinimized(minimized) {
   if (typeof updateCompassOverlay === "function") updateCompassOverlay();
 }
 
-function goToInitialView(updateHash = true) {
+function goToInitialView(updateHash = true, { enterAnimated = true } = {}) {
   // If compass hasn't fired in >5 s, clear the heading so the map goes north-up
   // rather than showing a frozen direction when the user returns to the overview.
   // New orientation events will re-enable heading-up naturally.
@@ -2507,7 +2568,7 @@ function goToInitialView(updateHash = true) {
   // The Nearby button always shows the real list. A landing's server-rendered list is kept only
   // while the reader is still on that landing (selectOverview's own check), so clear it here.
   _serverRenderedNearbyList = false;
-  selectOverview(true);
+  selectOverview(enterAnimated);
   setInspectorMinimized(false);
   const refitOverview = () => {
     if (state.userLocation) {

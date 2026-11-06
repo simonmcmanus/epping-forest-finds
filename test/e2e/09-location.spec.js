@@ -49,29 +49,49 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page).toHaveScreenshot("map-with-location.png", { fullPage: false });
     });
 
-    test("on a train, the position on Nearby is the latest GPS fix rather than easing along behind it", async ({ page, context }) => {
+    test("on a train, the You marker keeps moving between GPS fixes rather than holding still and then jumping", async ({ page, context }) => {
       await page.waitForFunction((start) => state.rawUserLocation && state.rawUserLocation.latitude === start, FOREST_LOCATION.latitude);
-      // 15m north, at 20 m/s: the speed the phone's own GPS reports on a moving train. Playwright's
-      // setGeolocation has no speed field, so the fix goes through the DevTools protocol.
-      const next = FOREST_LOCATION.latitude + 0.000135;
+      // A fix a second, 15m north each, at 15 m/s: the speed the phone's own GPS reports on a moving
+      // train. Playwright's setGeolocation has no speed field, so the fixes go through the DevTools protocol.
       const cdp = await context.newCDPSession(page);
-      await cdp.send("Emulation.setGeolocationOverride", { ...FOREST_LOCATION, latitude: next, speed: 20 });
-      // Read on the first frame the fix is seen, before any easing could close the gap.
-      const gap = await page.waitForFunction(
-        (target) => state.rawUserLocation.latitude === target && { metres: Math.abs(state.userLocation.latitude - target) * 111320 },
-        next
-      ).then((handle) => handle.jsonValue());
-      expect(gap.metres).toBeLessThan(0.01);
+      // Sample the marker on every animation frame, in the page, tagged with the fix it last saw.
+      await page.evaluate(() => {
+        window.__trainFrames = [];
+        const sample = () => {
+          window.__trainFrames.push({ lat: state.userLocation.latitude, fix: state.rawUserLocation.latitude });
+          if (window.__trainFrames.length < 600) requestAnimationFrame(sample);
+        };
+        requestAnimationFrame(sample);
+      });
+      for (let step = 1; step <= 4; step += 1) {
+        const target = FOREST_LOCATION.latitude + step * 0.000135;
+        await cdp.send("Emulation.setGeolocationOverride", { ...FOREST_LOCATION, latitude: target, speed: 15 });
+        await page.waitForFunction((fix) => state.rawUserLocation.latitude === fix, target);
+        await page.evaluate(() => { window.__fixAt = performance.now(); });
+        // A GPS receiver delivers about one fix a second: wait for the next one's second to come round.
+        if (step < 4) await page.waitForFunction(() => performance.now() >= window.__fixAt + 1000);
+      }
+      const frames = await page.evaluate(() => window.__trainFrames);
+      // Frame pairs with no new fix between them: the marker should still be moving across them.
+      const pairs = [];
+      for (let i = 1; i < frames.length; i += 1) {
+        if (frames[i].fix === frames[i - 1].fix) pairs.push(frames[i].lat !== frames[i - 1].lat);
+      }
+      const moved = pairs.filter(Boolean).length;
+      // Frame rate varies with machine load, so only require enough frames to judge; the ratio is the assertion.
+      expect(pairs.length).toBeGreaterThan(10);
+      expect(moved / pairs.length).toBeGreaterThan(0.8);
     });
 
     test("a visitor inside the forest is not told they are far from it", async ({ page }) => {
       // The distance check runs as the location step completes, which gotoAndWaitForMap waited for.
-      await expect(page.getByRole("dialog", { name: "You're not near the forest yet" })).toBeHidden();
+      await expect(page.locator("#locationInviteBanner")).toBeHidden();
+      await expect(page.getByText("too far away to use the app fully")).toHaveCount(0);
     });
   });
 
   test.describe("far from the forest", () => {
-    // Trafalgar Square: several kilometres from the nearest forest boundary.
+    // Trafalgar Square: about 21 km from High Beach, well beyond the forest.
     test.use({ geolocation: { latitude: 51.508, longitude: -0.1281, accuracy: 10 }, permissions: ["geolocation"] });
 
     test.beforeEach(async ({ page }) => {
@@ -80,24 +100,29 @@ test.describe("Location and GPS — happy path", () => {
       await gotoAndWaitForMap(page);
     });
 
-    test("says how far away the forest is, and 'Explore the map' dismisses it", async ({ page }) => {
-      const dialog = page.getByRole("dialog", { name: "You're not near the forest yet" });
-      await expect(dialog).toBeVisible();
-      await expect(dialog).toContainText(/You're about \d+(\.\d+)? km from the forest boundary — roughly \d+ minutes on foot/);
+    const notice = (page) => page.locator("#locationInviteBanner");
 
-      await dialog.getByRole("button", { name: "Explore the map" }).click();
-      await expect(dialog).toBeHidden();
+    test("says the visitor is too far away to use the app fully, in a notice rather than a blocking dialog", async ({ page }) => {
+      await expect(notice(page)).toBeVisible();
+      await expect(notice(page)).toContainText("You're too far away to use the app fully");
+      await expect(notice(page)).toContainText("High Beach");
+      await expect(page.getByRole("dialog")).toHaveCount(0);
     });
 
-    test("Escape dismisses the far-away notice", async ({ page }) => {
-      const dialog = page.getByRole("dialog", { name: "You're not near the forest yet" });
-      await expect(dialog).toBeVisible();
-      await page.keyboard.press("Escape");
-      await expect(dialog).toBeHidden();
+    test("the notice offers no 'Enable location' button, and OK dismisses it", async ({ page }) => {
+      await expect(notice(page)).toBeVisible();
+      await expect(notice(page).getByRole("button", { name: "Enable location" })).toBeHidden();
+      await notice(page).getByRole("button", { name: "OK" }).click();
+      await expect(notice(page)).toBeHidden();
+    });
+
+    test("dismissing the notice does not record a declined location choice", async ({ page }) => {
+      await notice(page).getByRole("button", { name: "OK" }).click();
+      await expect(notice(page)).toBeHidden();
+      expect(await page.evaluate(() => localStorage.getItem("ff-location-v1"))).not.toBe("declined");
     });
 
     test("Nearby is centred on High Beach rather than on the visitor", async ({ page }) => {
-      await page.getByRole("dialog", { name: "You're not near the forest yet" }).getByRole("button", { name: "Explore the map" }).click();
       const origin = await page.evaluate(() => ({ lat: nearbyOrigin().latitude, lon: nearbyOrigin().longitude, you: state.userLocation.latitude }));
       expect(origin.lat).toBeCloseTo(51.667591, 4);
       expect(origin.lon).toBeCloseTo(0.037454, 4);
@@ -105,8 +130,50 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("#inspectorType")).toContainText("of High Beach");
     });
 
+    test("while browsing a spot the bar keeps its wording but offers no 'Use my location' button", async ({ page }) => {
+      await page.evaluate(() => setNearbyAnchor(51.66, 0.02, projectLonLat(0.02, 51.66), "Chingford"));
+      await expect(page.locator("#nearbyAnchorBar")).toBeVisible();
+      await expect(page.locator("#nearbyAnchorBar .nearby-anchor-bar-text")).toContainText("Chingford");
+      await expect(page.locator("#nearbyAnchorBar [data-action='reset-nearby-anchor']")).toBeHidden();
+    });
+
+    test("a pin on the map opens from here", async ({ page }) => {
+      // A tree drawn where a tap reaches it (not under the sheet or the notice), found with the tap
+      // handler's own hit test. Nothing tappable on screen would be a broken precondition, so the
+      // test fails rather than skipping. The outside-the-ring case is covered in forest-finds.test.js.
+      const pin = await page.evaluate(() => {
+        const canvas = els.canvas;
+        const rect = canvas.getBoundingClientRect();
+        const origin = nearbyOrigin();
+        // worldToScreen() is in backing-store pixels; the tap and the viewport are CSS pixels.
+        const dpr = pixelRatio();
+        const byDistance = state.trees
+          .filter((tree) => Number.isFinite(tree.latitude) && Number.isFinite(tree.longitude))
+          .map((tree) => ({ tree, d: Math.hypot(tree.latitude - origin.latitude, tree.longitude - origin.longitude) }))
+          .sort((a, b) => a.d - b.d);
+        for (const { tree } of byDistance) {
+          const s = worldToScreen(projectLonLat(tree.longitude, tree.latitude));
+          const x = s.x / dpr + rect.left;
+          const y = s.y / dpr + rect.top;
+          if (x < 8 || y < 8 || x > innerWidth - 8 || y > innerHeight - 8) continue;
+          const hit = document.elementFromPoint(x, y);
+          if (!hit || hit.closest("#inspector, nav, .consent-banner")) continue;
+          // Ask the tap handler's own hit test what a tap here would land on: a tree, not a road, a
+          // label or a cluster badge drawn over it.
+          const screen = { x: s.x, y: s.y };
+          if (findClusterHit(screen)) continue;
+          if (findHit(screen, screenToWorld(screen.x, screen.y)).type !== "tree") continue;
+          return { x, y };
+        }
+        return null;
+      });
+      expect(pin, "a tree is drawn where it can be tapped (the map is framed on High Beach, so one should be in view)").not.toBeNull();
+      await page.mouse.click(pin.x, pin.y);
+      await expect(page.locator("#inspectorBody .detail-top-row, #inspectorBody .tree-detail").first()).toBeVisible();
+      await expect(page.locator("#inspectorBody .walk-chip")).toHaveCount(0);
+    });
+
     test("a selected place is shown without directions", async ({ page }) => {
-      await page.getByRole("dialog", { name: "You're not near the forest yet" }).getByRole("button", { name: "Explore the map" }).click();
       await page.goto("/nearby#tree=11383");
       await page.waitForFunction(() => { const el = document.getElementById("loadingOverlay"); return !el || el.hidden === true; });
       await expect(page.locator("#inspectorBody .detail-top-row, #inspectorBody .tree-detail").first()).toBeVisible();
@@ -114,8 +181,23 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("#compassArrow, .title-compass-arrow").first()).toBeHidden();
     });
 
+    test("with a place selected, a turn of the compass still turns the map, about High Beach", async ({ page }) => {
+      await page.goto("/nearby#tree=11383");
+      await page.waitForFunction(() => state.selected && state.selected.type === "tree");
+      // Steady readings, as a phone reports them while held still. Chrome reports the heading as
+      // 360 minus alpha, so alpha 300 faces 60 degrees.
+      await page.evaluate(async () => {
+        for (let i = 0; i < 40; i += 1) {
+          window.dispatchEvent(new DeviceOrientationEvent("deviceorientation", { alpha: 300, beta: 0, gamma: 0, absolute: true }));
+          await new Promise((resolve) => setTimeout(resolve, 30));
+        }
+      });
+      await expect.poll(() => page.evaluate(() => headingUpActive())).toBe(true);
+      await expect.poll(() => page.evaluate(() => Math.round(currentNavigationMapRotationDegrees()))).toBe(-60);
+      expect(await page.evaluate(() => navigationOriginPoint() === highBeachStandIn().point)).toBe(true);
+    });
+
     test("a place page shows the place but no walking distance or compass arrow", async ({ page }) => {
-      await page.getByRole("dialog", { name: "You're not near the forest yet" }).getByRole("button", { name: "Explore the map" }).click();
       const key = await page.evaluate(() => placeHashKey(state.landmarks.find((p) => p.latitude != null && p.name)));
       const name = await page.evaluate(() => state.landmarks.find((p) => p.latitude != null && p.name).name);
       await page.goto(`/nearby#place=${key}`);
@@ -125,7 +207,7 @@ test.describe("Location and GPS — happy path", () => {
     });
 
     test("snapshot: far from the forest notice", async ({ page }) => {
-      await expect(page.locator("#distanceWarning")).toBeVisible();
+      await expect(notice(page)).toBeVisible();
       await waitForUiToSettle(page);
       await settleMapIconsAndDraw(page);
       await expect(page).toHaveScreenshot("distance-warning.png", { fullPage: false });

@@ -368,6 +368,14 @@
   overflow-x: hidden;
   min-height: 0;
   position: relative; /* clipping anchor for transition snapshots */
+  /* Own stacking context, so sticky children such as the Nearby filter rail (z-index 2) stay inside
+     the scroller's layers rather than painting over its scrollbar -- on iOS the rail covered the
+     overlay thumb as it passed through the rail's band. */
+  isolation: isolate;
+  /* No rubber-band past the top or bottom of the sheet's list. The bounce is what uncovers the
+     white panel above the heading (see the title band below); browsers that honour this stop it
+     at the edge, and the band remains as the fallback for the ones that do not. */
+  overscroll-behavior-y: none;
 }
 
 .inspector-title-section {
@@ -661,6 +669,23 @@ button.settings-toggle.has-update::after {
 
 .inspector-actions.nav-has-highlight > :is(button, a).nav-pressing > :is(.nav-content, .nav-icon, .nav-label) {
   animation: nav-press-bump var(--nav-slide-duration) cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+
+/* Re-tapping Nearby while already on it: a small side-to-side shake, the sheet stays in place. */
+.inspector.sheet-shake {
+  animation: sheet-shake 380ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+@keyframes sheet-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(2px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .inspector.sheet-shake { animation: none; }
 }
 
 @keyframes nav-press-bump {
@@ -1329,6 +1354,12 @@ textarea.report-textarea {
 
 /* Nearby's filter rail: a row of toggle pills that scrolls sideways. Sticky so the reader can keep
    tapping while the list scrolls. */
+/* The rail pulls up over the body's own top padding so the pills sit centred in the band, with
+   equal space above and below. */
+/* The slider band is white (--panel) on its own, set apart from the grey title and grip above it by
+   the rule on its top edge. It carries a thin rule above and below the pills: the top rule is the edge between the resize grip
+   and the slider, and the bottom rule separates the slider from the list. The grip sits outside
+   the scroller (.inspector::before), so top: 0 pins the band directly beneath it. */
 .filter-rail {
   position: sticky;
   top: 0;
@@ -1336,10 +1367,16 @@ textarea.report-textarea {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 -4px 12px;
-  padding: 4px;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  margin: -14px -16px 12px;
+  padding: 12px 16px;
+  border-top: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border-soft);
   background: var(--panel);
+}
+
+/* The title's own bottom rule would double the band's top rule where the two meet. */
+.inspector:has(.filter-rail) .inspector-title-section {
+  border-bottom-color: transparent;
 }
 
 /* Once the rail has moved, soften the clipped pill at the left edge. At scrollLeft 0 the first
@@ -1397,6 +1434,9 @@ textarea.report-textarea {
 }
 
 .rail-pill {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
   position: relative;
   isolation: isolate;
   overflow: hidden;
@@ -1425,6 +1465,29 @@ textarea.report-textarea {
 .rail-pill .app-icon {
   width: 1.6em;
   height: 1.6em;
+}
+
+/* A group pill's "2/3": how many of its subcategories are on. It is set small so it reads as a
+   note beside the pill's label and tick, not as a second label. */
+.rail-count {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  height: 1.2em;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: rgba(42, 84, 53, 0.12);
+  color: var(--tree);
+  font-size: 0.6rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
+/* A group that is off keeps its count but drops the tinted fill, so the on groups read first. */
+.rail-count.is-off {
+  background: transparent;
+  color: #6b7785;
 }
 
 .rail-check {
@@ -2188,19 +2251,32 @@ dd {
   font-weight: 700;
 }
 
-/* Nudge: a dismissible prompt when you are next to an unchecked tree, and a one-off pulse on the check card. */
-.community-nudge { position: fixed; z-index: 40; left: 12px; right: 12px; bottom: calc(var(--safe-bottom) + 88px); display: flex; align-items: center; gap: 10px; max-width: 460px; margin: 0 auto; padding: 10px 12px; border: 1px solid var(--line, #d9ddd0); border-left: 4px solid #2f6b3a; border-radius: 12px; background: #fff; box-shadow: 0 8px 24px rgba(20, 40, 25, .22); animation: community-nudge-in .25s ease-out; }
-.community-nudge-icon { display: inline-flex; width: 28px; height: 28px; color: #2f6b3a; flex: none; }
-.community-nudge-icon svg { width: 100%; height: 100%; }
-.community-nudge-text { display: flex; flex: 1; flex-direction: column; min-width: 0; font-size: .85rem; line-height: 1.3; }
-.community-nudge-text span { color: #5b665b; }
-.community-nudge-go { flex: none; padding: 8px 12px; border: 0; border-radius: 8px; background: #2f6b3a; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
-.community-nudge-close { display: inline-flex; flex: none; width: 28px; height: 28px; padding: 4px; border: 0; background: none; color: #5b665b; cursor: pointer; }
+/* Nudge: a dismissible prompt when you are next to an unchecked tree, on every screen, and a one-off pulse on the check card.
+   A dark graphite card with a gold hairline edge, a single sheen that crosses it once, and the gold primary action.
+   The art spans both rows, is centred on them, and carries a soft gold glow. */
+.community-nudge { --nudge-gold: var(--cta); position: fixed; z-index: 40; left: 12px; right: 12px; bottom: calc(var(--safe-bottom) + 92px); display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; grid-template-rows: auto auto; grid-template-areas: "icon text ." "icon chip go"; column-gap: 14px; row-gap: 10px; align-items: center; max-width: 460px; margin: 0 auto; padding: 16px 16px 16px 14px; overflow: hidden; border: 1px solid rgba(228, 204, 133, .42); border-radius: 20px; background: linear-gradient(160deg, #262e37 0%, #161b21 100%); color: #fff; box-shadow: 0 22px 48px rgba(10, 14, 18, .45), 0 2px 0 rgba(255, 255, 255, .06) inset, 0 0 0 1px rgba(0, 0, 0, .25); animation: community-nudge-in .55s cubic-bezier(.2, .8, .2, 1) both; }
+.community-nudge::after { content: ""; position: absolute; inset: 0; background: linear-gradient(105deg, transparent 35%, rgba(255, 240, 200, .16) 50%, transparent 65%); transform: translateX(-120%); pointer-events: none; animation: community-nudge-sheen 1.6s ease-out .45s 1 both; }
+.community-nudge-icon { grid-area: icon; display: grid; place-items: center; align-self: center; width: 56px; height: 56px; padding: 0; border: 0; background: none; color: var(--nudge-gold); }
+.community-nudge-icon svg { width: 30px; height: 30px; }
+.community-nudge-art { width: 52px; height: 52px; object-fit: contain; filter: drop-shadow(0 0 12px rgba(228, 204, 133, .45)); animation: community-nudge-glow 2.4s ease-in-out .5s 3; }
+.community-nudge-text { grid-area: text; display: flex; flex-direction: column; gap: 3px; min-width: 0; line-height: 1.25; }
+.community-nudge-eyebrow { font-style: normal; font-size: .66rem; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; color: var(--nudge-gold); }
+.community-nudge-text strong { font-size: 1.02rem; font-weight: 800; letter-spacing: -.01em; color: #fff; }
+.community-nudge-text span { color: rgba(255, 255, 255, .68); font-size: .82rem; }
+.community-nudge > .community-points-chip { grid-area: chip; justify-self: start; align-self: center; margin: 0; background: rgba(228, 204, 133, .16); color: var(--nudge-gold); box-shadow: inset 0 0 0 1px rgba(228, 204, 133, .45); font-weight: 800; }
+.community-nudge-go { grid-area: go; justify-self: end; align-self: center; display: inline-flex; align-items: center; height: 42px; padding: 0 20px; border: 0; border-radius: 999px; background: linear-gradient(180deg, #ecd796, var(--cta)); color: var(--cta-ink); font: inherit; font-size: .92rem; font-weight: 800; letter-spacing: .01em; cursor: pointer; box-shadow: 0 6px 16px rgba(228, 204, 133, .28), inset 0 1px 0 rgba(255, 255, 255, .5); transition: transform .15s ease, box-shadow .15s ease; }
+.community-nudge-go:hover, .community-nudge-go:focus-visible { transform: translateY(-1px); box-shadow: 0 9px 22px rgba(228, 204, 133, .36), inset 0 1px 0 rgba(255, 255, 255, .5); }
+.community-nudge-close { position: absolute; top: 10px; right: 10px; display: inline-grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: rgba(255, 255, 255, .6); cursor: pointer; }
+.community-nudge-close:hover, .community-nudge-close:focus-visible { background: rgba(255, 255, 255, .1); color: #fff; }
+@keyframes community-nudge-glow { 0%, 100% { filter: drop-shadow(0 0 6px rgba(228, 204, 133, .25)); } 50% { filter: drop-shadow(0 0 16px rgba(228, 204, 133, .75)); } }
+@keyframes community-nudge-sheen { from { transform: translateX(-120%); } to { transform: translateX(120%); } }
+@media (max-width: 420px) { .community-nudge { grid-template-columns: 46px minmax(0, 1fr) auto; column-gap: 11px; padding: 14px 12px; } .community-nudge-icon { width: 46px; height: 46px; } .community-nudge-art { width: 42px; height: 42px; } .community-nudge-icon svg { width: 25px; height: 25px; } .community-nudge-text strong { font-size: .95rem; } .community-nudge-go { height: 38px; padding: 0 15px; font-size: .86rem; } }
+@media (prefers-reduced-motion: reduce) { .community-nudge, .community-nudge::after, .community-nudge-art { animation: none; } .community-nudge::after { display: none; } }
 .community-nudge-setting { display: flex; gap: 8px; align-items: center; margin: 12px 2px; color: #5b665b; font-size: .85rem; }
 .community-check.community-nudge-pulse { animation: community-pulse 1.3s ease-in-out 2; }
 @keyframes community-nudge-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
 @keyframes community-pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(47, 107, 58, 0); } 50% { box-shadow: 0 0 0 6px rgba(47, 107, 58, .28); } }
-@media (prefers-reduced-motion: reduce) { .community-nudge { animation: none; } .community-check.community-nudge-pulse { animation: none; outline: 2px solid #2f6b3a; } }
+@media (prefers-reduced-motion: reduce) {  .community-check.community-nudge-pulse { animation: none; outline: 2px solid #2f6b3a; } }
 
 /* Recovery code: back up or restore the device id that owns your points. */
 .community-recover { margin: 12px 0; padding: 10px 12px; border: 1px solid var(--line, #d9ddd0); border-radius: 12px; background: #fff; }
@@ -2522,18 +2598,31 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   border-bottom: 1px solid var(--border-soft);
 }
 
+/* Pulling the content down past the top of the sheet (iOS rubber-band, trackpad bounce) exposes
+   the scroller's own background above the title, which is white. This band sits just above the
+   title, outside the scrollport while the sheet is at rest so nothing shows, and inherits the
+   title's colour -- so the exposed area matches the grip strip and the title, and stays
+   transparent on location screens, whose heading is transparent (see the tree and place
+   heading rules further down this file). */
+.inspector-title-section::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 50vh;
+  background: inherit;
+}
+
 .inspector-title-emoji {
+  /* Title icons are drawn bare: no tile, border or background behind the artwork. The 2px
+     inset keeps the child artwork at the promised 44px inside the 48px box. */
   width: calc(48px * var(--icon-scale));
   height: calc(48px * var(--icon-scale));
-  /* The global border-box sizing means the 48px shell includes its border and padding. Keep
-     one pixel of inset so the child artwork remains the promised 44px title icon rather than
-     shrinking to 42px. */
-  padding: 1px;
-  border: 1px solid var(--border-soft);
-  border-radius: 14px;
+  padding: 2px;
   display: grid;
   place-items: center;
-  background: var(--surface-tint);
+  background: transparent;
   color: var(--accent);
   font-size: calc(40px * var(--icon-scale));
 }
@@ -2565,33 +2654,16 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), 0 3px 10px rgba(27, 65, 43, 0.05);
 }
 
-.search-field::before {
-  content: "";
+.search-field-icon {
   position: absolute;
   left: 14px;
   top: 50%;
   width: 20px;
   height: 20px;
-  border: 3px solid var(--tree);
-  border-radius: 50%;
-  transform: translateY(-62%);
+  transform: translateY(-50%);
+  color: var(--ink);
+  pointer-events: none;
   z-index: 1;
-  opacity: 0.82;
-}
-
-.search-field::after {
-  content: "";
-  position: absolute;
-  left: 30px;
-  top: calc(50% + 2px);
-  width: 12px;
-  height: 3px;
-  border-radius: 999px;
-  background: var(--tree);
-  transform: rotate(45deg);
-  transform-origin: left center;
-  z-index: 1;
-  opacity: 0.82;
 }
 
 .search-field .search-number {
@@ -2621,18 +2693,18 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   gap: 8px;
   margin: 0;
   padding: 18px 16px;
-  border: 1px dashed var(--border-accent);
+  border: 1px dashed var(--border-soft);
   border-radius: 14px;
-  background: var(--surface-tint);
+  background: transparent;
   color: var(--muted);
   line-height: 1.5;
 }
 
 .search-results .empty::before {
   content: "Start with a name, tag number, or place";
-  color: var(--accent-ink);
+  color: var(--muted);
   font-size: 0.78rem;
-  font-weight: 800;
+  font-weight: 700;
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -2764,10 +2836,10 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 .inspector:has(.tree-detail) .inspector-title-section { padding-top: 16px; padding-bottom: 12px; background: transparent; align-items: center; gap: 12px; }
 .inspector:has(.tree-detail) h2 { font-size: 1.6rem; line-height: 1.15; letter-spacing: -0.035em; }
 .inspector:has(.tree-detail) .type { margin-top: 5px; font-size: 0.72rem; font-weight: 600; letter-spacing: 0.055em; }
-.tree-detail { --tree-rule: #e3e8de; --tree-card: #f6f8f2; --tree-inset: 12px; }
+.tree-detail { --tree-rule: var(--line); --tree-card: var(--surface-soft); --tree-inset: 12px; }
 .tree-facts { margin: 0; }
 .tree-facts .row { min-width: 0; border: 0; background: transparent; }
-.tree-facts dt { color: #62705f; font-size: 0.72rem; font-weight: 600; line-height: 1.4; letter-spacing: 0.015em; }
+.tree-facts dt { color: var(--muted); font-size: 0.72rem; font-weight: 600; line-height: 1.4; letter-spacing: 0.015em; }
 .tree-facts dd { color: var(--ink); font-size: 0.95rem; line-height: 1.45; }
 .tree-facts dl.tree-summary { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; margin: 0 0 10px; }
 .tree-facts .tree-tag, .tree-facts .tree-status { display: block; padding: 0; }
@@ -2792,12 +2864,12 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 .tree-facts .tree-tag--missing dd { padding: 0; border: 0; background: none; box-shadow: none; color: var(--muted); font-family: inherit; font-size: 0.78rem; font-weight: 400; letter-spacing: 0; }
 .tree-facts .tree-tag--missing dd::before, .tree-facts .tree-tag--missing dd::after { display: none; }
 .tree-status-icon { width: 24px; height: 24px; flex: 0 0 24px; object-fit: contain; }
-.tree-facts .tree-status dd { display: flex; align-items: center; gap: 4px; font-size: 0.78rem; font-weight: 600; color: #52634c; }
+.tree-facts .tree-status dd { display: flex; align-items: center; gap: 4px; font-size: 0.78rem; font-weight: 600; color: var(--muted); }
 .tree-detail .detail-top-row { padding-bottom: 12px; margin-bottom: 0; gap: 8px; }
 .tree-detail .detail-top-row > [data-live-field="distance"] { flex: 1 1 130px; }
 .tree-detail .detail-top-actions { gap: 8px; }
-.tree-detail .detail-map-link--icon { box-sizing: border-box; width: 36px; height: 36px; min-height: 36px; border-radius: 8px; border-color: #dce4d6; }
-.tree-detail .walk-chip { box-sizing: border-box; width: 100%; justify-content: center; gap: 5px; height: 36px; padding: 0 8px; border-radius: 8px; border-color: #dce4d6; background: #f3f7ef; font-size: 0.88rem; font-weight: 650; }
+.tree-detail .detail-map-link--icon { box-sizing: border-box; width: 36px; height: 36px; min-height: 36px; border-radius: 8px; border-color: var(--line); }
+.tree-detail .walk-chip { box-sizing: border-box; width: 100%; justify-content: center; gap: 5px; height: 36px; padding: 0 8px; border-radius: 8px; font-size: 0.88rem; font-weight: 650; }
 /* Extend the compact controls’ hit areas without adding visible padding. */
 .tree-detail .detail-map-link--icon, .tree-detail .walk-chip { position: relative; }
 .tree-detail .detail-map-link--icon::after, .tree-detail .walk-chip::after { content: ""; position: absolute; inset: -4px; }
@@ -2943,6 +3015,25 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   grid-template-columns: minmax(0, 1fr);
 }
 
+/* Value-only rows (an address, a website) read as one quiet block: a single soft panel with hairline
+   dividers, not a box per line. Rows with field names keep their own cards. */
+.place-detail > dl:has(> .row--value-only) {
+  gap: 0;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+}
+.place-detail > dl > .row.row--value-only {
+  padding: 10px 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+}
+.place-detail > dl > .row.row--value-only + .row.row--value-only {
+  border-top: 1px solid var(--line);
+}
+
 .place-detail > dl > .row dt {
   align-self: start;
   color: var(--muted);
@@ -2965,7 +3056,7 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 }
 
 .place-detail .details-description {
-  margin: 0 0 12px;
+  margin: 0;
   padding: 12px;
   border: 1px solid var(--place-rule);
   border-radius: 10px;
@@ -2973,7 +3064,7 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 }
 
 .place-detail .detail-section-heading {
-  margin-top: 18px;
+  margin-top: var(--place-panel-gap);
   padding-top: 14px;
   border-color: var(--place-rule);
   font-size: 0.78rem;
@@ -2993,6 +3084,50 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   margin-top: 14px;
   padding-top: 4px;
   border-top: 1px solid var(--place-rule);
+}
+
+/* Every panel on a place's detail screen (the action row, the details table, the community check,
+   the description, the ledger note, the nearby lists and the report link) is a direct child of the
+   article, and the gap between them is the only spacing between panels. Each panel's own outer
+   margin is cleared so the rhythm is one value; an empty slot takes no room. */
+.place-detail {
+  --place-panel-gap: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--place-panel-gap);
+}
+
+.place-detail > * {
+  margin: 0;
+}
+
+.place-detail > :empty {
+  display: none;
+}
+
+/* A status slot's own boxes (the confirmed marker, the issue summary, the verified detail) carry
+   margins of their own. The panel gap is the only space between panels, so they are cleared inside
+   their slot. A closed verified detail is zero-height but still a flex item, so it is pulled back
+   by one gap until its chip opens it. */
+.place-detail > :is(.community-place-status-slot, .community-place-status-detail-slot) > * {
+  margin: 0;
+}
+
+.place-detail > .community-place-status-detail-slot:not(:has(.is-open)) {
+  margin-top: calc(-1 * var(--place-panel-gap));
+}
+
+.place-detail > .community-place-status-detail-slot {
+  transition: margin-top 220ms ease;
+}
+
+.place-detail > .detail-top-row {
+  padding-bottom: 0;
+}
+
+.place-detail > [data-live-nearby] > :first-child,
+.place-detail > [data-live-nearby] > :first-child .detail-section-heading {
+  margin-top: 0;
 }
 
 @media (max-width: 340px) {

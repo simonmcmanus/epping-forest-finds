@@ -287,7 +287,7 @@ test.describe("Community tree verification", () => {
 test.describe("Community tree verification with location shared", () => {
   test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ["geolocation"] });
 
-  test("a cold load of /community next to a tree does not put the nudge card over the Community screen", async ({ page }) => {
+  test("a cold load of /community next to a tree never flashes the Nearby list over the Community screen", async ({ page }) => {
     await page.addInitScript(() => {
       window.__sawNearby = false;
       new MutationObserver(() => {
@@ -300,7 +300,6 @@ test.describe("Community tree verification with location shared", () => {
     await expect(page.locator(".community-action-card")).toBeVisible();
     await page.waitForFunction(() => state.userLocation && !state.userLocation.isDefault && state.nearestTree);
     await waitForFrames(page, 100);
-    await expect(page.locator("#communityNudge")).toHaveCount(0);
     expect(await page.evaluate(() => window.__sawNearby)).toBe(false);
   });
 
@@ -594,15 +593,14 @@ test.describe("Nudges to check a tree you are standing next to", () => {
     await expect(nudge).toHaveCount(0);
   });
 
-  test("the prompt goes away once you leave the Nearby screen", async ({ page }) => {
+  test("the prompt shows on other screens too, not only Nearby", async ({ page }) => {
     await setup(page);
     await standNextToATree(page);
-    await page.evaluate(() => communityNudgeCheck());
-    await expect(page.locator("#communityNudge")).toHaveCount(1);
     await page.click("#reportToggle");
     await expect(page.locator(".community-contributions")).toBeVisible();
     await page.evaluate(() => communityNudgeCheck());
-    await expect(page.locator("#communityNudge")).toHaveCount(0);
+    await expect(page.locator("#communityNudge")).toContainText("You're next to");
+    await expect(page.locator("#communityNudge")).toBeVisible();
   });
 
   test("Check it opens the tree with its check card", async ({ page }) => {

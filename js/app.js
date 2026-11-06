@@ -163,17 +163,9 @@ const NATIVE_HEADING_TRUSTED_ACCURACY_DEG = 25;
 // treats the loop that asked for it as wedged. A frame runs within ~16ms; two seconds is
 // far past any plausible scheduling delay on a loaded phone.
 const ANIMATION_FRAME_WEDGED_MS = 2000;
-// "1" enables full 3D in Settings. Otherwise pitch gives only a gentle tilt.
-const MAP_3D_KEY = "ff-map-3d-v1";
-const STORED_MAP_3D = (() => {
-  try { return localStorage.getItem(MAP_3D_KEY) === "1"; } catch { return false; }
-})();
-// "1" once this device has reported a real pitch reading. Settings only offers the 3D switch
-// after that: a laptop never sends one, so the switch would do nothing there.
-const MOTION_SENSOR_KEY = "ff-motion-sensor-v1";
-const STORED_MOTION_SENSOR = (() => {
-  try { return localStorage.getItem(MOTION_SENSOR_KEY) === "1"; } catch { return false; }
-})();
+// Full 3D (the steeper perspective and pin collapse) is not offered to users. Pitch gives
+// only the gentle tilt. Nothing reads or writes a stored choice any more.
+const FULL_3D_ENABLED = false;
 const STORED_COMPASS_PERMISSION = (() => {
   try {
     const stored = localStorage.getItem(COMPASS_PERMISSION_KEY) || "unknown";
@@ -287,7 +279,9 @@ const state = {
   // them on the map and the camera can frame all of them at once (updateSearchHighlight). Reset
   // to [] wherever Search stands down (setInspectorSelectionChrome, js/inspector.js).
   searchHighlightResults: [],
-  distanceWarningShown: false,
+  farNoticeShown: false,
+  farNoticeOpen: false,
+  farNoticeWaiting: false,
   // A real fix more than FAR_FROM_FOREST_METRES from the forest boundary (updateFarFromForest):
   // Nearby is centred on High Beach and no directions are offered.
   farFromForest: false,
@@ -377,9 +371,8 @@ const state = {
   backgroundedUserLocation: null,
   tiltBetaTarget: 0,
   tiltBetaSmoothed: 0,
-  // Settings' "3D map" switch upgrades gentle tilt to full perspective and pin collapse.
-  map3dEnabled: STORED_MAP_3D,
-  motionSensorSeen: STORED_MOTION_SENSOR,
+  // Full 3D is fixed off (see FULL_3D_ENABLED): gentle tilt is the only tilt.
+  map3dEnabled: FULL_3D_ENABLED,
   // rotateX angle baked into the main canvas by the last draw() -- see tiltRenderStale().
   renderedTiltRotateXDeg: 0,
   tiltWasActive: false,
@@ -1421,11 +1414,12 @@ function hideNoticeCard(banner, { collapse = false } = {}) {
 // map and Nearby list behind it are already usable, so this never covers the whole screen. Same
 // floating treatment as showConsentBanner()'s own card, and never at the same time as it. With canRequest false (location blocked or unsupported)
 // it explains instead of offering a button that could not work.
-function showLocationInviteBanner(message, { canRequest = true } = {}) {
+function showLocationInviteBanner(message, { canRequest = true, title = "Get a more custom experience", recordsChoice = true, onClose = null } = {}) {
   const banner = els.locationInviteBanner;
   if (!banner) return;
   if (els.consentBanner && !els.consentBanner.hidden) return;
 
+  if (els.locationInviteTitle) els.locationInviteTitle.textContent = title;
   if (els.locationInviteMessage) els.locationInviteMessage.textContent = message;
   if (els.locationInviteButton) els.locationInviteButton.hidden = !canRequest;
   if (els.locationInviteDismiss) els.locationInviteDismiss.textContent = canRequest ? "Maybe later" : "OK";
@@ -1444,8 +1438,9 @@ function showLocationInviteBanner(message, { canRequest = true } = {}) {
 
   function onDecline() {
     cleanup();
-    rememberLocationChoice("declined");
+    if (recordsChoice) rememberLocationChoice("declined");
     hideNoticeCard(banner);
+    if (onClose) onClose();
     if (canRequest) showHighBeachNotice();
   }
 
@@ -2019,7 +2014,7 @@ async function boot() {
           applyRoute(bootRoute, false);
         }
         setLoadStep("location", "done");
-        checkDistanceToForest(latitude, longitude);
+        updateFarFromForest(latitude, longitude);
         ensureLocationWatch();
 
         // Request compass only if not already handled (e.g. by onboarding).
@@ -2140,15 +2135,28 @@ const LOCATION_SMOOTHING_ACCURACY_DIVISOR = 10;
 // genuine teleport should land at once rather than crawl there over seconds.
 const LOCATION_SMOOTHING_SNAP_METRES = 30;
 // Smoothing is for walking-pace wander. Travelling faster than this -- a bike, a bus, a train --
-// the easing trails the real position by speed x time constant (2.5s at 20 m/s is 50m), and
-// the Nearby list, built from that trailing position, lags with it. So above it each fix is
-// used as delivered: at that speed a few metres of wander is nothing against the motion.
+// the wander is nothing against the motion, and easing toward each fix trails the real position
+// by speed x time constant. So above it the position is carried between fixes along the track
+// the recent fixes describe instead (see ingestLocationFix), which keeps it moving every frame
+// rather than stepping once a second.
 const LOCATION_FAST_TRAVEL_MPS = 5;
 // Consecutive fixes cannot tell travel from wander (two fixes 12m apart a second apart is
 // ordinary wander under trees), so without the device's own speed reading the speed is judged
 // over at least this long, where the wander averages out and real travel does not.
 const LOCATION_SPEED_BASELINE_MIN_MS = 8000;
 const LOCATION_SPEED_HISTORY_MS = 15000;
+// Travel is carried between fixes, not stepped to (see ingestLocationFix). The track is a
+// straight line fitted through the fixes of the last LOCATION_TRACK_WINDOW_MS: GPS wander is
+// independent from fix to fix, so across a window it averages out, where any two fixes (a
+// chord) carry their own noise into the direction and speed of travel.
+const LOCATION_TRACK_WINDOW_MS = 15000;
+const LOCATION_TRACK_MIN_SPAN_MS = 3000;
+// How far past its last fix the travelling position is carried along the track. With no new
+// fix after this (a tunnel, a dead signal) it stops, rather than running on down the track.
+const LOCATION_DRIFT_MAX_MS = 2000;
+// Walking-pace snapping is tuned for wander, and a train covers 15-30m between one fix and the
+// next. A travelling gap this long means fixes were lost, so the position lands on the new fix.
+const LOCATION_FAST_SNAP_METRES = 150;
 // How close counts as arrived, in projected units -- comfortably sub-metre, so the ease
 // lands on the fix rather than crawling at it forever.
 const LOCATION_GLIDE_EPSILON = 1e-7;
@@ -2156,9 +2164,9 @@ const LOCATION_GLIDE_EPSILON = 1e-7;
 // Whether the person is travelling faster than walking pace: the device's own speed reading
 // (coords.speed, from the GPS itself) when it gives one, or the distance covered over the last
 // LOCATION_SPEED_BASELINE_MIN_MS or more of fixes.
-function recordFixAndDetectFastTravel(latitude, longitude, now, speed) {
+function recordFixAndDetectFastTravel(latitude, longitude, now, speed, point) {
   const history = (state.locationFixHistory || []).filter((fix) => fix.at <= now && now - fix.at <= LOCATION_SPEED_HISTORY_MS);
-  history.push({ at: now, latitude, longitude });
+  history.push({ at: now, latitude, longitude, point });
   state.locationFixHistory = history;
   if (Number.isFinite(speed) && speed >= LOCATION_FAST_TRAVEL_MPS) return true;
   const baseline = history.find((fix) => now - fix.at >= LOCATION_SPEED_BASELINE_MIN_MS);
@@ -2172,8 +2180,9 @@ function recordFixAndDetectFastTravel(latitude, longitude, now, speed) {
 function ingestLocationFix(latitude, longitude, accuracy, now = performance.now(), speed = null) {
   const rawPoint = projectLonLat(longitude, latitude);
   const raw = { latitude, longitude, accuracy, point: rawPoint };
+  const priorFix = (state.locationFixHistory || []).at(-1) || null;
   state.rawUserLocation = raw;
-  const travellingFast = recordFixAndDetectFastTravel(latitude, longitude, now, speed);
+  const travellingFast = recordFixAndDetectFastTravel(latitude, longitude, now, speed, rawPoint);
 
   const previous = state.userLocation;
   const landRaw = () => {
@@ -2182,22 +2191,83 @@ function ingestLocationFix(latitude, longitude, accuracy, now = performance.now(
     return raw;
   };
   if (!previous || !previous.point) return landRaw();
+
+  if (travellingFast) {
+    // Carried, not stepped: between fixes the position moves along the track the recent fixes
+    // describe, so a train at 15 m/s moves every frame instead of holding still for a second and
+    // then jumping. Until there are enough fixes to fit a track (the first few seconds of a
+    // journey) the fix is eased as walking would be, rather than landed raw: raw GPS noise is
+    // exactly what this must not show.
+    const gapMetres = priorFix ? distanceMetres(priorFix.latitude, priorFix.longitude, latitude, longitude) : Infinity;
+    if (!Number.isFinite(gapMetres) || gapMetres >= LOCATION_FAST_SNAP_METRES) {
+      // Lost fixes: the track from before the gap no longer describes the train, so start again from this one.
+      state.locationFixHistory = (state.locationFixHistory || []).slice(-1);
+      return landRaw();
+    }
+    const track = fitTravelTrack(state.locationFixHistory, now);
+    if (track) return startLocationGlide(previous, raw, now, track);
+    // No track yet: ease toward the fix at travelling speed, so the position does not trail the train.
+    return startLocationGlide(previous, raw, now, null, true);
+  }
+
   const movedMetres = distanceMetres(previous.latitude, previous.longitude, latitude, longitude);
   // Not wander: a first fix after a gap, coming out of a tunnel, a genuine teleport. Easing
   // across that reads as the map sliding away on its own.
   if (!Number.isFinite(movedMetres) || movedMetres >= LOCATION_SMOOTHING_SNAP_METRES) return landRaw();
-  if (travellingFast) return landRaw();
+  return startLocationGlide(previous, raw, now, null, false);
+}
 
+// The straight line the recent fixes describe while travelling: a least-squares fit of x and y
+// against time over the fixes of the last LOCATION_TRACK_WINDOW_MS. Returns the fit's time
+// reference (atMs), its position there (x, y), its velocity (vx, vy, projected units per ms) and
+// the newest fix's time (fixAt), or null when there are too few fixes, or they span too short a
+// time, to give a direction.
+function fitTravelTrack(history, now) {
+  const fixes = (history || []).filter((fix) => fix.point && fix.at <= now && now - fix.at <= LOCATION_TRACK_WINDOW_MS);
+  if (fixes.length < 3) return null;
+  const spanMs = fixes[fixes.length - 1].at - fixes[0].at;
+  if (!(spanMs >= LOCATION_TRACK_MIN_SPAN_MS)) return null;
+  const count = fixes.length;
+  const meanAt = fixes.reduce((sum, fix) => sum + fix.at, 0) / count;
+  const meanX = fixes.reduce((sum, fix) => sum + fix.point.x, 0) / count;
+  const meanY = fixes.reduce((sum, fix) => sum + fix.point.y, 0) / count;
+  let sxx = 0;
+  let sxt = 0;
+  let syt = 0;
+  for (const fix of fixes) {
+    const dt = fix.at - meanAt;
+    sxx += dt * dt;
+    sxt += dt * (fix.point.x - meanX);
+    syt += dt * (fix.point.y - meanY);
+  }
+  if (!(sxx > 0)) return null;
+  return {
+    atMs: meanAt,
+    x: meanX,
+    y: meanY,
+    vx: sxt / sxx,
+    vy: syt / sxx,
+    fixAt: fixes[fixes.length - 1].at,
+  };
+}
+
+// Records where the position should head for. While travelling, `track` is the line the target
+// is carried along between fixes (see glideTargetAt); walking passes null.
+function startLocationGlide(previous, raw, now, track, travelling = false) {
   state.locationGlide = {
-    to: rawPoint,
+    to: raw.point,
     // The filter's time constant, from this fix's own reported accuracy: a 5m fix is
-    // followed almost as given, a 25m one is leaned on hard.
-    tau: clamp(
-      (Number.isFinite(accuracy) ? accuracy : 10) / LOCATION_SMOOTHING_ACCURACY_DIVISOR,
-      LOCATION_SMOOTHING_MIN_TAU_S,
-      LOCATION_SMOOTHING_MAX_TAU_S
-    ),
-    accuracy,
+    // followed almost as given, a 25m one is leaned on hard. Travelling uses the quickest
+    // one, because a slow ease trails a moving target by its speed times this constant.
+    tau: track || travelling
+      ? LOCATION_SMOOTHING_MIN_TAU_S
+      : clamp(
+        (Number.isFinite(raw.accuracy) ? raw.accuracy : 10) / LOCATION_SMOOTHING_ACCURACY_DIVISOR,
+        LOCATION_SMOOTHING_MIN_TAU_S,
+        LOCATION_SMOOTHING_MAX_TAU_S
+      ),
+    accuracy: raw.accuracy,
+    track,
   };
   // Start the ease clock at this fix, so the first frame after it integrates ~one frame
   // rather than the whole gap since the previous fix (which the staleness guard would then
@@ -2205,6 +2275,20 @@ function ingestLocationFix(latitude, longitude, accuracy, now = performance.now(
   state.locationSmoothedAt = now;
   ensureLocationGlideLoop();
   return previous;
+}
+
+// Where the glide is heading at `now`. A walking glide heads for its fix and stays there. A
+// travelling one heads for the point on its track at `now`, carried at most LOCATION_DRIFT_MAX_MS
+// past the newest fix: the target moves continuously between fixes, and a new fix only shifts
+// the line slightly rather than moving the target.
+function glideTargetAt(glide, now) {
+  if (!glide.track) return glide.to;
+  const { track } = glide;
+  const at = Math.min(now, track.fixAt + LOCATION_DRIFT_MAX_MS);
+  return {
+    x: track.x + track.vx * (at - track.atMs),
+    y: track.y + track.vy * (at - track.atMs),
+  };
 }
 
 // The location object for a projected point, with lat/lon kept consistent with it so
@@ -2255,8 +2339,9 @@ function advanceLocationGlide(now = performance.now()) {
   const glide = state.locationGlide;
   if (!glide || !state.userLocation || !state.userLocation.point) return false;
   const from = state.userLocation.point;
-  const dx = glide.to.x - from.x;
-  const dy = glide.to.y - from.y;
+  const to = glideTargetAt(glide, now);
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
 
   const lastAt = state.locationSmoothedAt;
   const gapMs = Number.isFinite(lastAt) ? (now - lastAt) : null;
@@ -2270,17 +2355,47 @@ function advanceLocationGlide(now = performance.now()) {
   const arrived = Math.abs(dx) < LOCATION_GLIDE_EPSILON && Math.abs(dy) < LOCATION_GLIDE_EPSILON;
   if (arrived || gapMs == null || gapMs > HEADING_UP_SCALE_EASE_STALE_MS) {
     state.locationGlide = null;
-    if (arrived && from.x === glide.to.x && from.y === glide.to.y) return false;
-    state.userLocation = locationAtPoint(glide.to, glide.accuracy);
+    if (arrived && from.x === to.x && from.y === to.y) return false;
+    state.userLocation = locationAtPoint(to, glide.accuracy);
     state.userInMapArea = pointInsideBounds(state.userLocation.point, state.bounds);
     return true;
   }
 
   const dt = Math.min(gapMs, HEADING_UP_SCALE_EASE_MAX_DT * 1000) / 1000;
   const alpha = 1 - Math.exp(-dt / glide.tau);
-  state.userLocation = locationAtPoint({ x: from.x + dx * alpha, y: from.y + dy * alpha }, glide.accuracy);
+  const next = { x: from.x + dx * alpha, y: from.y + dy * alpha };
+  state.userLocation = locationAtPoint(next, glide.accuracy);
   state.userInMapArea = pointInsideBounds(state.userLocation.point, state.bounds);
+  if (glide.track) panViewportWithUser(from, next);
   return true;
+}
+
+// Whether the camera is the overview that follows the user: the north-up Nearby framing, not a
+// selected place, a secondary screen, a cluster zoom or a heading-up anchor. keepOverviewCenteredOnUser
+// uses the same test before it re-fits anything.
+function overviewFollowsUser() {
+  if (!state.dataLoaded) return false;
+  if (!state.userLocation) return false;
+  if (state.selected && !secondaryScreenActive()) return false;
+  if (state.clusterZoomed) return false;
+  if (els.inspector.classList.contains("minimized")) return false;
+  if (nearbyNavigationAnchorActive()) return false;
+  if (communityFramesOwnMarksOnly()) return false;
+  return true;
+}
+
+// While travelling, the map moves with the You marker frame by frame: the marker keeps its
+// place on screen and the map slides under it. The alternative -- re-easing the camera once a
+// second, behind a marker that has already moved on -- is the same sit-then-jump as the marker
+// used to have. Skipped while a camera tween is in flight (it would be overwritten), and in
+// heading-up or 3D views, which re-fit from the live position on every compass frame instead.
+function panViewportWithUser(fromPoint, toPoint) {
+  if (state.viewportAnimationFrame != null) return;
+  if (headingUpActive() || tiltActive() || !overviewFollowsUser()) return;
+  const scale = state.viewport.scale;
+  state.viewport.tx -= (toPoint.x - fromPoint.x) * scale;
+  state.viewport.ty -= (toPoint.y - fromPoint.y) * scale;
+  requestDraw();
 }
 
 function applyLocationFix(position) {
@@ -2372,7 +2487,7 @@ function locateUser({ initial }) {
         requestCompassPermissionIfNeeded({ fromGesture: false });
       }
 
-      checkDistanceToForest(latitude, longitude);
+      updateFarFromForest(latitude, longitude);
 
       if (isOverviewScreenActive()) selectOverview();
       if (!previousPoint) {
@@ -2426,39 +2541,69 @@ function distanceToForestMetres(latitude, longitude) {
 }
 
 // Keeps state.farFromForest in step with a real fix (and re-run when the outline lands). When it
-// flips, the Nearby list/camera re-centre (nearbyOrigin) and the compass/route aids switch on/off.
+// flips, the Nearby list/camera re-centre (nearbyOrigin) and the compass/route aids switch on/off,
+// and the one far-from-the-forest notice is raised or cleared. Nothing here blocks the map.
 function updateFarFromForest(latitude, longitude) {
-  const metres = hasRealLocation() ? distanceToForestMetres(latitude, longitude) : null;
-  const far = metres != null && metres > FAR_FROM_FOREST_METRES;
+  const far = isFarFromForestFix(latitude, longitude);
   if (far === state.farFromForest) return;
   state.farFromForest = far;
   if (isOverviewScreenActive()) selectOverview();
   updateCompassOverlay();
   requestDraw();
+  if (far) showFarFromForestNotice();
+  else hideFarFromForestNotice();
 }
 
-function checkDistanceToForest(latitude, longitude) {
-  updateFarFromForest(latitude, longitude);
-  // Don't show warning if already dismissed, or open now
-  if (state.distanceWarningShown || (els.distanceWarning && !els.distanceWarning.hidden)) return;
+// Whether a real fix is far from the forest. Exact once the outline has loaded. Before that, a fix
+// beyond the outline's furthest reach plus the walking limit is already far: otherwise the camera
+// framed the raw fix (central London, say) until the outline arrived and then flew across to High
+// Beach, and the map was blank for that whole stretch.
+function isFarFromForestFix(latitude, longitude) {
+  if (!hasRealLocation()) return false;
+  const metres = distanceToForestMetres(latitude, longitude);
+  if (metres != null) return metres > FAR_FROM_FOREST_METRES;
+  return distanceMetres(DEFAULT_LOCATION.latitude, DEFAULT_LOCATION.longitude, latitude, longitude)
+    > FOREST_OUTLINE_REACH_FROM_HIGH_BEACH_METRES + FAR_FROM_FOREST_METRES;
+}
 
-  const minDistance = distanceToForestMetres(latitude, longitude);
-  if (minDistance == null) return;
+const FAR_FROM_FOREST_NOTICE_TITLE = "You're too far away to use the app fully";
+const FAR_FROM_FOREST_NOTICE_TEXT = "We're showing you finds around High Beach. Directions and walking times come back once you're within 15 minutes' walk of the forest.";
 
-  if (minDistance > FAR_FROM_FOREST_METRES) {
-    if (els.distanceWarningMessage) {
-      els.distanceWarningMessage.textContent = `You're about ${formatDistance(minDistance)} from the forest boundary — roughly ${Math.round(minDistance / (5000 / 60))} minutes on foot. The map is fully loaded and ready to explore when you visit.`;
-    }
-    
-    if (els.distanceWarning) {
-      els.distanceWarning.hidden = false;
-      els.distanceWarning._deactivateFocus = typeof activateModalFocus === "function"
-        ? activateModalFocus(els.distanceWarning, {
-            onEscape: () => els.distanceWarningButton?.click(),
-          })
-        : null;
-    }
+// The far-from-the-forest message is a non-blocking card, not a modal: the map, the Nearby list and the
+// High Beach framing behind it all stay usable. It reuses the location invite's floating card
+// (#locationInviteBanner) with no request button, since a real fix already exists and asking again
+// would only land the visitor back on the same far-away fix. Its OK does not record a location choice.
+// Raised once per page load, and held back while the consent card is up so the two never overlap.
+function showFarFromForestNotice() {
+  if (state.farNoticeShown || state.farNoticeWaiting || !isFarFromForest()) return;
+  if (els.consentBanner && !els.consentBanner.hidden) {
+    if (typeof MutationObserver !== "function") return;
+    state.farNoticeWaiting = true;
+    const observer = new MutationObserver(() => {
+      if (!els.consentBanner.hidden) return;
+      observer.disconnect();
+      state.farNoticeWaiting = false;
+      showFarFromForestNotice();
+    });
+    observer.observe(els.consentBanner, { attributes: true, attributeFilter: ["hidden"] });
+    return;
   }
+  state.farNoticeShown = true;
+  state.farNoticeOpen = true;
+  showLocationInviteBanner(FAR_FROM_FOREST_NOTICE_TEXT, {
+    canRequest: false,
+    title: FAR_FROM_FOREST_NOTICE_TITLE,
+    recordsChoice: false,
+    onClose: () => { state.farNoticeOpen = false; },
+  });
+}
+
+// Walking back inside the walking limit clears the notice, so it never describes a place the visitor
+// is no longer far from.
+function hideFarFromForestNotice() {
+  if (!state.farNoticeOpen || !els.locationInviteBanner) return;
+  state.farNoticeOpen = false;
+  hideNoticeCard(els.locationInviteBanner);
 }
 
 function getMinDistanceToForest(userLat, userLon, forestLayer) {
@@ -3279,6 +3424,21 @@ function openFiltersScreen() {
   openFilterSetup();
 }
 
+// A held rail pill edits just that category: its chips and a Done button, not the whole map setup
+// flow. Done, the close button, a backdrop tap or Escape all apply the staged set, as in map setup,
+// and the Nearby view behind it is left where it is (no route change).
+function openCategorySetup(groupKey) {
+  if (typeof showOnboarding !== "function") return;
+  const overlay = document.getElementById("onboardingOverlay");
+  if (!overlay || typeof overlay.querySelector !== "function" || !overlay.querySelector(".onboarding-progress")) return;
+  if (overlay._onboardingActive || !FILTER_GROUPS_BY_KEY.has(groupKey)) return;
+
+  showOnboarding({ mode: "category", groupKey }).then((result) => {
+    if (Array.isArray(result.filters)) setOverviewFilters(result.filters);
+    updateFilterUi();
+  });
+}
+
 function openSettings() {
   if (typeof dismissOnboarding === "function") dismissOnboarding();
   if (typeof trackGaScreenView === "function") trackGaScreenView("Settings");
@@ -3437,11 +3597,6 @@ function settingsFormHtml() {
       <div class="settings-presets" role="group" aria-label="Walking time presets">${reachablePresets.map((m) => `<button type="button" class="settings-btn" data-walk-minutes="${m}" aria-pressed="${sliderValue === m}">${formatWalkingRadius(m)}</button>`).join("")}</div>
       <p class="source-note walk-radius-floor-note" id="settingsWalkMinsFloorNote" aria-live="polite"${sliderValue > floorMinutes ? " hidden" : ""}>This is as close as it gets — nothing closer to show nearby.</p>
     </section>
-    <section class="settings-section" id="map3dSetting"${state.motionSensorSeen ? "" : " hidden"}>
-      <h3 class="settings-section-title">Map</h3>
-      <label class="settings-switch"><span><strong>3D map</strong><span class="settings-description">Enable full 3D when you tilt your phone up. Off uses the default tilt.</span></span><input type="checkbox" id="map3dToggle"${state.map3dEnabled ? " checked" : ""}></label>
-      <img class="settings-preview" src="css/img/map-3d-preview.webp" width="480" height="346" alt="The map tilted in 3D, with paths and finds stretching away towards the horizon" loading="lazy" decoding="async">
-    </section>
     <section class="settings-section">
       <h3 class="settings-section-title">Reminders</h3>
       <label class="community-nudge-setting settings-switch"><span><strong>Tree check reminders</strong><span class="settings-description">A gentle nudge to check trees you’re standing next to.</span></span><input type="checkbox" id="communityNudgeToggle"${communityNudgesOn() ? " checked" : ""}></label>
@@ -3555,8 +3710,6 @@ async function fillTesterId() {
 
 function bindSettingsHandlers() {
   refreshSettingsVersionDisplay();
-  const map3dToggle = document.getElementById("map3dToggle");
-  if (map3dToggle) map3dToggle.addEventListener("change", () => setMap3dEnabled(map3dToggle.checked));
   const range = document.getElementById("settingsWalkMins");
   if (range) {
     // If the floor has grown since this radius was last set (e.g. the user has moved
@@ -4873,6 +5026,19 @@ function renderNearestItemsHtml(entries) {
   }).join("");
 }
 
+// The Nearby list's rows, with the out-of-radius fallbacks (the nearest match for a selected type that
+// has nothing inside the walking radius) grouped after the in-radius rows under one label naming the
+// radius. Heads-up ordering can interleave the two -- a close item behind you can outscore a far one
+// ahead -- so the split is by the outOfRadius flag, never by position. Without the label the greyed
+// rows look disabled rather than "further than you asked for".
+function renderNearestItemsWithBeyondLabel(entries) {
+  const beyond = entries.filter((entry) => entry.outOfRadius);
+  if (!beyond.length) return renderNearestItemsHtml(entries);
+  const inRadius = entries.filter((entry) => !entry.outOfRadius);
+  const label = `<li class="nearest-beyond-label">Outside the ${formatWalkingRadius(state.walkingDistanceMinutes)} walk</li>`;
+  return `${renderNearestItemsHtml(inRadius)}${label}${renderNearestItemsHtml(beyond)}`;
+}
+
 // The filter rail at the top of every Nearby view: one toggle pill per category. The plain /nearby screen
 // shows top-level groups; a /nearby/<category> landing shows that group's subcategories. A pill
 // adds or removes its category from the current (ephemeral) filter set in place -- no screen
@@ -4932,12 +5098,37 @@ function railPillKeys() {
   return railItems().map((item) => item.key);
 }
 
+// The category a rail pill stands for, for holding it open in map setup: a group pill is its own
+// group, a subcategory pill is its parent group. The Everything pill is not a category.
+function railPillGroupKey(key) {
+  const group = FILTER_GROUPS_BY_KEY.get(key);
+  if (group) return group.key;
+  const subfilter = FILTER_SUBFILTERS_BY_KEY.get(key);
+  return subfilter ? subfilter.groupKey : null;
+}
+
+// The group pill that is on says how many of its subcategories are on ("2/3"), so the reader can
+// see how much of the group they have chosen without opening it. A subcategory pill is one
+// category, so it keeps the plain tick.
 function filterRailHtml() {
   const allOn = railSelection().length === 0;
   const allStatus = `<span class="rail-check" aria-hidden="true">${allOn ? "✓" : ""}</span>`;
   const allPill = `<button class="rail-pill rail-pill--all${allOn ? " is-on" : ""}" type="button" data-rail-key="all-nearby" aria-pressed="${allOn}">${appIconHtml("nearby")}<span>Everything</span>${allStatus}</button>`;
+  const groupLevel = !nearbyRailGroup();
+  const activeKeys = new Set(state.overviewFilters);
   const pills = railItems().map((item) => {
     const on = railItemIsActive(item);
+    if (groupLevel) {
+      const shown = item.filterKeys.filter((key) => activeKeys.has(key)).length;
+      const total = item.filterKeys.length;
+      // The count is always shown, so "0/4" reads on a group that is off too, and the tick slot is
+      // always reserved. Both are present in every state, so the pill keeps one width when it is
+      // switched on or off; the tabular figures keep "0/4" and "4/4" the same width.
+      const count = `<span class="rail-count${on ? "" : " is-off"}" aria-hidden="true">${shown}/${total}</span>`;
+      const status = `${count}<span class="rail-check" aria-hidden="true">${on ? "✓" : ""}</span>`;
+      const label = `${escapeHtml(item.label)}: ${shown} of ${total} categories shown`;
+      return `<button class="rail-pill${on ? " is-on" : ""}" type="button" data-rail-key="${item.key}" aria-pressed="${on}" aria-label="${label}" title="Hold to choose ${escapeHtml(item.label)} categories">${appIconHtml(item.icon)}<span>${escapeHtml(item.label)}</span>${status}</button>`;
+    }
     const status = `<span class="rail-check" aria-hidden="true">${on ? "✓" : ""}</span>`;
     return `<button class="rail-pill${on ? " is-on" : ""}" type="button" data-rail-key="${item.key}" aria-pressed="${on}">${appIconHtml(item.icon)}<span>${escapeHtml(item.label)}</span>${status}</button>`;
   }).join("");
@@ -5063,7 +5254,7 @@ function overviewNearestHtml() {
   }
 
 
-  const itemsHtml = renderNearestItemsHtml(entries);
+  const itemsHtml = renderNearestItemsWithBeyondLabel(entries);
 
   const fallbackNotice = state.overviewOutsideRadiusFallback
     ? `<p class="source-note"><strong>Nothing found within ${formatWalkingRadius(state.walkingDistanceMinutes)} walking distance.</strong><br><small>Showing the closest match for each selected type instead.</small></p>`
@@ -5532,7 +5723,6 @@ function onDeviceOrientation(event) {
   state.orientationLastEventAt = performance.now();
   const rawBeta = event.beta;
   if (Number.isFinite(rawBeta)) {
-    if (!state.motionSensorSeen) markMotionSensorSeen();
     const nextBeta = clamp(Math.abs(rawBeta), 0, 90);
     // Deadband: sub-degree pitch wobble would otherwise re-project the tilted map every frame.
     if (Math.abs(nextBeta - state.tiltBetaTarget) >= BETA_TARGET_DEADBAND_DEG) state.tiltBetaTarget = nextBeta;
@@ -6240,13 +6430,21 @@ const HEADING_UP_SCALE_EASE_OUT_RATE = 9;
 // existing scale fit already is one.
 const HEADING_UP_ANCHOR_HOLD_RATIO = 0.12; // deadband, as a fraction of the focus rect's height
 
+// Far from the forest the map still turns with the compass for a selected place, pivoting on the
+// High Beach stand-in (navigationOriginPoint) rather than the real fix. No directions are offered
+// there (canGuideToPlaces), so this only rotates the view.
 function selectedNavigationHeadingUpActive() {
   return Boolean(
     state.userLocation
-    && !isFarFromForest()
     && selectedCompassTarget()
     && Number.isFinite(state.compassHeading)
   );
+}
+
+// The point heading-up navigation pivots on and measures bearings from: the real fix, or the High
+// Beach stand-in while far from the forest, so the view is framed as if the visitor were there.
+function navigationOriginPoint() {
+  return isFarFromForest() ? highBeachStandIn().point : state.userLocation.point;
 }
 
 function nearbyHeadingUpActive() {
@@ -6327,7 +6525,7 @@ function navigationAnchorActive() {
 // tx/ty built from it) around a point the camera was about to move away from.
 function cameraOriginPoint(useFinalBrowseState = false) {
   const logical = selectedNavigationHeadingUpActive()
-    ? state.userLocation.point
+    ? navigationOriginPoint()
     : (useFinalBrowseState
       ? ((nearbyOrigin() && nearbyOrigin().point) || (state.userLocation ? state.userLocation.point : null))
       : (nearbyRenderOriginPoint() || (state.userLocation ? state.userLocation.point : null)));
@@ -6542,24 +6740,6 @@ function tiltActive() {
   return Boolean(hasRealLocation()) && state.tiltBetaSmoothed > TILT_BETA_THRESHOLD;
 }
 
-// Chrome on a laptop fires one deviceorientation event with every angle null, so only a finite
-// beta counts. Reveals the switch in place if Settings is already open.
-function markMotionSensorSeen() {
-  state.motionSensorSeen = true;
-  try { localStorage.setItem(MOTION_SENSOR_KEY, "1"); } catch {}
-  const section = typeof document !== "undefined" && document.getElementById("map3dSetting");
-  if (section) section.hidden = false;
-}
-
-// Switching between full and gentle tilt must re-project and re-fit straight away.
-function setMap3dEnabled(on) {
-  state.map3dEnabled = Boolean(on);
-  try { localStorage.setItem(MAP_3D_KEY, state.map3dEnabled ? "1" : "0"); } catch {}
-  _tiltProjectionCache = undefined;
-  if (typeof ensureOverviewTargetsVisible === "function") ensureOverviewTargetsVisible();
-  requestDraw();
-}
-
 function tiltRotateXDeg() {
   if (!tiltActive()) return 0;
   const betaMax = state.map3dEnabled ? TILT_BETA_MAX : TILT_GENTLE_BETA_MAX;
@@ -6681,8 +6861,9 @@ function selectedNavigationTargetBearingOffsetRadians() {
     sumX += point.x;
     sumY += point.y;
   }
-  const dx = sumX / points.length - state.userLocation.point.x;
-  const dy = sumY / points.length - state.userLocation.point.y;
+  const origin = navigationOriginPoint();
+  const dx = sumX / points.length - origin.x;
+  const dy = sumY / points.length - origin.y;
   if (dx === 0 && dy === 0) return null;
   const radians = toRadians(currentNavigationMapRotationDegrees());
   const rotatedX = dx * Math.cos(radians) - dy * Math.sin(radians);
@@ -6902,6 +7083,7 @@ function balancedNavigationAnchorY(focusRect, anchorFraction) {
   // routed line, with junctions of its own, has an ahead/behind split worth taking.
   if (points.length < 3) return anchoredY;
 
+  const origin = navigationOriginPoint();
   const radians = toRadians(currentNavigationMapRotationDegrees());
   const cos = Math.cos(radians);
   const sin = Math.sin(radians);
@@ -6910,8 +7092,8 @@ function balancedNavigationAnchorY(focusRect, anchorFraction) {
   let side = 0;
   for (const point of points) {
     if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) continue;
-    const dx = point.x - state.userLocation.point.x;
-    const dy = point.y - state.userLocation.point.y;
+    const dx = point.x - origin.x;
+    const dy = point.y - origin.y;
     const rotatedX = dx * cos - dy * sin;
     const rotatedY = dx * sin + dy * cos;
     if (rotatedY < 0) ahead = Math.max(ahead, -rotatedY);
@@ -7029,6 +7211,9 @@ function selectedNavigationTargetPoints() {
     return target.segments.flat();
   }
   if (!target.point) return [];
+  // Far from the forest there is no walk to frame, but the High Beach stand-in the view pivots on
+  // must stay in the fit with the place, or the rotated view would not show where it is turning about.
+  if (isFarFromForest()) return [navigationOriginPoint(), target.point];
   // Frame the whole walk, not just its far end. This is the fit used by
   // maxHeadingUpNavigationScale (and the bearing behind headingUpAnchorFraction) in
   // heading-up navigation -- the mode in use outdoors whenever the compass is live -- and
@@ -8443,13 +8628,7 @@ function centerOverviewOnUserLocation(options = {}) {
 }
 
 function keepOverviewCenteredOnUser(previousPoint) {
-  if (!state.dataLoaded) return;
-  if (!state.userLocation) return;
-  if (state.selected && !secondaryScreenActive()) return;
-  if (state.clusterZoomed) return;
-  if (els.inspector.classList.contains("minimized")) return;
-  if (nearbyNavigationAnchorActive()) return;
-  if (communityFramesOwnMarksOnly()) return;
+  if (!overviewFollowsUser()) return;
 
   const previousScreen = previousPoint ? worldToScreen(previousPoint) : null;
   const nextScreen = worldToScreen(state.userLocation.point);
@@ -9409,6 +9588,7 @@ function searchIconHtml(className = "app-icon title-icon") {
 function searchScreenHtml() {
   return `<div class="search-screen">
     <div class="search-field">
+      <svg class="search-field-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="7"/><path d="m16 16 5 5"/></svg>
       <input id="mapSearchInput" class="search-number" type="search" inputmode="search" autocomplete="off"
         autocapitalize="off" spellcheck="false" enterkeyhint="search"
         placeholder="Search trees, places, roads…" aria-label="Search the map"

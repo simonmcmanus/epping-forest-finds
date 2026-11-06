@@ -4,8 +4,9 @@ const { skipOnboarding, mockCowApi, gotoAndWaitForMap, waitForUiToSettle } = req
 
 const FOREST_LOCATION = { latitude: 51.6650, longitude: 0.0450, accuracy: 10 };
 
-// Map setup is a modal over Nearby; Settings and Feedback remain inspector screens. All three
-// leave the same map framing and walking-radius context visible behind them.
+// Map setup is a modal over Nearby; Settings and Feedback remain inspector screens. Map setup and
+// Feedback keep the walking-radius ring visible behind them, and so does Settings, where the
+// slider and pinch resize the radius the ring shows.
 test.describe("Secondary screens preserve a consistent map view", () => {
   test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] });
 
@@ -105,8 +106,13 @@ test.describe("Secondary screens preserve a consistent map view", () => {
     ).toBe(true);
   });
 
-  test("the walking radius is drawn behind Map setup, Settings, and Feedback", async ({ page }) => {
-    for (const toggleId of ["#filterToggle", "#settingsToggle", "#reportToggle"]) {
+  test("the walking radius is drawn behind Map setup, Settings and Feedback", async ({ page }) => {
+    const screens = [
+      { toggleId: "#filterToggle", ringDrawn: true },
+      { toggleId: "#settingsToggle", ringDrawn: true },
+      { toggleId: "#reportToggle", ringDrawn: true },
+    ];
+    for (const { toggleId, ringDrawn } of screens) {
       await page.click(toggleId);
       if (toggleId === "#filterToggle") {
         await expect(page.locator("#onboardingOverlay")).toBeVisible();
@@ -125,7 +131,7 @@ test.describe("Secondary screens preserve a consistent map view", () => {
         });
         return arcCount > 0;
       });
-      expect(radiusDrawn).toBe(true);
+      expect(radiusDrawn).toBe(ringDrawn);
     }
   });
 });
