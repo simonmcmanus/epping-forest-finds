@@ -63,6 +63,10 @@ and merges. The subagents in `.claude/agents/` do the work:
   - `design-reviewer` — consistency with the existing CSS, tokens and icon registry, mobile and dark-mode polish, and marketing brand voice.
   - `ux-reviewer` — whether each journey completes end to end, flow and copy clarity, permission asks, and the state each error or empty screen shows.
 - `data-curator` — real-world place corrections in `data/**`; never edits specs for these.
+- `pr-steward` — drives one PR to mergeable: merges `main` in for conflicts, triages red CI, answers
+  and resolves review threads, pushes small fixes. It never approves, merges or force-pushes.
+  Subagents cannot subscribe to PR events or wake themselves, so the lead session holds the PR
+  subscription and dispatches the steward on each event and each safety-net check-in.
 
 Rules:
 
