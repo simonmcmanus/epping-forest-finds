@@ -49,8 +49,10 @@ Glossary and decisions live in `spec/`, not `GLOSSARY.md`/`docs/adr/`. See `docs
 
 ## Team of agents
 
-Several Claude Code agents can work on this repo at once. The lead session plans, dispatches and
-merges. The subagents in `.claude/agents/` do the work:
+Several Claude Code agents can work on this repo at once. Agent teams are enabled for the project
+(`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in `.claude/settings.json`). Teammates appear as tmux panes
+when the session runs inside tmux, and run in-process otherwise. The lead session plans, dispatches
+and merges. The subagents in `.claude/agents/` do the work:
 
 - `implementer` — one scoped change in its own worktree: tests, code, spec update, commit, push.
 - `test-runner` — runs the unit suite and named e2e specs; read-only; reports exact counts.
