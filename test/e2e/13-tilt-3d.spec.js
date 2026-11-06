@@ -64,11 +64,11 @@ test.describe("3D tilt view", () => {
 
   test.beforeEach(async ({ page }) => {
     await skipOnboarding(page);
-    // 3D is off until switched on in Settings; this whole file is about it being on.
-    await page.addInitScript(() => localStorage.setItem("ff-map-3d-v1", "1"));
     await mockCowApi(page);
     await gotoAndWaitForMap(page);
+    // Full 3D is never offered to users, so this file switches its code path on directly.
     await page.evaluate(() => {
+      state.map3dEnabled = true;
       const gate = document.getElementById("locationGate");
       if (gate && !gate.hidden) gate.hidden = true;
     });
