@@ -937,6 +937,40 @@ test.describe("Overview / Nearby screen", () => {
 
       expect(await dispatchPagePinch(page, "#mapCanvas")).toEqual([true, true, true]);
     });
+
+    // iOS Safari also reports a page pinch as a two-finger touchmove, aimed at where the touch began.
+    async function dispatchTwoFingerMove(page, selector) {
+      return page.evaluate((selector) => {
+        const target = document.querySelector(selector);
+        const rect = target.getBoundingClientRect();
+        const touchAt = (identifier, dx) => new Touch({
+          identifier,
+          target,
+          clientX: rect.left + rect.width / 2 + dx,
+          clientY: rect.top + rect.height / 2,
+        });
+        const event = new TouchEvent("touchmove", {
+          touches: [touchAt(1, -20), touchAt(2, 20)],
+          changedTouches: [touchAt(2, 20)],
+          cancelable: true,
+          bubbles: true,
+        });
+        target.dispatchEvent(event);
+        return event.defaultPrevented;
+      }, selector);
+    }
+
+    test("a two-finger move that starts outside the map is left to the browser, so the page can be pinched", async ({ page }) => {
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+
+      expect(await dispatchTwoFingerMove(page, "#inspectorBody .nearest-item")).toBe(false);
+    });
+
+    test("a two-finger move that starts on the map is still cancelled, so the map keeps its own zoom", async ({ page }) => {
+      await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+
+      expect(await dispatchTwoFingerMove(page, "#mapCanvas")).toBe(true);
+    });
   });
 });
 

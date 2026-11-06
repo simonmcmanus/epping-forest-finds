@@ -1223,7 +1223,7 @@ Every write to `state.viewport` (scale, `tx`, `ty`), grouped by how it moves the
 ## Zoom & Input
 
 - **Pointer lifecycle robustness (`js/nav.js`):** `setPointerCapture`/`releasePointerCapture` are always called through `capturePointerSafely`/`releasePointerSafely`, which swallow the `NotFoundError` the browser raises for a pointer it has already finished with. An uncaught throw there aborted the rest of the `pointerup` handler, leaving `state.dragging` true and the lifted finger still in `state.activePointers` — after which the map ignored every subsequent gesture until the page was reloaded. The canvas also handles `lostpointercapture`, tearing the gesture down the same way `pointercancel` does, because the browser can take a captured pointer away (a system edge gesture claiming the touch, the tab backgrounding mid-drag) without ever sending `pointerup` or `pointercancel`.
-- Browser/page pinch zoom disabled
+- Page pinch zoom (gesture and two-finger touch-move events) is cancelled only where it starts on the map canvas; elsewhere the browser zooms the page
 - Ctrl+wheel zoom disabled at document level
 - Map zoom via: map interactions only (wheel/drag) — there is no on-screen zoom control in the main map UI
 - Touch double-tap zoom prevented

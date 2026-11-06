@@ -834,8 +834,10 @@ function setupUiZoomLock() {
     }, { passive: false });
   }
 
+  // iOS Safari's page pinch arrives as a two-finger touchmove as well as the gesture events above,
+  // so the same rule applies: a touch move is cancelled only when it started on the map.
   document.addEventListener("touchmove", (event) => {
-    if (event.touches.length > 1) event.preventDefault();
+    if (event.touches.length > 1 && event.target === els.canvas) event.preventDefault();
   }, { passive: false });
 
   let lastTouchEnd = 0;
