@@ -47,6 +47,44 @@ GitHub Issues via `gh`. See `docs/agents/issue-tracker.md`.
 
 Glossary and decisions live in `spec/`, not `GLOSSARY.md`/`docs/adr/`. See `docs/agents/domain.md`.
 
+## Team of agents
+
+Several Claude Code agents can work on this repo at once. Agent teams are enabled for the project
+(`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in `.claude/settings.json`). Teammates appear as tmux panes
+when the session runs inside tmux, and run in-process otherwise. The lead session plans, dispatches
+and merges. The subagents in `.claude/agents/` do the work:
+
+- `implementer` — one scoped change in its own worktree: tests, code, spec update, commit, push.
+- `test-runner` — runs the unit suite and named e2e specs; read-only; reports exact counts.
+- `reviewer` — read-only review against the checklist above; reports verified findings only.
+- Specialist reviewers, each read-only and each reporting verified findings only:
+  - `accessibility-reviewer` — names and roles, keyboard and focus, touch targets, contrast, reduced motion, and text alternatives for the canvas map.
+  - `performance-reviewer` — draw loop and per-frame work, redundant paints, payloads, service-worker caching, battery and memory. Judged on mobile first.
+  - `design-reviewer` — consistency with the existing CSS, tokens and icon registry, mobile and dark-mode polish, and marketing brand voice.
+  - `ux-reviewer` — whether each journey completes end to end, flow and copy clarity, permission asks, and the state each error or empty screen shows.
+- `data-curator` — real-world place corrections in `data/**`; never edits specs for these.
+- `pr-steward` — drives one PR to mergeable: merges `main` in for conflicts, triages red CI, answers
+  and resolves review threads, pushes small fixes. It never approves, merges or force-pushes.
+  Subagents cannot subscribe to PR events or wake themselves, so the lead session holds the PR
+  subscription and dispatches the steward on each event and each safety-net check-in.
+
+Rules:
+
+- **One worktree and branch per work item:** `git worktree add .worktrees/<topic> -b claude/<topic> origin/main`.
+  `.worktrees/` is gitignored. No agent works in the lead's checkout or commits to `main`.
+- **Branch from `origin/main`, never from another open PR** (see Testing).
+- **Own your files.** Two agents never edit the same file in parallel. Hot files are `app.html`,
+  `js/app.js`, `sw.js`, `spec/*.md` and `test/forest-finds.test.js`. Serialise work items that touch
+  the same one.
+- **Cache markers are never agent-edited:** `js/app-cache-version.js` and `js/data-cache-version.js`.
+- **The lead dispatches; subagents report back.** Subagents do not spawn further agents.
+- **Local results are local.** The lead reads the CI run for the head SHA before reporting anything
+  done (see "CI is the verdict").
+- **Hand-off report from every agent:** branch, worktree path, commits, files changed, spec file(s)
+  updated or the implementation-only reason, test commands with counts, and open risks.
+- **Safe to run in parallel:** tests-only, data-only, spec-only and review work. Two changes to
+  renderer or app wiring are not.
+
 ## Marketing and app surfaces
 
 - `index.html` (marketing homepage, `/`) and `assets/home/**` are a separate surface from the app (`app.html`, `js/**`, `css/**`). Marketing must not import app CSS/JS or reference app icons at runtime; small brand assets are independent copies in `assets/home/`.
