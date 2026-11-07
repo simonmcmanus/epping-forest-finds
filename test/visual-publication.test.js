@@ -136,3 +136,16 @@ test('current evidence replaces old screenshots and preserves human text and the
   assert.match(fixture.updates[0].body, /capture unavailable/);
   assert.doesNotMatch(fixture.updates[0].body, /old screenshots/);
 });
+
+test('untrusted screenshot names and capture errors cannot notify GitHub users or teams', (t) => {
+  const root = fixture(t);
+  manifest(root, 'mobile', [
+    { name: '@someone setup', status: 'failed', images: [] },
+    { name: 'map', status: 'failed', images: [{ name: '@org/team-map-actual.png', file: 'map.png' }] },
+  ], [{ name: '@another-user-screen.png', file: 'added.png' }]);
+  const section = render(root, path.join(root, 'published'), options);
+  assert.doesNotMatch(section, /@(someone|org|another-user)/);
+  assert.match(section, /＠someone/);
+  assert.match(section, /＠org\/team-map/);
+  assert.match(section, /＠another-user/);
+});

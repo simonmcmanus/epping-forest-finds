@@ -1,6 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const escape = (value) => String(value).replace(/[\r\n|<>`\[\]]/g, ' ');
+const escape = (value) => String(value).replace(/[\r\n|<>`\[\]]/g, ' ').replace(/@/g, '＠');
 
 function render(candidates, destination, { repository, sha, runUrl }) {
   fs.mkdirSync(destination, { recursive: true });
