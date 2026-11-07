@@ -54,7 +54,7 @@ Several Claude Code agents can work on this repo at once. Agent teams are enable
 when the session runs inside tmux, and run in-process otherwise. The lead session plans, dispatches
 and merges. The subagents in `.claude/agents/` do the work:
 
-- `implementer` — one scoped change in its own worktree: tests, code, spec update, commit, push.
+- `implementer` — one scoped change in its own worktree: tests, code, spec update, local commit. The lead session pushes after review.
 - `test-runner` — runs the unit suite and named e2e specs; read-only; reports exact counts.
 - `reviewer` — read-only review against the checklist above; reports verified findings only.
 - Specialist reviewers, each read-only and each reporting verified findings only:
@@ -68,6 +68,20 @@ and merges. The subagents in `.claude/agents/` do the work:
   Subagents cannot subscribe to PR events or wake themselves, so the lead session holds the PR
   subscription and dispatches the steward on each event and each safety-net check-in.
 
+Default delegation. In any session that has these agents, the work goes through them, not through
+the lead session's own edits:
+
+- Any change to app code, tests or specs goes to an `implementer`, in its own worktree.
+- Any change ready to hand over goes through `reviewer`, `test-runner`, and the specialist reviewers
+  that match what changed, before it is handed over.
+- Any open PR goes to `pr-steward` on each event and safety-net check-in.
+- Any corrected place fact goes to `data-curator`.
+
+The lead session plans, dispatches and reports. Subagents cannot dispatch other agents, so the lead
+runs the team playbook itself: the `/team` skill (`.claude/skills/team/SKILL.md`). It
+edits app code, tests or specs itself only when the user asks for that directly. If the agents are not loaded in a session, say so and then do the
+work directly.
+
 Rules:
 
 - **One worktree and branch per work item:** `git worktree add .worktrees/<topic> -b claude/<topic> origin/main`.
@@ -78,6 +92,8 @@ Rules:
   the same one.
 - **Cache markers are never agent-edited:** `js/app-cache-version.js` and `js/data-cache-version.js`.
 - **The lead dispatches; subagents report back.** Subagents do not spawn further agents.
+- **Review before push.** Implementers commit locally. The reviewers and the test-runner run on the
+  local branch, and the lead session pushes only after they pass (see `/team`).
 - **Local results are local.** The lead reads the CI run for the head SHA before reporting anything
   done (see "CI is the verdict").
 - **Hand-off report from every agent:** branch, worktree path, commits, files changed, spec file(s)
@@ -195,7 +211,7 @@ When removing a source-grep test, check that an executed test or e2e journey cov
 
 ### CI is the verdict, and the PR is how you get it
 
-**Open the PR as soon as the work is pushed, and let its `E2E tests` shards and `Visual
+**Open the PR as soon as the lead session has pushed the reviewed work, and let its `E2E tests` shards and `Visual
 snapshots (mobile)` be the one full run of the suite.** CI only fires on `pull_request` (plus a
 push to `main` and a manual dispatch), so a branch pushed without a PR gets no checks at all —
 and reaching for `workflow_dispatch` to fix that just means two runs of the same suite on the
@@ -217,7 +233,7 @@ the full sweep is not.
 
 So, before a PR is done — every time, no exceptions:
 
-1. **Push, open the PR, then read the CI run for your head SHA.** `actions_list` →
+1. **After the review and test gates pass, the lead session pushes and opens the PR, then reads the CI run for the head SHA.** `actions_list` →
    `list_workflow_runs` filtered to your branch, then `list_workflow_jobs`, then `get_job_logs`
    on each `E2E tests (<project>, shard <n>)` job and on `Visual snapshots (desktop + mobile)`. Read the
    `N failed / N passed` line and the failure list under it.
@@ -305,7 +321,7 @@ If you do edit a shared one, re-run every spec that uses it, on **every** Playwr
    reproduces the runner's 2 vCPUs.
 3. Relevant `spec/` file is updated, or reason documented.
 4. Create a commit with a good concise description summarising the change.
-5. Push and open the PR with screenshots of the change in its description (see "Screenshots in
+5. After the review and test gates pass, the lead session pushes and opens the PR with screenshots of the change in its description (see "Screenshots in
    every PR" above), then confirm every `E2E tests (<project>, shard <n>)` job is **green on
    your branch**, and review warnings from `Visual snapshots (desktop + mobile)` — per "CI is the verdict"
    above. That PR run is the full sweep; do not also run the suite locally or dispatch CI by

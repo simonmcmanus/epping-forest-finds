@@ -380,19 +380,24 @@ function searchResultOffMap(result) {
 }
 
 function searchResultsHtml(query) {
+  // Trees or places still arriving: a miss now may match once they land, so the screen says so
+  // rather than reporting "nothing matches" (the results re-run when that data arrives).
+  const loading = treesOrPlacesLoading();
+  const loadingHtml = loading ? `<p class="empty">Still loading trees, results may be incomplete</p>` : "";
   const needle = normalizeSearchText(query);
   if (!needle) {
     updateSearchHighlight([]);
-    return `<p class="empty">Search for a tree tag or species, a shop, pub or café, a road, a trail, or anywhere else on the map.</p>`;
+    return `${loadingHtml}<p class="empty">Search for a tree tag or species, a shop, pub or café, a road, a trail, or anywhere else on the map.</p>`;
   }
   if (needle.length < SEARCH_MIN_QUERY_LENGTH) {
     updateSearchHighlight([]);
-    return `<p class="empty">Keep typing — search needs at least ${SEARCH_MIN_QUERY_LENGTH} characters.</p>`;
+    return `${loadingHtml}<p class="empty">Keep typing — search needs at least ${SEARCH_MIN_QUERY_LENGTH} characters.</p>`;
   }
 
   const results = searchMapFeatures(query);
   updateSearchHighlight(results);
   if (!results.length) {
+    if (loading) return loadingHtml;
     return `<p class="empty">Nothing on the map matches “${escapeHtml(query.trim())}”.</p>`;
   }
 
@@ -419,7 +424,7 @@ function searchResultsHtml(query) {
   const countLabel = results.length >= SEARCH_RESULT_LIMIT
     ? `Closest ${SEARCH_RESULT_LIMIT} matches`
     : `${results.length} match${results.length === 1 ? "" : "es"}`;
-  return `<div class="nearby-heading"><strong>${escapeHtml(countLabel)}</strong></div><ul class="nearest-list">${itemsHtml}</ul>`;
+  return `${loadingHtml}<div class="nearby-heading"><strong>${escapeHtml(countLabel)}</strong></div><ul class="nearest-list">${itemsHtml}</ul>`;
 }
 
 // The nav button's magnifier again, at title size. There is no search PNG in the icon
