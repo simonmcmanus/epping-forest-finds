@@ -1681,8 +1681,9 @@ const LOCATION_FAST_SNAP_METRES = 150;
 // How close counts as arrived, in projected units -- comfortably sub-metre, so the ease
 // lands on the fix rather than crawling at it forever.
 const LOCATION_GLIDE_EPSILON = 1e-7;
-// A glide step repaints the map only once the You marker has moved this far on screen since the frame
-// last painted (see locationGlideNeedsRepaint). The position still eases on every step either way.
+// A glide step repaints the map only once the You marker has moved this far on screen, in device pixels
+// (the canvas bitmap's pixels, which is what worldToScreen returns), since the frame last painted (see
+// locationGlideNeedsRepaint). The position still eases on every step either way.
 const LOCATION_GLIDE_REPAINT_DEVICE_PX = 1;
 
 // Whether the person is travelling faster than walking pace: the device's own speed reading
@@ -1936,7 +1937,8 @@ function locationGlideMovedVisibly(painted, screen) {
   const view = state.viewport;
   if (painted.inArea !== state.userInMapArea
     || painted.scale !== view.scale || painted.tx !== view.tx || painted.ty !== view.ty) return true;
-  const movedDevicePx = Math.hypot(screen.x - painted.x, screen.y - painted.y) * pixelRatio();
+  // worldToScreen() is already in device pixels (the canvas bitmap's own), so no DPR factor here.
+  const movedDevicePx = Math.hypot(screen.x - painted.x, screen.y - painted.y);
   return movedDevicePx >= LOCATION_GLIDE_REPAINT_DEVICE_PX;
 }
 

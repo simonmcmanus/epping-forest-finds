@@ -408,6 +408,7 @@ globalThis.__forestFindsTest = {
   resizeCanvas,
   prepareCanvasForDraw,
   draw,
+  drawOverlay,
   stopViewportAnimation,
   updateHeadingUpCanvasRotationTransform,
   startCompassSmoothing,
@@ -9199,12 +9200,21 @@ test("a walker standing still with 20-30m GPS accuracy is not thrown off by the 
 
 // Drives the real glide from a standing start, one frame at a time, the way the browser runs it. The
 // test owns the clock (app.performance.now) and the animation-frame queue. Each frame runs the glide
-// loop's own callback, then a paint if the loop asked for one; a paint is the real draw(), so what the
-// app records as painted is what this measures against. The walker stands at one fix, and a second fix
-// lands `moveDevicePixels` east of them, at `devicePixelRatio`.
-// Returns the frame and repaint counts, the furthest the marker on screen got from where the last paint
-// left it (in device pixels), and how many frames showed the map-area flag out of date.
-function driveLocationGlide(app, { devicePixelRatio, moveDevicePixels, accuracy = 25, beforeGlide = () => {} }) {
+// loop's own callback, then a paint if the loop asked for one. A paint is the real draw(), which paints
+// the main canvas and then the overlay that draws the You marker; drawOverlay() alone is an overlay-only
+// frame. The walker stands at one fix, and a second fix lands `moveDevicePixels` east of them.
+//
+// Everything is in device pixels, the unit worldToScreen() returns: the canvas bitmap's own pixels, with
+// viewport.scale in device pixels per degree. At DPR 3 one device pixel is a third of a CSS pixel.
+//
+// `onFrame(api)` runs after each frame's step and paint. Its api lets a test paint the overlay alone
+// (api.paintOverlayOnly) or aim the glide at a new offset from the start (api.aimAtOffsetDevicePx), and
+// read where the marker is (api.offsetDevicePx).
+//
+// Returns the frame and repaint counts, how far the marker on screen got from where each canvas last
+// drew it (device pixels), how far it went from its start, and how many frames showed the map-area flag
+// out of date against either canvas.
+function driveLocationGlide(app, { devicePixelRatio, moveDevicePixels, accuracy = 25, beforeGlide = () => {}, onFrame = () => {} }) {
   // Animation frames by handle. Only the glide loop's own frame (state.locationGlideFrame) is run, and
   // only its requests are counted: a paint can ask for further frames for reasons of its own (an emoji
   // or pin animation left running by an earlier test), and another loop's frame is not the glide's.
@@ -9213,7 +9223,15 @@ function driveLocationGlide(app, { devicePixelRatio, moveDevicePixels, accuracy 
   let clockMs = 1000;
   let repaintAsked = false;
   let inGlideCallback = false;
-  const counts = { frames: 0, repaints: 0, worstStaleDevicePx: 0, staleAreaFrames: 0 };
+  const counts = {
+    frames: 0,
+    repaints: 0,
+    worstStaleMainDevicePx: 0,
+    worstStaleOverlayDevicePx: 0,
+    staleAreaFrames: 0,
+    minOffsetDevicePx: 0,
+    maxOffsetDevicePx: 0,
+  };
   const originals = {
     raf: app.swapGlobalFunction("requestAnimationFrame", (fn) => {
       const handle = nextHandle;
@@ -9236,13 +9254,30 @@ function driveLocationGlide(app, { devicePixelRatio, moveDevicePixels, accuracy 
   // The overlay (where the marker is painted) only draws inside the map bounds, which the app sets
   // once data has loaded; a box around the walker stands in for that.
   const originalBounds = app.state.bounds;
+  const lon0 = 0.045;
   const onScreen = () => app.worldToScreen(app.state.userLocation.point);
-  let shown = null;
-  let shownInArea = null;
+  let startX = 0;
+  let shownMain = null;
+  let shownMainInArea = null;
+  let shownOverlay = null;
+  let shownOverlayInArea = null;
   const paint = () => {
     app.draw();
-    shown = onScreen();
-    shownInArea = app.state.userInMapArea;
+    shownMain = onScreen();
+    shownMainInArea = app.state.userInMapArea;
+    shownOverlay = shownMain;
+    shownOverlayInArea = shownMainInArea;
+  };
+  const api = {
+    offsetDevicePx: () => onScreen().x - startX,
+    paintOverlayOnly: () => {
+      app.drawOverlay();
+      shownOverlay = onScreen();
+      shownOverlayInArea = app.state.userInMapArea;
+    },
+    aimAtOffsetDevicePx: (offset) => {
+      app.state.userLocation = app.ingestLocationFix(51.665, lon0 + offset / app.state.viewport.scale, accuracy, clockMs);
+    },
   };
   try {
     app.els.canvas.dataset.dpr = String(devicePixelRatio);
@@ -9253,12 +9288,13 @@ function driveLocationGlide(app, { devicePixelRatio, moveDevicePixels, accuracy 
     app.state.nearbyAnchor = null;
     app.state.locationGlideFrame = null;
     app.state.viewport = { scale: 20000, tx: 120, ty: -340 };
-    app.state.userLocation = app.ingestLocationFix(51.665, 0.045, accuracy, 1000);
+    app.state.userLocation = app.ingestLocationFix(51.665, lon0, accuracy, 1000);
     app.state.userInMapArea = true; // the walker stands inside the box above, as a real first fix would leave it
     beforeGlide(app);
     paint();
+    startX = onScreen().x;
 
-    const lonEast = 0.045 + (moveDevicePixels / devicePixelRatio) / app.state.viewport.scale;
+    const lonEast = lon0 + moveDevicePixels / app.state.viewport.scale;
     clockMs = 2000;
     app.state.userLocation = app.ingestLocationFix(51.665, lonEast, accuracy, 2000);
     while (app.state.locationGlide && clockMs < 60000) {
@@ -9278,10 +9314,16 @@ function driveLocationGlide(app, { devicePixelRatio, moveDevicePixels, accuracy 
         repaintAsked = false;
         paint();
       }
+      onFrame(api);
       const now = onScreen();
-      counts.worstStaleDevicePx = Math.max(counts.worstStaleDevicePx, Math.hypot(now.x - shown.x, now.y - shown.y) * devicePixelRatio);
-      if (app.state.userInMapArea !== shownInArea) counts.staleAreaFrames += 1;
+      const offset = now.x - startX;
+      counts.minOffsetDevicePx = Math.min(counts.minOffsetDevicePx, offset);
+      counts.maxOffsetDevicePx = Math.max(counts.maxOffsetDevicePx, offset);
+      counts.worstStaleMainDevicePx = Math.max(counts.worstStaleMainDevicePx, Math.hypot(now.x - shownMain.x, now.y - shownMain.y));
+      counts.worstStaleOverlayDevicePx = Math.max(counts.worstStaleOverlayDevicePx, Math.hypot(now.x - shownOverlay.x, now.y - shownOverlay.y));
+      if (app.state.userInMapArea !== shownMainInArea || app.state.userInMapArea !== shownOverlayInArea) counts.staleAreaFrames += 1;
     }
+    counts.worstStaleDevicePx = Math.max(counts.worstStaleMainDevicePx, counts.worstStaleOverlayDevicePx);
     counts.glideEnded = app.state.locationGlide === null;
     counts.landedLongitude = app.state.userLocation.longitude;
     counts.targetLongitude = lonEast;
@@ -9297,8 +9339,9 @@ function driveLocationGlide(app, { devicePixelRatio, moveDevicePixels, accuracy 
 }
 
 test("a glide step that moves the You marker less than one device pixel does not repaint the map", () => {
-  // At DPR 3 a device pixel is a third of a CSS pixel. This whole glide moves the marker 0.4 of one,
-  // so no frame of it can be seen; a repaint for any of them is wasted work on a phone.
+  // worldToScreen() works in device pixels, the canvas bitmap's own pixels. This whole glide moves the
+  // marker 0.4 of one of them (a third of a CSS pixel at DPR 3), so no frame of it can be seen, and a
+  // repaint for any of them is wasted work on a phone.
   const run = driveLocationGlide(app, { devicePixelRatio: 3, moveDevicePixels: 0.4 });
   assert.ok(run.glideEnded, "the glide should run to its end");
   assert.equal(run.repaints, 0, `no frame should repaint for a move under a device pixel, ${run.repaints} of ${run.frames} did`);
@@ -9338,7 +9381,7 @@ test("a sub-pixel glide step that takes the You marker out of the map area still
   // The marker is only drawn while it is inside the map area, so the frame it crosses the edge must be
   // painted even though the step itself is under a device pixel. The edge sits halfway through the move.
   const originalBounds = app.state.bounds;
-  const edgeLongitude = 0.045 + (0.2 / 3) / 20000;
+  const edgeLongitude = 0.045 + 0.2 / 20000;
   // pointInsideBounds pads each side by 8% of the width; with minX at -1 the right edge is 1.08 * maxX + 0.08.
   const maxX = (edgeLongitude - 0.08) / 1.08;
   try {
@@ -9355,6 +9398,30 @@ test("a sub-pixel glide step that takes the You marker out of the map area still
   } finally {
     app.state.bounds = originalBounds;
   }
+});
+
+test("an overlay-only frame that paints the You marker makes the glide repaint once the marker is a device pixel from it, even when the main canvas has not moved", () => {
+  // The marker is drawn on the overlay canvas, which an overlay-only frame paints without a full draw().
+  // The main canvas was last drawn with the marker at the start. An overlay-only frame then paints it
+  // 0.6 device pixels east, and the glide reverses to 1 device pixel west of the start. The marker is
+  // within a device pixel of the main canvas's picture the whole way, but once it passes 0.4 device
+  // pixels west it is more than a device pixel from the overlay's picture, so that must force a repaint.
+  let reversed = false;
+  const run = driveLocationGlide(app, {
+    devicePixelRatio: 3,
+    moveDevicePixels: 3,
+    onFrame: (api) => {
+      if (reversed || api.offsetDevicePx() < 0.6) return;
+      reversed = true;
+      api.paintOverlayOnly();
+      api.aimAtOffsetDevicePx(-1);
+    },
+  });
+  assert.ok(reversed, "the marker should get to 0.6 device pixels before the glide ends, so the reversal happens mid-glide");
+  assert.ok(run.glideEnded, "the glide should run to its end");
+  assert.ok(run.minOffsetDevicePx < -0.9, `the glide should reverse well past the overlay's painted position, reached ${run.minOffsetDevicePx.toFixed(3)}`);
+  assert.ok(run.worstStaleOverlayDevicePx < 1, `the overlay should never show the marker a device pixel from where it is, worst ${run.worstStaleOverlayDevicePx.toFixed(3)}`);
+  assert.ok(run.worstStaleMainDevicePx < 1, `the main canvas should never show the marker a device pixel from where it is, worst ${run.worstStaleMainDevicePx.toFixed(3)}`);
 });
 
 test("a far-off first fix that the real GPS position replaces does not make a walker standing still look like they are travelling", () => {
