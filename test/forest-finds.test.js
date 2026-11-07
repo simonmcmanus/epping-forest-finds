@@ -8913,6 +8913,15 @@ test("the first GPS fix is used as delivered, with no smoothing to ease in from"
   assert.ok(app.state.rawUserLocation, "the raw fix is kept for analytics");
 });
 
+test("a GPS fix records the moment it arrived, so analytics can tell a fresh fix from a stale one", () => {
+  resetData(app);
+  resetLocationSmoothing(app);
+  const before = Date.now();
+  const fix = app.ingestLocationFix(51.665, 0.045, 10, 1000);
+  const after = Date.now();
+  assert.ok(fix.receivedAt >= before && fix.receivedAt <= after, "stamped with the arrival time");
+});
+
 test("a later GPS fix is eased toward rather than jumping the position", () => {
   resetData(app);
   resetLocationSmoothing(app);
@@ -8960,10 +8969,15 @@ test("a position that stops updating still converges on the last fix, rather tha
   resetLocationSmoothing(app);
   app.state.userLocation = null;
   app.state.userLocation = app.ingestLocationFix(51.665, 0.045, 25, 1000); // poor accuracy: the most smoothing
+  // A 39m step at 25m accuracy: well inside the accuracy-scaled snap distance (4 x 25m = 100m), so
+  // it should be eased as wander rather than landed. The assertion below checks that the ease is
+  // pending (a raw landing would leave none), and then that the ease converges. At tau 2.5s the
+  // residual is still ~0.7m at 10s, so the horizon runs to 22s (~0.01m left).
   app.state.userLocation = app.ingestLocationFix(51.6653, 0.0453, 25, 2000);
+  assert.ok(app.state.locationGlide, "a 39m step at 25m accuracy is eased, so an ease is pending right after the fix");
   const destination = { ...app.state.rawUserLocation };
 
-  for (let t = 2016; t <= 12000; t += 16) app.advanceLocationGlide(t);
+  for (let t = 2016; t <= 22000; t += 16) app.advanceLocationGlide(t);
 
   assert.ok(
     Math.abs(app.state.userLocation.latitude - destination.latitude) < 0.000005,
@@ -9131,6 +9145,95 @@ test("on a train with noisy GPS, the position never jumps sideways or backwards 
   assert.ok(worstAcross < 12, `the marker should not wander off the line, ${worstAcross.toFixed(1)}m sideways at worst`);
 });
 
+test("a walker standing still with 20-30m GPS accuracy is not thrown off by the wander in each fix", () => {
+  // Shortly after a cold start every fix is 20-30m accurate, and a fix can land that far from
+  // where the walker actually stands. The walking path used to land any fix more than 30m from
+  // the marker's own position at once, so the marker jumped 30-60m in a single frame, and the
+  // Nearby camera (re-pinned to the marker on every fix) lurched with it. A fix's own accuracy
+  // says how far it can be out, so only a step well beyond that is a real move.
+  const metresPerDegLat = 111320;
+  const metresPerDegLon = 111320 * Math.cos((51.665 * Math.PI) / 180);
+  for (const [accuracy, seed] of [[20, 1], [25, 2], [30, 3]]) {
+    resetData(app);
+    resetLocationSmoothing(app);
+    app.state.userLocation = null;
+    const noise = gpsNoise(seed);
+    const sigmaM = accuracy / 1.2;
+    const frames = [];
+    const record = (at) => {
+      const { latitude, longitude } = app.state.userLocation;
+      frames.push({ at, northM: (latitude - 51.665) * metresPerDegLat, eastM: (longitude - 0.045) * metresPerDegLon });
+    };
+    for (let i = 0; i <= 40; i += 1) {
+      const at = 1000 + i * 1000;
+      app.state.userLocation = app.ingestLocationFix(
+        51.665 + (sigmaM * noise()) / metresPerDegLat,
+        0.045 + (sigmaM * noise()) / metresPerDegLon,
+        accuracy,
+        at,
+        null
+      );
+      record(at);
+      for (let t = at + 16; t < at + 1000; t += 16) {
+        app.advanceLocationGlide(t);
+        record(t);
+      }
+    }
+    let worstStep = 0;
+    for (let i = 1; i < frames.length; i += 1) {
+      worstStep = Math.max(worstStep, Math.hypot(frames[i].northM - frames[i - 1].northM, frames[i].eastM - frames[i - 1].eastM));
+    }
+    const settled = frames.filter((frame) => frame.at >= 6000);
+    const worstFromStanding = Math.max(...settled.map((frame) => Math.hypot(frame.northM, frame.eastM)));
+    assert.ok(worstStep < 2, `${accuracy}m fixes: no frame should move the marker more than 2m, one moved ${worstStep.toFixed(1)}m`);
+    // Easing averages the fixes, so the settled marker sits about one accuracy-radius from the
+    // walker (measured 1.1-1.2x across these seeds).
+    assert.ok(
+      worstFromStanding < accuracy * 1.5,
+      `${accuracy}m fixes: once settled the marker should stay within about its fixes' accuracy of the walker, worst ${worstFromStanding.toFixed(1)}m`
+    );
+  }
+});
+
+test("a far-off first fix that the real GPS position replaces does not make a walker standing still look like they are travelling", () => {
+  // The app starts on a stand-in (High Beach) or a coarse first fix hundreds of metres from the walker.
+  // The real fix that follows is landed as a new start, but that earlier fix stayed in the 8-15s
+  // history the speed and the travel track are judged from. For the next several seconds the walker
+  // looked to be covering ~30m/s, the fitted track ran off with the marker, and it snapped back once
+  // the stale fix aged out of the window. A fix the app has already moved on from is not the journey.
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  app.state.userLocation = app.ingestLocationFix(51.667591, 0.037454, 25, 160); // the stand-in, ~290m away
+  app.state.userLocation = app.ingestLocationFix(51.665, 0.045, 10, 640); // the real position
+  const metresPerDegLat = 111320;
+  const metresPerDegLon = 111320 * Math.cos((51.665 * Math.PI) / 180);
+  const noise = gpsNoise(21);
+  const frames = [];
+  const record = (at) => {
+    const { latitude, longitude } = app.state.userLocation;
+    frames.push({ at, northM: (latitude - 51.665) * metresPerDegLat, eastM: (longitude - 0.045) * metresPerDegLon });
+  };
+  for (let i = 0; i < 16; i += 1) {
+    const at = 1000 + i * 1000;
+    // A walker standing still under a clear sky: 3m of wander per fix, 10m accuracy.
+    app.state.userLocation = app.ingestLocationFix(51.665 + (3 * noise()) / metresPerDegLat, 0.045 + (3 * noise()) / metresPerDegLon, 10, at, null);
+    record(at);
+    for (let t = at + 16; t < at + 1000; t += 16) {
+      app.advanceLocationGlide(t);
+      record(t);
+    }
+  }
+  let worstStep = 0;
+  for (let i = 1; i < frames.length; i += 1) {
+    worstStep = Math.max(worstStep, Math.hypot(frames[i].northM - frames[i - 1].northM, frames[i].eastM - frames[i - 1].eastM));
+  }
+  const settled = frames.filter((frame) => frame.at >= 3000);
+  const worstFromStanding = Math.max(...settled.map((frame) => Math.hypot(frame.northM, frame.eastM)));
+  assert.ok(worstStep < 2, `no frame should move the marker more than 2m, one moved ${worstStep.toFixed(1)}m`);
+  assert.ok(worstFromStanding < 8, `the marker should stay with the walker, worst ${worstFromStanding.toFixed(1)}m from where they stand`);
+});
+
 test("a walker's wander under trees is still smoothed however long it goes on", () => {
   resetData(app);
   resetLocationSmoothing(app);
@@ -9153,6 +9256,33 @@ test("a large jump in position lands at once rather than crawling there", () => 
   const jumped = app.ingestLocationFix(51.68, 0.06, 10, 2000);
   assert.equal(app.state.locationGlide, null, "no glide for a real jump");
   assert.equal(jumped.latitude, 51.68, "the position lands on the fix itself");
+});
+
+test("a poor-accuracy fix that comes after a gap in the fixes still lands at once", () => {
+  // The accuracy-scaled snap distance is for wander between consecutive fixes. The first fix back
+  // after a gap (a tunnel, a dead signal) keeps the plain 30m floor, so a 45m move lands.
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  app.state.userLocation = app.ingestLocationFix(51.665, 0.045, 25, 1000);
+  const landed = app.ingestLocationFix(51.665 + 0.0004, 0.045, 25, 7000);
+  assert.equal(app.state.locationGlide, null, "no ease after a six-second gap");
+  assert.equal(landed.latitude, 51.665 + 0.0004, "the position lands on the fix");
+});
+
+test("a fix 200m away one second after a 100m-accuracy fix still lands at once", () => {
+  // The accuracy scaling is capped: a 100m fix would allow a 400m step as wander, but a step of
+  // 150m or more between consecutive fixes is a teleport however poor the fixes are. The 200m
+  // jump lands on the fix rather than being eased across a street.
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  app.state.userLocation = app.ingestLocationFix(51.665, 0.045, 10, 1000);
+  app.state.userLocation = app.ingestLocationFix(51.66505, 0.045, 100, 2000); // ~6m on, eased as wander
+  assert.ok(app.state.locationGlide, "the ~6m wander at 100m accuracy is eased, not landed");
+  const teleported = app.ingestLocationFix(51.665 + 200 / 111320, 0.045, 100, 3000); // ~200m north, a second later
+  assert.equal(app.state.locationGlide, null, "a 200m step is past the 150m cap, so there is no ease");
+  assert.equal(teleported.latitude, 51.665 + 200 / 111320, "the position lands on the fix");
 });
 
 test("a poor-accuracy fix is leaned on harder than a good one", () => {
@@ -12296,7 +12426,7 @@ test("a report whose GitHub filing failed can be sent again and is filed", async
     },
     async (handler, calls) => {
       const failed = await handler(feedbackEvent({ requestId: "req-retry-1" }));
-      assert.equal(failed.statusCode, 500);
+      assert.equal(failed.statusCode, 502, "an upstream failure is a 5xx, which the client outbox retries");
       const retried = await handler(feedbackEvent({ requestId: "req-retry-1" }));
       assert.equal(retried.statusCode, 200, "the failed attempt did not leave the report marked as sent");
       assert.equal(JSON.parse(retried.body).issueNumber, 22);
@@ -12547,6 +12677,68 @@ test("the missing-data report refuses a request body of JSON null with a 400 ins
   const { handler } = require("../netlify/functions/report-missing-data");
   const result = await handler({ httpMethod: "POST", body: "null", headers: {} });
   assert.equal(result.statusCode, 400);
+});
+
+const REPORT_UNAVAILABLE_COPY = "We could not send your report just now. Your text is still here.";
+const TOKEN_ENV_NAMES = ["GITHUB_TOKEN", "GH_TOKEN", "GITHUB_FINE_GRAINED_TOKEN", "GITHUB_PAT"];
+// The server logs the developer detail for each refusal; these tests read the response, so keep the log quiet.
+async function quietly(run) {
+  const originalError = console.error;
+  console.error = () => {};
+  try { return await run(); } finally { console.error = originalError; }
+}
+
+test("Report submission refuses details longer than 5,000 characters before anything reaches GitHub", async () => {
+  await withStubbedGithub(() => jsonResponse(201, { number: 1, html_url: "https://github.com/x/y/issues/1" }), async (handler, calls) => {
+    const tooLong = await handler(feedbackEvent({ details: "a".repeat(5001), requestId: "req-too-long" }));
+    assert.equal(tooLong.statusCode, 400);
+    assert.deepEqual(JSON.parse(tooLong.body), { error: "Your message is too long. Please keep it to 5,000 characters or fewer." });
+    assert.deepEqual(calls, [], "GitHub is never asked to file an oversized report");
+
+    const atLimit = await handler(feedbackEvent({ details: "a".repeat(5000), requestId: "req-at-limit" }));
+    assert.equal(atLimit.statusCode, 200, "a message of exactly 5,000 characters is still filed");
+  });
+});
+
+test("Report submission sends a plain message when GitHub is unavailable and keeps the token hint out of the response", async () => {
+  await withStubbedGithub(
+    (url, method) => (method === "POST" && url.endsWith("/issues")
+      ? jsonResponse(503, { message: "Service unavailable: upstream timeout detail" })
+      : jsonResponse(200, { items: [] })),
+    async (handler) => quietly(async () => {
+      const result = await handler(feedbackEvent({ requestId: "req-github-down" }));
+      assert.equal(result.statusCode, 502);
+      assert.deepEqual(JSON.parse(result.body), { error: REPORT_UNAVAILABLE_COPY });
+    })
+  );
+});
+
+test("Report submission gives the same plain message when the connection to GitHub fails", async () => {
+  await withStubbedGithub(() => { throw new TypeError("fetch failed"); }, async (handler) => quietly(async () => {
+    const result = await handler(feedbackEvent({ requestId: "req-network-down" }));
+    assert.equal(result.statusCode, 502);
+    assert.deepEqual(JSON.parse(result.body), { error: REPORT_UNAVAILABLE_COPY });
+  }));
+});
+
+test("Report submission without a GitHub token keeps the configuration hint in the server log, not the response", async () => {
+  const saved = TOKEN_ENV_NAMES.map((name) => [name, process.env[name]]);
+  for (const name of TOKEN_ENV_NAMES) delete process.env[name];
+  const logged = [];
+  const originalError = console.error;
+  console.error = (...parts) => logged.push(parts.join(" "));
+  try {
+    const { handler } = require("../netlify/functions/report-missing-data");
+    const result = await handler(feedbackEvent({ requestId: "req-no-token" }));
+    assert.equal(result.statusCode, 503, "a report the server cannot send is answered as unavailable");
+    assert.deepEqual(JSON.parse(result.body), { error: REPORT_UNAVAILABLE_COPY });
+    assert.ok(logged.some((line) => line.includes("GITHUB_TOKEN")), "the setting that is missing is logged for the owner");
+  } finally {
+    console.error = originalError;
+    for (const [name, value] of saved) {
+      if (value === undefined) delete process.env[name]; else process.env[name] = value;
+    }
+  }
 });
 
 test("one network cannot mint endless device ids to confirm its own reports: community reports are capped per address and site-wide", async () => {
@@ -13121,6 +13313,239 @@ test("the features endpoint answers the public check and keeps the list admin-on
   } finally {
     if (previous === undefined) delete process.env.ADMIN_PASSWORD; else process.env.ADMIN_PASSWORD = previous;
   }
+});
+
+// The offline outbox (js/outbox.js) is its own script in the browser, so it is loaded here into a
+// context of its own. Only the boundaries are stubbed: time (a fake clock the test moves), timers,
+// IndexedDB (an in-memory store), the network (a scripted fetch) and the online flag.
+const OUTBOX_TEST_HOUR_MS = 60 * 60 * 1000;
+
+function loadOutboxForTests() {
+  const clock = { now: 1800000000000 };
+  const timers = [];
+  let lastTimerId = 0;
+  const listeners = new Map();
+  const events = [];
+  const fetchCalls = [];
+  const storage = new Map();
+  const idbStores = new Map();
+  const navigatorStub = { onLine: true };
+  const reply = (status, body = {}) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
+  let responder = () => reply(200, {});
+
+  // Requests complete on the next microtask, so one macrotask turn lets a whole flush run to its end.
+  const later = (fn) => Promise.resolve().then(fn);
+  const fakeIndexedDB = {
+    open() {
+      const request = { result: null, onsuccess: null, onerror: null, onblocked: null, onupgradeneeded: null };
+      later(() => {
+        request.result = {
+          createObjectStore(name) { idbStores.set(name, new Map()); },
+          transaction(name) {
+            const rows = idbStores.get(name);
+            const tx = { oncomplete: null, onerror: null, onabort: null };
+            tx.objectStore = () => ({
+              getAll: () => ({ result: [...rows.values()].map((row) => structuredClone(row)) }),
+              put: (row) => { rows.set(row.id, structuredClone(row)); return { result: row.id }; },
+              delete: (id) => { rows.delete(id); return { result: undefined }; },
+            });
+            later(() => { if (tx.oncomplete) tx.oncomplete(); });
+            return tx;
+          },
+        };
+        if (!idbStores.has("items") && request.onupgradeneeded) request.onupgradeneeded();
+        if (request.onsuccess) request.onsuccess();
+      });
+      return request;
+    },
+  };
+
+  const window = {
+    addEventListener(type, handler) {
+      if (!listeners.has(type)) listeners.set(type, []);
+      listeners.get(type).push(handler);
+    },
+    dispatchEvent(event) {
+      events.push(event);
+      for (const handler of listeners.get(event.type) || []) handler(event);
+      return true;
+    },
+  };
+  class CustomEvent {
+    constructor(type, init = {}) { this.type = type; this.detail = init.detail; }
+  }
+  const context = {
+    window,
+    document: { visibilityState: "visible", addEventListener() {} },
+    navigator: navigatorStub,
+    CustomEvent,
+    indexedDB: fakeIndexedDB,
+    localStorage: {
+      getItem: (key) => (storage.has(key) ? storage.get(key) : null),
+      setItem: (key, value) => { storage.set(key, String(value)); },
+      removeItem: (key) => { storage.delete(key); },
+    },
+    Date: { now: () => clock.now },
+    setTimeout(fn, ms) {
+      lastTimerId += 1;
+      timers.push({ id: lastTimerId, at: clock.now + ms, fn });
+      return lastTimerId;
+    },
+    clearTimeout(id) {
+      const at = timers.findIndex((timer) => timer.id === id);
+      if (at >= 0) timers.splice(at, 1);
+    },
+    fetch: async (url, options) => {
+      const body = JSON.parse(options.body);
+      fetchCalls.push({ url, body });
+      return responder(url, body);
+    },
+    console,
+  };
+  context.globalThis = context;
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", "outbox.js"), "utf8"), context, { filename: "js/outbox.js" });
+
+  const settle = () => new Promise((resolve) => setImmediate(resolve));
+  // Moves the clock forward, firing each timer at its due time as a browser would.
+  async function advance(ms) {
+    const end = clock.now + ms;
+    for (;;) {
+      await settle();
+      const [next] = timers.filter((timer) => timer.at <= end).sort((a, b) => a.at - b.at || a.id - b.id);
+      if (!next) break;
+      timers.splice(timers.indexOf(next), 1);
+      clock.now = Math.max(clock.now, next.at);
+      next.fn();
+    }
+    clock.now = end;
+    await settle();
+  }
+
+  return {
+    reply,
+    navigator: navigatorStub,
+    clock,
+    fetchCalls,
+    answerWith(fn) { responder = fn; },
+    advance,
+    // Queues a report the way the app does: add it, then flush if the device is online.
+    async queue(id, url, payload = {}) {
+      await context.outboxAdd({ id, url, payload });
+      if (navigatorStub.onLine) await context.outboxFlush();
+      await settle();
+    },
+    async fireOnline() {
+      window.dispatchEvent({ type: "online" });
+      await settle();
+    },
+    async queuedIds() { return (await context.outboxList()).map((item) => item.id); },
+    sentEvents() {
+      return events
+        .filter((event) => event.type === "outbox:sent")
+        .map((event) => ({ id: event.detail.item.id, ok: event.detail.ok, response: event.detail.response }));
+    },
+    callsTo(url) { return fetchCalls.filter((call) => call.url === url).length; },
+  };
+}
+
+test("Outbox gives up on a queued item after its retry ceiling", async () => {
+  const outbox = loadOutboxForTests();
+  outbox.answerWith(() => outbox.reply(503, { error: "Token revoked" }));
+  await outbox.queue("report-1", "/api/report", { treeId: 7 });
+  await outbox.advance(24 * OUTBOX_TEST_HOUR_MS);
+  assert.equal(outbox.callsTo("/api/report"), 10, "the server is asked ten times, then the item is dropped");
+  assert.deepEqual(await outbox.queuedIds(), [], "nothing is left queued");
+  assert.deepEqual(
+    outbox.sentEvents(),
+    [{ id: "report-1", ok: false, response: { error: "Token revoked" } }],
+    "it is reported as refused, with the server's last message, as a 4xx is",
+  );
+});
+
+test("Outbox gives up on a queued item once it has been refused for three days", async () => {
+  const outbox = loadOutboxForTests();
+  outbox.answerWith(() => outbox.reply(503));
+  await outbox.queue("report-2", "/api/report");
+  // The device is closed for 71 hours, then the app opens and the outbox tries again.
+  outbox.clock.now += 71 * OUTBOX_TEST_HOUR_MS;
+  await outbox.fireOnline();
+  assert.equal(outbox.callsTo("/api/report"), 2);
+  assert.deepEqual(await outbox.queuedIds(), ["report-2"], "still within its three days, so it stays queued");
+  assert.deepEqual(outbox.sentEvents(), []);
+  outbox.clock.now += OUTBOX_TEST_HOUR_MS;
+  await outbox.fireOnline();
+  assert.equal(outbox.callsTo("/api/report"), 3);
+  assert.deepEqual(await outbox.queuedIds(), [], "three days after its first refusal it is dropped");
+  assert.deepEqual(outbox.sentEvents(), [{ id: "report-2", ok: false, response: {} }]);
+});
+
+test("Outbox keeps retrying a queued item while the device is offline", async () => {
+  const outbox = loadOutboxForTests();
+  outbox.navigator.onLine = false;
+  await outbox.queue("report-3", "/api/report");
+  await outbox.advance(4 * 24 * OUTBOX_TEST_HOUR_MS);
+  assert.equal(outbox.callsTo("/api/report"), 0, "nothing is sent while offline");
+  assert.deepEqual(await outbox.queuedIds(), ["report-3"]);
+
+  outbox.navigator.onLine = true;
+  outbox.answerWith(() => outbox.reply(503));
+  await outbox.fireOnline();
+  assert.equal(outbox.callsTo("/api/report"), 1, "the first attempt after reconnecting is its first refusal");
+  assert.deepEqual(await outbox.queuedIds(), ["report-3"], "a refusal after four offline days does not drop it");
+
+  outbox.answerWith(() => outbox.reply(200, { ok: true }));
+  await outbox.fireOnline();
+  assert.deepEqual(await outbox.queuedIds(), []);
+  assert.deepEqual(outbox.sentEvents(), [{ id: "report-3", ok: true, response: { ok: true } }]);
+});
+
+test("Outbox keeps retrying a queued item through network errors, which do not count toward its ceiling", async () => {
+  const outbox = loadOutboxForTests();
+  outbox.answerWith(() => { throw new TypeError("Failed to fetch"); });
+  await outbox.queue("report-4", "/api/report");
+  await outbox.advance(3 * OUTBOX_TEST_HOUR_MS);
+  assert.ok(outbox.callsTo("/api/report") > 10, "more network failures than the ceiling are retried");
+  assert.deepEqual(await outbox.queuedIds(), ["report-4"], "it is still queued");
+  assert.deepEqual(outbox.sentEvents(), []);
+
+  outbox.answerWith(() => outbox.reply(200, { ok: true }));
+  await outbox.fireOnline();
+  assert.deepEqual(outbox.sentEvents(), [{ id: "report-4", ok: true, response: { ok: true } }]);
+});
+
+test("Outbox keeps retrying a queued item until the server accepts it", async () => {
+  const outbox = loadOutboxForTests();
+  let attempts = 0;
+  outbox.answerWith(() => (attempts++ < 3 ? outbox.reply(503) : outbox.reply(200, { ok: true })));
+  await outbox.queue("report-5", "/api/report");
+  await outbox.advance(OUTBOX_TEST_HOUR_MS);
+  assert.equal(outbox.callsTo("/api/report"), 4, "three refusals, then the accepted attempt");
+  assert.deepEqual(await outbox.queuedIds(), []);
+  assert.deepEqual(outbox.sentEvents(), [{ id: "report-5", ok: true, response: { ok: true } }]);
+});
+
+test("Outbox still sends the other queued items after it gives up on one", async () => {
+  const outbox = loadOutboxForTests();
+  outbox.answerWith((url) => (url === "/api/stuck" ? outbox.reply(503) : outbox.reply(200, { accepted: true })));
+  await outbox.queue("stuck", "/api/stuck");
+  await outbox.queue("fine", "/api/fine");
+  await outbox.advance(24 * OUTBOX_TEST_HOUR_MS);
+  assert.deepEqual(await outbox.queuedIds(), [], "both are gone from the queue");
+  assert.deepEqual(outbox.sentEvents(), [
+    { id: "stuck", ok: false, response: {} },
+    { id: "fine", ok: true, response: { accepted: true } },
+  ]);
+});
+
+test("Outbox drops a queued item the server refuses with a 4xx straight away", async () => {
+  const outbox = loadOutboxForTests();
+  outbox.answerWith(() => outbox.reply(400, { error: "Bad report" }));
+  await outbox.queue("report-6", "/api/report");
+  await outbox.advance(24 * OUTBOX_TEST_HOUR_MS);
+  assert.equal(outbox.callsTo("/api/report"), 1, "a 4xx is never retried");
+  assert.deepEqual(await outbox.queuedIds(), []);
+  assert.deepEqual(outbox.sentEvents(), [{ id: "report-6", ok: false, response: { error: "Bad report" } }]);
 });
 
 runRegisteredTests().catch((error) => {

@@ -6,6 +6,10 @@ const OUTBOX_DB = "ff-outbox";
 const OUTBOX_STORE = "items";
 const OUTBOX_MAX_ITEMS = 50;
 const OUTBOX_BACKOFF_MS = [5000, 30000, 120000, 600000];
+// A server refusal (5xx, 408, 429) is retried with backoff, but not forever: an item is given up after
+// OUTBOX_MAX_ATTEMPTS refused attempts, or OUTBOX_MAX_AGE_MS after its first refusal, whichever comes first.
+const OUTBOX_MAX_ATTEMPTS = 10;
+const OUTBOX_MAX_AGE_MS = 72 * 60 * 60 * 1000;
 const OUTBOX_REQUEST_TIMEOUT_MS = 15000;
 
 const outboxMemory = []; // fallback when IndexedDB is unavailable (private window etc.)
@@ -105,6 +109,16 @@ async function outboxRemove(id) {
   }
 }
 
+// Counts a refused attempt on the queued item (its attempt count, and when it was first refused) and
+// returns the updated entry. Network errors are not counted: they never reached the server.
+async function outboxRecordRefusal(item) {
+  const updated = { ...item, attempts: (item.attempts || 0) + 1, firstAttemptAt: item.firstAttemptAt || Date.now() };
+  await outboxTx("readwrite", (store) => store.put(updated));
+  const at = outboxMemory.findIndex((m) => m.id === item.id);
+  if (at >= 0) { outboxMemory[at] = updated; outboxDurable = outboxFallbackSave(); }
+  return updated;
+}
+
 function outboxScheduleRetry() {
   if (outboxRetryTimer) return;
   const delay = OUTBOX_BACKOFF_MS[Math.min(outboxFailures, OUTBOX_BACKOFF_MS.length) - 1] || OUTBOX_BACKOFF_MS[0];
@@ -136,11 +150,16 @@ async function outboxFlush() {
         outboxScheduleRetry();
         break;
       }
-      // 5xx / 408 / 429 are worth retrying; any other 4xx will never succeed, so drop it.
+      // 5xx / 408 / 429 are worth retrying until the ceiling; any other 4xx will never succeed, so drop it.
+      // A given-up item is dropped the same way a 4xx is: removed, and reported with ok:false.
       if (!response.ok && (response.status >= 500 || response.status === 408 || response.status === 429)) {
-        outboxFailures += 1;
-        outboxScheduleRetry();
-        break;
+        const refused = await outboxRecordRefusal(item);
+        const giveUp = refused.attempts >= OUTBOX_MAX_ATTEMPTS || Date.now() - refused.firstAttemptAt >= OUTBOX_MAX_AGE_MS;
+        if (!giveUp) {
+          outboxFailures += 1;
+          outboxScheduleRetry();
+          break;
+        }
       }
       outboxFailures = 0;
       await outboxRemove(item.id);

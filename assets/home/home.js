@@ -85,6 +85,7 @@
       addStory(stories, report, "#event", "events", "Coming up");
       if (!stories.children.length) throw new Error("No preview stories");
       preview.replaceChildren();
+      preview.hidden = false; // the markup ships hidden: only a real edition summary is ever shown
       var label = document.createElement("p");
       label.className = "ledger-latest-label";
       label.textContent = "Latest field notes";

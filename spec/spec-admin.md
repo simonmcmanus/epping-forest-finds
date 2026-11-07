@@ -16,15 +16,15 @@ Password is set via env var `ADMIN_PASSWORD`. If unset, all admin endpoints retu
 
 Authentication: password passed as `Authorization: Bearer <password>` header, and only there. A `?pw=` query parameter is refused: a password in a URL is written into browser history and server access logs. Every admin endpoint uses the same check (`lib/admin-auth.js`), which compares in constant time.
 
-The admin UI stores the password in `sessionStorage` under `ff-admin-session-password` after successful login. This keeps the admin signed in across same-tab refreshes while clearing the session when the browser tab is closed. The **Log out** button clears that session value. A 401 response during refresh or auto-refresh clears the stored password and returns the user to the login screen.
+The admin UI keeps the password in page memory only, for the lifetime of the page. It is never written to `sessionStorage`, `localStorage`, cookies or the URL, so no script on the origin can read it back from storage. A reload (or a new tab) therefore shows the login screen and asks for the password again. The **Log out** button forgets it and returns to the login screen. A 401 response during refresh or auto-refresh forgets it the same way and shows the login screen with "Admin session expired. Sign in again." On load, the page removes any copy an earlier version left in browser storage.
 
 ## Pages / Views
 
 ### Login screen
 - Full-page password form, with a visually-hidden (`.sr-only`) `<label>` for the password field so it has a programmatic name beyond its placeholder text
 - On success: loads tracking data for the current window (see Data API), transitions to the map view
-- On same-tab refresh after a successful login: restores the session from `sessionStorage` and re-fetches data without asking for the password again
-- **Log out** clears the stored admin session and returns to the login screen
+- On a reload or new tab: shows the login screen again; the password is not remembered (see Access)
+- **Log out** forgets the password and returns to the login screen
 - On failure: shows inline error message
 
 ### Map view (canvas)
@@ -83,7 +83,7 @@ as a click (`makeActivatable()` in `js/admin.js`).
 | **Tracks** | Switch to route-line view (default) |
 | **Heatmap** | Switch to density grid view |
 | **Refresh** | Re-fetch all data from the server |
-| **Log out** | Clear the same-tab admin session and return to the login screen |
+| **Log out** | Forget the password and return to the login screen |
 
 Auto-refresh runs every 5 minutes.
 
@@ -128,7 +128,7 @@ Admin suppresses duplicate derived navigation-click events when a matching expli
 ### `POST /api/track`
 Receives a batch of events from the client. No authentication required.
 
-Location pings report the **raw GPS fix** (`state.rawUserLocation`), not `state.userLocation`. The latter is low-passed and glided for the camera's benefit (see "Camera-facing GPS smoothing" in `spec-data-rendering.md`); the two differ by only a couple of metres, but a heat-map of real visits is built from the readings the device actually gave. `trackedLocation()` in `js/tracker.js` picks the raw fix and falls back to `state.userLocation` when there is none.
+Location pings report the **raw GPS fix** (`state.rawUserLocation`), not `state.userLocation`. The latter is low-passed and glided for the camera's benefit (see "Camera-facing GPS smoothing" in `spec-data-rendering.md`); the two differ by only a couple of metres, but a heat-map of real visits is built from the readings the device actually gave. `trackedLocation()` in `js/tracker.js` picks the raw fix and falls back to `state.userLocation` when there is none. Each fix is stamped with its arrival time, and a ping repeats it only while it is fresh: a fix more than two location intervals (two minutes) old is not sent again. So once GPS stops delivering fixes the pings stop, instead of repeating the last position with a new timestamp and showing a stationary walker; the next fresh fix is sent at the next minute.
 
 **Request body:**
 ```json
@@ -142,7 +142,7 @@ Location pings report the **raw GPS fix** (`state.rawUserLocation`), not `state.
 
 **Response:** `{ "ok": true, "received": <count>, "stored": <count> }`
 
-**Client batching.** `js/tracker.js` queues events in `localStorage` (newest 500 kept) and sends them together, not one request each: once 20 have built up, every 5 minutes, when the page is hidden (`visibilitychange`) or closed (`pagehide`), and when the device comes back online. A request carries at most 150 events (about 40 KB, inside the 64 KB a `keepalive` request may send); a longer queue goes up as several. A 5xx, 408 or 429 puts the batch back at the front of the queue for the next attempt, unless consent was withdrawn while it was in flight, when the batch is discarded; any other refusal drops it, since it can never succeed. Withdrawing consent (Settings → Privacy, `setTrackingConsent(false)`) discards the queue, and a flush without consent sends nothing and drops whatever is queued, so events recorded before the withdrawal are never uploaded after it. The location ping itself still samples once a minute, so the dashboard's resolution is unchanged; what moves is when it arrives — a walker's latest position reaches the dashboard up to five minutes late.
+**Client batching.** `js/tracker.js` queues events in `localStorage` (newest 500 kept) and sends them together, not one request each: once 20 have built up, every 5 minutes, when the page is hidden (`visibilitychange`) or closed (`pagehide`), and when the device comes back online. A request carries at most 150 events (about 40 KB, inside the 64 KB a `keepalive` request may send); a longer queue goes up as several. A 5xx, 408 or 429 (or no response at all) puts the batch back at the front of the queue, unless consent was withdrawn while it was in flight, when the batch is discarded; any other refusal drops it, since it can never succeed. After a failed upload nothing is sent again until a wait has passed: 30 seconds, doubling with each further failure up to ten minutes. Every trigger above (the count, the timer, hiding or closing the page, coming back online) waits out that time, and the events stay queued meanwhile. A successful upload clears the wait. Withdrawing consent (Settings → Privacy, `setTrackingConsent(false)`) discards the queue, and a flush without consent sends nothing and drops whatever is queued, so events recorded before the withdrawal are never uploaded after it. The location ping itself still samples once a minute, so the dashboard's resolution is unchanged; what moves is when it arrives — a walker's latest position reaches the dashboard up to five minutes late.
 
 **Limits.** The function refuses a body over 256 KB or more than 500 events (413; 500 is what an older client's whole offline queue could hold). Each event is reduced to the fields above — strings truncated, coordinates range-checked and rounded to 5 decimal places (~1 m), anything else dropped — and events dated more than a day ahead or more than 90 days old are discarded. Each client IP may send 600 requests an hour (`TRACK_LIMIT_PER_IP`); beyond that it gets 429 with `Retry-After`. The counters live in 64 small documents (`track-rate/<shard>`, chosen by a hash of the address) so no one document grows with the number of visitors. A phone on the current app sends about 12 requests an hour, so many people can share one carrier or Wi-Fi address before it applies; a refused batch stays in the phone's queue. The cost: every accepted POST also reads and rewrites one small counter document. At launch scale (about 500 phones at once) that is under two POSTs a second spread over 64 documents, so each document is touched about every 30 seconds. Updates are read-modify-write, not atomic, so two simultaneous requests can overwrite each other's increment and the limit undercounts slightly. It is a brake on a script hammering the endpoint, not an exact meter. Even with these counter writes, the store does far fewer writes per walker than the old one-request-per-event client, which batching replaced.
 
@@ -150,7 +150,7 @@ Location pings report the **raw GPS fix** (`state.rawUserLocation`), not `state.
 Returns stored events from a recent time window. Requires the Bearer header (see Authentication above).
 
 **Query params:**
-- `days` — size of the window in days. Defaults to **30**. `days=all` reads back to the retention period (a year by default).
+- `days` — size of the window in days. Defaults to **30**. `days=all` reads back to the retention period (a year by default). With `TRACKING_RETENTION_DAYS=0` nothing is deleted, but `days=all` still reads back only a year, so one dashboard request stays bounded.
 
 **Response:** events are packed to fit about six times as many into the response — one table of uids (and of navigation targets) and one short array per event. `js/admin.js` `unpackTrackingEvents()` turns them back into the event objects above; a plain array of events (an older server, a test fixture) is used as it is.
 ```json
@@ -215,7 +215,7 @@ An admin read lists only `raw/<type>/<day>/` for the days in its window and read
 
 **Compaction.** `netlify/functions/track-compact-scheduled.js` runs every 10 minutes (`netlify.toml`). It lists every raw batch (cheap, since it runs every 10 minutes and so only ever finds the last few minutes' batches plus any that arrived late from an offline queue), and for each day, newest first, reads that day's batches, merges them into the day's daily file, writes it, and only then deletes the batches it absorbed; a batch filed under a day already past the retention period is deleted instead; events are de-duplicated on merge, so a run that dies between the write and the delete never double-counts. A batch that fails to read is left in place for the next run rather than deleted unseen, and a failure reading a day's existing daily file stops the run instead of overwriting the day with only the new events. It then migrates one listing page of the old flat layout per prefix into daily files (by each event's own date) and deletes those blobs, so a long-lived store converts over successive runs without ever listing the whole of it at once. Each run stops at 20 seconds (scheduled functions get 30) and leaves the rest to the next. Between runs, an admin read also merges any raw batches not yet compacted, so nothing is missing from the dashboard while a day is still open. Until the old layout has been fully migrated, the history it holds appears day by day as it converts, oldest first.
 
-**Retention.** Daily files, and any raw batch, older than `TRACKING_RETENTION_DAYS` (default **365**) are deleted by the compaction run. `TRACKING_RETENTION_DAYS=0` keeps everything. The period is the owner's decision and should match the privacy page; the default exists so the store does not grow without end.
+**Retention.** Daily files, and any raw batch, older than `TRACKING_RETENTION_DAYS` (default **365**) are deleted by the compaction run. `TRACKING_RETENTION_DAYS=0` keeps everything on disk (nothing is deleted); the dashboard's `days=all` read is still capped at a year (see the admin read above). The period is the owner's decision and should match the privacy page; the default exists so the store does not grow without end.
 
 The local NDJSON fallback has no day layout, so it reads the whole file and filters by each event's own `ts` — fine at local-dev data volumes.
 
@@ -249,7 +249,7 @@ Colours are assigned from a fixed 15-colour palette in the order users are first
 - The admin password must be set as an environment variable — there is no default
 - Raw tracking data is never exposed to end users; the admin endpoint requires authentication
 - All events contain only anonymous IDs — no PII is stored or returned
-- The admin UI keeps the password in same-tab `sessionStorage`, not persistent `localStorage`
+- The admin UI keeps the password in page memory only; it is not written to any browser storage, and a reload asks for it again
 
 ## Early access (feature gate)
 The **Access** top-bar button opens a panel with one tester per line (Tester ID from the person's Settings screen, then an optional note). Save posts the list to `POST /api/features`; no deploy is needed. An empty list means the gate is off and everyone has Community. See `spec/spec-community.md` (Feature gate). `/api/features` is routed in `netlify.toml`.
