@@ -355,6 +355,7 @@ const state = {
   locationFixHistory: [], // recent raw fixes, for telling travel from wander (recordFixAndDetectFastTravel)
   locationGlide: null, // in-flight glide of the smoothed position toward the latest fix
   locationGlideFrame: null, // rAF handle for the loop that advances it (see ensureLocationGlideLoop)
+  locationGlidePaints: { main: null, overlay: null }, // where the You marker was last painted, per canvas (see recordLocationGlidePaint)
   locationSmoothedAt: null, // timestamp the location low-pass last ran
   navigationHeadingUp: false,
   renderedNavigationHeading: null,
@@ -1680,6 +1681,9 @@ const LOCATION_FAST_SNAP_METRES = 150;
 // How close counts as arrived, in projected units -- comfortably sub-metre, so the ease
 // lands on the fix rather than crawling at it forever.
 const LOCATION_GLIDE_EPSILON = 1e-7;
+// A glide step repaints the map only once the You marker has moved this far on screen since the frame
+// last painted (see locationGlideNeedsRepaint). The position still eases on every step either way.
+const LOCATION_GLIDE_REPAINT_DEVICE_PX = 1;
 
 // Whether the person is travelling faster than walking pace: the device's own speed reading
 // (coords.speed, from the GPS itself) when it gives one, or the distance covered over the last
@@ -1870,6 +1874,8 @@ function ensureLocationGlideLoop() {
   state.locationGlideFrame = requestAnimationFrame(tick);
 }
 
+// One ease step. Always writes the new position (so the glide converges and lands as before), and
+// returns whether the map needs repainting for it: see locationGlideNeedsRepaint.
 function advanceLocationGlide(now = performance.now()) {
   const glide = state.locationGlide;
   if (!glide || !state.userLocation || !state.userLocation.point) return false;
@@ -1893,7 +1899,7 @@ function advanceLocationGlide(now = performance.now()) {
     if (arrived && from.x === to.x && from.y === to.y) return false;
     state.userLocation = locationAtPoint(to, glide.accuracy);
     state.userInMapArea = pointInsideBounds(state.userLocation.point, state.bounds);
-    return true;
+    return locationGlideNeedsRepaint();
   }
 
   const dt = Math.min(gapMs, HEADING_UP_SCALE_EASE_MAX_DT * 1000) / 1000;
@@ -1902,7 +1908,52 @@ function advanceLocationGlide(now = performance.now()) {
   state.userLocation = locationAtPoint(next, glide.accuracy);
   state.userInMapArea = pointInsideBounds(state.userLocation.point, state.bounds);
   if (glide.track) panViewportWithUser(from, next);
-  return true;
+  return locationGlideNeedsRepaint();
+}
+
+// Whether the step advanceLocationGlide has just made moves the You marker visibly on either canvas
+// since that canvas last painted it. The marker itself is drawn on the overlay canvas, but the main
+// canvas draws things from it too (the walking ring, the route head, the Nearby direction cone), so
+// each canvas is measured against its own last paint. The comparison is with the painted frame, not the
+// previous step, so a run of sub-pixel steps adds up and is repainted once it is visible: the marker is
+// never more than a device pixel from where either canvas last drew it.
+//
+// Anything else the painted frame shows can change without the marker moving that far, so those always
+// repaint: a browse origin (its direction cone is drawn from the marker, and near the edge of the
+// walking ring a pixel of marker movement swings the cone's edges several), and the camera or the
+// map-area flag that hides the marker, which changed since that canvas last painted.
+function locationGlideNeedsRepaint() {
+  if (state.nearbyAnchor) return true;
+  if (!state.userLocation || !state.userLocation.point) return true;
+  const screen = worldToScreen(state.userLocation.point);
+  if (!Number.isFinite(screen.x) || !Number.isFinite(screen.y)) return true;
+  const paints = state.locationGlidePaints;
+  return locationGlideMovedVisibly(paints.main, screen) || locationGlideMovedVisibly(paints.overlay, screen);
+}
+
+function locationGlideMovedVisibly(painted, screen) {
+  if (!painted || !Number.isFinite(painted.x) || !Number.isFinite(painted.y)) return true;
+  const view = state.viewport;
+  if (painted.inArea !== state.userInMapArea
+    || painted.scale !== view.scale || painted.tx !== view.tx || painted.ty !== view.ty) return true;
+  const movedDevicePx = Math.hypot(screen.x - painted.x, screen.y - painted.y) * pixelRatio();
+  return movedDevicePx >= LOCATION_GLIDE_REPAINT_DEVICE_PX;
+}
+
+// Records where the You marker is about to be painted on one canvas ("main" or "overlay"). Called once
+// the frame's own glide step and camera changes are done, so the next glide step measures against what
+// the screen will actually show.
+function recordLocationGlidePaint(canvas) {
+  const view = state.viewport;
+  const screen = state.userLocation && state.userLocation.point ? worldToScreen(state.userLocation.point) : null;
+  state.locationGlidePaints[canvas] = {
+    x: screen ? screen.x : NaN,
+    y: screen ? screen.y : NaN,
+    inArea: state.userInMapArea,
+    scale: view.scale,
+    tx: view.tx,
+    ty: view.ty,
+  };
 }
 
 // Whether the camera is the overview that follows the user: the north-up Nearby framing, not a
@@ -7669,6 +7720,7 @@ function prepareCanvasForDraw() {
   // The draw that follows projects every main-canvas point through this angle; record it so
   // later overlay-only frames can tell whether the terrain still matches (tiltRenderStale).
   state.renderedTiltRotateXDeg = tiltRotateXDeg();
+  recordLocationGlidePaint("main");
 }
 
 function updateHeadingUpCanvasRotationTransform() {

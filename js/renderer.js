@@ -402,6 +402,9 @@ function drawOverlay() {
   }
   drawFilterTransitionPins(ctx, toScreen);
   drawUser(ctx, toScreen, isTilted);
+  // The You marker is painted here, by every overlay frame (including the ones that skip draw()), so
+  // a glide step measures against this paint too (see locationGlideNeedsRepaint, js/app.js).
+  if (typeof recordLocationGlidePaint === "function") recordLocationGlidePaint("overlay");
   drawNearbyAnchorMarker(ctx, toScreen);
   drawCommunityMarks(ctx, toScreen);
   drawSelectedOverlay(ctx, toScreen);
