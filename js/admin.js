@@ -1347,7 +1347,7 @@ async function loadCommunityStats(password) {
 }
 
 function renderCommunityStats(stats) {
-  const row = (label, value) => `<tr><th scope="row">${label}</th><td>${value}</td></tr>`;
+  const row = (label, value) => `<tr><th scope="row">${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`;
   const statusRows = Object.entries(stats.byStatus || {}).sort((a, b) => b[1] - a[1])
     .map(([status, n]) => row(status, n)).join("");
   const days = Object.entries(stats.perDay || {}).sort().slice(-7)
