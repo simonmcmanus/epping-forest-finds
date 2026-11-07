@@ -819,9 +819,9 @@ Usage analytics is its own question, never folded into the location ask (see "Pe
 Full terms are at `/terms.html`. The modal links to this page.
 
 ### Data collected (with consent)
-- **Location pings** — lat/lng, heading, current nav target — recorded every 60 seconds while location is active. Paused while the tab/screen is hidden (`document.visibilitychange`) along with the GPS watch, and resumed on return to foreground, to avoid draining battery in the background.
+- **Location pings** — lat/lng, heading, current nav target — recorded every 60 seconds while location is active, and only from a fix that arrived within the last two minutes, so a walker whose GPS has stopped is not recorded as standing still. Paused while the tab/screen is hidden (`document.visibilitychange`) along with the GPS watch, and resumed on return to foreground, to avoid draining battery in the background.
 - **Click events** — item type, item ID, item name, user position — recorded on every map-item selection
-- Events are queued on the device and sent in batches (once 20 are waiting, every 5 minutes, and when the page is hidden or closed), not one request each — see "Client batching" in `spec-admin.md`.
+- Events are queued on the device and sent in batches (once 20 are waiting, every 5 minutes, and when the page is hidden or closed), not one request each. A failed upload is retried after a wait that doubles up to ten minutes, with events kept queued meanwhile — see "Client batching" in `spec-admin.md`.
 - Each event is tagged with a random anonymous user ID (`ff-uid` in `localStorage`) and ISO timestamp
 
 ### Event types

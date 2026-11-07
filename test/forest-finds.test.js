@@ -8913,6 +8913,15 @@ test("the first GPS fix is used as delivered, with no smoothing to ease in from"
   assert.ok(app.state.rawUserLocation, "the raw fix is kept for analytics");
 });
 
+test("a GPS fix records the moment it arrived, so analytics can tell a fresh fix from a stale one", () => {
+  resetData(app);
+  resetLocationSmoothing(app);
+  const before = Date.now();
+  const fix = app.ingestLocationFix(51.665, 0.045, 10, 1000);
+  const after = Date.now();
+  assert.ok(fix.receivedAt >= before && fix.receivedAt <= after, "stamped with the arrival time");
+});
+
 test("a later GPS fix is eased toward rather than jumping the position", () => {
   resetData(app);
   resetLocationSmoothing(app);
