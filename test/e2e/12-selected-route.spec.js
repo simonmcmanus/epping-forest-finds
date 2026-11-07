@@ -380,7 +380,7 @@ test.describe("Selected route line follows the road/path network", () => {
     // once -- so the whole map used to lurch on each fix and then sit perfectly still until
     // the next. Walking toward a destination ~80m away it moved 15.8px on average and 26.2px
     // at worst on a fix frame, against 0.3px on the frames between. See ingestLocationFix
-    // and advanceLocationGlide in js/app.js.
+    // and advanceLocationGlide in js/location-smoothing.js.
     //
     // The heading is held still throughout, so every pixel measured here is the position
     // moving the camera and nothing else.

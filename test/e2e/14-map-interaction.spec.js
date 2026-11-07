@@ -126,7 +126,7 @@ test.describe("Map interaction", () => {
       const anchorAfterTap = await page.evaluate(() => state.nearbyAnchor);
 
       // The browser back button retraces the cluster tap the same way it retraces a selection
-      // (see pushNearbyAnchorHistory/restoreNearbyAnchorFromHistory, js/app.js and js/nav.js).
+      // (see pushNearbyAnchorHistory/restoreNearbyAnchorFromHistory, js/router.js and js/nav.js).
       // The restored anchor is re-derived from a lat/lon snapshot (history.state has no room for
       // live object references), so it is compared by value rather than by exact float equality.
       await page.goBack();
