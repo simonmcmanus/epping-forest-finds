@@ -152,9 +152,9 @@ jobs:
               }
               const categories = [
                 ['authentication', /\b401\b|unauthori[sz]ed|authentication|invalid.{0,40}(?:api key|token)|oauth|not logged in/i],
-                ['usage-or-rate-limit', /\b429\b|rate.?limit|usage.?limit|quota|credits?|billing/i],
+                ['usage-or-rate-limit', /\b429\b|rate.?limit|usage.?limit|hit.{0,30}limit|limit.{0,30}(?:reached|reset)|exceeded.{0,30}limit|quota|credits?|billing/i],
                 ['schema-or-structured-output', /json.?schema|structured.?output|invalid.{0,40}schema/i],
-                ['model-configuration', /model.{0,80}(?:not found|not available|unknown|unsupported|invalid)|(?:invalid|unknown|unsupported).{0,80}model/i],
+                ['model-configuration', /model.{0,80}(?:not found|not available|not exist|no.{0,10}access|not have access|unknown|unsupported|invalid)|(?:invalid|unknown|unsupported).{0,80}model/i],
                 ['permission', /\b403\b|forbidden|permission denied/i],
                 ['configuration', /unknown option|unrecognized (?:option|argument)|invalid argument|configuration|settings|hook/i],
                 ['network-or-service', /\b(?:502|503|504)\b|network|connection|timeout|econn|fetch failed/i],

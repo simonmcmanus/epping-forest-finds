@@ -378,6 +378,8 @@ class ClaudeReviewDiagnosticsTests(unittest.TestCase):
     def test_final_error_classification_is_useful_without_error_text(self):
         for error, expected in (("401 authentication failed", "authentication"),
                                 ("429 usage limit reached", "usage-or-rate-limit"),
+                                ("You have hit your limit; resets this afternoon", "usage-or-rate-limit"),
+                                ("The selected model may not exist or you may not have access", "model-configuration"),
                                 ("Invalid model unavailable", "model-configuration"),
                                 ("invalid JSON schema", "schema-or-structured-output"),
                                 ("unknown option --bad", "configuration"),
