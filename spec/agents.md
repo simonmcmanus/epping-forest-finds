@@ -116,10 +116,17 @@ Rules:
 - `js/native.js` — native capability layer, loaded first: the only client file that knows about Capacitor (see `spec/spec-native.md`)
 - `native/` — Capacitor shell for the App Store / Google Play: its own `package.json`, `scripts/sync-www.js` (allowlisted bundle of the client), committed `ios/` and `android/` projects
 - `netlify/functions/subscribe.js` — mailing-list sign-up endpoint for the homepage
-- `js/app.js` — application boot and wiring (state, boot sequence, settings/report/compass handlers). Loaded last, after every other `js/*.js`
+- `js/app.js` — application state, boot sequence and wiring (compass, camera, canvas, boot-time handlers). Loaded last, after every other `js/*.js`
 - `js/shared.js` — helpers both the app and the admin page use (`escapeHtml`, `clamp`, the GeoJSON coordinate walkers). Loaded first
 - `js/permission-asks.js` — the consent and permission prompts (location, analytics, motion, the first-visit card). Loaded before `app.js`
 - `js/map-search.js` — map search: the search index, ranking and results. Loaded before `app.js`
+- `js/router.js` — URL routing: screen routes, hash and history entries, query-string arrivals. Loaded before `app.js`
+- `js/location-smoothing.js` — GPS fix ingestion, the glide that eases the You marker to each fix, and the camera that follows it while travelling. Loaded before `app.js`
+- `js/tilt.js` — tilt camera state and geometry, and the 3D ground projection. Loaded before `app.js`
+- `js/event-alert.js` — nearby-event proximity check and banner. Loaded before `app.js`
+- `js/heads-up.js` — heads-up ordering of the nearby list. Loaded before `app.js`
+- `js/settings.js` — the Settings screen: markup, rows and handlers. Loaded before `app.js`
+- `js/report.js` — the Report screen: form, photo handling, send-or-queue and location-issue reports. Loaded before `app.js`
 - `js/loader.js` — data fetching, parallel fetch, normalisation triggers
 - `js/routing.js` — walkable road/path graph builder and pathfinding for the selected-route line (pure, no state/DOM access)
 - `js/normalize.js` — data normalisation utilities
