@@ -72,7 +72,8 @@ module.exports = defineConfig({
     // Animation-specific scenarios explicitly opt back in. Keep ordinary UI
     // assertions and screenshots on the accessible stationary artwork path.
     reducedMotion: "reduce",
-    trace: "on-first-retry",
+    // Functional CI has no retry: retain the first failing attempt for diagnosis.
+    trace: process.env.CI ? "retain-on-failure" : "off",
     // Suppress service-worker registration so tests always hit real routes
     serviceWorkers: "block",
     // Pre-decide the cookie-consent banner and mark the informational early-testing notice as

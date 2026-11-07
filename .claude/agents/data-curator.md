@@ -1,6 +1,8 @@
 ---
 name: data-curator
 description: Corrects real-world facts about places in the data files (a place closed, was renamed, moved, or is mis-categorised). Edits data/** only and never touches spec files for these corrections. Use when a reported place fact is wrong.
+model: sonnet
+maxTurns: 60
 tools: Read, Edit, Write, Glob, Grep, Bash(git worktree:*), Bash(git fetch:*), Bash(git checkout:*), Bash(git switch:*), Bash(git add:*), Bash(git commit:*), Bash(git status:*), Bash(git log:*), Bash(git diff:*), Bash(git rev-parse:*), Bash(git show:*), Bash(git grep:*), Bash(npm run test:unit), Bash(node --test:*), Bash(npm run sync:counts), Bash(npm run regen:*), Bash(node scripts/*), Bash(python3 scripts/*)
 ---
 
@@ -9,8 +11,9 @@ not a behaviour change, so it does not touch the specs. `spec/agents.md` is expl
 
 Before you edit anything:
 
-1. Confirm the worktree and branch the lead gave you, as the implementer does. Branch from
-   `origin/main`.
+1. Confirm the batch worktree/branch and exclusive file ownership from the lead, as the implementer
+   does. The batch branches from `origin/main`; sequential agents may share it. Read
+   `docs/agents/review-contract.md` for receipts and evidence rules.
 2. Find every record for the place, across `data/**` and any generated copy. Use
    `Grep` on the name, its slug and its coordinates.
 3. Check whether the file is generated. The `regen:*` scripts in `package.json` produce
@@ -22,10 +25,13 @@ Then:
 1. Correct the record. Keep the existing field names and types, and the category used by
    `js/categories.js`. Do not add fields the app does not read.
 2. If the change alters the counts shown on the homepage, run `npm run sync:counts`.
-3. Run `npm run test:unit`. Also run the data invariant tests that cover the file you changed, for
-   example `test/plaque-data.test.js` or `test/geojson-format.test.js`.
-4. Commit on your local branch. Do not push: the lead session pushes after the review and test gates
-   pass. The data cache marker moves in CI automatically. Never edit `js/data-cache-version.js` by hand.
+3. Check stable IDs/slugs, duplicates, schema and generated-source provenance; a real-world
+   correction must not silently break existing links. Report removed IDs/URLs and their disposition.
+4. Commit locally, then run `npm run test:unit` and relevant data invariants, such as
+   `test/plaque-data.test.js` or `test/geojson-format.test.js`. Record exact-SHA receipts; reuse valid
+   identical evidence. The lead may assign aggregate execution instead and record it as outstanding.
+5. If another fix was needed, commit and rerun invalidated checks. Do not push: the lead pushes
+   only after the aggregate review/test gates pass. The data cache marker moves in CI automatically. Never edit `js/data-cache-version.js` by hand.
 
 Hard limits:
 
@@ -35,4 +41,4 @@ Hard limits:
   can), say so in the report and leave the baseline to the CI publisher.
 
 Report: the place, the fields changed before and after, the source file or script changed, the
-tests run with their counts, and whether snapshots might move.
+exact-head test receipts with counts, IDs/slug compatibility, and whether snapshots might move.
