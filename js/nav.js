@@ -1065,25 +1065,11 @@ function setupFilterPanelHandlers() {
   if (els.nearbyToggle) {
     els.nearbyToggle.addEventListener("click", (event) => {
       event.preventDefault();
-      const alreadyOnNearby = els.nearbyToggle.classList.contains("screen-active")
-        && !els.inspector.classList.contains("minimized");
-      if (alreadyOnNearby) {
-        // Already on the Nearby screen with the inspector open: shake it in place rather than sliding
-        // it out and back in, refresh the list and refit to the Nearby ring fit, with no screen-entry
-        // slide. The rail level, the filters, the compass heading and the browse anchor are kept, and
-        // an expanded cluster is left so the reader's own walking radius comes back. The gate is the
-        // URL, not the filter state: a rail tap or "Everything within" makes the filters ephemeral
-        // too, and those stay on plain Nearby. Only a real landing page (a category path such as
-        // /nearby/food) returns through goToInitialView(), which restores the reader's saved filters.
-        shakeInspectorSheet();
-        if (filterKeysFromFindPath(window.location.pathname).length > 0) {
-          goToInitialView(true, { enterAnimated: false });
-        } else {
-          exitClusterExpansion();
-          state.clusterZoomed = false;
-          selectOverview(false);
-          refitNearbyRingView();
-        }
+      // While Nearby is the screen, a tap is a refit that keeps what the reader set up, on any plain
+      // Nearby URL. Only a real category landing page (its own URL) and a press from another screen
+      // take the full return, which restores the saved filters and clears the view state.
+      if (els.nearbyToggle.classList.contains("screen-active") && !isNearbyCategoryLandingPath()) {
+        nearbyRetap();
         return;
       }
       goToInitialView();
@@ -1361,6 +1347,8 @@ function setupSearchAndNavHandlers() {
     if (submitIssueBtn) { submitLocationIssueReport(submitIssueBtn.closest(".report-issue")); return; }
     const resetAnchorBtn = event.target.closest("[data-action='reset-nearby-anchor']");
     if (resetAnchorBtn) { clearNearbyAnchor(); return; }
+    const restoreFiltersBtn = event.target.closest("[data-action='restore-saved-filters']");
+    if (restoreFiltersBtn) { restoreSavedFilters(); return; }
     // Server-rendered Nearby pills are anchors. Only the hydrated button rail is an in-place
     // toggle; leave static anchors to the ordinary internal-link handler below, including
     // modified clicks that should open the link in a new tab.
@@ -2543,6 +2531,26 @@ function refitNearbyRingView() {
   } else {
     fitToBounds(false, { animate: true, durationMs: HEADING_UP_NAV_ANIMATION_MS });
   }
+}
+
+// A Nearby tap while Nearby is the screen, on a plain Nearby URL. Reopens the sheet if it was minimised:
+// the rail level, the picks and an expanded cluster are kept, and the refit runs once the sheet has opened
+// (the height transition, as goToInitialView does). On the open sheet it shakes in place, collapses the rail
+// to its top level and leaves an expanded cluster, so the reader's own walking radius comes back. The picks
+// and the browse anchor are kept either way; the compass heading is kept too.
+function nearbyRetap() {
+  if (els.inspector.classList.contains("minimized")) {
+    setInspectorMinimized(false);
+    selectOverview(false);
+    onInspectorHeightTransitionEnd(refitNearbyRingView);
+    return;
+  }
+  shakeInspectorSheet();
+  state.nearbyRailGroupKey = undefined;
+  exitClusterExpansion();
+  state.clusterZoomed = false;
+  selectOverview(false);
+  refitNearbyRingView();
 }
 
 function goToInitialView(updateHash = true, { enterAnimated = true } = {}) {

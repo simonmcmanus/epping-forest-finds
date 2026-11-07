@@ -195,22 +195,74 @@ test.describe("A re-tap keeps the view the reader set up", () => {
   const railPill = (page, key) => page.locator(`#inspectorBody [data-rail-key="${key}"]`);
   const sortedFilters = (page) => page.evaluate(() => [...state.overviewFilters].sort().join(","));
 
-  test("a re-tap on Nearby keeps the rail level and the filters picked on the rail", async ({ page }) => {
-    // A category landing drills the rail into its subcategories; a subcategory tap then leaves the
-    // landing for a plain Nearby URL with a shared ?show= lens, still drilled in.
+  test("a re-tap on Nearby returns the rail to its top level and keeps the subcategory picks", async ({ page }) => {
+    // A category landing drills the rail into its subcategories; a subcategory tap leaves the landing for
+    // plain Nearby with a ?show= lens, still drilled in.
     await setup(page, "/nearby/food");
     await railPill(page, "cafes").click();
     await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?show=pubs,restaurants,shops$/);
-    expect(await sortedFilters(page)).toBe("pubs,restaurants,shops");
+    await expect(railPill(page, "pubs")).toHaveCount(1);
 
     await nearbyButton(page).click();
     await waitForUiToSettle(page);
 
+    await expect(railPill(page, "pubs")).toHaveCount(0);
+    await expect(railPill(page, "food").locator(".rail-count")).toHaveText("3/4");
     await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?show=pubs,restaurants,shops$/);
-    await expect(railPill(page, "pubs")).toHaveCount(1);
-    await expect(railPill(page, "nature")).toHaveCount(0);
-    await expect(railPill(page, "cafes")).toHaveAttribute("aria-pressed", "false");
     expect(await sortedFilters(page)).toBe("pubs,restaurants,shops");
+  });
+
+  test("a rail pick stays on a re-tap, and Back to my filters restores the saved set", async ({ page }) => {
+    // The reader's saved set has no Nature category in it, so picking Nature on and off again returns to it.
+    await page.addInitScript(() => {
+      localStorage.setItem("forest-finds-filter-state-v1", JSON.stringify({ filters: ["campsites", "churches", "events", "pubs"] }));
+    });
+    await setup(page, "/nearby");
+    const saved = await page.evaluate(() => loadStoredOverviewFilters().slice().sort().join(","));
+    const restore = page.getByRole("button", { name: "Back to my filters" });
+    // Hidden while the lens is the saved set.
+    await expect(page.locator('[data-action="restore-saved-filters"]')).toHaveCount(1);
+    await expect(page.locator('[data-action="restore-saved-filters"]')).toBeHidden();
+    await railPill(page, "nature").click();
+    const picked = await sortedFilters(page);
+    expect(picked, "the rail pick changes the lens").not.toBe(saved);
+    await expect(restore).toBeVisible();
+
+    await nearbyButton(page).click();
+    await waitForUiToSettle(page);
+    expect(await sortedFilters(page)).toBe(picked);
+    await expect(restore).toBeVisible();
+
+    // Picking the same top-level category again makes the lens the saved set, so the control hides.
+    await railPill(page, "nature").click();
+    expect(await sortedFilters(page)).toBe(saved);
+    await expect(restore).toBeHidden();
+    await railPill(page, "nature").click();
+    expect(await sortedFilters(page)).toBe(picked);
+    await expect(restore).toBeVisible();
+
+    await restore.click();
+    await waitForUiToSettle(page);
+    expect(await sortedFilters(page)).toBe(saved);
+    await expect(restore).toBeHidden();
+  });
+
+  test("a single subcategory pick stays on a re-tap", async ({ page }) => {
+    // Three subcategories are turned off on the Food landing, leaving cafes as the one pick. The rail
+    // writes that as a plain Nearby URL, not as a landing path.
+    await setup(page, "/nearby/food");
+    await railPill(page, "pubs").click();
+    await railPill(page, "restaurants").click();
+    await railPill(page, "shops").click();
+    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?show=cafes$/);
+    expect(await sortedFilters(page)).toBe("cafes");
+
+    await nearbyButton(page).click();
+    await waitForUiToSettle(page);
+
+    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?show=cafes$/);
+    expect(await sortedFilters(page)).toBe("cafes");
+    await expect(railPill(page, "food").locator(".rail-count")).toHaveText("1/4");
   });
 
   test("a re-tap with an expanded cluster leaves the cluster, restores the walking radius and keeps the browse anchor", async ({ page }) => {
@@ -250,5 +302,37 @@ test.describe("A re-tap keeps the view the reader set up", () => {
     await waitForUiToSettle(page);
 
     expect(await sortedFilters(page)).toBe("ponds_streams,trees");
+  });
+});
+
+test.describe("A Nearby tap on the minimised sheet", () => {
+  test("reopens the sheet and refits, keeping the rail pick and the expanded cluster", async ({ page }) => {
+    await setup(page, "/nearby");
+    // Food is picked off, which leaves the trees on the map, so a cluster of trees is still there to expand.
+    await page.locator("#inspectorBody [data-rail-key='food']").click();
+    const picked = await page.evaluate(() => [...state.overviewFilters].sort().join(","));
+    await page.evaluate(() => {
+      const lookup = activeIconLookup();
+      const clusters = buildTypeClusters(lookup.tree, worldToScreen);
+      focusNearbyOnClusterGroup(clusters.find((candidate) => candidate.items.length >= 2));
+    });
+    await expect.poll(() => page.evaluate(() => Boolean(state.clusterExpanded))).toBe(true);
+    const fitCamera = await readCamera(page);
+
+    await page.evaluate(() => setInspectorMinimized(true));
+    await expect(page.locator("#inspector")).toHaveClass(/minimized/);
+    // The map is zoomed out while the sheet is away, so the tap has a refit to make.
+    await page.evaluate(() => {
+      state.viewport.scale *= 0.5;
+      requestDraw();
+    });
+
+    await nearbyButton(page).click();
+    await waitForUiToSettle(page);
+
+    await expect(page.locator("#inspector")).not.toHaveClass(/minimized/);
+    expect(await page.evaluate(() => [...state.overviewFilters].sort().join(","))).toBe(picked);
+    expect(await page.evaluate(() => Boolean(state.clusterExpanded))).toBe(true);
+    expectSameCamera(await readCamera(page), fitCamera, "camera after reopening the sheet");
   });
 });

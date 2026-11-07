@@ -248,8 +248,8 @@ Marker rules:
 - Selected-detail mode: map setup button hidden, guided setup closed (not relevant when viewing a specific location).
 - Minimized mode: collapsed header only.
 - The inspector is always expanded after a map-tap selection, on both desktop and mobile, so the detail panel opens immediately. This also applies to a selection made via a hash/deep link (`applySelectionFromHash`) — including a `hashchange` to a new linked location while the inspector was already minimized, which forces it back open. Selecting from the overview/nearby list or a search result leaves it open too.
-- Tapping the Nearby button calls `goToInitialView()` (clears selection, refits camera) rather than `selectOverview()` alone, except a re-tap while already on Nearby with the inspector open and no category landing page in the URL, which takes the lighter path in the next bullet. A press from another screen, a press while the inspector is minimised, and a press on a category landing page (`/nearby/<category>`) all use `goToInitialView()`. It is the one-tap way home; the header's back arrow steps back through the trail instead (see "URL hash / navigation state").
-- Re-tapping an already-active nav button (one with `screen-active` while the inspector is not minimized) shakes the sheet sideways in place (`.sheet-shake`) instead of re-entering the screen. This applies to every tab (Nearby, Search, Filters, Community/Feedback, Settings). On Nearby with the inspector open, and no category landing page in the URL, the re-tap refreshes the list and refits the camera to the Nearby ring fit (`refitNearbyRingView()`), with no screen-entry slide. It keeps the rail level and the filters (including a rail pick or "Everything within"), the browse anchor and the walking radius, and it keeps the compass heading even after a quiet spell (a deliberate choice: the map does not go north-up). The compass watchdog is separate and a re-tap does not stop it: a heading is cleared only after about 15 s with no orientation events, and only once the walker has moved since the tab was last backgrounded. An expanded cluster is left, so the reader's own walking radius comes back and the list and the refit use it. With no location fix, the refit fits the whole data bounds. A category landing page's re-tap takes the full `goToInitialView()` reset instead, which restores the reader's saved filters. So does a press from a minimised inspector: the same button keeps the rail and cluster while the sheet is open and clears them when it is minimised.
+- Tapping the Nearby button calls `goToInitialView()` (clears selection, refits camera) rather than `selectOverview()` alone, unless Nearby is already the screen and the URL is not a category landing page. On Nearby, a tap is the re-tap below. A press from another screen, or on a `/nearby/<category>` landing, uses `goToInitialView()`, which restores the reader's saved filters and clears the view state. It is the one-tap way home; the header's back arrow steps back through the trail instead (see "URL hash / navigation state").
+- Re-tapping an already-active nav button (one with `screen-active` while the inspector is not minimized) shakes the sheet sideways in place (`.sheet-shake`) instead of re-entering the screen. This applies to every tab (Nearby, Search, Filters, Community/Feedback, Settings). On Nearby the button follows one rule, whether the sheet is open or minimised: the ring refits (`refitNearbyRingView()`, with no screen-entry slide) and the view the reader set up is kept. The rail picks and "Everything within", the browse anchor, the walking radius and the compass heading all stay. The heading is kept even after a quiet spell, deliberately, so the map does not go north-up. Two things differ on an open sheet: the rail collapses to its top level (the picks stay selected) and an expanded cluster is left, so the reader's own walking radius comes back. On a minimised sheet the tap reopens it and refits once it has opened, keeping the rail level and the expanded cluster. With no location at all, not even the default stand-in, the refit fits the whole data bounds. The compass watchdog is separate and a tap does not stop it: a heading is cleared only after about 15 s with no orientation events, and only once the walker has moved since the tab was last backgrounded.
 
 ### URL / navigation state
 
@@ -339,17 +339,18 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
   `/nearby/<category>` page. Enabled pills show a
   tick. A top-level pill toggles all of its subcategories; a subcategory pill toggles only itself.
   Changes remain an ephemeral lens (`persist:false`), so the reader's saved filters are untouched.
-  The address bar follows the selection: one category is
-  its own landing path (`/nearby/trees`), several are `/nearby?show=trees,ponds_streams`, and none
-  (every category on) is `/nearby?filters=false`. A tap replaces the history entry rather than
-  adding one.
+  The address bar follows the selection on plain Nearby: `/nearby?show=trees,ponds_streams` (one
+  category included), or `/nearby?filters=false` for every category. A rail tap never writes a category
+  landing path (`/nearby/<category>`), which stays a real arrival. A tap replaces the history entry
+  rather than adding one. While a pick stands in for the saved filters, a **Back to my filters** chip
+  in the rail restores them; it is hidden once the lens is the saved set again.
 - **Navigating in-app straight from one `/nearby/<slug>` arrival to another never loses the new
   page's own category.** A link out of a selected place's inspector (a business page's own
   "Related" section, `js/inspector.js`) or a bare `near="" ` link like "All nearby"
   (the static `/nearby/<slug>/` page's "All nearby" chip, which links `/nearby?filters=false`) routes through `navigateInApp()` →
   `applyRouteFromUrl()` → `applyRoute()`, the same path a popstate takes. Both a `/nearby/<slug>`
   arrival (its own route value is `""`, same as the plain Nearby screen's) and a tap on the Nearby
-  nav button (other than a plain re-tap with the inspector open, see the Nearby button bullet) land in `goToInitialView()`, whose own ephemeral-filter restore (above) would
+  nav button (other than a Nearby tap while Nearby is the screen, see the Nearby button bullet) land in `goToInitialView()`, whose own ephemeral-filter restore (above) would
   otherwise fire for the *new* page's just-applied category too — `applyShowFilterFromQuery()` and
   `goToInitialView()`'s restore run back to back in the very same pass when leaving a selection for
   a new landing page, both seeing the same `""` route value with no way to tell "just arrived here"

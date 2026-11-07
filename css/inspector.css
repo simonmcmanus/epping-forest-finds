@@ -1393,6 +1393,10 @@ textarea.report-textarea {
   background: linear-gradient(90deg, var(--panel), transparent);
 }
 
+.filter-rail > .rail-restore {
+  flex-shrink: 0;
+}
+
 .rail-pills {
   display: flex;
   flex: 1;

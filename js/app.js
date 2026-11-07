@@ -2827,6 +2827,7 @@ function updateFilterUi() {
       els.filterCount.textContent = String(activeGroupCount);
     }
   }
+  syncRestoreSavedFiltersControl();
 }
 
 function mapSetupModalActive() {
@@ -4581,30 +4582,47 @@ function filterRailHtml() {
     const status = `<span class="rail-check" aria-hidden="true">${on ? "✓" : ""}</span>`;
     return `<button class="rail-pill${on ? " is-on" : ""}" type="button" data-rail-key="${item.key}" aria-pressed="${on}">${appIconHtml(item.icon)}<span>${escapeHtml(item.label)}</span>${status}</button>`;
   }).join("");
+  const restoreHidden = restoreSavedFiltersNeeded() ? "" : " hidden";
   return `<nav class="filter-rail" aria-label="Filter nearby places">` +
+    `<button class="walk-chip walk-chip-btn rail-restore" type="button" data-action="restore-saved-filters"${restoreHidden}>Back to my filters</button>` +
     `<div class="rail-pills">${allPill}${pills}</div>` +
     `</nav>`;
 }
 
-// Where the address bar points for the current rail selection: one category is its own landing
-// path, several are /nearby?show=a,b, none is the show-everything override. Replaces the current
-// history entry (a tap is a refinement, not a new place to go back to).
+// Where the address bar points for the current rail selection. A rail pick is only a filter on plain
+// Nearby, so it is always written there: /nearby?show=... (searchStringForPath adds the query while the
+// lens is ephemeral), or /nearby?filters=false for every category. It never writes a category landing
+// path (/nearby/<slug>): that path is a real arrival with its own lens and title, and a re-tap has to
+// tell the two apart by the URL. Replaces the current history entry (a tap is a refinement, not a new
+// place to go back to).
 function syncRailUrl() {
   if (routeApplyDepth > 0 || routerBooting) return;
-  const chosen = railSelection();
-  const matchingGroup = FILTER_GROUPS.find((group) =>
-    chosen.length === group.subfilters.length && group.subfilters.every((subfilter) => chosen.includes(subfilter.key))
-  );
-  const displayedGroup = nearbyRailGroup();
-  const pathname = !displayedGroup && matchingGroup
-    ? NEARBY_PATH
-    : matchingGroup
-    ? `/nearby/${matchingGroup.key.replace(/_/g, "-")}`
-    : chosen.length === 1 ? `/nearby/${chosen[0].replace(/_/g, "-")}` : NEARBY_PATH;
-  const search = searchStringForPath(pathname);
-  const url = `${pathname}${search}${window.location.hash}`;
+  const url = `${NEARBY_PATH}${searchStringForPath(NEARBY_PATH)}${window.location.hash}`;
   if (`${window.location.pathname}${window.location.search}${window.location.hash}` === url) return;
   history.replaceState(history.state, "", url);
+}
+
+// The "Back to my filters" control: shown on plain Nearby while a rail pick or "Everything within"
+// stands in for the reader's saved filters (the lens is ephemeral), and hidden once the lens is the
+// saved set again. A category landing page has its own lens, so it never shows it.
+function filterSetKey(filters) {
+  return [...filters].sort().join(",");
+}
+
+function restoreSavedFiltersNeeded() {
+  if (!state.overviewFiltersEphemeral || isNearbyCategoryLandingPath()) return false;
+  return filterSetKey(loadStoredOverviewFilters()) !== filterSetKey(state.overviewFilters);
+}
+
+function syncRestoreSavedFiltersControl() {
+  const control = document.querySelector('[data-action="restore-saved-filters"]');
+  if (control) control.hidden = !restoreSavedFiltersNeeded();
+}
+
+// Puts the reader's saved filters back: the same call the title Nearby icon's landing on /nearby makes
+// (applyRoute), so the lens is replaced and the URL is cleared by the usual sync.
+function restoreSavedFilters() {
+  setOverviewFilters(loadStoredOverviewFilters());
 }
 
 function toggleRailFilter(key) {
