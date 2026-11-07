@@ -223,12 +223,16 @@ jobs:
       - run: npm ci
       - name: Run visual snapshot tests (mobile)
         id: mobile
-        # Missing baselines are generated in the workspace and uploaded below. Mismatches leave
-        # *-actual.png and *-diff.png in test-results for the trusted publisher.
+        env:
+          VISUAL_PROJECT: mobile
+          VISUAL_EVIDENCE_DIR: visual-evidence-mobile
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-mobile
+        # The reporter preserves final-attempt comparisons and newly generated baselines.
         run: |
           bash -o pipefail -c '
             set +e
             npx playwright test --project=mobile --grep "snapshot:" \
+              --reporter=list,html,./.github/scripts/visual-reporter.cjs \
               --update-snapshots=missing --retries=1
             status=$?
             set -e
@@ -238,10 +242,15 @@ jobs:
         continue-on-error: true
       - name: Run visual snapshot tests (desktop)
         id: desktop
+        env:
+          VISUAL_PROJECT: desktop
+          VISUAL_EVIDENCE_DIR: visual-evidence-desktop
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-desktop
         run: |
           bash -o pipefail -c '
             set +e
             npx playwright test --project=desktop --grep "snapshot:" \
+              --reporter=list,html,./.github/scripts/visual-reporter.cjs \
               --update-snapshots=missing --retries=1
             status=$?
             set -e
@@ -255,10 +264,8 @@ jobs:
         with:
           name: playwright-visual-candidates
           path: |
-            test-results-mobile/
-            test-results-desktop/
-            test/e2e/__screenshots__/
-            playwright-report/
+            visual-evidence-mobile/
+            visual-evidence-desktop/
           if-no-files-found: ignore
           retention-days: 14
       - name: Upload Playwright report
@@ -266,7 +273,9 @@ jobs:
         if: always()
         with:
           name: playwright-report-visual
-          path: playwright-report/
+          path: |
+            playwright-report-mobile/
+            playwright-report-desktop/
           retention-days: 14
       - name: Warn about visual snapshot differences
         if: steps.mobile.outcome == 'failure' || steps.desktop.outcome == 'failure'
