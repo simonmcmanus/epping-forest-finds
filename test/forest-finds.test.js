@@ -13244,6 +13244,239 @@ test("the features endpoint answers the public check and keeps the list admin-on
   }
 });
 
+// The offline outbox (js/outbox.js) is its own script in the browser, so it is loaded here into a
+// context of its own. Only the boundaries are stubbed: time (a fake clock the test moves), timers,
+// IndexedDB (an in-memory store), the network (a scripted fetch) and the online flag.
+const OUTBOX_TEST_HOUR_MS = 60 * 60 * 1000;
+
+function loadOutboxForTests() {
+  const clock = { now: 1800000000000 };
+  const timers = [];
+  let lastTimerId = 0;
+  const listeners = new Map();
+  const events = [];
+  const fetchCalls = [];
+  const storage = new Map();
+  const idbStores = new Map();
+  const navigatorStub = { onLine: true };
+  const reply = (status, body = {}) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
+  let responder = () => reply(200, {});
+
+  // Requests complete on the next microtask, so one macrotask turn lets a whole flush run to its end.
+  const later = (fn) => Promise.resolve().then(fn);
+  const fakeIndexedDB = {
+    open() {
+      const request = { result: null, onsuccess: null, onerror: null, onblocked: null, onupgradeneeded: null };
+      later(() => {
+        request.result = {
+          createObjectStore(name) { idbStores.set(name, new Map()); },
+          transaction(name) {
+            const rows = idbStores.get(name);
+            const tx = { oncomplete: null, onerror: null, onabort: null };
+            tx.objectStore = () => ({
+              getAll: () => ({ result: [...rows.values()].map((row) => structuredClone(row)) }),
+              put: (row) => { rows.set(row.id, structuredClone(row)); return { result: row.id }; },
+              delete: (id) => { rows.delete(id); return { result: undefined }; },
+            });
+            later(() => { if (tx.oncomplete) tx.oncomplete(); });
+            return tx;
+          },
+        };
+        if (!idbStores.has("items") && request.onupgradeneeded) request.onupgradeneeded();
+        if (request.onsuccess) request.onsuccess();
+      });
+      return request;
+    },
+  };
+
+  const window = {
+    addEventListener(type, handler) {
+      if (!listeners.has(type)) listeners.set(type, []);
+      listeners.get(type).push(handler);
+    },
+    dispatchEvent(event) {
+      events.push(event);
+      for (const handler of listeners.get(event.type) || []) handler(event);
+      return true;
+    },
+  };
+  class CustomEvent {
+    constructor(type, init = {}) { this.type = type; this.detail = init.detail; }
+  }
+  const context = {
+    window,
+    document: { visibilityState: "visible", addEventListener() {} },
+    navigator: navigatorStub,
+    CustomEvent,
+    indexedDB: fakeIndexedDB,
+    localStorage: {
+      getItem: (key) => (storage.has(key) ? storage.get(key) : null),
+      setItem: (key, value) => { storage.set(key, String(value)); },
+      removeItem: (key) => { storage.delete(key); },
+    },
+    Date: { now: () => clock.now },
+    setTimeout(fn, ms) {
+      lastTimerId += 1;
+      timers.push({ id: lastTimerId, at: clock.now + ms, fn });
+      return lastTimerId;
+    },
+    clearTimeout(id) {
+      const at = timers.findIndex((timer) => timer.id === id);
+      if (at >= 0) timers.splice(at, 1);
+    },
+    fetch: async (url, options) => {
+      const body = JSON.parse(options.body);
+      fetchCalls.push({ url, body });
+      return responder(url, body);
+    },
+    console,
+  };
+  context.globalThis = context;
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", "outbox.js"), "utf8"), context, { filename: "js/outbox.js" });
+
+  const settle = () => new Promise((resolve) => setImmediate(resolve));
+  // Moves the clock forward, firing each timer at its due time as a browser would.
+  async function advance(ms) {
+    const end = clock.now + ms;
+    for (;;) {
+      await settle();
+      const [next] = timers.filter((timer) => timer.at <= end).sort((a, b) => a.at - b.at || a.id - b.id);
+      if (!next) break;
+      timers.splice(timers.indexOf(next), 1);
+      clock.now = Math.max(clock.now, next.at);
+      next.fn();
+    }
+    clock.now = end;
+    await settle();
+  }
+
+  return {
+    reply,
+    navigator: navigatorStub,
+    clock,
+    fetchCalls,
+    answerWith(fn) { responder = fn; },
+    advance,
+    // Queues a report the way the app does: add it, then flush if the device is online.
+    async queue(id, url, payload = {}) {
+      await context.outboxAdd({ id, url, payload });
+      if (navigatorStub.onLine) await context.outboxFlush();
+      await settle();
+    },
+    async fireOnline() {
+      window.dispatchEvent({ type: "online" });
+      await settle();
+    },
+    async queuedIds() { return (await context.outboxList()).map((item) => item.id); },
+    sentEvents() {
+      return events
+        .filter((event) => event.type === "outbox:sent")
+        .map((event) => ({ id: event.detail.item.id, ok: event.detail.ok, response: event.detail.response }));
+    },
+    callsTo(url) { return fetchCalls.filter((call) => call.url === url).length; },
+  };
+}
+
+test("Outbox gives up on a queued item after its retry ceiling", async () => {
+  const outbox = loadOutboxForTests();
+  outbox.answerWith(() => outbox.reply(503, { error: "Token revoked" }));
+  await outbox.queue("report-1", "/api/report", { treeId: 7 });
+  await outbox.advance(24 * OUTBOX_TEST_HOUR_MS);
+  assert.equal(outbox.callsTo("/api/report"), 10, "the server is asked ten times, then the item is dropped");
+  assert.deepEqual(await outbox.queuedIds(), [], "nothing is left queued");
+  assert.deepEqual(
+    outbox.sentEvents(),
+    [{ id: "report-1", ok: false, response: { error: "Token revoked" } }],
+    "it is reported as refused, with the server's last message, as a 4xx is",
+  );
+});
+
+test("Outbox gives up on a queued item once it has been refused for three days", async () => {
+  const outbox = loadOutboxForTests();
+  outbox.answerWith(() => outbox.reply(503));
+  await outbox.queue("report-2", "/api/report");
+  // The device is closed for 71 hours, then the app opens and the outbox tries again.
+  outbox.clock.now += 71 * OUTBOX_TEST_HOUR_MS;
+  await outbox.fireOnline();
+  assert.equal(outbox.callsTo("/api/report"), 2);
+  assert.deepEqual(await outbox.queuedIds(), ["report-2"], "still within its three days, so it stays queued");
+  assert.deepEqual(outbox.sentEvents(), []);
+  outbox.clock.now += OUTBOX_TEST_HOUR_MS;
+  await outbox.fireOnline();
+  assert.equal(outbox.callsTo("/api/report"), 3);
+  assert.deepEqual(await outbox.queuedIds(), [], "three days after its first refusal it is dropped");
+  assert.deepEqual(outbox.sentEvents(), [{ id: "report-2", ok: false, response: {} }]);
+});
+
+test("Outbox keeps retrying a queued item while the device is offline", async () => {
+  const outbox = loadOutboxForTests();
+  outbox.navigator.onLine = false;
+  await outbox.queue("report-3", "/api/report");
+  await outbox.advance(4 * 24 * OUTBOX_TEST_HOUR_MS);
+  assert.equal(outbox.callsTo("/api/report"), 0, "nothing is sent while offline");
+  assert.deepEqual(await outbox.queuedIds(), ["report-3"]);
+
+  outbox.navigator.onLine = true;
+  outbox.answerWith(() => outbox.reply(503));
+  await outbox.fireOnline();
+  assert.equal(outbox.callsTo("/api/report"), 1, "the first attempt after reconnecting is its first refusal");
+  assert.deepEqual(await outbox.queuedIds(), ["report-3"], "a refusal after four offline days does not drop it");
+
+  outbox.answerWith(() => outbox.reply(200, { ok: true }));
+  await outbox.fireOnline();
+  assert.deepEqual(await outbox.queuedIds(), []);
+  assert.deepEqual(outbox.sentEvents(), [{ id: "report-3", ok: true, response: { ok: true } }]);
+});
+
+test("Outbox keeps retrying a queued item through network errors, which do not count toward its ceiling", async () => {
+  const outbox = loadOutboxForTests();
+  outbox.answerWith(() => { throw new TypeError("Failed to fetch"); });
+  await outbox.queue("report-4", "/api/report");
+  await outbox.advance(3 * OUTBOX_TEST_HOUR_MS);
+  assert.ok(outbox.callsTo("/api/report") > 10, "more network failures than the ceiling are retried");
+  assert.deepEqual(await outbox.queuedIds(), ["report-4"], "it is still queued");
+  assert.deepEqual(outbox.sentEvents(), []);
+
+  outbox.answerWith(() => outbox.reply(200, { ok: true }));
+  await outbox.fireOnline();
+  assert.deepEqual(outbox.sentEvents(), [{ id: "report-4", ok: true, response: { ok: true } }]);
+});
+
+test("Outbox keeps retrying a queued item until the server accepts it", async () => {
+  const outbox = loadOutboxForTests();
+  let attempts = 0;
+  outbox.answerWith(() => (attempts++ < 3 ? outbox.reply(503) : outbox.reply(200, { ok: true })));
+  await outbox.queue("report-5", "/api/report");
+  await outbox.advance(OUTBOX_TEST_HOUR_MS);
+  assert.equal(outbox.callsTo("/api/report"), 4, "three refusals, then the accepted attempt");
+  assert.deepEqual(await outbox.queuedIds(), []);
+  assert.deepEqual(outbox.sentEvents(), [{ id: "report-5", ok: true, response: { ok: true } }]);
+});
+
+test("Outbox still sends the other queued items after it gives up on one", async () => {
+  const outbox = loadOutboxForTests();
+  outbox.answerWith((url) => (url === "/api/stuck" ? outbox.reply(503) : outbox.reply(200, { accepted: true })));
+  await outbox.queue("stuck", "/api/stuck");
+  await outbox.queue("fine", "/api/fine");
+  await outbox.advance(24 * OUTBOX_TEST_HOUR_MS);
+  assert.deepEqual(await outbox.queuedIds(), [], "both are gone from the queue");
+  assert.deepEqual(outbox.sentEvents(), [
+    { id: "stuck", ok: false, response: {} },
+    { id: "fine", ok: true, response: { accepted: true } },
+  ]);
+});
+
+test("Outbox drops a queued item the server refuses with a 4xx straight away", async () => {
+  const outbox = loadOutboxForTests();
+  outbox.answerWith(() => outbox.reply(400, { error: "Bad report" }));
+  await outbox.queue("report-6", "/api/report");
+  await outbox.advance(24 * OUTBOX_TEST_HOUR_MS);
+  assert.equal(outbox.callsTo("/api/report"), 1, "a 4xx is never retried");
+  assert.deepEqual(await outbox.queuedIds(), []);
+  assert.deepEqual(outbox.sentEvents(), [{ id: "report-6", ok: false, response: { error: "Bad report" } }]);
+});
+
 runRegisteredTests().catch((error) => {
   console.error(error);
   process.exitCode = 1;
