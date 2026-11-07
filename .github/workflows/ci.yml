@@ -415,13 +415,16 @@ jobs:
         id: mobile
         env:
           PLAYWRIGHT_JSON_OUTPUT_FILE: visual-results-mobile.json
-        # Missing baselines are generated in the workspace and uploaded below. Mismatches leave
-        # *-actual.png and *-diff.png in test-results for the trusted publisher.
+          VISUAL_PROJECT: mobile
+          VISUAL_EVIDENCE_DIR: visual-evidence-mobile
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-mobile
+        # The reporter preserves final-attempt comparisons and newly generated baselines.
         run: |
           bash -o pipefail -c '
             set +e
             npx playwright test --project=mobile --grep "snapshot:" \
-              --update-snapshots=missing --retries=1 --reporter=list,html,json
+              --reporter=list,html,json,./.github/scripts/visual-reporter.cjs \
+              --update-snapshots=missing --retries=1
             status=$?
             set -e
             [ ! -d test-results ] || mv test-results test-results-mobile
@@ -433,11 +436,15 @@ jobs:
         id: desktop
         env:
           PLAYWRIGHT_JSON_OUTPUT_FILE: visual-results-desktop.json
+          VISUAL_PROJECT: desktop
+          VISUAL_EVIDENCE_DIR: visual-evidence-desktop
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report-desktop
         run: |
           bash -o pipefail -c '
             set +e
             npx playwright test --project=desktop --grep "snapshot:" \
-              --update-snapshots=missing --retries=1 --reporter=list,html,json
+              --reporter=list,html,json,./.github/scripts/visual-reporter.cjs \
+              --update-snapshots=missing --retries=1
             status=$?
             set -e
             [ ! -d test-results ] || mv test-results test-results-desktop
@@ -458,6 +465,8 @@ jobs:
             playwright-report-desktop/
             visual-results-mobile.json
             visual-results-desktop.json
+            visual-evidence-mobile/
+            visual-evidence-desktop/
           if-no-files-found: ignore
           retention-days: 14
       - name: Upload Playwright report
