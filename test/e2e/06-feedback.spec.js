@@ -169,7 +169,7 @@ test.describe("Feedback / Report screen", () => {
     expect(postedPayload.photo.dataUrl).toMatch(/^data:image\/png;base64,/);
   });
 
-  test("a failed submission keeps the same request id for a safe retry", async ({ page }) => {
+  test("a feedback report that fails on the server is saved and says it will be sent later", async ({ page }) => {
     await page.route("**/.netlify/functions/report-missing-data", (route) =>
       route.fulfill({
         status: 502,
@@ -178,16 +178,11 @@ test.describe("Feedback / Report screen", () => {
       })
     );
 
-    await page.fill("#reportDetails", "Retry keeps request id test");
+    await page.fill("#reportDetails", "Saved when the server fails");
     await page.click("#reportSubmit");
-    await expect(page.locator("#reportStatus")).toContainText("Failed to reach GitHub API");
-    const firstId = await page.evaluate(() => localStorage.getItem("forest-finds-report-request-id-v1"));
-    expect(firstId).toBeTruthy();
-
-    await page.click("#reportSubmit");
-    await expect(page.locator("#reportStatus")).toContainText("Failed to reach GitHub API");
-    const secondId = await page.evaluate(() => localStorage.getItem("forest-finds-report-request-id-v1"));
-    expect(secondId).toBe(firstId);
+    await expect(page.locator("#reportStatus")).toContainText("sent automatically");
+    await expect(page.locator("#reportStatus")).not.toContainText("Failed to reach GitHub API");
+    await expect(page.locator("#reportOutboxNote")).toContainText("1 report waiting to send");
   });
 });
 
@@ -417,6 +412,22 @@ test.describe("Reporting a problem with a selected location", () => {
     await page.click("[data-action='cancel-location-issue']");
     await expect(page.locator("[data-action='report-issue']")).toBeVisible();
     await expect(page.locator(".report-issue textarea")).toHaveCount(0);
+  });
+
+  test("a location report that fails on the server is saved and says it will be sent later", async ({ page }) => {
+    await page.route("**/.netlify/functions/report-missing-data", (route) =>
+      route.fulfill({
+        status: 503,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "GitHub is unavailable, try again later" }),
+      })
+    );
+
+    await page.click("[data-action='report-issue']");
+    await page.fill(".report-issue textarea", "Wrong spot, saved when the server fails");
+    await page.click("[data-action='submit-location-issue']");
+    await expect(page.locator(".report-issue .report-status")).toContainText("sent automatically");
+    await expect(page.locator(".report-issue .report-status")).not.toContainText("GitHub is unavailable");
   });
 
   test("submitting sends the flagged tree's own coordinates and identity, not the reporter's GPS fix", async ({ page }) => {
