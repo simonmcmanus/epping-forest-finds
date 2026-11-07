@@ -96,7 +96,7 @@ test.describe("Location and GPS — happy path", () => {
       await page.evaluate(() => {
         window.__wanderFrames = [];
         const sample = () => {
-          window.__wanderFrames.push({ lat: state.userLocation.latitude, lon: state.userLocation.longitude });
+          window.__wanderFrames.push({ lat: state.userLocation.latitude, lon: state.userLocation.longitude, t: performance.now() });
           if (window.__wanderFrames.length < 600) requestAnimationFrame(sample);
         };
         requestAnimationFrame(sample);
@@ -112,12 +112,21 @@ test.describe("Location and GPS — happy path", () => {
       const frames = await page.evaluate(() => window.__wanderFrames);
       // Frame rate varies with machine load, so only require enough frames to judge the steps.
       expect(frames.length).toBeGreaterThan(40);
+      // A frame gap of STALE_GAP_MS or more is a stalled page, not a moving marker: the glide lands on
+      // its target outright after such a gap (advanceLocationGlide's stale-clock rule, 500ms), so one
+      // stalled frame can step it by several metres with no fix involved. Those pairs are not judged;
+      // a fix-driven step arrives in a normal-length frame gap and is still caught.
+      const STALE_GAP_MS = 500;
       let worstStepMetres = 0;
+      let judgedPairs = 0;
       for (let i = 1; i < frames.length; i += 1) {
+        if (frames[i].t - frames[i - 1].t >= STALE_GAP_MS) continue;
+        judgedPairs += 1;
         const stepNorth = (frames[i].lat - frames[i - 1].lat) * 111320;
         const stepEast = (frames[i].lon - frames[i - 1].lon) * metresPerDegLon;
         worstStepMetres = Math.max(worstStepMetres, Math.hypot(stepNorth, stepEast));
       }
+      expect(judgedPairs).toBeGreaterThan(40);
       // Before the fix the marker stepped 30m or more in one frame: fixes past a fixed 30m snap landed
       // raw, and the stand-in location the app opens on stayed in the speed history.
       expect(worstStepMetres).toBeLessThan(8);

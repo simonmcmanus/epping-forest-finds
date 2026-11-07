@@ -8960,12 +8960,13 @@ test("a position that stops updating still converges on the last fix, rather tha
   resetLocationSmoothing(app);
   app.state.userLocation = null;
   app.state.userLocation = app.ingestLocationFix(51.665, 0.045, 25, 1000); // poor accuracy: the most smoothing
-  // A fix ~20m on: a plain wander step, eased rather than landed. (At 39m it was past the snap
-  // floor, so it landed raw and this test never exercised the ease at all.)
-  app.state.userLocation = app.ingestLocationFix(51.66515, 0.04515, 25, 2000);
+  // A 39m step at 25m accuracy: well inside the accuracy-scaled snap distance (4 x 25m = 100m), so
+  // it is eased as wander rather than landed, and the ease is what has to converge. At tau 2.5s
+  // the residual is still ~0.7m at 10s, so the horizon runs to 22s (~0.01m left).
+  app.state.userLocation = app.ingestLocationFix(51.6653, 0.0453, 25, 2000);
   const destination = { ...app.state.rawUserLocation };
 
-  for (let t = 2016; t <= 12000; t += 16) app.advanceLocationGlide(t);
+  for (let t = 2016; t <= 22000; t += 16) app.advanceLocationGlide(t);
 
   assert.ok(
     Math.abs(app.state.userLocation.latitude - destination.latitude) < 0.000005,
@@ -9256,6 +9257,21 @@ test("a poor-accuracy fix that comes after a gap in the fixes still lands at onc
   const landed = app.ingestLocationFix(51.665 + 0.0004, 0.045, 25, 7000);
   assert.equal(app.state.locationGlide, null, "no ease after a six-second gap");
   assert.equal(landed.latitude, 51.665 + 0.0004, "the position lands on the fix");
+});
+
+test("a fix 200m away one second after a 100m-accuracy fix still lands at once", () => {
+  // The accuracy scaling is capped: a 100m fix would allow a 400m step as wander, but a step of
+  // 150m or more between consecutive fixes is a teleport however poor the fixes are. The 200m
+  // jump lands on the fix rather than being eased across a street.
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  app.state.userLocation = app.ingestLocationFix(51.665, 0.045, 10, 1000);
+  app.state.userLocation = app.ingestLocationFix(51.66505, 0.045, 100, 2000); // ~6m on, eased as wander
+  assert.ok(app.state.locationGlide, "the ~6m wander at 100m accuracy is eased, not landed");
+  const teleported = app.ingestLocationFix(51.665 + 200 / 111320, 0.045, 100, 3000); // ~200m north, a second later
+  assert.equal(app.state.locationGlide, null, "a 200m step is past the 150m cap, so there is no ease");
+  assert.equal(teleported.latitude, 51.665 + 200 / 111320, "the position lands on the fix");
 });
 
 test("a poor-accuracy fix is leaned on harder than a good one", () => {
