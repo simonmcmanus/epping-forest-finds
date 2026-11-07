@@ -51,7 +51,7 @@ jobs:
           github_token: ${{ github.token }}
           settings: '{"disableAllHooks":true}'
           claude_args: >-
-            --model haiku --max-turns 20 --setting-sources ''
+            --model haiku --max-turns 20 --setting-sources user
             --tools "Read,Grep,Glob,WebFetch"
             --allowedTools "Read,Grep,Glob,WebFetch"
             --json-schema '{"type":"object","additionalProperties":false,"required":["status","classification","summary","issue_body","automatic_data_kind","data_evidence","source_url","source_evidence"],"properties":{"status":{"type":"string","enum":["needs_information","ready"]},"classification":{"type":"string","enum":["bug","feature"]},"summary":{"type":"string","maxLength":10000},"issue_body":{"type":"string","maxLength":30000},"automatic_data_kind":{"type":"string","enum":["none","existing_place","event","closure","notice"]},"data_evidence":{"type":"string"},"source_url":{"type":"string"},"source_evidence":{"type":"string"}}}'

@@ -13,7 +13,10 @@ not dispatch the local specialist roster again or repeat formatting/style checks
 - `claude-review-model` uses a read-only repository token, the event's immutable
   base/head commits, and a static head checkout. It does not install dependencies
   or execute pull-request code. Claude has only Read/Glob/Grep tools; repository
-  hooks are disabled. The explicit bot allowlist admits github-actions and the
+  hooks are disabled. Settings sources are explicitly `user`: the deployed
+  action SDK parser treats an empty `--setting-sources` value as absent and
+  otherwise falls back to project/local settings. The action writes its
+  hooks-disabled setting into the user settings source. The explicit bot allowlist admits github-actions and the
   Claude App that opens implementation PRs; other bots remain excluded.
   The base checkout supplies trusted review guidance. PR
   titles, descriptions, files and model output remain untrusted review data.
@@ -46,7 +49,11 @@ starting another workflow. A failed model or invalid output fails the final
 required review check rather than silently treating missing output as clean.
 The action's session ID and a compact validated-result summary are recorded in
 the job summary for usage correlation; no execution transcript or credentials
-are published. Actual input/output/cache token usage comes from Claude's usage
+are published. On failure, a diagnostic step reads only the bounded final-result
+  error fields from the action execution file and logs a fixed error category;
+  it never prints error text, assistant turns or tool output. This distinguishes
+  authentication, model/configuration, schema, rate-limit and network failures
+  without enabling full output. Actual input/output/cache token usage comes from Claude's usage
 records, not an estimate inferred from file size.
 
 ## One remediation owner

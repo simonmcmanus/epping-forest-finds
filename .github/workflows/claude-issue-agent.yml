@@ -85,7 +85,7 @@ jobs:
           # No github_token override: the action's scoped App credential is used
           # inside this step so pushing/opening the PR starts real CI events.
           claude_args: >-
-            --model sonnet --max-turns 60 --setting-sources ''
+            --model sonnet --max-turns 60 --setting-sources user
             --allowedTools "Read,Edit,Write,Glob,Grep,WebFetch,mcp__github__create_pull_request,Bash(git status:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Bash(git add:*),Bash(git commit:*),Bash(git push:*),Bash(rm implementation-input.json),Bash(node --test:*),Bash(npm run test:*),Bash(npm run build:*),Bash(npx playwright test:*),Bash(python3:*)"
           prompt: |
             Implement the single issue in implementation-input.json on the current

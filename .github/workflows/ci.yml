@@ -119,9 +119,53 @@ jobs:
             unfinished review is never a clean approval. Inspect source for a
             missing patch when needed; do not guess about binary rendering.
           claude_args: >-
-            --model sonnet --max-turns 30 --setting-sources ""
+            --model sonnet --max-turns 30 --setting-sources user
             --tools "Read,Glob,Grep" --allowedTools "Read,Glob,Grep"
             --json-schema '{"type":"object","additionalProperties":false,"required":["head_sha","base_sha","complete","findings"],"properties":{"head_sha":{"type":"string","pattern":"^[0-9a-f]{40}$"},"base_sha":{"type":"string","pattern":"^[0-9a-f]{40}$"},"complete":{"type":"boolean"},"findings":{"type":"array","maxItems":20,"items":{"type":"object","additionalProperties":false,"required":["axis","priority","path","line","side","title","body"],"properties":{"axis":{"type":"string","enum":["Standards","Spec"]},"priority":{"type":"integer","minimum":0,"maximum":2},"path":{"type":"string","minLength":1,"maxLength":500},"line":{"type":"integer","minimum":1},"side":{"type":"string","enum":["LEFT","RIGHT"]},"title":{"type":"string","minLength":1,"maxLength":120},"body":{"type":"string","minLength":1,"maxLength":1600}}}}}}'
+
+      - name: Diagnose failed Claude inspection without exposing its transcript
+        if: failure() && steps.claude.outcome == 'failure'
+        uses: actions/github-script@v8
+        env:
+          CLAUDE_DIAGNOSTIC_FILE: ${{ runner.temp }}/claude-execution-output.json
+        with:
+          script: |
+            const fs = require('node:fs');
+            const emit = category => core.notice('Claude failure diagnostic: ' + JSON.stringify(category));
+            const file = process.env.CLAUDE_DIAGNOSTIC_FILE;
+            try {
+              if (!file || !fs.existsSync(file)) { emit({category: 'execution-file-unavailable'}); return; }
+              if (fs.statSync(file).size > 16 * 1024 * 1024) { emit({category: 'execution-file-too-large'}); return; }
+              const messages = JSON.parse(fs.readFileSync(file, 'utf8'));
+              if (!Array.isArray(messages)) { emit({category: 'invalid-execution-file'}); return; }
+              const result = [...messages].reverse().find(message => message?.type === 'result');
+              if (!result) { emit({category: 'no-final-result'}); return; }
+              // Inspect only bounded final-result error fields. Never log their
+              // text, assistant turns, tool output or the execution transcript.
+              const errors = Array.isArray(result.errors) ? result.errors.slice(0, 8) : [];
+              let text = [result.result, ...errors.map(error => typeof error === 'string' ? error : error?.message)]
+                .filter(value => typeof value === 'string').map(value => value.slice(0, 8192)).join('\n').slice(0, 8192);
+              for (const [key, value] of Object.entries(process.env)) {
+                if (/(?:TOKEN|SECRET|KEY|PASSWORD|CREDENTIAL|AUTH)/i.test(key) && value?.length >= 4) {
+                  text = text.split(value).join('[redacted]');
+                }
+              }
+              const categories = [
+                ['authentication', /\b401\b|unauthori[sz]ed|authentication|invalid.{0,40}(?:api key|token)|oauth|not logged in/i],
+                ['usage-or-rate-limit', /\b429\b|rate.?limit|usage.?limit|quota|credits?|billing/i],
+                ['schema-or-structured-output', /json.?schema|structured.?output|invalid.{0,40}schema/i],
+                ['model-configuration', /model.{0,80}(?:not found|not available|unknown|unsupported|invalid)|(?:invalid|unknown|unsupported).{0,80}model/i],
+                ['permission', /\b403\b|forbidden|permission denied/i],
+                ['configuration', /unknown option|unrecognized (?:option|argument)|invalid argument|configuration|settings|hook/i],
+                ['network-or-service', /\b(?:502|503|504)\b|network|connection|timeout|econn|fetch failed/i],
+              ];
+              const category = categories.find(([, pattern]) => pattern.test(text))?.[0] || 'unclassified';
+              const knownSubtypes = ['success', 'error_during_execution', 'error_max_turns', 'error_max_budget_usd', 'error_max_structured_output_retries'];
+              const subtype = knownSubtypes.includes(result.subtype) ? result.subtype : 'unknown';
+              emit({category, subtype, is_error: result.is_error === true});
+            } catch {
+              emit({category: 'unreadable-execution-file'});
+            }
 
   claude-review:
     # Keep the existing required-check name. Only this deterministic publisher

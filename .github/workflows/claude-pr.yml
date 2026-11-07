@@ -37,7 +37,7 @@ jobs:
           settings: '{"disableAllHooks":true}'
           include_fix_links: false
           claude_args: >-
-            --model haiku --max-turns 15 --setting-sources ''
+            --model haiku --max-turns 15 --setting-sources user
             --tools "Read,Glob,Grep"
             --allowedTools "Read,Glob,Grep,mcp__github_comment__update_claude_comment"
             --disallowedTools "Edit,Write,Bash,Agent,Task"

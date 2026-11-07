@@ -175,3 +175,11 @@ If you do edit a shared one, re-run every spec that uses it, on **every** Playwr
    above. That PR run is the full sweep; do not also run the suite locally or dispatch CI by
    hand. The task is not finished until `E2E tests` is green, and the report says what CI said.
 
+
+### Lightweight failure diagnostics
+
+CI retains the first failed attempt’s action/network trace and a final screenshot. Continuous DOM
+snapshots and screencast recording are disabled: capturing this canvas app on every Playwright
+action added enough observer work to reproduce a keyboard-visibility failure on two CPUs and can
+outlast held-request deadlines. Enable full tracing only for a focused diagnosis, not the whole
+functional suite. Preserve the original assertions and report instrumentation when comparing runs.

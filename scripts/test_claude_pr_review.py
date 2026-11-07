@@ -337,6 +337,91 @@ class ClaudeReviewPreparationTests(unittest.TestCase):
         self.assertIn("Incomplete PR file list", output["error"])
         self.assertEqual(output["writes"], [])
 
+DIAGNOSTIC_HARNESS = r"""
+const fs = require('node:fs');
+const input = JSON.parse(fs.readFileSync(0, 'utf8'));
+process.env.CLAUDE_DIAGNOSTIC_FILE = '/runner-temp/claude-execution-output.json';
+process.env.CLAUDE_CODE_OAUTH_TOKEN = 'SENTINEL_ENV_CREDENTIAL_DO_NOT_LOG';
+const notices = [], reads = [];
+const fakeRequire = name => {
+  if (name !== 'node:fs') throw new Error('Unexpected module');
+  return {
+    existsSync: () => !input.missing,
+    statSync: () => ({size: input.size || 123}),
+    readFileSync: path => {
+      reads.push(path);
+      return input.raw === undefined ? JSON.stringify(input.messages) : input.raw;
+    }
+  };
+};
+(async () => {
+  const AsyncFunction = Object.getPrototypeOf(async function() {}).constructor;
+  await new AsyncFunction('core', 'require', input.script)({notice: text => notices.push(text)}, fakeRequire);
+  process.stdout.write(JSON.stringify({notices, reads}));
+})();
+"""
+
+
+class ClaudeReviewDiagnosticsTests(unittest.TestCase):
+    def diagnose(self, **overrides):
+        case = {"script": workflow_script("Diagnose failed Claude inspection without exposing its transcript"),
+                "messages": [{"type": "result", "subtype": "success", "is_error": True, "result": "API Error: 401 authentication failed"}]}
+        case.update(overrides)
+        completed = subprocess.run(["node", "-e", DIAGNOSTIC_HARNESS], input=json.dumps(case),
+                                   text=True, capture_output=True, check=True, cwd=ROOT)
+        return json.loads(completed.stdout)
+
+    def category(self, output):
+        self.assertEqual(len(output["notices"]), 1)
+        return json.loads(output["notices"][0].split(": ", 1)[1])["category"]
+
+    def test_final_error_classification_is_useful_without_error_text(self):
+        for error, expected in (("401 authentication failed", "authentication"),
+                                ("429 usage limit reached", "usage-or-rate-limit"),
+                                ("Invalid model unavailable", "model-configuration"),
+                                ("invalid JSON schema", "schema-or-structured-output"),
+                                ("unknown option --bad", "configuration"),
+                                ("403 forbidden", "permission"),
+                                ("503 connection failed", "network-or-service")):
+            with self.subTest(error=error):
+                output = self.diagnose(messages=[{"type": "result", "subtype": "success", "is_error": True, "errors": [error]}])
+                self.assertEqual(self.category(output), expected)
+                self.assertNotIn(error, json.dumps(output))
+
+    def test_no_transcript_or_credentials_are_emitted_even_from_final_error_fields(self):
+        output = self.diagnose(messages=[
+            {"type": "assistant", "message": "SENTINEL_TRANSCRIPT_DO_NOT_LOG"},
+            {"type": "result", "subtype": "SENTINEL_SUBTYPE_DO_NOT_LOG", "is_error": True,
+             "result": "401 invalid token SENTINEL_ENV_CREDENTIAL_DO_NOT_LOG SENTINEL_UNKNOWN_SECRET_DO_NOT_LOG",
+             "errors": ["SENTINEL_ERROR_DO_NOT_LOG"]},
+        ])
+        self.assertEqual(self.category(output), "authentication")
+        self.assertNotIn("SENTINEL", json.dumps(output))
+        self.assertEqual(output["reads"], ["/runner-temp/claude-execution-output.json"])
+
+    def test_only_final_result_errors_are_classified(self):
+        output = self.diagnose(messages=[
+            {"type": "assistant", "message": "authentication failed"},
+            {"type": "result", "subtype": "success", "is_error": True, "result": "unexplained failure"},
+        ])
+        self.assertEqual(self.category(output), "unclassified")
+
+    def test_missing_malformed_or_oversized_files_emit_only_fixed_categories(self):
+        for overrides, expected in (({"missing": True}, "execution-file-unavailable"),
+                                    ({"size": 17000000}, "execution-file-too-large"),
+                                    ({"raw": "SENTINEL_BAD_JSON"}, "unreadable-execution-file"),
+                                    ({"messages": {}}, "invalid-execution-file"),
+                                    ({"messages": [{"type": "assistant", "message": "SENTINEL"}]}, "no-final-result")):
+            with self.subTest(expected=expected):
+                output = self.diagnose(**overrides)
+                self.assertEqual(self.category(output), expected)
+                self.assertNotIn("SENTINEL", json.dumps(output))
+
+    def test_error_text_inspection_is_bounded(self):
+        output = self.diagnose(messages=[{"type": "result", "result": "x" * 8192 + "401 authentication failed"}])
+        self.assertEqual(self.category(output), "unclassified")
+
+
 
 if __name__ == "__main__":
     unittest.main()
