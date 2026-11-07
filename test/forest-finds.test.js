@@ -648,6 +648,19 @@ globalThis.__forestFindsTest = {
   communityDisplayScore,
   COMMUNITY_POINTS,
   communityParseRecoveryCode,
+  communityBadgeHtml,
+  communitySectionHtml,
+  communityPlaceSectionHtml,
+  communityVerifiedChipHtml,
+  communityVerifiedDetailHtml,
+  communityPlaceStatusChipHtml,
+  communityPlaceStatusDetailHtml,
+  communityOverlay,
+  communityPlaceIssueCache,
+  appUpdateStatusHtml,
+  loadTransportDepartures,
+  transportCacheKey,
+  isBusCategory,
   HEADING_SOURCE_NONE,
   HEADING_SOURCE_RELATIVE,
   HEADING_SOURCE_ABSOLUTE,
@@ -13777,4 +13790,157 @@ test("the Nearby list hides its direction arrows while far from the forest", () 
   assert.match(html, /nearest-arrow/, "the list is still shown");
   assert.match(html, /aria-hidden="true" hidden>↑/, "but its arrow is hidden");
   assert.doesNotMatch(html, /aria-hidden="true">↑/);
+});
+
+// Hostile values from the server or from stored data, as a page would receive them. Each one would run
+// script if it reached the DOM as markup, so the rendered output must show it as text instead.
+const HOSTILE_MARKUP = '<img src=x onerror="alert(1)">';
+const HOSTILE_ATTRIBUTE = '51.6" onerror="alert(1)';
+
+// No element in the output carries a live onerror handler. Only real tags count: an escaped payload is text,
+// and its "onerror=" inside a quoted attribute value is not an attribute of anything.
+function assertNoLiveErrorHandler(html, what) {
+  const tags = html.match(/<[a-z](?:[^>"']|"[^"]*"|'[^']*')*>/gi) || [];
+  const liveHandlers = tags.filter((tag) => /\son[a-z]+\s*=/i.test(tag.replace(/"[^"]*"|'[^']*'/g, '""')));
+  assert.deepEqual(liveHandlers, [], `${what} has no element with a live onerror handler`);
+}
+
+test("a community badge shows a hostile count from the server as text, not markup", () => {
+  const html = app.communityBadgeHtml({ s: "questioned", st: "NOT_HERE", n: HOSTILE_MARKUP });
+  assert.ok(html.includes("community-badge-questioned"), "the questioned badge is still rendered");
+  assertNoLiveErrorHandler(html, "the badge");
+  assert.ok(html.includes("&lt;img src=x"), "the count is shown as escaped text");
+});
+
+test("a tree's community chip and its detail show a hostile count from the server as text", () => {
+  const target = "tree:hostile-count";
+  app.communityOverlay.entries[target] = { s: "verified", n: HOSTILE_MARKUP };
+  try {
+    const chip = app.communityVerifiedChipHtml(target);
+    const detail = app.communityVerifiedDetailHtml(target);
+    assert.ok(chip.includes("community-verified-chip"), "the verified chip is still rendered");
+    assert.ok(detail.includes("communityVerifiedDetail"), "the verified detail is still rendered");
+    assertNoLiveErrorHandler(chip, "the verified chip");
+    assertNoLiveErrorHandler(detail, "the verified detail");
+  } finally {
+    delete app.communityOverlay.entries[target];
+  }
+});
+
+test("a tree's community check keeps a hostile latitude inside its own attribute", () => {
+  const html = app.communitySectionHtml({ recordNumber: 9001, latitude: HOSTILE_ATTRIBUTE, longitude: 0.03 });
+  assert.ok(html.includes('data-community-target="tree:9001"'), "the check card is still rendered");
+  assertNoLiveErrorHandler(html, "the check card");
+});
+
+test("a place's community check keeps a hostile latitude inside its own attribute", () => {
+  const html = app.communityPlaceSectionHtml({ id: "hostile-lat", name: "Test Cafe", latitude: HOSTILE_ATTRIBUTE, longitude: 0.03, categoryLabel: "Cafe" });
+  assert.ok(html.includes("community-check-place"), "the place check card is still rendered");
+  assertNoLiveErrorHandler(html, "the place check card");
+});
+
+test("a place's community report count shows a hostile count from the server as text", () => {
+  const target = "place:hostile-count";
+  app.communityPlaceIssueCache.set(target, { total: HOSTILE_MARKUP, open: 0, items: [] });
+  try {
+    const chip = app.communityPlaceStatusChipHtml(target);
+    const detail = app.communityPlaceStatusDetailHtml(target);
+    assert.ok(chip.includes("community-verified-chip"), "the report chip is still rendered");
+    assert.ok(detail.includes("communityPlaceStatusDetail"), "the report detail is still rendered");
+    assertNoLiveErrorHandler(chip, "the report chip");
+    assertNoLiveErrorHandler(detail, "the report detail");
+  } finally {
+    app.communityPlaceIssueCache.delete(target);
+  }
+});
+
+test("a Nearby tree keeps a hostile latitude inside its own attribute", () => {
+  const html = app.renderNearestItemsHtml([{
+    type: "tree",
+    kind: "tree",
+    metres: 120,
+    item: { recordNumber: 9002, commonName: "Oak", latitude: HOSTILE_ATTRIBUTE, longitude: 0.03 },
+  }]);
+  assert.ok(html.includes("nearest-item"), "the Nearby row is still rendered");
+  assertNoLiveErrorHandler(html, "the Nearby row");
+});
+
+test("the Settings app version shows a hostile cache version as text", () => {
+  const before = app.state.swVersion;
+  app.state.swVersion = HOSTILE_MARKUP;
+  try {
+    const html = app.settingsFormHtml();
+    assert.ok(html.includes('id="appVersionDisplay"'), "the version line is still rendered");
+    assertNoLiveErrorHandler(html, "the Settings screen");
+  } finally {
+    app.state.swVersion = before;
+  }
+});
+
+test("the update status line shows a hostile update version as text", () => {
+  const nav = app.navigator;
+  const previousServiceWorker = nav.serviceWorker;
+  const previousStatus = app.state.appUpdateStatus;
+  const previousVersion = app.state.appUpdateVersion;
+  nav.serviceWorker = {};
+  app.state.appUpdateStatus = "ready";
+  app.state.appUpdateVersion = HOSTILE_MARKUP;
+  try {
+    const html = app.appUpdateStatusHtml();
+    assert.ok(html.includes('id="appUpdateStatusText"'), "the update status line is still rendered");
+    assertNoLiveErrorHandler(html, "the update status line");
+  } finally {
+    nav.serviceWorker = previousServiceWorker;
+    app.state.appUpdateStatus = previousStatus;
+    app.state.appUpdateVersion = previousVersion;
+  }
+});
+
+// admin.js runs its page code on DOMContentLoaded only, so its renderers can be loaded on their own.
+function loadAdminScriptForTests() {
+  const context = {
+    console,
+    document: {
+      addEventListener() {},
+      getElementById() { return null; },
+      querySelector() { return null; },
+      querySelectorAll() { return []; },
+    },
+  };
+  context.globalThis = context;
+  vm.createContext(context);
+  for (const file of ["js/shared.js", "js/admin.js"]) {
+    vm.runInContext(fs.readFileSync(path.join(__dirname, "..", file), "utf8"), context, { filename: file });
+  }
+  return context;
+}
+
+test("the admin community table shows hostile server labels and counts as text, not markup", () => {
+  const admin = loadAdminScriptForTests();
+  const html = admin.renderCommunityStats({ devices: HOSTILE_MARKUP, byStatus: { [HOSTILE_MARKUP]: 1 }, perDay: {} });
+  assert.ok(html.includes("<table>"), "the community table is still rendered");
+  assertNoLiveErrorHandler(html, "the admin community table");
+});
+
+test("a stop's departures show a hostile minutes value from the server as text", async () => {
+  const place = { id: "hostile-departure", name: "Test Stop", latitude: 51.6, longitude: 0.03, category: "bus_stop" };
+  const type = app.isBusCategory(place) ? "bus" : "train";
+  const previousSelected = app.state.selected;
+  const previousAppendChild = app.els.inspectorBody.appendChild;
+  let section = null;
+  app.state.transportLookupCache.set(app.transportCacheKey(place, type), {
+    stopName: "Test Stop",
+    departures: [{ line: "Central", direction: "Loughton", minutesAway: HOSTILE_MARKUP, due: false }],
+  });
+  app.state.selected = { item: place };
+  app.els.inspectorBody.appendChild = (node) => { section = node; };
+  try {
+    await app.loadTransportDepartures(place);
+    assert.ok(section && section.innerHTML.includes("departures-list"), "the departures list is still rendered");
+    assertNoLiveErrorHandler(section.innerHTML, "the departures list");
+  } finally {
+    app.els.inspectorBody.appendChild = previousAppendChild;
+    app.state.selected = previousSelected;
+    app.state.transportLookupCache.delete(app.transportCacheKey(place, type));
+  }
 });

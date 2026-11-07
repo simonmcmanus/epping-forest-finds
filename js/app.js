@@ -3146,7 +3146,7 @@ function settingsFormHtml() {
     </section>
     <section class="settings-section">
       <h3 class="settings-section-title">About</h3>
-      <p class="settings-description">App version: <span id="appVersionDisplay" class="app-version-display">${state.swVersion || APP_VERSION}</span></p>
+      <p class="settings-description">App version: <span id="appVersionDisplay" class="app-version-display">${escapeHtml(state.swVersion || APP_VERSION)}</span></p>
       ${Native.isNative ? "" : appUpdateStatusHtml()}
       <p class="settings-description">Tester ID: <code id="testerIdDisplay" class="tester-id">…</code> <button type="button" id="testerIdCopy" class="settings-btn" hidden>Copy</button><br><span class="report-note">Give this to Simon to try early features.</span></p>
       <p class="settings-description">Vibe coded by <a href="https://simonmcmanus.com" target="_blank" rel="noopener noreferrer">Simon McManus</a></p>
@@ -4493,7 +4493,7 @@ function renderNearestItemsHtml(entries) {
         </div>
         <div class="nearest-footer">
           <span class="nearest-meta">${walkChip ? `${walkChip} · ` : ""}${escapeHtml(typeLabel)}${treeTagChip}</span>
-          <span class="nearest-arrow" data-item-lat="${entry.item.latitude ?? ""}" data-item-lon="${entry.item.longitude ?? ""}" aria-hidden="true"${isFarFromForest() ? " hidden" : ""}>↑</span>
+          <span class="nearest-arrow" data-item-lat="${escapeHtml(entry.item.latitude)}" data-item-lon="${escapeHtml(entry.item.longitude)}" aria-hidden="true"${isFarFromForest() ? " hidden" : ""}>↑</span>
         </div>
       </div>
     </button></li>`;
@@ -8935,7 +8935,7 @@ async function loadTransportDepartures(place) {
           <li class="departure-item">
             <span class="departure-line">${escapeHtml(d.line)}</span>
             <span class="departure-direction">${escapeHtml(d.direction)}</span>
-            <span class="departure-time${d.due ? ' due' : ''}">${d.due ? 'Due' : (d.minutesAway + ' min')}</span>
+            <span class="departure-time${d.due ? ' due' : ''}">${d.due ? 'Due' : (escapeHtml(d.minutesAway) + ' min')}</span>
           </li>`).join("")}
       </ul>`;
   } catch {
