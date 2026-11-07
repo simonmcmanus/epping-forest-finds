@@ -253,7 +253,7 @@ test.describe("Location and GPS — happy path", () => {
       await gotoAndWaitForMap(page, SCREEN);
       const banner = page.locator("#consentBanner");
       const dismiss = page.locator("#consentBannerDecline");
-      await expect(dismiss).toHaveText("Maybe later");
+      await expect(dismiss).toHaveText("Not now");
 
       await dismiss.click();
       await expect(banner).toContainText("We'll set your location as High Beach");
