@@ -9205,9 +9205,10 @@ test("a walker standing still with 20-30m GPS accuracy is not thrown off by the 
 // the main canvas and then the overlay that draws the You marker; drawOverlay() alone is an overlay-only
 // frame. The walker stands at one fix, and a second fix lands `moveDevicePixels` east of them.
 //
-// Everything is in full-resolution device pixels (one physical screen pixel), the unit worldToScreen()
-// returns, with viewport.scale in those per degree. The canvas bitmap can be smaller than that while the
-// camera moves, so it is not the unit. At DPR 3 one device pixel is a third of a CSS pixel.
+// Everything is in stage pixels at the effective device pixel ratio (pixelRatio(), capped on Android): the
+// unit worldToScreen() returns, with viewport.scale in those per degree: one physical pixel on phones up to
+// 2x. The canvas bitmap can be smaller than that while the camera moves, so it is not the unit. The driver
+// pins DPR 3, where one such pixel is a third of a CSS pixel.
 //
 // The marker is measured twice, the way the app paints it: on the main canvas with worldToScreen(), and
 // on the overlay with overlayMarkerProjection(), which is what drawOverlay() uses.
@@ -9346,8 +9347,7 @@ function driveLocationGlide(app, { devicePixelRatio, moveDevicePixels, accuracy 
 }
 
 test("a glide step that moves the You marker less than one device pixel does not repaint the map", () => {
-  // This whole glide moves the marker 0.4 of one full-resolution device pixel (a third of a CSS pixel at
-  // DPR 3), so no frame of it can be seen, and a repaint for any of them is wasted work on a phone.
+  // This whole glide moves the marker 0.4 of one pixel of the stage (a third of a CSS pixel at DPR 3), so no frame of it can be seen, and a repaint for any of them is wasted work on a phone.
   const run = driveLocationGlide(app, { devicePixelRatio: 3, moveDevicePixels: 0.4 });
   assert.ok(run.glideEnded, "the glide should run to its end");
   assert.equal(run.repaints, 0, `no frame should repaint for a move under a device pixel, ${run.repaints} of ${run.frames} did`);

@@ -1682,7 +1682,7 @@ const LOCATION_FAST_SNAP_METRES = 150;
 // lands on the fix rather than crawling at it forever.
 const LOCATION_GLIDE_EPSILON = 1e-7;
 // A glide step repaints the map only once the You marker has moved this far on screen, in device pixels
-// (full-resolution device pixels, one physical screen pixel, which is what worldToScreen returns), since the frame last painted (see
+// (one pixel of the stage at the effective device pixel ratio, pixelRatio(), which is one physical pixel on phones up to 2x; worldToScreen returns these), since the frame last painted (see
 // locationGlideNeedsRepaint). The position still eases on every step either way.
 const LOCATION_GLIDE_REPAINT_DEVICE_PX = 1;
 
@@ -1955,7 +1955,7 @@ function locationGlideMovedVisibly(painted, screen) {
   const view = state.viewport;
   if (painted.inArea !== state.userInMapArea
     || painted.scale !== view.scale || painted.tx !== view.tx || painted.ty !== view.ty) return true;
-  // The projections return full-resolution device pixels (one physical screen pixel), so no DPR factor here.
+  // The projections return stage pixels at pixelRatio(), one physical pixel on phones up to 2x, so no DPR factor here.
   const movedDevicePx = Math.hypot(screen.x - painted.x, screen.y - painted.y);
   return movedDevicePx >= LOCATION_GLIDE_REPAINT_DEVICE_PX;
 }
