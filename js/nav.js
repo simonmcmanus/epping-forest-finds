@@ -1068,15 +1068,19 @@ function setupFilterPanelHandlers() {
       const alreadyOnNearby = els.nearbyToggle.classList.contains("screen-active")
         && !els.inspector.classList.contains("minimized");
       if (alreadyOnNearby) {
-        // Already on the Nearby screen: shake it in place rather than sliding it out and back in.
-        // The camera refits to the Nearby ring fit and the list is refreshed, with no screen-entry
-        // slide. Nothing else is reset: the compass calibration, the rail level and an expanded
-        // cluster stay as they are. A landing's own lens (its ephemeral filters or its server-rendered
-        // list) still goes through goToInitialView(), which puts the reader's real filters back.
+        // Already on the Nearby screen with the inspector open: shake it in place rather than sliding
+        // it out and back in, refresh the list and refit to the Nearby ring fit, with no screen-entry
+        // slide. The rail level, the filters, the compass heading and the browse anchor are kept, and
+        // an expanded cluster is left so the reader's own walking radius comes back. The gate is the
+        // URL, not the filter state: a rail tap or "Everything within" makes the filters ephemeral
+        // too, and those stay on plain Nearby. Only a real landing page (a category path such as
+        // /nearby/food) returns through goToInitialView(), which restores the reader's saved filters.
         shakeInspectorSheet();
-        if (state.overviewFiltersEphemeral || _serverRenderedNearbyList) {
+        if (filterKeysFromFindPath(window.location.pathname).length > 0) {
           goToInitialView(true, { enterAnimated: false });
         } else {
+          exitClusterExpansion();
+          state.clusterZoomed = false;
           selectOverview(false);
           refitNearbyRingView();
         }

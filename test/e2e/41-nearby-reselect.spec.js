@@ -190,3 +190,65 @@ test.describe("Nearby camera returns to the Nearby ring fit", () => {
     expect(await page.evaluate(() => state.compassHeading)).toBeCloseTo(headingBefore, 0);
   });
 });
+
+test.describe("A re-tap keeps the view the reader set up", () => {
+  const railPill = (page, key) => page.locator(`#inspectorBody [data-rail-key="${key}"]`);
+  const sortedFilters = (page) => page.evaluate(() => [...state.overviewFilters].sort().join(","));
+
+  test("a re-tap on Nearby keeps the rail level and the filters picked on the rail", async ({ page }) => {
+    // A category landing drills the rail into its subcategories; a subcategory tap then leaves the
+    // landing for a plain Nearby URL with a shared ?show= lens, still drilled in.
+    await setup(page, "/nearby/food");
+    await railPill(page, "cafes").click();
+    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?show=pubs,restaurants,shops$/);
+    expect(await sortedFilters(page)).toBe("pubs,restaurants,shops");
+
+    await nearbyButton(page).click();
+    await waitForUiToSettle(page);
+
+    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?show=pubs,restaurants,shops$/);
+    await expect(railPill(page, "pubs")).toHaveCount(1);
+    await expect(railPill(page, "nature")).toHaveCount(0);
+    await expect(railPill(page, "cafes")).toHaveAttribute("aria-pressed", "false");
+    expect(await sortedFilters(page)).toBe("pubs,restaurants,shops");
+  });
+
+  test("a re-tap with an expanded cluster leaves the cluster, restores the walking radius and keeps the browse anchor", async ({ page }) => {
+    await setup(page, "/nearby");
+    const ownRadius = await page.evaluate(() => state.walkingDistanceMinutes);
+
+    // Tapping a cluster on the map expands it: the same call the tap makes.
+    await page.evaluate(() => {
+      const lookup = activeIconLookup();
+      const clusters = buildTypeClusters(lookup.tree, worldToScreen);
+      focusNearbyOnClusterGroup(clusters.find((candidate) => candidate.items.length >= 2));
+    });
+    await expect.poll(() => page.evaluate(() => Boolean(state.clusterExpanded))).toBe(true);
+    const clusteredRadius = await page.evaluate(() => state.walkingDistanceMinutes);
+    expect(clusteredRadius, "the cluster sets its own radius").not.toBe(ownRadius);
+    const anchorBefore = await page.evaluate(() => ({ latitude: state.nearbyAnchor?.latitude, longitude: state.nearbyAnchor?.longitude }));
+    expect(Number.isFinite(anchorBefore.latitude), "the cluster leaves a browse anchor").toBe(true);
+
+    await nearbyButton(page).click();
+    await waitForUiToSettle(page);
+
+    expect(await page.evaluate(() => Boolean(state.clusterExpanded))).toBe(false);
+    expect(await page.evaluate(() => state.walkingDistanceMinutes)).toBe(ownRadius);
+    expect(await page.evaluate(() => ({ latitude: state.nearbyAnchor?.latitude, longitude: state.nearbyAnchor?.longitude }))).toEqual(anchorBefore);
+    await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeVisible();
+  });
+
+  test("a re-tap on a landing page restores the reader's saved filters", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("forest-finds-filter-state-v1", JSON.stringify({ filters: ["trees", "ponds_streams"] }));
+    });
+    await setup(page, "/nearby/food");
+    // The landing shows its own category lens, not the reader's saved filters.
+    expect(await sortedFilters(page)).not.toBe("ponds_streams,trees");
+
+    await nearbyButton(page).click();
+    await waitForUiToSettle(page);
+
+    expect(await sortedFilters(page)).toBe("ponds_streams,trees");
+  });
+});
