@@ -147,7 +147,7 @@ test.describe("first-run onboarding", () => {
     await expect(card).toContainText("compass");
   });
 
-  test("a refused location request explains that the map is set to High Beach and offers OK", async ({ page }) => {
+  test("a refused location request on the first visit keeps the map-setup card and says the map is set to High Beach", async ({ page }) => {
     await stubLocation(page, { answer: "deny" });
     await page.addInitScript(() => {
       localStorage.removeItem("ff-track-v1");
@@ -156,11 +156,13 @@ test.describe("first-run onboarding", () => {
     await page.goto("/nearby");
     const card = page.locator("#consentBanner");
     await card.getByRole("button", { name: "Enable location & cookies" }).click();
-    await expect(page.locator("#consentBannerTitle")).toHaveText("Location is off");
+    await expect(page.locator("#consentBannerTitle")).toHaveText("Choose what you see");
+    await expect(card).toContainText("blocked for this site");
     await expect(card).toContainText("High Beach");
-    await expect(page.locator("#consentBannerAccept")).toBeHidden();
+    await expect(card).toContainText("layers button");
+    await expect(page.locator("#consentBannerMapSetupArrow")).toBeVisible();
     await expect(card.getByRole("button", { name: "Enable location & cookies" })).toHaveCount(0);
-    await card.getByRole("button", { name: "OK" }).click();
+    await card.getByRole("button", { name: "Dismiss map setup hint" }).click();
     await expect(card).toBeHidden();
   });
 
