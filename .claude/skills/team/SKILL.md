@@ -44,6 +44,7 @@ Dispatch reviewers on the local branch, diffed against `origin/main`, all in par
 
 - markup, styles, interaction or icons: `accessibility-reviewer` and `design-reviewer`
 - rendering, data loading, assets or the service worker: `performance-reviewer`
+- anything that changes what works offline (the service worker, caches, `APP_SHELL` or data lists, a `fetch` call or its failure path, the outbox, the native bundle, a file a returning user needs): `offline-reviewer`
 - a user flow, copy or a permission ask: `ux-reviewer`
 - a data change: `reviewer` only. Data items still run sections 4 to 6; only the specialists are skipped.
 

@@ -62,6 +62,7 @@ and merges. The subagents in `.claude/agents/` do the work:
   - `performance-reviewer` — draw loop and per-frame work, redundant paints, payloads, service-worker caching, battery and memory. Judged on mobile first.
   - `design-reviewer` — consistency with the existing CSS, tokens and icon registry, mobile and dark-mode polish, and marketing brand voice.
   - `ux-reviewer` — whether each journey completes end to end, flow and copy clarity, permission asks, and the state each error or empty screen shows.
+  - `offline-reviewer` — whether the app still boots, shows the map and completes user actions with no network: app-shell and data-list completeness, failed and hanging requests, the outbox, cache strategy, and the native bundle.
 - `data-curator` — real-world place corrections in `data/**`; never edits specs for these.
 - `pr-steward` — drives one PR to mergeable: merges `main` in for conflicts, triages red CI, answers
   and resolves review threads, pushes small fixes. It never approves, merges or force-pushes.
