@@ -637,10 +637,13 @@ function normalizePlaceName(place) {
   return String((place && place.name) || "").trim().toLowerCase();
 }
 
+// Only a train station can be an Underground station. The name test runs
+// after the station check: a shop ("Vape Underground") or a memorial ("Tube
+// Disaster") that happens to say "underground" or "tube" is not on the line.
 function isUndergroundCategory(place) {
+  if (!isTrainCategory(place)) return false;
   const name = normalizePlaceName(place);
   if (name.includes("underground") || name.includes("tube")) return true;
-  if (!isTrainCategory(place)) return false;
   return name.length > 0 && UNDERGROUND_STATION_NAMES.has(name);
 }
 

@@ -253,7 +253,7 @@ test.describe("Location and GPS — happy path", () => {
       await gotoAndWaitForMap(page, SCREEN);
       const banner = page.locator("#consentBanner");
       const dismiss = page.locator("#consentBannerDecline");
-      await expect(dismiss).toHaveText("Maybe later");
+      await expect(dismiss).toHaveText("Not now");
 
       await dismiss.click();
       await expect(banner).toContainText("We'll set your location as High Beach");
@@ -437,6 +437,94 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("#locationInviteBanner")).toBeVisible();
       await expect(page.locator("#locationInviteButton")).toBeEnabled();
     });
+  });
+});
+
+// A position the browser still holds from before this page opened: 20 seconds old, about 80 m north of
+// where the device really is. Boot's request accepts a cached position (maximumAge), so a browser that
+// has one hands it back, as Chromium's position cache does.
+const CACHED_FIX = { latitude: FOREST_LOCATION.latitude + 0.00072, longitude: FOREST_LOCATION.longitude, accuracy: 10, ageMs: 20_000 };
+
+// Stubs only the navigator boundary, in two parts. A one-shot request that accepts a cached position gets
+// the cached one; one that refuses it (maximumAge 0) gets the live position from Playwright's mock. The
+// live watch's callbacks are held back until the test releases them, so the cached point is on the marker
+// for a sustained period before the first live fix can move the marker. Without the hold, that fix could
+// arrive before any animation frame had shown the cached point, and the test would pass on the bug.
+function stubLocationAtBrowserBoundary(cachedFix) {
+  const geolocation = navigator.geolocation;
+  const liveGetCurrentPosition = geolocation.getCurrentPosition.bind(geolocation);
+  geolocation.getCurrentPosition = (onSuccess, onError, options = {}) => {
+    if (!(options.maximumAge > 0)) return liveGetCurrentPosition(onSuccess, onError, options);
+    setTimeout(() => onSuccess({
+      coords: { latitude: cachedFix.latitude, longitude: cachedFix.longitude, accuracy: cachedFix.accuracy, altitude: null, altitudeAccuracy: null, heading: null, speed: null },
+      timestamp: Date.now() - cachedFix.ageMs,
+    }), 50);
+  };
+
+  const liveWatchPosition = geolocation.watchPosition.bind(geolocation);
+  const heldFixes = [];
+  let holding = true;
+  window.__releaseLiveFixes = () => {
+    holding = false;
+    window.__liveFixesReleased = true;
+    for (const { onSuccess, position } of heldFixes.splice(0)) onSuccess(position);
+  };
+  geolocation.watchPosition = (onSuccess, onError, options) => liveWatchPosition((position) => {
+    if (holding) heldFixes.push({ onSuccess, position });
+    else onSuccess(position);
+  }, onError, options);
+}
+
+// Records every position the You marker stands at once a real fix has been applied, one entry per change.
+// Once the marker has stood on one position for a second, it releases the held live fixes.
+function recordYouMarkerPositions() {
+  window.__youMarkerPositions = [];
+  let standingSince = null;
+  const sample = () => {
+    const location = typeof state !== "undefined" ? state.userLocation : null;
+    // The High Beach stand-in is marked isDefault; it is not where the device is.
+    if (location && !location.isDefault) {
+      const last = window.__youMarkerPositions.at(-1);
+      if (!last || last.latitude !== location.latitude || last.longitude !== location.longitude) {
+        window.__youMarkerPositions.push({ latitude: location.latitude, longitude: location.longitude });
+        standingSince = performance.now();
+      }
+      if (!window.__liveFixesReleased && window.__releaseLiveFixes && performance.now() - standingSince >= 1000) {
+        window.__releaseLiveFixes();
+      }
+    }
+    requestAnimationFrame(sample);
+  };
+  requestAnimationFrame(sample);
+}
+
+function metresApart(a, b) {
+  const dLat = (a.latitude - b.latitude) * 111_320;
+  const dLon = (a.longitude - b.longitude) * 111_320 * Math.cos((b.latitude * Math.PI) / 180);
+  return Math.hypot(dLat, dLon);
+}
+
+test.describe("the first fix on launch", () => {
+  test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] });
+
+  test("a position the browser cached before the page opened never becomes the You marker's position", async ({ page }) => {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await page.addInitScript(stubLocationAtBrowserBoundary, CACHED_FIX);
+    await page.addInitScript(recordYouMarkerPositions);
+    await page.goto("/nearby");
+    // Wait on state, not a delay: the held live fix has been released, it has landed, and the camera has
+    // finished its arrival.
+    await page.waitForFunction(
+      (latitude) => typeof state !== "undefined" && window.__liveFixesReleased === true && state.dataLoaded === true && state.rawUserLocation?.latitude === latitude && state.viewportAnimationFrame == null,
+      FOREST_LOCATION.latitude,
+    );
+    const positions = await page.evaluate(() => window.__youMarkerPositions);
+    expect(positions.length, "the You marker was placed at least once").toBeGreaterThan(0);
+    const farthestMetres = Math.max(...positions.map((position) => metresApart(position, FOREST_LOCATION)));
+    expect(farthestMetres, "farthest the You marker stood from the live fix, in metres").toBeLessThan(5);
+    // And the marker ends on the live fix, so holding it back changed nothing once it arrived.
+    expect(metresApart(positions.at(-1), FOREST_LOCATION), "where the You marker settled, in metres from the live fix").toBeLessThan(5);
   });
 });
 

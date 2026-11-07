@@ -488,6 +488,7 @@ globalThis.__forestFindsTest = {
   iconPath,
   appIconHtml,
   matchesPlaceFilter,
+  getTransportType,
   placePrimaryFilterKey,
   placeIconSlug,
   placeLabelFilterKey,
@@ -3080,6 +3081,29 @@ test("the categories that used to draw as a bare emoji now have artwork of their
     // What the map actually draws, tag rules and filter buckets together.
     assert.equal(app.placeIconSlug(place), slug, `${category} should still draw ${slug} once the filters have had their say`);
   }
+});
+
+test("Underground filter shows only Underground stations, not shops or memorials", () => {
+  // The name test used to run before the train-station check, so any name
+  // containing "underground" or "tube" matched -- a shop and a memorial did,
+  // and a bus stop named after the station did too.
+  const { matchesPlaceFilter, getTransportType } = app;
+  const station = { name: "Loughton", category: "station", railway: "station" };
+  const shop = { name: "Vape Underground", category: "convenience", shop: "convenience" };
+  const memorial = { name: "Bethnal Green Tube Disaster", category: "memorial", categoryTags: ["memorial"] };
+  const busStop = { name: "Epping Underground Railway Station", category: "bus_stop", highway: "bus_stop" };
+
+  assert.equal(matchesPlaceFilter(station, "underground"), true, "a station on the Underground is on the Underground filter");
+  assert.equal(getTransportType(station), "underground");
+
+  assert.equal(matchesPlaceFilter(shop, "underground"), false, "a shop with Underground in its name is not on the filter");
+  assert.notEqual(getTransportType(shop), "underground");
+
+  assert.equal(matchesPlaceFilter(memorial, "underground"), false, "a memorial to a Tube disaster is not on the filter");
+  assert.notEqual(getTransportType(memorial), "underground");
+
+  assert.equal(matchesPlaceFilter(busStop, "underground"), false, "a bus stop is on the Bus filter, not the Underground one");
+  assert.equal(getTransportType(busStop), "bus");
 });
 
 test("the subfilter keys FILTER_GROUPS offers all classify something", () => {

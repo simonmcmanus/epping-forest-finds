@@ -1403,7 +1403,10 @@ async function boot() {
           setLocationRequestPending(false);
           resolve({ ok: false, code: error && error.code });
         },
-        { enableHighAccuracy: true, timeout: BOOT_GEOLOCATION_TIMEOUT_MS, maximumAge: 30000 }
+        // maximumAge 0: a position the browser cached before this page opened can be tens of metres
+        // behind the device. Boot would land it raw (it is far from the High Beach stand-in) and the
+        // first live fix would then snap the You marker back, so boot asks for a live fix instead.
+        { enableHighAccuracy: true, timeout: BOOT_GEOLOCATION_TIMEOUT_MS, maximumAge: 0 }
       );
     });
   } else if (locationChoice === "declined") {
@@ -2036,6 +2039,7 @@ function locateUser({ initial }) {
           ? "Location access was denied. You can allow it in your browser settings."
           : "Location was not available yet.")
         : error.message || "Location access was not available.");
+      if (!initial) explainRefusedLocationRequest({ denied });
     },
     { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 }
   );
@@ -2993,11 +2997,8 @@ function setupSettingsLocationRow() {
   }
   Native.locationPermissionState().then((permission) => {
     if (permission !== "denied" || hasRealLocation() || !button.isConnected) return;
-    button.hidden = true;
-    if (note) {
-      note.textContent = locationBlockedMessage();
-      note.hidden = false;
-    }
+    locationRequestRefusal = "denied";
+    syncSettingsLocationRow();
   });
   button.addEventListener("click", () => {
     rememberLocationChoice("granted");
@@ -3045,15 +3046,25 @@ function setupNativeDataRow() {
   });
 }
 
-// Keeps an open Settings screen's location row in step with a request that has just answered.
+// Keeps an open Settings screen's location row in step with a request that has just answered. A
+// refusal (locationRequestRefusal, js/permission-asks.js) is said on the row: a denied permission
+// takes the button away, since asking again cannot succeed, and a failed request keeps it.
 function syncSettingsLocationRow() {
   const status = document.getElementById("locationStatus");
   if (status) status.textContent = locationStatusLabel();
   const button = document.getElementById("settingsLocateButton");
   if (!button) return;
+  const refusal = hasRealLocation() ? null : locationRequestRefusal;
   button.disabled = false;
   button.textContent = "Use my location";
-  button.hidden = hasRealLocation();
+  button.hidden = hasRealLocation() || refusal === "denied";
+  const note = document.getElementById("locationBlockedNote");
+  if (note) {
+    note.textContent = refusal === "denied" ? locationBlockedMessage()
+      : refusal === "failed" ? LOCATION_FAILED_MESSAGE
+      : "";
+    note.hidden = !refusal;
+  }
 }
 
 function settingsFormHtml() {
@@ -3638,9 +3649,10 @@ function getOrCreateReportRequestId() {
   return id;
 }
 
-// Sends a feedback/report payload; if the device is offline or the request cannot reach the
-// server, it is parked in the outbox (js/outbox.js) and re-sent automatically, so the user is
-// never asked to come back later. Resolves {queued:true} or {response, data}.
+// Sends a feedback/report payload; if the device is offline, the request cannot reach the server, or
+// the server is down for now (a 5xx or 408), it is parked in the outbox (js/outbox.js) and re-sent
+// automatically, so the user is never asked to come back later. Only an answer the server gave on
+// purpose (a 4xx with its own message) is shown as an error. Resolves {queued:true} or {response, data}.
 // A send that has not answered within REPORT_SEND_TIMEOUT_MS is queued rather than awaited: on a weak
 // signal the browser can hold a request for a long time, and the user should not wait on it. The
 // server de-duplicates on requestId, so a request that does land late cannot file the report twice.
@@ -3673,7 +3685,8 @@ async function sendOrQueueReport(payload) {
   }).then(async (response) => ({ response, data: await response.json().catch(() => ({})) }), () => null);
   const result = await Promise.race([send, timeout]);
   clearTimeout(timeoutId);
-  if (result && result !== TIMED_OUT) return result;
+  const serverDown = result && result !== TIMED_OUT && (result.response.status >= 500 || result.response.status === 408);
+  if (result && result !== TIMED_OUT && !serverDown) return result;
   // Failed or timed out: keep a copy in the outbox (same requestId, so the server files it once) and
   // let the outbox send it again when the connection allows.
   return queue();

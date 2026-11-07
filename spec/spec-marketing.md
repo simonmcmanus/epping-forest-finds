@@ -334,6 +334,16 @@ numbered metal-tag icon based on the adjacent photograph; the photograph stays
 as the real-world example. Their masters and prompts live in
 `assets/home/icon-sources/`. The reports index reuses the Ledger PNG.
 
+The `/contribute` explainer's nine card icons (register, two people, reviewed
+place, tag number, standing by a tree, and the Seedling, Sapling, Woodward and
+Warden ranks) and the homepage community section's three points (check a tree,
+add a missing tree, flag a place) use the same illustrated style. Each is a
+192px transparent PNG rendered by `node scripts/render-home-icons.js` from an
+SVG master in `assets/home/icon-sources/`; the tag-number card reuses
+`tree-tag.png`. They sit in the existing tiles (48px on `/contribute`, 40px in
+the community panel) with the `.icon-art` class giving the artwork less padding,
+and carry empty alt text because the card or point heading already names them.
+
 - Homepage CSS, JavaScript and images live together in `assets/home/`.
   `index.html` references only that directory for local runtime assets. Brand
   and map icons are independent copies, so the homepage does not import app
