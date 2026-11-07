@@ -237,12 +237,25 @@ function showHighBeachNotice() {
 // moving on as if nothing happened. A refusal also hides the request button in Settings
 // (syncSettingsLocationRow), since asking again cannot succeed while the permission reads as denied.
 const LOCATION_FAILED_MESSAGE = "We couldn't get your location just now. The map stays on High Beach.";
+const MAP_SETUP_HINT_TEXT = "Tap the layers button below to pick what shows on the map and in Nearby.";
+function isMapSetupCardShowing() {
+  const card = els.consentBanner;
+  return Boolean(card && !card.hidden && card.classList.contains("onboarding-invite") && els.consentBannerText);
+}
 let locationRequestRefusal = null; // "denied" | "failed" | null
 function explainRefusedLocationRequest({ denied }) {
   locationRequestRefusal = denied ? "denied" : "failed";
   syncSettingsLocationRow();
   // Settings shows the reason in its own row, so the floating card stays out of its way.
   if (state.selected?.type === "settings") return;
+  // First-run: the map-setup card is already up (the answer to the location ask moved on to it), and
+  // a refusal must not replace it with an OK card. The reason goes into that card, which still points
+  // at the layers button.
+  if (isMapSetupCardShowing()) {
+    const reason = denied ? `${locationBlockedMessage()} The map stays on High Beach.` : LOCATION_FAILED_MESSAGE;
+    els.consentBannerText.textContent = `${reason} ${MAP_SETUP_HINT_TEXT}`;
+    return;
+  }
   if (denied) {
     showOkNotice({ title: "Location is off", text: `${locationBlockedMessage()} The map stays on High Beach.` });
   } else {
@@ -403,7 +416,7 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
     try { localStorage.setItem("forest-finds-onboarding-v1", "declined"); } catch {}
     if (els.consentBannerTitle) els.consentBannerTitle.textContent = "Choose what you see";
     if (els.consentBannerText) {
-      els.consentBannerText.innerHTML = "Tap the layers button below to pick what shows on the map and in Nearby.";
+      els.consentBannerText.innerHTML = MAP_SETUP_HINT_TEXT;
     }
     if (els.consentBannerDecline) {
       els.consentBannerDecline.textContent = "×";
