@@ -20,6 +20,9 @@ not dispatch the local specialist roster again or repeat formatting/style checks
   Claude App that opens implementation PRs; other bots remain excluded.
   The base checkout supplies trusted review guidance. PR
   titles, descriptions, files and model output remain untrusted review data.
+The context JSON is formatted for bounded line-range reads. Reviewers finish all changed files even
+after finding a defect; findings do not imply an incomplete review.
+
 - The model uses Sonnet with a 30-turn limit and returns structured JSON with
   the reviewed head/base SHAs, a completeness flag and at most 20 P0–P2 findings. A
   finding names its Standards/Spec axis and a changed line (RIGHT addition or LEFT deletion), and states

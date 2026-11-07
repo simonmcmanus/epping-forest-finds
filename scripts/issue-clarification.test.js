@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const { inputHash, scopeHash, planClarification, prepare, publish } = require("./issue-clarification.js");
 
 const user = { login: "walker", type: "User" };
-const issue = () => ({ number: 17, title: "Missing event", body: "Please add the walk", state: "open", labels: [] });
+const issue = () => ({ number: 17, title: "Missing event", body: "Please add the walk", state: "open", labels: [], user });
 const event = () => ({ sender: user, action: "opened" });
 const comment = (id, body, author = user) => ({ id, body, user: author });
 const ready = () => ({ status: "ready", classification: "bug", summary: "Confirmed against the data.", issue_body: "## Summary\nA self-contained issue", automatic_data_kind: "none", data_evidence: "", source_url: "", source_evidence: "" });
@@ -14,8 +14,8 @@ function fakeGitHub(value = issue(), comments = []) {
     get: async () => ({ data: value }), listComments() {},
     update: async args => calls.push(["update", args]), updateComment: async args => calls.push(["updateComment", args]),
     createComment: async args => { calls.push(["createComment", args]); return { data: { id: 42 } }; }, addLabels: async args => calls.push(["addLabels", args]),
-  }, actions: { createWorkflowDispatch: async args => calls.push(["dispatch", args]) } } };
-  const context = { repo: { owner: "owner", repo: "site" }, issue: { number: 17 }, payload: { repository: { default_branch: "main" } } };
+  }, repos: { getCollaboratorPermissionLevel: async () => ({ data: { permission: "write" } }) }, actions: { createWorkflowDispatch: async args => calls.push(["dispatch", args]) } } };
+  const context = { repo: { owner: "owner", repo: "site" }, issue: { number: 17 }, payload: { sender: user, repository: { default_branch: "main" } } };
   return { github, context, calls };
 }
 
@@ -212,4 +212,53 @@ test("a later thanks comment cannot hide changed ready-issue scope", () => {
   assert.equal(planClarification(latestEvent, { ...original, body: "Scope changed while a run was queued" }, comments).run, true);
   assert.equal(planClarification(latestEvent, { ...original, title: "Changed title scope" }, comments).run, true);
   assert.equal(planClarification(latestEvent, original, comments).run, false);
+});
+
+
+test("external or unreadable author permissions never receive automatic labels or dispatch", async () => {
+  for (const permission of ["read", "triage", "none", "unavailable"]) {
+    const fake = fakeGitHub();
+    fake.github.rest.repos.getCollaboratorPermissionLevel = async () => {
+      if (permission === "unavailable") throw new Error("403");
+      return { data: { permission } };
+    };
+    const result = { ...ready(), automatic_data_kind: "existing_place", data_evidence: "Confirmed source record" };
+    const outcome = await publish({ ...fake, result, expectedHash: inputHash(issue(), []) });
+    assert.equal(outcome.dispatched, false);
+    assert.equal(fake.calls.some(([kind]) => kind === "addLabels" || kind === "dispatch"), false);
+    assert.match(fake.calls.find(([kind]) => kind === "createComment")[1].body, /maintainer must explicitly apply/);
+  }
+});
+
+test("bot dispatch cannot turn an external reporter label into human approval", async () => {
+  const value = { ...issue(), labels: [{ name: "claude" }] };
+  const fake = implementationFake(value);
+  fake.context.payload.sender = { login: "github-actions[bot]", type: "Bot" };
+  fake.github.rest.repos.getCollaboratorPermissionLevel = async () => ({ data: { permission: "read" } });
+  assert.equal((await prepareImplementation({ ...fake, outputPath: "/tmp/unused-implementation.json" })).run, false);
+});
+
+test("pending handoffs recheck permissions after the author's write access is removed", async () => {
+  const value = { ...issue(), labels: [{ name: "claude" }] };
+  const summary = comment(8, `Ready\n<!-- issue-clarification:${JSON.stringify({
+    input_hash: inputHash(value, []), status: "ready", handoff: "pending", handoff_eligible: true,
+  })} -->`, { login: "github-actions[bot]", type: "Bot" });
+  const fake = fakeGitHub(value, [summary]);
+  fake.core = { setOutput() {}, info() {} };
+  fake.github.rest.repos.getCollaboratorPermissionLevel = async () => ({ data: { permission: "read" } });
+  const outcome = await prepare({ ...fake, outputPath: "/tmp/unused-clarification.json" });
+  assert.equal(outcome.recoveredHandoff, false);
+  assert.equal(fake.calls.some(([kind]) => kind === "addLabels" || kind === "dispatch"), false);
+});
+
+test("a human-approved label still accepts an external reporter's issue", async () => {
+  const fs = require("node:fs");
+  const os = require("node:os");
+  const path = require("node:path");
+  const folder = fs.mkdtempSync(path.join(os.tmpdir(), "human-approved-issue-"));
+  try {
+    const fake = implementationFake({ ...issue(), labels: [{ name: "claude" }] });
+    fake.github.rest.repos.getCollaboratorPermissionLevel = async () => ({ data: { permission: "read" } });
+    assert.equal((await prepareImplementation({ ...fake, outputPath: path.join(folder, "issue.json") })).run, true);
+  } finally { fs.rmSync(folder, { recursive: true, force: true }); }
 });

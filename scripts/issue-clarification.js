@@ -93,7 +93,21 @@ async function loadInputs(github, context) {
   return { issue, comments };
 }
 
+async function hasRepositoryWriteAccess(github, context, user) {
+  if (!isHuman(user) || !user.login) return false;
+  try {
+    const { data } = await github.rest.repos.getCollaboratorPermissionLevel({
+      ...context.repo, username: user.login,
+    });
+    return ["write", "maintain", "admin"].includes(data.permission);
+  } catch {
+    // Unavailable authorization evidence never grants an unattended write run.
+    return false;
+  }
+}
+
 async function completeHandoff({ github, context, issue, summary }) {
+  if (!await hasRepositoryWriteAccess(github, context, issue.user)) return false;
   const args = { ...context.repo, issue_number: issue.number };
   const prior = metadata(summary);
   await github.rest.issues.addLabels({ ...args, labels: [LABEL] });
@@ -106,6 +120,7 @@ async function completeHandoff({ github, context, issue, summary }) {
   });
   const body = summary.body.split(MARKER)[0] + MARKER + JSON.stringify({ ...prior, handoff: "dispatched" }) + " -->";
   await github.rest.issues.updateComment({ ...context.repo, comment_id: summary.id, body });
+  return true;
 }
 
 async function prepare({ github, context, core, outputPath }) {
@@ -117,10 +132,10 @@ async function prepare({ github, context, core, outputPath }) {
     !(issue.labels || []).some(label => (label.name || label) === "place-check");
   if (eligible && prior.status === "ready" && prior.handoff === "pending" &&
       prior.handoff_eligible === true && prior.input_hash === inputHash(issue, comments)) {
-    await completeHandoff({ github, context, issue, summary });
+    const recovered = await completeHandoff({ github, context, issue, summary });
     core.setOutput("run", "false");
-    core.info("Retried a pending implementation handoff without another model call");
-    return { run: false, recoveredHandoff: true };
+    core.info(recovered ? "Retried a pending implementation handoff without another model call" : "Automatic handoff requires a repository writer; a maintainer must apply the label");
+    return { run: false, recoveredHandoff: recovered };
   }
   core.setOutput("run", String(plan.run));
   core.info(plan.reason || "Human requirements changed");
@@ -145,14 +160,16 @@ async function publish({ github, context, result, expectedHash }) {
   }
   const prior = previousSummary(comments);
   const priorHandoff = metadata(prior).handoff;
-  const eligibleHandoff = result.status === "ready" && result.automatic_data_kind !== "none";
+  const readyData = result.status === "ready" && result.automatic_data_kind !== "none";
+  const eligibleHandoff = readyData && await hasRepositoryWriteAccess(github, context, issue.user);
   // A label is not an acknowledgment: label creation may have succeeded before
   // dispatch failed. Preserve that pending state through scope reclarification,
   // but only retry after the current requirements are again verified ready data.
   const needsHandoff = eligibleHandoff && priorHandoff !== "dispatched" &&
     (!alreadyLabeled || priorHandoff === "pending");
   const handoff = needsHandoff ? "pending" : ["pending", "dispatched"].includes(priorHandoff) ? priorHandoff : "none";
-  const body = `${result.summary}\n\n${MARKER}${JSON.stringify({ version: 1, input_hash: inputHash(nextIssue, comments), scope_hash: scopeHash(nextIssue), status: result.status, handoff, handoff_eligible: eligibleHandoff })} -->`;
+  const approvalNote = readyData && !eligibleHandoff ? "\n\nA repository maintainer must explicitly apply the claude label before implementation; author write access was not verified." : "";
+  const body = `${result.summary}${approvalNote}\n\n${MARKER}${JSON.stringify({ version: 1, input_hash: inputHash(nextIssue, comments), scope_hash: scopeHash(nextIssue), status: result.status, handoff, handoff_eligible: eligibleHandoff })} -->`;
   let summary;
   if (prior) {
     await github.rest.issues.updateComment({ ...context.repo, comment_id: prior.id, body });
@@ -163,8 +180,7 @@ async function publish({ github, context, result, expectedHash }) {
   }
   let dispatched = false;
   if (needsHandoff) {
-    await completeHandoff({ github, context, issue: nextIssue, summary });
-    dispatched = true;
+    dispatched = await completeHandoff({ github, context, issue: nextIssue, summary });
   }
   return { published: true, dispatched };
 }
@@ -180,6 +196,13 @@ async function prepareImplementation({ github, context, core, outputPath }) {
   if (issue.pull_request || issue.state !== "open" || !(issue.labels || []).some(label => (label.name || label) === LABEL)) {
     core.setOutput("run", "false");
     core.info("Implementation requires an open issue labelled claude");
+    return { run: false };
+  }
+  // A bot dispatch is not human approval of an external reporter's issue.
+  if (context.payload.inputs && context.payload.sender?.type !== "User" &&
+      !await hasRepositoryWriteAccess(github, context, issue.user)) {
+    core.setOutput("run", "false");
+    core.info("Bot implementation dispatch requires a verified repository-writer author");
     return { run: false };
   }
   const branch = `claude/issue-${issueNumber}`;

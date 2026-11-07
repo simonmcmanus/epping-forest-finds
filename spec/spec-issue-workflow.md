@@ -59,8 +59,13 @@ sources remain questions. New entries require a source URL and source evidence i
 result; existing-place corrections require concrete data evidence. No category, copy or recurrence
 decision may remain before automatic handoff.
 
-Only these verified, simple data changes receive an automatic `claude` label and implementation
-handoff. Other clarified issues await a human's label or implementation decision. Pure place/event
+Only these verified, simple data changes on issues authored by a verified repository writer
+(receiving write, maintain or admin permission from GitHub’s collaborator-permission API) receive
+an automatic `claude` label and implementation handoff. Read/triage/external authors and unavailable
+permission evidence require a maintainer’s explicit human-applied label. Both initial publication
+and pending recovery recheck author authority; a bot implementation dispatch independently rejects
+external-author issues even if a label exists. A human label or explicit human dispatch remains the
+authorization path for an external report. No model-supplied assertion grants repository authority. Other clarified issues await a human's label or implementation decision. Pure place/event
 facts never go in specs. Actual behavior/UX/architecture gaps get a short suggested requirement and
 relevant spec reference in the summary; this workflow never edits code/spec files or opens a PR.
 
