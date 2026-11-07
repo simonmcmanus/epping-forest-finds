@@ -245,6 +245,7 @@ test.describe("A re-tap keeps the view the reader set up", () => {
     await waitForUiToSettle(page);
     expect(await sortedFilters(page)).toBe(saved);
     await expect(restore).toBeHidden();
+    await expect(page).not.toHaveURL(/[?&]show=/);
   });
 
   test("a single subcategory pick stays on a re-tap", async ({ page }) => {
@@ -290,18 +291,66 @@ test.describe("A re-tap keeps the view the reader set up", () => {
     await expect(page.locator("[data-action='reset-nearby-anchor']")).toBeVisible();
   });
 
-  test("a re-tap on a landing page restores the reader's saved filters", async ({ page }) => {
+  test("a re-tap on a landing page restores the reader's saved filters without sliding the sheet", async ({ page }) => {
     await page.addInitScript(() => {
       localStorage.setItem("forest-finds-filter-state-v1", JSON.stringify({ filters: ["trees", "ponds_streams"] }));
     });
     await setup(page, "/nearby/food");
     // The landing shows its own category lens, not the reader's saved filters.
     expect(await sortedFilters(page)).not.toBe("ponds_streams,trees");
+    await watchForPanelSlide(page);
 
     await nearbyButton(page).click();
     await waitForUiToSettle(page);
 
     expect(await sortedFilters(page)).toBe("ponds_streams,trees");
+    expect(await page.evaluate(() => window.__slides)).toBe(0);
+  });
+
+  test("the Back to my filters chip appears after the first pick on a category landing", async ({ page }) => {
+    // Motion on: the rail updates in place, which is the path a real phone takes.
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await setup(page, "/nearby/food");
+    const restore = page.getByRole("button", { name: "Back to my filters" });
+    await expect(restore).toBeHidden();
+
+    await railPill(page, "cafes").click();
+
+    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?show=pubs,restaurants,shops$/);
+    await expect(restore).toBeVisible();
+  });
+
+  test("showing Back to my filters does not move the rail's pills", async ({ page }) => {
+    // Motion on: the rail updates in place, which is the path a real phone takes.
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await setup(page, "/nearby/food");
+    // The strip is read from its start: a click scrolls the pill it hits into view, which is not a reflow.
+    const firstPillX = () => page.evaluate(() => {
+      const strip = document.querySelector("#inspectorBody .rail-pills");
+      strip.scrollLeft = 0;
+      return strip.querySelector("[data-rail-key]").getBoundingClientRect().left;
+    });
+    await expect(page.getByRole("button", { name: "Back to my filters" })).toBeHidden();
+    await waitForUiToSettle(page);
+    const before = await firstPillX();
+
+    await railPill(page, "cafes").click();
+    await expect(page.getByRole("button", { name: "Back to my filters" })).toBeVisible();
+    await waitForUiToSettle(page);
+
+    expect(Math.abs((await firstPillX()) - before), "the first pill's x after the chip shows").toBeLessThan(1);
+  });
+
+  test("a single subcategory pick names its category in the Nearby title and the document title", async ({ page }) => {
+    // Three subcategories are turned off on the Food landing, leaving cafes as the one pick.
+    await setup(page, "/nearby/food");
+    await railPill(page, "pubs").click();
+    await railPill(page, "restaurants").click();
+    await railPill(page, "shops").click();
+    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?show=cafes$/);
+
+    await expect(page).toHaveTitle("Nearby Cafés in Epping Forest | Epping Forest Finds");
+    await expect(page.locator("#inspectorTitle")).toHaveText("Nearby Cafés");
   });
 });
 
@@ -334,5 +383,25 @@ test.describe("A Nearby tap on the minimised sheet", () => {
     expect(await page.evaluate(() => [...state.overviewFilters].sort().join(","))).toBe(picked);
     expect(await page.evaluate(() => Boolean(state.clusterExpanded))).toBe(true);
     expectSameCamera(await readCamera(page), fitCamera, "camera after reopening the sheet");
+  });
+});
+
+test.describe("Back to my filters without a location fix", () => {
+  // No permission: the landing keeps its server-rendered list, as it does before the first fix.
+  test.use({ geolocation: undefined, permissions: [] });
+
+  const railPill = (page, key) => page.locator(`#inspectorBody [data-rail-key="${key}"]`);
+
+  test("without a location fix, the Back to my filters chip appears after the first pick on a landing", async ({ page }) => {
+    // The landing's server-rendered list stays on screen until a fix, and that list is not rebuilt by the pick.
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await setup(page, "/nearby/food");
+    const restore = page.getByRole("button", { name: "Back to my filters" });
+    await expect(restore).toBeHidden();
+
+    await railPill(page, "cafes").click();
+
+    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?show=pubs,restaurants,shops$/);
+    await expect(restore).toBeVisible();
   });
 });

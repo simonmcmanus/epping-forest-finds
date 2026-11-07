@@ -1068,9 +1068,17 @@ function setupFilterPanelHandlers() {
       // While Nearby is the screen, a tap is a refit that keeps what the reader set up, on any plain
       // Nearby URL. Only a real category landing page (its own URL) and a press from another screen
       // take the full return, which restores the saved filters and clears the view state.
-      if (els.nearbyToggle.classList.contains("screen-active") && !isNearbyCategoryLandingPath()) {
-        nearbyRetap();
-        return;
+      if (els.nearbyToggle.classList.contains("screen-active")) {
+        if (!isNearbyCategoryLandingPath()) {
+          nearbyRetap();
+          return;
+        }
+        // A landing re-tap on the open sheet still takes the full return, but without the slide.
+        if (!els.inspector.classList.contains("minimized")) {
+          shakeInspectorSheet();
+          goToInitialView(true, { enterAnimated: false });
+          return;
+        }
       }
       goToInitialView();
     });
@@ -2549,6 +2557,7 @@ function nearbyRetap() {
   state.nearbyRailGroupKey = undefined;
   exitClusterExpansion();
   state.clusterZoomed = false;
+  railPatchPending = true;
   selectOverview(false);
   refitNearbyRingView();
 }

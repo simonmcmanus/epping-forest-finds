@@ -2781,6 +2781,8 @@ function setOverviewFilters(nextFilters, { persist = true, render = true, railTa
   syncLiveQueryStringForScreen();
   if (railTap) {
     syncRailUrl();
+    // After the URL: a pick that moves it off a category landing is what makes the chip apply.
+    syncRestoreSavedFiltersControl();
     railPatchPending = true;
   }
   // render:false -- boot()'s own call, before state.userLocation exists -- skips the render
@@ -4341,6 +4343,24 @@ function overviewHeadingText() {
 // "Nearby Pubs & bars") in place of the generic "Nearby" the plain screen, or a reader's own
 // filter choice, keeps -- the same URL-path match used by nearbyRailGroup(), so the live rail and
 // the heading can never name different categories.
+// The category a plain Nearby view is about, as its label: exactly one subcategory picked, or one whole
+// group while it is drilled into. Several or mixed picks have no single category and return null.
+function railSelectionCategoryLabel() {
+  const chosen = railSelection();
+  if (chosen.length === 1) return FILTER_SUBFILTERS_BY_KEY.get(chosen[0])?.label || null;
+  const group = nearbyRailGroup();
+  if (!group || !chosen.length) return null;
+  const groupKeys = group.subfilters.map((subfilter) => subfilter.key);
+  const wholeGroup = groupKeys.length === chosen.length && groupKeys.every((key) => chosen.includes(key));
+  return wholeGroup ? group.label : null;
+}
+
+// The label for the Nearby title, the document title and the list heading: a landing page's own
+// category (its path), otherwise the rail selection's category (see railSelectionCategoryLabel).
+function nearbyCategoryLabel() {
+  return isNearbyCategoryLandingPath() ? landingPageCategoryLabel() : railSelectionCategoryLabel();
+}
+
 function landingPageCategoryLabel() {
   const match = /^\/nearby\/([a-z0-9-]+)\/?$/.exec(window.location.pathname);
   if (!match) return null;
@@ -4387,8 +4407,8 @@ function updateDocumentTitle() {
   } else if (state.searchScreenOpen) {
     title = "Search Epping Forest Finds";
   } else {
-    const landingLabel = landingPageCategoryLabel();
-    title = landingLabel ? `Nearby ${landingLabel} in Epping Forest` : "Nearby";
+    const categoryLabel = nearbyCategoryLabel();
+    title = categoryLabel ? `Nearby ${categoryLabel} in Epping Forest` : "Nearby";
   }
 
   const nextTitle = `${title} | ${DOCUMENT_TITLE_SITE_NAME}`;
@@ -4582,8 +4602,9 @@ function filterRailHtml() {
     const status = `<span class="rail-check" aria-hidden="true">${on ? "✓" : ""}</span>`;
     return `<button class="rail-pill${on ? " is-on" : ""}" type="button" data-rail-key="${item.key}" aria-pressed="${on}">${appIconHtml(item.icon)}<span>${escapeHtml(item.label)}</span>${status}</button>`;
   }).join("");
-  const restoreHidden = restoreSavedFiltersNeeded() ? "" : " hidden";
-  return `<nav class="filter-rail" aria-label="Filter nearby places">` +
+  const restoreShown = restoreSavedFiltersNeeded();
+  const restoreHidden = restoreShown ? "" : " hidden";
+  return `<nav class="filter-rail${restoreShown ? " has-restore" : ""}" aria-label="Filter nearby places">` +
     `<button class="walk-chip walk-chip-btn rail-restore" type="button" data-action="restore-saved-filters"${restoreHidden}>Back to my filters</button>` +
     `<div class="rail-pills">${allPill}${pills}</div>` +
     `</nav>`;
@@ -4616,7 +4637,10 @@ function restoreSavedFiltersNeeded() {
 
 function syncRestoreSavedFiltersControl() {
   const control = document.querySelector('[data-action="restore-saved-filters"]');
-  if (control) control.hidden = !restoreSavedFiltersNeeded();
+  if (!control) return;
+  const shown = restoreSavedFiltersNeeded();
+  control.hidden = !shown;
+  control.parentElement?.classList.toggle("has-restore", shown);
 }
 
 // Puts the reader's saved filters back: the same call the title Nearby icon's landing on /nearby makes
@@ -4658,7 +4682,7 @@ function toggleRailFilter(key) {
 }
 
 function overviewCategoryContentHtml(content) {
-  const categoryLabel = landingPageCategoryLabel();
+  const categoryLabel = nearbyCategoryLabel();
   if (!categoryLabel) return content;
   const heading = `${categoryLabel} nearby`;
   return `<section class="nearby-category-results" aria-labelledby="nearbyResultsHeading"><h3 id="nearbyResultsHeading">${escapeHtml(heading)}</h3>${content}</section>`;

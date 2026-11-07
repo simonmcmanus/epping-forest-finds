@@ -822,8 +822,8 @@ function selectOverview(animate = false) {
   // install prompt is hidden. Collapse that empty row so the Nearby heading starts immediately
   // below the sheet chrome instead of leaving a blank band above it.
   syncInspectorToolsVisibility();
-  const landingLabel = landingPageCategoryLabel();
-  els.inspectorTitle.textContent = landingLabel ? `Nearby ${landingLabel}` : "Nearby";
+  const categoryLabel = nearbyCategoryLabel();
+  els.inspectorTitle.textContent = categoryLabel ? `Nearby ${categoryLabel}` : "Nearby";
   const nearestSummary = overviewNearestHtml();
   els.inspectorType.textContent = overviewHeadingText();
   const listKey = nearestSummary.replace(/<span class="walk-time">[^<]*<\/span>/, "");
