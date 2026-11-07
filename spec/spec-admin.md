@@ -16,15 +16,15 @@ Password is set via env var `ADMIN_PASSWORD`. If unset, all admin endpoints retu
 
 Authentication: password passed as `Authorization: Bearer <password>` header, and only there. A `?pw=` query parameter is refused: a password in a URL is written into browser history and server access logs. Every admin endpoint uses the same check (`lib/admin-auth.js`), which compares in constant time.
 
-The admin UI stores the password in `sessionStorage` under `ff-admin-session-password` after successful login. This keeps the admin signed in across same-tab refreshes while clearing the session when the browser tab is closed. The **Log out** button clears that session value. A 401 response during refresh or auto-refresh clears the stored password and returns the user to the login screen.
+The admin UI keeps the password in page memory only, for the lifetime of the page. It is never written to `sessionStorage`, `localStorage`, cookies or the URL, so no script on the origin can read it back from storage. A reload (or a new tab) therefore shows the login screen and asks for the password again. The **Log out** button forgets it and returns to the login screen. A 401 response during refresh or auto-refresh forgets it the same way and shows the login screen with "Admin session expired. Sign in again." On load, the page removes any copy an earlier version left in browser storage.
 
 ## Pages / Views
 
 ### Login screen
 - Full-page password form, with a visually-hidden (`.sr-only`) `<label>` for the password field so it has a programmatic name beyond its placeholder text
 - On success: loads tracking data for the current window (see Data API), transitions to the map view
-- On same-tab refresh after a successful login: restores the session from `sessionStorage` and re-fetches data without asking for the password again
-- **Log out** clears the stored admin session and returns to the login screen
+- On a reload or new tab: shows the login screen again; the password is not remembered (see Access)
+- **Log out** forgets the password and returns to the login screen
 - On failure: shows inline error message
 
 ### Map view (canvas)
@@ -83,7 +83,7 @@ as a click (`makeActivatable()` in `js/admin.js`).
 | **Tracks** | Switch to route-line view (default) |
 | **Heatmap** | Switch to density grid view |
 | **Refresh** | Re-fetch all data from the server |
-| **Log out** | Clear the same-tab admin session and return to the login screen |
+| **Log out** | Forget the password and return to the login screen |
 
 Auto-refresh runs every 5 minutes.
 
@@ -249,7 +249,7 @@ Colours are assigned from a fixed 15-colour palette in the order users are first
 - The admin password must be set as an environment variable — there is no default
 - Raw tracking data is never exposed to end users; the admin endpoint requires authentication
 - All events contain only anonymous IDs — no PII is stored or returned
-- The admin UI keeps the password in same-tab `sessionStorage`, not persistent `localStorage`
+- The admin UI keeps the password in page memory only; it is not written to any browser storage, and a reload asks for it again
 
 ## Early access (feature gate)
 The **Access** top-bar button opens a panel with one tester per line (Tester ID from the person's Settings screen, then an optional note). Save posts the list to `POST /api/features`; no deploy is needed. An empty list means the gate is off and everyone has Community. See `spec/spec-community.md` (Feature gate). `/api/features` is routed in `netlify.toml`.
