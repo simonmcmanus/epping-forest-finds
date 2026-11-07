@@ -114,7 +114,7 @@ function githubFixture() {
   const updates = [];
   return { pr, updates, github: { rest: { pulls: {
     get: async () => ({ data: { ...pr } }),
-    update: async (request) => updates.push(request), listFiles: () => {},
+    update: async (request) => { updates.push(request); pr.body = request.body; }, listFiles: () => {},
   } }, paginate: async () => [] } };
 }
 const context = { repo: { owner: 'owner', repo: 'repo' } };
@@ -148,4 +148,37 @@ test('untrusted screenshot names and capture errors cannot notify GitHub users o
   assert.match(section, /＠someone/);
   assert.match(section, /＠org\/team-map/);
   assert.match(section, /＠another-user/);
+});
+
+test('a preview update during file pagination is preserved while fresh evidence is still published', async () => {
+  const fixture = githubFixture();
+  fixture.github.paginate = async () => {
+    fixture.pr.body = fixture.pr.body.replace('https://preview.example/app?nuke=true', 'https://new-preview.example/app?nuke=true') + '\nNew human notes';
+    return [];
+  };
+  await updateDescription({ ...fixture, context, prNumber: 1, expectedSha: 'current', section: 'fresh comparisons' });
+  assert.equal(fixture.updates.length, 1);
+  assert.match(fixture.pr.body, /new-preview.example/);
+  assert.match(fixture.pr.body, /New human notes/);
+  assert.match(fixture.pr.body, /fresh comparisons/);
+});
+
+test('a publisher retries when another writer replaces its visual section', async () => {
+  const fixture = githubFixture();
+  const originalBody = fixture.pr.body;
+  fixture.github.rest.pulls.update = async (request) => {
+    fixture.updates.push(request);
+    fixture.pr.body = fixture.updates.length === 1 ? originalBody + '\nNetlify ready' : request.body;
+  };
+  await updateDescription({ ...fixture, context, prNumber: 1, expectedSha: 'current', section: 'fresh comparisons' });
+  assert.equal(fixture.updates.length, 2);
+  assert.match(fixture.pr.body, /Netlify ready/);
+  assert.match(fixture.pr.body, /fresh comparisons/);
+});
+
+test('persistent concurrent writers cause an explicit failure after three publication attempts', async () => {
+  const fixture = githubFixture();
+  fixture.github.rest.pulls.update = async (request) => { fixture.updates.push(request); };
+  await assert.rejects(updateDescription({ ...fixture, context, prNumber: 1, expectedSha: 'current', section: 'fresh comparisons' }), /three concurrent PR body edits/);
+  assert.equal(fixture.updates.length, 3);
 });

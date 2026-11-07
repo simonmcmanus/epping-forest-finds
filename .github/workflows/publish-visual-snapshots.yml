@@ -94,7 +94,7 @@ jobs:
             const fs = require('fs');
             const { updateDescription } = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/update-visual-description.cjs`);
             await updateDescription({
-              github, context,
+              github, context, log: (message) => core.info(message),
               prNumber: Number('${{ steps.pr.outputs.number }}'),
               expectedSha: '${{ steps.pr.outputs.head_sha }}',
               section: fs.readFileSync(process.env.SECTION_FILE, 'utf8').trim(),
