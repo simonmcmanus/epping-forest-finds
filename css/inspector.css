@@ -1393,6 +1393,28 @@ textarea.report-textarea {
   background: linear-gradient(90deg, var(--panel), transparent);
 }
 
+/* "Back to my filters" sits at the right of the rail band, out of the pill row, so showing it never moves
+   a pill. While it shows, the pill strip stops short of it: the pills keep their places and scroll to the rest. */
+.filter-rail > .rail-restore {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 1;
+  padding: 6px 10px;
+}
+
+/* The chip's hit area is at least 44px tall without making the chip itself that tall. */
+.filter-rail > .rail-restore::before {
+  content: "";
+  position: absolute;
+  inset: -7px -6px;
+}
+
+.filter-rail.has-restore .rail-pills {
+  margin-right: 10rem;
+}
+
 .rail-pills {
   display: flex;
   flex: 1;

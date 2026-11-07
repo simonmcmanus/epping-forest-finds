@@ -2806,6 +2806,8 @@ function setOverviewFilters(nextFilters, { persist = true, render = true, railTa
   syncLiveQueryStringForScreen();
   if (railTap) {
     syncRailUrl();
+    // After the URL: a pick that moves it off a category landing is what makes the chip apply.
+    syncRestoreSavedFiltersControl();
     railPatchPending = true;
   }
   // render:false -- boot()'s own call, before state.userLocation exists -- skips the render
@@ -2852,6 +2854,7 @@ function updateFilterUi() {
       els.filterCount.textContent = String(activeGroupCount);
     }
   }
+  syncRestoreSavedFiltersControl();
 }
 
 function mapSetupModalActive() {
@@ -4365,6 +4368,20 @@ function overviewHeadingText() {
 // "Nearby Pubs & bars") in place of the generic "Nearby" the plain screen, or a reader's own
 // filter choice, keeps -- the same URL-path match used by nearbyRailGroup(), so the live rail and
 // the heading can never name different categories.
+// The category a plain Nearby view is about, as its label: exactly one subcategory picked. A whole group,
+// several picks or mixed picks have no single subcategory and return null (the path carries a group only
+// on its landing page, so the rail selection cannot name one that survives a reload).
+function railSelectionCategoryLabel() {
+  const chosen = railSelection();
+  return chosen.length === 1 ? FILTER_SUBFILTERS_BY_KEY.get(chosen[0])?.label || null : null;
+}
+
+// The label for the Nearby title, the document title and the list heading: a landing page's own
+// category (its path), otherwise the rail selection's category (see railSelectionCategoryLabel).
+function nearbyCategoryLabel() {
+  return isNearbyCategoryLandingPath() ? landingPageCategoryLabel() : railSelectionCategoryLabel();
+}
+
 function landingPageCategoryLabel() {
   const match = /^\/nearby\/([a-z0-9-]+)\/?$/.exec(window.location.pathname);
   if (!match) return null;
@@ -4411,8 +4428,8 @@ function updateDocumentTitle() {
   } else if (state.searchScreenOpen) {
     title = "Search Epping Forest Finds";
   } else {
-    const landingLabel = landingPageCategoryLabel();
-    title = landingLabel ? `Nearby ${landingLabel} in Epping Forest` : "Nearby";
+    const categoryLabel = nearbyCategoryLabel();
+    title = categoryLabel ? `Nearby ${categoryLabel} in Epping Forest` : "Nearby";
   }
 
   const nextTitle = `${title} | ${DOCUMENT_TITLE_SITE_NAME}`;
@@ -4606,30 +4623,55 @@ function filterRailHtml() {
     const status = `<span class="rail-check" aria-hidden="true">${on ? "✓" : ""}</span>`;
     return `<button class="rail-pill${on ? " is-on" : ""}" type="button" data-rail-key="${item.key}" aria-pressed="${on}">${appIconHtml(item.icon)}<span>${escapeHtml(item.label)}</span>${status}</button>`;
   }).join("");
-  return `<nav class="filter-rail" aria-label="Filter nearby places">` +
+  const restoreShown = restoreSavedFiltersNeeded();
+  const restoreHidden = restoreShown ? "" : " hidden";
+  return `<nav class="filter-rail${restoreShown ? " has-restore" : ""}" aria-label="Filter nearby places">` +
+    `<button class="walk-chip walk-chip-btn rail-restore" type="button" data-action="restore-saved-filters"${restoreHidden}>Back to my filters</button>` +
     `<div class="rail-pills">${allPill}${pills}</div>` +
     `</nav>`;
 }
 
-// Where the address bar points for the current rail selection: one category is its own landing
-// path, several are /nearby?show=a,b, none is the show-everything override. Replaces the current
-// history entry (a tap is a refinement, not a new place to go back to).
+// Where the address bar points for the current rail selection. A rail pick is only a filter on plain
+// Nearby, so it is always written there: /nearby?show=... (searchStringForPath adds the query while the
+// lens is ephemeral), or /nearby?filters=false for every category. It never writes a category landing
+// path (/nearby/<slug>): that path is a real arrival with its own lens and title, and a re-tap has to
+// tell the two apart by the URL. Replaces the current history entry (a tap is a refinement, not a new
+// place to go back to).
 function syncRailUrl() {
   if (routeApplyDepth > 0 || routerBooting) return;
-  const chosen = railSelection();
-  const matchingGroup = FILTER_GROUPS.find((group) =>
-    chosen.length === group.subfilters.length && group.subfilters.every((subfilter) => chosen.includes(subfilter.key))
-  );
-  const displayedGroup = nearbyRailGroup();
-  const pathname = !displayedGroup && matchingGroup
-    ? NEARBY_PATH
-    : matchingGroup
-    ? `/nearby/${matchingGroup.key.replace(/_/g, "-")}`
-    : chosen.length === 1 ? `/nearby/${chosen[0].replace(/_/g, "-")}` : NEARBY_PATH;
-  const search = searchStringForPath(pathname);
-  const url = `${pathname}${search}${window.location.hash}`;
+  const url = `${NEARBY_PATH}${searchStringForPath(NEARBY_PATH)}${window.location.hash}`;
   if (`${window.location.pathname}${window.location.search}${window.location.hash}` === url) return;
   history.replaceState(history.state, "", url);
+}
+
+// The "Back to my filters" control: shown on plain Nearby while a rail pick or "Everything within"
+// stands in for the reader's saved filters (the lens is ephemeral), and hidden once the lens is the
+// saved set again. A category landing page has its own lens, so it never shows it.
+function filterSetKey(filters) {
+  return [...filters].sort().join(",");
+}
+
+function restoreSavedFiltersNeeded() {
+  if (!state.overviewFiltersEphemeral || isNearbyCategoryLandingPath()) return false;
+  return filterSetKey(loadStoredOverviewFilters()) !== filterSetKey(state.overviewFilters);
+}
+
+function syncRestoreSavedFiltersControl() {
+  const control = document.querySelector('[data-action="restore-saved-filters"]');
+  if (!control) return;
+  const shown = restoreSavedFiltersNeeded();
+  control.hidden = !shown;
+  control.parentElement?.classList.toggle("has-restore", shown);
+}
+
+// Puts the reader's saved filters back: the same call the title Nearby icon's landing on /nearby makes
+// (applyRoute), so the lens is replaced and the URL is cleared by the usual sync.
+function restoreSavedFilters() {
+  // The drill level goes with the lens: the rail returns to its top level, and updates in place as a pick does.
+  state.nearbyRailGroupKey = undefined;
+  railPatchPending = true;
+  setOverviewFilters(loadStoredOverviewFilters());
+  railPatchPending = false;
 }
 
 function toggleRailFilter(key) {
@@ -4665,7 +4707,7 @@ function toggleRailFilter(key) {
 }
 
 function overviewCategoryContentHtml(content) {
-  const categoryLabel = landingPageCategoryLabel();
+  const categoryLabel = nearbyCategoryLabel();
   if (!categoryLabel) return content;
   const heading = `${categoryLabel} nearby`;
   return `<section class="nearby-category-results" aria-labelledby="nearbyResultsHeading"><h3 id="nearbyResultsHeading">${escapeHtml(heading)}</h3>${content}</section>`;

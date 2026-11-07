@@ -475,13 +475,15 @@ invisible control.
 3. **Minimized mode** — collapsed header only, click to expand
 
 - **The browser page title follows the live screen.** `updateDocumentTitle()` (`js/app.js`) keeps
-  `document.title` aligned with the app's current content across SPA navigation: a category
-  landing reads `Nearby <Category> in Epping Forest |`<name> in Epping Forest | Epping Forest Finds`, a selected place or
-  other map item reads `<name> in Epping Forest | Epping Forest Finds`| Epping Forest Finds`, and the plain Nearby,
-  Search, Filters, Feedback and Settings screens use their own Epping Forest-specific titles.
-  It runs for map selections, search results, deep links, back/forward navigation and
-  server-rendered landings once the shared shell boots; generated SEO pages retain their
-  route-specific static `<title>` before JavaScript runs (see spec-marketing.md § 6.6/6.7).
+  `document.title` aligned with the app's current content across SPA navigation. A category reads
+  `Nearby <Category> in Epping Forest | Epping Forest Finds`; a selected place or other map item reads
+  `<name> in Epping Forest | Epping Forest Finds`; the plain Nearby, Search, Filters, Feedback and Settings
+  screens use their own titles. The category comes from `nearbyCategoryLabel()`: a category landing's own
+  path, or on plain Nearby the rail selection when it is exactly one subcategory. A whole group, several picks
+  or mixed picks keep the plain Nearby title, so a group's name shows only on its landing page. The Nearby title (`#inspectorTitle`)
+  and the list heading (`<Category> nearby`) use the same label. It runs for map selections, search results,
+  deep links, back/forward navigation and server-rendered landings once the shared shell boots; generated SEO
+  pages retain their route-specific static `<title>` before JavaScript runs (see spec-marketing.md § 6.6/6.7).
 
 ### Overview Content
 
@@ -1017,7 +1019,7 @@ Settings groups preferences into rounded cards with a tinted walking-radius card
 
 Search, Settings, and Report share identical navigation behaviour, gated by the shared `secondaryScreenActive()` helper (`state.searchScreenOpen || state.selected?.type === "settings" || state.selected?.type === "report"`). Map setup is a modal over Nearby and does not participate in this secondary-screen state. Where the points below say "all three", Search is the third and behaves the same — except for its highlighted set and its camera, which does not move (see "Search's camera and highlighting" below):
 
-- **Map canvas tap on open ground does not dismiss the screen**, but it *does* move the browse anchor, exactly as on Nearby. Only the Nearby button, the header back arrow and the URL return to overview. The "any tap beyond the ring relocates" rule is Nearby-only: these screens deliberately frame the map wider than the ring, so most of what is on screen is outside it.
+- **Map canvas tap on open ground does not dismiss the screen**, but it *does* move the browse anchor, exactly as on Nearby. Only the Nearby button, the header back arrow and the URL return to overview. The Nearby button's rule on Nearby is set out in the Nearby button bullets of `spec.md`, not repeated here. The "any tap beyond the ring relocates" rule is Nearby-only: these screens deliberately frame the map wider than the ring, so most of what is on screen is outside it.
 - **Everything that removes or adjusts the browse anchor works here too.** All three screens draw the same walking-radius ring around the same `nearbyOrigin()`, and it would be incoherent for the ring to be visible and un-editable: the `#nearbyAnchorBar` "Use my location" control is inspector chrome and stays on screen across all of them, pinch-to-resize the radius engages here, and `overviewItemsForActiveFilter()` reads `nearbyOrigin()` so the matches inside the ring come from the spot the ring is actually drawn around.
 - **Map icon set: the ring's contents, exactly as on Nearby, plus the nearest match of each selected filter.** `buildFullNearbyIconLookup()` (`js/renderer.js`) reads `overviewItemsForActiveFilter()` on every screen, so the highlighted locations are the ones inside the walking radius, scanned from `nearbyOrigin()` — and resizing the ring from any of these screens (the Settings slider, the two-finger pinch, the wheel/trackpad gesture, all of which engage here) re-derives what is highlighted, rather than redrawing the same circle with the same pins inside it. These screens differ from Nearby in one respect only: they additionally highlight the single nearest match of each selected filter when it falls *outside* the ring — `addNearestSelectedFilterReach()`, reading the same `nearestSelectedFilterEntries()` their camera fit reaches for (see below). Those items are drawn at full strength like every other pin (see "Out-of-radius clusters" above), an item already inside the ring is left to the in-radius pass rather than being re-added, and with the radius toggle off (`state.showAllOutsideRadius`) the reach is skipped entirely, since the unlimited set already holds those matches and nothing is out-of-radius on a screen state that is ignoring the radius. Without this the fit framed a match the map drew nothing for, so the zoom-out looked like it had reached for empty ground.
 - **Camera fit on the secondary screens.** All three use the same "survey mode" camera fit (see Survey mode under Camera Behavior below) — the walking-radius ring plus the nearest match for each selected filter, so the view zooms out past the ring far enough to show that each selected kind exists and which way it lies, even when every one of them is outside the walking radius. Opening Filters (`openFiltersScreen`) triggers this fit with a 420ms animation. Opening Settings or Feedback (`openSettings`, `openReportModal`) and Search does not move the camera at all, so moving between Nearby, Search, Feedback and Settings keeps the current zoom. Every secondary screen (Filters, Search, Settings, Feedback, Community) holds the camera the same way while it is open: a plain GPS fix or heading-up compass tick leaves the map exactly where it was, so switching between the screens, or opening one from a zoomed-in place, never changes the view. `alignHeadingUpNavigationViewport` returns immediately for a call with neither `force` nor `animate` while `secondaryScreenActive()` is true (Search holds against every call, including forced ones). A deliberate refit still runs: the Settings radius slider and pinch, a filter change, opening Filters, and a layout change such as the on-screen keyboard opening on the Report form all pass `force` or `animate`. Before this, a tick on Settings, Feedback or Filters re-fitted to the survey target, so opening one of them from a zoomed-in place and then getting a GPS fix snapped the map out to the ring. Because `nearestSelectedFilterPoints()` ignores the walking radius, this fit reaches filtered items beyond the radius, not just items within it; it measures "nearest" from `nearbyOrigin()`, the same origin the ring is drawn around and the in-radius scan runs from, so browsing a spot moves the reach with it. The items it reaches for are highlighted on the map too — see "Map icon set" above.
@@ -1478,9 +1480,7 @@ The full routing model — the URL for each screen, history entries, back/forwar
     `setOverviewFilters(next, { persist: false, railTap: true })`: saved filters are untouched and
     the next plain visit restores them. Un-pressing the last pill returns to the all-filters state;
     the URL's `?filters=false` form represents every category being enabled.
-  - **URL.** `syncRailUrl()` replaces (never pushes) the current entry: one category is
-    `/nearby/<slug>`, several `/nearby?show=a,b`, all-filters `/nearby?filters=false`
-    (`searchStringForPath()` writes that form instead of listing every key).
+  - **URL.** `syncRailUrl()` replaces (never pushes) the current entry, always on plain `/nearby`: `/nearby?show=a` for one or more categories, `/nearby?filters=false` for all of them (`searchStringForPath()` writes that form instead of listing every key). It never writes a category landing path.
   - **In place, no slide.** A tap sets `railPatchPending`; `selectOverview()` then calls
     `patchOverviewBody()` (js/inspector.js) instead of `transitionInspectorBody()`, so the panel does
     not slide. Existing pills keep their node and glide to new slots, new pills pop in; rows are
