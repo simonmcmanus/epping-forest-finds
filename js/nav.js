@@ -2559,6 +2559,8 @@ function nearbyRetap() {
   state.clusterZoomed = false;
   railPatchPending = true;
   selectOverview(false);
+  // selectOverview returns early when the list is unchanged, so the flag is cleared here regardless.
+  railPatchPending = false;
   refitNearbyRingView();
 }
 

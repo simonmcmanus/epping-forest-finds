@@ -4343,16 +4343,12 @@ function overviewHeadingText() {
 // "Nearby Pubs & bars") in place of the generic "Nearby" the plain screen, or a reader's own
 // filter choice, keeps -- the same URL-path match used by nearbyRailGroup(), so the live rail and
 // the heading can never name different categories.
-// The category a plain Nearby view is about, as its label: exactly one subcategory picked, or one whole
-// group while it is drilled into. Several or mixed picks have no single category and return null.
+// The category a plain Nearby view is about, as its label: exactly one subcategory picked. A whole group,
+// several picks or mixed picks have no single subcategory and return null (the path carries a group only
+// on its landing page, so the rail selection cannot name one that survives a reload).
 function railSelectionCategoryLabel() {
   const chosen = railSelection();
-  if (chosen.length === 1) return FILTER_SUBFILTERS_BY_KEY.get(chosen[0])?.label || null;
-  const group = nearbyRailGroup();
-  if (!group || !chosen.length) return null;
-  const groupKeys = group.subfilters.map((subfilter) => subfilter.key);
-  const wholeGroup = groupKeys.length === chosen.length && groupKeys.every((key) => chosen.includes(key));
-  return wholeGroup ? group.label : null;
+  return chosen.length === 1 ? FILTER_SUBFILTERS_BY_KEY.get(chosen[0])?.label || null : null;
 }
 
 // The label for the Nearby title, the document title and the list heading: a landing page's own
@@ -4646,7 +4642,11 @@ function syncRestoreSavedFiltersControl() {
 // Puts the reader's saved filters back: the same call the title Nearby icon's landing on /nearby makes
 // (applyRoute), so the lens is replaced and the URL is cleared by the usual sync.
 function restoreSavedFilters() {
+  // The drill level goes with the lens: the rail returns to its top level, and updates in place as a pick does.
+  state.nearbyRailGroupKey = undefined;
+  railPatchPending = true;
   setOverviewFilters(loadStoredOverviewFilters());
+  railPatchPending = false;
 }
 
 function toggleRailFilter(key) {

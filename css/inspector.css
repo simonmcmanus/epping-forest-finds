@@ -1402,7 +1402,6 @@ textarea.report-textarea {
   transform: translateY(-50%);
   z-index: 1;
   padding: 6px 10px;
-  background: var(--panel);
 }
 
 /* The chip's hit area is at least 44px tall without making the chip itself that tall. */
