@@ -392,9 +392,9 @@ function drawOverlay() {
     _overlayWasTilted = isTilted;
     if (typeof requestDraw === "function") requestDraw();
   }
-  const toScreen = isTilted && typeof worldToScreenForOverlayTilted === "function"
-    ? worldToScreenForOverlayTilted
-    : (typeof worldToScreenForOverlay === "function" ? worldToScreenForOverlay : worldToScreen);
+  // The projection the marker and the other overlay pins are placed with. The glide gate measures the
+  // overlay with the same one (overlayMarkerProjection, js/app.js).
+  const toScreen = overlayMarkerProjection();
   if (isTilted) drawUserRadarOverlayTilted(ctx);
   else drawUserRadarOverlay(ctx, toScreen);
   if (useOverlayForPins) {
@@ -404,7 +404,7 @@ function drawOverlay() {
   drawUser(ctx, toScreen, isTilted);
   // The You marker is painted here, by every overlay frame (including the ones that skip draw()), so
   // a glide step measures against this paint too (see locationGlideNeedsRepaint, js/app.js).
-  if (typeof recordLocationGlidePaint === "function") recordLocationGlidePaint("overlay");
+  if (typeof recordLocationGlidePaint === "function") recordLocationGlidePaint("overlay", youMarkerScreenIn(toScreen));
   drawNearbyAnchorMarker(ctx, toScreen);
   drawCommunityMarks(ctx, toScreen);
   drawSelectedOverlay(ctx, toScreen);

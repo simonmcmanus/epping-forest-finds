@@ -1682,7 +1682,7 @@ const LOCATION_FAST_SNAP_METRES = 150;
 // lands on the fix rather than crawling at it forever.
 const LOCATION_GLIDE_EPSILON = 1e-7;
 // A glide step repaints the map only once the You marker has moved this far on screen, in device pixels
-// (the canvas bitmap's pixels, which is what worldToScreen returns), since the frame last painted (see
+// (full-resolution device pixels, one physical screen pixel, which is what worldToScreen returns), since the frame last painted (see
 // locationGlideNeedsRepaint). The position still eases on every step either way.
 const LOCATION_GLIDE_REPAINT_DEVICE_PX = 1;
 
@@ -1912,6 +1912,21 @@ function advanceLocationGlide(now = performance.now()) {
   return locationGlideNeedsRepaint();
 }
 
+// The projection the overlay paints the You marker with (drawOverlay, js/renderer.js): the tilted one while
+// tilt is on, otherwise the overlay's own heading-up rotation, which turns by the raw compass heading. The
+// main canvas turns by the rendered heading instead (worldToScreen), which lags a turn, so the two differ
+// while a turn is in flight.
+function overlayMarkerProjection() {
+  if (tiltActive() && typeof worldToScreenForOverlayTilted === "function") return worldToScreenForOverlayTilted;
+  return typeof worldToScreenForOverlay === "function" ? worldToScreenForOverlay : worldToScreen;
+}
+
+// Where `project` puts the You marker, or null while there is no position.
+function youMarkerScreenIn(project) {
+  const point = state.userLocation && state.userLocation.point;
+  return point ? project(point) : null;
+}
+
 // Whether the step advanceLocationGlide has just made moves the You marker visibly on either canvas
 // since that canvas last painted it. The marker itself is drawn on the overlay canvas, but the main
 // canvas draws things from it too (the walking ring, the route head, the Nearby direction cone), so
@@ -1926,28 +1941,30 @@ function advanceLocationGlide(now = performance.now()) {
 function locationGlideNeedsRepaint() {
   if (state.nearbyAnchor) return true;
   if (!state.userLocation || !state.userLocation.point) return true;
-  const screen = worldToScreen(state.userLocation.point);
-  if (!Number.isFinite(screen.x) || !Number.isFinite(screen.y)) return true;
+  // Each canvas is measured in the projection it paints the marker with: the main canvas turns by the
+  // rendered heading (worldToScreen), the overlay by the compass heading (overlayMarkerProjection).
   const paints = state.locationGlidePaints;
-  return locationGlideMovedVisibly(paints.main, screen) || locationGlideMovedVisibly(paints.overlay, screen);
+  return locationGlideMovedVisibly(paints.main, youMarkerScreenIn(worldToScreen))
+    || locationGlideMovedVisibly(paints.overlay, youMarkerScreenIn(overlayMarkerProjection()));
 }
 
+// `screen` is where the marker is now, in the same projection `painted` was taken with.
 function locationGlideMovedVisibly(painted, screen) {
   if (!painted || !Number.isFinite(painted.x) || !Number.isFinite(painted.y)) return true;
+  if (!screen || !Number.isFinite(screen.x) || !Number.isFinite(screen.y)) return true;
   const view = state.viewport;
   if (painted.inArea !== state.userInMapArea
     || painted.scale !== view.scale || painted.tx !== view.tx || painted.ty !== view.ty) return true;
-  // worldToScreen() is already in device pixels (the canvas bitmap's own), so no DPR factor here.
+  // The projections return full-resolution device pixels (one physical screen pixel), so no DPR factor here.
   const movedDevicePx = Math.hypot(screen.x - painted.x, screen.y - painted.y);
   return movedDevicePx >= LOCATION_GLIDE_REPAINT_DEVICE_PX;
 }
 
-// Records where the You marker is about to be painted on one canvas ("main" or "overlay"). Called once
-// the frame's own glide step and camera changes are done, so the next glide step measures against what
-// the screen will actually show.
-function recordLocationGlidePaint(canvas) {
+// Records where the You marker was painted on one canvas ("main" or "overlay"), `screen` being the position
+// it was drawn at (youMarkerScreenIn with that canvas's projection). Called once the frame's own glide step
+// and camera changes are done, so the next glide step measures against what the screen will actually show.
+function recordLocationGlidePaint(canvas, screen) {
   const view = state.viewport;
-  const screen = state.userLocation && state.userLocation.point ? worldToScreen(state.userLocation.point) : null;
   state.locationGlidePaints[canvas] = {
     x: screen ? screen.x : NaN,
     y: screen ? screen.y : NaN,
@@ -7722,7 +7739,7 @@ function prepareCanvasForDraw() {
   // The draw that follows projects every main-canvas point through this angle; record it so
   // later overlay-only frames can tell whether the terrain still matches (tiltRenderStale).
   state.renderedTiltRotateXDeg = tiltRotateXDeg();
-  recordLocationGlidePaint("main");
+  recordLocationGlidePaint("main", youMarkerScreenIn(worldToScreen));
 }
 
 function updateHeadingUpCanvasRotationTransform() {
