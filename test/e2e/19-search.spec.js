@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, FIXTURE_TREE, waitForFrames } = require("./helpers");
+const { setup, skipOnboarding, mockCowApi, FIXTURE_TREE, waitForFrames } = require("./helpers");
 
 // A real pub and a real street from the shipped datasets. "Forest Road" arrives from
 // OpenStreetMap as 164 separate ways, which is exactly the case the results list has to
@@ -375,5 +375,47 @@ test.describe("Searching the map with a location fix", () => {
     // regression shows up as this scale jumping, not just as staying similar by coincidence.
     expect(after.scale).toBeCloseTo(settledScale, 1);
     expect(after.userOnscreen).toBe(true);
+  });
+});
+
+test.describe("Searching while the tree data is still loading", () => {
+  // Holds every tree request at the network boundary until the test releases it, so Search can be
+  // opened while the trees are still on their way.
+  async function holdTreeData(page) {
+    let release;
+    const released = new Promise((resolve) => { release = resolve; });
+    await page.route(/data\/trees\/|Veteran_Tree_Register/, async (route) => {
+      await released;
+      await route.continue();
+    });
+    return release;
+  }
+
+  async function openSearchWithTreesHeld(page) {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    const releaseTrees = await holdTreeData(page);
+    await page.goto("/nearby");
+    await expect(page.locator("#searchToggle")).toBeVisible();
+    await expect(page.locator('[data-load-step="trees"]')).toHaveClass(/loading/);
+    await page.click("#searchToggle");
+    await page.fill("#mapSearchInput", "oak tree");
+    return releaseTrees;
+  }
+
+  test("Search says results may be incomplete while the trees are still loading", async ({ page }) => {
+    const releaseTrees = await openSearchWithTreesHeld(page);
+    await expect(page.locator("#mapSearchResults")).toContainText("Still loading trees, results may be incomplete");
+    await expect(page.locator("#mapSearchResults")).not.toContainText("Nothing on the map matches");
+    releaseTrees();
+  });
+
+  test("Search updates its results when the tree data arrives while it is open", async ({ page }) => {
+    const releaseTrees = await openSearchWithTreesHeld(page);
+    await expect(page.locator("#mapSearchResults")).toContainText("Still loading trees");
+    releaseTrees();
+    await expect(page.locator('#mapSearchResults [data-search-type="tree"]').first()).toBeVisible();
+    await expect(page.locator("#mapSearchResults")).not.toContainText("Still loading trees");
+    await expect(page.locator("#mapSearchResults")).toContainText(/oak/i);
   });
 });

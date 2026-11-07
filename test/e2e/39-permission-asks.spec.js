@@ -66,7 +66,7 @@ test.describe("first-run onboarding", () => {
   });
 
   test("the combined first-run action leaves the guided setup available", async ({ page }) => {
-    await stubLocation(page);
+    await stubLocation(page, { answer: "grant" });
     await page.addInitScript(() => {
       localStorage.removeItem("ff-track-v1");
       localStorage.removeItem("ff-cookie-consent");
@@ -103,7 +103,7 @@ test.describe("first-run onboarding", () => {
     });
     await page.goto("/nearby");
     const card = page.locator("#consentBanner");
-    await card.getByRole("button", { name: "Maybe later" }).click();
+    await card.getByRole("button", { name: "Not now" }).click();
     await expect(card).toContainText("We'll set your location as High Beach");
     await page.clock.runFor(55_000);
     await expect(card).toBeVisible();
@@ -123,14 +123,48 @@ test.describe("first-run onboarding", () => {
     });
     await page.goto("/nearby");
     const card = page.locator("#consentBanner");
-    await card.getByRole("button", { name: "Maybe later" }).click();
+    await card.getByRole("button", { name: "Not now" }).click();
     await expect(card).toContainText("Location is off");
     await card.getByRole("button", { name: "OK" }).click();
     await expect(card).toBeHidden();
     expect(await stored(page, "ff-motion-v1")).toBeNull();
   });
 
-  test("'Maybe later' records the combined opt-out and says the map is set to High Beach", async ({ page }) => {
+  test("on iPhone, the first-visit card says motion access will be asked for after the location tap", async ({ page }) => {
+    await page.addInitScript(() => {
+      if (!window.DeviceOrientationEvent) window.DeviceOrientationEvent = class {};
+      window.DeviceOrientationEvent.requestPermission = () => Promise.resolve("granted");
+    });
+    await stubLocation(page);
+    await page.addInitScript(() => {
+      localStorage.removeItem("ff-track-v1");
+      localStorage.removeItem("ff-cookie-consent");
+    });
+    await page.goto("/nearby");
+    const card = page.locator("#consentBanner");
+    await expect(card.getByRole("button", { name: "Enable location & cookies" })).toBeVisible();
+    await expect(card).toContainText("motion access");
+    await expect(card).toContainText("compass");
+  });
+
+  test("a refused location request explains that the map is set to High Beach and offers OK", async ({ page }) => {
+    await stubLocation(page, { answer: "deny" });
+    await page.addInitScript(() => {
+      localStorage.removeItem("ff-track-v1");
+      localStorage.removeItem("ff-cookie-consent");
+    });
+    await page.goto("/nearby");
+    const card = page.locator("#consentBanner");
+    await card.getByRole("button", { name: "Enable location & cookies" }).click();
+    await expect(page.locator("#consentBannerTitle")).toHaveText("Location is off");
+    await expect(card).toContainText("High Beach");
+    await expect(page.locator("#consentBannerAccept")).toBeHidden();
+    await expect(card.getByRole("button", { name: "Enable location & cookies" })).toHaveCount(0);
+    await card.getByRole("button", { name: "OK" }).click();
+    await expect(card).toBeHidden();
+  });
+
+  test("'Not now' records the combined opt-out and says the map is set to High Beach", async ({ page }) => {
     await stubLocation(page);
     await page.addInitScript(() => {
       localStorage.removeItem("ff-track-v1");
@@ -138,7 +172,7 @@ test.describe("first-run onboarding", () => {
     });
     await page.goto("/nearby");
     const banner = page.locator("#consentBanner");
-    await banner.getByRole("button", { name: "Maybe later" }).click();
+    await banner.getByRole("button", { name: "Not now" }).click();
     expect(await stored(page, "ff-location-v1")).toBe("declined");
     expect(await stored(page, "ff-track-v1")).toBe("0");
     expect(await stored(page, "ff-cookie-consent")).toBe("denied");
@@ -148,7 +182,7 @@ test.describe("first-run onboarding", () => {
   });
 
   test("usage analytics already refused is not overwritten by the combined action", async ({ page }) => {
-    await stubLocation(page);
+    await stubLocation(page, { answer: "grant" });
     await setStored(page, { "ff-cookie-consent": "denied" });
     await page.goto("/nearby");
     const banner = page.locator("#consentBanner");
@@ -157,11 +191,11 @@ test.describe("first-run onboarding", () => {
     await expect(page.locator("#consentBannerMapSetupArrow")).toBeVisible();
   });
 
-  test("'Maybe later' is not followed by another consent ask, then or on the next visit", async ({ page }) => {
+  test("'Not now' is not followed by another consent ask, then or on the next visit", async ({ page }) => {
     await stubLocation(page);
     await page.goto("/nearby");
     const banner = page.locator("#consentBanner");
-    await banner.getByRole("button", { name: "Maybe later" }).click();
+    await banner.getByRole("button", { name: "Not now" }).click();
     await banner.getByRole("button", { name: "OK" }).click();
     await expect(banner).toBeHidden();
     await page.waitForFunction(() => typeof state !== "undefined" && state.dataLoaded === true);
@@ -220,7 +254,7 @@ test.describe("a returning visit", () => {
     await expect(page.locator("#locationInviteBanner")).toBeHidden();
   });
 
-  test("'Maybe later' on the location ask is remembered across visits", async ({ page }) => {
+  test("'Not now' on the location ask is remembered across visits", async ({ page }) => {
     await stubLocation(page, { permission: "prompt" });
     await gotoAndWaitForMap(page, "/nearby/search");
     await page.locator("#consentBannerDecline").click();
@@ -340,6 +374,17 @@ test.describe("Settings → Privacy", () => {
     await expect(page.locator("#locationStatus")).toHaveText("on");
     await expect(page.locator("#settingsLocateButton")).toBeHidden();
     expect(await stored(page, "ff-location-v1")).toBe("granted");
+  });
+
+  test("a refused location request from Settings explains the block and takes the button away", async ({ page }) => {
+    await stubLocation(page, { permission: "prompt", answer: "deny" });
+    await setStored(page, { "ff-location-v1": "declined", "ff-track-v1": "0" });
+    await gotoAndWaitForMap(page, "/settings");
+    await expect(page.locator("#settingsLocateButton")).toBeVisible();
+    await page.locator("#settingsLocateButton").click();
+    await expect(page.locator("#locationBlockedNote")).toContainText("blocked for this site");
+    await expect(page.locator("#settingsLocateButton")).toBeHidden();
+    await expect(page.locator("#locationStatus")).toHaveText("off");
   });
 
   test("location blocked in browser settings is explained instead of offered", async ({ page }) => {
@@ -463,7 +508,17 @@ test.describe("3D view for a returning visitor on iPhone", () => {
     expect(await page.evaluate(() => window.__compassRequests)).toBe(1);
   });
 
-  test("'Maybe later' on the 3D card is remembered across visits", async ({ page }) => {
+  test("after motion access is refused, the 3D card is not offered on the next visit", async ({ page }) => {
+    await setStored(page, { "forest-finds-compass-permission-v1": "denied" });
+    await gotoAndWaitForMap(page);
+    await expect(page.locator("#consentBanner")).toBeHidden();
+    await page.reload();
+    await gotoAndWaitForMap(page);
+    await expect(page.locator("#consentBanner")).toBeHidden();
+    expect(await page.evaluate(() => window.__compassRequests)).toBe(0);
+  });
+
+  test("'Not now' on the 3D card is remembered across visits", async ({ page }) => {
     await gotoAndWaitForMap(page);
     await page.locator("#consentBannerDecline").click();
     await expect(page.locator("#consentBanner")).toBeHidden();
