@@ -725,3 +725,30 @@ test.describe("homepage community section", () => {
     expect((await faq.locator("dd").innerText()).replace(/\s+/g, " ").trim()).toBe(entry.acceptedAnswer.text);
   });
 });
+
+test.describe("contribute and community icons", () => {
+  // Each item shows one icon picture that has loaded, and no two items share a picture.
+  // Decorative icons are not announced: the card exposes no image role to assistive tech.
+  async function expectOwnIconPerItem(page, items, count) {
+    await expect(items).toHaveCount(count);
+    for (const item of await items.all()) {
+      await expect(item.locator("img.icon-art")).toHaveCount(1);
+    }
+    const icons = items.locator("img.icon-art");
+    for (let index = 0; index < count; index += 1) {
+      const icon = icons.nth(index);
+      await expect(icon).toBeVisible();
+      await expect.poll(() => icon.evaluate(img => (img.complete ? img.naturalWidth : 0))).toBeGreaterThan(0);
+    }
+    const sources = await icons.evaluateAll(imgs => imgs.map(img => img.currentSrc));
+    expect(new Set(sources).size).toBe(count);
+    await expect(items.getByRole("img")).toHaveCount(0);
+  }
+
+  test("every contribute card and community point shows its own icon", async ({ page }) => {
+    await page.goto("/contribute");
+    await expectOwnIconPerItem(page, page.locator("main .info-card"), 9);
+    await page.goto("/");
+    await expectOwnIconPerItem(page, page.locator("#community .community-points li"), 3);
+  });
+});
