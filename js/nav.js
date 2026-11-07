@@ -1839,8 +1839,14 @@ function updateNearbyAnchorBar() {
   }
   // Far from the forest the walking radius is centred on High Beach whatever the visitor's real fix
   // says, so "Use my location" would only put them back on the same view. Keep the wording, drop the button.
+  // Without a real fix the chip can only return to the High Beach stand-in, so it says so rather than
+  // offering "Use my location", which it never asks for.
   const resetButton = bar.querySelector('[data-action="reset-nearby-anchor"]');
-  if (resetButton) resetButton.hidden = isFarFromForest();
+  if (resetButton) {
+    resetButton.hidden = isFarFromForest();
+    const resetLabel = resetButton.querySelector(".nearby-anchor-reset-label");
+    if (resetLabel) resetLabel.textContent = hasRealLocation() ? "Use my location" : "Back to High Beach";
+  }
   // Mid-exit the card keeps its old wording; the generic fallback would flash in as it fades out.
   if (bar.classList && bar.classList.contains("is-leaving")) return;
   // Names the spot when the browse point came from a place (its own inspector's walk card or a

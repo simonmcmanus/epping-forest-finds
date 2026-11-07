@@ -1,4 +1,20 @@
+// The last status each load step reported, so Search can tell whether trees or places are still on
+// their way (searchDataLoading, js/map-search.js).
+const loadStepStatus = new Map();
+function treesOrPlacesLoading() {
+  return loadStepStatus.get("trees") === "loading" || loadStepStatus.get("places") === "loading";
+}
+
+// Search results are read from the loaded data, so they are re-run when that data lands while the
+// Search screen is open. Only the screen's own results are redrawn: nothing else reads them.
+function refreshOpenSearchResults() {
+  if (state.searchScreenOpen && typeof renderSearchResults === "function") renderSearchResults();
+}
+
 function setLoadStep(key, status, count) {
+  loadStepStatus.set(key, status);
+  // A finished or failed tree or place layer changes what Search can find (its loading note too).
+  if ((key === "trees" || key === "places") && status !== "loading") refreshOpenSearchResults();
   const el = document.querySelector(`[data-load-step="${key}"]`);
   if (!el) return;
   el.classList.remove("pending", "loading", "done", "error");
@@ -186,6 +202,8 @@ async function loadMapData() {
       .filter((tree) => Number.isFinite(tree.latitude) && Number.isFinite(tree.longitude)
         && !(tree.latitude === 0 && tree.longitude === 0));
     state.namedTreeStoriesByName = buildNamedTreeStoryIndex(treeData.historicalNamedTreeEnrichment);
+    // The "done" step above ran before these trees existed, so Search re-runs against them here.
+    refreshOpenSearchResults();
 
     if (state.dataLoaded) {
       state.bounds = calculateBounds();
@@ -206,6 +224,7 @@ async function loadMapData() {
   // food landmarks were already available. Fetch every source in parallel and let each response
   // update the already-visible map independently.
   const notifyInteractiveDataChange = () => {
+    refreshOpenSearchResults();
     if (!state.dataLoaded) return;
     state.bounds = calculateBounds();
     if (!state.selected && (!state.filterScreenOpen || mapSetupModalActive()) && !state.searchScreenOpen) {
