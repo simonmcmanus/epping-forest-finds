@@ -77,6 +77,8 @@ A boxed **Help check this place** card sits on a place's detail screen **above**
 ## When the server refuses a report
 The outbox never strands a late addition: a flush requested while one is already running is remembered and run again as soon as the first finishes (`outboxFlushAgain`, `js/outbox.js`).
 
+A feedback or location report whose send gets no answer, or answers with a 5xx or 408, is parked in the outbox at the moment of submission, the same as a report sent with no signal, so the form says it is saved rather than showing the server's error (see "Feedback Screen" in `spec.md`). Only the outbox's own retry rules apply from then on.
+
 The outbox drops a report the server refused with a 4xx (other than 408/429) because retrying cannot fix it. For every queued report type (tree reports to `/api/community/report`, and place changes and feedback to `report-missing-data`) the app records the server's message on the local entry (`failed`, plus the payload to retry) from the `outbox:sent` event when `ok` is false. The log row then shows a **Couldn't send** pill, the reason, and a **Send again** link (`communityRetry`) that puts the same request back on the outbox (same request id, so it is never filed twice). It never claims "Sent for review" for a report the server rejected.
 
 ## Reporting from too far away
