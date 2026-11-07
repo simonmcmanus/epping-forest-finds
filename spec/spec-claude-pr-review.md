@@ -13,7 +13,9 @@ not dispatch the local specialist roster again or repeat formatting/style checks
 - `claude-review-model` uses a read-only repository token, the event's immutable
   base/head commits, and a static head checkout. It does not install dependencies
   or execute pull-request code. Claude has only Read/Glob/Grep tools; repository
-  hooks are disabled. The base checkout supplies trusted review guidance. PR
+  hooks are disabled. The explicit bot allowlist admits github-actions and the
+  Claude App that opens implementation PRs; other bots remain excluded.
+  The base checkout supplies trusted review guidance. PR
   titles, descriptions, files and model output remain untrusted review data.
 - The model uses Sonnet with a 30-turn limit and returns structured JSON with
   the reviewed head/base SHAs, a completeness flag and at most 20 P0–P2 findings. A
