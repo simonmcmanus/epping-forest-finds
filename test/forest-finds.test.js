@@ -8960,7 +8960,9 @@ test("a position that stops updating still converges on the last fix, rather tha
   resetLocationSmoothing(app);
   app.state.userLocation = null;
   app.state.userLocation = app.ingestLocationFix(51.665, 0.045, 25, 1000); // poor accuracy: the most smoothing
-  app.state.userLocation = app.ingestLocationFix(51.6653, 0.0453, 25, 2000);
+  // A fix ~20m on: a plain wander step, eased rather than landed. (At 39m it was past the snap
+  // floor, so it landed raw and this test never exercised the ease at all.)
+  app.state.userLocation = app.ingestLocationFix(51.66515, 0.04515, 25, 2000);
   const destination = { ...app.state.rawUserLocation };
 
   for (let t = 2016; t <= 12000; t += 16) app.advanceLocationGlide(t);
@@ -9131,6 +9133,95 @@ test("on a train with noisy GPS, the position never jumps sideways or backwards 
   assert.ok(worstAcross < 12, `the marker should not wander off the line, ${worstAcross.toFixed(1)}m sideways at worst`);
 });
 
+test("a walker standing still with 20-30m GPS accuracy is not thrown off by the wander in each fix", () => {
+  // Shortly after a cold start every fix is 20-30m accurate, and a fix can land that far from
+  // where the walker actually stands. The walking path used to land any fix more than 30m from
+  // the marker's own position at once, so the marker jumped 30-60m in a single frame, and the
+  // Nearby camera (re-pinned to the marker on every fix) lurched with it. A fix's own accuracy
+  // says how far it can be out, so only a step well beyond that is a real move.
+  const metresPerDegLat = 111320;
+  const metresPerDegLon = 111320 * Math.cos((51.665 * Math.PI) / 180);
+  for (const [accuracy, seed] of [[20, 1], [25, 2], [30, 3]]) {
+    resetData(app);
+    resetLocationSmoothing(app);
+    app.state.userLocation = null;
+    const noise = gpsNoise(seed);
+    const sigmaM = accuracy / 1.2;
+    const frames = [];
+    const record = (at) => {
+      const { latitude, longitude } = app.state.userLocation;
+      frames.push({ at, northM: (latitude - 51.665) * metresPerDegLat, eastM: (longitude - 0.045) * metresPerDegLon });
+    };
+    for (let i = 0; i <= 40; i += 1) {
+      const at = 1000 + i * 1000;
+      app.state.userLocation = app.ingestLocationFix(
+        51.665 + (sigmaM * noise()) / metresPerDegLat,
+        0.045 + (sigmaM * noise()) / metresPerDegLon,
+        accuracy,
+        at,
+        null
+      );
+      record(at);
+      for (let t = at + 16; t < at + 1000; t += 16) {
+        app.advanceLocationGlide(t);
+        record(t);
+      }
+    }
+    let worstStep = 0;
+    for (let i = 1; i < frames.length; i += 1) {
+      worstStep = Math.max(worstStep, Math.hypot(frames[i].northM - frames[i - 1].northM, frames[i].eastM - frames[i - 1].eastM));
+    }
+    const settled = frames.filter((frame) => frame.at >= 6000);
+    const worstFromStanding = Math.max(...settled.map((frame) => Math.hypot(frame.northM, frame.eastM)));
+    assert.ok(worstStep < 2, `${accuracy}m fixes: no frame should move the marker more than 2m, one moved ${worstStep.toFixed(1)}m`);
+    // Easing averages the fixes, so the settled marker sits about one accuracy-radius from the
+    // walker (measured 1.1-1.2x across these seeds).
+    assert.ok(
+      worstFromStanding < accuracy * 1.5,
+      `${accuracy}m fixes: once settled the marker should stay within about its fixes' accuracy of the walker, worst ${worstFromStanding.toFixed(1)}m`
+    );
+  }
+});
+
+test("a far-off first fix that the real GPS position replaces does not make a walker standing still look like they are travelling", () => {
+  // The app starts on a stand-in (High Beach) or a coarse first fix hundreds of metres from the walker.
+  // The real fix that follows is landed as a new start, but that earlier fix stayed in the 8-15s
+  // history the speed and the travel track are judged from. For the next several seconds the walker
+  // looked to be covering ~30m/s, the fitted track ran off with the marker, and it snapped back once
+  // the stale fix aged out of the window. A fix the app has already moved on from is not the journey.
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  app.state.userLocation = app.ingestLocationFix(51.667591, 0.037454, 25, 160); // the stand-in, ~290m away
+  app.state.userLocation = app.ingestLocationFix(51.665, 0.045, 10, 640); // the real position
+  const metresPerDegLat = 111320;
+  const metresPerDegLon = 111320 * Math.cos((51.665 * Math.PI) / 180);
+  const noise = gpsNoise(21);
+  const frames = [];
+  const record = (at) => {
+    const { latitude, longitude } = app.state.userLocation;
+    frames.push({ at, northM: (latitude - 51.665) * metresPerDegLat, eastM: (longitude - 0.045) * metresPerDegLon });
+  };
+  for (let i = 0; i < 16; i += 1) {
+    const at = 1000 + i * 1000;
+    // A walker standing still under a clear sky: 3m of wander per fix, 10m accuracy.
+    app.state.userLocation = app.ingestLocationFix(51.665 + (3 * noise()) / metresPerDegLat, 0.045 + (3 * noise()) / metresPerDegLon, 10, at, null);
+    record(at);
+    for (let t = at + 16; t < at + 1000; t += 16) {
+      app.advanceLocationGlide(t);
+      record(t);
+    }
+  }
+  let worstStep = 0;
+  for (let i = 1; i < frames.length; i += 1) {
+    worstStep = Math.max(worstStep, Math.hypot(frames[i].northM - frames[i - 1].northM, frames[i].eastM - frames[i - 1].eastM));
+  }
+  const settled = frames.filter((frame) => frame.at >= 3000);
+  const worstFromStanding = Math.max(...settled.map((frame) => Math.hypot(frame.northM, frame.eastM)));
+  assert.ok(worstStep < 2, `no frame should move the marker more than 2m, one moved ${worstStep.toFixed(1)}m`);
+  assert.ok(worstFromStanding < 8, `the marker should stay with the walker, worst ${worstFromStanding.toFixed(1)}m from where they stand`);
+});
+
 test("a walker's wander under trees is still smoothed however long it goes on", () => {
   resetData(app);
   resetLocationSmoothing(app);
@@ -9153,6 +9244,18 @@ test("a large jump in position lands at once rather than crawling there", () => 
   const jumped = app.ingestLocationFix(51.68, 0.06, 10, 2000);
   assert.equal(app.state.locationGlide, null, "no glide for a real jump");
   assert.equal(jumped.latitude, 51.68, "the position lands on the fix itself");
+});
+
+test("a poor-accuracy fix that comes after a gap in the fixes still lands at once", () => {
+  // The accuracy-scaled snap distance is for wander between consecutive fixes. The first fix back
+  // after a gap (a tunnel, a dead signal) keeps the plain 30m floor, so a 45m move lands.
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  app.state.userLocation = app.ingestLocationFix(51.665, 0.045, 25, 1000);
+  const landed = app.ingestLocationFix(51.665 + 0.0004, 0.045, 25, 7000);
+  assert.equal(app.state.locationGlide, null, "no ease after a six-second gap");
+  assert.equal(landed.latitude, 51.665 + 0.0004, "the position lands on the fix");
 });
 
 test("a poor-accuracy fix is leaned on harder than a good one", () => {
