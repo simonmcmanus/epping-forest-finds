@@ -8961,9 +8961,11 @@ test("a position that stops updating still converges on the last fix, rather tha
   app.state.userLocation = null;
   app.state.userLocation = app.ingestLocationFix(51.665, 0.045, 25, 1000); // poor accuracy: the most smoothing
   // A 39m step at 25m accuracy: well inside the accuracy-scaled snap distance (4 x 25m = 100m), so
-  // it is eased as wander rather than landed, and the ease is what has to converge. At tau 2.5s
-  // the residual is still ~0.7m at 10s, so the horizon runs to 22s (~0.01m left).
+  // it should be eased as wander rather than landed. The assertion below checks that the ease is
+  // pending (a raw landing would leave none), and then that the ease converges. At tau 2.5s the
+  // residual is still ~0.7m at 10s, so the horizon runs to 22s (~0.01m left).
   app.state.userLocation = app.ingestLocationFix(51.6653, 0.0453, 25, 2000);
+  assert.ok(app.state.locationGlide, "a 39m step at 25m accuracy is eased, so an ease is pending right after the fix");
   const destination = { ...app.state.rawUserLocation };
 
   for (let t = 2016; t <= 22000; t += 16) app.advanceLocationGlide(t);

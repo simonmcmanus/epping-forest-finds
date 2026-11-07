@@ -114,13 +114,16 @@ test.describe("Location and GPS — happy path", () => {
       expect(frames.length).toBeGreaterThan(40);
       // A frame gap of STALE_GAP_MS or more is a stalled page, not a moving marker: the glide lands on
       // its target outright after such a gap (advanceLocationGlide's stale-clock rule, 500ms), so one
-      // stalled frame can step it by several metres with no fix involved. Those pairs are not judged;
-      // a fix-driven step arrives in a normal-length frame gap and is still caught.
+      // stalled frame can step it by several metres with no fix involved. The landing is visible to
+      // the sampler on the pair after the stall (the sampler runs before the glide tick in each frame),
+      // so the pair spanning the stall and the pair after it are both not judged. A fix-driven step
+      // arrives in a normal-length frame gap and is still caught.
       const STALE_GAP_MS = 500;
+      const stalledBefore = (k) => frames[k].t - frames[k - 1].t >= STALE_GAP_MS;
       let worstStepMetres = 0;
       let judgedPairs = 0;
       for (let i = 1; i < frames.length; i += 1) {
-        if (frames[i].t - frames[i - 1].t >= STALE_GAP_MS) continue;
+        if (stalledBefore(i) || (i >= 2 && stalledBefore(i - 1))) continue;
         judgedPairs += 1;
         const stepNorth = (frames[i].lat - frames[i - 1].lat) * 111320;
         const stepEast = (frames[i].lon - frames[i - 1].lon) * metresPerDegLon;

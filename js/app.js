@@ -4921,9 +4921,10 @@ function compassSensorStalled(now = performance.now()) {
 
 // Whether the walker has actually gone anywhere since the tab was last backgrounded
 // (pauseBackgroundedTracking snapshots the fix at that moment). Compared against the
-// same real-movement-vs-GPS-noise threshold ingestLocationFix uses to decide a fix is a
-// genuine relocation rather than wander (LOCATION_SMOOTHING_SNAP_METRES). No baseline or
-// no current fix -- e.g. location was never granted -- is treated as "can't tell", which
+// 30m floor (LOCATION_SMOOTHING_SNAP_METRES) that ingestLocationFix applies to a fix after a gap,
+// to tell a genuine relocation from wander. It is not the accuracy-scaled threshold used between
+// consecutive fixes. No baseline or no current fix -- e.g. location was never granted -- is
+// treated as "can't tell", which
 // falls back to the old, safer assumption that the heading may no longer be trustworthy.
 function hasMovedSinceBackgrounding() {
   const before = state.backgroundedUserLocation;
