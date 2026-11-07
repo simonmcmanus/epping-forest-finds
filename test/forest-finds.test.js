@@ -2325,15 +2325,31 @@ test("tapping a rail pill narrows to it, a second pill adds to it, and un-pressi
   app.state.nearbyRailGroupKey = null;
   app.toggleRailFilter("nature");
   assert.equal(app.railSelection().length, 0, "nothing chosen represents all filters");
-  assert.deepEqual(Array.from(app.state.overviewFilters), [], "the last pill remains visibly unselected");
-  assert.deepEqual(Array.from(app.loadStoredOverviewFilters()), [], "the empty pick is saved too");
+  assert.equal(app.state.overviewFilters.length, app.FILTER_SUBFILTERS.length, "un-pressing the last pill selects Everything, never an empty set");
+  assert.equal(app.loadStoredOverviewFilters().length, app.FILTER_SUBFILTERS.length, "Everything is the saved set");
   app.localStorage.removeItem("forest-finds-filter-state-v1");
   assert.match(app.filterRailHtml(), /data-rail-key="all-nearby"[^>]*aria-pressed="true"/);
-  assert.match(app.filterRailHtml(), /data-rail-key="nature"[^>]*aria-pressed="false"/);
+  assert.match(app.filterRailHtml(), /data-rail-key="nature"[^>]*aria-pressed="true"/, "every category is on, so Nature shows as pressed");
   app.state.overviewFilters = [];
   app.state.overviewFiltersEphemeral = false;
   app.location.pathname = "/";
   app.location.search = "";
+});
+
+test("a stored empty filter set loads as every category, so an empty saved set never exists", () => {
+  const storedApp = loadAppForTests({ localStorage: { "forest-finds-filter-state-v1": JSON.stringify({ filters: [] }) } });
+  assert.equal(storedApp.loadStoredOverviewFilters().length, storedApp.FILTER_SUBFILTERS.length);
+});
+
+test("a saved single category without a location is not listed in full, while a view of one still is", () => {
+  resetData(app);
+  app.state.overviewFilters = ["cafes"];
+  app.state.overviewFiltersEphemeral = false;
+  assert.equal(app.activeFiltersShowFullListWithoutLocation(), false, "the reader's saved pick waits for a location");
+  app.state.overviewFiltersEphemeral = true;
+  assert.equal(app.activeFiltersShowFullListWithoutLocation(), true, "a landing or other view lists its category in full");
+  app.state.overviewFiltersEphemeral = false;
+  app.state.overviewFilters = app.loadStoredOverviewFilters();
 });
 
 test("the Everything rail pill restores every category and keeps a category rail", () => {
@@ -2448,27 +2464,27 @@ test("allEntriesForFilterKey lists every match for a filter with no origin and n
   assert.equal(trees[0].type, "tree");
 });
 
-test("without location, the Nearby list shows the category's full list when exactly one filter is active, not the generic prompt", () => {
+test("without location, a view of exactly one category lists its full list, not the generic prompt", () => {
   resetData(app);
   app.state.userLocation = null;
   app.state.landmarks.push(
     { id: "pub-a", name: "Pub A", category: "pub", ...makePoint(app, 0, 0) },
     { id: "pub-b", name: "Pub B", category: "pub", ...makePoint(app, 0.01, 0) },
   );
-  app.setOverviewFilters(["pubs"]);
+  app.setOverviewFilters(["pubs"], { persist: false });
 
   const html = app.overviewNearestHtml();
   assert.ok(html.includes("Pub A") && html.includes("Pub B"), "both pubs are listed even with no location");
   assert.ok(!html.includes("Use your location to list the nearest"), "the generic prompt is not shown");
 });
 
-test("without location, the map also draws pins for every match of the one active filter, not just the list", () => {
+test("without location, the map also draws pins for every match of a view of one category, not just the list", () => {
   resetData(app);
   app.state.userLocation = null;
   const pubA = { id: "pub-a", name: "Pub A", category: "pub", ...makePoint(app, 0, 0) };
   const cafeA = { id: "cafe-a", name: "Cafe A", category: "cafe", ...makePoint(app, 0.01, 0) };
   app.state.landmarks.push(pubA, cafeA);
-  app.setOverviewFilters(["pubs"]);
+  app.setOverviewFilters(["pubs"], { persist: false });
 
   const lookup = app.buildNearbyIconLookup();
   assert.equal(lookup.landmark.has(pubA), true, "the matching pub is in the drawable set");
@@ -2482,11 +2498,11 @@ test("the no-location icon-lookup cache tells two different single filters apart
   const cafeA = { id: "cafe-a", name: "Cafe A", category: "cafe", ...makePoint(app, 0.01, 0) };
   app.state.landmarks.push(pubA, cafeA);
 
-  app.setOverviewFilters(["pubs"]);
+  app.setOverviewFilters(["pubs"], { persist: false });
   const pubsLookup = app.buildNearbyIconLookup();
   assert.equal(pubsLookup.landmark.has(pubA), true);
 
-  app.setOverviewFilters(["cafes"]);
+  app.setOverviewFilters(["cafes"], { persist: false });
   const cafesLookup = app.buildNearbyIconLookup();
   assert.equal(cafesLookup.landmark.has(cafeA), true, "switching filters with no location still shows the new filter's own matches");
   assert.equal(cafesLookup.landmark.has(pubA), false, "not a stale copy of the previous filter's lookup");
@@ -2514,7 +2530,7 @@ test("fitMapToSingleFilterIfNoLocation fits the camera to every match, but only 
     { id: "pub-a", name: "Pub A", category: "pub", ...makePoint(app, 0, 0) },
     { id: "pub-b", name: "Pub B", category: "pub", ...makePoint(app, 0.05, 0.05) },
   );
-  app.setOverviewFilters(["pubs"]);
+  app.setOverviewFilters(["pubs"], { persist: false });
 
   assert.equal(app.fitMapToSingleFilterIfNoLocation(), true, "fits when the conditions hold");
 
@@ -2524,7 +2540,7 @@ test("fitMapToSingleFilterIfNoLocation fits the camera to every match, but only 
 
   app.setOverviewFilters(["pubs", "cafes"]);
   assert.equal(app.fitMapToSingleFilterIfNoLocation(), false, "does nothing with more than one active filter");
-  app.setOverviewFilters(["pubs"]);
+  app.setOverviewFilters(["pubs"], { persist: false });
 
   app.state.selected = { type: "landmark", item: app.state.landmarks[0] };
   assert.equal(app.fitMapToSingleFilterIfNoLocation(), false, "never overrides a deep-linked selection's own framing");

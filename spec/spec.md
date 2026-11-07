@@ -243,13 +243,13 @@ Marker rules:
 ### Inspector modes
 
 - Overview mode: nearest list + map setup control.
-- Map setup dialog: a modal over the existing Nearby overview, not a replacement inspector screen. It starts with the saved filters selected and asks **What would you like to see?** with its map-setup icon beside the title. The first step explains that the choices customise the Nearby list and map, shows how many categories are hidden, and presents the current selection as a readable, clickable icon summary with prominent icons, without an extra count heading or icon boxes. Clicking a summary group opens that group's staged category step; **Back** from a group opened this way returns to the summary rather than stepping through another group. Holding a Nearby filter-rail pill for about half a second opens a smaller dialog with only that category's chips and **Done**, not this full flow (a subcategory pill opens its parent group). **Choose categories** enters the staged category steps; the top-right **Close map setup** button, clicking the translucent backdrop, or pressing Escape closes the dialog while keeping any staged edits. The intro uses its natural content height and category steps use a compact fixed height, with a smooth resize and soft directional transition between them plus reduced-motion support. The Nearby panel remains in place underneath it. **Done** applies the new set once and refreshes that existing Nearby view. GPS updates, cow refreshes, locate-button taps, and empty canvas taps must not close it.
+- Map setup dialog: a modal over the existing Nearby overview, not a replacement inspector screen. It starts with the saved filters selected and asks **What would you like to see?** with its map-setup icon beside the title. The first step explains that the choices customise the Nearby list and map, shows how many categories are hidden, and presents the current selection as a readable, clickable icon summary with prominent icons, without an extra count heading or icon boxes. Clicking a summary group opens that group's staged category step; **Back** from a group opened this way returns to the summary rather than stepping through another group. Holding a Nearby filter-rail pill for about half a second opens a smaller dialog with only that category's chips and **Done**, not this full flow (a subcategory pill opens its parent group). **Choose categories** enters the staged category steps; the top-right **Close map setup** button, clicking the translucent backdrop, or pressing Escape closes the dialog and applies any staged edits. The dialog starts from the saved set, never from a landing's or other view's set on screen. The intro uses its natural content height and category steps use a compact fixed height, with a smooth resize and soft directional transition between them plus reduced-motion support. The Nearby panel remains in place underneath it. **Done** saves the new set and shows the **Saved. Undo** notice; closing the dialog saves nothing when the set is unchanged, and a landing still moves to plain `/nearby`. GPS updates, cow refreshes, locate-button taps, and empty canvas taps must not close it.
 - Search screen mode: `state.searchScreenOpen = true`; it is a screen, not a selection, and nothing but an explicit navigation closes it.
 - Selected-detail mode: map setup button hidden, guided setup closed (not relevant when viewing a specific location).
 - Minimized mode: collapsed header only.
 - The inspector is always expanded after a map-tap selection, on both desktop and mobile, so the detail panel opens immediately. This also applies to a selection made via a hash/deep link (`applySelectionFromHash`) — including a `hashchange` to a new linked location while the inspector was already minimized, which forces it back open. Selecting from the overview/nearby list or a search result leaves it open too.
 - Tapping the Nearby button calls `goToInitialView()` (clears selection, refits camera) rather than `selectOverview()` alone, unless Nearby is already the screen and the URL is not a category landing page. On Nearby, a tap is the re-tap below. A press from another screen, or on a `/nearby/<category>` landing, uses `goToInitialView()`, which restores the reader's saved filters and clears the view state. It is the one-tap way home; the header's back arrow steps back through the trail instead (see "URL hash / navigation state").
-- Re-tapping an already-active nav button (one with `screen-active` while the inspector is not minimized) shakes the sheet sideways in place (`.sheet-shake`) instead of re-entering the screen. This applies to every tab (Nearby, Search, Filters, Community/Feedback, Settings). On Nearby with no category landing in the URL, the re-tap keeps the view the reader set up: the saved picks, the browse anchor, the walking radius and the compass heading all stay. The heading is kept even after a quiet spell, deliberately, so the map does not go north-up. The re-tap refits the ring (`refitNearbyRingView()`, with no screen-entry slide) and refreshes the list. It collapses the rail to its top level, in place like a pick, and it leaves an expanded cluster, so the walking radius reverts to its value from before the cluster. A minimised sheet takes the same rule: the tap reopens it and refits once it has opened, keeping the rail level and the expanded cluster. A category landing's re-tap, and a press from another screen, take the full `goToInitialView()` reset, which returns to the saved set. With no location at all, not even the default stand-in, the refit fits the whole data bounds. The compass watchdog is separate and a tap does not stop it: a heading is cleared only after about 15 s with no orientation events, and only once the walker has moved since the tab was last backgrounded.
+- Re-tapping an already-active nav button (one with `screen-active` while the inspector is not minimized) shakes the sheet sideways in place (`.sheet-shake`) instead of re-entering the screen. This applies to every tab (Nearby, Search, Filters, Community/Feedback, Settings). On Nearby with no category landing in the URL, the re-tap keeps the view the reader set up: the saved picks, the browse anchor, the walking radius and the compass heading all stay. The heading is kept even after a quiet spell, deliberately, so the map does not go north-up. The re-tap refits the ring (`refitNearbyRingView()`, with no screen-entry slide) and refreshes the list. It collapses the rail to its top level, in place, and it leaves an expanded cluster, so the walking radius reverts to its value from before the cluster. A minimised sheet takes the same rule: the tap reopens it and refits once it has opened, keeping the rail level and the expanded cluster. A category landing's re-tap, and a press from another screen, take the full `goToInitialView()` reset, which returns to the saved set. With no location at all, not even the default stand-in, the refit fits the whole data bounds. The compass watchdog is separate and a tap does not stop it: a heading is cleared only after about 15 s with no orientation events, and only once the walker has moved since the tab was last backgrounded.
 
 ### URL / navigation state
 
@@ -291,7 +291,7 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
   keeps each intentional setup change out of the address bar until the dialog is finished and
   avoids a half-configured intermediate route.
   `?radius=` travels on all three paths, since the radius describes the Nearby view underneath
-  each of them; `?show=` is the compatibility entry lens for `/nearby/filter` and `?q=` is
+  each of them; `?show=` is the compatibility view link for `/nearby/filter` and `?q=` is
   `/nearby/search`'s own. The radius param is omitted at the 5-minute default, same as `?show=`
   and `?q=` are omitted with nothing to carry — a plain `/nearby` link stays plain for the common
   case. While an expanded cluster badge has borrowed the radius to cover the tapped group
@@ -307,7 +307,7 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
   ordinary 5-minute default, which would undersell a landing page meant to answer "is there
   enough near here to be worth a visit". An explicit `?radius=` always wins, the same as it does
   everywhere else. Applied the same way on every arrival at the path, boot or popstate alike,
-  matching the filters' own "arrival sets the lens" treatment just below.
+  matching the filters' own "arrival sets the view" treatment just below.
 - **A category landing URL remains the URL while Nearby refreshes.** Location, radius and
   other live updates may re-render the filtered list, but must not replace `/nearby/<slug>/`
   with the generic `/nearby?radius=30` URL unless the reader explicitly navigates to ordinary
@@ -335,14 +335,17 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
   override is applied by the walk-radius card's own button (`focusNearbyWithinWalkMinutes`, js/nav.js).
 - **Nearby filter rail.** Every Nearby view carries one row of toggle pills (`filterRailHtml()`,
   js/app.js; detail in `spec-data-rendering.md` "Nearby filter rail"): top-level category pills on
-  `/nearby`, that category's subcategory pills on a `/nearby/<category>` landing. A tap saves the filter
-  set, so the pills are a quick way to configure the saved filters: a top-level pill toggles all of its
-  subcategories, a subcategory pill only itself. On a category landing the first pick edits the set the
-  reader had before the landing, saves it, and moves the URL to plain `/nearby`. A rail pick never writes a
-  `?show=` URL or a category landing path, and the saved set lives in storage, so a reload keeps it. The
-  drill level (which group the rail shows subcategories for) lives in memory only, so a reload returns the
-  rail to its top level. An old `?show=` link stays a view and is not saved. The place card's "Everything
-  within" control saves the set to every category.
+  `/nearby`, that category's subcategory pills on a `/nearby/<category>` landing. There is one saved filter
+  set. On plain Nearby a pill tap saves it, so the pills are a quick way to configure the saved filters: a
+  top-level pill toggles all of its subcategories, a subcategory pill only itself, and un-pressing the last
+  pill selects Everything rather than an empty set. On a category landing, or any other view, a tap edits
+  the set shown on screen, saves the result, moves the URL to plain `/nearby`, and shows a **Saved. Undo**
+  notice for about six seconds whose **Undo** restores the saved set exactly as it was. The rail never
+  writes a `?show=` URL or a category landing path, and the saved set lives in storage, so a reload keeps
+  it. The drill level (which group the rail shows subcategories for) lives in memory only, so a reload
+  returns the rail to its top level. An old `?show=` link stays a view and is not saved. The place card's
+  "Everything within" control is a view of every category and leaves the saved set alone. A saved single
+  category with no location asks for a location rather than listing every place in it.
 - **Navigating in-app straight from one `/nearby/<slug>` arrival to another never loses the new
   page's own category.** A link out of a selected place's inspector (a business page's own
   "Related" section, `js/inspector.js`) or a bare `near="" ` link like "All nearby"

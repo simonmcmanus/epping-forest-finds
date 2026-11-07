@@ -3136,3 +3136,34 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
     padding-inline: 10px;
   }
 }
+
+/* The Undo notice after a saved filter change. It sits in the sheet's flow above the list, so it takes
+   its own height for a few seconds rather than covering the rail or the list; empty, it takes none. */
+.saved-undo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 8px 12px 0;
+  padding: 2px 6px 2px 12px;
+  border-radius: 12px;
+  background: rgba(var(--forest-rgb), 0.1);
+  color: var(--ink);
+  font-size: 0.92rem;
+}
+
+.saved-undo:empty {
+  margin: 0;
+  padding: 0;
+}
+
+.saved-undo-button {
+  min-height: 44px;
+  padding: 0 10px;
+  border: 0;
+  background: none;
+  color: var(--forest);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}

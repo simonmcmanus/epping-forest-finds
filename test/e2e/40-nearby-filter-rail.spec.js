@@ -62,7 +62,8 @@ test.describe("Nearby filter rail", () => {
   });
 
   test("a group's count shows how many subcategories are on, even when the group is off", async ({ page }) => {
-    await setup(page, "/nearby?show=trees,ponds_streams");
+    // Pubs stays on, so switching Nature off leaves a set that is not empty: un-pressing the last pill would select Everything.
+    await setup(page, "/nearby?show=trees,ponds_streams,pubs");
     await expect(pill(page, "nature").locator(".rail-count")).toHaveText("2/3");
     await pill(page, "nature").click();
     await expect(pill(page, "nature")).toHaveAttribute("aria-pressed", "false");
@@ -72,7 +73,7 @@ test.describe("Nearby filter rail", () => {
   });
 
   test("a group pill keeps the same width when it is switched on or off", async ({ page }) => {
-    await setup(page, "/nearby?show=trees,ponds_streams");
+    await setup(page, "/nearby?show=trees,ponds_streams,pubs");
     const on = await pill(page, "nature").boundingBox();
     await pill(page, "nature").click();
     await expect(pill(page, "nature")).toHaveAttribute("aria-pressed", "false");
@@ -154,13 +155,38 @@ test.describe("Nearby filter rail", () => {
     await expect(pill(page, "nature")).toHaveCount(0);
   });
 
-  test("tapping a pressed category on its landing un-presses it in the saved set", async ({ page }) => {
+  test("un-pressing the only category on its landing selects Everything and saves it", async ({ page }) => {
+    // The landing's pressed state is its own view. Un-pressing its only category leaves no empty set:
+    // the view and the saved set both become every category.
     await setup(page, "/nearby/trees");
     await expect(pill(page, "trees")).toHaveAttribute("aria-pressed", "true");
     await pill(page, "trees").click();
     await expect(page).toHaveURL(/\/nearby(?:\?radius=30)?$/);
-    await expect(pill(page, "trees")).toHaveAttribute("aria-pressed", "false");
-    expect(await page.evaluate(() => state.overviewFilters.includes("trees"))).toBe(false);
+    await expect(pill(page, "all-nearby")).toHaveAttribute("aria-pressed", "true");
+    expect(await page.evaluate(() => state.overviewFilters.length)).toBe(await page.evaluate(() => ALL_OVERVIEW_FILTER_KEYS.size));
+    expect(await page.evaluate(() => loadStoredOverviewFilters().length)).toBe(await page.evaluate(() => ALL_OVERVIEW_FILTER_KEYS.size));
+  });
+
+  test("un-pressing the last category selects Everything and keeps the list populated", async ({ page }) => {
+    await showAll(page);
+    await pill(page, "nature").click();
+    await expect(pill(page, "nature")).toHaveAttribute("aria-pressed", "true");
+    await pill(page, "nature").click();
+    await expect(pill(page, "all-nearby")).toHaveAttribute("aria-pressed", "true");
+    expect(await page.evaluate(() => loadStoredOverviewFilters().length)).toBe(await page.evaluate(() => ALL_OVERVIEW_FILTER_KEYS.size));
+    await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+  });
+
+  test("a pill tap on All nearby saves that view and Undo restores the saved picks", async ({ page }) => {
+    await setup(page, "/nearby/food");
+    const savedBefore = await page.evaluate(() => localStorage.getItem("forest-finds-filter-state-v1"));
+    await pill(page, "all-nearby").click();
+    await expect(pill(page, "all-nearby")).toHaveAttribute("aria-pressed", "true");
+    expect(await page.evaluate(() => loadStoredOverviewFilters().length)).toBe(await page.evaluate(() => ALL_OVERVIEW_FILTER_KEYS.size));
+
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(page.getByRole("button", { name: "Undo" })).toHaveCount(0);
+    expect(await page.evaluate(() => localStorage.getItem("forest-finds-filter-state-v1"))).toBe(savedBefore);
   });
 
   test("a selected top-level Nature pill can be switched off", async ({ page }) => {
@@ -293,6 +319,25 @@ test.describe("Nearby filter rail", () => {
     await waitForUiToSettle(page);
     await settleMapIconsAndDraw(page);
     await expect(page).toHaveScreenshot("nearby-with-a-rail-pick.png", { fullPage: false });
+  });
+});
+
+test.describe("Nearby without a location fix", () => {
+  test.use({ geolocation: undefined, permissions: [] });
+
+  test("a saved single category without a location asks for location instead of listing every place in it", async ({ page }) => {
+    // A saved set of one category is the reader's own choice, not a view of a landing, so it is not
+    // listed in full without a location: the list asks for one instead.
+    await page.addInitScript(() => {
+      if (sessionStorage.getItem("seeded-filters")) return;
+      sessionStorage.setItem("seeded-filters", "1");
+      localStorage.setItem("forest-finds-filter-state-v1", JSON.stringify({ filters: ["cafes"] }));
+    });
+    await setup(page, "/nearby");
+    await expect(rail(page)).toBeVisible();
+    expect(await page.evaluate(() => state.userLocation)).toBeNull();
+    await expect(page.locator("#inspectorBody .empty", { hasText: "Use your location" })).toBeVisible();
+    await expect(page.locator("#inspectorBody .nearest-item")).toHaveCount(0);
   });
 });
 

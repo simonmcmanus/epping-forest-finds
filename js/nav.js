@@ -1565,8 +1565,8 @@ function focusNearbyWithinWalkMinutes(latitude, longitude, minutes, label = null
   state.nearbyAnchor = { latitude, longitude, point: projectLonLat(longitude, latitude), label };
   state.walkingDistanceMinutes = minutes;
   state.outOfRadiusRevealFilters = [];
-  // "Everything" means every category, and it is a filter change like any other, so it is saved.
-  setOverviewFilters(Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: true, render: false });
+  // "Everything" here is a view: every category on screen, with the reader's saved set left as it was.
+  setOverviewFilters(Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: false, render: false });
   exitClusterExpansion({ restoreRadius: false });
   refreshNearbyRadiusView({ animate: false });
   pushNearbyAnchorHistory();

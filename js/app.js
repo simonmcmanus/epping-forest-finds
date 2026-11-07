@@ -258,8 +258,7 @@ const state = {
   // Set by setOverviewFilters(persist:false) -- see its comment -- never true on first load.
   overviewFiltersEphemeral: false,
   // The rail level is normally derived from the current /nearby/<slug> path. A rail tap keeps
-  // the level it was displayed at while replacing that path with a shareable query string, so
-  // a plain Nearby rail stays at groups and a category rail stays at subcategories.
+  // the level it was displayed at, in memory only: a reload starts the rail at its top level.
   nearbyRailGroupKey: undefined,
   overviewExpandedGroups: (() => {
     try {
@@ -2751,6 +2750,8 @@ function setOverviewFilters(nextFilters, { persist = true, render = true, railTa
   const sanitizedFilters = sanitizeOverviewFilters(nextFilters);
   const filtersChanged = previousFilters.length !== sanitizedFilters.length
     || previousFilters.some((filterKey, index) => filterKey !== sanitizedFilters[index]);
+  // Any real change makes an earlier Undo stale, so its notice goes.
+  if (filtersChanged) hideSavedUndoNotice();
   // Capture the currently visible pin set before changing state so the canvas renderer can
   // animate additions and removals by item identity. Initial boot calls this with render:false;
   // that path should remain a quiet data/setup render rather than replaying a filter animation.
@@ -2922,7 +2923,7 @@ function openFilterSetup() {
 
   showOnboarding({ mode: "filters" }).then((result) => {
     state.filterScreenOpen = false;
-    if (Array.isArray(result.filters)) setOverviewFilters(result.filters);
+    if (Array.isArray(result.filters)) applyStagedFilterSet(result.filters);
     updateFilterUi();
     if (window.location.pathname === ROUTE_PATHS[ROUTE_FILTERS]) {
       replaceHashInPlace("");
@@ -2944,7 +2945,7 @@ function openCategorySetup(groupKey) {
   if (overlay._onboardingActive || !FILTER_GROUPS_BY_KEY.has(groupKey)) return;
 
   showOnboarding({ mode: "category", groupKey }).then((result) => {
-    if (Array.isArray(result.filters)) setOverviewFilters(result.filters);
+    if (Array.isArray(result.filters)) applyStagedFilterSet(result.filters);
     updateFilterUi();
   });
 }
@@ -4408,17 +4409,13 @@ function updateDocumentTitle() {
   return nextTitle;
 }
 
-// True when the active filter set should be shown in full even without a location fix: either
-// exactly one filter -- a subfilter's own /nearby/<slug> page, or a reader's own deliberate single
-// choice, both reading better as "show me everything in this one category" than a generic
-// "enable location" prompt -- or more than one filter, but only when a /nearby/<slug> group
-// page's own pre-filter set them (state.overviewFiltersEphemeral). Never the reader's own
-// multi-filter choice, and never the 1-3 filter default state nobody chose at all
-// (DEFAULT_FILTERS) -- either of those taking this path would try to fit or list the entire
-// matching dataset (25,000+ trees, in the default case).
+// True when the active filter set should be listed in full even without a location fix. Only a view
+// qualifies (state.overviewFiltersEphemeral: a category landing, or an old ?show= link), since a view
+// is what the reader is looking at right now. The reader's saved set never does, not even one
+// category: listing every place in a category, with no origin to measure from, is a lot to load
+// before a location is known, so the list asks for a location instead.
 function activeFiltersShowFullListWithoutLocation() {
-  const count = state.overviewFilters.length;
-  return count === 1 || (count > 1 && state.overviewFiltersEphemeral);
+  return state.overviewFiltersEphemeral;
 }
 
 // Every place/tree/water matching one filter key, dataset order, no distance -- there is no
@@ -4610,24 +4607,106 @@ function syncRailUrl() {
   history.replaceState(history.state, "", url);
 }
 
+// The Undo notice after a tap or dialog replaces the saved set. previousRaw is the stored string before
+// the save, so Undo writes back exactly what was there. It hides itself after SAVED_UNDO_MS, and any
+// later filter change hides it too (setOverviewFilters), so an old Undo can never restore a stale set.
+const SAVED_UNDO_MS = 6000;
+let savedUndoTimer = null;
+
+function readStoredFilterStateRaw() {
+  try { return localStorage.getItem(FILTER_STATE_KEY); } catch { return null; }
+}
+
+function restoreStoredFilterStateRaw(raw) {
+  try {
+    if (raw === null) localStorage.removeItem(FILTER_STATE_KEY);
+    else localStorage.setItem(FILTER_STATE_KEY, raw);
+  } catch {}
+}
+
+function hideSavedUndoNotice() {
+  clearTimeout(savedUndoTimer);
+  savedUndoTimer = null;
+  const notice = document.getElementById("savedUndo");
+  if (notice) notice.textContent = "";
+}
+
+function showSavedUndoNotice(previousRaw) {
+  const notice = document.getElementById("savedUndo");
+  if (!notice) return;
+  clearTimeout(savedUndoTimer);
+  const text = document.createElement("span");
+  text.textContent = "Saved.";
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "saved-undo-button";
+  button.textContent = "Undo";
+  button.addEventListener("click", () => undoSavedFilterChange(previousRaw));
+  notice.textContent = "";
+  notice.append(text, " ", button);
+  savedUndoTimer = setTimeout(hideSavedUndoNotice, SAVED_UNDO_MS);
+}
+
+function undoSavedFilterChange(previousRaw) {
+  restoreStoredFilterStateRaw(previousRaw);
+  setOverviewFilters(loadStoredOverviewFilters(), { persist: false });
+  state.overviewFiltersEphemeral = false;
+  syncRailUrl();
+  hideSavedUndoNotice();
+}
+
+// Saves a filter set. The caller decides whether it replaces a saved set that a reader may want back:
+// those saves show the Undo notice. A plain Nearby pill tap does not, as it has always saved silently.
+function saveFilterSetWithUndo(nextFilters, { railTap = false, notice = true } = {}) {
+  const previousRaw = readStoredFilterStateRaw();
+  setOverviewFilters(nextFilters, { persist: true, railTap });
+  syncRailUrl();
+  if (notice) showSavedUndoNotice(previousRaw);
+}
+
+// A tap on a category landing, or on any other view (an old ?show= link, a ?filters=false view), replaces the
+// saved set, so it gets the Undo notice. On plain Nearby a pill tap is a plain save.
+function filterChangeReplacesSavedSet() {
+  return Boolean(state.overviewFiltersEphemeral || isNearbyCategoryLandingPath());
+}
+
+function filterKeysEqual(first, second) {
+  const left = Array.from(new Set(first)).sort();
+  const right = Array.from(new Set(second)).sort();
+  return left.length === right.length && left.every((key, index) => key === right[index]);
+}
+
+// Applies the set Map setup or a held pill's dialog ends with. The dialog starts from the saved set, so
+// a set that matches it changed nothing: nothing is saved, though a view or landing still returns to
+// the saved set and plain /nearby. Any real change saves with the Undo notice.
+function applyStagedFilterSet(stagedFilters) {
+  if (filterKeysEqual(stagedFilters, loadStoredOverviewFilters())) {
+    if (filterChangeReplacesSavedSet()) {
+      setOverviewFilters(loadStoredOverviewFilters(), { persist: false });
+      state.overviewFiltersEphemeral = false;
+      syncRailUrl();
+    }
+    return;
+  }
+  saveFilterSetWithUndo(stagedFilters);
+}
+
 function toggleRailFilter(key) {
   if (key === "all-nearby") {
     if (typeof navigator.vibrate === "function") navigator.vibrate(8);
     const displayedGroup = nearbyRailGroup();
     state.nearbyRailGroupKey = displayedGroup ? displayedGroup.key : null;
-    setOverviewFilters(Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: true, railTap: true });
+    saveFilterSetWithUndo(Array.from(ALL_OVERVIEW_FILTER_KEYS), { railTap: true, notice: filterChangeReplacesSavedSet() });
     return;
   }
   const displayedGroup = nearbyRailGroup();
   const item = railItems().find((candidate) => candidate.key === key);
   if (!item) return;
   state.nearbyRailGroupKey = displayedGroup ? displayedGroup.key : null;
-  // A category landing shows its own category, without changing the saved set. The first pick there edits
-  // the set the reader had before the landing, and saves it. Everywhere else the rail edits what is shown.
-  const onLanding = state.overviewFiltersEphemeral && isNearbyCategoryLandingPath();
-  const source = onLanding ? loadStoredOverviewFilters() : state.overviewFilters;
-  const current = new Set(source.filter((filterKey) => FILTER_SUBFILTERS_BY_KEY.has(filterKey)));
-  const showingAll = source.length === 0 || current.size === 0 || current.size >= FILTER_SUBFILTERS.length;
+  // The tap edits what is shown on screen. On a category landing that is the landing's own category set;
+  // elsewhere it is the current set. Either way the result is saved.
+  const current = new Set(state.overviewFilters.filter((filterKey) => FILTER_SUBFILTERS_BY_KEY.has(filterKey)));
+  const showingAll = current.size === 0 || current.size >= FILTER_SUBFILTERS.length;
   // The tapped pill toggles within that set: off if any of its categories is in it, on otherwise.
   const active = item.filterKeys.some((filterKey) => current.has(filterKey));
   let next;
@@ -4640,11 +4719,11 @@ function toggleRailFilter(key) {
     item.filterKeys.forEach((filterKey) => current.add(filterKey));
     next = Array.from(current);
   }
+  // Un-pressing the last pill selects Everything rather than saving an empty set. The Everything pill
+  // then shows as pressed, and the list stays populated.
+  if (next.length === 0) next = Array.from(ALL_OVERVIEW_FILTER_KEYS);
   if (typeof navigator.vibrate === "function") navigator.vibrate(8);
-  // Do not expand an empty selection back to every key here. That made the last pill look
-  // selected again immediately after it was tapped off, so Nature (and any other final pill)
-  // could never visibly unselect. The Everything pill represents this empty, explicit state.
-  setOverviewFilters(next, { persist: true, railTap: true });
+  saveFilterSetWithUndo(next, { railTap: true, notice: filterChangeReplacesSavedSet() });
 }
 
 function overviewCategoryContentHtml(content) {

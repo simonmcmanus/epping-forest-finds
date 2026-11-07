@@ -4,7 +4,7 @@
 // browse anchor set from the list is kept across the tap, and the panel shows the Nearby list on
 // the first tap.
 const { test, expect } = require("@playwright/test");
-const { setup, waitForUiToSettle } = require("./helpers");
+const { setup, waitForUiToSettle, FIXTURE_TREE } = require("./helpers");
 
 const FOREST_LOCATION = { latitude: 51.6650, longitude: 0.0450, accuracy: 10 };
 
@@ -201,6 +201,8 @@ async function expectPlainNearbyLabels(page) {
 test.describe("A re-tap keeps the view the reader set up", () => {
   const railPill = (page, key) => page.locator(`#inspectorBody [data-rail-key="${key}"]`);
   const sortedFilters = (page) => page.evaluate(() => [...state.overviewFilters].sort().join(","));
+  // The stored string exactly as written, so a test can tell an untouched store from a rewritten one.
+  const savedRaw = (page) => page.evaluate(() => localStorage.getItem("forest-finds-filter-state-v1"));
   const savedFilters = (page) => page.evaluate(() => {
     const stored = JSON.parse(localStorage.getItem("forest-finds-filter-state-v1") || "null");
     return stored && Array.isArray(stored.filters) ? stored.filters.slice().sort().join(",") : null;
@@ -328,18 +330,59 @@ test.describe("A re-tap keeps the view the reader set up", () => {
     expect(await savedFilters(page)).toBe("ponds_streams,trees");
   });
 
-  test("a pill tap on a category landing saves the set it edits", async ({ page }) => {
-    // The first pick on a landing edits the set the reader had before it: Cafes is added to that set and saved.
+  test("a pill tap on a category landing saves the landing's set, and Undo restores the saved picks", async ({ page }) => {
+    // The Food landing shows all four Food categories. Tapping Cafes edits that shown set, saves it and
+    // moves the URL to plain Nearby. Undo then puts the earlier saved picks back.
     await seedSavedFilters(page, ["ponds_streams", "trees"]);
     await setup(page, "/nearby/food");
+    const savedBefore = await savedRaw(page);
+    await expect(railPill(page, "cafes")).toHaveAttribute("aria-pressed", "true");
     await railPill(page, "cafes").click();
-    await expect(page).not.toHaveURL(/[?&]show=/);
-    expect(await savedFilters(page)).toBe("cafes,ponds_streams,trees");
+    await expect(railPill(page, "cafes")).toHaveAttribute("aria-pressed", "false");
+    await expect(page).toHaveURL(/\/nearby(?:\?radius=30)?$/);
+    // The saved set is the view the reader edited: the Food categories still on, which excludes the earlier picks.
+    expect(await savedFilters(page)).toBe("pubs,restaurants,shops");
+
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(page.getByRole("button", { name: "Undo" })).toHaveCount(0);
+    expect(await savedRaw(page)).toBe(savedBefore);
 
     await page.reload();
     await page.waitForFunction(() => typeof state !== "undefined" && state.dataLoaded === true);
     await waitForUiToSettle(page);
-    expect(await sortedFilters(page)).toBe("cafes,ponds_streams,trees");
+    expect(await sortedFilters(page)).toBe("ponds_streams,trees");
+  });
+
+  test("Everything within a place shows every category and leaves the saved picks as they were after a reload", async ({ page }) => {
+    await seedSavedFilters(page, ["ponds_streams", "trees"]);
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("tree");
+    const savedBefore = await savedRaw(page);
+
+    await page.locator("#inspectorBody [data-action='walk-radius']").click();
+
+    await expect.poll(() => page.evaluate(() => state.overviewFilters.length)).toBe(await page.evaluate(() => ALL_OVERVIEW_FILTER_KEYS.size));
+    expect(await savedRaw(page)).toBe(savedBefore);
+
+    await page.reload();
+    await page.waitForFunction(() => typeof state !== "undefined" && state.dataLoaded === true);
+    await waitForUiToSettle(page);
+    expect(await savedRaw(page)).toBe(savedBefore);
+  });
+
+  test("closing Map setup from a landing without changes leaves the saved picks in storage", async ({ page }) => {
+    await seedSavedFilters(page, ["ponds_streams", "trees"]);
+    await setup(page, "/nearby/food");
+    const savedBefore = await savedRaw(page);
+
+    await page.locator("#filterToggle").click();
+    await expect(page.locator("#onboardingOverlay")).toBeVisible();
+    await page.locator("#onboardingOverlay .onboarding-close").click();
+    await expect(page.locator("#onboardingOverlay")).toBeHidden();
+
+    await expect(page).toHaveURL(/\/nearby(?:\?radius=30)?$/);
+    expect(await savedRaw(page)).toBe(savedBefore);
+    expect(await sortedFilters(page)).toBe("ponds_streams,trees");
   });
 
   test("a whole group picked on its landing is named by neither the title nor the list heading, before and after a reload", async ({ page }) => {
