@@ -1,10 +1,6 @@
 /**
- * Sign-up endpoint and alpha gate validation.
- *
- * The gate's own request handling runs on a Netlify edge function and cannot
- * be exercised here (server.js does not run edge functions -- see
- * spec/spec-alpha-access.md section 3.4), so these cover the decision logic it
- * is built from: which secrets are valid, and what the cookie looks like.
+ * Sign-up endpoint (netlify/functions/subscribe.js): what it accepts, what it refuses, and what it sends
+ * upstream. The closed alpha gate has its own suite, test/alpha-gate.test.js.
  */
 
 "use strict";
@@ -79,5 +75,12 @@ test("the endpoint still requires affirmative consent from the signup action", a
     });
     assert.strictEqual(result.statusCode, 400);
     assert.strictEqual(JSON.parse(result.body).error, "Please use the ‘Email me updates’ button to sign up.");
+  }
+});
+
+test("a request body that is JSON but not an object is refused with a 400, not an error", async () => {
+  for (const body of ["null", "42", "\"walker@example.com\""]) {
+    const result = await subscribe.handler({ httpMethod: "POST", body }, {});
+    assert.strictEqual(result.statusCode, 400, `body ${body} should be refused`);
   }
 });

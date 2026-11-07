@@ -19,3 +19,7 @@ if [ -z "${PLAYWRIGHT_CHROMIUM_EXECUTABLE:-}" ]; then
     [ -x "$candidate" ] && echo "PLAYWRIGHT_CHROMIUM_EXECUTABLE=$candidate" && break
   done
 fi
+
+# A hook that exits non-zero is reported as an error in every session, so the
+# happy path and the "no Chromium found" path both end cleanly.
+exit 0

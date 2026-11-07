@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, FIXTURE_TREE, settleMapIconsAndDraw, waitForFrames, waitForUiToSettle } = require("./helpers");
+const { setup, skipOnboarding, mockCowApi, gotoAndWaitForMap, FIXTURE_TREE, settleMapIconsAndDraw, waitForFrames, waitForUiToSettle } = require("./helpers");
 
 const FOREST_LOCATION = { latitude: 51.665, longitude: 0.045, accuracy: 10 };
 
@@ -902,6 +902,41 @@ test.describe("Overview / Nearby screen", () => {
   });
 });
 
+
+test.describe("Browsing a spot without a real location", () => {
+  // No geolocation grant: the map stands in at High Beach, so the chip has nothing real to return to.
+  // setup() would drop that stand-in, so this journey loads the page itself and keeps it.
+  test.beforeEach(async ({ page }) => {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await gotoAndWaitForMap(page, "/nearby");
+    await page.evaluate(() => {
+      for (const id of ["locationInviteBanner", "consentBanner"]) {
+        const el = document.getElementById(id);
+        if (el && !el.hidden) el.hidden = true;
+      }
+    });
+    await expect.poll(() => page.evaluate(() => Boolean(state.userLocation && state.userLocation.isDefault))).toBe(true);
+  });
+
+  test("the browse chip says it goes back to High Beach, and a tap returns the map there", async ({ page }) => {
+    await page.evaluate(() => {
+      const latitude = state.userLocation.latitude + 0.02;
+      const longitude = state.userLocation.longitude;
+      setNearbyAnchor(latitude, longitude, projectLonLat(longitude, latitude));
+    });
+    const chip = page.locator("[data-action='reset-nearby-anchor']");
+    await expect(chip).toBeVisible();
+    await expect(chip).toHaveText(/Back to High Beach/);
+    await expect(chip).not.toHaveText(/Use my location/);
+
+    await chip.click();
+
+    await expect(chip).toBeHidden();
+    expect(await page.evaluate(() => state.nearbyAnchor)).toBeNull();
+    expect(await page.evaluate(() => state.userLocation.isDefault)).toBe(true);
+  });
+});
 
 test.describe("Resize-grip clearance", () => {
   test.beforeEach(async ({ page }) => { await setup(page); });

@@ -374,6 +374,34 @@ test.describe("serving requests", () => {
     assert.equal(sw.requested.length, 0, "no network round trip for a cached file");
   });
 
+  test("a failed response is handed to the page but never stored, so the next visit asks the network again", async () => {
+    let calls = 0;
+    const sw = loadServiceWorker({
+      network: () => {
+        calls += 1;
+        return calls === 1 ? new Response("server error", { status: 500 }) : new Response("good js", { status: 200 });
+      },
+    });
+    const first = await sw.request("/js/app.js");
+    assert.equal(first.response.status, 500, "the page gets the failure it actually received");
+    await sw.settle();
+    const second = await sw.request("/js/app.js");
+    assert.equal(await body(second.response), "good js", "the error was not cached as the file's body");
+  });
+
+  test("a missing file (404) is not stored either, so a file that arrives later is served", async () => {
+    let calls = 0;
+    const sw = loadServiceWorker({
+      network: () => {
+        calls += 1;
+        return calls === 1 ? new Response("not found", { status: 404 }) : new Response("data", { status: 200 });
+      },
+    });
+    await sw.request("/data/trees/index.json");
+    await sw.settle();
+    assert.equal(await body((await sw.request("/data/trees/index.json")).response), "data");
+  });
+
   test("local dev prefers the network so edits show up, falling back to the cache offline", async () => {
     const sw = loadServiceWorker({ dev: true, network: () => new Response("edited js") });
     const appCache = await sw.cacheStorage.open(sw.constant("APP_CACHE_NAME"));
@@ -503,3 +531,27 @@ function loadServiceWorkerContext() {
   vm.runInContext(fs.readFileSync(path.join(root, "sw.js"), "utf8"), context, { filename: "sw.js" });
   return context;
 }
+
+// The shell the worker installs, read from the executed sw.js (not parsed out of its source), checked against
+// the files app.html really loads. These are cross-file invariants: a file the page needs and the shell omits
+// would be missing offline.
+const appHtml = () => fs.readFileSync(path.join(root, "app.html"), "utf8");
+
+test("the app shell includes css/tracking.css so the consent modal is positioned offline", () => {
+  const shell = loadServiceWorker().constant("APP_SHELL");
+  assert.ok(shell.includes("./css/tracking.css"), "without it the consent modal has no positioning styles offline, and the location gate button looks unresponsive");
+});
+
+test("the app shell includes every stylesheet app.html links, so the page is not unstyled offline", () => {
+  const shell = loadServiceWorker().constant("APP_SHELL");
+  const cssRefs = [...appHtml().matchAll(/href="(css\/[^"]+\.css)"/g)].map((m) => `./${m[1]}`);
+  assert.ok(cssRefs.length > 0, "app.html should reference CSS files");
+  assert.deepEqual(cssRefs.filter((file) => !shell.includes(file)), [], "every app.html stylesheet must be in the shell");
+});
+
+test("the app shell includes every script app.html loads, so the app still boots offline", () => {
+  const shell = loadServiceWorker().constant("APP_SHELL");
+  const jsRefs = [...appHtml().matchAll(/src="(js\/[^"?]+\.js)(?:\?[^"]*)?"/g)].map((m) => `./${m[1]}`);
+  assert.ok(jsRefs.length > 0, "app.html should reference JS files");
+  assert.deepEqual(jsRefs.filter((file) => !shell.includes(file)), [], "every app.html script must be in the shell");
+});

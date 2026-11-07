@@ -242,7 +242,11 @@ function stopLocationTracking() {
 
 // --- Click / selection tracking ---
 
+// A missing coordinate is null, never 0: Number(null) and Number("") are both 0, which would put a
+// place or walker at null island (0,0).
 function trackerFiniteNumber(value) {
+  if (value === null || value === undefined || typeof value === "boolean") return null;
+  if (typeof value === "string" && value.trim() === "") return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }

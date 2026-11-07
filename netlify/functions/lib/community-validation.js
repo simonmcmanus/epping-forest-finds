@@ -97,6 +97,30 @@ async function rewardsFromIssues(state, github, resolveRef, now = Date.now()) {
   return items;
 }
 
+// The identity of a reward: a register reward is per device, record and status; an issue reward per device and issue.
+function itemKey(item) {
+  return item.kind === "register"
+    ? `register|${item.deviceId}|${item.target}|${item.status}`
+    : `${item.kind}|${item.deviceId}|${item.issue}`;
+}
+
+// Combines two saved versions of the validation state without losing either one's rewards. Items are the union
+// (by identity). The register signature comes from whichever version checked the register most recently.
+function mergeValidationStates(a, b) {
+  const items = new Map();
+  for (const item of [...(a.items || []), ...(b.items || [])]) items.set(itemKey(item), item);
+  const newer = (a.lastRegisterCheckAt || 0) >= (b.lastRegisterCheckAt || 0) ? a : b;
+  return {
+    ...a,
+    ...b,
+    items: [...items.values()],
+    register: newer.register || null,
+    lastRegisterCheckAt: Math.max(a.lastRegisterCheckAt || 0, b.lastRegisterCheckAt || 0) || undefined,
+    lastRunAt: Math.max(a.lastRunAt || 0, b.lastRunAt || 0) || undefined,
+    processedIssues: { ...(a.processedIssues || {}), ...(b.processedIssues || {}) },
+  };
+}
+
 // One full pass. `deps`: { store, fetchJson, github|null, now }. Safe to run as often as wanted.
 async function runValidation(deps) {
   const { store, fetchJson, github } = deps;
@@ -104,8 +128,7 @@ async function runValidation(deps) {
   const state = (await store.get("validations")) || { items: [], register: null, processedIssues: {} };
   state.items = state.items || [];
   const summary = { registerChecked: false, baseline: false, newRegisterRewards: 0, issueRewards: 0 };
-  const has = (item) => state.items.some((x) => x.kind === item.kind && x.deviceId === item.deviceId
-    && (item.kind === "register" ? x.target === item.target && x.status === item.status : x.issue === item.issue));
+  const has = (item) => state.items.some((x) => itemKey(x) === itemKey(item));
 
   try {
     const register = await loadRegister(fetchJson);
@@ -113,18 +136,23 @@ async function runValidation(deps) {
     if (!state.register) {
       state.register = { signature: register.signature, seenAt: now }; // baseline: nothing to compare against yet
       summary.baseline = true;
+      state.lastRegisterCheckAt = now;
     } else if (state.register.signature !== register.signature) {
       const reports = await loadLedger(store);
       // Only reports made before the register could have changed count. The change happened somewhere
-      // between the previous run (which still saw the old register) and now, so the previous run is the
-      // safe cutoff: anyone waiting for an update and then posting what it says falls after it. The very
-      // first sighting of a register (`seenAt`) is the fallback for state written before runs were stamped.
-      const cutoff = state.lastRunAt || state.register.seenAt || now;
+      // between the last run that read the register (which still saw the old one) and now, so that run is the
+      // safe cutoff: anyone waiting for an update and then posting what it says falls after it. A run whose
+      // register read failed never saw either version, so it is not that run. The very first sighting of a
+      // register (`seenAt`) is the fallback for state written before checks were stamped.
+      const cutoff = state.lastRegisterCheckAt || state.register.seenAt || now;
       for (const item of validateAgainstRegister(reports, register, cutoff)) {
         if (!has(item)) { state.items.push(item); summary.newRegisterRewards += 1; }
       }
       state.register = { signature: register.signature, seenAt: now };
     }
+    // Only a check that read the register counts as having seen it. A failed read leaves this where it was,
+    // so the next successful check still uses the last time the old register was really seen as its cutoff.
+    state.lastRegisterCheckAt = now;
   } catch (error) {
     summary.registerError = String(error.message || error);
   }
@@ -142,9 +170,12 @@ async function runValidation(deps) {
   }
 
   state.lastRunAt = now;
-  await store.put("validations", state);
+  // Another run may have saved while this one was reading the register. Merge with what is stored now rather
+  // than overwrite it, so no reward either run found is lost.
+  const latest = (await store.get("validations")) || {};
+  await store.put("validations", mergeValidationStates(latest, state));
   await rebuildComputed(store); // so the overlay and scores include the new rewards at once
   return summary;
 }
 
-module.exports = { POINTS, validateAgainstRegister, loadRegister, rewardsFromIssues, runValidation, refsIn };
+module.exports = { POINTS, validateAgainstRegister, loadRegister, rewardsFromIssues, runValidation, refsIn, mergeValidationStates };

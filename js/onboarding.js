@@ -13,11 +13,6 @@ if (typeof globalThis !== "undefined") {
   globalThis.ONBOARDING_STEPS = ONBOARDING_STEPS;
 }
 
-function canRequestCompassPermission() {
-  return typeof DeviceOrientationEvent !== "undefined"
-    && typeof DeviceOrientationEvent.requestPermission === "function";
-}
-
 function compassStepMarkup({ blocked = false }) {
   if (blocked) {
     return {

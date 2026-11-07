@@ -1887,10 +1887,6 @@ function placeTitle(place) {
   return `${baseName} — ${directionLabel}`;
 }
 
-function osmNote() {
-  return `<p class="source-note">Local places use © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a> contributors.</p>`;
-}
-
 function folkloreNote(place, options = {}) {
   const includeSummary = options.includeSummary !== false;
   const summary = includeSummary && place.folkloreSummary ? `<p class="source-note">${escapeHtml(place.folkloreSummary)}</p>` : "";
@@ -1917,12 +1913,4 @@ function folkloreNote(place, options = {}) {
 function isFolklorePlace(place) {
   if (!place || typeof place !== "object") return false;
   return place.dataSource === "folklore" || String(place.source || "").toLowerCase().includes("folklore");
-}
-
-function isOpenStreetMapPlace(place) {
-  if (!place || typeof place !== "object") return false;
-  if (isFolklorePlace(place)) return false;
-  if (place.id !== null && place.id !== undefined && place.id !== "") return true;
-  const source = String(place.source || "").toLowerCase();
-  return source.includes("openstreetmap") || source.includes("osm");
 }

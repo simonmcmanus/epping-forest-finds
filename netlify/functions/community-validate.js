@@ -7,10 +7,10 @@ const { runValidation } = require("./lib/community-validation");
 const { makeFetchJson, makeGithub } = require("./lib/community-fetch");
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
+const { isAdminRequest } = require("./lib/admin-auth");
 
 exports.handler = async (event) => {
-  const auth = (event.headers && (event.headers.authorization || event.headers.Authorization)) || "";
-  if (!ADMIN_PASSWORD || auth !== `Bearer ${ADMIN_PASSWORD}`) {
+  if (!isAdminRequest(event, ADMIN_PASSWORD)) {
     return { statusCode: 401, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ error: "Unauthorized" }) };
   }
   const summary = await runValidation({ store: openStore(event), fetchJson: makeFetchJson(event), github: makeGithub() });

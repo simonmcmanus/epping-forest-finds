@@ -3,7 +3,6 @@
 // POST /api/features                  replace the allow list (admin only), body { community: [{ id, note }] }
 // The list lives in the community store, so adding a tester needs no deploy.
 const auth = require("./lib/auth-session");
-const { openStore } = require("./lib/community-store");
 const gate = require("./lib/feature-gate");
 
 const JSON_HEADERS = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" };
@@ -12,18 +11,16 @@ function reply(statusCode, body) {
   return { statusCode, headers: JSON_HEADERS, body: JSON.stringify(body) };
 }
 
-function isAdmin(event) {
-  const password = process.env.ADMIN_PASSWORD || "";
-  if (!password) return false;
-  const headers = Object.fromEntries(Object.entries(event.headers || {}).map(([k, v]) => [k.toLowerCase(), v]));
-  return headers.authorization === `Bearer ${password}`;
-}
+const { isAdminRequest } = require("./lib/admin-auth");
+
+exports.setStore = gate.setStore;
 
 exports.handler = async (event) => {
   const query = event.queryStringParameters || {};
+  const adminRequest = event.httpMethod === "POST" || Boolean(query.admin);
   try {
-    if (event.httpMethod === "POST" || query.admin) {
-      if (!isAdmin(event)) return reply(401, { error: "Unauthorized" });
+    if (adminRequest) {
+      if (!isAdminRequest(event, process.env.ADMIN_PASSWORD || "")) return reply(401, { error: "Unauthorized" });
       if (event.httpMethod === "POST") {
         let body;
         try { body = JSON.parse(event.body || "{}"); } catch { return reply(400, { error: "Bad JSON" }); }
@@ -32,10 +29,12 @@ exports.handler = async (event) => {
       return reply(200, await gate.readList(event));
     }
     const session = auth.sessionFrom(event);
-    const ids = await gate.vouchedIds(openStore(event), query.id, session);
+    const ids = await gate.vouchedIds(gate.storeFor(event), query.id, session);
     return reply(200, gate.enabledFor(await gate.readList(event), ids));
   } catch (error) {
-    // A broken store must never switch a feature on.
+    // A broken store must never switch a feature on: a reader gets every feature off. An admin's change that
+    // could not be saved or read is reported as a failure, never as a success.
+    if (adminRequest) return reply(503, { error: "Storage unavailable: nothing was saved. Try again." });
     return reply(200, Object.fromEntries(gate.FEATURES.map((f) => [f, false])));
   }
 };

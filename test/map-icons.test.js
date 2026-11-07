@@ -11,7 +11,7 @@ const APP_ROOT = path.join(__dirname, "..");
 function loadIconRegistry() {
   const context = { console, projectLonLat: () => null };
   vm.createContext(context);
-  for (const file of ["js/categories.js", "js/normalize.js"]) {
+  for (const file of ["js/shared.js", "js/categories.js", "js/normalize.js"]) {
     vm.runInContext(fs.readFileSync(path.join(APP_ROOT, file), "utf8"), context, { filename: file });
   }
   return vm.runInContext("ICON_PATHS", context);

@@ -14,7 +14,7 @@ A password-protected analytics dashboard at `/admin` that shows where users are 
 
 Password is set via env var `ADMIN_PASSWORD`. If unset, all admin endpoints return 401.
 
-Authentication: password passed as `Authorization: Bearer <password>` header. The API also accepts `?pw=...` for compatibility, but the admin UI must use the header so the password is not written into URLs, browser history, or server access logs.
+Authentication: password passed as `Authorization: Bearer <password>` header, and only there. A `?pw=` query parameter is refused: a password in a URL is written into browser history and server access logs. Every admin endpoint uses the same check (`lib/admin-auth.js`), which compares in constant time.
 
 The admin UI stores the password in `sessionStorage` under `ff-admin-session-password` after successful login. This keeps the admin signed in across same-tab refreshes while clearing the session when the browser tab is closed. The **Log out** button clears that session value. A 401 response during refresh or auto-refresh clears the stored password and returns the user to the login screen.
 
@@ -146,8 +146,8 @@ Location pings report the **raw GPS fix** (`state.rawUserLocation`), not `state.
 
 **Limits.** The function refuses a body over 256 KB or more than 500 events (413; 500 is what an older client's whole offline queue could hold). Each event is reduced to the fields above — strings truncated, coordinates range-checked and rounded to 5 decimal places (~1 m), anything else dropped — and events dated more than a day ahead or more than 90 days old are discarded. Each client IP may send 600 requests an hour (`TRACK_LIMIT_PER_IP`); beyond that it gets 429 with `Retry-After`. The counters live in 64 small documents (`track-rate/<shard>`, chosen by a hash of the address) so no one document grows with the number of visitors. A phone on the current app sends about 12 requests an hour, so many people can share one carrier or Wi-Fi address before it applies; a refused batch stays in the phone's queue. The cost: every accepted POST also reads and rewrites one small counter document. At launch scale (about 500 phones at once) that is under two POSTs a second spread over 64 documents, so each document is touched about every 30 seconds. Updates are read-modify-write, not atomic, so two simultaneous requests can overwrite each other's increment and the limit undercounts slightly. It is a brake on a script hammering the endpoint, not an exact meter. Even with these counter writes, the store does far fewer writes per walker than the old one-request-per-event client, which batching replaced.
 
-### `GET /api/admin/tracks?pw=<password>`
-Returns stored events from a recent time window. Requires authentication.
+### `GET /api/admin/tracks`
+Returns stored events from a recent time window. Requires the Bearer header (see Authentication above).
 
 **Query params:**
 - `days` — size of the window in days. Defaults to **30**. `days=all` reads back to the retention period (a year by default).

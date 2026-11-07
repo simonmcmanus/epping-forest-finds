@@ -47,6 +47,60 @@ GitHub Issues via `gh`. See `docs/agents/issue-tracker.md`.
 
 Glossary and decisions live in `spec/`, not `GLOSSARY.md`/`docs/adr/`. See `docs/agents/domain.md`.
 
+## Team of agents
+
+Several Claude Code agents can work on this repo at once. Agent teams are enabled for the project
+(`CLAUDE_CODE_EXPERIMENTAL_AGENT_TEAMS=1` in `.claude/settings.json`). Teammates appear as tmux panes
+when the session runs inside tmux, and run in-process otherwise. The lead session plans, dispatches
+and merges. The subagents in `.claude/agents/` do the work:
+
+- `implementer` — one scoped change in its own worktree: tests, code, spec update, local commit. The lead session pushes after review.
+- `test-runner` — runs the unit suite and named e2e specs; read-only; reports exact counts.
+- `reviewer` — read-only review against the checklist above; reports verified findings only.
+- Specialist reviewers, each read-only and each reporting verified findings only:
+  - `accessibility-reviewer` — names and roles, keyboard and focus, touch targets, contrast, reduced motion, and text alternatives for the canvas map.
+  - `performance-reviewer` — draw loop and per-frame work, redundant paints, payloads, service-worker caching, battery and memory. Judged on mobile first.
+  - `design-reviewer` — consistency with the existing CSS, tokens and icon registry, mobile and dark-mode polish, and marketing brand voice.
+  - `ux-reviewer` — whether each journey completes end to end, flow and copy clarity, permission asks, and the state each error or empty screen shows.
+- `data-curator` — real-world place corrections in `data/**`; never edits specs for these.
+- `pr-steward` — drives one PR to mergeable: merges `main` in for conflicts, triages red CI, answers
+  and resolves review threads, pushes small fixes. It never approves, merges or force-pushes.
+  Subagents cannot subscribe to PR events or wake themselves, so the lead session holds the PR
+  subscription and dispatches the steward on each event and each safety-net check-in.
+
+Default delegation. In any session that has these agents, the work goes through them, not through
+the lead session's own edits:
+
+- Any change to app code, tests or specs goes to an `implementer`, in its own worktree.
+- Any change ready to hand over goes through `reviewer`, `test-runner`, and the specialist reviewers
+  that match what changed, before it is handed over.
+- Any open PR goes to `pr-steward` on each event and safety-net check-in.
+- Any corrected place fact goes to `data-curator`.
+
+The lead session plans, dispatches and reports. Subagents cannot dispatch other agents, so the lead
+runs the team playbook itself: the `/team` skill (`.claude/skills/team/SKILL.md`). It
+edits app code, tests or specs itself only when the user asks for that directly. If the agents are not loaded in a session, say so and then do the
+work directly.
+
+Rules:
+
+- **One worktree and branch per work item:** `git worktree add .worktrees/<topic> -b claude/<topic> origin/main`.
+  `.worktrees/` is gitignored. No agent works in the lead's checkout or commits to `main`.
+- **Branch from `origin/main`, never from another open PR** (see Testing).
+- **Own your files.** Two agents never edit the same file in parallel. Hot files are `app.html`,
+  `js/app.js`, `sw.js`, `spec/*.md` and `test/forest-finds.test.js`. Serialise work items that touch
+  the same one.
+- **Cache markers are never agent-edited:** `js/app-cache-version.js` and `js/data-cache-version.js`.
+- **The lead dispatches; subagents report back.** Subagents do not spawn further agents.
+- **Review before push.** Implementers commit locally. The reviewers and the test-runner run on the
+  local branch, and the lead session pushes only after they pass (see `/team`).
+- **Local results are local.** The lead reads the CI run for the head SHA before reporting anything
+  done (see "CI is the verdict").
+- **Hand-off report from every agent:** branch, worktree path, commits, files changed, spec file(s)
+  updated or the implementation-only reason, test commands with counts, and open risks.
+- **Safe to run in parallel:** tests-only, data-only, spec-only and review work. Two changes to
+  renderer or app wiring are not.
+
 ## Marketing and app surfaces
 
 - `index.html` (marketing homepage, `/`) and `assets/home/**` are a separate surface from the app (`app.html`, `js/**`, `css/**`). Marketing must not import app CSS/JS or reference app icons at runtime; small brand assets are independent copies in `assets/home/`.
@@ -62,6 +116,9 @@ Glossary and decisions live in `spec/`, not `GLOSSARY.md`/`docs/adr/`. See `docs
 - `native/` — Capacitor shell for the App Store / Google Play: its own `package.json`, `scripts/sync-www.js` (allowlisted bundle of the client), committed `ios/` and `android/` projects
 - `netlify/functions/subscribe.js` — mailing-list sign-up endpoint for the homepage
 - `js/app.js` — application boot and wiring (state, boot sequence, settings/report/compass handlers). Loaded last, after every other `js/*.js`
+- `js/shared.js` — helpers both the app and the admin page use (`escapeHtml`, `clamp`, the GeoJSON coordinate walkers). Loaded first
+- `js/permission-asks.js` — the consent and permission prompts (location, analytics, motion, the first-visit card). Loaded before `app.js`
+- `js/map-search.js` — map search: the search index, ranking and results. Loaded before `app.js`
 - `js/loader.js` — data fetching, parallel fetch, normalisation triggers
 - `js/routing.js` — walkable road/path graph builder and pathfinding for the selected-route line (pure, no state/DOM access)
 - `js/normalize.js` — data normalisation utilities
@@ -154,7 +211,7 @@ When removing a source-grep test, check that an executed test or e2e journey cov
 
 ### CI is the verdict, and the PR is how you get it
 
-**Open the PR as soon as the work is pushed, and let its `E2E tests` shards and `Visual
+**Open the PR as soon as the lead session has pushed the reviewed work, and let its `E2E tests` shards and `Visual
 snapshots (mobile)` be the one full run of the suite.** CI only fires on `pull_request` (plus a
 push to `main` and a manual dispatch), so a branch pushed without a PR gets no checks at all —
 and reaching for `workflow_dispatch` to fix that just means two runs of the same suite on the
@@ -176,7 +233,7 @@ the full sweep is not.
 
 So, before a PR is done — every time, no exceptions:
 
-1. **Push, open the PR, then read the CI run for your head SHA.** `actions_list` →
+1. **After the review and test gates pass, the lead session pushes and opens the PR, then reads the CI run for the head SHA.** `actions_list` →
    `list_workflow_runs` filtered to your branch, then `list_workflow_jobs`, then `get_job_logs`
    on each `E2E tests (<project>, shard <n>)` job and on `Visual snapshots (desktop + mobile)`. Read the
    `N failed / N passed` line and the failure list under it.
@@ -264,7 +321,7 @@ If you do edit a shared one, re-run every spec that uses it, on **every** Playwr
    reproduces the runner's 2 vCPUs.
 3. Relevant `spec/` file is updated, or reason documented.
 4. Create a commit with a good concise description summarising the change.
-5. Push and open the PR with screenshots of the change in its description (see "Screenshots in
+5. After the review and test gates pass, the lead session pushes and opens the PR with screenshots of the change in its description (see "Screenshots in
    every PR" above), then confirm every `E2E tests (<project>, shard <n>)` job is **green on
    your branch**, and review warnings from `Visual snapshots (desktop + mobile)` — per "CI is the verdict"
    above. That PR run is the full sweep; do not also run the suite locally or dispatch CI by

@@ -546,20 +546,6 @@ function drawCowPastures(ctx) {
 // in full 3D (tilt) mode — breaking into a fresh moveTo whenever the line re-enters the
 // ahead half so a road/path that dips behind and back doesn't get an incorrect connecting
 // stroke across the hidden gap. Returns false when nothing ahead was drawn (nothing to stroke).
-function traceAheadOnlyPath(ctx, worldPoints) {
-  let drawing = false;
-  let any = false;
-  for (let i = 0; i < worldPoints.length; i += 1) {
-    const worldPoint = worldPoints[i];
-    if (isBehindTiltHeading(worldPoint)) { drawing = false; continue; }
-    const screenPoint = worldToScreen(worldPoint);
-    if (!drawing) { ctx.moveTo(screenPoint.x, screenPoint.y); drawing = true; }
-    else ctx.lineTo(screenPoint.x, screenPoint.y);
-    any = true;
-  }
-  return any;
-}
-
 // Traces a polyline into the current path without tilt-based heading filtering.
 // Used for roads and paths which should remain visible even when behind the user's
 // heading direction in tilt mode (unlike terrain/sky which is culled). Returns false
@@ -2400,29 +2386,6 @@ function drawTrees(ctx, nearbyIconLookup, toScreen, treeClusters) {
   }
   ctx.globalAlpha = 1;
   ctx.restore();
-}
-
-function drawTreeMarker(ctx, tree, color, radius, showBorder = false) {
-  const point = worldToScreen(tree.point);
-  ctx.save();
-  ctx.beginPath();
-  ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-  ctx.fillStyle = color;
-  ctx.fill();
-  if (showBorder) {
-    ctx.strokeStyle = "#fff";
-    ctx.lineWidth = 3 * pixelRatio();
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
-function getMarkerPulseOpacity(minOpacity = 0.3, maxOpacity = 0.8) {
-  if (_animationStartTime === null) _animationStartTime = performance.now();
-  const elapsed = performance.now() - _animationStartTime;
-  const cyclePosition = (elapsed % 2000) / 2000;
-  const pulse = Math.sin(cyclePosition * Math.PI * 2) * 0.5 + 0.5;
-  return minOpacity + (maxOpacity - minOpacity) * pulse;
 }
 
 // Draws just the operator's glyph, centred at (cx, cy) and sized sizePx wide/tall -- the shared

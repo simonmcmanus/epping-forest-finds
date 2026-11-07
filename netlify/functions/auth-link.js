@@ -16,6 +16,7 @@ exports.handler = async (event) => {
   if (!session) return respond(401, { error: "Sign in first." });
   let input;
   try { input = JSON.parse(event.body || "{}"); } catch { return respond(400, { error: "Invalid JSON" }); }
+  if (!input || typeof input !== "object") return respond(400, { error: "Invalid device id" });
   if (typeof input.deviceId !== "string" || !DEVICE_ID_RE.test(input.deviceId)) return respond(400, { error: "Invalid device id" });
   const store = openStore(event);
   const result = await linkDevice(store, await accountOf(store, session), input.deviceId);
