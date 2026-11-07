@@ -1355,8 +1355,6 @@ function setupSearchAndNavHandlers() {
     if (submitIssueBtn) { submitLocationIssueReport(submitIssueBtn.closest(".report-issue")); return; }
     const resetAnchorBtn = event.target.closest("[data-action='reset-nearby-anchor']");
     if (resetAnchorBtn) { clearNearbyAnchor(); return; }
-    const restoreFiltersBtn = event.target.closest("[data-action='restore-saved-filters']");
-    if (restoreFiltersBtn) { restoreSavedFilters(); return; }
     // Server-rendered Nearby pills are anchors. Only the hydrated button rail is an in-place
     // toggle; leave static anchors to the ordinary internal-link handler below, including
     // modified clicks that should open the link in a new tab.
@@ -1567,10 +1565,8 @@ function focusNearbyWithinWalkMinutes(latitude, longitude, minutes, label = null
   state.nearbyAnchor = { latitude, longitude, point: projectLonLat(longitude, latitude), label };
   state.walkingDistanceMinutes = minutes;
   state.outOfRadiusRevealFilters = [];
-  // "Everything" means every category, not the reader's saved filter set -- same override the
-  // /nearby?filters=false link gets (applyShowFilterFromQuery, js/app.js). Ephemeral, so the
-  // saved filters come back as soon as the reader leaves this view.
-  setOverviewFilters(Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: false, render: false });
+  // "Everything" means every category, and it is a filter change like any other, so it is saved.
+  setOverviewFilters(Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: true, render: false });
   exitClusterExpansion({ restoreRadius: false });
   refreshNearbyRadiusView({ animate: false });
   pushNearbyAnchorHistory();

@@ -2304,27 +2304,30 @@ test("a filter set covering every category keeps every displayed pill pressed", 
   app.state.overviewFilters = [];
 });
 
-test("tapping a rail pill narrows to it, a second pill adds to it, and un-pressing the last returns to Everything, none of it saved", () => {
+test("tapping a rail pill narrows to it, a second pill adds to it, and un-pressing the last returns to Everything, all of it saved", () => {
   resetData(app);
   app.location.pathname = "/nearby";
   app.location.search = "";
   app.state.overviewFilters = app.FILTER_SUBFILTERS.map((sub) => sub.key);
   app.toggleRailFilter("nature");
   assert.deepEqual(Array.from(app.state.overviewFilters), ["trees", "cows", "ponds_streams"]);
-  assert.equal(app.state.overviewFiltersEphemeral, true, "a rail tap is a lens, not the reader's saved filters");
+  assert.equal(app.state.overviewFiltersEphemeral, false, "a rail tap changes the reader's saved filters");
+  assert.deepEqual(Array.from(app.loadStoredOverviewFilters()), ["trees", "cows", "ponds_streams"]);
   assert.equal(app.location.pathname, "/nearby", "the plain Nearby rail stays at top-level groups");
-  assert.equal(app.location.search, "?show=trees,cows,ponds_streams");
+  assert.equal(app.location.search, "", "a rail pick never writes a show= link");
   app.state.nearbyRailGroupKey = "nature";
   app.toggleRailFilter("ponds_streams");
   assert.deepEqual(Array.from(app.state.overviewFilters), ["trees", "cows"]);
+  assert.deepEqual(Array.from(app.loadStoredOverviewFilters()), ["trees", "cows"]);
   assert.equal(app.location.pathname, "/nearby");
-  assert.equal(app.location.search, "?show=trees,cows");
+  assert.equal(app.location.search, "");
   app.location.pathname = "/nearby";
   app.state.nearbyRailGroupKey = null;
   app.toggleRailFilter("nature");
   assert.equal(app.railSelection().length, 0, "nothing chosen represents all filters");
-  assert.equal(app.location.search, "?filters=false");
   assert.deepEqual(Array.from(app.state.overviewFilters), [], "the last pill remains visibly unselected");
+  assert.deepEqual(Array.from(app.loadStoredOverviewFilters()), [], "the empty pick is saved too");
+  app.localStorage.removeItem("forest-finds-filter-state-v1");
   assert.match(app.filterRailHtml(), /data-rail-key="all-nearby"[^>]*aria-pressed="true"/);
   assert.match(app.filterRailHtml(), /data-rail-key="nature"[^>]*aria-pressed="false"/);
   app.state.overviewFilters = [];
@@ -2341,9 +2344,10 @@ test("the Everything rail pill restores every category and keeps a category rail
   app.state.overviewFilters = ["pubs", "cafes"];
   app.toggleRailFilter("all-nearby");
   assert.equal(Array.from(app.state.overviewFilters).join(","), app.FILTER_SUBFILTERS.map((sub) => sub.key).join(","));
+  assert.equal(Array.from(app.loadStoredOverviewFilters()).join(","), app.FILTER_SUBFILTERS.map((sub) => sub.key).join(","), "Everything is saved");
   assert.equal(app.state.nearbyRailGroupKey, "food");
   assert.equal(app.location.pathname, "/nearby");
-  assert.equal(app.location.search, "?filters=false");
+  assert.equal(app.location.search, "", "Everything writes plain Nearby, not a view link");
   assert.match(app.filterRailHtml(), /data-rail-key="all-nearby"[^>]*aria-pressed="true"/);
   assert.equal(Array.from(app.railPillKeys()).join(","), "pubs,restaurants,cafes,shops");
   app.state.overviewFilters = [];

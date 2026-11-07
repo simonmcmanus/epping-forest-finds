@@ -191,16 +191,33 @@ test.describe("Nearby camera returns to the Nearby ring fit", () => {
   });
 });
 
+// Plain Nearby: the title, the document title and the list heading name no category.
+async function expectPlainNearbyLabels(page) {
+  await expect(page.locator("#inspectorTitle")).toHaveText("Nearby");
+  await expect(page).toHaveTitle("Nearby | Epping Forest Finds");
+  await expect(page.locator(".nearby-category-results")).toHaveCount(0);
+}
+
 test.describe("A re-tap keeps the view the reader set up", () => {
   const railPill = (page, key) => page.locator(`#inspectorBody [data-rail-key="${key}"]`);
   const sortedFilters = (page) => page.evaluate(() => [...state.overviewFilters].sort().join(","));
+  const savedFilters = (page) => page.evaluate(() => {
+    const stored = JSON.parse(localStorage.getItem("forest-finds-filter-state-v1") || "null");
+    return stored && Array.isArray(stored.filters) ? stored.filters.slice().sort().join(",") : null;
+  });
+  // Seeds the saved set once per tab. An init script runs again on every reload, so without the marker a reload
+  // would put the seeded set back over whatever the reader saved.
+  const seedSavedFilters = (page, filters) => page.addInitScript((list) => {
+    if (sessionStorage.getItem("seeded-filters")) return;
+    sessionStorage.setItem("seeded-filters", "1");
+    localStorage.setItem("forest-finds-filter-state-v1", JSON.stringify({ filters: list }));
+  }, filters);
 
   test("a re-tap on Nearby returns the rail to its top level and keeps the subcategory picks", async ({ page }) => {
-    // A category landing drills the rail into its subcategories; a subcategory tap leaves the landing for
-    // plain Nearby with a ?show= lens, still drilled in.
+    // The saved set holds all of Food. Tapping Cafes on the Food landing takes it out of the saved set.
+    await seedSavedFilters(page, ["pubs", "restaurants", "cafes", "shops"]);
     await setup(page, "/nearby/food");
     await railPill(page, "cafes").click();
-    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?show=pubs,restaurants,shops$/);
     await expect(railPill(page, "pubs")).toHaveCount(1);
 
     await nearbyButton(page).click();
@@ -208,85 +225,40 @@ test.describe("A re-tap keeps the view the reader set up", () => {
 
     await expect(railPill(page, "pubs")).toHaveCount(0);
     await expect(railPill(page, "food").locator(".rail-count")).toHaveText("3/4");
-    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?show=pubs,restaurants,shops$/);
+    await expect(page).not.toHaveURL(/[?&]show=/);
     expect(await sortedFilters(page)).toBe("pubs,restaurants,shops");
+    expect(await savedFilters(page)).toBe("pubs,restaurants,shops");
   });
 
-  test("a rail pick stays on a re-tap, and Back to my filters restores the saved set", async ({ page }) => {
-    // The reader's saved set has no Nature category in it, so picking Nature on and off again returns to it.
-    await page.addInitScript(() => {
-      localStorage.setItem("forest-finds-filter-state-v1", JSON.stringify({ filters: ["campsites", "churches", "events", "pubs"] }));
-    });
+  test("a rail pick stays on a re-tap", async ({ page }) => {
     await setup(page, "/nearby");
-    const saved = await page.evaluate(() => loadStoredOverviewFilters().slice().sort().join(","));
-    const restore = page.getByRole("button", { name: "Back to my filters" });
-    // Hidden while the lens is the saved set.
-    await expect(page.locator('[data-action="restore-saved-filters"]')).toHaveCount(1);
-    await expect(page.locator('[data-action="restore-saved-filters"]')).toBeHidden();
+    const before = await sortedFilters(page);
     await railPill(page, "nature").click();
     const picked = await sortedFilters(page);
-    expect(picked, "the rail pick changes the lens").not.toBe(saved);
-    await expect(restore).toBeVisible();
+    expect(picked, "the rail pick changes the set").not.toBe(before);
 
     await nearbyButton(page).click();
     await waitForUiToSettle(page);
+
     expect(await sortedFilters(page)).toBe(picked);
-    await expect(restore).toBeVisible();
-
-    // Picking the same top-level category again makes the lens the saved set, so the control hides.
-    await railPill(page, "nature").click();
-    expect(await sortedFilters(page)).toBe(saved);
-    await expect(restore).toBeHidden();
-    await railPill(page, "nature").click();
-    expect(await sortedFilters(page)).toBe(picked);
-    await expect(restore).toBeVisible();
-
-    await restore.click();
-    await waitForUiToSettle(page);
-    expect(await sortedFilters(page)).toBe(saved);
-    await expect(restore).toBeHidden();
-    await expect(page).not.toHaveURL(/[?&]show=/);
-  });
-
-  test("tapping Back to my filters after a landing pick returns the rail to its top level with the saved ticks", async ({ page }) => {
-    await page.addInitScript(() => {
-      localStorage.setItem("forest-finds-filter-state-v1", JSON.stringify({ filters: ["trees", "ponds_streams"] }));
-    });
-    // Land on Food, then pick one subcategory: the rail is still drilled in, and the URL is plain Nearby.
-    await setup(page, "/nearby/food");
-    await railPill(page, "pubs").click();
-    await railPill(page, "restaurants").click();
-    await railPill(page, "shops").click();
-    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?show=cafes$/);
-
-    await page.getByRole("button", { name: "Back to my filters" }).click();
-    await waitForUiToSettle(page);
-
-    // Top level again: the group pills are back, the Food group is not drilled into, and the saved ticks are on.
-    await expect(railPill(page, "pubs")).toHaveCount(0);
-    await expect(railPill(page, "food")).toHaveCount(1);
-    await expect(railPill(page, "food").locator(".rail-count")).toHaveText("0/4");
-    await expect(railPill(page, "nature")).toHaveCount(1);
-    await expect(railPill(page, "nature")).toHaveAttribute("aria-pressed", "true");
-    expect(await sortedFilters(page)).toBe("ponds_streams,trees");
-    await expect(page).not.toHaveURL(/[?&]show=/);
+    await expect(railPill(page, "nature")).toHaveAttribute("aria-pressed", "false");
   });
 
   test("a single subcategory pick stays on a re-tap", async ({ page }) => {
-    // Three subcategories are turned off on the Food landing, leaving cafes as the one pick. The rail
-    // writes that as a plain Nearby URL, not as a landing path.
+    // Three subcategories are turned off on the Food landing, leaving cafes as the one pick.
+    await seedSavedFilters(page, ["pubs", "restaurants", "cafes", "shops"]);
     await setup(page, "/nearby/food");
     await railPill(page, "pubs").click();
     await railPill(page, "restaurants").click();
     await railPill(page, "shops").click();
-    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?show=cafes$/);
+    await expect(page).not.toHaveURL(/[?&]show=/);
     expect(await sortedFilters(page)).toBe("cafes");
 
     await nearbyButton(page).click();
     await waitForUiToSettle(page);
 
-    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?show=cafes$/);
     expect(await sortedFilters(page)).toBe("cafes");
+    expect(await savedFilters(page)).toBe("cafes");
     await expect(railPill(page, "food").locator(".rail-count")).toHaveText("1/4");
   });
 
@@ -331,53 +303,49 @@ test.describe("A re-tap keeps the view the reader set up", () => {
     expect(await page.evaluate(() => window.__slides)).toBe(0);
   });
 
-  test("the Back to my filters chip appears after the first pick on a category landing", async ({ page }) => {
-    // Motion on: the rail updates in place, which is the path a real phone takes.
-    await page.emulateMedia({ reducedMotion: "no-preference" });
-    await setup(page, "/nearby/food");
-    const restore = page.getByRole("button", { name: "Back to my filters" });
-    await expect(page.locator('[data-action="restore-saved-filters"]')).toHaveCount(1);
-    await expect(restore).toBeHidden();
+  test("a rail pick on plain Nearby is saved: a reload keeps it", async ({ page }) => {
+    await setup(page, "/nearby");
+    const before = await sortedFilters(page);
+    await railPill(page, "nature").click();
+    const picked = await sortedFilters(page);
+    expect(picked, "the rail pick changes the set").not.toBe(before);
+    expect(await savedFilters(page)).toBe(picked);
 
-    await railPill(page, "cafes").click();
+    await page.reload();
+    await page.waitForFunction(() => typeof state !== "undefined" && state.dataLoaded === true);
+    await waitForUiToSettle(page);
 
-    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?show=pubs,restaurants,shops$/);
-    await expect(restore).toBeVisible();
+    expect(await sortedFilters(page)).toBe(picked);
+    await expect(railPill(page, "nature")).toHaveAttribute("aria-pressed", "false");
   });
 
-  test("showing Back to my filters does not move the rail's pills", async ({ page }) => {
-    // Motion on: the rail updates in place, which is the path a real phone takes.
-    await page.emulateMedia({ reducedMotion: "no-preference" });
+  test("visiting a category landing shows that category without changing the saved set", async ({ page }) => {
+    await seedSavedFilters(page, ["ponds_streams", "trees"]);
     await setup(page, "/nearby/food");
-    // The strip is read from its start: a click scrolls the pill it hits into view, which is not a reflow.
-    const rail = () => page.evaluate(() => {
-      const strip = document.querySelector("#inspectorBody .rail-pills");
-      strip.scrollLeft = 0;
-      const box = (el) => {
-        const r = el.getBoundingClientRect();
-        return { x: r.left, y: r.top, w: r.width, h: r.height };
-      };
-      return { first: box(strip.querySelector("[data-rail-key]")), strip: box(strip) };
-    });
-    await expect(page.locator('[data-action="restore-saved-filters"]')).toHaveCount(1);
-    await expect(page.getByRole("button", { name: "Back to my filters" })).toBeHidden();
-    await waitForUiToSettle(page);
-    const before = await rail();
+    // The landing shows its own category: the Food pills are pressed, and the saved set is not.
+    await expect(railPill(page, "pubs")).toHaveAttribute("aria-pressed", "true");
+    expect(await sortedFilters(page)).not.toBe("ponds_streams,trees");
+    expect(await savedFilters(page)).toBe("ponds_streams,trees");
+  });
 
+  test("a pill tap on a category landing saves the set it edits", async ({ page }) => {
+    // The first pick on a landing edits the set the reader had before it: Cafes is added to that set and saved.
+    await seedSavedFilters(page, ["ponds_streams", "trees"]);
+    await setup(page, "/nearby/food");
     await railPill(page, "cafes").click();
-    await expect(page.getByRole("button", { name: "Back to my filters" })).toBeVisible();
-    await waitForUiToSettle(page);
-    const after = await rail();
+    await expect(page).not.toHaveURL(/[?&]show=/);
+    expect(await savedFilters(page)).toBe("cafes,ponds_streams,trees");
 
-    for (const key of ["x", "y", "w", "h"]) {
-      expect(Math.abs(after.first[key] - before.first[key]), `the first pill's ${key} after the chip shows`).toBeLessThan(1);
-      expect(Math.abs(after.strip[key] - before.strip[key]), `the pill strip's ${key} after the chip shows`).toBeLessThan(1);
-    }
+    await page.reload();
+    await page.waitForFunction(() => typeof state !== "undefined" && state.dataLoaded === true);
+    await waitForUiToSettle(page);
+    expect(await sortedFilters(page)).toBe("cafes,ponds_streams,trees");
   });
 
   test("a whole group picked on its landing is named by neither the title nor the list heading, before and after a reload", async ({ page }) => {
+    await seedSavedFilters(page, ["pubs", "restaurants", "cafes", "shops"]);
     await setup(page, "/nearby/food");
-    // Toggling cafes off and back on leaves all four Food subcategories on, so the whole group is picked.
+    // Cafes off and back on leaves all four Food subcategories saved, so the whole group is picked.
     await railPill(page, "cafes").click();
     await railPill(page, "cafes").click();
     expect(await sortedFilters(page)).toBe("cafes,pubs,restaurants,shops");
@@ -390,20 +358,14 @@ test.describe("A re-tap keeps the view the reader set up", () => {
     await expectPlainNearbyLabels(page);
   });
 
-// Plain Nearby: the title, the document title and the list heading name no category.
-async function expectPlainNearbyLabels(page) {
-  await expect(page.locator("#inspectorTitle")).toHaveText("Nearby");
-  await expect(page).toHaveTitle("Nearby | Epping Forest Finds");
-  await expect(page.locator(".nearby-category-results")).toHaveCount(0);
-}
-
   test("a single subcategory pick names its category in the Nearby title and the document title", async ({ page }) => {
     // Three subcategories are turned off on the Food landing, leaving cafes as the one pick.
+    await seedSavedFilters(page, ["pubs", "restaurants", "cafes", "shops"]);
     await setup(page, "/nearby/food");
     await railPill(page, "pubs").click();
     await railPill(page, "restaurants").click();
     await railPill(page, "shops").click();
-    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?show=cafes$/);
+    await expect(page).not.toHaveURL(/[?&]show=/);
 
     await expect(page).toHaveTitle("Nearby Cafés in Epping Forest | Epping Forest Finds");
     await expect(page.locator("#inspectorTitle")).toHaveText("Nearby Cafés");
@@ -439,26 +401,5 @@ test.describe("A Nearby tap on the minimised sheet", () => {
     expect(await page.evaluate(() => [...state.overviewFilters].sort().join(","))).toBe(picked);
     expect(await page.evaluate(() => Boolean(state.clusterExpanded))).toBe(true);
     expectSameCamera(await readCamera(page), fitCamera, "camera after reopening the sheet");
-  });
-});
-
-test.describe("Back to my filters without a location fix", () => {
-  // No permission: the landing keeps its server-rendered list, as it does before the first fix.
-  test.use({ geolocation: undefined, permissions: [] });
-
-  const railPill = (page, key) => page.locator(`#inspectorBody [data-rail-key="${key}"]`);
-
-  test("without a location fix, the Back to my filters chip appears after the first pick on a landing", async ({ page }) => {
-    // The landing's server-rendered list stays on screen until a fix, and that list is not rebuilt by the pick.
-    await page.emulateMedia({ reducedMotion: "no-preference" });
-    await setup(page, "/nearby/food");
-    const restore = page.getByRole("button", { name: "Back to my filters" });
-    await expect(page.locator('[data-action="restore-saved-filters"]')).toHaveCount(1);
-    await expect(restore).toBeHidden();
-
-    await railPill(page, "cafes").click();
-
-    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?show=pubs,restaurants,shops$/);
-    await expect(restore).toBeVisible();
   });
 });

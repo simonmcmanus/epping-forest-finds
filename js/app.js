@@ -2764,10 +2764,9 @@ function setOverviewFilters(nextFilters, { persist = true, render = true, railTa
       ? { latitude: origin.latitude, longitude: origin.longitude }
       : null;
   }
-  // Marks the current filters as a page's own lens rather than the reader's choice, so
-  // goToInitialView (the Nearby nav button) knows to put their real filters back rather than
-  // carrying a /nearby/<slug> page's single category over to the plain Nearby screen. Any real
-  // change -- a chip tap, anywhere, persist:false page included -- clears it again.
+  // Marks the current filters as a view (a category landing or an old ?show= link) rather than the saved
+  // set, so goToInitialView (the Nearby nav button) knows to put the saved filters back rather than carrying
+  // a view over to the plain Nearby screen. A save (persist) clears it: a rail pick is a save.
   state.overviewFiltersEphemeral = !persist;
   // Before the camera work below: secondary screens may reach a newly selected filter's nearest
   // match when it lies outside the walking radius (outOfRadiusFitPoints). Nearby stays framed on
@@ -2781,8 +2780,6 @@ function setOverviewFilters(nextFilters, { persist = true, render = true, railTa
   syncLiveQueryStringForScreen();
   if (railTap) {
     syncRailUrl();
-    // After the URL: a pick that moves it off a category landing is what makes the chip apply.
-    syncRestoreSavedFiltersControl();
     railPatchPending = true;
   }
   // render:false -- boot()'s own call, before state.userLocation exists -- skips the render
@@ -2829,7 +2826,6 @@ function updateFilterUi() {
       els.filterCount.textContent = String(activeGroupCount);
     }
   }
-  syncRestoreSavedFiltersControl();
 }
 
 function mapSetupModalActive() {
@@ -4598,19 +4594,15 @@ function filterRailHtml() {
     const status = `<span class="rail-check" aria-hidden="true">${on ? "✓" : ""}</span>`;
     return `<button class="rail-pill${on ? " is-on" : ""}" type="button" data-rail-key="${item.key}" aria-pressed="${on}">${appIconHtml(item.icon)}<span>${escapeHtml(item.label)}</span>${status}</button>`;
   }).join("");
-  const restoreShown = restoreSavedFiltersNeeded();
-  return `<nav class="filter-rail${restoreShown ? " has-restore" : ""}" aria-label="Filter nearby places">` +
-    `<button class="walk-chip walk-chip-btn rail-restore" type="button" data-action="restore-saved-filters">Back to my filters</button>` +
+  return `<nav class="filter-rail" aria-label="Filter nearby places">` +
     `<div class="rail-pills">${allPill}${pills}</div>` +
     `</nav>`;
 }
 
-// Where the address bar points for the current rail selection. A rail pick is only a filter on plain
-// Nearby, so it is always written there: /nearby?show=... (searchStringForPath adds the query while the
-// lens is ephemeral), or /nearby?filters=false for every category. It never writes a category landing
-// path (/nearby/<slug>): that path is a real arrival with its own lens and title, and a re-tap has to
-// tell the two apart by the URL. Replaces the current history entry (a tap is a refinement, not a new
-// place to go back to).
+// Where the address bar points after a rail pick: plain /nearby. A pick saves the filter set, so there is
+// no ?show= to write (searchStringForPath only writes one for a view, such as an old ?show= link), and a
+// rail pick never writes a category landing path (/nearby/<slug>), which stays a real arrival. Replaces
+// the current history entry (a tap is a refinement, not a new place to go back to).
 function syncRailUrl() {
   if (routeApplyDepth > 0 || routerBooting) return;
   const url = `${NEARBY_PATH}${searchStringForPath(NEARBY_PATH)}${window.location.hash}`;
@@ -4618,51 +4610,25 @@ function syncRailUrl() {
   history.replaceState(history.state, "", url);
 }
 
-// The "Back to my filters" control: shown on plain Nearby while a rail pick or "Everything within"
-// stands in for the reader's saved filters (the lens is ephemeral), and hidden once the lens is the
-// saved set again. A category landing page has its own lens, so it never shows it.
-function filterSetKey(filters) {
-  return [...filters].sort().join(",");
-}
-
-function restoreSavedFiltersNeeded() {
-  if (!state.overviewFiltersEphemeral || isNearbyCategoryLandingPath()) return false;
-  return filterSetKey(loadStoredOverviewFilters()) !== filterSetKey(state.overviewFilters);
-}
-
-function syncRestoreSavedFiltersControl() {
-  const control = document.querySelector('[data-action="restore-saved-filters"]');
-  if (!control) return;
-  control.parentElement?.classList.toggle("has-restore", restoreSavedFiltersNeeded());
-}
-
-// Puts the reader's saved filters back: the same call the title Nearby icon's landing on /nearby makes
-// (applyRoute), so the lens is replaced and the URL is cleared by the usual sync.
-function restoreSavedFilters() {
-  // The drill level goes with the lens: the rail returns to its top level, and updates in place as a pick does.
-  state.nearbyRailGroupKey = undefined;
-  railPatchPending = true;
-  try {
-    setOverviewFilters(loadStoredOverviewFilters());
-  } finally {
-    railPatchPending = false;
-  }
-}
-
 function toggleRailFilter(key) {
   if (key === "all-nearby") {
     if (typeof navigator.vibrate === "function") navigator.vibrate(8);
     const displayedGroup = nearbyRailGroup();
     state.nearbyRailGroupKey = displayedGroup ? displayedGroup.key : null;
-    setOverviewFilters(Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: false, railTap: true });
+    setOverviewFilters(Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: true, railTap: true });
     return;
   }
   const displayedGroup = nearbyRailGroup();
   const item = railItems().find((candidate) => candidate.key === key);
   if (!item) return;
   state.nearbyRailGroupKey = displayedGroup ? displayedGroup.key : null;
-  const current = new Set(state.overviewFilters.filter((filterKey) => FILTER_SUBFILTERS_BY_KEY.has(filterKey)));
-  const showingAll = state.overviewFilters.length === 0 || railSelection().length === 0;
+  // A category landing shows its own category, without changing the saved set. The first pick there edits
+  // the set the reader had before the landing, and saves it. Everywhere else the rail edits what is shown.
+  const onLanding = state.overviewFiltersEphemeral && isNearbyCategoryLandingPath();
+  const source = onLanding ? loadStoredOverviewFilters() : state.overviewFilters;
+  const current = new Set(source.filter((filterKey) => FILTER_SUBFILTERS_BY_KEY.has(filterKey)));
+  const showingAll = source.length === 0 || current.size === 0 || current.size >= FILTER_SUBFILTERS.length;
+  // The tapped pill toggles within that set: off if any of its categories is in it, on otherwise.
   const active = item.filterKeys.some((filterKey) => current.has(filterKey));
   let next;
   if (showingAll) {
@@ -4678,7 +4644,7 @@ function toggleRailFilter(key) {
   // Do not expand an empty selection back to every key here. That made the last pill look
   // selected again immediately after it was tapped off, so Nature (and any other final pill)
   // could never visibly unselect. The Everything pill represents this empty, explicit state.
-  setOverviewFilters(next, { persist: false, railTap: true });
+  setOverviewFilters(next, { persist: true, railTap: true });
 }
 
 function overviewCategoryContentHtml(content) {

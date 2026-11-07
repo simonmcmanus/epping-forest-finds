@@ -479,7 +479,7 @@ invisible control.
   `Nearby <Category> in Epping Forest | Epping Forest Finds`; a selected place or other map item reads
   `<name> in Epping Forest | Epping Forest Finds`; the plain Nearby, Search, Filters, Feedback and Settings
   screens use their own titles. The category comes from `nearbyCategoryLabel()`: a category landing's own
-  path, or on plain Nearby the rail selection when it is exactly one subcategory. A whole group, several picks
+  path, or on plain Nearby the saved filter set when it is exactly one subcategory. A whole group, several picks
   or mixed picks keep the plain Nearby title and list heading: the group name is dropped only from the title
   and the list heading, since the rail pills still show group labels on plain Nearby. A group's name shows in
   the title only on its landing page. The Nearby title (`#inspectorTitle`)
@@ -1472,17 +1472,18 @@ The full routing model — the URL for each screen, history entries, back/forwar
     (with the `-webkit-` prefix for Safari) and cancels `selectstart`. Implemented by
     `setupRailLongPress()` (`js/nav.js`), which calls `openCategorySetup(groupKey)` (`js/app.js`);
     the dialog is `showOnboarding({ mode: "category" })` (`js/onboarding.js`).
-  - **Toggling.** Tapping a top-level pill enables or disables all of its subcategories. Tapping a
-    subcategory pill enables or disables only that subcategory. The row remains at the level it
-    was displayed at: `/nearby` keeps top-level groups available, while a category landing keeps
-    that group's subcategories available. The URL uses `/nearby?show=...` while a partial selection
-    is active, preserving that display level; a complete category landing may use its matching
-    `/nearby/<slug>` path.
-  - **A tap is a lens, not a preference.** `toggleRailFilter()` calls
-    `setOverviewFilters(next, { persist: false, railTap: true })`: saved filters are untouched and
-    the next plain visit restores them. Un-pressing the last pill returns to the all-filters state;
-    the URL's `?filters=false` form represents every category being enabled.
-  - **URL.** `syncRailUrl()` replaces (never pushes) the current entry, always on plain `/nearby`: `/nearby?show=a` for one or more categories, `/nearby?filters=false` for all of them (`searchStringForPath()` writes that form instead of listing every key). It never writes a category landing path.
+  - **Toggling.** Tapping a top-level pill enables or disables all of its subcategories; tapping a
+    subcategory pill enables or disables only that subcategory. The row stays at the level it was displayed
+    at: `/nearby` keeps the top-level groups, a category landing keeps that group's subcategories. On a
+    category landing the first tap edits the set the reader had before the landing, and saves it.
+  - **A tap saves.** `toggleRailFilter()` calls `setOverviewFilters(next, { persist: true, railTap: true })`,
+    so the rail edits the saved filter set and a reload keeps it. Un-pressing the last pill selects nothing;
+    Everything selects every category.
+  - **URL.** `syncRailUrl()` replaces (never pushes) the current entry with plain `/nearby` after a pick.
+    A rail pick never writes `?show=` or a category landing path. An old `?show=` link is still read as a
+    view and is not saved.
+  - **Drill level.** Which group the rail shows subcategories for is kept in memory, not in the URL: a
+    reload returns the rail to its top level.
   - **In place, no slide.** A tap sets `railPatchPending`; `selectOverview()` then calls
     `patchOverviewBody()` (js/inspector.js) instead of `transitionInspectorBody()`, so the panel does
     not slide. Existing pills keep their node and glide to new slots, new pills pop in; rows are
