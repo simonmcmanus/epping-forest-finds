@@ -207,7 +207,9 @@ photo scales 3%, and buttons nudge up on hover and press down on click.
 Sections, in order:
 
 1. **Hero** — the line-art longhorn (§7) as background, headline (§3.1),
-   sub-line (§3.2), and the primary CTA element (§8). The photo caption uses
+   sub-line (§3.2), and the primary CTA element (§8). The sign-up CTA is the hero's
+   one filled button; the Ledger link beside it is a secondary outline button
+   (`cta-ghost`), so the page has a single primary action. The photo caption uses
    white text on an opaque dark-green backing for contrast across the image,
    running flush to the photo's left, right and bottom edges with no inset.
    The photo uses shared 480, 768, 960, 1280 and 1600px WebP variants with
@@ -244,7 +246,8 @@ Sections, in order:
    three app screenshots: searching its number,
    following its route and viewing its estimated age. Use each screenshot
    caption for the matching explanation rather than repeating the same three
-   points in a separate list. On wide screens, keep the three cards in one
+   points in a separate list. Captions open with a bold step number, 1 to 3, in
+   the order the screenshots appear. On wide screens, keep the three cards in one
    row. Load these supporting images lazily. The navigation caption explains
    that routes try to favour scenic forest paths and alleyways, without
    guaranteeing them. The screenshots are interim real captures from the app
@@ -282,7 +285,9 @@ Sections, in order:
    by thin rules — three columns on wide screens, stacked on mobile — with a
    small circled arrow on each rule showing the sequence. The card's footer is a
    green-tinted strip with the cow icon explaining that fresh cattle locations
-   require a connection and saved positions may be stale.
+   require a connection and saved positions may be stale. The strip's title and
+   text use the steps' own sizes (`.steps strong`, `.steps span`), so the card
+   reads as one type scale.
 7. **FAQ** — headed “Good to know”, after the offline section, with `FAQPage` JSON-LD (§6.3).
    Covers signal, cost/account, tree data, cattle positions and coverage.
    The tree-data answer credits the City of London, acknowledges possible
@@ -308,7 +313,10 @@ Sections, in order:
    longer descriptions. The primary button
    links directly to that latest edition; an “All editions” link still leads to
    `/reports/`. Without JavaScript, the primary link remains a working route to
-   the editions index and the summary is omitted rather than becoming stale.
+   the editions index and the summary is omitted rather than becoming stale. The
+   preview container ships `hidden` and is shown only once a real edition's summary
+   and stories have rendered, so a visitor without JavaScript, or one whose edition
+   cannot load, never sees the placeholder line.
 9. **Footer** — "Created and curated by AI with oversight from Simon McManus"
    (linking to `simonmcmanus.com`), an "AI can make mistakes, please report
    them here" GitHub issues link, and `/terms.html`. No separate
@@ -332,7 +340,9 @@ speech bubble (`faq.png`); “No signal? Here’s the plan” uses a phone showi
 saved map (`offline.png`). Both sit beside their headings at 44px. The tree-tag section heading carries a
 numbered metal-tag icon based on the adjacent photograph; the photograph stays
 as the real-world example. Their masters and prompts live in
-`assets/home/icon-sources/`. The reports index reuses the Ledger PNG.
+`assets/home/icon-sources/`. The reports index reuses the Ledger PNG. The
+community section heading uses the map pin (`map-icons/pin.png`), not the
+tree-tag icon of the tree-tags section above it.
 
 The `/contribute` explainer's nine card icons (register, two people, reviewed
 place, tag number, standing by a tree, and the Seedling, Sapling, Woodward and
@@ -1171,10 +1181,15 @@ The homepage uses the Ledger's editorial palette and typography:
 
 Theme colour stays `#24382f`. `Fraunces` is used for display headings and
 `Public Sans` for body copy, loaded with `display=swap`; this deliberately
-matches the Ledger while preserving an immediate system-font fallback.
+matches the Ledger while preserving an immediate system-font fallback. The
+public `/contribute` and `/terms.html` pages load the same two faces and use the
+same body stack, so every public page reads as one site.
 
 No new colours. If the design appears to need one, the answer is a different
-weight or opacity of an existing token.
+weight or opacity of an existing token. Known exceptions, kept until a palette
+decision retires them: the cream FAQ target highlight and sign-up card, the
+Ledger's amber and brown type labels, and the `/contribute` rank tiles. No
+existing token is close enough to substitute for them.
 
 ## 12. Testing
 

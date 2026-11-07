@@ -199,6 +199,7 @@ canvas {
 
 #mapCanvas {
   will-change: transform;
+  touch-action: none;
 }
 
 /* A zero-opacity hook retained for the settled reveal class; the map must remain visible while

@@ -56,7 +56,7 @@ p { margin: 0 0 14px; }
 .hero-sub strong { color: #fff; }
 .cta-btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; border: 0; border-radius: 9px; padding: 13px 22px; background: var(--surface); color: var(--tree-deep); cursor: pointer; font: inherit; font-weight: 700; text-decoration: none; }
 .cta-icon { flex: 0 0 18px; width: 18px; height: 18px; }
-.cta-btn:hover { background: #e6eee1; }
+.cta-btn:hover { background: var(--surface-alt); }
 .cta-note { max-width: 34em; margin: 14px 0 0; color: #c9dfc9; font-size: .88rem; }
 .hero-photo { position: relative; min-height: 265px; margin: 0; }
 .hero-photo::after { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(29, 74, 47, .18), transparent 45%); content: ""; pointer-events: none; }
@@ -125,8 +125,8 @@ section { padding: 52px 0; border-top: 1px solid var(--line); }
 }
 .offline-note { display: flex; gap: 14px; align-items: center; padding: 16px 20px; border-top: 1px solid var(--line); background: var(--surface-alt); }
 .offline-note img { flex: 0 0 40px; width: 40px; height: 40px; object-fit: contain; }
-.offline-note strong { display: block; margin-bottom: 2px; font-size: .96rem; }
-.offline-note p { max-width: 60em; margin: 0; color: var(--muted); font-size: .92rem; line-height: 1.5; }
+.offline-note strong { display: block; margin-bottom: 2px; font-size: 1.02rem; line-height: 1.3; }
+.offline-note p { max-width: 60em; margin: 0; color: var(--muted); font-size: .94rem; line-height: 1.5; }
 .faq-list { margin: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); box-shadow: var(--shadow); }
 .faq-item { padding: 20px 22px; scroll-margin-top: 24px; }
 .faq-item:target { background: #f6f1e7; }
@@ -260,8 +260,6 @@ section { padding: 52px 0; border-top: 1px solid var(--line); }
 .hero + .ledger { margin-top: 28px; margin-bottom: 28px; }
 .cta { display: flex; flex-wrap: wrap; gap: 12px; }
 .cta .cta-note { flex-basis: 100%; margin-top: 0; }
-.hero-ledger-link { background: var(--gold); }
-.hero-ledger-link:hover { background: #f8df91; }
 .inventory-details summary { cursor: pointer; color: var(--tree-deep); font-size: .85rem; font-weight: 600; }
 .inventory-details summary:focus-visible { outline: 3px solid rgba(46, 107, 68, .45); outline-offset: 3px; }
 .inventory-details[open] summary { margin-bottom: 12px; }
