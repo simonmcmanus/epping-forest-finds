@@ -1,7 +1,8 @@
 // @ts-check
 // Re-tapping the Nearby nav button while already on Nearby: the sheet shakes in place rather than
-// sliding out and back in, and a browse anchor set from the list is cleared with the panel
-// showing the Nearby list on the first tap. See spec.md "nav button re-tap" (Nearby bullet).
+// sliding out and back in, the list is refreshed and the camera refits to the Nearby ring fit. A
+// browse anchor set from the list is kept across the tap, and the panel shows the Nearby list on
+// the first tap.
 const { test, expect } = require("@playwright/test");
 const { setup, waitForUiToSettle } = require("./helpers");
 
@@ -89,5 +90,103 @@ test.describe("Nearby re-tap", () => {
     )).toBe(true);
     expect(await page.evaluate(() => window.__slides)).toBe(0);
     await expect(page.locator("#searchToggle")).toHaveClass(/screen-active/);
+  });
+});
+
+// The camera, read the same way the other camera specs read it.
+async function readCamera(page) {
+  await waitForUiToSettle(page);
+  return page.evaluate(() => ({
+    scale: state.viewport.scale,
+    tx: state.viewport.tx,
+    ty: state.viewport.ty,
+  }));
+}
+
+function expectSameCamera(actual, expected, label) {
+  const tolerance = 0.5;
+  for (const key of ["scale", "tx", "ty"]) {
+    expect(Math.abs(actual[key] - expected[key]), `${label}: ${key}`).toBeLessThan(tolerance);
+  }
+}
+
+// The compass loop makes its last fit once the sensor has been quiet for a moment, so a camera move
+// caused by a turn can land after the turn itself. Wait for that last fit.
+async function waitForCompassToSettle(page) {
+  await expect.poll(() => page.evaluate(() => state.compassAnimationFrame == null)).toBe(true);
+}
+
+// One orientation event per frame, the way a phone's compass streams them while it turns, then wait
+// until the heading the map shows has caught up with the turn.
+async function turnCompass(page, fromDeg, toDeg, frames = 60) {
+  await page.evaluate(async ({ fromDeg, toDeg, frames }) => {
+    for (let i = 0; i <= frames; i += 1) {
+      const deg = fromDeg + ((toDeg - fromDeg) * i) / frames;
+      window.dispatchEvent(new DeviceOrientationEvent("deviceorientationabsolute", {
+        alpha: (360 - deg) % 360, beta: 0, gamma: 0, absolute: true,
+      }));
+      await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+    }
+  }, { fromDeg, toDeg, frames });
+  await expect.poll(() => page.evaluate(() =>
+    Number.isFinite(state.compassHeading) && Math.abs(state.compassHeading - state.compassHeadingTarget) < 0.5
+  )).toBe(true);
+  await waitForCompassToSettle(page);
+}
+
+test.describe("Nearby camera returns to the Nearby ring fit", () => {
+  test("tapping Nearby on plain Nearby returns a zoomed-out map to the Nearby ring fit", async ({ page }) => {
+    await setup(page, "/nearby");
+    const ringFit = await readCamera(page);
+
+    // The map has been left zoomed out (for example by a pinch that was never undone).
+    await page.evaluate(() => {
+      state.viewport.scale *= 0.5;
+      requestDraw();
+    });
+    const zoomedOut = await readCamera(page);
+    expect(zoomedOut.scale).toBeLessThan(ringFit.scale * 0.75);
+
+    await nearbyButton(page).click();
+
+    expectSameCamera(await readCamera(page), ringFit, "after tapping Nearby");
+  });
+
+  test("tapping Nearby after Map setup closes returns a map zoomed out since then to the Nearby ring fit", async ({ page }) => {
+    await setup(page, "/nearby");
+    const ringFit = await readCamera(page);
+
+    await page.click("#filterToggle");
+    await expect(page.locator("#onboardingOverlay")).toBeVisible();
+    await page.getByRole("button", { name: "Close map setup" }).click();
+    await expect(page.locator("#onboardingOverlay")).toBeHidden();
+
+    // The map is zoomed out after the setup dialog has closed, so only the Nearby tap can fix it.
+    await page.evaluate(() => {
+      state.viewport.scale *= 0.5;
+      requestDraw();
+    });
+    expect((await readCamera(page)).scale).toBeLessThan(ringFit.scale * 0.75);
+
+    await nearbyButton(page).click();
+
+    expectSameCamera(await readCamera(page), ringFit, "after Map setup closed and Nearby tapped");
+  });
+
+  test("tapping Nearby on plain Nearby keeps a stale compass heading, by design", async ({ page }) => {
+    await setup(page, "/nearby");
+    await turnCompass(page, 0, 90);
+    const headingBefore = await page.evaluate(() => state.compassHeading);
+
+    // Deliberate: the compass has been quiet for longer than goToInitialView()'s stale-sensor limit,
+    // and a re-tap still keeps the heading the map is showing rather than clearing it (north-up).
+    await page.evaluate(() => {
+      state.compassLastEventAt = performance.now() - 10_000;
+    });
+
+    await nearbyButton(page).click();
+    await waitForUiToSettle(page);
+
+    expect(await page.evaluate(() => state.compassHeading)).toBeCloseTo(headingBefore, 0);
   });
 });

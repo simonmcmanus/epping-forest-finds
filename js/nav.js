@@ -1065,17 +1065,21 @@ function setupFilterPanelHandlers() {
   if (els.nearbyToggle) {
     els.nearbyToggle.addEventListener("click", (event) => {
       event.preventDefault();
-      const onPlainNearby = window.location.pathname === NEARBY_PATH
-        && !window.location.search
-        && !window.location.hash
-        && !state.nearbyAnchor;
       const alreadyOnNearby = els.nearbyToggle.classList.contains("screen-active")
         && !els.inspector.classList.contains("minimized");
       if (alreadyOnNearby) {
         // Already on the Nearby screen: shake it in place rather than sliding it out and back in.
-        // A browse anchor or query still needs the list refreshed, but without the screen-entry slide.
+        // The camera refits to the Nearby ring fit and the list is refreshed, with no screen-entry
+        // slide. Nothing else is reset: the compass calibration, the rail level and an expanded
+        // cluster stay as they are. A landing's own lens (its ephemeral filters or its server-rendered
+        // list) still goes through goToInitialView(), which puts the reader's real filters back.
         shakeInspectorSheet();
-        if (!onPlainNearby) goToInitialView(true, { enterAnimated: false });
+        if (state.overviewFiltersEphemeral || _serverRenderedNearbyList) {
+          goToInitialView(true, { enterAnimated: false });
+        } else {
+          selectOverview(false);
+          refitNearbyRingView();
+        }
         return;
       }
       goToInitialView();
@@ -2526,6 +2530,17 @@ function setInspectorMinimized(minimized) {
   if (typeof updateCompassOverlay === "function") updateCompassOverlay();
 }
 
+// The camera half of returning to Nearby: an animated refit to the Nearby ring fit, or the whole
+// data bounds when there is no location yet. It changes nothing else, so the Nearby button's own
+// re-tap can use it without the rest of goToInitialView()'s resets.
+function refitNearbyRingView() {
+  if (state.userLocation) {
+    ensureOverviewTargetsVisible({ animate: true, durationMs: HEADING_UP_NAV_ANIMATION_MS, force: true });
+  } else {
+    fitToBounds(false, { animate: true, durationMs: HEADING_UP_NAV_ANIMATION_MS });
+  }
+}
+
 function goToInitialView(updateHash = true, { enterAnimated = true } = {}) {
   // If compass hasn't fired in >5 s, clear the heading so the map goes north-up
   // rather than showing a frozen direction when the user returns to the overview.
@@ -2576,13 +2591,7 @@ function goToInitialView(updateHash = true, { enterAnimated = true } = {}) {
   _serverRenderedNearbyList = false;
   selectOverview(enterAnimated);
   setInspectorMinimized(false);
-  const refitOverview = () => {
-    if (state.userLocation) {
-      ensureOverviewTargetsVisible({ animate: true, durationMs: HEADING_UP_NAV_ANIMATION_MS, force: true });
-    } else {
-      fitToBounds(false, { animate: true, durationMs: HEADING_UP_NAV_ANIMATION_MS });
-    }
-  };
+  const refitOverview = () => refitNearbyRingView();
   if (wasMinimized) {
     // Wait for the panel's own height transition, not whichever descendant transition happens
     // to end first -- see onInspectorHeightTransitionEnd (js/inspector.js).
