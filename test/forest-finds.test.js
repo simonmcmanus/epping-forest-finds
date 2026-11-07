@@ -12426,7 +12426,7 @@ test("a report whose GitHub filing failed can be sent again and is filed", async
     },
     async (handler, calls) => {
       const failed = await handler(feedbackEvent({ requestId: "req-retry-1" }));
-      assert.equal(failed.statusCode, 500);
+      assert.equal(failed.statusCode, 502, "an upstream failure is a 5xx, which the client outbox retries");
       const retried = await handler(feedbackEvent({ requestId: "req-retry-1" }));
       assert.equal(retried.statusCode, 200, "the failed attempt did not leave the report marked as sent");
       assert.equal(JSON.parse(retried.body).issueNumber, 22);
@@ -12677,6 +12677,68 @@ test("the missing-data report refuses a request body of JSON null with a 400 ins
   const { handler } = require("../netlify/functions/report-missing-data");
   const result = await handler({ httpMethod: "POST", body: "null", headers: {} });
   assert.equal(result.statusCode, 400);
+});
+
+const REPORT_UNAVAILABLE_COPY = "We could not send your report just now. Your text is still here.";
+const TOKEN_ENV_NAMES = ["GITHUB_TOKEN", "GH_TOKEN", "GITHUB_FINE_GRAINED_TOKEN", "GITHUB_PAT"];
+// The server logs the developer detail for each refusal; these tests read the response, so keep the log quiet.
+async function quietly(run) {
+  const originalError = console.error;
+  console.error = () => {};
+  try { return await run(); } finally { console.error = originalError; }
+}
+
+test("Report submission refuses details longer than 5,000 characters before anything reaches GitHub", async () => {
+  await withStubbedGithub(() => jsonResponse(201, { number: 1, html_url: "https://github.com/x/y/issues/1" }), async (handler, calls) => {
+    const tooLong = await handler(feedbackEvent({ details: "a".repeat(5001), requestId: "req-too-long" }));
+    assert.equal(tooLong.statusCode, 400);
+    assert.deepEqual(JSON.parse(tooLong.body), { error: "Your message is too long. Please keep it to 5,000 characters or fewer." });
+    assert.deepEqual(calls, [], "GitHub is never asked to file an oversized report");
+
+    const atLimit = await handler(feedbackEvent({ details: "a".repeat(5000), requestId: "req-at-limit" }));
+    assert.equal(atLimit.statusCode, 200, "a message of exactly 5,000 characters is still filed");
+  });
+});
+
+test("Report submission sends a plain message when GitHub is unavailable and keeps the token hint out of the response", async () => {
+  await withStubbedGithub(
+    (url, method) => (method === "POST" && url.endsWith("/issues")
+      ? jsonResponse(503, { message: "Service unavailable: upstream timeout detail" })
+      : jsonResponse(200, { items: [] })),
+    async (handler) => quietly(async () => {
+      const result = await handler(feedbackEvent({ requestId: "req-github-down" }));
+      assert.equal(result.statusCode, 502);
+      assert.deepEqual(JSON.parse(result.body), { error: REPORT_UNAVAILABLE_COPY });
+    })
+  );
+});
+
+test("Report submission gives the same plain message when the connection to GitHub fails", async () => {
+  await withStubbedGithub(() => { throw new TypeError("fetch failed"); }, async (handler) => quietly(async () => {
+    const result = await handler(feedbackEvent({ requestId: "req-network-down" }));
+    assert.equal(result.statusCode, 502);
+    assert.deepEqual(JSON.parse(result.body), { error: REPORT_UNAVAILABLE_COPY });
+  }));
+});
+
+test("Report submission without a GitHub token keeps the configuration hint in the server log, not the response", async () => {
+  const saved = TOKEN_ENV_NAMES.map((name) => [name, process.env[name]]);
+  for (const name of TOKEN_ENV_NAMES) delete process.env[name];
+  const logged = [];
+  const originalError = console.error;
+  console.error = (...parts) => logged.push(parts.join(" "));
+  try {
+    const { handler } = require("../netlify/functions/report-missing-data");
+    const result = await handler(feedbackEvent({ requestId: "req-no-token" }));
+    assert.equal(result.statusCode, 503, "a report the server cannot send is answered as unavailable");
+    assert.deepEqual(JSON.parse(result.body), { error: REPORT_UNAVAILABLE_COPY });
+    assert.ok(logged.some((line) => line.includes("GITHUB_TOKEN")), "the setting that is missing is logged for the owner");
+  } finally {
+    console.error = originalError;
+    for (const [name, value] of saved) {
+      if (value === undefined) delete process.env[name]; else process.env[name] = value;
+    }
+  }
 });
 
 test("one network cannot mint endless device ids to confirm its own reports: community reports are capped per address and site-wide", async () => {

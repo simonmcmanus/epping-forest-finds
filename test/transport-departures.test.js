@@ -145,3 +145,38 @@ test("a failed bus arrivals lookup is an uncached error, never a cached 'no depa
     assert.equal(result.headers["Netlify-CDN-Cache-Control"], undefined);
   },
 ));
+
+test("Departures rejects coordinates that would change the upstream query", async () => {
+  const requested = [];
+  await withTfl((url) => { requested.push(url); return json({ stopPoints: [] }); }, async () => {
+    for (const [lat, lon] of [
+      ["51.6&stopTypes=NaptanRailStation&radius=5000", "0.03"],
+      ["51.65", "0.03&radius=5000"],
+      ["91", "0.03"],
+      ["51.65", "181"],
+      ["NaN", "0.03"],
+      ["Infinity", "0.03"],
+      ["1e1", "0.03"],
+      [" 51.65", "0.03"],
+    ]) {
+      const result = await transport.handler({ httpMethod: "GET", queryStringParameters: { lat, lon, type: "bus" } });
+      assert.equal(result.statusCode, 400, `lat=${lat} lon=${lon} should be refused`);
+      assert.equal(result.headers["Netlify-CDN-Cache-Control"], undefined, "a refused query is never cached at the edge");
+    }
+  });
+  assert.deepEqual(requested, [], "nothing reaches TfL for a refused query");
+});
+
+test("Departures asks TfL for stops at exactly the coordinates the visitor sent", async () => {
+  const requested = [];
+  await withTfl((url) => { requested.push(url); return json({ stopPoints: [] }); }, async () => {
+    const result = await transport.handler({ httpMethod: "GET", queryStringParameters: { lat: "51.65", lon: "-0.03", type: "train" } });
+    assert.equal(result.statusCode, 200);
+    assert.deepEqual(JSON.parse(result.body), { departures: [], stopName: null });
+  });
+  const stopLookup = new URL(requested[0]);
+  assert.equal(stopLookup.origin + stopLookup.pathname, "https://api.tfl.gov.uk/StopPoint");
+  assert.equal(stopLookup.searchParams.get("lat"), "51.65");
+  assert.equal(stopLookup.searchParams.get("lon"), "-0.03");
+  assert.equal(stopLookup.searchParams.get("stopTypes"), "NaptanMetroStation,NaptanRailStation");
+});
