@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-10-31",
+  "generatedAt": "2026-11-06",
   "entries": [
     {
       "slug": "042",
@@ -16,38 +16,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "way/511586582"
-    },
-    {
-      "slug": "1-stop-halal-at-tesco",
-      "key": "shops",
-      "groupKey": "food",
-      "name": "1 Stop Halal at Tesco",
-      "address": "8 Gainsborough Road, London E11 1HT",
-      "phone": null,
-      "website": null,
-      "lat": 51.571484,
-      "lon": 0.013787,
-      "distanceToForestBoundaryMetres": 465.5,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": "2026-10-31",
-      "id": "node/4681538886"
-    },
-    {
-      "slug": "1-the-avenue",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "1 The Avenue",
-      "address": "1C The Avenue, Chingford, London, E4 9LB",
-      "phone": null,
-      "website": null,
-      "lat": 51.6087231,
-      "lon": 0.0000514,
-      "distanceToForestBoundaryMetres": 377.9,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/1-the-avenue"
     },
     {
       "slug": "3h-s-i-g-n",
@@ -342,7 +310,7 @@
       "key": "shops",
       "groupKey": "food",
       "name": "Aldi",
-      "address": null,
+      "address": "Aldi 829 - 837 High Road Leytonstone, Leytonstone, London, E11 1HH",
       "phone": null,
       "website": "https://www.aldi.co.uk/store-finder/l/leytonstone/829-837-high-road/c619",
       "lat": 51.5692231,
@@ -352,22 +320,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "way/1423250001"
-    },
-    {
-      "slug": "aldi-stores",
-      "key": "shops",
-      "groupKey": "food",
-      "name": "Aldi Stores",
-      "address": "Aldi 829 - 837 High Road Leytonstone, Leytonstone, London, E11 1HH",
-      "phone": null,
-      "website": null,
-      "lat": 51.5692743,
-      "lon": 0.0115675,
-      "distanceToForestBoundaryMetres": 337.8,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/aldi-stores"
     },
     {
       "slug": "alecco",
@@ -486,7 +438,7 @@
       "key": "restaurants",
       "groupKey": "food",
       "name": "Almasara",
-      "address": null,
+      "address": "Ground Floor 877 High Road Leytonstone, Leytonstone, London, E11 1HR",
       "phone": null,
       "website": null,
       "lat": 51.5704605,
@@ -496,22 +448,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "way/511586594"
-    },
-    {
-      "slug": "almasara-lebanese-grill",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Almasara Lebanese Grill",
-      "address": "Ground Floor 877 High Road Leytonstone, Leytonstone, London, E11 1HR",
-      "phone": null,
-      "website": null,
-      "lat": 51.5704655,
-      "lon": 0.0139433,
-      "distanceToForestBoundaryMetres": 147.6,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/almasara-lebanese-grill"
     },
     {
       "slug": "alo-eats",
@@ -1618,22 +1554,6 @@
       "id": "way/376258296"
     },
     {
-      "slug": "billet-road-post-office-and-convenience-store",
-      "key": "shops",
-      "groupKey": "food",
-      "name": "Billet Road Post Office & Convenience Store",
-      "address": "Billet Road Post Office 174 Billet Road, Walthamstow, London, E17 5DX",
-      "phone": null,
-      "website": null,
-      "lat": 51.5997417,
-      "lon": -0.0282265,
-      "distanceToForestBoundaryMetres": 314.4,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/billet-road-post-office-convenience-store"
-    },
-    {
       "slug": "biryani-guys-cpu",
       "key": "restaurants",
       "groupKey": "food",
@@ -2274,22 +2194,6 @@
       "id": "way/849701060"
     },
     {
-      "slug": "breeze-mezze-bar-and-grill",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Breeze Mezze Bar & Grill",
-      "address": "Ground Floor 139 Station Road, Chingford, London, E4 6AG",
-      "phone": null,
-      "website": null,
-      "lat": 51.632719,
-      "lon": 0.0082598,
-      "distanceToForestBoundaryMetres": 265.8,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/breeze-mezze-bar-grill"
-    },
-    {
       "slug": "brick-lane-bagel-co-871556",
       "key": "cafes",
       "groupKey": "food",
@@ -2658,27 +2562,11 @@
       "id": "way/1351826767"
     },
     {
-      "slug": "cafe-chicchi-trading-as-sensei-burgers-n-zalad-maki-kazzo",
-      "key": "cafes",
-      "groupKey": "food",
-      "name": "Cafe Chicchi Trading as Sensei burgers/N’Zalad/Maki Kazzo",
-      "address": "123 High Street, Wanstead, E11 2RL",
-      "phone": null,
-      "website": null,
-      "lat": 51.576711,
-      "lon": 0.027673,
-      "distanceToForestBoundaryMetres": 141.4,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/cafe-chicchi-trading-as-sensei-burgers-n-zalad-maki-kazzo"
-    },
-    {
       "slug": "cafe-la-valentino",
       "key": "cafes",
       "groupKey": "food",
       "name": "Cafe La Valentino",
-      "address": null,
+      "address": "328 High Road Leytonstone, Leytonstone, London, E11 3HS",
       "phone": null,
       "website": null,
       "lat": 51.556617,
@@ -3970,22 +3858,6 @@
       "id": "manual/co-op"
     },
     {
-      "slug": "co-op-e18",
-      "key": "shops",
-      "groupKey": "food",
-      "name": "Co-op",
-      "address": "Co-Operative Food, 55-57 George Lane, South Woodford, E18 1JJ",
-      "phone": null,
-      "website": null,
-      "lat": 51.5917931,
-      "lon": 0.02823,
-      "distanceToForestBoundaryMetres": 401.2,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/co-op"
-    },
-    {
       "slug": "co-op-food-312504",
       "key": "shops",
       "groupKey": "food",
@@ -4080,22 +3952,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "node/11036100778"
-    },
-    {
-      "slug": "co-op-ig8",
-      "key": "shops",
-      "groupKey": "food",
-      "name": "Co-op",
-      "address": "686 Chigwell Road, Woodford Green, IG8 8AQ",
-      "phone": null,
-      "website": null,
-      "lat": 51.606143,
-      "lon": 0.053608,
-      "distanceToForestBoundaryMetres": 271.5,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/co-op"
     },
     {
       "slug": "co-operative-food",
@@ -5618,22 +5474,6 @@
       "id": "manual/eatalian-takeaway"
     },
     {
-      "slug": "eatwell-express",
-      "key": "shops",
-      "groupKey": "food",
-      "name": "Eatwell Express",
-      "address": null,
-      "phone": null,
-      "website": null,
-      "lat": 51.5784643,
-      "lon": 0.002515,
-      "distanceToForestBoundaryMetres": 92.4,
-      "openingHours": "Mo-Fr 07:30-19:30; Sa-Su 09:00-17:00",
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/eatwell-express"
-    },
-    {
       "slug": "eatwell-restaurant",
       "key": "restaurants",
       "groupKey": "food",
@@ -6080,22 +5920,6 @@
       "summary": null,
       "verifiedAt": null,
       "id": "manual/euro-supermarket"
-    },
-    {
-      "slug": "exceline",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Exceline",
-      "address": "527 - 529 High Road Leytonstone, Leytonstone, London, E11 4PB",
-      "phone": null,
-      "website": null,
-      "lat": 51.560151,
-      "lon": 0.0076447,
-      "distanceToForestBoundaryMetres": 194.6,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/exceline"
     },
     {
       "slug": "exceline-pan-african-cuisine",
@@ -6898,22 +6722,6 @@
       "id": "manual/gail-s-bakery"
     },
     {
-      "slug": "gail-s-bakery-wanstead",
-      "key": "shops",
-      "groupKey": "food",
-      "name": "Gail's Bakery Wanstead",
-      "address": "55-57 High Street, Wanstead, E11 2AE",
-      "phone": null,
-      "website": null,
-      "lat": 51.5783653,
-      "lon": 0.026102,
-      "distanceToForestBoundaryMetres": 171,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/gail-s-bakery-wanstead"
-    },
-    {
       "slug": "gail-s-e11",
       "key": "shops",
       "groupKey": "food",
@@ -6960,38 +6768,6 @@
       "summary": null,
       "verifiedAt": null,
       "id": "manual/gala-spanish-school"
-    },
-    {
-      "slug": "gandhi-express",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Gandhi Express",
-      "address": "710 Chigwell Road, Woodford Green, IG8 8AL",
-      "phone": null,
-      "website": null,
-      "lat": 51.60667,
-      "lon": 0.055379,
-      "distanceToForestBoundaryMetres": 407,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/gandhi-express"
-    },
-    {
-      "slug": "gandhi-tandoori",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Gandhi Tandoori",
-      "address": "712 Chigwell Road, Woodford Green, IG8 8AL",
-      "phone": null,
-      "website": null,
-      "lat": 51.60667,
-      "lon": 0.055379,
-      "distanceToForestBoundaryMetres": 407,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/gandhi-tandoori"
     },
     {
       "slug": "garden-cafe",
@@ -7458,22 +7234,6 @@
       "id": "way/468229912"
     },
     {
-      "slug": "good-friend-chinese-restaurant",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Good Friend Chinese Restaurant",
-      "address": "23 Winchester Road, Chingford, London, E4 9LH",
-      "phone": null,
-      "website": null,
-      "lat": 51.6067305,
-      "lon": -0.0012204,
-      "distanceToForestBoundaryMetres": 250.5,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/good-friend-chinese-restaurant"
-    },
-    {
       "slug": "good-view",
       "key": "restaurants",
       "groupKey": "food",
@@ -7504,22 +7264,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "way/228435770"
-    },
-    {
-      "slug": "gospodina",
-      "key": "shops",
-      "groupKey": "food",
-      "name": "Gospodina",
-      "address": "Ground Floor 341 High Road Leytonstone, Leytonstone, London, E11 4JT",
-      "phone": null,
-      "website": null,
-      "lat": 51.5552096,
-      "lon": 0.0052778,
-      "distanceToForestBoundaryMetres": 311.5,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/gospodina"
     },
     {
       "slug": "gospodina-magazin-rom-nesc",
@@ -7698,22 +7442,6 @@
       "id": "node/13140886931"
     },
     {
-      "slug": "great-wall-chinese-takeaway",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Great Wall Chinese Takeaway",
-      "address": "12 Roding Lane South, Ilford, IG4 5NX",
-      "phone": null,
-      "website": null,
-      "lat": 51.57725,
-      "lon": 0.045363,
-      "distanceToForestBoundaryMetres": 409.5,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/great-wall-chinese-takeaway"
-    },
-    {
       "slug": "greek-on-broadway",
       "key": "shops",
       "groupKey": "food",
@@ -7782,7 +7510,7 @@
       "key": "cafes",
       "groupKey": "food",
       "name": "Green Owl",
-      "address": null,
+      "address": "Green Owl Cafe & Deli, 44 Queens Road, Buckhurst Hill, Essex, IG9 5BY",
       "phone": null,
       "website": null,
       "lat": 51.625216,
@@ -7792,22 +7520,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "node/12000529215"
-    },
-    {
-      "slug": "green-owl-cafe-and-deli",
-      "key": "cafes",
-      "groupKey": "food",
-      "name": "Green owl cafe & Deli",
-      "address": "Green Owl Cafe & Deli, 44 Queens Road, Buckhurst Hill, Essex, IG9 5BY",
-      "phone": null,
-      "website": null,
-      "lat": 51.6251552,
-      "lon": 0.044291,
-      "distanceToForestBoundaryMetres": 141.6,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/green-owl-cafe-deli"
     },
     {
       "slug": "greene-man",
@@ -7922,23 +7634,7 @@
       "id": "manual/greggs"
     },
     {
-      "slug": "greggs-the-bakers-e11",
-      "key": "shops",
-      "groupKey": "food",
-      "name": "Greggs the Bakers",
-      "address": "85 High Street, Wanstead, E11 2AE",
-      "phone": null,
-      "website": null,
-      "lat": 51.578248,
-      "lon": 0.026198,
-      "distanceToForestBoundaryMetres": 182,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/greggs-the-bakers"
-    },
-    {
-      "slug": "greggs-the-bakers-e18",
+      "slug": "greggs-the-bakers",
       "key": "shops",
       "groupKey": "food",
       "name": "Greggs the Bakers",
@@ -8178,22 +7874,6 @@
       "id": "node/12909529513"
     },
     {
-      "slug": "harleys-bistro-lounge",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Harleys Bistro Lounge",
-      "address": "184 High Street, Epping, Essex, CM16 4AQ",
-      "phone": null,
-      "website": null,
-      "lat": 51.699188,
-      "lon": 0.111971,
-      "distanceToForestBoundaryMetres": 269.8,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/harleys-bistro-lounge"
-    },
-    {
       "slug": "harry-s-fish-n-chips",
       "key": "restaurants",
       "groupKey": "food",
@@ -8240,38 +7920,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "node/2290216901"
-    },
-    {
-      "slug": "harveys-sk",
-      "key": "shops",
-      "groupKey": "food",
-      "name": "Harveys SK",
-      "address": "6 Clock House Parade, High Street, Wanstead, E11 2AG",
-      "phone": null,
-      "website": null,
-      "lat": 51.577818,
-      "lon": 0.026612,
-      "distanceToForestBoundaryMetres": 229.8,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/harveys-sk"
-    },
-    {
-      "slug": "hatch-lane-food-centre",
-      "key": "shops",
-      "groupKey": "food",
-      "name": "Hatch Lane Food Centre",
-      "address": "39 - 43 Hatch Lane, Chingford, London, E4 6LP",
-      "phone": null,
-      "website": null,
-      "lat": 51.6184764,
-      "lon": 0.0039616,
-      "distanceToForestBoundaryMetres": 7.8,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/hatch-lane-food-centre"
     },
     {
       "slug": "hatch-pharmacy",
@@ -8672,22 +8320,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "way/680295882"
-    },
-    {
-      "slug": "hokkaido-japanese-restaurant",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Hokkaido Japanese Restaurant",
-      "address": "160 Station Road, Chingford, London, E4 6AN",
-      "phone": null,
-      "website": null,
-      "lat": 51.6338762,
-      "lon": 0.0100016,
-      "distanceToForestBoundaryMetres": 102.5,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/hokkaido-japanese-restaurant"
     },
     {
       "slug": "holland-and-barrett-cm16",
@@ -9426,7 +9058,7 @@
       "id": "node/2284359869"
     },
     {
-      "slug": "jaipur-367234",
+      "slug": "jaipur",
       "key": "restaurants",
       "groupKey": "food",
       "name": "Jaipur",
@@ -9440,22 +9072,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "node/2091367234"
-    },
-    {
-      "slug": "jaipur-ig8",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Jaipur",
-      "address": "734 Chigwell Road, Woodford Green, IG8 8AL",
-      "phone": null,
-      "website": null,
-      "lat": 51.60667,
-      "lon": 0.055379,
-      "distanceToForestBoundaryMetres": 407,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/jaipur"
     },
     {
       "slug": "jaipur-of-chigwell",
@@ -9632,22 +9248,6 @@
       "summary": "Philosopher John Locke lived and died at High Laver and is buried at the church there, giving the wider Epping Forest district a major Enlightenment-history connection.",
       "verifiedAt": null,
       "id": "folklore-59"
-    },
-    {
-      "slug": "johnston-s-cafe",
-      "key": "cafes",
-      "groupKey": "food",
-      "name": "Johnston's Cafe",
-      "address": "626 Lea Bridge Road London E10 6AP",
-      "phone": null,
-      "website": null,
-      "lat": 51.5755361,
-      "lon": -0.0123635,
-      "distanceToForestBoundaryMetres": 265.8,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/johnston-s-cafe"
     },
     {
       "slug": "joice-cafe",
@@ -9890,22 +9490,6 @@
       "id": "node/7375695001"
     },
     {
-      "slug": "kaspas-desserts",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Kaspas Desserts",
-      "address": "301-303 High Road, Loughton, Essex, IG10 1AH",
-      "phone": null,
-      "website": null,
-      "lat": 51.6492386,
-      "lon": 0.0571125,
-      "distanceToForestBoundaryMetres": 128.4,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/kaspas-desserts"
-    },
-    {
       "slug": "kebabish-original",
       "key": "restaurants",
       "groupKey": "food",
@@ -10112,22 +9696,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "way/245856870"
-    },
-    {
-      "slug": "kings-oak-hotel-2009",
-      "key": "pubs",
-      "groupKey": "food",
-      "name": "Kings Oak Hotel (2009)",
-      "address": "Kings Oak Hotel, Pauls Nursery Road, Loughton, Essex, IG10 4AE",
-      "phone": null,
-      "website": null,
-      "lat": 51.664284,
-      "lon": 0.039968,
-      "distanceToForestBoundaryMetres": 27.3,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/kings-oak-hotel-2009"
     },
     {
       "slug": "kings-road-baptist-church-chingford",
@@ -10450,22 +10018,6 @@
       "id": "node/10717828392"
     },
     {
-      "slug": "la-baita",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "La Baita",
-      "address": "98 Station Road, Chingford, London, E4 7BA",
-      "phone": null,
-      "website": null,
-      "lat": 51.6330734,
-      "lon": 0.0080442,
-      "distanceToForestBoundaryMetres": 259,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/la-baita"
-    },
-    {
       "slug": "la-baita-da-piero",
       "key": "restaurants",
       "groupKey": "food",
@@ -10578,22 +10130,6 @@
       "id": "node/11974778779"
     },
     {
-      "slug": "la-valentino-cristina",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "La Valentino Cristina",
-      "address": "328 High Road Leytonstone, Leytonstone, London, E11 3HS",
-      "phone": null,
-      "website": null,
-      "lat": 51.5566206,
-      "lon": 0.0063785,
-      "distanceToForestBoundaryMetres": 138.8,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/la-valentino-cristina"
-    },
-    {
       "slug": "la-vita",
       "key": "cafes",
       "groupKey": "food",
@@ -10608,22 +10144,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "way/849701068"
-    },
-    {
-      "slug": "la-vita-bistro-cafe",
-      "key": "cafes",
-      "groupKey": "food",
-      "name": "La Vita Bistro Cafe",
-      "address": "Ground Floor 117 Station Road, Chingford, London, E4 6AG",
-      "phone": null,
-      "website": null,
-      "lat": 51.6324006,
-      "lon": 0.0074221,
-      "distanceToForestBoundaryMetres": 333.5,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/la-vita-bistro-cafe"
     },
     {
       "slug": "lakehouse-hungarian",
@@ -10720,22 +10240,6 @@
       "summary": null,
       "verifiedAt": null,
       "id": "manual/layali-al-beirut"
-    },
-    {
-      "slug": "ldf-chicken",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "LDF Chicken",
-      "address": "249 Cann Hall Road, Leytonstone, London, E11 3NL",
-      "phone": null,
-      "website": null,
-      "lat": 51.5564425,
-      "lon": 0.0146654,
-      "distanceToForestBoundaryMetres": 306,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/ldf-chicken"
     },
     {
       "slug": "ldf-chicken-specialists",
@@ -11120,22 +10624,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "way/767855492"
-    },
-    {
-      "slug": "leytonstone-tavern-tavern-events",
-      "key": "pubs",
-      "groupKey": "food",
-      "name": "Leytonstone Tavern/Tavern Events",
-      "address": "119 Harrow Road, Leytonstone, London, E11 3PX",
-      "phone": null,
-      "website": null,
-      "lat": 51.559118,
-      "lon": 0.0112492,
-      "distanceToForestBoundaryMetres": 243.7,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/leytonstone-tavern-tavern-events"
     },
     {
       "slug": "lidl",
@@ -12034,22 +11522,6 @@
       "id": "node/533979233"
     },
     {
-      "slug": "marlos-brasserie",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Marlos brasserie",
-      "address": "Marlos, 275 High Street, Epping, Essex, CM16 4DA",
-      "phone": null,
-      "website": null,
-      "lat": 51.7005013,
-      "lon": 0.1129502,
-      "distanceToForestBoundaryMetres": 123,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/marlos-brasserie"
-    },
-    {
       "slug": "marrakech-delight",
       "key": "restaurants",
       "groupKey": "food",
@@ -12418,22 +11890,6 @@
       "id": "node/10725764229"
     },
     {
-      "slug": "mezze-on-the-green",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Mezze on the Green",
-      "address": "2 Johnston Road, Woodford Green, IG8 0XA",
-      "phone": null,
-      "website": null,
-      "lat": 51.60934,
-      "lon": 0.022282,
-      "distanceToForestBoundaryMetres": 19.4,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/mezze-on-the-green"
-    },
-    {
       "slug": "mfg-redbridge-k-and-m-redbridge-ltd-londis",
       "key": "shops",
       "groupKey": "food",
@@ -12738,22 +12194,6 @@
       "id": "manual/mooboo"
     },
     {
-      "slug": "mooboo-south-woodford",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Mooboo South Woodford",
-      "address": "147 George Lane, South Woodford, E18 1AN",
-      "phone": null,
-      "website": null,
-      "lat": 51.5933749,
-      "lon": 0.0260389,
-      "distanceToForestBoundaryMetres": 304.9,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/mooboo-south-woodford"
-    },
-    {
       "slug": "more-italy",
       "key": "restaurants",
       "groupKey": "food",
@@ -12816,22 +12256,6 @@
       "summary": null,
       "verifiedAt": null,
       "id": "manual/morley-s-fried-chicken"
-    },
-    {
-      "slug": "morleys-fried-chicken",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Morleys fried chicken",
-      "address": "Morley's Fried Chicken, 252B High Road, Loughton, Essex, IG10 1RB",
-      "phone": null,
-      "website": null,
-      "lat": 51.6491873,
-      "lon": 0.0564452,
-      "distanceToForestBoundaryMetres": 154.4,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/morleys-fried-chicken"
     },
     {
       "slug": "morrison-s-supermarket",
@@ -13008,22 +12432,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "way/509684716"
-    },
-    {
-      "slug": "mum-likes-thai-food-leytonstone",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "MUM LIKES THAI FOOD-Leytonstone",
-      "address": "682 High Road Leytonstone, Leytonstone, London, E11 3AA",
-      "phone": null,
-      "website": null,
-      "lat": 51.568873,
-      "lon": 0.0118961,
-      "distanceToForestBoundaryMetres": 337.9,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/mum-likes-thai-food-leytonstone"
     },
     {
       "slug": "muncheez",
@@ -13248,22 +12656,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "way/452984754"
-    },
-    {
-      "slug": "neelam-fruit-and-veg",
-      "key": "shops",
-      "groupKey": "food",
-      "name": "Neelam Fruit & Veg",
-      "address": "486 Hoe Street, Walthamstow, London, E17 9AH",
-      "phone": null,
-      "website": null,
-      "lat": 51.5756449,
-      "lon": -0.0139843,
-      "distanceToForestBoundaryMetres": 361.2,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/neelam-fruit-veg"
     },
     {
       "slug": "nergiz-food-centre",
@@ -13504,22 +12896,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "node/1872601862"
-    },
-    {
-      "slug": "ninos-cucina-italiana",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Ninos Cucina Italiana",
-      "address": "18 Electric Parade, George Lane, South Woodford, E18 2LY",
-      "phone": null,
-      "website": null,
-      "lat": 51.595071,
-      "lon": 0.023193,
-      "distanceToForestBoundaryMetres": 364.9,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/ninos-cucina-italiana"
     },
     {
       "slug": "nirala-sweets",
@@ -13920,22 +13296,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "node/4093218125"
-    },
-    {
-      "slug": "ohba-leaf-walthamstow",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Ohba Leaf Walthamstow",
-      "address": "Ground Floor 125 Grove Road, Walthamstow, London, E17 9BU",
-      "phone": null,
-      "website": null,
-      "lat": 51.5793105,
-      "lon": -0.009605,
-      "distanceToForestBoundaryMetres": 201.3,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/ohba-leaf-walthamstow"
     },
     {
       "slug": "oishi-don-chez-sando",
@@ -14498,22 +13858,6 @@
       "id": "way/512694576"
     },
     {
-      "slug": "panda-dim-sum",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Panda Dim Sum",
-      "address": "767 High Road Leytonstone, Leytonstone, London, E11 4QS",
-      "phone": null,
-      "website": null,
-      "lat": 51.5666477,
-      "lon": 0.0100375,
-      "distanceToForestBoundaryMetres": 324.8,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/panda-dim-sum"
-    },
-    {
       "slug": "papa-john-s-e10",
       "key": "restaurants",
       "groupKey": "food",
@@ -14790,7 +14134,7 @@
       "key": "cafes",
       "groupKey": "food",
       "name": "Perky Blenders",
-      "address": null,
+      "address": "660 High Road Leyton, Leyton, London, E10 6JP",
       "phone": null,
       "website": null,
       "lat": 51.5700217,
@@ -14800,22 +14144,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "node/11064895198"
-    },
-    {
-      "slug": "perky-blenders-project-660",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Perky Blenders @ Project 660",
-      "address": "660 High Road Leyton, Leyton, London, E10 6JP",
-      "phone": null,
-      "website": null,
-      "lat": 51.57003,
-      "lon": -0.0079374,
-      "distanceToForestBoundaryMetres": 410.2,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/perky-blenders-project-660"
     },
     {
       "slug": "phijith-thai-kitchen",
@@ -14928,22 +14256,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "node/12894659756"
-    },
-    {
-      "slug": "piya-kitchen",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Piya Kitchen",
-      "address": "Piya Kitchen, 74-76 High Street, Epping, Essex, CM16 4AE",
-      "phone": null,
-      "website": null,
-      "lat": 51.6967528,
-      "lon": 0.1085969,
-      "distanceToForestBoundaryMetres": 332.6,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/piya-kitchen"
     },
     {
       "slug": "pizza-academy-prestige",
@@ -15538,22 +14850,6 @@
       "id": "way/1351808631"
     },
     {
-      "slug": "purbani-tandoori",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Purbani Tandoori",
-      "address": "34 The Avenue, Chingford, London, E4 9LD",
-      "phone": null,
-      "website": null,
-      "lat": 51.6085722,
-      "lon": 0.0004636,
-      "distanceToForestBoundaryMetres": 353,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/purbani-tandoori"
-    },
-    {
       "slug": "purbani-tandoori-restaurant",
       "key": "restaurants",
       "groupKey": "food",
@@ -15696,22 +14992,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "way/460135885"
-    },
-    {
-      "slug": "quickpay-supermarket",
-      "key": "shops",
-      "groupKey": "food",
-      "name": "Quickpay Supermarket",
-      "address": "766 Lea Bridge Road, Walthamstow, London, E17 9DN",
-      "phone": null,
-      "website": null,
-      "lat": 51.5783082,
-      "lon": -0.0066519,
-      "distanceToForestBoundaryMetres": 41.5,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/quickpay-supermarket"
     },
     {
       "slug": "quix",
@@ -16146,22 +15426,6 @@
       "id": "way/884703062"
     },
     {
-      "slug": "robins",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Robins",
-      "address": "14 High Street, Wanstead, E11 2AJ",
-      "phone": null,
-      "website": null,
-      "lat": 51.578581,
-      "lon": 0.025101,
-      "distanceToForestBoundaryMetres": 97.9,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/robins"
-    },
-    {
       "slug": "robins-pie-and-mash-e11",
       "key": "restaurants",
       "groupKey": "food",
@@ -16514,22 +15778,6 @@
       "id": "way/105608385"
     },
     {
-      "slug": "sainsbury-s-e11",
-      "key": "shops",
-      "groupKey": "food",
-      "name": "Sainsbury's",
-      "address": "Ground Floor Sainsburys Supermarkets Ltd 14 - 15 Church Lane, Leytonstone, London, E11 1HG",
-      "phone": null,
-      "website": null,
-      "lat": 51.5682114,
-      "lon": 0.0095726,
-      "distanceToForestBoundaryMetres": 443,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/sainsbury-s"
-    },
-    {
       "slug": "sainsbury-s-e18",
       "key": "shops",
       "groupKey": "food",
@@ -16562,22 +15810,6 @@
       "id": "way/23061412"
     },
     {
-      "slug": "sainsbury-s-local-846043",
-      "key": "shops",
-      "groupKey": "food",
-      "name": "Sainsbury's Local",
-      "address": null,
-      "phone": "+44 330 013 7794",
-      "website": "https://stores.sainsburys.co.uk/6490/loughton-church-hill-local",
-      "lat": 51.6549179,
-      "lon": 0.0662854,
-      "distanceToForestBoundaryMetres": 403.6,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": "2026-10-31",
-      "id": "way/717846043"
-    },
-    {
       "slug": "sainsbury-s-local-e11",
       "key": "shops",
       "groupKey": "food",
@@ -16594,20 +15826,20 @@
       "id": "node/2299920898"
     },
     {
-      "slug": "sainsburys-loughton-church-hill-local",
+      "slug": "sainsbury-s-local-ig10",
       "key": "shops",
       "groupKey": "food",
-      "name": "Sainsburys Loughton Church Hill Local",
-      "address": "Sainsburys Store, 119 Church Hill, Loughton, Essex, IG10 1QR",
-      "phone": null,
-      "website": null,
-      "lat": 51.6549504,
-      "lon": 0.0662625,
-      "distanceToForestBoundaryMetres": 204.2,
+      "name": "Sainsbury's Local",
+      "address": "119 Church Hill, Loughton, Essex, IG10 1QR",
+      "phone": "+44 330 013 7794",
+      "website": "https://stores.sainsburys.co.uk/6490/loughton-church-hill-local",
+      "lat": 51.6549179,
+      "lon": 0.0662854,
+      "distanceToForestBoundaryMetres": 403.6,
       "openingHours": null,
       "summary": null,
-      "verifiedAt": null,
-      "id": "manual/sainsburys-loughton-church-hill-local"
+      "verifiedAt": "2026-10-31",
+      "id": "way/717846043"
     },
     {
       "slug": "saint-andrew",
@@ -17106,22 +16338,6 @@
       "id": "way/219041020"
     },
     {
-      "slug": "shish-mahal",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Shish Mahal",
-      "address": "815 High Road Leyton, Leyton, London, E10 7AA",
-      "phone": null,
-      "website": null,
-      "lat": 51.5743942,
-      "lon": -0.0112824,
-      "distanceToForestBoundaryMetres": 129.9,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/shish-mahal"
-    },
-    {
       "slug": "shish-mahal-diners-club",
       "key": "restaurants",
       "groupKey": "food",
@@ -17136,22 +16352,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "way/454550567"
-    },
-    {
-      "slug": "shiv-news",
-      "key": "shops",
-      "groupKey": "food",
-      "name": "Shiv News",
-      "address": "51 High Street, Epping, Essex, CM16 4BA",
-      "phone": null,
-      "website": null,
-      "lat": 51.696566,
-      "lon": 0.107276,
-      "distanceToForestBoundaryMetres": 251.9,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/shiv-news"
     },
     {
       "slug": "shiv-news-and-off-licence",
@@ -18514,22 +17714,6 @@
       "id": "way/468834936"
     },
     {
-      "slug": "survivor-caribbean-restaurant",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Survivor Caribbean Restaurant",
-      "address": "460 Larkshall Road, Chingford, London, E4 9HH",
-      "phone": null,
-      "website": null,
-      "lat": 51.6093857,
-      "lon": -0.0013638,
-      "distanceToForestBoundaryMetres": 369.6,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/survivor-caribbean-restaurant"
-    },
-    {
       "slug": "survivor-caribbean-restaurant-and-takeaway",
       "key": "restaurants",
       "groupKey": "food",
@@ -18624,22 +17808,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "node/12599292501"
-    },
-    {
-      "slug": "sushi-monster-at-the-rusty-bike",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Sushi Monster at The Rusty Bike",
-      "address": "Rusty Bike Public House 134 - 138 Station Road, Chingford, London, E4 6AN",
-      "phone": null,
-      "website": null,
-      "lat": 51.633762,
-      "lon": 0.0093174,
-      "distanceToForestBoundaryMetres": 151.3,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/sushi-monster-at-the-rusty-bike"
     },
     {
       "slug": "swan-chinese-restaurant",
@@ -18994,70 +18162,6 @@
       "id": "node/2287177441"
     },
     {
-      "slug": "tesco",
-      "key": "shops",
-      "groupKey": "food",
-      "name": "Tesco",
-      "address": "Tesco Express 567 - 569 High Road Leytonstone, Leytonstone, London, E11 4PB",
-      "phone": null,
-      "website": null,
-      "lat": 51.5609516,
-      "lon": 0.0081561,
-      "distanceToForestBoundaryMetres": 289.3,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/tesco"
-    },
-    {
-      "slug": "tesco-2",
-      "key": "shops",
-      "groupKey": "food",
-      "name": "Tesco",
-      "address": "Unit 1, 253-269 High Road, Woodford Green, IG8 9FB",
-      "phone": null,
-      "website": null,
-      "lat": 51.599976,
-      "lon": 0.019829,
-      "distanceToForestBoundaryMetres": 385.9,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/tesco"
-    },
-    {
-      "slug": "tesco-712730",
-      "key": "shops",
-      "groupKey": "food",
-      "name": "Tesco",
-      "address": "Southend Road, Woodford Green IG8 8GE",
-      "phone": null,
-      "website": "https://www.tesco.com/store-locator/woodford-green/southend-rd",
-      "lat": 51.5921111,
-      "lon": 0.0401776,
-      "distanceToForestBoundaryMetres": 463.1,
-      "openingHours": "Mo-Sa 06:00-00:00; Su 11:00-17:00",
-      "summary": null,
-      "verifiedAt": "2026-10-31",
-      "id": "way/27712730"
-    },
-    {
-      "slug": "tesco-808114",
-      "key": "shops",
-      "groupKey": "food",
-      "name": "Tesco",
-      "address": "8 Gainsborough Road, London E11 1HT",
-      "phone": null,
-      "website": "https://www.tesco.com/store-locator/london/gainsborough-rd",
-      "lat": 51.5718503,
-      "lon": 0.0138803,
-      "distanceToForestBoundaryMetres": 464.1,
-      "openingHours": "Mo-Sa 06:00-24:00; Su 10:00-16:00",
-      "summary": null,
-      "verifiedAt": "2026-10-31",
-      "id": "way/28808114"
-    },
-    {
       "slug": "tesco-987758",
       "key": "shops",
       "groupKey": "food",
@@ -19120,6 +18224,22 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "way/55632529"
+    },
+    {
+      "slug": "tesco-e11",
+      "key": "shops",
+      "groupKey": "food",
+      "name": "Tesco",
+      "address": "8 Gainsborough Road, London E11 1HT",
+      "phone": null,
+      "website": "https://www.tesco.com/store-locator/london/gainsborough-rd",
+      "lat": 51.5718503,
+      "lon": 0.0138803,
+      "distanceToForestBoundaryMetres": 464.1,
+      "openingHours": "Mo-Sa 06:00-24:00; Su 10:00-16:00",
+      "summary": null,
+      "verifiedAt": "2026-10-31",
+      "id": "way/28808114"
     },
     {
       "slug": "tesco-e4",
@@ -19282,20 +18402,20 @@
       "id": "way/228113378"
     },
     {
-      "slug": "tesco-stores",
+      "slug": "tesco-ig8",
       "key": "shops",
       "groupKey": "food",
-      "name": "Tesco Stores",
-      "address": "Southend Road, Woodford Green, IG8 8GE",
+      "name": "Tesco",
+      "address": "Southend Road, Woodford Green IG8 8GE",
       "phone": null,
-      "website": null,
-      "lat": 51.592079,
-      "lon": 0.040153,
-      "distanceToForestBoundaryMetres": 298.1,
-      "openingHours": null,
+      "website": "https://www.tesco.com/store-locator/woodford-green/southend-rd",
+      "lat": 51.5921111,
+      "lon": 0.0401776,
+      "distanceToForestBoundaryMetres": 463.1,
+      "openingHours": "Mo-Sa 06:00-00:00; Su 11:00-17:00",
       "summary": null,
-      "verifiedAt": null,
-      "id": "manual/tesco-stores"
+      "verifiedAt": "2026-10-31",
+      "id": "way/27712730"
     },
     {
       "slug": "texbbqz",
@@ -19552,22 +18672,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "way/1351858504"
-    },
-    {
-      "slug": "the-bull-ph",
-      "key": "pubs",
-      "groupKey": "food",
-      "name": "The Bull PH",
-      "address": "Station Approach, Theydon Bois, Epping, Essex, CM16 7HR",
-      "phone": null,
-      "website": null,
-      "lat": 51.671652,
-      "lon": 0.101997,
-      "distanceToForestBoundaryMetres": 97.2,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/the-bull-ph"
     },
     {
       "slug": "the-bungalow-cafe",
@@ -21106,22 +20210,6 @@
       "id": "manual/the-summer-cafe"
     },
     {
-      "slug": "the-sunflower",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "The Sunflower",
-      "address": "777 - 779 High Road Leytonstone, Leytonstone, London, E11 4QS",
-      "phone": null,
-      "website": null,
-      "lat": 51.5669155,
-      "lon": 0.0101503,
-      "distanceToForestBoundaryMetres": 329.5,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/the-sunflower"
-    },
-    {
       "slug": "the-sunflower-cafe-and-creperie",
       "key": "cafes",
       "groupKey": "food",
@@ -21152,22 +20240,6 @@
       "summary": null,
       "verifiedAt": null,
       "id": "manual/the-sushi-co"
-    },
-    {
-      "slug": "the-taru",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "The Taru",
-      "address": "TARU, 79 Queens Road, Buckhurst Hill, Essex, IG9 5BW",
-      "phone": null,
-      "website": null,
-      "lat": 51.6256427,
-      "lon": 0.0421168,
-      "distanceToForestBoundaryMetres": 176.9,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/the-taru"
     },
     {
       "slug": "the-tea-room",
@@ -21360,22 +20432,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "node/7849521240"
-    },
-    {
-      "slug": "the-warren-deer-larder",
-      "key": "shops",
-      "groupKey": "food",
-      "name": "The Warren Deer Larder",
-      "address": "Epping Forest Conservators The Warren, Nursery Road, Loughton, Essex, IG10 4RN",
-      "phone": null,
-      "website": null,
-      "lat": 51.6417308,
-      "lon": 0.0354758,
-      "distanceToForestBoundaryMetres": 84.7,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/the-warren-deer-larder"
     },
     {
       "slug": "the-warren-wood",
@@ -21616,22 +20672,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "way/1069433877"
-    },
-    {
-      "slug": "toby-carvery-eagle",
-      "key": "pubs",
-      "groupKey": "food",
-      "name": "Toby Carvery (Eagle)",
-      "address": "73 Hollybush Hill, Wanstead, E11 1PE",
-      "phone": null,
-      "website": null,
-      "lat": 51.583154,
-      "lon": 0.020686,
-      "distanceToForestBoundaryMetres": 45.6,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/toby-carvery-eagle"
     },
     {
       "slug": "toby-carvery-ig9",
@@ -21984,22 +21024,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "way/463210608"
-    },
-    {
-      "slug": "united-services-chingford-club",
-      "key": "pubs",
-      "groupKey": "food",
-      "name": "United Services (Chingford) Club",
-      "address": "United Services Club 18 Kings Road, Chingford, London, E4 7EY",
-      "phone": null,
-      "website": null,
-      "lat": 51.6290898,
-      "lon": 0.001713,
-      "distanceToForestBoundaryMetres": 50,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/united-services-chingford-club"
     },
     {
       "slug": "upfull-foodzone-and-juice-bar",
@@ -22514,22 +21538,6 @@
       "id": "manual/w-d-chapman"
     },
     {
-      "slug": "wagon-boulangerie",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Wagon Boulangerie",
-      "address": "Wagon Boulangerie Loughton, 174 High Road, Loughton, Essex, IG10 1DN",
-      "phone": null,
-      "website": null,
-      "lat": 51.6467754,
-      "lon": 0.0542364,
-      "distanceToForestBoundaryMetres": 185.5,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/wagon-boulangerie"
-    },
-    {
       "slug": "waitrose-e18",
       "key": "shops",
       "groupKey": "food",
@@ -22786,22 +21794,6 @@
       "id": "node/1951120429"
     },
     {
-      "slug": "warren-wood-kitchen",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Warren wood kitchen",
-      "address": "Warren Wood Kitchen Warren Wood Service, Epping New Road, Buckhurst Hill, Essex, IG9 5UA",
-      "phone": null,
-      "website": null,
-      "lat": 51.6338646,
-      "lon": 0.0315903,
-      "distanceToForestBoundaryMetres": 28.1,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/warren-wood-kitchen"
-    },
-    {
       "slug": "warren-wood-service-station",
       "key": "shops",
       "groupKey": "food",
@@ -22915,22 +21907,6 @@
     },
     {
       "slug": "wesleyan-christian-centre",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Wesleyan Christian Centre",
-      "address": "Wesleyan Christian Centre 1 Harrow Green, Leytonstone, London, E11 3HP",
-      "phone": null,
-      "website": null,
-      "lat": 51.5584454,
-      "lon": 0.0074687,
-      "distanceToForestBoundaryMetres": 23.1,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/wesleyan-christian-centre"
-    },
-    {
-      "slug": "wesleyan-christian-centre-052941",
       "key": "churches",
       "groupKey": "locations",
       "name": "Wesleyan Christian Centre",
@@ -23232,22 +22208,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "node/1094597140"
-    },
-    {
-      "slug": "wing-sing-2015",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Wing Sing (2015)",
-      "address": "78 George Lane, South Woodford, E18 1JJ",
-      "phone": null,
-      "website": null,
-      "lat": 51.591792,
-      "lon": 0.02823,
-      "distanceToForestBoundaryMetres": 401.2,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/wing-sing-2015"
     },
     {
       "slug": "wings-hut",
@@ -23616,22 +22576,6 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "node/3303508161"
-    },
-    {
-      "slug": "woodies-spice-woodies-grill-the-sultan-curry-on",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Woodies Spice/Woodies Grill/The Sultan/Curry On",
-      "address": "Ground Floor 239 Wood Street, Walthamstow, London, E17 3NT",
-      "phone": null,
-      "website": null,
-      "lat": 51.5845757,
-      "lon": -0.000835,
-      "distanceToForestBoundaryMetres": 322.8,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/woodies-spice-woodies-grill-the-sultan-curry-on"
     },
     {
       "slug": "woodlands",
@@ -24018,22 +22962,6 @@
       "id": "node/6606239544"
     },
     {
-      "slug": "zest-salad-and-juice-bar",
-      "key": "restaurants",
-      "groupKey": "food",
-      "name": "Zest Salad & Juice Bar",
-      "address": "194 High Road, Loughton, Essex, IG10 1DN",
-      "phone": null,
-      "website": null,
-      "lat": 51.6471552,
-      "lon": 0.0543729,
-      "distanceToForestBoundaryMetres": 227,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/zest-salad-juice-bar"
-    },
-    {
       "slug": "zest-salad-bar",
       "key": "restaurants",
       "groupKey": "food",
@@ -24064,22 +22992,6 @@
       "summary": null,
       "verifiedAt": null,
       "id": "manual/ziggy-played-guitar"
-    },
-    {
-      "slug": "ziggy-s-gift-shop",
-      "key": "cafes",
-      "groupKey": "food",
-      "name": "Ziggy’s Gift Shop",
-      "address": "3 Signal Walk London E4 9BW",
-      "phone": null,
-      "website": null,
-      "lat": 51.6077611,
-      "lon": -0.0016624,
-      "distanceToForestBoundaryMetres": 347.7,
-      "openingHours": null,
-      "summary": null,
-      "verifiedAt": null,
-      "id": "manual/ziggy-s-gift-shop"
     },
     {
       "slug": "zizzi-058980",
