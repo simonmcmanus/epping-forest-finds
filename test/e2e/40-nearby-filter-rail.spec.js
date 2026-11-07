@@ -2,7 +2,7 @@
 // Nearby's filter rail: a row of category pills that narrows the list in place (no panel slide).
 // See spec-data-rendering.md "Nearby filter rail".
 const { test, expect } = require("@playwright/test");
-const { setup, waitForUiToSettle, waitForFrames } = require("./helpers");
+const { setup, waitForUiToSettle, waitForFrames, settleMapIconsAndDraw } = require("./helpers");
 
 // A GPS fix inside Epping Forest, with trees, ponds and pubs around it.
 const FOREST_LOCATION = { latitude: 51.6650, longitude: 0.0450, accuracy: 10 };
@@ -290,6 +290,15 @@ test.describe("Nearby filter rail", () => {
     await setup(page, "/nearby/nature/");
     await page.locator("#nearbyToggle").click();
     await expect(page).toHaveURL(/\/nearby(?:\?.*)?$/);
+  });
+
+  test("snapshot: nearby rail pick with Back to my filters", async ({ page }) => {
+    // A top-level pick stands in for the saved categories, so the chip shows on its own line above the pills.
+    await pill(page, "nature").click();
+    await expect(page.getByRole("button", { name: "Back to my filters" })).toBeVisible();
+    await waitForUiToSettle(page);
+    await settleMapIconsAndDraw(page);
+    await expect(page).toHaveScreenshot("nearby-rail-pick-back-to-my-filters.png", { fullPage: false });
   });
 });
 

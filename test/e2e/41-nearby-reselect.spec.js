@@ -350,22 +350,52 @@ test.describe("A re-tap keeps the view the reader set up", () => {
     await page.emulateMedia({ reducedMotion: "no-preference" });
     await setup(page, "/nearby/food");
     // The strip is read from its start: a click scrolls the pill it hits into view, which is not a reflow.
-    const firstPillX = () => page.evaluate(() => {
+    const rail = () => page.evaluate(() => {
       const strip = document.querySelector("#inspectorBody .rail-pills");
       strip.scrollLeft = 0;
-      return strip.querySelector("[data-rail-key]").getBoundingClientRect().left;
+      const box = (el) => {
+        const r = el.getBoundingClientRect();
+        return { x: r.left, y: r.top, w: r.width, h: r.height };
+      };
+      return { first: box(strip.querySelector("[data-rail-key]")), strip: box(strip) };
     });
     await expect(page.locator('[data-action="restore-saved-filters"]')).toHaveCount(1);
     await expect(page.getByRole("button", { name: "Back to my filters" })).toBeHidden();
     await waitForUiToSettle(page);
-    const before = await firstPillX();
+    const before = await rail();
 
     await railPill(page, "cafes").click();
     await expect(page.getByRole("button", { name: "Back to my filters" })).toBeVisible();
     await waitForUiToSettle(page);
+    const after = await rail();
 
-    expect(Math.abs((await firstPillX()) - before), "the first pill's x after the chip shows").toBeLessThan(1);
+    for (const key of ["x", "y", "w", "h"]) {
+      expect(Math.abs(after.first[key] - before.first[key]), `the first pill's ${key} after the chip shows`).toBeLessThan(1);
+      expect(Math.abs(after.strip[key] - before.strip[key]), `the pill strip's ${key} after the chip shows`).toBeLessThan(1);
+    }
   });
+
+  test("a whole group picked on its landing is named by neither the title nor the list heading, before and after a reload", async ({ page }) => {
+    await setup(page, "/nearby/food");
+    // Toggling cafes off and back on leaves all four Food subcategories on, so the whole group is picked.
+    await railPill(page, "cafes").click();
+    await railPill(page, "cafes").click();
+    expect(await sortedFilters(page)).toBe("cafes,pubs,restaurants,shops");
+    await expectPlainNearbyLabels(page);
+
+    await page.reload();
+    await page.waitForFunction(() => typeof state !== "undefined" && state.dataLoaded === true);
+    await waitForUiToSettle(page);
+    expect(await sortedFilters(page)).toBe("cafes,pubs,restaurants,shops");
+    await expectPlainNearbyLabels(page);
+  });
+
+// Plain Nearby: the title, the document title and the list heading name no category.
+async function expectPlainNearbyLabels(page) {
+  await expect(page.locator("#inspectorTitle")).toHaveText("Nearby");
+  await expect(page).toHaveTitle("Nearby | Epping Forest Finds");
+  await expect(page.locator(".nearby-category-results")).toHaveCount(0);
+}
 
   test("a single subcategory pick names its category in the Nearby title and the document title", async ({ page }) => {
     // Three subcategories are turned off on the Food landing, leaving cafes as the one pick.

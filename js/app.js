@@ -4599,9 +4599,8 @@ function filterRailHtml() {
     return `<button class="rail-pill${on ? " is-on" : ""}" type="button" data-rail-key="${item.key}" aria-pressed="${on}">${appIconHtml(item.icon)}<span>${escapeHtml(item.label)}</span>${status}</button>`;
   }).join("");
   const restoreShown = restoreSavedFiltersNeeded();
-  const restoreHidden = restoreShown ? "" : " hidden";
   return `<nav class="filter-rail${restoreShown ? " has-restore" : ""}" aria-label="Filter nearby places">` +
-    `<button class="walk-chip walk-chip-btn rail-restore" type="button" data-action="restore-saved-filters"${restoreHidden}>Back to my filters</button>` +
+    `<button class="walk-chip walk-chip-btn rail-restore" type="button" data-action="restore-saved-filters">Back to my filters</button>` +
     `<div class="rail-pills">${allPill}${pills}</div>` +
     `</nav>`;
 }
@@ -4634,9 +4633,7 @@ function restoreSavedFiltersNeeded() {
 function syncRestoreSavedFiltersControl() {
   const control = document.querySelector('[data-action="restore-saved-filters"]');
   if (!control) return;
-  const shown = restoreSavedFiltersNeeded();
-  control.hidden = !shown;
-  control.parentElement?.classList.toggle("has-restore", shown);
+  control.parentElement?.classList.toggle("has-restore", restoreSavedFiltersNeeded());
 }
 
 // Puts the reader's saved filters back: the same call the title Nearby icon's landing on /nearby makes
@@ -4645,8 +4642,11 @@ function restoreSavedFilters() {
   // The drill level goes with the lens: the rail returns to its top level, and updates in place as a pick does.
   state.nearbyRailGroupKey = undefined;
   railPatchPending = true;
-  setOverviewFilters(loadStoredOverviewFilters());
-  railPatchPending = false;
+  try {
+    setOverviewFilters(loadStoredOverviewFilters());
+  } finally {
+    railPatchPending = false;
+  }
 }
 
 function toggleRailFilter(key) {

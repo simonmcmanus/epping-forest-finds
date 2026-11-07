@@ -1365,7 +1365,8 @@ textarea.report-textarea {
   top: 0;
   z-index: 2;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
   gap: 8px;
   margin: -14px -16px 12px;
   padding: 12px 16px;
@@ -1393,26 +1394,31 @@ textarea.report-textarea {
   background: linear-gradient(90deg, var(--panel), transparent);
 }
 
-/* "Back to my filters" sits at the right of the rail band, out of the pill row, so showing it never moves
-   a pill. While it shows, the pill strip stops short of it: the pills keep their places and scroll to the rest. */
+/* "Back to my filters" has a line of its own above the pills. The line is always reserved, so the pills never
+   move: the chip is only made visible (visibility, not display) while a pick stands in for the saved filters.
+   Its hit area is its own 44px height, and its panel background stays solid. */
 .filter-rail > .rail-restore {
-  position: absolute;
-  right: 16px;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 1;
-  padding: 6px 10px;
+  align-self: flex-end;
+  min-height: 44px;
+  padding: 0 12px;
+  background: var(--panel);
+  visibility: hidden;
 }
 
-/* The chip's hit area is at least 44px tall without making the chip itself that tall. */
-.filter-rail > .rail-restore::before {
-  content: "";
-  position: absolute;
-  inset: -7px -6px;
+.filter-rail.has-restore > .rail-restore {
+  visibility: visible;
 }
 
-.filter-rail.has-restore .rail-pills {
-  margin-right: 10rem;
+.filter-rail > .rail-restore:hover {
+  background: linear-gradient(rgba(var(--forest-rgb), 0.15), rgba(var(--forest-rgb), 0.15)), var(--panel);
+}
+
+.filter-rail > .rail-restore:active {
+  background: linear-gradient(rgba(var(--forest-rgb), 0.22), rgba(var(--forest-rgb), 0.22)), var(--panel);
+}
+
+.filter-rail > .rail-pills {
+  flex: none;
 }
 
 .rail-pills {

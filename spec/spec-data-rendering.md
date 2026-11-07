@@ -480,7 +480,9 @@ invisible control.
   `<name> in Epping Forest | Epping Forest Finds`; the plain Nearby, Search, Filters, Feedback and Settings
   screens use their own titles. The category comes from `nearbyCategoryLabel()`: a category landing's own
   path, or on plain Nearby the rail selection when it is exactly one subcategory. A whole group, several picks
-  or mixed picks keep the plain Nearby title, so a group's name shows only on its landing page. The Nearby title (`#inspectorTitle`)
+  or mixed picks keep the plain Nearby title and list heading: the group name is dropped only from the title
+  and the list heading, since the rail pills still show group labels on plain Nearby. A group's name shows in
+  the title only on its landing page. The Nearby title (`#inspectorTitle`)
   and the list heading (`<Category> nearby`) use the same label. It runs for map selections, search results,
   deep links, back/forward navigation and server-rendered landings once the shared shell boots; generated SEO
   pages retain their route-specific static `<title>` before JavaScript runs (see spec-marketing.md § 6.6/6.7).

@@ -344,8 +344,9 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
   landing path (`/nearby/<category>`), which stays a real arrival. A tap replaces the history entry
   rather than adding one. While a pick stands in for the saved filters, a **Back to my filters** chip
   in the rail restores the saved categories only and returns the rail to its top level (the browse anchor and the walking radius are kept).
-  The chip sits at the right of the band, out of the pill row, and the pill strip stops short of it while
-  it shows, so no pill moves; it is hidden once the lens is the saved set again.
+  The chip has a line of its own above the pills, at the right of the band. That line is always reserved
+  and the chip is made visible only while a pick stands in for the saved filters, so the pills never move.
+  Its panel is solid and its hit area is 44px tall. It is hidden again once the lens is the saved set.
 - **Navigating in-app straight from one `/nearby/<slug>` arrival to another never loses the new
   page's own category.** A link out of a selected place's inspector (a business page's own
   "Related" section, `js/inspector.js`) or a bare `near="" ` link like "All nearby"
