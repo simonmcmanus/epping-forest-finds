@@ -70,7 +70,10 @@ rows=$(
     project=${key%%-*}
     stem=${key#*-}
     baseline="test/e2e/__screenshots__/$stem-$project-linux.png"
-    if [[ -f "$baseline" ]]; then before="![baseline]($raw_head/$HEAD_SHA/$baseline)"; else before="_new_"; fi
+    # The working copy already holds this run's render (the apply step copied it over the baseline path), so
+    # "does a baseline exist" is asked of the committed tree at the PR head. A snapshot with none yet shows its
+    # first render as the actual, with no baseline to compare against.
+    if git cat-file -e "$HEAD_SHA:$baseline" 2>/dev/null; then before="![baseline]($raw_head/$HEAD_SHA/$baseline)"; else before="No baseline yet, first render"; fi
     if [[ -f "$dest/$key-diff.png" ]]; then diff="![diff]($raw/$vd/pr-$PR_NUMBER/$key-diff.png)"; else diff="_none_"; fi
     echo "| \`$stem\` | $project | $before | ![actual]($raw/$vd/pr-$PR_NUMBER/$key-actual.png) | $diff |"
   done
