@@ -945,6 +945,9 @@ async function boot() {
           new Promise((resolve) => setTimeout(resolve, FIRST_LANDING_TREE_WAIT_MS)),
         ]);
         const firstLanding = applyFirstLandingRadius();
+        // The Nearby panel was drawn before the ring was sized, with the default radius. Redraw it so the list and the
+        // "closest to you" subtitle match the ring the camera is about to fly to.
+        if (firstLanding && !state.selected && !secondaryScreenActive() && !communityScreenOpen()) selectOverview();
         ensureLocationWatch();
 
         // Request compass only if not already handled (e.g. by onboarding).

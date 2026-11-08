@@ -30,6 +30,12 @@ test.describe("First landing ring — a plain landing with a real fix", () => {
     expect(ring.minutes, "the ring is the one the first landing chose").toBe(ring.firstLanding);
     expect(ring.minutes, "and it is tighter than the default five-minute ring").toBeLessThan(DEFAULT_WALKING_DISTANCE_MINUTES);
     await expect(page.locator("#inspectorType")).toContainText(/closest/i);
+    // The list is drawn from the same ring as the camera, so it lists exactly the items inside the ring (up to the
+    // list's own limit), not the items inside the default ring the panel was first drawn with.
+    const listed = await page.locator("#inspectorBody .nearest-item").count();
+    const inRing = await page.evaluate(() => overviewItemsForActiveFilter().length);
+    const limit = await page.evaluate(() => state.nearestItemsCount);
+    expect(listed, "the Nearby list matches the ring the camera is framing").toBe(Math.min(inRing, limit));
     expect(new URL(page.url()).searchParams.has("radius"), "no ?radius= is written for a ring the reader did not choose").toBe(false);
   });
 });

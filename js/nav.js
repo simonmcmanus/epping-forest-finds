@@ -1109,6 +1109,7 @@ function setupFilterPanelHandlers() {
   // Select dropdown is part of the overview UI; listener attached in selectOverview()
   document.addEventListener("change", (event) => {
     if (event.target.id === "nearestItemsSelect") {
+      markRadiusChosenByReader();
       state.walkingDistanceMinutes = parseInt(event.target.value, 10);
       syncLiveQueryStringForScreen();
       selectOverview();
@@ -1433,8 +1434,15 @@ function refreshNearbyRadiusView(options = {}) {
   requestDraw();
 }
 
+// The first-landing ring (applyFirstLandingRadius, js/app.js) is the app's own choice only until the reader picks a
+// radius. From then on that radius is shared in the address bar like any other, even if it lands on the same value.
+function markRadiusChosenByReader() {
+  state.firstLandingRadiusMinutes = null;
+}
+
 function applyWalkingRadiusChange(minutes, options = {}) {
   if (state.walkingDistanceMinutes === minutes) return;
+  if (!options.automatic) markRadiusChosenByReader();
   state.walkingDistanceMinutes = minutes;
   state.nearbyFilterChangeOrigin = null;
   syncLiveQueryStringForScreen();
@@ -1510,7 +1518,7 @@ function walkingRadiusGrowBackMinutes() {
 function ensureWalkingRadiusCoversNearest() {
   const minutes = walkingRadiusGrowBackMinutes();
   if (minutes == null) return false;
-  applyWalkingRadiusChange(minutes, { animate: true });
+  applyWalkingRadiusChange(minutes, { animate: true, automatic: true });
   syncSettingsWalkSlider();
   return true;
 }
@@ -1561,6 +1569,7 @@ function focusNearbyWithinWalkMinutes(latitude, longitude, minutes, label = null
   setInspectorMinimized(false);
   startNearbyOriginTransition(nearbyRenderOriginPoint());
   state.nearbyAnchor = { latitude, longitude, point: projectLonLat(longitude, latitude), label };
+  markRadiusChosenByReader();
   state.walkingDistanceMinutes = minutes;
   state.outOfRadiusRevealFilters = [];
   // "Everything" means every category, not the reader's saved filter set -- same override the
@@ -1997,6 +2006,7 @@ function applyWalkingRadiusGesture(rawMinutes) {
   // nearbyCameraFitPoints/overviewItemsForActiveFilter kept fitting and listing the cluster's
   // own members regardless -- the camera and list silently stopped tracking the gesture.
   exitClusterExpansion({ restoreRadius: false });
+  markRadiusChosenByReader();
   state.walkingDistanceMinutes = minutes;
   syncLiveQueryStringForScreen();
   state.outOfRadiusRevealFilters = [];

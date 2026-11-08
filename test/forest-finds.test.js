@@ -2499,6 +2499,29 @@ test("a deep link into the app keeps its own framing rather than the nearest-ite
   app.location.hash = "";
 });
 
+test("a reader who moves the first-landing ring away and back to the same radius shares that radius in the address bar", () => {
+  const app = loadAppForTests();
+  resetData(app);
+  app.location.search = "";
+  app.location.hash = "";
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.overviewFilters = ["trees"];
+  app.state.trees = treesAlongEast(app, [10, 20, 30, 40, 50, 120]);
+  app.applyFirstLandingRadius();
+  const firstRing = app.state.walkingDistanceMinutes;
+
+  // Two real reader choices, through the same path the Settings slider and the pinch use.
+  app.applyWalkingRadiusChange(2, { animate: false });
+  app.applyWalkingRadiusChange(firstRing, { animate: false });
+
+  assert.equal(app.state.walkingDistanceMinutes, firstRing, "the ring is back where it was");
+  assert.equal(
+    app.searchStringForPath("/nearby"),
+    `?radius=${firstRing}`,
+    "the reader chose this radius, so a reload or share lands on the same ring",
+  );
+});
+
 test("the first-landing ring is not written into the address bar, but a radius the reader then chooses is", () => {
   const app = loadAppForTests();
   resetData(app);
