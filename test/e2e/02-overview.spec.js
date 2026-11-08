@@ -14,8 +14,21 @@ async function firePinch(page, { startHalfGap, endHalfGap, step = 10 }) {
     canvas.setPointerCapture = () => {};
     canvas.releasePointerCapture = () => {};
     const rect = canvas.getBoundingClientRect();
-    const cx = rect.left + rect.width / 2;
-    const cy = rect.top + rect.height / 2;
+    // The pinch is the radius pinch, which starts on the walking-radius ring (a pinch starting
+    // elsewhere zooms the map): centre the fingers on a point of the ring that the map shows.
+    const dpr = pixelRatio();
+    const mapRect = (els.mapStage || canvas).getBoundingClientRect();
+    let cx = rect.left + rect.width / 2;
+    let cy = rect.top + rect.height / 2;
+    for (const p of walkingRadiusCirclePoints(64)) {
+      const s = worldToScreen(p);
+      const x = mapRect.left + s.x / dpr;
+      const y = mapRect.top + s.y / dpr;
+      if (x > rect.left + 40 && x < rect.right - 40 && y > rect.top + 40 && y < rect.bottom - 40) {
+        cx = x + startHalfGap; cy = y; // left finger on the ring
+        break;
+      }
+    }
     const fire = (type, id, x, y) => canvas.dispatchEvent(new PointerEvent(type, {
       pointerId: id, clientX: x, clientY: y, bubbles: true, cancelable: true, pointerType: "touch",
     }));
@@ -589,6 +602,8 @@ test.describe("Overview / Nearby screen", () => {
       await expect(page).toHaveURL(/\/settings(\?|$)/);
 
       const before = await page.evaluate(() => state.walkingDistanceMinutes);
+      // The ring is where the second pinch has to start, so let the settle animation finish first.
+      await page.waitForFunction(() => state.viewportAnimationFrame == null);
       await firePinch(page, { startHalfGap: 140, endHalfGap: 20 });
       const grown = await page.evaluate(() => state.walkingDistanceMinutes);
 
@@ -762,8 +777,21 @@ test.describe("Overview / Nearby screen", () => {
         canvas.setPointerCapture = () => {};
         canvas.releasePointerCapture = () => {};
         const rect = canvas.getBoundingClientRect();
-        const cx = rect.left + rect.width / 2;
-        const cy = rect.top + rect.height / 2;
+        // The pinch is the radius pinch, which starts on the walking-radius ring (a pinch starting
+        // elsewhere zooms the map): centre the fingers on a point of the ring that the map shows.
+        const dpr = pixelRatio();
+        const mapRect = (els.mapStage || canvas).getBoundingClientRect();
+        let cx = rect.left + rect.width / 2;
+        let cy = rect.top + rect.height / 2;
+        for (const p of walkingRadiusCirclePoints(64)) {
+          const s = worldToScreen(p);
+          const x = mapRect.left + s.x / dpr;
+          const y = mapRect.top + s.y / dpr;
+          if (x > rect.left + 40 && x < rect.right - 40 && y > rect.top + 40 && y < rect.bottom - 40) {
+            cx = x + 20; cy = y; // left finger on the ring
+            break;
+          }
+        }
         const fire = (type, id, x, y) => canvas.dispatchEvent(new PointerEvent(type, {
           pointerId: id, clientX: x, clientY: y, bubbles: true, cancelable: true, pointerType: "touch",
         }));
