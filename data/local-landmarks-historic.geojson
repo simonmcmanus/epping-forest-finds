@@ -981,39 +981,6 @@
     },
     {
       "type": "Feature",
-      "id": "node/7508322036",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          0.0175904,
-          51.5744435
-        ]
-      },
-      "properties": {
-        "id": "node/7508322036",
-        "osmType": "node",
-        "osmId": 7508322036,
-        "name": "The High Stone",
-        "category": "memorial",
-        "categoryLabel": "Memorial",
-        "amenity": null,
-        "shop": null,
-        "highway": null,
-        "tourism": null,
-        "historic": "memorial",
-        "railway": null,
-        "barrier": null,
-        "entrance": null,
-        "heritage": null,
-        "website": null,
-        "phone": null,
-        "address": null,
-        "distanceToForestBoundaryMetres": 466.2,
-        "distanceLimitFromForestBoundaryMetres": 466.7
-      }
-    },
-    {
-      "type": "Feature",
       "id": "node/7847693607",
       "geometry": {
         "type": "Point",
@@ -2178,39 +2145,6 @@
         "phone": null,
         "address": null,
         "distanceToForestBoundaryMetres": 465.4,
-        "distanceLimitFromForestBoundaryMetres": 466.7
-      }
-    },
-    {
-      "type": "Feature",
-      "id": "way/869523536",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          0.0071513,
-          51.5581263
-        ]
-      },
-      "properties": {
-        "id": "way/869523536",
-        "osmType": "way",
-        "osmId": 869523536,
-        "name": "Leytonstone War Memorial And Gardens",
-        "category": "memorial",
-        "categoryLabel": "Memorial",
-        "amenity": null,
-        "shop": null,
-        "highway": null,
-        "tourism": null,
-        "historic": "memorial",
-        "railway": null,
-        "barrier": null,
-        "entrance": null,
-        "heritage": "2",
-        "website": null,
-        "phone": null,
-        "address": null,
-        "distanceToForestBoundaryMetres": 38.0,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
     },

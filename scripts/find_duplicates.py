@@ -43,6 +43,19 @@ from scripts.place_matching import (  # noqa: E402
 # metres is already most of a high street block.
 DUPLICATE_RADIUS_M = 120
 
+# The second rule: one name's words all appear in the other's, so "Sainsbury's"
+# sits inside "Sainsbury's Local", and "Sainsbury's Local" inside
+# "Sainsburys Loughton Church Hill Local". Looser about wording, so it only
+# runs on a tighter radius -- a branch of the same shop is nearly always
+# within a few dozen metres of the one it duplicates.
+BRANCH_RADIUS_M = 60
+
+# A name made of these alone says what a place is, not which place it is.
+FORMAT_WORDS = {
+    "local", "express", "store", "stores", "market", "supermarket",
+    "superstore", "convenience", "shop",
+}
+
 DATASETS = [
     "data/local-landmarks-food.geojson",
     "data/local-landmarks-misc.geojson",
@@ -100,18 +113,71 @@ def find_duplicates(features_by_dataset, radius_m=DUPLICATE_RADIUS_M):
                 ):
                     continue
                 # A pair can land in both buckets; report it once.
-                identity = tuple(sorted((
-                    str(feature.get("id") or id(feature)),
-                    str(other.get("id") or id(other)),
-                )))
+                identity = _pair_identity(feature, other)
                 if identity in seen:
                     continue
                 seen.add(identity)
                 pairs.append({
                     "metresApart": round(gap, 1),
+                    "match": "same_name",
                     "places": [_describe(feature, dataset), _describe(other, other_dataset)],
                 })
+    pairs.extend(_nested_name_pairs(features_by_dataset, min(radius_m, BRANCH_RADIUS_M), seen))
     return sorted(pairs, key=lambda p: p["metresApart"])
+
+
+def _pair_identity(a, b):
+    return tuple(sorted((str(a.get("id") or id(a)), str(b.get("id") or id(b)))))
+
+
+def names_nest(a, b):
+    """True when every word of the shorter name appears in the longer one, and
+    the shorter is not made of format words alone."""
+    words_a, words_b = name_key(a).split(), name_key(b).split()
+    if not words_a or not words_b:
+        return False
+    short, long_ = sorted((set(words_a), set(words_b)), key=len)
+    if short <= FORMAT_WORDS:
+        return False
+    return short <= long_
+
+
+def _nested_name_pairs(features_by_dataset, radius_m, seen):
+    """Pairs close together whose names nest (see names_nest). Only features
+    sharing a word are compared, so this stays cheap across the whole map."""
+    by_word = {}
+    for dataset, features in features_by_dataset.items():
+        for feature in features:
+            name = (feature.get("properties") or {}).get("name")
+            for word in set(name_key(name).split()):
+                by_word.setdefault(word, []).append((dataset, feature))
+
+    pairs = []
+    for members in by_word.values():
+        for index, (dataset, feature) in enumerate(members):
+            here = feature_lonlat(feature)
+            for other_dataset, other in members[index + 1:]:
+                there = feature_lonlat(other)
+                if here is None or there is None:
+                    continue
+                identity = _pair_identity(feature, other)
+                if identity in seen:
+                    continue
+                gap = metres_between(here, there)
+                if gap > radius_m:
+                    continue
+                if not names_nest(
+                    (feature.get("properties") or {}).get("name"),
+                    (other.get("properties") or {}).get("name"),
+                ):
+                    continue
+                seen.add(identity)
+                pairs.append({
+                    "metresApart": round(gap, 1),
+                    "match": "nested_name",
+                    "places": [_describe(feature, dataset), _describe(other, other_dataset)],
+                })
+    return pairs
 
 
 def load_datasets(root=ROOT, datasets=DATASETS):
@@ -129,7 +195,7 @@ def render(pairs):
     lines = [f"{len(pairs)} pair(s) that look like the same place mapped twice:", ""]
     for pair in pairs:
         a, b = pair["places"]
-        lines.append(f"  {pair['metresApart']}m apart")
+        lines.append(f"  {pair['metresApart']}m apart" + (" (one name contains the other)" if pair.get("match") == "nested_name" else ""))
         for place in (a, b):
             lines.append(f"    {place['name']} ({place['category']}) {place['id']} in {place['dataset']}")
             if place["address"]:

@@ -97,6 +97,41 @@ class FindTests(unittest.TestCase):
     def test_a_clean_sweep_says_so(self):
         self.assertIn("No likely duplicates", fd.render([]))
 
+    def test_a_branch_named_without_its_format_word_is_a_candidate(self):
+        # "Sainsbury's" beside "Sainsbury's Local" across the pavement: the
+        # same shop, described by two sources that disagree about the format.
+        pairs = self.find([
+            place("Sainsbury's", 0.00957, 51.56821, category="supermarket"),
+            place("Sainsbury's Local", 0.00960, 51.56831, category="convenience"),
+        ])
+        self.assertEqual(len(pairs), 1)
+        self.assertEqual(pairs[0]["match"], "nested_name")
+
+    def test_a_place_name_added_to_a_chain_name_is_a_candidate(self):
+        # The register that adds the town to the name, beside the map's own
+        # Sainsbury's Local: both describe one store.
+        pairs = self.find([
+            place("Sainsburys Loughton Church Hill Local", 0.06626, 51.65495),
+            place("Sainsbury's Local", 0.06629, 51.65491, category="convenience"),
+        ])
+        self.assertEqual(len(pairs), 1)
+
+    def test_two_shops_that_share_only_a_format_word_are_not_duplicates(self):
+        # "Local Shop" reduces to the word "local" alone, which every
+        # convenience store carries; it names no place to match against.
+        pairs = self.find([place("Local Shop", 0.05, 51.65), place("Sainsbury's Local", 0.0501, 51.6501)])
+        self.assertEqual(pairs, [])
+
+    def test_a_nested_name_beyond_the_branch_radius_is_not_a_candidate(self):
+        # About 100 metres apart: a different branch down the road, not the
+        # same premises.
+        pairs = self.find([place("Sainsbury's", 0.05, 51.65), place("Sainsbury's Local", 0.05, 51.6509)])
+        self.assertEqual(pairs, [])
+
+    def test_a_nested_name_is_reported_once_even_if_it_also_matches_exactly(self):
+        pairs = self.find([place("The Bell", 0.05, 51.65, feature_id="node/1"), place("Bell Inn", 0.0501, 51.6501, feature_id="node/2")])
+        self.assertEqual(len(pairs), 1)
+
     def test_nothing_is_ever_removed(self):
         # This reports only: two different shops can share a name and a
         # corner, so the call belongs to a person.
