@@ -177,6 +177,21 @@ test.describe("Nearby filter rail", () => {
     await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
   });
 
+  test("closing a held pill's dialog with no change on a category landing keeps the landing and the saved set", async ({ page }) => {
+    await setup(page, "/nearby/food");
+    await expect(pill(page, "cafes")).toHaveAttribute("aria-pressed", "true");
+    const urlBefore = page.url();
+    const savedBefore = await page.evaluate(() => localStorage.getItem("forest-finds-filter-state-v1"));
+
+    await holdPill(page, "cafes");
+    await page.getByRole("button", { name: "Close map setup" }).click();
+    await expect(page.locator("#onboardingOverlay")).toBeHidden();
+
+    expect(page.url()).toBe(urlBefore);
+    await expect(pill(page, "cafes")).toHaveAttribute("aria-pressed", "true");
+    expect(await page.evaluate(() => localStorage.getItem("forest-finds-filter-state-v1"))).toBe(savedBefore);
+  });
+
   test("a pill tap on All nearby on a category landing saves every category, and a reload keeps them", async ({ page }) => {
     await setup(page, "/nearby/food");
     await pill(page, "all-nearby").click();

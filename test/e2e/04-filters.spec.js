@@ -53,6 +53,37 @@ test.describe("Map setup", () => {
     expect(await page.evaluate((filterKey) => state.overviewFilters.includes(filterKey), key)).toBe(false);
   });
 
+  test("closing Map setup with no change on a category landing keeps the landing, its list and the saved set", async ({ page }) => {
+    await setup(page, "/nearby/food");
+    const listedNames = page.locator("#inspectorBody .nearest-item .nearest-name");
+    await expect(listedNames.first()).toBeVisible();
+    const listBefore = await listedNames.allTextContents();
+    expect(listBefore.length, "the landing lists places before Map setup opens").toBeGreaterThan(0);
+    const urlBefore = page.url();
+    const savedBefore = await page.evaluate(() => localStorage.getItem("forest-finds-filter-state-v1"));
+
+    await page.click("#filterToggle");
+    await expect(page.locator("#onboardingOverlay")).toBeVisible();
+    await page.getByRole("button", { name: "Close map setup" }).click();
+    await expect(page.locator("#onboardingOverlay")).toBeHidden();
+
+    expect(page.url()).toBe(urlBefore);
+    await expect(listedNames).toHaveText(listBefore);
+    expect(await page.evaluate(() => localStorage.getItem("forest-finds-filter-state-v1"))).toBe(savedBefore);
+  });
+
+  test("closing Map setup with a change on a category landing saves it and moves the landing to plain Nearby", async ({ page }) => {
+    await setup(page, "/nearby/food");
+    await page.click("#filterToggle");
+    await page.locator('.onboarding-selection-item[data-group-key="food"]').click();
+    await page.locator('.onboarding-chip[data-key="pubs"]').click();
+    await page.getByRole("button", { name: "Close map setup" }).click();
+    await expect(page.locator("#onboardingOverlay")).toBeHidden();
+
+    await expect(page).toHaveURL(/\/nearby(?:\?radius=30)?$/);
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem("forest-finds-filter-state-v1")).filters.includes("pubs"))).toBe(false);
+  });
+
   test("filter changes apply when the guided setup is done", async ({ page }) => {
     await page.click("#filterToggle");
     await page.getByRole("button", { name: "Choose categories" }).click();

@@ -365,19 +365,21 @@ test.describe("A re-tap keeps the view the reader set up", () => {
     expect(await savedRaw(page)).toBe(savedBefore);
   });
 
-  test("closing Map setup from a landing without changes leaves the saved picks in storage", async ({ page }) => {
+  test("closing Map setup from a landing without changes keeps the landing and leaves the saved picks in storage", async ({ page }) => {
     await seedSavedFilters(page, ["ponds_streams", "trees"]);
     await setup(page, "/nearby/food");
     const savedBefore = await savedRaw(page);
+    const urlBefore = page.url();
 
     await page.locator("#filterToggle").click();
     await expect(page.locator("#onboardingOverlay")).toBeVisible();
     await page.locator("#onboardingOverlay .onboarding-close").click();
     await expect(page.locator("#onboardingOverlay")).toBeHidden();
 
-    await expect(page).toHaveURL(/\/nearby(?:\?radius=30)?$/);
+    // Nothing was saved, so the landing still shows its own Food set, at its own URL.
+    expect(page.url()).toBe(urlBefore);
+    expect(await sortedFilters(page)).toBe("cafes,pubs,restaurants,shops");
     expect(await savedRaw(page)).toBe(savedBefore);
-    expect(await sortedFilters(page)).toBe("ponds_streams,trees");
   });
 
   test("a whole group picked on its landing is named by neither the title nor the list heading, before and after a reload", async ({ page }) => {

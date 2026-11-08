@@ -2941,12 +2941,19 @@ function openFilterSetup() {
   // Keep the route for bookmarks/history, but leave the Nearby inspector and its list rendered
   // underneath the modal. This is deliberately not a replacement screen.
   exitClusterExpansion();
+  // The screen the dialog opens over (a landing, or plain Nearby). Opening the dialog pushes its own route,
+  // so a close that saves nothing puts this URL back. The legacy /nearby/filter route has no screen of its
+  // own to return to, so it closes to plain Nearby as it always has.
+  const openedOverUrl = window.location.pathname === ROUTE_PATHS[ROUTE_FILTERS]
+    ? null
+    : `${window.location.pathname}${window.location.search}${window.location.hash}`;
   state.filterScreenOpen = true;
   setHashFromSelection(ROUTE_FILTERS);
 
   showOnboarding({ mode: "filters" }).then((result) => {
     state.filterScreenOpen = false;
-    if (Array.isArray(result.filters)) applyStagedFilterSet(result.filters);
+    const saved = Array.isArray(result.filters) && applyStagedFilterSet(result.filters);
+    if (!saved && openedOverUrl) history.replaceState(history.state, "", openedOverUrl);
     updateFilterUi();
     if (window.location.pathname === ROUTE_PATHS[ROUTE_FILTERS]) {
       replaceHashInPlace("");
@@ -4637,12 +4644,6 @@ function saveFilterSet(nextFilters, { railTap = false } = {}) {
   syncRailUrl();
 }
 
-// Whether the screen is showing a view rather than the saved set: a category landing, or any other view
-// (an old ?show= link, a ?filters=false view).
-function filterChangeReplacesSavedSet() {
-  return Boolean(state.overviewFiltersEphemeral || isNearbyCategoryLandingPath());
-}
-
 function filterKeysEqual(first, second) {
   const left = Array.from(new Set(first)).sort();
   const right = Array.from(new Set(second)).sort();
@@ -4650,18 +4651,14 @@ function filterKeysEqual(first, second) {
 }
 
 // Applies the set Map setup or a held pill's dialog ends with. The dialog starts from the saved set, so
-// a set that matches it changed nothing: nothing is saved, though a view or landing still returns to
-// the saved set and plain /nearby. Any real change saves.
+// a set that matches it changed nothing: nothing is saved, and the screen (a landing's list, or any
+// other view) and the URL stay as they are. Only a real change saves, and a save moves a view to plain
+// /nearby.
+// Returns whether it saved, so a caller can tell a no-change close (the screen stays as it was) from a save.
 function applyStagedFilterSet(stagedFilters) {
-  if (filterKeysEqual(stagedFilters, loadStoredOverviewFilters())) {
-    if (filterChangeReplacesSavedSet()) {
-      setOverviewFilters(loadStoredOverviewFilters(), { persist: false });
-      state.overviewFiltersEphemeral = false;
-      syncRailUrl();
-    }
-    return;
-  }
+  if (filterKeysEqual(stagedFilters, loadStoredOverviewFilters())) return false;
   saveFilterSet(stagedFilters);
+  return true;
 }
 
 function toggleRailFilter(key) {
