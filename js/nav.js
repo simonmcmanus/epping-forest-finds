@@ -1075,7 +1075,11 @@ function setupFilterPanelHandlers() {
         // Already on the Nearby screen: shake it in place rather than sliding it out and back in.
         // A browse anchor or query still needs the list refreshed, but without the screen-entry slide.
         shakeInspectorSheet();
+        // An explicit Nearby press is the way back to following: it hands the camera back.
+        const hadPose = manualPoseActive();
+        clearManualPose();
         if (!onPlainNearby) goToInitialView(true, { enterAnimated: false });
+        else if (hadPose) ensureOverviewTargetsVisible({ animate: true, durationMs: HEADING_UP_NAV_ANIMATION_MS, force: true });
         return;
       }
       goToInitialView();
@@ -2640,8 +2644,8 @@ function goToInitialView(updateHash = true, { enterAnimated = true } = {}) {
 
   const wasMinimized = els.inspector.classList.contains("minimized");
   // Coming back from a real selection is a real return to Nearby, and the app takes the camera
-  // back. A Nearby that never left (a sheet dismiss and reopen, a return from Settings or Filters,
-  // the Nearby button pressed on Nearby) keeps the user's pan.
+  // back. A Nearby that never left (a sheet dismiss and reopen, a return from Settings or Filters)
+  // keeps the user's pan; only the explicit Nearby press on Nearby (setupNavHandlers) clears it.
   if (hasRealSelection() || state.clusterExpanded) clearManualPose();
   // Before state.selected changes below -- see startCameraOriginTransition (js/app.js).
   startCameraOriginTransition();

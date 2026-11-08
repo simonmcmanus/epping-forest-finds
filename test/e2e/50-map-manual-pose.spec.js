@@ -272,4 +272,67 @@ test.describe("Map manual pose", () => {
     expect(await page.evaluate(() => window.location.search + window.location.hash)).toBe(before);
     expect(await page.evaluate(() => state.nearbyAnchor)).toBeNull();
   });
+
+  async function panOnNearby(page) {
+    await openNearby(page);
+    await settle(page);
+    const probe = await mapProbe(page);
+    await drag(page, probe.offRing, { x: probe.offRing.x + 70, y: probe.offRing.y + 40 });
+    await waitForFrames(page, 3);
+    expect(await page.evaluate(() => Boolean(state.manualPose))).toBe(true);
+    return probe;
+  }
+
+  test("pressing Nearby while on Nearby hands the camera back to following the user", async ({ page }) => {
+    await openNearby(page);
+    await settle(page);
+    const fitted = await viewport(page);
+    const probe = await mapProbe(page);
+    await drag(page, probe.offRing, { x: probe.offRing.x + 70, y: probe.offRing.y + 40 });
+    await waitForFrames(page, 3);
+    const panned = await viewport(page);
+    expect(Math.abs(panned.tx - fitted.tx)).toBeGreaterThan(20);
+
+    await page.locator("#nearbyToggle").click();
+    await expect.poll(() => page.evaluate(() => Boolean(state.manualPose))).toBe(false);
+    await settle(page);
+    const after = await viewport(page);
+    expect(Math.abs(after.tx - fitted.tx)).toBeLessThan(2);
+    expect(Math.abs(after.ty - fitted.ty)).toBeLessThan(2);
+  });
+
+  test("tapping open ground to relocate the anchor clears the pose", async ({ page }) => {
+    const probe = await panOnNearby(page);
+    await page.mouse.click(probe.offRing.x, probe.offRing.y);
+    await expect.poll(() => page.evaluate(() => state.nearbyAnchor !== null)).toBe(true);
+    expect(await page.evaluate(() => Boolean(state.manualPose))).toBe(false);
+  });
+
+  test("changing the radius from the Settings slider clears the pose", async ({ page }) => {
+    await panOnNearby(page);
+    await page.locator("#settingsToggle").click();
+    await expect.poll(() => page.evaluate(() => state.selected && state.selected.type)).toBe("settings");
+    expect(await page.evaluate(() => Boolean(state.manualPose)), "opening Settings keeps the pose").toBe(true);
+    await page.evaluate(() => {
+      const range = document.getElementById("settingsWalkMins");
+      range.value = String(Number(range.value) + 5 > Number(range.max) ? Number(range.value) - 5 : Number(range.value) + 5);
+      range.dispatchEvent(new Event("input", { bubbles: true }));
+      range.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await expect.poll(() => page.evaluate(() => Boolean(state.manualPose))).toBe(false);
+  });
+
+  test("returning to Nearby from a real selection clears the pose", async ({ page }) => {
+    await panOnNearby(page);
+    await page.locator("#inspectorBody .nearest-item").first().click();
+    await expect.poll(() => page.evaluate(() => Boolean(state.selected && state.selected.item))).toBe(true);
+    await settle(page);
+    const probe = await mapProbe(page);
+    await drag(page, probe.offRing, { x: probe.offRing.x + 40, y: probe.offRing.y + 30 });
+    await waitForFrames(page, 3);
+    expect(await page.evaluate(() => Boolean(state.manualPose))).toBe(true);
+    await page.locator("#nearbyToggle").click();
+    await expect.poll(() => page.evaluate(() => state.selected === null)).toBe(true);
+    expect(await page.evaluate(() => Boolean(state.manualPose))).toBe(false);
+  });
 });
