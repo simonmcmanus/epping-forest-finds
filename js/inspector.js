@@ -1567,8 +1567,12 @@ function nearbyWithinWalkHtml(lat, lon, name = null) {
   // walk of The Foresters" -- so the number matches what the Nearby list shows once it is opened.
   const { within } = countNearbyEntries(Array.from(ALL_OVERVIEW_FILTER_KEYS), Number(lat), Number(lon));
   if (within === 0) return "";
-  // A view of every category: the reader's saved filters are not changed by it.
-  const copy = `${formatCount(within)} locations within ${minutes} walk of ${name || "this spot"}. A view of every category; your saved filters stay as they are`;
+  // A view of every category: the reader's saved filters are not changed by it. With no location fix the
+  // view is not shown (focusNearbyWithinWalkMinutes asks for a location), so the copy says so instead.
+  const where = `${formatCount(within)} locations within ${minutes} walk of ${name || "this spot"}`;
+  const copy = state.userLocation
+    ? `${where}. A view of every category; your saved filters stay as they are`
+    : `${where}. Use your location to list them`;
   return `<li><button class="nearest-item" type="button" data-action="walk-radius" data-lat="${Number(lat)}" data-lon="${Number(lon)}"${nameAttr}>` +
     `<span class="nearest-icon" aria-hidden="true">${appIconHtml("walking")}</span>` +
     `<div class="nearest-content"><div class="nearest-header"><span class="nearest-name">Everything</span></div>` +

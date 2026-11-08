@@ -343,8 +343,10 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
   writes a `?show=` URL or a category landing path, and the saved set lives in storage, so a reload keeps
   it. The drill level (which group the rail shows subcategories for) lives in memory only, so a reload
   returns the rail to its top level. An old `?show=` link stays a view and is not saved. The place card's
-  "Everything within" control is a view of every category and leaves the saved set alone. A saved single
-  category with no location asks for a location rather than listing every place in it.
+  "Everything within" control is a view of every category and leaves the saved set alone. With no location fix
+  it does not switch to that view: it moves the browse point and walking radius, keeps the saved set, and the
+  list asks for a location (its own copy says so). A saved single category with no location asks for a location
+  rather than listing every place in it.
 - **Navigating in-app straight from one `/nearby/<slug>` arrival to another never loses the new
   page's own category.** A link out of a selected place's inspector (a business page's own
   "Related" section, `js/inspector.js`) or a bare `near="" ` link like "All nearby"

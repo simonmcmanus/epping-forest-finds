@@ -1565,8 +1565,15 @@ function focusNearbyWithinWalkMinutes(latitude, longitude, minutes, label = null
   state.nearbyAnchor = { latitude, longitude, point: projectLonLat(longitude, latitude), label };
   state.walkingDistanceMinutes = minutes;
   state.outOfRadiusRevealFilters = [];
-  // "Everything" here is a view: every category on screen, with the reader's saved set left as it was.
-  setOverviewFilters(Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: false, render: false });
+  // "Everything" here is a view: every category on screen, with the reader's saved set left as it was. A view
+  // with no location fix would list every place in every category, and there is no origin to sort them from,
+  // so without a location it keeps the saved set instead: the Nearby list then asks for a location.
+  if (state.userLocation) {
+    setOverviewFilters(Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: false, render: false });
+  } else {
+    setOverviewFilters(loadStoredOverviewFilters(), { persist: false, render: false });
+    state.overviewFiltersEphemeral = false;
+  }
   exitClusterExpansion({ restoreRadius: false });
   refreshNearbyRadiusView({ animate: false });
   pushNearbyAnchorHistory();

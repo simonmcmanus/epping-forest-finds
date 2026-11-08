@@ -904,7 +904,9 @@ Any selected feature with an anchor coordinate (tree, place, cow, path, road, ra
 named area) also shows a **"Nearest"** section. When at least one location is inside the reader's
 walking radius it includes an **"Everything"** card whose line reads "N locations within M min walk
 of <name>", M being the reader's own walking radius (rounded through `formatWalkingRadius()`) and N
-the count across every category within it (`nearbyWithinWalkHtml`, js/inspector.js), not in
+the count across every category within it (`nearbyWithinWalkHtml`, js/inspector.js). With no location
+fix the card's line asks the reader to use their location to list them, and tapping it keeps the saved set
+rather than listing every category (`focusNearbyWithinWalkMinutes`, js/nav.js); the card is not in
 `.detail-top-row` alongside Open in Maps/Share: it shares the Nearby list's own `.nearest-item`
 card styling (a `<button>`, since it drives a live state change rather than a navigation) instead
 of the unrelated `.detail-map-link` pill those use. Every selected point with coordinates -- a `/find/`
