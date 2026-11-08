@@ -5,7 +5,7 @@ test.describe('Cluster badges and geographic footprints', () => {
   test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ['geolocation'] });
 
   test('both group types show exact counts and a short pointer attached to their badge', async ({ page }) => {
-    await setup(page);
+    await setup(page, "/nearby?radius=5");
     const result = await page.evaluate(() => {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
@@ -24,7 +24,7 @@ test.describe('Cluster badges and geographic footprints', () => {
   });
 
   test('all clusters share one silhouette, colour and count position', async ({ page }) => {
-    await setup(page);
+    await setup(page, "/nearby?radius=5");
     const result = await page.evaluate(() => {
       const ctx = document.createElement('canvas').getContext('2d');
       const fills = [], textPositions = [];
@@ -42,7 +42,7 @@ test.describe('Cluster badges and geographic footprints', () => {
   });
 
   test('cluster areas have a contrasting outline and visible fill on the map', async ({ page }) => {
-    await setup(page);
+    await setup(page, "/nearby?radius=5");
     const result = await page.evaluate(() => {
       stopViewportAnimation();
       const ctx = document.createElement('canvas').getContext('2d');
@@ -61,7 +61,7 @@ test.describe('Cluster badges and geographic footprints', () => {
   });
 
   test('individual and grouped pins use rounded rectangular faces with attached pointers', async ({ page }) => {
-    await setup(page);
+    await setup(page, "/nearby?radius=5");
     const shapes = await page.evaluate(() => {
       const ctx = document.createElement('canvas').getContext('2d');
       const capture = drawPin => {
@@ -86,7 +86,7 @@ test.describe('Cluster badges and geographic footprints', () => {
   });
 
   test('tree clusters preview their distinct species, most common first', async ({ page }) => {
-    await setup(page);
+    await setup(page, "/nearby?radius=5");
     const result = await page.evaluate(() => {
       const oak = { commonName: 'English oak', latinName: 'Quercus robur' };
       const beech = { commonName: 'Common beech', latinName: 'Fagus sylvatica' };
@@ -104,7 +104,7 @@ test.describe('Cluster badges and geographic footprints', () => {
   });
 
   test('one-artwork groups put a tappable count at the top right of a compact location pin', async ({ page }) => {
-    await setup(page);
+    await setup(page, "/nearby?radius=5");
     const result = await page.evaluate(() => {
       const ctx = document.createElement('canvas').getContext('2d');
       const labels = [], chips = [];
@@ -124,7 +124,7 @@ test.describe('Cluster badges and geographic footprints', () => {
   });
 
   test('mixed groups preserve species previews and coalesce duplicate species artwork', async ({ page }) => {
-    await setup(page);
+    await setup(page, "/nearby?radius=5");
     const result = await page.evaluate(() => {
       const oak = { commonName: 'English oak', latinName: 'Quercus robur' };
       const beech = { commonName: 'Common beech', latinName: 'Fagus sylvatica' };
@@ -145,7 +145,7 @@ test.describe('Cluster badges and geographic footprints', () => {
   });
 
   test('station groups retain their Underground and National Rail symbols', async ({ page }) => {
-    await setup(page);
+    await setup(page, "/nearby?radius=5");
     const glyphs = await page.evaluate(() => {
       const ctx = document.createElement('canvas').getContext('2d');
       const underground = drawUndergroundGlyph, rail = drawNationalRailGlyph;
@@ -168,7 +168,7 @@ test.describe('Cluster badges and geographic footprints', () => {
   });
 
   test('the shaded area follows member locations rather than the count', async ({ page }) => {
-    await setup(page);
+    await setup(page, "/nearby?radius=5");
     const result = await page.evaluate(() => {
       const p = (x, y) => ({ point: { x, y } });
       const small = [p(100, 100), p(105, 100)];
@@ -186,7 +186,7 @@ test.describe('Cluster badges and geographic footprints', () => {
   });
 
   test('a cluster badge opens its members when tapped on either side of the count', async ({ page }) => {
-    await setup(page);
+    await setup(page, "/nearby?radius=5");
     await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
     const target = await page.evaluate(() => {
       stopViewportAnimation();
@@ -217,7 +217,7 @@ test.describe('Cluster badges and geographic footprints', () => {
     // ~500ms flight, then faded them in only once both tweens happened to finish. The camera
     // motion was smooth; what "snapped" was the destination's own pins popping into existence
     // after it had already stopped.
-    await setup(page);
+    await setup(page, "/nearby?radius=5");
     await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
     const target = await page.evaluate(() => {
       stopViewportAnimation();
@@ -284,7 +284,7 @@ test.describe('Cluster badges and geographic footprints', () => {
     // again once the slide has actually finished (no transition in flight) already returns --
     // asserted directly below rather than by timing a real animation, which is exactly the
     // kind of frame-timing race this bug itself depended on.
-    await setup(page);
+    await setup(page, "/nearby?radius=5");
     await page.evaluate(() => {
       // tiltActive() requires headingUpActive() (a finite compass heading), not just beta.
       state.compassHeadingTarget = 0;
@@ -360,7 +360,7 @@ test.describe('Cluster badges and geographic footprints', () => {
     // then snap"): restoreNearbyAnchorFromHistory clears state.nearbyAnchor through the same
     // refreshNearbyRadiusView({animate:true}) path focusNearbyOnClusterGroup uses, just with
     // the crossing reversed (browsing -> not browsing instead of not browsing -> browsing).
-    await setup(page);
+    await setup(page, "/nearby?radius=5");
     await page.evaluate(() => {
       state.compassHeadingTarget = 0;
       state.compassHeading = 0;
@@ -405,7 +405,7 @@ test.describe('Cluster badges and geographic footprints', () => {
   });
 
   test('flat and tilted scenes paint geographic footprints beneath their badges', async ({ page }) => {
-    await setup(page);
+    await setup(page, "/nearby?radius=5");
     const result = await page.evaluate(() => {
       stopViewportAnimation();
       const footprint = drawClusterFootprints, badge = drawGroupBadge;
@@ -435,7 +435,7 @@ test.describe('Cluster badges and geographic footprints', () => {
   });
 
   test('tilt projects the footprint onto the ground while the badge remains upright', async ({ page }) => {
-    await setup(page);
+    await setup(page, "/nearby?radius=5");
     const result = await page.evaluate(() => {
       stopViewportAnimation();
       state.compassHeading = state.compassHeadingTarget = state.renderedNavigationHeading = 0;

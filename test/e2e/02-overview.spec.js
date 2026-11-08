@@ -751,7 +751,9 @@ test.describe("Overview / Nearby screen", () => {
     });
 
     test("pinching well past the floor pins the radius there and shows a visual limit", async ({ page }) => {
-      await setup(page);
+      // Pinned to the 5-minute ring: a plain first landing sizes its own ring (see test/e2e/48-first-landing-ring),
+      // and this test pinches from the default.
+      await setup(page, "/nearby?radius=5");
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
       // Inspects state mid-gesture (before the fingers lift) by dispatching the pointer

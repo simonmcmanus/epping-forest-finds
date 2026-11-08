@@ -57,7 +57,7 @@ test.describe("Heads-up Nearby list", () => {
   test.beforeEach(async ({ page }) => {
     await skipOnboarding(page);
     await mockCowApi(page);
-    await gotoAndWaitForMap(page);
+    await gotoAndWaitForMap(page, "/nearby?radius=5");
     await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
   });
 

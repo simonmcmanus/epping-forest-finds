@@ -50,7 +50,7 @@ test.describe("Camera framing with the phone held up (heading-up)", () => {
   test("following a link to another place lands where heading-up navigation keeps it, so nothing pulls the camera afterwards", async ({ page }) => {
     // Two places a few hundred metres apart: close enough together the flat fit and the heading-up
     // fit both hit the zoom cap and agree, which would let a wrong camera call pass unnoticed.
-    await setup(page, "/nearby");
+    await setup(page, "/nearby?radius=5");
     await page.evaluate(() => navigateInApp("/find/onest/"));
     await page.waitForFunction(() => state.selected?.type === "landmark");
     await waitForUiToSettle(page);
@@ -87,7 +87,7 @@ test.describe("Camera framing with the phone held up (heading-up)", () => {
 
 test.describe("Back from a zoomed-in place to a browse view", () => {
   test("the zoom out is eased across the slide, not applied in one step", async ({ page }) => {
-    await setup(page, "/nearby");
+    await setup(page, "/nearby?radius=5");
     await page.evaluate(() => navigateInApp("/nearby/pubs/#near=51.655204,0.065731&label=Onest"));
     await page.waitForFunction(() => state.nearbyAnchor != null);
     await waitForUiToSettle(page);
@@ -127,7 +127,7 @@ test.describe("Back from a zoomed-in place to a browse view", () => {
 
 test.describe("Camera trace of user transitions", () => {
   test("opening a place from Nearby is one zoom, with no un-animated jumps", async ({ page }) => {
-    await setup(page, "/nearby");
+    await setup(page, "/nearby?radius=5");
     await startCameraTrace(page);
     await page.locator("#inspectorBody [data-overview-type][data-overview-key]").nth(0).click();
     await waitForUiToSettle(page);
@@ -139,7 +139,7 @@ test.describe("Camera trace of user transitions", () => {
   });
 
   test("switching from one place to another is one zoom, not a pan cut short by a zoom", async ({ page }) => {
-    await setup(page, "/nearby");
+    await setup(page, "/nearby?radius=5");
     await page.locator("#inspectorBody [data-overview-type][data-overview-key]").nth(0).click();
     await waitForUiToSettle(page);
     await page.locator("#nearbyToggle").click();
@@ -155,7 +155,7 @@ test.describe("Camera trace of user transitions", () => {
   });
 
   test("returning to Nearby from a place is one zoom out, with no un-animated jumps", async ({ page }) => {
-    await setup(page, "/nearby");
+    await setup(page, "/nearby?radius=5");
     await page.locator("#inspectorBody [data-overview-type][data-overview-key]").nth(0).click();
     await waitForUiToSettle(page);
 

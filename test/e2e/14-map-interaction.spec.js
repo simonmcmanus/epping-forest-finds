@@ -41,7 +41,7 @@ test.describe("Map interaction", () => {
 
   test.describe("Selecting a group", () => {
     test("tapping a group of trees browses the Nearby view to that group", async ({ page }) => {
-      await setup(page);
+      await setup(page, "/nearby?radius=5");
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
       // Find a real multi-item tree cluster at the current camera and tap its pin. Which pins
@@ -106,7 +106,7 @@ test.describe("Map interaction", () => {
     });
 
     test("the browser back button undoes a cluster tap and returns to the previous anchor", async ({ page }) => {
-      await setup(page);
+      await setup(page, "/nearby?radius=5");
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
       const anchorBefore = await page.evaluate(() => state.nearbyAnchor);
 
@@ -141,7 +141,7 @@ test.describe("Map interaction", () => {
     });
 
     test("while a tree is selected the map shows only that destination: no cluster badges are drawn or tappable", async ({ page }) => {
-      await setup(page);
+      await setup(page, "/nearby?radius=5");
       await page.waitForFunction(() => state.trees.length > 0);
 
       // A multi-item cluster exists on the Nearby map before anything is selected.
@@ -175,7 +175,7 @@ test.describe("Map interaction", () => {
 
   test.describe("The nearest area", () => {
     test("a tap on a street beyond the walking radius moves the nearest area instead of selecting it", async ({ page }) => {
-      await setup(page);
+      await setup(page, "/nearby?radius=5");
       await page.waitForFunction(() => Boolean(state.userLocation) && state.roads.length > 0);
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
@@ -539,7 +539,7 @@ test.describe("Map interaction", () => {
     });
 
     test("a related link to a place's nearby view opens on that place's spot, not the reader's own location, and names it", async ({ page }) => {
-      await gotoLinkedNearby(page, "/nearby#near=51.650000,0.050000&label=The%20Foresters");
+      await gotoLinkedNearby(page, "/nearby?radius=5#near=51.650000,0.050000&label=The%20Foresters");
       await expect.poll(() => page.evaluate(() => state.nearbyAnchor && state.nearbyAnchor.latitude)).toBeCloseTo(51.65, 5);
       await expect(page.locator(".nearby-anchor-bar-text")).toHaveText("Showing places near The Foresters");
     });
@@ -548,7 +548,7 @@ test.describe("Map interaction", () => {
       test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ["geolocation"] });
 
       test("a related link keeps its place's spot rather than the reader's own location, and names it", async ({ page }) => {
-        await gotoLinkedNearby(page, "/nearby#near=51.650000,0.050000&label=The%20Foresters");
+        await gotoLinkedNearby(page, "/nearby?radius=5#near=51.650000,0.050000&label=The%20Foresters");
         await expect.poll(() => page.evaluate(() => state.userLocation && state.userLocation.latitude)).toBeCloseTo(51.665, 3);
         await expect.poll(() => page.evaluate(() => state.nearbyAnchor && state.nearbyAnchor.latitude)).toBeCloseTo(51.65, 5);
         await expect(page.locator(".nearby-anchor-bar-text")).toHaveText("Showing places near The Foresters");

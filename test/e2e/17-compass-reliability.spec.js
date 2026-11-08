@@ -11,7 +11,7 @@ test.describe("compass reliability", () => {
   test.beforeEach(async ({ page }) => {
     await skipOnboarding(page);
     await mockCowApi(page);
-    await gotoAndWaitForMap(page);
+    await gotoAndWaitForMap(page, "/nearby?radius=5");
     await page.evaluate(() => {
       state.compassHeadingSource = HEADING_SOURCE_NONE;
       state.compassHeading = null;
