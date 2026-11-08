@@ -13,13 +13,22 @@ const vm = require("vm");
 
 const SOURCE = fs.readFileSync(path.join(__dirname, "..", "js", "tracker.js"), "utf8");
 
-function loadTracker({ consent = true, respond = () => ({ ok: true, status: 200 }) } = {}) {
+function loadTracker({ consent = true, respond = () => ({ ok: true, status: 200 }), state: appState } = {}) {
   const storage = new Map(consent ? [["ff-track-v1", "1"]] : []);
   const listeners = { window: new Map(), document: new Map() };
   const on = (map) => (type, fn) => { if (!map.has(type)) map.set(type, []); map.get(type).push(fn); };
   const sent = [];
   const timers = [];
+  // A fake clock: the tracker reads Date.now() and new Date() for the wait between uploads and the
+  // age of a GPS fix. Tests move clock.now forward instead of waiting.
+  const clock = { now: Date.UTC(2026, 10, 6, 9, 0) };
+  class FakeDate extends Date {
+    constructor(...args) { if (args.length) super(...args); else super(clock.now); }
+    static now() { return clock.now; }
+  }
   const context = {
+    Date: FakeDate,
+    state: appState,
     localStorage: {
       getItem: (k) => storage.get(k) ?? null,
       setItem: (k, v) => storage.set(k, String(v)),
@@ -40,10 +49,10 @@ function loadTracker({ consent = true, respond = () => ({ ok: true, status: 200 
   };
   context.globalThis = context;
   vm.createContext(context);
-  vm.runInContext(`${SOURCE}\nglobalThis.api = { trackClick, trackLocation, initTracker, trackerFlushQueue, setTrackingConsent };`, context);
+  vm.runInContext(`${SOURCE}\nglobalThis.api = { trackClick, trackLocation, initTracker, trackerFlushQueue, setTrackingConsent, startLocationTracking, stopLocationTracking };`, context);
   const queued = () => JSON.parse(storage.get("ff-track-queue") || "[]");
   const fire = (target, type) => Promise.all((listeners[target].get(type) || []).map((fn) => fn({ type })));
-  return { api: context.api, sent, queued, timers, context, fire };
+  return { api: context.api, sent, queued, timers, context, fire, clock };
 }
 
 const settle = () => new Promise((resolve) => setImmediate(resolve));
@@ -103,12 +112,13 @@ test("a long offline queue is sent in batches small enough for a keepalive reque
 
 test("a failed send keeps the events for the next attempt", async () => {
   let fail = true;
-  const { api, sent, queued } = loadTracker({ respond: () => (fail ? { ok: false, status: 503 } : { ok: true, status: 200 }) });
+  const { api, sent, queued, clock } = loadTracker({ respond: () => (fail ? { ok: false, status: 503 } : { ok: true, status: 200 }) });
   trackN(api, 20);
   await settle();
   assert.equal(sent.length, 1);
   assert.equal(queued().length, 20, "nothing is lost on a server error");
   fail = false;
+  clock.now += 60_000;
   await api.trackerFlushQueue();
   assert.equal(queued().length, 0);
   assert.equal(sent[1].events.length, 20);
@@ -202,7 +212,7 @@ test("withdrawing usage-analytics consent deletes the device id the events were 
 
 test("events whose send fails after consent is withdrawn are not kept to send later", async () => {
   let failInFlight;
-  const { api, sent, queued } = loadTracker({
+  const { api, sent, queued, clock } = loadTracker({
     respond: () => (sent.length === 1 ? new Promise((resolve) => { failInFlight = () => resolve({ ok: false, status: 503 }); }) : { ok: true, status: 200 }),
   });
   trackN(api, 20);
@@ -213,6 +223,7 @@ test("events whose send fails after consent is withdrawn are not kept to send la
   await settle();
   assert.equal(queued().length, 0, "the failed batch is not put back");
   api.setTrackingConsent(true);
+  clock.now += 60_000;
   await api.trackerFlushQueue();
   assert.equal(sent.length, 1, "nothing from before the withdrawal goes out after consent is given again");
 });
@@ -231,4 +242,145 @@ test("an item with no usable coordinates at all is recorded without a target rat
   const [event] = queued();
   assert.equal(event.targetLat, null);
   assert.equal(event.targetLng, null);
+});
+
+// --- A stale GPS fix is not repeated as the walker's position ---
+
+const MINUTE = 60_000;
+
+function locationPingTimer(tracker) {
+  return tracker.timers.find((t) => t.ms === MINUTE);
+}
+
+test("Analytics does not repeat a stale location fix once GPS has stopped", async () => {
+  const appState = { rawUserLocation: null, userLocation: null, compassHeading: null };
+  const tracker = loadTracker({ state: appState });
+  const fixAt = tracker.clock.now;
+  appState.rawUserLocation = { latitude: 51.65, longitude: 0.04, receivedAt: fixAt };
+  tracker.api.startLocationTracking();
+  // The watch delivers nothing more, while the minute timer keeps firing for five minutes.
+  for (let minute = 1; minute <= 5; minute += 1) {
+    tracker.clock.now = fixAt + minute * MINUTE;
+    await locationPingTimer(tracker).fn();
+  }
+  await tracker.api.trackerFlushQueue();
+  const pings = tracker.sent.flatMap((request) => request.events);
+  assert.ok(pings.length >= 1, "the fix was recorded while it was fresh");
+  assert.ok(pings.every((event) => event.lat === 51.65));
+  const lastPingAt = Math.max(...pings.map((event) => Date.parse(event.ts)));
+  assert.ok(lastPingAt <= fixAt + 2 * MINUTE, "no ping goes out more than two intervals after the last fix");
+});
+
+test("Analytics keeps recording a walker whose GPS is still delivering fixes, once a minute", async () => {
+  const appState = { rawUserLocation: null, userLocation: null, compassHeading: null };
+  const tracker = loadTracker({ state: appState });
+  const start = tracker.clock.now;
+  tracker.api.startLocationTracking();
+  for (let minute = 1; minute <= 4; minute += 1) {
+    tracker.clock.now = start + minute * MINUTE;
+    appState.rawUserLocation = { latitude: 51.65 + minute / 1000, longitude: 0.04, receivedAt: tracker.clock.now - 1000 };
+    await locationPingTimer(tracker).fn();
+  }
+  await tracker.api.trackerFlushQueue();
+  const pings = tracker.sent.flatMap((request) => request.events);
+  assert.equal(pings.length, 4, "one ping for each of the four minutes");
+  assert.equal(new Set(pings.map((event) => event.lat)).size, 4, "each ping carries that minute's fix");
+});
+
+test("a walker whose GPS resumes after a silence is recorded again at the next minute", async () => {
+  const appState = { rawUserLocation: null, userLocation: null, compassHeading: null };
+  const tracker = loadTracker({ state: appState });
+  const start = tracker.clock.now;
+  appState.rawUserLocation = { latitude: 51.65, longitude: 0.04, receivedAt: start };
+  tracker.api.startLocationTracking();
+  tracker.clock.now = start + 10 * MINUTE;
+  await locationPingTimer(tracker).fn();
+  tracker.clock.now = start + 16 * MINUTE;
+  appState.rawUserLocation = { latitude: 51.66, longitude: 0.05, receivedAt: tracker.clock.now - 1_000 };
+  await locationPingTimer(tracker).fn();
+  await tracker.api.trackerFlushQueue();
+  const lats = tracker.sent.flatMap((request) => request.events).map((event) => event.lat);
+  assert.equal(lats[lats.length - 1], 51.66, "the fresh fix is sent once GPS is back");
+  assert.ok(!lats.slice(0, -1).includes(51.66));
+});
+
+// --- Waiting before retrying a failed upload ---
+
+test("Analytics waits before retrying after a failed upload, and keeps the events meanwhile", async () => {
+  let failing = true;
+  const tracker = loadTracker({ respond: () => (failing ? { ok: false, status: 503 } : { ok: true, status: 200 }) });
+  trackN(tracker.api, 20);
+  await settle();
+  assert.equal(tracker.sent.length, 1, "the first upload was attempted and failed");
+  trackN(tracker.api, 5);
+  await settle();
+  assert.equal(tracker.sent.length, 1, "no further upload is started while the wait runs");
+  assert.equal(tracker.queued().length, 25, "the events wait in the queue, none dropped");
+  tracker.clock.now += 29_000;
+  await tracker.api.trackerFlushQueue();
+  assert.equal(tracker.sent.length, 1, "still inside the wait");
+  failing = false;
+  tracker.clock.now += 2_000;
+  await tracker.api.trackerFlushQueue();
+  assert.equal(tracker.sent.length, 2, "once the wait has passed the queue is tried again");
+  assert.equal(tracker.sent[1].events.length, 25);
+  assert.equal(tracker.queued().length, 0);
+});
+
+test("Analytics backs off for longer after each further failed upload", async () => {
+  const tracker = loadTracker({ respond: () => ({ ok: false, status: 503 }) });
+  trackN(tracker.api, 20);
+  await settle();
+  const attemptAfter = async (ms) => {
+    tracker.clock.now += ms;
+    await tracker.api.trackerFlushQueue();
+  };
+  await attemptAfter(29_000);
+  assert.equal(tracker.sent.length, 1, "30 seconds after the first failure");
+  await attemptAfter(1_000);
+  assert.equal(tracker.sent.length, 2, "the first retry is at 30 seconds, and fails");
+  await attemptAfter(59_000);
+  assert.equal(tracker.sent.length, 2, "the second wait is a minute, so nothing at 59 seconds");
+  await attemptAfter(1_000);
+  assert.equal(tracker.sent.length, 3, "the second retry is at a minute, and fails");
+  await attemptAfter(119_000);
+  assert.equal(tracker.sent.length, 3, "the third wait is two minutes");
+  await attemptAfter(1_000);
+  assert.equal(tracker.sent.length, 4);
+});
+
+test("Analytics never waits more than ten minutes between upload attempts", async () => {
+  const tracker = loadTracker({ respond: () => ({ ok: false, status: 503 }) });
+  trackN(tracker.api, 20);
+  await settle();
+  for (let failures = 1; failures <= 10; failures += 1) {
+    tracker.clock.now += 1_000;
+    await tracker.api.trackerFlushQueue();
+    assert.equal(tracker.sent.length, failures, `after failure ${failures} a retry a second later waits`);
+    tracker.clock.now += 10 * MINUTE - 1_000;
+    await tracker.api.trackerFlushQueue();
+    assert.equal(tracker.sent.length, failures + 1, `after failure ${failures} the retry ten minutes on is made`);
+  }
+});
+
+test("a successful upload ends the wait, so the next failure waits the shortest time again", async () => {
+  let mode = "fail";
+  const tracker = loadTracker({ respond: () => (mode === "fail" ? { ok: false, status: 503 } : { ok: true, status: 200 }) });
+  trackN(tracker.api, 20);
+  await settle();
+  assert.equal(tracker.sent.length, 1);
+  mode = "ok";
+  tracker.clock.now += 30_000;
+  await tracker.api.trackerFlushQueue();
+  assert.equal(tracker.sent.length, 2, "the retry after 30 seconds succeeds");
+  mode = "fail";
+  trackN(tracker.api, 20);
+  await settle();
+  assert.equal(tracker.sent.length, 3, "a new batch goes straight out, with no wait left over");
+  tracker.clock.now += 29_000;
+  await tracker.api.trackerFlushQueue();
+  assert.equal(tracker.sent.length, 3, "after a failure the wait is 30 seconds again, not a minute");
+  tracker.clock.now += 1_000;
+  await tracker.api.trackerFlushQueue();
+  assert.equal(tracker.sent.length, 4);
 });

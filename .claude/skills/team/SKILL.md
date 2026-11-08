@@ -1,97 +1,108 @@
 ---
 name: team
-description: "Run the team playbook: triage issues, implement locally, run every review and the tests before anything is pushed, then push and open the PR by default, and hand it to the steward. The lead session runs this itself, because subagents cannot dispatch other agents."
+description: "Lead playbook for coherent batches: implement locally, review changed risks, verify evidence, push one reviewed batch and coordinate its PR."
 disable-model-invocation: true
 ---
 
-You are the lead session. You plan and dispatch; the agents in `.claude/agents/` do the work. Subagents
-cannot dispatch other agents, so every dispatch below comes from this session.
+The lead dispatches; subagents do not spawn agents. Read `docs/agents/review-contract.md` for the
+shared evidence/invalidation rules. The user's authorized scope takes precedence over routine
+workflow suggestions; do not ask again for approval of already-authorized batch subtasks.
 
-The user passes issue numbers or a task description. If the input is ambiguous, ask once before
-dispatching anything.
+## 1. Choose a coherent batch
 
-The order is fixed: implement, review, test, then push. Nothing reaches `origin` until every review and
-test gate has passed on the local branch.
+Read referenced issues and state their titles. Classify code/test/spec/style work for `implementer`
+and real-world place facts for `data-curator`. Batch related work into one branch/PR when it has one
+clear subsystem or user goal, compatible rollback/risk, and a reviewable combined test plan. Include
+associated specs, tests and review fixes. Do not turn each issue automatically into a PR.
 
-## 1. Triage
+Keep unrelated independently deployable features, incompatible migrations or changes whose combined
+risk cannot be reviewed separately. If reviewers cannot explain the aggregate behavior, ownership and
+rollback in a short summary, split it. This is a reviewability limit, not a target line count. Show the
+batch plan and proceed within the user's authorization; ask only for a material ambiguity or scope
+expansion, never another go-ahead for routine parts of an approved batch.
 
-For each issue, read it (`gh issue view <n>` where `gh` is available, otherwise `mcp__github__issue_read`) and state its title. Classify it:
-
-- **code**: app code, tests, specs or styles. Goes to an `implementer`.
-- **data**: a place fact is wrong (closed, renamed, moved, mis-categorised). Goes to `data-curator`.
-
-Then say which issues touch the same hot files (`app.html`, `js/app.js`, `sw.js`, `spec/*.md`,
-`test/forest-finds.test.js`). Those must run one after another, not in parallel.
-
-Until the team has agreed rules for combining items into one PR, give each item its own branch and PR.
-
-If there is more than one item, show the user the plan (items, agent, order, parallel groups) and
-wait for a go-ahead. For a single item, go straight on.
+Use one branch/worktree from `origin/main` for the batch. Allocate exclusive file ownership and
+serialize hot-file changes (`app.html`, `js/app.js`, `sw.js`, `spec/*.md`, `test/forest-finds.test.js`).
+Sequential agents may share the batch worktree. For independent parallel work use isolated worktrees
+and integrate locally before aggregate review. Never stack a branch on an unmerged PR. At most three
+implementers run at once; the lead owns integration and all pushes.
 
 ## 2. Implement locally
 
-Dispatch one `implementer` per code item, or one `data-curator` per data item, with its work item, its
-branch name `claude/<topic>` and its worktree `.worktrees/<topic>` from `origin/main`. Run at most three
-at once.
+Dispatch scoped work with base SHA, branch/worktree, owned files, requirements, neighboring journeys,
+relevant spec headings, risk triggers and targeted checks. Load context by dependency; do not copy a
+full repository briefing into every prompt. Agents commit locally and report commit SHAs, changes,
+spec updates or the implementation-only reason, receipts and gaps. They do not push.
 
-Both commit on their local branch and do not push. Wait for each report: branch, local commit SHAs,
-files changed, spec updated or the implementation-only reason, and test counts.
+New regression tests fail on the unfixed code or a relevant mutant, then pass on the fix. Test and
+spec updates belong with the batch. Browser runs have one owner and a CPU/port budget: parallel
+worktrees must not each launch a full set of Playwright workers or reuse another worktree's server.
 
-## 3. Review gate, before the push
+## 3. Review the aggregate head
 
-Dispatch reviewers on the local branch, diffed against `origin/main`, all in parallel. Always dispatch
-`reviewer`. Add the specialists that match what the diff touches:
+Freeze the clean local head and dispatch independent `reviewer` for correctness, state transitions
+and test contracts. Select additional lenses for concrete changed risks:
 
-- markup, styles, interaction or icons: `accessibility-reviewer` and `design-reviewer`
-- rendering, data loading, assets or the service worker: `performance-reviewer`
-- a user flow, copy or a permission ask: `ux-reviewer`
-- a data change: `reviewer` only. Data items still run sections 4 to 6; only the specialists are skipped.
+| Risk | Additional lens |
+| --- | --- |
+| Auth, server endpoints, uploads, private data, untrusted input or privileged workflows | `security-reviewer` |
+| Cache/shell/data lists, fetch/failure path, outbox or native bundle | `offline-reviewer` |
+| Per-frame, startup, data loading, payload or battery cost | `performance-reviewer` |
+| Focus, accessible names, targets, contrast, zoom or motion accessibility | `accessibility-reviewer` |
+| Significant visual hierarchy, layout, tokens or icon changes | `design-reviewer` |
+| New journeys, navigation, permission asks, error recovery or action/copy mismatch | `ux-reviewer` |
 
-Collect every report. Only findings a reviewer has verified count. Blockers and majors go back to the
-implementer as a new local commit, with the finding text and `file:line`. After each fix, re-run every
-reviewer that ran on the previous commit, not only the ones that raised findings, because the fix is new
-code. Do not push a fix to test a review.
+For a small copy/style edit, the general reviewer can cover the relevant experience questions with
+rendered evidence; do not spawn three experience specialists automatically. A data-only correction
+still needs source provenance, format/ID/slug invariants and the general reviewer. Add offline/native
+review when it changes file lists, formats or bundling. Paths are hints, not a reason to miss a risk.
 
-Stop after three rounds of findings on the same item, and report the open findings to the user. Do not
-push that branch.
+Collect concise structured findings with `proven-code`, `proven-test` or `needs-verification` evidence.
+Deduplicate overlapping defects. Batch blockers/majors into one repair round. After fixes recompute
+risk from the delta: rerun affected reviewers and newly implicated lenses; unaffected lens evidence
+can carry forward only with an explicit dependency reason and its original SHA. Architecture, shared
+contracts, broad conflict resolutions or uncertain impact require the full selected set again.
 
-## 4. Test gate, before the push
+The lead records attempts before dispatch. Stop after three unsuccessful repair rounds for the batch
+and report open findings. A code change is not verified merely because a model completed its turn.
 
-Dispatch `test-runner` on the local branch: the complete unit suite, and the e2e specs the change
-touches. A failure goes back to the implementer, and the fix is then re-reviewed under section 3 and
-re-tested on the new commit. Count test-failure rounds the same way as review rounds: after three, stop
-and report to the user. Do not treat a failure as pre-existing without the CI check on the base branch.
+## 4. Verify the aggregate head
 
-## 5. Push, then pull request
+The `test-runner` audits the scenario plan and receipts and runs missing/invalid checks. Reuse checks
+only when exact SHA, clean tree, dependencies, environment, command and generated/server inputs
+match. Do not blindly rerun valid identical commands. A filtered unit run is never the full unit
+pass. For code changes require full unfiltered unit coverage and affected Node/Python/E2E checks;
+process-only changes require appropriate executable/config validation and explicitly state why
+browser behavior is unaffected. One local full unit pass suffices; CI runs the full browser sweep.
 
-Only when every reviewer in the gate has no open blockers or majors, and the test gate is green on the
-exact commit being pushed, push
-from the lead session: `git push -u origin <branch>`. Retry network failures only.
+Run reviews and tests concurrently on a frozen head only when CPU capacity allows. Any edits
+invalidate affected evidence. CI-to-CI test ID/project/error comparison is required before declaring
+failures pre-existing; a passing retry proves only intermittency. Preserve first-run failures.
 
-Open the PR by default, as `spec/agents.md` requires. CI runs on pull requests, so a pushed branch without
-one has no verdict. Skip it only when the user has said not to open one.
+## 5. One push and PR per reviewed batch
 
-When the PR is open, dispatch `pr-steward` with the PR number and head branch. The steward drives CI and
-review threads. Subscribe this session to the PR so its events reach you, and dispatch the steward
-again on each event.
+Only after the aggregate clean head has no open blockers/majors, required verification is complete
+and applicable local checks pass, push from the lead and open one PR by default. Do not push partial
+items just to get CI. Include one consolidated verification report and representative preview flow.
+Every later repair round follows the same gates and is batched into one push; CI must still finish
+on its exact current head. Never rebase, amend, force-push, approve or merge the PR.
 
-## 6. Report
+Keep the lightweight GitHub PR reviewer as an independent final-head correctness/security/evidence
+check. It does not repeat local specialist fan-out or replace human approval.
 
-For each item, report in one block:
+## 6. Coordinate the PR without no-op model turns
 
-- branch, local commits, and the worktree path
-- reviewer verdicts, and any findings left open
-- test-runner counts
-- whether it was pushed, and the PR URL if one was opened
-- the CI result for the head SHA with its run URL, once CI has finished
+Use `node scripts/pr-status.js <PR> --state /tmp/<batch>-pr-state.json` to collect compact status
+and detect deltas. Subscribe to events where supported; otherwise use bounded platform waits and
+state that limitation. Dispatch `pr-steward` only for actionable changes. Fetch full logs only for
+failures; unchanged pending CI or waiting human approval does not need a new LLM review.
 
-Do not report an item as done until its CI run has finished green on that SHA.
+The steward is the single post-push repair coordinator. It batches validated findings and routes
+fixes, including conflicts and small human asks, back through local review/test gates. Resolve bot
+threads only after the specific defect is verified fixed on the current head, affected reviews are
+complete and required CI is green. Do not resolve a human thread without their authorization.
 
-## Hard limits
-
-- Never push before the review and test gates pass.
-- Never approve or merge a PR. Only a human approval counts.
-- Never edit `js/app-cache-version.js` or `js/data-cache-version.js`.
-- Never rebase, amend or force-push a PR branch.
-- Never skip or quarantine a test to get green.
-- Never correct place facts in a spec file. Those go to `data-curator`.
+Report batch branch/worktree, current head, selected verdicts, verification counts/run URLs, visual
+acceptance and preview link with `nuke=true`. Separate CI, unresolved findings and human approval.
+Do not claim completion while any required gate remains open; give a named waiting/blocker state.
+Never edit cache markers, screenshot baselines, disable tests or put place facts into specs.

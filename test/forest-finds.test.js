@@ -76,6 +76,189 @@ function createElementStub(id = "") {
   };
 }
 
+// A small, dependency-free reader for the markup the app renders. Tests use it to ask
+// what a user would find on screen -- "is there a pressed Food pill?", "does the text
+// Nothing found appear?" -- rather than matching how the markup happens to be written
+// (attribute order, spacing, quote style). It handles the subset of selectors the tests
+// need: tag, #id, .class, [attr] and [attr="value"], with descendant (" ") and child (">")
+// combinators. Elements marked `hidden` and script/style contents are not visible text.
+const HTML_VOID_TAGS = new Set(["area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"]);
+const HTML_RAW_TEXT_TAGS = new Set(["script", "style"]);
+const HTML_NOT_VISIBLE_TAGS = new Set(["script", "style", "template"]);
+const HTML_ENTITIES = { amp: "&", lt: "<", gt: ">", quot: "\"", apos: "'", nbsp: " " };
+const HTML_TOKEN = /<!--[\s\S]*?-->|<!doctype[^>]*>|<\/([a-zA-Z][\w-]*)\s*>|<([a-zA-Z][\w-]*)((?:\s+[^\s"'<>/=]+(?:\s*=\s*(?:"[^"]*"|'[^']*'|[^\s"'=<>`]+))?)*)\s*(\/?)>/gi;
+const HTML_ATTRIBUTE = /([^\s"'<>/=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+)))?/g;
+
+function decodeHtmlEntities(text) {
+  return text.replace(/&(#[xX][0-9a-fA-F]+|#\d+|[a-zA-Z]+);/g, (whole, body) => {
+    if (body[0] !== "#") return HTML_ENTITIES[body.toLowerCase()] ?? whole;
+    const code = body[1] === "x" || body[1] === "X" ? parseInt(body.slice(2), 16) : parseInt(body.slice(1), 10);
+    return String.fromCodePoint(code);
+  });
+}
+
+function parseHtml(html) {
+  const root = { tag: null, attrs: new Map(), children: [], parent: null };
+  const source = String(html);
+  const tokens = new RegExp(HTML_TOKEN.source, "gi");
+  let current = root;
+  let cursor = 0;
+  const addText = (raw) => {
+    if (raw) current.children.push({ text: decodeHtmlEntities(raw), parent: current });
+  };
+  let match;
+  while ((match = tokens.exec(source))) {
+    addText(source.slice(cursor, match.index));
+    cursor = tokens.lastIndex;
+    const [, closeName, openName, attributeSource, selfClosing] = match;
+    if (closeName) {
+      const name = closeName.toLowerCase();
+      for (let node = current; node.parent; node = node.parent) {
+        if (node.tag === name) { current = node.parent; break; }
+      }
+      continue;
+    }
+    if (!openName) continue; // a comment or doctype
+    const tag = openName.toLowerCase();
+    const attrs = new Map();
+    for (const attribute of attributeSource.matchAll(HTML_ATTRIBUTE)) {
+      const value = attribute[2] ?? attribute[3] ?? attribute[4];
+      attrs.set(attribute[1].toLowerCase(), value === undefined ? "" : decodeHtmlEntities(value));
+    }
+    const element = { tag, attrs, children: [], parent: current };
+    current.children.push(element);
+    if (HTML_RAW_TEXT_TAGS.has(tag) && !selfClosing) {
+      const end = source.toLowerCase().indexOf(`</${tag}`, cursor);
+      const stop = end === -1 ? source.length : end;
+      if (stop > cursor) element.children.push({ text: source.slice(cursor, stop), parent: element });
+      cursor = stop;
+      tokens.lastIndex = stop;
+      continue;
+    }
+    if (!HTML_VOID_TAGS.has(tag) && !selfClosing) current = element;
+  }
+  addText(source.slice(cursor));
+  return root;
+}
+
+const HTML_STEP = /\s*(>)?\s*((?:[a-zA-Z][\w-]*|#[\w-]+|\.[\w-]+|\[[^\]]*\])+)/y;
+const HTML_SIMPLE_SELECTOR = /([a-zA-Z][\w-]*)|#([\w-]+)|\.([\w-]+)|\[([\w-]+)(?:([*^$]?)="([^"]*)")?\]/g;
+
+function compileHtmlCompound(source, selector) {
+  const tests = [];
+  let consumed = 0;
+  for (const part of source.matchAll(HTML_SIMPLE_SELECTOR)) {
+    if (part.index !== consumed) break;
+    consumed += part[0].length;
+    const [, tag, id, className, attribute, operator, value] = part;
+    if (tag) tests.push((element) => element.tag === tag.toLowerCase());
+    else if (id) tests.push((element) => element.attrs.get("id") === id);
+    else if (className) tests.push((element) => (element.attrs.get("class") ?? "").split(/\s+/).includes(className));
+    else {
+      const name = attribute.toLowerCase();
+      const matchesValue = {
+        "": (actual) => actual === value,
+        "*": (actual) => actual.includes(value),
+        "^": (actual) => actual.startsWith(value),
+        "$": (actual) => actual.endsWith(value),
+      }[operator ?? ""];
+      tests.push((element) => element.attrs.has(name) && (value === undefined || matchesValue(element.attrs.get(name))));
+    }
+  }
+  if (consumed !== source.length) throw new Error(`unsupported selector "${selector}"`);
+  return (element) => tests.every((test) => test(element));
+}
+
+function compileHtmlSelector(selector) {
+  const text = selector.trim();
+  const steps = [];
+  let position = 0;
+  while (position < text.length) {
+    HTML_STEP.lastIndex = position;
+    const step = HTML_STEP.exec(text);
+    if (!step) throw new Error(`unsupported selector "${selector}"`);
+    position = HTML_STEP.lastIndex;
+    steps.push({ child: Boolean(step[1]), test: compileHtmlCompound(step[2], selector) });
+  }
+  return steps;
+}
+
+function htmlSelectorMatches(element, steps, index) {
+  if (!element.tag || !steps[index].test(element)) return false;
+  if (index === 0) return true;
+  if (steps[index].child) return htmlSelectorMatches(element.parent, steps, index - 1);
+  for (let ancestor = element.parent; ancestor; ancestor = ancestor.parent) {
+    if (htmlSelectorMatches(ancestor, steps, index - 1)) return true;
+  }
+  return false;
+}
+
+function queryHtmlAll(html, selector) {
+  const steps = compileHtmlSelector(selector);
+  const found = [];
+  const visit = (node) => {
+    for (const child of node.children) {
+      if (!child.tag) continue;
+      if (htmlSelectorMatches(child, steps, steps.length - 1)) found.push(child);
+      visit(child);
+    }
+  };
+  visit(parseHtml(html));
+  return found;
+}
+
+function htmlVisibleText(node) {
+  if (node.text !== undefined) return node.text;
+  if (HTML_NOT_VISIBLE_TAGS.has(node.tag) || node.attrs.has("hidden")) return "";
+  return ` ${node.children.map(htmlVisibleText).join(" ")} `;
+}
+
+function htmlNodeText(node) {
+  return htmlVisibleText(node).replace(/\s+/g, " ").trim();
+}
+
+function visibleTextOf(html) {
+  return htmlNodeText(parseHtml(html));
+}
+
+function assertHasElement(html, selector, message) {
+  assert.ok(queryHtmlAll(html, selector).length > 0, message ?? `expected an element matching ${selector}`);
+}
+
+function assertElementText(html, selector, expected, message) {
+  const [element] = queryHtmlAll(html, selector);
+  assert.ok(element, message ?? `expected an element matching ${selector}`);
+  assert.equal(htmlNodeText(element), expected, message);
+}
+
+function assertSectionHeading(html, heading, message) {
+  const headings = queryHtmlAll(html, ".detail-section-heading").map(htmlNodeText);
+  assert.ok(headings.includes(heading), message ?? `expected a section heading "${heading}", got ${JSON.stringify(headings)}`);
+}
+
+function assertElementShowsText(html, selector, text, message) {
+  const [element] = queryHtmlAll(html, selector);
+  assert.ok(element, message ?? `expected an element matching ${selector}`);
+  assert.ok(htmlNodeText(element).includes(text), message ?? `expected ${selector} to show "${text}"`);
+}
+
+function assertLacksElement(html, selector, message) {
+  assert.equal(queryHtmlAll(html, selector).length, 0, message ?? `expected no element matching ${selector}`);
+}
+
+function assertShowsText(html, text, message) {
+  assert.ok(visibleTextOf(html).includes(text), message ?? `expected the user to see "${text}"`);
+}
+
+function assertLacksText(html, text, message) {
+  assert.ok(!visibleTextOf(html).includes(text), message ?? `expected the user not to see "${text}"`);
+}
+
+function assertShowsImage(html, fileName, message) {
+  const sources = queryHtmlAll(html, "img").map((img) => img.attrs.get("src") ?? "");
+  assert.ok(sources.some((src) => src.endsWith(fileName)), message ?? `expected an image ending ${fileName}, got ${JSON.stringify(sources)}`);
+}
+
 function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
   // The app script lives in js/app.js; app.html only <script src>es it.
   const appPath = path.join(__dirname, "..", "js", "app.js");
@@ -277,6 +460,7 @@ globalThis.__forestFindsTest = {
   railSelection,
   railPillKeys,
   toggleRailFilter,
+  applyStagedFilterSet,
   navigateInApp,
   overviewHeadingText,
   landingPageCategoryLabel,
@@ -648,6 +832,19 @@ globalThis.__forestFindsTest = {
   communityDisplayScore,
   COMMUNITY_POINTS,
   communityParseRecoveryCode,
+  communityBadgeHtml,
+  communitySectionHtml,
+  communityPlaceSectionHtml,
+  communityVerifiedChipHtml,
+  communityVerifiedDetailHtml,
+  communityPlaceStatusChipHtml,
+  communityPlaceStatusDetailHtml,
+  communityOverlay,
+  communityPlaceIssueCache,
+  appUpdateStatusHtml,
+  loadTransportDepartures,
+  transportCacheKey,
+  isBusCategory,
   HEADING_SOURCE_NONE,
   HEADING_SOURCE_RELATIVE,
   HEADING_SOURCE_ABSOLUTE,
@@ -666,7 +863,7 @@ globalThis.__forestFindsTest = {
   vm.createContext(context);
 
   const rootDir = path.join(__dirname, "..");
-  const externalScripts = ["js/native.js", "js/app-cache-version.js", "js/data-cache-version.js", "js/shared.js", "js/categories.js", "js/normalize.js", "js/router-rules.js", "js/dom-elements.js", "js/filter-state.js", "js/tracker.js", "js/outbox.js", "js/community.js", "js/onboarding.js", "js/permission-asks.js", "js/map-search.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/icon-motion.js", "js/renderer.js", "js/inspector.js"];
+  const externalScripts = ["js/native.js", "js/app-cache-version.js", "js/data-cache-version.js", "js/shared.js", "js/categories.js", "js/normalize.js", "js/router-rules.js", "js/dom-elements.js", "js/filter-state.js", "js/tracker.js", "js/outbox.js", "js/community.js", "js/onboarding.js", "js/permission-asks.js", "js/map-search.js", "js/router.js", "js/location-smoothing.js", "js/tilt.js", "js/event-alert.js", "js/heads-up.js", "js/settings.js", "js/report.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/icon-motion.js", "js/renderer.js", "js/inspector.js"];
   for (const externalSrc of externalScripts) {
     const externalPath = path.join(rootDir, externalSrc);
     if (fs.existsSync(externalPath)) {
@@ -1262,11 +1459,36 @@ test("a hall, library or arts centre draws as a pin rather than falling back to 
   }
 });
 
+test("the HTML reader shows only the text a reader sees: hidden elements, scripts and styles are left out, entities are decoded", () => {
+  const html = `<div><span hidden>Secret</span><p>Shown <b>bold</b> &amp; plain</p><script>var x = "Scripted";</script><style>.a{}</style></div>`;
+  assertShowsText(html, "Shown bold & plain");
+  assertLacksText(html, "Secret", "a hidden element is not on screen");
+  assertLacksText(html, "Scripted", "script contents are not on screen");
+  assertLacksText(html, ".a{}", "style contents are not on screen");
+});
+
+test("the HTML reader finds elements by tag, id, class, attribute value and nesting, whatever the attribute order or spacing", () => {
+  const html = `<nav class="rail  wide"><ul><li><button  aria-pressed=true class='pill is-on' data-key="food" id="b1">Food</button></li></ul></nav>`;
+  assertHasElement(html, 'nav.rail > ul > li > button#b1.is-on[data-key="food"][aria-pressed="true"]', "a deeply nested, reordered button is found");
+  assertHasElement(html, 'nav .pill[aria-pressed="true"]', "a descendant selector finds it too");
+  assertLacksElement(html, "nav > button", "a child combinator does not skip a level");
+  assertLacksElement(html, '[aria-pressed="false"]', "an attribute value must match exactly");
+  assertHasElement(html, '[data-key^="fo"][data-key$="od"][data-key*="oo"]', "prefix, suffix and substring attribute matches");
+});
+
+test("the HTML reader keeps void elements from swallowing the markup after them, and reads unquoted attribute values", () => {
+  const html = `<label>Walk <input type=range id=walk min=1 max=30><img src="data/icons/x.png"><span>after</span></label>`;
+  assertHasElement(html, 'input#walk[min="1"][max="30"]', "unquoted attribute values are read");
+  assertShowsImage(html, "data/icons/x.png");
+  assertShowsText(html, "Walk after", "markup after a void element is still visible text");
+  assertHasElement(html, "label > span", "the span is a child of the label, not of the input");
+});
+
 test("treeSpeciesIconHtml returns leaf icon for known species", () => {
   const { treeSpeciesIconHtml: fn } = app;
-  assert.match(fn("English Oak", "Quercus robur"), /trees\/oak\.png/);
-  assert.match(fn("Common Beech", "Fagus sylvatica"), /trees\/beach\.png/);
-  assert.match(fn("Hornbeam", "Carpinus betulus"), /trees\/hornbeam\.png/);
+  assertShowsImage(fn("English Oak", "Quercus robur"), "trees/oak.png");
+  assertShowsImage(fn("Common Beech", "Fagus sylvatica"), "trees/beach.png");
+  assertShowsImage(fn("Hornbeam", "Carpinus betulus"), "trees/hornbeam.png");
   assert.equal(fn("Unknown species", ""), "");
 });
 
@@ -1285,13 +1507,13 @@ test("compass onboarding renders permission and fallback states", () => {
   const { compassStepMarkup: fn } = app;
 
   const prompt = fn({});
-  assert.match(prompt.subtitle, /rotate to match the way you're facing/);
-  assert.match(prompt.actionsHtml, /ob-compass-enable/);
-  assert.match(prompt.actionsHtml, /Continue without compass/);
+  assertShowsText(prompt.subtitle, "rotate to match the way you're facing");
+  assertHasElement(prompt.actionsHtml, "button.ob-compass-enable");
+  assertShowsText(prompt.actionsHtml, "Continue without compass");
 
   const blocked = fn({ blocked: true });
-  assert.match(blocked.subtitle, /No compass access/);
-  assert.match(blocked.actionsHtml, /ob-compass-finish/);
+  assertShowsText(blocked.subtitle, "No compass access");
+  assertHasElement(blocked.actionsHtml, "button.ob-compass-finish");
 });
 
 test("stored compass permission is restored before nearby setup runs", () => {
@@ -2243,11 +2465,11 @@ test("overviewNearestHtml carries the labelled category navigation and results h
   app.state.overviewFilters = ["pubs"];
   app.location.pathname = "/nearby/pubs/";
   app.state.userLocation = null;
-  assert.match(app.overviewNearestHtml(), /<nav class="filter-rail"/, "no-location branch still shows the filter rail");
-  assert.match(app.overviewNearestHtml(), /<h3 id="nearbyResultsHeading">Pubs &amp; bars nearby<\/h3>/, "no-location branch names the results");
+  assertHasElement(app.overviewNearestHtml(), "nav.filter-rail", "no-location branch still shows the filter rail");
+  assertElementText(app.overviewNearestHtml(), "h3#nearbyResultsHeading", "Pubs & bars nearby", "no-location branch names the results");
 
   app.state.userLocation = makePoint(app, 51.9, 0.9); // far from any fixture data -- empty list
-  assert.match(app.overviewNearestHtml(), /<h3 id="nearbyResultsHeading">Pubs &amp; bars nearby<\/h3>/, "empty-result branch names the results");
+  assertElementText(app.overviewNearestHtml(), "h3#nearbyResultsHeading", "Pubs & bars nearby", "empty-result branch names the results");
 
   app.location.pathname = "/";
 });
@@ -2259,19 +2481,19 @@ test("the plain Nearby filter rail counts how many subcategories each enabled gr
   const html = app.filterRailHtml();
   // The visible text of one pill, without its markup: its label, then its count when on.
   const pillText = (key) => {
-    const match = new RegExp(`data-rail-key="${key}"[^>]*>([\\s\\S]*?)</button>`).exec(html);
-    return match ? match[1].replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim() : null;
+    const [pill] = queryHtmlAll(html, `[data-rail-key="${key}"]`);
+    return pill ? htmlNodeText(pill) : null;
   };
-  assert.match(html, /<nav class="filter-rail" aria-label="Filter nearby places">/);
-  assert.match(html, /class="rail-pill rail-pill--all" type="button" data-rail-key="all-nearby" aria-pressed="false"/);
-  assert.match(html, /class="rail-pill is-on" type="button" data-rail-key="nature" aria-pressed="true"/);
+  assertHasElement(html, 'nav.filter-rail[aria-label="Filter nearby places"]');
+  assertHasElement(html, '.rail-pill--all[data-rail-key="all-nearby"][aria-pressed="false"]');
+  assertHasElement(html, '.rail-pill.is-on[data-rail-key="nature"][aria-pressed="true"]');
   assert.equal(pillText("nature"), "Nature 1/3 ✓", "one of Nature's three subcategories is on, and the group keeps its tick");
   assert.equal(pillText("food"), "Food 1/4 ✓", "one of Food's four subcategories is on, and the group keeps its tick");
-  assert.match(html, /data-rail-key="nature"[^>]*aria-label="Nature: 1 of 3 categories shown"/, "the count is read out with its meaning");
-  assert.match(html, /class="rail-pill is-on" type="button" data-rail-key="food" aria-pressed="true"/);
-  assert.match(html, /data-rail-key="transport" aria-pressed="false"/, "the rail uses top-level groups");
+  assertHasElement(html, '[data-rail-key="nature"][aria-label="Nature: 1 of 3 categories shown"]', "the count is read out with its meaning");
+  assertHasElement(html, '.is-on[data-rail-key="food"][aria-pressed="true"]');
+  assertHasElement(html, '[data-rail-key="transport"][aria-pressed="false"]', "the rail uses top-level groups");
   assert.equal(pillText("transport"), "Transport 0/4", "a group with nothing on still shows how many it has, with no tick");
-  const keys = [...html.matchAll(/data-rail-key="([a-z_]+)"/g)].map((m) => m[1]);
+  const keys = queryHtmlAll(html, "[data-rail-key]").map((pill) => pill.attrs.get("data-rail-key"));
   assert.equal(new Set(keys).size, keys.length, "no category appears twice");
   assert.ok(keys.includes("nature") && keys.includes("food"), "the top-level categories are in the row");
   app.location.pathname = "/";
@@ -2283,12 +2505,12 @@ test("a category Nearby page shows its subcategories and ticks the enabled ones"
   app.location.pathname = "/nearby/food/";
   app.state.overviewFilters = ["pubs", "cafes"];
   const html = app.filterRailHtml();
-  assert.match(html, /data-rail-key="all-nearby"[^>]*aria-pressed="false"/);
+  assertHasElement(html, '[data-rail-key="all-nearby"][aria-pressed="false"]');
   assert.deepEqual(Array.from(app.railPillKeys()), ["pubs", "restaurants", "cafes", "shops"]);
-  assert.match(html, /data-rail-key="pubs"[^>]*aria-pressed="true"[\s\S]*?rail-check/);
-  assert.match(html, /data-rail-key="cafes"[^>]*aria-pressed="true"[\s\S]*?rail-check/);
-  assert.match(html, /data-rail-key="restaurants"[^>]*aria-pressed="false"/);
-  assert.doesNotMatch(html, /data-rail-key="nature"/);
+  assertHasElement(html, '[data-rail-key="pubs"][aria-pressed="true"] .rail-check');
+  assertHasElement(html, '[data-rail-key="cafes"][aria-pressed="true"] .rail-check');
+  assertHasElement(html, '[data-rail-key="restaurants"][aria-pressed="false"]');
+  assertLacksElement(html, '[data-rail-key="nature"]');
   app.location.pathname = "/";
   app.state.overviewFilters = [];
 });
@@ -2298,39 +2520,75 @@ test("a filter set covering every category keeps every displayed pill pressed", 
   app.state.overviewFilters = app.FILTER_SUBFILTERS.map((sub) => sub.key);
   assert.equal(app.railSelection().length, 0);
   const html = app.filterRailHtml();
-  assert.match(html, /class="rail-pill rail-pill--all is-on" type="button" data-rail-key="all-nearby" aria-pressed="true"/);
-  assert.match(html, /aria-pressed="true"/);
-  assert.match(html, /class="rail-check"/);
+  assertHasElement(html, '.rail-pill--all.is-on[data-rail-key="all-nearby"][aria-pressed="true"]');
+  assertHasElement(html, '[aria-pressed="true"]');
+  assertHasElement(html, ".rail-check");
   app.state.overviewFilters = [];
 });
 
-test("tapping a rail pill narrows to it, a second pill adds to it, and un-pressing the last returns to Everything, none of it saved", () => {
+test("tapping a rail pill narrows to it, a second pill adds to it, and un-pressing the last returns to Everything, all of it saved", () => {
   resetData(app);
   app.location.pathname = "/nearby";
   app.location.search = "";
   app.state.overviewFilters = app.FILTER_SUBFILTERS.map((sub) => sub.key);
   app.toggleRailFilter("nature");
   assert.deepEqual(Array.from(app.state.overviewFilters), ["trees", "cows", "ponds_streams"]);
-  assert.equal(app.state.overviewFiltersEphemeral, true, "a rail tap is a lens, not the reader's saved filters");
+  assert.equal(app.state.overviewFiltersEphemeral, false, "a rail tap changes the reader's saved filters");
+  assert.deepEqual(Array.from(app.loadStoredOverviewFilters()), ["trees", "cows", "ponds_streams"]);
   assert.equal(app.location.pathname, "/nearby", "the plain Nearby rail stays at top-level groups");
-  assert.equal(app.location.search, "?show=trees,cows,ponds_streams");
+  assert.equal(app.location.search, "", "a rail pick never writes a show= link");
   app.state.nearbyRailGroupKey = "nature";
   app.toggleRailFilter("ponds_streams");
   assert.deepEqual(Array.from(app.state.overviewFilters), ["trees", "cows"]);
+  assert.deepEqual(Array.from(app.loadStoredOverviewFilters()), ["trees", "cows"]);
   assert.equal(app.location.pathname, "/nearby");
-  assert.equal(app.location.search, "?show=trees,cows");
+  assert.equal(app.location.search, "");
   app.location.pathname = "/nearby";
   app.state.nearbyRailGroupKey = null;
   app.toggleRailFilter("nature");
   assert.equal(app.railSelection().length, 0, "nothing chosen represents all filters");
-  assert.equal(app.location.search, "?filters=false");
-  assert.deepEqual(Array.from(app.state.overviewFilters), [], "the last pill remains visibly unselected");
-  assert.match(app.filterRailHtml(), /data-rail-key="all-nearby"[^>]*aria-pressed="true"/);
-  assert.match(app.filterRailHtml(), /data-rail-key="nature"[^>]*aria-pressed="false"/);
+  assert.equal(app.state.overviewFilters.length, app.FILTER_SUBFILTERS.length, "un-pressing the last pill selects Everything, never an empty set");
+  assert.equal(app.loadStoredOverviewFilters().length, app.FILTER_SUBFILTERS.length, "Everything is the saved set");
+  app.localStorage.removeItem("forest-finds-filter-state-v1");
+  assertHasElement(app.filterRailHtml(), '[data-rail-key="all-nearby"][aria-pressed="true"]');
+  assertHasElement(app.filterRailHtml(), '[data-rail-key="nature"][aria-pressed="true"]', "every category is on, so Nature shows as pressed");
   app.state.overviewFilters = [];
   app.state.overviewFiltersEphemeral = false;
   app.location.pathname = "/";
   app.location.search = "";
+});
+
+test("a stored empty filter set loads as every category, so an empty saved set never exists", () => {
+  const storedApp = loadAppForTests({ localStorage: { "forest-finds-filter-state-v1": JSON.stringify({ filters: [] }) } });
+  assert.equal(storedApp.loadStoredOverviewFilters().length, storedApp.FILTER_SUBFILTERS.length);
+});
+
+test("an empty staged set, with every chip switched off in Map setup, saves every category rather than nothing", () => {
+  resetData(app);
+  app.location.pathname = "/nearby";
+  app.location.search = "";
+  app.state.overviewFilters = ["trees"];
+  app.applyStagedFilterSet([]);
+  const everything = app.FILTER_SUBFILTERS.length;
+  assert.equal(app.state.overviewFilters.length, everything, "the set on screen is every category, not an empty one");
+  assert.equal(JSON.parse(app.localStorage.getItem("forest-finds-filter-state-v1")).filters.length, everything, "the stored set is every category");
+  assert.equal(app.loadStoredOverviewFilters().length, everything, "a reload shows the same set as the screen did");
+  app.localStorage.removeItem("forest-finds-filter-state-v1");
+  app.state.overviewFilters = [];
+  app.state.overviewFiltersEphemeral = false;
+  app.location.pathname = "/";
+  app.location.search = "";
+});
+
+test("a saved single category without a location is not listed in full, while a view of one still is", () => {
+  resetData(app);
+  app.state.overviewFilters = ["cafes"];
+  app.state.overviewFiltersEphemeral = false;
+  assert.equal(app.activeFiltersShowFullListWithoutLocation(), false, "the reader's saved pick waits for a location");
+  app.state.overviewFiltersEphemeral = true;
+  assert.equal(app.activeFiltersShowFullListWithoutLocation(), true, "a landing or other view lists its category in full");
+  app.state.overviewFiltersEphemeral = false;
+  app.state.overviewFilters = app.loadStoredOverviewFilters();
 });
 
 test("the Everything rail pill restores every category and keeps a category rail", () => {
@@ -2341,10 +2599,11 @@ test("the Everything rail pill restores every category and keeps a category rail
   app.state.overviewFilters = ["pubs", "cafes"];
   app.toggleRailFilter("all-nearby");
   assert.equal(Array.from(app.state.overviewFilters).join(","), app.FILTER_SUBFILTERS.map((sub) => sub.key).join(","));
+  assert.equal(Array.from(app.loadStoredOverviewFilters()).join(","), app.FILTER_SUBFILTERS.map((sub) => sub.key).join(","), "Everything is saved");
   assert.equal(app.state.nearbyRailGroupKey, "food");
   assert.equal(app.location.pathname, "/nearby");
-  assert.equal(app.location.search, "?filters=false");
-  assert.match(app.filterRailHtml(), /data-rail-key="all-nearby"[^>]*aria-pressed="true"/);
+  assert.equal(app.location.search, "", "Everything writes plain Nearby, not a view link");
+  assertHasElement(app.filterRailHtml(), '[data-rail-key="all-nearby"][aria-pressed="true"]');
   assert.equal(Array.from(app.railPillKeys()).join(","), "pubs,restaurants,cafes,shops");
   app.state.overviewFilters = [];
   app.state.overviewFiltersEphemeral = false;
@@ -2444,27 +2703,27 @@ test("allEntriesForFilterKey lists every match for a filter with no origin and n
   assert.equal(trees[0].type, "tree");
 });
 
-test("without location, the Nearby list shows the category's full list when exactly one filter is active, not the generic prompt", () => {
+test("without location, a view of exactly one category lists its full list, not the generic prompt", () => {
   resetData(app);
   app.state.userLocation = null;
   app.state.landmarks.push(
     { id: "pub-a", name: "Pub A", category: "pub", ...makePoint(app, 0, 0) },
     { id: "pub-b", name: "Pub B", category: "pub", ...makePoint(app, 0.01, 0) },
   );
-  app.setOverviewFilters(["pubs"]);
+  app.setOverviewFilters(["pubs"], { persist: false });
 
   const html = app.overviewNearestHtml();
   assert.ok(html.includes("Pub A") && html.includes("Pub B"), "both pubs are listed even with no location");
   assert.ok(!html.includes("Use your location to list the nearest"), "the generic prompt is not shown");
 });
 
-test("without location, the map also draws pins for every match of the one active filter, not just the list", () => {
+test("without location, the map also draws pins for every match of a view of one category, not just the list", () => {
   resetData(app);
   app.state.userLocation = null;
   const pubA = { id: "pub-a", name: "Pub A", category: "pub", ...makePoint(app, 0, 0) };
   const cafeA = { id: "cafe-a", name: "Cafe A", category: "cafe", ...makePoint(app, 0.01, 0) };
   app.state.landmarks.push(pubA, cafeA);
-  app.setOverviewFilters(["pubs"]);
+  app.setOverviewFilters(["pubs"], { persist: false });
 
   const lookup = app.buildNearbyIconLookup();
   assert.equal(lookup.landmark.has(pubA), true, "the matching pub is in the drawable set");
@@ -2478,11 +2737,11 @@ test("the no-location icon-lookup cache tells two different single filters apart
   const cafeA = { id: "cafe-a", name: "Cafe A", category: "cafe", ...makePoint(app, 0.01, 0) };
   app.state.landmarks.push(pubA, cafeA);
 
-  app.setOverviewFilters(["pubs"]);
+  app.setOverviewFilters(["pubs"], { persist: false });
   const pubsLookup = app.buildNearbyIconLookup();
   assert.equal(pubsLookup.landmark.has(pubA), true);
 
-  app.setOverviewFilters(["cafes"]);
+  app.setOverviewFilters(["cafes"], { persist: false });
   const cafesLookup = app.buildNearbyIconLookup();
   assert.equal(cafesLookup.landmark.has(cafeA), true, "switching filters with no location still shows the new filter's own matches");
   assert.equal(cafesLookup.landmark.has(pubA), false, "not a stale copy of the previous filter's lookup");
@@ -2495,10 +2754,10 @@ test("without location, the generic prompt still shows when no filter, or more t
   app.state.landmarks.push({ id: "pub-a", name: "Pub A", category: "pub", ...makePoint(app, 0, 0) });
 
   app.setOverviewFilters([]);
-  assert.match(app.overviewNearestHtml(), /Use your location to list the nearest/);
+  assertShowsText(app.overviewNearestHtml(), "Use your location to list the nearest");
 
   app.setOverviewFilters(["pubs", "cafes"]);
-  assert.match(app.overviewNearestHtml(), /Use your location to list the nearest/);
+  assertShowsText(app.overviewNearestHtml(), "Use your location to list the nearest");
   app.setOverviewFilters([]);
 });
 
@@ -2510,7 +2769,7 @@ test("fitMapToSingleFilterIfNoLocation fits the camera to every match, but only 
     { id: "pub-a", name: "Pub A", category: "pub", ...makePoint(app, 0, 0) },
     { id: "pub-b", name: "Pub B", category: "pub", ...makePoint(app, 0.05, 0.05) },
   );
-  app.setOverviewFilters(["pubs"]);
+  app.setOverviewFilters(["pubs"], { persist: false });
 
   assert.equal(app.fitMapToSingleFilterIfNoLocation(), true, "fits when the conditions hold");
 
@@ -2520,7 +2779,7 @@ test("fitMapToSingleFilterIfNoLocation fits the camera to every match, but only 
 
   app.setOverviewFilters(["pubs", "cafes"]);
   assert.equal(app.fitMapToSingleFilterIfNoLocation(), false, "does nothing with more than one active filter");
-  app.setOverviewFilters(["pubs"]);
+  app.setOverviewFilters(["pubs"], { persist: false });
 
   app.state.selected = { type: "landmark", item: app.state.landmarks[0] };
   assert.equal(app.fitMapToSingleFilterIfNoLocation(), false, "never overrides a deep-linked selection's own framing");
@@ -2540,14 +2799,15 @@ test("a /nearby/<slug> group page's several filters also get the full-list/fit t
   app.setOverviewFilters(["pubs", "cafes"]);
   assert.equal(app.activeFiltersShowFullListWithoutLocation(), false, "a deliberate choice is not a /nearby/<slug> arrival");
   assert.equal(app.fitMapToSingleFilterIfNoLocation(), false);
-  assert.doesNotMatch(app.overviewNearestHtml(), /Pub A/);
+  assertLacksText(app.overviewNearestHtml(), "Pub A");
 
   // The same two filters, but arrived at the way a /nearby/food group page actually sets them.
   app.setOverviewFilters(["pubs", "cafes"], { persist: false });
   assert.equal(app.activeFiltersShowFullListWithoutLocation(), true);
   assert.equal(app.fitMapToSingleFilterIfNoLocation(), true, "fits to every match across both filters");
   const html = app.overviewNearestHtml();
-  assert.ok(html.includes("Pub A") && html.includes("Cafe A"), "both categories are listed, not just one");
+  assertShowsText(html, "Pub A", "both categories are listed, not just one");
+  assertShowsText(html, "Cafe A", "both categories are listed, not just one");
   app.setOverviewFilters([]);
 });
 
@@ -2615,17 +2875,15 @@ test("the Nearby heading's own type line says it is measuring from High Beach wh
   // than via applyDefaultLocation(), which would centre on DEFAULT_LOCATION's real-world
   // coordinates -- far outside this fixture tree's synthetic (0,0)-based test coordinates.
   app.state.userLocation = { ...makePoint(app, 0, 0), isDefault: true };
-  assert.match(
-    app.overviewHeadingText(),
-    /of High Beach$/,
+  assert.ok(
+    app.overviewHeadingText().endsWith("of High Beach"),
     "explains why the list is centred on High Beach, not just the one-time dismissible gate -- folded into the type line, not a separate sentence in the list body"
   );
-  assert.doesNotMatch(app.overviewNearestHtml(), /Showing things near High Beach/, "no longer a separate sentence in the list body");
+  assertLacksText(app.overviewNearestHtml(), "Showing things near High Beach", "no longer a separate sentence in the list body");
 
   app.state.userLocation = makePoint(app, 0, 0);
-  assert.doesNotMatch(
-    app.overviewHeadingText(),
-    /High Beach/,
+  assert.ok(
+    !app.overviewHeadingText().includes("High Beach"),
     "a real fix needs no explanation for where the list is centred"
   );
 });
@@ -2886,8 +3144,8 @@ test("a find you are walking at climbs into the listed handful past closer ones 
   const html = app.overviewNearestHtml();
   app.state.nearestItemsCount = 10;
 
-  assert.match(html, /Ahead tree/, "the tree dead ahead makes the visible list");
-  assert.doesNotMatch(html, /Behind three/, "the third one at your back does not");
+  assertShowsText(html, "Ahead tree", "the tree dead ahead makes the visible list");
+  assertLacksText(html, "Behind three", "the third one at your back does not");
 });
 
 test("the nearby list only re-sorts once you have actually turned", () => {
@@ -2916,8 +3174,8 @@ test("fallback notice names the selected walking distance", () => {
 
   const html = app.overviewNearestHtml();
 
-  assert.match(html, /Nothing found within 10 min walking distance/);
-  assert.match(html, /Showing the closest match for each selected type instead/);
+  assertShowsText(html, "Nothing found within 10 min walking distance");
+  assertShowsText(html, "Showing the closest match for each selected type instead");
 });
 
 test("out-of-radius rows in a mixed list sit below a label that names the walking radius", () => {
@@ -2934,7 +3192,7 @@ test("out-of-radius rows in a mixed list sit below a label that names the walkin
   assert.ok(labelAt > -1, "a label names the walking radius above the greyed rows");
   assert.ok(html.indexOf("Near tree") < labelAt, "the tree inside the radius is listed above the label");
   assert.ok(html.indexOf("out-of-radius") > labelAt, "the cow outside the radius is listed below the label");
-  assert.doesNotMatch(html, /Nothing found within/, "a list with an in-radius match is not the all-fallback notice case");
+  assertLacksText(html, "Nothing found within", "a list with an in-radius match is not the all-fallback notice case");
 });
 
 test("no out-of-radius label when every nearby row is inside the walking radius", () => {
@@ -2946,8 +3204,8 @@ test("no out-of-radius label when every nearby row is inside the walking radius"
 
   const html = app.overviewNearestHtml();
 
-  assert.match(html, /Near tree/);
-  assert.doesNotMatch(html, /Outside the/, "nothing is outside the radius, so nothing is labelled");
+  assertShowsText(html, "Near tree");
+  assertLacksText(html, "Outside the", "nothing is outside the radius, so nothing is labelled");
 });
 
 test("walking radius marker still draws when nearest results use fallback", () => {
@@ -3049,11 +3307,11 @@ test("walking radius marker hides in selected-detail mode", () => {
 });
 
 test("landmark emoji falls back to useful type icons before location pointer", () => {
-  assert.match(app.landmarkEmoji({ category: "parking", categoryTags: ["parking"] }), /landmark-parking\.png/);
-  assert.match(app.landmarkEmoji({ category: "bench", categoryTags: ["bench"] }), /landmark-bench\.png/);
-  assert.match(app.landmarkEmoji({ category: "toilets", categoryTags: ["toilets"] }), /landmark-toilets\.png/);
-  assert.match(app.landmarkEmoji({ category: "gate", categoryTags: ["gate"] }), /gate\.png/);
-  assert.match(app.landmarkEmoji({ category: "chemist", categoryTags: ["chemist"] }), /medicine\.png/);
+  assertShowsImage(app.landmarkEmoji({ category: "parking", categoryTags: ["parking"] }), "landmark-parking.png");
+  assertShowsImage(app.landmarkEmoji({ category: "bench", categoryTags: ["bench"] }), "landmark-bench.png");
+  assertShowsImage(app.landmarkEmoji({ category: "toilets", categoryTags: ["toilets"] }), "landmark-toilets.png");
+  assertShowsImage(app.landmarkEmoji({ category: "gate", categoryTags: ["gate"] }), "gate.png");
+  assertShowsImage(app.landmarkEmoji({ category: "chemist", categoryTags: ["chemist"] }), "medicine.png");
   assert.equal(app.landmarkEmoji({ category: "yes", categoryTags: ["yes", "cafe"] }), "☕");
   assert.equal(app.landmarkEmoji({ category: "something_unclear", categoryTags: ["something_unclear"] }), "📍");
 });
@@ -3219,9 +3477,9 @@ test("the Nearby list shows a place the same pin the map draws for it", () => {
   for (const place of samples) {
     const slug = placeIconSlug(place);
     assert.ok(slug, `${place.category} should resolve to an icon`);
-    assert.match(
+    assertShowsImage(
       landmarkEmoji(place),
-      new RegExp(iconPath(slug).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
+      iconPath(slug),
       `${place.category} should be listed with the same ${slug} pin the map draws`
     );
   }
@@ -4443,9 +4701,9 @@ test("nearby summary uses the generated walking icon asset", () => {
 
   const html = app.overviewNearestHtml();
 
-  assert.match(html, /data\/icons\/walking\.png/);
-  assert.match(html, /\d+\s*m\s*·\s*(?:<\s*1|\d+)\s*min/);
-  assert.match(app.appIconHtml("nearby", "app-icon title-icon"), /data\/icons\/nearby\.png/);
+  assertShowsImage(html, "data/icons/walking.png");
+  assert.match(visibleTextOf(html), /\d+\s*m\s*·\s*(?:<\s*1|\d+)\s*min/, "the walk chip reads distance, then walk time");
+  assertShowsImage(app.appIconHtml("nearby", "app-icon title-icon"), "data/icons/nearby.png");
 });
 
 test("a map download whose body stalls after its headers is abandoned at its timeout", async () => {
@@ -4502,7 +4760,7 @@ test("nearby list shows tag number for trees", () => {
 
   const html = app.overviewNearestHtml();
 
-  assert.match(html, /#15961/, "nearby list must show the tree tag number");
+  assertShowsText(html, "#15961", "nearby list must show the tree tag number");
 });
 
 test("the nearby heading names the walking radius, not just the filter", () => {
@@ -4514,13 +4772,13 @@ test("the nearby heading names the walking radius, not just the filter", () => {
 
   const html = app.overviewHeadingText();
   assert.ok(!app.overviewNearestHtml().includes("nearby-heading"), "the subtitle is not duplicated in the list");
-  assert.match(html, /Trees within 5 min walk/, "the heading answers how far the list is reaching");
+  assertShowsText(html, "Trees within 5 min walk", "the heading answers how far the list is reaching");
   assert.ok(!html.includes("around you"), "the vaguer wording is gone");
 
   // With the radius toggled off there is no radius to name, so the heading says so instead of
   // claiming a reach the list is not applying.
   app.state.showAllOutsideRadius = true;
-  assert.match(app.overviewHeadingText(), /Nearest Trees around you/);
+  assertShowsText(app.overviewHeadingText(), "Nearest Trees around you");
   app.state.showAllOutsideRadius = false;
 });
 
@@ -4619,7 +4877,7 @@ test("nearby transport entries use the generated bus icon asset", () => {
 
   const html = app.overviewNearestHtml();
 
-  assert.match(html, /data\/icons\/bus\.png/);
+  assertShowsImage(html, "data/icons/bus.png");
 });
 
 test("nearby bus stop names include stop direction context when known", () => {
@@ -4637,7 +4895,7 @@ test("nearby bus stop names include stop direction context when known", () => {
 
   const html = app.overviewNearestHtml();
 
-  assert.match(html, /Near bus stop — towards Walthamstow Central/);
+  assertShowsText(html, "Near bus stop — towards Walthamstow Central");
 });
 
 // --- Map search ---
@@ -4802,12 +5060,13 @@ test("search results carry the same walk chip and type label the nearby list use
 
   const html = app.searchResultsHtml("royal forest");
 
-  assert.match(html, /class="nearest-item"/, "results reuse the nearby list row");
-  assert.match(html, /data-search-type="landmark"/);
-  assert.match(html, /The Royal Forest/);
-  assert.match(html, /nearest-icon[\s\S]*nearest-content/, "results use the Nearby row's icon and content columns");
-  assert.match(html, /walk-chip/, "with the distance and walk time");
-  assert.match(html, /Pubs &amp; bars/, "and the filter label the place is listed under");
+  assertHasElement(html, ".nearest-item", "results reuse the nearby list row");
+  assertHasElement(html, '[data-search-type="landmark"]');
+  assertShowsText(html, "The Royal Forest");
+  assertHasElement(html, ".nearest-item .nearest-icon", "results use the Nearby row's icon column");
+  assertHasElement(html, ".nearest-item .nearest-content", "results use the Nearby row's content column");
+  assertHasElement(html, ".walk-chip", "with the distance and walk time");
+  assertShowsText(html, "Pubs & bars", "and the filter label the place is listed under");
 });
 
 test("search says what to type before it has enough to go on", () => {
@@ -4815,9 +5074,9 @@ test("search says what to type before it has enough to go on", () => {
   app.state.userLocation = makePoint(app, 0, 0);
   addSearchFixtures(app);
 
-  assert.match(app.searchResultsHtml(""), /Search for a tree tag/);
-  assert.match(app.searchResultsHtml("a"), /at least 2 characters/);
-  assert.match(app.searchResultsHtml("zzzznothing"), /Nothing on the map matches/);
+  assertShowsText(app.searchResultsHtml(""), "Search for a tree tag");
+  assertShowsText(app.searchResultsHtml("a"), "at least 2 characters");
+  assertShowsText(app.searchResultsHtml("zzzznothing"), "Nothing on the map matches");
 });
 
 test("search works with no location fix, listing matches without distances", () => {
@@ -4829,7 +5088,7 @@ test("search works with no location fix, listing matches without distances", () 
 
   assert.equal(results.length, 1);
   assert.equal(results[0].metres, null, "no origin means no distance to report");
-  assert.doesNotMatch(app.searchResultsHtml("royal forest"), /walk-chip/);
+  assertLacksElement(app.searchResultsHtml("royal forest"), ".walk-chip");
 });
 
 test("the map shows only the search matches, drawn with their normal pins -- nothing else in those categories", () => {
@@ -4878,10 +5137,10 @@ test("Search never offers a \"Clear all filters\" row, on any state of the resul
   addSearchFixtures(app);
 
   app.setOverviewFilters(["cows"]);
-  assert.doesNotMatch(app.searchResultsHtml(""), /data-filter-clear-all/, "empty prompt");
-  assert.doesNotMatch(app.searchResultsHtml("a"), /data-filter-clear-all/, "too-short prompt");
-  assert.doesNotMatch(app.searchResultsHtml("zzzznothing"), /data-filter-clear-all/, "no-matches state");
-  assert.doesNotMatch(app.searchResultsHtml("royal forest"), /data-filter-clear-all/, "results list");
+  assertLacksElement(app.searchResultsHtml(""), "[data-filter-clear-all]", "empty prompt");
+  assertLacksElement(app.searchResultsHtml("a"), "[data-filter-clear-all]", "too-short prompt");
+  assertLacksElement(app.searchResultsHtml("zzzznothing"), "[data-filter-clear-all]", "no-matches state");
+  assertLacksElement(app.searchResultsHtml("royal forest"), "[data-filter-clear-all]", "results list");
 });
 
 test("searching a tree species by itself finds every matching tree, nearest first", () => {
@@ -4948,9 +5207,9 @@ test("a search match that lies outside the visible map is still listed, marked a
   app.state.searchScreenOpen = true;
   const html = app.searchResultsHtml("distant forest tavern");
 
-  const row = html.split("<li>").find((chunk) => chunk.includes("Distant Forest Tavern"));
+  const row = queryHtmlAll(html, "li").find((item) => htmlNodeText(item).includes("Distant Forest Tavern"));
   assert.ok(row, "the far match is listed in the results");
-  assert.match(row, /Off the map/, "the far match says it is off the map");
+  assert.ok(htmlNodeText(row).includes("Off the map"), "the far match says it is off the map");
 });
 
 test("a search match that is on screen is not marked as off the map", () => {
@@ -4961,7 +5220,7 @@ test("a search match that is on screen is not marked as off the map", () => {
   app.state.searchScreenOpen = true;
   const html = app.searchResultsHtml("english oak");
   assert.ok(html.includes("english oak") || html.includes("English Oak"), "the nearby oak is listed");
-  assert.doesNotMatch(html, /Off the map/, "nothing on screen is marked off the map");
+  assertLacksText(html, "Off the map", "nothing on screen is marked off the map");
 });
 
 test("moving to Settings or Feedback keeps the map's zoom where it was", () => {
@@ -5061,7 +5320,7 @@ test("typing re-renders only the results, leaving the field alone", () => {
   app.setSearchQuery("royal forest");
 
   assert.equal(app.state.searchQuery, "royal forest");
-  assert.match(app.searchResultsHtml(app.state.searchQuery), /The Royal Forest/);
+  assertShowsText(app.searchResultsHtml(app.state.searchQuery), "The Royal Forest");
 });
 
 test("bus stop titles keep explicit directional wording", () => {
@@ -5108,9 +5367,9 @@ test("settings form shows the app version", () => {
   const html = app.settingsFormHtml();
   app.state.swVersion = "";
 
-  assert.match(html, /v157/, "settings form should include the app version number");
-  assert.match(html, /App version/, "settings form should label the app version");
-  assert.match(html, /appVersionDisplay/, "settings form should include the version span for dynamic updates");
+  assertShowsText(html, "v157", "settings form should include the app version number");
+  assertShowsText(html, "App version", "settings form should label the app version");
+  assertHasElement(html, "span#appVersionDisplay", "settings form should include the version span for dynamic updates");
 });
 
 test("settings form's walking-time value is hidden from assistive tech in favour of the slider's own aria-valuetext", () => {
@@ -5118,21 +5377,14 @@ test("settings form's walking-time value is hidden from assistive tech in favour
   app.state.userLocation = null;
   app.state.walkingDistanceMinutes = 5;
   const html = app.settingsFormHtml();
-  assert.match(
-    html,
-    /<span class="walk-radius-value" id="settingsWalkMinsValue" aria-hidden="true">5 min<\/span>/,
-    "the visible '5 min' label should not be read out separately from the slider itself"
-  );
-  assert.match(
-    html,
-    /aria-valuetext="5 min"/,
-    "the range input should carry the same value as its own aria-valuetext"
-  );
+  assertHasElement(html, 'span.walk-radius-value#settingsWalkMinsValue[aria-hidden="true"]', "the visible '5 min' label should not be read out separately from the slider itself");
+  assertElementText(html, "#settingsWalkMinsValue", "5 min");
+  assertHasElement(html, '[aria-valuetext="5 min"]', "the range input should carry the same value as its own aria-valuetext");
 });
 
 test("settings form's floor note is an aria-live region, so hitting the floor is announced", () => {
   const html = app.settingsFormHtml();
-  assert.match(html, /id="settingsWalkMinsFloorNote" aria-live="polite"/);
+  assertHasElement(html, 'p#settingsWalkMinsFloorNote[aria-live="polite"]');
 });
 
 function withStoredKeys(keys, fn) {
@@ -5149,13 +5401,13 @@ test("settings form's Privacy section shows usage analytics as one choice and of
   withStoredKeys({}, () => {
     app.setAnalyticsConsent(false);
     let html = app.settingsFormHtml();
-    assert.match(html, /id="analyticsStatus">off</);
-    assert.match(html, /id="analyticsToggle"[^>]*>Turn on usage analytics</);
+    assertElementText(html, "#analyticsStatus", "off");
+    assertElementText(html, "#analyticsToggle", "Turn on usage analytics");
 
     app.setAnalyticsConsent(true);
     html = app.settingsFormHtml();
-    assert.match(html, /id="analyticsStatus">on</);
-    assert.match(html, /id="analyticsToggle"[^>]*>Turn off usage analytics</);
+    assertElementText(html, "#analyticsStatus", "on");
+    assertElementText(html, "#analyticsToggle", "Turn off usage analytics");
   });
 });
 
@@ -5232,13 +5484,10 @@ test("settings form offers separate data, app and combined refresh buttons", () 
   // The scopes are split so a data repair does not needlessly check for an app update, while all
   // three keep the current offline copy until a replacement is ready.
   const html = app.settingsFormHtml();
-  assert.match(html, /id="refreshDataButton"/, "settings form should include the data refresh button");
-  assert.match(html, /Refresh data/, "data refresh button should be labelled");
-  assert.match(html, /id="refreshAppButton"/, "settings form should include the app refresh button");
-  assert.match(html, /Refresh app/, "app refresh button should be labelled");
-  assert.match(html, /id="refreshAllButton"/, "settings form should include the combined refresh button");
-  assert.match(html, /Refresh both/, "combined refresh button should be labelled");
-  assert.match(html, /id="refreshOfflineNote"/, "settings form should include a shared offline note for the refresh buttons");
+  assertElementText(html, "button#refreshDataButton", "Refresh data", "settings form should include the data refresh button, labelled");
+  assertElementText(html, "button#refreshAppButton", "Refresh app", "settings form should include the app refresh button, labelled");
+  assertElementText(html, "button#refreshAllButton", "Refresh both", "settings form should include the combined refresh button, labelled");
+  assertHasElement(html, "#refreshOfflineNote", "settings form should include a shared offline note for the refresh buttons");
 });
 
 // Drives refreshCachedState against a fake browser: service worker, Cache Storage and reload.
@@ -5325,10 +5574,10 @@ test("filter groups include all seven labelled categories", () => {
 test("settings form is a continuous slider spanning every preset tick when there's no floor constraint", () => {
   app.state.userLocation = null;
   const html = app.settingsFormHtml();
-  assert.match(html, /<input type="range" id="settingsWalkMins"/, "walking time control should be a range slider, not a dropdown");
-  assert.match(html, /min="1" max="30" step="0.5"/, "slider should span the full 1-30 min range with no floor constraint");
+  assertHasElement(html, 'input#settingsWalkMins[type="range"]', "walking time control should be a range slider, not a dropdown");
+  assertHasElement(html, 'input#settingsWalkMins[min="1"][max="30"][step="0.5"]', "slider should span the full 1-30 min range with no floor constraint");
   for (const mins of [1, 2, 5, 10, 15, 20, 30]) {
-    assert.match(html, new RegExp(`<option value="${mins}">`), `missing tick mark: ${mins} min`);
+    assertHasElement(html, `option[value="${mins}"]`, `missing tick mark: ${mins} min`);
   }
 });
 
@@ -5336,10 +5585,10 @@ test("settings form draws its own tick marks for the preset stops, since appeara
   app.state.userLocation = null;
   const html = app.settingsFormHtml();
   // floor=1, max=30 -> trackSpan=29; each preset's tick sits at (preset - floor) / trackSpan.
-  for (const [mins, pct] of [[1, "0.00"], [2, "3.45"], [5, "13.79"], [15, "48.28"], [30, "100.00"]]) {
-    assert.match(
-      html,
-      new RegExp(`<span class="walk-radius-tick" style="left:${pct}%"></span>`),
+  const tickPositions = queryHtmlAll(html, ".walk-radius-tick").map((tick) => Number(/left:\s*([\d.]+)%/.exec(tick.attrs.get("style") ?? "")?.[1]));
+  for (const [mins, pct] of [[1, 0], [2, 3.45], [5, 13.79], [15, 48.28], [30, 100]]) {
+    assert.ok(
+      tickPositions.some((left) => Math.abs(left - pct) < 0.01),
       `missing positioned tick mark for ${mins} min`
     );
   }
@@ -5401,8 +5650,8 @@ test("settings slider offers the finer step once the floor drops below a minute"
   app.state.walkingDistanceMinutes = 0.5;
 
   const html = app.settingsFormHtml();
-  assert.match(html, /min="0\.5" max="30" step="0\.25"/, "a close find should open up the sub-minute end of the slider");
-  assert.match(html, /30 sec<\/span>/, "the live value label should read a sub-minute radius in seconds");
+  assertHasElement(html, 'input#settingsWalkMins[min="0.5"][max="30"][step="0.25"]', "a close find should open up the sub-minute end of the slider");
+  assertElementText(html, "#settingsWalkMinsValue", "30 sec", "the live value label should read a sub-minute radius in seconds");
 });
 
 test("the walking radius grows back to the nearest remaining find once the ring empties", () => {
@@ -5602,9 +5851,9 @@ test("settings form's slider floor hides tick marks the user can no longer reach
   app.state.userLocation = makePoint(app, 0, 0);
 
   const html = app.settingsFormHtml();
-  assert.match(html, /min="30" max="30" step="0.5"/, "slider should collapse to the maximum when nothing closer exists");
-  assert.doesNotMatch(html, /<option value="1">/, "unreachable presets below the floor should not appear as tick marks");
-  assert.match(html, /<option value="30">/, "the reachable preset at the floor should still appear as a tick mark");
+  assertHasElement(html, 'input#settingsWalkMins[min="30"][max="30"][step="0.5"]', "slider should collapse to the maximum when nothing closer exists");
+  assertLacksElement(html, 'option[value="1"]', "unreachable presets below the floor should not appear as tick marks");
+  assertHasElement(html, 'option[value="30"]', "the reachable preset at the floor should still appear as a tick mark");
 });
 
 test("roundWalkingMinutes snaps the settings slider's own value to the nearest half-minute", () => {
@@ -5683,11 +5932,12 @@ test("report-photo links use the active deploy before the production site", () =
 
 test("a tree or landmark's detail view offers to report a problem with its own coordinates", () => {
   const withPoint = app.reportIssueHtml({ type: "Veteran tree", name: "Hangman's Oak", latitude: 51.65, longitude: 0.03 });
-  assert.match(withPoint, /Noticed a problem with this location\?/);
-  assert.match(withPoint, /data-report-type="Veteran tree"/);
-  assert.match(withPoint, /data-report-name="Hangman&#039;s Oak"/);
-  assert.match(withPoint, /data-report-lat="51.65"/);
-  assert.match(withPoint, /data-report-lon="0.03"/);
+  assertShowsText(withPoint, "Noticed a problem with this location?");
+  assertHasElement(
+    withPoint,
+    `.report-issue[data-report-type="Veteran tree"][data-report-name="Hangman's Oak"][data-report-lat="51.65"][data-report-lon="0.03"]`,
+    "the report control carries the flagged item's own name and coordinates",
+  );
 });
 
 test("reportIssueHtml renders nothing for a line/area feature with no single coordinate", () => {
@@ -5697,8 +5947,8 @@ test("reportIssueHtml renders nothing for a line/area feature with no single coo
 
 test("a mapped place can link back to the Ledger edition that featured it", () => {
   const html = app.ledgerMentionHtml({ ledgerUrl: "/reports/epping-forest-ledger-2026-10-17.html" });
-  assert.match(html, /href="\/reports\/epping-forest-ledger-2026-10-17\.html"/);
-  assert.match(html, /Featured in the Epping Forest Ledger/);
+  assertHasElement(html, 'a[href="/reports/epping-forest-ledger-2026-10-17.html"]');
+  assertShowsText(html, "Featured in the Epping Forest Ledger");
   assert.equal(app.ledgerMentionHtml({ ledgerUrl: "https://example.com/reports/epping-forest-ledger-2026-10-17.html" }), "");
 });
 
@@ -8913,6 +9163,15 @@ test("the first GPS fix is used as delivered, with no smoothing to ease in from"
   assert.ok(app.state.rawUserLocation, "the raw fix is kept for analytics");
 });
 
+test("a GPS fix records the moment it arrived, so analytics can tell a fresh fix from a stale one", () => {
+  resetData(app);
+  resetLocationSmoothing(app);
+  const before = Date.now();
+  const fix = app.ingestLocationFix(51.665, 0.045, 10, 1000);
+  const after = Date.now();
+  assert.ok(fix.receivedAt >= before && fix.receivedAt <= after, "stamped with the arrival time");
+});
+
 test("a later GPS fix is eased toward rather than jumping the position", () => {
   resetData(app);
   resetLocationSmoothing(app);
@@ -8960,10 +9219,15 @@ test("a position that stops updating still converges on the last fix, rather tha
   resetLocationSmoothing(app);
   app.state.userLocation = null;
   app.state.userLocation = app.ingestLocationFix(51.665, 0.045, 25, 1000); // poor accuracy: the most smoothing
+  // A 39m step at 25m accuracy: well inside the accuracy-scaled snap distance (4 x 25m = 100m), so
+  // it should be eased as wander rather than landed. The assertion below checks that the ease is
+  // pending (a raw landing would leave none), and then that the ease converges. At tau 2.5s the
+  // residual is still ~0.7m at 10s, so the horizon runs to 22s (~0.01m left).
   app.state.userLocation = app.ingestLocationFix(51.6653, 0.0453, 25, 2000);
+  assert.ok(app.state.locationGlide, "a 39m step at 25m accuracy is eased, so an ease is pending right after the fix");
   const destination = { ...app.state.rawUserLocation };
 
-  for (let t = 2016; t <= 12000; t += 16) app.advanceLocationGlide(t);
+  for (let t = 2016; t <= 22000; t += 16) app.advanceLocationGlide(t);
 
   assert.ok(
     Math.abs(app.state.userLocation.latitude - destination.latitude) < 0.000005,
@@ -9131,6 +9395,95 @@ test("on a train with noisy GPS, the position never jumps sideways or backwards 
   assert.ok(worstAcross < 12, `the marker should not wander off the line, ${worstAcross.toFixed(1)}m sideways at worst`);
 });
 
+test("a walker standing still with 20-30m GPS accuracy is not thrown off by the wander in each fix", () => {
+  // Shortly after a cold start every fix is 20-30m accurate, and a fix can land that far from
+  // where the walker actually stands. The walking path used to land any fix more than 30m from
+  // the marker's own position at once, so the marker jumped 30-60m in a single frame, and the
+  // Nearby camera (re-pinned to the marker on every fix) lurched with it. A fix's own accuracy
+  // says how far it can be out, so only a step well beyond that is a real move.
+  const metresPerDegLat = 111320;
+  const metresPerDegLon = 111320 * Math.cos((51.665 * Math.PI) / 180);
+  for (const [accuracy, seed] of [[20, 1], [25, 2], [30, 3]]) {
+    resetData(app);
+    resetLocationSmoothing(app);
+    app.state.userLocation = null;
+    const noise = gpsNoise(seed);
+    const sigmaM = accuracy / 1.2;
+    const frames = [];
+    const record = (at) => {
+      const { latitude, longitude } = app.state.userLocation;
+      frames.push({ at, northM: (latitude - 51.665) * metresPerDegLat, eastM: (longitude - 0.045) * metresPerDegLon });
+    };
+    for (let i = 0; i <= 40; i += 1) {
+      const at = 1000 + i * 1000;
+      app.state.userLocation = app.ingestLocationFix(
+        51.665 + (sigmaM * noise()) / metresPerDegLat,
+        0.045 + (sigmaM * noise()) / metresPerDegLon,
+        accuracy,
+        at,
+        null
+      );
+      record(at);
+      for (let t = at + 16; t < at + 1000; t += 16) {
+        app.advanceLocationGlide(t);
+        record(t);
+      }
+    }
+    let worstStep = 0;
+    for (let i = 1; i < frames.length; i += 1) {
+      worstStep = Math.max(worstStep, Math.hypot(frames[i].northM - frames[i - 1].northM, frames[i].eastM - frames[i - 1].eastM));
+    }
+    const settled = frames.filter((frame) => frame.at >= 6000);
+    const worstFromStanding = Math.max(...settled.map((frame) => Math.hypot(frame.northM, frame.eastM)));
+    assert.ok(worstStep < 2, `${accuracy}m fixes: no frame should move the marker more than 2m, one moved ${worstStep.toFixed(1)}m`);
+    // Easing averages the fixes, so the settled marker sits about one accuracy-radius from the
+    // walker (measured 1.1-1.2x across these seeds).
+    assert.ok(
+      worstFromStanding < accuracy * 1.5,
+      `${accuracy}m fixes: once settled the marker should stay within about its fixes' accuracy of the walker, worst ${worstFromStanding.toFixed(1)}m`
+    );
+  }
+});
+
+test("a far-off first fix that the real GPS position replaces does not make a walker standing still look like they are travelling", () => {
+  // The app starts on a stand-in (High Beach) or a coarse first fix hundreds of metres from the walker.
+  // The real fix that follows is landed as a new start, but that earlier fix stayed in the 8-15s
+  // history the speed and the travel track are judged from. For the next several seconds the walker
+  // looked to be covering ~30m/s, the fitted track ran off with the marker, and it snapped back once
+  // the stale fix aged out of the window. A fix the app has already moved on from is not the journey.
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  app.state.userLocation = app.ingestLocationFix(51.667591, 0.037454, 25, 160); // the stand-in, ~290m away
+  app.state.userLocation = app.ingestLocationFix(51.665, 0.045, 10, 640); // the real position
+  const metresPerDegLat = 111320;
+  const metresPerDegLon = 111320 * Math.cos((51.665 * Math.PI) / 180);
+  const noise = gpsNoise(21);
+  const frames = [];
+  const record = (at) => {
+    const { latitude, longitude } = app.state.userLocation;
+    frames.push({ at, northM: (latitude - 51.665) * metresPerDegLat, eastM: (longitude - 0.045) * metresPerDegLon });
+  };
+  for (let i = 0; i < 16; i += 1) {
+    const at = 1000 + i * 1000;
+    // A walker standing still under a clear sky: 3m of wander per fix, 10m accuracy.
+    app.state.userLocation = app.ingestLocationFix(51.665 + (3 * noise()) / metresPerDegLat, 0.045 + (3 * noise()) / metresPerDegLon, 10, at, null);
+    record(at);
+    for (let t = at + 16; t < at + 1000; t += 16) {
+      app.advanceLocationGlide(t);
+      record(t);
+    }
+  }
+  let worstStep = 0;
+  for (let i = 1; i < frames.length; i += 1) {
+    worstStep = Math.max(worstStep, Math.hypot(frames[i].northM - frames[i - 1].northM, frames[i].eastM - frames[i - 1].eastM));
+  }
+  const settled = frames.filter((frame) => frame.at >= 3000);
+  const worstFromStanding = Math.max(...settled.map((frame) => Math.hypot(frame.northM, frame.eastM)));
+  assert.ok(worstStep < 2, `no frame should move the marker more than 2m, one moved ${worstStep.toFixed(1)}m`);
+  assert.ok(worstFromStanding < 8, `the marker should stay with the walker, worst ${worstFromStanding.toFixed(1)}m from where they stand`);
+});
+
 test("a walker's wander under trees is still smoothed however long it goes on", () => {
   resetData(app);
   resetLocationSmoothing(app);
@@ -9153,6 +9506,33 @@ test("a large jump in position lands at once rather than crawling there", () => 
   const jumped = app.ingestLocationFix(51.68, 0.06, 10, 2000);
   assert.equal(app.state.locationGlide, null, "no glide for a real jump");
   assert.equal(jumped.latitude, 51.68, "the position lands on the fix itself");
+});
+
+test("a poor-accuracy fix that comes after a gap in the fixes still lands at once", () => {
+  // The accuracy-scaled snap distance is for wander between consecutive fixes. The first fix back
+  // after a gap (a tunnel, a dead signal) keeps the plain 30m floor, so a 45m move lands.
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  app.state.userLocation = app.ingestLocationFix(51.665, 0.045, 25, 1000);
+  const landed = app.ingestLocationFix(51.665 + 0.0004, 0.045, 25, 7000);
+  assert.equal(app.state.locationGlide, null, "no ease after a six-second gap");
+  assert.equal(landed.latitude, 51.665 + 0.0004, "the position lands on the fix");
+});
+
+test("a fix 200m away one second after a 100m-accuracy fix still lands at once", () => {
+  // The accuracy scaling is capped: a 100m fix would allow a 400m step as wander, but a step of
+  // 150m or more between consecutive fixes is a teleport however poor the fixes are. The 200m
+  // jump lands on the fix rather than being eased across a street.
+  resetData(app);
+  resetLocationSmoothing(app);
+  app.state.userLocation = null;
+  app.state.userLocation = app.ingestLocationFix(51.665, 0.045, 10, 1000);
+  app.state.userLocation = app.ingestLocationFix(51.66505, 0.045, 100, 2000); // ~6m on, eased as wander
+  assert.ok(app.state.locationGlide, "the ~6m wander at 100m accuracy is eased, not landed");
+  const teleported = app.ingestLocationFix(51.665 + 200 / 111320, 0.045, 100, 3000); // ~200m north, a second later
+  assert.equal(app.state.locationGlide, null, "a 200m step is past the 150m cap, so there is no ease");
+  assert.equal(teleported.latitude, 51.665 + 200 / 111320, "the position lands on the fix");
 });
 
 test("a poor-accuracy fix is leaned on harder than a good one", () => {
@@ -9772,17 +10152,17 @@ test("focusNearbyWithinWalkMinutes drops any open selection and browses that exa
 
 test("openInMapsHtml is an icon-only control with an accessible name", () => {
   const maps = app.openInMapsHtml(51.65, 0.05, "Test");
-  assert.match(maps, /class="detail-map-link detail-map-link--icon"[^>]*aria-label="Open in Maps"/);
-  assert.match(maps, /<svg /, "the glyph is inline SVG");
-  assert.ok(!/>Open in Maps</.test(maps), "no visible text label");
+  assertHasElement(maps, '.detail-map-link.detail-map-link--icon[aria-label="Open in Maps"]');
+  assertHasElement(maps, "svg", "the glyph is inline SVG");
+  assertLacksText(maps, "Open in Maps", "no visible text label");
   assert.equal(app.openInMapsHtml(null, null, "Test"), "", "no link without coordinates");
 });
 
 test("nearbyWithinWalkHtml renders a Nearby-list-styled card carrying the exact coordinates it should browse, and is empty without coordinates or nearby locations", () => {
   const html = app.nearbyWithinWalkHtml(51.65, 0.05);
-  assert.match(html, /<li><button class="nearest-item" type="button" data-action="walk-radius" data-lat="51\.65" data-lon="0\.05">/);
-  assert.ok(html.includes(`within ${app.state.walkingDistanceMinutes} min walk`), "copy names the reader's own walking radius, not a fixed 15");
-  assert.ok(!html.includes("detail-map-link"), "shares the Nearby list's own card styling, not the unrelated pill");
+  assertHasElement(html, 'li > button.nearest-item[data-action="walk-radius"][data-lat="51.65"][data-lon="0.05"]');
+  assertShowsText(html, `within ${app.state.walkingDistanceMinutes} min walk`, "copy names the reader's own walking radius, not a fixed 15");
+  assertLacksElement(html, ".detail-map-link", "shares the Nearby list's own card styling, not the unrelated pill");
   assert.equal(app.nearbyWithinWalkHtml(null, null), "", "no card when there are no coordinates to browse from");
   const originalEntries = app.state.trees.splice(0);
   try {
@@ -9806,8 +10186,8 @@ test("named water and area details expose the nearby context of the selected map
   const water = { id: "way/water-1", name: "Hollow Pond", featureType: "hydrology_area", ...makePoint(app, 51.650, 0.050) };
   app.state.waterFeatures = [water];
   app.showWaterDetails(water, 420);
-  assert.match(app.els.inspectorBody.innerHTML, /detail-section-heading">Nearest/);
-  assert.match(app.els.inspectorBody.innerHTML, /detail-section-heading">Related/);
+  assertSectionHeading(app.els.inspectorBody.innerHTML, "Nearest");
+  assertSectionHeading(app.els.inspectorBody.innerHTML, "Related");
 
   const area = {
     id: "way/area-1",
@@ -9815,8 +10195,8 @@ test("named water and area details expose the nearby context of the selected map
     properties: { id: "way/area-1", name: "Hollow Plain", featureType: "open_land" },
   };
   app.showEnvironmentDetails(area);
-  assert.match(app.els.inspectorBody.innerHTML, /detail-section-heading">Nearest/);
-  assert.match(app.els.inspectorBody.innerHTML, /within \d+ min walk of Hollow Plain/);
+  assertSectionHeading(app.els.inspectorBody.innerHTML, "Nearest");
+  assert.match(visibleTextOf(app.els.inspectorBody.innerHTML), /within \d+ min walk of Hollow Plain/);
 });
 
 test("tapping a cluster shows exactly that cluster's own members, not every tree the walking-radius floor also reaches", () => {
@@ -11513,7 +11893,7 @@ test("routeValueFromLocation resolves a /find/<slug>/ URL back to the same place
   try {
     app.location.pathname = "/find/the-forresters/";
     app.location.hash = "";
-    // routeParam (js/app.js) builds this the same way currentScreenRoute() already does for an
+    // routeParam (js/router-rules.js) builds this the same way currentScreenRoute() already does for an
     // ordinary landmark selection -- via URLSearchParams, so ":" and "/" in the id-based hash key
     // come back percent-encoded. Built the same way here rather than hand-typed, so this test
     // doesn't itself assume a particular encoding.
@@ -11573,19 +11953,24 @@ test("nearbySectionsHtml renders a headed Nearest section (tree/cow, the walk-ra
   // The tree link carries this pub's own position via the target page's existing
   // "near=<lat>,<lon>" anchor route, so landing there re-centres on the pub rather than the
   // reader's own GPS fix. The out-of-radius cow is not advertised.
-  assert.match(html, /<a class="nearest-item nearby-link" href="\/nearby\/trees\/#near=51\.650000%2C0\.050000[^"]*">[\s\S]*?nearest-meta[\s\S]*?<\/a>/);
+  assertHasElement(html, 'a.nearest-item.nearby-link[href^="/nearby/trees/#near=51.650000%2C0.050000"] .nearest-meta');
   assert.ok(!html.includes("nearby/cows/"), "out-of-radius categories are omitted");
-  assert.match(html, /nearest-meta">(No |[\d,]+ )[^<]*within \d+ min walk of/, "each category card says how many sit within the walking radius");
+  assert.ok(
+    queryHtmlAll(html, ".nearest-meta").map(htmlNodeText).some((meta) => /^(No |[\d,]+ ).*within \d+ min walk of/.test(meta)),
+    "each category card says how many sit within the walking radius",
+  );
 
   // The walk-radius card lives in this same Nearby section, as a <button> sharing the .nearest-item
   // card shape, between where it comes out of the Nearby heading and before Related begins.
   const walkCardIndex = html.indexOf('data-action="walk-radius"');
   assert.ok(walkCardIndex > nearbyHeadingIndex && walkCardIndex < relatedHeadingIndex, "walk-radius card sits inside the Nearby section");
-  assert.match(html, /<button class="nearest-item" type="button" data-action="walk-radius" data-lat="51\.65" data-lon="0\.05" data-name="The Forresters">[\s\S]*?locations within \d+ min walk[\s\S]*?<\/button>/);
+  const walkCard = 'button.nearest-item[data-action="walk-radius"][data-lat="51.65"][data-lon="0.05"][data-name="The Forresters"]';
+  assertHasElement(html, walkCard);
+  assert.match(htmlNodeText(queryHtmlAll(html, walkCard)[0]), /locations within \d+ min walk/);
 
   // Category/group links are the same .nearest-item card as Nearby, not a different pill style.
-  assert.match(html, /<a class="nearest-item nearby-link" href="\/nearby\/pubs\/#near=51\.650000%2C0\.050000[^"]*">[\s\S]*?Pubs &amp; bars[\s\S]*?<\/a>/);
-  assert.match(html, /<a class="nearest-item nearby-link" href="\/nearby\/food\/#near=51\.650000%2C0\.050000[^"]*">[\s\S]*?Food[\s\S]*?<\/a>/);
+  assertElementShowsText(html, 'a.nearest-item.nearby-link[href^="/nearby/pubs/#near=51.650000%2C0.050000"]', "Pubs & bars");
+  assertElementShowsText(html, 'a.nearest-item.nearby-link[href^="/nearby/food/#near=51.650000%2C0.050000"]', "Food");
   assert.ok(!html.includes("detail-map-link"), "related links no longer use the pill style -- same card as Nearby");
 
   // No mention of the data's source attached to these distances -- they're computed live, not
@@ -11600,7 +11985,7 @@ test("nearbySectionsHtml omits the cows link when no cow positions are currently
   app.state.trees.push({ latitude: 51.6505, longitude: 0.0505, id: "t1" });
 
   const html = app.nearbySectionsHtml({ latitude: pub.latitude, longitude: pub.longitude, name: "The Forresters" });
-  assert.match(html, /nearby\/trees\//);
+  assertHasElement(html, 'a[href^="/nearby/trees/"]');
   assert.ok(!html.includes("nearby/cows/"), "no cow data loaded -- no cows link to show");
 });
 
@@ -11640,12 +12025,14 @@ test("nearbySectionsHtml gives a place with no /find/ page of its own the same N
 
 test("detailsHtml links a Phone row as a tel: link rather than inert text", () => {
   const html = app.detailsHtml([["Phone", "01234 567890"]]);
-  assert.match(html, /<dd><a href="tel:01234 567890">01234 567890<\/a><\/dd>/);
+  assertHasElement(html, 'dd > a[href="tel:01234 567890"]', "the phone number is a tel: link");
+  assertElementText(html, "dd > a", "01234 567890");
 });
 
 test("detailsHtml renders Opening hours as plain text like any other detail row", () => {
   const html = app.detailsHtml([["Opening hours", "Mo-Su 09:00-17:00"]]);
-  assert.match(html, /<dt>Opening hours<\/dt><dd>Mo-Su 09:00-17:00<\/dd>/);
+  assertElementText(html, "dt", "Opening hours");
+  assertElementText(html, "dd", "Mo-Su 09:00-17:00");
 });
 
 // --- First visit: the page hands its map downloads to the service worker's data cache (js/loader.js) ---
@@ -11896,12 +12283,12 @@ test("contributors move up from Seedling to Warden by points", () => {
 
 test("each rank gets its own medal and the points chip shows what a check earns", () => {
   for (const name of ["Seedling", "Sapling", "Woodward", "Warden"]) {
-    assert.match(app.communityMedalHtml(app.communityRank(name === "Seedling" ? 0 : name === "Sapling" ? 5 : name === "Woodward" ? 20 : 50)), new RegExp(`community-medal-${name.toLowerCase()}`));
+    assertHasElement(app.communityMedalHtml(app.communityRank(name === "Seedling" ? 0 : name === "Sapling" ? 5 : name === "Woodward" ? 20 : 50)), `.community-medal-${name.toLowerCase()}`);
   }
-  assert.match(app.communityPointsChipFor("VERIFIED", "near"), />\+1</);
-  assert.match(app.communityPointsChipFor("NOT_HERE", "near"), /up to \+2/);
-  assert.match(app.communityPointsChipFor("VERIFIED", "far"), /is-zero[^>]*>\+0</);
-  assert.match(app.communityPointsChipFor("VERIFIED", "none"), /is-zero/);
+  assert.equal(visibleTextOf(app.communityPointsChipFor("VERIFIED", "near")), "+1");
+  assertShowsText(app.communityPointsChipFor("NOT_HERE", "near"), "up to +2");
+  assertElementText(app.communityPointsChipFor("VERIFIED", "far"), ".is-zero", "+0");
+  assertHasElement(app.communityPointsChipFor("VERIFIED", "none"), ".is-zero");
 });
 
 test("the streak week strip marks each of the last seven days that has a report, today last", () => {
@@ -11920,8 +12307,8 @@ test("every badge says how to earn it and shows progress towards it, capped at i
   assert.ok(app.COMMUNITY_BADGES.every((b) => b.how && b.goal > 0 && b.metric));
   assert.equal(JSON.stringify(app.communityBadgeProgress(byId("ten-checks"), metrics)), '{"have":4,"goal":10}');
   assert.equal(JSON.stringify(app.communityBadgeProgress(byId("week-streak"), metrics)), '{"have":7,"goal":7}');
-  assert.match(app.communityBadgeDetailHtml(byId("ten-checks"), metrics), /You're at 4 of 10/);
-  assert.match(app.communityBadgeDetailHtml(byId("week-streak"), metrics), /earned/);
+  assertShowsText(app.communityBadgeDetailHtml(byId("ten-checks"), metrics), "You're at 4 of 10");
+  assertShowsText(app.communityBadgeDetailHtml(byId("week-streak"), metrics), "earned");
 });
 
 test("report dates read as Today, Yesterday, N days ago, then a short date", () => {
@@ -11930,7 +12317,7 @@ test("report dates read as Today, Yesterday, N days ago, then a short date", () 
   assert.equal(app.communityRelativeDay(now - 3600000, now), "Today");
   assert.equal(app.communityRelativeDay(now - day, now), "Yesterday");
   assert.equal(app.communityRelativeDay(now - 3 * day, now), "3 days ago");
-  assert.match(app.communityRelativeDay(now - 30 * day, now), /Sep/);
+  assertShowsText(app.communityRelativeDay(now - 30 * day, now), "Sep");
 });
 
 const communityPointsConfig = require("../netlify/functions/lib/community-points");
@@ -12296,7 +12683,7 @@ test("a report whose GitHub filing failed can be sent again and is filed", async
     },
     async (handler, calls) => {
       const failed = await handler(feedbackEvent({ requestId: "req-retry-1" }));
-      assert.equal(failed.statusCode, 500);
+      assert.equal(failed.statusCode, 502, "an upstream failure is a 5xx, which the client outbox retries");
       const retried = await handler(feedbackEvent({ requestId: "req-retry-1" }));
       assert.equal(retried.statusCode, 200, "the failed attempt did not leave the report marked as sent");
       assert.equal(JSON.parse(retried.body).issueNumber, 22);
@@ -12547,6 +12934,68 @@ test("the missing-data report refuses a request body of JSON null with a 400 ins
   const { handler } = require("../netlify/functions/report-missing-data");
   const result = await handler({ httpMethod: "POST", body: "null", headers: {} });
   assert.equal(result.statusCode, 400);
+});
+
+const REPORT_UNAVAILABLE_COPY = "We could not send your report just now. Your text is still here.";
+const TOKEN_ENV_NAMES = ["GITHUB_TOKEN", "GH_TOKEN", "GITHUB_FINE_GRAINED_TOKEN", "GITHUB_PAT"];
+// The server logs the developer detail for each refusal; these tests read the response, so keep the log quiet.
+async function quietly(run) {
+  const originalError = console.error;
+  console.error = () => {};
+  try { return await run(); } finally { console.error = originalError; }
+}
+
+test("Report submission refuses details longer than 5,000 characters before anything reaches GitHub", async () => {
+  await withStubbedGithub(() => jsonResponse(201, { number: 1, html_url: "https://github.com/x/y/issues/1" }), async (handler, calls) => {
+    const tooLong = await handler(feedbackEvent({ details: "a".repeat(5001), requestId: "req-too-long" }));
+    assert.equal(tooLong.statusCode, 400);
+    assert.deepEqual(JSON.parse(tooLong.body), { error: "Your message is too long. Please keep it to 5,000 characters or fewer." });
+    assert.deepEqual(calls, [], "GitHub is never asked to file an oversized report");
+
+    const atLimit = await handler(feedbackEvent({ details: "a".repeat(5000), requestId: "req-at-limit" }));
+    assert.equal(atLimit.statusCode, 200, "a message of exactly 5,000 characters is still filed");
+  });
+});
+
+test("Report submission sends a plain message when GitHub is unavailable and keeps the token hint out of the response", async () => {
+  await withStubbedGithub(
+    (url, method) => (method === "POST" && url.endsWith("/issues")
+      ? jsonResponse(503, { message: "Service unavailable: upstream timeout detail" })
+      : jsonResponse(200, { items: [] })),
+    async (handler) => quietly(async () => {
+      const result = await handler(feedbackEvent({ requestId: "req-github-down" }));
+      assert.equal(result.statusCode, 502);
+      assert.deepEqual(JSON.parse(result.body), { error: REPORT_UNAVAILABLE_COPY });
+    })
+  );
+});
+
+test("Report submission gives the same plain message when the connection to GitHub fails", async () => {
+  await withStubbedGithub(() => { throw new TypeError("fetch failed"); }, async (handler) => quietly(async () => {
+    const result = await handler(feedbackEvent({ requestId: "req-network-down" }));
+    assert.equal(result.statusCode, 502);
+    assert.deepEqual(JSON.parse(result.body), { error: REPORT_UNAVAILABLE_COPY });
+  }));
+});
+
+test("Report submission without a GitHub token keeps the configuration hint in the server log, not the response", async () => {
+  const saved = TOKEN_ENV_NAMES.map((name) => [name, process.env[name]]);
+  for (const name of TOKEN_ENV_NAMES) delete process.env[name];
+  const logged = [];
+  const originalError = console.error;
+  console.error = (...parts) => logged.push(parts.join(" "));
+  try {
+    const { handler } = require("../netlify/functions/report-missing-data");
+    const result = await handler(feedbackEvent({ requestId: "req-no-token" }));
+    assert.equal(result.statusCode, 503, "a report the server cannot send is answered as unavailable");
+    assert.deepEqual(JSON.parse(result.body), { error: REPORT_UNAVAILABLE_COPY });
+    assert.ok(logged.some((line) => line.includes("GITHUB_TOKEN")), "the setting that is missing is logged for the owner");
+  } finally {
+    console.error = originalError;
+    for (const [name, value] of saved) {
+      if (value === undefined) delete process.env[name]; else process.env[name] = value;
+    }
+  }
 });
 
 test("one network cannot mint endless device ids to confirm its own reports: community reports are capped per address and site-wide", async () => {
@@ -12893,11 +13342,14 @@ test("the report downloads as CSV and GeoJSON, quoting what needs quoting", () =
 test("the report page escapes what it prints and explains an empty report", () => {
   const empty = communityReportData.buildReportData({ overlay: {}, conflictDetails: [], generatedAt: 1, reportCount: 0 }, {}, "");
   const html = communityReportData.renderReportHtml(empty);
-  assert.match(html, /No trees have been questioned by two or more people yet/);
+  assertShowsText(html, "No trees have been questioned by two or more people yet");
   const hostile = communityReportData.buildReportData({ overlay: { "tree:1": { s: "questioned", st: "NOT_HERE", n: 2, t: 1, tlat: 51.6, tlon: 0.1 } }, conflictDetails: [], generatedAt: 1, reportCount: 2 }, { 1: { tagNumber: "<script>x</script>", commonName: "Oak" } }, "");
   const page = communityReportData.renderReportHtml(hostile);
-  assert.doesNotMatch(page, /<script>x<\/script>/);
-  assert.match(page, /&lt;script&gt;/);
+  assert.ok(
+    !queryHtmlAll(page, "script").some((script) => script.children.some((child) => child.text === "x")),
+    "the hostile tag number does not become a live script element",
+  );
+  assertShowsText(page, "<script>x</script>", "the hostile tag number is printed as text the reader can see");
 });
 
 test("register records are found by position in the public tree chunks, and a failed fetch just leaves them out", async () => {
@@ -13123,6 +13575,239 @@ test("the features endpoint answers the public check and keeps the list admin-on
   }
 });
 
+// The offline outbox (js/outbox.js) is its own script in the browser, so it is loaded here into a
+// context of its own. Only the boundaries are stubbed: time (a fake clock the test moves), timers,
+// IndexedDB (an in-memory store), the network (a scripted fetch) and the online flag.
+const OUTBOX_TEST_HOUR_MS = 60 * 60 * 1000;
+
+function loadOutboxForTests() {
+  const clock = { now: 1800000000000 };
+  const timers = [];
+  let lastTimerId = 0;
+  const listeners = new Map();
+  const events = [];
+  const fetchCalls = [];
+  const storage = new Map();
+  const idbStores = new Map();
+  const navigatorStub = { onLine: true };
+  const reply = (status, body = {}) => ({ ok: status >= 200 && status < 300, status, json: async () => body });
+  let responder = () => reply(200, {});
+
+  // Requests complete on the next microtask, so one macrotask turn lets a whole flush run to its end.
+  const later = (fn) => Promise.resolve().then(fn);
+  const fakeIndexedDB = {
+    open() {
+      const request = { result: null, onsuccess: null, onerror: null, onblocked: null, onupgradeneeded: null };
+      later(() => {
+        request.result = {
+          createObjectStore(name) { idbStores.set(name, new Map()); },
+          transaction(name) {
+            const rows = idbStores.get(name);
+            const tx = { oncomplete: null, onerror: null, onabort: null };
+            tx.objectStore = () => ({
+              getAll: () => ({ result: [...rows.values()].map((row) => structuredClone(row)) }),
+              put: (row) => { rows.set(row.id, structuredClone(row)); return { result: row.id }; },
+              delete: (id) => { rows.delete(id); return { result: undefined }; },
+            });
+            later(() => { if (tx.oncomplete) tx.oncomplete(); });
+            return tx;
+          },
+        };
+        if (!idbStores.has("items") && request.onupgradeneeded) request.onupgradeneeded();
+        if (request.onsuccess) request.onsuccess();
+      });
+      return request;
+    },
+  };
+
+  const window = {
+    addEventListener(type, handler) {
+      if (!listeners.has(type)) listeners.set(type, []);
+      listeners.get(type).push(handler);
+    },
+    dispatchEvent(event) {
+      events.push(event);
+      for (const handler of listeners.get(event.type) || []) handler(event);
+      return true;
+    },
+  };
+  class CustomEvent {
+    constructor(type, init = {}) { this.type = type; this.detail = init.detail; }
+  }
+  const context = {
+    window,
+    document: { visibilityState: "visible", addEventListener() {} },
+    navigator: navigatorStub,
+    CustomEvent,
+    indexedDB: fakeIndexedDB,
+    localStorage: {
+      getItem: (key) => (storage.has(key) ? storage.get(key) : null),
+      setItem: (key, value) => { storage.set(key, String(value)); },
+      removeItem: (key) => { storage.delete(key); },
+    },
+    Date: { now: () => clock.now },
+    setTimeout(fn, ms) {
+      lastTimerId += 1;
+      timers.push({ id: lastTimerId, at: clock.now + ms, fn });
+      return lastTimerId;
+    },
+    clearTimeout(id) {
+      const at = timers.findIndex((timer) => timer.id === id);
+      if (at >= 0) timers.splice(at, 1);
+    },
+    fetch: async (url, options) => {
+      const body = JSON.parse(options.body);
+      fetchCalls.push({ url, body });
+      return responder(url, body);
+    },
+    console,
+  };
+  context.globalThis = context;
+  vm.createContext(context);
+  vm.runInContext(fs.readFileSync(path.join(__dirname, "..", "js", "outbox.js"), "utf8"), context, { filename: "js/outbox.js" });
+
+  const settle = () => new Promise((resolve) => setImmediate(resolve));
+  // Moves the clock forward, firing each timer at its due time as a browser would.
+  async function advance(ms) {
+    const end = clock.now + ms;
+    for (;;) {
+      await settle();
+      const [next] = timers.filter((timer) => timer.at <= end).sort((a, b) => a.at - b.at || a.id - b.id);
+      if (!next) break;
+      timers.splice(timers.indexOf(next), 1);
+      clock.now = Math.max(clock.now, next.at);
+      next.fn();
+    }
+    clock.now = end;
+    await settle();
+  }
+
+  return {
+    reply,
+    navigator: navigatorStub,
+    clock,
+    fetchCalls,
+    answerWith(fn) { responder = fn; },
+    advance,
+    // Queues a report the way the app does: add it, then flush if the device is online.
+    async queue(id, url, payload = {}) {
+      await context.outboxAdd({ id, url, payload });
+      if (navigatorStub.onLine) await context.outboxFlush();
+      await settle();
+    },
+    async fireOnline() {
+      window.dispatchEvent({ type: "online" });
+      await settle();
+    },
+    async queuedIds() { return (await context.outboxList()).map((item) => item.id); },
+    sentEvents() {
+      return events
+        .filter((event) => event.type === "outbox:sent")
+        .map((event) => ({ id: event.detail.item.id, ok: event.detail.ok, response: event.detail.response }));
+    },
+    callsTo(url) { return fetchCalls.filter((call) => call.url === url).length; },
+  };
+}
+
+test("Outbox gives up on a queued item after its retry ceiling", async () => {
+  const outbox = loadOutboxForTests();
+  outbox.answerWith(() => outbox.reply(503, { error: "Token revoked" }));
+  await outbox.queue("report-1", "/api/report", { treeId: 7 });
+  await outbox.advance(24 * OUTBOX_TEST_HOUR_MS);
+  assert.equal(outbox.callsTo("/api/report"), 10, "the server is asked ten times, then the item is dropped");
+  assert.deepEqual(await outbox.queuedIds(), [], "nothing is left queued");
+  assert.deepEqual(
+    outbox.sentEvents(),
+    [{ id: "report-1", ok: false, response: { error: "Token revoked" } }],
+    "it is reported as refused, with the server's last message, as a 4xx is",
+  );
+});
+
+test("Outbox gives up on a queued item once it has been refused for three days", async () => {
+  const outbox = loadOutboxForTests();
+  outbox.answerWith(() => outbox.reply(503));
+  await outbox.queue("report-2", "/api/report");
+  // The device is closed for 71 hours, then the app opens and the outbox tries again.
+  outbox.clock.now += 71 * OUTBOX_TEST_HOUR_MS;
+  await outbox.fireOnline();
+  assert.equal(outbox.callsTo("/api/report"), 2);
+  assert.deepEqual(await outbox.queuedIds(), ["report-2"], "still within its three days, so it stays queued");
+  assert.deepEqual(outbox.sentEvents(), []);
+  outbox.clock.now += OUTBOX_TEST_HOUR_MS;
+  await outbox.fireOnline();
+  assert.equal(outbox.callsTo("/api/report"), 3);
+  assert.deepEqual(await outbox.queuedIds(), [], "three days after its first refusal it is dropped");
+  assert.deepEqual(outbox.sentEvents(), [{ id: "report-2", ok: false, response: {} }]);
+});
+
+test("Outbox keeps retrying a queued item while the device is offline", async () => {
+  const outbox = loadOutboxForTests();
+  outbox.navigator.onLine = false;
+  await outbox.queue("report-3", "/api/report");
+  await outbox.advance(4 * 24 * OUTBOX_TEST_HOUR_MS);
+  assert.equal(outbox.callsTo("/api/report"), 0, "nothing is sent while offline");
+  assert.deepEqual(await outbox.queuedIds(), ["report-3"]);
+
+  outbox.navigator.onLine = true;
+  outbox.answerWith(() => outbox.reply(503));
+  await outbox.fireOnline();
+  assert.equal(outbox.callsTo("/api/report"), 1, "the first attempt after reconnecting is its first refusal");
+  assert.deepEqual(await outbox.queuedIds(), ["report-3"], "a refusal after four offline days does not drop it");
+
+  outbox.answerWith(() => outbox.reply(200, { ok: true }));
+  await outbox.fireOnline();
+  assert.deepEqual(await outbox.queuedIds(), []);
+  assert.deepEqual(outbox.sentEvents(), [{ id: "report-3", ok: true, response: { ok: true } }]);
+});
+
+test("Outbox keeps retrying a queued item through network errors, which do not count toward its ceiling", async () => {
+  const outbox = loadOutboxForTests();
+  outbox.answerWith(() => { throw new TypeError("Failed to fetch"); });
+  await outbox.queue("report-4", "/api/report");
+  await outbox.advance(3 * OUTBOX_TEST_HOUR_MS);
+  assert.ok(outbox.callsTo("/api/report") > 10, "more network failures than the ceiling are retried");
+  assert.deepEqual(await outbox.queuedIds(), ["report-4"], "it is still queued");
+  assert.deepEqual(outbox.sentEvents(), []);
+
+  outbox.answerWith(() => outbox.reply(200, { ok: true }));
+  await outbox.fireOnline();
+  assert.deepEqual(outbox.sentEvents(), [{ id: "report-4", ok: true, response: { ok: true } }]);
+});
+
+test("Outbox keeps retrying a queued item until the server accepts it", async () => {
+  const outbox = loadOutboxForTests();
+  let attempts = 0;
+  outbox.answerWith(() => (attempts++ < 3 ? outbox.reply(503) : outbox.reply(200, { ok: true })));
+  await outbox.queue("report-5", "/api/report");
+  await outbox.advance(OUTBOX_TEST_HOUR_MS);
+  assert.equal(outbox.callsTo("/api/report"), 4, "three refusals, then the accepted attempt");
+  assert.deepEqual(await outbox.queuedIds(), []);
+  assert.deepEqual(outbox.sentEvents(), [{ id: "report-5", ok: true, response: { ok: true } }]);
+});
+
+test("Outbox still sends the other queued items after it gives up on one", async () => {
+  const outbox = loadOutboxForTests();
+  outbox.answerWith((url) => (url === "/api/stuck" ? outbox.reply(503) : outbox.reply(200, { accepted: true })));
+  await outbox.queue("stuck", "/api/stuck");
+  await outbox.queue("fine", "/api/fine");
+  await outbox.advance(24 * OUTBOX_TEST_HOUR_MS);
+  assert.deepEqual(await outbox.queuedIds(), [], "both are gone from the queue");
+  assert.deepEqual(outbox.sentEvents(), [
+    { id: "stuck", ok: false, response: {} },
+    { id: "fine", ok: true, response: { accepted: true } },
+  ]);
+});
+
+test("Outbox drops a queued item the server refuses with a 4xx straight away", async () => {
+  const outbox = loadOutboxForTests();
+  outbox.answerWith(() => outbox.reply(400, { error: "Bad report" }));
+  await outbox.queue("report-6", "/api/report");
+  await outbox.advance(24 * OUTBOX_TEST_HOUR_MS);
+  assert.equal(outbox.callsTo("/api/report"), 1, "a 4xx is never retried");
+  assert.deepEqual(await outbox.queuedIds(), []);
+  assert.deepEqual(outbox.sentEvents(), [{ id: "report-6", ok: false, response: { error: "Bad report" } }]);
+});
+
 runRegisteredTests().catch((error) => {
   console.error(error);
   process.exitCode = 1;
@@ -13300,9 +13985,9 @@ test("the Nearby heading names High Beach, not 'you', while far from the forest"
   resetData(app);
   useSmallForest(app);
   withRealFix(app, 51.508, -0.1281);
-  assert.match(app.overviewHeadingText(), /of High Beach/);
+  assertShowsText(app.overviewHeadingText(), "of High Beach");
   withRealFix(app, 51.6675, 0.0375);
-  assert.doesNotMatch(app.overviewHeadingText(), /High Beach/);
+  assertLacksText(app.overviewHeadingText(), "High Beach");
 });
 
 test("far from the forest the compass arrow stays hidden for a selected place", () => {
@@ -13346,10 +14031,162 @@ test("the Nearby list hides its direction arrows while far from the forest", () 
   useSmallForest(app);
   app.state.trees = [{ id: 1, commonName: "Oak", ...makePoint(app, 51.6676, 0.0375) }];
   withRealFix(app, 51.6675, 0.0375);
-  assert.match(app.overviewNearestHtml(), /aria-hidden="true">↑/, "near the forest the arrow is shown");
+  assertShowsText(app.overviewNearestHtml(), "↑", "near the forest the arrow is shown");
   withRealFix(app, 51.508, -0.1281);
   const html = app.overviewNearestHtml();
-  assert.match(html, /nearest-arrow/, "the list is still shown");
-  assert.match(html, /aria-hidden="true" hidden>↑/, "but its arrow is hidden");
-  assert.doesNotMatch(html, /aria-hidden="true">↑/);
+  assertHasElement(html, ".nearest-arrow[hidden]", "the list is still shown, with its arrow hidden");
+  assertLacksText(html, "↑", "but no arrow is visible");
+});
+
+// Hostile values from the server or from stored data, as a page would receive them. Each one would run
+// script if it reached the DOM as markup, so the rendered output must show it as text instead.
+const HOSTILE_MARKUP = '<img src=x onerror="alert(1)">';
+const HOSTILE_ATTRIBUTE = '51.6" onerror="alert(1)';
+
+// No element in the output carries a live onerror handler. Only real tags count: an escaped payload is text,
+// and its "onerror=" inside a quoted attribute value is not an attribute of anything.
+function assertNoLiveErrorHandler(html, what) {
+  const tags = html.match(/<[a-z](?:[^>"']|"[^"]*"|'[^']*')*>/gi) || [];
+  const liveHandlers = tags.filter((tag) => /\son[a-z]+\s*=/i.test(tag.replace(/"[^"]*"|'[^']*'/g, '""')));
+  assert.deepEqual(liveHandlers, [], `${what} has no element with a live onerror handler`);
+}
+
+test("a community badge shows a hostile count from the server as text, not markup", () => {
+  const html = app.communityBadgeHtml({ s: "questioned", st: "NOT_HERE", n: HOSTILE_MARKUP });
+  assert.ok(html.includes("community-badge-questioned"), "the questioned badge is still rendered");
+  assertNoLiveErrorHandler(html, "the badge");
+  assert.ok(html.includes("&lt;img src=x"), "the count is shown as escaped text");
+});
+
+test("a tree's community chip and its detail show a hostile count from the server as text", () => {
+  const target = "tree:hostile-count";
+  app.communityOverlay.entries[target] = { s: "verified", n: HOSTILE_MARKUP };
+  try {
+    const chip = app.communityVerifiedChipHtml(target);
+    const detail = app.communityVerifiedDetailHtml(target);
+    assert.ok(chip.includes("community-verified-chip"), "the verified chip is still rendered");
+    assert.ok(detail.includes("communityVerifiedDetail"), "the verified detail is still rendered");
+    assertNoLiveErrorHandler(chip, "the verified chip");
+    assertNoLiveErrorHandler(detail, "the verified detail");
+  } finally {
+    delete app.communityOverlay.entries[target];
+  }
+});
+
+test("a tree's community check keeps a hostile latitude inside its own attribute", () => {
+  const html = app.communitySectionHtml({ recordNumber: 9001, latitude: HOSTILE_ATTRIBUTE, longitude: 0.03 });
+  assert.ok(html.includes('data-community-target="tree:9001"'), "the check card is still rendered");
+  assertNoLiveErrorHandler(html, "the check card");
+});
+
+test("a place's community check keeps a hostile latitude inside its own attribute", () => {
+  const html = app.communityPlaceSectionHtml({ id: "hostile-lat", name: "Test Cafe", latitude: HOSTILE_ATTRIBUTE, longitude: 0.03, categoryLabel: "Cafe" });
+  assert.ok(html.includes("community-check-place"), "the place check card is still rendered");
+  assertNoLiveErrorHandler(html, "the place check card");
+});
+
+test("a place's community report count shows a hostile count from the server as text", () => {
+  const target = "place:hostile-count";
+  app.communityPlaceIssueCache.set(target, { total: HOSTILE_MARKUP, open: 0, items: [] });
+  try {
+    const chip = app.communityPlaceStatusChipHtml(target);
+    const detail = app.communityPlaceStatusDetailHtml(target);
+    assert.ok(chip.includes("community-verified-chip"), "the report chip is still rendered");
+    assert.ok(detail.includes("communityPlaceStatusDetail"), "the report detail is still rendered");
+    assertNoLiveErrorHandler(chip, "the report chip");
+    assertNoLiveErrorHandler(detail, "the report detail");
+  } finally {
+    app.communityPlaceIssueCache.delete(target);
+  }
+});
+
+test("a Nearby tree keeps a hostile latitude inside its own attribute", () => {
+  const html = app.renderNearestItemsHtml([{
+    type: "tree",
+    kind: "tree",
+    metres: 120,
+    item: { recordNumber: 9002, commonName: "Oak", latitude: HOSTILE_ATTRIBUTE, longitude: 0.03 },
+  }]);
+  assert.ok(html.includes("nearest-item"), "the Nearby row is still rendered");
+  assertNoLiveErrorHandler(html, "the Nearby row");
+});
+
+test("the Settings app version shows a hostile cache version as text", () => {
+  const before = app.state.swVersion;
+  app.state.swVersion = HOSTILE_MARKUP;
+  try {
+    const html = app.settingsFormHtml();
+    assert.ok(html.includes('id="appVersionDisplay"'), "the version line is still rendered");
+    assertNoLiveErrorHandler(html, "the Settings screen");
+  } finally {
+    app.state.swVersion = before;
+  }
+});
+
+test("the update status line shows a hostile update version as text", () => {
+  const nav = app.navigator;
+  const previousServiceWorker = nav.serviceWorker;
+  const previousStatus = app.state.appUpdateStatus;
+  const previousVersion = app.state.appUpdateVersion;
+  nav.serviceWorker = {};
+  app.state.appUpdateStatus = "ready";
+  app.state.appUpdateVersion = HOSTILE_MARKUP;
+  try {
+    const html = app.appUpdateStatusHtml();
+    assert.ok(html.includes('id="appUpdateStatusText"'), "the update status line is still rendered");
+    assertNoLiveErrorHandler(html, "the update status line");
+  } finally {
+    nav.serviceWorker = previousServiceWorker;
+    app.state.appUpdateStatus = previousStatus;
+    app.state.appUpdateVersion = previousVersion;
+  }
+});
+
+// admin.js runs its page code on DOMContentLoaded only, so its renderers can be loaded on their own.
+function loadAdminScriptForTests() {
+  const context = {
+    console,
+    document: {
+      addEventListener() {},
+      getElementById() { return null; },
+      querySelector() { return null; },
+      querySelectorAll() { return []; },
+    },
+  };
+  context.globalThis = context;
+  vm.createContext(context);
+  for (const file of ["js/shared.js", "js/admin.js"]) {
+    vm.runInContext(fs.readFileSync(path.join(__dirname, "..", file), "utf8"), context, { filename: file });
+  }
+  return context;
+}
+
+test("the admin community table shows hostile server labels and counts as text, not markup", () => {
+  const admin = loadAdminScriptForTests();
+  const html = admin.renderCommunityStats({ devices: HOSTILE_MARKUP, byStatus: { [HOSTILE_MARKUP]: 1 }, perDay: {} });
+  assert.ok(html.includes("<table>"), "the community table is still rendered");
+  assertNoLiveErrorHandler(html, "the admin community table");
+});
+
+test("a stop's departures show a hostile minutes value from the server as text", async () => {
+  const place = { id: "hostile-departure", name: "Test Stop", latitude: 51.6, longitude: 0.03, category: "bus_stop" };
+  const type = app.isBusCategory(place) ? "bus" : "train";
+  const previousSelected = app.state.selected;
+  const previousAppendChild = app.els.inspectorBody.appendChild;
+  let section = null;
+  app.state.transportLookupCache.set(app.transportCacheKey(place, type), {
+    stopName: "Test Stop",
+    departures: [{ line: "Central", direction: "Loughton", minutesAway: HOSTILE_MARKUP, due: false }],
+  });
+  app.state.selected = { item: place };
+  app.els.inspectorBody.appendChild = (node) => { section = node; };
+  try {
+    await app.loadTransportDepartures(place);
+    assert.ok(section && section.innerHTML.includes("departures-list"), "the departures list is still rendered");
+    assertNoLiveErrorHandler(section.innerHTML, "the departures list");
+  } finally {
+    app.els.inspectorBody.appendChild = previousAppendChild;
+    app.state.selected = previousSelected;
+    app.state.transportLookupCache.delete(app.transportCacheKey(place, type));
+  }
 });

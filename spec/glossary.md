@@ -10,7 +10,7 @@ The map canvas in the background, visible in the area not covered by the inspect
 The icon buttons in the nav bar, a fixed bottom tab bar separate from the Modal/Inspector (above it as its own card on desktop, pinned to the bottom of the screen on mobile) — in left-to-right order: Nearby, Search, Feedback, Settings. The active button is highlighted gold. Map setup is not part of this row — its stacked-layers button sits inline with the Nearby heading instead (see "Map Setup" in `spec-data-rendering.md`).
 
 **Filter rail**
-The row of category pills at the top of every Nearby view: a toggle pill per related category. A tap narrows the list in place as a temporary lens without touching the reader's saved filters (see "Nearby filter rail" in `spec-data-rendering.md`).
+The row of category pills at the top of every Nearby view: a toggle pill per related category. On plain Nearby a tap saves the filter set; on a category landing or any other view it shows the view's own set and saves that result (see "Nearby filter rail" in `spec-data-rendering.md`).
 
 ---
 
@@ -135,7 +135,7 @@ The background script (`sw.js`) that pre-caches the app shell and offline datase
 A flag `server.js` inserts into the `sw.js` response it serves (via `injectDevFlag()`), never present in the file on disk or in the production build Netlify serves untouched. It is used by tunnelled development and explicit browser-test opt-ins; ordinary loopback development does not register a worker. `sw.js` reads it into `IS_DEV` and, when true, fetches everything from the network first (cache as an offline-only fallback) instead of the production cache-first strategy. The imported cache-version markers also read the flag and prefix both cache names with `dev-` (e.g. `forest-finds-app-dev-v1`), so the About screen's app-version display and any bug report's `appVersion` read as local rather than a stuck release number.
 
 **Hash / deep link**
-The URL fragment (`#...`) that names the screen the app is on — a selection, or Map setup / Settings / Report. It is navigation state, not a label: the router (`js/app.js`) pushes a history entry per screen change and applies whatever the URL says on `popstate` / `hashchange`, so back and forward retrace the trail and a shared link opens the screen it names. See spec.md § "URL hash / navigation state".
+The URL fragment (`#...`) that names the screen the app is on — a selection, or Map setup / Settings / Report. It is navigation state, not a label: the router (`js/router.js`) pushes a history entry per screen change and applies whatever the URL says on `popstate` / `hashchange`, so back and forward retrace the trail and a shared link opens the screen it names. See spec.md § "URL hash / navigation state".
 
 **Route**
 The canonical hash payload for a screen, without the leading `#`: `""` (Nearby), `"filters"`, `"settings"`, `"report"`, or `"<kind>=<key>"` for a selection. `currentScreenRoute()` writes one from state and `applyRoute()` reads one back into state.

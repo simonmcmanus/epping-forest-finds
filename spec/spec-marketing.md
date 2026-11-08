@@ -207,7 +207,9 @@ photo scales 3%, and buttons nudge up on hover and press down on click.
 Sections, in order:
 
 1. **Hero** — the line-art longhorn (§7) as background, headline (§3.1),
-   sub-line (§3.2), and the primary CTA element (§8). The photo caption uses
+   sub-line (§3.2), and the primary CTA element (§8). The sign-up CTA is the hero's
+   one filled button; the Ledger link beside it is a secondary outline button
+   (`cta-ghost`), so the page has a single primary action. The photo caption uses
    white text on an opaque dark-green backing for contrast across the image,
    running flush to the photo's left, right and bottom edges with no inset.
    The photo uses shared 480, 768, 960, 1280 and 1600px WebP variants with
@@ -244,7 +246,8 @@ Sections, in order:
    three app screenshots: searching its number,
    following its route and viewing its estimated age. Use each screenshot
    caption for the matching explanation rather than repeating the same three
-   points in a separate list. On wide screens, keep the three cards in one
+   points in a separate list. Captions open with a bold step number, 1 to 3, in
+   the order the screenshots appear. On wide screens, keep the three cards in one
    row. Load these supporting images lazily. The navigation caption explains
    that routes try to favour scenic forest paths and alleyways, without
    guaranteeing them. The screenshots are interim real captures from the app
@@ -282,7 +285,9 @@ Sections, in order:
    by thin rules — three columns on wide screens, stacked on mobile — with a
    small circled arrow on each rule showing the sequence. The card's footer is a
    green-tinted strip with the cow icon explaining that fresh cattle locations
-   require a connection and saved positions may be stale.
+   require a connection and saved positions may be stale. The strip's title and
+   text use the steps' own sizes (`.steps strong`, `.steps span`), so the card
+   reads as one type scale.
 7. **FAQ** — headed “Good to know”, after the offline section, with `FAQPage` JSON-LD (§6.3).
    Covers signal, cost/account, tree data, cattle positions and coverage.
    The tree-data answer credits the City of London, acknowledges possible
@@ -308,7 +313,10 @@ Sections, in order:
    longer descriptions. The primary button
    links directly to that latest edition; an “All editions” link still leads to
    `/reports/`. Without JavaScript, the primary link remains a working route to
-   the editions index and the summary is omitted rather than becoming stale.
+   the editions index and the summary is omitted rather than becoming stale. The
+   preview container ships `hidden` and is shown only once a real edition's summary
+   and stories have rendered, so a visitor without JavaScript, or one whose edition
+   cannot load, never sees the placeholder line.
 9. **Footer** — "Created and curated by AI with oversight from Simon McManus"
    (linking to `simonmcmanus.com`), an "AI can make mistakes, please report
    them here" GitHub issues link, and `/terms.html`. No separate
@@ -332,7 +340,9 @@ speech bubble (`faq.png`); “No signal? Here’s the plan” uses a phone showi
 saved map (`offline.png`). Both sit beside their headings at 44px. The tree-tag section heading carries a
 numbered metal-tag icon based on the adjacent photograph; the photograph stays
 as the real-world example. Their masters and prompts live in
-`assets/home/icon-sources/`. The reports index reuses the Ledger PNG.
+`assets/home/icon-sources/`. The reports index reuses the Ledger PNG. The
+community section heading uses the map pin (`map-icons/pin.png`), not the
+tree-tag icon of the tree-tags section above it.
 
 The `/contribute` explainer's nine card icons (register, two people, reviewed
 place, tag number, standing by a tree, and the Seedling, Sapling, Woodward and
@@ -510,7 +520,7 @@ writing a standalone page. Only two things are swapped:
   renders, the same way it already overwrites that paragraph on `/nearby`
   today.
 
-`js/app.js`'s boot sequence (`applyShowFilterFromQuery`) reads the category
+`js/app.js`'s boot sequence (`applyShowFilterFromQuery` in `js/router.js`) reads the category
 straight out of the URL path (`filterKeysFromFindPath`, reversing the
 hyphen-for-underscore slug) and calls the existing `setOverviewFilters(keys)`
 — a subfilter page resolves to that one key, a group page to every member
@@ -592,7 +602,7 @@ branches.
   description phrase for. `cows` and `events` do each still get their own
   page (`/nearby/cows/`, `/nearby/events/`) — `renderCowsPage`/`renderEventsPage`
   generate them directly in `generate()`, outside `collectPages`, since both
-  are real filter keys `filterKeysFromFindPath` (`js/app.js`) already
+  are real filter keys `filterKeysFromFindPath` (`js/router.js`) already
   resolves like any other subfilter slug; their content is honest about
   having no fixed count/list to show rather than one manufactured to look
   like a normal category page's.
@@ -723,7 +733,7 @@ branches.
   landing and the bare `/nearby` index.** `staticFilterRailHtml()` (`scripts/generate-find-pages.js`)
   mirrors `filterRailHtml()` (`js/app.js`) with the same `filter-rail`/`rail-pills`/`rail-pill`
   structure, icons, labels and tick/cross states. Its pills are anchors before JavaScript boots,
-  so crawlers and no-JS visitors can still open a category lens; the first "All nearby" link
+  so crawlers and no-JS visitors can still open a category view; the first "All nearby" link
   targets `/nearby?filters=false`. A category landing shows that group's subcategory pills,
   while bare `/nearby` shows top-level groups using the generated default filter set. Once JS
   boots, `swapStaticChipsForRail()` (`js/inspector.js`) replaces the server-rendered anchors with
@@ -762,7 +772,7 @@ branches.
   way — the nearest-item list above is what actually satisfies "the same
   content, live or not."
 - **Every category/subcategory page keeps its sibling categories and the All nearby reset in the
-  server-rendered rail**, so a no-JS visitor can always leave a category lens without relying on
+  server-rendered rail**, so a no-JS visitor can always leave a category view without relying on
   browser history.
 - **Title tags state the page's own real content, not a repeated generic
   phrase.** A subfilter page's title leads with its count (`"129 Pubs & Bars
@@ -852,7 +862,7 @@ use for the homepage's counts.
   `tel:` link.
 - **Landing on `/find/<slug>/` selects that exact business, through the
   app's own ordinary deep-link path — no separate mechanism of its own.**
-  `routeValueFromLocation()` (`js/app.js`) resolves the URL to the same
+  `routeValueFromLocation()` (`js/router.js`) resolves the URL to the same
   `place=<hashKey>` value a `#place=<key>` hash already would (via
   `findPlaceByFindSlug`, a reverse lookup over the loaded landmarks), so
   `applySelectionFromHash()` — the same boot step that opens a tree or place
@@ -862,7 +872,7 @@ use for the homepage's counts.
   selection path existed that anchor was always immediately overwritten by
   the selection itself — `showRoutedSelection` clears `state.nearbyAnchor`
   — so it was removed as dead weight.) The no-JS fallback is the
-  server-rendered content itself. `isLandingPageArrival()` (`js/app.js`,
+  server-rendered content itself. `isLandingPageArrival()` (`js/router.js`,
   "Onboarding" in `spec.md`) also recognises a `/find/<slug>/` path, the
   same as `/nearby/<slug>/` — without it, a genuine first-time visitor
   (not just a returning one) landed on the first-run onboarding wizard
@@ -929,7 +939,7 @@ use for the homepage's counts.
   click handler on `#inspectorBody` (`js/nav.js`) now intercepts a click on
   any such link (skipping `target="_blank"` links — Open in Maps, external
   website/source rows — and a modified click, both left to the browser as
-  normal) and calls `navigateInApp(href)` (`js/app.js`): the same
+  normal) and calls `navigateInApp(href)` (`js/router.js`): the same
   `history.pushState` shape `setHashFromSelection` already uses, followed by
   `applyRouteFromUrl()` — the same entry point the back/forward buttons and
   a hand-edited hash already use — so an intercepted link behaves exactly
@@ -1060,7 +1070,12 @@ which addresses are on the list is an enumeration oracle.
   was sent or exposing whether the address is already listed.
 - While sending, the form stays visible with a disabled submit button and busy
   state; repeated submissions are ignored. Errors preserve the address and restore
-  the button so the visitor can retry.
+  the button so the visitor can retry. An address that EmailOctopus itself
+  refuses (a 400 or 422 answer, for example one that passes the loose local
+  check but is not a deliverable address) gets a 400 reading "We could not add
+  that address. Please check it and try again."; a refusal for any other reason
+  (a rate limit, a service fault, a configuration problem) gets the
+  "temporarily unavailable" message as a 502.
 - On success, the entire signup introduction and form are hidden and replaced by
   a dedicated panel: an envelope illustration marked with a gold **2** badge,
   **“Step 2 of 2”**, **“Confirm your email to finish”**, instructions to check
@@ -1166,10 +1181,15 @@ The homepage uses the Ledger's editorial palette and typography:
 
 Theme colour stays `#24382f`. `Fraunces` is used for display headings and
 `Public Sans` for body copy, loaded with `display=swap`; this deliberately
-matches the Ledger while preserving an immediate system-font fallback.
+matches the Ledger while preserving an immediate system-font fallback. The
+public `/contribute` and `/terms.html` pages load the same two faces and use the
+same body stack, so every public page reads as one site.
 
 No new colours. If the design appears to need one, the answer is a different
-weight or opacity of an existing token.
+weight or opacity of an existing token. Known exceptions, kept until a palette
+decision retires them: the cream FAQ target highlight and sign-up card, the
+Ledger's amber and brown type labels, and the `/contribute` rank tiles. No
+existing token is close enough to substitute for them.
 
 ## 12. Testing
 

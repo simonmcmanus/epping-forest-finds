@@ -249,9 +249,9 @@ function appUpdateStatusHtml() {
   // No service worker (a native shell, an old browser) means no web update flow to report.
   if (serviceWorkerDisabled || !("serviceWorker" in navigator)) return "";
   const view = appUpdateStatusView();
-  const checkedAt = view.checkedAt ? ` <span id="appUpdateCheckedAt">${view.checkedAt}</span>` : "";
+  const checkedAt = view.checkedAt ? ` <span id="appUpdateCheckedAt">${escapeHtml(view.checkedAt)}</span>` : "";
   return `<div id="appUpdateStatus" class="settings-update" data-status="${view.status}">
-        <p id="appUpdateStatusText" class="settings-description" role="status" aria-live="polite">${view.text}${checkedAt}</p>
+        <p id="appUpdateStatusText" class="settings-description" role="status" aria-live="polite">${escapeHtml(view.text)}${checkedAt}</p>
         <button id="appUpdateButton" class="settings-btn" type="button"${view.disabled ? " disabled" : ""}>${view.label}</button>
       </div>`;
 }
@@ -1065,18 +1065,20 @@ function setupFilterPanelHandlers() {
   if (els.nearbyToggle) {
     els.nearbyToggle.addEventListener("click", (event) => {
       event.preventDefault();
-      const onPlainNearby = window.location.pathname === NEARBY_PATH
-        && !window.location.search
-        && !window.location.hash
-        && !state.nearbyAnchor;
-      const alreadyOnNearby = els.nearbyToggle.classList.contains("screen-active")
-        && !els.inspector.classList.contains("minimized");
-      if (alreadyOnNearby) {
-        // Already on the Nearby screen: shake it in place rather than sliding it out and back in.
-        // A browse anchor or query still needs the list refreshed, but without the screen-entry slide.
-        shakeInspectorSheet();
-        if (!onPlainNearby) goToInitialView(true, { enterAnimated: false });
-        return;
+      // While Nearby is the screen, a tap is a refit that keeps what the reader set up, on any plain
+      // Nearby URL. Only a real category landing page (its own URL) and a press from another screen
+      // take the full return, which restores the saved filters and clears the view state.
+      if (els.nearbyToggle.classList.contains("screen-active")) {
+        if (!isNearbyCategoryLandingPath()) {
+          nearbyRetap();
+          return;
+        }
+        // A landing re-tap on the open sheet still takes the full return, but without the slide.
+        if (!els.inspector.classList.contains("minimized")) {
+          shakeInspectorSheet();
+          goToInitialView(true, { enterAnimated: false });
+          return;
+        }
       }
       goToInitialView();
     });
@@ -1563,10 +1565,15 @@ function focusNearbyWithinWalkMinutes(latitude, longitude, minutes, label = null
   state.nearbyAnchor = { latitude, longitude, point: projectLonLat(longitude, latitude), label };
   state.walkingDistanceMinutes = minutes;
   state.outOfRadiusRevealFilters = [];
-  // "Everything" means every category, not the reader's saved filter set -- same override the
-  // /nearby?filters=false link gets (applyShowFilterFromQuery, js/app.js). Ephemeral, so the
-  // saved filters come back as soon as the reader leaves this view.
-  setOverviewFilters(Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: false, render: false });
+  // "Everything" here is a view: every category on screen, with the reader's saved set left as it was. A view
+  // with no location fix would list every place in every category, and there is no origin to sort them from,
+  // so without a location it keeps the saved set instead: the Nearby list then asks for a location.
+  if (state.userLocation) {
+    setOverviewFilters(Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: false, render: false });
+  } else {
+    setOverviewFilters(loadStoredOverviewFilters(), { persist: false, render: false });
+    state.overviewFiltersEphemeral = false;
+  }
   exitClusterExpansion({ restoreRadius: false });
   refreshNearbyRadiusView({ animate: false });
   pushNearbyAnchorHistory();
@@ -2526,6 +2533,40 @@ function setInspectorMinimized(minimized) {
   if (typeof updateCompassOverlay === "function") updateCompassOverlay();
 }
 
+// The camera half of returning to Nearby: an animated refit to the Nearby ring fit, or the whole
+// data bounds when there is no location yet. It changes nothing else, so the Nearby button's own
+// re-tap can use it without the rest of goToInitialView()'s resets.
+function refitNearbyRingView() {
+  if (state.userLocation) {
+    ensureOverviewTargetsVisible({ animate: true, durationMs: HEADING_UP_NAV_ANIMATION_MS, force: true });
+  } else {
+    fitToBounds(false, { animate: true, durationMs: HEADING_UP_NAV_ANIMATION_MS });
+  }
+}
+
+// A Nearby tap while Nearby is the screen, on a plain Nearby URL. Reopens the sheet if it was minimised:
+// the rail level, the picks and an expanded cluster are kept, and the refit runs once the sheet has opened
+// (the height transition, as goToInitialView does). On the open sheet it shakes in place, collapses the rail
+// to its top level and leaves an expanded cluster, so the reader's own walking radius comes back. The picks
+// and the browse anchor are kept either way; the compass heading is kept too.
+function nearbyRetap() {
+  if (els.inspector.classList.contains("minimized")) {
+    setInspectorMinimized(false);
+    selectOverview(false);
+    onInspectorHeightTransitionEnd(refitNearbyRingView);
+    return;
+  }
+  shakeInspectorSheet();
+  state.nearbyRailGroupKey = undefined;
+  exitClusterExpansion();
+  state.clusterZoomed = false;
+  railPatchPending = true;
+  selectOverview(false);
+  // selectOverview returns early when the list is unchanged, so the flag is cleared here regardless.
+  railPatchPending = false;
+  refitNearbyRingView();
+}
+
 function goToInitialView(updateHash = true, { enterAnimated = true } = {}) {
   // If compass hasn't fired in >5 s, clear the heading so the map goes north-up
   // rather than showing a frozen direction when the user returns to the overview.
@@ -2576,13 +2617,7 @@ function goToInitialView(updateHash = true, { enterAnimated = true } = {}) {
   _serverRenderedNearbyList = false;
   selectOverview(enterAnimated);
   setInspectorMinimized(false);
-  const refitOverview = () => {
-    if (state.userLocation) {
-      ensureOverviewTargetsVisible({ animate: true, durationMs: HEADING_UP_NAV_ANIMATION_MS, force: true });
-    } else {
-      fitToBounds(false, { animate: true, durationMs: HEADING_UP_NAV_ANIMATION_MS });
-    }
-  };
+  const refitOverview = () => refitNearbyRingView();
   if (wasMinimized) {
     // Wait for the panel's own height transition, not whichever descendant transition happens
     // to end first -- see onInspectorHeightTransitionEnd (js/inspector.js).

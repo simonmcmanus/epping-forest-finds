@@ -155,6 +155,30 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator("#latestLedgerLink")).toHaveAttribute("href", "/reports/");
   });
 
+  test("omits the Ledger placeholder without JavaScript and keeps the Ledger link working", async ({ browser }) => {
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    const page = await context.newPage();
+    try {
+      await page.goto("/");
+      // The placeholder text is only ever a stand-in while a real edition loads, so a visitor who
+      // gets no script sees the Ledger card's own link and nothing that could go stale.
+      await expect(page.locator("#ledgerLatest")).toBeHidden();
+      await expect(page.locator("#latestLedgerLink")).toBeVisible();
+      await expect(page.locator("#latestLedgerLink")).toHaveAttribute("href", "/reports/");
+    } finally { await context.close(); }
+  });
+
+  test("offers one filled call to action in the hero, with the Ledger link secondary", async ({ page }) => {
+    await page.goto("/");
+    const hero = page.locator(".hero .cta-btn");
+    await expect(hero).toHaveCount(2);
+    const filled = await hero.evaluateAll((buttons) =>
+      buttons.filter((button) => getComputedStyle(button).backgroundColor !== "rgba(0, 0, 0, 0)").length);
+    expect(filled).toBe(1);
+    await expect(hero.filter({ hasText: "Keep me in the loop" })).toHaveCSS("background-color", "rgb(255, 255, 255)");
+    await expect(hero.filter({ hasText: "Read the latest Ledger" })).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  });
+
   test("explains what the app is without needing JavaScript", async ({ browser }) => {
     const context = await browser.newContext({ javaScriptEnabled: false });
     const page = await context.newPage();
@@ -187,7 +211,7 @@ test.describe("the marketing homepage", () => {
   test("states the offline promise, the trees and the cattle", async ({ page }) => {
     await page.goto("/");
 
-    await expect(page.getByRole("heading", { name: /Works where your phone doesn't/i })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Works where your phone doesn’t/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Get to know the old trees/i })).toBeVisible();
     await expect(page.getByRole("heading", { name: /Follow the longhorns/i })).toBeVisible();
     await expect(page.locator(".hero + .counts + .ledger + .signup + .pillars + #find-trees")).toHaveCount(1);
@@ -254,7 +278,7 @@ test.describe("the marketing homepage", () => {
     await expect(trees).toContainText("recorded girth and species");
     await expect(trees).toContainText("not an exact birthday");
     await expect(trees.locator(".tag-story figcaption")).toHaveText([
-      "Search veteran trees by tag, common or Latin name — or find places by name or category. Results are ranked by relevance and nearby distance.",
+      "1. Look it up. Search veteran trees by tag, common or Latin name — or find places by name or category. Results are ranked by relevance and nearby distance.",
       "2. Find your way there. Get a route that aims to favour forest paths and alleyways. Check the tag when you arrive.",
       "3. See its estimated age. An estimate from recorded girth and species, where available — not an exact birthday."
     ]);
