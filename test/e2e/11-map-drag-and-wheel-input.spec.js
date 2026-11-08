@@ -91,11 +91,11 @@ test.describe("Map drag input while camera auto-repositions", () => {
   });
 });
 
-// The wheel is a laptop's version of the phone's two-finger radius pinch: on every screen that
-// draws the walking-radius ring it resizes that ring, and the camera follows because the Nearby
-// fit frames the ring and nothing else. It must never apply a raw pointer-anchored zoom on top
-// of that -- the original bug here was zoomAt() multiplying the scale before deferring to
-// alignHeadingUpNavigationViewport(), so wheel input settled at an unpredictable value.
+// The wheel is a laptop's version of the phone's two-finger pinch. Within 24px of the walking-radius
+// ring (on every screen that draws it) it resizes that ring, and the camera follows because the
+// Nearby fit frames the ring and nothing else. Anywhere else it zooms the map toward the cursor and
+// pins the camera there (state.manualPose; see 50-map-manual-pose.spec.js). The ring-resize
+// assertions below therefore point the cursor at the ring.
 test.describe("Wheel and trackpad input on the Nearby screen", () => {
   test.use({
     geolocation: FOREST_LOCATION,
@@ -115,6 +115,40 @@ test.describe("Wheel and trackpad input on the Nearby screen", () => {
     return page.locator("#mapCanvas").boundingBox();
   }
 
+  // A client-space point on the ring that a real pointer reaches (not covered by the sheet).
+  async function pointOnRing(page) {
+    return page.evaluate(() => {
+      const dpr = pixelRatio();
+      const rect = (els.mapStage || els.canvas).getBoundingClientRect();
+      for (const p of walkingRadiusCirclePoints(64)) {
+        const s = worldToScreen(p);
+        const c = { x: rect.left + s.x / dpr, y: rect.top + s.y / dpr };
+        if (c.x > rect.left + 20 && c.x < rect.right - 20 && c.y > rect.top + 20 && c.y < rect.bottom - 20
+          && document.elementFromPoint(c.x, c.y) === els.canvas) return c;
+      }
+      return null;
+    });
+  }
+
+  // A client-space point over the bare map, farthest from the ring among those a pointer reaches.
+  async function pointAwayFromRing(page) {
+    return page.evaluate(() => {
+      const dpr = pixelRatio();
+      const rect = (els.mapStage || els.canvas).getBoundingClientRect();
+      const ring = walkingRadiusCirclePoints(64).map((p) => worldToScreen(p));
+      let best = null;
+      let bestDistance = 0;
+      for (let x = rect.left + 40; x < rect.right - 40; x += 20) {
+        for (let y = rect.top + 40; y < rect.bottom - 40; y += 20) {
+          if (document.elementFromPoint(x, y) !== els.canvas) continue;
+          const d = Math.min(...ring.map((s) => Math.hypot(rect.left + s.x / dpr - x, rect.top + s.y / dpr - y)));
+          if (d > bestDistance) { bestDistance = d; best = { x, y }; }
+        }
+      }
+      return best;
+    });
+  }
+
   // The radius gesture ends on a timeout and settles the camera with an animation, so the scale
   // is only meaningful once it has stopped moving.
   async function settledScale(page) {
@@ -131,15 +165,15 @@ test.describe("Wheel and trackpad input on the Nearby screen", () => {
     return previous;
   }
 
-  test("scrolling the wheel zooms by resizing the walking radius, both ways", async ({ page }) => {
-    const box = await openNearbyHeadingUp(page);
+  test("scrolling the wheel over the ring resizes the walking radius, both ways", async ({ page }) => {
+    await openNearbyHeadingUp(page);
     const before = await page.evaluate(() => state.walkingDistanceMinutes);
     const beforeScale = await settledScale(page);
 
-    // Well away from the user's on-screen anchor point (but still over the map, not the chrome
-    // around it): a raw pointer-anchored zoom would move the viewport away from the ring's own
-    // fit, while resizing the ring does not care where the cursor is.
-    await page.mouse.move(box.x + box.width * 0.25, box.y + box.height * 0.25);
+    // Within the ring's 24px band: resizing the ring, not a raw pointer-anchored map zoom.
+    const ring = await pointOnRing(page);
+    expect(ring).not.toBeNull();
+    await page.mouse.move(ring.x, ring.y);
     await page.mouse.wheel(0, -600);
 
     await expect.poll(() => page.evaluate(() => state.walkingDistanceMinutes)).toBeLessThan(before);
@@ -153,25 +187,45 @@ test.describe("Wheel and trackpad input on the Nearby screen", () => {
     });
     expect(Math.abs(refit - zoomedInScale)).toBeLessThan(zoomedInScale * 0.01);
 
-    // And scrolling the other way widens the ring again.
+    // And scrolling the other way widens the ring again (the ring moved under the cursor, so aim at it).
     const tight = await page.evaluate(() => state.walkingDistanceMinutes);
+    const ringAgain = await pointOnRing(page);
+    await page.mouse.move(ringAgain.x, ringAgain.y);
     await page.mouse.wheel(0, 600);
     await expect.poll(() => page.evaluate(() => state.walkingDistanceMinutes)).toBeGreaterThan(tight);
     expect(await settledScale(page)).toBeLessThan(zoomedInScale);
   });
 
-  test("a laptop trackpad pinch resizes the radius the same way", async ({ page }) => {
-    const box = await openNearbyHeadingUp(page);
+  test("a laptop trackpad pinch over the ring resizes the radius the same way", async ({ page }) => {
+    await openNearbyHeadingUp(page);
     const before = await page.evaluate(() => state.walkingDistanceMinutes);
 
     // Every desktop browser reports a trackpad pinch as a wheel with ctrlKey set, in deltas far
     // smaller than a wheel notch -- which is why the gesture accumulates its own running value.
-    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    const ring = await pointOnRing(page);
+    expect(ring).not.toBeNull();
+    await page.mouse.move(ring.x, ring.y);
     await page.keyboard.down("Control");
     for (let i = 0; i < 8; i += 1) await page.mouse.wheel(0, -8);
     await page.keyboard.up("Control");
 
     await expect.poll(() => page.evaluate(() => state.walkingDistanceMinutes)).toBeLessThan(before);
+  });
+
+  test("a trackpad pinch away from the ring zooms the map and leaves the radius alone", async ({ page }) => {
+    await openNearbyHeadingUp(page);
+    const before = {
+      minutes: await page.evaluate(() => state.walkingDistanceMinutes),
+      scale: await settledScale(page),
+    };
+    const away = await pointAwayFromRing(page);
+    await page.mouse.move(away.x, away.y);
+    await page.keyboard.down("Control");
+    // Zooming out: the Nearby fit already sits near the deepest zoom, so out has the headroom.
+    for (let i = 0; i < 8; i += 1) await page.mouse.wheel(0, 8);
+    await page.keyboard.up("Control");
+    await expect.poll(() => page.evaluate(() => state.viewport.scale)).toBeLessThan(before.scale * 0.95);
+    expect(await page.evaluate(() => state.walkingDistanceMinutes)).toBe(before.minutes);
   });
 
   test("with a location selected the wheel still zooms the map itself", async ({ page }) => {

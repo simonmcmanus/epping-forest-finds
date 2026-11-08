@@ -59,9 +59,13 @@ async function mapProbe(page) {
     const rect = (els.mapStage || els.canvas).getBoundingClientRect();
     const ring = walkingRadiusCirclePoints(64).map((p) => worldToScreen(p));
     const toClient = (p) => ({ x: rect.left + p.x / dpr, y: rect.top + p.y / dpr });
-    const ringDistance = (c) => Math.min(...ring.map((p) => {
-      const q = toClient(p);
-      return Math.hypot(q.x - c.x, q.y - c.y);
+    const ringDistance = (c) => Math.min(...ring.map((p, i) => {
+      const a = toClient(p);
+      const b = toClient(ring[(i + 1) % ring.length]);
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const t = Math.max(0, Math.min(1, ((c.x - a.x) * dx + (c.y - a.y) * dy) / (dx * dx + dy * dy)));
+      return Math.hypot(c.x - (a.x + t * dx), c.y - (a.y + t * dy));
     }));
     const onCanvas = (c) => c.x > rect.left + 40 && c.x < rect.right - 40 && c.y > rect.top + 80
       && c.y < rect.bottom - 40 && document.elementFromPoint(c.x, c.y) === els.canvas;
@@ -210,10 +214,11 @@ test.describe("Map manual pose", () => {
     let probe = await mapProbe(page);
     const start = await page.evaluate(() => ({ minutes: state.walkingDistanceMinutes, scale: state.viewport.scale }));
 
-    await pinchSpread(page, { x: probe.offRing.x - 30, y: probe.offRing.y }, { x: probe.offRing.x + 30, y: probe.offRing.y });
+    // Fingers closing: zooms out, which has headroom (the fit sits near the deepest zoom).
+    await pinchSpread(page, { x: probe.offRing.x - 60, y: probe.offRing.y }, { x: probe.offRing.x + 60, y: probe.offRing.y }, -80);
     await waitForFrames(page, 3);
     const mapZoom = await page.evaluate(() => ({ minutes: state.walkingDistanceMinutes, scale: state.viewport.scale }));
-    expect(mapZoom.scale, "the map zoomed").toBeGreaterThan(start.scale * 1.3);
+    expect(mapZoom.scale, "the map zoomed out").toBeLessThan(start.scale * 0.8);
     expect(mapZoom.minutes, "the radius was left alone").toBe(start.minutes);
 
     await page.reload();
@@ -229,20 +234,32 @@ test.describe("Map manual pose", () => {
   test("selecting a place clears the pose; dismissing the sheet does not", async ({ page }) => {
     await openNearby(page);
     await settle(page);
-    const probe = await mapProbe(page);
+    let probe = await mapProbe(page);
     await drag(page, probe.offRing, { x: probe.offRing.x + 50, y: probe.offRing.y + 30 });
     await waitForFrames(page, 3);
     expect(await page.evaluate(() => Boolean(state.manualPose))).toBe(true);
 
-    await page.locator("#closeInspector").click();
-    await expect(page.locator("#inspector")).toHaveClass(/minimized/);
-    expect(await page.evaluate(() => Boolean(state.manualPose)), "a sheet dismiss keeps the pose").toBe(true);
-    await page.locator("#closeInspector").click();
-    await expect(page.locator("#inspector")).not.toHaveClass(/minimized/);
-
     await page.locator("#inspectorBody .nearest-item").first().click();
     await expect.poll(() => page.evaluate(() => Boolean(state.selected && state.selected.item))).toBe(true);
     expect(await page.evaluate(() => Boolean(state.manualPose)), "selecting a place clears it").toBe(false);
+
+    // Back on Nearby (a pan only counts once the map is the Nearby view again).
+    await page.locator("#nearbyToggle").click();
+    await expect.poll(() => page.evaluate(() => state.selected === null)).toBe(true);
+    await settle(page);
+    probe = await mapProbe(page);
+    await drag(page, probe.offRing, { x: probe.offRing.x - 40, y: probe.offRing.y + 30 });
+    await waitForFrames(page, 3);
+    expect(await page.evaluate(() => Boolean(state.manualPose))).toBe(true);
+
+    // Minimising the sheet and bringing it back, and a visit to Settings and back, keep the pan.
+    await page.evaluate(() => { setInspectorMinimized(true); setInspectorMinimized(false); });
+    expect(await page.evaluate(() => Boolean(state.manualPose)), "a sheet dismiss keeps the pose").toBe(true);
+    await page.locator("#settingsToggle").click();
+    await expect.poll(() => page.evaluate(() => state.selected && state.selected.type)).toBe("settings");
+    await page.locator("#nearbyToggle").click();
+    await expect.poll(() => page.evaluate(() => state.selected === null)).toBe(true);
+    expect(await page.evaluate(() => Boolean(state.manualPose)), "returning from Settings keeps the pose").toBe(true);
   });
 
   test("panning does not change near=", async ({ page }) => {

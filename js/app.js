@@ -219,6 +219,8 @@ const state = {
   cameraOriginTransition: null,
   activePointers: new Map(),
   pinchActive: false,
+  mapPinch: null, // { distance, midpoint } while a two-finger pinch is zooming the map rather than the radius
+  gestureMap: null, // Safari trackpad pinch zooming the map (see setupMapCanvasHandlers)
   pinchBaseDistance: null,
   pinchBaseMinutes: null,
   multiTouchOccurred: false,
@@ -230,6 +232,14 @@ const state = {
   // than held as a flag so picking a different location hands the camera straight back,
   // with nothing to remember to reset.
   manualCameraOverrideFor: null,
+  // The user's own camera, set by a one-finger drag, a two-finger pinch or a wheel/trackpad zoom on
+  // the map, on any screen (see setManualPose). While it is set the camera holds where they left it:
+  // GPS fixes, compass turns and filter refits do not move it. null when the app owns the camera.
+  // Precedence against manualCameraOverrideFor above: that one is keyed on the current selection and
+  // only stands down the selected place's own "keep me and the place framed" follow; the pose is the
+  // stronger, screen-independent hold. Both are set by the same gesture, and selecting a place clears
+  // both (ensureUserAndSelectionVisible force / animateToHeadingUpNavigationViewport).
+  manualPose: null,
   userInMapArea: false,
   nearestTree: null,
   nearestCow: null,
@@ -1819,29 +1829,49 @@ function inspectorCanvasOverlapRect({ assumeInspectorOpen = false } = {}) {
 function zoomAt(factor, screenPoint) {
   if (!state.bounds) return;
   stopViewportAnimation();
-  // Heading-up mode (nearby or selected-navigation) locks pan/zoom to the fitted
-  // target -- see alignHeadingUpNavigationViewport() and the pointermove handler in
-  // js/nav.js, which treats drag the same way. Applying the raw pointer-anchored
-  // zoom below first (as this used to) fought that fit on every wheel tick: pan
-  // always snapped back to the user anchor while the scale was only sometimes
-  // overridden, so scrolling didn't reliably zoom toward the cursor or settle
-  // anywhere predictable. Route wheel input through the same re-fit as everything
-  // else instead, with force:true since this is an explicit user gesture.
-  if (navigationAnchorActive()) {
-    alignHeadingUpNavigationViewport({ force: true });
-    requestDraw();
-    return;
-  }
-  // A selection's auto-reposition is not a lock (unlike heading-up above): wheel/trackpad
-  // zoom is an explicit request, so take the camera over and apply it. Re-running the fit
-  // here instead -- as this used to -- meant the wheel did nothing at all whenever a
-  // location was selected with the inspector open, since the fit is already satisfied.
+  // Wheel, trackpad and pinch zoom are explicit requests to take the camera over: on every screen,
+  // including heading-up and a selected place, the zoom is applied about the pointer and the pose
+  // holds it there (alignHeadingUpNavigationViewport stands down while state.manualPose is set).
+  // This used to force a refit whenever a navigation anchor was active, so the wheel never zoomed.
+  setManualPose();
   if (shouldAutoRepositionSelection()) markManualCameraOverride();
   const before = screenToWorld(screenPoint.x, screenPoint.y);
-  state.viewport.scale = clamp(state.viewport.scale * factor, state.fitScale * 0.65, state.fitScale * 220);
-  state.viewport.tx = screenPoint.x - before.x * state.viewport.scale;
-  state.viewport.ty = screenPoint.y - before.y * state.viewport.scale;
+  const scale = clamp(state.viewport.scale * factor, state.fitScale * 0.65, state.fitScale * 220);
+  const rotation = navigationMapRotationDegrees();
+  const origin = rotation && state.userLocation && !tiltActive() ? cameraOriginPoint() : null;
+  if (origin) {
+    // The map turns about the camera origin, so keeping `before` under the pointer means solving
+    // through that rotation rather than the plain scale-and-translate below.
+    const offset = rotateScreenPoint(
+      { x: (before.x - origin.x) * scale, y: (before.y - origin.y) * scale },
+      { x: 0, y: 0 },
+      rotation,
+    );
+    state.viewport.tx = screenPoint.x - origin.x * scale - offset.x;
+    state.viewport.ty = screenPoint.y - origin.y * scale - offset.y;
+  } else {
+    state.viewport.tx = screenPoint.x - before.x * scale;
+    state.viewport.ty = screenPoint.y - before.y * scale;
+  }
+  state.viewport.scale = scale;
   requestDraw();
+}
+
+// The user has taken the camera: hold it where they left it. Needs a location, since without one
+// nothing re-fits the camera in the first place and the first fix should still frame the user.
+function setManualPose() {
+  if (!state.userLocation) return;
+  state.manualPose = { at: performance.now() };
+}
+
+function manualPoseActive() {
+  return Boolean(state.manualPose);
+}
+
+// Hands the camera back to the app. Called on recentre (a later control), a tap that relocates the
+// Nearby anchor, selecting a place, a radius change, and a real return to Nearby.
+function clearManualPose() {
+  state.manualPose = null;
 }
 
 function attachNearbyRailScrollHints(root = els.inspectorBody) {
@@ -4276,6 +4306,8 @@ function computeNearbyRenderOriginPoint() {
 // origin -- so relocating again mid-slide continues from what is on screen instead of
 // jumping back to where the last slide began.
 function startNearbyOriginTransition(fromPoint) {
+  // Every Nearby anchor move (a tap to relocate, a cluster tap, history) re-frames the camera.
+  clearManualPose();
   // The frame freeze above would otherwise hand the camera the pre-move origin for the rest
   // of this frame -- including the align refreshNearbyRadiusView runs immediately after.
   _nearbyRenderOriginCache = undefined;
@@ -5345,6 +5377,10 @@ function alignHeadingUpNavigationViewport(options = {}) {
   // Search and typing, and after clearing a query. The camera stays wherever it was for as long as
   // Search is open; leaving Search runs its own refit (goToInitialView) after the screen is closed.
   if (state.searchScreenOpen) return false;
+  // The user's own pan or zoom (state.manualPose) pins the camera. GPS fixes, compass turns and
+  // filter refits all arrive here, and none of them move it; the callers that do hand the camera
+  // back (selection, anchor move, radius change, return to Nearby) clear the pose first.
+  if (manualPoseActive()) return false;
   // Every secondary screen (Filters, Settings, Feedback, Community) holds the camera the same way:
   // opening one leaves the camera where it was, and so does a plain GPS fix or compass tick, which
   // call this with no options. Without it, opening one from a zoomed-in place and then getting a fix
@@ -5480,6 +5516,8 @@ function clearHeadingUpCanvasTransform() {
 
 function animateToHeadingUpNavigationViewport(durationMs = HEADING_UP_NAV_ANIMATION_MS, options = {}) {
   if (!selectedNavigationHeadingUpActive()) return;
+  // Selecting a place hands the camera back to the app.
+  clearManualPose();
   clearHeadingUpCanvasTransform();
   state.selectionTransition.viewportPending = false;
   const safeDuration = Math.max(MIN_HEADING_UP_ANIMATION_MS, Number(durationMs) || HEADING_UP_NAV_ANIMATION_MS);
@@ -5677,10 +5715,8 @@ function manualCameraOverrideActive() {
 }
 
 // Records that the user has taken the camera into their own hands for the current
-// selection. Heading-up modes are exempt: those genuinely do lock the viewport to a fitted
-// target (see zoomAt below), so there is no manual position to preserve.
+// selection (the follow-stands-down flag; the screen-independent hold is state.manualPose).
 function markManualCameraOverride() {
-  if (typeof headingUpActive === "function" && headingUpActive()) return;
   state.manualCameraOverrideFor = state.selected;
 }
 
@@ -5714,8 +5750,10 @@ function ensureUserAndSelectionVisible(options = {}) {
   // Unforced calls are the GPS follow, which must not fight a camera the user has moved by
   // hand -- the watchPosition handler calls this on every fix, so without this check a
   // panned-away map was dragged back to the fit roughly once a second.
-  if (options.force) clearManualCameraOverride();
-  else if (manualCameraOverrideActive()) return;
+  if (options.force) {
+    clearManualCameraOverride();
+    clearManualPose();
+  } else if (manualCameraOverrideActive() || manualPoseActive()) return;
   const shouldAnimate = options.animate !== false;
 
   // No shared location: there is no origin to fit the selection against, so the view simply centres

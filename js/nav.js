@@ -1435,6 +1435,8 @@ function refreshNearbyRadiusView(options = {}) {
 
 function applyWalkingRadiusChange(minutes, options = {}) {
   if (state.walkingDistanceMinutes === minutes) return;
+  // A radius change (Settings slider, presets) re-frames the ring, so it hands the camera back.
+  clearManualPose();
   state.walkingDistanceMinutes = minutes;
   state.nearbyFilterChangeOrigin = null;
   syncLiveQueryStringForScreen();
@@ -1997,6 +1999,7 @@ function applyWalkingRadiusGesture(rawMinutes) {
   // nearbyCameraFitPoints/overviewItemsForActiveFilter kept fitting and listing the cluster's
   // own members regardless -- the camera and list silently stopped tracking the gesture.
   exitClusterExpansion({ restoreRadius: false });
+  clearManualPose();
   state.walkingDistanceMinutes = minutes;
   syncLiveQueryStringForScreen();
   state.outOfRadiusRevealFilters = [];
@@ -2114,6 +2117,64 @@ function zoomInputResizesNearbyRadius() {
   return Boolean(state.userLocation && (isOverviewScreenActive() || secondaryScreenActive()));
 }
 
+// How far either side of the walking-radius ring a wheel, trackpad pinch or two-finger pinch still
+// counts as grabbing the ring (CSS px). Everywhere else the same gesture zooms the map.
+const RADIUS_RING_BAND_CSS_PX = 24;
+
+// Is this canvas point (device px, as canvasPoint returns) within the ring's grab band? Measured
+// against the ring as drawn -- through worldToScreen -- so rotation and tilt are accounted for.
+function isNearRadiusRing(point) {
+  if (!zoomInputResizesNearbyRadius()) return false;
+  const ring = walkingRadiusCirclePoints(64);
+  if (!ring.length) return false;
+  const bandPx = RADIUS_RING_BAND_CSS_PX * pixelRatio();
+  let previous = worldToScreen(ring[ring.length - 1]);
+  for (const worldPoint of ring) {
+    const current = worldToScreen(worldPoint);
+    if (screenDistanceToSegment(point, previous, current) <= bandPx) return true;
+    previous = current;
+  }
+  return false;
+}
+
+function screenDistanceToSegment(point, a, b) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const lengthSquared = dx * dx + dy * dy;
+  const t = lengthSquared > 0
+    ? clamp(((point.x - a.x) * dx + (point.y - a.y) * dy) / lengthSquared, 0, 1)
+    : 0;
+  return Math.hypot(point.x - (a.x + t * dx), point.y - (a.y + t * dy));
+}
+
+// Two-finger pinch over the map itself (anywhere the radius pinch above did not claim the start):
+// zooms about the midpoint, and the map follows the midpoint as the fingers travel. Incremental, so
+// each move applies only what changed since the last one.
+function startMapPinch() {
+  const fingers = Array.from(state.activePointers.values());
+  if (fingers.length < 2) return;
+  state.mapPinch = {
+    distance: Math.hypot(fingers[1].x - fingers[0].x, fingers[1].y - fingers[0].y),
+    midpoint: { x: (fingers[0].x + fingers[1].x) / 2, y: (fingers[0].y + fingers[1].y) / 2 },
+  };
+}
+
+function updateMapPinch() {
+  const fingers = Array.from(state.activePointers.values());
+  if (fingers.length < 2 || !state.mapPinch || !state.mapPinch.distance) return;
+  const distance = Math.hypot(fingers[1].x - fingers[0].x, fingers[1].y - fingers[0].y);
+  const midpoint = { x: (fingers[0].x + fingers[1].x) / 2, y: (fingers[0].y + fingers[1].y) / 2 };
+  const previous = state.mapPinch;
+  state.clusterZoomed = false;
+  exitClusterExpansion();
+  zoomAt(distance / previous.distance, canvasPoint({ clientX: previous.midpoint.x, clientY: previous.midpoint.y }));
+  const dpr = pixelRatio();
+  state.viewport.tx += (midpoint.x - previous.midpoint.x) * dpr;
+  state.viewport.ty += (midpoint.y - previous.midpoint.y) * dpr;
+  state.mapPinch = { distance, midpoint };
+  requestDraw();
+}
+
 function endNearbyRadiusPinch() {
   // Called on every pointerup with fewer than two fingers down (see setupMapCanvasHandlers
   // below), which includes plain single-finger taps/drags that never started a radius pinch --
@@ -2209,9 +2270,13 @@ function setupMapCanvasHandlers() {
       // Filters/Settings/Report keep drawing the same walking-radius circle behind them, so the
       // pinch that resizes it works there too -- refreshNearbyRadiusView already knows not to
       // blow those screens' own content away when it re-derives the view.
-      if (state.activePointers.size === 2 && state.userLocation
-        && (isOverviewScreenActive() || secondaryScreenActive())) {
-        startNearbyRadiusPinch();
+      // The start decides what the pinch is for, and it stays that for as long as a finger is down:
+      // a pinch with a finger within the ring's grab band resizes the radius, anything else zooms
+      // the map about the midpoint (updateMapPinch).
+      if (state.activePointers.size === 2) {
+        const fingers = Array.from(state.activePointers.values()).map((p) => canvasPoint({ clientX: p.x, clientY: p.y }));
+        if (fingers.some(isNearRadiusRing)) startNearbyRadiusPinch();
+        else startMapPinch();
       }
       return;
     }
@@ -2226,6 +2291,10 @@ function setupMapCanvasHandlers() {
 
     if (state.pinchActive) {
       updateNearbyRadiusPinch();
+      return;
+    }
+    if (state.mapPinch) {
+      updateMapPinch();
       return;
     }
 
@@ -2243,11 +2312,9 @@ function setupMapCanvasHandlers() {
       state.moved = true;
       state.clusterZoomed = false;
       exitClusterExpansion();
-    }
-    if (typeof headingUpActive === "function" && headingUpActive()) {
-      alignHeadingUpNavigationViewport();
-      requestDraw();
-      return;
+      // A drag is the user taking the camera, on every screen -- including heading-up, where it
+      // used to be answered by an immediate refit back to the fitted view.
+      setManualPose();
     }
     // A selection's auto-reposition is a correction, not a lock (unlike heading-up above, which
     // genuinely pins the camera to a fitted target). Take the camera over and pan normally.
@@ -2266,7 +2333,10 @@ function setupMapCanvasHandlers() {
   function endMapPointer(event) {
     state.activePointers.delete(event.pointerId);
     releasePointerSafely(els.canvas, event.pointerId);
-    if (state.activePointers.size < 2) endNearbyRadiusPinch();
+    if (state.activePointers.size < 2) {
+      endNearbyRadiusPinch();
+      state.mapPinch = null;
+    }
 
     if (state.activePointers.size === 1) {
       // Dropped from a multi-touch gesture back to one finger. That finger is still down and
@@ -2317,30 +2387,54 @@ function setupMapCanvasHandlers() {
     event.preventDefault();
     state.clusterZoomed = false;
     exitClusterExpansion();
-    if (zoomInputResizesNearbyRadius()) {
-      updateNearbyRadiusWheel(event);
-      return;
+    const point = canvasPoint(event);
+    // A wheel already resizing the radius keeps doing so until it settles (the cursor can drift off
+    // the ring as the ring moves under it); otherwise only the ring's grab band resizes it.
+    if (state.wheelRadiusSettleTimer != null || isNearRadiusRing(point)) {
+      if (zoomInputResizesNearbyRadius()) {
+        updateNearbyRadiusWheel(event);
+        return;
+      }
     }
-    const factor = event.deltaY < 0 ? 1.22 : 1 / 1.22;
-    zoomAt(factor, canvasPoint(event));
+    const pixels = normalizeWheelPixels(event);
+    if (!pixels) return;
+    const rate = WHEEL_RADIUS_RATE_PER_PIXEL * (event.ctrlKey ? TRACKPAD_PINCH_RATE_MULTIPLIER : 1);
+    zoomAt(Math.exp(-pixels * rate), point);
   }, { passive: false });
 
   // Safari's trackpad pinch (see startNearbyRadiusGesture). setupUiZoomLock already stops these
   // from zooming the page itself; here they resize the ring instead, on the same screens the
   // wheel does. Safari alone fires them, so on every other browser these never run.
   els.canvas.addEventListener("gesturestart", (event) => {
-    if (!zoomInputResizesNearbyRadius()) return;
     event.preventDefault();
-    startNearbyRadiusGesture();
+    const point = canvasPoint(event);
+    if (isNearRadiusRing(point)) {
+      startNearbyRadiusGesture();
+      return;
+    }
+    state.gestureMap = { scale: 1, point };
   }, { passive: false });
 
   els.canvas.addEventListener("gesturechange", (event) => {
+    if (state.gestureMap) {
+      event.preventDefault();
+      const scale = Number(event.scale);
+      if (!Number.isFinite(scale) || scale <= 0) return;
+      zoomAt(scale / state.gestureMap.scale, state.gestureMap.point);
+      state.gestureMap.scale = scale;
+      return;
+    }
     if (!Number.isFinite(state.gestureRadiusBaseMinutes)) return;
     event.preventDefault();
     updateNearbyRadiusGesture(event);
   }, { passive: false });
 
   els.canvas.addEventListener("gestureend", (event) => {
+    if (state.gestureMap) {
+      event.preventDefault();
+      state.gestureMap = null;
+      return;
+    }
     if (!Number.isFinite(state.gestureRadiusBaseMinutes)) return;
     event.preventDefault();
     endNearbyRadiusGesture();
@@ -2545,6 +2639,10 @@ function goToInitialView(updateHash = true, { enterAnimated = true } = {}) {
   }
 
   const wasMinimized = els.inspector.classList.contains("minimized");
+  // Coming back from a real selection is a real return to Nearby, and the app takes the camera
+  // back. A Nearby that never left (a sheet dismiss and reopen, a return from Settings or Filters,
+  // the Nearby button pressed on Nearby) keeps the user's pan.
+  if (hasRealSelection() || state.clusterExpanded) clearManualPose();
   // Before state.selected changes below -- see startCameraOriginTransition (js/app.js).
   startCameraOriginTransition();
   state.selected = null;
