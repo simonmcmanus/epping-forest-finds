@@ -18,9 +18,25 @@ function isPixelDifference(result) {
     });
 }
 
+// A snapshot with no committed baseline yet. Playwright fails that attempt and writes the render as the actual; CI
+// generates the baseline in the workspace (--update-snapshots=missing) and the trusted publisher shows the first render
+// in the PR description. It is a warning, not a failure, so a new screen does not turn the visual check red.
+function isMissingBaseline(result) {
+  if (result.status !== "failed") return false;
+  const errors = result.errors?.length ? result.errors : result.error ? [result.error] : [];
+  const images = (result.attachments || []).filter(item => item.contentType === "image/png");
+  return errors.length > 0 &&
+    images.some(item => /(?:^|[-_])actual(?:[.-]|$)/.test(item.name || "")) &&
+    errors.every(error => {
+      const message = (error.message || error.value || "").replace(/\u001b\[[0-9;]*m/g, "");
+      return /A snapshot doesn't exist at [^\n]+, writing actual\./.test(message);
+    });
+}
+
 function classifyVisualResults(report, exitCode) {
   const blocking = [];
   const differences = [];
+  const missing = [];
   let attempts = 0;
   let nonSkippedAttempts = 0;
   if (!report || !Array.isArray(report.suites)) return { blocking: ["Missing or invalid Playwright JSON report"], differences, attempts };
@@ -39,6 +55,7 @@ function classifyVisualResults(report, exitCode) {
             if (result.status !== "skipped") nonSkippedAttempts++;
             if (result.status === "passed" || result.status === "skipped") continue;
             if (isPixelDifference(result)) differences.push(name);
+            else if (isMissingBaseline(result)) missing.push(name);
             else blocking.push(`${name}: ${result.status || "missing status"}`);
           }
         }
@@ -48,8 +65,8 @@ function classifyVisualResults(report, exitCode) {
   }
   visit(report.suites);
   if (!nonSkippedAttempts) blocking.push("No visual tests ran (all missing or skipped)");
-  if (exitCode !== 0 && !blocking.length && !differences.length) blocking.push(`Playwright exited ${exitCode} without a screenshot difference`);
-  return { blocking: [...new Set(blocking)], differences: [...new Set(differences)], attempts };
+  if (exitCode !== 0 && !blocking.length && !differences.length && !missing.length) blocking.push(`Playwright exited ${exitCode} without a screenshot difference`);
+  return { blocking: [...new Set(blocking)], differences: [...new Set(differences)], missing: [...new Set(missing)], attempts };
 }
 
 if (require.main === module) {
@@ -61,6 +78,7 @@ if (require.main === module) {
     console.log(JSON.stringify(result));
     for (const error of result.blocking) console.error(error);
     if (result.differences.length) console.log(`::warning title=Visual differences need review::${result.differences.length} screenshot comparison(s) differ; inspect the current-head artifacts.`);
+    if (result.missing.length) console.log(`::warning title=New visual snapshots need review::${result.missing.length} snapshot(s) have no committed baseline yet; their first render is in the PR description.`);
     process.exitCode = result.blocking.length ? 1 : 0;
   } catch (error) {
     console.error(`Visual result classification failed: ${error.message}`);

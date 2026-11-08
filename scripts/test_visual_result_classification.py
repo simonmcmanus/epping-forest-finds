@@ -16,6 +16,13 @@ def difference():
     return {"status": "failed", "errors": [{"message": "Error: expect(page).toHaveScreenshot(expected) failed\n100 pixels (ratio 0.01 of all image pixels) are different."}], "attachments": [{"name": "map-actual.png", "contentType": "image/png"}]}
 
 
+def missing_baseline():
+    # What Playwright reports for a toHaveScreenshot() whose committed baseline does not exist yet: the attempt
+    # fails, writes the render as the actual, and CI generates the baseline in the workspace.
+    message = "Error: A snapshot doesn't exist at /work/test/e2e/__screenshots__/map-mobile-linux.png, writing actual.\n\n> 4 |   await expect(page).toHaveScreenshot(\"map.png\");"
+    return {"status": "failed", "errors": [{"message": message}], "attachments": [{"name": "map-actual.png", "contentType": "image/png"}]}
+
+
 class VisualResultTests(unittest.TestCase):
     def run_report(self, data, exit_code):
         with tempfile.TemporaryDirectory() as folder:
@@ -27,6 +34,22 @@ class VisualResultTests(unittest.TestCase):
         result = self.run_report(report(difference()), 1)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('"mobile: snapshot: map"', result.stdout)
+
+    def test_new_snapshot_without_a_baseline_is_a_warning_not_a_blocking_failure(self):
+        result = self.run_report(report(missing_baseline()), 1)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        summary = json.loads(result.stdout.splitlines()[0])
+        self.assertEqual(summary["missing"], ["mobile: snapshot: map"])
+        self.assertEqual(summary["blocking"], [])
+
+    def test_new_snapshot_that_passes_on_retry_is_not_blocking(self):
+        result = self.run_report(report(missing_baseline(), {"status": "passed"}), 0)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(result.stdout.splitlines()[0])["missing"], ["mobile: snapshot: map"])
+
+    def test_new_snapshot_next_to_a_setup_failure_still_fails(self):
+        failure = {"status": "failed", "errors": [{"message": "expect(locator).toBeVisible() failed"}]}
+        self.assertEqual(self.run_report(report(missing_baseline(), failure), 1).returncode, 1)
 
     def test_success_needs_no_retry_trace_or_images(self):
         self.assertEqual(self.run_report(report({"status": "passed"}), 0).returncode, 0)

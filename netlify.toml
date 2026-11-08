@@ -263,3 +263,397 @@
   [headers.values]
     Access-Control-Allow-Origin = "*"
     Cache-Control = "no-cache"
+
+# Places merged as duplicates or renamed: their old /find/<slug>/ pages move to the
+# record's current page. Permanent, so search results and bookmarks follow the record.
+# Each block names the old record (id and position) so test/find-redirects.test.js can check
+# the target is the same place.
+# was node/4681538886 at 51.571484,0.013787
+[[redirects]]
+  from = "/find/1-stop-halal-at-tesco/"
+  to = "/find/tesco-e11/"
+  status = 301
+
+# was manual/1-the-avenue at 51.608723,0.000051
+[[redirects]]
+  from = "/find/1-the-avenue/"
+  to = "/find/no-1-the-avenue/"
+  status = 301
+
+# was manual/aldi-stores at 51.569274,0.011567
+[[redirects]]
+  from = "/find/aldi-stores/"
+  to = "/find/aldi/"
+  status = 301
+
+# was manual/almasara-lebanese-grill at 51.570465,0.013943
+[[redirects]]
+  from = "/find/almasara-lebanese-grill/"
+  to = "/find/almasara/"
+  status = 301
+
+# was manual/billet-road-post-office-convenience-store at 51.599742,-0.028227
+[[redirects]]
+  from = "/find/billet-road-post-office-and-convenience-store/"
+  to = "/find/billet-road-post-office/"
+  status = 301
+
+# was manual/breeze-mezze-bar-grill at 51.632719,0.008260
+[[redirects]]
+  from = "/find/breeze-mezze-bar-and-grill/"
+  to = "/find/breeze-e4/"
+  status = 301
+
+# was manual/cafe-chicchi-trading-as-sensei-burgers-n-zalad-maki-kazzo at 51.576711,0.027673
+[[redirects]]
+  from = "/find/cafe-chicchi-trading-as-sensei-burgers-n-zalad-maki-kazzo/"
+  to = "/find/cafe-chicchi/"
+  status = 301
+
+# was manual/co-op at 51.591793,0.028230
+[[redirects]]
+  from = "/find/co-op-e18/"
+  to = "/find/co-op-food-e18/"
+  status = 301
+
+# was manual/co-op at 51.606143,0.053608
+[[redirects]]
+  from = "/find/co-op-ig8/"
+  to = "/find/co-op-food-ig8/"
+  status = 301
+
+# was manual/eatwell-express at 51.578464,0.002515
+[[redirects]]
+  from = "/find/eatwell-express/"
+  to = "/find/eatwell-restaurant/"
+  status = 301
+
+# was manual/exceline at 51.560151,0.007645
+[[redirects]]
+  from = "/find/exceline/"
+  to = "/find/exceline-pan-african-cuisine/"
+  status = 301
+
+# was manual/gail-s-bakery-wanstead at 51.578365,0.026102
+[[redirects]]
+  from = "/find/gail-s-bakery-wanstead/"
+  to = "/find/gail-s-e11/"
+  status = 301
+
+# was manual/gandhi-express at 51.606670,0.055379
+[[redirects]]
+  from = "/find/gandhi-express/"
+  to = "/find/the-gandhi/"
+  status = 301
+
+# was manual/gandhi-tandoori at 51.606670,0.055379
+[[redirects]]
+  from = "/find/gandhi-tandoori/"
+  to = "/find/the-gandhi/"
+  status = 301
+
+# was manual/good-friend-chinese-restaurant at 51.606730,-0.001220
+[[redirects]]
+  from = "/find/good-friend-chinese-restaurant/"
+  to = "/find/good-friend/"
+  status = 301
+
+# was manual/gospodina at 51.555210,0.005278
+[[redirects]]
+  from = "/find/gospodina/"
+  to = "/find/gospodina-magazin-rom-nesc/"
+  status = 301
+
+# was manual/great-wall-chinese-takeaway at 51.577250,0.045363
+[[redirects]]
+  from = "/find/great-wall-chinese-takeaway/"
+  to = "/find/great-wall/"
+  status = 301
+
+# was manual/green-owl-cafe-deli at 51.625155,0.044291
+[[redirects]]
+  from = "/find/green-owl-cafe-and-deli/"
+  to = "/find/green-owl/"
+  status = 301
+
+# was manual/greggs-the-bakers at 51.578248,0.026198
+[[redirects]]
+  from = "/find/greggs-the-bakers-e11/"
+  to = "/find/greggs-e11/"
+  status = 301
+
+# was manual/greggs-the-bakers at 51.593842,0.024567
+[[redirects]]
+  from = "/find/greggs-the-bakers-e18/"
+  to = "/find/greggs-the-bakers/"
+  status = 301
+
+# was manual/harleys-bistro-lounge at 51.699188,0.111971
+[[redirects]]
+  from = "/find/harleys-bistro-lounge/"
+  to = "/find/harley-s/"
+  status = 301
+
+# was manual/harveys-sk at 51.577818,0.026612
+[[redirects]]
+  from = "/find/harveys-sk/"
+  to = "/find/harveys/"
+  status = 301
+
+# was manual/hatch-lane-food-centre at 51.618476,0.003962
+[[redirects]]
+  from = "/find/hatch-lane-food-centre/"
+  to = "/find/g-l-zar-hatch-lane-food-centre/"
+  status = 301
+
+# was manual/hokkaido-japanese-restaurant at 51.633876,0.010002
+[[redirects]]
+  from = "/find/hokkaido-japanese-restaurant/"
+  to = "/find/hokkaido/"
+  status = 301
+
+# was node/2091367234 at 51.591574,0.028378
+[[redirects]]
+  from = "/find/jaipur-367234/"
+  to = "/find/jaipur/"
+  status = 301
+
+# was manual/jaipur at 51.606670,0.055379
+[[redirects]]
+  from = "/find/jaipur-ig8/"
+  to = "/find/jaipur-of-chigwell/"
+  status = 301
+
+# was manual/kaspas-desserts at 51.649239,0.057112
+[[redirects]]
+  from = "/find/kaspas-desserts/"
+  to = "/find/kaspa-s/"
+  status = 301
+
+# was manual/la-baita at 51.633073,0.008044
+[[redirects]]
+  from = "/find/la-baita/"
+  to = "/find/la-baita-da-piero/"
+  status = 301
+
+# was manual/la-valentino-cristina at 51.556621,0.006378
+[[redirects]]
+  from = "/find/la-valentino-cristina/"
+  to = "/find/cafe-la-valentino/"
+  status = 301
+
+# was manual/la-vita-bistro-cafe at 51.632401,0.007422
+[[redirects]]
+  from = "/find/la-vita-bistro-cafe/"
+  to = "/find/la-vita/"
+  status = 301
+
+# was manual/ldf-chicken at 51.556443,0.014665
+[[redirects]]
+  from = "/find/ldf-chicken/"
+  to = "/find/ldf-chicken-specialists/"
+  status = 301
+
+# was manual/leytonstone-tavern-tavern-events at 51.559118,0.011249
+[[redirects]]
+  from = "/find/leytonstone-tavern-tavern-events/"
+  to = "/find/leytonstone-tavern/"
+  status = 301
+
+# was manual/marlos-brasserie at 51.700501,0.112950
+[[redirects]]
+  from = "/find/marlos-brasserie/"
+  to = "/find/marlos/"
+  status = 301
+
+# was manual/mezze-on-the-green at 51.609340,0.022282
+[[redirects]]
+  from = "/find/mezze-on-the-green/"
+  to = "/find/mezze/"
+  status = 301
+
+# was manual/mooboo-south-woodford at 51.593375,0.026039
+[[redirects]]
+  from = "/find/mooboo-south-woodford/"
+  to = "/find/mooboo-e18/"
+  status = 301
+
+# was manual/mum-likes-thai-food-leytonstone at 51.568873,0.011896
+[[redirects]]
+  from = "/find/mum-likes-thai-food-leytonstone/"
+  to = "/find/mum-likes-thai-food/"
+  status = 301
+
+# was manual/neelam-fruit-veg at 51.575645,-0.013984
+[[redirects]]
+  from = "/find/neelam-fruit-and-veg/"
+  to = "/find/neelam/"
+  status = 301
+
+# was manual/ninos-cucina-italiana at 51.595071,0.023193
+[[redirects]]
+  from = "/find/ninos-cucina-italiana/"
+  to = "/find/nino-s/"
+  status = 301
+
+# was manual/ohba-leaf-walthamstow at 51.579310,-0.009605
+[[redirects]]
+  from = "/find/ohba-leaf-walthamstow/"
+  to = "/find/ohba-leaf/"
+  status = 301
+
+# was manual/panda-dim-sum at 51.566648,0.010037
+[[redirects]]
+  from = "/find/panda-dim-sum/"
+  to = "/find/panda/"
+  status = 301
+
+# was manual/perky-blenders-project-660 at 51.570030,-0.007937
+[[redirects]]
+  from = "/find/perky-blenders-project-660/"
+  to = "/find/perky-blenders/"
+  status = 301
+
+# was manual/piya-kitchen at 51.696753,0.108597
+[[redirects]]
+  from = "/find/piya-kitchen/"
+  to = "/find/piya/"
+  status = 301
+
+# was manual/purbani-tandoori at 51.608572,0.000464
+[[redirects]]
+  from = "/find/purbani-tandoori/"
+  to = "/find/purbani-581495/"
+  status = 301
+
+# was manual/quickpay-supermarket at 51.578308,-0.006652
+[[redirects]]
+  from = "/find/quickpay-supermarket/"
+  to = "/find/quickpay/"
+  status = 301
+
+# was manual/robins at 51.578581,0.025101
+[[redirects]]
+  from = "/find/robins/"
+  to = "/find/robins-pie-and-mash-e11/"
+  status = 301
+
+# was manual/sainsbury-s at 51.568211,0.009573
+[[redirects]]
+  from = "/find/sainsbury-s-e11/"
+  to = "/find/sainsbury-s-local-e11/"
+  status = 301
+
+# was way/717846043 at 51.654918,0.066285
+[[redirects]]
+  from = "/find/sainsbury-s-local-846043/"
+  to = "/find/sainsbury-s-local-ig10/"
+  status = 301
+
+# was manual/sainsburys-loughton-church-hill-local at 51.654950,0.066263
+[[redirects]]
+  from = "/find/sainsburys-loughton-church-hill-local/"
+  to = "/find/sainsbury-s-local-ig10/"
+  status = 301
+
+# was manual/shish-mahal at 51.574394,-0.011282
+[[redirects]]
+  from = "/find/shish-mahal/"
+  to = "/find/shish-mahal-diners-club/"
+  status = 301
+
+# was manual/shiv-news at 51.696566,0.107276
+[[redirects]]
+  from = "/find/shiv-news/"
+  to = "/find/shiv-news-and-off-licence/"
+  status = 301
+
+# was manual/survivor-caribbean-restaurant at 51.609386,-0.001364
+[[redirects]]
+  from = "/find/survivor-caribbean-restaurant/"
+  to = "/find/survivor-caribbean-restaurant-and-takeaway/"
+  status = 301
+
+# was manual/sushi-monster-at-the-rusty-bike at 51.633762,0.009317
+[[redirects]]
+  from = "/find/sushi-monster-at-the-rusty-bike/"
+  to = "/find/sushi-monster/"
+  status = 301
+
+# was manual/tesco at 51.560952,0.008156
+[[redirects]]
+  from = "/find/tesco/"
+  to = "/find/tesco-express-095517/"
+  status = 301
+
+# was manual/tesco at 51.599976,0.019829
+[[redirects]]
+  from = "/find/tesco-2/"
+  to = "/find/tesco-express-ig8/"
+  status = 301
+
+# was way/27712730 at 51.592111,0.040178
+[[redirects]]
+  from = "/find/tesco-712730/"
+  to = "/find/tesco-ig8/"
+  status = 301
+
+# was way/28808114 at 51.571850,0.013880
+[[redirects]]
+  from = "/find/tesco-808114/"
+  to = "/find/tesco-e11/"
+  status = 301
+
+# was manual/tesco-stores at 51.592079,0.040153
+[[redirects]]
+  from = "/find/tesco-stores/"
+  to = "/find/tesco-ig8/"
+  status = 301
+
+# was manual/the-bull-ph at 51.671652,0.101997
+[[redirects]]
+  from = "/find/the-bull-ph/"
+  to = "/find/the-bull-cm16/"
+  status = 301
+
+# was manual/the-sunflower at 51.566916,0.010150
+[[redirects]]
+  from = "/find/the-sunflower/"
+  to = "/find/the-sunflower-cafe-and-creperie/"
+  status = 301
+
+# was manual/toby-carvery-eagle at 51.583154,0.020686
+[[redirects]]
+  from = "/find/toby-carvery-eagle/"
+  to = "/find/toby-carvery-e11/"
+  status = 301
+
+# was manual/warren-wood-kitchen at 51.633865,0.031590
+[[redirects]]
+  from = "/find/warren-wood-kitchen/"
+  to = "/find/the-warren-wood/"
+  status = 301
+
+# was way/189052941 at 51.558448,0.007481
+[[redirects]]
+  from = "/find/wesleyan-christian-centre-052941/"
+  to = "/find/wesleyan-christian-centre/"
+  status = 301
+
+# was manual/wing-sing-2015 at 51.591792,0.028230
+[[redirects]]
+  from = "/find/wing-sing-2015/"
+  to = "/find/wing-sing/"
+  status = 301
+
+# was manual/woodies-spice-woodies-grill-the-sultan-curry-on at 51.584576,-0.000835
+[[redirects]]
+  from = "/find/woodies-spice-woodies-grill-the-sultan-curry-on/"
+  to = "/find/the-sultan/"
+  status = 301
+
+# was manual/zest-salad-juice-bar at 51.647155,0.054373
+[[redirects]]
+  from = "/find/zest-salad-and-juice-bar/"
+  to = "/find/zest/"
+  status = 301

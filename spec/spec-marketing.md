@@ -97,7 +97,7 @@ Epping Forest." so the first line leads.
 > See the latest reported cattle locations from their GPS collars. Positions refresh while online; offline, you’ll see the last saved positions, which may be out of date.
 
 **Everything else you need out there**
-> 9,162 paths and bridleways. 1,365 pubs, cafés and shops. 1,597 car parks,
+> 9,162 paths and bridleways. 1,298 pubs, cafés and shops. 1,597 car parks,
 > benches, toilets and gates. 1,106 bus stops and stations. All within walking
 > distance of the forest.
 
@@ -136,7 +136,7 @@ The counts in §3.4 are real values from the current checkout:
 | --- | --- |
 | 24,906 veteran trees | `data/trees/index.json` → `recordCount` |
 | 9,162 paths | feature count, `data/local-paths.geojson` |
-| 1,365 food & drink | feature count, `data/local-landmarks-food.geojson` |
+| 1,298 food & drink | feature count, `data/local-landmarks-food.geojson` |
 | 1,597 facilities | feature count, `data/local-landmarks-facilities.geojson` |
 | 1,106 transport | feature count, `data/local-landmarks-transport.geojson` |
 
@@ -733,7 +733,7 @@ branches.
   landing and the bare `/nearby` index.** `staticFilterRailHtml()` (`scripts/generate-find-pages.js`)
   mirrors `filterRailHtml()` (`js/app.js`) with the same `filter-rail`/`rail-pills`/`rail-pill`
   structure, icons, labels and tick/cross states. Its pills are anchors before JavaScript boots,
-  so crawlers and no-JS visitors can still open a category lens; the first "All nearby" link
+  so crawlers and no-JS visitors can still open a category view; the first "All nearby" link
   targets `/nearby?filters=false`. A category landing shows that group's subcategory pills,
   while bare `/nearby` shows top-level groups using the generated default filter set. Once JS
   boots, `swapStaticChipsForRail()` (`js/inspector.js`) replaces the server-rendered anchors with
@@ -772,7 +772,7 @@ branches.
   way — the nearest-item list above is what actually satisfies "the same
   content, live or not."
 - **Every category/subcategory page keeps its sibling categories and the All nearby reset in the
-  server-rendered rail**, so a no-JS visitor can always leave a category lens without relying on
+  server-rendered rail**, so a no-JS visitor can always leave a category view without relying on
   browser history.
 - **Title tags state the page's own real content, not a repeated generic
   phrase.** A subfilter page's title leads with its count (`"129 Pubs & Bars

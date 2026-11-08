@@ -268,8 +268,7 @@ const state = {
   // Set by setOverviewFilters(persist:false) -- see its comment -- never true on first load.
   overviewFiltersEphemeral: false,
   // The rail level is normally derived from the current /nearby/<slug> path. A rail tap keeps
-  // the level it was displayed at while replacing that path with a shareable query string, so
-  // a plain Nearby rail stays at groups and a category rail stays at subcategories.
+  // the level it was displayed at, in memory only: a reload starts the rail at its top level.
   nearbyRailGroupKey: undefined,
   overviewExpandedGroups: (() => {
     try {
@@ -1917,10 +1916,9 @@ function setOverviewFilters(nextFilters, { persist = true, render = true, railTa
       ? { latitude: origin.latitude, longitude: origin.longitude }
       : null;
   }
-  // Marks the current filters as a page's own lens rather than the reader's choice, so
-  // goToInitialView (the Nearby nav button) knows to put their real filters back rather than
-  // carrying a /nearby/<slug> page's single category over to the plain Nearby screen. Any real
-  // change -- a chip tap, anywhere, persist:false page included -- clears it again.
+  // Marks the current filters as a view (a category landing or an old ?show= link) rather than the saved
+  // set, so goToInitialView (the Nearby nav button) knows to put the saved filters back rather than carrying
+  // a view over to the plain Nearby screen. A save (persist) clears it: a rail pick is a save.
   state.overviewFiltersEphemeral = !persist;
   // Before the camera work below: secondary screens may reach a newly selected filter's nearest
   // match when it lies outside the walking radius (outOfRadiusFitPoints). Nearby stays framed on
@@ -2071,12 +2069,19 @@ function openFilterSetup() {
   // Keep the route for bookmarks/history, but leave the Nearby inspector and its list rendered
   // underneath the modal. This is deliberately not a replacement screen.
   exitClusterExpansion();
+  // The screen the dialog opens over (a landing, or plain Nearby). Opening the dialog pushes its own route,
+  // so a close that saves nothing puts this URL back. The legacy /nearby/filter route has no screen of its
+  // own to return to, so it closes to plain Nearby as it always has.
+  const openedOverUrl = window.location.pathname === ROUTE_PATHS[ROUTE_FILTERS]
+    ? null
+    : `${window.location.pathname}${window.location.search}${window.location.hash}`;
   state.filterScreenOpen = true;
   setHashFromSelection(ROUTE_FILTERS);
 
   showOnboarding({ mode: "filters" }).then((result) => {
     state.filterScreenOpen = false;
-    if (Array.isArray(result.filters)) setOverviewFilters(result.filters);
+    const saved = Array.isArray(result.filters) && applyStagedFilterSet(result.filters);
+    if (!saved && openedOverUrl) history.replaceState(history.state, "", openedOverUrl);
     updateFilterUi();
     if (window.location.pathname === ROUTE_PATHS[ROUTE_FILTERS]) {
       replaceHashInPlace("");
@@ -2098,7 +2103,7 @@ function openCategorySetup(groupKey) {
   if (overlay._onboardingActive || !FILTER_GROUPS_BY_KEY.has(groupKey)) return;
 
   showOnboarding({ mode: "category", groupKey }).then((result) => {
-    if (Array.isArray(result.filters)) setOverviewFilters(result.filters);
+    if (Array.isArray(result.filters)) applyStagedFilterSet(result.filters);
     updateFilterUi();
   });
 }
@@ -2630,6 +2635,20 @@ function overviewHeadingText() {
 // "Nearby Pubs & bars") in place of the generic "Nearby" the plain screen, or a reader's own
 // filter choice, keeps -- the same URL-path match used by nearbyRailGroup(), so the live rail and
 // the heading can never name different categories.
+// The category a plain Nearby view is about, as its label: exactly one subcategory picked. A whole group,
+// several picks or mixed picks have no single subcategory and return null (the path carries a group only
+// on its landing page, so the rail selection cannot name one that survives a reload).
+function railSelectionCategoryLabel() {
+  const chosen = railSelection();
+  return chosen.length === 1 ? FILTER_SUBFILTERS_BY_KEY.get(chosen[0])?.label || null : null;
+}
+
+// The label for the Nearby title, the document title and the list heading: a landing page's own
+// category (its path), otherwise the rail selection's category (see railSelectionCategoryLabel).
+function nearbyCategoryLabel() {
+  return isNearbyCategoryLandingPath() ? landingPageCategoryLabel() : railSelectionCategoryLabel();
+}
+
 function landingPageCategoryLabel() {
   const match = /^\/nearby\/([a-z0-9-]+)\/?$/.exec(window.location.pathname);
   if (!match) return null;
@@ -2676,8 +2695,8 @@ function updateDocumentTitle() {
   } else if (state.searchScreenOpen) {
     title = "Search Epping Forest Finds";
   } else {
-    const landingLabel = landingPageCategoryLabel();
-    title = landingLabel ? `Nearby ${landingLabel} in Epping Forest` : "Nearby";
+    const categoryLabel = nearbyCategoryLabel();
+    title = categoryLabel ? `Nearby ${categoryLabel} in Epping Forest` : "Nearby";
   }
 
   const nextTitle = `${title} | ${DOCUMENT_TITLE_SITE_NAME}`;
@@ -2685,17 +2704,13 @@ function updateDocumentTitle() {
   return nextTitle;
 }
 
-// True when the active filter set should be shown in full even without a location fix: either
-// exactly one filter -- a subfilter's own /nearby/<slug> page, or a reader's own deliberate single
-// choice, both reading better as "show me everything in this one category" than a generic
-// "enable location" prompt -- or more than one filter, but only when a /nearby/<slug> group
-// page's own pre-filter set them (state.overviewFiltersEphemeral). Never the reader's own
-// multi-filter choice, and never the 1-3 filter default state nobody chose at all
-// (DEFAULT_FILTERS) -- either of those taking this path would try to fit or list the entire
-// matching dataset (25,000+ trees, in the default case).
+// True when the active filter set should be listed in full even without a location fix. Only a view
+// qualifies (state.overviewFiltersEphemeral: a category landing, or an old ?show= link), since a view
+// is what the reader is looking at right now. The reader's saved set never does, not even one
+// category: listing every place in a category, with no origin to measure from, is a lot to load
+// before a location is known, so the list asks for a location instead.
 function activeFiltersShowFullListWithoutLocation() {
-  const count = state.overviewFilters.length;
-  return count === 1 || (count > 1 && state.overviewFiltersEphemeral);
+  return state.overviewFiltersEphemeral;
 }
 
 // Every place/tree/water matching one filter key, dataset order, no distance -- there is no
@@ -2876,25 +2891,42 @@ function filterRailHtml() {
     `</nav>`;
 }
 
-// Where the address bar points for the current rail selection: one category is its own landing
-// path, several are /nearby?show=a,b, none is the show-everything override. Replaces the current
-// history entry (a tap is a refinement, not a new place to go back to).
+// Where the address bar points after a rail pick: plain /nearby. A pick saves the filter set, so there is
+// no ?show= to write (searchStringForPath only writes one for a view, such as an old ?show= link), and a
+// rail pick never writes a category landing path (/nearby/<slug>), which stays a real arrival. Replaces
+// the current history entry (a tap is a refinement, not a new place to go back to).
 function syncRailUrl() {
   if (routeApplyDepth > 0 || routerBooting) return;
-  const chosen = railSelection();
-  const matchingGroup = FILTER_GROUPS.find((group) =>
-    chosen.length === group.subfilters.length && group.subfilters.every((subfilter) => chosen.includes(subfilter.key))
-  );
-  const displayedGroup = nearbyRailGroup();
-  const pathname = !displayedGroup && matchingGroup
-    ? NEARBY_PATH
-    : matchingGroup
-    ? `/nearby/${matchingGroup.key.replace(/_/g, "-")}`
-    : chosen.length === 1 ? `/nearby/${chosen[0].replace(/_/g, "-")}` : NEARBY_PATH;
-  const search = searchStringForPath(pathname);
-  const url = `${pathname}${search}${window.location.hash}`;
+  const url = `${NEARBY_PATH}${searchStringForPath(NEARBY_PATH)}${window.location.hash}`;
   if (`${window.location.pathname}${window.location.search}${window.location.hash}` === url) return;
   history.replaceState(history.state, "", url);
+}
+
+// Saves a filter set: the reader's own choice, which persists and moves a view (a landing or an old ?show=
+// link) to plain /nearby.
+function saveFilterSet(nextFilters, { railTap = false } = {}) {
+  setOverviewFilters(nextFilters, { persist: true, railTap });
+  syncRailUrl();
+}
+
+function filterKeysEqual(first, second) {
+  const left = Array.from(new Set(first)).sort();
+  const right = Array.from(new Set(second)).sort();
+  return left.length === right.length && left.every((key, index) => key === right[index]);
+}
+
+// Applies the set Map setup or a held pill's dialog ends with. The dialog starts from the saved set, so
+// a set that matches it changed nothing: nothing is saved, and the screen (a landing's list, or any
+// other view) and the URL stay as they are. Only a real change saves, and a save moves a view to plain
+// /nearby.
+// Returns whether it saved, so a caller can tell a no-change close (the screen stays as it was) from a save.
+// Switching every chip off is not a set the reader can keep: an empty set saves every category, the same as
+// un-pressing the last rail pill.
+function applyStagedFilterSet(stagedFilters) {
+  const next = stagedFilters.length > 0 ? stagedFilters : Array.from(ALL_OVERVIEW_FILTER_KEYS);
+  if (filterKeysEqual(next, loadStoredOverviewFilters())) return false;
+  saveFilterSet(next);
+  return true;
 }
 
 function toggleRailFilter(key) {
@@ -2902,15 +2934,18 @@ function toggleRailFilter(key) {
     if (typeof navigator.vibrate === "function") navigator.vibrate(8);
     const displayedGroup = nearbyRailGroup();
     state.nearbyRailGroupKey = displayedGroup ? displayedGroup.key : null;
-    setOverviewFilters(Array.from(ALL_OVERVIEW_FILTER_KEYS), { persist: false, railTap: true });
+    saveFilterSet(Array.from(ALL_OVERVIEW_FILTER_KEYS), { railTap: true });
     return;
   }
   const displayedGroup = nearbyRailGroup();
   const item = railItems().find((candidate) => candidate.key === key);
   if (!item) return;
   state.nearbyRailGroupKey = displayedGroup ? displayedGroup.key : null;
+  // The tap edits what is shown on screen. On a category landing that is the landing's own category set;
+  // elsewhere it is the current set. Either way the result is saved.
   const current = new Set(state.overviewFilters.filter((filterKey) => FILTER_SUBFILTERS_BY_KEY.has(filterKey)));
-  const showingAll = state.overviewFilters.length === 0 || railSelection().length === 0;
+  const showingAll = current.size === 0 || current.size >= FILTER_SUBFILTERS.length;
+  // The tapped pill toggles within that set: off if any of its categories is in it, on otherwise.
   const active = item.filterKeys.some((filterKey) => current.has(filterKey));
   let next;
   if (showingAll) {
@@ -2922,15 +2957,15 @@ function toggleRailFilter(key) {
     item.filterKeys.forEach((filterKey) => current.add(filterKey));
     next = Array.from(current);
   }
+  // Un-pressing the last pill selects Everything rather than saving an empty set. The Everything pill
+  // then shows as pressed, and the list stays populated.
+  if (next.length === 0) next = Array.from(ALL_OVERVIEW_FILTER_KEYS);
   if (typeof navigator.vibrate === "function") navigator.vibrate(8);
-  // Do not expand an empty selection back to every key here. That made the last pill look
-  // selected again immediately after it was tapped off, so Nature (and any other final pill)
-  // could never visibly unselect. The Everything pill represents this empty, explicit state.
-  setOverviewFilters(next, { persist: false, railTap: true });
+  saveFilterSet(next, { railTap: true });
 }
 
 function overviewCategoryContentHtml(content) {
-  const categoryLabel = landingPageCategoryLabel();
+  const categoryLabel = nearbyCategoryLabel();
   if (!categoryLabel) return content;
   const heading = `${categoryLabel} nearby`;
   return `<section class="nearby-category-results" aria-labelledby="nearbyResultsHeading"><h3 id="nearbyResultsHeading">${escapeHtml(heading)}</h3>${content}</section>`;
