@@ -11,13 +11,15 @@ function render(candidates, destination, { repository, sha, runUrl }) {
     const manifestPath = path.join(candidates, `visual-evidence-${project}`, 'manifest.json');
     let manifest;
     try { manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8')); } catch { /* Missing evidence must remain visible. */ }
-    const validImage = (item) => item && typeof item.name === 'string' && /^[\w-]+\.png$/.test(item.file)
+    const validImage = (item) => item && typeof item === 'object' && !Array.isArray(item)
+      && typeof item.name === 'string' && typeof item.file === 'string' && /^[\w-]+\.png$/.test(item.file)
       && fs.existsSync(path.join(path.dirname(manifestPath), item.file))
       && fs.lstatSync(path.join(path.dirname(manifestPath), item.file)).isFile();
     const valid = manifest && manifest.version === 1 && manifest.project === project
       && typeof manifest.status === 'string'
       && Array.isArray(manifest.tests) && Array.isArray(manifest.added)
-      && manifest.tests.every((test) => typeof test.name === 'string'
+      && manifest.tests.every((test) => test && typeof test === 'object' && !Array.isArray(test)
+        && typeof test.name === 'string'
         && ['passed', 'failed', 'skipped'].includes(test.status)
         && Array.isArray(test.images) && test.images.every(validImage))
       && manifest.added.every(validImage)

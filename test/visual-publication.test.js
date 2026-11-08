@@ -182,3 +182,20 @@ test('persistent concurrent writers cause an explicit failure after three public
   await assert.rejects(updateDescription({ ...fixture, context, prNumber: 1, expectedSha: 'current', section: 'fresh comparisons' }), /three concurrent PR body edits/);
   assert.equal(fixture.updates.length, 3);
 });
+
+test('malformed test entries and nonstring image paths are reported as unavailable capture evidence', (t) => {
+  const root = fixture(t);
+  const dir = path.join(root, 'visual-evidence-mobile');
+  fs.mkdirSync(dir);
+  const malformed = [
+    { tests: [null], added: [] },
+    { tests: [{ name: 'map', status: 'failed', images: [{ name: 'map-actual.png', file: ['map.png'] }] }], added: [] },
+    { tests: [], added: [{ name: 'new map', file: ['map.png'] }] },
+  ];
+  for (const [index, fields] of malformed.entries()) {
+    fs.writeFileSync(path.join(dir, 'manifest.json'), JSON.stringify({ version: 1, project: 'mobile', status: 'failed', ...fields }));
+    const section = render(root, path.join(root, `published-${index}`), options);
+    assert.match(section, /mobile: capture unavailable/);
+    assert.doesNotMatch(section, /!\[/);
+  }
+});
