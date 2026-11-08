@@ -475,13 +475,17 @@ invisible control.
 3. **Minimized mode** — collapsed header only, click to expand
 
 - **The browser page title follows the live screen.** `updateDocumentTitle()` (`js/app.js`) keeps
-  `document.title` aligned with the app's current content across SPA navigation: a category
-  landing reads `Nearby <Category> in Epping Forest |`<name> in Epping Forest | Epping Forest Finds`, a selected place or
-  other map item reads `<name> in Epping Forest | Epping Forest Finds`| Epping Forest Finds`, and the plain Nearby,
-  Search, Filters, Feedback and Settings screens use their own Epping Forest-specific titles.
-  It runs for map selections, search results, deep links, back/forward navigation and
-  server-rendered landings once the shared shell boots; generated SEO pages retain their
-  route-specific static `<title>` before JavaScript runs (see spec-marketing.md § 6.6/6.7).
+  `document.title` aligned with the app's current content across SPA navigation. A category reads
+  `Nearby <Category> in Epping Forest | Epping Forest Finds`; a selected place or other map item reads
+  `<name> in Epping Forest | Epping Forest Finds`; the plain Nearby, Search, Filters, Feedback and Settings
+  screens use their own titles. The category comes from `nearbyCategoryLabel()`: a category landing's own
+  path, or on plain Nearby the saved filter set when it is exactly one subcategory. A whole group, several picks
+  or mixed picks keep the plain Nearby title and list heading: the group name is dropped only from the title
+  and the list heading, since the rail pills still show group labels on plain Nearby. A group's name shows in
+  the title only on its landing page. The Nearby title (`#inspectorTitle`)
+  and the list heading (`<Category> nearby`) use the same label. It runs for map selections, search results,
+  deep links, back/forward navigation and server-rendered landings once the shared shell boots; generated SEO
+  pages retain their route-specific static `<title>` before JavaScript runs (see spec-marketing.md § 6.6/6.7).
 
 ### Overview Content
 
@@ -900,7 +904,9 @@ Any selected feature with an anchor coordinate (tree, place, cow, path, road, ra
 named area) also shows a **"Nearest"** section. When at least one location is inside the reader's
 walking radius it includes an **"Everything"** card whose line reads "N locations within M min walk
 of <name>", M being the reader's own walking radius (rounded through `formatWalkingRadius()`) and N
-the count across every category within it (`nearbyWithinWalkHtml`, js/inspector.js), not in
+the count across every category within it (`nearbyWithinWalkHtml`, js/inspector.js). With no location
+fix the card's line asks the reader to use their location to list them, and tapping it keeps the saved set
+rather than listing every category (`focusNearbyWithinWalkMinutes`, js/nav.js); the card is not in
 `.detail-top-row` alongside Open in Maps/Share: it shares the Nearby list's own `.nearest-item`
 card styling (a `<button>`, since it drives a live state change rather than a navigation) instead
 of the unrelated `.detail-map-link` pill those use. Every selected point with coordinates -- a `/find/`
@@ -1017,7 +1023,7 @@ Settings groups preferences into rounded cards with a tinted walking-radius card
 
 Search, Settings, and Report share identical navigation behaviour, gated by the shared `secondaryScreenActive()` helper (`state.searchScreenOpen || state.selected?.type === "settings" || state.selected?.type === "report"`). Map setup is a modal over Nearby and does not participate in this secondary-screen state. Where the points below say "all three", Search is the third and behaves the same — except for its highlighted set and its camera, which does not move (see "Search's camera and highlighting" below):
 
-- **Map canvas tap on open ground does not dismiss the screen**, but it *does* move the browse anchor, exactly as on Nearby. Only the Nearby button, the header back arrow and the URL return to overview. The "any tap beyond the ring relocates" rule is Nearby-only: these screens deliberately frame the map wider than the ring, so most of what is on screen is outside it.
+- **Map canvas tap on open ground does not dismiss the screen**, but it *does* move the browse anchor, exactly as on Nearby. Only the Nearby button, the header back arrow and the URL return to overview. The Nearby button's rule on Nearby is set out in the Nearby button bullets of `spec.md`, not repeated here. The "any tap beyond the ring relocates" rule is Nearby-only: these screens deliberately frame the map wider than the ring, so most of what is on screen is outside it.
 - **Everything that removes or adjusts the browse anchor works here too.** All three screens draw the same walking-radius ring around the same `nearbyOrigin()`, and it would be incoherent for the ring to be visible and un-editable: the `#nearbyAnchorBar` "Use my location" control is inspector chrome and stays on screen across all of them, pinch-to-resize the radius engages here, and `overviewItemsForActiveFilter()` reads `nearbyOrigin()` so the matches inside the ring come from the spot the ring is actually drawn around.
 - **Map icon set: the ring's contents, exactly as on Nearby, plus the nearest match of each selected filter.** `buildFullNearbyIconLookup()` (`js/renderer.js`) reads `overviewItemsForActiveFilter()` on every screen, so the highlighted locations are the ones inside the walking radius, scanned from `nearbyOrigin()` — and resizing the ring from any of these screens (the Settings slider, the two-finger pinch, the wheel/trackpad gesture, all of which engage here) re-derives what is highlighted, rather than redrawing the same circle with the same pins inside it. These screens differ from Nearby in one respect only: they additionally highlight the single nearest match of each selected filter when it falls *outside* the ring — `addNearestSelectedFilterReach()`, reading the same `nearestSelectedFilterEntries()` their camera fit reaches for (see below). Those items are drawn at full strength like every other pin (see "Out-of-radius clusters" above), an item already inside the ring is left to the in-radius pass rather than being re-added, and with the radius toggle off (`state.showAllOutsideRadius`) the reach is skipped entirely, since the unlimited set already holds those matches and nothing is out-of-radius on a screen state that is ignoring the radius. Without this the fit framed a match the map drew nothing for, so the zoom-out looked like it had reached for empty ground.
 - **Camera fit on the secondary screens.** All three use the same "survey mode" camera fit (see Survey mode under Camera Behavior below) — the walking-radius ring plus the nearest match for each selected filter, so the view zooms out past the ring far enough to show that each selected kind exists and which way it lies, even when every one of them is outside the walking radius. Opening Filters (`openFiltersScreen`) triggers this fit with a 420ms animation. Opening Settings or Feedback (`openSettings`, `openReportModal`) and Search does not move the camera at all, so moving between Nearby, Search, Feedback and Settings keeps the current zoom. Every secondary screen (Filters, Search, Settings, Feedback, Community) holds the camera the same way while it is open: a plain GPS fix or heading-up compass tick leaves the map exactly where it was, so switching between the screens, or opening one from a zoomed-in place, never changes the view. `alignHeadingUpNavigationViewport` returns immediately for a call with neither `force` nor `animate` while `secondaryScreenActive()` is true (Search holds against every call, including forced ones). A deliberate refit still runs: the Settings radius slider and pinch, a filter change, opening Filters, and a layout change such as the on-screen keyboard opening on the Report form all pass `force` or `animate`. Before this, a tick on Settings, Feedback or Filters re-fitted to the survey target, so opening one of them from a zoomed-in place and then getting a GPS fix snapped the map out to the ring. Because `nearestSelectedFilterPoints()` ignores the walking radius, this fit reaches filtered items beyond the radius, not just items within it; it measures "nearest" from `nearbyOrigin()`, the same origin the ring is drawn around and the in-radius scan runs from, so browsing a spot moves the reach with it. The items it reaches for are highlighted on the map too — see "Map icon set" above.
@@ -1048,7 +1054,7 @@ Search, Settings, and Report share identical navigation behaviour, gated by the 
   is the one exception, where the flag it depends on (`state.searchScreenOpen`) is only set true
   just after that chokepoint runs, so `openSearchScreen()` re-derives it once more immediately
   afterward.
-- **Map setup opens as a modal over Nearby.** `openFilterSetup()` opens the onboarding overlay with `{ mode: "filters" }` without replacing the inspector chrome, so the Nearby panel stays in place underneath it. The compatibility route keeps `state.filterScreenOpen` true while the modal is open for routing and screen-state compatibility, while `mapSetupModalActive()` prevents it being treated as a replacement inspector screen. It starts from the current saved `state.overviewFilters`. The first step asks **What would you like to see?**, places the map-setup icon beside the title, explains that the choices customise the Nearby list and map, reports how many categories are shown ("Showing X of Y. Tap a group to change it."), and presents the group summaries (such as Nature 2/3) as large, bordered, button tiles with a small corner radius (not pill-shaped) with 1rem labels and a pressed state, without a separate count heading or icon boxes. Clicking a summary opens that group's step. Each group then uses chips styled like the Nearby rail pills (same colours, 40px height, tick on the right). The dialog keeps edits in a local set; the intro uses natural content height and category steps use a compact fixed height, with a smooth resize and a directional step transition (the step slides and fades in from the right going forward and from the left going back, then tiles or chips settle in with a short stagger) that respects reduced-motion preferences. Group tiles on the intro put the icon and the shown/total count on one line with the label beneath, keeping tiles short without truncating labels. **Done** calls `setOverviewFilters()` once to refresh the existing Nearby view, while the top-right close button, Escape, or clicking the translucent blurred backdrop closes it and applies the staged selection. Route changes away from `/nearby/filter` dismiss the modal before the destination renders. The old `/nearby/filter` URL remains a compatibility entry point, not a separate live panel. `filterCount` remains a compact summary badge on the entry button.
+- **Map setup opens as a modal over Nearby.** `openFilterSetup()` opens the onboarding overlay with `{ mode: "filters" }` without replacing the inspector chrome, so the Nearby panel stays in place underneath it. The compatibility route keeps `state.filterScreenOpen` true while the modal is open for routing and screen-state compatibility, while `mapSetupModalActive()` prevents it being treated as a replacement inspector screen. It starts from the saved set (`loadStoredOverviewFilters()`), never from the set a landing or other view shows on screen. The first step asks **What would you like to see?**, places the map-setup icon beside the title, explains that the choices customise the Nearby list and map, reports how many categories are shown ("Showing X of Y. Tap a group to change it."), and presents the group summaries (such as Nature 2/3) as large, bordered, button tiles with a small corner radius (not pill-shaped) with 1rem labels and a pressed state, without a separate count heading or icon boxes. Clicking a summary opens that group's step. Each group then uses chips styled like the Nearby rail pills (same colours, 40px height, tick on the right). The dialog keeps edits in a local set; the intro uses natural content height and category steps use a compact fixed height, with a smooth resize and a directional step transition (the step slides and fades in from the right going forward and from the left going back, then tiles or chips settle in with a short stagger) that respects reduced-motion preferences. Group tiles on the intro put the icon and the shown/total count on one line with the label beneath, keeping tiles short without truncating labels. **Done** saves the staged set through `applyStagedFilterSet()`; a staged set with every chip off saves every category instead, as an empty set is never saved. The top-right close button, Escape, and clicking the translucent blurred backdrop apply the staged selection the same way, but save nothing when it matches the saved set, and leave a category landing's list and URL as they are. Only a saved change moves a landing to plain `/nearby`. Route changes away from `/nearby/filter` dismiss the modal before the destination renders. The old `/nearby/filter` URL remains a compatibility entry point, not a separate live panel. `filterCount` remains a compact summary badge on the entry button.
 
 Filter groups (defined by `FILTER_GROUPS` in `js/categories.js`, the single source of truth):
 
@@ -1465,25 +1471,26 @@ The full routing model — the URL for each screen, history entries, back/forwar
     for about 450ms opens a small dialog with just that category's subcategory chips and a **Done**
     button. It is not the full map setup flow: there is no intro, no other groups and no progress
     dots. A group pill edits its own group; a subcategory pill edits its parent group. **Done**, the
-    close button, a backdrop tap or Escape applies the chips, and the pill's count updates with them.
+    close button, a backdrop tap or Escape applies the chips, and the pill's count updates with them. The
+    chips start from the saved set, and the same save rules as Map setup apply.
     Moving more than about 10px cancels the hold, so scrolling the rail never opens it, and the
     release does not also toggle the pill. A hold selects no text: the pill is `user-select: none`
     (with the `-webkit-` prefix for Safari) and cancels `selectstart`. Implemented by
     `setupRailLongPress()` (`js/nav.js`), which calls `openCategorySetup(groupKey)` (`js/app.js`);
     the dialog is `showOnboarding({ mode: "category" })` (`js/onboarding.js`).
-  - **Toggling.** Tapping a top-level pill enables or disables all of its subcategories. Tapping a
-    subcategory pill enables or disables only that subcategory. The row remains at the level it
-    was displayed at: `/nearby` keeps top-level groups available, while a category landing keeps
-    that group's subcategories available. The URL uses `/nearby?show=...` while a partial selection
-    is active, preserving that display level; a complete category landing may use its matching
-    `/nearby/<slug>` path.
-  - **A tap is a lens, not a preference.** `toggleRailFilter()` calls
-    `setOverviewFilters(next, { persist: false, railTap: true })`: saved filters are untouched and
-    the next plain visit restores them. Un-pressing the last pill returns to the all-filters state;
-    the URL's `?filters=false` form represents every category being enabled.
-  - **URL.** `syncRailUrl()` replaces (never pushes) the current entry: one category is
-    `/nearby/<slug>`, several `/nearby?show=a,b`, all-filters `/nearby?filters=false`
-    (`searchStringForPath()` writes that form instead of listing every key).
+  - **Toggling.** Tapping a top-level pill enables or disables all of its subcategories; tapping a
+    subcategory pill enables or disables only that subcategory. The row stays at the level it was displayed
+    at: `/nearby` keeps the top-level groups, a category landing keeps that group's subcategories. On a
+    category landing, or on any other view, a tap edits the set shown on screen and saves the result.
+  - **A tap saves.** `toggleRailFilter()` saves through `saveFilterSet()`, which calls
+    `setOverviewFilters(next, { persist: true, railTap: true })`, so a reload keeps the set. Un-pressing the
+    last pill selects Everything: an empty set is never saved. Everything selects every category. There is no
+    confirmation notice; the pressed pills show the saved result.
+  - **URL.** `syncRailUrl()` replaces (never pushes) the current entry with plain `/nearby` after a pick.
+    A rail pick never writes `?show=` or a category landing path. An old `?show=` link is still read as a
+    view and is not saved.
+  - **Drill level.** Which group the rail shows subcategories for is kept in memory, not in the URL: a
+    reload returns the rail to its top level.
   - **In place, no slide.** A tap sets `railPatchPending`; `selectOverview()` then calls
     `patchOverviewBody()` (js/inspector.js) instead of `transitionInspectorBody()`, so the panel does
     not slide. Existing pills keep their node and glide to new slots, new pills pop in; rows are
@@ -1502,9 +1509,8 @@ The full routing model — the URL for each screen, history entries, back/forwar
   - **Static landings.** The server-rendered `/nearby/<slug>/` page keeps its anchor chips for
     crawlers and no-JavaScript visitors (`spec-marketing.md` § "Category pages"); while that list
     stays on screen, `swapStaticChipsForRail()` replaces just the chips with the rail.
-  - **SEO.** A multi-category selection is one `/nearby?show=` URL with no server-rendered page, so
-    it is not separately indexable; single-category `/nearby/<slug>/` pages stay crawlable.
-    A tap never creates a new indexable URL.
+  - **SEO.** A tap never creates a new indexable URL: it saves the set and writes plain `/nearby`.
+    Single-category `/nearby/<slug>/` pages stay crawlable as their own server-rendered pages.
 
 ---
 

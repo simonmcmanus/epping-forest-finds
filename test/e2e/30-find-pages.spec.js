@@ -792,7 +792,13 @@ test.describe("generated find/nearby pages", () => {
       await expect(body.getByRole("heading", { name: "Pubs & bars nearby" })).toBeVisible();
       await page.evaluate(() => { window.__noReloadMarker = "still-here"; });
       await body.locator('[data-rail-key="cafes"]').click();
-      await expect(page).toHaveURL(/\/nearby\?show=pubs,cafes$/);
+      // A rail tap saves the set the landing shows plus the tapped category, and moves the URL to plain
+      // /nearby (no ?show= link). The rail stays on the Food subcategories, now with Pubs and Cafes pressed.
+      await expect(page).toHaveURL(/\/nearby(?:\?radius=30)?$/);
+      await expect(body.locator('[data-rail-key="pubs"][aria-pressed="true"]')).toHaveCount(1);
+      await expect(body.locator('[data-rail-key="cafes"][aria-pressed="true"]')).toHaveCount(1);
+      await expect(body.locator('[data-rail-key="restaurants"][aria-pressed="false"]')).toHaveCount(1);
+      expect(await page.evaluate(() => loadStoredOverviewFilters().slice().sort().join(","))).toBe("cafes,pubs");
       const markerSurvived = await page.evaluate(() => window.__noReloadMarker).catch(() => null);
       expect(markerSurvived).toBe("still-here");
     });

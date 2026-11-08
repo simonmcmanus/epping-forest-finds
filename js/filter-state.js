@@ -67,7 +67,12 @@ function saveFilterState() {
 function loadStoredOverviewFilters() {
   try {
     const d = JSON.parse(localStorage.getItem(FILTER_STATE_KEY) || "null");
-    if (d && Array.isArray(d.filters)) return sanitizeOverviewFilters(d.filters);
+    if (d && Array.isArray(d.filters)) {
+      const filters = sanitizeOverviewFilters(d.filters);
+      // An empty set is never a saved choice: un-pressing the last pill selects Everything, so an
+      // empty stored set reads as every category.
+      return filters.length > 0 ? filters : Array.from(ALL_OVERVIEW_FILTER_KEYS);
+    }
   } catch {}
   return DEFAULT_OVERVIEW_FILTER_KEYS.slice();
 }

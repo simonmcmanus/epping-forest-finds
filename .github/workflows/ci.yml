@@ -388,10 +388,12 @@ jobs:
         with:
           # Two commits so HEAD^1 (the base side of the PR merge ref) is available below.
           fetch-depth: 2
+      - name: Trust the checked-out workspace for Git
+        # The reporter reads tracked baselines on every event, including main pushes.
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Show which changed files can move pixels
         if: github.event_name == 'pull_request'
         run: |
-          git config --global --add safe.directory "$GITHUB_WORKSPACE"
           files=$(git diff --name-only HEAD^1 HEAD -- index.html app.html admin.html terms.html cookie-consent.js css js sw.js data assets reports netlify scripts test/e2e/__screenshots__ || true)
           {
             echo "### Files in this PR that can change a snapshot"

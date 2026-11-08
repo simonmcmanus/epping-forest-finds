@@ -82,8 +82,9 @@ function onboardingReducedMotion() {
     && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-// Returns a Promise resolving to { filters: string[] }. Every exit path applies the current
-// staged selection, including the close button, Escape, and backdrop dismissal.
+// Returns a Promise resolving to { filters: string[] }. Every exit path resolves with the current
+// staged selection, including the close button, Escape, and backdrop dismissal; the caller decides
+// whether that selection changed anything worth saving.
 // mode "category" is a held rail pill: one group's chips and Done, nothing else. It uses the
 // filter-setup behaviour (Done, close, backdrop and Escape all apply the staged set) but skips the
 // intro, the other groups and the progress dots.
@@ -129,12 +130,8 @@ function showOnboarding({ mode = "first-run", groupKey = null } = {}) {
     let hasRenderedStep = false;
     let cardResizeFrame = null;
     let cardResizeEnd = null;
-    const startingFilters = filterSetupMode
-      && typeof state !== "undefined"
-      && state
-      && Array.isArray(state.overviewFilters)
-      ? state.overviewFilters
-      : DEFAULT_OVERVIEW_FILTER_KEYS;
+    // Map setup and a held pill edit the saved set, never a landing's or other view's own set on screen.
+    const startingFilters = filterSetupMode ? loadStoredOverviewFilters() : DEFAULT_OVERVIEW_FILTER_KEYS;
     const selected = new Set(sanitizeOverviewFilters(startingFilters));
     let finished = false;
     let returnToIntroOnBack = false;
