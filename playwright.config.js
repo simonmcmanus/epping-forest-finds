@@ -72,7 +72,13 @@ module.exports = defineConfig({
     // Animation-specific scenarios explicitly opt back in. Keep ordinary UI
     // assertions and screenshots on the accessible stationary artwork path.
     reducedMotion: "reduce",
-    trace: "on-first-retry",
+    // Keep first-failure action/network diagnostics without recording the huge
+    // canvas app DOM or screencast on every action: that observer work starves
+    // 2-core runners and can outlast the account-request timeout.
+    trace: process.env.CI
+      ? { mode: "retain-on-failure", snapshots: false, screenshots: false, sources: false }
+      : "off",
+    screenshot: "only-on-failure",
     // Suppress service-worker registration so tests always hit real routes
     serviceWorkers: "block",
     // Pre-decide the cookie-consent banner and mark the informational early-testing notice as

@@ -1,6 +1,7 @@
 ## Summary
 
-<!-- Describe the change and its user impact. -->
+<!-- Describe the shared user goal/subsystem and impact. Related issues, fixes, specs and tests may
+     share this PR when their risk, test plan and rollback fit together; link the included issues. -->
 
 ## Visual changes
 
@@ -12,6 +13,9 @@
      CI fills this section automatically. Delete it only if nothing visual changed. -->
 
 ## Verification
+
+<!-- Consolidate evidence for the current head: selected review lenses, exact commands/counts and
+     CI run URL. State local vs CI evidence separately. Do not repeat a checklist per batched issue. -->
 
 - [ ] Unit tests passed (`npm run test:unit`)
 - [ ] Relevant browser coverage passed
