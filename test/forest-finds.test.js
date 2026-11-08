@@ -2404,7 +2404,7 @@ test("a first landing counts items from every active filter, not only the one wi
   );
 });
 
-test("a first landing never rings tighter than about 21 metres, however close the nearest items are", () => {
+test("a first landing never rings tighter than 35 metres, however close the nearest items are", () => {
   const app = loadAppForTests();
   resetData(app);
   app.location.search = "";
@@ -2416,8 +2416,45 @@ test("a first landing never rings tighter than about 21 metres, however close th
   assert.equal(app.applyFirstLandingRadius(), true);
 
   const ringMetres = app.walkingDistanceToMetres(app.state.walkingDistanceMinutes);
-  assert.ok(ringMetres >= 20, `a ring of ${ringMetres.toFixed(1)} m is too tight to stand in a view with any map around it`);
+  assert.ok(ringMetres >= 34.9, `a ring of ${ringMetres.toFixed(1)} m is too tight to show a path or junction around the reader`);
+  assert.ok(ringMetres <= 35.5, `and the floor holds it at about 35 m, not ${ringMetres.toFixed(1)} m`);
   assert.equal(app.overviewItemsForActiveFilter().length, 5, "all five underfoot items are still inside that ring");
+});
+
+test("a reader who has not shared a real location in the forest keeps the default ring on first landing", () => {
+  const app = loadAppForTests();
+  resetData(app);
+  app.location.search = "";
+  app.location.hash = "";
+  app.state.overviewFilters = ["trees"];
+  app.state.trees = treesAlongEast(app, [10, 20, 30, 40, 50, 120]);
+
+  // The High Beach stand-in: a ring sized from it would read as "closest to you" when it is not.
+  app.state.userLocation = { ...makePoint(app, 0, 0), isDefault: true };
+  assert.equal(app.applyFirstLandingRadius(), false, "the stand-in location does not get a sized ring");
+
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.farFromForest = true;
+  assert.equal(app.applyFirstLandingRadius(), false, "nor does a reader who is far from the forest");
+  assert.equal(app.state.walkingDistanceMinutes, app.DEFAULT_WALKING_DISTANCE_MINUTES);
+  app.state.farFromForest = false;
+});
+
+test("the Nearby subtitle says closest to you while the first-landing ring holds, and names the walk once the reader moves it", () => {
+  const app = loadAppForTests();
+  resetData(app);
+  app.location.search = "";
+  app.location.hash = "";
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.overviewFilters = ["trees"];
+  app.state.trees = treesAlongEast(app, [10, 20, 30, 40, 50, 120]);
+  app.applyFirstLandingRadius();
+
+  assert.equal(app.overviewHeadingText(), "Trees, closest to you", "the ring the reader did not pick is not presented as a walking time");
+
+  app.state.walkingDistanceMinutes = 2;
+  assert.ok(app.overviewHeadingText().includes("2 min walk"), "once the reader moves the ring, the walking time is named again");
+  assert.ok(!app.overviewHeadingText().includes("closest"), "and the closest-to-you wording goes with the first ring");
 });
 
 test("a first landing keeps the default ring when fewer than five items are in reach at all", () => {

@@ -128,6 +128,8 @@ A return visit must paint from cache and never wait on the network; new data arr
 
 ### Trees
 
+Trees load after the map is revealed. The first real fix waits up to `FIRST_LANDING_TREE_WAIT_MS` (6 s) for this register before sizing the first-landing walking ring (`applyFirstLandingRadius`, `spec/spec-data-rendering.md`); a register still loading after that is left out of the ring's sizing. Trees that arrive later join the Nearby list without resizing the ring or moving the camera.
+
 Primary source: `data/trees/index.json` with `chunks: [{ url, count, bounds }]`, then each chunk file as `{ trees: [...] }`.
 
 Fallback source: `{ trees: [...], historicalNamedTreeEnrichment: {...} }`

@@ -57,11 +57,18 @@ const FIRST_LOAD_REVEAL_ANIMATION_MS = 700; // the first-time "reveal the map" a
 // A plain first landing (no ?radius= of the reader's own, no deep link) opens on the nearest few items
 // across every active filter instead of the default ring: see applyFirstLandingRadius. Change the count
 // here; the ring is the Nth item's distance plus the walking-radius floor's buffer, never tighter than
-// WALKING_RADIUS_TIGHT_MIN_MINUTES (about 21 m) and never wider than the default ring.
+// FIRST_LANDING_MIN_METRES and never wider than the default ring. Trees load after the reveal, so the
+// ring is sized from the items loaded at that moment and is not resized when more arrive.
 const FIRST_LANDING_NEAREST_COUNT = 5;
+// The tightest first-landing ring. 35 m keeps a path or junction in frame; a 21 m ring is too small to
+// place yourself in, and 50 m or more brings back the crowding the change is meant to remove.
+const FIRST_LANDING_MIN_METRES = 35;
 // The camera move from the whole forest into that ring, in ms. It is cinematic: it eases in and out
 // on the same curve as the GPS fly-to, with the zoom-out arc capped at the forest-wide view.
 const FIRST_LANDING_REVEAL_ANIMATION_MS = 2000;
+// How long the first real fix waits for the tree register before sizing the ring, in ms. The register is the largest
+// download and arrives after the map, so without this most first landings would size from the non-tree items alone.
+const FIRST_LANDING_TREE_WAIT_MS = 6000;
 const FIRST_LOCATION_FLY_TO_ANIMATION_MS = 1250; // the High Beach stand-in -> real GPS handoff, with a cinematic fly-to arc
 const DEFAULT_FIT_PADDING_PX = 54; // default screen-space padding for fitToPoints (around content bounds)
 const OVERVIEW_FIT_PADDING_PX = 28; // tighter padding for overview targets fit
@@ -576,7 +583,18 @@ function isFirstLandingForRadius() {
   if (window.location.hash.replace(/^#/, "") !== "") return false;
   if (filterKeysFromFindPath(window.location.pathname).length) return false;
   if (findLandingSlug()) return false;
+  // Without a real fix in the forest the origin is the High Beach stand-in, so a ring sized from it would read as
+  // "closest to you" when it is not. Those readers keep the default ring.
+  if (!hasRealLocation() || state.farFromForest) return false;
   return state.walkingDistanceMinutes === DEFAULT_WALKING_DISTANCE_MINUTES;
+}
+
+// True while the ring is still the one applyFirstLandingRadius chose and the reader has not moved it. The Nearby
+// subtitle then says "closest to you" rather than naming a walking time the reader never picked.
+function firstLandingRingActive() {
+  return state.firstLandingRadiusMinutes != null
+    && state.walkingDistanceMinutes === state.firstLandingRadiusMinutes
+    && !state.showAllOutsideRadius;
 }
 
 // Sizes the walking ring for a plain first landing so it closes on the nearest FIRST_LANDING_NEAREST_COUNT
@@ -585,13 +603,14 @@ function isFirstLandingForRadius() {
 // the radius alone, and returns false, when the landing is not a plain one or fewer items are in reach.
 function applyFirstLandingRadius() {
   const origin = nearbyOrigin();
+
   if (!origin || !isFirstLandingForRadius()) return false;
   const nearest = overviewItemsUnlimited(origin.latitude, origin.longitude, FIRST_LANDING_NEAREST_COUNT);
   if (nearest.length < FIRST_LANDING_NEAREST_COUNT) return false;
   const nthMetres = nearest[FIRST_LANDING_NEAREST_COUNT - 1].metres;
   const minutes = clamp(
     metresToWalkingMinutes(nthMetres * WALKING_RADIUS_FLOOR_BUFFER),
-    WALKING_RADIUS_TIGHT_MIN_MINUTES,
+    metresToWalkingMinutes(FIRST_LANDING_MIN_METRES),
     DEFAULT_WALKING_DISTANCE_MINUTES,
   );
   state.walkingDistanceMinutes = minutes;
@@ -609,19 +628,11 @@ async function revealMapCenteredOnUser() {
   if (!findLandingSlug() && !communityScreenOpen()) selectOverview();
   draw();
 
-  // A plain first landing sizes its ring to the nearest few items (applyFirstLandingRadius). Unless reduced
-  // motion is asked for, it then starts from the whole forest and flies in to that ring; otherwise the reveal
-  // runs as it always has, from the ring frame.
-  const firstLanding = applyFirstLandingRadius();
-  const cinematicFirstLanding = firstLanding && !prefersReducedMotion();
-  if (cinematicFirstLanding) {
-    stopViewportAnimation();
-    fitToBounds(false);
-  } else {
-    // Snap the camera onto the walking-radius circle before the reveal animation -- the same
-    // thing the Nearby view frames once it is live (see nearbyCameraFitPoints), so the reveal
-    // eases from a slightly wider version of the final view rather than starting on a tight fit
-    // of whichever items happened to be nearest and then pulling back out to the circle.
+  // Snap the camera onto the walking-radius circle before the reveal animation -- the same
+  // thing the Nearby view frames once it is live (see nearbyCameraFitPoints), so the reveal
+  // eases from a slightly wider version of the final view rather than starting on a tight fit
+  // of whichever items happened to be nearest and then pulling back out to the circle.
+  {
     const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
     const startFrame = bottomEdgeRadiusFrame(focusRect, 0.82);
     const origin = nearbyOrigin();
@@ -649,8 +660,6 @@ async function revealMapCenteredOnUser() {
   // to a wider viewport if a GPS update arrived during the 320 ms wait.
   if (state.selected) {
     ensureUserAndSelectionVisible({ animate: true, force: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS });
-  } else if (cinematicFirstLanding) {
-    ensureOverviewTargetsVisible({ animate: true, cinematic: true, durationMs: FIRST_LANDING_REVEAL_ANIMATION_MS });
   } else {
     ensureOverviewTargetsVisible({ animate: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS });
   }
@@ -926,6 +935,16 @@ async function boot() {
         }
         setLoadStep("location", "done");
         updateFarFromForest(latitude, longitude);
+        // The first real fix is where a plain first landing is sized: the boot reveal above has to show the
+        // High Beach stand-in until a fix arrives, and a stand-in origin never sizes the ring (see
+        // isFirstLandingForRadius).
+        // Trees arrive after the map is shown. Give them a short, bounded moment to land so the first ring is sized from
+        // the nearest trees as well as everything else; a slow register falls back to whatever has loaded by then.
+        await Promise.race([
+          mapData.treePromise.catch(() => null),
+          new Promise((resolve) => setTimeout(resolve, FIRST_LANDING_TREE_WAIT_MS)),
+        ]);
+        const firstLanding = applyFirstLandingRadius();
         ensureLocationWatch();
 
         // Request compass only if not already handled (e.g. by onboarding).
@@ -948,19 +967,24 @@ async function boot() {
         stopViewportAnimation();
         // The Community screen has no map target for the selection fit, so it takes the overview fit,
         // which frames the user's own marks when they are away from the forest.
+        // Reduced-motion readers get the same handoff as an ordinary pan and zoom, without the arc.
+        const cinematicHandoff = !prefersReducedMotion();
+        // A first landing that sized its ring flies in over the longer first-landing move, so the camera has time
+        // to settle on the few things closest to the reader rather than the whole ring at once.
+        const handoffMs = firstLanding ? FIRST_LANDING_REVEAL_ANIMATION_MS : FIRST_LOCATION_FLY_TO_ANIMATION_MS;
         if (state.selected && !communityScreenOpen()) {
           ensureUserAndSelectionVisible({
             animate: true,
-            cinematic: true,
+            cinematic: cinematicHandoff,
             force: true,
-            durationMs: FIRST_LOCATION_FLY_TO_ANIMATION_MS,
+            durationMs: handoffMs,
           });
         } else {
           ensureOverviewTargetsVisible({
             animate: true,
-            cinematic: true,
+            cinematic: cinematicHandoff,
             force: true,
-            durationMs: FIRST_LOCATION_FLY_TO_ANIMATION_MS,
+            durationMs: handoffMs,
           });
         }
         requestDraw();
@@ -2630,6 +2654,10 @@ function overviewHeadingText() {
   // its own separate <p class="source-note"> paragraph (overviewNearestHtml below) -- said once,
   // here, in the one line every Nearby screen already shows, rather than twice.
   const radiusOrigin = origin.isDefault ? " of High Beach" : "";
+  if (firstLandingRingActive() && !origin.isDefault) {
+    if (singleFilterTitle) return `${singleFilterTitle}, closest to you`;
+    return state.overviewFilters.length > 0 ? "Closest selected filters to you" : "Closest to you";
+  }
   if (railSelection().length === 0) {
     return radiusLabel
       ? `Showing everything within ${radiusLabel}${radiusOrigin}`
