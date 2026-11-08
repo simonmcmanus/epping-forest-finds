@@ -1,7 +1,27 @@
 ## Summary
 
-<!-- Describe the shared user goal/subsystem and impact. Related issues, fixes, specs and tests may
-     share this PR when their risk, test plan and rollback fit together; link the included issues. -->
+<!-- Keep the description concise and easy to scan. In 1–3 short bullets, explain who benefits,
+     what changes for them, and why it matters. For internal changes, state the practical benefit.
+     Include implementation details only when needed to understand an impact or risk.
+     Link related issues. Delete optional sections that do not apply. -->
+
+## How to test
+
+<!-- Give repeatable steps for this PR, including any setup, test data or permissions needed.
+     Link the relevant preview page with nuke=true. Give an observable expected result per step.
+     For changes without an app flow, describe how to verify the changed document or workflow. -->
+
+1. Open …
+2. Do … → expect …
+
+## Areas to check
+
+<!-- Replace the prompts with a short checklist specific to this change. Keep only relevant areas:
+     affected journeys and nearby regressions; validation, loading, empty and error states;
+     mobile layout and accessibility; offline/reconnect behaviour; permissions and privacy.
+     Highlight any known limitation or risk that needs reviewer attention. -->
+
+- [ ] …
 
 ## Visual changes
 
@@ -14,8 +34,8 @@
 
 ## Verification
 
-<!-- Consolidate evidence for the current head: selected review lenses, exact commands/counts and
-     CI run URL. State local vs CI evidence separately. Do not repeat a checklist per batched issue. -->
+<!-- Briefly list checks actually run and their results; distinguish local checks from CI and link
+     the CI run. State anything not tested and why. Remove checks that do not apply. -->
 
 - [ ] Unit tests passed (`npm run test:unit`)
 - [ ] Relevant browser coverage passed
