@@ -330,12 +330,11 @@ test.describe("A re-tap keeps the view the reader set up", () => {
     expect(await savedFilters(page)).toBe("ponds_streams,trees");
   });
 
-  test("a pill tap on a category landing saves the landing's set, and Undo restores the saved picks", async ({ page }) => {
+  test("a pill tap on a category landing saves the landing's set, and a reload keeps it", async ({ page }) => {
     // The Food landing shows all four Food categories. Tapping Cafes edits that shown set, saves it and
-    // moves the URL to plain Nearby. Undo then puts the earlier saved picks back.
+    // moves the URL to plain Nearby. A reload then shows the saved set, not the earlier picks.
     await seedSavedFilters(page, ["ponds_streams", "trees"]);
     await setup(page, "/nearby/food");
-    const savedBefore = await savedRaw(page);
     await expect(railPill(page, "cafes")).toHaveAttribute("aria-pressed", "true");
     await railPill(page, "cafes").click();
     await expect(railPill(page, "cafes")).toHaveAttribute("aria-pressed", "false");
@@ -343,14 +342,10 @@ test.describe("A re-tap keeps the view the reader set up", () => {
     // The saved set is the view the reader edited: the Food categories still on, which excludes the earlier picks.
     expect(await savedFilters(page)).toBe("pubs,restaurants,shops");
 
-    await page.getByRole("button", { name: "Undo" }).click();
-    await expect(page.getByRole("button", { name: "Undo" })).toHaveCount(0);
-    expect(await savedRaw(page)).toBe(savedBefore);
-
     await page.reload();
     await page.waitForFunction(() => typeof state !== "undefined" && state.dataLoaded === true);
     await waitForUiToSettle(page);
-    expect(await sortedFilters(page)).toBe("ponds_streams,trees");
+    expect(await sortedFilters(page)).toBe("pubs,restaurants,shops");
   });
 
   test("Everything within a place shows every category and leaves the saved picks as they were after a reload", async ({ page }) => {

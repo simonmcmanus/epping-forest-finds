@@ -2775,8 +2775,6 @@ function setOverviewFilters(nextFilters, { persist = true, render = true, railTa
   const sanitizedFilters = sanitizeOverviewFilters(nextFilters);
   const filtersChanged = previousFilters.length !== sanitizedFilters.length
     || previousFilters.some((filterKey, index) => filterKey !== sanitizedFilters[index]);
-  // Any real change makes an earlier Undo stale, so its notice goes.
-  if (filtersChanged) hideSavedUndoNotice();
   // Capture the currently visible pin set before changing state so the canvas renderer can
   // animate additions and removals by item identity. Initial boot calls this with render:false;
   // that path should remain a quiet data/setup render rather than replaying a filter animation.
@@ -4632,65 +4630,15 @@ function syncRailUrl() {
   history.replaceState(history.state, "", url);
 }
 
-// The Undo notice after a tap or dialog replaces the saved set. previousRaw is the stored string before
-// the save, so Undo writes back exactly what was there. It hides itself after SAVED_UNDO_MS, and any
-// later filter change hides it too (setOverviewFilters), so an old Undo can never restore a stale set.
-const SAVED_UNDO_MS = 6000;
-let savedUndoTimer = null;
-
-function readStoredFilterStateRaw() {
-  try { return localStorage.getItem(FILTER_STATE_KEY); } catch { return null; }
-}
-
-function restoreStoredFilterStateRaw(raw) {
-  try {
-    if (raw === null) localStorage.removeItem(FILTER_STATE_KEY);
-    else localStorage.setItem(FILTER_STATE_KEY, raw);
-  } catch {}
-}
-
-function hideSavedUndoNotice() {
-  clearTimeout(savedUndoTimer);
-  savedUndoTimer = null;
-  const notice = document.getElementById("savedUndo");
-  if (notice) notice.textContent = "";
-}
-
-function showSavedUndoNotice(previousRaw) {
-  const notice = document.getElementById("savedUndo");
-  if (!notice) return;
-  clearTimeout(savedUndoTimer);
-  const text = document.createElement("span");
-  text.textContent = "Saved.";
-  const button = document.createElement("button");
-  button.type = "button";
-  button.className = "saved-undo-button";
-  button.textContent = "Undo";
-  button.addEventListener("click", () => undoSavedFilterChange(previousRaw));
-  notice.textContent = "";
-  notice.append(text, " ", button);
-  savedUndoTimer = setTimeout(hideSavedUndoNotice, SAVED_UNDO_MS);
-}
-
-function undoSavedFilterChange(previousRaw) {
-  restoreStoredFilterStateRaw(previousRaw);
-  setOverviewFilters(loadStoredOverviewFilters(), { persist: false });
-  state.overviewFiltersEphemeral = false;
-  syncRailUrl();
-  hideSavedUndoNotice();
-}
-
-// Saves a filter set. The caller decides whether it replaces a saved set that a reader may want back:
-// those saves show the Undo notice. A plain Nearby pill tap does not, as it has always saved silently.
-function saveFilterSetWithUndo(nextFilters, { railTap = false, notice = true } = {}) {
-  const previousRaw = readStoredFilterStateRaw();
+// Saves a filter set: the reader's own choice, which persists and moves a view (a landing or an old ?show=
+// link) to plain /nearby.
+function saveFilterSet(nextFilters, { railTap = false } = {}) {
   setOverviewFilters(nextFilters, { persist: true, railTap });
   syncRailUrl();
-  if (notice) showSavedUndoNotice(previousRaw);
 }
 
-// A tap on a category landing, or on any other view (an old ?show= link, a ?filters=false view), replaces the
-// saved set, so it gets the Undo notice. On plain Nearby a pill tap is a plain save.
+// Whether the screen is showing a view rather than the saved set: a category landing, or any other view
+// (an old ?show= link, a ?filters=false view).
 function filterChangeReplacesSavedSet() {
   return Boolean(state.overviewFiltersEphemeral || isNearbyCategoryLandingPath());
 }
@@ -4703,7 +4651,7 @@ function filterKeysEqual(first, second) {
 
 // Applies the set Map setup or a held pill's dialog ends with. The dialog starts from the saved set, so
 // a set that matches it changed nothing: nothing is saved, though a view or landing still returns to
-// the saved set and plain /nearby. Any real change saves with the Undo notice.
+// the saved set and plain /nearby. Any real change saves.
 function applyStagedFilterSet(stagedFilters) {
   if (filterKeysEqual(stagedFilters, loadStoredOverviewFilters())) {
     if (filterChangeReplacesSavedSet()) {
@@ -4713,7 +4661,7 @@ function applyStagedFilterSet(stagedFilters) {
     }
     return;
   }
-  saveFilterSetWithUndo(stagedFilters);
+  saveFilterSet(stagedFilters);
 }
 
 function toggleRailFilter(key) {
@@ -4721,7 +4669,7 @@ function toggleRailFilter(key) {
     if (typeof navigator.vibrate === "function") navigator.vibrate(8);
     const displayedGroup = nearbyRailGroup();
     state.nearbyRailGroupKey = displayedGroup ? displayedGroup.key : null;
-    saveFilterSetWithUndo(Array.from(ALL_OVERVIEW_FILTER_KEYS), { railTap: true, notice: filterChangeReplacesSavedSet() });
+    saveFilterSet(Array.from(ALL_OVERVIEW_FILTER_KEYS), { railTap: true });
     return;
   }
   const displayedGroup = nearbyRailGroup();
@@ -4748,7 +4696,7 @@ function toggleRailFilter(key) {
   // then shows as pressed, and the list stays populated.
   if (next.length === 0) next = Array.from(ALL_OVERVIEW_FILTER_KEYS);
   if (typeof navigator.vibrate === "function") navigator.vibrate(8);
-  saveFilterSetWithUndo(next, { railTap: true, notice: filterChangeReplacesSavedSet() });
+  saveFilterSet(next, { railTap: true });
 }
 
 function overviewCategoryContentHtml(content) {

@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup } = require("./helpers");
+const { setup, waitForUiToSettle } = require("./helpers");
 
 test.describe("Map setup", () => {
   test.beforeEach(async ({ page }) => {
@@ -64,6 +64,23 @@ test.describe("Map setup", () => {
     await page.getByRole("button", { name: "Done" }).click();
     await expect(page.locator("#onboardingOverlay")).toBeHidden();
     await expect.poll(() => page.evaluate(() => state.overviewFilters.includes("events"))).toBe(false);
+  });
+
+  test("Done saves the chosen categories, and a reload shows the saved set", async ({ page }) => {
+    await page.click("#filterToggle");
+    await page.getByRole("button", { name: "Choose categories" }).click();
+    for (let i = 0; i < 6; i += 1) {
+      await page.getByRole("button", { name: "Next" }).click();
+    }
+    await page.locator('.onboarding-chip[data-key="events"]').click();
+    await page.getByRole("button", { name: "Done" }).click();
+    await expect(page.locator("#onboardingOverlay")).toBeHidden();
+
+    await page.reload();
+    await page.waitForFunction(() => typeof state !== "undefined" && state.dataLoaded === true);
+    await waitForUiToSettle(page);
+    expect(await page.evaluate(() => state.overviewFilters.includes("events"))).toBe(false);
+    expect(await page.evaluate(() => loadStoredOverviewFilters().includes("events"))).toBe(false);
   });
 
   test("the legacy filter URL opens the guided setup", async ({ page }) => {

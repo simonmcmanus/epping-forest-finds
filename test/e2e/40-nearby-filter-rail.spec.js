@@ -177,16 +177,17 @@ test.describe("Nearby filter rail", () => {
     await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
   });
 
-  test("a pill tap on All nearby saves that view and Undo restores the saved picks", async ({ page }) => {
+  test("a pill tap on All nearby on a category landing saves every category, and a reload keeps them", async ({ page }) => {
     await setup(page, "/nearby/food");
-    const savedBefore = await page.evaluate(() => localStorage.getItem("forest-finds-filter-state-v1"));
     await pill(page, "all-nearby").click();
     await expect(pill(page, "all-nearby")).toHaveAttribute("aria-pressed", "true");
-    expect(await page.evaluate(() => loadStoredOverviewFilters().length)).toBe(await page.evaluate(() => ALL_OVERVIEW_FILTER_KEYS.size));
+    const every = await page.evaluate(() => ALL_OVERVIEW_FILTER_KEYS.size);
+    expect(await page.evaluate(() => loadStoredOverviewFilters().length)).toBe(every);
 
-    await page.getByRole("button", { name: "Undo" }).click();
-    await expect(page.getByRole("button", { name: "Undo" })).toHaveCount(0);
-    expect(await page.evaluate(() => localStorage.getItem("forest-finds-filter-state-v1"))).toBe(savedBefore);
+    await page.reload();
+    await page.waitForFunction(() => typeof state !== "undefined" && state.dataLoaded === true);
+    await waitForUiToSettle(page);
+    expect(await page.evaluate(() => state.overviewFilters.length)).toBe(every);
   });
 
   test("a selected top-level Nature pill can be switched off", async ({ page }) => {
