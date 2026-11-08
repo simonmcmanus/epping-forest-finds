@@ -2,7 +2,7 @@
 # Publishes the failing visual snapshots of one PR to the `visual-diffs` branch and writes a
 # table into a marked section of the PR description. The table links each snapshot's committed
 # baseline, this run's actual render and the diff. Runs in the trusted workflow_run publisher after
-# every PR visual job, so a green run clears the table and removes the PR's images.
+# every PR visual job. Each report identifies its revision and includes capture failures.
 #
 # Needs in the environment: PR_NUMBER, HEAD_SHA (the PR head, where the baselines live),
 # HEAD_REPOSITORY (the repository containing that head, which may be a fork), and PAT
@@ -13,8 +13,6 @@ set -euo pipefail
 work=$(mktemp -d)
 section="$RUNNER_TEMP/visual-section.md"
 remote="https://github.com/$GITHUB_REPOSITORY.git"
-raw="https://raw.githubusercontent.com/$GITHUB_REPOSITORY"
-raw_head="https://raw.githubusercontent.com/${HEAD_REPOSITORY:-$GITHUB_REPOSITORY}"
 
 if git ls-remote --exit-code --heads "$remote" visual-diffs > /dev/null 2>&1; then
   git clone --quiet --depth 1 --branch visual-diffs "$remote" "$work/w"
@@ -28,20 +26,12 @@ git -C "$work/w" remote add origin "https://x-access-token:$PAT@github.com/$GITH
 dest="$work/w/pr-$PR_NUMBER"
 rm -rf "$dest"
 mkdir -p "$dest"
+touch "$dest/.gitkeep"
 
-# One entry per snapshot and project. A retried test leaves a second folder with the same
-# snapshot, so the first one found wins.
-declare -A seen
-while IFS= read -r actual; do
-  stem=$(basename "$actual" -actual.png)
-  project=$(basename "$(dirname "$actual")" | grep -oE 'desktop|mobile' | tail -n 1 || true)
-  key="${project:-unknown}-$stem"
-  [[ -n "${seen[$key]:-}" ]] && continue
-  seen[$key]=1
-  cp "$actual" "$dest/$key-actual.png"
-  diff_file="${actual%-actual.png}-diff.png"
-  [[ -f "$diff_file" ]] && cp "$diff_file" "$dest/$key-diff.png"
-done < <(find test-results -name '*-actual.png' 2>/dev/null | sort)
+# Render only the final-attempt evidence recorded by CI. Missing manifests produce an
+# explicit unavailable status instead of retaining an older run's screenshots.
+export VISUAL_DEST="$dest"
+node "$RUNNER_TEMP/render-visual-section.cjs"
 
 git -C "$work/w" add -A "pr-$PR_NUMBER"
 if git -C "$work/w" diff --cached --quiet; then
@@ -62,34 +52,5 @@ else
   [[ -n "$pushed" ]] || { echo "Could not push visual diffs"; exit 1; }
 fi
 
-rows=$(
-  shopt -s nullglob
-  vd=$(git -C "$work/w" rev-parse HEAD 2>/dev/null || true)
-  for actual in "$dest"/*-actual.png; do
-    key=$(basename "$actual" -actual.png)
-    project=${key%%-*}
-    stem=${key#*-}
-    baseline="test/e2e/__screenshots__/$stem-$project-linux.png"
-    # The working copy already holds this run's render (the apply step copied it over the baseline path), so
-    # "does a baseline exist" is asked of the committed tree at the PR head. A snapshot with none yet shows its
-    # first render as the actual, with no baseline to compare against.
-    if git cat-file -e "$HEAD_SHA:$baseline" 2>/dev/null; then before="![baseline]($raw_head/$HEAD_SHA/$baseline)"; else before="No baseline yet, first render"; fi
-    if [[ -f "$dest/$key-diff.png" ]]; then diff="![diff]($raw/$vd/pr-$PR_NUMBER/$key-diff.png)"; else diff="_none_"; fi
-    echo "| \`$stem\` | $project | $before | ![actual]($raw/$vd/pr-$PR_NUMBER/$key-actual.png) | $diff |"
-  done
-)
-
-# An empty section removes the table from the PR description.
-if [[ -n "$rows" ]]; then
-  {
-    echo "### Visual changes to review"
-    echo
-    echo "Baseline is the committed image, Actual is this run's render, Diff highlights the changed pixels. Cleared when the screenshots match their baselines."
-    echo
-    echo "| Snapshot | Project | Baseline | Actual | Diff |"
-    echo "| --- | --- | --- | --- | --- |"
-    echo "$rows"
-  } > "$section"
-else
-  : > "$section"
-fi
+vd=$(git -C "$work/w" rev-parse HEAD)
+sed -i "s/__VISUAL_SHA__/$vd/g" "$section"

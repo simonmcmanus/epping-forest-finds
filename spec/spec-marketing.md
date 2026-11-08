@@ -520,7 +520,7 @@ writing a standalone page. Only two things are swapped:
   renders, the same way it already overwrites that paragraph on `/nearby`
   today.
 
-`js/app.js`'s boot sequence (`applyShowFilterFromQuery`) reads the category
+`js/app.js`'s boot sequence (`applyShowFilterFromQuery` in `js/router.js`) reads the category
 straight out of the URL path (`filterKeysFromFindPath`, reversing the
 hyphen-for-underscore slug) and calls the existing `setOverviewFilters(keys)`
 — a subfilter page resolves to that one key, a group page to every member
@@ -602,7 +602,7 @@ branches.
   description phrase for. `cows` and `events` do each still get their own
   page (`/nearby/cows/`, `/nearby/events/`) — `renderCowsPage`/`renderEventsPage`
   generate them directly in `generate()`, outside `collectPages`, since both
-  are real filter keys `filterKeysFromFindPath` (`js/app.js`) already
+  are real filter keys `filterKeysFromFindPath` (`js/router.js`) already
   resolves like any other subfilter slug; their content is honest about
   having no fixed count/list to show rather than one manufactured to look
   like a normal category page's.
@@ -862,7 +862,7 @@ use for the homepage's counts.
   `tel:` link.
 - **Landing on `/find/<slug>/` selects that exact business, through the
   app's own ordinary deep-link path — no separate mechanism of its own.**
-  `routeValueFromLocation()` (`js/app.js`) resolves the URL to the same
+  `routeValueFromLocation()` (`js/router.js`) resolves the URL to the same
   `place=<hashKey>` value a `#place=<key>` hash already would (via
   `findPlaceByFindSlug`, a reverse lookup over the loaded landmarks), so
   `applySelectionFromHash()` — the same boot step that opens a tree or place
@@ -872,7 +872,7 @@ use for the homepage's counts.
   selection path existed that anchor was always immediately overwritten by
   the selection itself — `showRoutedSelection` clears `state.nearbyAnchor`
   — so it was removed as dead weight.) The no-JS fallback is the
-  server-rendered content itself. `isLandingPageArrival()` (`js/app.js`,
+  server-rendered content itself. `isLandingPageArrival()` (`js/router.js`,
   "Onboarding" in `spec.md`) also recognises a `/find/<slug>/` path, the
   same as `/nearby/<slug>/` — without it, a genuine first-time visitor
   (not just a returning one) landed on the first-run onboarding wizard
@@ -939,7 +939,7 @@ use for the homepage's counts.
   click handler on `#inspectorBody` (`js/nav.js`) now intercepts a click on
   any such link (skipping `target="_blank"` links — Open in Maps, external
   website/source rows — and a modified click, both left to the browser as
-  normal) and calls `navigateInApp(href)` (`js/app.js`): the same
+  normal) and calls `navigateInApp(href)` (`js/router.js`): the same
   `history.pushState` shape `setHashFromSelection` already uses, followed by
   `applyRouteFromUrl()` — the same entry point the back/forward buttons and
   a hand-edited hash already use — so an intercepted link behaves exactly

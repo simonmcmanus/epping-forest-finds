@@ -863,7 +863,7 @@ globalThis.__forestFindsTest = {
   vm.createContext(context);
 
   const rootDir = path.join(__dirname, "..");
-  const externalScripts = ["js/native.js", "js/app-cache-version.js", "js/data-cache-version.js", "js/shared.js", "js/categories.js", "js/normalize.js", "js/router-rules.js", "js/dom-elements.js", "js/filter-state.js", "js/tracker.js", "js/outbox.js", "js/community.js", "js/onboarding.js", "js/permission-asks.js", "js/map-search.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/icon-motion.js", "js/renderer.js", "js/inspector.js"];
+  const externalScripts = ["js/native.js", "js/app-cache-version.js", "js/data-cache-version.js", "js/shared.js", "js/categories.js", "js/normalize.js", "js/router-rules.js", "js/dom-elements.js", "js/filter-state.js", "js/tracker.js", "js/outbox.js", "js/community.js", "js/onboarding.js", "js/permission-asks.js", "js/map-search.js", "js/router.js", "js/location-smoothing.js", "js/tilt.js", "js/event-alert.js", "js/heads-up.js", "js/settings.js", "js/report.js", "js/nav.js", "js/routing.js", "js/loader.js", "js/icon-motion.js", "js/renderer.js", "js/inspector.js"];
   for (const externalSrc of externalScripts) {
     const externalPath = path.join(rootDir, externalSrc);
     if (fs.existsSync(externalPath)) {
@@ -11893,7 +11893,7 @@ test("routeValueFromLocation resolves a /find/<slug>/ URL back to the same place
   try {
     app.location.pathname = "/find/the-forresters/";
     app.location.hash = "";
-    // routeParam (js/app.js) builds this the same way currentScreenRoute() already does for an
+    // routeParam (js/router-rules.js) builds this the same way currentScreenRoute() already does for an
     // ordinary landmark selection -- via URLSearchParams, so ":" and "/" in the id-based hash key
     // come back percent-encoded. Built the same way here rather than hand-typed, so this test
     // doesn't itself assume a particular encoding.

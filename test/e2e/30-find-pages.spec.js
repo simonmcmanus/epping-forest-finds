@@ -195,7 +195,7 @@ test.describe("generated find/nearby pages", () => {
       // renderNearbyIndexPage, scripts/generate-find-pages.js), so the live list reflows once it
       // boots. The comparison is against the live tree entries alone, uncapped by the 10-item
       // cap that the visible list shares with cows, so it is the same trees, not the same screen.
-      // Bare /nearby is not a landing-page arrival (isLandingPageArrival, js/app.js), so a fresh
+      // Bare /nearby is not a landing-page arrival (isLandingPageArrival, js/router.js), so a fresh
       // profile's boot waits on the onboarding wizard -- skip it, as the /find/ tests do.
       await skipOnboarding(page);
       await gotoAndWaitForMap(page, "/nearby");
@@ -394,11 +394,11 @@ test.describe("generated find/nearby pages", () => {
     });
 
     test("/find/<slug>/ boots the real app with that exact business already selected and shown", async ({ page }) => {
-      // routeValueFromLocation (js/app.js) resolves /find/<slug>/ to the same place through the
+      // routeValueFromLocation (js/router.js) resolves /find/<slug>/ to the same place through the
       // ordinary "landmark" selection route applySelectionFromHash already applies at boot for
       // any other deep link (#tree=..., #place=...) -- no separate anchoring mechanism needed.
       //
-      // Unlike /nearby/<slug>/, isLandingPageArrival() (js/app.js) does not recognise /find/<slug>/
+      // Unlike /nearby/<slug>/, isLandingPageArrival() (js/router.js) does not recognise /find/<slug>/
       // -- filterKeysFromFindPath only matches /nearby/... -- so boot() treats a fresh profile's
       // first visit here as an ordinary first run and awaits the onboarding wizard's own dismissal
       // before continuing. skipOnboarding is required on every /find/ test below for that reason.
