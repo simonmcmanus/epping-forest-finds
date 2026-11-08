@@ -11,6 +11,42 @@ test.describe("Admin login", () => {
     await expect(page).toHaveScreenshot("admin-login.png", { fullPage: false });
   });
 
+  test("Admin keeps the password out of browser storage", async ({ page }) => {
+    const password = "correct-horse-battery-staple-7731";
+    const authHeaders = [];
+    await skipOnboarding(page);
+    await page.route(/\/api\/admin\/tracks/, (route) => {
+      authHeaders.push(route.request().headers()["authorization"]);
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) });
+    });
+    await page.goto("/admin");
+    await page.getByLabel("Admin password").fill(password);
+    await page.click("#loginBtn");
+    await expect(page.locator("#adminApp")).toBeVisible();
+
+    const storage = await page.evaluate(() => JSON.stringify({
+      session: Object.entries(sessionStorage),
+      local: Object.entries(localStorage),
+    }));
+    expect(storage).not.toContain(password);
+
+    await page.reload();
+    await expect(page.locator("#loginScreen")).toBeVisible();
+    // Nothing fetched the data on the reload: the page waited for the password to be typed again.
+    expect(authHeaders).toEqual([`Bearer ${password}`]);
+  });
+
+  test("Admin clears a password that an earlier version left in session storage", async ({ page }) => {
+    await skipOnboarding(page);
+    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) }));
+    await page.goto("/admin");
+    await page.evaluate(() => sessionStorage.setItem("ff-admin-session-password", "left-by-old-version"));
+    await page.reload();
+    await expect(page.getByLabel("Admin password")).toBeVisible();
+    const leftover = await page.evaluate(() => sessionStorage.getItem("ff-admin-session-password"));
+    expect(leftover).toBeNull();
+  });
+
   test("falls back to a shorter window when the full one fails on the server", async ({ page }) => {
     const asked = [];
     await skipOnboarding(page);

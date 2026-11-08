@@ -447,7 +447,7 @@ function communityBadgeHtml(entry) {
   if (!entry) return "";
   if (entry.s === "questioned") {
     return `<div class="community-badge community-badge-questioned">${communityIcon("alert")}
-        <p><strong>Questioned by the community</strong><span>${escapeHtml(COMMUNITY_STATUS_TEXT[entry.st] || "Needs checking")} (${entry.n} people). The official record is unchanged.</span></p></div>`;
+        <p><strong>Questioned by the community</strong><span>${escapeHtml(COMMUNITY_STATUS_TEXT[entry.st] || "Needs checking")} (${escapeHtml(entry.n)} people). The official record is unchanged.</span></p></div>`;
   }
   return "";
 }
@@ -492,14 +492,14 @@ function communityVerifiedChipHtml(target) {
     const label = problem.optimistic
       ? "You reported a problem with this tree"
       : `Problem reported by ${problem.n} ${problem.n === 1 ? "person" : "people"}`;
-    return `<button type="button" class="community-verified-chip community-status-problem-chip" aria-expanded="false" aria-controls="communityVerifiedDetail" aria-label="${escapeHtml(label)}">${communityIcon("alert")}<strong>${problem.n}</strong></button>`;
+    return `<button type="button" class="community-verified-chip community-status-problem-chip" aria-expanded="false" aria-controls="communityVerifiedDetail" aria-label="${escapeHtml(label)}">${communityIcon("alert")}<strong>${escapeHtml(problem.n)}</strong></button>`;
   }
   const entry = communityVerifiedEntry(target);
   if (!entry) return "";
   const label = entry.optimistic
     ? "You verified this tree"
     : `Verified by ${entry.n} ${entry.n === 1 ? "person" : "people"}`;
-  return `<button type="button" class="community-verified-chip" aria-expanded="false" aria-controls="communityVerifiedDetail" aria-label="${escapeHtml(label)}">${communityIcon("shield")}<strong>${entry.n}</strong></button>`;
+  return `<button type="button" class="community-verified-chip" aria-expanded="false" aria-controls="communityVerifiedDetail" aria-label="${escapeHtml(label)}">${communityIcon("shield")}<strong>${escapeHtml(entry.n)}</strong></button>`;
 }
 
 function communityVerifiedDetailHtml(target) {
@@ -507,12 +507,12 @@ function communityVerifiedDetailHtml(target) {
   if (problem) {
     if (problem.optimistic) return `<p class="community-verified-detail" id="communityVerifiedDetail">Your problem report is saved. Other people will see it once the server has processed it.</p>`;
     const status = COMMUNITY_STATUS_TEXT[problem.st] || "a possible problem";
-    return `<p class="community-verified-detail" id="communityVerifiedDetail">${problem.n} ${problem.n === 1 ? "person has" : "people have"} reported ${escapeHtml(status.toLowerCase())}. The official record is unchanged.</p>`;
+    return `<p class="community-verified-detail" id="communityVerifiedDetail">${escapeHtml(problem.n)} ${problem.n === 1 ? "person has" : "people have"} reported ${escapeHtml(status.toLowerCase())}. The official record is unchanged.</p>`;
   }
   const entry = communityVerifiedEntry(target);
   if (!entry) return "";
   if (entry.optimistic) return `<p class="community-verified-detail" id="communityVerifiedDetail">Your check is saved. It will count for the community once the server has processed it.</p>`;
-  return `<p class="community-verified-detail" id="communityVerifiedDetail">${entry.n} ${entry.n === 1 ? "person has" : "people have"} confirmed this tree is where the map says it is. Community checks never change the official record.</p>`;
+  return `<p class="community-verified-detail" id="communityVerifiedDetail">${escapeHtml(entry.n)} ${entry.n === 1 ? "person has" : "people have"} confirmed this tree is where the map says it is. Community checks never change the official record.</p>`;
 }
 
 function communityVerifiedSlotsHtml(tree) {
@@ -675,7 +675,7 @@ function communitySectionHtml(tree) {
   const target = communityTreeTarget(tree);
   if (!target || tree.latitude == null || tree.longitude == null) return "";
   const reported = Boolean(communityReadLocal()[target]);
-  return `<section class="community-check${reported ? " community-check-reported" : ""}" data-community-target="${escapeHtml(target)}" data-lat="${tree.latitude}" data-lon="${tree.longitude}">
+  return `<section class="community-check${reported ? " community-check-reported" : ""}" data-community-target="${escapeHtml(target)}" data-lat="${escapeHtml(tree.latitude)}" data-lon="${escapeHtml(tree.longitude)}">
       <div class="community-head${reported ? " community-head-reported" : ""}">
         <span class="community-head-icon">${communityIcon("shield")}</span>
         <div><h3 class="community-title">Help check this tree</h3><p class="community-sub">Is it where the map says it is?</p></div>
@@ -1343,7 +1343,7 @@ function communityPlaceStatusHtml(target) {
 function communityPlaceStatusChipHtml(target) {
   const found = communityPlaceIssueCache.get(target);
   if (found && found.total) {
-    return `<button type="button" class="community-verified-chip community-status-problem-chip" aria-expanded="false" aria-controls="communityPlaceStatusDetail" aria-label="Community reports about this location">${communityIcon("alert")}<strong>${found.total}</strong></button>`;
+    return `<button type="button" class="community-verified-chip community-status-problem-chip" aria-expanded="false" aria-controls="communityPlaceStatusDetail" aria-label="Community reports about this location">${communityIcon("alert")}<strong>${escapeHtml(found.total)}</strong></button>`;
   }
   const local = target && communityReadLocal()[target];
   if (!local) return "";
@@ -1355,7 +1355,7 @@ function communityPlaceStatusChipHtml(target) {
 function communityPlaceStatusDetailHtml(target) {
   const found = communityPlaceIssueCache.get(target);
   if (found && found.total) {
-    return `<p class="community-verified-detail" id="communityPlaceStatusDetail">${found.total} ${found.total === 1 ? "person has" : "people have"} reported a problem with this location. The official record is unchanged.</p>`;
+    return `<p class="community-verified-detail" id="communityPlaceStatusDetail">${escapeHtml(found.total)} ${found.total === 1 ? "person has" : "people have"} reported a problem with this location. The official record is unchanged.</p>`;
   }
   const local = target && communityReadLocal()[target];
   if (!local) return "";
@@ -1404,7 +1404,7 @@ function communityPlaceSectionHtml(place) {
   const target = `place:${placeHashKey(place)}`;
   const reported = Boolean(communityReadLocal()[target]);
   const category = place.categoryLabel || "Local place";
-  return `<section class="community-check community-check-place${reported ? " community-check-reported" : ""}" data-kind="place" data-community-target="${escapeHtml(target)}" data-lat="${place.latitude}" data-lon="${place.longitude}" data-name="${escapeHtml(place.name)}" data-category="${escapeHtml(category)}" data-slug="${escapeHtml(place.findSlug || "")}">
+  return `<section class="community-check community-check-place${reported ? " community-check-reported" : ""}" data-kind="place" data-community-target="${escapeHtml(target)}" data-lat="${escapeHtml(place.latitude)}" data-lon="${escapeHtml(place.longitude)}" data-name="${escapeHtml(place.name)}" data-category="${escapeHtml(category)}" data-slug="${escapeHtml(place.findSlug || "")}">
       <div class="community-head${reported ? " community-head-reported" : ""}">
         <span class="community-head-icon">${communityIcon("shield")}</span>
         <div><h3 class="community-title">Help check this place</h3><p class="community-sub">Is this listing still right?</p></div>

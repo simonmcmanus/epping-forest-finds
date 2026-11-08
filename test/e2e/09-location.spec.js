@@ -83,6 +83,59 @@ test.describe("Location and GPS — happy path", () => {
       expect(moved / pairs.length).toBeGreaterThan(0.8);
     });
 
+    test("a walker standing still under poor GPS keeps the You marker steady rather than stepping it tens of metres on a fix", async ({ page, context }) => {
+      // Shortly after a cold start, fixes are about 25m accurate and each lands tens of metres from
+      // where the walker actually stands. A fix is delivered about once a second, each one a different
+      // draw of that poor GPS, so they are sent through the DevTools protocol with an accuracy.
+      await page.waitForFunction((start) => state.rawUserLocation && state.rawUserLocation.latitude === start, FOREST_LOCATION.latitude);
+      const cdp = await context.newCDPSession(page);
+      const metresPerDegLon = 111320 * Math.cos((FOREST_LOCATION.latitude * Math.PI) / 180);
+      // Offsets from the true spot, in metres north and east, one pair per fix.
+      const wander = [[18, -12], [-14, 15], [22, -9], [-19, 17], [9, -20], [-21, 6], [16, -14]];
+      // Sample the marker on every animation frame, in the page.
+      await page.evaluate(() => {
+        window.__wanderFrames = [];
+        const sample = () => {
+          window.__wanderFrames.push({ lat: state.userLocation.latitude, lon: state.userLocation.longitude, t: performance.now() });
+          if (window.__wanderFrames.length < 600) requestAnimationFrame(sample);
+        };
+        requestAnimationFrame(sample);
+      });
+      for (let i = 0; i < wander.length; i += 1) {
+        const [north, east] = wander[i];
+        const latitude = FOREST_LOCATION.latitude + north / 111320;
+        await cdp.send("Emulation.setGeolocationOverride", { latitude, longitude: FOREST_LOCATION.longitude + east / metresPerDegLon, accuracy: 25 });
+        await page.waitForFunction((fix) => state.rawUserLocation.latitude === fix, latitude);
+        await page.evaluate(() => { window.__fixAt = performance.now(); });
+        if (i < wander.length - 1) await page.waitForFunction(() => performance.now() >= window.__fixAt + 1000);
+      }
+      const frames = await page.evaluate(() => window.__wanderFrames);
+      // Frame rate varies with machine load, so only require enough frames to judge the steps.
+      expect(frames.length).toBeGreaterThan(40);
+      // A frame gap of STALE_GAP_MS or more is a stalled page, not a moving marker: the glide lands on
+      // its target outright after such a gap (advanceLocationGlide's stale-clock rule, 500ms), so one
+      // stalled frame can step it by several metres with no fix involved. The landing is visible to
+      // the sampler on the pair after the stall (the sampler runs before the glide tick in each frame),
+      // so the pair spanning the stall and the pair after it are both not judged. A fix that lands
+      // during a stall falls in one of those excluded pairs; the other fixes, which arrive in normal
+      // frame gaps, still catch a regression.
+      const STALE_GAP_MS = 500;
+      const stalledBefore = (k) => frames[k].t - frames[k - 1].t >= STALE_GAP_MS;
+      let worstStepMetres = 0;
+      let judgedPairs = 0;
+      for (let i = 1; i < frames.length; i += 1) {
+        if (stalledBefore(i) || (i >= 2 && stalledBefore(i - 1))) continue;
+        judgedPairs += 1;
+        const stepNorth = (frames[i].lat - frames[i - 1].lat) * 111320;
+        const stepEast = (frames[i].lon - frames[i - 1].lon) * metresPerDegLon;
+        worstStepMetres = Math.max(worstStepMetres, Math.hypot(stepNorth, stepEast));
+      }
+      expect(judgedPairs).toBeGreaterThan(40);
+      // Before the fix the marker stepped 30m or more in one frame: fixes past a fixed 30m snap landed
+      // raw, and the stand-in location the app opens on stayed in the speed history.
+      expect(worstStepMetres).toBeLessThan(8);
+    });
+
     test("a visitor inside the forest is not told they are far from it", async ({ page }) => {
       // The distance check runs as the location step completes, which gotoAndWaitForMap waited for.
       await expect(page.locator("#locationInviteBanner")).toBeHidden();

@@ -1641,8 +1641,18 @@ const LOCATION_SMOOTHING_MAX_TAU_S = 2.5;
 // is followed almost as given (0.5s) while a 25m one is leaned on much harder (2.5s).
 const LOCATION_SMOOTHING_ACCURACY_DIVISOR = 10;
 // Past this, the fix is not wander. A first fix after a gap, coming out of a tunnel, or a
-// genuine teleport should land at once rather than crawl there over seconds.
+// genuine teleport should land at once rather than crawl there over seconds. This is the floor
+// for a good fix; a fix is only as sure as its reported accuracy, so walkingSnapMetres() scales
+// the threshold up for a poor one (see there).
 const LOCATION_SMOOTHING_SNAP_METRES = 30;
+// A fix can be out by roughly its reported accuracy, and the wander across a few fixes is of
+// that order: a 20-30m fix routinely lands 30m or more from where the walker stands. A step is
+// only a real move once it is this many times the fix's accuracy, and never beyond the cap.
+const LOCATION_SNAP_ACCURACY_MULTIPLE = 4;
+const LOCATION_SNAP_MAX_METRES = 150;
+// The accuracy scaling is for wander between consecutive fixes. A fix that comes after a longer gap
+// (a tunnel, a dead signal) is the first fix back and keeps the plain LOCATION_SMOOTHING_SNAP_METRES.
+const LOCATION_WANDER_GAP_MS = 3000;
 // Smoothing is for walking-pace wander. Travelling faster than this -- a bike, a bus, a train --
 // the wander is nothing against the motion, and easing toward each fix trails the real position
 // by speed x time constant. So above it the position is carried between fixes along the track
@@ -1688,15 +1698,20 @@ function recordFixAndDetectFastTravel(latitude, longitude, now, speed, point) {
 // advanceLocationGlide() every frame; this only records where to head for.
 function ingestLocationFix(latitude, longitude, accuracy, now = performance.now(), speed = null) {
   const rawPoint = projectLonLat(longitude, latitude);
-  const raw = { latitude, longitude, accuracy, point: rawPoint };
+  // receivedAt is wall-clock time, so analytics can tell how old the fix it would repeat is (js/tracker.js).
+  const raw = { latitude, longitude, accuracy, point: rawPoint, receivedAt: Date.now() };
   const priorFix = (state.locationFixHistory || []).at(-1) || null;
   state.rawUserLocation = raw;
   const travellingFast = recordFixAndDetectFastTravel(latitude, longitude, now, speed, rawPoint);
 
   const previous = state.userLocation;
+  // A fix that lands raw starts a new journey: the fixes before it describe where the walker was
+  // before the app moved on (the stand-in, a coarse first fix), so they must not feed the speed or
+  // the travel track. The history is what the next few seconds are judged from.
   const landRaw = () => {
     state.locationGlide = null;
     state.locationSmoothedAt = now;
+    state.locationFixHistory = (state.locationFixHistory || []).slice(-1);
     return raw;
   };
   if (!previous || !previous.point) return landRaw();
@@ -1710,7 +1725,6 @@ function ingestLocationFix(latitude, longitude, accuracy, now = performance.now(
     const gapMetres = priorFix ? distanceMetres(priorFix.latitude, priorFix.longitude, latitude, longitude) : Infinity;
     if (!Number.isFinite(gapMetres) || gapMetres >= LOCATION_FAST_SNAP_METRES) {
       // Lost fixes: the track from before the gap no longer describes the train, so start again from this one.
-      state.locationFixHistory = (state.locationFixHistory || []).slice(-1);
       return landRaw();
     }
     const track = fitTravelTrack(state.locationFixHistory, now);
@@ -1722,8 +1736,19 @@ function ingestLocationFix(latitude, longitude, accuracy, now = performance.now(
   const movedMetres = distanceMetres(previous.latitude, previous.longitude, latitude, longitude);
   // Not wander: a first fix after a gap, coming out of a tunnel, a genuine teleport. Easing
   // across that reads as the map sliding away on its own.
-  if (!Number.isFinite(movedMetres) || movedMetres >= LOCATION_SMOOTHING_SNAP_METRES) return landRaw();
+  const sinceLastFixMs = priorFix ? now - priorFix.at : Infinity;
+  if (!Number.isFinite(movedMetres) || movedMetres >= walkingSnapMetres(accuracy, sinceLastFixMs)) return landRaw();
   return startLocationGlide(previous, raw, now, null, false);
+}
+
+// How far a fix may land from the marker and still be eased to as wander. Fixed at 30m, a
+// cold-start fix at 20-30m accuracy (the first minute after load, or under trees) lands past that
+// on most fixes, so the marker jumped a few tens of metres a frame and the camera followed. Between
+// consecutive fixes the threshold is scaled to the fix's own accuracy, so the same wander is eased;
+// after a gap it stays at the plain floor, and a teleport is far beyond either.
+function walkingSnapMetres(accuracy, sinceLastFixMs) {
+  if (!Number.isFinite(accuracy) || !(sinceLastFixMs <= LOCATION_WANDER_GAP_MS)) return LOCATION_SMOOTHING_SNAP_METRES;
+  return clamp(LOCATION_SNAP_ACCURACY_MULTIPLE * accuracy, LOCATION_SMOOTHING_SNAP_METRES, LOCATION_SNAP_MAX_METRES);
 }
 
 // The straight line the recent fixes describe while travelling: a least-squares fit of x and y
@@ -3121,7 +3146,7 @@ function settingsFormHtml() {
     </section>
     <section class="settings-section">
       <h3 class="settings-section-title">About</h3>
-      <p class="settings-description">App version: <span id="appVersionDisplay" class="app-version-display">${state.swVersion || APP_VERSION}</span></p>
+      <p class="settings-description">App version: <span id="appVersionDisplay" class="app-version-display">${escapeHtml(state.swVersion || APP_VERSION)}</span></p>
       ${Native.isNative ? "" : appUpdateStatusHtml()}
       <p class="settings-description">Tester ID: <code id="testerIdDisplay" class="tester-id">…</code> <button type="button" id="testerIdCopy" class="settings-btn" hidden>Copy</button><br><span class="report-note">Give this to Simon to try early features.</span></p>
       <p class="settings-description">Vibe coded by <a href="https://simonmcmanus.com" target="_blank" rel="noopener noreferrer">Simon McManus</a></p>
@@ -4478,7 +4503,7 @@ function renderNearestItemsHtml(entries) {
         </div>
         <div class="nearest-footer">
           <span class="nearest-meta">${walkChip ? `${walkChip} · ` : ""}${escapeHtml(typeLabel)}${treeTagChip}</span>
-          <span class="nearest-arrow" data-item-lat="${entry.item.latitude ?? ""}" data-item-lon="${entry.item.longitude ?? ""}" aria-hidden="true"${isFarFromForest() ? " hidden" : ""}>↑</span>
+          <span class="nearest-arrow" data-item-lat="${escapeHtml(entry.item.latitude)}" data-item-lon="${escapeHtml(entry.item.longitude)}" aria-hidden="true"${isFarFromForest() ? " hidden" : ""}>↑</span>
         </div>
       </div>
     </button></li>`;
@@ -4984,9 +5009,10 @@ function compassSensorStalled(now = performance.now()) {
 
 // Whether the walker has actually gone anywhere since the tab was last backgrounded
 // (pauseBackgroundedTracking snapshots the fix at that moment). Compared against the
-// same real-movement-vs-GPS-noise threshold ingestLocationFix uses to decide a fix is a
-// genuine relocation rather than wander (LOCATION_SMOOTHING_SNAP_METRES). No baseline or
-// no current fix -- e.g. location was never granted -- is treated as "can't tell", which
+// 30m floor (LOCATION_SMOOTHING_SNAP_METRES) that ingestLocationFix applies to a fix after a gap,
+// to tell a genuine relocation from wander. It is not the accuracy-scaled threshold used between
+// consecutive fixes. No baseline or no current fix -- e.g. location was never granted -- is
+// treated as "can't tell", which
 // falls back to the old, safer assumption that the heading may no longer be trustworthy.
 function hasMovedSinceBackgrounding() {
   const before = state.backgroundedUserLocation;
@@ -8996,7 +9022,7 @@ async function loadTransportDepartures(place) {
           <li class="departure-item">
             <span class="departure-line">${escapeHtml(d.line)}</span>
             <span class="departure-direction">${escapeHtml(d.direction)}</span>
-            <span class="departure-time${d.due ? ' due' : ''}">${d.due ? 'Due' : (d.minutesAway + ' min')}</span>
+            <span class="departure-time${d.due ? ' due' : ''}">${d.due ? 'Due' : (escapeHtml(d.minutesAway) + ' min')}</span>
           </li>`).join("")}
       </ul>`;
   } catch {

@@ -12,6 +12,18 @@ const CACHED_HEADERS = {
 
 let warnedMissingKey = false;
 
+// lat and lon go straight into TfL's query string, so each must be a plain decimal inside its range.
+// Anything else (a "&" or a second parameter smuggled into the value) is refused before a URL is built,
+// and the cached answer is then always for a real coordinate pair.
+const DECIMAL_PATTERN = /^-?\d{1,3}(?:\.\d{1,10})?$/;
+function parseCoordinate(value, limit) {
+  if (typeof value !== "string" || !DECIMAL_PATTERN.test(value)) return null;
+  const number = Number(value);
+  return Number.isFinite(number) && Math.abs(number) <= limit ? number : null;
+}
+
+const q = (value) => encodeURIComponent(String(value));
+
 function fetchWithTimeout(url) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), UPSTREAM_TIMEOUT_MS);
@@ -129,6 +141,12 @@ exports.handler = async (event) => {
     return { statusCode: 400, headers, body: JSON.stringify({ error: "Invalid type, must be bus or train" }) };
   }
 
+  const latitude = parseCoordinate(lat, 90);
+  const longitude = parseCoordinate(lon, 180);
+  if (latitude === null || longitude === null) {
+    return { statusCode: 400, headers, body: JSON.stringify({ error: "Invalid lat or lon, must be decimal coordinates" }) };
+  }
+
   const appKey = process.env.TFL_APP_KEY;
   // Without a key every visitor shares TfL's small anonymous allowance.
   if (!appKey && !warnedMissingKey) {
@@ -136,8 +154,8 @@ exports.handler = async (event) => {
     console.warn("[transport-departures] TFL_APP_KEY is not set; TfL's anonymous rate limit applies");
   }
   const ok = (body) => ({ statusCode: 200, headers: { ...headers, ...CACHED_HEADERS }, body: JSON.stringify(body) });
-  const keyQs = appKey ? `&app_key=${appKey}` : "";
-  const arrivalsUrl = (id) => `${TFL_BASE}/StopPoint/${id}/Arrivals${appKey ? `?app_key=${appKey}` : ""}`;
+  const keyQs = appKey ? `&app_key=${q(appKey)}` : "";
+  const arrivalsUrl = (id) => `${TFL_BASE}/StopPoint/${q(id)}/Arrivals${appKey ? `?app_key=${q(appKey)}` : ""}`;
 
   try {
     let rawArrivals = [];
@@ -146,7 +164,7 @@ exports.handler = async (event) => {
 
     if (type === "bus") {
       const stopRes = await fetchWithTimeout(
-        `${TFL_BASE}/StopPoint?lat=${lat}&lon=${lon}&stopTypes=NaptanPublicBusCoachTram&radius=200${keyQs}`
+        `${TFL_BASE}/StopPoint?lat=${q(latitude)}&lon=${q(longitude)}&stopTypes=NaptanPublicBusCoachTram&radius=200${keyQs}`
       );
       if (!stopRes.ok) throw new Error(`TfL StopPoint HTTP ${stopRes.status}`);
       const stopData = await stopRes.json();
@@ -167,7 +185,7 @@ exports.handler = async (event) => {
     } else {
       // Train/underground: try lat/lon first, fall back to name search
       const stopRes = await fetchWithTimeout(
-        `${TFL_BASE}/StopPoint?lat=${lat}&lon=${lon}&stopTypes=NaptanMetroStation,NaptanRailStation&radius=500${keyQs}`
+        `${TFL_BASE}/StopPoint?lat=${q(latitude)}&lon=${q(longitude)}&stopTypes=NaptanMetroStation,NaptanRailStation&radius=500${keyQs}`
       );
       if (!stopRes.ok) throw new Error(`TfL StopPoint HTTP ${stopRes.status}`);
       const stopData = await stopRes.json();

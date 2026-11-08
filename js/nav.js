@@ -249,9 +249,9 @@ function appUpdateStatusHtml() {
   // No service worker (a native shell, an old browser) means no web update flow to report.
   if (serviceWorkerDisabled || !("serviceWorker" in navigator)) return "";
   const view = appUpdateStatusView();
-  const checkedAt = view.checkedAt ? ` <span id="appUpdateCheckedAt">${view.checkedAt}</span>` : "";
+  const checkedAt = view.checkedAt ? ` <span id="appUpdateCheckedAt">${escapeHtml(view.checkedAt)}</span>` : "";
   return `<div id="appUpdateStatus" class="settings-update" data-status="${view.status}">
-        <p id="appUpdateStatusText" class="settings-description" role="status" aria-live="polite">${view.text}${checkedAt}</p>
+        <p id="appUpdateStatusText" class="settings-description" role="status" aria-live="polite">${escapeHtml(view.text)}${checkedAt}</p>
         <button id="appUpdateButton" class="settings-btn" type="button"${view.disabled ? " disabled" : ""}>${view.label}</button>
       </div>`;
 }

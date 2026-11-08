@@ -24,6 +24,17 @@ test.describe("Loading experience", () => {
     releasePlaces();
   });
 
+  test("allows browser zoom: the viewport does not disable pinch-zoom, and the map keeps its own touch gestures", async ({ page }) => {
+    await page.goto("/nearby");
+    const viewport = page.locator('meta[name="viewport"]');
+    await expect(viewport).toHaveCount(1);
+    const settings = Object.fromEntries((await viewport.getAttribute("content")).split(",")
+      .map((part) => part.trim().split("=")));
+    expect(settings["maximum-scale"]).toBeUndefined();
+    expect(settings["user-scalable"]).not.toBe("no");
+    await expect(page.locator("#mapCanvas")).toHaveCSS("touch-action", "none");
+  });
+
   test("shows the High Beach map while location is still being requested", async ({ page }) => {
     await page.addInitScript(() => {
       // Leave the browser request unresolved to model an unanswered first-run permission prompt.

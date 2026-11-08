@@ -142,6 +142,12 @@ exports.handler = async (event, context) => {
       `subscribe [${(context && context.awsRequestId) || "unknown"}]: ` +
         `EmailOctopus responded ${upstream.status}: ${detail.slice(0, 500)}`
     );
+    // EmailOctopus refusing the address itself (400 or 422) is the visitor's to fix: say so, rather than
+    // telling them to retry an address that will fail the same way. Any other refusal (a bad key, a
+    // rate limit, a server fault) is ours or temporary, so it reads as unavailable.
+    if (upstream.status === 400 || upstream.status === 422) {
+      return response(400, { error: "We could not add that address. Please check it and try again." });
+    }
     return response(502, { error: "Sign-up is temporarily unavailable. Please try again later." });
   } catch (error) {
     console.error(

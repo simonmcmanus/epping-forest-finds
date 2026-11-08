@@ -10,7 +10,8 @@ const ADMIN_MAP_URLS = {
   roads: "data/local-roads.geojson",
   paths: "data/local-paths.geojson",
 };
-const ADMIN_SESSION_KEY = "ff-admin-session-password";
+// Earlier versions kept the password under this key. It is only ever removed now, never written.
+const LEGACY_SESSION_PASSWORD_KEY = "ff-admin-session-password";
 const ADMIN_VIEWPORT_KEY = "ff-admin-map-viewport";
 const BASE_MAP_OPACITY = 0.42;
 const MIN_MAP_ZOOM = 0.85;
@@ -1346,7 +1347,7 @@ async function loadCommunityStats(password) {
 }
 
 function renderCommunityStats(stats) {
-  const row = (label, value) => `<tr><th scope="row">${label}</th><td>${value}</td></tr>`;
+  const row = (label, value) => `<tr><th scope="row">${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`;
   const statusRows = Object.entries(stats.byStatus || {}).sort((a, b) => b[1] - a[1])
     .map(([status, n]) => row(status, n)).join("");
   const days = Object.entries(stats.perDay || {}).sort().slice(-7)
@@ -1369,24 +1370,14 @@ function renderCommunityStats(stats) {
     <h4>Last 7 days with reports</h4><table>${days || row("None yet", "")}</table>`;
 }
 
-function readSessionPassword() {
-  try {
-    return sessionStorage.getItem(ADMIN_SESSION_KEY) || "";
-  } catch {
-    return "";
+// The password lives only in the page's memory (the `password` variable in adminBoot), so a reload
+// asks for it again. A copy left in browser storage by an earlier version is removed on load.
+function clearLegacyStoredPassword() {
+  for (const store of [sessionStorage, localStorage]) {
+    try {
+      store.removeItem(LEGACY_SESSION_PASSWORD_KEY);
+    } catch {}
   }
-}
-
-function saveSessionPassword(password) {
-  try {
-    sessionStorage.setItem(ADMIN_SESSION_KEY, password);
-  } catch {}
-}
-
-function clearSessionPassword() {
-  try {
-    sessionStorage.removeItem(ADMIN_SESSION_KEY);
-  } catch {}
 }
 
 // ---- Boot ----
@@ -1411,6 +1402,7 @@ async function adminBoot() {
   const communityBody = document.getElementById("adminCommunityBody");
 
   let password = "";
+  clearLegacyStoredPassword();
   readSavedViewport();
   loadAdminBaseMap();
   setupMapViewportHandlers(canvas, zoomInBtn, zoomOutBtn, resetMapBtn);
@@ -1437,7 +1429,6 @@ async function adminBoot() {
     allData = { locations: [], clicks: [] };
     selectedUid = null;
     selectedClickKey = null;
-    clearSessionPassword();
     showLogin(message);
   }
 
@@ -1453,11 +1444,9 @@ async function adminBoot() {
     try {
       allData = await loadData(pw);
       password = pw;
-      saveSessionPassword(pw);
       showAdminApp();
     } catch (err) {
       console.error("[admin] login failed:", err);
-      clearSessionPassword();
       if (err.message === "wrong-password") {
         loginError.textContent = "Incorrect password — check ADMIN_PASSWORD in your .env file.";
       } else {
@@ -1471,26 +1460,6 @@ async function adminBoot() {
   const loginForm = document.getElementById("loginForm");
   if (loginForm) loginForm.addEventListener("submit", (e) => { e.preventDefault(); doLogin(); });
   else loginBtn.addEventListener("click", doLogin);
-
-  async function restoreSession() {
-    const savedPassword = readSessionPassword();
-    if (!savedPassword) return;
-
-    loginBtn.disabled = true;
-    loginBtn.textContent = "Restoring…";
-    loginError.textContent = "";
-    try {
-      allData = await loadData(savedPassword);
-      password = savedPassword;
-      showAdminApp();
-    } catch (err) {
-      console.warn("[admin] session restore failed:", err);
-      clearSessionPassword();
-      showLogin(err.message === "wrong-password" ? "Admin session expired. Sign in again." : "");
-    }
-  }
-
-  restoreSession();
 
   heatmapBtn.addEventListener("click", () => {
     viewMode = "heatmap";

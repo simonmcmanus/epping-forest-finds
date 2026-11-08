@@ -96,6 +96,21 @@ const TRACKER_FLUSH_INTERVAL_MS = 5 * 60 * 1000;
 // A keepalive request (the one that survives the page closing) may carry at most 64 KB; 150 events
 // is about 40 KB.
 const TRACKER_MAX_BATCH = 150;
+// After a failed upload nothing is tried again until the wait has passed: it starts at 30 seconds,
+// doubles with each further failure, and is capped at ten minutes. A successful upload clears it.
+// Events stay queued meanwhile, so an outage costs one request every few minutes, not one per tap.
+const TRACKER_BACKOFF_MIN_MS = 30_000;
+const TRACKER_BACKOFF_MAX_MS = 10 * 60 * 1000;
+
+let _trackerBackoffMs = 0;
+let _trackerRetryAt = 0;
+
+function trackerBackOff() {
+  _trackerBackoffMs = _trackerBackoffMs
+    ? Math.min(_trackerBackoffMs * 2, TRACKER_BACKOFF_MAX_MS)
+    : TRACKER_BACKOFF_MIN_MS;
+  _trackerRetryAt = Date.now() + _trackerBackoffMs;
+}
 
 function trackerReadQueue() {
   try {
@@ -134,6 +149,7 @@ async function trackerFlushQueue() {
     return;
   }
   if (!navigator.onLine) return;
+  if (Date.now() < _trackerRetryAt) return;
   if (_trackerFlushing) {
     _trackerFlushPending = true;
     return;
@@ -155,12 +171,17 @@ async function trackerFlushQueue() {
         keepalive: true,
       });
       retry = !resp.ok && (resp.status >= 500 || resp.status === 408 || resp.status === 429);
+      if (resp.ok) {
+        _trackerBackoffMs = 0;
+        _trackerRetryAt = 0;
+      }
     } catch {
       retry = true;
     }
     if (retry) {
       // Consent can be withdrawn while this request is in flight: the batch then goes, not back.
       if (hasTrackingConsent()) trackerWriteQueue([...batch, ...trackerReadQueue()]);
+      trackerBackOff();
       break;
     }
   }
@@ -199,6 +220,11 @@ function _getNavTarget() {
 // --- Location tracking ---
 
 let _trackerInterval = null;
+const TRACKER_LOCATION_INTERVAL_MS = 60_000;
+// A ping repeats the last GPS fix, so a fix that has stopped arriving (the watch was cleared, or the
+// device stopped reporting) must not be repeated as though the walker were still there. A fix older
+// than two intervals is not sent; a fresh one is sent at the next interval.
+const TRACKER_FIX_MAX_AGE_MS = 2 * TRACKER_LOCATION_INTERVAL_MS;
 
 function trackLocation(lat, lng, heading) {
   trackerSendEvent({
@@ -217,7 +243,12 @@ function trackLocation(lat, lng, heading) {
 // couple of metres, but a heat-map of real visits should be built from the real readings.
 function trackedLocation() {
   if (typeof state === "undefined") return null;
-  return state.rawUserLocation || state.userLocation || null;
+  const fix = state.rawUserLocation || state.userLocation || null;
+  // receivedAt is stamped when the fix arrives (ingestLocationFix, js/app.js). A fix without one, or
+  // an older one, is not sent.
+  if (!fix || !Number.isFinite(fix.receivedAt)) return null;
+  if (Date.now() - fix.receivedAt > TRACKER_FIX_MAX_AGE_MS) return null;
+  return fix;
 }
 
 function startLocationTracking() {
@@ -232,7 +263,7 @@ function startLocationTracking() {
     if (current) {
       trackLocation(current.latitude, current.longitude, state.compassHeading);
     }
-  }, 60_000);
+  }, TRACKER_LOCATION_INTERVAL_MS);
 }
 
 function stopLocationTracking() {

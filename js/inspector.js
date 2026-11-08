@@ -1678,7 +1678,7 @@ function nearbySectionsHtml({ latitude, longitude, name = null, subfilterKey = n
   // that class also requires the data-overview-type attribute in its own selector, per js/nav.js)
   // and gets the same hover lift and arrow-key list navigation for free.
   const cardHtml = (href, icon, cardName, copy) =>
-    `<li><a class="nearest-item nearby-link" href="${href}">` +
+    `<li><a class="nearest-item nearby-link" href="${escapeHtml(href)}">` +
     `<span class="nearest-icon" aria-hidden="true">${appIconHtml(icon)}</span>` +
     `<div class="nearest-content"><div class="nearest-header"><span class="nearest-name">${escapeHtml(cardName)}</span></div>` +
     (copy ? `<div class="nearest-footer"><span class="nearest-meta">${escapeHtml(copy)}</span></div>` : "") +
