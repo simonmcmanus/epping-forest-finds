@@ -135,7 +135,9 @@ function searchStringForPath(pathname) {
   const realRadius = state.clusterExpanded && state.preClusterWalkingDistanceMinutes != null
     ? state.preClusterWalkingDistanceMinutes
     : state.walkingDistanceMinutes;
-  if (onNearbyFamily && realRadius !== DEFAULT_WALKING_DISTANCE_MINUTES) {
+  // A first-landing radius (applyFirstLandingRadius) was chosen for this visit, not by the reader, so it is not
+  // written out; only a radius the reader then changes is.
+  if (onNearbyFamily && realRadius !== DEFAULT_WALKING_DISTANCE_MINUTES && realRadius !== state.firstLandingRadiusMinutes) {
     parts.push(`radius=${realRadius}`);
   }
   // A shared /nearby?show= link is an ephemeral landing lens just like /nearby/<slug>.

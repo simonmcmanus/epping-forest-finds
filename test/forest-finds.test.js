@@ -510,6 +510,7 @@ globalThis.__forestFindsTest = {
   syncLiveQueryStringForScreen,
   applySearchQueryFromQuery,
   applyRadiusFromQuery,
+  applyFirstLandingRadius,
   DEFAULT_WALKING_DISTANCE_MINUTES,
   LANDING_PAGE_WALKING_DISTANCE_MINUTES,
   DEFAULT_LOCATION,
@@ -2347,6 +2348,134 @@ test("an expanded cluster's borrowed radius never leaks into the URL", () => {
   app.state.clusterExpanded = null;
   app.state.walkingDistanceMinutes = 0.25;
   assert.equal(app.searchStringForPath("/nearby"), "?radius=0.25", "once it's the reader's own radius, it is");
+});
+
+// A first landing opens on the nearest few items rather than the default 5-minute ring. These
+// tests drive applyFirstLandingRadius() -- the same call the boot reveal makes -- and read back
+// what the ring and the Nearby list then contain.
+function treesAlongEast(app, distancesMetres) {
+  return distancesMetres.map((metres) => ({
+    id: `tree-${metres}`,
+    commonName: "Oak",
+    ...makePoint(app, 0, metres / 111320),
+  }));
+}
+
+test("a first landing with no radius of the reader's own rings exactly the five nearest items, across every active filter", () => {
+  const app = loadAppForTests();
+  resetData(app);
+  app.location.search = "";
+  app.location.hash = "";
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.overviewFilters = ["trees"];
+  app.state.trees = treesAlongEast(app, [10, 20, 30, 40, 50, 120]);
+
+  assert.equal(app.applyFirstLandingRadius(), true, "a plain first landing is framed by its nearest items");
+
+  // Array.from copies into this realm: the app's arrays come from its own vm context, which a deepEqual would reject.
+  const inRing = Array.from(app.overviewItemsForActiveFilter(), (entry) => entry.item.id).sort();
+  assert.deepEqual(
+    inRing,
+    ["tree-10", "tree-20", "tree-30", "tree-40", "tree-50"],
+    "the walking ring holds the five nearest items, and the sixth, further out, stays off the map",
+  );
+});
+
+test("a first landing counts items from every active filter, not only the one with the most nearby", () => {
+  const app = loadAppForTests();
+  resetData(app);
+  app.location.search = "";
+  app.location.hash = "";
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.overviewFilters = ["trees", "pubs"];
+  // Trees at 10-50 m and 200 m, plus a pub at 15 m. Across both filters the five nearest are the
+  // trees at 10, 20, 30 and 40 m and the pub, so the fifth-nearest item sits at 40 m and the tree at
+  // 50 m falls outside. Counting trees alone would have reached 50 m and included it.
+  app.state.trees = treesAlongEast(app, [10, 20, 30, 40, 50, 200]);
+  app.state.landmarks = [{ id: "pub-near", name: "Near pub", category: "pub", ...makePoint(app, 0, 15 / 111320) }];
+
+  assert.equal(app.applyFirstLandingRadius(), true);
+
+  const ids = Array.from(app.overviewItemsForActiveFilter(), (entry) => entry.item.id).sort();
+  assert.deepEqual(
+    ids,
+    ["pub-near", "tree-10", "tree-20", "tree-30", "tree-40"],
+    "the five nearest across every active filter are inside the ring, and nothing further out is",
+  );
+});
+
+test("a first landing never rings tighter than about 21 metres, however close the nearest items are", () => {
+  const app = loadAppForTests();
+  resetData(app);
+  app.location.search = "";
+  app.location.hash = "";
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.overviewFilters = ["trees"];
+  app.state.trees = treesAlongEast(app, [1, 2, 3, 4, 5]);
+
+  assert.equal(app.applyFirstLandingRadius(), true);
+
+  const ringMetres = app.walkingDistanceToMetres(app.state.walkingDistanceMinutes);
+  assert.ok(ringMetres >= 20, `a ring of ${ringMetres.toFixed(1)} m is too tight to stand in a view with any map around it`);
+  assert.equal(app.overviewItemsForActiveFilter().length, 5, "all five underfoot items are still inside that ring");
+});
+
+test("a first landing keeps the default ring when fewer than five items are in reach at all", () => {
+  const app = loadAppForTests();
+  resetData(app);
+  app.location.search = "";
+  app.location.hash = "";
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.overviewFilters = ["trees"];
+  app.state.trees = treesAlongEast(app, [10, 20]);
+
+  assert.equal(app.applyFirstLandingRadius(), false);
+  assert.equal(app.state.walkingDistanceMinutes, app.DEFAULT_WALKING_DISTANCE_MINUTES, "nothing to close on, so the usual ring stays");
+});
+
+test("a radius the reader already chose in the address bar is kept on a first landing", () => {
+  const app = loadAppForTests();
+  resetData(app);
+  app.location.hash = "";
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.overviewFilters = ["trees"];
+  app.state.trees = treesAlongEast(app, [10, 20, 30, 40, 50, 120]);
+  app.location.search = "?radius=3";
+  app.state.walkingDistanceMinutes = 3;
+
+  assert.equal(app.applyFirstLandingRadius(), false, "a ?radius= link is the reader's own framing");
+  assert.equal(app.state.walkingDistanceMinutes, 3, "and the ring stays at the minutes it asked for");
+  app.location.search = "";
+});
+
+test("a deep link into the app keeps its own framing rather than the nearest-items ring", () => {
+  const app = loadAppForTests();
+  resetData(app);
+  app.location.search = "";
+  app.location.hash = "#tree=oak-12";
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.overviewFilters = ["trees"];
+  app.state.trees = treesAlongEast(app, [10, 20, 30, 40, 50, 120]);
+
+  assert.equal(app.applyFirstLandingRadius(), false);
+  assert.equal(app.state.walkingDistanceMinutes, app.DEFAULT_WALKING_DISTANCE_MINUTES);
+  app.location.hash = "";
+});
+
+test("the first-landing ring is not written into the address bar, but a radius the reader then chooses is", () => {
+  const app = loadAppForTests();
+  resetData(app);
+  app.location.search = "";
+  app.location.hash = "";
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.overviewFilters = ["trees"];
+  app.state.trees = treesAlongEast(app, [10, 20, 30, 40, 50, 120]);
+  app.applyFirstLandingRadius();
+
+  assert.equal(app.searchStringForPath("/nearby"), "", "a landing the reader did not choose leaves no ?radius= in the address");
+
+  app.state.walkingDistanceMinutes = 2;
+  assert.equal(app.searchStringForPath("/nearby"), "?radius=2", "once the reader moves the ring, the new radius is shareable");
 });
 
 test("filterKeysFromFindPath reads a subfilter's category straight from a /nearby/<slug> path, hyphens back to underscores", () => {

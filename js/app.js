@@ -54,6 +54,14 @@ const MIN_HEADING_UP_ANIMATION_MS = 200; // floor for animateToHeadingUpNavigati
 const DEFAULT_VIEWPORT_ANIMATION_MS = 480; // generic fallback duration for the low-level viewport animators when nothing else is specified
 const MIN_VIEWPORT_ANIMATION_MS = 180; // floor for moveCamera's duration
 const FIRST_LOAD_REVEAL_ANIMATION_MS = 700; // the first-time "reveal the map" animation, in all its variants (fit to user+items, centered-on-user)
+// A plain first landing (no ?radius= of the reader's own, no deep link) opens on the nearest few items
+// across every active filter instead of the default ring: see applyFirstLandingRadius. Change the count
+// here; the ring is the Nth item's distance plus the walking-radius floor's buffer, never tighter than
+// WALKING_RADIUS_TIGHT_MIN_MINUTES (about 21 m) and never wider than the default ring.
+const FIRST_LANDING_NEAREST_COUNT = 5;
+// The camera move from the whole forest into that ring, in ms. It is cinematic: it eases in and out
+// on the same curve as the GPS fly-to, with the zoom-out arc capped at the forest-wide view.
+const FIRST_LANDING_REVEAL_ANIMATION_MS = 2000;
 const FIRST_LOCATION_FLY_TO_ANIMATION_MS = 1250; // the High Beach stand-in -> real GPS handoff, with a cinematic fly-to arc
 const DEFAULT_FIT_PADDING_PX = 54; // default screen-space padding for fitToPoints (around content bounds)
 const OVERVIEW_FIT_PADDING_PX = 28; // tighter padding for overview targets fit
@@ -287,6 +295,9 @@ const state = {
   farFromForest: false,
   nearestItemsCount: 10,
   walkingDistanceMinutes: DEFAULT_WALKING_DISTANCE_MINUTES,
+  // The radius applyFirstLandingRadius() chose for this load, or null. searchStringForPath leaves it out of
+  // the address bar, so a landing the reader did not frame by hand is not saved as their radius.
+  firstLandingRadiusMinutes: null,
   walkingRadiusAtFloor: false,
   // The wheel/trackpad radius gesture's running (unrounded) value and its settle timer --
   // a wheel has no pointerup to end on, so the gesture ends on a timeout instead
@@ -558,6 +569,36 @@ const BOOT_LOCATION_TIMEOUT_MS = BOOT_GEOLOCATION_TIMEOUT_MS + 2000;
 
 boot();
 
+// A plain first landing is one the reader has not framed by hand: no ?radius= in the address, no hash
+// deep link, no /nearby/<slug> or /find/ landing, and the radius still at its default.
+function isFirstLandingForRadius() {
+  if (new URLSearchParams(window.location.search).has("radius")) return false;
+  if (window.location.hash.replace(/^#/, "") !== "") return false;
+  if (filterKeysFromFindPath(window.location.pathname).length) return false;
+  if (findLandingSlug()) return false;
+  return state.walkingDistanceMinutes === DEFAULT_WALKING_DISTANCE_MINUTES;
+}
+
+// Sizes the walking ring for a plain first landing so it closes on the nearest FIRST_LANDING_NEAREST_COUNT
+// items across every active filter (overviewItemsUnlimited takes the nearest few from each filter, then
+// merges them, so its Nth entry is the true Nth nearest). Returns true when it set the radius. It leaves
+// the radius alone, and returns false, when the landing is not a plain one or fewer items are in reach.
+function applyFirstLandingRadius() {
+  const origin = nearbyOrigin();
+  if (!origin || !isFirstLandingForRadius()) return false;
+  const nearest = overviewItemsUnlimited(origin.latitude, origin.longitude, FIRST_LANDING_NEAREST_COUNT);
+  if (nearest.length < FIRST_LANDING_NEAREST_COUNT) return false;
+  const nthMetres = nearest[FIRST_LANDING_NEAREST_COUNT - 1].metres;
+  const minutes = clamp(
+    metresToWalkingMinutes(nthMetres * WALKING_RADIUS_FLOOR_BUFFER),
+    WALKING_RADIUS_TIGHT_MIN_MINUTES,
+    DEFAULT_WALKING_DISTANCE_MINUTES,
+  );
+  state.walkingDistanceMinutes = minutes;
+  state.firstLandingRadiusMinutes = minutes;
+  return true;
+}
+
 // Snaps the camera onto the walking-radius circle around state.userLocation, pauses on it, then
 // animates to the final framing -- shared by boot's real-fix success path and, via
 // applyDefaultLocation(), its no-real-fix one (revealNoRealLocation below), so both get the same
@@ -568,11 +609,19 @@ async function revealMapCenteredOnUser() {
   if (!findLandingSlug() && !communityScreenOpen()) selectOverview();
   draw();
 
-  // Snap the camera onto the walking-radius circle before the reveal animation -- the same
-  // thing the Nearby view frames once it is live (see nearbyCameraFitPoints), so the reveal
-  // eases from a slightly wider version of the final view rather than starting on a tight fit
-  // of whichever items happened to be nearest and then pulling back out to the circle.
-  {
+  // A plain first landing sizes its ring to the nearest few items (applyFirstLandingRadius). Unless reduced
+  // motion is asked for, it then starts from the whole forest and flies in to that ring; otherwise the reveal
+  // runs as it always has, from the ring frame.
+  const firstLanding = applyFirstLandingRadius();
+  const cinematicFirstLanding = firstLanding && !prefersReducedMotion();
+  if (cinematicFirstLanding) {
+    stopViewportAnimation();
+    fitToBounds(false);
+  } else {
+    // Snap the camera onto the walking-radius circle before the reveal animation -- the same
+    // thing the Nearby view frames once it is live (see nearbyCameraFitPoints), so the reveal
+    // eases from a slightly wider version of the final view rather than starting on a tight fit
+    // of whichever items happened to be nearest and then pulling back out to the circle.
     const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
     const startFrame = bottomEdgeRadiusFrame(focusRect, 0.82);
     const origin = nearbyOrigin();
@@ -600,6 +649,8 @@ async function revealMapCenteredOnUser() {
   // to a wider viewport if a GPS update arrived during the 320 ms wait.
   if (state.selected) {
     ensureUserAndSelectionVisible({ animate: true, force: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS });
+  } else if (cinematicFirstLanding) {
+    ensureOverviewTargetsVisible({ animate: true, cinematic: true, durationMs: FIRST_LANDING_REVEAL_ANIMATION_MS });
   } else {
     ensureOverviewTargetsVisible({ animate: true, durationMs: FIRST_LOAD_REVEAL_ANIMATION_MS });
   }
