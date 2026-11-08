@@ -101,7 +101,9 @@ So, before a PR is done — every time, no exceptions:
    images before merging; the PR branch is never changed by snapshot publication, and the visual
    check reports screenshot differences as warnings rather than failing CI. The PR comparison table and Playwright artifacts remain available for review. After the merge, the main-branch
    workflow regenerates them directly on `main` through the protected-branch GitHub App path, with
-   the resulting commit triggering CI verification on the canonical baselines.
+   the resulting commit triggering CI verification on the canonical baselines. A new snapshot with no
+   committed baseline yet is a warning too: its first render is published as the Actual, with
+   "No baseline yet, first render" in the Baseline cell.
 
 If a wait is unavoidable, wait: each `E2E tests` shard takes a few minutes less than the old
 single-project run; `Visual snapshots (desktop + mobile)` is a handful of tests and finishes quickly, but

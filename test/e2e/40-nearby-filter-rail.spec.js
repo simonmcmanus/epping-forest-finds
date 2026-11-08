@@ -2,7 +2,7 @@
 // Nearby's filter rail: a row of category pills that narrows the list in place (no panel slide).
 // See spec-data-rendering.md "Nearby filter rail".
 const { test, expect } = require("@playwright/test");
-const { setup, waitForUiToSettle, waitForFrames } = require("./helpers");
+const { setup, waitForUiToSettle, waitForFrames, settleMapIconsAndDraw } = require("./helpers");
 
 // A GPS fix inside Epping Forest, with trees, ponds and pubs around it.
 const FOREST_LOCATION = { latitude: 51.6650, longitude: 0.0450, accuracy: 10 };
@@ -62,7 +62,8 @@ test.describe("Nearby filter rail", () => {
   });
 
   test("a group's count shows how many subcategories are on, even when the group is off", async ({ page }) => {
-    await setup(page, "/nearby?show=trees,ponds_streams");
+    // Pubs stays on, so switching Nature off leaves a set that is not empty: un-pressing the last pill would select Everything.
+    await setup(page, "/nearby?show=trees,ponds_streams,pubs");
     await expect(pill(page, "nature").locator(".rail-count")).toHaveText("2/3");
     await pill(page, "nature").click();
     await expect(pill(page, "nature")).toHaveAttribute("aria-pressed", "false");
@@ -72,7 +73,7 @@ test.describe("Nearby filter rail", () => {
   });
 
   test("a group pill keeps the same width when it is switched on or off", async ({ page }) => {
-    await setup(page, "/nearby?show=trees,ponds_streams");
+    await setup(page, "/nearby?show=trees,ponds_streams,pubs");
     const on = await pill(page, "nature").boundingBox();
     await pill(page, "nature").click();
     await expect(pill(page, "nature")).toHaveAttribute("aria-pressed", "false");
@@ -88,7 +89,7 @@ test.describe("Nearby filter rail", () => {
     await showAll(page);
     await watchForPanelSlide(page);
     await pill(page, "nature").click();
-    await expect(page).toHaveURL(/\/nearby\?show=trees,cows,ponds_streams$/);
+    await expect(page).toHaveURL(/\/nearby(?:\?radius=30)?$/);
     await expect(pill(page, "nature")).toHaveAttribute("aria-pressed", "true");
     await expect(pill(page, "nature")).toHaveCount(1);
     await expect(pill(page, "food")).toHaveCount(1);
@@ -100,9 +101,9 @@ test.describe("Nearby filter rail", () => {
   test("All nearby restores every category and returns to the top-level rail", async ({ page }) => {
     await showAll(page);
     await pill(page, "nature").click();
-    await expect(page).toHaveURL(/\/nearby\?show=trees,cows,ponds_streams$/);
+    await expect(page).toHaveURL(/\/nearby(?:\?radius=30)?$/);
     await pill(page, "all-nearby").click();
-    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?filters=false$/);
+    await expect(page).toHaveURL(/\/nearby(?:\?radius=30)?$/);
     await expect(pill(page, "all-nearby")).toHaveAttribute("aria-pressed", "true");
     await expect(pill(page, "nature")).toHaveAttribute("aria-pressed", "true");
     await expect(pill(page, "food")).toHaveAttribute("aria-pressed", "true");
@@ -119,6 +120,9 @@ test.describe("Nearby filter rail", () => {
   });
 
   test("a category page shows subcategories and toggling one changes only that subcategory", async ({ page }) => {
+    await page.addInitScript(() => {
+      localStorage.setItem("forest-finds-filter-state-v1", JSON.stringify({ filters: ["pubs", "restaurants", "cafes", "shops"] }));
+    });
     await setup(page, "/nearby/food");
     await expect(rail(page)).toBeVisible();
     await expect(pill(page, "pubs")).toHaveAttribute("aria-pressed", "true");
@@ -128,15 +132,14 @@ test.describe("Nearby filter rail", () => {
     await expect(pill(page, "nature")).toHaveCount(0);
     await watchForPanelSlide(page);
     await pill(page, "cafes").click();
-    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?show=pubs,restaurants,shops$/);
+    await expect(page).toHaveURL(/\/nearby(?:\?radius=30)?$/);
     await expect(pill(page, "cafes")).toHaveAttribute("aria-pressed", "false");
     await expect(pill(page, "pubs")).toHaveCount(1);
     expect(await page.evaluate(() => window.__slides)).toBe(0);
 
-    // The category rail stays at the subcategory level after another toggle, even though
-    // the URL is now a shared ?show= lens rather than the original landing path.
+    // The rail stays at the subcategory level after another toggle: the URL is plain Nearby now.
     await pill(page, "restaurants").click();
-    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?show=pubs,shops$/);
+    await expect(page).toHaveURL(/\/nearby(?:\?radius=30)?$/);
     await expect(pill(page, "restaurants")).toHaveAttribute("aria-pressed", "false");
     await expect(pill(page, "shops")).toHaveAttribute("aria-pressed", "true");
     await expect(pill(page, "nature")).toHaveCount(0);
@@ -146,18 +149,60 @@ test.describe("Nearby filter rail", () => {
     await setup(page, "/nearby/food");
     await pill(page, "cafes").click();
     await pill(page, "all-nearby").click();
-    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?filters=false$/);
+    await expect(page).toHaveURL(/\/nearby(?:\?radius=30)?$/);
     await expect(pill(page, "all-nearby")).toHaveAttribute("aria-pressed", "true");
     await expect(pill(page, "pubs")).toHaveCount(1);
     await expect(pill(page, "nature")).toHaveCount(0);
   });
 
-  test("a pill that was pressed un-presses on a second tap, and the last one returns to Everything", async ({ page }) => {
+  test("un-pressing the only category on its landing selects Everything and saves it", async ({ page }) => {
+    // The landing's pressed state is its own view. Un-pressing its only category leaves no empty set:
+    // the view and the saved set both become every category.
     await setup(page, "/nearby/trees");
+    await expect(pill(page, "trees")).toHaveAttribute("aria-pressed", "true");
     await pill(page, "trees").click();
-    await expect(page).toHaveURL(/\/nearby\?(?:radius=30&)?filters=false$/);
+    await expect(page).toHaveURL(/\/nearby(?:\?radius=30)?$/);
     await expect(pill(page, "all-nearby")).toHaveAttribute("aria-pressed", "true");
-    await expect(pill(page, "trees")).toHaveAttribute("aria-pressed", "false");
+    expect(await page.evaluate(() => state.overviewFilters.length)).toBe(await page.evaluate(() => ALL_OVERVIEW_FILTER_KEYS.size));
+    expect(await page.evaluate(() => loadStoredOverviewFilters().length)).toBe(await page.evaluate(() => ALL_OVERVIEW_FILTER_KEYS.size));
+  });
+
+  test("un-pressing the last category selects Everything and keeps the list populated", async ({ page }) => {
+    await showAll(page);
+    await pill(page, "nature").click();
+    await expect(pill(page, "nature")).toHaveAttribute("aria-pressed", "true");
+    await pill(page, "nature").click();
+    await expect(pill(page, "all-nearby")).toHaveAttribute("aria-pressed", "true");
+    expect(await page.evaluate(() => loadStoredOverviewFilters().length)).toBe(await page.evaluate(() => ALL_OVERVIEW_FILTER_KEYS.size));
+    await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+  });
+
+  test("closing a held pill's dialog with no change on a category landing keeps the landing and the saved set", async ({ page }) => {
+    await setup(page, "/nearby/food");
+    await expect(pill(page, "cafes")).toHaveAttribute("aria-pressed", "true");
+    const urlBefore = page.url();
+    const savedBefore = await page.evaluate(() => localStorage.getItem("forest-finds-filter-state-v1"));
+
+    await holdPill(page, "cafes");
+    await page.getByRole("button", { name: "Close map setup" }).click();
+    await expect(page.locator("#onboardingOverlay")).toBeHidden();
+
+    expect(page.url()).toBe(urlBefore);
+    await expect(pill(page, "cafes")).toHaveAttribute("aria-pressed", "true");
+    expect(await page.evaluate(() => localStorage.getItem("forest-finds-filter-state-v1"))).toBe(savedBefore);
+  });
+
+  test("a pill tap on All nearby on a category landing saves every category, and a reload keeps them", async ({ page }) => {
+    await setup(page, "/nearby/food");
+    await pill(page, "all-nearby").click();
+    await expect(pill(page, "all-nearby")).toHaveAttribute("aria-pressed", "true");
+    const every = await page.evaluate(() => ALL_OVERVIEW_FILTER_KEYS.size);
+    expect(await page.evaluate(() => loadStoredOverviewFilters().length)).toBe(every);
+
+    await page.reload();
+    await page.waitForFunction(() => typeof state !== "undefined" && state.dataLoaded === true);
+    await waitForUiToSettle(page);
+    expect(await page.evaluate(() => state.overviewFilters.length)).toBe(every);
   });
 
   test("a selected top-level Nature pill can be switched off", async ({ page }) => {
@@ -171,14 +216,6 @@ test.describe("Nearby filter rail", () => {
     const before = await page.evaluate(() => state.walkingDistanceMinutes);
     await pill(page, "transport").click();
     await expect.poll(() => page.evaluate(() => state.walkingDistanceMinutes)).toBe(before);
-  });
-
-  test("tapping pills never changes the reader's saved filters", async ({ page }) => {
-    const saved = await page.evaluate(() => localStorage.getItem(FILTER_STATE_KEY));
-    await pill(page, "transport").click();
-    await pill(page, "food").click();
-    await expect(pill(page, "food")).toHaveAttribute("aria-pressed", "false");
-    expect(await page.evaluate(() => localStorage.getItem(FILTER_STATE_KEY))).toBe(saved);
   });
 
   test("rapidly toggling a category off and on keeps the returning rows visible", async ({ page }) => {
@@ -291,6 +328,33 @@ test.describe("Nearby filter rail", () => {
     await page.locator("#nearbyToggle").click();
     await expect(page).toHaveURL(/\/nearby(?:\?.*)?$/);
   });
+
+  test("snapshot: nearby with a rail pick", async ({ page }) => {
+    // A top-level pick saves the filter set, so the Nearby list and map show the picked categories.
+    await pill(page, "nature").click();
+    await waitForUiToSettle(page);
+    await settleMapIconsAndDraw(page);
+    await expect(page).toHaveScreenshot("nearby-with-a-rail-pick.png", { fullPage: false });
+  });
+});
+
+test.describe("Nearby without a location fix", () => {
+  test.use({ geolocation: undefined, permissions: [] });
+
+  test("a saved single category without a location asks for location instead of listing every place in it", async ({ page }) => {
+    // A saved set of one category is the reader's own choice, not a view of a landing, so it is not
+    // listed in full without a location: the list asks for one instead.
+    await page.addInitScript(() => {
+      if (sessionStorage.getItem("seeded-filters")) return;
+      sessionStorage.setItem("seeded-filters", "1");
+      localStorage.setItem("forest-finds-filter-state-v1", JSON.stringify({ filters: ["cafes"] }));
+    });
+    await setup(page, "/nearby");
+    await expect(rail(page)).toBeVisible();
+    expect(await page.evaluate(() => state.userLocation)).toBeNull();
+    await expect(page.locator("#inspectorBody .empty", { hasText: "Use your location" })).toBeVisible();
+    await expect(page.locator("#inspectorBody .nearest-item")).toHaveCount(0);
+  });
 });
 
 test("a category link opens with its subcategories available", async ({ page }) => {
@@ -298,7 +362,7 @@ test("a category link opens with its subcategories available", async ({ page }) 
   await expect(pill(page, "pubs")).toHaveAttribute("aria-pressed", "true");
   await expect(pill(page, "trees")).toHaveCount(0);
   await pill(page, "cafes").click();
-  await expect(page).toHaveURL(/\/nearby\?radius=30&show=pubs,restaurants,shops$/);
+  await expect(page).toHaveURL(/\/nearby(?:\?radius=30)?$/);
   await expect(pill(page, "pubs")).toHaveCount(1);
   await expect(pill(page, "nature")).toHaveCount(0);
 });

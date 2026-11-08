@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup } = require("./helpers");
+const { setup, waitForUiToSettle } = require("./helpers");
 
 test.describe("Map setup", () => {
   test.beforeEach(async ({ page }) => {
@@ -53,6 +53,37 @@ test.describe("Map setup", () => {
     expect(await page.evaluate((filterKey) => state.overviewFilters.includes(filterKey), key)).toBe(false);
   });
 
+  test("closing Map setup with no change on a category landing keeps the landing, its list and the saved set", async ({ page }) => {
+    await setup(page, "/nearby/food");
+    const listedNames = page.locator("#inspectorBody .nearest-item .nearest-name");
+    await expect(listedNames.first()).toBeVisible();
+    const listBefore = await listedNames.allTextContents();
+    expect(listBefore.length, "the landing lists places before Map setup opens").toBeGreaterThan(0);
+    const urlBefore = page.url();
+    const savedBefore = await page.evaluate(() => localStorage.getItem("forest-finds-filter-state-v1"));
+
+    await page.click("#filterToggle");
+    await expect(page.locator("#onboardingOverlay")).toBeVisible();
+    await page.getByRole("button", { name: "Close map setup" }).click();
+    await expect(page.locator("#onboardingOverlay")).toBeHidden();
+
+    expect(page.url()).toBe(urlBefore);
+    await expect(listedNames).toHaveText(listBefore);
+    expect(await page.evaluate(() => localStorage.getItem("forest-finds-filter-state-v1"))).toBe(savedBefore);
+  });
+
+  test("closing Map setup with a change on a category landing saves it and moves the landing to plain Nearby", async ({ page }) => {
+    await setup(page, "/nearby/food");
+    await page.click("#filterToggle");
+    await page.locator('.onboarding-selection-item[data-group-key="food"]').click();
+    await page.locator('.onboarding-chip[data-key="pubs"]').click();
+    await page.getByRole("button", { name: "Close map setup" }).click();
+    await expect(page.locator("#onboardingOverlay")).toBeHidden();
+
+    await expect(page).toHaveURL(/\/nearby(?:\?radius=30)?$/);
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem("forest-finds-filter-state-v1")).filters.includes("pubs"))).toBe(false);
+  });
+
   test("filter changes apply when the guided setup is done", async ({ page }) => {
     await page.click("#filterToggle");
     await page.getByRole("button", { name: "Choose categories" }).click();
@@ -64,6 +95,23 @@ test.describe("Map setup", () => {
     await page.getByRole("button", { name: "Done" }).click();
     await expect(page.locator("#onboardingOverlay")).toBeHidden();
     await expect.poll(() => page.evaluate(() => state.overviewFilters.includes("events"))).toBe(false);
+  });
+
+  test("Done saves the chosen categories, and a reload shows the saved set", async ({ page }) => {
+    await page.click("#filterToggle");
+    await page.getByRole("button", { name: "Choose categories" }).click();
+    for (let i = 0; i < 6; i += 1) {
+      await page.getByRole("button", { name: "Next" }).click();
+    }
+    await page.locator('.onboarding-chip[data-key="events"]').click();
+    await page.getByRole("button", { name: "Done" }).click();
+    await expect(page.locator("#onboardingOverlay")).toBeHidden();
+
+    await page.reload();
+    await page.waitForFunction(() => typeof state !== "undefined" && state.dataLoaded === true);
+    await waitForUiToSettle(page);
+    expect(await page.evaluate(() => state.overviewFilters.includes("events"))).toBe(false);
+    expect(await page.evaluate(() => loadStoredOverviewFilters().includes("events"))).toBe(false);
   });
 
   test("the legacy filter URL opens the guided setup", async ({ page }) => {

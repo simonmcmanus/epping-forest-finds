@@ -88,6 +88,26 @@ test.describe("URL navigation", () => {
     });
   });
 
+  test.describe("a place's Everything button without a location fix", () => {
+    test("does not list every place, but asks for a location and keeps the saved filters", async ({ page }) => {
+      await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+      await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("tree");
+      expect(await page.evaluate(() => state.userLocation)).toBeNull();
+      const savedBefore = await page.evaluate(() => localStorage.getItem("forest-finds-filter-state-v1"));
+
+      await page.locator("#inspectorBody [data-action='walk-radius']").click();
+
+      await expect.poll(() => page.evaluate(() => state.selected)).toBeNull();
+      await expect(page.locator("#inspectorBody p.empty", { hasText: "Use your location to list the nearest" })).toBeVisible();
+      await expect(page.locator("#inspectorBody .nearest-item[data-overview-type]")).toHaveCount(0);
+      // The screen keeps the reader's own saved set rather than switching to every category.
+      expect(await page.evaluate(() => state.overviewFilters.slice().sort().join(","))).toBe(
+        await page.evaluate(() => loadStoredOverviewFilters().slice().sort().join(",")),
+      );
+      expect(await page.evaluate(() => localStorage.getItem("forest-finds-filter-state-v1"))).toBe(savedBefore);
+    });
+  });
+
   test.describe("back retraces the trail", () => {
     test("browser Back dismisses Map setup and returns to Nearby", async ({ page }) => {
       await setup(page);
