@@ -4655,9 +4655,12 @@ function filterKeysEqual(first, second) {
 // other view) and the URL stay as they are. Only a real change saves, and a save moves a view to plain
 // /nearby.
 // Returns whether it saved, so a caller can tell a no-change close (the screen stays as it was) from a save.
+// Switching every chip off is not a set the reader can keep: an empty set saves every category, the same as
+// un-pressing the last rail pill.
 function applyStagedFilterSet(stagedFilters) {
-  if (filterKeysEqual(stagedFilters, loadStoredOverviewFilters())) return false;
-  saveFilterSet(stagedFilters);
+  const next = stagedFilters.length > 0 ? stagedFilters : Array.from(ALL_OVERVIEW_FILTER_KEYS);
+  if (filterKeysEqual(next, loadStoredOverviewFilters())) return false;
+  saveFilterSet(next);
   return true;
 }
 

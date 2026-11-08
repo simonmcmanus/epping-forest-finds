@@ -460,6 +460,7 @@ globalThis.__forestFindsTest = {
   railSelection,
   railPillKeys,
   toggleRailFilter,
+  applyStagedFilterSet,
   navigateInApp,
   overviewHeadingText,
   landingPageCategoryLabel,
@@ -2560,6 +2561,23 @@ test("tapping a rail pill narrows to it, a second pill adds to it, and un-pressi
 test("a stored empty filter set loads as every category, so an empty saved set never exists", () => {
   const storedApp = loadAppForTests({ localStorage: { "forest-finds-filter-state-v1": JSON.stringify({ filters: [] }) } });
   assert.equal(storedApp.loadStoredOverviewFilters().length, storedApp.FILTER_SUBFILTERS.length);
+});
+
+test("an empty staged set, with every chip switched off in Map setup, saves every category rather than nothing", () => {
+  resetData(app);
+  app.location.pathname = "/nearby";
+  app.location.search = "";
+  app.state.overviewFilters = ["trees"];
+  app.applyStagedFilterSet([]);
+  const everything = app.FILTER_SUBFILTERS.length;
+  assert.equal(app.state.overviewFilters.length, everything, "the set on screen is every category, not an empty one");
+  assert.equal(JSON.parse(app.localStorage.getItem("forest-finds-filter-state-v1")).filters.length, everything, "the stored set is every category");
+  assert.equal(app.loadStoredOverviewFilters().length, everything, "a reload shows the same set as the screen did");
+  app.localStorage.removeItem("forest-finds-filter-state-v1");
+  app.state.overviewFilters = [];
+  app.state.overviewFiltersEphemeral = false;
+  app.location.pathname = "/";
+  app.location.search = "";
 });
 
 test("a saved single category without a location is not listed in full, while a view of one still is", () => {
