@@ -2728,7 +2728,7 @@ function renderNearestItemsHtml(entries) {
         </div>
         <div class="nearest-footer">
           <span class="nearest-meta">${walkChip ? `${walkChip} · ` : ""}${escapeHtml(typeLabel)}${treeTagChip}</span>
-          <span class="nearest-arrow" data-item-lat="${entry.item.latitude ?? ""}" data-item-lon="${entry.item.longitude ?? ""}" aria-hidden="true"${isFarFromForest() ? " hidden" : ""}>↑</span>
+          <span class="nearest-arrow" data-item-lat="${escapeHtml(entry.item.latitude)}" data-item-lon="${escapeHtml(entry.item.longitude)}" aria-hidden="true"${isFarFromForest() ? " hidden" : ""}>↑</span>
         </div>
       </div>
     </button></li>`;
@@ -6872,7 +6872,7 @@ async function loadTransportDepartures(place) {
           <li class="departure-item">
             <span class="departure-line">${escapeHtml(d.line)}</span>
             <span class="departure-direction">${escapeHtml(d.direction)}</span>
-            <span class="departure-time${d.due ? ' due' : ''}">${d.due ? 'Due' : (d.minutesAway + ' min')}</span>
+            <span class="departure-time${d.due ? ' due' : ''}">${d.due ? 'Due' : (escapeHtml(d.minutesAway) + ' min')}</span>
           </li>`).join("")}
       </ul>`;
   } catch {
