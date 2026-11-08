@@ -45,6 +45,79 @@ test('review shows added screenshots, final differences and failed captures with
   assert.deepEqual(fs.readdirSync(output).map((file) => fs.readFileSync(path.join(output, file), 'utf8')).sort(), ['actual.png', 'before.png', 'diff.png', 'new.png']);
 });
 
+// These assertions exercise the generated GitHub publication contract, not renderer source.
+function comparisonRows(section) {
+  return [...section.matchAll(/<tr><th colspan="2" align="left">([^<]*)<\/th><\/tr>\s*<tr>(.*?)<\/tr>/gs)]
+    .map((match) => ({ label: match[1], cells: [...match[2].matchAll(/<td([^>]*)>(.*?)<\/td>/gs)] }));
+}
+
+test('changed and added screenshots publish equally sized top-aligned linked comparisons on both devices', (t) => {
+  const root = fixture(t);
+  for (const project of ['mobile', 'desktop']) {
+    manifest(root, project, [
+      { name: 'search', status: 'failed', images: [
+        { name: 'search-actual.png', file: 'actual.png' },
+        { name: 'search-expected.png', file: 'before.png' },
+      ] },
+      { name: 'missing baseline', status: 'failed', images: [
+        { name: 'missing-actual.png', file: 'missing.png' },
+      ] },
+      { name: 'failed capture', status: 'failed', images: [] },
+    ], [{ name: `added-${project}-linux.png`, file: 'added.png' }]);
+  }
+  const output = path.join(root, 'published');
+  const rows = comparisonRows(render(root, output, options));
+  assert.deepEqual(rows.map((row) => row.label), [
+    'search', 'missing', 'failed capture', 'added-mobile-linux.png',
+    'search', 'missing', 'failed capture', 'added-desktop-linux.png',
+  ], 'screen labels have their own rows, separate from the image columns');
+  let thumbnails = 0;
+  for (const row of rows) {
+    assert.equal(row.cells.length, 2);
+    for (const cell of row.cells) {
+      assert.match(cell[1], /\bvalign="top"/);
+      assert.match(cell[1], /\bwidth="50%"/);
+      for (const image of cell[2].matchAll(/<a href="([^"]*)"><img ([^>]+)><\/a>/g)) {
+        thumbnails++;
+        const attributes = Object.fromEntries([...image[2].matchAll(/([a-z]+)="([^"]*)"/g)].map((attribute) => [attribute[1], attribute[2]]));
+        assert.equal(attributes.width, '360');
+        assert.equal(attributes.height, undefined, 'height remains intrinsic to preserve the aspect ratio');
+        assert.equal(attributes.src, image[1], 'thumbnail opens the same full-resolution image');
+        assert.match(attributes.alt, /^(Before|After)$/);
+        assert.match(image[1], /^https:\/\/raw\.githubusercontent\.com\/owner\/repo\/__VISUAL_SHA__\/pr-[^/]+\/(mobile|desktop)-\d+\.png$/);
+        const file = image[1].split('/').pop();
+        assert.ok(fs.existsSync(path.join(output, file)), 'linked image is published');
+      }
+    }
+  }
+  assert.equal(thumbnails, 8, 'before, after, missing-baseline actual, and added images for each device');
+  assert.match(rows[1].cells[0][2], /Baseline unavailable/);
+  assert.match(rows[2].cells[0][2], /Capture failed/);
+  assert.match(rows[3].cells[0][2], /Added/);
+});
+
+test('HTML publication treats entity syntax and quotes in labels and capture errors as literal text', (t) => {
+  const root = fixture(t);
+  const untrusted = `&lt;img src=x onerror="alert('x')"&gt; @someone`;
+  manifest(root, 'mobile', [
+    { name: untrusted, status: 'failed', images: [] },
+    { name: 'changed', status: 'failed', images: [
+      { name: `${untrusted}-expected.png`, file: 'before.png' },
+      { name: `${untrusted}-actual.png`, file: 'actual.png' },
+    ] },
+  ], [{ name: untrusted, file: 'added.png' }]);
+  const manifestPath = path.join(root, 'visual-evidence-mobile', 'manifest.json');
+  const data = JSON.parse(fs.readFileSync(manifestPath));
+  data.errors = [untrusted];
+  fs.writeFileSync(manifestPath, JSON.stringify(data));
+  const rows = comparisonRows(render(root, path.join(root, 'published'), options));
+  const escaped = '&amp;lt;img src=x onerror=&quot;alert(&#39;x&#39;)&quot;&amp;gt; ＠someone';
+  assert.equal(rows.length, 4);
+  assert.equal(rows[0].label, 'Capture setup');
+  assert.equal(rows[0].cells[0][2], `<strong>Failed:</strong> ${escaped}`);
+  assert.deepEqual(rows.slice(1).map((row) => row.label), [escaped, escaped, escaped]);
+});
+
 test('missing or invalid artifacts explicitly replace results with unavailable evidence', (t) => {
   const root = fixture(t);
   const section = render(root, path.join(root, 'published'), options);
