@@ -430,12 +430,6 @@
   to = "/find/kaspa-s/"
   status = 301
 
-# was manual/kings-oak-hotel-2009 at 51.664284,0.039968
-[[redirects]]
-  from = "/find/kings-oak-hotel-2009/"
-  to = "/find/kings-oak-cafe/"
-  status = 301
-
 # was manual/la-baita at 51.633073,0.008044
 [[redirects]]
   from = "/find/la-baita/"

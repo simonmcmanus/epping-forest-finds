@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-11-06",
+  "generatedAt": "2026-11-07",
   "entries": [
     {
       "slug": "042",
@@ -9696,6 +9696,22 @@
       "summary": null,
       "verifiedAt": "2026-10-31",
       "id": "way/245856870"
+    },
+    {
+      "slug": "kings-oak-hotel-2009",
+      "key": "pubs",
+      "groupKey": "food",
+      "name": "Kings Oak Hotel (2009)",
+      "address": "Kings Oak Hotel, Pauls Nursery Road, Loughton, Essex, IG10 4AE",
+      "phone": null,
+      "website": null,
+      "lat": 51.664284,
+      "lon": 0.039968,
+      "distanceToForestBoundaryMetres": 27.3,
+      "openingHours": null,
+      "summary": null,
+      "verifiedAt": null,
+      "id": "manual/kings-oak-hotel-2009"
     },
     {
       "slug": "kings-road-baptist-church-chingford",

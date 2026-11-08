@@ -43531,6 +43531,40 @@
         "distanceToForestBoundaryMetres": 424.6,
         "distanceLimitFromForestBoundaryMetres": 466.7
       }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/kings-oak-hotel-2009",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.039968,
+          51.664284
+        ]
+      },
+      "properties": {
+        "id": "manual/kings-oak-hotel-2009",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Kings Oak Hotel (2009)",
+        "category": "pub",
+        "categoryLabel": "Pub",
+        "amenity": "pub",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Kings Oak Hotel, Pauls Nursery Road, Loughton, Essex, IG10 4AE",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 27.3,
+        "distanceLimitFromForestBoundaryMetres": 466.7
+      }
     }
   ]
 }
