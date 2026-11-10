@@ -386,6 +386,30 @@ test.describe("Anchored drag edge cases", () => {
     await page.mouse.up();
   });
 
+  test("pressing and releasing mid-glide leaves the camera on the final radius's framing", async ({ page }) => {
+    const box = await openAnchoredNearby(page);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.4);
+    await page.mouse.wheel(0, -600);
+    const gliding = await page.evaluate(() => (
+      state.wheelRadiusTargetMinutes != null && state.walkingDistanceMinutes > state.wheelRadiusTargetMinutes
+    ));
+    expect(gliding, "the press lands while the radius is still gliding").toBe(true);
+    await page.mouse.down();
+    await page.mouse.up();
+    await expect.poll(() => page.evaluate(() => (
+      state.wheelRadiusSettleTimer == null && state.viewportAnimationFrame == null && state.wheelRadiusTargetMinutes == null
+    ))).toBe(true);
+    await waitForFrames(page, 10);
+    const result = await page.evaluate(() => {
+      const settled = { ...state.viewport };
+      alignHeadingUpNavigationViewport({ force: true });
+      return { settled, refit: { ...state.viewport } };
+    });
+    expect(Math.abs(result.settled.scale / result.refit.scale - 1)).toBeLessThan(0.01);
+    expect(Math.abs(result.settled.tx - result.refit.tx)).toBeLessThan(3);
+    expect(Math.abs(result.settled.ty - result.refit.ty)).toBeLessThan(3);
+  });
+
   test("a second finger ends the anchored hold", async ({ page }) => {
     await openAnchoredNearby(page);
     const held = await page.evaluate(() => {
@@ -409,14 +433,22 @@ test.describe("Anchored drag edge cases", () => {
     expect(held).toEqual({ whileDragging: true, afterSecond: false, finally: false });
   });
 
-  test("a tap on the anchored map is still a tap and leaves no hold behind", async ({ page }) => {
+  test("a tap leaves no drag hold behind on the anchored map (leak guard)", async ({ page }) => {
     const box = await openAnchoredNearby(page);
-    // Open ground: the tap handler re-frames the Nearby view (it is not a drag, so no hold).
     await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.3);
     const after = await page.evaluate(() => ({ hold: state.anchoredDragHold, moved: state.moved, dragging: state.dragging }));
     expect(after).toEqual({ hold: false, moved: false, dragging: false });
     await waitForFrames(page, 10);
     expect(await page.evaluate(() => state.anchoredDragHold)).toBe(false);
+  });
+
+  test("tapping open ground on the anchored Nearby map previews that spot", async ({ page }) => {
+    const box = await openAnchoredNearby(page);
+    expect(await page.evaluate(() => state.nearbyAnchor)).toBeFalsy();
+    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.3);
+    // handleMapClick on open ground sets a browse anchor (the Nearby view moves to that spot).
+    await expect.poll(() => page.evaluate(() => Boolean(state.nearbyAnchor))).toBe(true);
+    expect(await page.evaluate(() => state.selected)).toBeNull();
   });
 });
 
