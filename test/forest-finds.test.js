@@ -5748,6 +5748,8 @@ function setUpWheelNearby(app) {
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.walkingDistanceMinutes = 5;
   app.state.wheelRadiusMinutes = null;
+  app.state.wheelRadiusTargetMinutes = null;
+  app.state.wheelRadiusOvershoot = false;
 }
 
 test("scrolling the wheel resizes the walking radius rather than the map", () => {
@@ -5780,11 +5782,11 @@ test("a wheel gesture keeps its own running value, so small trackpad deltas stil
 test("a trackpad pinch moves the radius further than the same wheel delta", () => {
   setUpWheelNearby(app);
   app.updateNearbyRadiusWheel(wheelEvent(-30));
-  const byWheel = app.state.wheelRadiusMinutes;
+  const byWheel = app.state.wheelRadiusTargetMinutes;
 
   setUpWheelNearby(app);
   app.updateNearbyRadiusWheel(wheelEvent(-30, { ctrlKey: true }));
-  assert.ok(app.state.wheelRadiusMinutes < byWheel, "the trackpad rate should be the faster of the two");
+  assert.ok(app.state.wheelRadiusTargetMinutes < byWheel, "the trackpad rate should be the faster of the two");
 });
 
 test("normalizeWheelPixels converts line and page deltas to pixels", () => {

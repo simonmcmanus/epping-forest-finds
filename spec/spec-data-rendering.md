@@ -657,14 +657,16 @@ moving the real GPS fix:
   `WHEEL_RADIUS_RATE_PER_PIXEL` puts a ~100px wheel notch at the 1.22x step the map zoom took,
   and a trackpad pinch (reported as ctrl+wheel, in far smaller deltas) multiplies that rate by
   `TRACKPAD_PINCH_RATE_MULTIPLIER` so a whole pinch is worth a whole pinch. The running value
-  lives unrounded in `state.wheelRadiusMinutes` rather than being read back from the applied
-  radius, which is itself unrounded too — the radius is never snapped to a value grid, so a run
-  of small trackpad deltas moves the ring continuously rather than needing to first accumulate
-  past a step. It is clamped to the floor/maximum, unlike the pinch's own base, because a wheel
-  only accumulates — an unclamped value would make the user scroll back through everything they
-  overshot before the ring moved.
-  A wheel has no pointerup, so the gesture ends `WHEEL_RADIUS_SETTLE_MS` (220ms) after the last
-  event (`endNearbyRadiusWheel`), which is where the settling animation, the cleared floor notice
+  accumulates unrounded in `state.wheelRadiusTargetMinutes` (the radius the wheel is heading
+  for), and the applied radius glides to it every animation frame (`stepRadiusChase`; see "Wheel
+  and trackpad zoom glides" under Zoom & Input), `state.wheelRadiusMinutes` being the applied
+  value — the radius is never snapped to a value grid, so a run of small trackpad deltas moves
+  the ring continuously. The target is clamped to the floor/maximum, unlike the pinch's own
+  base, because a wheel only accumulates — an unclamped value would make the user scroll back
+  through everything they overshot before the ring moved; a request below the floor sets
+  `state.wheelRadiusOvershoot` so the glide still raises the floor notice on arrival.
+  A wheel has no pointerup, so the gesture ends `WHEEL_RADIUS_SETTLE_MS` (220ms) after the glide
+  has arrived (not merely after the last event) (`endNearbyRadiusWheel`), which is where the settling animation, the cleared floor notice
   and the Settings-slider sync happen — the same things `endNearbyRadiusPinch` does on lift-off.
   Both gestures share one body, `applyWalkingRadiusGesture(rawMinutes)`, which does the clamp,
   the at-floor flag, the grid snap and the apply, and returns the floor it used so the wheel can
@@ -1140,7 +1142,7 @@ Behavior:
 - **GPS-triggered refit during animation:** `keepOverviewCenteredOnUser` skips the off-screen check (`anyOffscreen`) while a programmatic viewport animation is in progress (`state.viewportAnimationFrame != null`). This prevents GPS updates from interrupting smooth transitions (e.g. the loading reveal or back-to-overview zoom) by snapping mid-animation.
 - **Minimized inspector:** auto-reposition paused — free pan/zoom
 - **Expand from minimized:** recenter once to user + selected target, preserve zoom intent
-- **Manual camera override (`state.manualCameraOverrideFor`):** the auto-reposition follow is a correction, never a lock. The first drag or wheel-zoom made while a location is selected and the inspector is expanded records the *current selection object* in `state.manualCameraOverrideFor` (`markManualCameraOverride`) and then pans/zooms normally; while that record still matches `state.selected` (`manualCameraOverrideActive()`), `shouldAutoRepositionSelection()` returns false and unforced `ensureUserAndSelectionVisible` calls — which is what the `watchPosition` handler makes on every fix — return without touching the viewport. Keying on the selection rather than a flag means picking a different location hands the camera straight back with nothing to reset; it is additionally cleared (`clearManualCameraOverride`) by any `force: true` fit, by expanding the inspector from minimized (the one sanctioned re-frame, above), and by `goToInitialView()`. Heading-up modes never set it: they genuinely do pin the viewport to a fitted target, so there is no manual position to preserve. Without this the fit was re-run on every `pointermove` and every GPS fix, and since the fit was already satisfied the map could not be dragged or zoomed anywhere at all while a selection was open.
+- **Manual camera override (`state.manualCameraOverrideFor`):** the auto-reposition follow is a correction, never a lock. The first drag or wheel-zoom made while a location is selected and the inspector is expanded records the *current selection object* in `state.manualCameraOverrideFor` (`markManualCameraOverride`) and then pans/zooms normally; while that record still matches `state.selected` (`manualCameraOverrideActive()`), `shouldAutoRepositionSelection()` returns false and unforced `ensureUserAndSelectionVisible` calls — which is what the `watchPosition` handler makes on every fix — return without touching the viewport. Keying on the selection rather than a flag means picking a different location hands the camera straight back with nothing to reset; it is additionally cleared (`clearManualCameraOverride`) by any `force: true` fit, by expanding the inspector from minimized (the one sanctioned re-frame, above), and by `goToInitialView()`. Heading-up modes never set it: the anchored camera is not manually positioned, so a drag there is shown following the pointer and then eases back to the anchor on release (see "Dragging an anchored map slides back" under Zoom & Input), leaving no manual position to preserve. Without this the fit was re-run on every `pointermove` and every GPS fix, and since the fit was already satisfied the map could not be dragged or zoomed anywhere at all while a selection was open.
 
 ### Animations
 
@@ -1234,6 +1236,8 @@ Every write to `state.viewport` (scale, `tx`, `ty`), grouped by how it moves the
 - Browser/page pinch zoom disabled
 - Ctrl+wheel zoom disabled at document level
 - Map zoom via: map interactions only (wheel/drag) — there is no on-screen zoom control in the main map UI
+- **Wheel and trackpad zoom glides.** The wheel (and a ctrl+wheel trackpad pinch) sets a target and the camera chases it every animation frame with an exponential ease (about 70ms time constant, a slow frame counting as at most ~34ms), so the first event moves the view at once and a stream of events reads as one continuous zoom rather than a jump per event. Each step scales with the normalised delta (`normalizeWheelPixels`): a mouse notch is the familiar 1.22x step, a small trackpad delta a small step. On screens that draw the walking radius the wheel moves a target radius and the *radius itself* glides there (ring, list refresh and camera fit move together each frame; `walkingRadiusAtFloor` notice, clamps and `syncSettingsWalkSlider` unchanged), and the gesture's settle timer only starts once the glide has arrived. Elsewhere `zoomAt` glides the map scale with the point under the cursor held fixed; successive events re-aim the same glide rather than restarting it, and any new pointer press or camera animation ends it.
+- **Dragging an anchored map slides back.** While the map is anchored (`navigationAnchorActive()`: Nearby with a GPS fix and nothing selected, or selected heading-up navigation), a single-finger or mouse drag moves the map 1:1 with the pointer. `state.anchoredDragHold` is set for the length of that pointer gesture, and `alignHeadingUpNavigationViewport` returns immediately while it is set (GPS fixes, compass ticks and queued refits cannot pull the camera back under the finger). On the final release, only if the gesture moved, the camera eases back (about 400ms, `moveCamera`) to the framing the anchor fit computes; a tap is unchanged. Search and the secondary screens keep the camera where it was left. A second finger ends the hold and starts the radius pinch as before.
 - Touch double-tap zoom prevented
 - **Two-finger pinch on the map canvas is repurposed** (rather than left inert once native
   pinch-zoom is disabled): on any screen that draws the walking radius — Nearby, Filters,

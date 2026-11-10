@@ -292,6 +292,16 @@ const state = {
   // (updateNearbyRadiusWheel/endNearbyRadiusWheel, js/nav.js).
   wheelRadiusMinutes: null,
   wheelRadiusSettleTimer: null,
+  // Where the wheel gesture is heading (the radius glides there frame by frame, js/nav.js), and
+  // whether the wheel asked for less than the radius floor allows (the limit notice).
+  wheelRadiusTargetMinutes: null,
+  wheelRadiusOvershoot: false,
+  // True while a single pointer is down on the map in an anchored state (navigationAnchorActive):
+  // the drag owns the camera until release, so GPS fixes, compass ticks and refits must not
+  // re-anchor it underneath the finger. See alignHeadingUpNavigationViewport.
+  anchoredDragHold: false,
+  // The map-scale wheel zoom in flight (zoomAt): { target, screenPoint, world, frame, last }.
+  zoomChase: null,
   // Safari's trackpad pinch (gesturestart/change/end) measures from where the gesture began,
   // like the two-finger pinch does -- see startNearbyRadiusGesture, js/nav.js.
   gestureRadiusBaseMinutes: null,
@@ -1514,6 +1524,7 @@ function applyBoundsToViewport(bounds, options = {}) {
 }
 
 function stopViewportAnimation() {
+  cancelZoomChase();
   if (state.viewportAnimationFrame != null) {
     cancelAnimationFrame(state.viewportAnimationFrame);
   }
@@ -1817,6 +1828,8 @@ function inspectorCanvasOverlapRect({ assumeInspectorOpen = false } = {}) {
 
 function zoomAt(factor, screenPoint) {
   if (!state.bounds) return;
+  // Read before stopViewportAnimation, which ends any wheel glide already in flight.
+  const priorChase = state.zoomChase;
   stopViewportAnimation();
   // Heading-up mode (nearby or selected-navigation) locks pan/zoom to the fitted
   // target -- see alignHeadingUpNavigationViewport() and the pointermove handler in
@@ -1836,11 +1849,58 @@ function zoomAt(factor, screenPoint) {
   // here instead -- as this used to -- meant the wheel did nothing at all whenever a
   // location was selected with the inspector open, since the fit is already satisfied.
   if (shouldAutoRepositionSelection()) markManualCameraOverride();
-  const before = screenToWorld(screenPoint.x, screenPoint.y);
-  state.viewport.scale = clamp(state.viewport.scale * factor, state.fitScale * 0.65, state.fitScale * 220);
-  state.viewport.tx = screenPoint.x - before.x * state.viewport.scale;
-  state.viewport.ty = screenPoint.y - before.y * state.viewport.scale;
+  // The wheel asks for a target scale and the camera glides to it frame by frame, so a stream of
+  // small trackpad deltas reads as one continuous zoom instead of a jump per event. Successive
+  // events re-aim the same glide (it is not restarted), and the point under the cursor stays fixed.
+  const heading = priorChase && Number.isFinite(priorChase.target) ? priorChase.target : state.viewport.scale;
+  const target = clamp(heading * factor, state.fitScale * 0.65, state.fitScale * 220);
+  const last = priorChase ? priorChase.last : null;
+  const now = performance.now();
+  const world = screenToWorld(screenPoint.x, screenPoint.y);
+  stopViewportAnimation();
+  state.zoomChase = { target, screenPoint: { x: screenPoint.x, y: screenPoint.y }, world, frame: null, last: now };
+  stepZoomChase(last == null ? ZOOM_CHASE_FIRST_STEP_MS : now - last);
+}
+
+// How quickly the camera closes on a wheel zoom's target: the time constant of an exponential
+// chase, so the first frame already moves visibly and the last frames settle without a hard stop.
+const ZOOM_CHASE_TAU_MS = 70;
+const ZOOM_CHASE_FIRST_STEP_MS = 16;
+const ZOOM_CHASE_DONE_LOG_RATIO = 0.002;
+
+function zoomChaseFraction(dtMs) {
+  return 1 - Math.exp(-clamp(Number(dtMs) || ZOOM_CHASE_FIRST_STEP_MS, 1, 34) / ZOOM_CHASE_TAU_MS);
+}
+
+function cancelZoomChase() {
+  const chase = state.zoomChase;
+  if (!chase) return;
+  if (chase.frame != null) cancelAnimationFrame(chase.frame);
+  state.zoomChase = null;
+}
+
+function stepZoomChase(dtMs) {
+  const chase = state.zoomChase;
+  if (!chase) return;
+  const scale = state.viewport.scale;
+  const gap = Math.log(chase.target / scale);
+  const done = !Number.isFinite(gap) || Math.abs(gap) < ZOOM_CHASE_DONE_LOG_RATIO;
+  const next = done ? chase.target : scale * Math.exp(gap * zoomChaseFraction(dtMs));
+  state.viewport.scale = next;
+  state.viewport.tx = chase.screenPoint.x - chase.world.x * next;
+  state.viewport.ty = chase.screenPoint.y - chase.world.y * next;
   requestDraw();
+  if (done) {
+    state.zoomChase = null;
+    return;
+  }
+  chase.frame = requestAnimationFrame((timestamp) => {
+    chase.frame = null;
+    if (state.zoomChase !== chase) return;
+    const dt = timestamp - chase.last;
+    chase.last = timestamp;
+    stepZoomChase(dt);
+  });
 }
 
 function attachNearbyRailScrollHints(root = els.inspectorBody) {
@@ -5359,6 +5419,9 @@ function alignHeadingUpNavigationViewport(options = {}) {
   // startCompassSmoothing) before mapPromise resolves, so this must wait for real data.
   if (!state.dataLoaded) return false;
   if (!navigationAnchorActive()) return false;
+  // A finger is dragging the anchored map: nothing re-anchors it until release, which asks for
+  // the return itself with releaseDrag (js/nav.js, returnAnchoredMapAfterDrag).
+  if (state.anchoredDragHold && !options.releaseDrag) return false;
   if (selectionCameraTransitionActive()) {
     // An animated refit that lands while another camera tween is running (tapping a place and
     // then Nearby quickly, or a filter pill mid-ease) used to be dropped here, so the camera
