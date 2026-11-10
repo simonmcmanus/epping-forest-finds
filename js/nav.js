@@ -2236,6 +2236,7 @@ function beginMapDrag(clientX, clientY) {
   // anchored camera from the start; a fresh press holds it only once it crosses the drag
   // threshold (see pointermove), so a press that never becomes a drag leaves refits untouched.
   state.anchoredDragHold = Boolean(state.moved) && navigationAnchorActive();
+  state.dragApplied = null;
   state.dragStart = {
     x: clientX,
     y: clientY,
@@ -2340,10 +2341,17 @@ function setupMapCanvasHandlers() {
       if (!state.moved && !state.anchoredDragHold && navigationAnchorActive()) {
         // The press has become a drag on the anchored map: from here the finger owns the camera
         // until release. Any refit that ran during the first few pixels is taken as the starting
-        // point, so the map does not jump back to where the press began.
+        // point (less the pan already applied from this press), so the map neither jumps back to
+        // where the press began nor loses the distance the finger has travelled.
         stopViewportAnimation();
         state.anchoredDragHold = true;
-        state.dragStart = { x: event.clientX, y: event.clientY, tx: state.viewport.tx, ty: state.viewport.ty };
+        const applied = state.dragApplied || { dx: 0, dy: 0 };
+        state.dragStart = {
+          x: state.dragStart.x,
+          y: state.dragStart.y,
+          tx: state.viewport.tx - applied.dx,
+          ty: state.viewport.ty - applied.dy,
+        };
       }
       state.moved = true;
       state.clusterZoomed = false;
@@ -2367,6 +2375,7 @@ function setupMapCanvasHandlers() {
     if (shouldAutoRepositionSelection()) markManualCameraOverride();
     state.viewport.tx = state.dragStart.tx + dx;
     state.viewport.ty = state.dragStart.ty + dy;
+    state.dragApplied = { dx, dy };
     requestDraw();
   });
 

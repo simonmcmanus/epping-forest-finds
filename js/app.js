@@ -300,6 +300,8 @@ const state = {
   // the drag owns the camera until release, so GPS fixes, compass ticks and refits must not
   // re-anchor it underneath the finger. See alignHeadingUpNavigationViewport.
   anchoredDragHold: false,
+  // The pan ({dx, dy}) the current press has applied to the viewport so far (js/nav.js).
+  dragApplied: null,
   // The map-scale wheel zoom in flight (zoomAt): { target, screenPoint, world, frame, last }.
   zoomChase: null,
   // Safari's trackpad pinch (gesturestart/change/end) measures from where the gesture began,
