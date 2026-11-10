@@ -320,6 +320,106 @@ test.describe("Dragging an anchored map", () => {
   }
 });
 
+test.describe("Anchored drag edge cases", () => {
+  test.use({
+    geolocation: FOREST_LOCATION,
+    permissions: ["geolocation"],
+  });
+
+  async function openAnchoredNearby(page) {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await gotoAndWaitForMap(page);
+    await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
+    await expect.poll(() => page.evaluate(() => state.viewportAnimationFrame == null)).toBe(true);
+    await waitForFrames(page, 4);
+    return page.locator("#mapCanvas").boundingBox();
+  }
+
+  const userOnScreen = (page) => page.evaluate(() => {
+    const p = worldToScreen(state.userLocation.point);
+    return { x: p.x, y: p.y };
+  });
+
+  test("a press that never becomes a drag still lets a GPS fix re-anchor the map", async ({ page, context }) => {
+    const box = await openAnchoredNearby(page);
+    const anchor = await userOnScreen(page);
+    // The camera is off its anchor when the finger lands (as after a pan).
+    await page.evaluate(() => { state.viewport.ty += 220; requestDraw(); });
+    await waitForFrames(page, 2);
+
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.4);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 2, box.y + box.height * 0.4 + 1);
+    const fixBefore = await page.evaluate(() => state.userLocation.point.y);
+    await context.setGeolocation({ ...FOREST_LOCATION, latitude: FOREST_LOCATION.latitude + 0.0006 });
+    await expect.poll(() => page.evaluate(() => state.userLocation.point.y)).not.toBe(fixBefore);
+    await page.mouse.up();
+
+    await expect.poll(async () => {
+      const now = await userOnScreen(page);
+      return Math.hypot(now.x - anchor.x, now.y - anchor.y);
+    }).toBeLessThan(80);
+  });
+
+  test("scrolling the wheel while the anchored map is held leaves the radius alone", async ({ page }) => {
+    const box = await openAnchoredNearby(page);
+    const before = await page.evaluate(() => state.walkingDistanceMinutes);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.4);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 90, box.y + box.height * 0.4 + 50, { steps: 4 });
+    await page.mouse.wheel(0, -300);
+    await waitForFrames(page, 8);
+    expect(await page.evaluate(() => state.walkingDistanceMinutes)).toBe(before);
+    await page.mouse.up();
+  });
+
+  test("pressing the map ends a wheel zoom that is still gliding", async ({ page }) => {
+    const box = await openAnchoredNearby(page);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.4);
+    await page.mouse.wheel(0, -600);
+    await page.mouse.down();
+    const atPress = await page.evaluate(() => state.walkingDistanceMinutes);
+    await waitForFrames(page, 8);
+    expect(await page.evaluate(() => state.walkingDistanceMinutes), "the ring stops under the finger").toBe(atPress);
+    expect(await page.evaluate(() => state.wheelRadiusTargetMinutes), "the wheel gesture has ended").toBeNull();
+    await page.mouse.up();
+  });
+
+  test("a second finger ends the anchored hold", async ({ page }) => {
+    await openAnchoredNearby(page);
+    const held = await page.evaluate(() => {
+      const canvas = els.canvas;
+      canvas.setPointerCapture = () => {};
+      canvas.releasePointerCapture = () => {};
+      const rect = canvas.getBoundingClientRect();
+      const fire = (type, id, dx) => canvas.dispatchEvent(new PointerEvent(type, {
+        pointerId: id, clientX: rect.left + rect.width / 2 + dx, clientY: rect.top + rect.height / 2,
+        bubbles: true, cancelable: true, pointerType: "touch",
+      }));
+      fire("pointerdown", 4001, 0);
+      fire("pointermove", 4001, 30);
+      const whileDragging = state.anchoredDragHold;
+      fire("pointerdown", 4002, 80);
+      const afterSecond = state.anchoredDragHold;
+      fire("pointerup", 4002, 80);
+      fire("pointerup", 4001, 30);
+      return { whileDragging, afterSecond, finally: state.anchoredDragHold };
+    });
+    expect(held).toEqual({ whileDragging: true, afterSecond: false, finally: false });
+  });
+
+  test("a tap on the anchored map is still a tap and leaves no hold behind", async ({ page }) => {
+    const box = await openAnchoredNearby(page);
+    // Open ground: the tap handler re-frames the Nearby view (it is not a drag, so no hold).
+    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.3);
+    const after = await page.evaluate(() => ({ hold: state.anchoredDragHold, moved: state.moved, dragging: state.dragging }));
+    expect(after).toEqual({ hold: false, moved: false, dragging: false });
+    await waitForFrames(page, 10);
+    expect(await page.evaluate(() => state.anchoredDragHold)).toBe(false);
+  });
+});
+
 // A wheel or trackpad stream must glide the camera rather than teleporting it on every event.
 test.describe("Wheel zoom on the Nearby screen glides", () => {
   test.use({

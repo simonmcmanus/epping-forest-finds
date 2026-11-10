@@ -541,6 +541,7 @@ globalThis.__forestFindsTest = {
   normalizeWheelPixels,
   updateNearbyRadiusWheel,
   endNearbyRadiusWheel,
+  cancelRadiusChase,
   zoomInputResizesNearbyRadius,
   startNearbyRadiusGesture,
   updateNearbyRadiusGesture,
@@ -5750,6 +5751,9 @@ function setUpWheelNearby(app) {
   app.state.wheelRadiusMinutes = null;
   app.state.wheelRadiusTargetMinutes = null;
   app.state.wheelRadiusOvershoot = false;
+  // The glide's frame handle and clock are module-level, so a frame left queued by the previous
+  // test (requestAnimationFrame is a timer here) must not leak into this one.
+  app.cancelRadiusChase();
 }
 
 test("scrolling the wheel resizes the walking radius rather than the map", () => {

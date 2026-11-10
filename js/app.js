@@ -5557,6 +5557,9 @@ function alignHeadingUpNavigationViewport(options = {}) {
       options.cinematic ? { cinematic: true, focusPoint: { x: focus.x, y: focusY } } : undefined,
     );
   } else {
+    // An un-animated refit writes the viewport itself, so a wheel glide still chasing its own
+    // target would overwrite it on its next frame.
+    cancelZoomChase();
     state.viewport.scale = targetScale;
     state.viewport.tx = targetViewport.tx;
     state.viewport.ty = targetViewport.ty;

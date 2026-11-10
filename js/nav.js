@@ -2232,9 +2232,10 @@ function beginMapDrag(clientX, clientY) {
   // animated settle of its own (endNearbyRadiusPinch -> refreshNearbyRadiusView).
   stopViewportAnimation();
   state.dragging = true;
-  // The anchored map follows the finger and is eased back to its anchor on release; until then
-  // nothing else may re-anchor it (alignHeadingUpNavigationViewport honours this).
-  state.anchoredDragHold = navigationAnchorActive();
+  // A pointer that has already travelled (the handover from a two-finger gesture) holds the
+  // anchored camera from the start; a fresh press holds it only once it crosses the drag
+  // threshold (see pointermove), so a press that never becomes a drag leaves refits untouched.
+  state.anchoredDragHold = Boolean(state.moved) && navigationAnchorActive();
   state.dragStart = {
     x: clientX,
     y: clientY,
@@ -2280,6 +2281,13 @@ function returnAnchoredMapAfterDrag() {
 
 function setupMapCanvasHandlers() {
   els.canvas.addEventListener("pointerdown", (event) => {
+    // A radius glide still running from the wheel ends here, at the radius it has reached: left
+    // to chase on, it would keep resizing the ring under the finger, and cancelled without
+    // ending it the gesture would never finish (stale target, notice and settle never run).
+    if (state.wheelRadiusTargetMinutes != null || state.wheelRadiusSettleTimer != null) {
+      clearTimeout(state.wheelRadiusSettleTimer);
+      endNearbyRadiusWheel();
+    }
     stopViewportAnimation();
     capturePointerSafely(els.canvas, event.pointerId);
     state.activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -2294,7 +2302,6 @@ function setupMapCanvasHandlers() {
       state.multiTouchOccurred = true;
       state.dragging = false;
       state.anchoredDragHold = false;
-      cancelRadiusChase();
       els.canvas.classList.remove("dragging");
       // Filters/Settings/Report keep drawing the same walking-radius circle behind them, so the
       // pinch that resizes it works there too -- refreshNearbyRadiusView already knows not to
@@ -2327,12 +2334,22 @@ function setupMapCanvasHandlers() {
     // performed while heading-up or auto-repositioning was active still looked like a
     // stationary tap on pointerup and fired handleMapClick -- selecting whatever was under
     // the release point (or resetting to Nearby) instead of just panning/re-fitting.
-    const dx = event.clientX - state.dragStart.x;
-    const dy = event.clientY - state.dragStart.y;
+    let dx = event.clientX - state.dragStart.x;
+    let dy = event.clientY - state.dragStart.y;
     if (Math.abs(dx) + Math.abs(dy) > 4) {
+      if (!state.moved && !state.anchoredDragHold && navigationAnchorActive()) {
+        // The press has become a drag on the anchored map: from here the finger owns the camera
+        // until release. Any refit that ran during the first few pixels is taken as the starting
+        // point, so the map does not jump back to where the press began.
+        stopViewportAnimation();
+        state.anchoredDragHold = true;
+        state.dragStart = { x: event.clientX, y: event.clientY, tx: state.viewport.tx, ty: state.viewport.ty };
+      }
       state.moved = true;
       state.clusterZoomed = false;
       exitClusterExpansion();
+      dx = event.clientX - state.dragStart.x;
+      dy = event.clientY - state.dragStart.y;
     }
     // An anchored drag (state.anchoredDragHold) pans below like any other and is eased home on
     // release; only a drag that began before the anchor existed keeps the pinned behaviour.
@@ -2410,6 +2427,9 @@ function setupMapCanvasHandlers() {
 
   els.canvas.addEventListener("wheel", (event) => {
     event.preventDefault();
+    // An anchored drag in progress owns the camera until release; zooming under it would resize
+    // the ring and list with the refit blocked, and nothing would put the camera right afterwards.
+    if (state.anchoredDragHold) return;
     state.clusterZoomed = false;
     exitClusterExpansion();
     if (zoomInputResizesNearbyRadius()) {
