@@ -1512,9 +1512,7 @@ function applyBoundsToViewport(bounds, options = {}) {
       { scale: targetScale, tx: targetTx, ty: targetTy },
       options.durationMs || DEFAULT_VIEWPORT_ANIMATION_MS,
       undefined,
-      options.cinematic
-        ? { cinematic: true, focusPoint: { x: focusRect.x + viewportWidth / 2, y: focusRect.y + viewportHeight / 2 } }
-        : undefined,
+      { cinematic: Boolean(options.cinematic), deliberate: Boolean(options.deliberate), focusPoint: { x: focusRect.x + viewportWidth / 2, y: focusRect.y + viewportHeight / 2 } },
     );
     return;
   }
@@ -1611,6 +1609,30 @@ const ZOOM_DURATION_MIN_RATIO = 3;
 const ZOOM_DURATION_PER_DOUBLING = 0.6; // extra share of the requested duration per doubling beyond the minimum
 const ZOOM_DURATION_MAX_MS = 1200;
 
+// A deliberate, user-triggered move (selecting a place, returning to Nearby, applying filters, a
+// followed link) gets the cinematic arc -- the same shallow zoom-out the first-location fly-to
+// uses -- but only when it is big enough to read as a journey: the zoom changes by at least
+// DELIBERATE_ARC_MIN_ZOOM_RATIO, or the camera centre travels at least this share of the shorter
+// canvas side. Anything smaller stays a plain ease, and continuous camera work (GPS follow, compass,
+// drag return, wheel/pinch glides, resizes) never asks for the arc. Arc moves last between
+// DELIBERATE_ARC_MIN_MS and DELIBERATE_ARC_MAX_MS, so an ordinary selection does not slow down.
+const DELIBERATE_ARC_MIN_ZOOM_RATIO = 1.5;
+const DELIBERATE_ARC_MIN_TRAVEL_SHARE = 0.35;
+const DELIBERATE_ARC_MIN_MS = 650;
+const DELIBERATE_ARC_MAX_MS = 1000;
+
+function deliberateMoveIsLarge(from, target, focusPoint) {
+  if (!(from.scale > 0) || !(target.scale > 0)) return false;
+  const zoomRatio = Math.max(from.scale / target.scale, target.scale / from.scale);
+  if (zoomRatio >= DELIBERATE_ARC_MIN_ZOOM_RATIO) return true;
+  const fromCentre = { x: (focusPoint.x - from.tx) / from.scale, y: (focusPoint.y - from.ty) / from.scale };
+  const toCentre = { x: (focusPoint.x - target.tx) / target.scale, y: (focusPoint.y - target.ty) / target.scale };
+  const smaller = Math.min(from.scale, target.scale);
+  const travelPx = Math.hypot((toCentre.x - fromCentre.x) * smaller, (toCentre.y - fromCentre.y) * smaller);
+  const shorterSide = Math.min(els.canvas ? els.canvas.width : 0, els.canvas ? els.canvas.height : 0);
+  return shorterSide > 0 && travelPx >= shorterSide * DELIBERATE_ARC_MIN_TRAVEL_SHARE;
+}
+
 function zoomAwareDurationMs(baseMs, zoomRatio) {
   if (!(zoomRatio > ZOOM_DURATION_MIN_RATIO)) return baseMs;
   const extraDoublings = Math.log2(zoomRatio) - Math.log2(ZOOM_DURATION_MIN_RATIO);
@@ -1626,6 +1648,10 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
   let safeDuration = Math.max(MIN_VIEWPORT_ANIMATION_MS, Number(durationMs) || DEFAULT_VIEWPORT_ANIMATION_MS);
   const cinematic = Boolean(options.cinematic);
   if (!cinematic && viewportAnimationAlreadyHeadedTo(targetViewport)) return "ignored";
+  // options.deliberate marks a user-triggered move; whether it is big enough for the arc is
+  // decided here, once, for every caller. The arc maths below is shared with `cinematic`, but a
+  // deliberate arc does not take over the walking-radius ring's screen position (the reveal flags
+  // stay cinematic-only) and keeps the same-target dedupe above.
   stopViewportAnimation();
   // A real camera tween owns the zoom from here, so a browse-origin slide must not keep easing back
   // towards the zoom it started from once this tween has landed.
@@ -1636,6 +1662,11 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
     tx: state.viewport.tx,
     ty: state.viewport.ty,
   };
+  const focusPoint = options.focusPoint || (els.canvas ? { x: els.canvas.width / 2, y: els.canvas.height / 2 } : { x: 0, y: 0 });
+  const deliberateArc = !cinematic && Boolean(options.deliberate) && !state.nearbyOriginTransition
+    && !prefersReducedMotion()
+    && deliberateMoveIsLarge(from, targetViewport, focusPoint);
+  const arc = cinematic || deliberateArc;
   // Not while a browse-origin slide is running: its callers pass a duration chosen so the tween and the
   // slide land on the same frame (see nearbyRevealOpacity), and stretching one would pull them apart.
   if (!cinematic && !options.fixedDuration && !state.nearbyOriginTransition
@@ -1643,17 +1674,17 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
     const zoomRatio = Math.max(from.scale / targetViewport.scale, targetViewport.scale / from.scale);
     safeDuration = zoomAwareDurationMs(safeDuration, zoomRatio);
   }
+  if (deliberateArc) safeDuration = clamp(safeDuration, DELIBERATE_ARC_MIN_MS, DELIBERATE_ARC_MAX_MS);
 
   // A normal viewport tween interpolates the transform components directly. That is right for
   // small refits, but it makes a High Beach -> GPS handoff feel like a hard yank when both the
   // camera position and scale change at once. The cinematic path interpolates the camera's world
   // centre and adds a shallow zoom-out arc, like a restrained map fly-to: the route becomes clear
   // in the middle of the move, then the camera settles into the final walking-radius fit.
-  const focusPoint = options.focusPoint || { x: 0, y: 0 };
-  const fromCenter = cinematic && from.scale > 0
+  const fromCenter = arc && from.scale > 0
     ? { x: (focusPoint.x - from.tx) / from.scale, y: (focusPoint.y - from.ty) / from.scale }
     : null;
-  const targetCenter = cinematic && targetViewport.scale > 0
+  const targetCenter = arc && targetViewport.scale > 0
     ? { x: (focusPoint.x - targetViewport.tx) / targetViewport.scale, y: (focusPoint.y - targetViewport.ty) / targetViewport.scale }
     : null;
   const centreDistancePx = fromCenter && targetCenter
@@ -1662,12 +1693,12 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
       (targetCenter.y - fromCenter.y) * Math.min(from.scale, targetViewport.scale),
     )
     : 0;
-  const zoomOutRatio = cinematic
+  const zoomOutRatio = arc
     ? clamp(0.10 + (centreDistancePx / 900) * 0.045, 0.10, 0.24)
     : 0;
   const cinematicScaleFloor = cinematic && state.baseFitScale > 0
     ? state.baseFitScale * 0.92
-    : 0;
+    : deliberateArc ? Math.min(from.scale, targetViewport.scale) * 0.8 : 0;
 
   if (
     Math.abs(from.scale - targetViewport.scale) < 0.000001
@@ -1707,7 +1738,7 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
       ? 4 * progress * progress * progress
       : 1 - Math.pow(-2 * progress + 2, 3) / 2;
 
-    if (cinematic && fromCenter && targetCenter) {
+    if (arc && fromCenter && targetCenter) {
       const baseScale = zoomAlongTween(from.scale, targetViewport.scale, eased);
       const zoomArc = Math.sin(Math.PI * eased) * zoomOutRatio;
       state.viewport.scale = Math.max(cinematicScaleFloor, baseScale * (1 - zoomArc));
@@ -1980,7 +2011,7 @@ function setOverviewFilters(nextFilters, { persist = true, render = true, railTa
   }
   if (isOverviewScreenActive() && (!state.filterScreenOpen || mapSetupModalActive())) {
     selectOverview();
-    ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
+    ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS, deliberate: true });
   }
   requestDraw();
 }
@@ -5556,7 +5587,7 @@ function alignHeadingUpNavigationViewport(options = {}) {
       targetViewport,
       options.durationMs || HEADING_UP_NAV_ANIMATION_MS,
       undefined,
-      options.cinematic ? { cinematic: true, focusPoint: { x: focus.x, y: focusY } } : undefined,
+      { cinematic: Boolean(options.cinematic), deliberate: Boolean(options.deliberate), focusPoint: { x: focus.x, y: focusY } },
     );
   } else {
     // An un-animated refit writes the viewport itself, so a wheel glide still chasing its own
@@ -5628,7 +5659,7 @@ function animateToHeadingUpNavigationViewport(durationMs = HEADING_UP_NAV_ANIMAT
     scale: targetScale,
     tx: focus.x - userPoint.x * targetScale,
     ty: focusY - userPoint.y * targetScale,
-  }, safeDuration);
+  }, safeDuration, undefined, { deliberate: Boolean(options.deliberate) });
 }
 
 function prepareCanvasForDraw() {
@@ -5903,6 +5934,7 @@ function ensureUserAndSelectionVisible(options = {}) {
     focusVisibleArea: true,
     animate: shouldAnimate,
     cinematic: Boolean(options.cinematic),
+    deliberate: Boolean(options.deliberate),
     durationMs: options.durationMs || 800,
     minScale: state.baseFitScale > 0 ? state.baseFitScale : undefined,
     maxScale: maxScale > 0 ? maxScale : undefined,
@@ -6115,9 +6147,7 @@ function centerOverviewOnUserLocation(options = {}) {
       targetViewport,
       options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
       undefined,
-      options.cinematic
-        ? { cinematic: true, focusPoint: { x: focusRect.x + focusRect.width / 2, y: focusRect.y + focusRect.height / 2 } }
-        : undefined,
+      { cinematic: Boolean(options.cinematic), deliberate: Boolean(options.deliberate), focusPoint: { x: focusRect.x + focusRect.width / 2, y: focusRect.y + focusRect.height / 2 } },
     );
     return;
   }
@@ -6219,6 +6249,7 @@ function ensureOverviewTargetsVisible(options = {}) {
     alignHeadingUpNavigationViewport({
       animate: Boolean(options.animate),
       cinematic: Boolean(options.cinematic),
+      deliberate: Boolean(options.deliberate),
       durationMs: options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
       force: Boolean(options.force),
       stagePanThenZoom: Boolean(options.stagePanThenZoom),
@@ -6236,6 +6267,7 @@ function ensureOverviewTargetsVisible(options = {}) {
       assumeInspectorOpen: true,
       animate: Boolean(options.animate),
       cinematic: Boolean(options.cinematic),
+      deliberate: Boolean(options.deliberate),
       durationMs: options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
       minScale: state.baseFitScale > 0 ? state.baseFitScale : undefined,
       padding: OVERVIEW_FIT_PADDING_PX,
@@ -6246,6 +6278,7 @@ function ensureOverviewTargetsVisible(options = {}) {
     centerOverviewOnUserLocation({
       animate: Boolean(options.animate),
       cinematic: Boolean(options.cinematic),
+      deliberate: Boolean(options.deliberate),
       durationMs: options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
       focusVisibleArea: true,
     });

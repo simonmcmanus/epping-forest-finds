@@ -2659,9 +2659,9 @@ function setInspectorMinimized(minimized) {
 // re-tap can use it without the rest of goToInitialView()'s resets.
 function refitNearbyRingView() {
   if (state.userLocation) {
-    ensureOverviewTargetsVisible({ animate: true, durationMs: HEADING_UP_NAV_ANIMATION_MS, force: true });
+    ensureOverviewTargetsVisible({ animate: true, durationMs: HEADING_UP_NAV_ANIMATION_MS, force: true, deliberate: true });
   } else {
-    fitToBounds(false, { animate: true, durationMs: HEADING_UP_NAV_ANIMATION_MS });
+    fitToBounds(false, { animate: true, durationMs: HEADING_UP_NAV_ANIMATION_MS, deliberate: true });
   }
 }
 
