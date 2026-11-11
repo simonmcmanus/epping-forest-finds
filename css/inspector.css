@@ -102,12 +102,14 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  /* A flat band with no border, radius or top margin, in the same cream as the tools row and
-     list header directly below it, so it joins that surface instead of sitting in the sheet's
-     white as a separate box. */
+  /* A full-width band in the same cream as the title section below it, ruled above and below
+     with the same hairline that title section uses, so it reads as one more row of the sheet.
+     Padding is equal top and bottom, so the notice sits centred between its two rules. */
   margin: 0;
-  padding: 8px 8px 8px 10px;
+  padding: 12px 16px;
   border: 0;
+  border-top: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border-soft);
   border-radius: 0;
   background: var(--surface-soft);
   animation:
