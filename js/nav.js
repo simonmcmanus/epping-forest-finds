@@ -2065,15 +2065,75 @@ function updateNearbyRadiusWheel(event) {
   const pixels = normalizeWheelPixels(event);
   if (!pixels) return;
   const rate = WHEEL_RADIUS_RATE_PER_PIXEL * (event.ctrlKey ? TRACKPAD_PINCH_RATE_MULTIPLIER : 1);
-  const base = Number.isFinite(state.wheelRadiusMinutes) ? state.wheelRadiusMinutes : state.walkingDistanceMinutes;
+  // The wheel sets where the radius is heading; the ring and camera glide there frame by frame
+  // (stepRadiusChase) rather than jumping by the full step on every event. Successive events
+  // move the same target, so a trackpad stream reads as one continuous zoom.
+  const base = Number.isFinite(state.wheelRadiusTargetMinutes)
+    ? state.wheelRadiusTargetMinutes
+    : state.walkingDistanceMinutes;
   const rawMinutes = base * Math.exp(pixels * rate);
-  const floor = applyWalkingRadiusGesture(rawMinutes);
+  const floor = walkingRadiusFloorMinutes(nearbyOrigin());
+  state.wheelRadiusOvershoot = rawMinutes < floor;
   // Clamped, unlike the pinch's own running value: a pinch recovers by moving the fingers back,
   // but a wheel only accumulates, so an unclamped value would leave the user scrolling back
   // through everything they overshot by before the ring moved again.
-  state.wheelRadiusMinutes = clamp(rawMinutes, floor, WALKING_RADIUS_MAX_MINUTES);
+  state.wheelRadiusTargetMinutes = clamp(rawMinutes, floor, WALKING_RADIUS_MAX_MINUTES);
   clearTimeout(state.wheelRadiusSettleTimer);
-  state.wheelRadiusSettleTimer = setTimeout(endNearbyRadiusWheel, WHEEL_RADIUS_SETTLE_MS);
+  state.wheelRadiusSettleTimer = null;
+  const now = performance.now();
+  const dt = _radiusChaseLastAt == null ? RADIUS_CHASE_FIRST_STEP_MS : now - _radiusChaseLastAt;
+  _radiusChaseLastAt = now;
+  if (!stepRadiusChase(dt)) scheduleRadiusChase();
+}
+
+// Time constant of the radius glide, matching the map-scale wheel zoom (ZOOM_CHASE_TAU_MS): the
+// first frame already moves visibly, and the last frames settle instead of stopping dead.
+const RADIUS_CHASE_TAU_MS = 70;
+// A slow frame is treated as at most ~30fps long, so a stalled frame never carries a big jump.
+const RADIUS_CHASE_FIRST_STEP_MS = 16;
+const RADIUS_CHASE_DONE_LOG_RATIO = 0.002;
+let _radiusChaseFrame = null;
+let _radiusChaseLastAt = null;
+
+function cancelRadiusChase() {
+  if (_radiusChaseFrame != null) cancelAnimationFrame(_radiusChaseFrame);
+  _radiusChaseFrame = null;
+  _radiusChaseLastAt = null;
+}
+
+// Moves the applied radius a time-scaled fraction of the way to the wheel's target. Returns true
+// once it has arrived, at which point the gesture's settle timer starts: the gesture only counts
+// as over once the camera has finished gliding, not merely once the wheel went quiet.
+function stepRadiusChase(dtMs) {
+  const target = state.wheelRadiusTargetMinutes;
+  if (!Number.isFinite(target)) return true;
+  const floor = walkingRadiusFloorMinutes(nearbyOrigin());
+  // Asking for less than the floor allows aims just under it, so the glide reaches the floor and
+  // the limit notice rises (applyWalkingRadiusGesture compares the unclamped value).
+  const aim = state.wheelRadiusOvershoot ? floor * 0.98 : target;
+  const current = state.walkingDistanceMinutes;
+  const reachable = clamp(aim, floor, WALKING_RADIUS_MAX_MINUTES);
+  const done = Math.abs(Math.log(reachable / current)) < RADIUS_CHASE_DONE_LOG_RATIO;
+  const fraction = 1 - Math.exp(-clamp(Number(dtMs) || RADIUS_CHASE_FIRST_STEP_MS, 1, 34) / RADIUS_CHASE_TAU_MS);
+  const next = done ? aim : current * Math.exp(Math.log(aim / current) * fraction);
+  const appliedFloor = applyWalkingRadiusGesture(next);
+  state.wheelRadiusMinutes = clamp(next, appliedFloor, WALKING_RADIUS_MAX_MINUTES);
+  if (done) {
+    _radiusChaseFrame = null;
+    _radiusChaseLastAt = null;
+    state.wheelRadiusSettleTimer = setTimeout(endNearbyRadiusWheel, WHEEL_RADIUS_SETTLE_MS);
+  }
+  return done;
+}
+
+function scheduleRadiusChase() {
+  if (_radiusChaseFrame != null) return;
+  _radiusChaseFrame = requestAnimationFrame((timestamp) => {
+    _radiusChaseFrame = null;
+    const dt = _radiusChaseLastAt == null ? RADIUS_CHASE_FIRST_STEP_MS : timestamp - _radiusChaseLastAt;
+    _radiusChaseLastAt = timestamp;
+    if (!stepRadiusChase(dt)) scheduleRadiusChase();
+  });
 }
 
 // The wheel's equivalent of lifting the fingers (endNearbyRadiusPinch below): one smooth settling
@@ -2082,6 +2142,9 @@ function updateNearbyRadiusWheel(event) {
 function endNearbyRadiusWheel() {
   state.wheelRadiusSettleTimer = null;
   state.wheelRadiusMinutes = null;
+  state.wheelRadiusTargetMinutes = null;
+  state.wheelRadiusOvershoot = false;
+  cancelRadiusChase();
   state.walkingRadiusAtFloor = false;
   cancelPendingRadiusGestureRefresh();
   refreshNearbyRadiusView();
@@ -2169,6 +2232,11 @@ function beginMapDrag(clientX, clientY) {
   // animated settle of its own (endNearbyRadiusPinch -> refreshNearbyRadiusView).
   stopViewportAnimation();
   state.dragging = true;
+  // A pointer that has already travelled (the handover from a two-finger gesture) holds the
+  // anchored camera from the start; a fresh press holds it only once it crosses the drag
+  // threshold (see pointermove), so a press that never becomes a drag leaves refits untouched.
+  state.anchoredDragHold = Boolean(state.moved) && navigationAnchorActive();
+  state.dragApplied = null;
   state.dragStart = {
     x: clientX,
     y: clientY,
@@ -2197,8 +2265,30 @@ function isTouchTapBesidePanel(event) {
   });
 }
 
+// Dragging the anchored map is only there to show it is not broken: on release it eases back to
+// the framing it is anchored on, the one alignHeadingUpNavigationViewport solves. Search and the
+// secondary screens hold the camera wherever the user left it, so they are not pulled back.
+const ANCHORED_DRAG_RETURN_MS = 400;
+
+function returnAnchoredMapAfterDrag() {
+  if (state.searchScreenOpen || secondaryScreenActive()) return;
+  alignHeadingUpNavigationViewport({
+    animate: true,
+    force: true,
+    releaseDrag: true,
+    durationMs: ANCHORED_DRAG_RETURN_MS,
+  });
+}
+
 function setupMapCanvasHandlers() {
   els.canvas.addEventListener("pointerdown", (event) => {
+    // A radius glide still running from the wheel ends here, at the radius it has reached: left
+    // to chase on, it would keep resizing the ring under the finger, and cancelled without
+    // ending it the gesture would never finish (stale target, notice and settle never run).
+    if (state.wheelRadiusTargetMinutes != null || state.wheelRadiusSettleTimer != null) {
+      clearTimeout(state.wheelRadiusSettleTimer);
+      endNearbyRadiusWheel();
+    }
     stopViewportAnimation();
     capturePointerSafely(els.canvas, event.pointerId);
     state.activePointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
@@ -2212,6 +2302,7 @@ function setupMapCanvasHandlers() {
       // and drop the selection.
       state.multiTouchOccurred = true;
       state.dragging = false;
+      state.anchoredDragHold = false;
       els.canvas.classList.remove("dragging");
       // Filters/Settings/Report keep drawing the same walking-radius circle behind them, so the
       // pinch that resizes it works there too -- refreshNearbyRadiusView already knows not to
@@ -2244,14 +2335,33 @@ function setupMapCanvasHandlers() {
     // performed while heading-up or auto-repositioning was active still looked like a
     // stationary tap on pointerup and fired handleMapClick -- selecting whatever was under
     // the release point (or resetting to Nearby) instead of just panning/re-fitting.
-    const dx = event.clientX - state.dragStart.x;
-    const dy = event.clientY - state.dragStart.y;
+    let dx = event.clientX - state.dragStart.x;
+    let dy = event.clientY - state.dragStart.y;
     if (Math.abs(dx) + Math.abs(dy) > 4) {
+      if (!state.moved && !state.anchoredDragHold && navigationAnchorActive()) {
+        // The press has become a drag on the anchored map: from here the finger owns the camera
+        // until release. Any refit that ran during the first few pixels is taken as the starting
+        // point (less the pan already applied from this press), so the map neither jumps back to
+        // where the press began nor loses the distance the finger has travelled.
+        stopViewportAnimation();
+        state.anchoredDragHold = true;
+        const applied = state.dragApplied || { dx: 0, dy: 0 };
+        state.dragStart = {
+          x: state.dragStart.x,
+          y: state.dragStart.y,
+          tx: state.viewport.tx - applied.dx,
+          ty: state.viewport.ty - applied.dy,
+        };
+      }
       state.moved = true;
       state.clusterZoomed = false;
       exitClusterExpansion();
+      dx = event.clientX - state.dragStart.x;
+      dy = event.clientY - state.dragStart.y;
     }
-    if (typeof headingUpActive === "function" && headingUpActive()) {
+    // An anchored drag (state.anchoredDragHold) pans below like any other and is eased home on
+    // release; only a drag that began before the anchor existed keeps the pinned behaviour.
+    if (!state.anchoredDragHold && typeof headingUpActive === "function" && headingUpActive()) {
       alignHeadingUpNavigationViewport();
       requestDraw();
       return;
@@ -2265,6 +2375,7 @@ function setupMapCanvasHandlers() {
     if (shouldAutoRepositionSelection()) markManualCameraOverride();
     state.viewport.tx = state.dragStart.tx + dx;
     state.viewport.ty = state.dragStart.ty + dy;
+    state.dragApplied = { dx, dy };
     requestDraw();
   });
 
@@ -2288,6 +2399,9 @@ function setupMapCanvasHandlers() {
 
     state.dragging = false;
     els.canvas.classList.remove("dragging");
+    const wasHeld = state.anchoredDragHold;
+    state.anchoredDragHold = false;
+    if (wasHeld && state.moved) returnAnchoredMapAfterDrag();
   }
 
   els.canvas.addEventListener("pointerup", (event) => {
@@ -2322,14 +2436,21 @@ function setupMapCanvasHandlers() {
 
   els.canvas.addEventListener("wheel", (event) => {
     event.preventDefault();
+    // An anchored drag in progress owns the camera until release; zooming under it would resize
+    // the ring and list with the refit blocked, and nothing would put the camera right afterwards.
+    if (state.anchoredDragHold) return;
     state.clusterZoomed = false;
     exitClusterExpansion();
     if (zoomInputResizesNearbyRadius()) {
       updateNearbyRadiusWheel(event);
       return;
     }
-    const factor = event.deltaY < 0 ? 1.22 : 1 / 1.22;
-    zoomAt(factor, canvasPoint(event));
+    // Scaled by the delta like the radius wheel, so a mouse notch is the familiar 1.22x step and
+    // a trackpad's small deltas are small steps. Clamped so a page-mode scroll cannot leap.
+    const pixels = clamp(normalizeWheelPixels(event), -300, 300);
+    if (!pixels) return;
+    const rate = WHEEL_RADIUS_RATE_PER_PIXEL * (event.ctrlKey ? TRACKPAD_PINCH_RATE_MULTIPLIER : 1);
+    zoomAt(Math.exp(-pixels * rate), canvasPoint(event));
   }, { passive: false });
 
   // Safari's trackpad pinch (see startNearbyRadiusGesture). setupUiZoomLock already stops these
@@ -2538,9 +2659,9 @@ function setInspectorMinimized(minimized) {
 // re-tap can use it without the rest of goToInitialView()'s resets.
 function refitNearbyRingView() {
   if (state.userLocation) {
-    ensureOverviewTargetsVisible({ animate: true, durationMs: HEADING_UP_NAV_ANIMATION_MS, force: true });
+    ensureOverviewTargetsVisible({ animate: true, durationMs: HEADING_UP_NAV_ANIMATION_MS, force: true, deliberate: true });
   } else {
-    fitToBounds(false, { animate: true, durationMs: HEADING_UP_NAV_ANIMATION_MS });
+    fitToBounds(false, { animate: true, durationMs: HEADING_UP_NAV_ANIMATION_MS, deliberate: true });
   }
 }
 

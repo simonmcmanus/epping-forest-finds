@@ -197,3 +197,308 @@ test.describe("Wheel and trackpad input on the Nearby screen", () => {
     expect(await page.evaluate(() => state.walkingDistanceMinutes)).toBe(before.minutes);
   });
 });
+
+// Dragging the map while it is anchored on the user (the Nearby view with a GPS fix, or heading-up
+// navigation) is there to show the map is not broken: it follows the pointer 1:1, and once it is
+// let go it eases back to the framing it is anchored on. Neither a GPS fix nor a compass tick may
+// pull it back while it is still held.
+test.describe("Dragging an anchored map", () => {
+  test.use({
+    geolocation: FOREST_LOCATION,
+    permissions: ["geolocation"],
+  });
+
+  async function openNearby(page, { headingUp }) {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await gotoAndWaitForMap(page);
+    await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
+    if (headingUp) {
+      await page.evaluate(() => {
+        state.compassHeading = 90;
+        state.compassHeadingTarget = 90;
+        alignHeadingUpNavigationViewport({ force: true });
+      });
+      await waitForFrames(page, 3);
+    }
+    await viewportAtRest(page);
+    return page.locator("#mapCanvas").boundingBox();
+  }
+
+  async function viewportAtRest(page) {
+    let previous = "";
+    await expect.poll(async () => {
+      const now = await page.evaluate(() => (
+        state.viewportAnimationFrame == null
+          ? [state.viewport.scale, state.viewport.tx, state.viewport.ty].join(",")
+          : ""
+      ));
+      const stable = now !== "" && now === previous;
+      previous = now;
+      return stable;
+    }).toBe(true);
+  }
+
+  const userOnScreen = (page) => page.evaluate(() => {
+    const p = worldToScreen(state.userLocation.point);
+    return { x: p.x, y: p.y };
+  });
+
+  async function dragAndHold(page, box, dx, dy) {
+    const from = { x: box.x + box.width * 0.5, y: box.y + box.height * 0.4 };
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    for (let i = 1; i <= 6; i++) await page.mouse.move(from.x + (dx * i) / 6, from.y + (dy * i) / 6);
+  }
+
+  for (const headingUp of [false, true]) {
+    const mode = headingUp ? "heading-up" : "north-up";
+
+    test(`the ${mode} Nearby map follows the pointer while it is held`, async ({ page }) => {
+      const box = await openNearby(page, { headingUp });
+      const before = await userOnScreen(page);
+
+      await dragAndHold(page, box, 120, 70);
+      await waitForFrames(page, 3);
+
+      const held = await userOnScreen(page);
+      // Device pixels, not CSS: the canvas scales by devicePixelRatio, so compare in the units
+      // the pointer moved in.
+      const dpr = await page.evaluate(() => pixelRatio());
+      expect((held.x - before.x) / dpr).toBeGreaterThan(110);
+      expect((held.y - before.y) / dpr).toBeGreaterThan(60);
+      await page.mouse.up();
+    });
+
+    test(`the ${mode} Nearby map eases back to its anchor on release and stays there`, async ({ page, context }) => {
+      const box = await openNearby(page, { headingUp });
+      const anchor = await userOnScreen(page);
+
+      await dragAndHold(page, box, -140, -90);
+      await waitForFrames(page, 2);
+      const away = await userOnScreen(page);
+      expect(Math.abs(away.x - anchor.x)).toBeGreaterThan(50);
+      await page.mouse.up();
+
+      await expect.poll(async () => {
+        const now = await userOnScreen(page);
+        return Math.hypot(now.x - anchor.x, now.y - anchor.y);
+      }).toBeLessThan(4);
+      await viewportAtRest(page);
+
+      // A later GPS fix moves the user a few metres; it must not send the camera back to where the
+      // drag left it (well over a hundred pixels away).
+      const fixBefore = await page.evaluate(() => state.userLocation.point.y);
+      await context.setGeolocation({ ...FOREST_LOCATION, latitude: FOREST_LOCATION.latitude + 0.0003 });
+      await expect.poll(() => page.evaluate(() => state.userLocation.point.y)).not.toBe(fixBefore);
+      await waitForFrames(page, 4);
+      await viewportAtRest(page);
+      const after = await userOnScreen(page);
+      expect(Math.hypot(after.x - anchor.x, after.y - anchor.y)).toBeLessThan(60);
+    });
+
+    test(`a GPS fix does not pull the ${mode} map back while it is held`, async ({ page, context }) => {
+      const box = await openNearby(page, { headingUp });
+      const anchor = await userOnScreen(page);
+      await dragAndHold(page, box, 150, 100);
+      await waitForFrames(page, 2);
+      const held = await userOnScreen(page);
+      expect(Math.hypot(held.x - anchor.x, held.y - anchor.y), "the drag moved the map").toBeGreaterThan(100);
+
+      const fixBefore = await page.evaluate(() => state.userLocation.point.y);
+      await context.setGeolocation({ ...FOREST_LOCATION, latitude: FOREST_LOCATION.latitude + 0.0006 });
+      await expect.poll(() => page.evaluate(() => state.userLocation.point.y)).not.toBe(fixBefore);
+      await waitForFrames(page, 8);
+
+      const now = await userOnScreen(page);
+      const dpr = await page.evaluate(() => pixelRatio());
+      // The fix itself moves the user on the map by a few metres; what must not happen is the
+      // camera sliding back across the 150px that was dragged.
+      expect(Math.hypot(now.x - held.x, now.y - held.y) / dpr).toBeLessThan(60);
+      await page.mouse.up();
+    });
+  }
+});
+
+test.describe("Anchored drag edge cases", () => {
+  test.use({
+    geolocation: FOREST_LOCATION,
+    permissions: ["geolocation"],
+  });
+
+  async function openAnchoredNearby(page) {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await gotoAndWaitForMap(page);
+    await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
+    await expect.poll(() => page.evaluate(() => state.viewportAnimationFrame == null)).toBe(true);
+    await waitForFrames(page, 4);
+    return page.locator("#mapCanvas").boundingBox();
+  }
+
+  const userOnScreen = (page) => page.evaluate(() => {
+    const p = worldToScreen(state.userLocation.point);
+    return { x: p.x, y: p.y };
+  });
+
+  test("a press that never becomes a drag still lets a GPS fix re-anchor the map", async ({ page, context }) => {
+    const box = await openAnchoredNearby(page);
+    const anchor = await userOnScreen(page);
+    // The camera is off its anchor when the finger lands (as after a pan).
+    await page.evaluate(() => { state.viewport.ty += 220; requestDraw(); });
+    await waitForFrames(page, 2);
+
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.4);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 2, box.y + box.height * 0.4 + 1);
+    const fixBefore = await page.evaluate(() => state.userLocation.point.y);
+    await context.setGeolocation({ ...FOREST_LOCATION, latitude: FOREST_LOCATION.latitude + 0.0006 });
+    await expect.poll(() => page.evaluate(() => state.userLocation.point.y)).not.toBe(fixBefore);
+    await page.mouse.up();
+
+    await expect.poll(async () => {
+      const now = await userOnScreen(page);
+      return Math.hypot(now.x - anchor.x, now.y - anchor.y);
+    }).toBeLessThan(80);
+  });
+
+  test("scrolling the wheel while the anchored map is held leaves the radius alone", async ({ page }) => {
+    const box = await openAnchoredNearby(page);
+    const before = await page.evaluate(() => state.walkingDistanceMinutes);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.4);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 90, box.y + box.height * 0.4 + 50, { steps: 4 });
+    await page.mouse.wheel(0, -300);
+    await waitForFrames(page, 8);
+    expect(await page.evaluate(() => state.walkingDistanceMinutes)).toBe(before);
+    await page.mouse.up();
+  });
+
+  test("pressing the map ends a wheel zoom that is still gliding", async ({ page }) => {
+    const box = await openAnchoredNearby(page);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.4);
+    await page.mouse.wheel(0, -600);
+    await page.mouse.down();
+    const atPress = await page.evaluate(() => state.walkingDistanceMinutes);
+    await waitForFrames(page, 8);
+    expect(await page.evaluate(() => state.walkingDistanceMinutes), "the ring stops under the finger").toBe(atPress);
+    expect(await page.evaluate(() => state.wheelRadiusTargetMinutes), "the wheel gesture has ended").toBeNull();
+    await page.mouse.up();
+  });
+
+  test("pressing and releasing mid-glide leaves the camera on the final radius's framing", async ({ page }) => {
+    const box = await openAnchoredNearby(page);
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.4);
+    await page.mouse.wheel(0, -600);
+    const gliding = await page.evaluate(() => (
+      state.wheelRadiusTargetMinutes != null && state.walkingDistanceMinutes > state.wheelRadiusTargetMinutes
+    ));
+    expect(gliding, "the press lands while the radius is still gliding").toBe(true);
+    await page.mouse.down();
+    await page.mouse.up();
+    await expect.poll(() => page.evaluate(() => (
+      state.wheelRadiusSettleTimer == null && state.viewportAnimationFrame == null && state.wheelRadiusTargetMinutes == null
+    ))).toBe(true);
+    await waitForFrames(page, 10);
+    const result = await page.evaluate(() => {
+      const settled = { ...state.viewport };
+      alignHeadingUpNavigationViewport({ force: true });
+      return { settled, refit: { ...state.viewport } };
+    });
+    expect(Math.abs(result.settled.scale / result.refit.scale - 1)).toBeLessThan(0.01);
+    expect(Math.abs(result.settled.tx - result.refit.tx)).toBeLessThan(3);
+    expect(Math.abs(result.settled.ty - result.refit.ty)).toBeLessThan(3);
+  });
+
+  test("a second finger ends the anchored hold", async ({ page }) => {
+    await openAnchoredNearby(page);
+    const held = await page.evaluate(() => {
+      const canvas = els.canvas;
+      canvas.setPointerCapture = () => {};
+      canvas.releasePointerCapture = () => {};
+      const rect = canvas.getBoundingClientRect();
+      const fire = (type, id, dx) => canvas.dispatchEvent(new PointerEvent(type, {
+        pointerId: id, clientX: rect.left + rect.width / 2 + dx, clientY: rect.top + rect.height / 2,
+        bubbles: true, cancelable: true, pointerType: "touch",
+      }));
+      fire("pointerdown", 4001, 0);
+      fire("pointermove", 4001, 30);
+      const whileDragging = state.anchoredDragHold;
+      fire("pointerdown", 4002, 80);
+      const afterSecond = state.anchoredDragHold;
+      fire("pointerup", 4002, 80);
+      fire("pointerup", 4001, 30);
+      return { whileDragging, afterSecond, finally: state.anchoredDragHold };
+    });
+    expect(held).toEqual({ whileDragging: true, afterSecond: false, finally: false });
+  });
+
+  test("a tap leaves no drag hold behind on the anchored map (leak guard)", async ({ page }) => {
+    const box = await openAnchoredNearby(page);
+    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.3);
+    const after = await page.evaluate(() => ({ hold: state.anchoredDragHold, moved: state.moved, dragging: state.dragging }));
+    expect(after).toEqual({ hold: false, moved: false, dragging: false });
+    await waitForFrames(page, 10);
+    expect(await page.evaluate(() => state.anchoredDragHold)).toBe(false);
+  });
+
+  test("tapping open ground on the anchored Nearby map previews that spot", async ({ page }) => {
+    const box = await openAnchoredNearby(page);
+    expect(await page.evaluate(() => state.nearbyAnchor)).toBeFalsy();
+    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.3);
+    // handleMapClick on open ground sets a browse anchor (the Nearby view moves to that spot).
+    await expect.poll(() => page.evaluate(() => Boolean(state.nearbyAnchor))).toBe(true);
+    expect(await page.evaluate(() => state.selected)).toBeNull();
+  });
+});
+
+// A wheel or trackpad stream must glide the camera rather than teleporting it on every event.
+test.describe("Wheel zoom on the Nearby screen glides", () => {
+  test.use({
+    geolocation: FOREST_LOCATION,
+    permissions: ["geolocation"],
+  });
+
+  test("a single wheel notch zooms in over several frames and reaches its target", async ({ page }) => {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await gotoAndWaitForMap(page);
+    await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
+    await expect.poll(() => page.evaluate(() => state.viewportAnimationFrame == null)).toBe(true);
+    await waitForFrames(page, 4);
+    const box = await page.locator("#mapCanvas").boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 3);
+
+    const start = await page.evaluate(() => {
+      window.__scaleFrames = [];
+      const sample = () => {
+        window.__scaleFrames.push(state.viewport.scale);
+        window.__scaleSampler = requestAnimationFrame(sample);
+      };
+      sample();
+      return state.viewport.scale;
+    });
+    await page.mouse.wheel(0, -100);
+    await expect.poll(() => page.evaluate(() => (
+      state.wheelRadiusSettleTimer == null && state.viewportAnimationFrame == null
+        && state.viewport.scale > window.__scaleFrames[0] * 1.1
+    ))).toBe(true);
+    await waitForFrames(page, 20);
+    const frames = await page.evaluate(() => {
+      cancelAnimationFrame(window.__scaleSampler);
+      return window.__scaleFrames;
+    });
+
+    let largestStep = 1;
+    let movingFrames = 0;
+    for (let i = 1; i < frames.length; i++) {
+      const ratio = Math.max(frames[i] / frames[i - 1], frames[i - 1] / frames[i]);
+      largestStep = Math.max(largestStep, ratio);
+      if (ratio > 1.001) movingFrames++;
+    }
+    const final = frames[frames.length - 1];
+    expect(final / start, "one notch zooms in by about a notch").toBeGreaterThan(1.1);
+    expect(largestStep, "no single frame carries the whole notch").toBeLessThan(1.1);
+    expect(movingFrames, "the zoom is spread across frames").toBeGreaterThanOrEqual(3);
+  });
+});

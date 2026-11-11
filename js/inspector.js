@@ -1471,9 +1471,9 @@ function zoomToSelection() {
   const doZoom = () => {
     state.selectionTransition.viewportPending = false;
     if (typeof animateToHeadingUpNavigationViewport === "function" && selectedNavigationHeadingUpActive()) {
-      animateToHeadingUpNavigationViewport(500);
+      animateToHeadingUpNavigationViewport(500, { deliberate: true });
     } else {
-      ensureUserAndSelectionVisible({ animate: true, force: true, durationMs: HEADING_UP_NAV_ANIMATION_MS });
+      ensureUserAndSelectionVisible({ animate: true, force: true, durationMs: HEADING_UP_NAV_ANIMATION_MS, deliberate: true });
     }
   };
 

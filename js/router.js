@@ -438,16 +438,16 @@ function showRoutedSelection(route, item) {
     // place the way the heading-up follow will keep it. The flat fit used here before landed about
     // twice as far in, so the next compass or GPS update pulled the camera back out after the move.
     if (selectedNavigationHeadingUpActive()) {
-      animateToHeadingUpNavigationViewport(HEADING_UP_NAV_ANIMATION_MS, { assumeInspectorOpen: true });
+      animateToHeadingUpNavigationViewport(HEADING_UP_NAV_ANIMATION_MS, { assumeInspectorOpen: true, deliberate: true });
     } else {
-      ensureUserAndSelectionVisible({ animate: true, force: true, assumeInspectorOpen: true });
+      ensureUserAndSelectionVisible({ animate: true, force: true, assumeInspectorOpen: true, deliberate: true });
     }
   } else if (item.point) {
     // A deep-linked selection can arrive before a location fix exists. The inspector has already
     // been opened above, so the first fit must use the map area that remains visible beside/above
     // that panel; fitting against the full canvas leaves the destination underneath it until a
     // later resize or camera correction happens.
-    fitToPoints([item.point], false, { animate: true, focusVisibleArea: true, assumeInspectorOpen: true });
+    fitToPoints([item.point], false, { animate: true, focusVisibleArea: true, assumeInspectorOpen: true, deliberate: true });
   }
   // Hold the selection's map state until this camera move lands, as zoomToSelection does. Without it
   // the renderer hid the Nearby pins and ring for the whole move, so a #tree= link blanked the map.
