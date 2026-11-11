@@ -102,14 +102,13 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  /* An inset card rather than a full-width band, so it reads as a temporary notice laid over
-     the sheet instead of part of its permanent chrome. */
-  margin: 12px 12px 0;
+  /* A flat band with no border, radius or top margin, in the same cream as the tools row and
+     list header directly below it, so it joins that surface instead of sitting in the sheet's
+     white as a separate box. */
+  margin: 0;
   padding: 8px 8px 8px 10px;
-  border: 1px solid rgba(var(--forest-rgb), 0.2);
-  border-radius: 12px;
-  /* The sheet's own cream surface (the title section above, the list header below), so the
-     card reads as part of the sheet rather than a tinted panel with a light edge around it. */
+  border: 0;
+  border-radius: 0;
   background: var(--surface-soft);
   animation:
     nearby-anchor-space 560ms cubic-bezier(0.4, 0, 0.2, 1) both,
