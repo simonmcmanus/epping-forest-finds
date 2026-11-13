@@ -826,6 +826,7 @@ globalThis.__forestFindsTest = {
   communityRelativeDay,
   communityPointsChipFor,
   communityNudgeDecision,
+  communityProximityTier,
   communityPendingScore,
   communityBadges,
   communityMergeRemoteReports,
@@ -12541,6 +12542,35 @@ test("nudges: a card on any screen, a pulse on the tree's own page, and quiet ot
   assert.equal(decide({ seenAt: now - 25 * 60 * 60 * 1000 }), "card", "a day later it may ask again");
   assert.equal(decide({ lastCardAt: now - 60 * 1000 }), "none", "at most one card every ten minutes");
   assert.equal(decide({ onThisTree: true, lastCardAt: now - 60 * 1000 }), "pulse", "the pulse ignores the card limits");
+});
+
+test("the check card's proximity tier follows the walker, and GPS jitter at an edge cannot flap it", () => {
+  const tier = (previous, metres, kind = "tree") => app.communityProximityTier(previous, metres, kind);
+  // Trees: quiet beyond 150 m, approaching inside it, near within the 10 m check zone.
+  assert.equal(tier("far", 400), "far");
+  assert.equal(tier("far", 150), "approaching");
+  assert.equal(tier("far", 150.5), "far");
+  assert.equal(tier("far", 10), "near", "a tree is near inside its 10 m zone");
+  assert.equal(tier("far", 10.5), "approaching");
+  assert.equal(tier(undefined, 60), "approaching", "with no history it starts from the plain thresholds");
+  // Hysteresis: once near, stay near until 8 m past the zone (18 m for a tree).
+  assert.equal(tier("near", 18), "near");
+  assert.equal(tier("near", 18.5), "approaching");
+  assert.equal(tier("approaching", 12), "approaching", "entering needs the real 10 m zone");
+  // Once approaching, stay until 180 m.
+  assert.equal(tier("approaching", 180), "approaching");
+  assert.equal(tier("approaching", 180.5), "far");
+  assert.equal(tier("far", 170), "far", "a quiet card needs 150 m to wake up");
+  assert.equal(tier("near", 400), "far", "walking straight off drops all the way");
+  // Places are buildings and GPS is poor beside them: a 40 m zone, 48 m to leave it.
+  assert.equal(tier("far", 40, "place"), "near");
+  assert.equal(tier("far", 41, "place"), "approaching");
+  assert.equal(tier("near", 48, "place"), "near");
+  assert.equal(tier("near", 49, "place"), "approaching");
+  // No real location can never be close.
+  assert.equal(tier("near", null), "far");
+  assert.equal(tier("approaching", undefined, "place"), "far");
+  assert.equal(tier("far", NaN), "far");
 });
 
 test("a recovery code is accepted as shown, in any case or spacing, and anything else is refused", () => {

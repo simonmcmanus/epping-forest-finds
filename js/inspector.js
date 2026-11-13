@@ -445,7 +445,7 @@ function showTreeDetails(tree, distance, label) {
   const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const mapsLink = openInMapsHtml(tree.latitude, tree.longitude, tree.commonName || "Veteran tree");
   const verified = communityVerifiedSlotsHtml(tree);
-  const topRow = `<div class="detail-top-row">${distancePill}<span class="detail-top-actions">${verified.chip}${mapsLink}${shareLocationHtml()}</span></div>`;
+  const topRow = `<div class="detail-top-row">${distancePill}<span class="detail-top-actions">${verified.pointer}${verified.chip}${mapsLink}${shareLocationHtml()}</span></div>`;
   const technicalHtml = technicalRows.length
     ? `<details class="technical-details"><summary>Technical data</summary>${detailsHtml(technicalRows)}</details>`
     : "";
@@ -454,7 +454,7 @@ function showTreeDetails(tree, distance, label) {
   const issueHtml = reportIssueHtml({ type: "Veteran tree", name: treeDisplayName(tree), latitude: tree.latitude, longitude: tree.longitude });
   // Read the tree first; community checks follow the record and stay in the same host as
   // the live verification slots so saved-report updates can still find the header actions.
-  const factsHtml = `<section class="tree-facts" aria-label="Tree facts"><dl class="tree-summary">${tagHtml}${statusHtml}</dl>${topRow}${verified.detail}${measurementsHtml}${commentsHtml}</section>`;
+  const factsHtml = `<section class="tree-facts" aria-label="Tree facts"><dl class="tree-summary">${tagHtml}${statusHtml}</dl>${topRow}${verified.detail}${communityTopSlotHtml(tree)}${measurementsHtml}${commentsHtml}</section>`;
   transitionInspectorBody(`<article class="tree-detail">${factsHtml}${namedTreeHtml}${communitySectionHtml(tree)}<div data-live-nearby>${nearbySectionHtml}</div>${issueHtml}${technicalHtml}</article>`, "forward");
 }
 
@@ -495,11 +495,12 @@ function showLandmarkDetails(place, distance) {
   }
   const mapsLink = place.latitude != null ? openInMapsHtml(place.latitude, place.longitude, place.name) : "";
   const shareBtn = shareLocationHtml();
-  const communityPlaceStatus = isEvent ? { chip: "", detail: "" } : communityPlaceStatusSlotsHtml(place);
-  const actionsHtml = `<span class="detail-top-actions">${communityPlaceStatus.chip}${mapsLink}${shareBtn}</span>`;
+  const communityPlaceStatus = isEvent ? { chip: "", detail: "", pointer: "" } : communityPlaceStatusSlotsHtml(place);
+  const actionsHtml = `<span class="detail-top-actions">${communityPlaceStatus.pointer}${communityPlaceStatus.chip}${mapsLink}${shareBtn}</span>`;
   const topRow = `<div class="detail-top-row">${distancePill}${actionsHtml}</div>`;
   const communityPlaceMarker = isEvent ? "" : communityPlaceConfirmationHtml(place);
   const communityPlaceSection = isEvent ? "" : communityPlaceSectionHtml(place);
+  const communityPlaceTopSlot = isEvent ? "" : communityPlaceTopSlotHtml(place);
   const descriptionHtml = description ? `<p class="details-description">${escapeHtml(description)}</p>` : "";
   const ledgerHtml = ledgerMentionHtml(place);
   const issueHtml = place.latitude != null ? reportIssueHtml({ type: place.categoryLabel || "Local place", name: place.name || "Local place", latitude: place.latitude, longitude: place.longitude }) : "";
@@ -511,7 +512,7 @@ function showLandmarkDetails(place, distance) {
   // the bottom of the location details.
   // The place's own details (address, website, phone, hours) come straight under the action row, so
   // they are read before the community check card asks anything of the visitor.
-  const landmarkHtml = `<article class="place-detail place-detail--${isEvent ? "event" : "landmark"}">${topRow}${detailsHtml(rows, { labels: isEvent })}${communityPlaceStatus.detail}${communityPlaceMarker}${communityPlaceSection}${descriptionHtml}${ledgerHtml}${isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : ""}<div data-live-nearby>${relatedLinksHtml}</div>${issueHtml}</article>`;
+  const landmarkHtml = `<article class="place-detail place-detail--${isEvent ? "event" : "landmark"}">${topRow}${communityPlaceTopSlot}${detailsHtml(rows, { labels: isEvent })}${communityPlaceStatus.detail}${communityPlaceMarker}${communityPlaceSection}${descriptionHtml}${ledgerHtml}${isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : ""}<div data-live-nearby>${relatedLinksHtml}</div>${issueHtml}</article>`;
   // A /find/ landing's place replaces its server-rendered panel in place: no slide-in from the side.
   transitionInspectorBody(landmarkHtml, findLandingSlug() ? null : "forward");
   if (navigator.onLine && !isEvent && place.latitude != null) loadCommunityPlaceIssues(place);

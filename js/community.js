@@ -29,6 +29,7 @@ const COMMUNITY_ICONS = {
   upload: '<path d="M17.5 18a4 4 0 0 0 .5-7.97A6 6 0 0 0 6.4 9.04 4.5 4.5 0 0 0 7 18"/><path d="M12 12v7m0-7-2.5 2.5M12 12l2.5 2.5"/>',
   sprout: '<path d="M12 21v-9"/><path d="M12 12C12 8 9 6 4 6c0 4 3 6 8 6Z"/><path d="M12 14c0-3 2.5-5 8-5 0 3.5-3 5-8 5Z"/>',
   chevron: '<path d="m9 6 6 6-6 6"/>',
+  arrowUp: '<path d="M12 19V5"/><path d="m6 11 6-6 6 6"/>',
   edit: '<path d="M4 20h4L19 9a2.8 2.8 0 0 0-4-4L4 16Z"/><path d="m13.5 6.5 4 4"/>',
   leaf: '<path d="M5 19C5 10 10 5 20 4c0 10-5 15-14 15Z"/><path d="M5 19c2-5 5-8 9-10"/>',
   tree: '<path d="M12 21v-6"/><path d="M12 15a5.5 5.5 0 0 0 4-9.3A5 5 0 0 0 7.5 5 5 5 0 0 0 8 15Z"/>',
@@ -517,10 +518,12 @@ function communityVerifiedDetailHtml(target) {
 
 function communityVerifiedSlotsHtml(tree) {
   const target = communityTreeTarget(tree);
-  if (!target || !communityEnabled()) return { chip: "", detail: "" };
+  if (!target || !communityEnabled()) return { chip: "", detail: "", pointer: "" };
+  const hasCard = tree.latitude != null && tree.longitude != null;
   return {
     chip: `<span class="community-verified-slot" data-verified-target="${escapeHtml(target)}">${communityVerifiedChipHtml(target)}</span>`,
     detail: `<div class="community-verified-detail-slot" data-verified-target="${escapeHtml(target)}">${communityVerifiedDetailHtml(target)}</div>`,
+    pointer: hasCard ? communityPointerSlotHtml(target, "tree", communityInitialTier(target, Number(tree.latitude), Number(tree.longitude), "tree")) : "",
   };
 }
 
@@ -531,7 +534,7 @@ function communityRefreshVerifiedSlots() {
   document.querySelectorAll(".community-check:not(.community-check-place)[data-community-target]").forEach((section) => {
     const target = section.dataset.communityTarget;
     if (!communityVerifiedChipHtml(target)) return;
-    const detailHost = section.parentElement;
+    const detailHost = section.closest(".tree-detail") || section.parentElement;
     const topActions = detailHost && detailHost.querySelector(".detail-top-row .detail-top-actions");
     if (!topActions) return;
     let chipSlot = [...topActions.querySelectorAll(".community-verified-slot")]
@@ -540,7 +543,8 @@ function communityRefreshVerifiedSlots() {
       chipSlot = document.createElement("span");
       chipSlot.className = "community-verified-slot";
       chipSlot.dataset.verifiedTarget = target;
-      topActions.insertBefore(chipSlot, topActions.firstChild);
+      const pointerSlot = topActions.querySelector(".community-pointer-slot");
+      topActions.insertBefore(chipSlot, pointerSlot ? pointerSlot.nextSibling : topActions.firstChild);
     }
     let detailSlot = [...detailHost.querySelectorAll(".community-verified-detail-slot")]
       .find((slot) => slot.dataset.verifiedTarget === target);
@@ -548,7 +552,8 @@ function communityRefreshVerifiedSlots() {
       detailSlot = document.createElement("div");
       detailSlot.className = "community-verified-detail-slot";
       detailSlot.dataset.verifiedTarget = target;
-      detailHost.insertBefore(detailSlot, section);
+      const usualSlot = detailHost.querySelector(".community-slot-usual");
+      detailHost.insertBefore(detailSlot, usualSlot && usualSlot.parentElement === detailHost ? usualSlot : null);
     }
   });
   document.querySelectorAll(".community-verified-slot").forEach((slot) => {
@@ -595,6 +600,7 @@ function communityToggleMore(button) {
   button.setAttribute("aria-expanded", String(open));
   choices.hidden = !open;
   if (open) section.dataset.more = "1"; else delete section.dataset.more;
+  communitySchedulePresentation();
 }
 
 // How far the reader is from a tree, for the "you need to be close to earn points" note. A check only
@@ -604,8 +610,16 @@ const COMMUNITY_NEAR_METRES = 10;
 
 function communityRange(lat, lon) {
   if (!(typeof hasRealLocation === "function" && hasRealLocation()) || !Number.isFinite(lat) || !Number.isFinite(lon)) return { state: "none" };
-  const metres = distanceMetres(state.userLocation.latitude, state.userLocation.longitude, lat, lon);
+  const here = communityFixLatLon();
+  const metres = distanceMetres(here.latitude, here.longitude, lat, lon);
   return { state: metres <= COMMUNITY_NEAR_METRES ? "near" : "far", metres };
+}
+
+// Where the reader is for distance purposes. The You marker eases toward each fix (js/location-smoothing.js),
+// so while it is still gliding the fix itself is the truer position and the card should not trail it.
+function communityFixLatLon() {
+  const raw = state.rawUserLocation;
+  return state.locationGlide && raw && Number.isFinite(raw.latitude) && Number.isFinite(raw.longitude) ? raw : state.userLocation;
 }
 
 // The points a check earns, given where it was made (server rules: community-points.js). A verify
@@ -625,10 +639,15 @@ function communityPointsChipFor(status, rangeState) {
 
 function communityRangeNoteHtml(lat, lon, status) {
   const range = communityRange(lat, lon);
-  return `<div class="community-range community-range-${range.state}">${communityIcon(range.state === "near" ? "check" : "locate")}<div><strong>${escapeHtml(communityPointsText(status, range.state))}</strong></div></div>`;
+  // Outside the zone the note also carries the live distance. It is shown while approaching (the card
+  // header says it already when the card is quiet) and patched in place on every fix.
+  const distance = range.state === "far" ? `<span class="community-range-distance" data-community-distance>${escapeHtml(communityDistanceText(range.metres))}</span>` : "";
+  return `<div class="community-range community-range-${range.state}" data-range-key="${range.state}|${status || ""}">${communityIcon(range.state === "near" ? "check" : "locate")}<div><strong>${escapeHtml(communityPointsText(status, range.state))}</strong>${distance}</div></div>`;
 }
 
-// Called with each GPS fix so the note follows the reader as they walk up to the tree.
+// Called with each GPS fix so the note follows the reader as they walk up to the tree. The note is only
+// rebuilt when what it says changes (inside or outside the zone, or the points); the distance inside it
+// is patched in place by communityPatchDistance.
 function communityUpdateRangeNotes() {
   document.querySelectorAll(".community-check[data-community-target]").forEach((section) => {
     const note = section.querySelector(".community-range");
@@ -636,7 +655,9 @@ function communityUpdateRangeNotes() {
     const chosen = section.querySelector(".is-chosen");
     const lat = Number(section.dataset.lat);
     const lon = Number(section.dataset.lon);
-    note.outerHTML = communityRangeNoteHtml(lat, lon, chosen ? chosen.dataset.status : null);
+    const status = chosen ? chosen.dataset.status : null;
+    const key = `${communityRange(lat, lon).state}|${status || ""}`;
+    if (note.dataset.rangeKey !== key) note.outerHTML = communityRangeNoteHtml(lat, lon, status);
   });
 }
 
@@ -669,19 +690,133 @@ function communitySectionInnerHtml(target, editing, lat, lon, more = false) {
       <p class="report-note community-status" aria-live="polite"></p>`;
 }
 
-// The block on a tree's detail screen (js/inspector.js showTreeDetails).
-function communitySectionHtml(tree) {
-  if (!communityEnabled()) return "";
-  const target = communityTreeTarget(tree);
-  if (!target || tree.latitude == null || tree.longitude == null) return "";
-  const reported = Boolean(communityReadLocal()[target]);
-  return `<section class="community-check${reported ? " community-check-reported" : ""}" data-community-target="${escapeHtml(target)}" data-lat="${escapeHtml(tree.latitude)}" data-lon="${escapeHtml(tree.longitude)}">
+// --- The check card by proximity ---
+// A walker far from a tree or place sees a quiet one-line disclosure; approaching, the full card; at the
+// location (tree 10 m, place 40 m) the card is promoted to the top of the detail. Exactly one of the two
+// slots holds the card, and the other always holds a pointer to it while the check is unanswered: a chip
+// in the top row when the card is lower down, a placeholder row in the usual slot when it is at the top.
+
+const COMMUNITY_APPROACH_METRES = 150;        // inside this the quiet row opens out into the full card
+const COMMUNITY_APPROACH_EXIT_METRES = 180;   // ...and it only goes quiet again beyond this
+const COMMUNITY_PLACE_NEAR_METRES = 40;       // places are buildings, and GPS is poor beside them
+const COMMUNITY_NEAR_EXIT_MARGIN_METRES = 8;  // once at the location, stay there until this much further out
+const COMMUNITY_CARD_MOTION_MS = 300;
+const COMMUNITY_CARD_PRESS_QUIET_MS = 1500;   // a press on the card or its pointers freezes its position this long
+const COMMUNITY_HINT_GAP_MS = 30000;          // the verify cue replays at most this often
+const COMMUNITY_NUDGE_PULSE_MS = 2600;
+
+function communityNearMetres(kind) {
+  return kind === "place" ? COMMUNITY_PLACE_NEAR_METRES : COMMUNITY_NEAR_METRES;
+}
+
+// The tier of an unanswered check, with no DOM: "far", "approaching" or "near". `previous` is the tier
+// last computed for this card (hysteresis, so GPS jitter at an edge cannot flap it); `metres` is the
+// distance, or nothing when there is no real location.
+function communityProximityTier(previous, metres, kind = "tree") {
+  if (!Number.isFinite(metres)) return "far";
+  const near = communityNearMetres(kind);
+  if (metres <= near) return "near";
+  if (previous === "near" && metres <= near + COMMUNITY_NEAR_EXIT_MARGIN_METRES) return "near";
+  const awake = previous === "near" || previous === "approaching";
+  return metres <= (awake ? COMMUNITY_APPROACH_EXIT_METRES : COMMUNITY_APPROACH_METRES) ? "approaching" : "far";
+}
+
+function communityMetresTo(lat, lon) {
+  const range = communityRange(lat, lon);
+  return range.state === "none" ? null : range.metres;
+}
+
+// The tier a card opens in (no history yet); "" when the check is already answered.
+function communityInitialTier(target, lat, lon, kind) {
+  if (communityReadLocal()[target]) return "";
+  return communityProximityTier("far", communityMetresTo(lat, lon), kind);
+}
+
+function communityDistanceText(metres) {
+  return Number.isFinite(metres) ? `${formatDistance(metres)} away` : "";
+}
+
+function communityQuietSub(metres) {
+  return Number.isFinite(metres)
+    ? `${communityDistanceText(metres)} \u00b7 walk up to it to verify`
+    : "Needs your location to verify on the spot";
+}
+
+// The small chip in the top row that leads to the card while it is lower down.
+function communityPointerSlotHtml(target, kind, tier) {
+  const shown = tier === "far" || tier === "approaching";
+  const label = `Check this ${kind === "place" ? "place" : "tree"}: go to the check`;
+  return `<span class="community-pointer-slot${shown ? " is-shown" : ""}" data-pointer-for="${escapeHtml(target)}"><span class="community-pointer-inner"><button type="button" class="community-check-pointer" data-action="community-goto-check" aria-label="${escapeHtml(label)}">${communityIcon("shield")}<span class="community-check-pointer-label">Check</span></button></span></span>`;
+}
+
+// The quiet row left in the usual slot while the card is promoted to the top.
+function communityPlaceholderHtml(target, tier) {
+  return `<div class="community-placeholder${tier === "near" ? " is-shown" : ""}" data-placeholder-for="${escapeHtml(target)}"><div class="community-placeholder-inner"><button type="button" class="community-placeholder-btn" data-action="community-goto-check">${communityIcon("arrowUp")}<span>You're here: the check is at the top</span></button></div></div>`;
+}
+
+function communityCardHtml({ kind, target, lat, lon, tier, reported, sectionClass = "", attrs = "", title, sub, body }) {
+  const foldId = `communityFold-${String(target).replace(/[^a-z0-9]/gi, "")}`;
+  const tierAttrs = tier ? ` data-tier="${tier}" data-tier-raw="${tier}"` : "";
+  return `<section class="community-check${sectionClass}${reported ? " community-check-reported" : ""}"${attrs} data-community-target="${escapeHtml(target)}" data-lat="${escapeHtml(lat)}" data-lon="${escapeHtml(lon)}"${tierAttrs}>
+      <button type="button" class="community-quiet-toggle" data-action="community-fold" aria-expanded="false" aria-controls="${foldId}">
+        <span class="community-head-icon">${communityIcon("shield")}</span>
+        <span class="community-quiet-copy"><strong class="community-quiet-title">${escapeHtml(title)}</strong><small data-community-sub>${escapeHtml(communityQuietSub(communityMetresTo(Number(lat), Number(lon))))}</small></span>
+        ${communityIcon("chevron", "community-icon community-quiet-chevron")}
+      </button>
       <div class="community-head${reported ? " community-head-reported" : ""}">
         <span class="community-head-icon">${communityIcon("shield")}</span>
-        <div><h3 class="community-title">Help check this tree</h3><p class="community-sub">Is it where the map says it is?</p></div>
+        <div><h3 class="community-title">${escapeHtml(title)}</h3><p class="community-sub">${escapeHtml(sub)}</p></div>
+        <span class="community-here-cue">You're here</span>
       </div>
-      <div class="community-body">${communitySectionInnerHtml(target, false, Number(tree.latitude), Number(tree.longitude))}</div>
+      <div class="community-fold" id="${foldId}"><div class="community-fold-inner"><div class="community-body">${body}</div></div></div>
     </section>`;
+}
+
+// What a detail screen renders for one check: the card, its tier and where it goes. null when there is none.
+function communityCardParts(kind, item) {
+  if (!communityEnabled() || !item) return null;
+  if (kind === "place") {
+    if (!item.name || item.latitude == null || item.longitude == null) return null;
+    const target = `place:${placeHashKey(item)}`;
+    const tier = communityInitialTier(target, Number(item.latitude), Number(item.longitude), "place");
+    const reported = Boolean(communityReadLocal()[target]);
+    const category = item.categoryLabel || "Local place";
+    return { target, tier, kind, html: communityCardHtml({
+      kind, target, lat: item.latitude, lon: item.longitude, tier, reported,
+      sectionClass: " community-check-place",
+      attrs: ` data-kind="place" data-name="${escapeHtml(item.name)}" data-category="${escapeHtml(category)}" data-slug="${escapeHtml(item.findSlug || "")}"`,
+      title: "Help check this place", sub: "Is this listing still right?",
+      body: communityPlaceInnerHtml({ dataset: { communityTarget: target, lat: String(item.latitude), lon: String(item.longitude) } }),
+    }) };
+  }
+  const target = communityTreeTarget(item);
+  if (!target || item.latitude == null || item.longitude == null) return null;
+  const tier = communityInitialTier(target, Number(item.latitude), Number(item.longitude), "tree");
+  const reported = Boolean(communityReadLocal()[target]);
+  return { target, tier, kind, html: communityCardHtml({
+    kind, target, lat: item.latitude, lon: item.longitude, tier, reported,
+    title: "Help check this tree", sub: "Is it where the map says it is?",
+    body: communitySectionInnerHtml(target, false, Number(item.latitude), Number(item.longitude)),
+  }) };
+}
+
+// The slot directly under the detail's top row, which holds the card once the walker is at the location.
+function communityTopSlotHtml(item, kind = "tree") {
+  const parts = communityCardParts(kind, item);
+  if (!parts) return "";
+  return `<div class="community-slot community-slot-top" data-community-slot="top">${parts.tier === "near" ? parts.html : ""}</div>`;
+}
+
+// The usual slot (above Nearest): the card, or a placeholder pointing to it when it is at the top.
+function communityUsualSlotHtml(item, kind = "tree") {
+  const parts = communityCardParts(kind, item);
+  if (!parts) return "";
+  return `<div class="community-slot community-slot-usual" data-community-slot="usual">${communityPlaceholderHtml(parts.target, parts.tier)}${parts.tier === "near" ? "" : parts.html}</div>`;
+}
+
+// The block on a tree's detail screen (js/inspector.js showTreeDetails).
+function communitySectionHtml(tree) {
+  return communityUsualSlotHtml(tree, "tree");
 }
 
 function communityRefreshSections() {
@@ -697,6 +832,372 @@ function communityRefreshSections() {
     section.classList.toggle("community-check-reported", reported);
     section.querySelector(".community-head")?.classList.toggle("community-head-reported", reported);
   });
+  communityUpdatePresentation();
+}
+
+function communityReducedMotion() {
+  return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+// Never move or fold the card while it is being used. A change waits and is applied once it is idle.
+function communityCardBusy(section, answered = false) {
+  const active = document.activeElement;
+  if (active && active !== document.body && section.contains(active)) return true;
+  if (section.dataset.pending) return true;
+  if (!answered && section.dataset.more === "1") return true;
+  return Date.now() - Number(section.dataset.pressAt || 0) < COMMUNITY_CARD_PRESS_QUIET_MS;
+}
+
+let communityPresentationTimer = null;
+
+// Re-run the presentation soon (a press window ended, focus left the card, the alternatives were folded).
+function communitySchedulePresentation(delay = 0) {
+  clearTimeout(communityPresentationTimer);
+  communityPresentationTimer = setTimeout(communityUpdatePresentation, delay);
+}
+
+// Called with every GPS fix and after the card's own content changes. It does nothing when neither the tier
+// nor the rounded distance changed, so a fix costs no layout.
+function communityUpdatePresentation() {
+  if (typeof document === "undefined" || !document.querySelectorAll || !communityEnabled()) return;
+  document.querySelectorAll(".community-check[data-community-target]").forEach(communityPresentSection);
+  communityHintSync();
+}
+
+function communityPatchDistance(section, metres) {
+  const text = communityDistanceText(metres);
+  section.querySelectorAll("[data-community-distance]").forEach((el) => { if (el.textContent !== text) el.textContent = text; });
+  const sub = section.querySelector("[data-community-sub]");
+  const quiet = communityQuietSub(metres);
+  if (sub && sub.textContent !== quiet) sub.textContent = quiet;
+}
+
+function communityPresentSection(section) {
+  const target = section.dataset.communityTarget;
+  const kind = section.dataset.kind === "place" ? "place" : "tree";
+  const answered = Boolean(communityReadLocal()[target]);
+  const metres = communityMetresTo(Number(section.dataset.lat), Number(section.dataset.lon));
+  communityPatchDistance(section, metres);
+  let want = "";
+  if (answered) delete section.dataset.tierRaw;
+  else {
+    want = communityProximityTier(section.dataset.tierRaw || "far", metres, kind);
+    section.dataset.tierRaw = want;
+  }
+  const have = section.dataset.tier || "";
+  if (want === have) {
+    if (want === "near") communityAnnounceArrival(section, kind);
+    return;
+  }
+  if (communityCardBusy(section, answered)) {
+    // Frozen while in use. Focus and the alternatives wake this up again; a recent press is timed.
+    const quiet = COMMUNITY_CARD_PRESS_QUIET_MS - (Date.now() - Number(section.dataset.pressAt || 0));
+    if (quiet > 0) communitySchedulePresentation(quiet + 50);
+    return;
+  }
+  communityApplyTier(section, want);
+  if (want === "near") communityAnnounceArrival(section, kind);
+}
+
+function communityAnnounceArrival(section, kind) {
+  if (section.dataset.announced) return;
+  section.dataset.announced = "1";
+  communityAnnounce(`You're at this ${kind === "place" ? "place" : "tree"}. You can verify it now.`);
+}
+
+let communityAnnounceTimer = null;
+
+function communityEnsureAnnouncer() {
+  let el = document.getElementById("communityAnnounce");
+  if (!el && document.body) {
+    el = document.createElement("div");
+    el.id = "communityAnnounce";
+    el.className = "community-announce";
+    el.setAttribute("role", "status");
+    el.setAttribute("aria-live", "polite");
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+function communityAnnounce(text) {
+  const el = communityEnsureAnnouncer();
+  if (!el) return;
+  el.textContent = text;
+  clearTimeout(communityAnnounceTimer);
+  communityAnnounceTimer = setTimeout(() => { el.textContent = ""; }, 8000);
+}
+
+function communityCardSlot(article, name) {
+  return article.querySelector(`[data-community-slot="${name}"]`);
+}
+
+// Elements whose position changes when the card moves slots: the detail's own blocks, but not the slots
+// (they are empty or hold the card, which is animated itself).
+function communityFlipTargets(article, section) {
+  const out = [];
+  const add = (el) => {
+    if (el === section || el.classList.contains("community-slot") || el.querySelector(".community-slot")) return;
+    out.push(el);
+  };
+  [...article.children].forEach(add);
+  const facts = article.querySelector(":scope > .tree-facts");
+  if (facts) [...facts.children].forEach(add);
+  return out;
+}
+
+function communityScrollAnchor(targets, first, view, article) {
+  if (!view) return null;
+  const visible = targets.filter((el) => {
+    const r = first.get(el);
+    return r && r.height > 0 && r.bottom > view.top && r.top < view.bottom;
+  });
+  const usual = communityCardSlot(article, "usual");
+  const after = visible.find((el) => usual && (usual.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING));
+  return after || visible[0] || null;
+}
+
+function communitySyncPointers(article, section, want) {
+  const target = section.dataset.communityTarget;
+  const own = (el) => el.dataset.pointerFor === target || el.dataset.placeholderFor === target;
+  if (!article) return;
+  article.querySelectorAll(".community-pointer-slot").forEach((el) => { if (own(el)) el.classList.toggle("is-shown", want === "far" || want === "approaching"); });
+  article.querySelectorAll(".community-placeholder").forEach((el) => { if (own(el)) el.classList.toggle("is-shown", want === "near"); });
+}
+
+function communityApplyTier(section, want) {
+  communityHintSettle();
+  const have = section.dataset.tier || "";
+  const article = section.closest(".tree-detail, .place-detail");
+  const toTop = want === "near";
+  const slot = section.parentElement && section.parentElement.dataset.communitySlot;
+  const destination = article && communityCardSlot(article, toTop ? "top" : "usual");
+  const needsMove = Boolean(destination) && slot !== (toTop ? "top" : "usual");
+  const unfolded = section.dataset.unfolded === "1";
+  const opening = have === "far" && want !== "far" && !unfolded;
+  const apply = () => {
+    if (want) section.dataset.tier = want; else delete section.dataset.tier;
+    if (needsMove) destination.appendChild(section);
+    communitySyncPointers(article, section, want);
+  };
+  const scroller = article && article.closest(".inspector-scroll");
+  const view = scroller ? scroller.getBoundingClientRect() : null;
+  if (!article || !section.isConnected || communityReducedMotion()) {
+    communityRunInstant(article, apply);
+    return;
+  }
+  const fadeIn = () => {
+    if (!section.animate) return;
+    if (opening) section.querySelector(".community-fold-inner")?.animate([{ opacity: 0 }, { opacity: 1 }], { duration: COMMUNITY_CARD_MOTION_MS, easing: "ease-out" });
+    if (needsMove && toTop) {
+      article.querySelectorAll(".community-placeholder.is-shown .community-placeholder-btn").forEach((el) => el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: COMMUNITY_CARD_MOTION_MS, easing: "ease-out" }));
+    }
+  };
+  if (needsMove) {
+    communityFlip(article, section, scroller, view, apply);
+    fadeIn();
+    return;
+  }
+  // No slot change: the fold and pointers animate in CSS. A card entirely above the reader's position
+  // changes at once instead, with the scroll position compensated, so what they are reading stays put.
+  const before = section.getBoundingClientRect();
+  if (view && before.bottom <= view.top) {
+    const targets = communityFlipTargets(article, section);
+    const first = new Map(targets.map((el) => [el, el.getBoundingClientRect()]));
+    const anchor = communityScrollAnchor(targets, first, view, article);
+    communityRunInstant(article, () => {
+      apply();
+      if (anchor) {
+        const dy = anchor.getBoundingClientRect().top - first.get(anchor).top;
+        if (Math.abs(dy) > 0.5) scroller.scrollTop += dy;
+      }
+    });
+    return;
+  }
+  apply();
+  fadeIn();
+}
+
+// Apply a change with every community transition switched off for this one frame, then restore them.
+function communityRunInstant(article, change) {
+  if (!article) { change(); return; }
+  article.classList.add("community-instant");
+  change();
+  void article.offsetHeight;
+  article.classList.remove("community-instant");
+}
+
+// FLIP: measure, move the node, then play the difference back as a transform over ~300 ms.
+function communityFlip(article, section, scroller, view, apply) {
+  const targets = communityFlipTargets(article, section);
+  const first = new Map();
+  targets.concat(section).forEach((el) => first.set(el, el.getBoundingClientRect()));
+  const anchor = communityScrollAnchor(targets, first, view, article);
+  article.classList.add("community-instant");
+  apply();
+  if (scroller && anchor) {
+    const dy = anchor.getBoundingClientRect().top - first.get(anchor).top;
+    if (Math.abs(dy) > 0.5) scroller.scrollTop += dy;
+  }
+  const plays = [];
+  targets.concat(section).forEach((el) => {
+    const a = first.get(el);
+    const b = el.getBoundingClientRect();
+    if (!a || (!a.width && !a.height) || (!b.width && !b.height)) return;
+    const dx = a.left - b.left;
+    const dy = a.top - b.top;
+    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+    if (view && ((a.bottom < view.top - 80 && b.bottom < view.top - 80) || (a.top > view.bottom + 80 && b.top > view.bottom + 80))) return;
+    plays.push([el, dx, dy]);
+  });
+  void article.offsetHeight;
+  article.classList.remove("community-instant");
+  plays.forEach(([el, dx, dy]) => {
+    if (el.animate) el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: COMMUNITY_CARD_MOTION_MS, easing: "cubic-bezier(0.2, 0.8, 0.2, 1)" });
+  });
+}
+
+// --- Quiet row: fold / unfold, and the pointers back to the card ---
+
+function communityToggleFold(button) {
+  const section = button.closest(".community-check");
+  if (!section) return;
+  const open = button.getAttribute("aria-expanded") !== "true";
+  button.setAttribute("aria-expanded", String(open));
+  if (open) section.dataset.unfolded = "1"; else delete section.dataset.unfolded;
+}
+
+function communityUnfold(section) {
+  section.dataset.unfolded = "1";
+  const toggle = section.querySelector(".community-quiet-toggle");
+  if (toggle) toggle.setAttribute("aria-expanded", "true");
+}
+
+function communityHighlight(section) {
+  section.classList.remove("community-highlight");
+  void section.offsetWidth;
+  section.classList.add("community-highlight");
+  const clear = () => section.classList.remove("community-highlight");
+  section.addEventListener("animationend", clear, { once: true });
+  setTimeout(clear, 1800);
+}
+
+// The pointer chip and the placeholder: bring the card into view, open it if it is the quiet row, put
+// focus on Verify/Confirm and highlight it briefly.
+function communityGotoCheck(trigger) {
+  const article = trigger.closest(".tree-detail, .place-detail");
+  const section = article && article.querySelector(".community-check");
+  if (!section) return;
+  section.dataset.pressAt = String(Date.now());
+  if (section.dataset.tier === "far") communityUnfold(section);
+  const scroller = section.closest(".inspector-scroll");
+  if (scroller) {
+    const view = scroller.getBoundingClientRect();
+    const box = section.getBoundingClientRect();
+    const top = Math.max(0, scroller.scrollTop + (box.top - view.top) - 12);
+    scroller.scrollTo({ top, behavior: communityReducedMotion() ? "auto" : "smooth" });
+  }
+  const verify = section.querySelector(".community-verify");
+  if (verify) verify.focus({ preventScroll: true });
+  communityHighlight(section);
+}
+
+// --- The cue on Verify/Confirm when the walker is at the location and the button is on screen ---
+// A soft ring pulse, about two cycles, then rest. It replays at most every COMMUNITY_HINT_GAP_MS and when the
+// button comes back into view after being hidden; never while the card is in use, never once answered, and
+// never alongside the nudge's pulse on the card (they share one quiet window).
+
+const communityHint = { observer: null, section: null, button: null, visible: false, want: false, lastAt: 0, quietUntil: 0, notBefore: 0, settleTimer: null };
+
+// While the card is mid-move its on-screen position is the animation's, not its real one. Wait it out, then
+// look again (observing afresh makes the observer report the settled geometry).
+function communityHintSettle() {
+  communityHint.visible = false;
+  communityHint.notBefore = Date.now() + COMMUNITY_CARD_MOTION_MS + 80;
+  clearTimeout(communityHint.settleTimer);
+  communityHint.settleTimer = setTimeout(() => {
+    const { observer, button } = communityHint;
+    if (!observer || !button || !button.isConnected) return;
+    observer.unobserve(button);
+    observer.observe(button);
+  }, COMMUNITY_CARD_MOTION_MS + 100);
+}
+
+function communityHintPlaying() {
+  return Boolean(communityHint.button && communityHint.button.classList.contains("community-verify-hint"));
+}
+
+function communityHintSync() {
+  if (typeof IntersectionObserver === "undefined") return;
+  const section = document.querySelector('.community-check[data-tier="near"]');
+  const button = section ? section.querySelector(".community-verify") : null;
+  if (button !== communityHint.button) {
+    if (communityHint.observer) communityHint.observer.disconnect();
+    communityHint.button = button;
+    communityHint.visible = false;
+    if (section !== communityHint.section) communityHint.want = Boolean(section);
+    communityHint.section = section;
+    if (button) {
+      if (!communityHint.observer) {
+        communityHint.observer = new IntersectionObserver((entries) => {
+          if (Date.now() < communityHint.notBefore) return;
+          const entry = entries[entries.length - 1];
+          const visible = entry.isIntersecting && entry.intersectionRatio >= 0.6;
+          if (visible && !communityHint.visible) communityHint.want = true;
+          communityHint.visible = visible;
+          communityHintMaybePlay();
+        }, { threshold: [0, 0.6, 1] });
+      }
+      communityHint.observer.observe(button);
+    }
+  }
+  communityHintMaybePlay();
+}
+
+function communityHintMaybePlay() {
+  const { button } = communityHint;
+  if (!communityHint.want || !communityHint.visible || !button || !button.isConnected || Date.now() < communityHint.notBefore) return;
+  const section = button.closest(".community-check");
+  if (!section || section.dataset.tier !== "near") return;
+  if (communityReducedMotion()) { communityHint.want = false; return; }
+  if (communityCardBusy(section)) return;
+  const now = Date.now();
+  if (now < communityHint.quietUntil || section.classList.contains("community-nudge-pulse")) {
+    communitySchedulePresentation(Math.max(200, communityHint.quietUntil - now + 50));
+    return;
+  }
+  communityHint.want = false;
+  if (communityHint.lastAt && now - communityHint.lastAt < COMMUNITY_HINT_GAP_MS) return;
+  communityHint.lastAt = now;
+  button.dataset.hintPlays = String(Number(button.dataset.hintPlays || 0) + 1);
+  button.classList.add("community-verify-hint");
+  const rest = () => button.classList.remove("community-verify-hint");
+  button.addEventListener("animationend", rest, { once: true });
+  setTimeout(rest, 3600);
+}
+
+if (typeof document !== "undefined" && document.addEventListener) {
+  document.addEventListener("click", (event) => {
+    const el = event.target;
+    if (!el || !el.closest) return;
+    const fold = el.closest("[data-action='community-fold']");
+    if (fold) { communityToggleFold(fold); return; }
+    const go = el.closest("[data-action='community-goto-check']");
+    if (go) communityGotoCheck(go);
+  });
+  // A press on the card or one of its pointers freezes the card where it is for a moment.
+  document.addEventListener("pointerdown", (event) => {
+    const el = event.target;
+    if (!el || !el.closest) return;
+    const pointer = el.closest("[data-action='community-goto-check']");
+    const section = pointer
+      ? (pointer.closest(".tree-detail, .place-detail") || document).querySelector(".community-check")
+      : el.closest(".community-check");
+    if (section) section.dataset.pressAt = String(Date.now());
+  }, true);
+  document.addEventListener("focusout", (event) => {
+    if (event.target && event.target.closest && event.target.closest(".community-check")) communitySchedulePresentation();
+  }, true);
 }
 
 async function communityHandleChoice(button) {
@@ -922,6 +1423,7 @@ function communityNudgeDecision({ on, fixOk, isDefault, nearest, target, already
 // and this device has not already checked it or been nudged about it today.
 function communityNudgeCheck(now = Date.now()) {
   if (!communityEnabled()) return;
+  communityUpdatePresentation();
   communityUpdateRangeNotes();
   const nearest = state.nearestTree;
   const tree = nearest && nearest.tree;
@@ -943,8 +1445,12 @@ function communityNudgeCheck(now = Date.now()) {
     communityNudgeDismiss(); // a card from the overview is moot once you are on the tree itself
     const section = document.querySelector(".community-check");
     if (!section || section.dataset.communityTarget !== target) return;
-    section.classList.add("community-nudge-pulse");
-    setTimeout(() => section.classList.remove("community-nudge-pulse"), 2600);
+    // One cue at a time: the card's pulse and the ring on Verify share a quiet window, so they never stack.
+    if (!communityHintPlaying()) {
+      section.classList.add("community-nudge-pulse");
+      communityHint.quietUntil = now + COMMUNITY_NUDGE_PULSE_MS;
+      setTimeout(() => section.classList.remove("community-nudge-pulse"), COMMUNITY_NUDGE_PULSE_MS);
+    }
   } else {
     communityNudgeShow(tree, nearest.metres);
     communityNudgeLastAt = now;
@@ -1309,6 +1815,7 @@ function communityPlaceInnerHtml(section) {
   const [primary, ...others] = COMMUNITY_PLACE_CHOICES;
   return `${communityPlaceChoiceHtml(primary)}
       ${communityMoreHtml(others.map(communityPlaceChoiceHtml).join(""), section.dataset.editing === "1" || section.dataset.more === "1")}
+      <p class="community-distance-line" data-community-distance>${escapeHtml(communityDistanceText(communityMetresTo(Number(section.dataset.lat), Number(section.dataset.lon))))}</p>
       <p class="report-note community-status" aria-live="polite"></p>`;
 }
 
@@ -1364,9 +1871,10 @@ function communityPlaceStatusDetailHtml(target) {
 }
 
 function communityPlaceStatusSlotsHtml(place) {
-  if (!communityEnabled() || !place || place.latitude == null || place.longitude == null) return { chip: "", detail: "" };
+  if (!communityEnabled() || !place || place.latitude == null || place.longitude == null) return { chip: "", detail: "", pointer: "" };
   const target = `place:${placeHashKey(place)}`;
   return {
+    pointer: place.name ? communityPointerSlotHtml(target, "place", communityInitialTier(target, Number(place.latitude), Number(place.longitude), "place")) : "",
     chip: `<span class="community-place-status-chip-slot" data-place-key="${escapeHtml(target)}">${communityPlaceStatusChipHtml(target)}</span>`,
     detail: `<div class="community-place-status-detail-slot" data-place-key="${escapeHtml(target)}">${communityPlaceStatusDetailHtml(target)}</div>`,
   };
@@ -1399,18 +1907,11 @@ async function loadCommunityPlaceIssues(place) {
 }
 
 function communityPlaceSectionHtml(place) {
-  if (!communityEnabled()) return "";
-  if (!place || !place.name || place.latitude == null || place.longitude == null) return "";
-  const target = `place:${placeHashKey(place)}`;
-  const reported = Boolean(communityReadLocal()[target]);
-  const category = place.categoryLabel || "Local place";
-  return `<section class="community-check community-check-place${reported ? " community-check-reported" : ""}" data-kind="place" data-community-target="${escapeHtml(target)}" data-lat="${escapeHtml(place.latitude)}" data-lon="${escapeHtml(place.longitude)}" data-name="${escapeHtml(place.name)}" data-category="${escapeHtml(category)}" data-slug="${escapeHtml(place.findSlug || "")}">
-      <div class="community-head${reported ? " community-head-reported" : ""}">
-        <span class="community-head-icon">${communityIcon("shield")}</span>
-        <div><h3 class="community-title">Help check this place</h3><p class="community-sub">Is this listing still right?</p></div>
-      </div>
-      <div class="community-body">${communityPlaceInnerHtml({ dataset: { communityTarget: target } })}</div>
-    </section>`;
+  return communityUsualSlotHtml(place, "place");
+}
+
+function communityPlaceTopSlotHtml(place) {
+  return communityTopSlotHtml(place, "place");
 }
 
 function communityPlaceConfirmationHtml(place) {
