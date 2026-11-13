@@ -7,6 +7,13 @@ const PLACE = businessIndex.entries.find((e) => e.key === "pubs" && e.lat != nul
 const REPORT_URL = "**/api/community/report";
 const OVERLAY_URL = "**/api/community/overlay";
 
+// Far from the thing (or with no location) the check is the quiet row. Unfold it first, as a walker would;
+// a no-op once the card is open or answered.
+async function openCheck(page) {
+  const toggle = page.locator("#inspectorBody .community-quiet-toggle");
+  if (await toggle.isVisible() && (await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
+}
+
 test.describe("Community tree verification", () => {
   test.beforeEach(async ({ page }) => {
     await page.route(OVERLAY_URL, (route) =>
@@ -51,6 +58,7 @@ test.describe("Community tree verification", () => {
   test("the check block is one box and sits above the Nearest section", async ({ page }) => {
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     const box = page.locator(".community-check");
+    await openCheck(page);
     await expect(box.locator("[data-action='community-report'][data-status='VERIFIED']")).toBeVisible();
     // "Something not right?" and its choices live inside the same box as the heading and verify action
     await expect(box.locator(".community-or")).toContainText("Something not right?");
@@ -59,6 +67,7 @@ test.describe("Community tree verification", () => {
     await expect(box.locator(".community-verify .community-points-chip")).toHaveCount(0);
     // The alternatives stay folded until asked for.
     await expect(box.locator(".community-choices")).toBeHidden();
+    await openCheck(page);
     await box.locator(".community-or").click();
     await expect(box.locator(".community-choices")).toBeVisible();
     const boxTop = (await box.boundingBox()).y;
@@ -73,6 +82,7 @@ test.describe("Community tree verification", () => {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
     });
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await openCheck(page);
     await page.click("[data-action='community-report'][data-status='VERIFIED']");
     await expect(page.locator(".community-mine")).toContainText("You reported: Verified here");
     await expect(page.locator(".community-head")).toHaveClass(/community-head-reported/);
@@ -89,6 +99,7 @@ test.describe("Community tree verification", () => {
       const tree = state.trees.find((t) => String(t.recordNumber ?? t.id) === rn);
       state.userLocation = { latitude: tree.lat ?? tree.latitude, longitude: tree.lon ?? tree.longitude, accuracy: 5, isDefault: false };
     }, FIXTURE_TREE.recordNumber);
+    await openCheck(page);
     await page.click("[data-action='community-report'][data-status='VERIFIED']");
     await expect(page.locator(".detail-top-row .community-verified-chip")).toContainText("1");
   });
@@ -96,6 +107,7 @@ test.describe("Community tree verification", () => {
   test("a local verify shows at the top before the server confirms it", async ({ page }) => {
     await page.route(REPORT_URL, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) }));
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await openCheck(page);
     await page.click("[data-action='community-report'][data-status='VERIFIED']");
     await expect(page.locator(".detail-top-row .community-verified-chip")).toHaveAttribute("aria-label", "You verified this tree");
   });
@@ -110,6 +122,7 @@ test.describe("Community tree verification", () => {
         : { status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) });
     });
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await openCheck(page);
     await page.click("[data-action='community-report'][data-status='VERIFIED']");
     await expect.poll(() => calls.length).toBe(1);
     await page.click("#reportToggle");
@@ -155,7 +168,9 @@ test.describe("Community tree verification", () => {
     });
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     await context.setOffline(true);
+    await openCheck(page);
     await page.click(".community-or");
+    await openCheck(page);
     await page.click("[data-action='community-report'][data-status='NOT_HERE']");
     await expect(page.locator(".community-mine")).toContainText("No tree found here");
     expect(posted).toHaveLength(0);
@@ -169,6 +184,7 @@ test.describe("Community tree verification", () => {
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) })
     );
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await openCheck(page);
     await page.click("[data-action='community-report'][data-status='VERIFIED']");
     await expect(page.locator(".community-mine")).toBeVisible();
     await page.click("#reportToggle");
@@ -185,6 +201,7 @@ test.describe("Community tree verification", () => {
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) })
     );
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await openCheck(page);
     await page.click("[data-action='community-report'][data-status='VERIFIED']");
     await expect(page.locator(".community-mine")).toBeVisible();
     await page.click("#reportToggle");
@@ -212,7 +229,9 @@ test.describe("Community tree verification", () => {
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) })
     );
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await openCheck(page);
     await page.click(".community-or");
+    await openCheck(page);
     await page.click("[data-action='community-report'][data-status='NOT_HERE']");
     await expect(page.locator("[data-action='community-report']")).toHaveCount(0);
     await expect(page.locator(".detail-top-row .community-status-problem-chip")).toContainText("1");
@@ -409,6 +428,7 @@ test.describe("Community place checks", () => {
     expect((await nearest.boundingBox()).y).toBeGreaterThan((await box.boundingBox()).y);
     await expect(box.locator(".community-or")).toContainText("Something not right?");
     await expect(box.locator(".community-choices")).toBeHidden();
+    await openCheck(page);
     await box.locator(".community-or").click();
     await expect(box.locator(".community-choices")).toBeVisible();
     await expect(box.locator("[data-action='community-place-choose']")).toHaveCount(6);
@@ -420,7 +440,9 @@ test.describe("Community place checks", () => {
       issues.push(route.request().postDataJSON());
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, issueUrl: "https://github.com/simonmcmanus/epping-forest-finds/issues/42" }) });
     });
+    await openCheck(page);
     await page.click(".community-check-place .community-or");
+    await openCheck(page);
     await page.click("[data-action='community-place-choose'][data-status='CLOSED']");
     await expect(page.locator(".community-note-input")).toBeVisible();
     // Told before sending that this becomes a public GitHub issue.
@@ -442,7 +464,9 @@ test.describe("Community place checks", () => {
         ? route.fulfill({ status: 403, contentType: "application/json", body: JSON.stringify({ error: "Resource not accessible by personal access token" }) })
         : route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, issueNumber: 9, issueUrl: "https://github.com/example/repo/issues/9" }) });
     });
+    await openCheck(page);
     await page.click(".community-check-place .community-or");
+    await openCheck(page);
     await page.click("[data-action='community-place-choose'][data-status='CLOSED']");
     await page.fill(".community-note-input", "Shut for good");
     await page.click("[data-action='community-send-place']");
@@ -461,7 +485,9 @@ test.describe("Community place checks", () => {
   test("a rename needs a few words before it can be sent", async ({ page }) => {
     const issues = [];
     await page.route(ISSUE_URL, (route) => { issues.push(1); route.fulfill({ status: 200, body: "{}" }); });
+    await openCheck(page);
     await page.click(".community-check-place .community-or");
+    await openCheck(page);
     await page.click("[data-action='community-place-choose'][data-status='RENAMED']");
     await page.click("[data-action='community-send-place']");
     await expect(page.locator(".community-status")).toContainText("Please add a few words");
@@ -472,12 +498,15 @@ test.describe("Community place checks", () => {
     const sent = [];
     await page.route(ISSUE_URL, (route) => { sent.push("issue"); route.fulfill({ status: 200, body: "{}" }); });
     await page.route(REPORT_URL, (route) => { sent.push("report"); route.fulfill({ status: 200, body: "{}" }); });
+    await openCheck(page);
     await page.click("[data-action='community-place-choose'][data-status='OPEN_CONFIRMED']");
     await expect(page.locator(".community-check-place")).toHaveCount(1);
     await expect(page.locator(".community-check-place .community-mine")).toContainText("You reported: Confirmed still right");
     await expect(page.locator(".community-place-confirmed-marker")).toContainText("You have verified this location");
+    await openCheck(page);
     await page.click(".community-check-place [data-action='community-change']");
     await expect(page.locator(".community-check-place [data-action='community-place-choose'][data-status='OPEN_CONFIRMED']")).toBeVisible();
+    await openCheck(page);
     await page.click(".community-check-place [data-action='community-place-choose'][data-status='OPEN_CONFIRMED']");
     await expect(page.locator(".community-check-place .community-mine")).toContainText("You reported: Confirmed still right");
     await expect(page.locator(".community-check-place [data-action='community-place-choose']")).toHaveCount(0);
@@ -678,6 +707,7 @@ test.describe("Reporting from too far away", () => {
       await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
       const note = page.locator(".community-range");
       await expect(note).toContainText("You'll get 0 points from this check");
+      await openCheck(page);
       await page.click("[data-action='community-report'][data-status='VERIFIED']");
       await expect(page.locator(".community-mine")).toContainText("You reported: Verified here");
       await page.click("#reportToggle");
@@ -688,6 +718,7 @@ test.describe("Reporting from too far away", () => {
   test("with no location it shows zero points until location is available", async ({ page }) => {
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     await expect(page.locator(".community-range")).toContainText("You'll get 0 points from this check");
+    await openCheck(page);
     await page.click("[data-action='community-report'][data-status='VERIFIED']");
     await expect(page.locator(".community-mine")).toContainText("You reported: Verified here");
   });
@@ -984,6 +1015,7 @@ test.describe("Outbox when the browser has no IndexedDB", () => {
     await noIndexedDb(page);
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     await context.setOffline(true);
+    await openCheck(page);
     await page.click("[data-action='community-report'][data-status='VERIFIED']");
     await expect.poll(() => page.evaluate(() => (JSON.parse(localStorage.getItem("ff-outbox-fallback-v1")) || []).length)).toBe(1);
     expect(posted).toHaveLength(0);
@@ -1005,6 +1037,7 @@ test.describe("Outbox when the browser has no IndexedDB", () => {
     await noIndexedDb(page, { blockFallback: true });
     await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
     await context.setOffline(true);
+    await openCheck(page);
     await page.click("[data-action='community-report'][data-status='VERIFIED']");
     await page.click("#reportToggle");
     await expect(page.locator(".community-log-error").first()).toContainText("can't save waiting reports");
