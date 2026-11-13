@@ -43,7 +43,7 @@ Context for this app:
 - Routes: `applyRouteFromUrl` (`js/router.js`) is the one entry point for links, Back/forward and
   hand-edited URLs, so each must look the same as the equivalent tap.
 - Browser tests default to `reducedMotion: "reduce"` (`playwright.config.js`). Camera tweens
-  still run in that mode, apart from the cinematic arc, so the camera specs see real move
+  still run in that mode, apart from the deliberate-move arc, so the camera specs see real move
   sequences. The panel slide and rail glide are skipped under `prefersReducedMotion()`, so a spec
   proves those animations only where it opts back in (`48-deliberate-camera-arc` and parts of
   `40-nearby-filter-rail` do today); otherwise it proves the end state.
