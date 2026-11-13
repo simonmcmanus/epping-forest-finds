@@ -205,9 +205,12 @@
             <button id="locationInviteButton" class="button" type="button">Enable location</button>
           </div>
         </div>
-        <div class="inspector-tools">
+        <!-- The install prompt starts hidden. Mark the row empty in the server-rendered shell
+             too, otherwise its padding creates a visible gap above the Nearby heading until
+             boot can apply .tools-empty. -->
+        <div class="inspector-tools tools-empty">
           <div class="search-shell">
-            <button id="installButton" class="button install" type="button">Install</button>
+            <button id="installButton" class="button install" type="button" hidden>Install</button>
           </div>
         </div>
         <div class="inspector-scroll">

@@ -292,6 +292,18 @@ const state = {
   // (updateNearbyRadiusWheel/endNearbyRadiusWheel, js/nav.js).
   wheelRadiusMinutes: null,
   wheelRadiusSettleTimer: null,
+  // Where the wheel gesture is heading (the radius glides there frame by frame, js/nav.js), and
+  // whether the wheel asked for less than the radius floor allows (the limit notice).
+  wheelRadiusTargetMinutes: null,
+  wheelRadiusOvershoot: false,
+  // True while a single pointer is down on the map in an anchored state (navigationAnchorActive):
+  // the drag owns the camera until release, so GPS fixes, compass ticks and refits must not
+  // re-anchor it underneath the finger. See alignHeadingUpNavigationViewport.
+  anchoredDragHold: false,
+  // The pan ({dx, dy}) the current press has applied to the viewport so far (js/nav.js).
+  dragApplied: null,
+  // The map-scale wheel zoom in flight (zoomAt): { target, screenPoint, world, frame, last }.
+  zoomChase: null,
   // Safari's trackpad pinch (gesturestart/change/end) measures from where the gesture began,
   // like the two-finger pinch does -- see startNearbyRadiusGesture, js/nav.js.
   gestureRadiusBaseMinutes: null,
@@ -1500,9 +1512,7 @@ function applyBoundsToViewport(bounds, options = {}) {
       { scale: targetScale, tx: targetTx, ty: targetTy },
       options.durationMs || DEFAULT_VIEWPORT_ANIMATION_MS,
       undefined,
-      options.cinematic
-        ? { cinematic: true, focusPoint: { x: focusRect.x + viewportWidth / 2, y: focusRect.y + viewportHeight / 2 } }
-        : undefined,
+      { cinematic: Boolean(options.cinematic), deliberate: Boolean(options.deliberate), focusPoint: { x: focusRect.x + viewportWidth / 2, y: focusRect.y + viewportHeight / 2 } },
     );
     return;
   }
@@ -1514,6 +1524,7 @@ function applyBoundsToViewport(bounds, options = {}) {
 }
 
 function stopViewportAnimation() {
+  cancelZoomChase();
   if (state.viewportAnimationFrame != null) {
     cancelAnimationFrame(state.viewportAnimationFrame);
   }
@@ -1598,6 +1609,30 @@ const ZOOM_DURATION_MIN_RATIO = 3;
 const ZOOM_DURATION_PER_DOUBLING = 0.6; // extra share of the requested duration per doubling beyond the minimum
 const ZOOM_DURATION_MAX_MS = 1200;
 
+// A deliberate, user-triggered move (selecting a place, returning to Nearby, applying filters, a
+// followed link) gets the cinematic arc -- the same shallow zoom-out the first-location fly-to
+// uses -- but only when it is big enough to read as a journey: the zoom changes by at least
+// DELIBERATE_ARC_MIN_ZOOM_RATIO, or the camera centre travels at least this share of the shorter
+// canvas side. Anything smaller stays a plain ease, and continuous camera work (GPS follow, compass,
+// drag return, wheel/pinch glides, resizes) never asks for the arc. Arc moves last between
+// DELIBERATE_ARC_MIN_MS and DELIBERATE_ARC_MAX_MS, so an ordinary selection does not slow down.
+const DELIBERATE_ARC_MIN_ZOOM_RATIO = 1.5;
+const DELIBERATE_ARC_MIN_TRAVEL_SHARE = 0.35;
+const DELIBERATE_ARC_MIN_MS = 650;
+const DELIBERATE_ARC_MAX_MS = 1000;
+
+function deliberateMoveIsLarge(from, target, focusPoint) {
+  if (!(from.scale > 0) || !(target.scale > 0)) return false;
+  const zoomRatio = Math.max(from.scale / target.scale, target.scale / from.scale);
+  if (zoomRatio >= DELIBERATE_ARC_MIN_ZOOM_RATIO) return true;
+  const fromCentre = { x: (focusPoint.x - from.tx) / from.scale, y: (focusPoint.y - from.ty) / from.scale };
+  const toCentre = { x: (focusPoint.x - target.tx) / target.scale, y: (focusPoint.y - target.ty) / target.scale };
+  const smaller = Math.min(from.scale, target.scale);
+  const travelPx = Math.hypot((toCentre.x - fromCentre.x) * smaller, (toCentre.y - fromCentre.y) * smaller);
+  const shorterSide = Math.min(els.canvas ? els.canvas.width : 0, els.canvas ? els.canvas.height : 0);
+  return shorterSide > 0 && travelPx >= shorterSide * DELIBERATE_ARC_MIN_TRAVEL_SHARE;
+}
+
 function zoomAwareDurationMs(baseMs, zoomRatio) {
   if (!(zoomRatio > ZOOM_DURATION_MIN_RATIO)) return baseMs;
   const extraDoublings = Math.log2(zoomRatio) - Math.log2(ZOOM_DURATION_MIN_RATIO);
@@ -1613,6 +1648,10 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
   let safeDuration = Math.max(MIN_VIEWPORT_ANIMATION_MS, Number(durationMs) || DEFAULT_VIEWPORT_ANIMATION_MS);
   const cinematic = Boolean(options.cinematic);
   if (!cinematic && viewportAnimationAlreadyHeadedTo(targetViewport)) return "ignored";
+  // options.deliberate marks a user-triggered move; whether it is big enough for the arc is
+  // decided here, once, for every caller. The arc maths below is shared with `cinematic`, but a
+  // deliberate arc does not take over the walking-radius ring's screen position (the reveal flags
+  // stay cinematic-only) and keeps the same-target dedupe above.
   stopViewportAnimation();
   // A real camera tween owns the zoom from here, so a browse-origin slide must not keep easing back
   // towards the zoom it started from once this tween has landed.
@@ -1623,6 +1662,11 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
     tx: state.viewport.tx,
     ty: state.viewport.ty,
   };
+  const focusPoint = options.focusPoint || (els.canvas ? { x: els.canvas.width / 2, y: els.canvas.height / 2 } : { x: 0, y: 0 });
+  const deliberateArc = !cinematic && Boolean(options.deliberate) && !state.nearbyOriginTransition
+    && !prefersReducedMotion()
+    && deliberateMoveIsLarge(from, targetViewport, focusPoint);
+  const arc = cinematic || deliberateArc;
   // Not while a browse-origin slide is running: its callers pass a duration chosen so the tween and the
   // slide land on the same frame (see nearbyRevealOpacity), and stretching one would pull them apart.
   if (!cinematic && !options.fixedDuration && !state.nearbyOriginTransition
@@ -1630,17 +1674,17 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
     const zoomRatio = Math.max(from.scale / targetViewport.scale, targetViewport.scale / from.scale);
     safeDuration = zoomAwareDurationMs(safeDuration, zoomRatio);
   }
+  if (deliberateArc) safeDuration = clamp(safeDuration, DELIBERATE_ARC_MIN_MS, DELIBERATE_ARC_MAX_MS);
 
   // A normal viewport tween interpolates the transform components directly. That is right for
   // small refits, but it makes a High Beach -> GPS handoff feel like a hard yank when both the
   // camera position and scale change at once. The cinematic path interpolates the camera's world
   // centre and adds a shallow zoom-out arc, like a restrained map fly-to: the route becomes clear
   // in the middle of the move, then the camera settles into the final walking-radius fit.
-  const focusPoint = options.focusPoint || { x: 0, y: 0 };
-  const fromCenter = cinematic && from.scale > 0
+  const fromCenter = arc && from.scale > 0
     ? { x: (focusPoint.x - from.tx) / from.scale, y: (focusPoint.y - from.ty) / from.scale }
     : null;
-  const targetCenter = cinematic && targetViewport.scale > 0
+  const targetCenter = arc && targetViewport.scale > 0
     ? { x: (focusPoint.x - targetViewport.tx) / targetViewport.scale, y: (focusPoint.y - targetViewport.ty) / targetViewport.scale }
     : null;
   const centreDistancePx = fromCenter && targetCenter
@@ -1649,12 +1693,12 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
       (targetCenter.y - fromCenter.y) * Math.min(from.scale, targetViewport.scale),
     )
     : 0;
-  const zoomOutRatio = cinematic
+  const zoomOutRatio = arc
     ? clamp(0.10 + (centreDistancePx / 900) * 0.045, 0.10, 0.24)
     : 0;
   const cinematicScaleFloor = cinematic && state.baseFitScale > 0
     ? state.baseFitScale * 0.92
-    : 0;
+    : deliberateArc ? Math.min(from.scale, targetViewport.scale) * 0.8 : 0;
 
   if (
     Math.abs(from.scale - targetViewport.scale) < 0.000001
@@ -1694,7 +1738,7 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
       ? 4 * progress * progress * progress
       : 1 - Math.pow(-2 * progress + 2, 3) / 2;
 
-    if (cinematic && fromCenter && targetCenter) {
+    if (arc && fromCenter && targetCenter) {
       const baseScale = zoomAlongTween(from.scale, targetViewport.scale, eased);
       const zoomArc = Math.sin(Math.PI * eased) * zoomOutRatio;
       state.viewport.scale = Math.max(cinematicScaleFloor, baseScale * (1 - zoomArc));
@@ -1817,6 +1861,8 @@ function inspectorCanvasOverlapRect({ assumeInspectorOpen = false } = {}) {
 
 function zoomAt(factor, screenPoint) {
   if (!state.bounds) return;
+  // Read before stopViewportAnimation, which ends any wheel glide already in flight.
+  const priorChase = state.zoomChase;
   stopViewportAnimation();
   // Heading-up mode (nearby or selected-navigation) locks pan/zoom to the fitted
   // target -- see alignHeadingUpNavigationViewport() and the pointermove handler in
@@ -1836,11 +1882,58 @@ function zoomAt(factor, screenPoint) {
   // here instead -- as this used to -- meant the wheel did nothing at all whenever a
   // location was selected with the inspector open, since the fit is already satisfied.
   if (shouldAutoRepositionSelection()) markManualCameraOverride();
-  const before = screenToWorld(screenPoint.x, screenPoint.y);
-  state.viewport.scale = clamp(state.viewport.scale * factor, state.fitScale * 0.65, state.fitScale * 220);
-  state.viewport.tx = screenPoint.x - before.x * state.viewport.scale;
-  state.viewport.ty = screenPoint.y - before.y * state.viewport.scale;
+  // The wheel asks for a target scale and the camera glides to it frame by frame, so a stream of
+  // small trackpad deltas reads as one continuous zoom instead of a jump per event. Successive
+  // events re-aim the same glide (it is not restarted), and the point under the cursor stays fixed.
+  const heading = priorChase && Number.isFinite(priorChase.target) ? priorChase.target : state.viewport.scale;
+  const target = clamp(heading * factor, state.fitScale * 0.65, state.fitScale * 220);
+  const last = priorChase ? priorChase.last : null;
+  const now = performance.now();
+  const world = screenToWorld(screenPoint.x, screenPoint.y);
+  stopViewportAnimation();
+  state.zoomChase = { target, screenPoint: { x: screenPoint.x, y: screenPoint.y }, world, frame: null, last: now };
+  stepZoomChase(last == null ? ZOOM_CHASE_FIRST_STEP_MS : now - last);
+}
+
+// How quickly the camera closes on a wheel zoom's target: the time constant of an exponential
+// chase, so the first frame already moves visibly and the last frames settle without a hard stop.
+const ZOOM_CHASE_TAU_MS = 70;
+const ZOOM_CHASE_FIRST_STEP_MS = 16;
+const ZOOM_CHASE_DONE_LOG_RATIO = 0.002;
+
+function zoomChaseFraction(dtMs) {
+  return 1 - Math.exp(-clamp(Number(dtMs) || ZOOM_CHASE_FIRST_STEP_MS, 1, 34) / ZOOM_CHASE_TAU_MS);
+}
+
+function cancelZoomChase() {
+  const chase = state.zoomChase;
+  if (!chase) return;
+  if (chase.frame != null) cancelAnimationFrame(chase.frame);
+  state.zoomChase = null;
+}
+
+function stepZoomChase(dtMs) {
+  const chase = state.zoomChase;
+  if (!chase) return;
+  const scale = state.viewport.scale;
+  const gap = Math.log(chase.target / scale);
+  const done = !Number.isFinite(gap) || Math.abs(gap) < ZOOM_CHASE_DONE_LOG_RATIO;
+  const next = done ? chase.target : scale * Math.exp(gap * zoomChaseFraction(dtMs));
+  state.viewport.scale = next;
+  state.viewport.tx = chase.screenPoint.x - chase.world.x * next;
+  state.viewport.ty = chase.screenPoint.y - chase.world.y * next;
   requestDraw();
+  if (done) {
+    state.zoomChase = null;
+    return;
+  }
+  chase.frame = requestAnimationFrame((timestamp) => {
+    chase.frame = null;
+    if (state.zoomChase !== chase) return;
+    const dt = timestamp - chase.last;
+    chase.last = timestamp;
+    stepZoomChase(dt);
+  });
 }
 
 function attachNearbyRailScrollHints(root = els.inspectorBody) {
@@ -1918,7 +2011,7 @@ function setOverviewFilters(nextFilters, { persist = true, render = true, railTa
   }
   if (isOverviewScreenActive() && (!state.filterScreenOpen || mapSetupModalActive())) {
     selectOverview();
-    ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
+    ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS, deliberate: true });
   }
   requestDraw();
 }
@@ -2347,12 +2440,8 @@ function expandedClusterOverviewEntries(group, latitude, longitude) {
     else if (itemType === "water") entries.push({ kind: "ponds_streams", type: "water", item, metres });
     else entries.push({ kind: resolvePlaceKind(item), type: "landmark", item, metres });
   };
-  if (group.itemType === "_mega" && group.itemsByType) {
-    for (const [itemType, items] of Object.entries(group.itemsByType)) {
-      for (const item of items) pushEntry(itemType, item);
-    }
-  } else {
-    for (const item of (group.items || [])) pushEntry(group.itemType, item);
+  for (const [itemType, items] of Object.entries(clusterItemsByType(group))) {
+    for (const item of items) pushEntry(itemType, item);
   }
   return entries.filter(entry => Number.isFinite(entry.metres)).sort((a, b) => a.metres - b.metres);
 }
@@ -5142,9 +5231,7 @@ function nearestSelectedFilterPoints() {
 // the camera zoom in exactly as far as separating them needs, capped at the same 220x-of-base
 // ceiling applyBoundsToViewport already enforces for the pinch gesture.
 function expandedClusterFitPoints(group) {
-  const items = group.itemType === "_mega" && group.itemsByType
-    ? Object.values(group.itemsByType).flat()
-    : (group.items || []);
+  const items = Object.values(clusterItemsByType(group)).flat();
   return items.map((item) => item.point).filter(Boolean);
 }
 
@@ -5359,6 +5446,9 @@ function alignHeadingUpNavigationViewport(options = {}) {
   // startCompassSmoothing) before mapPromise resolves, so this must wait for real data.
   if (!state.dataLoaded) return false;
   if (!navigationAnchorActive()) return false;
+  // A finger is dragging the anchored map: nothing re-anchors it until release, which asks for
+  // the return itself with releaseDrag (js/nav.js, returnAnchoredMapAfterDrag).
+  if (state.anchoredDragHold && !options.releaseDrag) return false;
   if (selectionCameraTransitionActive()) {
     // An animated refit that lands while another camera tween is running (tapping a place and
     // then Nearby quickly, or a filter pill mid-ease) used to be dropped here, so the camera
@@ -5491,9 +5581,12 @@ function alignHeadingUpNavigationViewport(options = {}) {
       targetViewport,
       options.durationMs || HEADING_UP_NAV_ANIMATION_MS,
       undefined,
-      options.cinematic ? { cinematic: true, focusPoint: { x: focus.x, y: focusY } } : undefined,
+      { cinematic: Boolean(options.cinematic), deliberate: Boolean(options.deliberate), focusPoint: { x: focus.x, y: focusY } },
     );
   } else {
+    // An un-animated refit writes the viewport itself, so a wheel glide still chasing its own
+    // target would overwrite it on its next frame.
+    cancelZoomChase();
     state.viewport.scale = targetScale;
     state.viewport.tx = targetViewport.tx;
     state.viewport.ty = targetViewport.ty;
@@ -5560,7 +5653,7 @@ function animateToHeadingUpNavigationViewport(durationMs = HEADING_UP_NAV_ANIMAT
     scale: targetScale,
     tx: focus.x - userPoint.x * targetScale,
     ty: focusY - userPoint.y * targetScale,
-  }, safeDuration);
+  }, safeDuration, undefined, { deliberate: Boolean(options.deliberate) });
 }
 
 function prepareCanvasForDraw() {
@@ -5835,6 +5928,7 @@ function ensureUserAndSelectionVisible(options = {}) {
     focusVisibleArea: true,
     animate: shouldAnimate,
     cinematic: Boolean(options.cinematic),
+    deliberate: Boolean(options.deliberate),
     durationMs: options.durationMs || 800,
     minScale: state.baseFitScale > 0 ? state.baseFitScale : undefined,
     maxScale: maxScale > 0 ? maxScale : undefined,
@@ -6047,9 +6141,7 @@ function centerOverviewOnUserLocation(options = {}) {
       targetViewport,
       options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
       undefined,
-      options.cinematic
-        ? { cinematic: true, focusPoint: { x: focusRect.x + focusRect.width / 2, y: focusRect.y + focusRect.height / 2 } }
-        : undefined,
+      { cinematic: Boolean(options.cinematic), deliberate: Boolean(options.deliberate), focusPoint: { x: focusRect.x + focusRect.width / 2, y: focusRect.y + focusRect.height / 2 } },
     );
     return;
   }
@@ -6151,6 +6243,7 @@ function ensureOverviewTargetsVisible(options = {}) {
     alignHeadingUpNavigationViewport({
       animate: Boolean(options.animate),
       cinematic: Boolean(options.cinematic),
+      deliberate: Boolean(options.deliberate),
       durationMs: options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
       force: Boolean(options.force),
       stagePanThenZoom: Boolean(options.stagePanThenZoom),
@@ -6168,6 +6261,7 @@ function ensureOverviewTargetsVisible(options = {}) {
       assumeInspectorOpen: true,
       animate: Boolean(options.animate),
       cinematic: Boolean(options.cinematic),
+      deliberate: Boolean(options.deliberate),
       durationMs: options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
       minScale: state.baseFitScale > 0 ? state.baseFitScale : undefined,
       padding: OVERVIEW_FIT_PADDING_PX,
@@ -6178,6 +6272,7 @@ function ensureOverviewTargetsVisible(options = {}) {
     centerOverviewOnUserLocation({
       animate: Boolean(options.animate),
       cinematic: Boolean(options.cinematic),
+      deliberate: Boolean(options.deliberate),
       durationMs: options.durationMs || OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS,
       focusVisibleArea: true,
     });

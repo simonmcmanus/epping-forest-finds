@@ -534,7 +534,7 @@ function openSearchResult(type, key) {
     zoomToSelection();
   } else {
     const point = searchResultPoint(type, item);
-    if (point) fitToPoints([point], false, { animate: true, focusVisibleArea: true });
+    if (point) fitToPoints([point], false, { animate: true, focusVisibleArea: true, deliberate: true });
   }
   trackSelectionClick(type, item, "search");
   requestDraw();

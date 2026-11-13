@@ -67,8 +67,13 @@ agent frontmatter sets the normal model and turn budget. Escalate for a concrete
 - `reviewer`: independent correctness, state-transition regression and test-contract review.
 - Conditional reviewers: `security-reviewer` for auth, endpoints, uploads, private data and privileged
   workflows; `offline-reviewer` for caching, fetch/failure paths, outbox and native parity;
-  `performance-reviewer` for frame/startup/payload risks; `accessibility-reviewer`, `design-reviewer`
-  and `ux-reviewer` when their specific risk changes. Do not launch every specialist for every edit.
+  `performance-reviewer` for frame/startup/payload risks; `progressive-enhancement-reviewer` for
+  the no-JS to JS handoff (generated pages, initial markup, boot/first render, script order),
+  running the existing focused no-JS/boot specs when the lead grants it the browser slot;
+  `transition-reviewer` for continuity between app states (screen/panel slides, selection, routes,
+  rail and list patches, the accompanying camera move), on the same browser-slot terms;
+  `accessibility-reviewer`, `design-reviewer` and `ux-reviewer` when their specific risk changes.
+  Do not launch every specialist for every edit.
 - `test-runner`: validates receipt provenance and coverage, executes missing or invalid checks and
   reports counts. It does not repeat identical valid checks merely to produce another report.
 - `pr-steward`: single post-push repair coordinator. It returns every edit/conflict resolution through
