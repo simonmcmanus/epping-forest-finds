@@ -1729,7 +1729,7 @@ textarea.report-textarea {
 }
 .community-check-reported .community-local-status { margin: 0; }
 .community-head { display: flex; align-items: center; gap: 12px; max-height: 80px; margin-bottom: 14px; overflow: hidden; opacity: 1; transform: none; transition: max-height 220ms ease, margin 220ms ease, opacity 180ms ease, transform 220ms ease; }
-.community-head-reported { max-height: 0; margin-bottom: 0; opacity: 0; transform: translateY(-5px); pointer-events: none; }
+.community-head-reported { max-height: 0; margin-bottom: 0; opacity: 0; visibility: hidden; transform: translateY(-5px); pointer-events: none; transition: max-height 220ms ease, margin 220ms ease, opacity 180ms ease, transform 220ms ease, visibility 0s linear 220ms; }
 .community-head-icon {
   width: 38px; height: 38px; flex-shrink: 0; border-radius: 11px;
   display: grid; place-items: center; color: var(--tree); background: rgba(var(--forest-rgb), 0.1);
@@ -3179,12 +3179,14 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 /* The title keeps at least a readable line; when the cue would squeeze it, the cue drops to its own line. */
 .community-check .community-head { flex-wrap: wrap; row-gap: 6px; }
 .community-check .community-head > div { flex: 1 1 8.5rem; min-width: 0; }
+/* An eyebrow above the title, the same on trees and places: it takes no height until the card is near. */
 .community-here-cue {
-  flex: none; align-self: flex-start; margin-left: auto; padding: 0; max-width: 0; overflow: hidden; white-space: nowrap; opacity: 0; visibility: hidden;
+  display: block; width: fit-content; box-sizing: border-box; max-height: 0; margin: 0; padding: 0 10px; overflow: hidden; white-space: nowrap; opacity: 0; visibility: hidden;
   border-radius: 999px; background: var(--tree); color: #fff; font-size: 0.72rem; font-weight: 700; line-height: 1.6;
-  transition: max-width 280ms var(--community-ease), padding 280ms var(--community-ease), opacity 280ms var(--community-ease), visibility 0s linear 280ms;
+  transition: max-height 280ms var(--community-ease), margin 280ms var(--community-ease), opacity 280ms var(--community-ease), visibility 0s linear 280ms;
 }
-.community-check[data-tier="near"] .community-here-cue { max-width: 14rem; padding: 0 10px; opacity: 1; visibility: visible; transition-delay: 0s; }
+.community-check[data-tier="near"] .community-here-cue { max-height: 1.6em; margin-bottom: 4px; opacity: 1; visibility: visible; transition-delay: 0s; }
+.community-check[data-tier="near"] .community-head-reported .community-here-cue, .community-head-reported .community-here-cue { max-height: 0; margin: 0; opacity: 0; visibility: hidden; }
 .community-check[data-tier="near"] {
   border-color: var(--tree); background: rgba(var(--forest-rgb), 0.045);
   box-shadow: var(--inspector-shadow-small);
@@ -3213,10 +3215,11 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 .community-check-pointer::after { content: ""; position: absolute; inset: -4px; }
 .community-check-pointer:hover { background: rgba(var(--forest-rgb), 0.12); }
 .community-check-pointer:focus-visible { outline: 2px solid var(--nav); outline-offset: 2px; }
-@media (max-width: 380px) {
-  .community-check-pointer { width: 36px; padding: 0; }
-  .community-check-pointer-label { display: none; }
-}
+/* Icon-only when the labelled chip would make the top row wrap (js/community.js communityFitPointerRow). The probe
+   state opens the chip with its label, without transitions, to measure that. */
+.detail-top-row.community-pointer-compact .community-check-pointer { width: 36px; padding: 0; }
+.detail-top-row.community-pointer-compact .community-check-pointer-label { display: none; }
+.detail-top-row.community-fit-probe .community-pointer-slot { grid-template-columns: 1fr; margin-left: 0; }
 
 /* The quiet row left in the card's usual slot while the card is promoted. */
 .community-placeholder {

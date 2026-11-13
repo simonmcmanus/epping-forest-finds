@@ -556,10 +556,10 @@ function communityRefreshVerifiedSlots() {
       detailHost.insertBefore(detailSlot, usualSlot && usualSlot.parentElement === detailHost ? usualSlot : null);
     }
   });
-  document.querySelectorAll(".community-verified-slot").forEach((slot) => {
+  communityLiveAll(".community-verified-slot").forEach((slot) => {
     slot.innerHTML = communityVerifiedChipHtml(slot.dataset.verifiedTarget);
   });
-  document.querySelectorAll(".community-verified-detail-slot").forEach((slot) => {
+  communityLiveAll(".community-verified-detail-slot").forEach((slot) => {
     slot.innerHTML = communityVerifiedDetailHtml(slot.dataset.verifiedTarget);
   });
 }
@@ -773,8 +773,7 @@ function communityCardHtml({ kind, target, lat, lon, tier, reported, sectionClas
       </button>
       <div class="community-head${reported ? " community-head-reported" : ""}">
         <span class="community-head-icon">${communityIcon("shield")}</span>
-        <div><h3 class="community-title">${escapeHtml(title)}</h3><p class="community-sub">${escapeHtml(sub)}</p></div>
-        <span class="community-here-cue">You're at the ${kind === "place" ? "place" : "tree"}</span>
+        <div><span class="community-here-cue">You're at the ${kind === "place" ? "place" : "tree"}</span><h3 class="community-title">${escapeHtml(title)}</h3><p class="community-sub">${escapeHtml(sub)}</p></div>
       </div>
       <div class="community-fold" id="${foldId}"><div class="community-fold-inner"><div class="community-body">${body}</div></div></div>
     </section>`;
@@ -896,6 +895,15 @@ function communityBusyRetryDelay(section) {
 }
 
 let communityPresentationTimer = null;
+// The slide wait is capped: a ghost that never goes away must not stop the card from presenting.
+const COMMUNITY_SLIDE_WAIT_MAX_MS = 600;
+let communitySlideWaitSince = 0;
+function communitySlideWaiting() {
+  if (!communitySlideActive()) { communitySlideWaitSince = 0; return false; }
+  if (!communitySlideWaitSince) communitySlideWaitSince = Date.now();
+  if (Date.now() - communitySlideWaitSince > COMMUNITY_SLIDE_WAIT_MAX_MS) { communitySlideWaitSince = 0; return false; }
+  return true;
+}
 
 // Re-run the presentation soon (a press window ended, focus left the card, the alternatives were folded).
 function communitySchedulePresentation(delay = 0) {
@@ -910,10 +918,53 @@ function communityUpdatePresentation(local = communityReadLocal()) {
   communityEnsureAnnouncer();
   // The incoming screen is still sliding in: presenting now would write scrollTop that the slide then resets.
   // Wait for the slide to end, then present once, so the move is one continuous motion with the right end state.
-  if (communitySlideActive()) { communitySchedulePresentation(60); return; }
+  if (communitySlideWaiting()) { communitySchedulePresentation(60); return; }
   const accurate = communityCurrentFix().ok;
   communityLiveAll(".community-check[data-community-target]").forEach((section) => communityPresentSection(section, local, accurate));
+  communityWatchPointerRows();
   communityHintSync();
+}
+
+// The Check chip shows its label only while the top row still fits on one line; otherwise it is icon-only
+// (same accessible name). Decided by probing the row with the chip fully open and its label showing, without
+// transitions, so the answer does not depend on where the chip's own open/close animation is. It runs when the
+// row is first seen, when its content changes (the distance pill, the verified chip) and when the width changes,
+// never on a plain GPS fix.
+function communityFitPointerRow(row) {
+  const slot = row.querySelector(".community-pointer-slot");
+  const pill = row.querySelector('[data-live-field="distance"]');
+  const actions = row.querySelector(".detail-top-actions");
+  if (!slot || !pill || !actions) return;
+  const previous = slot.style.transition;
+  slot.style.transition = "none";
+  row.classList.remove("community-pointer-compact");
+  row.classList.add("community-fit-probe");
+  const empty = pill.getBoundingClientRect().height === 0;
+  const wraps = !empty && actions.getBoundingClientRect().top >= pill.getBoundingClientRect().bottom - 0.5;
+  row.classList.remove("community-fit-probe");
+  row.classList.toggle("community-pointer-compact", wraps);
+  row.getBoundingClientRect(); // settle the end state with transitions off, so nothing animates from the probe
+  slot.style.transition = previous;
+}
+
+function communityWatchPointerRows() {
+  communityLiveAll(".detail-top-row").forEach((row) => {
+    if (row.dataset.pointerFit || !row.querySelector(".community-pointer-slot")) return;
+    row.dataset.pointerFit = "1";
+    communityFitPointerRow(row);
+    if (typeof MutationObserver === "function") {
+      new MutationObserver(() => requestAnimationFrame(() => { if (row.isConnected) communityFitPointerRow(row); }))
+        .observe(row, { childList: true, characterData: true, subtree: true });
+    }
+  });
+}
+
+if (typeof window !== "undefined" && window.addEventListener) {
+  let communityFitFrame = 0;
+  window.addEventListener("resize", () => {
+    cancelAnimationFrame(communityFitFrame);
+    communityFitFrame = requestAnimationFrame(() => communityLiveAll(".detail-top-row[data-pointer-fit]").forEach(communityFitPointerRow));
+  });
 }
 
 function communityPatchDistance(section, metres) {
@@ -939,6 +990,7 @@ function communityPresentSection(section, local = communityReadLocal(), accurate
     section.dataset.tierRaw = want;
   }
   const have = section.dataset.tier || "";
+  if (want === "near") communityDismissNudgeFor(target); // the card itself is the prompt now
   if (want === have) {
     if (want === "near") communityAnnounceArrival(section, kind);
     return;
@@ -952,6 +1004,12 @@ function communityPresentSection(section, local = communityReadLocal(), accurate
   }
   communityApplyTier(section, want);
   if (want === "near") communityAnnounceArrival(section, kind);
+}
+
+// A nudge card about this target is redundant once its check card is promoted to the top.
+function communityDismissNudgeFor(target) {
+  const nudge = document.getElementById("communityNudge");
+  if (nudge && nudge.dataset.communityTarget === target) communityNudgeDismiss();
 }
 
 function communityAnnounceArrival(section, kind) {
@@ -1188,10 +1246,10 @@ function communityFocusWhenReady(button, tries = 6) {
 
 // The pointer chip and the placeholder: bring the card into view, open it if it is the quiet row, put
 // focus on Verify/Confirm and highlight it briefly.
-function communityGotoCheck(trigger) {
-  // Not while the screen is still sliding in: the slide resets the scroll position at its end.
-  if (communitySlideActive()) {
-    setTimeout(() => { if (trigger.isConnected) communityGotoCheck(trigger); }, 60);
+function communityGotoCheck(trigger, waited = 0) {
+  // Not while the screen is still sliding in: the slide resets the scroll position at its end (waits at most ~600 ms).
+  if (communitySlideActive() && waited < COMMUNITY_SLIDE_WAIT_MAX_MS) {
+    setTimeout(() => { if (trigger.isConnected) communityGotoCheck(trigger, waited + 60); }, 60);
     return;
   }
   const article = trigger.closest(".tree-detail, .place-detail");
@@ -1604,6 +1662,7 @@ function communityNudgeShow(tree, metres) {
   const el = document.createElement("div");
   el.id = "communityNudge";
   el.className = "community-nudge";
+  el.dataset.communityTarget = communityTreeTarget(tree);
   el.setAttribute("role", "status");
   const species = typeof treeSpeciesIconHtml === "function" ? treeSpeciesIconHtml(tree.commonName, tree.latinName, "community-nudge-art") : "";
   el.innerHTML = `<span class="community-nudge-icon">${species || communityIcon("shield")}</span>
@@ -1775,7 +1834,6 @@ async function communitySubmitNewTree() {
   const say = (text) => { if (statusEl) statusEl.textContent = text; };
   const tag = ((document.getElementById("communityTagInput") || {}).value || "").trim();
   const note = ((document.getElementById("communityTreeNote") || {}).value || "").trim();
-  const fix = communityCurrentFix();
   if (!tag) return say("Please enter the tree's tag number.");
   let photo = null;
   try {
@@ -1784,12 +1842,13 @@ async function communitySubmitNewTree() {
     return say(error.message || "Could not prepare that photo.");
   }
   if (normalizeTreeNumber(tag) === "0" || !normalizeTreeNumber(tag)) return say("That isn't a usable tag number. Look for the number printed on the tag.");
-  if (!fix.ok) return say("We need a close, accurate location. Stand next to the tree and wait for a better GPS fix.");
+  const fix = communityCurrentFix();
+  const here = communityFixLatLon();
+  if (!fix.ok || !here) return say("We need a close, accurate location. Stand next to the tree and wait for a better GPS fix.");
   const known = (state.trees || []).find((tree) => tree.tagNumber != null && normalizeTreeNumber(tree.tagNumber) === normalizeTreeNumber(tag));
   if (known) {
     return say(`Tag ${tag} is already on the map (${treeDisplayName(known)}). Open that tree and check it instead.`);
   }
-  const here = communityFixLatLon();
   const lat = Number(here.latitude.toFixed(6));
   const lon = Number(here.longitude.toFixed(6));
   await communitySubmitReport({ kind: "tree", status: "NEW_TREE", target: undefined, targetLat: lat, targetLon: lon, tagNumber: tag, accuracy: Math.round(fix.accuracy), note, photo });
@@ -1880,16 +1939,16 @@ async function communitySubmitNewPlace() {
   const name = ((document.getElementById("communityPlaceName") || {}).value || "").trim();
   const category = ((document.getElementById("communityPlaceType") || {}).value || "Other").trim();
   const note = ((document.getElementById("communityPlaceNote") || {}).value || "").trim();
-  const fix = communityCurrentFix();
   if (!name) return say("Please enter the place's name.");
-  if (!fix.ok) return say("We need a close, accurate location. Stand at the place and wait for a better GPS fix.");
   let photo = null;
   try {
     photo = await prepareReportPhoto(document.getElementById("communityPlacePhoto")?.files?.[0]);
   } catch (error) {
     return say(error.message || "Could not prepare that photo.");
   }
+  const fix = communityCurrentFix();
   const here = communityFixLatLon();
+  if (!fix.ok || !here) return say("We need a close, accurate location. Stand at the place and wait for a better GPS fix.");
   const lat = Number(here.latitude.toFixed(6));
   const lon = Number(here.longitude.toFixed(6));
   const key = `new:${lat.toFixed(5)},${lon.toFixed(5)}`;
@@ -2063,13 +2122,13 @@ function communityPlaceConfirmationHtml(place) {
 }
 
 function communityRefreshPlaceConfirmation(target) {
-  document.querySelectorAll(".community-place-status-slot").forEach((slot) => {
+  communityLiveAll(".community-place-status-slot").forEach((slot) => {
     if (slot.dataset.placeKey === target) slot.innerHTML = communityPlaceStatusHtml(target);
   });
-  document.querySelectorAll(".community-place-status-chip-slot").forEach((slot) => {
+  communityLiveAll(".community-place-status-chip-slot").forEach((slot) => {
     if (slot.dataset.placeKey === target) slot.innerHTML = communityPlaceStatusChipHtml(target);
   });
-  document.querySelectorAll(".community-place-status-detail-slot").forEach((slot) => {
+  communityLiveAll(".community-place-status-detail-slot").forEach((slot) => {
     if (slot.dataset.placeKey === target) slot.innerHTML = communityPlaceStatusDetailHtml(target);
   });
 }

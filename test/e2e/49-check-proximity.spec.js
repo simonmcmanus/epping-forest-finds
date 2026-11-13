@@ -864,3 +864,124 @@ test.describe("Check card layout across phone widths", () => {
     expect(place.after).toBeGreaterThanOrEqual(8);
   });
 });
+
+// --- Polish: the Check chip never costs a line, the near cue is an eyebrow, the answered head settles, nudges yield ---
+
+// Whether the distance pill and every visible action share one line (compared by their vertical centres).
+async function topRowOneLine(page) {
+  return page.evaluate(() => {
+    const row = document.querySelector("#inspectorBody .detail-top-row");
+    const visible = (el) => { const cs = getComputedStyle(el); const r = el.getBoundingClientRect(); return cs.visibility !== "hidden" && cs.display !== "none" && r.width > 0 && r.height > 0; };
+    const items = [row.querySelector('[data-live-field="distance"]'), ...row.querySelectorAll(".detail-top-actions button, .detail-top-actions a")].filter((el) => el && visible(el));
+    const centres = items.map((el) => { const r = el.getBoundingClientRect(); return r.top + r.height / 2; });
+    const label = row.querySelector(".community-check-pointer-label");
+    return { oneLine: Math.max(...centres) - Math.min(...centres) <= 1, count: items.length, labelVisible: Boolean(label && visible(label)) };
+  });
+}
+
+test.describe("Check chip and near cue layout on phones", () => {
+  test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 5 }, permissions: ["geolocation"] });
+  test.beforeEach(async ({ page }) => { await page.emulateMedia({ reducedMotion: "reduce" }); });
+
+  for (const width of [320, 360, 390, 414]) {
+    for (const kind of ["tree", "place"]) {
+      test(`at ${width} px the ${kind} Check chip never makes the top row wrap, and shows its label only when it fits`, async ({ page, context }) => {
+        await page.setViewportSize({ width, height: 800 });
+        if (kind === "tree") await setup(page, TREE_HASH); else { await setup(page); await openPlace(page); }
+        for (const [metres, km] of [[2800, true], [275, false]]) {
+          await walkTo(page, context, metres);
+          await page.waitForFunction((wantKm) => {
+            const pill = document.querySelector('#inspectorBody [data-live-field="distance"]');
+            return pill && (wantKm ? /km/ : /\d+ m\b/).test(pill.textContent);
+          }, km);
+          await waitForUiToSettle(page);
+          const withChip = await topRowOneLine(page);
+          // The same detail with the chip swapped for one more plain 36 px button: what the row does on base.
+          await page.evaluate(() => {
+            const slot = document.querySelector("#inspectorBody .community-pointer-slot");
+            slot.style.display = "none";
+            const stand = document.createElement("button");
+            stand.id = "standIn"; stand.style.cssText = "width:36px;height:36px;padding:0;border:0";
+            slot.before(stand);
+          });
+          const base = await topRowOneLine(page);
+          await page.evaluate(() => {
+            document.getElementById("standIn").remove();
+            document.querySelector("#inspectorBody .community-pointer-slot").style.display = "";
+          });
+          const label = `${kind} ${width}px ${km ? "km" : "short"}`;
+          if (base.oneLine) expect(withChip.oneLine, `${label}: pill and buttons on one line`).toBe(true);
+          if (withChip.labelVisible) expect(withChip.oneLine, `${label}: label only when it fits`).toBe(true);
+          if (width === 414 && !km) expect(withChip.labelVisible, `${label}: label shown when it fits`).toBe(true);
+          if (width === 320 && km) expect(withChip.labelVisible, `${label}: icon only`).toBe(false);
+        }
+      });
+
+      if (width >= 360) test(`at ${width} px the ${kind} near cue is an eyebrow above the title and the subtitle stays on one line`, async ({ page, context }) => {
+        await page.setViewportSize({ width, height: 800 });
+        if (kind === "tree") { await setup(page, TREE_HASH); await walkTo(page, context, 4); }
+        else { await setup(page); await openPlace(page); await walkTo(page, context, 20); }
+        await expect(page.locator(CARD)).toHaveAttribute("data-tier", "near");
+        await waitForUiToSettle(page);
+        const g = await page.evaluate(() => {
+          const q = (s) => document.querySelector(`#inspectorBody .community-check ${s}`).getBoundingClientRect();
+          const sub = document.querySelector("#inspectorBody .community-check .community-sub");
+          const line = parseFloat(getComputedStyle(sub).lineHeight) || parseFloat(getComputedStyle(sub).fontSize) * 1.4;
+          const cue = q(".community-here-cue"); const title = q(".community-title");
+          return { cueBottom: cue.bottom, titleTop: title.top, cueLeft: cue.left, titleLeft: title.left, subLines: Math.round(sub.getBoundingClientRect().height / line) };
+        });
+        expect(g.subLines).toBe(1);
+        expect(g.cueBottom).toBeLessThanOrEqual(g.titleTop + 0.5);
+        expect(Math.abs(g.cueLeft - g.titleLeft)).toBeLessThanOrEqual(1);
+      });
+    }
+  }
+
+  test("answering at the tree leaves no head or cue behind: the summary is the card's only content once motion ends", async ({ page, context }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await setup(page, TREE_HASH);
+    await walkTo(page, context, 4);
+    await expect(page.locator(CARD)).toHaveAttribute("data-tier", "near");
+    await page.locator(CARD).locator(".community-verify").click();
+    await expect(page.locator(CARD).locator(".community-mine")).toContainText("You reported: Verified here");
+    await page.waitForFunction(() => document.getAnimations().length === 0);
+    const g = await page.evaluate(() => {
+      const card = document.querySelector("#inspectorBody .community-check");
+      const shown = (el) => { const cs = getComputedStyle(el); const r = el.getBoundingClientRect(); return cs.display !== "none" && cs.visibility !== "hidden" && r.height > 0; };
+      return {
+        head: card.querySelector(".community-head").getBoundingClientRect().height,
+        cue: card.querySelector(".community-here-cue").getBoundingClientRect().height,
+        headShown: shown(card.querySelector(".community-head")),
+        quietShown: shown(card.querySelector(".community-quiet-toggle")),
+        summaryShown: shown(card.querySelector(".community-mine")),
+        title: card.querySelector(".community-title").getBoundingClientRect().height,
+      };
+    });
+    expect(g.head).toBeLessThanOrEqual(0.5);
+    expect(g.cue).toBeLessThanOrEqual(0.5);
+    expect(g.headShown).toBe(false);
+    expect(g.quietShown).toBe(false);
+    expect(g.summaryShown).toBe(true);
+  });
+
+  test("a nudge about the tree whose check card is near is dismissed; a nudge about another tree stays", async ({ page, context }) => {
+    await setup(page, TREE_HASH);
+    await walkTo(page, context, 120);
+    await expect(page.locator(CARD)).toHaveAttribute("data-tier", "approaching");
+    await page.evaluate(() => communityNudgeShow(state.selected.item, 100));
+    await expect(page.locator("#communityNudge")).toHaveCount(1);
+    await walkTo(page, context, 4);
+    await expect(page.locator(CARD)).toHaveAttribute("data-tier", "near");
+    await expect(page.locator("#communityNudge")).toHaveCount(0);
+    // Another tree's nudge is not redundant with this card.
+    await page.evaluate(() => {
+      const other = state.trees.find((tree) => tree !== state.selected.item && communityTreeTarget(tree) !== communityTreeTarget(state.selected.item));
+      communityNudgeShow(other, 100);
+      communityUpdatePresentation();
+    });
+    await expect(page.locator("#communityNudge")).toHaveCount(1);
+    // And the same tree's nudge, shown while the card is already near, goes on the next presentation.
+    await page.evaluate(() => { communityNudgeShow(state.selected.item, 100); communityUpdatePresentation(); });
+    await expect(page.locator("#communityNudge")).toHaveCount(0);
+  });
+});
