@@ -4,7 +4,6 @@ const MAP_PNG_ICON_SIZE = 30;
 // The 30 CSS-px clustering radius below was tuned against the original 16px icon size; scale
 // it with MAP_PNG_ICON_SIZE so bigger pins merge into a count badge sooner instead of just
 // overlapping each other when a lot of them fall close together.
-const CLUSTER_RADIUS_ICON_SIZE_REF = 16;
 const MAX_MAP_TREES = 60;
 const SELECTED_OVERLAY_PULSE_PERIOD_MS = 380;  // Shared pulse period for smooth animation
 const USER_RADAR_RADIUS_METRES = 80;
@@ -1564,41 +1563,6 @@ function drawLayer(ctx, layer) {
   ctx.restore();
 }
 
-// Buckets points into cells the size of the clustering radius, so a neighbour search only has to
-// look at the 3x3 block of cells around a point instead of every other point on the map. A cell
-// edge equal to the radius guarantees that: two points within `radius` of each other can never be
-// more than one cell apart on either axis, so the 3x3 block never misses a real neighbour. This is
-// what turns clustering from an all-pairs O(n^2) scan into one bounded by how many points actually
-// land near each other -- the difference that matters once a fully zoomed-out view puts every item
-// in the forest on screen (and therefore "eligible") at once, redone on every animation frame of a
-// pan or zoom.
-function buildScreenPointGrid(points, cellSize, screenPointOf) {
-  const grid = new Map();
-  for (const point of points) {
-    const { x, y } = screenPointOf(point);
-    const key = `${Math.floor(x / cellSize)},${Math.floor(y / cellSize)}`;
-    let bucket = grid.get(key);
-    if (!bucket) {
-      bucket = [];
-      grid.set(key, bucket);
-    }
-    bucket.push(point);
-  }
-  return grid;
-}
-
-function forEachNearbyGridPoint(grid, cellSize, screenPointOf, origin, visit) {
-  const cx = Math.floor(origin.x / cellSize);
-  const cy = Math.floor(origin.y / cellSize);
-  for (let dx = -1; dx <= 1; dx++) {
-    for (let dy = -1; dy <= 1; dy++) {
-      const bucket = grid.get(`${cx + dx},${cy + dy}`);
-      if (!bucket) continue;
-      for (const point of bucket) visit(point);
-    }
-  }
-}
-
 // Every marker on the map -- a lone pin or a group -- is built by this one pass, so what is drawn
 // is exactly what is tappable (findClusterHit, js/inspector.js) in the flat and the tilted view.
 //
@@ -1607,6 +1571,8 @@ function forEachNearbyGridPoint(grid, cellSize, screenPointOf, origin, visit) {
 const MARKER_TYPES = ["tree", "landmark", "cow", "path", "water"];
 // Breathing room added around every marker's collision box.
 const MARKER_COLLISION_GAP_CSS_PX = 4;
+// Past this many items in a seed's 3x3 cell block, occupancy replaces the exact overlap count.
+const MARKER_DENSITY_EXACT_LIMIT = 32;
 
 // The rectangle a compact cluster face covers with its tail and its count chip, relative to the
 // anchor point. Worst case on the chip (a "99+" label), at scale 1: one uniform box for every
@@ -1631,7 +1597,8 @@ function markerCollisionBox(dpr) {
 // ordinary single-item pin.
 function buildMapMarkers(lookup, toScreen) {
   const box = markerCollisionBox(pixelRatio());
-  const cell = Math.max(box.width, box.height);
+  const boxW = box.width, boxH = box.height;
+  const cell = Math.max(boxW, boxH);
   const nodes = [];
   for (const type of MARKER_TYPES) {
     const set = lookup && lookup[type];
@@ -1639,17 +1606,48 @@ function buildMapMarkers(lookup, toScreen) {
     for (const item of set) {
       if (!item.point) continue;
       const sp = toScreen(item.point);
-      nodes.push({ item, type, sp, order: nodes.length, density: 0, claimed: false });
+      if (!Number.isFinite(sp.x) || !Number.isFinite(sp.y)) continue;
+      nodes.push({ item, type, sp, order: nodes.length, density: 0, claimed: false, cx: Math.floor(sp.x / cell), cy: Math.floor(sp.y / cell) });
     }
   }
   if (!nodes.length) return [];
-  const screenPointOf = (n) => n.sp;
-  const grid = buildScreenPointGrid(nodes, cell, screenPointOf);
-  const overlaps = (a, b) => Math.abs(a.sp.x - b.sp.x) < box.width && Math.abs(a.sp.y - b.sp.y) < box.height;
+  // Numeric cell keys (a collision between two far-apart cells only adds candidates the exact
+  // box test below rejects). A cell edge equal to the box's longer side guarantees an overlapping
+  // item is never more than one cell away on either axis, so a 3x3 block never misses one.
+  const cellKey = (cx, cy) => cx * 4194304 + cy;
+  const grid = new Map();
   for (const node of nodes) {
-    forEachNearbyGridPoint(grid, cell, screenPointOf, node.sp, (other) => {
-      if (other !== node && overlaps(node, other)) node.density++;
-    });
+    const key = cellKey(node.cx, node.cy);
+    const bucket = grid.get(key);
+    if (bucket) bucket.push(node);
+    else grid.set(key, [node]);
+  }
+  // Seed priority is the number of other items inside the item's own box. In a crowded block
+  // that exact count would be quadratic, so past DENSITY_EXACT_LIMIT the block's occupancy stands
+  // in for it (always ranked above any exact count), keeping this linear in the item count.
+  for (const node of nodes) {
+    let occupancy = 0;
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const bucket = grid.get(cellKey(node.cx + dx, node.cy + dy));
+        if (bucket) occupancy += bucket.length;
+      }
+    }
+    if (occupancy > MARKER_DENSITY_EXACT_LIMIT) {
+      node.density = occupancy;
+      continue;
+    }
+    let count = 0;
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const bucket = grid.get(cellKey(node.cx + dx, node.cy + dy));
+        if (!bucket) continue;
+        for (const other of bucket) {
+          if (other !== node && Math.abs(other.sp.x - node.sp.x) < boxW && Math.abs(other.sp.y - node.sp.y) < boxH) count++;
+        }
+      }
+    }
+    node.density = count;
   }
   const seeds = nodes.slice().sort((a, b) => b.density - a.density || a.order - b.order);
   const markers = [];
@@ -1658,18 +1656,29 @@ function buildMapMarkers(lookup, toScreen) {
     seed.claimed = true;
     const members = [seed];
     if (seed.density) {
-      forEachNearbyGridPoint(grid, cell, screenPointOf, seed.sp, (other) => {
-        if (other.claimed || !overlaps(seed, other)) return;
-        other.claimed = true;
-        members.push(other);
-      });
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const bucket = grid.get(cellKey(seed.cx + dx, seed.cy + dy));
+          if (!bucket) continue;
+          for (const other of bucket) {
+            if (other.claimed || Math.abs(other.sp.x - seed.sp.x) >= boxW || Math.abs(other.sp.y - seed.sp.y) >= boxH) continue;
+            other.claimed = true;
+            members.push(other);
+          }
+        }
+      }
       members.sort((a, b) => a.order - b.order);
     }
     const itemsByType = {};
-    for (const member of members) (itemsByType[member.type] || (itemsByType[member.type] = [])).push(member.item);
+    const items = new Array(members.length);
+    for (let i = 0; i < members.length; i++) {
+      const member = members[i];
+      items[i] = member.item;
+      (itemsByType[member.type] || (itemsByType[member.type] = [])).push(member.item);
+    }
     const types = Object.keys(itemsByType);
     markers.push({
-      items: members.map(m => m.item),
+      items,
       itemsByType,
       itemType: types.length > 1 ? "_mega" : types[0],
       screenPt: seed.sp,
@@ -1856,6 +1865,9 @@ function drawFilterTransitionPins(ctx, toScreen) {
 // frame could still catch pins mid-shrink depending on exactly when the interruption landed.
 function settleClusterJoinAnimations() {
   _clusterJoinAnimations.clear();
+  // Also forget which size each item was last drawn in: a lone-to-group jump is what starts a
+  // join, so without this the very next draw after a camera change would start one again.
+  _prevClusterSizeByItem.clear();
 }
 
 // Returns null when a cluster's items should draw exactly as they always have (a lone pin, or
@@ -1976,22 +1988,30 @@ function markerItemIconSrc(type, item) {
   }
 }
 
-// A marker's distinct kinds of thing, most common first (ties keep category then item order):
-// what its face draws. Kinds are what a person tells apart by artwork -- tree species sharing an
-// icon share a slot, landmarks split by the pin they draw (pub, cafe, shop, station, ...), and the
-// other categories are one kind each.
+// The chips a group's face shows (at most two). Kinds are what artwork tells apart: tree species
+// sharing an icon share a slot, landmarks split by the pin they draw (pub, cafe, shop, station,
+// ...), and cows, paths and water are one kind each. A group of several categories shows one chip
+// per category first -- the categories with most items first, ties in category order, each as its
+// most common kind -- so no category is hidden behind another's species; only a single-category
+// group shows its second most common kind as the second chip.
 function clusterPreviewEntries(marker) {
-  const byKey = new Map();
+  const byCategory = [];
   for (const type of MARKER_TYPES) {
-    for (const item of marker.itemsByType[type] || []) {
+    const items = marker.itemsByType[type];
+    if (!items || !items.length) continue;
+    const byKey = new Map();
+    for (const item of items) {
       const src = markerItemIconSrc(type, item);
       const key = type === "tree" ? `tree:${src}` : type === "landmark" ? `landmark:${landmarkClusterKey(item)}` : type;
       const entry = byKey.get(key);
       if (entry) entry.count++;
       else byKey.set(key, { key, src, count: 1, itemType: type });
     }
+    byCategory.push({ total: items.length, kinds: Array.from(byKey.values()).sort((a, b) => b.count - a.count) });
   }
-  return Array.from(byKey.values()).sort((a, b) => b.count - a.count);
+  byCategory.sort((a, b) => b.total - a.total);
+  if (byCategory.length === 1) return byCategory[0].kinds.slice(0, 2);
+  return byCategory.slice(0, 2).map(category => category.kinds[0]);
 }
 
 // One category's icon, cropped to a circle, sitting directly on the badge underneath it -- no
@@ -2070,7 +2090,7 @@ function drawClusterMarker(ctx, x, y, count, iconSources, dpr, scale = 1) {
   if (sources.length === 1) {
     drawClusterIconChip(ctx, cx, cy, sources[0], R * 0.86);
   } else {
-    sources.forEach((src, i) => drawClusterIconChip(ctx, cx + (i ? 1 : -1) * R * 0.6, cy, src, R * 0.58));
+    sources.forEach((src, i) => drawClusterIconChip(ctx, cx + (i ? 1 : -1) * R * 0.56, cy, src, R * 0.52));
   }
   ctx.beginPath();
   ctx.roundRect(b.countX - b.countWidth / 2, b.countY - b.countHeight / 2, b.countWidth, b.countHeight, 9 * u);
@@ -2110,6 +2130,20 @@ function lonePinOpacity(type, item) {
   return type === "landmark" || type === "cow" ? markerOpacityFor(type, item) : 1;
 }
 
+// A group is as strong as its strongest member, so a group of dimmed pins dims like its neighbours.
+function groupOpacity(marker) {
+  let best = 0;
+  for (const type of MARKER_TYPES) {
+    const items = marker.itemsByType[type];
+    if (!items) continue;
+    for (const item of items) {
+      best = Math.max(best, lonePinOpacity(type, item));
+      if (best >= 1) return 1;
+    }
+  }
+  return best;
+}
+
 // While a location is selected the Nearby pins give way to the selected destination.
 function pinsHiddenBySelection(tilted) {
   if (state.selectionTransition.mapHeld) return false;
@@ -2134,7 +2168,7 @@ function drawMapMarkers(ctx, markers, toScreen, tilted = false) {
     const joinState = clusterJoinAnimationState(marker);
     const joinScale = joinState ? joinState.badgeScale : 1;
     if (items.length > 1) {
-      ctx.globalAlpha = reveal;
+      ctx.globalAlpha = reveal * groupOpacity(marker);
       drawClusterMarker(ctx, screenPt.x, screenPt.y, items.length,
         clusterPreviewEntries(marker).map(entry => entry.src), dpr,
         Math.max(0.65, tiltScale) * joinScale * filterPinClusterScale(marker));

@@ -86,7 +86,7 @@ A map point (`state.nearbyAnchor`) the user has tapped on open map ground, previ
 ## Map Elements
 
 **Route line**
-A dashed line from the user's position to a navigation target. Orange in selected-detail mode; category-coloured in nearby mode (one line per cluster). In selected-detail mode the line follows the mapped road/path network when a walkable route can be found (see "Route Lines" in spec-data-rendering.md), falling back to a straight line when it can't; nearby-mode lines are always straight.
+A dashed line from the user's position to a navigation target. Orange in selected-detail mode; category-coloured in nearby mode. In selected-detail mode the line follows the mapped road/path network when a walkable route can be found (see "Route Lines" in spec-data-rendering.md), falling back to a straight line when it can't; nearby-mode lines are always straight.
 
 **Walking radius ring**
 The dashed circle drawn on the map centred on the user, showing the walking radius boundary.

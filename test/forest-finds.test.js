@@ -730,6 +730,7 @@ globalThis.__forestFindsTest = {
   clusterPreviewEntries,
   drawMapMarkers,
   clusterTreeIconSrc,
+  treeSpeciesIconPath,
   clusterJoinAnimationState,
   settleClusterJoinAnimations,
   zoomAlongTween,
@@ -1255,19 +1256,17 @@ test("a lone item stays an ordinary single-item map marker", () => {
   }
 });
 
-test("a mixed group's face shows its two most common kinds, and its count is the exact member count", () => {
+test("a mixed group's chips show one per category first, and its count is the exact member count", () => {
   const beech = { id: "beech", commonName: "Common beech", latinName: "Fagus sylvatica", point: { x: 0, y: 0 } };
   const oaks = [1, 2, 3].map(n => ({ id: `oak${n}`, commonName: "English oak", latinName: "Quercus robur", point: { x: n, y: 0 } }));
   const cow = { id: "cow", point: { x: 0, y: 1 } };
-  const pub = { id: "pub", name: "Pub", category: "pub", point: { x: 1, y: 1 } };
-  const markers = app.buildMapMarkers(markerLookup([
-    ...oaks.map(item => ({ type: "tree", item })), { type: "tree", item: beech },
-    { type: "cow", item: cow }, { type: "landmark", item: pub }]), markerScreen);
+  const items = [...oaks.map(item => ({ type: "tree", item })), { type: "tree", item: beech }, { type: "cow", item: cow }];
+  const markers = app.buildMapMarkers(markerLookup(items), markerScreen);
   assert.equal(markers.length, 1);
-  const entries = app.clusterPreviewEntries(markers[0]);
-  assert.equal(entries[0].count, 3, "the most common kind (three oaks) comes first");
-  assert.equal(entries[0].src, app.ICON_PATHS["tree-english-oak"]);
-  assert.ok(entries.length >= 3, "beech, cow and pub are separate kinds behind the two shown");
+  const entries = Array.from(app.clusterPreviewEntries(markers[0]));
+  assert.equal(entries.length, 2);
+  assert.equal(entries[0].src, app.ICON_PATHS["tree-english-oak"], "the biggest category shows its most common kind first");
+  assert.equal(entries[1].itemType, "cow", "a one-cow minority is not hidden behind a second tree species");
 
   const texts = [];
   const ctx = {
@@ -1276,10 +1275,59 @@ test("a mixed group's face shows its two most common kinds, and its count is the
     createRadialGradient() { return { addColorStop() {} }; },
     fillText(text) { texts.push(text); },
   };
-  app.drawMapMarkers(ctx, app.buildMapMarkers(markerLookup([
-    ...oaks.map(item => ({ type: "tree", item })), { type: "tree", item: beech },
-    { type: "cow", item: cow }, { type: "landmark", item: pub }]), markerScreen), markerScreen, false);
-  assert.deepEqual(texts, ["6"], "the badge shows the raw number of items in the group");
+  app.drawMapMarkers(ctx, markers, markerScreen, false);
+  assert.deepEqual(texts, ["5"], "the marker shows the raw number of items in the group");
+});
+
+test("a single-category group's second chip is its second most common kind", () => {
+  const oak = n => ({ commonName: "English oak", latinName: "Quercus robur", point: { x: n, y: 0 } });
+  const beech = n => ({ commonName: "Common beech", latinName: "Fagus sylvatica", point: { x: n, y: 1 } });
+  const items = [oak(0), oak(1), oak(2), beech(3)].map(item => ({ type: "tree", item }));
+  const entries = Array.from(app.clusterPreviewEntries(app.buildMapMarkers(markerLookup(items), markerScreen)[0]));
+  assert.deepEqual(entries.map(e => e.src), [app.ICON_PATHS["tree-english-oak"], app.treeSpeciesIconPath("Common beech", "Fagus sylvatica")]);
+});
+
+test("a long evenly spaced row closer than a marker's width does not chain into one marker", () => {
+  const width = app.clusterMarkerRect(0, 0, 100, app.pixelRatio(), 1);
+  const step = (width.right - width.left) * 0.6;
+  const items = Array.from({ length: 40 }, (_, i) => markerItem("tree", `r${i}`, i * step, 0));
+  const markers = app.buildMapMarkers(markerLookup(items), markerScreen);
+  assert.ok(markers.length > 4, "the row splits into several markers");
+  for (const marker of markers) {
+    const xs = Array.from(marker.items, item => item.point.x);
+    assert.ok(Math.max(...xs) - Math.min(...xs) <= 2 * (width.right - width.left), "a marker only reaches one box from its seed");
+  }
+});
+
+test("settling clears pending merges so the next frame starts none", () => {
+  const first = { point: { x: -10, y: 0 } };
+  const second = { point: { x: 10, y: 0 } };
+  app.clusterJoinAnimationState({ items: [first], screenPt: first.point }, 0);
+  app.clusterJoinAnimationState({ items: [second], screenPt: second.point }, 0);
+  app.settleClusterJoinAnimations();
+  assert.equal(app.clusterJoinAnimationState({ items: [first, second], screenPt: { x: 0, y: 0 } }, 1), null,
+    "a group that forms right after settling is drawn settled, not shrinking its members in");
+});
+
+test("a group of dimmed pins draws as dim as its neighbours", () => {
+  resetData(app);
+  const spot = makePoint(app, 51.665, 0.045);
+  const pubs = [1, 2].map(n => ({ id: `pub${n}`, name: "Pub", category: "pub", ...spot }));
+  app.state.selected = { type: "tree", item: { id: "sel", point: { x: 0, y: 0 } } };
+  app.state.selectionTransition.mapHeld = true;
+  const alphas = [];
+  const ctx = {
+    save() {}, restore() {}, beginPath() {}, closePath() {}, clip() {}, roundRect() {},
+    arc() {}, fill() {}, stroke() {}, lineTo() {}, moveTo() {}, drawImage() {}, fillText() {},
+    set globalAlpha(v) { alphas.push(v); },
+  };
+  try {
+    app.drawMapMarkers(ctx, app.buildMapMarkers(markerLookup(pubs.map(item => ({ type: "landmark", item }))), markerScreen.bind(null)), p => p, false);
+  } finally {
+    app.state.selectionTransition.mapHeld = false;
+    app.state.selected = null;
+  }
+  assert.ok(alphas.some(a => a > 0 && a < 1), "a group of non-selected places is dimmed like a lone one");
 });
 
 test("a tree cluster's icon is the shared species only when every member agrees", () => {

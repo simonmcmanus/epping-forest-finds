@@ -1957,7 +1957,7 @@ function updateNearbyRadiusPinch() {
 // The ring and the camera framing it (state.walkingDistanceMinutes plus an instant, unanimated
 // ensureOverviewTargetsVisible) are updated on every call, so both track the gesture at full
 // pointer rate -- canvas-only work, cheap regardless of how often it happens, now that clustering
-// is O(n) rather than all-pairs (see buildScreenPointGrid, js/renderer.js). What is not cheap is
+// is O(n) rather than all-pairs (see buildMapMarkers, js/renderer.js). What is not cheap is
 // the Nearby list's own HTML re-render and the nearest-item rescan (selectOverview,
 // refreshNearestTreeForNearbyOrigin) -- a pinch or trackpad pinch can fire many pointermove events
 // inside a single animation frame, and rebuilding the list on every one of them (rather than the
