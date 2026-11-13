@@ -419,11 +419,8 @@ function drawOverlay() {
 function drawCommunityMarks(ctx, toScreen) {
   if (typeof communityMapMarks !== "function") return;
   const onCommunityScreen = Boolean(state.selected) && state.selected.type === "community";
-  // Trees walkers have added show for everyone on every other screen; the Community screen
-  // shows only the user's own reports.
-  const shared = onCommunityScreen ? [] : communityOverlayNewTreeMarks();
-  const own = onCommunityScreen ? communityMapMarks() : (state.selected && state.selected.type === "tree" && typeof communitySelectedTreeMarks === "function" ? communitySelectedTreeMarks() : []);
-  const marks = shared.concat(own);
+  if (!onCommunityScreen) return;
+  const marks = communityMapMarks();
   if (!marks.length) return;
   if (!toScreen) toScreen = worldToScreen;
   const dpr = pixelRatio();
