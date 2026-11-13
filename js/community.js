@@ -757,9 +757,10 @@ function communityPointerSlotHtml(target, kind, tier) {
   return `<span class="community-pointer-slot${shown ? " is-shown" : ""}" data-pointer-for="${escapeHtml(target)}"><span class="community-pointer-inner"><button type="button" class="community-check-pointer" data-action="community-goto-check" aria-label="${escapeHtml(label)}">${communityIcon("shield")}<span class="community-check-pointer-label">Check</span></button></span></span>`;
 }
 
-// The quiet row left in the usual slot while the card is promoted to the top.
+// The row left in the usual slot while the card is promoted: the far row's call to action, pointing up to the card.
 function communityPlaceholderHtml(target, tier, kind = "tree") {
-  return `<div class="community-placeholder${tier === "near" ? " is-shown" : ""}" data-placeholder-for="${escapeHtml(target)}"><div class="community-placeholder-inner"><button type="button" class="community-row-btn community-placeholder-btn" data-action="community-goto-check">${communityIcon("arrowUp")}<span>Check moved to the top: you're at the ${kind === "place" ? "place" : "tree"}</span></button></div></div>`;
+  const noun = kind === "place" ? "place" : "tree";
+  return `<div class="community-placeholder${tier === "near" ? " is-shown" : ""}" data-placeholder-for="${escapeHtml(target)}"><div class="community-placeholder-inner"><button type="button" class="community-row-btn community-placeholder-btn" data-action="community-goto-check"><span class="community-head-icon">${communityIcon("shield")}</span><span class="community-quiet-copy"><strong class="community-quiet-title">Help check this ${noun}</strong><small>You're at the ${noun}</small></span>${communityIcon("chevron", "community-icon community-quiet-chevron")}</button></div></div>`;
 }
 
 function communityCardHtml({ kind, target, lat, lon, tier, reported, sectionClass = "", attrs = "", title, sub, body }) {

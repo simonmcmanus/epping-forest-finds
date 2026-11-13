@@ -160,7 +160,12 @@ test.describe("Check card while walking up to a tree", () => {
     await expect(card.locator(".community-here-cue")).toBeVisible();
     await expect(page.locator(POINTER)).toBeHidden();
     await expect(page.locator(PLACEHOLDER)).toBeVisible();
-    await expect(page.locator(PLACEHOLDER)).toContainText("Check moved to the top: you're at the tree");
+    // The usual slot keeps the normal call to action, as a plain button pointing up at the card.
+    await expect(page.locator(PLACEHOLDER).locator(".community-quiet-title")).toHaveText("Help check this tree");
+    await expect(page.locator(PLACEHOLDER).locator("small")).toHaveText("You're at the tree");
+    await expect(page.locator(PLACEHOLDER)).not.toHaveAttribute("aria-expanded", /.*/);
+    await expect(page.locator(PLACEHOLDER)).toHaveAccessibleName(/Help check this tree\s*You're at the tree/);
+    await expect(page.locator(PLACEHOLDER)).not.toContainText("moved to the top");
     await expect(card.locator(".community-here-cue")).toHaveText("You're at the tree");
     await expect(page.locator("#communityAnnounce")).toContainText("You're at this tree. You can verify it now.");
     await waitForUiToSettle(page);
@@ -173,8 +178,10 @@ test.describe("Check card while walking up to a tree", () => {
     expect(placeholder.y).toBeLessThan(nearest.y);
 
     // The placeholder takes the user to the card and puts them on Verify.
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await page.locator(PLACEHOLDER).click();
     await expect(card.locator(".community-verify")).toBeFocused();
+    await expect(card.locator(".community-verify")).toBeInViewport();
   });
 
   test("jitter inside the hysteresis band never moves the card, and walking away puts it back with its pointer", async ({ page, context }) => {
@@ -496,7 +503,9 @@ test.describe("Place check by proximity", () => {
     await expect(page.locator(PLACEHOLDER)).toBeVisible();
     await expect(page.locator("#communityAnnounce")).toContainText("You're at this place. You can confirm it now.");
     await expect(card.locator(".community-here-cue")).toHaveText("You're at the place");
-    await expect(page.locator(PLACEHOLDER)).toContainText("Check moved to the top: you're at the place");
+    await expect(page.locator(PLACEHOLDER).locator(".community-quiet-title")).toHaveText("Help check this place");
+    await expect(page.locator(PLACEHOLDER).locator("small")).toHaveText("You're at the place");
+    await expect(page.locator(PLACEHOLDER)).not.toHaveAttribute("aria-expanded", /.*/);
     await walkTo(page, context, 46);
     await waitForFrames(page, 10);
     await expect(card).toHaveAttribute("data-tier", "near");
