@@ -54,7 +54,7 @@ const APP_EMPTY_STATE =
 // so the first render and the live render draw identical icon buttons.
 const SHARE_ICON_SVG = '<svg class="detail-map-icon-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 3v12M8 7l4-4 4 4M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
 const MAP_PIN_ICON_SVG = '<svg class="detail-map-icon-glyph" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="9.5" r="2.5" fill="none" stroke="currentColor" stroke-width="2"/></svg>';
-const APP_INSPECTOR_TOOLS ='<div class="inspector-tools">';
+const APP_INSPECTOR_TOOLS = '<div class="inspector-tools tools-empty">';
 const APP_INSPECTOR_TITLE ='<h2 id="inspectorTitle">Epping Forest Finds</h2>';
 const APP_INSPECTOR_TYPE = '<p id="inspectorType" class="type"></p>';
 const APP_INSPECTOR_EMOJI = '<span id="inspectorTitleEmoji" class="inspector-title-emoji" aria-hidden="true" hidden></span>';
@@ -275,7 +275,7 @@ function renderBusinessPage(entry, appHtml, rules, index) {
   );
   // The live place view hides the tools bar (its rule above the title, showLandmarkDetails); the
   // static panel has to hide it too, or that rule vanishes the moment the live view takes over.
-  html = replaceOnce(html, APP_INSPECTOR_TOOLS, '<div class="inspector-tools" hidden>', "inspector tools bar");
+  html = replaceOnce(html, APP_INSPECTOR_TOOLS, '<div class="inspector-tools tools-empty" hidden>', "inspector tools bar");
   // The header the live page sets through setInspectorSelectionChrome() and detail views: the
   // business's own name, its category, and its category icon -- not the app's generic title.
   html = replaceOnce(html, APP_INSPECTOR_TITLE, `<h2 id="inspectorTitle">${escapeHtml(entry.name)}</h2>`, "inspector title");
