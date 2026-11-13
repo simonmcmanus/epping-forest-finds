@@ -1001,6 +1001,21 @@ test.describe("Nudge pulse and Verify ring never stack", () => {
     });
   }
 
+  test("a nudge check that lands while the screen is still sliding in still pulses the card once it has settled", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await setup(page, "/nearby");
+    await page.waitForFunction(() => state.userLocation && !state.userLocation.isDefault && state.trees.length > 0);
+    await installNudgeHere(page);
+    await page.evaluate(() => localStorage.removeItem("ff-community-nudge-seen-v1"));
+    const sliding = await page.evaluate(() => {
+      focusOverviewItem("tree", treeHashKey(state.trees[0]));
+      nudgeHere();
+      return communitySlideActive();
+    });
+    expect(sliding).toBe(true);
+    await expect(page.locator(".community-check.community-nudge-pulse")).toHaveCount(1);
+  });
+
   for (const motion of ["no-preference", "reduce"]) {
     test(`a nudge check on the tree's page pulses the card even while the ring is running, and the ring yields (${motion})`, async ({ page, context }) => {
       await page.emulateMedia({ reducedMotion: motion });

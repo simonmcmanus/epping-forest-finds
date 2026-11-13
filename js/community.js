@@ -1630,7 +1630,9 @@ function communityNudgePulse(section, now) {
 
 // Called with every fresh GPS fix. Quiet unless the fix is real and accurate, the tree is close,
 // and this device has not already checked it or been nudged about it today.
-function communityNudgeCheck(now = Date.now()) {
+let communityNudgeSlideRetry = null;
+
+function communityNudgeCheck(now = Date.now(), slideWaited = 0) {
   if (!communityEnabled()) return;
   const local = communityReadLocal(); // once per fix: the cards and the nudge share it
   communityUpdatePresentation(local);
@@ -1653,7 +1655,15 @@ function communityNudgeCheck(now = Date.now()) {
   if (decision === "none") return;
   if (decision === "pulse") {
     communityNudgeDismiss(); // a card from the overview is moot once you are on the tree itself
-    if (communitySlideActive()) return;
+    if (communitySlideActive()) {
+      // The screen is still sliding in and the card is not settled: look again once it has (at most about 600 ms),
+      // rather than dropping the pulse for good. Not marked as seen until it is shown.
+      if (slideWaited < COMMUNITY_SLIDE_WAIT_MAX_MS) {
+        clearTimeout(communityNudgeSlideRetry);
+        communityNudgeSlideRetry = setTimeout(() => communityNudgeCheck(Date.now(), slideWaited + 60), 60);
+      }
+      return;
+    }
     const section = communityLive(".community-check");
     if (!section || section.dataset.communityTarget !== target) return;
     // One cue at a time: the nudge pulse takes the slot. A ring already playing on Verify yields, and a ring
