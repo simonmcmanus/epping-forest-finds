@@ -985,3 +985,62 @@ test.describe("Check chip and near cue layout on phones", () => {
     await expect(page.locator("#communityNudge")).toHaveCount(0);
   });
 });
+
+// --- One cue at a time on the tree's own page: the nudge pulse takes the slot, the Verify ring waits ---
+
+test.describe("Nudge pulse and Verify ring never stack", () => {
+  test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 5 }, permissions: ["geolocation"] });
+
+  // The fixture tree has a neighbour a few metres away, so say plainly that this tree is the one being stood next to.
+  async function installNudgeHere(page) {
+    await page.evaluate(() => {
+      window.nudgeHere = () => {
+        state.nearestTree = { tree: state.selected.item, metres: 5 };
+        communityNudgeCheck();
+      };
+    });
+  }
+
+  for (const motion of ["no-preference", "reduce"]) {
+    test(`a nudge check on the tree's page pulses the card even while the ring is running, and the ring yields (${motion})`, async ({ page, context }) => {
+      await page.emulateMedia({ reducedMotion: motion });
+      await setup(page, TREE_HASH);
+      await walkTo(page, context, 5);
+      await expect(page.locator(CARD)).toHaveAttribute("data-tier", "near");
+      await waitForUiToSettle(page);
+      await installNudgeHere(page);
+      expect(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)).toBe(motion === "reduce");
+      // The ring is mid-play on Verify, and this tree has not been nudged about yet.
+      await page.evaluate(() => {
+        localStorage.removeItem("ff-community-nudge-seen-v1");
+        document.querySelectorAll(".community-nudge-pulse").forEach((el) => el.classList.remove("community-nudge-pulse"));
+        document.querySelector("#inspectorBody .community-verify").classList.add("community-verify-hint");
+        nudgeHere();
+      });
+      await expect(page.locator(`${CARD}.community-nudge-pulse`)).toHaveCount(1);
+      await expect(page.locator(".community-verify-hint")).toHaveCount(0);
+    });
+
+    test(`a second nudge pulse is not cut short by the first one's timer (${motion})`, async ({ page, context }) => {
+      await page.emulateMedia({ reducedMotion: motion });
+      await setup(page, TREE_HASH);
+      await walkTo(page, context, 5);
+      await expect(page.locator(CARD)).toHaveAttribute("data-tier", "near");
+      await waitForUiToSettle(page);
+      await installNudgeHere(page);
+      await page.clock.install();
+      await page.evaluate(() => {
+        localStorage.removeItem("ff-community-nudge-seen-v1");
+        nudgeHere();
+      });
+      await expect(page.locator(`${CARD}.community-nudge-pulse`)).toHaveCount(1);
+      await page.clock.runFor(2000);
+      await page.evaluate(() => { localStorage.removeItem("ff-community-nudge-seen-v1"); nudgeHere(); });
+      // The first pulse's 2.6 s are over; the second one's are not.
+      await page.clock.runFor(1000);
+      await expect(page.locator(`${CARD}.community-nudge-pulse`)).toHaveCount(1);
+      await page.clock.runFor(2000);
+      await expect(page.locator(`${CARD}.community-nudge-pulse`)).toHaveCount(0);
+    });
+  }
+});

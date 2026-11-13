@@ -1613,6 +1613,21 @@ function communityNudgeDecision({ on, fixOk, isDefault, nearest, target, already
   return "card";
 }
 
+const communityPulseTimers = new WeakMap();
+
+// The card's pulse, once, however many fixes ask for it: a later request restarts the pulse and its single
+// timer, so an earlier request's timer can never cut the newer pulse short. The ring on Verify is stopped and
+// held back for the pulse's duration.
+function communityNudgePulse(section, now) {
+  clearTimeout(communityPulseTimers.get(section));
+  if (communityHint.button && section.contains(communityHint.button)) communityHint.button.classList.remove("community-verify-hint");
+  section.classList.remove("community-nudge-pulse");
+  void section.offsetWidth;
+  section.classList.add("community-nudge-pulse");
+  communityHint.quietUntil = now + COMMUNITY_NUDGE_PULSE_MS;
+  communityPulseTimers.set(section, setTimeout(() => section.classList.remove("community-nudge-pulse"), COMMUNITY_NUDGE_PULSE_MS));
+}
+
 // Called with every fresh GPS fix. Quiet unless the fix is real and accurate, the tree is close,
 // and this device has not already checked it or been nudged about it today.
 function communityNudgeCheck(now = Date.now()) {
@@ -1641,12 +1656,9 @@ function communityNudgeCheck(now = Date.now()) {
     if (communitySlideActive()) return;
     const section = communityLive(".community-check");
     if (!section || section.dataset.communityTarget !== target) return;
-    // One cue at a time: the card's pulse and the ring on Verify share a quiet window, so they never stack.
-    if (!communityHintPlaying() && !section.classList.contains("community-highlight")) {
-      section.classList.add("community-nudge-pulse");
-      communityHint.quietUntil = now + COMMUNITY_NUDGE_PULSE_MS;
-      setTimeout(() => section.classList.remove("community-nudge-pulse"), COMMUNITY_NUDGE_PULSE_MS);
-    }
+    // One cue at a time: the nudge pulse takes the slot. A ring already playing on Verify yields, and a ring
+    // that is due waits out the pulse's quiet window. Only a highlight (the user just pressed a pointer) is left alone.
+    if (!section.classList.contains("community-highlight")) communityNudgePulse(section, now);
   } else {
     communityNudgeShow(tree, nearest.metres);
     communityNudgeLastAt = now;
