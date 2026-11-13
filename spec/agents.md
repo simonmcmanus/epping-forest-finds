@@ -39,6 +39,13 @@ Skills live in `.claude/skills/` (Claude Code) and `.agents/skills/` (Codex). Us
 - **Throwaway UX/logic experiment:** `/prototype`. Delete the prototype code before committing.
 - **Code review:** use independent `reviewer` plus selected risk lenses from `/team`; keep Standards
   and Spec as separate questions without automatically launching another duplicate review team.
+- **Codex pre-push gate:** before pushing or opening/updating a pull request, freeze the clean
+  head, run the general `reviewer`, select only the applicable specialist lenses, and run or audit
+  `test-runner` with exact-head evidence. Fix blockers and actionable major findings, then rerun
+  every affected review and test gate. If literal Claude subagents are unavailable, perform
+  equivalent isolated review passes from `.claude/agents/` and report that limitation; never claim
+  a Claude model invocation ran when it did not. The post-push GitHub Claude review remains
+  independent and does not replace this local gate or human approval.
 - **Wrap-up (optional):** `/retro`.
 
 ### Issue tracker
