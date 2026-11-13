@@ -1049,12 +1049,12 @@ test.describe("Nudge pulse and Verify ring never stack", () => {
         nudgeHere();
       });
       await expect(page.locator(`${CARD}.community-nudge-pulse`)).toHaveCount(1);
-      await page.clock.runFor(2000);
+      await page.clock.fastForward(2000);
       await page.evaluate(() => { localStorage.removeItem("ff-community-nudge-seen-v1"); nudgeHere(); });
       // The first pulse's 2.6 s are over; the second one's are not.
-      await page.clock.runFor(1000);
+      await page.clock.fastForward(1000);
       await expect(page.locator(`${CARD}.community-nudge-pulse`)).toHaveCount(1);
-      await page.clock.runFor(2000);
+      await page.clock.fastForward(2000);
       await expect(page.locator(`${CARD}.community-nudge-pulse`)).toHaveCount(0);
     });
   }
