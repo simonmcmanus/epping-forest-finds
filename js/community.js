@@ -929,7 +929,7 @@ function communityUpdatePresentation(local = communityReadLocal()) {
 // (same accessible name). Decided by probing the row with the chip fully open and its label showing, without
 // transitions, so the answer does not depend on where the chip's own open/close animation is. It runs when the
 // row is first seen, when its content changes (the distance pill, the verified chip) and when the width changes,
-// never on a plain GPS fix.
+// not on a GPS fix that leaves the row unchanged.
 function communityFitPointerRow(row) {
   const slot = row.querySelector(".community-pointer-slot");
   const pill = row.querySelector('[data-live-field="distance"]');
