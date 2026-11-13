@@ -330,6 +330,13 @@ function showUpdateBanner() {
   });
 }
 
+function resetUpdateBannerButton() {
+  const button = document.getElementById("updateBannerButton");
+  if (!button) return;
+  button.disabled = false;
+  button.textContent = "Restart";
+}
+
 // Before announcing a waiting worker, let it finish its own data sync so the one restart brings
 // the app and the map data together instead of a second "reload for new data" prompt after it.
 // A failed or timed-out sync still announces the update: the worker's shell is complete either way.
@@ -378,6 +385,7 @@ async function applySwUpdate() {
   }
 
   if (state.swWaiting) {
+    const previousController = navigator.serviceWorker && navigator.serviceWorker.controller;
     state.swPendingReload = true;
     try {
       state.swWaiting.postMessage({ type: "SKIP_WAITING" });
@@ -388,7 +396,21 @@ async function applySwUpdate() {
     // controllerchange normally reloads the page. Keep a long safety net for browsers that do
     // not deliver controllerchange after a worker has already finished installing; this path is
     // only reachable after the complete replacement worker was downloaded.
-    setTimeout(() => location.reload(), 10000);
+    setTimeout(() => {
+      // A reload while the old worker is still controlling the page just serves the old shell
+      // again, after which the same waiting worker shows this banner again. Only use the safety
+      // net when the replacement is actually in control; otherwise leave the page usable and
+      // let the person retry activation.
+      const currentController = navigator.serviceWorker && navigator.serviceWorker.controller;
+      if (currentController && currentController !== previousController) {
+        location.reload();
+        return;
+      }
+      state.swPendingReload = false;
+      setAppUpdateStatus("failed");
+      resetUpdateBannerButton();
+      setRefreshStatus("The update could not be activated. Your current app is still safe.", { error: true });
+    }, 10000);
     return true;
   }
 
