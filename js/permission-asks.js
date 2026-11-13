@@ -158,7 +158,7 @@ function showLocationInviteBanner(message, { canRequest = true, title = "Get a m
     cleanup();
     hideNoticeCard(banner);
     rememberLocationChoice("granted");
-    locateUser({ initial: false });
+    locateUser({ initial: false, preserveSelection: true });
   }
 
   function onDecline() {
@@ -468,10 +468,10 @@ function showConsentBanner({ askLocation = false, askAnalytics = false, offerOnb
     if (stage === "permissions") {
       rememberLocationChoice("granted");
       if (analyticsChoice() === "undecided") setAnalyticsConsent(true);
-      locateUser({ initial: false });
+      locateUser({ initial: false, preserveSelection: true });
     } else if (stage === "location") {
       rememberLocationChoice("granted");
-      locateUser({ initial: false });
+      locateUser({ initial: false, preserveSelection: true });
     } else if (stage === "analytics") {
       setAnalyticsConsent(true);
     } else {
