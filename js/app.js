@@ -1089,11 +1089,19 @@ function withBootLocationTimeout(locationPromise) {
   ]);
 }
 
-function locateUser({ initial }) {
+function locateUser({ initial, preserveSelection = false }) {
   if (!Native.geolocation) {
     setStatus("This browser does not support location access.");
     return;
   }
+
+  // An interactive location invite can be accepted while a reader is looking at a find. Keep
+  // that detail open while the first fix is being obtained; applyLocationFix() normally clears a
+  // live selection because locating from a detail view historically meant returning to Nearby.
+  // The permission prompt is an enhancement to the current view, not navigation away from it.
+  const selectionToPreserve = preserveSelection && state.selected && state.selected.item
+    ? state.selected
+    : null;
 
   // A request that can change an empty Nearby list, or a landing's own list, shows a loading state in
   // its place rather than leaving the list blank or unchanged until the fix arrives. A list already
@@ -1110,7 +1118,9 @@ function locateUser({ initial }) {
   Native.geolocation.getCurrentPosition(
     (position) => {
       setLocationRequestPending(false);
+      const shouldPreserveSelection = selectionToPreserve && state.selected === selectionToPreserve;
       const { latitude, longitude, previousPoint } = applyLocationFix(position);
+      if (shouldPreserveSelection && !state.selected) state.selected = selectionToPreserve;
       ensureLocationWatch();
       setLoadStep("location", "done");
       syncSettingsLocationRow();
@@ -1122,12 +1132,21 @@ function locateUser({ initial }) {
       updateFarFromForest(latitude, longitude);
 
       if (isOverviewScreenActive()) selectOverview();
+      else if (shouldPreserveSelection) updateSelectedDetailFields();
       if (!previousPoint) {
         setInspectorMinimized(false);
-        ensureOverviewTargetsVisible({ animate: true, durationMs: 1000 });
+        if (shouldPreserveSelection) {
+          ensureUserAndSelectionVisible({ animate: true, force: true, assumeInspectorOpen: true, durationMs: 1000 });
+        } else {
+          ensureOverviewTargetsVisible({ animate: true, durationMs: 1000 });
+        }
       } else {
-        ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
-        keepOverviewCenteredOnUser(previousPoint);
+        if (shouldPreserveSelection) {
+          ensureUserAndSelectionVisible({ animate: true, force: true, assumeInspectorOpen: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
+        } else {
+          ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS });
+          keepOverviewCenteredOnUser(previousPoint);
+        }
       }
       if (!initial) {
         const nearestTreeText = state.nearestTree

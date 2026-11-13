@@ -433,6 +433,27 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("#mapCanvas")).toBeVisible();
     });
 
+    test("sharing location from a find keeps that find open", async ({ page }) => {
+      await page.evaluate(() => {
+        navigateInApp("/nearby#tree=r17338");
+        els.consentBanner.hidden = true;
+        showLocationInviteBanner("Share your location", { canRequest: true });
+        navigator.geolocation.getCurrentPosition = (success) => success({
+          coords: { latitude: 51.6650, longitude: 0.0450, accuracy: 10 },
+          timestamp: Date.now(),
+        });
+      });
+
+      await expect(page.locator("#inspectorBody")).toContainText("English Oak");
+      await page.locator("#locationInviteButton").click();
+      await expect.poll(() => page.evaluate(() => ({
+        route: window.location.hash,
+        selected: state.selected?.type,
+        isReal: hasRealLocation(),
+      }))).toEqual({ route: "#tree=r17338", selected: "tree", isReal: true });
+      await expect(page.locator("#inspectorBody")).toContainText("English Oak");
+    });
+
     test("a landing-page arrival (/nearby/<slug>, simulated here via ?show=) with no real fix is centred on High Beach too, sorted by distance rather than an unsorted full category list", async ({ page }) => {
       // scripts/generate-find-pages.js's static /nearby/<slug>/ pages aren't built for this test
       // server (they're a production/Netlify-build concern, gitignored locally) -- a ?show= link
