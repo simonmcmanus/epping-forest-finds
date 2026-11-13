@@ -91,12 +91,14 @@ With the slot:
 - Never run the whole suite or pass `--update-snapshots`, `--config` or `--output`. Do not rerun
   a failure unless the lead asks for an intermittency check, then once, reporting both results;
   a passing retry does not erase the first failure.
-- A local screenshot mismatch is evidence to inspect, not a verdict. `test-results/` and
-  `playwright-report/` are not readable from here: report the failing assertion, the pixel or
-  dimension figures Playwright prints and the artifact paths for the lead. CI owns baselines.
-- `30-find-pages` and `32-public-nojs-snapshots` regenerate the gitignored `/nearby`, `/find` and
-  reports pages in `beforeAll`. Say so in the receipt's generated inputs; expect `git status` to
-  stay clean and report it if it does not.
+- A local screenshot mismatch is evidence to inspect, not a verdict. `.claude/settings.json`
+  denies reading `test-results/` and `playwright-report/`, so do not try: report the failing
+  assertion, the pixel or dimension figures Playwright prints and the artifact paths for the
+  lead. CI owns baselines.
+- A spec whose `beforeAll` calls a page generator (`30-find-pages`, `32-public-nojs-snapshots`
+  and both `31-*` snapshot specs today) rewrites the gitignored `/nearby`, `/find` or reports
+  pages on disk. Say so in the receipt's generated inputs; expect `git status` to stay clean
+  and report it if it does not.
 - Record a receipt per `docs/agents/review-contract.md` for every run: head SHA, tree status
   before and after, exact command, counts, first failure and artifact path. Mark environment
   fields you cannot read (Node, browser and dependency versions) as unknown rather than guessing.
