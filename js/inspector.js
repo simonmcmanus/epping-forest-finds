@@ -188,21 +188,6 @@ function findHit(screen, world) {
     return item === selectedItem || shouldDrawMapIcon(type, item, iconLookup);
   }
 
-  // Trees other walkers added are drawn as marks (drawCommunityMarks) over everything else, so a tap
-  // on one wins.
-  if (typeof communityOverlayNewTreeMarks === "function" && !(state.selected && state.selected.type === "community")) {
-    let bestAdded = null;
-    for (const mark of communityOverlayNewTreeMarks()) {
-      if (!mark.tag) continue;
-      const point = worldToScreen(projectLonLat(mark.lon, mark.lat));
-      const distance = Math.hypot(point.x - screen.x, point.y - screen.y);
-      if (distance < 22 * dpr && (!bestAdded || distance < bestAdded.distance)) {
-        bestAdded = { type: "addedtree", item: communityAddedTreeItem(mark), distance };
-      }
-    }
-    if (bestAdded) return bestAdded;
-  }
-
   let bestPlace = null;
   for (const place of state.landmarks) {
     if (!isTappablePin("landmark", place)) continue;

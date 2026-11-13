@@ -1582,7 +1582,8 @@ function communityMapMarks() {
 }
 
 // Trees other walkers have added (not in the City of London register yet), from the shared overlay.
-// Drawn as "added" marks on the ordinary map so everyone can see them.
+// These remain available for shared links and detail routes; map highlights are limited to the
+// Community screen so they do not sit over the ordinary map's labels and pins.
 function communityOverlayNewTreeMarks() {
   const marks = [];
   for (const [key, entry] of Object.entries(communityOverlay.entries || {})) {
