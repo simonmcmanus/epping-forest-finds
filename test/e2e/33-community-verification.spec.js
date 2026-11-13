@@ -10,6 +10,8 @@ const OVERLAY_URL = "**/api/community/overlay";
 // Far from the thing (or with no location) the check is the quiet row. Unfold it first, as a walker would;
 // a no-op once the card is open or answered.
 async function openCheck(page) {
+  // Wait for the card itself: whether it is the quiet row can only be decided once it is on the page.
+  await page.locator("#inspectorBody .community-check").first().waitFor({ state: "attached" });
   const toggle = page.locator("#inspectorBody .community-quiet-toggle");
   if (await toggle.isVisible() && (await toggle.getAttribute("aria-expanded")) !== "true") await toggle.click();
 }

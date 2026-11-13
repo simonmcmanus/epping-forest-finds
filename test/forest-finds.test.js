@@ -827,6 +827,7 @@ globalThis.__forestFindsTest = {
   communityPointsChipFor,
   communityNudgeDecision,
   communityProximityTier,
+  communityQuietSub,
   communityPendingScore,
   communityBadges,
   communityMergeRemoteReports,
@@ -12571,6 +12572,29 @@ test("the check card's proximity tier follows the walker, and GPS jitter at an e
   assert.equal(tier("near", null), "far");
   assert.equal(tier("approaching", undefined, "place"), "far");
   assert.equal(tier("far", NaN), "far");
+});
+
+test("the check card only promotes to near on an accurate fix, and a card already near stays near when accuracy degrades", () => {
+  const tier = (previous, metres, kind, accurate) => app.communityProximityTier(previous, metres, kind, accurate);
+  assert.equal(tier("far", 5, "tree", false), "approaching", "a poor fix inside the zone is capped at approaching");
+  assert.equal(tier("approaching", 5, "tree", false), "approaching");
+  assert.equal(tier("far", 30, "place", false), "approaching");
+  assert.equal(tier("approaching", 5, "tree", true), "near");
+  assert.equal(tier("near", 5, "tree", false), "near", "already near: poor accuracy alone does not demote");
+  assert.equal(tier("near", 16, "tree", false), "near");
+  assert.equal(tier("near", 18.5, "tree", false), "approaching", "only distance past the exit margin demotes");
+  assert.equal(tier("far", 5, "tree"), "near", "accurate by default");
+});
+
+test("the quiet check row says what is true: points need 10 m for trees, a place earns nothing for closeness", () => {
+  const tree = (m) => app.communityQuietSub(m, "tree");
+  const place = (m) => app.communityQuietSub(m, "place");
+  assert.equal(tree(240), "240 m away \u00b7 points need you within 10 m");
+  assert.equal(place(240), "240 m away \u00b7 confirm it when you visit");
+  assert.equal(tree(null), "Turn on location to earn points");
+  assert.equal(place(null), "Turn on location to see how far it is");
+  assert.doesNotMatch(place(240), /point/i);
+  assert.doesNotMatch(tree(240) + place(240) + tree(null) + place(null), /walk up to it|verify on the spot/i);
 });
 
 test("a recovery code is accepted as shown, in any case or spacing, and anything else is refused", () => {

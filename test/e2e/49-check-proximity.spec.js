@@ -26,15 +26,15 @@ test.beforeEach(async ({ page }) => {
 });
 
 // Puts the walker `metres` due north of the open location and waits for the app to take the fix.
-async function walkTo(page, context, metres) {
-  const spot = await page.evaluate((m) => ({
+async function walkTo(page, context, metres, accuracy = 5) {
+  const spot = await page.evaluate(([m, acc]) => ({
     latitude: state.selected.item.latitude + m / 111320,
     longitude: state.selected.item.longitude,
-    accuracy: 5,
-  }), metres);
+    accuracy: acc,
+  }), [metres, accuracy]);
   await context.setGeolocation(spot);
   // The fix itself: the You marker eases toward it, so userLocation may still be on its way.
-  await page.waitForFunction((s) => state.rawUserLocation && Math.abs(state.rawUserLocation.latitude - s.latitude) < 1e-6, spot);
+  await page.waitForFunction((s) => state.rawUserLocation && Math.abs(state.rawUserLocation.latitude - s.latitude) < 1e-6 && state.userLocation.accuracy === s.accuracy, spot);
 }
 
 async function tierOf(page) {
@@ -59,8 +59,8 @@ test.describe("Check card with no location", () => {
     await expect(toggle).toBeVisible();
     await expect(toggle).toHaveAttribute("aria-expanded", "false");
     await expect(toggle).toContainText("Help check this tree");
-    await expect(toggle).toContainText(/location/i);
-    await expect(toggle).toContainText(/verify on the spot/i);
+    await expect(toggle).toContainText("Turn on location to earn points");
+    await expect(toggle).not.toContainText(/verify on the spot|walk up to it/i);
     await expect(card.locator(".community-verify")).toBeHidden();
     const nearest = page.locator('h3.detail-section-heading:has-text("Nearest")');
     expect((await toggle.boundingBox()).y).toBeLessThan((await nearest.boundingBox()).y);
@@ -136,13 +136,15 @@ test.describe("Check card while walking up to a tree", () => {
     const card = page.locator(CARD);
     await expect(card).toHaveAttribute("data-tier", "far");
     await expect(card.locator(".community-quiet-toggle")).toContainText(/\d+(\.\d)? (m|km) away/);
-    await expect(card.locator(".community-quiet-toggle")).toContainText("walk up to it to verify");
+    await expect(card.locator(".community-quiet-toggle")).toContainText("points need you within 10 m");
+    await expect(card.locator(".community-quiet-toggle")).not.toContainText(/walk up to it/i);
 
     await walkTo(page, context, 120);
     await expect(card).toHaveAttribute("data-tier", "approaching");
     await expect(page.locator(USUAL_CARD)).toHaveCount(1);
     await expect(card.locator(".community-verify")).toBeVisible();
-    await expect(card.locator("[data-community-distance]:visible")).toContainText(/1[12]\d m away/);
+    await expect(card.locator("[data-community-distance]:visible")).toContainText(/1[12]\d m away \u00b7 get within 10 m for the point/);
+    await expect(card.locator("[data-community-distance]:visible")).toHaveCount(1);
     await expect(page.locator(POINTER)).toBeVisible();
     await expect(card.locator(".community-verify-hint")).toHaveCount(0);
 
@@ -158,7 +160,8 @@ test.describe("Check card while walking up to a tree", () => {
     await expect(card.locator(".community-here-cue")).toBeVisible();
     await expect(page.locator(POINTER)).toBeHidden();
     await expect(page.locator(PLACEHOLDER)).toBeVisible();
-    await expect(page.locator(PLACEHOLDER)).toContainText("check is at the top");
+    await expect(page.locator(PLACEHOLDER)).toContainText("Check moved to the top: you're at the tree");
+    await expect(card.locator(".community-here-cue")).toHaveText("You're at the tree");
     await expect(page.locator("#communityAnnounce")).toContainText("You're at this tree. You can verify it now.");
     await waitForUiToSettle(page);
     const topRow = await page.locator("#inspectorBody .detail-top-row").boundingBox();
@@ -270,17 +273,28 @@ test.describe("Check card while walking up to a tree", () => {
     await expect(card.locator(".community-quiet-toggle")).toBeHidden();
   });
 
-  test("verifying at the tree returns the answered summary to its usual place and removes the pointers", async ({ page, context }) => {
+  test("verifying at the tree leaves the answered summary at the top and removes the pointers; the next render puts it in its usual place", async ({ page, context }) => {
     await setup(page, TREE_HASH);
     await walkTo(page, context, 4);
     const card = page.locator(CARD);
     await expect(card).toHaveAttribute("data-tier", "near");
+    await page.evaluate(() => { document.querySelector("#inspectorBody .community-check").dataset.probe = "same-node"; });
     await card.locator(".community-verify").click();
     await expect(card.locator(".community-mine")).toContainText("You reported: Verified here");
-    await expect(page.locator(USUAL_CARD)).toHaveCount(1);
+    await expect(page.locator(TOP_CARD)).toHaveCount(1);
+    await expect(card).toHaveAttribute("data-probe", "same-node");
     await expect(card).not.toHaveAttribute("data-tier", /.+/);
     await expect(page.locator(PLACEHOLDER)).toBeHidden();
     await expect(page.locator(POINTER)).toBeHidden();
+    await waitForUiToSettle(page);
+    // The placeholder is gone without leaving a gap, and later fixes do not move the summary.
+    expect((await page.locator('#inspectorBody [data-community-slot="usual"]').boundingBox()).height).toBeLessThan(1);
+    await walkTo(page, context, 30);
+    await expect(page.locator(TOP_CARD)).toHaveCount(1);
+    // Rendering the detail again is the only thing that puts it in the usual slot.
+    await page.evaluate(() => showTreeDetails(state.selected.item, 4, "Tree record"));
+    await expect(page.locator(USUAL_CARD)).toHaveCount(1);
+    await expect(page.locator(TOP_CARD)).toHaveCount(0);
   });
 
   test("the subtle hint plays on Verify only when the user is at the tree and the button is on screen", async ({ page, context }) => {
@@ -338,12 +352,15 @@ test.describe("Place check by proximity", () => {
     const card = page.locator(CARD);
     await expect(card).toHaveAttribute("data-tier", "far");
     await expect(card.locator(".community-quiet-toggle")).toContainText("Help check this place");
+    await expect(card.locator(".community-quiet-toggle")).toContainText(/\d+(\.\d)? (m|km) away \u00b7 confirm it when you visit/);
+    await expect(card.locator(".community-quiet-toggle")).not.toContainText(/point/i);
     await expect(page.locator(POINTER)).toBeVisible();
     await expect(page.locator(POINTER)).toHaveAccessibleName(/check this place/i);
 
     await walkTo(page, context, 100);
     await expect(card).toHaveAttribute("data-tier", "approaching");
-    await expect(card.locator("[data-community-distance]:visible")).toContainText(/\d+ m away/);
+    await expect(card.locator("[data-community-distance]:visible")).toContainText(/^\d+ m away$/);
+    await expect(card.locator("[data-community-distance]:visible")).not.toContainText(/point|10 m/i);
     await expect(card.locator("[data-action='community-place-choose'][data-status='OPEN_CONFIRMED']")).toBeVisible();
 
     // 30 m is outside a tree's 10 m zone but inside a place's 40 m one.
@@ -351,7 +368,9 @@ test.describe("Place check by proximity", () => {
     await expect(card).toHaveAttribute("data-tier", "near");
     await expect(page.locator('#inspectorBody [data-community-slot="top"] .community-check')).toHaveCount(1);
     await expect(page.locator(PLACEHOLDER)).toBeVisible();
-    await expect(page.locator("#communityAnnounce")).toContainText("You're at this place. You can verify it now.");
+    await expect(page.locator("#communityAnnounce")).toContainText("You're at this place. You can confirm it now.");
+    await expect(card.locator(".community-here-cue")).toHaveText("You're at the place");
+    await expect(page.locator(PLACEHOLDER)).toContainText("Check moved to the top: you're at the place");
     await walkTo(page, context, 46);
     await waitForFrames(page, 10);
     await expect(card).toHaveAttribute("data-tier", "near");
@@ -366,11 +385,372 @@ test.describe("Place check by proximity", () => {
     await expect(card.locator(".community-verify")).toBeFocused();
     await card.locator(".community-verify").click();
     await expect(card.locator(".community-mine")).toContainText("You reported: Confirmed still right");
-    await expect(page.locator('#inspectorBody [data-community-slot="usual"] .community-check')).toHaveCount(1);
+    await expect(page.locator('#inspectorBody [data-community-slot="top"] .community-check')).toHaveCount(1);
     await expect(page.locator(PLACEHOLDER)).toBeHidden();
     await expect(page.locator(POINTER)).toBeHidden();
     await expect(page.locator(".detail-top-row .community-verified-chip")).toContainText("1");
     await waitForFrames(page, 20);
     expect(sent).toHaveLength(0);
+  });
+});
+
+// --- Repair round: accuracy, focus, announcements, reduced motion, layout ---
+
+test.describe("Check card with no location (places)", () => {
+  test.use({ geolocation: undefined, permissions: [] });
+
+  test("a place with no location says how to see the distance, not that it needs location to verify", async ({ page }) => {
+    await setup(page);
+    await openPlace(page);
+    const toggle = page.locator(CARD).locator(".community-quiet-toggle");
+    await expect(toggle).toContainText("Turn on location to see how far it is");
+    await expect(toggle).not.toContainText(/verify on the spot|walk up to it|point/i);
+  });
+});
+
+test.describe("Check card accuracy, focus and announcements", () => {
+  test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 5 }, permissions: ["geolocation"] });
+  test.beforeEach(async ({ page }) => { await page.emulateMedia({ reducedMotion: "no-preference" }); });
+
+  test("a poor fix inside the zone is capped at approaching, and a card already near stays near when accuracy degrades", async ({ page, context }) => {
+    await setup(page, TREE_HASH);
+    const card = page.locator(CARD);
+    await page.evaluate(() => {
+      window.__announced = [];
+      new MutationObserver(() => { const t = document.getElementById("communityAnnounce").textContent; if (t) window.__announced.push(t); })
+        .observe(document.getElementById("communityAnnounce"), { childList: true, characterData: true, subtree: true });
+    });
+    await walkTo(page, context, 5, 500);
+    await expect(card).toHaveAttribute("data-tier", "approaching");
+    await waitForFrames(page, 20);
+    await expect(card).toHaveAttribute("data-tier", "approaching");
+    await expect(page.locator(USUAL_CARD)).toHaveCount(1);
+    await expect(card.locator(".community-here-cue")).toBeHidden();
+    expect(await page.evaluate(() => window.__announced)).toEqual([]);
+
+    await walkTo(page, context, 4.5, 5);
+    await expect(card).toHaveAttribute("data-tier", "near");
+    await walkTo(page, context, 6, 500);
+    await waitForFrames(page, 20);
+    await expect(card).toHaveAttribute("data-tier", "near");
+    await expect(page.locator(TOP_CARD)).toHaveCount(1);
+  });
+
+  test("the announcement region exists, empty, before the arrival and receives the text once", async ({ page, context }) => {
+    await setup(page, TREE_HASH);
+    await expect(page.locator("#communityAnnounce")).toHaveText("");
+    await page.evaluate(() => {
+      window.__announced = [];
+      new MutationObserver(() => { const t = document.getElementById("communityAnnounce").textContent; if (t) window.__announced.push(t); })
+        .observe(document.getElementById("communityAnnounce"), { childList: true, characterData: true, subtree: true });
+    });
+    await walkTo(page, context, 5);
+    await expect(page.locator(CARD)).toHaveAttribute("data-tier", "near");
+    await expect.poll(() => page.evaluate(() => window.__announced.length)).toBe(1);
+    await walkTo(page, context, 6);
+    await walkTo(page, context, 4);
+    await waitForFrames(page, 30);
+    expect(await page.evaluate(() => window.__announced)).toEqual(["You're at this tree. You can verify it now."]);
+  });
+
+  test("keyboard-only verify at the tree puts focus on Change, leaves the card at the top and announces the save once", async ({ page, context }) => {
+    await setup(page, TREE_HASH);
+    await walkTo(page, context, 5);
+    const card = page.locator(CARD);
+    await expect(card).toHaveAttribute("data-tier", "near");
+    await expect(page.locator(TOP_CARD)).toHaveCount(1);
+    await page.evaluate(() => {
+      window.__announced = [];
+      new MutationObserver(() => { const t = document.getElementById("communityAnnounce").textContent; if (t) window.__announced.push(t); })
+        .observe(document.getElementById("communityAnnounce"), { childList: true, characterData: true, subtree: true });
+    });
+    await card.locator(".community-verify").focus();
+    await page.keyboard.press("Enter");
+    await expect(card.locator(".community-mine")).toContainText("You reported: Verified here");
+    await expect(card.locator("[data-action='community-change']")).toBeFocused();
+    await expect(page.locator(TOP_CARD)).toHaveCount(1);
+    await waitForFrames(page, 20);
+    expect(await page.evaluate(() => window.__announced.filter((t) => /Saved/.test(t)))).toHaveLength(1);
+    await expect(page.locator("#communityAnnounce")).toContainText(/Saved.*Verified here/);
+  });
+
+  test("a pointer that has keyboard focus is never hidden under the user", async ({ page, context }) => {
+    await setup(page, TREE_HASH);
+    await walkTo(page, context, 100);
+    const card = page.locator(CARD);
+    await expect(card).toHaveAttribute("data-tier", "approaching");
+    await page.locator(POINTER).focus();
+    await walkTo(page, context, 5);
+    await waitForFrames(page, 20);
+    const active = await page.evaluate(() => document.activeElement && (document.activeElement.className || document.activeElement.tagName));
+    expect(active).not.toBe("BODY");
+    await expect(page.locator(POINTER)).toBeFocused();
+    await expect(card).toHaveAttribute("data-tier", "approaching");
+    // Moving on is what lets it promote, and focus is still somewhere sensible.
+    await page.keyboard.press("Tab");
+    await expect(card).toHaveAttribute("data-tier", "near");
+    expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false);
+  });
+
+  test("activating the pointer from the keyboard puts focus on Verify, even on a folded far card", async ({ page, context }) => {
+    await setup(page, TREE_HASH);
+    const card = page.locator(CARD);
+    await expect(card).toHaveAttribute("data-tier", "far");
+    await expect(card.locator(".community-verify")).toBeHidden();
+    await page.locator(POINTER).focus();
+    await page.keyboard.press("Enter");
+    await expect(card.locator(".community-verify")).toBeVisible();
+    await expect(card.locator(".community-verify")).toBeFocused();
+  });
+
+  test("focus a tap left on a button stops holding the card once the card has been untouched for a while, but real use still holds it", async ({ page, context }) => {
+    await setup(page, TREE_HASH);
+    await walkTo(page, context, 100);
+    const card = page.locator(CARD);
+    await expect(card).toHaveAttribute("data-tier", "approaching");
+    await page.clock.install({ time: Date.now() });
+    // A tap on the alternatives toggle and on it again leaves focus on it, with nothing in progress.
+    await card.locator(".community-more").click();
+    await card.locator(".community-more").click();
+    await walkTo(page, context, 4);
+    await page.clock.fastForward(3000);
+    await expect(card).toHaveAttribute("data-tier", "approaching");
+    await page.clock.fastForward(8000);
+    await expect(card).toHaveAttribute("data-tier", "near");
+    await expect(page.locator(TOP_CARD)).toHaveCount(1);
+  });
+
+  test("an open set of alternatives holds the card however long it is left", async ({ page, context }) => {
+    await setup(page, TREE_HASH);
+    await walkTo(page, context, 100);
+    const card = page.locator(CARD);
+    await expect(card).toHaveAttribute("data-tier", "approaching");
+    await page.clock.install({ time: Date.now() });
+    await card.locator(".community-more").click();
+    await walkTo(page, context, 4);
+    await page.clock.fastForward(30000);
+    await expect(card).toHaveAttribute("data-tier", "approaching");
+    await expect(card.locator(".community-choices")).toBeVisible();
+  });
+
+  test("a COMMUNITY_UPDATED refresh while at the tree keeps the card at the top, unfolded and in its tier", async ({ page, context }) => {
+    await setup(page, TREE_HASH);
+    await walkTo(page, context, 4);
+    const card = page.locator(CARD);
+    await expect(card).toHaveAttribute("data-tier", "near");
+    await page.evaluate(() => {
+      document.querySelector("#inspectorBody .community-check").dataset.probe = "same-node";
+      const data = { generatedAt: Date.now(), entries: { "tree:17338": { s: "verified", n: 3 } } };
+      navigator.serviceWorker.dispatchEvent(new MessageEvent("message", { data: { type: "COMMUNITY_UPDATED", data } }));
+    });
+    await expect(page.locator(".detail-top-row .community-verified-chip")).toContainText("3");
+    await expect(card).toHaveAttribute("data-tier", "near");
+    await expect(card).toHaveAttribute("data-probe", "same-node");
+    await expect(page.locator(TOP_CARD)).toHaveCount(1);
+    await expect(card.locator(".community-verify")).toBeVisible();
+    await expect(page.locator(PLACEHOLDER)).toBeVisible();
+  });
+
+  test("a fix reads the local record once, however many cards and the nudge look at it", async ({ page, context }) => {
+    await setup(page, TREE_HASH);
+    await walkTo(page, context, 100);
+    await page.evaluate(() => {
+      window.__reads = 0;
+      const original = Storage.prototype.getItem;
+      Storage.prototype.getItem = function (key) { if (String(key).includes("ff-community-local")) window.__reads += 1; return original.call(this, key); };
+    });
+    await walkTo(page, context, 90);
+    await expect(page.locator(CARD).locator("[data-community-distance]:visible")).toContainText(/(8|9)\d m/);
+    await waitForFrames(page, 10);
+    const reads = await page.evaluate(() => window.__reads);
+    expect(reads).toBeGreaterThan(0);
+    expect(reads).toBeLessThanOrEqual(1);
+  });
+
+  test("a place note step while promoted: the card stays at the top on fixes while the note is pending, and sending shows the summary", async ({ page, context }) => {
+    const sent = [];
+    await page.route(ISSUE_URL, (route) => { sent.push(route.request().postDataJSON()); route.fulfill({ status: 200, body: "{}" }); });
+    await setup(page);
+    await openPlace(page);
+    const card = page.locator(CARD);
+    await walkTo(page, context, 20);
+    await expect(card).toHaveAttribute("data-tier", "near");
+    await card.locator(".community-more").click();
+    await card.locator("[data-action='community-place-choose'][data-status='CLOSED']").click();
+    await expect(card.locator(".community-note-input")).toBeVisible();
+    await walkTo(page, context, 120);
+    await walkTo(page, context, 300);
+    await waitForFrames(page, 20);
+    await expect(card).toHaveAttribute("data-tier", "near");
+    await expect(page.locator('#inspectorBody [data-community-slot="top"] .community-check')).toHaveCount(1);
+    await card.locator(".community-note-input").fill("It has closed down");
+    await card.locator("[data-action='community-send-place']").click();
+    await expect(card.locator(".community-mine")).toContainText("You reported");
+    await expect(page.locator('#inspectorBody [data-community-slot="top"] .community-check')).toHaveCount(1);
+    await expect(card.locator("[data-action='community-change']")).toBeFocused();
+    await expect.poll(() => sent.length).toBeGreaterThan(0);
+  });
+
+  test("the placeholder's focus ring is inside its clip", async ({ page, context }) => {
+    await setup(page, TREE_HASH);
+    await walkTo(page, context, 5);
+    await expect(page.locator(CARD)).toHaveAttribute("data-tier", "near");
+    await waitForUiToSettle(page);
+    await page.locator(PLACEHOLDER).focus();
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Tab");
+    await expect(page.locator(PLACEHOLDER)).toBeFocused();
+    const ring = await page.locator(PLACEHOLDER).evaluate((btn) => {
+      const cs = getComputedStyle(btn);
+      const r = btn.getBoundingClientRect();
+      const inner = btn.closest(".community-placeholder-inner").getBoundingClientRect();
+      const grow = parseFloat(cs.outlineOffset) + parseFloat(cs.outlineWidth);
+      return { style: cs.outlineStyle, bottom: r.bottom + Math.max(grow, 0), clip: inner.bottom, left: r.left - Math.max(grow, 0), clipLeft: inner.left };
+    });
+    expect(ring.style).not.toBe("none");
+    expect(ring.bottom).toBeLessThanOrEqual(ring.clip + 0.5);
+    expect(ring.left).toBeGreaterThanOrEqual(ring.clipLeft - 0.5);
+  });
+});
+
+test.describe("Check card folds without motion for reduced-motion users", () => {
+  test.use({ geolocation: undefined, permissions: [] });
+
+  test("toggling the far row has no transition in either direction", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await setup(page, TREE_HASH);
+    const card = page.locator(CARD);
+    const toggle = card.locator(".community-quiet-toggle");
+    const durations = () => card.evaluate((el) => {
+      const read = (node) => getComputedStyle(node).transitionDuration.split(",").map((d) => d.trim());
+      return [...read(el.querySelector(".community-fold")), ...read(el), ...read(el.querySelector(".community-quiet-chevron"))];
+    });
+    const zero = (list) => list.every((d) => d === "0s");
+    expect(zero(await durations())).toBe(true);
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    expect(zero(await durations())).toBe(true);
+    await toggle.click();
+    await expect(toggle).toHaveAttribute("aria-expanded", "false");
+    expect(zero(await durations())).toBe(true);
+  });
+});
+
+// --- Layout at the widths people really have ---
+
+async function geometry(page) {
+  return page.evaluate(() => {
+    const visible = (el) => { const cs = getComputedStyle(el); const r = el.getBoundingClientRect(); return cs.visibility !== "hidden" && cs.display !== "none" && r.width > 0 && r.height > 0; };
+    const row = document.querySelector("#inspectorBody .detail-top-row");
+    const panel = document.querySelector(".inspector-scroll");
+    const controls = [...row.querySelectorAll("button, a")].filter(visible).map((el) => ({ name: el.className, r: el.getBoundingClientRect() }));
+    const overlaps = [];
+    for (let i = 0; i < controls.length; i += 1) for (let j = i + 1; j < controls.length; j += 1) {
+      const a = controls[i].r; const b = controls[j].r;
+      if (a.left < b.right - 0.5 && b.left < a.right - 0.5 && a.top < b.bottom - 0.5 && b.top < a.bottom - 0.5) overlaps.push([controls[i].name, controls[j].name]);
+    }
+    const pill = row.querySelector('[data-live-field="distance"]');
+    const pillText = pill && [...pill.querySelectorAll("*")].filter((e) => !e.children.length && e.textContent.trim()).map((e) => e.scrollWidth <= e.clientWidth + 1);
+    const title = document.querySelector("#inspectorBody .community-check .community-title");
+    const cue = document.querySelector("#inspectorBody .community-check .community-here-cue");
+    const lineHeight = title ? parseFloat(getComputedStyle(title).lineHeight) || parseFloat(getComputedStyle(title).fontSize) * 1.3 : 0;
+    return {
+      // Element boxes (not the 4 px invisible hit areas that the map and share buttons carry as ::after).
+      rowOverflow: Math.max(0, ...[...row.querySelectorAll("*")].filter(visible).map((el) => el.getBoundingClientRect().right - row.getBoundingClientRect().right)),
+      panelOverflow: panel.scrollWidth - panel.clientWidth,
+      overlaps,
+      pillClipped: pillText ? pillText.includes(false) : false,
+      titleLines: title && visible(title) ? Math.round(title.getBoundingClientRect().height / lineHeight) : 0,
+      titleOverflow: title && visible(title) ? title.scrollWidth - title.clientWidth : 0,
+      cueClipped: cue && visible(cue) ? cue.scrollWidth > cue.clientWidth + 0.5 : false,
+      cueVisible: Boolean(cue && visible(cue)),
+    };
+  });
+}
+
+test.describe("Check card layout across phone widths", () => {
+  test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 5 }, permissions: ["geolocation"] });
+
+  for (const width of [320, 360, 380, 381, 414]) {
+    test(`at ${width} px a tree and a place fit their top row in far and near`, async ({ page, context }) => {
+      await page.setViewportSize({ width, height: 700 });
+      await page.route(OVERLAY_URL, (route) =>
+        route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: { [`tree:${FIXTURE_TREE.recordNumber}`]: { s: "verified", n: 3 } } }) }));
+      await setup(page, TREE_HASH);
+      await expect(page.locator(".detail-top-row .community-verified-chip")).toBeVisible();
+      const check = async (label, near) => {
+        await waitForUiToSettle(page);
+        const g = await geometry(page);
+        expect(g.rowOverflow, `${label} row overflow`).toBeLessThanOrEqual(0);
+        expect(g.panelOverflow, `${label} panel overflow`).toBeLessThanOrEqual(0);
+        expect(g.overlaps, `${label} overlapping controls`).toEqual([]);
+        expect(g.pillClipped, `${label} distance pill clipped`).toBe(false);
+        if (near) {
+          expect(g.cueVisible, `${label} cue shown`).toBe(true);
+          expect(g.cueClipped, `${label} cue clipped`).toBe(false);
+          expect(g.titleOverflow, `${label} title overflow`).toBeLessThanOrEqual(0);
+          expect(g.titleLines, `${label} title lines`).toBeLessThanOrEqual(2);
+        }
+      };
+      await check("tree far", false);
+      await walkTo(page, context, 5);
+      await expect(page.locator(CARD)).toHaveAttribute("data-tier", "near");
+      await check("tree near", true);
+
+      await page.goto("/");
+      await setup(page);
+      await openPlace(page);
+      await check("place far", false);
+      await walkTo(page, context, 20);
+      await expect(page.locator(CARD)).toHaveAttribute("data-tier", "near");
+      await check("place near", true);
+    });
+  }
+
+  test("the empty top slot and the hidden placeholder take no room, and a promoted place has the tree's rhythm", async ({ page, context }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    const heights = () => page.evaluate(() => {
+      const h = (sel) => { const el = document.querySelector(sel); return el ? el.getBoundingClientRect().height : -1; };
+      const card = document.querySelector("#inspectorBody .community-check").getBoundingClientRect();
+      const article = document.querySelector("#inspectorBody .tree-detail, #inspectorBody .place-detail");
+      // From the top row's own content (its bottom padding differs between trees and places) to the card.
+      const rowContent = [...document.querySelectorAll("#inspectorBody .detail-top-row *")]
+        .filter((el) => el.getBoundingClientRect().height > 0 && getComputedStyle(el).visibility !== "hidden")
+        .reduce((m, el) => Math.max(m, el.getBoundingClientRect().bottom), 0);
+      const before = card.top - rowContent;
+      const after = [...article.querySelectorAll(":scope > *, :scope > * > *")]
+        .filter((el) => el.getBoundingClientRect().top >= card.bottom - 0.5 && el.getBoundingClientRect().height > 0)
+        .reduce((m, el) => Math.min(m, el.getBoundingClientRect().top), Infinity) - card.bottom;
+      return { top: h('[data-community-slot="top"]'), placeholder: h(".community-placeholder"), before, after };
+    });
+    await setup(page, TREE_HASH);
+    const treeFar = await heights();
+    expect(treeFar.top).toBeLessThanOrEqual(0.5);
+    await walkTo(page, context, 5);
+    await expect(page.locator(CARD)).toHaveAttribute("data-tier", "near");
+    const tree = await heights();
+    await walkTo(page, context, 120);
+    await expect(page.locator(CARD)).toHaveAttribute("data-tier", "approaching");
+    const treeApproach = await heights();
+    expect(treeApproach.placeholder).toBeLessThanOrEqual(0.5);
+    expect(treeApproach.top).toBeLessThanOrEqual(0.5);
+
+    await page.goto("/");
+    await setup(page);
+    await openPlace(page);
+    const placeFar = await heights();
+    expect(placeFar.top).toBeLessThanOrEqual(0.5);
+    await walkTo(page, context, 20);
+    await expect(page.locator(CARD)).toHaveAttribute("data-tier", "near");
+    const place = await heights();
+    await walkTo(page, context, 100);
+    await expect(page.locator(CARD)).toHaveAttribute("data-tier", "approaching");
+    const placeApproach = await heights();
+    expect(placeApproach.placeholder).toBeLessThanOrEqual(0.5);
+    expect(placeApproach.top).toBeLessThanOrEqual(0.5);
+    // Space above and below the promoted card is the same as for the tree's, give or take a pixel or two.
+    expect(Math.abs(place.before - tree.before), `before ${JSON.stringify({ place, tree })}`).toBeLessThanOrEqual(3);
+    expect(place.before).toBeGreaterThanOrEqual(8);
+    expect(place.after).toBeGreaterThanOrEqual(8);
   });
 });
