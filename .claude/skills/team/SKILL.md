@@ -58,6 +58,10 @@ rendered evidence; do not spawn three experience specialists automatically. A da
 still needs source provenance, format/ID/slug invariants and the general reviewer. Add offline/native
 review when it changes file lists, formats or bundling. Paths are hints, not a reason to miss a risk.
 
+`progressive-enhancement-reviewer` can run the existing no-JS/boot specs itself. Give it the browser
+slot in its brief only while `test-runner` and other browser runs are idle; otherwise it reviews
+statically and names the check for `test-runner`.
+
 Collect concise structured findings with `proven-code`, `proven-test` or `needs-verification` evidence.
 Deduplicate overlapping defects. Batch blockers/majors into one repair round. After fixes recompute
 risk from the delta: rerun affected reviewers and newly implicated lenses; unaffected lens evidence
