@@ -379,6 +379,19 @@ test("when more pills fit than are visible, the row can scroll sideways and retu
   await expect.poll(() => page.evaluate(() => document.querySelector(".rail-pills").scrollLeft)).toBe(0);
 });
 
+test("narrow phones keep every navigation label inside its tab", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "the narrow-phone layout is mobile-only");
+  await setup(page, "/nearby");
+  await page.setViewportSize({ width: 280, height: 844 });
+  await expect.poll(() => page.locator(".inspector-actions > a").count()).toBe(4);
+  const labelsFit = await page.locator(".inspector-actions > a").evaluateAll((tabs) => tabs.every((tab) => {
+    const tabBox = tab.getBoundingClientRect();
+    const label = tab.querySelector(".nav-label").getBoundingClientRect();
+    return label.left >= tabBox.left && label.right <= tabBox.right && label.height <= tabBox.height;
+  }));
+  expect(labelsFit).toBe(true);
+});
+
 // Keep motion enabled: ordinary rail coverage uses reduced motion and would hide an intro nudge.
 test.describe("Nearby pill arrival", () => {
   test.use({ reducedMotion: "no-preference" });

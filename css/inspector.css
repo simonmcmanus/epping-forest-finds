@@ -706,6 +706,16 @@ button.settings-toggle.has-update::after {
   font-weight: 600;
   line-height: 1.3;
   letter-spacing: -0.2px;
+  white-space: nowrap;
+}
+
+/* The Back cell is deliberately reserved so the four tabs never shift when it appears. On the
+   narrowest supported phone that leaves Community a few pixels less than its natural label width;
+   scale only the labels there so every tab remains a single, contained target. */
+@media (max-width: 320px) {
+  .inspector-actions .nav-label {
+    font-size: 0.55rem;
+  }
 }
 
 .inspector-actions .nav-icon {
@@ -1401,13 +1411,15 @@ textarea.report-textarea {
   padding: 2px;
   overflow-x: auto;
   scrollbar-width: none;
-  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 14px), transparent);
-  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 14px), transparent);
+  /* Fade the clipped edge over enough space that a partial next pill reads as a scroll
+     affordance rather than a broken button in a phone screenshot. */
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 42px), transparent);
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 42px), transparent);
 }
 
 .filter-rail.has-left-overflow .rail-pills {
-  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 14px), transparent);
-  mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 14px), transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 42px), transparent);
+  mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 42px), transparent);
 }
 
 .rail-pills::-webkit-scrollbar {
