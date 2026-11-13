@@ -95,8 +95,9 @@ that switches on one frame while the others ease is the defect.
   `handleMapClick` (`js/inspector.js`), `openSearchResult` (`js/map-search.js`), `goToInitialView`
   (`js/nav.js`) and `showRoutedSelection` (`js/router.js`). A new path that sets or clears a
   selection without it moves the rotation pivot and tilt projection on the next frame.
-- **Anchor**: `headingUpAnchorFraction` (`js/app.js`). Nearby uses the plain tilt ramp; a selected
-  place mirrors it by the destination's bearing, so the user sits low on screen for a place
+- **Anchor**: `headingUpAnchorFraction` (`js/app.js`). Nearby uses the tilt ramp, centred instead
+  when browsing a spot away from the user and eased between the two along the browse-origin
+  slide (`tiltRampedAnchor`); a selected place mirrors the ramp by the destination's bearing, so the user sits low on screen for a place
   ahead and high for one behind. It is computed from the current selection, so it takes its new
   value the instant `state.selected` changes: check what carries the view from the old anchor to
   the new one, especially ahead-to-behind and place-to-place with different bearings.
