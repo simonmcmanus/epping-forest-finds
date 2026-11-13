@@ -52,6 +52,7 @@
   <link rel="stylesheet" href="css/map-ui.css">
   <link rel="stylesheet" href="css/onboarding.css">
   <link rel="stylesheet" href="css/tracking.css">
+  <link rel="stylesheet" href="css/adventure.css">
 </head>
 <body>
   <div class="app">
@@ -208,6 +209,19 @@
         <!-- The install prompt starts hidden. Mark the row empty in the server-rendered shell
              too, otherwise its padding creates a visible gap above the Nearby heading until
              boot can apply .tools-empty. -->
+        <div id="adventureBanner" class="adventure-banner" role="dialog" aria-labelledby="adventureTitle" aria-describedby="adventureMessage" hidden>
+          <div class="adventure-banner-art" aria-hidden="true"><img src="data/icons/trees/logo.png" alt=""></div>
+          <div class="adventure-banner-copy">
+            <span class="adventure-eyebrow">A little adventure nearby</span>
+            <strong id="adventureTitle">Meet an ancient tree</strong>
+            <p id="adventureMessage"></p>
+            <div id="adventureMeta" class="adventure-meta"></div>
+          </div>
+          <div class="adventure-banner-actions">
+            <button id="adventureDismiss" class="onboarding-skip-btn" type="button">Not now</button>
+            <button id="adventureStart" class="button" type="button">Let's go</button>
+          </div>
+        </div>
         <div class="inspector-tools tools-empty">
           <div class="search-shell">
             <button id="installButton" class="button install" type="button" hidden>Install</button>
@@ -249,6 +263,7 @@
   <script src="js/tracker.js"></script>
   <script src="js/outbox.js"></script>
   <script src="js/community.js"></script>
+  <script src="js/adventure.js"></script>
   <script src="js/nav.js"></script>
   <script src="js/routing.js"></script>
   <script src="js/loader.js"></script>

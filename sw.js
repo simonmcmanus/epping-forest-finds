@@ -34,6 +34,7 @@ const APP_SHELL = [
   "./css/map-ui.css",
   "./css/onboarding.css",
   "./css/tracking.css",
+  "./css/adventure.css",
   "./js/native.js",
   "./js/shared.js",
   "./js/categories.js",
@@ -62,6 +63,7 @@ const APP_SHELL = [
   "./js/tracker.js",
   "./js/outbox.js",
   "./js/community.js",
+  "./js/adventure.js",
   "./js/app.js",
 ];
 

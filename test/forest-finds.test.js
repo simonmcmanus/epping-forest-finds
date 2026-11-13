@@ -12534,6 +12534,16 @@ test("a verified tree scores 1 point, and 1 more when another device independent
   assert.equal(both.overlay["tree:1"].s, "confirmed");
 });
 
+test("the first verified nearby-tree adventure earns a one-time 10-point bonus", () => {
+  const first = communityConsensus.computeCommunityState([
+    communityReport({ deviceId: "device-aaaa", adventure: true }),
+    communityReport({ deviceId: "device-aaaa", target: "tree:2", targetLat: 51.641, lat: 51.641, adventure: true }),
+  ]);
+  const scores = first.scores["device-aaaa"];
+  assert.equal(scores.points, communityPointsConfig.POINTS.verify + communityPointsConfig.POINTS.adventure + communityPointsConfig.POINTS.verify);
+  assert.equal(scores.verified, 2);
+});
+
 test("conflicting reports are held for review rather than shown", () => {
   const { overlay, conflicts } = communityConsensus.computeCommunityState([
     communityReport({ status: "VERIFIED", deviceId: "device-aaaa" }),
@@ -13712,6 +13722,12 @@ test("register records are found by position in the public tree chunks, and a fa
 test("optimistic points mirror the server's configured values for a verify and a new tree", () => {
   assert.equal(app.COMMUNITY_POINTS.verify, communityPointsConfig.POINTS.verify);
   assert.equal(app.COMMUNITY_POINTS.newTree, communityPointsConfig.POINTS.newTree);
+  assert.equal(app.COMMUNITY_POINTS.adventure, communityPointsConfig.POINTS.adventure);
+});
+
+test("a fresh adventure verify adds ten points before the server knows", () => {
+  const local = { "tree:1": { id: "a", status: "VERIFIED", adventure: true, ts: 1000 } };
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 0)), JSON.stringify({ points: 10, verified: 1 }));
 });
 
 test("a fresh verify adds a point and a verified count before the server knows", () => {

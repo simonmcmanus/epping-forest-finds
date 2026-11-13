@@ -185,6 +185,7 @@ function computeCommunityState(reports, validations = [], owners = null) {
   // Scores. Verify = 1 point at once; +1 when an independent device agrees. New find = 1,
   // +3 once a second device finds it. A question that the community upheld = 2.
   const scores = Object.create(null);
+  const adventureAwarded = new Set();
   const ensure = (id) => (scores[id] ||= { points: 0, reports: 0, verified: 0, confirmed: 0, validated: 0, fixed: 0 });
   for (const [target, list] of byTarget) {
     const near = list.filter(isNear);
@@ -198,6 +199,11 @@ function computeCommunityState(reports, validations = [], owners = null) {
       } else if (cls === "confirm") {
         score.verified += 1;
         score.points += POINTS.verify;
+        const voter = voterOf(r.deviceId);
+        if (r.kind === "tree" && r.adventure === true && !adventureAwarded.has(voter)) {
+          score.points += POINTS.adventure;
+          adventureAwarded.add(voter);
+        }
         if (near.some((o) => voterOf(o.deviceId) !== voterOf(r.deviceId) && statusClass(o.kind, o.status) === "confirm")) {
           score.confirmed += 1;
           score.points += POINTS.verifyConfirmed;

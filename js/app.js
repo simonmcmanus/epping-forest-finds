@@ -1055,6 +1055,7 @@ function applyLocationFix(position) {
   state.nearestRestaurant = nearestPlaceByFilter(latitude, longitude, (place) => isRestaurantCategory(place));
   state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isRestaurantCategory(place) && !isCafeCategory(place) && !isShopCategory(place) && !isTransportCategory(place));
   state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
+  if (typeof adventureMaybeShow === "function") window.setTimeout(adventureMaybeShow, 250);
   // A cold load of /community has already opened its screen (boot); a fix must not wipe it. Nor
   // must Settings' own "Use my location": that answer shows in place, on the row that asked.
   if (!communityScreenOpen() && state.selected?.type !== "settings") state.selected = null;
