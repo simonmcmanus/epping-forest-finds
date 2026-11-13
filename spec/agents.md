@@ -70,6 +70,8 @@ agent frontmatter sets the normal model and turn budget. Escalate for a concrete
   `performance-reviewer` for frame/startup/payload risks; `progressive-enhancement-reviewer` for
   the no-JS to JS handoff (generated pages, initial markup, boot/first render, script order),
   running the existing focused no-JS/boot specs when the lead grants it the browser slot;
+  `transition-reviewer` for continuity between app states (screen/panel slides, selection, routes,
+  rail and list patches, the accompanying camera move), on the same browser-slot terms;
   `accessibility-reviewer`, `design-reviewer` and `ux-reviewer` when their specific risk changes.
   Do not launch every specialist for every edit.
 - `test-runner`: validates receipt provenance and coverage, executes missing or invalid checks and

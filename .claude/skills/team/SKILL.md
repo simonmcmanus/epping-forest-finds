@@ -49,6 +49,7 @@ and test contracts. Select additional lenses for concrete changed risks:
 | Cache/shell/data lists, fetch/failure path, outbox or native bundle | `offline-reviewer` |
 | Per-frame, startup, data loading, payload or battery cost | `performance-reviewer` |
 | Generated/static page markup, `app.html` initial state, boot/first-render takeover, script order or marketing load motion | `progressive-enhancement-reviewer` |
+| Screen switching, routing, inspector/panel chrome, list or rail rendering, camera moves or animation timing | `transition-reviewer` |
 | Focus, accessible names, targets, contrast, zoom or motion accessibility | `accessibility-reviewer` |
 | Significant visual hierarchy, layout, tokens or icon changes | `design-reviewer` |
 | New journeys, navigation, permission asks, error recovery or action/copy mismatch | `ux-reviewer` |
@@ -58,9 +59,9 @@ rendered evidence; do not spawn three experience specialists automatically. A da
 still needs source provenance, format/ID/slug invariants and the general reviewer. Add offline/native
 review when it changes file lists, formats or bundling. Paths are hints, not a reason to miss a risk.
 
-`progressive-enhancement-reviewer` can run the existing no-JS/boot specs itself. Give it the browser
-slot in its brief only while `test-runner` and other browser runs are idle; otherwise it reviews
-statically and names the check for `test-runner`.
+`progressive-enhancement-reviewer` and `transition-reviewer` can run their existing focused specs
+themselves. Give one of them the browser slot in its brief only while `test-runner` and every other
+browser run is idle; otherwise it reviews statically and names the check for `test-runner`.
 
 Collect concise structured findings with `proven-code`, `proven-test` or `needs-verification` evidence.
 Deduplicate overlapping defects. Batch blockers/majors into one repair round. After fixes recompute
