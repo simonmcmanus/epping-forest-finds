@@ -323,7 +323,7 @@ function findClusterHit(screen) {
   const toScreen = tilted ? worldToScreenForOverlayTilted
     : nearbyHeadingUpActive() ? worldToScreenForOverlay : worldToScreen;
   let hit = null;
-  for (const marker of buildMapMarkers(activeIconLookup(), toScreen)) {
+  for (const marker of buildActiveMapMarkers(toScreen)) {
     if (marker.items.length < 2) continue;
     const scale = tilted ? Math.max(0.65, tiltPinScale(marker.worldPt)) : 1;
     if (!clusterBadgeContains(screen, marker.screenPt.x, marker.screenPt.y, marker.items.length, dpr, scale)) continue;

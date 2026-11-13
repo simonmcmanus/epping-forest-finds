@@ -223,13 +223,17 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     };
     try { draw(); } finally { drawClusterMarker = drawnGroup; drawItemPin = drawnPin; delete overlay.fillText; }
     const covered = label ? rects.filter(r => label.left < r.right && r.left < label.right && label.top < r.bottom && r.top < label.bottom).length : -1;
-    return { markers: rects.length, labelDrawn: Boolean(label), covered, side: _userLabelSide };
+    const dot = worldToScreen(state.userLocation.point);
+    // Distance from the dot's centre to the nearest edge of the label box.
+    const gap = label ? Math.hypot(Math.max(label.left - dot.x, 0, dot.x - label.right), Math.max(label.top - dot.y, 0, dot.y - label.bottom)) : null;
+    return { markers: rects.length, labelDrawn: Boolean(label), covered, side: _userLabelSide, gap, dpr };
   })()`;
 
-  test('the You label never sits under or over a marker, at the default view and after zooming', async ({ page }) => {
+  test('the You label, when drawn, never touches a marker and stays beside the dot, at the default view and after zooming', async ({ page }) => {
     await setup(page);
     await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
     await waitForUiToSettle(page);
+    let shown = 0;
     for (const factor of [1, 0.45, 2.2]) {
       const view = await page.evaluate(`((factor) => {
         stopViewportAnimation();
@@ -244,9 +248,12 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
         state.emojiScaleAnimated = zoomEmojiScaleTarget();
         return ${MEASURE_YOU_LABEL};
       })(${factor})`);
-      expect(view.labelDrawn, `zoom x${factor}: the You label is drawn`).toBe(true);
+      if (!view.labelDrawn) continue;
+      shown += 1;
       expect(view.covered, `zoom x${factor}: markers over the You label`).toBe(0);
+      expect(view.gap, `zoom x${factor}: the label sits beside the dot`).toBeLessThanOrEqual(12 * view.dpr);
     }
+    expect(shown, 'the label is drawn in at least one of the views').toBeGreaterThan(0);
   });
 
   test('the You label steps aside when a marker stands right beside the user', async ({ page }) => {
@@ -256,7 +263,7 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     const view = await page.evaluate(`(() => {
       stopViewportAnimation();
       const dpr = pixelRatio();
-      const marker = buildMapMarkers(activeIconLookup(), worldToScreen)[0];
+      const marker = buildMapMarkers(activeIconLookup(), worldToScreen).reduce((a, b) => (a.screenPt.x <= b.screenPt.x ? a : b));
       // The user stands just left of the marker's face, level with it: the default right-hand label
       // would land on the marker, while the other three sides are clear.
       const face = clusterMarkerRect(marker.screenPt.x, marker.screenPt.y, marker.items.length, dpr, marker.items.length > 1 ? 1 : mapEmojiScale());
@@ -266,7 +273,24 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     })()`);
     expect(view.labelDrawn).toBe(true);
     expect(view.covered, 'markers over the You label').toBe(0);
+    expect(view.gap).toBeLessThanOrEqual(12 * view.dpr);
     expect(view.side, 'the label moved off the covered right side').not.toBe('right');
+  });
+
+  test('the You label is left out when markers cover every side of the dot', async ({ page }) => {
+    await setup(page);
+    await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
+    await waitForUiToSettle(page);
+    const view = await page.evaluate(`(() => {
+      stopViewportAnimation();
+      const dpr = pixelRatio();
+      const marker = buildMapMarkers(activeIconLookup(), worldToScreen).find(m => m.items.length > 1);
+      // The user stands in the middle of a group's face: right, left, below and above all touch it.
+      const face = clusterMarkerRect(marker.screenPt.x, marker.screenPt.y, marker.items.length, dpr, 1);
+      state.userLocation = { ...state.userLocation, point: screenToWorld((face.left + face.right) / 2, (face.top + face.bottom) / 2) };
+      return ${MEASURE_YOU_LABEL};
+    })()`);
+    expect(view.labelDrawn, 'no label when every side is covered').toBe(false);
   });
 
   test('the user dot and its label are painted after every pin, flat and heading-up', async ({ page }) => {

@@ -312,7 +312,7 @@ function draw() {
   drawSelectedRoute(ctx);
   if (!useOverlayForPins) {
     const nearbyIconLookup = activeIconLookup();
-    drawMapMarkers(ctx, buildMapMarkers(nearbyIconLookup, worldToScreen), worldToScreen);
+    drawMapMarkers(ctx, buildMapMarkers(nearbyIconLookup, worldToScreen, markerMemoryKey()), worldToScreen);
   }
   drawSelectedRoadOverlay(ctx);
   drawSelectedPathOverlay(ctx);
@@ -358,7 +358,7 @@ function drawOverlay() {
   if (isTilted) drawUserRadarOverlayTilted(ctx);
   else drawUserRadarOverlay(ctx, toScreen);
   if (useOverlayForPins) {
-    drawMapMarkers(ctx, buildMapMarkers(activeIconLookup(), toScreen), toScreen, true);
+    drawMapMarkers(ctx, buildActiveMapMarkers(toScreen), toScreen, true);
   }
   drawFilterTransitionPins(ctx, toScreen);
   drawUser(ctx, toScreen, isTilted);
@@ -1576,15 +1576,28 @@ const MARKER_DENSITY_EXACT_LIMIT = 32;
 // stays with the seed it had last time until it leaves this larger "split" box (this multiple of
 // the normal collision box on each axis).
 const MARKER_SPLIT_BOX_FACTOR = 1.25;
-let _markerSeedOfItem = new WeakMap();
-let _markerPrevSeeds = [];
+// Memory per lookup context (see markerMemoryKey), each a Map of seed item -> the items it held, in
+// seed order. Replaced wholesale by every build in its context, so it never outlives the items.
+const _markerMemory = new Map();
 
-// A clean slate for grouping: the next build forms its groups from scratch. Called wherever the
-// item set changes shape on purpose (a filter change); items that are absent or new never match
-// the old memory anyway.
+// A clean slate for grouping: the next build forms its groups from scratch. Called when the Nearby
+// filter set changes; builds in a context whose lookup was empty also start clean.
 function resetMarkerGroupMemory() {
-  _markerSeedOfItem = new WeakMap();
-  _markerPrevSeeds = [];
+  _markerMemory.clear();
+}
+
+// Memory belongs to one kind of lookup, so a narrowed one (an expanded cluster's members, search
+// results, a held transition) never overwrites the main map's.
+function markerMemoryKey() {
+  if (state.selectionTransition && state.selectionTransition.mapHeld) return "held";
+  if (state.searchScreenOpen && state.searchHighlightResults.length) return "search";
+  if (state.clusterExpanded) return "expanded";
+  return "main";
+}
+
+// The markers of what the map shows now: the one pass draw(), drawOverlay() and findClusterHit share.
+function buildActiveMapMarkers(toScreen) {
+  return buildMapMarkers(activeIconLookup(), toScreen, markerMemoryKey());
 }
 
 // The rectangle a compact cluster face covers with its tail and its count chip, relative to the
@@ -1602,7 +1615,8 @@ function markerCollisionBox(dpr) {
 //    order; the other candidates follow densest first (most other items inside their own box),
 //    ties broken by category then original order;
 //  - a seed claims every still-unclaimed item, of any category, whose box overlaps its own, and
-//    also keeps any item that was its member last time while it is inside the 1.25x split box;
+//    also keeps any item that was its member last time while it is inside the 1.25x split box
+//    (so a kept member can sit up to that far from its seed);
 //  - the marker is anchored at the seed item's own point, not at an average.
 // An item that no earlier seed claimed is outside every earlier seed's box by construction, so no
 // two markers can overlap (a remembered seed inside an earlier seed's box is simply absorbed).
@@ -1612,12 +1626,12 @@ function markerCollisionBox(dpr) {
 // Returns [{ items, itemsByType, itemType, screenPt, worldPt }]. `itemType` is the one category of
 // the group, or "_mega" when the group mixes categories. A group that claimed nothing is an
 // ordinary single-item pin.
-function buildMapMarkers(lookup, toScreen) {
+function buildMapMarkers(lookup, toScreen, memoryKey = "main") {
+  const memory = _markerMemory.get(memoryKey);
   const box = markerCollisionBox(pixelRatio());
   const boxW = box.width, boxH = box.height;
   const splitW = boxW * MARKER_SPLIT_BOX_FACTOR, splitH = boxH * MARKER_SPLIT_BOX_FACTOR;
-  // The cell edge covers the split box, so a 3x3 block never misses a member that may be kept.
-  const cell = Math.max(splitW, splitH);
+  const cell = Math.max(boxW, boxH);
   const nodes = [];
   const nodeOfItem = new Map();
   for (const type of MARKER_TYPES) {
@@ -1627,12 +1641,15 @@ function buildMapMarkers(lookup, toScreen) {
       if (!item.point) continue;
       const sp = toScreen(item.point);
       if (!Number.isFinite(sp.x) || !Number.isFinite(sp.y)) continue;
-      const node = { item, type, sp, order: nodes.length, density: 0, claimed: false, prevSeed: _markerSeedOfItem.get(item), isSeed: false, cx: Math.floor(sp.x / cell), cy: Math.floor(sp.y / cell) };
+      const node = { item, type, sp, order: nodes.length, density: 0, claimed: false, isSeed: false, cx: Math.floor(sp.x / cell), cy: Math.floor(sp.y / cell) };
       nodes.push(node);
       nodeOfItem.set(item, node);
     }
   }
-  if (!nodes.length) return [];
+  if (!nodes.length) {
+    _markerMemory.delete(memoryKey);
+    return [];
+  }
   // Numeric cell keys (a collision between two far-apart cells only adds candidates the exact
   // box test below rejects). A cell edge equal to the box's longer side guarantees an overlapping
   // item is never more than one cell away on either axis, so a 3x3 block never misses one.
@@ -1674,38 +1691,46 @@ function buildMapMarkers(lookup, toScreen) {
   // Last build's seeds that are still present keep their previous order and go first; the rest
   // follow densest first.
   const seeds = [];
-  for (const prevItem of _markerPrevSeeds) {
-    const node = nodeOfItem.get(prevItem);
-    if (node && !node.isSeed) { node.isSeed = true; seeds.push(node); }
+  if (memory) {
+    for (const prevItem of memory.keys()) {
+      const node = nodeOfItem.get(prevItem);
+      if (node && !node.isSeed) { node.isSeed = true; seeds.push(node); }
+    }
   }
   const fresh = nodes.filter(node => !node.isSeed).sort((a, b) => b.density - a.density || a.order - b.order);
   for (const node of fresh) seeds.push(node);
   const markers = [];
-  const nextSeedOf = new WeakMap();
-  const nextSeeds = [];
+  const nextMemory = new Map();
   for (const seed of seeds) {
     if (seed.claimed) continue;
     seed.claimed = true;
     const members = [seed];
-    // Another seed's own earlier members are only ever kept (inside the split box); anything else
-    // needs the normal box. Both tests are against this seed, so anchors stay a full box apart.
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        const bucket = grid.get(cellKey(seed.cx + dx, seed.cy + dy));
-        if (!bucket) continue;
-        for (const other of bucket) {
-          if (other.claimed) continue;
-          const ax = Math.abs(other.sp.x - seed.sp.x), ay = Math.abs(other.sp.y - seed.sp.y);
-          const inside = ax < boxW && ay < boxH;
-          if (!inside && !(other.prevSeed === seed.item && ax < splitW && ay < splitH)) continue;
-          other.claimed = true;
-          members.push(other);
+    // New members need the normal box; members this seed held last time are kept up to the split
+    // box (looked up directly, not through the grid). Both are measured from this seed, so anchors
+    // stay a full box apart.
+    if (seed.density) {
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const bucket = grid.get(cellKey(seed.cx + dx, seed.cy + dy));
+          if (!bucket) continue;
+          for (const other of bucket) {
+            if (other.claimed || Math.abs(other.sp.x - seed.sp.x) >= boxW || Math.abs(other.sp.y - seed.sp.y) >= boxH) continue;
+            other.claimed = true;
+            members.push(other);
+          }
         }
       }
     }
+    const held = memory && memory.get(seed.item);
+    if (held) {
+      for (const heldItem of held) {
+        const other = nodeOfItem.get(heldItem);
+        if (!other || other.claimed || Math.abs(other.sp.x - seed.sp.x) >= splitW || Math.abs(other.sp.y - seed.sp.y) >= splitH) continue;
+        other.claimed = true;
+        members.push(other);
+      }
+    }
     if (members.length > 1) members.sort((a, b) => a.order - b.order);
-    nextSeeds.push(seed.item);
-    for (const member of members) nextSeedOf.set(member.item, seed.item);
     const itemsByType = {};
     const items = new Array(members.length);
     for (let i = 0; i < members.length; i++) {
@@ -1713,6 +1738,7 @@ function buildMapMarkers(lookup, toScreen) {
       items[i] = member.item;
       (itemsByType[member.type] || (itemsByType[member.type] = [])).push(member.item);
     }
+    nextMemory.set(seed.item, items);
     const types = Object.keys(itemsByType);
     markers.push({
       items,
@@ -1722,8 +1748,7 @@ function buildMapMarkers(lookup, toScreen) {
       worldPt: seed.item.point,
     });
   }
-  _markerSeedOfItem = nextSeedOf;
-  _markerPrevSeeds = nextSeeds;
+  _markerMemory.set(memoryKey, nextMemory);
   return markers;
 }
 
@@ -1874,6 +1899,7 @@ function beginOverviewFilterPinTransition(previousLookup) {
 // while they shrink. This keeps the normal clustered renderer authoritative for visible pins,
 // and means the outgoing marker never has to be resurrected in the hit-test lookup.
 function drawFilterTransitionPins(ctx, toScreen) {
+  _drawnTransitionSpecs = [];
   if (!filterPinTransitionActive()) return;
   const dpr = pixelRatio();
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
@@ -1886,6 +1912,7 @@ function drawFilterTransitionPins(ctx, toScreen) {
     const tiltScale = typeof tiltPinScale === "function" ? tiltPinScale(item.point) : 1;
     const scale = stateAtFrame.scale * tiltScale;
     if (!isNearCanvas(point, iconSize * 2)) continue;
+    _drawnTransitionSpecs.push({ worldPt: item.point, count: 1, scale: iconSize * scale / (MAP_PNG_ICON_SIZE * MAP_ICON_SCALE_UNSELECTED * dpr) });
     ctx.save();
     ctx.globalAlpha = reveal * stateAtFrame.alpha;
     drawItemPin(ctx, animation.type, item, point.x, point.y, iconSize * scale);
@@ -2191,15 +2218,17 @@ function pinsHiddenBySelection(tilted) {
   return Boolean(state.selected && MARKER_TYPES.includes(state.selected.type));
 }
 
-// The rectangle of every marker the last drawMapMarkers call painted, from the same geometry the
-// painting uses; the "You" label steers clear of these (drawUser).
-let _drawnMarkerRects = [];
+// What the last drawMapMarkers call (and drawFilterTransitionPins) painted -- world point, item
+// count and drawn scale -- so drawUser can derive each marker's rectangle in its own coordinates
+// and steer the "You" label clear of them.
+let _drawnMarkerSpecs = [];
+let _drawnTransitionSpecs = [];
 
 // Draws every marker in one pass, flat (main canvas) or tilted/heading-up (overlay). Painted in
 // ascending screen Y so a marker lower on screen -- closer to the viewer -- paints over one further
 // up, across all categories; faces cannot overlap, so this only orders tails, chips and labels.
 function drawMapMarkers(ctx, markers, toScreen, tilted = false) {
-  _drawnMarkerRects = [];
+  _drawnMarkerSpecs = [];
   if (!markers.length || pinsHiddenBySelection(tilted)) return;
   const dpr = pixelRatio();
   const loneSize = MAP_PNG_ICON_SIZE * dpr * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
@@ -2215,7 +2244,7 @@ function drawMapMarkers(ctx, markers, toScreen, tilted = false) {
     if (items.length > 1) {
       ctx.globalAlpha = reveal * groupOpacity(marker);
       const groupScale = Math.max(0.65, tiltScale) * joinScale * filterPinClusterScale(marker);
-      _drawnMarkerRects.push(clusterMarkerRect(screenPt.x, screenPt.y, items.length, dpr, groupScale));
+      _drawnMarkerSpecs.push({ worldPt, count: items.length, scale: groupScale });
       drawClusterMarker(ctx, screenPt.x, screenPt.y, items.length,
         clusterPreviewEntries(marker).map(entry => entry.src), dpr, groupScale);
     } else {
@@ -2223,7 +2252,7 @@ function drawMapMarkers(ctx, markers, toScreen, tilted = false) {
       const animation = filterPinAnimationFor(items[0]);
       ctx.globalAlpha = reveal * lonePinOpacity(type, items[0]) * (animation ? animation.alpha : 1);
       const pinSize = loneSize * tiltScale * joinScale * (animation ? animation.scale : 1);
-      _drawnMarkerRects.push(clusterMarkerRect(screenPt.x, screenPt.y, 1, dpr, pinSize / (MAP_PNG_ICON_SIZE * MAP_ICON_SCALE_UNSELECTED * dpr)));
+      _drawnMarkerSpecs.push({ worldPt, count: 1, scale: pinSize / (MAP_PNG_ICON_SIZE * MAP_ICON_SCALE_UNSELECTED * dpr) });
       drawItemPin(ctx, type, items[0], screenPt.x, screenPt.y, pinSize);
     }
     if (joinState) {
@@ -2713,43 +2742,32 @@ function drawUserRadarOverlayTilted(ctx) {
   ctx.restore();
 }
 
-// Where the "You" label goes: right of the dot, else left, below, above -- the first whose text
-// box meets no marker rectangle. When all four are covered (a marker stands on the user's spot) it
-// steps outward, in USER_LABEL_STEP_COUNT steps along eight directions, to the nearest free spot;
-// below when there is none. `lastSide` is kept for as long as it is still free, so the label does
-// not flip sides while the map pans or zooms. Returns { side, x, baseline, box } with x/baseline the
-// fillText origin; `side` is the key to pass back as `lastSide`.
-const USER_LABEL_DIRECTIONS = [["right", 1, 0], ["left", -1, 0], ["below", 0, 1], ["above", 0, -1],
-  ["below-right", 1, 1], ["below-left", -1, 1], ["above-right", 1, -1], ["above-left", -1, -1]];
-const USER_LABEL_STEP_COUNT = 8;
-const USER_LABEL_SIDES = USER_LABEL_DIRECTIONS.slice(0, 4).map(d => d[0]);
+// Where the "You" label goes, adjacent to the dot only: right, else left, below, above -- the first
+// whose text box meets no marker rectangle. The side used last frame is kept while it is still
+// free, so the label does not flip while the map pans or zooms. Returns null when all four are
+// covered: the label is then not drawn and the dot alone marks the user. Otherwise
+// { side, x, baseline, box }, x/baseline being the fillText origin.
+const USER_LABEL_SIDES = ["right", "left", "below", "above"];
 let _userLabelSide = "right";
 function placeUserLabel(dot, radius, textWidth, fontSize, gap, rightBaselineDrop, rects, lastSide) {
-  const textHeight = fontSize;
   const at = (side) => {
-    const [name, k] = side.split(":");
-    const dir = USER_LABEL_DIRECTIONS.find(d => d[0] === name);
-    if (!dir) return null;
-    const away = radius + gap + (k ? Number(k) * fontSize * 0.5 : 0);
-    const centreX = dot.x + dir[1] * (textWidth / 2 + away);
-    const centreY = dot.y + dir[2] * (textHeight / 2 + away);
-    // The adjacent right and left spots keep the label on the dot's own baseline.
-    const baseline = !k && dir[2] === 0 ? dot.y + rightBaselineDrop : centreY + textHeight * 0.3;
-    const x = centreX - textWidth / 2;
+    let x, baseline;
+    if (side === "right") { x = dot.x + radius + gap; baseline = dot.y + rightBaselineDrop; }
+    else if (side === "left") { x = dot.x - radius - gap - textWidth; baseline = dot.y + rightBaselineDrop; }
+    else if (side === "below") { x = dot.x - textWidth / 2; baseline = dot.y + radius + gap + fontSize * 0.8; }
+    else { x = dot.x - textWidth / 2; baseline = dot.y - radius - gap - fontSize * 0.2; }
     return { side, x, baseline, box: { left: x, right: x + textWidth, top: baseline - fontSize * 0.8, bottom: baseline + fontSize * 0.2 } };
   };
-  const free = (candidate) => !rects.some(r => candidate.box.left < r.right && r.left < candidate.box.right
-    && candidate.box.top < r.bottom && r.top < candidate.box.bottom);
-  const kept = typeof lastSide === "string" ? at(lastSide) : null;
-  if (kept && free(kept)) return kept;
-  for (let k = 0; k <= USER_LABEL_STEP_COUNT; k++) {
-    for (const [name] of USER_LABEL_DIRECTIONS) {
-      if (k === 0 && !USER_LABEL_SIDES.includes(name)) continue;
-      const candidate = at(k ? `${name}:${k}` : name);
-      if (free(candidate)) return candidate;
-    }
+  const free = (c) => !rects.some(r => c.box.left < r.right && r.left < c.box.right && c.box.top < r.bottom && r.top < c.box.bottom);
+  if (USER_LABEL_SIDES.includes(lastSide)) {
+    const kept = at(lastSide);
+    if (free(kept)) return kept;
   }
-  return at("below");
+  for (const side of USER_LABEL_SIDES) {
+    const candidate = at(side);
+    if (free(candidate)) return candidate;
+  }
+  return null;
 }
 
 function drawUser(ctx, toScreen, isTilted) {
@@ -2797,9 +2815,16 @@ function drawUser(ctx, toScreen, isTilted) {
   const fontSize = 11 * dpr * dotScale;
   ctx.font = `800 ${fontSize}px system-ui`;
   const textWidth = typeof ctx.measureText === "function" ? ctx.measureText("You").width : fontSize * 1.8;
-  const label = placeUserLabel(point, radius, textWidth, fontSize, 3 * dpr, 4 * dpr * dotScale, _drawnMarkerRects, _userLabelSide);
-  _userLabelSide = label.side;
-  ctx.fillText("You", label.x, label.baseline);
+  const rects = [];
+  for (const spec of _drawnMarkerSpecs.concat(_drawnTransitionSpecs)) {
+    const p = toScreen(spec.worldPt);
+    if (Number.isFinite(p.x) && Number.isFinite(p.y)) rects.push(clusterMarkerRect(p.x, p.y, spec.count, dpr, spec.scale));
+  }
+  const label = placeUserLabel(point, radius, textWidth, fontSize, 3 * dpr, 4 * dpr * dotScale, rects, _userLabelSide);
+  if (label) {
+    _userLabelSide = label.side;
+    ctx.fillText("You", label.x, label.baseline);
+  }
   ctx.globalAlpha = 1;  // Reset opacity for subsequent drawing
   ctx.restore();
 }

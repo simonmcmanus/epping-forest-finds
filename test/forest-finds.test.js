@@ -1303,15 +1303,55 @@ test("an item between two groups stays with its group across small zooms instead
   }
 });
 
-test("panning never changes how markers group", () => {
+test("panning keeps the grouping that zooming left behind, which a fresh build would not give", () => {
   const items = markerScatter(160, 420, ["tree", "landmark", "cow"]);
   const base = new Map(items.map(({ item }) => [item.id, { x: item.point.x, y: item.point.y }]));
+  const layout = (f, dx = 0, dy = 0) => placeMarkerItems(items, id => ({ x: base.get(id).x * f + dx, y: base.get(id).y * f + dy }));
   app.resetMarkerGroupMemory();
-  const initial = markerGroupsOf(app.buildMapMarkers(markerLookup(items), markerScreen));
+  layout(0.8);
+  app.buildMapMarkers(markerLookup(items), markerScreen);
+  layout(1);
+  const remembered = markerGroupsOf(app.buildMapMarkers(markerLookup(items), markerScreen));
+  app.resetMarkerGroupMemory();
+  assert.notDeepEqual(remembered, markerGroupsOf(app.buildMapMarkers(markerLookup(items), markerScreen)),
+    "precondition: zooming out then in left groups that a fresh build would not form");
+  app.resetMarkerGroupMemory();
+  layout(0.8);
+  app.buildMapMarkers(markerLookup(items), markerScreen);
+  layout(1);
+  app.buildMapMarkers(markerLookup(items), markerScreen);
   for (let step = 1; step <= 12; step++) {
-    placeMarkerItems(items, id => ({ x: base.get(id).x + step * 17.3, y: base.get(id).y - step * 9.1 }));
-    assert.deepEqual(markerGroupsOf(app.buildMapMarkers(markerLookup(items), markerScreen)), initial, `after pan step ${step}`);
+    layout(1, step * 17.3, -step * 9.1);
+    assert.deepEqual(markerGroupsOf(app.buildMapMarkers(markerLookup(items), markerScreen)), remembered, `after pan step ${step}`);
   }
+});
+
+test("a remembered seed that now falls inside an earlier seed's box is absorbed, never a second anchor", () => {
+  const { w, h } = markerBox();
+  const items = [markerItem("tree", "a", 0, 0), markerItem("tree", "b", 0, 0)];
+  const build = (bx) => { placeMarkerItems(items, id => ({ x: id === "b" ? bx : 0, y: 0 })); return app.buildMapMarkers(markerLookup(items), markerScreen); };
+  app.resetMarkerGroupMemory();
+  assert.equal(build(w * 1.5).length, 2, "two separate seeds to remember");
+  const closer = build(w * 0.5);
+  assert.equal(closer.length, 1, "the later seed is absorbed by the earlier one");
+  assert.equal(closer[0].items.length, 2);
+  for (const markerSet of [build(w * 0.9), build(w * 1.5)]) {
+    const [first, second] = markerSet.map(m => m.screenPt);
+    if (second) assert.ok(Math.abs(first.x - second.x) >= w || Math.abs(first.y - second.y) >= h, "anchors stay a box apart");
+  }
+});
+
+test("expanding a cluster and collapsing it again leaves the main map's groups as they were", () => {
+  const { w } = markerBox();
+  const items = [markerItem("tree", "a", 0, 0), markerItem("tree", "b", 0, 0)];
+  placeMarkerItems(items, id => ({ x: id === "b" ? w * 0.9 : 0, y: 0 }));
+  app.resetMarkerGroupMemory();
+  app.buildMapMarkers(markerLookup(items), markerScreen);
+  placeMarkerItems(items, id => ({ x: id === "b" ? w * 1.1 : 0, y: 0 }));
+  const before = markerGroupsOf(app.buildMapMarkers(markerLookup(items), markerScreen));
+  assert.deepEqual(before, ["a+b"], "precondition: remembered as one group");
+  app.buildMapMarkers(markerLookup([items[0]]), markerScreen, "expanded");
+  assert.deepEqual(markerGroupsOf(app.buildMapMarkers(markerLookup(items), markerScreen)), before);
 });
 
 test("building twice on the same view gives identical markers, whatever came before", () => {
@@ -1345,7 +1385,7 @@ test("no two anchors come within the normal box after a run of zoom-out and zoom
   }
 });
 
-test("the You label takes the first free side, falls back to below, and keeps its side while free", () => {
+test("the You label takes the first free side adjacent to the dot, keeps it while free, and is hidden when all four are covered", () => {
   const dpr = app.pixelRatio();
   const dot = { x: 200, y: 200 };
   const place = (rects, last) => app.placeUserLabel(dot, 4 * dpr, 24 * dpr, 11 * dpr, 3 * dpr, 4 * dpr, rects, last);
@@ -1356,15 +1396,11 @@ test("the You label takes the first free side, falls back to below, and keeps it
   assert.equal(place([rightOf], "right").side, "left", "a marker over the right side moves it left");
   assert.equal(place([rightOf, leftOf], "right").side, "below");
   assert.equal(place([rightOf, leftOf, belowIt], "right").side, "above");
-  const crowded = place([rightOf, leftOf, belowIt, aboveIt], "right");
-  assert.notEqual(crowded.side, "right", "all four neighbouring spots covered: it steps outward");
-  assert.equal([rightOf, leftOf, belowIt, aboveIt].some(r => crowded.box.left < r.right && r.left < crowded.box.right && crowded.box.top < r.bottom && r.top < crowded.box.bottom), false,
-    "the stepped-out label touches none of them");
-  assert.equal(place([cover(200, 200, 400 * dpr)], "right").side, "below", "nowhere free at all: below");
+  assert.equal(place([rightOf, leftOf, belowIt, aboveIt], "right"), null, "all four covered: no label");
   assert.equal(place([], "left").side, "left", "keeps last frame's side while it is still free");
   assert.equal(place([leftOf], "left").side, "right", "leaves it once covered");
   const label = place([rightOf], "right");
-  assert.equal([rightOf].some(r => label.box.left < r.right && r.left < label.box.right && label.box.top < r.bottom && r.top < label.box.bottom), false);
+  assert.equal(label.box.left < rightOf.right && rightOf.left < label.box.right && label.box.top < rightOf.bottom && rightOf.top < label.box.bottom, false);
 });
 
 test("a lone item stays an ordinary single-item map marker", () => {
