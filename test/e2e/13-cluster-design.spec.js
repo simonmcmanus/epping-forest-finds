@@ -78,7 +78,7 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     expect(100 - Math.max(...shapes[1].corners.slice(0, 4).map(p => p.y + p.radius))).toBeLessThanOrEqual(7);
   });
 
-  test('a group previews its two most common kinds side by side, most common first, and counts every member', async ({ page }) => {
+  test('a group previews one chip per category, biggest category first, and counts every member', async ({ page }) => {
     await setup(page);
     const result = await page.evaluate(() => {
       stopViewportAnimation();
@@ -96,11 +96,11 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
       try { drawMapMarkers(ctx, markers, p => p); }
       finally { drawClusterIconChip = chip; }
       return { markers: markers.length, sources, labels, entries: clusterPreviewEntries(markers[0]).length,
-        expected: [oak, beech].map(t => treeSpeciesIconPath(t.commonName, t.latinName)) };
+        expected: [treeSpeciesIconPath(oak.commonName, oak.latinName), iconPath('cafe')] };
     });
     expect(result.markers).toBe(1);
     expect(result.sources).toEqual(result.expected);
-    expect(result.entries).toBeGreaterThan(2);
+    expect(result.entries).toBe(2);
     expect(result.labels).toEqual(['8']);
   });
 
@@ -128,14 +128,39 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     expect(glyphs).toEqual(['underground', 'rail']);
   });
 
+  // Records what draw() really paints on a settled frame and derives each rectangle from the
+  // renderer's own geometry.
+  const MEASURE_OVERLAPS = `(() => {
+    settleClusterJoinAnimations();
+    const dpr = pixelRatio();
+    const drawnGroup = drawClusterMarker, drawnPin = drawItemPin;
+    const drawn = [];
+    drawClusterMarker = (ctx, x, y, count, sources, d, scale = 1) => {
+      drawn.push({ ...clusterMarkerRect(x, y, count, dpr, scale), count });
+      return drawnGroup(ctx, x, y, count, sources, d, scale);
+    };
+    drawItemPin = (ctx, type, item, x, y, size) => {
+      drawn.push({ ...clusterMarkerRect(x, y, 1, dpr, size / (MAP_PNG_ICON_SIZE * MAP_ICON_SCALE_UNSELECTED * dpr)), count: 1 });
+      return drawnPin(ctx, type, item, x, y, size);
+    };
+    try { draw(); } finally { drawClusterMarker = drawnGroup; drawItemPin = drawnPin; }
+    let overlaps = 0;
+    for (let i = 0; i < drawn.length; i++) {
+      for (let j = i + 1; j < drawn.length; j++) {
+        const a = drawn[i], b = drawn[j];
+        if (a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom) overlaps++;
+      }
+    }
+    return { markers: drawn.length, groups: drawn.filter(m => m.count > 1).length, overlaps };
+  })()`;
+
   test('no two drawn markers overlap, at the default view and after zooming in and out', async ({ page }) => {
     await setup(page);
     await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
     await waitForUiToSettle(page);
-    const zooms = [1, 0.45, 2.2];
     const seen = [];
-    for (const factor of zooms) {
-      const view = await page.evaluate(factor => {
+    for (const factor of [1, 0.45, 2.2]) {
+      const view = await page.evaluate(`((factor) => {
         stopViewportAnimation();
         const centre = { x: state.canvasLogicalWidth / 2, y: state.canvasLogicalHeight / 2 };
         const world = screenToWorld(centre.x, centre.y);
@@ -146,34 +171,31 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
           state.viewport.ty += centre.y - now.y;
         }
         state.emojiScaleAnimated = zoomEmojiScaleTarget();
-        settleClusterJoinAnimations();
-        // Record what draw() really paints, then derive each rectangle from the renderer's own geometry.
-        const dpr = pixelRatio();
-        const drawnGroup = drawClusterMarker, drawnPin = drawItemPin;
-        const drawn = [];
-        drawClusterMarker = (ctx, x, y, count, sources, d, scale = 1) => {
-          drawn.push({ ...clusterMarkerRect(x, y, count, dpr, scale), count });
-          return drawnGroup(ctx, x, y, count, sources, d, scale);
-        };
-        drawItemPin = (ctx, type, item, x, y, size) => {
-          drawn.push({ ...clusterMarkerRect(x, y, 1, dpr, size / (MAP_PNG_ICON_SIZE * MAP_ICON_SCALE_UNSELECTED * dpr)), count: 1 });
-          return drawnPin(ctx, type, item, x, y, size);
-        };
-        try { draw(); } finally { drawClusterMarker = drawnGroup; drawItemPin = drawnPin; }
-        let overlaps = 0;
-        for (let i = 0; i < drawn.length; i++) {
-          for (let j = i + 1; j < drawn.length; j++) {
-            const a = drawn[i], b = drawn[j];
-            if (a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom) overlaps++;
-          }
-        }
-        return { markers: drawn.length, groups: drawn.filter(m => m.count > 1).length, overlaps };
-      }, factor);
+        return ${MEASURE_OVERLAPS};
+      })(${factor})`);
       seen.push(view);
       expect(view.overlaps, `zoom x${factor}: drawn markers overlapping`).toBe(0);
       expect(view.markers, `zoom x${factor}: something is drawn`).toBeGreaterThan(0);
     }
     expect(seen.some(view => view.groups > 0), 'the busy views do group things').toBe(true);
+  });
+
+  test('no two drawn markers overlap in the heading-up 3D view', async ({ page }) => {
+    await setup(page);
+    await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
+    const view = await page.evaluate(`(() => {
+      stopViewportAnimation();
+      state.compassHeading = state.compassHeadingTarget = state.renderedNavigationHeading = 0;
+      state.compassLastEventAt = performance.now();
+      state.map3dEnabled = true;
+      state.tiltBetaSmoothed = state.tiltBetaTarget = 65;
+      alignHeadingUpNavigationViewport({ force: true });
+      const result = ${MEASURE_OVERLAPS};
+      return { ...result, tilted: tiltActive() };
+    })()`);
+    expect(view.tilted).toBe(true);
+    expect(view.markers, 'something is drawn').toBeGreaterThan(0);
+    expect(view.overlaps, 'drawn markers overlapping').toBe(0);
   });
 
   test('the user dot and its label are painted after every pin, flat and heading-up', async ({ page }) => {
