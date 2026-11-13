@@ -55,6 +55,13 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # Same build inputs as ci.yml's visual-snapshots job ("Build pages before visual tests").
+      # The generated pages are gitignored, and several snapshots render differently without them
+      # (bare /nearby keeps its server-rendered list only when the static index exists), so a
+      # baseline taken without this step can never match a PR render. Outputs are all gitignored:
+      # the commit step stages only test/e2e/__screenshots__/ and the rebase sees a clean tree.
+      - name: Build pages before regenerating baselines
+        run: npm run build
       - name: Regenerate mobile snapshot baselines
         id: mobile
         run: npx playwright test --project=mobile --grep "snapshot:" --update-snapshots=all
