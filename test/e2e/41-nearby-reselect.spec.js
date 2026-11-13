@@ -271,7 +271,7 @@ test.describe("A re-tap keeps the view the reader set up", () => {
     // Tapping a cluster on the map expands it: the same call the tap makes.
     await page.evaluate(() => {
       const lookup = activeIconLookup();
-      const clusters = buildTypeClusters(lookup.tree, worldToScreen);
+      const clusters = buildMapMarkers(lookup, worldToScreen);
       focusNearbyOnClusterGroup(clusters.find((candidate) => candidate.items.length >= 2));
     });
     await expect.poll(() => page.evaluate(() => Boolean(state.clusterExpanded))).toBe(true);
@@ -415,12 +415,12 @@ test.describe("A re-tap keeps the view the reader set up", () => {
 test.describe("A Nearby tap on the minimised sheet", () => {
   test("reopens the sheet and refits, keeping the rail pick and the expanded cluster", async ({ page }) => {
     await setup(page, "/nearby");
-    // Food is picked off, which leaves the trees on the map, so a cluster of trees is still there to expand.
+    // Food is picked off, which leaves the trees on the map, so a group is still there to expand.
     await page.locator("#inspectorBody [data-rail-key='food']").click();
     const picked = await page.evaluate(() => [...state.overviewFilters].sort().join(","));
     await page.evaluate(() => {
       const lookup = activeIconLookup();
-      const clusters = buildTypeClusters(lookup.tree, worldToScreen);
+      const clusters = buildMapMarkers(lookup, worldToScreen);
       focusNearbyOnClusterGroup(clusters.find((candidate) => candidate.items.length >= 2));
     });
     await expect.poll(() => page.evaluate(() => Boolean(state.clusterExpanded))).toBe(true);

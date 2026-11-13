@@ -1646,7 +1646,7 @@ function restoreNearbyAnchorFromHistory() {
 }
 
 // Tapping a grouped set of pins -- a same-category cluster or a cross-category "mega" badge
-// (buildSuperClusters, js/renderer.js) alike -- moves the Nearby browse anchor to the group's
+// (buildMapMarkers, js/renderer.js) alike -- moves the Nearby browse anchor to the group's
 // centre and grows the walking radius just far enough to keep every member inside the ring, the
 // same way a tap on open ground does (focusNearbyOnMapPoint). The Nearby list then reads "what's
 // in this group" on its own, with no separate cluster-list screen to learn -- one interaction
@@ -1664,7 +1664,7 @@ function restoreNearbyAnchorFromHistory() {
 // explanation for where the view went.
 //
 // Shared by focusNearbyOnClusterGroup (below) and the mega badge's own
-// count display (drawMegaClusters, js/renderer.js), so the two can never disagree: the centre
+// count display (drawMapMarkers, js/renderer.js), so the two can never disagree: the centre
 // and walking radius a tap on this group will actually land on, computed once.
 function clusterFocusTarget(items) {
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -1957,7 +1957,7 @@ function updateNearbyRadiusPinch() {
 // The ring and the camera framing it (state.walkingDistanceMinutes plus an instant, unanimated
 // ensureOverviewTargetsVisible) are updated on every call, so both track the gesture at full
 // pointer rate -- canvas-only work, cheap regardless of how often it happens, now that clustering
-// is O(n) rather than all-pairs (see buildScreenPointGrid, js/renderer.js). What is not cheap is
+// is O(n) rather than all-pairs (see buildMapMarkers, js/renderer.js). What is not cheap is
 // the Nearby list's own HTML re-render and the nearest-item rescan (selectOverview,
 // refreshNearestTreeForNearbyOrigin) -- a pinch or trackpad pinch can fire many pointermove events
 // inside a single animation frame, and rebuilding the list on every one of them (rather than the
