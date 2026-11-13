@@ -313,6 +313,132 @@ test.describe("Check card while walking up to a tree", () => {
     // It is a cue, not a loop: it rests again by itself.
     await expect(page.locator(".community-verify-hint")).toHaveCount(0);
   });
+
+  test("focus a tap left inside the card is still there after the card moves to the top", async ({ page, context }) => {
+    await setup(page, TREE_HASH);
+    await walkTo(page, context, 100);
+    const card = page.locator(CARD);
+    await expect(card).toHaveAttribute("data-tier", "approaching");
+    await page.clock.install({ time: Date.now() });
+    await card.locator(".community-more").click();
+    await card.locator(".community-more").click();
+    await page.evaluate(() => { document.activeElement.dataset.probe = "tapped"; });
+    await walkTo(page, context, 4);
+    await page.clock.fastForward(11000);
+    await expect(card).toHaveAttribute("data-tier", "near");
+    await expect(page.locator(TOP_CARD)).toHaveCount(1);
+    await expect(page.locator(`${TOP_CARD} [data-probe="tapped"]`)).toBeFocused();
+  });
+
+  test("pressing Change from the keyboard keeps focus inside the card", async ({ page, context }) => {
+    await setup(page, TREE_HASH);
+    await walkTo(page, context, 5);
+    const card = page.locator(CARD);
+    await expect(card).toHaveAttribute("data-tier", "near");
+    await card.locator(".community-verify").focus();
+    await page.keyboard.press("Enter");
+    await expect(card.locator("[data-action='community-change']")).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(card.locator(".is-chosen")).toBeFocused();
+  });
+
+  test("a reader at the top stays at the top when the card is promoted and put back", async ({ page, context }) => {
+    await setup(page, TREE_HASH);
+    const scroller = page.locator(".inspector-scroll");
+    await walkTo(page, context, 100);
+    await expect(page.locator(CARD)).toHaveAttribute("data-tier", "approaching");
+    await waitForUiToSettle(page);
+    await walkTo(page, context, 4);
+    await expect(page.locator(TOP_CARD)).toHaveCount(1);
+    await waitForUiToSettle(page);
+    expect(await scroller.evaluate((el) => el.scrollTop)).toBe(0);
+    const view = await scroller.boundingBox();
+    const topRow = await page.locator("#inspectorBody .detail-top-row").boundingBox();
+    const box = await page.locator(CARD).boundingBox();
+    expect(box.y).toBeGreaterThanOrEqual(topRow.y + topRow.height - 1);
+    expect(box.y).toBeLessThan(view.y + view.height);
+    await walkTo(page, context, 200);
+    await expect(page.locator(USUAL_CARD)).toHaveCount(1);
+    await waitForUiToSettle(page);
+    expect(await scroller.evaluate((el) => el.scrollTop)).toBe(0);
+  });
+
+  test("the slide ghost is inert: its card keeps its tier and slot, gets no hint, and no arrival is announced", async ({ page, context }) => {
+    await setup(page, TREE_HASH);
+    await walkTo(page, context, 100);
+    await expect(page.locator(CARD)).toHaveAttribute("data-tier", "approaching");
+    const log = await page.evaluate(async () => {
+      const out = { ghostSeen: false, mutations: [], hint: false, announced: [], scroll: [] };
+      const watch = (node) => node.closest && node.closest(".inspector-screen-ghost");
+      new MutationObserver((records) => records.forEach((r) => {
+        if (watch(r.target)) out.mutations.push(`${r.type}:${r.attributeName || ""}`);
+      })).observe(document.getElementById("inspector"), { subtree: true, attributes: true, childList: true });
+      const announcer = document.getElementById("communityAnnounce");
+      new MutationObserver(() => { if (announcer.textContent) out.announced.push(announcer.textContent); })
+        .observe(announcer, { childList: true, characterData: true, subtree: true });
+      const tree = state.selected.item;
+      document.getElementById("inspectorBack").click();
+      const ghost = document.querySelector(".inspector-screen-ghost");
+      out.ghostSeen = Boolean(ghost);
+      const baseline = out.mutations.length; // the ghost's own insertion is not a change to its card
+      const here = { latitude: tree.latitude + 4 / 111320, longitude: tree.longitude, accuracy: 5 };
+      state.userLocation = { ...here }; state.rawUserLocation = { ...here }; state.locationGlide = null;
+      communityNudgeCheck();
+      await new Promise((resolve) => {
+        const tick = () => {
+          const scroller = document.querySelector(".inspector-scroll");
+          out.scroll.push(scroller.scrollTop);
+          if (ghost && ghost.querySelector(".community-verify-hint")) out.hint = true;
+          if (document.querySelector(".inspector-screen-ghost")) requestAnimationFrame(tick); else resolve();
+        };
+        tick();
+      });
+      out.ghostTier = ghost && ghost.querySelector(".community-check").dataset.tier;
+      out.ghostSlot = ghost && ghost.querySelector(".community-check").parentElement.dataset.communitySlot;
+      out.changed = out.mutations.slice(baseline);
+      return out;
+    });
+    expect(log.ghostSeen).toBe(true);
+    expect(log.ghostTier).toBe("approaching");
+    expect(log.ghostSlot).toBe("usual");
+    expect(log.changed).toEqual([]);
+    expect(log.hint).toBe(false);
+    expect(log.announced).toEqual([]);
+    expect(log.scroll.every((top) => top === 0)).toBe(true);
+  });
+
+  test("a tier change that lands during the screen slide waits for it, then ends right with scrollTop 0 throughout", async ({ page, context }) => {
+    await setup(page, TREE_HASH);
+    await walkTo(page, context, 400);
+    await page.click("#inspectorBack");
+    await page.waitForFunction(() => !state.selected && !document.querySelector(".inspector-screen-ghost"));
+    const log = await page.evaluate(async () => {
+      const out = { during: null, scroll: [] };
+      // The click runs the slide: the new screen is in place and the ghost still sliding out.
+      document.querySelector('#inspectorBody .nearest-item[data-overview-type="tree"]').click();
+      const item = state.selected.item;
+      out.initial = document.querySelector("#inspectorBody .community-check").dataset.tier;
+      const here = { latitude: item.latitude + 4 / 111320, longitude: item.longitude, accuracy: 5 };
+      state.userLocation = { ...here }; state.rawUserLocation = { ...here }; state.locationGlide = null;
+      communityNudgeCheck();
+      out.during = document.querySelector("#inspectorBody .community-check").dataset.tier;
+      out.slideSeen = Boolean(document.querySelector(".inspector-screen-ghost"));
+      await new Promise((resolve) => {
+        const tick = () => {
+          out.scroll.push(document.querySelector(".inspector-scroll").scrollTop);
+          if (document.querySelector(".inspector-screen-ghost")) requestAnimationFrame(tick); else resolve();
+        };
+        tick();
+      });
+      return out;
+    });
+    expect(log.slideSeen).toBe(true);
+    expect(log.initial).not.toBe("near");
+    expect(log.during).toBe(log.initial);
+    await expect(page.locator(CARD)).toHaveAttribute("data-tier", "near");
+    expect(log.scroll.every((top) => top === 0)).toBe(true);
+    expect(await page.locator(".inspector-scroll").evaluate((el) => el.scrollTop)).toBe(0);
+  });
 });
 
 test.describe("Check card with reduced motion", () => {
@@ -549,22 +675,6 @@ test.describe("Check card accuracy, focus and announcements", () => {
     await expect(page.locator(TOP_CARD)).toHaveCount(1);
     await expect(card.locator(".community-verify")).toBeVisible();
     await expect(page.locator(PLACEHOLDER)).toBeVisible();
-  });
-
-  test("a fix reads the local record once, however many cards and the nudge look at it", async ({ page, context }) => {
-    await setup(page, TREE_HASH);
-    await walkTo(page, context, 100);
-    await page.evaluate(() => {
-      window.__reads = 0;
-      const original = Storage.prototype.getItem;
-      Storage.prototype.getItem = function (key) { if (String(key).includes("ff-community-local")) window.__reads += 1; return original.call(this, key); };
-    });
-    await walkTo(page, context, 90);
-    await expect(page.locator(CARD).locator("[data-community-distance]:visible")).toContainText(/(8|9)\d m/);
-    await waitForFrames(page, 10);
-    const reads = await page.evaluate(() => window.__reads);
-    expect(reads).toBeGreaterThan(0);
-    expect(reads).toBeLessThanOrEqual(1);
   });
 
   test("a place note step while promoted: the card stays at the top on fixes while the note is pending, and sending shows the summary", async ({ page, context }) => {

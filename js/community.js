@@ -531,7 +531,7 @@ function communityRefreshVerifiedSlots() {
   // A tree detail can be rendered before the optimistic report has been written (or while the
   // feature gate is finishing). Keep the header slot in sync with the place flow so a newly
   // reported tree never leaves its status stranded in the check card.
-  document.querySelectorAll(".community-check:not(.community-check-place)[data-community-target]").forEach((section) => {
+  communityLiveAll(".community-check:not(.community-check-place)[data-community-target]").forEach((section) => {
     const target = section.dataset.communityTarget;
     if (!communityVerifiedChipHtml(target)) return;
     const detailHost = section.closest(".tree-detail") || section.parentElement;
@@ -649,7 +649,7 @@ function communityRangeNoteHtml(lat, lon, status) {
 // rebuilt when what it says changes (inside or outside the zone, or the points); the distance inside it
 // is patched in place by communityPatchDistance.
 function communityUpdateRangeNotes() {
-  document.querySelectorAll(".community-check[data-community-target]").forEach((section) => {
+  communityLiveAll(".community-check[data-community-target]").forEach((section) => {
     const note = section.querySelector(".community-range");
     if (!note || section.dataset.kind === "place") return;
     const chosen = section.querySelector(".is-chosen");
@@ -827,8 +827,22 @@ function communitySectionHtml(tree) {
   return communityUsualSlotHtml(tree, "tree");
 }
 
+// The panel slide clones the outgoing screen as an inert ghost (.inspector-screen-ghost). Nothing here ever
+// reads or changes it: every document-wide scan goes through these.
+function communityLiveAll(selector) {
+  return [...document.querySelectorAll(selector)].filter((node) => !node.closest(".inspector-screen-ghost"));
+}
+
+function communityLive(selector) {
+  return communityLiveAll(selector)[0] || null;
+}
+
+function communitySlideActive() {
+  return Boolean(document.querySelector(".inspector-screen-ghost"));
+}
+
 function communityRefreshSections() {
-  document.querySelectorAll(".community-check").forEach((section) => {
+  communityLiveAll(".community-check").forEach((section) => {
     const body = section.querySelector(".community-body");
     if (!body) return;
     const target = section.dataset.communityTarget;
@@ -894,8 +908,11 @@ function communitySchedulePresentation(delay = 0) {
 function communityUpdatePresentation(local = communityReadLocal()) {
   if (typeof document === "undefined" || !document.querySelectorAll || !communityEnabled()) return;
   communityEnsureAnnouncer();
+  // The incoming screen is still sliding in: presenting now would write scrollTop that the slide then resets.
+  // Wait for the slide to end, then present once, so the move is one continuous motion with the right end state.
+  if (communitySlideActive()) { communitySchedulePresentation(60); return; }
   const accurate = communityCurrentFix().ok;
-  document.querySelectorAll(".community-check[data-community-target]").forEach((section) => communityPresentSection(section, local, accurate));
+  communityLiveAll(".community-check[data-community-target]").forEach((section) => communityPresentSection(section, local, accurate));
   communityHintSync();
 }
 
@@ -995,8 +1012,9 @@ function communityFlipTargets(article, section) {
   return out;
 }
 
-function communityScrollAnchor(targets, first, view, article) {
-  if (!view) return null;
+function communityScrollAnchor(targets, first, view, article, scroller) {
+  // A reader at the very top has nothing to keep in place: the top row stays put and the card arrives under it.
+  if (!view || !scroller || scroller.scrollTop <= 0) return null;
   const visible = targets.filter((el) => {
     const r = first.get(el);
     return r && r.height > 0 && r.bottom > view.top && r.top < view.bottom;
@@ -1037,7 +1055,13 @@ function communityApplyTier(section, want) {
   const opening = have === "far" && want !== "far" && !unfolded;
   const apply = () => {
     if (want) section.dataset.tier = want; else delete section.dataset.tier;
-    if (needsMove) destination.appendChild(section);
+    if (needsMove) {
+      // Moving a node drops focus from inside it; put it back where it was.
+      const held = document.activeElement;
+      const keep = held && held !== document.body && section.contains(held) ? held : null;
+      destination.appendChild(section);
+      if (keep && document.activeElement !== keep) keep.focus({ preventScroll: true });
+    }
     communitySyncPointers(article, section, want);
   };
   const scroller = article && article.closest(".inspector-scroll");
@@ -1065,7 +1089,7 @@ function communityApplyTier(section, want) {
   if (view && before.bottom <= view.top) {
     const targets = communityFlipTargets(article, section);
     const first = new Map(targets.map((el) => [el, el.getBoundingClientRect()]));
-    const anchor = communityScrollAnchor(targets, first, view, article);
+    const anchor = communityScrollAnchor(targets, first, view, article, scroller);
     communityRunInstant(article, () => {
       apply();
       if (anchor) {
@@ -1083,9 +1107,12 @@ function communityApplyTier(section, want) {
 function communityRunInstant(article, change) {
   if (!article) { change(); return; }
   article.classList.add("community-instant");
-  change();
-  void article.offsetHeight;
-  article.classList.remove("community-instant");
+  try {
+    change();
+    void article.offsetHeight;
+  } finally {
+    article.classList.remove("community-instant");
+  }
 }
 
 // FLIP: measure, move the node, then play the difference back as a transform over COMMUNITY_CARD_MOTION_MS.
@@ -1093,26 +1120,29 @@ function communityFlip(article, section, scroller, view, apply) {
   const targets = communityFlipTargets(article, section);
   const first = new Map();
   targets.concat(section).forEach((el) => first.set(el, el.getBoundingClientRect()));
-  const anchor = communityScrollAnchor(targets, first, view, article);
-  article.classList.add("community-instant");
-  apply();
-  if (scroller && anchor) {
-    const dy = anchor.getBoundingClientRect().top - first.get(anchor).top;
-    if (Math.abs(dy) > 0.5) scroller.scrollTop += dy;
-  }
+  const anchor = communityScrollAnchor(targets, first, view, article, scroller);
   const plays = [];
-  targets.concat(section).forEach((el) => {
-    const a = first.get(el);
-    const b = el.getBoundingClientRect();
-    if (!a || (!a.width && !a.height) || (!b.width && !b.height)) return;
-    const dx = a.left - b.left;
-    const dy = a.top - b.top;
-    if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
-    if (view && ((a.bottom < view.top - 80 && b.bottom < view.top - 80) || (a.top > view.bottom + 80 && b.top > view.bottom + 80))) return;
-    plays.push([el, dx, dy]);
-  });
-  void article.offsetHeight;
-  article.classList.remove("community-instant");
+  article.classList.add("community-instant");
+  try {
+    apply();
+    if (scroller && anchor) {
+      const dy = anchor.getBoundingClientRect().top - first.get(anchor).top;
+      if (Math.abs(dy) > 0.5) scroller.scrollTop += dy;
+    }
+    targets.concat(section).forEach((el) => {
+      const a = first.get(el);
+      const b = el.getBoundingClientRect();
+      if (!a || (!a.width && !a.height) || (!b.width && !b.height)) return;
+      const dx = a.left - b.left;
+      const dy = a.top - b.top;
+      if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) return;
+      if (view && ((a.bottom < view.top - 80 && b.bottom < view.top - 80) || (a.top > view.bottom + 80 && b.top > view.bottom + 80))) return;
+      plays.push([el, dx, dy]);
+    });
+    void article.offsetHeight;
+  } finally {
+    article.classList.remove("community-instant");
+  }
   plays.forEach(([el, dx, dy]) => {
     if (el.animate) el.animate([{ transform: `translate(${dx}px, ${dy}px)` }, { transform: "none" }], { duration: COMMUNITY_CARD_MOTION_MS, easing: COMMUNITY_CARD_EASE });
   });
@@ -1159,6 +1189,11 @@ function communityFocusWhenReady(button, tries = 6) {
 // The pointer chip and the placeholder: bring the card into view, open it if it is the quiet row, put
 // focus on Verify/Confirm and highlight it briefly.
 function communityGotoCheck(trigger) {
+  // Not while the screen is still sliding in: the slide resets the scroll position at its end.
+  if (communitySlideActive()) {
+    setTimeout(() => { if (trigger.isConnected) communityGotoCheck(trigger); }, 60);
+    return;
+  }
   const article = trigger.closest(".tree-detail, .place-detail");
   const section = article && article.querySelector(".community-check");
   if (!section) return;
@@ -1203,7 +1238,7 @@ function communityHintPlaying() {
 
 function communityHintSync() {
   if (typeof IntersectionObserver === "undefined") return;
-  const section = document.querySelector('.community-check[data-tier="near"]');
+  const section = communityLive('.community-check[data-tier="near"]');
   const button = section ? section.querySelector(".community-verify") : null;
   if (button !== communityHint.button) {
     if (communityHint.observer) communityHint.observer.disconnect();
@@ -1312,8 +1347,9 @@ async function communityHandleChoice(button) {
       if (statusEl) statusEl.textContent = "Turn on location and stand at the tag so we can record where it really is.";
       return;
     }
-    newLat = Number(state.userLocation.latitude.toFixed(6));
-    newLon = Number(state.userLocation.longitude.toFixed(6));
+    const here = communityFixLatLon();
+    newLat = Number(here.latitude.toFixed(6));
+    newLon = Number(here.longitude.toFixed(6));
   }
   await communitySubmitReport({ kind: "tree", target, status, targetLat, targetLon, newLat, newLon });
   delete section.dataset.editing;
@@ -1326,7 +1362,9 @@ function communityHandleChange(button) {
   const section = button.closest(".community-check");
   if (!section) return;
   section.dataset.editing = "1";
+  const hadFocus = section.contains(document.activeElement);
   communityRefreshSections();
+  if (hadFocus) communityFocusWhenReady(section.querySelector(".is-chosen") || section.querySelector(".community-verify"));
 }
 
 let communityOverlayInflight = null;
@@ -1542,7 +1580,8 @@ function communityNudgeCheck(now = Date.now()) {
   if (decision === "none") return;
   if (decision === "pulse") {
     communityNudgeDismiss(); // a card from the overview is moot once you are on the tree itself
-    const section = document.querySelector(".community-check");
+    if (communitySlideActive()) return;
+    const section = communityLive(".community-check");
     if (!section || section.dataset.communityTarget !== target) return;
     // One cue at a time: the card's pulse and the ring on Verify share a quiet window, so they never stack.
     if (!communityHintPlaying() && !section.classList.contains("community-highlight")) {
@@ -1750,8 +1789,9 @@ async function communitySubmitNewTree() {
   if (known) {
     return say(`Tag ${tag} is already on the map (${treeDisplayName(known)}). Open that tree and check it instead.`);
   }
-  const lat = Number(state.userLocation.latitude.toFixed(6));
-  const lon = Number(state.userLocation.longitude.toFixed(6));
+  const here = communityFixLatLon();
+  const lat = Number(here.latitude.toFixed(6));
+  const lon = Number(here.longitude.toFixed(6));
   await communitySubmitReport({ kind: "tree", status: "NEW_TREE", target: undefined, targetLat: lat, targetLon: lon, tagNumber: tag, accuracy: Math.round(fix.accuracy), note, photo });
   clearInterval(communityLocationTimer);
   communityLocationTimer = null;
@@ -1849,8 +1889,9 @@ async function communitySubmitNewPlace() {
   } catch (error) {
     return say(error.message || "Could not prepare that photo.");
   }
-  const lat = Number(state.userLocation.latitude.toFixed(6));
-  const lon = Number(state.userLocation.longitude.toFixed(6));
+  const here = communityFixLatLon();
+  const lat = Number(here.latitude.toFixed(6));
+  const lon = Number(here.longitude.toFixed(6));
   const key = `new:${lat.toFixed(5)},${lon.toFixed(5)}`;
   const id = communityRandomId();
   const local = communityReadLocal();
