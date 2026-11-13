@@ -48,6 +48,7 @@ and test contracts. Select additional lenses for concrete changed risks:
 | Auth, server endpoints, uploads, private data, untrusted input or privileged workflows | `security-reviewer` |
 | Cache/shell/data lists, fetch/failure path, outbox or native bundle | `offline-reviewer` |
 | Per-frame, startup, data loading, payload or battery cost | `performance-reviewer` |
+| Generated/static page markup, `app.html` initial state, boot/first-render takeover, script order or marketing load motion | `progressive-enhancement-reviewer` |
 | Focus, accessible names, targets, contrast, zoom or motion accessibility | `accessibility-reviewer` |
 | Significant visual hierarchy, layout, tokens or icon changes | `design-reviewer` |
 | New journeys, navigation, permission asks, error recovery or action/copy mismatch | `ux-reviewer` |
