@@ -198,6 +198,77 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     expect(view.overlaps, 'drawn markers overlapping').toBe(0);
   });
 
+  // Paints one flat frame, recording every marker rectangle and the real extent of the "You" text.
+  const MEASURE_YOU_LABEL = `(() => {
+    settleClusterJoinAnimations();
+    const dpr = pixelRatio();
+    const drawnGroup = drawClusterMarker, drawnPin = drawItemPin;
+    const rects = [];
+    drawClusterMarker = (ctx, x, y, count, sources, d, scale = 1) => {
+      rects.push(clusterMarkerRect(x, y, count, dpr, scale));
+      return drawnGroup(ctx, x, y, count, sources, d, scale);
+    };
+    drawItemPin = (ctx, type, item, x, y, size) => {
+      rects.push(clusterMarkerRect(x, y, 1, dpr, size / (MAP_PNG_ICON_SIZE * MAP_ICON_SCALE_UNSELECTED * dpr)));
+      return drawnPin(ctx, type, item, x, y, size);
+    };
+    const overlay = els.overlayCanvas.getContext('2d');
+    let label = null;
+    overlay.fillText = function (text, x, y) {
+      if (text === 'You') {
+        const m = this.measureText(text);
+        label = { left: x - m.actualBoundingBoxLeft, right: x + m.actualBoundingBoxRight, top: y - m.actualBoundingBoxAscent, bottom: y + m.actualBoundingBoxDescent };
+      }
+      return CanvasRenderingContext2D.prototype.fillText.apply(this, arguments);
+    };
+    try { draw(); } finally { drawClusterMarker = drawnGroup; drawItemPin = drawnPin; delete overlay.fillText; }
+    const covered = label ? rects.filter(r => label.left < r.right && r.left < label.right && label.top < r.bottom && r.top < label.bottom).length : -1;
+    return { markers: rects.length, labelDrawn: Boolean(label), covered, side: _userLabelSide };
+  })()`;
+
+  test('the You label never sits under or over a marker, at the default view and after zooming', async ({ page }) => {
+    await setup(page);
+    await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
+    await waitForUiToSettle(page);
+    for (const factor of [1, 0.45, 2.2]) {
+      const view = await page.evaluate(`((factor) => {
+        stopViewportAnimation();
+        const centre = { x: state.canvasLogicalWidth / 2, y: state.canvasLogicalHeight / 2 };
+        const world = screenToWorld(centre.x, centre.y);
+        state.viewport.scale *= factor;
+        for (let i = 0; i < 2; i++) {
+          const now = worldToScreen(world);
+          state.viewport.tx += centre.x - now.x;
+          state.viewport.ty += centre.y - now.y;
+        }
+        state.emojiScaleAnimated = zoomEmojiScaleTarget();
+        return ${MEASURE_YOU_LABEL};
+      })(${factor})`);
+      expect(view.labelDrawn, `zoom x${factor}: the You label is drawn`).toBe(true);
+      expect(view.covered, `zoom x${factor}: markers over the You label`).toBe(0);
+    }
+  });
+
+  test('the You label steps aside when a marker stands right beside the user', async ({ page }) => {
+    await setup(page);
+    await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
+    await waitForUiToSettle(page);
+    const view = await page.evaluate(`(() => {
+      stopViewportAnimation();
+      const dpr = pixelRatio();
+      const marker = buildMapMarkers(activeIconLookup(), worldToScreen)[0];
+      // The user stands just left of the marker's face, level with it: the default right-hand label
+      // would land on the marker, while the other three sides are clear.
+      const face = clusterMarkerRect(marker.screenPt.x, marker.screenPt.y, marker.items.length, dpr, marker.items.length > 1 ? 1 : mapEmojiScale());
+      const dot = { x: face.left - 15 * dpr, y: (face.top + face.bottom) / 2 };
+      state.userLocation = { ...state.userLocation, point: screenToWorld(dot.x, dot.y) };
+      return ${MEASURE_YOU_LABEL};
+    })()`);
+    expect(view.labelDrawn).toBe(true);
+    expect(view.covered, 'markers over the You label').toBe(0);
+    expect(view.side, 'the label moved off the covered right side').not.toBe('right');
+  });
+
   test('the user dot and its label are painted after every pin, flat and heading-up', async ({ page }) => {
     await setup(page);
     const order = await page.evaluate(() => {
