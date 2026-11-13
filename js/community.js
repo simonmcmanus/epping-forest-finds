@@ -838,7 +838,7 @@ function communityLive(selector) {
 }
 
 function communitySlideActive() {
-  return Boolean(document.querySelector(".inspector-screen-ghost"));
+  return document.querySelectorAll(".inspector-screen-ghost").length > 0;
 }
 
 function communityRefreshSections() {
