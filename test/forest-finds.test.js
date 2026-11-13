@@ -6552,6 +6552,35 @@ test("applying an update activates the fully downloaded waiting worker and never
   app.state.swPendingReload = false;
 });
 
+test("applying an update does not reload while the old worker still controls the page", async () => {
+  resetData(app);
+  const messages = [];
+  const controller = {};
+  let safetyNet;
+  const nav = app.navigator;
+  const previousServiceWorker = nav.serviceWorker;
+  const previousLocation = app.swapGlobalFunction("location", { reload: () => { throw new Error("should not reload"); } });
+  const previousTimeout = app.swapGlobalFunction("setTimeout", (callback) => {
+    safetyNet = callback;
+    return 1;
+  });
+  nav.serviceWorker = { controller };
+  app.state.swWaiting = { postMessage: (message) => messages.push(message) };
+  try {
+    assert.equal(await app.applySwUpdate(), true);
+    assert.deepEqual(JSON.parse(JSON.stringify(messages)), [{ type: "SKIP_WAITING" }]);
+    safetyNet();
+    assert.equal(app.state.swPendingReload, false, "a failed activation clears the pending reload marker");
+    assert.equal(app.state.appUpdateStatus, "failed", "the page reports that activation failed");
+  } finally {
+    nav.serviceWorker = previousServiceWorker;
+    app.state.swWaiting = null;
+    app.state.swPendingReload = false;
+    app.swapGlobalFunction("location", previousLocation);
+    app.swapGlobalFunction("setTimeout", previousTimeout);
+  }
+});
+
 test("applying an update with no complete downloaded worker leaves the current app running", async () => {
   resetData(app);
   app.state.swWaiting = null;
