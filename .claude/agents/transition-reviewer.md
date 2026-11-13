@@ -77,6 +77,50 @@ the delta touches:
 - **Reduced motion.** With motion reduced the same end state is reached at once, with no stuck
   intermediate class and no dependence on an animation event that never fires.
 
+## Nearby to a place, and place to place
+
+These are the journeys that regress most, reported as the camera "panning up to the sky" or
+jumping to the new position instead of travelling there. Treat any change to selection, the
+Nearby list, routing, camera fits, heading-up or tilt as touching them, in both directions:
+Nearby to place, place to Nearby, and place to place (list row, map tap, in-app link, Back).
+
+The camera is more than `viewport.scale`. For each journey, list every framing input and say
+where it changes: on the frame the selection changes, across the move, or on arrival. An input
+that switches on one frame while the others ease is the defect.
+
+- **Position**: `viewport.tx`/`ty`, written with scale by `moveCamera`.
+- **Basis**: `cameraOriginPoint()` (`js/app.js`) flips between the Nearby origin and the GPS fix
+  when a selection is made or cleared. `startCameraOriginTransition()` eases it and must run
+  before `state.selected` changes on every path. Today that is `focusOverviewItem` and
+  `handleMapClick` (`js/inspector.js`), `openSearchResult` (`js/map-search.js`), `goToInitialView`
+  (`js/nav.js`) and `showRoutedSelection` (`js/router.js`). A new path that sets or clears a
+  selection without it moves the rotation pivot and tilt projection on the next frame.
+- **Anchor**: `headingUpAnchorFraction` (`js/app.js`). Nearby uses the plain tilt ramp; a selected
+  place mirrors it by the destination's bearing, so the user sits low on screen for a place
+  ahead and high for one behind. It is computed from the current selection, so it takes its new
+  value the instant `state.selected` changes: check what carries the view from the old anchor to
+  the new one, especially ahead-to-behind and place-to-place with different bearings.
+- **Tilt and heading**: `tiltRotateXDeg`/`tiltRampedAnchor` (`js/tilt.js`) and
+  `renderedNavigationHeading`. With the phone raised, an anchor, basis or scale step is projected
+  toward the horizon, which is what reads as the camera swinging to the sky.
+- **Framing rule**: first-person (`nearbyFirstPersonFitZoom`) versus whole-ring or user-and-place
+  fits. Which one applies must not flip a whole move before the thing it frames has moved.
+- **Sequencing**: `zoomToSelection` often waits for the panel to settle. Nothing may redraw the
+  new framing during that wait, and the fit must be solved against the panel size it will have.
+
+Judge each affected journey in the modes where these inputs differ, not only the default: flat
+north-up; heading-up; heading-up with tilt; destination ahead, to the side and behind; near and
+far; panel expanded and minimised; a browse anchor set away from the GPS fix.
+
+Know what the existing proof does not see. The three core `45-camera-trace` journeys run flat,
+with no heading or tilt, and record only `moveCamera` calls and writes to `viewport.scale`. A
+step in position, basis, anchor, heading or tilt passes them. Its heading-up test checks where a
+link lands, not the path there. `13-tilt-3d` ("tapping a spot in 3D slides the map there
+smoothly") is the pattern for a tilted move, and `12-selected-route` covers glide and twitch
+while walking a route. When a change touches an input those do not record, a pass is not proof:
+ask for a test that drives the journey in heading-up with tilt and samples, frame by frame, where
+the user, the destination and the ground land on screen, asserting no single-frame step.
+
 Leave frame cost and allocation to `performance-reviewer`, first paint and the no-JS takeover to
 `progressive-enhancement-reviewer`, focus order, names and motion preference policy to
 `accessibility-reviewer`, easing taste and durations to `design-reviewer`, and whether the journey
@@ -92,7 +136,7 @@ Proof sources:
   change before the first move lands), `48-deliberate-camera-arc`, `10-secondary-screen-camera`,
   `12-selected-route`, `15-map-gesture-continuity`, `07-navigation` (URL, Back/forward).
   `--project=mobile` matches no tests in them.
-- E2E, mobile and desktop: `40-nearby-filter-rail`, `41-nearby-reselect`, `27-icon-motion`,
+- E2E, mobile and desktop: `13-tilt-3d`, `40-nearby-filter-rail`, `41-nearby-reselect`, `27-icon-motion`,
   `47-detail-panel-layout`, `03-selection`, `04-filters`, `08-onboarding`. Check the mobile
   `testMatch` in `playwright.config.js` before naming any other.
 - Unit suites run through `test-runner`; you cannot run them. Use a supplied receipt or ask.
