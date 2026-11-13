@@ -725,12 +725,11 @@ globalThis.__forestFindsTest = {
   mapEmojiScale,
   MAP_PNG_ICON_SIZE,
   MAP_ICON_SCALE_UNSELECTED,
-  CLUSTER_RADIUS_ICON_SIZE_REF,
-  MEGA_CLUSTER_MERGE_RADIUS_CSS_PX,
-  buildTypeClusters,
+  buildMapMarkers,
+  clusterMarkerRect,
+  clusterPreviewEntries,
+  drawMapMarkers,
   clusterTreeIconSrc,
-  buildSuperClusters,
-  drawMegaClusters,
   clusterJoinAnimationState,
   settleClusterJoinAnimations,
   zoomAlongTween,
@@ -1160,30 +1159,127 @@ async function runRegisteredTests() {
 
 const app = loadAppForTests();
 
-test("a mega badge's displayed count is exactly what was merged into it, not a separate radius scan", () => {
-  const fakeCluster = (id, x, n) => ({
-    items: Array.from({ length: n }, (_, i) => ({ id: `${id}-${i}` })),
-    screenPt: { x, y: 0 },
-    worldPt: { x: 0, y: 0 },
-  });
-  // Two clusters close enough to merge into one mega badge -- 3 trees and 2 landmarks, so the
-  // badge should read "5", never some other number from an unrelated nearby-list scan.
-  const megaGroups = app.buildSuperClusters([
-    { itemType: "tree", clusters: [fakeCluster("tree", 0, 3)] },
-    { itemType: "landmark", clusters: [fakeCluster("landmark", 1, 2)] },
-  ]);
-  assert.equal(megaGroups.length, 1, "the two clusters merge into a single mega group");
-  assert.equal(megaGroups[0].reduce((n, m) => n + m.cluster.items.length, 0), 5);
+// Map markers: one clustering pass across every category. Items carry their screen position
+// directly as `point` here, with an identity projection, so each case controls the exact layout.
+const markerScreen = (p) => p;
+const markerLookup = (items) => {
+  const lookup = { tree: new Set(), landmark: new Set(), cow: new Set(), path: new Set(), water: new Set() };
+  for (const { type, item } of items) lookup[type].add(item);
+  return lookup;
+};
+const markerItem = (type, id, x, y) => ({ type, item: { id, commonName: "Oak", point: { x, y } } });
+const markerRectsOverlap = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+const drawnMarkerRect = (marker) => app.clusterMarkerRect(marker.screenPt.x, marker.screenPt.y,
+  marker.items.length, app.pixelRatio(), marker.items.length > 1 ? 1 : app.mapEmojiScale());
+// Deterministic pseudo-random layout so a failure is reproducible.
+function markerScatter(count, spread, types) {
+  let seed = 12345;
+  const next = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+  return Array.from({ length: count }, (_, i) =>
+    markerItem(types[i % types.length], `m${i}`, next() * spread, next() * spread));
+}
+
+test("no two map markers overlap, however densely different categories are packed", () => {
+  const types = ["tree", "landmark", "cow", "path", "water"];
+  const layouts = {
+    dense: markerScatter(300, 260, types),
+    collinear: Array.from({ length: 60 }, (_, i) => markerItem(types[i % 5], `c${i}`, i * 9, 100)),
+    coincident: Array.from({ length: 12 }, (_, i) => markerItem(types[i % 5], `p${i}`, 50, 50)),
+    sparseTrees: markerScatter(80, 1500, ["tree"]),
+  };
+  for (const [name, items] of Object.entries(layouts)) {
+    const markers = app.buildMapMarkers(markerLookup(items), markerScreen);
+    const rects = markers.map(drawnMarkerRect);
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        assert.equal(markerRectsOverlap(rects[i], rects[j]), false,
+          `${name}: markers ${i} and ${j} are drawn on top of each other`);
+      }
+    }
+  }
+});
+
+test("every item is in exactly one map marker, and a marker's count is its item count", () => {
+  const items = markerScatter(250, 300, ["tree", "landmark", "cow", "path", "water"]);
+  const markers = app.buildMapMarkers(markerLookup(items), markerScreen);
+  const seen = new Map();
+  for (const marker of markers) {
+    assert.equal(Object.values(marker.itemsByType).flat().length, marker.items.length,
+      "the per-category breakdown holds exactly the marker's items");
+    for (const item of marker.items) seen.set(item, (seen.get(item) || 0) + 1);
+  }
+  assert.equal(seen.size, items.length, "no item is lost");
+  assert.ok([...seen.values()].every(n => n === 1), "no item is claimed by two markers");
+});
+
+test("different categories standing on one spot become one group wherever the user is", () => {
+  resetData(app);
+  const spot = makePoint(app, 51.665, 0.045);
+  for (const user of [makePoint(app, 51.665, 0.045), makePoint(app, 51.68, 0.1)]) {
+    app.state.userLocation = user;
+    const cow = { id: "cow", ...spot };
+    const tree = { id: "tree", commonName: "Oak", latinName: "Quercus robur", ...spot };
+    const church = { id: "church", name: "Church", category: "place_of_worship", ...spot };
+    const lookup = markerLookup([{ type: "cow", item: cow }, { type: "tree", item: tree }, { type: "landmark", item: church }]);
+    const markers = app.buildMapMarkers(lookup, app.worldToScreen);
+    assert.equal(markers.length, 1, "three different things on one spot never just stack");
+    assert.equal(markers[0].items.length, 3);
+    assert.equal(markers[0].itemType, "_mega", "a mixed group is flagged as mixed for the tap handler");
+    assert.deepEqual(Object.keys(markers[0].itemsByType).sort(), ["cow", "landmark", "tree"]);
+  }
+  app.state.userLocation = null;
+});
+
+test("map markers are drawn at the densest item's own point and are deterministic", () => {
+  // A row plus one outlier: the middle item has two neighbours in reach, the ends one each.
+  const items = [markerItem("tree", "a", 0, 0), markerItem("tree", "b", 40, 0), markerItem("tree", "c", 70, 0),
+    markerItem("cow", "far", 600, 600)];
+  const first = app.buildMapMarkers(markerLookup(items), markerScreen);
+  const again = app.buildMapMarkers(markerLookup(items), markerScreen);
+  const summary = (markers) => Array.from(markers, m => ({ at: [m.screenPt.x, m.screenPt.y], ids: Array.from(m.items, i => i.id).sort() }))
+    .sort((a, b) => a.at[0] - b.at[0]);
+  assert.deepEqual(summary(first), summary(again), "the same view always yields the same markers");
+  const group = first.find(m => m.items.length > 1);
+  assert.deepEqual(Array.from(group.items, i => i.id).sort(), ["a", "b", "c"]);
+  assert.equal(group.screenPt.x, 40, "the group sits on the densest member, not on the members' average");
+  assert.equal(group.worldPt, group.items.find(i => i.id === "b").point, "tilt scaling reads that same member");
+});
+
+test("a lone item stays an ordinary single-item map marker", () => {
+  const items = [markerItem("cow", "lone", 10, 10), markerItem("tree", "other", 900, 900)];
+  const markers = app.buildMapMarkers(markerLookup(items), markerScreen);
+  assert.equal(markers.length, 2);
+  for (const marker of markers) {
+    assert.equal(marker.items.length, 1);
+    assert.equal(marker.itemType, Object.keys(marker.itemsByType)[0], "a single-category marker names its category");
+  }
+});
+
+test("a mixed group's face shows its two most common kinds, and its count is the exact member count", () => {
+  const beech = { id: "beech", commonName: "Common beech", latinName: "Fagus sylvatica", point: { x: 0, y: 0 } };
+  const oaks = [1, 2, 3].map(n => ({ id: `oak${n}`, commonName: "English oak", latinName: "Quercus robur", point: { x: n, y: 0 } }));
+  const cow = { id: "cow", point: { x: 0, y: 1 } };
+  const pub = { id: "pub", name: "Pub", category: "pub", point: { x: 1, y: 1 } };
+  const markers = app.buildMapMarkers(markerLookup([
+    ...oaks.map(item => ({ type: "tree", item })), { type: "tree", item: beech },
+    { type: "cow", item: cow }, { type: "landmark", item: pub }]), markerScreen);
+  assert.equal(markers.length, 1);
+  const entries = app.clusterPreviewEntries(markers[0]);
+  assert.equal(entries[0].count, 3, "the most common kind (three oaks) comes first");
+  assert.equal(entries[0].src, app.ICON_PATHS["tree-english-oak"]);
+  assert.ok(entries.length >= 3, "beech, cow and pub are separate kinds behind the two shown");
 
   const texts = [];
   const ctx = {
-    save() {}, restore() {}, beginPath() {}, closePath() {}, clip() {},
+    save() {}, restore() {}, beginPath() {}, closePath() {}, clip() {}, roundRect() {},
     arc() {}, fill() {}, stroke() {}, lineTo() {}, moveTo() {}, drawImage() {},
     createRadialGradient() { return { addColorStop() {} }; },
     fillText(text) { texts.push(text); },
   };
-  app.drawMegaClusters(ctx, megaGroups);
-  assert.deepEqual(texts, ["5"], "the badge shows the raw number of items merged into it");
+  app.drawMapMarkers(ctx, app.buildMapMarkers(markerLookup([
+    ...oaks.map(item => ({ type: "tree", item })), { type: "tree", item: beech },
+    { type: "cow", item: cow }, { type: "landmark", item: pub }]), markerScreen), markerScreen, false);
+  assert.deepEqual(texts, ["6"], "the badge shows the raw number of items in the group");
 });
 
 test("a tree cluster's icon is the shared species only when every member agrees", () => {
@@ -1194,27 +1290,6 @@ test("a tree cluster's icon is the shared species only when every member agrees"
     "a cluster of same-species trees still shows that species' own icon");
   assert.equal(app.clusterTreeIconSrc([oak, oak, beech]), app.ICON_PATHS["tree"],
     "a cluster mixing oaks and a beech must not draw as a plain oak -- the generic tree icon doesn't claim a species the cluster isn't");
-});
-
-test("buildSuperClusters does not chain far-apart clusters into one mega cluster", () => {
-  const dpr = app.pixelRatio();
-  const radius = app.MEGA_CLUSTER_MERGE_RADIUS_CSS_PX * dpr * (app.MAP_PNG_ICON_SIZE / app.CLUSTER_RADIUS_ICON_SIZE_REF);
-  const fakeCluster = (id, x) => ({ items: [{ id }], screenPt: { x, y: 0 }, worldPt: { x: 0, y: 0 } });
-  // Four single-item clusters in a line, each just inside merge radius of its
-  // immediate neighbour (0.6 * radius apart) but the first and last four times
-  // that -- far outside the merge radius of one another.
-  const a = fakeCluster("a", 0);
-  const b = fakeCluster("b", radius * 0.6);
-  const c = fakeCluster("c", radius * 1.2);
-  const d = fakeCluster("d", radius * 1.8);
-
-  const superClusters = app.buildSuperClusters([{ itemType: "tree", clusters: [a, b, c, d] }]);
-
-  const groupOf = (cluster) => superClusters.find(group => group.some(member => member.cluster === cluster));
-  assert.notEqual(groupOf(a), groupOf(d), "the first and last cluster in the chain must not end up merged together");
-  assert.ok(superClusters.length > 1, "a long, roughly-uniform run of clusters must not collapse into a single mega cluster");
-  // Directly-close pairs still merge: this isn't a regression to "never merge anything".
-  assert.equal(groupOf(a), groupOf(b), "clusters within the merge radius of each other still merge");
 });
 
 test("a zoom between two scales eases geometrically, so each step changes the view by the same proportion", () => {

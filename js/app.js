@@ -2440,12 +2440,8 @@ function expandedClusterOverviewEntries(group, latitude, longitude) {
     else if (itemType === "water") entries.push({ kind: "ponds_streams", type: "water", item, metres });
     else entries.push({ kind: resolvePlaceKind(item), type: "landmark", item, metres });
   };
-  if (group.itemType === "_mega" && group.itemsByType) {
-    for (const [itemType, items] of Object.entries(group.itemsByType)) {
-      for (const item of items) pushEntry(itemType, item);
-    }
-  } else {
-    for (const item of (group.items || [])) pushEntry(group.itemType, item);
+  for (const [itemType, items] of Object.entries(clusterItemsByType(group))) {
+    for (const item of items) pushEntry(itemType, item);
   }
   return entries.filter(entry => Number.isFinite(entry.metres)).sort((a, b) => a.metres - b.metres);
 }
@@ -5235,9 +5231,7 @@ function nearestSelectedFilterPoints() {
 // the camera zoom in exactly as far as separating them needs, capped at the same 220x-of-base
 // ceiling applyBoundsToViewport already enforces for the pinch gesture.
 function expandedClusterFitPoints(group) {
-  const items = group.itemType === "_mega" && group.itemsByType
-    ? Object.values(group.itemsByType).flat()
-    : (group.items || []);
+  const items = Object.values(clusterItemsByType(group)).flat();
   return items.map((item) => item.point).filter(Boolean);
 }
 

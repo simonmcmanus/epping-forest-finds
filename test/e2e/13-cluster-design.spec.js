@@ -1,63 +1,56 @@
 const { test, expect } = require('@playwright/test');
-const { setup, tapCanvasPoint } = require('./helpers');
+const { setup, tapCanvasPoint, waitForUiToSettle } = require('./helpers');
 
-test.describe('Cluster badges and geographic footprints', () => {
+// A group marker's tappable face, found from the renderer's own marker pass and geometry.
+const FIND_GROUP = `(() => {
+  const dpr = pixelRatio();
+  for (const marker of buildMapMarkers(activeIconLookup(), worldToScreen)) {
+    if (marker.items.length < 2) continue;
+    const box = clusterBadgeGeometry(marker.screenPt.x, marker.screenPt.y, marker.items.length, dpr);
+    const point = { x: box.left + 8 * dpr, y: box.top + box.height / 2 };
+    const hit = findClusterHit(point);
+    if (hit && hit.items.length === marker.items.length && hit.items[0] === marker.items[0]) return { marker, box, point };
+  }
+  return null;
+})()`;
+
+test.describe('Map markers: one compact pin per group, never overlapping', () => {
   test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ['geolocation'] });
 
-  test('both group types show exact counts and a short pointer attached to their badge', async ({ page }) => {
+  test('group markers show the exact count, capped at 99+, on a compact pin with a short pointer', async ({ page }) => {
     await setup(page);
     const result = await page.evaluate(() => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
+      const ctx = document.createElement('canvas').getContext('2d');
       const labels = [];
       ctx.fillText = text => labels.push(text);
-      drawGroupBadge(ctx, 100, 100, 12, [iconPath('tree')], false, 1);
-      drawGroupBadge(ctx, 100, 100, 12, [iconPath('tree'), iconPath('cafe')], true, 1);
-      drawGroupBadge(ctx, 100, 100, 124, [iconPath('tree')], false, 1);
-      const a = clusterBadgeGeometry(100, 100, 12, false, 1);
-      const b = clusterBadgeGeometry(100, 100, 12, true, 1);
-      return { labels, gaps: [100 - a.bottom, 100 - b.bottom], widths: [a.width, b.width] };
+      drawClusterMarker(ctx, 100, 100, 12, [iconPath('tree')], 1);
+      drawClusterMarker(ctx, 100, 100, 12, [iconPath('tree'), iconPath('cafe')], 1);
+      drawClusterMarker(ctx, 100, 100, 124, [iconPath('tree')], 1);
+      const box = clusterBadgeGeometry(100, 100, 12, 1);
+      return { labels, gap: 100 - box.bottom, width: box.width };
     });
     expect(result.labels).toEqual(['12', '12', '99+']);
-    expect(result.gaps).toEqual([7, 7]);
-    expect(Math.max(...result.widths)).toBeLessThanOrEqual(84);
+    expect(result.gap).toBeLessThanOrEqual(7);
+    expect(result.width).toBeLessThan(60);
   });
 
-  test('all clusters share one silhouette, colour and count position', async ({ page }) => {
+  test('one-artwork and mixed groups share one silhouette, colour and count position', async ({ page }) => {
     await setup(page);
     const result = await page.evaluate(() => {
-      const ctx = document.createElement('canvas').getContext('2d');
-      const fills = [], textPositions = [];
-      ctx.fill = () => fills.push(ctx.fillStyle);
-      ctx.stroke = () => {};
-      ctx.fillText = (text, x, y) => textPositions.push({ x, y });
-      drawGroupBadge(ctx, 100, 100, 12, [], false, 1);
-      drawGroupBadge(ctx, 100, 100, 12, [], true, 1);
-      return { fills, textPositions, same: clusterBadgeGeometry(100, 100, 12, false, 1), mixed: clusterBadgeGeometry(100, 100, 12, true, 1) };
+      const draw = sources => {
+        const ctx = document.createElement('canvas').getContext('2d');
+        const fills = [], texts = [];
+        ctx.fill = () => fills.push(ctx.fillStyle);
+        ctx.stroke = () => {};
+        ctx.fillText = (text, x, y) => texts.push({ x, y });
+        drawClusterMarker(ctx, 100, 100, 12, sources, 1);
+        return { fills, texts };
+      };
+      return { one: draw([iconPath('tree')]), two: draw([iconPath('tree'), iconPath('cafe')]) };
     });
-    expect(result.same).toEqual(result.mixed);
-    expect(result.fills[0]).toBe(result.fills[1]);
-    expect(result.fills[0]).toBe('#ffffff');
-    expect(result.textPositions[0]).toEqual(result.textPositions[1]);
-  });
-
-  test('cluster areas have a contrasting outline and visible fill on the map', async ({ page }) => {
-    await setup(page);
-    const result = await page.evaluate(() => {
-      stopViewportAnimation();
-      const ctx = document.createElement('canvas').getContext('2d');
-      const strokes = [], fills = [];
-      ctx.stroke = () => strokes.push({ colour: ctx.strokeStyle, width: ctx.lineWidth / pixelRatio() });
-      ctx.fill = () => fills.push(ctx.fillStyle);
-      const items = Array.from(activeIconLookup().tree).slice(0, 2);
-      drawClusterFootprints(ctx, [{ items }], []);
-      return { strokes, fills };
-    });
-    expect(result.strokes).toHaveLength(2);
-    expect(result.strokes[0].width).toBeGreaterThanOrEqual(4);
-    expect(result.strokes[1].width).toBeGreaterThanOrEqual(2);
-    expect(result.strokes[0].colour).not.toBe(result.strokes[1].colour);
-    expect(result.fills).toHaveLength(1);
+    expect(result.one.fills).toEqual(result.two.fills);
+    expect(result.one.fills[0]).toBe('#ffffff');
+    expect(result.one.texts).toEqual(result.two.texts);
   });
 
   test('individual and grouped pins use rounded rectangular faces with attached pointers', async ({ page }) => {
@@ -72,76 +65,43 @@ test.describe('Cluster badges and geographic footprints', () => {
         return { corners, tips };
       };
       return [capture(() => drawMapPinShape(ctx, 100, 100, 60)),
-        capture(() => drawGroupBadge(ctx, 100, 100, 5, [], true, 1))];
+        capture(() => drawClusterMarker(ctx, 100, 100, 5, [], 1))];
     });
     for (const shape of shapes) {
-      expect(shape.corners).toHaveLength(4);
       expect(shape.tips).toContainEqual({ x: 100, y: 100 });
-      expect(new Set(shape.corners.map(p => p.x)).size).toBe(2);
-      expect(new Set(shape.corners.map(p => p.y)).size).toBe(2);
+      expect(new Set(shape.corners.slice(0, 4).map(p => p.x)).size).toBe(2);
+      expect(new Set(shape.corners.slice(0, 4).map(p => p.y)).size).toBe(2);
     }
-    const width = shape => Math.max(...shape.corners.map(p => p.x + p.radius)) - Math.min(...shape.corners.map(p => p.x - p.radius));
-    expect(width(shapes[0])).toBeLessThan(width(shapes[1]) * 0.7);
-    expect(100 - Math.max(...shapes[0].corners.map(p => p.y + p.radius))).toBeLessThanOrEqual(7);
+    // A group's face is the same pin silhouette, just at the full 1x size.
+    const width = shape => Math.max(...shape.corners.slice(0, 4).map(p => p.x + p.radius)) - Math.min(...shape.corners.slice(0, 4).map(p => p.x - p.radius));
+    expect(width(shapes[0])).toBeLessThan(width(shapes[1]));
+    expect(100 - Math.max(...shapes[1].corners.slice(0, 4).map(p => p.y + p.radius))).toBeLessThanOrEqual(7);
   });
 
-  test('tree clusters preview their distinct species, most common first', async ({ page }) => {
+  test('a group previews its two most common kinds side by side, most common first, and counts every member', async ({ page }) => {
     await setup(page);
     const result = await page.evaluate(() => {
+      stopViewportAnimation();
       const oak = { commonName: 'English oak', latinName: 'Quercus robur' };
       const beech = { commonName: 'Common beech', latinName: 'Fagus sylvatica' };
       const hornbeam = { commonName: 'Hornbeam', latinName: 'Carpinus betulus' };
-      const cluster = { items: [hornbeam, beech, oak, oak, beech, oak], screenPt: { x: 100, y: 100 }, worldPt: { x: 0, y: 0 } };
+      const at = item => ({ ...item, point: { x: 100, y: 100 } });
+      const lookup = { tree: new Set([hornbeam, beech, oak, oak, beech, oak, { ...oak }].map(at)), landmark: new Set([at({ category: 'cafe' })]),
+        cow: new Set(), path: new Set(), water: new Set() };
+      const markers = buildMapMarkers(lookup, p => p);
       const ctx = document.createElement('canvas').getContext('2d');
-      const drawChip = drawMegaClusterIconChip;
-      const sources = [];
-      drawMegaClusterIconChip = (ctx, x, y, src) => sources.push(src);
-      try { drawSameCategoryCluster(ctx, cluster, 'tree', 1); }
-      finally { drawMegaClusterIconChip = drawChip; }
-      return { sources, expected: [oak, beech, hornbeam].map(t => treeSpeciesIconPath(t.commonName, t.latinName)) };
-    });
-    expect(result.sources).toEqual(result.expected);
-  });
-
-  test('one-artwork groups put a tappable count at the top right of a compact location pin', async ({ page }) => {
-    await setup(page);
-    const result = await page.evaluate(() => {
-      const ctx = document.createElement('canvas').getContext('2d');
-      const labels = [], chips = [];
-      const original = drawMegaClusterIconChip;
-      ctx.fillText = (text, x, y) => labels.push({ text, x, y });
-      drawMegaClusterIconChip = (ctx, x, y) => chips.push({ x, y });
-      try { drawGroupBadge(ctx, 100, 100, 12, [iconPath('shop')], false, 1); }
-      finally { drawMegaClusterIconChip = original; }
-      const box = clusterBadgeGeometry(100, 100, 12, false, 1, 1, true);
-      return { labels, chips, width: box.width, hit: clusterBadgeContains(labels[0], 100, 100, 12, false, 1, 1, true) };
-    });
-    expect(result.width).toBeLessThan(60);
-    expect(result.labels[0].text).toBe('12');
-    expect(result.labels[0].x).toBeGreaterThan(result.chips[0].x);
-    expect(result.labels[0].y).toBeLessThan(result.chips[0].y);
-    expect(result.hit).toBe(true);
-  });
-
-  test('mixed groups preserve species previews and coalesce duplicate species artwork', async ({ page }) => {
-    await setup(page);
-    const result = await page.evaluate(() => {
-      const oak = { commonName: 'English oak', latinName: 'Quercus robur' };
-      const beech = { commonName: 'Common beech', latinName: 'Fagus sylvatica' };
-      const ctx = document.createElement('canvas').getContext('2d');
-      const group = [{ itemType: 'tree', cluster: { items: [oak, oak, beech], screenPt: { x: 100, y: 100 } } },
-        { itemType: 'tree', cluster: { items: [beech], screenPt: { x: 101, y: 100 } } },
-        { itemType: 'landmark', cluster: { items: [{ category: 'cafe' }], screenPt: { x: 102, y: 100 } } }];
-      const drawChip = drawMegaClusterIconChip;
-      const sources = [], labels = [];
+      const chip = drawClusterIconChip, labels = [], sources = [];
       ctx.fillText = text => labels.push(text);
-      drawMegaClusterIconChip = (ctx, x, y, src) => sources.push(src);
-      try { drawMegaClusters(ctx, [group]); }
-      finally { drawMegaClusterIconChip = drawChip; }
-      return { sources, labels, expected: [treeSpeciesIconPath(oak.commonName, oak.latinName), treeSpeciesIconPath(beech.commonName, beech.latinName), iconPath('cafe')] };
+      drawClusterIconChip = (ctx, x, y, src) => sources.push(src);
+      try { drawMapMarkers(ctx, markers, p => p); }
+      finally { drawClusterIconChip = chip; }
+      return { markers: markers.length, sources, labels, entries: clusterPreviewEntries(markers[0]).length,
+        expected: [oak, beech].map(t => treeSpeciesIconPath(t.commonName, t.latinName)) };
     });
+    expect(result.markers).toBe(1);
     expect(result.sources).toEqual(result.expected);
-    expect(result.labels).toEqual(['5']);
+    expect(result.entries).toBeGreaterThan(2);
+    expect(result.labels).toEqual(['8']);
   });
 
   test('station groups retain their Underground and National Rail symbols', async ({ page }) => {
@@ -153,11 +113,12 @@ test.describe('Cluster badges and geographic footprints', () => {
       drawUndergroundGlyph = () => calls.push('underground');
       drawNationalRailGlyph = () => calls.push('rail');
       try {
-        for (const name of ['Underground station', 'Railway station']) {
-          const item = { name, category: 'station' };
-          const cluster = { items: [item, item], screenPt: { x: 100, y: 100 } };
-          drawSameCategoryCluster(ctx, cluster, 'landmark', 1);
-        }
+        const landmark = new Set();
+        ['Underground station', 'Railway station'].forEach((name, row) => {
+          for (let i = 0; i < 2; i++) landmark.add({ name, category: 'station', point: { x: 100, y: 100 + row * 200 } });
+        });
+        const markers = buildMapMarkers({ landmark }, p => p);
+        drawMapMarkers(ctx, markers, p => p);
       } finally {
         drawUndergroundGlyph = underground;
         drawNationalRailGlyph = rail;
@@ -167,41 +128,130 @@ test.describe('Cluster badges and geographic footprints', () => {
     expect(glyphs).toEqual(['underground', 'rail']);
   });
 
-  test('the shaded area follows member locations rather than the count', async ({ page }) => {
-    await setup(page);
-    const result = await page.evaluate(() => {
-      const p = (x, y) => ({ point: { x, y } });
-      const small = [p(100, 100), p(105, 100)];
-      const spread = [p(100, 100), p(180, 100), p(140, 145)];
-      const hull = items => clusterFootprintPoints(items, p => p, p => p, 10);
-      const bounds = points => ({ left: Math.min(...points.map(p => p.x)), right: Math.max(...points.map(p => p.x)), top: Math.min(...points.map(p => p.y)), bottom: Math.max(...points.map(p => p.y)) });
-      return { small: bounds(hull(small)), spread: bounds(hull(spread)), duplicates: bounds(hull([...small, ...small])), coincident: hull([p(100, 100), p(100, 100)]).length };
-    });
-    expect(result.spread.left).toBeLessThan(100);
-    expect(result.spread.right).toBeGreaterThan(180);
-    expect(result.spread.bottom).toBeGreaterThan(145);
-    expect(result.duplicates).toEqual(result.small);
-    expect(result.spread.right - result.spread.left).toBeGreaterThan(result.small.right - result.small.left);
-    expect(result.coincident).toBeGreaterThan(6);
-  });
-
-  test('a cluster badge opens its members when tapped on either side of the count', async ({ page }) => {
+  test('no two drawn markers overlap, at the default view and after zooming in and out', async ({ page }) => {
     await setup(page);
     await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
+    await waitForUiToSettle(page);
+    const zooms = [1, 0.45, 2.2];
+    const seen = [];
+    for (const factor of zooms) {
+      const view = await page.evaluate(factor => {
+        stopViewportAnimation();
+        const centre = { x: state.canvasLogicalWidth / 2, y: state.canvasLogicalHeight / 2 };
+        const world = screenToWorld(centre.x, centre.y);
+        state.viewport.scale *= factor;
+        for (let i = 0; i < 2; i++) {
+          const now = worldToScreen(world);
+          state.viewport.tx += centre.x - now.x;
+          state.viewport.ty += centre.y - now.y;
+        }
+        state.emojiScaleAnimated = zoomEmojiScaleTarget();
+        settleClusterJoinAnimations();
+        // Record what draw() really paints, then derive each rectangle from the renderer's own geometry.
+        const dpr = pixelRatio();
+        const drawnGroup = drawClusterMarker, drawnPin = drawItemPin;
+        const drawn = [];
+        drawClusterMarker = (ctx, x, y, count, sources, d, scale = 1) => {
+          drawn.push({ ...clusterMarkerRect(x, y, count, dpr, scale), count });
+          return drawnGroup(ctx, x, y, count, sources, d, scale);
+        };
+        drawItemPin = (ctx, type, item, x, y, size) => {
+          drawn.push({ ...clusterMarkerRect(x, y, 1, dpr, size / (MAP_PNG_ICON_SIZE * MAP_ICON_SCALE_UNSELECTED * dpr)), count: 1 });
+          return drawnPin(ctx, type, item, x, y, size);
+        };
+        try { draw(); } finally { drawClusterMarker = drawnGroup; drawItemPin = drawnPin; }
+        let overlaps = 0;
+        for (let i = 0; i < drawn.length; i++) {
+          for (let j = i + 1; j < drawn.length; j++) {
+            const a = drawn[i], b = drawn[j];
+            if (a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom) overlaps++;
+          }
+        }
+        return { markers: drawn.length, groups: drawn.filter(m => m.count > 1).length, overlaps };
+      }, factor);
+      seen.push(view);
+      expect(view.overlaps, `zoom x${factor}: drawn markers overlapping`).toBe(0);
+      expect(view.markers, `zoom x${factor}: something is drawn`).toBeGreaterThan(0);
+    }
+    expect(seen.some(view => view.groups > 0), 'the busy views do group things').toBe(true);
+  });
+
+  test('the user dot and its label are painted after every pin, flat and heading-up', async ({ page }) => {
+    await setup(page);
+    const order = await page.evaluate(() => {
+      stopViewportAnimation();
+      const markers = drawMapMarkers, user = drawUser;
+      const events = [];
+      drawMapMarkers = (...args) => { events.push('pins'); return markers(...args); };
+      drawUser = (...args) => { events.push('user'); return user(...args); };
+      try {
+        draw();
+        const flat = events.splice(0);
+        state.compassHeading = state.compassHeadingTarget = state.renderedNavigationHeading = 0;
+        state.compassLastEventAt = performance.now();
+        state.map3dEnabled = true;
+        state.tiltBetaSmoothed = state.tiltBetaTarget = 65;
+        alignHeadingUpNavigationViewport({ force: true });
+        draw();
+        return { flat, tilted: events.splice(0), tiltActive: tiltActive() };
+      } finally {
+        drawMapMarkers = markers;
+        drawUser = user;
+      }
+    });
+    expect(order.tiltActive).toBe(true);
+    expect(order.flat).toEqual(['pins', 'user']);
+    expect(order.tilted).toEqual(['pins', 'user']);
+  });
+
+  test('tapping a mixed group opens exactly its members, and the badge count matches the list and map', async ({ page }) => {
+    await setup(page);
+    await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
+    await waitForUiToSettle(page);
     const target = await page.evaluate(() => {
       stopViewportAnimation();
-      const lookup = activeIconLookup();
-      const trees = buildTypeClusters(lookup.tree, worldToScreen);
-      for (const cluster of trees) {
-        if (cluster.items.length < 2) continue;
-        const box = clusterBadgeGeometry(cluster.screenPt.x, cluster.screenPt.y, cluster.items.length, false, pixelRatio(), 1, clusterPreviewEntries('tree', cluster).length === 1);
-        const point = { x: box.left + 8 * pixelRatio(), y: box.top + box.height / 2 };
+      const dpr = pixelRatio();
+      for (const marker of buildMapMarkers(activeIconLookup(), worldToScreen)) {
+        if (marker.itemType !== '_mega') continue;
+        const box = clusterBadgeGeometry(marker.screenPt.x, marker.screenPt.y, marker.items.length, dpr);
+        const point = { x: box.left + 8 * dpr, y: box.top + box.height / 2 };
         const hit = findClusterHit(point);
-        const countHit = findClusterHit({ x: box.left + box.width - 8 * pixelRatio(), y: point.y });
-        if (hit && countHit && hit.items.includes(cluster.items[0]) && hit.items.length === countHit.items.length) return { point, count: hit.items.length };
+        if (hit && hit.items.length === marker.items.length && hit.items[0] === marker.items[0]) {
+          return { point, count: marker.items.length, categories: Object.keys(marker.itemsByType).length };
+        }
       }
       return null;
     });
+    expect(target, 'a mixed-category group is on screen at the default view').not.toBeNull();
+    expect(target.categories).toBeGreaterThan(1);
+    await tapCanvasPoint(page, target.point);
+    await expect.poll(() => page.evaluate(() => state.clusterExpanded?.items.length)).toBe(target.count);
+    await waitForUiToSettle(page);
+    const shown = await page.evaluate(() => {
+      const lookup = activeIconLookup();
+      return {
+        onMap: ['tree', 'landmark', 'cow', 'path', 'water'].reduce((n, type) => n + lookup[type].size, 0),
+        inList: document.querySelectorAll('#inspectorBody .nearest-item').length,
+        listCap: state.nearestItemsCount,
+      };
+    });
+    expect(shown.onMap, 'the map shows exactly the badge count').toBe(target.count);
+    // The Nearby list always stops at the nearest-N cap, so a group bigger than that lists the cap.
+    expect(shown.inList, 'the list shows the group, up to its usual cap').toBe(Math.min(target.count, shown.listCap));
+  });
+
+  test('a group marker opens its members when tapped on either side of the count', async ({ page }) => {
+    await setup(page);
+    await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
+    const target = await page.evaluate(`(() => {
+      stopViewportAnimation();
+      const found = ${FIND_GROUP};
+      if (!found) return null;
+      const dpr = pixelRatio();
+      const other = { x: found.box.left + found.box.width - 8 * dpr, y: found.point.y };
+      const countHit = findClusterHit(other);
+      return countHit && countHit.items.length === found.marker.items.length ? { point: found.point, count: countHit.items.length } : null;
+    })()`);
     expect(target).not.toBeNull();
     await tapCanvasPoint(page, target.point);
     await expect.poll(() => page.evaluate(() => state.clusterExpanded?.items.length)).toBe(target.count);
@@ -219,19 +269,11 @@ test.describe('Cluster badges and geographic footprints', () => {
     // after it had already stopped.
     await setup(page);
     await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
-    const target = await page.evaluate(() => {
+    const target = await page.evaluate(`(() => {
       stopViewportAnimation();
-      const lookup = activeIconLookup();
-      const trees = buildTypeClusters(lookup.tree, worldToScreen);
-      for (const cluster of trees) {
-        if (cluster.items.length < 2) continue;
-        const box = clusterBadgeGeometry(cluster.screenPt.x, cluster.screenPt.y, cluster.items.length, false, pixelRatio(), 1, clusterPreviewEntries('tree', cluster).length === 1);
-        const point = { x: box.left + 8 * pixelRatio(), y: box.top + box.height / 2 };
-        const hit = findClusterHit(point);
-        if (hit && hit.items.includes(cluster.items[0])) return { point, count: hit.items.length };
-      }
-      return null;
-    });
+      const found = ${FIND_GROUP};
+      return found ? { point: found.point, count: found.marker.items.length } : null;
+    })()`);
     expect(target).not.toBeNull();
 
     const samples = await page.evaluate(async (point) => {
@@ -300,12 +342,7 @@ test.describe('Cluster badges and geographic footprints', () => {
       // state.nearbyAnchor starts null (plain GPS-centred browsing) -- tapping a cluster is
       // exactly the "not browsing -> browsing" crossing that makes the old and new pivot
       // rules (and so the fromScale/toScale blend) disagree.
-      const lookup = activeIconLookup();
-      const trees = buildTypeClusters(lookup.tree, worldToScreen);
-      let cluster = null;
-      for (const candidate of trees) {
-        if (candidate.items.length >= 2) { cluster = candidate; break; }
-      }
+      const cluster = buildMapMarkers(activeIconLookup(), worldToScreen).find(candidate => candidate.items.length >= 2) || null;
       if (!cluster) return null;
 
       const { centerPoint, center, targetMinutes } = clusterFocusTarget(cluster.items);
@@ -344,7 +381,7 @@ test.describe('Cluster badges and geographic footprints', () => {
       return { blendedScale, finalScale, settledScale, finalFocusY: finalFocus.y, settledFocusY: settledFocus.y };
     });
 
-    expect(result, "sanity: a real multi-member tree cluster must exist in the fixture data").not.toBeNull();
+    expect(result, "sanity: a real multi-member group marker must exist in the fixture data").not.toBeNull();
     // Sanity: under tilt, the stale progress~0 snapshot really does diverge sharply from the
     // settled fit -- confirming this scenario actually exercises the bug this test guards.
     expect(Math.abs(result.blendedScale - result.settledScale) / result.settledScale).toBeGreaterThan(0.2);
@@ -402,60 +439,5 @@ test.describe('Cluster badges and geographic footprints', () => {
     expect(Math.abs(result.blendedScale - result.settledScale) / result.settledScale).toBeGreaterThan(0.2);
     expect(Math.abs(result.finalScale - result.settledScale) / result.settledScale).toBeLessThan(0.001);
     expect(Math.abs(result.finalFocusY - result.settledFocusY)).toBeLessThan(0.5);
-  });
-
-  test('flat and tilted scenes paint geographic footprints beneath their badges', async ({ page }) => {
-    await setup(page);
-    const result = await page.evaluate(() => {
-      stopViewportAnimation();
-      const footprint = drawClusterFootprints, badge = drawGroupBadge;
-      const events = [];
-      drawClusterFootprints = (...args) => { events.push('footprint'); return footprint(...args); };
-      drawGroupBadge = (...args) => { events.push('badge'); return badge(...args); };
-      try {
-        draw();
-        const flat = events.slice();
-        events.length = 0;
-        state.compassHeading = state.compassHeadingTarget = state.renderedNavigationHeading = 0;
-        state.compassLastEventAt = performance.now();
-        state.map3dEnabled = true;
-        state.tiltBetaSmoothed = state.tiltBetaTarget = 65;
-        alignHeadingUpNavigationViewport({ force: true });
-        draw();
-        return { flat, tilted: events.slice() };
-      } finally {
-        drawClusterFootprints = footprint;
-        drawGroupBadge = badge;
-      }
-    });
-    for (const events of [result.flat, result.tilted]) {
-      expect(events[0]).toBe('footprint');
-      expect(events.slice(1)).toContain('badge');
-    }
-  });
-
-  test('tilt projects the footprint onto the ground while the badge remains upright', async ({ page }) => {
-    await setup(page);
-    const result = await page.evaluate(() => {
-      stopViewportAnimation();
-      state.compassHeading = state.compassHeadingTarget = state.renderedNavigationHeading = 0;
-      state.compassLastEventAt = performance.now();
-      state.map3dEnabled = true;
-      state.tiltBetaSmoothed = state.tiltBetaTarget = 65;
-      alignHeadingUpNavigationViewport({ force: true });
-      const centre = worldToScreenForOverlay(state.userLocation.point);
-      const items = [{ point: { x: centre.x - 20, y: centre.y - 100 } }, { point: { x: centre.x + 20, y: centre.y - 80 } }];
-      const flat = clusterFootprintPoints(items, p => p, p => p, 10);
-      const tilted = clusterFootprintPoints(items, p => p, tiltProjectScreenPoint, 10);
-      const projected = flat.map(tiltProjectScreenPoint);
-      const pin = tiltProjectScreenPoint(items[0].point);
-      const badge = clusterBadgeGeometry(pin.x, pin.y, 12, true, 1);
-      return { active: tiltActive(), flat, tilted, projected, height: badge.height, pointer: pin.y - badge.bottom };
-    });
-    expect(result.active).toBe(true);
-    expect(result.tilted).toEqual(result.projected);
-    expect(result.tilted).not.toEqual(result.flat);
-    expect(result.height).toBe(52);
-    expect(result.pointer).toBe(7);
   });
 });

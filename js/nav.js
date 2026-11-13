@@ -1646,7 +1646,7 @@ function restoreNearbyAnchorFromHistory() {
 }
 
 // Tapping a grouped set of pins -- a same-category cluster or a cross-category "mega" badge
-// (buildSuperClusters, js/renderer.js) alike -- moves the Nearby browse anchor to the group's
+// (buildMapMarkers, js/renderer.js) alike -- moves the Nearby browse anchor to the group's
 // centre and grows the walking radius just far enough to keep every member inside the ring, the
 // same way a tap on open ground does (focusNearbyOnMapPoint). The Nearby list then reads "what's
 // in this group" on its own, with no separate cluster-list screen to learn -- one interaction
@@ -1664,7 +1664,7 @@ function restoreNearbyAnchorFromHistory() {
 // explanation for where the view went.
 //
 // Shared by focusNearbyOnClusterGroup (below) and the mega badge's own
-// count display (drawMegaClusters, js/renderer.js), so the two can never disagree: the centre
+// count display (drawMapMarkers, js/renderer.js), so the two can never disagree: the centre
 // and walking radius a tap on this group will actually land on, computed once.
 function clusterFocusTarget(items) {
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;

@@ -40,7 +40,7 @@ test.describe("Map interaction", () => {
   test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] });
 
   test.describe("Selecting a group", () => {
-    test("tapping a group of trees browses the Nearby view to that group", async ({ page }) => {
+    test("tapping a group of pins browses the Nearby view to that group", async ({ page }) => {
       await setup(page);
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
@@ -55,7 +55,7 @@ test.describe("Map interaction", () => {
       const target = await page.evaluate(() => {
         stopViewportAnimation();
         const lookup = buildNearbyIconLookup();
-        const clusters = buildTypeClusters(lookup.tree, worldToScreen);
+        const clusters = buildMapMarkers(lookup, worldToScreen);
         const cluster = clusters.find((c) => c.items.length > 1);
         if (!cluster) return null;
         const iconSize = MAP_PNG_ICON_SIZE * pixelRatio() * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
@@ -77,7 +77,7 @@ test.describe("Map interaction", () => {
           maxMetres,
         };
       });
-      expect(target, "a multi-item tree cluster is on screen at this camera").not.toBeNull();
+      expect(target, "a multi-item group marker is on screen at this camera").not.toBeNull();
 
       await tapCanvasPoint(page, target.point);
 
@@ -113,13 +113,13 @@ test.describe("Map interaction", () => {
       const target = await page.evaluate(() => {
         stopViewportAnimation();
         const lookup = buildNearbyIconLookup();
-        const clusters = buildTypeClusters(lookup.tree, worldToScreen);
+        const clusters = buildMapMarkers(lookup, worldToScreen);
         const cluster = clusters.find((c) => c.items.length > 1);
         if (!cluster) return null;
         const iconSize = MAP_PNG_ICON_SIZE * pixelRatio() * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
         return { point: { x: cluster.screenPt.x, y: cluster.screenPt.y - iconSize * 0.64 } };
       });
-      expect(target, "a multi-item tree cluster is on screen at this camera").not.toBeNull();
+      expect(target, "a multi-item group marker is on screen at this camera").not.toBeNull();
 
       await tapCanvasPoint(page, target.point);
       await page.waitForFunction(() => Boolean(state.nearbyAnchor));
@@ -140,16 +140,16 @@ test.describe("Map interaction", () => {
       })).toEqual(anchorAfterTap ? { latitude: anchorAfterTap.latitude, longitude: anchorAfterTap.longitude } : null);
     });
 
-    test("while a tree is selected the map shows only that destination: no cluster badges are drawn or tappable", async ({ page }) => {
+    test("while a tree is selected the map shows only that destination: no group markers are drawn or tappable", async ({ page }) => {
       await setup(page);
       await page.waitForFunction(() => state.trees.length > 0);
 
       // A multi-item cluster exists on the Nearby map before anything is selected.
       const clustersBefore = await page.evaluate(() => {
         stopViewportAnimation();
-        return buildTypeClusters(buildNearbyIconLookup().tree, worldToScreen).filter((c) => c.items.length > 1).length;
+        return buildMapMarkers(buildNearbyIconLookup(), worldToScreen).filter((c) => c.items.length > 1).length;
       });
-      expect(clustersBefore, "the Nearby map has multi-item tree clusters").toBeGreaterThan(0);
+      expect(clustersBefore, "the Nearby map has multi-item group markers").toBeGreaterThan(0);
 
       await page.evaluate(() => {
         const [first] = [...buildNearbyIconLookup().tree];
@@ -162,7 +162,7 @@ test.describe("Map interaction", () => {
       const during = await page.evaluate(() => {
         const iconSize = MAP_PNG_ICON_SIZE * pixelRatio() * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
         const lookup = activeIconLookup();
-        const clusters = buildTypeClusters(buildNearbyIconLookup().tree, worldToScreen).filter((c) => c.items.length > 1);
+        const clusters = buildMapMarkers(buildNearbyIconLookup(), worldToScreen).filter((c) => c.items.length > 1);
         return {
           drawnTrees: lookup.tree.size,
           tappableClusters: clusters.filter((c) => findClusterHit({ x: c.screenPt.x, y: c.screenPt.y - iconSize * 0.64 })).length,
@@ -493,9 +493,9 @@ test.describe("Map interaction", () => {
       const target = await page.evaluate(() => {
         stopViewportAnimation();
         const lookup = activeIconLookup();
-        const clusters = buildTypeClusters(lookup.tree, worldToScreen);
+        const clusters = buildMapMarkers(lookup, worldToScreen);
         const iconSize = MAP_PNG_ICON_SIZE * pixelRatio() * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
-        for (const single of clusters.filter(c => c.items.length === 1)) {
+        for (const single of clusters.filter(c => c.items.length === 1 && c.itemType === 'tree')) {
           const point = { x: single.screenPt.x, y: single.screenPt.y - iconSize * 0.416 };
           const hit = findHit(point, screenToWorld(point.x, point.y));
           if (!findClusterHit(point) && hit?.type === 'tree' && hit.item === single.items[0]) return { point };

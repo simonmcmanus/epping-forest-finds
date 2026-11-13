@@ -95,10 +95,10 @@ The dashed circle drawn on the map centred on the user, showing the walking radi
 The directional indicator around the user dot. Points in the direction the device is facing. The outer edge represents roughly 60 metres in front of the user at the current zoom level.
 
 **Cluster**
-Multiple nearby pins of the same type grouped into a single pin at their screen centroid. Shows a count badge when more than one item. Tapping zooms in until items separate.
+Nearby pins of any category whose collision boxes overlap, grouped into one compact pin anchored at the densest member's own point. Shows a count chip when more than one item. Tapping expands to exactly that group's members.
 
 **Cluster badge**
-The small count label (e.g. "4" or "9+") drawn in the top-right of a cluster pin.
+The small count label (e.g. "4" or "99+") drawn in the top-right of a cluster pin.
 
 **Nearest area**
 The walking-radius ring on the Nearby screen, and everything inside it — the nearby list and the highlighted locations. On the Nearby screen a tap beyond it moves the nearest area to the tapped spot whatever it landed on (`isOutsideNearestArea`); inside it, taps select as normal.
