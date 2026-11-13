@@ -709,12 +709,26 @@ button.settings-toggle.has-update::after {
   white-space: nowrap;
 }
 
-/* The Back cell is deliberately reserved so the four tabs never shift when it appears. On the
-   narrowest supported phone that leaves Community a few pixels less than its natural label width;
-   scale only the labels there so every tab remains a single, contained target. */
+/* On the narrowest phones, do not spend four tab widths on an inactive Back control. It is not
+   actionable in that state, so collapse its reserved cell and let the labels keep their normal
+   size. When Back becomes actionable, restore its touch-sized track so the tabs remain stable. */
 @media (max-width: 320px) {
-  .inspector-actions .nav-label {
-    font-size: 0.55rem;
+  .inspector-actions {
+    gap: 1px;
+  }
+
+  .inspector-actions:has(> .nav-back:disabled) {
+    grid-template-columns: 0 repeat(4, minmax(0, 1fr));
+  }
+
+  .inspector-actions > .nav-back:disabled {
+    width: 0;
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .inspector-actions:has(> .nav-back:not(:disabled)) {
+    grid-template-columns: 44px repeat(4, minmax(0, 1fr));
   }
 }
 
@@ -1479,13 +1493,18 @@ textarea.report-textarea {
   height: 1.6em;
 }
 
+.rail-pill > span:not(.rail-count):not(.rail-check) {
+  line-height: 1.15;
+}
+
 /* A group pill's "2/3": how many of its subcategories are on. It is set small so it reads as a
    note beside the pill's label and tick, not as a second label. */
 .rail-count {
   display: inline-flex;
   flex: none;
   align-items: center;
-  height: 1.2em;
+  justify-content: center;
+  height: 1.35em;
   padding: 0 4px;
   border-radius: 999px;
   background: rgba(42, 84, 53, 0.12);
