@@ -408,22 +408,45 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
       const originals = { beginPath: proto.beginPath, moveTo: proto.moveTo, lineTo: proto.lineTo, stroke: proto.stroke };
       window.__outlineStrokes = [];
       window.__outlinePath = [];
+      window.__outlineLog = [];
       proto.beginPath = function () { window.__outlinePath = []; return originals.beginPath.call(this); };
       proto.moveTo = function (x, y) { window.__outlinePath.push({ x, y }); return originals.moveTo.call(this, x, y); };
       proto.lineTo = function (x, y) { window.__outlinePath.push({ x, y }); return originals.lineTo.call(this, x, y); };
       proto.stroke = function () {
-        if (this.strokeStyle === '#86621c') window.__outlineStrokes.push({ points: window.__outlinePath.slice(), lineWidth: this.lineWidth });
+        if (this.strokeStyle === '#86621c') {
+          window.__outlineStrokes.push({ points: window.__outlinePath.slice(), lineWidth: this.lineWidth, alpha: this.globalAlpha,
+            canvas: this.canvas === els.overlayCanvas ? 'overlay' : this.canvas === els.canvas ? 'main' : 'other' });
+          window.__outlineLog.push('outline:' + (this.canvas === els.overlayCanvas ? 'overlay' : 'main'));
+        }
         return originals.stroke.apply(this, arguments);
       };
     }
     window.__outlineStrokes.length = 0;
+    window.__outlineLog.length = 0;
   })()`;
+
+  // Runs one frame and returns what was stroked, with the order of outline strokes and marker passes.
+  const DRAW_FRAME = `(() => {
+    const markers = drawMapMarkers;
+    drawMapMarkers = (...args) => { window.__outlineLog.push('pins'); return markers(...args); };
+    try { window.__outlineLog.length = 0; draw(); } finally { drawMapMarkers = markers; }
+    return { strokes: window.__outlineStrokes.slice(), log: window.__outlineLog.slice() };
+  })()`;
+
+  const POINT_IN_POLYGON = `(poly, p) => {
+    let inside = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const a = poly[i], b = poly[j];
+      if ((a.y > p.y) !== (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+    }
+    return inside;
+  }`;
 
   test('the tapped group is outlined while expanded, enclosing its members, and the outline goes when the group closes', async ({ page }) => {
     await setup(page);
     await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
     await waitForUiToSettle(page);
-    const strokes = () => page.evaluate(() => { draw(); drawOverlay(); return window.__outlineStrokes.slice(); });
+    const strokes = () => page.evaluate(() => { draw(); return window.__outlineStrokes.slice(); });
     await page.evaluate(OUTLINE_RECORDER);
     expect(await strokes(), 'nothing is outlined on the resting map').toEqual([]);
 
@@ -436,7 +459,7 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     await page.evaluate(OUTLINE_RECORDER);
 
     const drawn = await page.evaluate(() => {
-      draw(); drawOverlay();
+      draw();
       const members = Object.values(clusterItemsByType(state.clusterExpanded)).flat();
       return {
         strokes: window.__outlineStrokes.slice(),
@@ -447,7 +470,12 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     expect(drawn.anchors.length).toBeGreaterThan(1);
     expect(drawn.strokes.length, 'one outline for the one expanded group').toBeGreaterThan(0);
     const outline = drawn.strokes[drawn.strokes.length - 1];
-    expect(outline.lineWidth).toBeCloseTo(1.5 * drawn.dpr, 5);
+    expect(outline.lineWidth).toBeCloseTo(2 * drawn.dpr, 5);
+    expect(outline.alpha).toBeCloseTo(0.85 * await page.evaluate(() => nearbyRevealOpacity()), 5);
+    expect(outline.canvas, 'flat view strokes the outline on the main canvas').toBe('main');
+    const frame = await page.evaluate(DRAW_FRAME);
+    expect(frame.log.indexOf('outline:main'), 'the outline is stroked before the first marker pass').toBeGreaterThanOrEqual(0);
+    expect(frame.log.indexOf('outline:main')).toBeLessThan(frame.log.indexOf('pins'));
     const contains = (poly, p) => {
       let inside = false;
       for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -479,6 +507,41 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     await expect.poll(() => page.evaluate(() => state.clusterExpanded)).toBeNull();
     await page.evaluate(OUTLINE_RECORDER);
     expect(await strokes(), 'the outline is gone with the group').toEqual([]);
+  });
+
+  test('in heading-up 3D the expanded group is outlined on the overlay, enclosing its drawn members, beneath the pins', async ({ page }) => {
+    await setup(page);
+    await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
+    await waitForUiToSettle(page);
+    const target = await page.evaluate(`(() => { stopViewportAnimation(); return ${FIND_GROUP}; })()`);
+    expect(target, 'a group is on screen at the default view').not.toBeNull();
+    await tapCanvasPoint(page, target.point);
+    await expect.poll(() => page.evaluate(() => Boolean(state.clusterExpanded))).toBe(true);
+    await waitForUiToSettle(page);
+    await page.evaluate(OUTLINE_RECORDER);
+    const tilted = await page.evaluate(`(() => {
+      stopViewportAnimation();
+      state.compassHeading = state.compassHeadingTarget = state.renderedNavigationHeading = 0;
+      state.compassLastEventAt = performance.now();
+      state.map3dEnabled = true;
+      state.tiltBetaSmoothed = state.tiltBetaTarget = 65;
+      alignHeadingUpNavigationViewport({ force: true });
+      const frame = ${DRAW_FRAME};
+      const members = Object.values(clusterItemsByType(state.clusterExpanded)).flat();
+      const anchors = members.map(item => worldToScreenForOverlayTilted(item.point)).filter(p => !p.clipped);
+      const contains = ${POINT_IN_POLYGON};
+      const outline = frame.strokes[frame.strokes.length - 1];
+      return {
+        tilted: tiltActive(), log: frame.log, canvas: outline && outline.canvas, memberCount: members.length,
+        anchors: anchors.length, enclosed: outline ? anchors.filter(p => contains(outline.points, p)).length : 0,
+      };
+    })()`);
+    expect(tilted.tilted).toBe(true);
+    expect(tilted.canvas, 'tilt strokes the outline on the overlay canvas').toBe('overlay');
+    expect(tilted.anchors).toBeGreaterThan(0);
+    expect(tilted.enclosed, 'every drawn member anchor is inside the outline').toBe(tilted.anchors);
+    expect(tilted.log.indexOf('outline:overlay')).toBeGreaterThanOrEqual(0);
+    expect(tilted.log.indexOf('outline:overlay')).toBeLessThan(tilted.log.indexOf('pins'));
   });
 
   test('a group marker opens its members when tapped on either side of the count', async ({ page }) => {

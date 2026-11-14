@@ -735,6 +735,8 @@ globalThis.__forestFindsTest = {
   clusterHasMoreKinds,
   drawMapMarkers,
   drawClusterMarker,
+  drawExpandedGroupOutline,
+  clusterBadgeGeometry,
   clusterTreeIconSrc,
   treeSpeciesIconPath,
   clusterJoinAnimationState,
@@ -1480,17 +1482,18 @@ test("a single-category group's second chip is its second most common kind", () 
 // Records the line segments drawn between a beginPath and the stroke that follows it.
 function recordingMarkerContext() {
   const strokes = [];
+  const arcs = [];
   let path = [];
   const noop = () => {};
   const ctx = {
-    save: noop, restore: noop, closePath: noop, clip: noop, roundRect: noop, arc: noop, fill: noop,
+    save: noop, restore: noop, closePath: noop, clip: noop, roundRect: noop, translate: noop, scale: noop, arc(x, y, r) { arcs.push({ x, y, r }); }, fill: noop,
     drawImage: noop, fillText: noop, quadraticCurveTo: noop, bezierCurveTo: noop,
     beginPath() { path = []; },
     moveTo(x, y) { path.push({ x, y }); },
     lineTo(x, y) { path.push({ x, y }); },
     stroke() { strokes.push({ points: path.slice(), strokeStyle: ctx.strokeStyle, lineWidth: ctx.lineWidth }); },
   };
-  return { ctx, strokes };
+  return { ctx, strokes, arcs };
 }
 
 const moreInsideCueStrokes = (strokes) => strokes.filter(s => s.strokeStyle === "#233d30" && s.points.length === 4);
@@ -1515,22 +1518,71 @@ test("a group holding more kinds than its two chips show draws a plus cue, and a
   assert.equal(mixed.cues.length, 1, "three categories also get it");
 });
 
-test("the plus cue stays inside the marker's collision box at every face scale", () => {
-  const tree = (id, name, latin, x) => ({ type: "tree", item: { id, commonName: name, latinName: latin, point: { x: 300 + x, y: 300 } } });
-  const items = [tree("a", "English oak", "Quercus robur", 0), tree("b", "Common beech", "Fagus sylvatica", 1),
-    tree("c", "Silver birch", "Betula pendula", 2)];
-  const marker = app.buildMapMarkers(markerLookup(items), markerScreen)[0];
+test("the plus cue's whole painted extent stays inside the face and clear of both chips, at every face scale", () => {
+  const dpr = app.pixelRatio();
+  // The harness has no Path2D, which the station glyphs need.
+  const previousPath2D = app.swapGlobalFunction("Path2D", class {});
   for (const scale of [1, 0.8, 0.65]) {
-    const { ctx, strokes } = recordingMarkerContext();
-    app.drawClusterMarker(ctx, marker.screenPt.x, marker.screenPt.y, marker.items.length, [], app.pixelRatio(), scale, true);
-    const cue = moreInsideCueStrokes(strokes)[0];
-    assert.ok(cue, `the cue is drawn at scale ${scale}`);
-    const box = app.clusterMarkerRect(marker.screenPt.x, marker.screenPt.y, marker.items.length, app.pixelRatio(), 1);
-    const face = app.clusterMarkerRect(marker.screenPt.x, marker.screenPt.y, marker.items.length, app.pixelRatio(), scale);
-    for (const p of cue.points) {
-      assert.ok(p.x >= box.left && p.x <= box.right && p.y >= box.top && p.y <= box.bottom, "inside the collision box");
-      assert.ok(p.x >= face.left && p.x <= face.right && p.y >= face.top && p.y <= face.bottom, "inside the scaled face's rect");
+    const { ctx, strokes, arcs } = recordingMarkerContext();
+    // Station sources draw each chip as a plain disc, which records the chips' exact centres and radii.
+    app.drawClusterMarker(ctx, 300, 300, 12, ["vector:underground", "vector:national_rail"], dpr, scale, true);
+    const halo = strokes.find(st => st.strokeStyle === "white" && st.points.length === 4);
+    const ink = strokes.find(st => st.strokeStyle === "#233d30" && st.points.length === 4);
+    assert.ok(halo && ink, `the cue is drawn at scale ${scale}`);
+    const widest = Math.max(halo.lineWidth, ink.lineWidth) / 2;
+    const xs = halo.points.map(p => p.x), ys = halo.points.map(p => p.y);
+    const painted = { left: Math.min(...xs) - widest, right: Math.max(...xs) + widest,
+      top: Math.min(...ys) - widest, bottom: Math.max(...ys) + widest };
+    const b = app.clusterBadgeGeometry(300, 300, 12, dpr, scale);
+    const edge = Math.max(1, b.size * 0.04) / 2;
+    assert.ok(painted.left >= b.left && painted.right <= b.left + b.width && painted.top >= b.top
+      && painted.bottom <= b.bottom - edge, "painted extent is inside the face, clear of its edge stroke");
+    const box = app.clusterMarkerRect(300, 300, 12, dpr, 1);
+    assert.ok(painted.left >= box.left && painted.right <= box.right && painted.top >= box.top && painted.bottom <= box.bottom,
+      "painted extent is inside the collision box");
+    const chips = arcs.slice(-2); // the chips are drawn after the face outline, before the cue
+    assert.equal(chips.length, 2, "both chips were drawn");
+    const [p1, p2, p3, p4] = halo.points;
+    for (const chip of chips) {
+      for (const [from, to] of [[p1, p2], [p3, p4]]) {
+        const dx = to.x - from.x, dy = to.y - from.y;
+        const t = Math.max(0, Math.min(1, ((chip.x - from.x) * dx + (chip.y - from.y) * dy) / (dx * dx + dy * dy)));
+        const distance = Math.hypot(chip.x - (from.x + t * dx), chip.y - (from.y + t * dy));
+        assert.ok(distance >= chip.r + widest, `an arm clears the chip at scale ${scale}`);
+      }
     }
+  }
+  app.swapGlobalFunction("Path2D", previousPath2D);
+});
+
+test("the expanded-group outline hides exactly when the pins hide, on the flat and the overlay pass", () => {
+  resetData(app);
+  const group = { itemType: "tree", items: [{ point: { x: 10, y: 10 } }, { point: { x: 90, y: 40 } }] };
+  const marker = { items: group.items, itemsByType: { tree: group.items }, itemType: "tree",
+    screenPt: { x: 100, y: 100 }, worldPt: { x: 100, y: 100 } };
+  const outlineStrokes = (tilted) => {
+    const { ctx, strokes } = recordingMarkerContext();
+    app.drawExpandedGroupOutline(ctx, p => p, p => p, tilted);
+    return strokes.filter(st => st.strokeStyle === "#86621c").length;
+  };
+  const pinStrokes = (tilted) => {
+    const { ctx, strokes } = recordingMarkerContext();
+    app.drawMapMarkers(ctx, [marker], p => p, tilted);
+    return strokes.length;
+  };
+  app.state.clusterExpanded = group;
+  // A selected environment feature resolves a navigation target, which hides the overlay pass's
+  // pins; the flat pass only hides pins for a selected point-type, so it keeps drawing them.
+  app.state.selected = { type: "environment", item: { id: "sel", point: { x: 0, y: 0 } } };
+  try {
+    assert.ok(pinStrokes(false) > 0, "the flat pass still draws its pins");
+    assert.equal(pinStrokes(true), 0, "the overlay pass hides its pins");
+    for (const tilted of [false, true]) {
+      assert.equal(outlineStrokes(tilted) > 0, pinStrokes(tilted) > 0, `outline follows the pins (tilted=${tilted})`);
+    }
+  } finally {
+    app.state.clusterExpanded = null;
+    app.state.selected = null;
   }
 });
 
