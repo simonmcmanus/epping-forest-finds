@@ -4091,7 +4091,7 @@ function selectedCompassTarget() {
 // not the direction a person sees once the ground has been projected into 3D: points at different
 // distances are pulled toward the horizon by different amounts. Use the same projected screen
 // positions as the map overlays so every directional arrow agrees with the terrain beneath it.
-function directionArrowAngleForWorldPoint(targetPoint, fallbackAngle) {
+function directionArrowAngleForWorldPoint(targetPoint, fallbackAngle, previousAngle = null) {
   if (!(typeof tiltActive === "function" && tiltActive()) || !state.userLocation?.point || !targetPoint) {
     return fallbackAngle;
   }
@@ -4099,14 +4099,34 @@ function directionArrowAngleForWorldPoint(targetPoint, fallbackAngle) {
 
   const origin = worldToScreenForOverlayTilted(state.userLocation.point);
   const target = worldToScreenForOverlayTilted(targetPoint);
-  // A point clipped at the near plane has no stable screen-space direction: its returned
-  // coordinates are deliberately clamped to keep the perspective divide finite. Keep the
-  // ordinary bearing in that case rather than pointing at the artificial clipped position.
-  if (origin.clipped || target.clipped) return fallbackAngle;
+  // A clipped target is behind the camera's near plane. Its clamped coordinates are only a
+  // safety bound, not a real screen position; hold the last valid projected direction so the
+  // arrow does not jump to an artificial angle or back to a flat bearing at the clip boundary.
+  // The same hold handles a user point clipped while browsing around a distant anchor.
+  if (origin.clipped || target.clipped) return Number.isFinite(previousAngle) ? previousAngle : fallbackAngle;
   const dx = target.x - origin.x;
   const dy = target.y - origin.y;
   if (!Number.isFinite(dx) || !Number.isFinite(dy) || Math.hypot(dx, dy) < 0.001) return fallbackAngle;
   return normalizeDegrees(Math.atan2(dx, -dy) * 180 / Math.PI);
+}
+
+// The directional arrows are DOM glyphs rather than canvas pins, so give them the same visible
+// ground-plane treatment as the map while tilt is active. The angle above is the projected ray;
+// this transform also foreshortens the glyph itself instead of leaving a flat 2D arrow floating
+// over a perspective map.
+function directionArrowTransform(angle) {
+  if (!(typeof tiltActive === "function" && tiltActive())) return `rotate(${angle}deg)`;
+  const rotateX = typeof tiltRotateXDeg === "function" ? tiltRotateXDeg() : 0;
+  const perspective = typeof tiltPerspectivePx === "function" ? tiltPerspectivePx() : 1000;
+  // The ray angle already includes the map's perspective projection. Compensate the arrow's
+  // local rotation for the following rotateX so foreshortening changes the glyph shape without
+  // tilting its final screen direction a second time.
+  const radians = angle * Math.PI / 180;
+  const compensatedAngle = Math.atan2(
+    Math.sin(radians) * Math.cos(rotateX * Math.PI / 180),
+    Math.cos(radians),
+  ) * 180 / Math.PI;
+  return `perspective(${perspective}px) rotateX(${rotateX}deg) rotate(${compensatedAngle}deg)`;
 }
 
 // A street has no single position of its own, so navigating to one aims at the point on its
@@ -6435,7 +6455,7 @@ function updateCompassOverlay() {
   const bearingToTarget = bearingDegrees(state.userLocation.latitude, state.userLocation.longitude, target.latitude, target.longitude);
   const hasHeading = Number.isFinite(state.compassHeading);
   const relative = hasHeading ? shortestCompassDelta(state.compassHeading, bearingToTarget) : bearingToTarget;
-  const projected = directionArrowAngleForWorldPoint(target.point, relative);
+  const projected = directionArrowAngleForWorldPoint(target.point, relative, state.compassArrowAngle);
   state.compassArrowAngle = unwrapAngle(state.compassArrowAngle, projected);
 
   const title = state.selected.type === "tree"
@@ -6449,14 +6469,24 @@ function updateCompassOverlay() {
     const settlingIn = arrow.hidden || arrow.classList.contains("title-compass-arrow--searching");
     arrow.classList.remove("title-compass-arrow--searching");
     arrow.hidden = false;
+    const tilted = typeof tiltActive === "function" && tiltActive();
+    arrow.style.transformStyle = tilted ? "preserve-3d" : "";
     if (settlingIn) {
       arrow.style.transition = "none";
-      arrow.style.transform = `rotate(${state.compassArrowAngle + 720}deg)`;
-      void arrow.offsetWidth;
-      arrow.style.transition = "transform 1.6s cubic-bezier(0.2, 0.7, 0.2, 1)";
-      arrow.addEventListener("transitionend", () => { arrow.style.transition = ""; }, { once: true });
+      arrow.style.transform = directionArrowTransform(tilted
+        ? state.compassArrowAngle
+        : state.compassArrowAngle + 720);
+      if (!tilted) {
+        void arrow.offsetWidth;
+        arrow.style.transition = "transform 1.6s cubic-bezier(0.2, 0.7, 0.2, 1)";
+        arrow.addEventListener("transitionend", () => { arrow.style.transition = ""; }, { once: true });
+      }
     }
-    arrow.style.transform = `rotate(${state.compassArrowAngle}deg)`;
+    // The tilt projection is already smoothed in the compass loop. A second, long CSS
+    // interpolation makes the DOM arrow chase each new 3D angle and reads as stutter.
+    if (tilted) arrow.style.transition = "none";
+    else if (!settlingIn) arrow.style.transition = "";
+    arrow.style.transform = directionArrowTransform(state.compassArrowAngle);
     arrow.setAttribute("aria-label", `Direction to ${title}, ${detailTypeLabel(distanceFromUser(target))}`);
   }
 }
@@ -6466,6 +6496,7 @@ function updateOverviewDirectionArrows() {
   const arrows = els.inspectorBody.querySelectorAll(".nearest-arrow[data-item-lat]");
   if (!arrows.length) return;
   const { latitude, longitude } = state.userLocation;
+  const tilted = typeof tiltActive === "function" && tiltActive();
 
   for (const arrow of arrows) {
     const itemLat = Number(arrow.dataset.itemLat);
@@ -6479,9 +6510,11 @@ function updateOverviewDirectionArrows() {
     const nextAngle = unwrapAngle(previousAngle, directionArrowAngleForWorldPoint(
       projectLonLat(itemLon, itemLat),
       relative,
+      previousAngle,
     ));
     arrow.dataset.currentAngle = String(nextAngle);
-    arrow.style.transform = `rotate(${nextAngle}deg)`;
+    if (arrow.classList?.toggle) arrow.classList.toggle("nearest-arrow--tilted", tilted);
+    arrow.style.transform = directionArrowTransform(nextAngle);
   }
 }
 

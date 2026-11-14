@@ -14249,18 +14249,26 @@ test("direction arrows use projected screen direction while 3D tilt is active", 
   try {
     assert.equal(app.directionArrowAngleForWorldPoint(target.point, 123), 45,
       "the arrow follows the projected target ray, not the flat bearing");
+    const clippedProjection = app.swapGlobalFunction("worldToScreenForOverlayTilted", (point) => (
+      point === app.state.userLocation.point ? { x: 100, y: 100 } : { x: 110, y: 90, clipped: true }
+    ));
+    assert.equal(app.directionArrowAngleForWorldPoint(target.point, 123, 10), 10,
+      "a near-plane target holds its last valid projected direction");
+    app.swapGlobalFunction("worldToScreenForOverlayTilted", clippedProjection);
 
     app.state.selected = { type: "landmark", item: target };
     app.state.compassHeading = 0;
     app.els.compassArrow.hidden = true;
     app.updateCompassOverlay();
-    assert.equal(app.els.compassArrow.style.transform, "rotate(45deg)",
-      "the selected-location arrow uses the same projected ray");
+    assert.match(app.els.compassArrow.style.transform,
+      /^perspective\([^)]*px\) rotateX\([^)]*deg\) rotate\(-?[\d.]+deg\)$/,
+      "the selected-location arrow uses the projected ray and 3D foreshortening");
 
     app.state.selected = null;
     app.updateOverviewDirectionArrows();
-    assert.equal(listArrow.style.transform, "rotate(45deg)",
-      "the Nearby list arrow uses the same projected ray");
+    assert.match(listArrow.style.transform,
+      /^perspective\([^)]*px\) rotateX\([^)]*deg\) rotate\(-?[\d.]+deg\)$/,
+      "the Nearby list arrow uses the projected ray and 3D foreshortening");
   } finally {
     app.state.selected = selectedBefore;
     app.els.inspectorBody.querySelectorAll = oldArrows;
