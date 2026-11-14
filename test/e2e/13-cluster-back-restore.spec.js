@@ -7,9 +7,13 @@ const { setup, tapCanvasPoint, waitForUiToSettle } = require("./helpers");
 
 test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ["geolocation"] });
 
-const FIND_GROUP = `(() => {
+// preferSmall: the smallest tappable group, which zooms in far enough on expansion to split into
+// single pins that can be tapped on the map.
+const FIND_GROUP = (preferSmall) => `(() => {
   const dpr = pixelRatio();
-  for (const marker of buildMapMarkers(activeIconLookup(), worldToScreen)) {
+  const markers = buildMapMarkers(activeIconLookup(), worldToScreen);
+  if (${preferSmall}) markers.sort((a, b) => a.items.length - b.items.length);
+  for (const marker of markers) {
     if (marker.items.length < 2) continue;
     const box = clusterBadgeGeometry(marker.screenPt.x, marker.screenPt.y, marker.items.length, dpr);
     const point = { x: box.left + 8 * dpr, y: box.top + box.height / 2 };
@@ -32,10 +36,10 @@ const GROUP_SUMMARY = () => ({
   search: window.location.search,
 });
 
-async function tapGroupOnMap(page) {
+async function tapGroupOnMap(page, preferSmall = false) {
   await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
   await waitForUiToSettle(page);
-  const target = await page.evaluate(`(() => { stopViewportAnimation(); return ${FIND_GROUP}; })()`);
+  const target = await page.evaluate(`(() => { stopViewportAnimation(); return ${FIND_GROUP(preferSmall)}; })()`);
   expect(target, "a group badge is on screen at the default view").not.toBeNull();
   await tapCanvasPoint(page, target.point);
   await expect.poll(() => page.evaluate(() => state.clusterExpanded?.items.length)).toBe(target.count);
@@ -86,16 +90,17 @@ test.describe("Back returns to the expanded group", () => {
 
   test("a place selected from the map rather than the list also returns to the group on Back", async ({ page }) => {
     await setup(page);
-    await tapGroupOnMap(page);
+    await tapGroupOnMap(page, true);
     const before = await page.evaluate(GROUP_SUMMARY);
     const pin = await page.evaluate(() => {
       stopViewportAnimation();
-      const dpr = pixelRatio();
-      const markers = buildMapMarkers(activeIconLookup(), worldToScreen);
-      const lone = markers.find((marker) => marker.items.length === 1);
-      if (!lone) return null;
-      const hit = findHit(lone.screenPt, screenToWorld(lone.screenPt.x, lone.screenPt.y));
-      return hit && hit.type !== "none" ? { x: lone.screenPt.x - 4 * dpr, y: lone.screenPt.y - 14 * dpr } : null;
+      const iconSize = MAP_PNG_ICON_SIZE * pixelRatio() * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
+      for (const single of buildMapMarkers(activeIconLookup(), worldToScreen).filter((marker) => marker.items.length === 1)) {
+        const point = { x: single.screenPt.x, y: single.screenPt.y - iconSize * 0.416 };
+        const hit = findHit(point, screenToWorld(point.x, point.y));
+        if (!findClusterHit(point) && hit && hit.item === single.items[0]) return point;
+      }
+      return null;
     });
     expect(pin, "the expanded group shows a single pin to tap").not.toBeNull();
     await tapCanvasPoint(page, pin);
