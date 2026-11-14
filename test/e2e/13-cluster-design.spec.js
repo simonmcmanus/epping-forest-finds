@@ -160,8 +160,10 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     });
     expect(result.beforePlaces).toBe(2);
     expect(result.afterPlaces).toBe(2);
+    expect(result.beforeIndividual).toBe(0);
+    expect(result.afterIndividual).toBe(2);
     expect(result.afterIndividual - result.beforeIndividual,
-      'zooming out exposes places that fit beside the smaller pins').toBeGreaterThan(0);
+      'zooming out exposes two places that fit beside the smaller pins').toBe(2);
   });
 
   // Records what draw() really paints on a settled frame and derives each rectangle from the
