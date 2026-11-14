@@ -407,6 +407,14 @@
   opacity: 0.85;
 }
 
+/* In tilt mode the angle is eased by the compass loop and the glyph is placed on the
+   same perspective ground plane as Nearby arrows. A CSS transition here would chase
+   every eased frame and make the panel arrow visibly stutter. */
+.title-compass-arrow.title-compass-arrow--tilted {
+  transition: none;
+  transform-style: preserve-3d;
+}
+
 .title-compass-arrow[hidden] {
   display: none;
 }

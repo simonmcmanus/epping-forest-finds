@@ -140,6 +140,14 @@ a.nearest-item {
   transition: transform 40ms linear, background 140ms ease;
 }
 
+/* In 3D the angle is already eased by the compass loop after perspective projection. Letting
+   each frame start another CSS transform transition makes the small list glyph visibly chase
+   the camera and stutter, especially near the horizon. */
+.nearest-arrow.nearest-arrow--tilted {
+  transition: background 140ms ease;
+  transform-style: preserve-3d;
+}
+
 .nearest-item:hover .nearest-arrow {
   background: var(--surface-selected);
 }
