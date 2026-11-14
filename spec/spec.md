@@ -401,14 +401,19 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
   only two before the router, so selecting a cow, a street or a trail used to rewrite the address
   bar to the Nearby screen's URL while that thing was on screen.
 - **Moving the Nearby browse anchor — a cluster tap or a tap on open ground — has no URL of its
-  own**, but still retraces on back/forward like a selection does. `pushNearbyAnchorHistory`
+  own beyond `near=`**, but still retraces on back/forward like a selection does. `pushNearbyAnchorHistory`
   (`js/router.js`) pushes a history entry alongside every anchor move (`setNearbyAnchor`,
-  `focusNearbyOnClusterGroup`'s `moveAndSettle`, `clearNearbyAnchor`), carrying a snapshot of
-  `state.nearbyAnchor` in `history.state` rather than the URL. `popstate`'s
+  `focusNearbyOnClusterGroup`, `clearNearbyAnchor`), carrying a snapshot of
+  `state.nearbyAnchor` in `history.state`. `popstate`'s
   `restoreNearbyAnchorFromHistory` (`js/nav.js`) applies that snapshot before the URL's own route
   is re-applied, so tapping a cluster, then another, then pressing back walks the anchor back one
   hop at a time — and forward replays it — the same way selecting a tree and going back returns
-  to what was selected before.
+  to what was selected before. While a cluster is expanded the snapshot also holds the group as
+  plain data (member keys per category, the radius in effect and the pre-cluster radius — never
+  live objects), so Back from a place opened out of the group rebuilds that same expanded group
+  with the same framing; if a member is missing from the loaded data it falls back to the plain
+  anchor. The group is never written to the URL, so a fresh load of a `near=` link is plain Nearby
+  (see "Leaving an expanded group" in `spec-data-rendering.md`).
 - **A URL naming something the dataset does not have** (a stale share link) falls back to Nearby
   and corrects the entry in place with `replaceState`, rather than leaving the app on a screen
   its URL does not describe.

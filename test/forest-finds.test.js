@@ -494,6 +494,8 @@ globalThis.__forestFindsTest = {
   activeIconLookup,
   markerOpacityFor,
   treeHashKey,
+  clusterItemsByType,
+  exitClusterExpansion,
   findTreeByHashKey,
   treeDisplayName,
   releaseStrandedAnimationFrames,
@@ -11883,6 +11885,124 @@ test("the Nearby list and the map's highlighted pins agree on an expanded cluste
   assert.equal(mapTrees.size, 2, "the map highlights exactly the expanded group");
   assert.ok(mapTrees.has(oak1) && mapTrees.has(oak2) && !mapTrees.has(outsider),
     "the list and the map agree on membership -- same two trees, outsider excluded from both");
+});
+
+// Back from a place opened out of an expanded group returns to that group (spec-data-rendering.md
+// "Leaving an expanded group"). Real functions throughout: a cluster tap, picking from the list, then
+// the browser's own back/forward through the history stub.
+function expandedGroupFixture() {
+  resetData(app);
+  resetRouter(app);
+  app.setupSearchAndNavHandlers();
+  app.state.userLocation = makePoint(app, 51.64, 0.04);
+  app.state.walkingDistanceMinutes = 7;
+  const trees = [
+    { id: "oak1", recordNumber: 9101, commonName: "Oak", location: { britishNationalGrid: {} }, ...makePoint(app, 51.6500, 0.0500) },
+    { id: "oak2", recordNumber: 9102, commonName: "Oak", location: { britishNationalGrid: {} }, ...makePoint(app, 51.65001797, 0.0500) },
+    { id: "oak3", recordNumber: 9103, commonName: "Oak", location: { britishNationalGrid: {} }, ...makePoint(app, 51.6500, 0.05002894) },
+  ];
+  const farTrees = [
+    { id: "far1", recordNumber: 9104, commonName: "Beech", location: { britishNationalGrid: {} }, ...makePoint(app, 51.6520, 0.0540) },
+    { id: "far2", recordNumber: 9105, commonName: "Beech", location: { britishNationalGrid: {} }, ...makePoint(app, 51.65201797, 0.0540) },
+  ];
+  app.state.trees.push(...trees, ...farTrees);
+  return { trees, farTrees, key: (tree) => app.treeHashKey(tree) };
+}
+
+function expandedIds() {
+  return Object.values(app.clusterItemsByType(app.state.clusterExpanded)).flat().map((item) => item.id).sort().join(",");
+}
+
+test("Back from a place picked out of an expanded group returns to that same group, radius and list", () => {
+  const { trees, key } = expandedGroupFixture();
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  const groupRadius = app.state.walkingDistanceMinutes;
+  assert.notEqual(groupRadius, 7, "sanity: the tap borrowed its own radius");
+
+  app.focusOverviewItem("tree", key(trees[1]));
+  assert.equal(app.state.selected?.item, trees[1]);
+  assert.equal(app.state.clusterExpanded, null, "opening a place leaves the group");
+
+  app.history.back();
+  assert.equal(app.state.selected, null, "the place closed");
+  assert.equal(expandedIds(), "oak1,oak2,oak3", "the same three members are expanded again");
+  assert.equal(app.state.walkingDistanceMinutes, groupRadius, "with the framing radius it had");
+  assert.equal(app.overviewItemsForActiveFilter().map((entry) => entry.item.id).sort().join(","), "oak1,oak2,oak3");
+  assert.equal(app.searchStringForPath("/nearby"), "?radius=7", "the address bar carries the real radius, never the borrowed one");
+
+  // A user can step through the group: pick the next place, back again.
+  app.focusOverviewItem("tree", key(trees[2]));
+  app.history.back();
+  assert.equal(expandedIds(), "oak1,oak2,oak3");
+
+  // Leaving the group later still gives back the radius from before the tap.
+  app.exitClusterExpansion();
+  assert.equal(app.state.walkingDistanceMinutes, 7, "the real pre-cluster radius, not the borrowed one");
+});
+
+test("Forward from a restored group opens the place again and closes the group", () => {
+  const { trees, key } = expandedGroupFixture();
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  app.focusOverviewItem("tree", key(trees[0]));
+  app.history.back();
+  assert.ok(app.state.clusterExpanded, "sanity: group restored");
+  app.history.forward();
+  assert.equal(app.state.selected?.item, trees[0], "the place is open again");
+  assert.equal(app.state.clusterExpanded, null);
+  assert.equal(app.state.walkingDistanceMinutes, 7, "the group's borrowed radius is given back");
+});
+
+test("repeated Back through a cluster, its sub-cluster and a place retraces each level", () => {
+  const { trees, farTrees, key } = expandedGroupFixture();
+  const outer = { itemsByType: { tree: [...trees, ...farTrees] }, items: [...trees, ...farTrees], itemType: "tree" };
+  app.focusNearbyOnClusterGroup(outer);
+  const outerRadius = app.state.walkingDistanceMinutes;
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  const innerRadius = app.state.walkingDistanceMinutes;
+  assert.notEqual(innerRadius, outerRadius, "sanity: the two levels frame differently");
+  app.focusOverviewItem("tree", key(trees[0]));
+
+  app.history.back();
+  assert.equal(expandedIds(), "oak1,oak2,oak3", "first Back: the sub-cluster");
+  assert.equal(app.state.walkingDistanceMinutes, innerRadius);
+  app.history.back();
+  assert.equal(expandedIds(), "far1,far2,oak1,oak2,oak3", "second Back: the outer cluster");
+  assert.equal(app.state.walkingDistanceMinutes, outerRadius);
+  assert.equal(app.searchStringForPath("/nearby"), "?radius=7");
+  app.history.back();
+  assert.equal(app.state.clusterExpanded, null, "third Back: before any cluster tap");
+  assert.equal(app.state.walkingDistanceMinutes, 7, "the reader's own radius is back");
+});
+
+test("Back to a group with a member missing from the data falls back to the plain anchor view", () => {
+  const { trees, key } = expandedGroupFixture();
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  app.focusOverviewItem("tree", key(trees[0]));
+  app.state.trees.splice(app.state.trees.indexOf(trees[2]), 1);
+  app.history.back();
+  assert.equal(app.state.clusterExpanded, null, "no group rebuilt");
+  assert.ok(app.state.nearbyAnchor, "the anchor view is still there");
+  assert.equal(app.state.selected, null);
+});
+
+test("a history entry for an expanded group holds item keys, not live item references", () => {
+  const { trees } = expandedGroupFixture();
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  const snapshot = app.history.state.forestNearbyAnchor?.cluster;
+  assert.ok(snapshot, "the entry describes the group");
+  assert.equal(JSON.stringify(snapshot), JSON.stringify(JSON.parse(JSON.stringify(snapshot))), "plain serialisable data");
+  assert.equal(snapshot.preRadius, 7);
+});
+
+test("a fresh load of a near= link shows a plain Nearby view with no expanded group", () => {
+  const { trees } = expandedGroupFixture();
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  app.exitClusterExpansion();
+  app.state.nearbyAnchor = null;
+  resetRouter(app, "#near=51.650000,0.050000");
+  assert.equal(app.applySelectionFromHash(false), true);
+  assert.equal(app.state.clusterExpanded, null);
+  assert.ok(app.state.nearbyAnchor);
 });
 
 test("tapping a cluster while already on Nearby actually refreshes the rendered list, not just the underlying data", () => {

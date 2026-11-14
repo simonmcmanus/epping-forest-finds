@@ -1670,9 +1670,15 @@ function restoreNearbyAnchorFromHistory() {
   const entry = history.state;
   const snapshot = entry ? entry[NEARBY_ANCHOR_KEY] : null;
   const current = state.nearbyAnchor;
-  const unchanged = current && snapshot
+  // A group that can no longer be rebuilt from loaded data (a member gone) is just the plain
+  // anchor, i.e. what this entry meant before groups were recorded.
+  const cluster = snapshot && snapshot.cluster ? clusterFromHistorySnapshot(snapshot.cluster) : null;
+  const sameAnchor = current && snapshot
     ? current.latitude === snapshot.latitude && current.longitude === snapshot.longitude
     : !current && !snapshot;
+  const unchanged = sameAnchor && (cluster
+    ? clusterSnapshotsMatch(snapshot.cluster, clusterHistorySnapshot(state.clusterExpanded))
+    : true);
   if (unchanged) return;
   routeApplyDepth += 1;
   try {
@@ -1683,6 +1689,20 @@ function restoreNearbyAnchorFromHistory() {
       ? { latitude: snapshot.latitude, longitude: snapshot.longitude, point: projectLonLat(snapshot.longitude, snapshot.latitude) }
       : null;
     state.outOfRadiusRevealFilters = [];
+    if (cluster) {
+      // Back/Forward onto an entry written while a group was expanded: expand it again with the
+      // radius it had and the real radius it will give back on exit. The entry's URL is just
+      // the anchor, which this already is, so urlMatchesCurrentScreen (js/router.js) treats the
+      // route as applied -- clearing the selection here is the only screen change left to make.
+      state.selected = null;
+      setInspectorMinimized(false);
+      state.clusterExpanded = cluster;
+      state.walkingDistanceMinutes = snapshot.cluster.radius;
+      state.preClusterWalkingDistanceMinutes = Number.isFinite(snapshot.cluster.preRadius)
+        ? snapshot.cluster.preRadius
+        : state.preClusterWalkingDistanceMinutes;
+      syncSettingsWalkSlider();
+    }
     updateNearbyAnchorBar();
     // If a cluster is still expanded here, urlMatchesCurrentScreen (js/app.js) is about to force
     // applyRouteFromUrl's caller to run applyRouteToScreen right after this returns -- which drops
@@ -1695,7 +1715,8 @@ function restoreNearbyAnchorFromHistory() {
     // in and out a bit" rather than one steady zoom. Snapping instead of easing here is invisible
     // (nothing has painted yet), and leaves nothing in flight for the correction to compete with,
     // so only the one, right ease -- the later refit's -- is ever seen.
-    const clusterAboutToExit = Boolean(state.clusterExpanded);
+    // A restored group is the opposite case: nothing refits afterwards, so this is the one ease.
+    const clusterAboutToExit = !cluster && Boolean(state.clusterExpanded);
     refreshNearbyRadiusView({ animate: !clusterAboutToExit, durationMs: NEARBY_ORIGIN_TRANSITION_MS });
   } finally {
     routeApplyDepth -= 1;
