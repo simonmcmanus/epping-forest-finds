@@ -12,7 +12,6 @@ const els = {
   compassCalibrationBannerDismiss: document.getElementById("compassCalibrationBannerDismiss"),
   filterToggle: document.getElementById("filterToggle"),
   filterCount: document.getElementById("filterCount"),
-  filterCountValue: document.getElementById("filterCountValue"),
   nearbyToggle: document.getElementById("nearbyToggle"),
   installButton: document.getElementById("installButton"),
   loadingOverlay: document.getElementById("loadingOverlay"),

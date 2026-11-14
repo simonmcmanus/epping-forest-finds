@@ -17,25 +17,16 @@
 .filter-count {
   min-width: 18px;
   height: 18px;
-  box-sizing: border-box;
-  padding: 0 4px;
+  padding: 0 5px;
   border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: inline-grid;
+  place-items: center;
   font-size: 0.68rem;
   font-weight: 900;
-  line-height: 1.15;
+  line-height: 1;
   border: 1px solid currentColor;
   background: rgba(255, 255, 255, 0.92);
   color: inherit;
-}
-
-.filter-count-value {
-  display: inline-block;
-  line-height: 1;
-  /* Keep the circle fixed while nudging only the glyph down within it. */
-  transform: translateY(2px);
 }
 
 /* Badge when on filter screen (dark bg) */

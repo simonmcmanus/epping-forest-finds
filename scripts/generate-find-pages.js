@@ -721,7 +721,7 @@ function renderNearbyIndexPage(appHtml, enrichment) {
   // Same count the live Filters button shows: groups with at least one subfilter in the default set.
   const defaultGroupCount = rules.FILTER_GROUPS.filter((group) => group.subfilters.some((sub) => NEARBY_INDEX_FILTERS.includes(sub.key))).length;
   html = replaceOnce(html, '<button id="filterToggle" class="filter-toggle inspector-filter-toggle" type="button" aria-label="Map setup" title="Choose what appears on the map" aria-pressed="false" hidden>', `<button id="filterToggle" class="filter-toggle inspector-filter-toggle active" type="button" aria-label="Map setup: ${defaultGroupCount} top-level filters selected" title="Choose what appears on the map" aria-pressed="true">`, "filter toggle shown");
-  html = replaceOnce(html, '<span id="filterCount" class="filter-count" aria-hidden="true" hidden><span id="filterCountValue" class="filter-count-value">0</span></span>', `<span id="filterCount" class="filter-count" aria-hidden="true"><span id="filterCountValue" class="filter-count-value">${defaultGroupCount}</span></span>`, "filter count");
+  html = replaceOnce(html, '<span id="filterCount" class="filter-count" aria-hidden="true" hidden>0</span>', `<span id="filterCount" class="filter-count" aria-hidden="true">${defaultGroupCount}</span>`, "filter count");
   return html;
 }
 
