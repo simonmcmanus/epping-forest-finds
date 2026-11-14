@@ -205,11 +205,11 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     const drawnGroup = drawClusterMarker, drawnPin = drawItemPin;
     const rects = [];
     drawClusterMarker = (ctx, x, y, count, sources, d, scale = 1) => {
-      rects.push(clusterMarkerRect(x, y, count, dpr, scale));
+      rects.push(...markerPaintedRects(x, y, count, dpr, scale));
       return drawnGroup(ctx, x, y, count, sources, d, scale);
     };
     drawItemPin = (ctx, type, item, x, y, size) => {
-      rects.push(clusterMarkerRect(x, y, 1, dpr, size / (MAP_PNG_ICON_SIZE * MAP_ICON_SCALE_UNSELECTED * dpr)));
+      rects.push(...markerPaintedRects(x, y, 1, dpr, size / (MAP_PNG_ICON_SIZE * MAP_ICON_SCALE_UNSELECTED * dpr)));
       return drawnPin(ctx, type, item, x, y, size);
     };
     const overlay = els.overlayCanvas.getContext('2d');
@@ -248,6 +248,7 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
         state.emojiScaleAnimated = zoomEmojiScaleTarget();
         return ${MEASURE_YOU_LABEL};
       })(${factor})`);
+      if (factor === 1) expect(view.labelDrawn, 'a free side exists at the default view, so the label is drawn').toBe(true);
       if (!view.labelDrawn) continue;
       shown += 1;
       expect(view.covered, `zoom x${factor}: markers over the You label`).toBe(0);
@@ -291,6 +292,49 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
       return ${MEASURE_YOU_LABEL};
     })()`);
     expect(view.labelDrawn, 'no label when every side is covered').toBe(false);
+  });
+
+  test('once the opening camera move has landed, the markers are exactly a fresh layout at that camera', async ({ page }) => {
+    await setup(page);
+    await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
+    await waitForUiToSettle(page);
+    const result = await page.evaluate(() => {
+      const shape = (markers) => markers.map(m => `${Math.round(m.screenPt.x)},${Math.round(m.screenPt.y)}:${m.items.length}`).sort();
+      const settled = shape(buildActiveMapMarkers(worldToScreen));
+      resetMarkerGroupMemory();
+      const fresh = shape(buildActiveMapMarkers(worldToScreen));
+      return { settled, fresh };
+    });
+    expect(result.fresh.length, 'something is drawn').toBeGreaterThan(0);
+    expect(result.settled).toEqual(result.fresh);
+  });
+
+  test('a programmatic camera move that lands leaves exactly a fresh layout, however the camera got there', async ({ page }) => {
+    await setup(page);
+    await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
+    await waitForUiToSettle(page);
+    const result = await page.evaluate(() => new Promise((resolve) => {
+      stopViewportAnimation();
+      const home = { ...state.viewport };
+      const centre = { x: state.canvasLogicalWidth / 2, y: state.canvasLogicalHeight / 2 };
+      // A user-style zoom out and back in builds groups with memory.
+      for (const factor of [0.8, 0.6, 0.45, 0.6, 0.8, 1.15, 1]) {
+        const world = screenToWorld(centre.x, centre.y);
+        state.viewport.scale *= factor;
+        const now = worldToScreen(world);
+        state.viewport.tx += centre.x - now.x;
+        state.viewport.ty += centre.y - now.y;
+        buildActiveMapMarkers(worldToScreen);
+      }
+      const shape = (markers) => markers.map(m => `${Math.round(m.screenPt.x)},${Math.round(m.screenPt.y)}:${m.items.length}`).sort();
+      moveCamera({ scale: home.scale * 1.37, tx: home.tx, ty: home.ty }, 300, () => {
+        const settled = shape(buildActiveMapMarkers(worldToScreen));
+        resetMarkerGroupMemory();
+        resolve({ settled, fresh: shape(buildActiveMapMarkers(worldToScreen)) });
+      });
+    }));
+    expect(result.fresh.length, 'something is drawn').toBeGreaterThan(0);
+    expect(result.settled).toEqual(result.fresh);
   });
 
   test('the user dot and its label are painted after every pin, flat and heading-up', async ({ page }) => {

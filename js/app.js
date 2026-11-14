@@ -1777,6 +1777,10 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
       state.viewport.scale = state.viewportAnimationTo.scale;
       state.viewport.tx = state.viewportAnimationTo.tx;
       state.viewport.ty = state.viewportAnimationTo.ty;
+      // A programmatic camera move has landed: the resting layout must not depend on the path the
+      // camera took, so marker grouping starts fresh (user gestures and interrupted tweens keep
+      // their memory). stopViewportAnimation settles any pin animation, so this regroup is silent.
+      if (typeof resetMarkerGroupMemory === "function") resetMarkerGroupMemory();
       stopViewportAnimation();
       requestDraw();
       if (typeof onComplete === "function") onComplete();

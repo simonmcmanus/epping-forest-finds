@@ -1576,8 +1576,8 @@ const MARKER_DENSITY_EXACT_LIMIT = 32;
 // stays with the seed it had last time until it leaves this larger "split" box (this multiple of
 // the normal collision box on each axis).
 const MARKER_SPLIT_BOX_FACTOR = 1.25;
-// Memory per lookup context (see markerMemoryKey), each a Map of seed item -> the items it held, in
-// seed order. Replaced wholesale by every build in its context, so it never outlives the items.
+// Memory per lookup context (see markerMemoryKey): { seeds, count }, seeds a Map of seed item -> the
+// items it held, in seed order, count the size of the item set it was built from. Replaced wholesale by every build in its context, so it never outlives the items.
 const _markerMemory = new Map();
 
 // A clean slate for grouping: the next build forms its groups from scratch. Called when the Nearby
@@ -1627,7 +1627,7 @@ function markerCollisionBox(dpr) {
 // the group, or "_mega" when the group mixes categories. A group that claimed nothing is an
 // ordinary single-item pin.
 function buildMapMarkers(lookup, toScreen, memoryKey = "main") {
-  const memory = _markerMemory.get(memoryKey);
+  let memory = _markerMemory.get(memoryKey);
   const box = markerCollisionBox(pixelRatio());
   const boxW = box.width, boxH = box.height;
   const splitW = boxW * MARKER_SPLIT_BOX_FACTOR, splitH = boxH * MARKER_SPLIT_BOX_FACTOR;
@@ -1649,6 +1649,14 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main") {
   if (!nodes.length) {
     _markerMemory.delete(memoryKey);
     return [];
+  }
+  // Memory only describes the item set it was built from: when items have arrived or left (data
+  // loading in, a radius or filter change) the layout starts fresh rather than inheriting an
+  // order formed against a different set.
+  if (memory) {
+    let known = memory.count === nodes.length;
+    if (known) for (const seedItem of memory.seeds.keys()) if (!nodeOfItem.has(seedItem)) { known = false; break; }
+    memory = known ? memory.seeds : undefined;
   }
   // Numeric cell keys (a collision between two far-apart cells only adds candidates the exact
   // box test below rejects). A cell edge equal to the box's longer side guarantees an overlapping
@@ -1748,7 +1756,7 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main") {
       worldPt: seed.item.point,
     });
   }
-  _markerMemory.set(memoryKey, nextMemory);
+  _markerMemory.set(memoryKey, { seeds: nextMemory, count: nodes.length });
   return markers;
 }
 
@@ -2136,6 +2144,23 @@ function clusterMarkerRect(x, y, count, dpr, scale = 1) {
     top: Math.min(b.top, b.countY - b.countHeight / 2),
     bottom: y,
   };
+}
+
+// What a marker actually paints, as rectangles: the face, the count chip (groups only, at its real
+// label width) and the narrow pointer down to the anchor. Unlike clusterMarkerRect's bounding box
+// this leaves out the empty corners beside the pointer, so the "You" label can sit there.
+function markerPaintedRects(x, y, count, dpr, scale = 1) {
+  const b = clusterBadgeGeometry(x, y, count, dpr, scale);
+  const R = b.size * 0.32;
+  const rects = [
+    { left: b.left, right: b.left + b.width, top: b.top, bottom: b.bottom },
+    { left: x - R * 0.3, right: x + R * 0.3, top: b.bottom, bottom: y },
+  ];
+  if (count > 1) {
+    rects.push({ left: b.countX - b.countWidth / 2, right: b.countX + b.countWidth / 2,
+      top: b.countY - b.countHeight / 2, bottom: b.countY + b.countHeight / 2 });
+  }
+  return rects;
 }
 
 function clusterBadgeContains(screen, x, y, count, dpr, scale = 1) {
@@ -2749,14 +2774,14 @@ function drawUserRadarOverlayTilted(ctx) {
 // { side, x, baseline, box }, x/baseline being the fillText origin.
 const USER_LABEL_SIDES = ["right", "left", "below", "above"];
 let _userLabelSide = "right";
-function placeUserLabel(dot, radius, textWidth, fontSize, gap, rightBaselineDrop, rects, lastSide) {
+function placeUserLabel(dot, radius, textWidth, fontSize, gap, rightBaselineDrop, rects, lastSide, ascent = fontSize * 0.8, descent = fontSize * 0.2) {
   const at = (side) => {
     let x, baseline;
     if (side === "right") { x = dot.x + radius + gap; baseline = dot.y + rightBaselineDrop; }
     else if (side === "left") { x = dot.x - radius - gap - textWidth; baseline = dot.y + rightBaselineDrop; }
-    else if (side === "below") { x = dot.x - textWidth / 2; baseline = dot.y + radius + gap + fontSize * 0.8; }
-    else { x = dot.x - textWidth / 2; baseline = dot.y - radius - gap - fontSize * 0.2; }
-    return { side, x, baseline, box: { left: x, right: x + textWidth, top: baseline - fontSize * 0.8, bottom: baseline + fontSize * 0.2 } };
+    else if (side === "below") { x = dot.x - textWidth / 2; baseline = dot.y + radius + gap + ascent; }
+    else { x = dot.x - textWidth / 2; baseline = dot.y - radius - gap - descent; }
+    return { side, x, baseline, box: { left: x, right: x + textWidth, top: baseline - ascent, bottom: baseline + descent } };
   };
   const free = (c) => !rects.some(r => c.box.left < r.right && r.left < c.box.right && c.box.top < r.bottom && r.top < c.box.bottom);
   if (USER_LABEL_SIDES.includes(lastSide)) {
@@ -2814,13 +2839,22 @@ function drawUser(ctx, toScreen, isTilted) {
   ctx.fillStyle = "#14211d";
   const fontSize = 11 * dpr * dotScale;
   ctx.font = `800 ${fontSize}px system-ui`;
-  const textWidth = typeof ctx.measureText === "function" ? ctx.measureText("You").width : fontSize * 1.8;
+  // The glyphs' real extent (cap height, no descender in "You"), not the font box around them.
+  const metrics = typeof ctx.measureText === "function" ? ctx.measureText("You") : null;
+  const textWidth = metrics ? metrics.width : fontSize * 1.8;
+  const ascent = metrics && metrics.actualBoundingBoxAscent > 0 ? metrics.actualBoundingBoxAscent : fontSize * 0.8;
+  const descent = metrics && metrics.actualBoundingBoxDescent >= 0 ? metrics.actualBoundingBoxDescent : fontSize * 0.2;
   const rects = [];
   for (const spec of _drawnMarkerSpecs.concat(_drawnTransitionSpecs)) {
     const p = toScreen(spec.worldPt);
-    if (Number.isFinite(p.x) && Number.isFinite(p.y)) rects.push(clusterMarkerRect(p.x, p.y, spec.count, dpr, spec.scale));
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
+    // A 1 CSS px margin around what is painted (2 px left the default Nearby view's right-hand
+    // side blocked by a gap of under a pixel).
+    for (const r of markerPaintedRects(p.x, p.y, spec.count, dpr, spec.scale)) {
+      rects.push({ left: r.left - dpr, right: r.right + dpr, top: r.top - dpr, bottom: r.bottom + dpr });
+    }
   }
-  const label = placeUserLabel(point, radius, textWidth, fontSize, 3 * dpr, 4 * dpr * dotScale, rects, _userLabelSide);
+  const label = placeUserLabel(point, radius, textWidth, fontSize, 3 * dpr, 4 * dpr * dotScale, rects, _userLabelSide, ascent, descent);
   if (label) {
     _userLabelSide = label.side;
     ctx.fillText("You", label.x, label.baseline);

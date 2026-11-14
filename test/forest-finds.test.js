@@ -728,6 +728,7 @@ globalThis.__forestFindsTest = {
   buildMapMarkers,
   resetMarkerGroupMemory,
   placeUserLabel,
+  markerPaintedRects,
   clusterMarkerRect,
   clusterPreviewEntries,
   drawMapMarkers,
@@ -1401,6 +1402,35 @@ test("the You label takes the first free side adjacent to the dot, keeps it whil
   assert.equal(place([leftOf], "left").side, "right", "leaves it once covered");
   const label = place([rightOf], "right");
   assert.equal(label.box.left < rightOf.right && rightOf.left < label.box.right && label.box.top < rightOf.bottom && rightOf.top < label.box.bottom, false);
+});
+
+test("a marker's painted rectangles leave the corners beside its pointer free, and only groups have a chip", () => {
+  const dpr = app.pixelRatio();
+  const overlaps = (rects, box) => rects.some(r => box.left < r.right && r.left < box.right && box.top < r.bottom && r.top < box.bottom);
+  const lone = app.markerPaintedRects(100, 100, 1, dpr, 1);
+  const group = app.markerPaintedRects(100, 100, 27, dpr, 1);
+  assert.equal(lone.length, 2, "a lone pin is a face and a pointer");
+  assert.equal(group.length, 3, "a group adds its count chip");
+  const face = app.clusterMarkerRect(100, 100, 1, dpr, 1);
+  const corner = { left: face.right - 6 * dpr, right: face.right + 40 * dpr, top: 100 - 5 * dpr, bottom: 100 };
+  assert.equal(overlaps([app.clusterMarkerRect(100, 100, 27, dpr, 1)], corner), true, "the bounding box claims the corner");
+  assert.equal(overlaps(group, corner), false, "the painted rectangles do not");
+  assert.equal(overlaps(group, { left: 99, right: 101, top: 98, bottom: 100 }), true, "the pointer itself is painted");
+});
+
+test("zooming out and in keeps remembered groups until the camera lands, then a fresh layout matches a fresh build", () => {
+  const items = markerScatter(160, 420, ["tree", "landmark", "cow"]);
+  const base = new Map(items.map(({ item }) => [item.id, { x: item.point.x, y: item.point.y }]));
+  const layout = (f) => placeMarkerItems(items, id => ({ x: base.get(id).x * f, y: base.get(id).y * f }));
+  const build = () => markerGroupsOf(app.buildMapMarkers(markerLookup(items), markerScreen));
+  app.resetMarkerGroupMemory();
+  for (const f of [1, 0.8, 0.6, 0.8, 1]) { layout(f); build(); }
+  const withMemory = build();
+  assert.deepEqual(build(), withMemory, "memory holds across builds");
+  app.resetMarkerGroupMemory();
+  const fresh = build();
+  assert.notDeepEqual(withMemory, fresh, "precondition: the zoom path left remembered groups");
+  assert.deepEqual(build(), fresh, "after the reset the layout is the fresh one and stays");
 });
 
 test("a lone item stays an ordinary single-item map marker", () => {
