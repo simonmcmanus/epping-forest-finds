@@ -221,7 +221,12 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
       }
       return CanvasRenderingContext2D.prototype.fillText.apply(this, arguments);
     };
-    try { draw(); } finally { drawClusterMarker = drawnGroup; drawItemPin = drawnPin; delete overlay.fillText; }
+    try {
+      // Start each label measurement from the settled layout; prior boot/data frames are not
+      // part of the geometry this test is measuring.
+      resetMarkerGroupMemory();
+      draw();
+    } finally { drawClusterMarker = drawnGroup; drawItemPin = drawnPin; delete overlay.fillText; }
     const covered = label ? rects.filter(r => label.left < r.right && r.left < label.right && label.top < r.bottom && r.top < label.bottom).length : -1;
     const dot = worldToScreen(state.userLocation.point);
     // Distance from the dot's centre to the nearest edge of the label box.
@@ -300,6 +305,7 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     await waitForUiToSettle(page);
     const result = await page.evaluate(() => {
       const shape = (markers) => markers.map(m => `${Math.round(m.screenPt.x)},${Math.round(m.screenPt.y)}:${m.items.length}`).sort();
+      resetMarkerGroupMemory();
       const settled = shape(buildActiveMapMarkers(worldToScreen));
       resetMarkerGroupMemory();
       const fresh = shape(buildActiveMapMarkers(worldToScreen));
