@@ -2202,8 +2202,9 @@ function clusterStackChipGeometry(x, y, count, dpr, scale = 1, index = 0, total 
 }
 
 // The plus sits in front of the hidden artwork, making the stack read as an affordance rather
-// than a second row of equally-weighted pins. It has no disc or number: the group's existing
-// count remains the only text and the visible artwork stays legible.
+// than a second row of equally-weighted pins. Its small half-opaque backing separates the mark
+// from the artwork without becoming another badge; the group's existing count remains the only
+// text.
 function clusterMorePlusGeometry(x, y, count, dpr, scale = 1, total = 1) {
   const b = clusterBadgeGeometry(x, y, count, dpr, scale);
   const R = b.size * 0.32;
@@ -2217,6 +2218,13 @@ function clusterMorePlusGeometry(x, y, count, dpr, scale = 1, total = 1) {
 
 function drawClusterMorePlus(ctx, geometry) {
   const { cx, cy, radius, unit } = geometry;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(255, 255, 255, 0.52)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(17, 17, 17, 0.25)";
+  ctx.lineWidth = 0.75 * unit;
+  ctx.stroke();
   ctx.beginPath();
   ctx.moveTo(cx - radius * 0.48, cy);
   ctx.lineTo(cx + radius * 0.48, cy);
