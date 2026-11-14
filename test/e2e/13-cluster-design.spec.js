@@ -401,6 +401,86 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     expect(shown.inList, 'the list shows the group, up to its usual cap').toBe(Math.min(target.count, shown.listCap));
   });
 
+  // Records every path stroked in the expanded-group outline's dark gold, on both canvases.
+  const OUTLINE_RECORDER = `(() => {
+    const proto = CanvasRenderingContext2D.prototype;
+    if (!window.__outlineStrokes) {
+      const originals = { beginPath: proto.beginPath, moveTo: proto.moveTo, lineTo: proto.lineTo, stroke: proto.stroke };
+      window.__outlineStrokes = [];
+      window.__outlinePath = [];
+      proto.beginPath = function () { window.__outlinePath = []; return originals.beginPath.call(this); };
+      proto.moveTo = function (x, y) { window.__outlinePath.push({ x, y }); return originals.moveTo.call(this, x, y); };
+      proto.lineTo = function (x, y) { window.__outlinePath.push({ x, y }); return originals.lineTo.call(this, x, y); };
+      proto.stroke = function () {
+        if (this.strokeStyle === '#86621c') window.__outlineStrokes.push({ points: window.__outlinePath.slice(), lineWidth: this.lineWidth });
+        return originals.stroke.apply(this, arguments);
+      };
+    }
+    window.__outlineStrokes.length = 0;
+  })()`;
+
+  test('the tapped group is outlined while expanded, enclosing its members, and the outline goes when the group closes', async ({ page }) => {
+    await setup(page);
+    await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
+    await waitForUiToSettle(page);
+    const strokes = () => page.evaluate(() => { draw(); drawOverlay(); return window.__outlineStrokes.slice(); });
+    await page.evaluate(OUTLINE_RECORDER);
+    expect(await strokes(), 'nothing is outlined on the resting map').toEqual([]);
+
+    const target = await page.evaluate(`(() => { stopViewportAnimation(); return ${FIND_GROUP}; })()`);
+    expect(target, 'a group is on screen at the default view').not.toBeNull();
+    await tapCanvasPoint(page, target.point);
+    await expect.poll(() => page.evaluate(() => Boolean(state.clusterExpanded))).toBe(true);
+    await waitForUiToSettle(page);
+    await page.evaluate(() => stopViewportAnimation());
+    await page.evaluate(OUTLINE_RECORDER);
+
+    const drawn = await page.evaluate(() => {
+      draw(); drawOverlay();
+      const members = Object.values(clusterItemsByType(state.clusterExpanded)).flat();
+      return {
+        strokes: window.__outlineStrokes.slice(),
+        anchors: members.map(item => worldToScreen(item.point)),
+        dpr: pixelRatio(),
+      };
+    });
+    expect(drawn.anchors.length).toBeGreaterThan(1);
+    expect(drawn.strokes.length, 'one outline for the one expanded group').toBeGreaterThan(0);
+    const outline = drawn.strokes[drawn.strokes.length - 1];
+    expect(outline.lineWidth).toBeCloseTo(1.5 * drawn.dpr, 5);
+    const contains = (poly, p) => {
+      let inside = false;
+      for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+        const a = poly[i], b = poly[j];
+        if ((a.y > p.y) !== (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+      }
+      return inside;
+    };
+    for (const anchor of drawn.anchors) {
+      expect(contains(outline.points, anchor), 'the outline encloses every member anchor').toBe(true);
+    }
+
+    // Open ground, as the app's own hit tests see it, closes the group and the outline with it.
+    const open = await page.evaluate(() => {
+      const w = state.canvasLogicalWidth, h = state.canvasLogicalHeight;
+      for (let y = h * 0.15; y < h * 0.85; y += 17) {
+        for (let x = w * 0.05; x < w * 0.95; x += 17) {
+          const point = { x, y };
+          if (findClusterHit(point)) continue;
+          if (findHit(point, screenToWorld(x, y)).type !== 'none') continue;
+          if (findMapLabelHit(point)) continue;
+          return point;
+        }
+      }
+      return null;
+    });
+    expect(open, 'open ground exists on the expanded map').not.toBeNull();
+    await tapCanvasPoint(page, open);
+    await expect.poll(() => page.evaluate(() => state.clusterExpanded)).toBeNull();
+    await page.evaluate(OUTLINE_RECORDER);
+    expect(await strokes(), 'the outline is gone with the group').toEqual([]);
+  });
+
   test('a group marker opens its members when tapped on either side of the count', async ({ page }) => {
     await setup(page);
     await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
