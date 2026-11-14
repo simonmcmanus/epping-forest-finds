@@ -1509,10 +1509,14 @@ textarea.report-textarea {
 .rail-pill .app-icon {
   width: 1.6em;
   height: 1.6em;
+  /* The category artwork has a little more transparent room below its visible pixels than the
+     text line has below its glyphs. Nudge the artwork up without changing the flex box geometry. */
+  transform: translateY(-1px);
 }
 
 .rail-pill > span:not(.rail-count):not(.rail-check) {
   line-height: 1.15;
+  transform: translateY(1px);
 }
 
 /* A group pill's "2/3": how many of its subcategories are on. It is set small so it reads as a
@@ -1531,9 +1535,9 @@ textarea.report-textarea {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   /* Match the neighbouring label's line box so the small count's glyphs sit on the same optical
-     center instead of riding high inside the badge. The flex item is already centred by the pill;
-     an extra pixel translation makes it visibly sit low at device scale. */
+     center instead of riding high inside the badge. */
   line-height: 1.15;
+  transform: translateY(1px);
 }
 
 /* A group that is off keeps its count but drops the tinted fill, so the on groups read first. */
@@ -1553,6 +1557,7 @@ textarea.report-textarea {
   font-size: 1.1em;
   font-weight: 900;
   line-height: 1;
+  transform: translateY(1px);
 }
 
 .rail-pill:active {
