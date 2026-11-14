@@ -202,6 +202,13 @@ async function setup(page, urlPath = "/nearby") {
     // intercept their corner taps; the compass-specific spec uses gotoAndWaitForMap directly.
     const compassBanner = document.getElementById("compassCalibrationBanner");
     if (compassBanner && !compassBanner.hidden) compassBanner.hidden = true;
+    // Generic map-interaction tests exercise canvas gestures, not the first-location adventure.
+    // Keep its real-location banner from covering the map tap targets used by those tests; the
+    // adventure-specific specs deliberately leave it visible and assert its rendered view.
+    const adventureBanner = document.getElementById("adventureBanner");
+    try { localStorage.setItem("ff-tree-adventure-seen-v1", "1"); } catch {}
+    if (typeof treeAdventureDismiss === "function") treeAdventureDismiss();
+    if (adventureBanner) adventureBanner.hidden = true;
     if (state.userLocation && state.userLocation.isDefault) {
       state.userLocation = null;
       // This fixture removes the default location entirely, so its static

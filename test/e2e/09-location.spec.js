@@ -33,8 +33,18 @@ test.describe("Location and GPS — happy path", () => {
             body: JSON.stringify({ generatedAt: 1, entries: {} }),
           })
         );
+      } else {
+        // The other location snapshots cover the map itself. Keep the first-location adventure
+        // out of those captures; its dedicated tests above intentionally exercise the banner.
+        await page.addInitScript(() => localStorage.setItem("ff-tree-adventure-seen-v1", "1"));
       }
       await gotoAndWaitForMap(page);
+      if (!testInfo.title.includes("veteran tree adventure")) {
+        await page.evaluate(() => {
+          const card = document.getElementById("consentBanner");
+          if (card) card.hidden = true;
+        });
+      }
     });
 
     test("location loading step reaches 'done' after a GPS fix", async ({ page }) => {
