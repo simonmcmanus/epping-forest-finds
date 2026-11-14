@@ -303,7 +303,11 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     await waitForUiToSettle(page);
     const result = await page.evaluate(() => {
       const shape = (markers) => markers.map(m => `${Math.round(m.screenPt.x)},${Math.round(m.screenPt.y)}:${m.items.length}`).sort();
+      // Seed a remembered layout, then exercise the synchronous programmatic-camera landing
+      // path. It must clear that memory just like an animated landing does.
       resetMarkerGroupMemory();
+      buildActiveMapMarkers(worldToScreen);
+      moveCamera({ ...state.viewport }, 0);
       const settled = shape(buildActiveMapMarkers(worldToScreen));
       resetMarkerGroupMemory();
       const fresh = shape(buildActiveMapMarkers(worldToScreen));
