@@ -201,6 +201,31 @@ test('reporter keeps completed pixel differences advisory while preserving their
   assert.equal(report.tests[0].pixelDifference, true);
 });
 
+test('reporter marks an ordinary completed run as passed', (t) => {
+  const root = fixture(t);
+  const originalCwd = process.cwd();
+  const originalEnv = { VISUAL_PROJECT: process.env.VISUAL_PROJECT, VISUAL_EVIDENCE_DIR: process.env.VISUAL_EVIDENCE_DIR };
+  t.after(() => {
+    process.chdir(originalCwd);
+    for (const [key, value] of Object.entries(originalEnv)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  });
+  execFileSync('git', ['init', '--quiet', root]);
+  process.chdir(root);
+  process.env.VISUAL_PROJECT = 'desktop';
+  process.env.VISUAL_EVIDENCE_DIR = path.join(root, 'visual-evidence-desktop');
+  fs.mkdirSync('test/e2e/__screenshots__', { recursive: true });
+  const reporter = new Reporter();
+  reporter.onTestEnd(
+    { id: 'completed', expectedStatus: 'passed', titlePath: () => ['root', 'completed'] },
+    { status: 'passed', attachments: [], errors: [] },
+  );
+  reporter.onEnd({ status: 'passed' });
+  const report = JSON.parse(fs.readFileSync(path.join(process.env.VISUAL_EVIDENCE_DIR, 'manifest.json')));
+  assert.equal(report.status, 'passed');
+});
+
 test('reporter keeps interrupted runs failed even after earlier tests passed', (t) => {
   const root = fixture(t);
   const originalCwd = process.cwd();
