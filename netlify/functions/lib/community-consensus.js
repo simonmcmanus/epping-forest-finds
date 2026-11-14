@@ -84,18 +84,18 @@ function isNear(r) {
   return distanceMetres(r.lat, r.lon, r.targetLat, r.targetLon) <= NEAR_METRES;
 }
 
-// The adventure flag is only a claim from the browser. The score pass verifies the claim against
-// the tree register when `adventureTargets` is available (the scheduled rebuild supplies it), and
-// always requires a real nearby GPS report. The syntax-only fallback keeps this pure function
-// useful to offline tooling and older snapshots; production scoring uses the register-backed map.
+// The adventure flag is only a claim from the browser. The score pass must verify the claim against
+// the tree register, and always requires a real nearby GPS report. If the register is unavailable,
+// fail closed: report coordinates are never a substitute for register-backed target data.
 function isAdventureEligibleReport(r, adventureTargets = null) {
   if (!r || r.kind !== "tree" || r.status !== "VERIFIED" || r.adventure !== true) return false;
   if (!/^tree:\d+$/.test(String(r.target || ""))) return false;
   if (!Number.isFinite(r.lat) || !Number.isFinite(r.lon)) return false;
-  const registered = adventureTargets ? adventureTargets.get(r.target) : null;
-  if (adventureTargets && !registered) return false;
-  const targetLat = registered ? registered.lat : r.targetLat;
-  const targetLon = registered ? registered.lon : r.targetLon;
+  if (!(adventureTargets instanceof Map)) return false;
+  const registered = adventureTargets.get(r.target);
+  if (!registered) return false;
+  const targetLat = registered.lat;
+  const targetLon = registered.lon;
   if (!Number.isFinite(targetLat) || !Number.isFinite(targetLon)) return false;
   return distanceMetres(r.lat, r.lon, targetLat, targetLon) <= NEAR_METRES;
 }

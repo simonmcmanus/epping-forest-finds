@@ -51,9 +51,9 @@ async function loadAdventureTargets(fetchJson) {
     });
     return targets;
   } catch {
-    // A failed register fetch must not make a rebuild fail, but it must also not grant a
-    // register-backed adventure reward without the validation data.
-    return new Map();
+    // A failed register fetch must not grant a register-backed adventure reward, and callers must
+    // not publish a replacement snapshot that silently strips rewards already earned.
+    return null;
   }
 }
 
@@ -65,6 +65,9 @@ async function rebuildComputed(store, { strict = false, fetchJson = null } = {})
   const validations = ((await get("validations")) || {}).items || [];
   const owners = await loadDeviceOwners(store);
   const adventureTargets = await loadAdventureTargets(fetchJson);
+  if (typeof fetchJson === "function" && adventureTargets === null) {
+    throw new Error("veteran tree register unavailable; refusing to publish community scores");
+  }
   const state = computeCommunityState(reports, validations, owners, { adventureTargets });
   const { overlay, conflicts, conflictDetails, scores, rewards } = state;
   const generatedAt = Date.now();
@@ -77,7 +80,7 @@ async function rebuildComputed(store, { strict = false, fetchJson = null } = {})
   return computed;
 }
 
-async function loadComputed(store, { forceRebuild = false } = {}) {
+async function loadComputed(store, { forceRebuild = false, fetchJson = null } = {}) {
   const cached = await store.get("computed");
   if (!forceRebuild && cached) {
     const age = Date.now() - cached.generatedAt;
@@ -90,14 +93,14 @@ async function loadComputed(store, { forceRebuild = false } = {}) {
       return cached;
     }
   }
-  return rebuildComputed(store);
+  return rebuildComputed(store, { fetchJson });
 }
 
 // The admin dashboard's community figures, as of the last rebuild (normally under an hour old).
-async function loadAdminStats(store) {
+async function loadAdminStats(store, { fetchJson = null } = {}) {
   const stored = await store.get(ADMIN_STATS_KEY);
   if (stored) return stored;
-  await rebuildComputed(store);
+  await rebuildComputed(store, { fetchJson });
   return store.get(ADMIN_STATS_KEY);
 }
 
