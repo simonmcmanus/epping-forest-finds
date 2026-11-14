@@ -1531,9 +1531,9 @@ textarea.report-textarea {
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   /* Match the neighbouring label's line box so the small count's glyphs sit on the same optical
-     center instead of riding high inside the badge. */
+     center instead of riding high inside the badge. The flex item is already centred by the pill;
+     an extra pixel translation makes it visibly sit low at device scale. */
   line-height: 1.15;
-  transform: translateY(1px);
 }
 
 /* A group that is off keeps its count but drops the tinted fill, so the on groups read first. */

@@ -374,7 +374,20 @@ test.describe("Nearby filter rail", () => {
     expect(countAlignment).toBeLessThanOrEqual(1);
 
     await expect(rail(page)).toHaveScreenshot("nearby-pixel5-filter-rail.png", { scale: "device" });
-    await expect(page.locator(".inspector-filter-toggle")).toHaveScreenshot("nearby-pixel5-filter-badge.png", { scale: "device" });
+    // The badge is positioned just outside its toggle's border box. Clip a small, deterministic
+    // cushion around the toggle so the published evidence contains the complete circle instead
+    // of cutting through its top/right edge.
+    const badgeBox = await page.locator(".inspector-filter-toggle").boundingBox();
+    expect(badgeBox).not.toBeNull();
+    await expect(page).toHaveScreenshot("nearby-pixel5-filter-badge.png", {
+      scale: "device",
+      clip: {
+        x: Math.max(0, badgeBox.x - 8),
+        y: Math.max(0, badgeBox.y - 8),
+        width: badgeBox.width + 16,
+        height: badgeBox.height + 16,
+      },
+    });
     await expect(page.locator(".inspector-actions")).toHaveScreenshot("nearby-pixel5-navigation.png", { scale: "device" });
   });
 });

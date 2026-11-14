@@ -17,7 +17,8 @@
 .filter-count {
   min-width: 18px;
   height: 18px;
-  padding: 0 5px;
+  box-sizing: border-box;
+  padding: 0 4px;
   border-radius: 999px;
   display: inline-flex;
   align-items: center;
