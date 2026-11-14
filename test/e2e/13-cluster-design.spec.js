@@ -222,9 +222,6 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
       return CanvasRenderingContext2D.prototype.fillText.apply(this, arguments);
     };
     try {
-      // Start each label measurement from the settled layout; prior boot/data frames are not
-      // part of the geometry this test is measuring.
-      resetMarkerGroupMemory();
       draw();
     } finally { drawClusterMarker = drawnGroup; drawItemPin = drawnPin; delete overlay.fillText; }
     const covered = label ? rects.filter(r => label.left < r.right && r.left < label.right && label.top < r.bottom && r.top < label.bottom).length : -1;
@@ -251,6 +248,7 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
           state.viewport.ty += centre.y - now.y;
         }
         state.emojiScaleAnimated = zoomEmojiScaleTarget();
+        resetMarkerGroupMemory();
         return ${MEASURE_YOU_LABEL};
       })(${factor})`);
       if (factor === 1) expect(view.labelDrawn, 'a free side exists at the default view, so the label is drawn').toBe(true);
