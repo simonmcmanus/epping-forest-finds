@@ -85,8 +85,9 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
       const oak = { commonName: 'English oak', latinName: 'Quercus robur' };
       const beech = { commonName: 'Common beech', latinName: 'Fagus sylvatica' };
       const hornbeam = { commonName: 'Hornbeam', latinName: 'Carpinus betulus' };
+      const chestnut = { commonName: 'Sweet chestnut', latinName: 'Castanea sativa' };
       const at = item => ({ ...item, point: { x: 100, y: 100 } });
-      const lookup = { tree: new Set([hornbeam, beech, oak, oak, beech, oak, { ...oak }].map(at)), landmark: new Set([at({ category: 'cafe' })]),
+      const lookup = { tree: new Set([hornbeam, beech, oak, oak, beech, oak, { ...oak }, chestnut].map(at)), landmark: new Set([at({ category: 'cafe' })]),
         cow: new Set(), path: new Set(), water: new Set() };
       const markers = buildMapMarkers(lookup, p => p);
       const ctx = document.createElement('canvas').getContext('2d');
@@ -102,7 +103,7 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     expect(result.markers).toBe(1);
     expect(result.sources).toEqual(result.expected);
     expect(result.entries).toBe(2);
-    expect(result.labels, 'the marker keeps only its total member count as text while the hidden kinds stack visually').toEqual(['8']);
+    expect(result.labels, 'the marker keeps only its total member count as text while the hidden kinds stack visually').toEqual(['9']);
   });
 
   test('station groups retain their Underground and National Rail symbols', async ({ page }) => {

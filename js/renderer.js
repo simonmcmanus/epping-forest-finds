@@ -2184,17 +2184,17 @@ function clusterBadgeContains(screen, x, y, count, dpr, scale = 1) {
     && screen.y >= b.top - pad && screen.y <= y + pad;
 }
 
-// The overflow chips form a distinct lower layer beneath the two preview chips. Keeping the layers
-// inside the white head makes each hidden icon readable without giving the group another pointer or
-// changing its collision/hit geometry.
+// The overflow chips form a distinct lower layer beneath the two preview chips. Keeping at most two
+// larger peek icons inside the white head makes the affordance legible on a phone; the plus covers
+// the rest without giving the group another pointer or changing its collision/hit geometry.
 function clusterStackChipGeometry(x, y, count, dpr, scale = 1, index = 0, total = 1) {
   const b = clusterBadgeGeometry(x, y, count, dpr, scale);
   const R = b.size * 0.32;
-  const chipR = R * 0.26;
+  const chipR = total <= 2 ? R * 0.3 : R * 0.26;
   const offsets = total === 1
-    ? [-0.32]
+    ? [-0.4]
     : total === 2
-      ? [-0.36, 0.36]
+      ? [-0.42, 0.42]
       : [-0.45, 0, 0.45];
   const xOffset = offsets[Math.min(index, offsets.length - 1)] * R;
   const yOffset = total === 1 ? 0.5 : 0.52;
@@ -2210,7 +2210,7 @@ function clusterMorePlusGeometry(x, y, count, dpr, scale = 1, total = 1) {
   return {
     cx: x + (total === 1 ? 0.32 : 0) * R,
     cy: b.top + b.height * 0.5 + 0.52 * R,
-    radius: R * 0.25,
+    radius: R * 0.29,
     unit: b.unit,
   };
 }
@@ -2241,7 +2241,7 @@ function drawClusterMarker(ctx, x, y, count, iconSources, dpr, scale = 1, overfl
   const u = b.unit;
   ctx.save();
   const { cx, cy, R } = drawMapPinShape(ctx, x, y, b.size);
-  const stackSources = overflowSources.slice(0, 3);
+  const stackSources = overflowSources.slice(0, 2);
   stackSources.forEach((src, i) => {
     const chip = clusterStackChipGeometry(x, y, count, dpr, scale, i, stackSources.length);
     drawClusterIconChip(ctx, chip.cx, chip.cy, src, chip.radius);
