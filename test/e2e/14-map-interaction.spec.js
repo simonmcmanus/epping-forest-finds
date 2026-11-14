@@ -19,14 +19,22 @@ async function gotoLinkedNearby(page, path) {
 // thing being measured (what is on screen at steady instants of a wall-clock slide), so it is kept
 // out of the Playwright round trip, whose latency grows on a loaded runner and would let a short
 // slide finish before the first sample. `startFn` runs in the same round trip as the immediate
-// first sample, followed by the existing interval cadence.
+// first sample, followed by the existing interval cadence. The cadence waits on animation frames
+// rather than a timer, so a late timer cannot skip the rendered part of a short transition.
 function sampleEvery(page, startFn, sampleFn, count, intervalMs) {
   return page.evaluate(async ({ startSrc, src, count, intervalMs }) => {
     const fn = (0, eval)(`(${src})`);
     (0, eval)(`(${startSrc})`)();
     const out = [fn()];
     for (let i = 0; i < count; i += 1) {
-      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+      await new Promise((resolve) => {
+        const startedAt = performance.now();
+        const waitForFrame = (timestamp) => {
+          if (timestamp - startedAt >= intervalMs) resolve();
+          else requestAnimationFrame(waitForFrame);
+        };
+        requestAnimationFrame(waitForFrame);
+      });
       out.push(fn());
     }
     return out;
