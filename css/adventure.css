@@ -51,7 +51,6 @@
 .adventure-banner.fading-out { opacity: 0; transform: translateY(-5px); pointer-events: none; }
 
 .adventure-banner-art {
-  position: relative;
   grid-area: art;
   width: 46px;
   height: 56px;
@@ -65,12 +64,12 @@
 
 .adventure-direction {
   position: absolute;
-  right: -3px;
-  bottom: -2px;
+  top: 14px;
+  right: 16px;
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 34px;
   border: 1px solid rgba(228, 204, 133, 0.72);
   border-radius: 50%;
   background: #161b21;
