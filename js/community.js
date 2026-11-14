@@ -908,7 +908,7 @@ function communityNudgeSeen() {
 function communityNudgeDismiss() {
   clearTimeout(communityNudgeTimer);
   const el = document.getElementById("communityNudge");
-  if (el) el.remove();
+  if (el && typeof el.remove === "function") el.remove();
 }
 
 // The decision, with no DOM: what should happen for this GPS fix? Returns "card" (offer on any
@@ -927,6 +927,13 @@ function communityNudgeDecision({ on, fixOk, isDefault, nearest, target, already
 function communityNudgeCheck(now = Date.now()) {
   if (!communityEnabled()) return;
   communityUpdateRangeNotes();
+  // The first-location adventure is the more useful invitation at this moment. Keeping the
+  // proximity nudge off the screen prevents two competing tree prompts from stacking together.
+  const adventureBanner = document.getElementById("adventureBanner");
+  if (adventureBanner && !adventureBanner.hidden) {
+    communityNudgeDismiss();
+    return;
+  }
   const nearest = state.nearestTree;
   const tree = nearest && nearest.tree;
   const target = tree ? communityTreeTarget(tree) : null;

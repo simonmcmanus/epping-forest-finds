@@ -23,7 +23,7 @@ function treeAdventureAge(tree) {
   if (typeof estimateTreeAgeFromGirth !== "function") return null;
   const estimated = estimateTreeAgeFromGirth(tree);
   const match = estimated && String(estimated).match(/~(\d+) years/);
-  return match ? `${match[1]} years old` : null;
+  return match ? match[1] : null;
 }
 
 function treeAdventureWalkMetres(tree, straightLineMetres) {
@@ -41,6 +41,7 @@ function treeAdventureWalkLabel(metres) {
 }
 
 function treeAdventureTag(tree) {
+  if (typeof treeTagLabel === "function") return treeTagLabel(tree);
   if (!tree || tree.tagNumber == null) return null;
   const tag = String(tree.tagNumber).trim();
   return tag && tag !== "0" ? tag : null;
@@ -83,6 +84,7 @@ function treeAdventureDismiss() {
 function treeAdventureShow(tree, straightLineMetres) {
   const banner = els.adventureBanner;
   if (!banner || !tree || !hasRealLocation() || state.userLocation.isDefault) return;
+  if (typeof communityNudgeDismiss === "function") communityNudgeDismiss();
   const walkMetres = treeAdventureWalkMetres(tree, straightLineMetres);
   const species = tree.commonName || "veteran tree";
   const age = treeAdventureAge(tree);
@@ -95,10 +97,10 @@ function treeAdventureShow(tree, straightLineMetres) {
   if (els.adventureTag) {
     els.adventureTag.hidden = !tag;
     els.adventureTag.innerHTML = tag
-      ? `<span>Tree tag</span><strong>#${escapeHtml(tag)}</strong>`
+      ? `<span>Tag number</span><strong>${escapeHtml(tag)}</strong>`
       : "";
   }
-  els.adventureMeta.innerHTML = `${age ? `<span>${escapeHtml(age)}</span>` : ""}<span class="adventure-reward">Verify it for +${TREE_ADVENTURE_REWARD} points</span>`;
+  els.adventureMeta.innerHTML = `${age ? `<span class="adventure-age"><small>Estimated age</small><strong>${escapeHtml(age)} years</strong></span>` : ""}<span class="adventure-reward">Verify it for +${TREE_ADVENTURE_REWARD} points</span>`;
   treeAdventureWrite(TREE_ADVENTURE_ACTIVE_KEY, { target, shownAt: Date.now() });
   banner.hidden = false;
   banner.classList.remove("fading-out");
