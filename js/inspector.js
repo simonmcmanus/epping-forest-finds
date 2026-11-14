@@ -18,7 +18,7 @@ function itemLonLatForTap(item, tapLonLat) {
 function handleMapClick(event) {
   const screen = canvasPoint(event);
 
-  // Tapping a multi-item cluster -- same-category or the cross-category "mega" badge alike --
+  // Tapping a multi-item group marker -- one category or several alike --
   // behaves like tapping open ground on that spot: the group becomes the Nearby browse anchor,
   // sized to cover it, and the Nearby list updates to show what's inside. See
   // focusNearbyOnClusterGroup (js/nav.js).
@@ -188,21 +188,6 @@ function findHit(screen, world) {
     return item === selectedItem || shouldDrawMapIcon(type, item, iconLookup);
   }
 
-  // Trees other walkers added are drawn as marks (drawCommunityMarks) over everything else, so a tap
-  // on one wins.
-  if (typeof communityOverlayNewTreeMarks === "function" && !(state.selected && state.selected.type === "community")) {
-    let bestAdded = null;
-    for (const mark of communityOverlayNewTreeMarks()) {
-      if (!mark.tag) continue;
-      const point = worldToScreen(projectLonLat(mark.lon, mark.lat));
-      const distance = Math.hypot(point.x - screen.x, point.y - screen.y);
-      if (distance < 22 * dpr && (!bestAdded || distance < bestAdded.distance)) {
-        bestAdded = { type: "addedtree", item: communityAddedTreeItem(mark), distance };
-      }
-    }
-    if (bestAdded) return bestAdded;
-  }
-
   let bestPlace = null;
   for (const place of state.landmarks) {
     if (!isTappablePin("landmark", place)) continue;
@@ -329,78 +314,22 @@ function findHit(screen, world) {
   return { type: "none" };
 }
 
+// The group marker under the tap, or null (a lone pin, or open ground). Built by the same pass
+// the renderer draws from (buildMapMarkers, js/renderer.js), so a drawn group is a tappable group;
+// faces never overlap, and where a tail or chip does, the marker lower on screen is the one on top.
 function findClusterHit(screen) {
   const dpr = pixelRatio();
-  const toScreen = tiltActive() ? worldToScreenForOverlayTilted
+  const tilted = tiltActive();
+  const toScreen = tilted ? worldToScreenForOverlayTilted
     : nearbyHeadingUpActive() ? worldToScreenForOverlay : worldToScreen;
-  const lookup = activeIconLookup();
-  const tag = (clusters, itemType) => clusters.map(c => ({ ...c, itemType }));
-  const treeClusters = tag(buildTypeClusters(lookup.tree, toScreen), "tree");
-  const landmarkClusters = tag(buildLandmarkClusters(lookup.landmark, toScreen), "landmark");
-  const cowClusters = tag(buildTypeClusters(lookup.cow, toScreen), "cow");
-  const pathClusters = tag(buildTypeClusters(lookup.path, toScreen), "path");
-  const waterClusters = tag(buildTypeClusters(lookup.water, toScreen), "water");
-
-  // Cross-category mega clusters (see buildSuperClusters, js/renderer.js) draw on top of the
-  // per-type badges they absorb, so check those first -- a tap in their radius always means the
-  // mega badge, never one of the individual clusters merged into it.
-  //
-  // Deliberately the base MEGA_CLUSTER_MIN_MEMBERS here, not megaClusterMinMembersFor's
-  // near-user-stricter floor: that floor only raises the bar for drawing a consolidated badge
-  // near the user (so nearby ground stays legible, individual pins rather than one gold circle --
-  // see its own comment), it was never meant to also switch off the tap affordance. A 2-cluster
-  // overlap near the user still draws as separate, overlapping pins with nothing to visually mark
-  // it as a group -- but a tap there still needs to land on *something* coherent. Gating this hit
-  // test on the same stricter floor left those spots with no group to expand at all: the tap fell
-  // straight through to individual-pin hit-testing and picked whichever pin happened to be on top,
-  // which is exactly the "doesn't expand, just goes to one item" bug this exists to prevent.
-  //
-  // Runs even while a cluster is already expanded (state.clusterExpanded): the lookup above is
-  // narrowed to that group's own items, built fresh from wherever the zoom-in landed, so a still-
-  // dense expanded view can offer a next, smaller mega cluster to tap into -- one level of
-  // drill-down at a time -- rather than only ever flattening straight to individual pins.
-  const megaGroups = buildSuperClusters([
-    { itemType: "tree", clusters: treeClusters },
-    { itemType: "landmark", clusters: landmarkClusters },
-    { itemType: "cow", clusters: cowClusters },
-    { itemType: "path", clusters: pathClusters },
-    { itemType: "water", clusters: waterClusters },
-  ]).filter(group => group.length >= MEGA_CLUSTER_MIN_MEMBERS);
-  for (const group of megaGroups) {
-    let totalItems = 0, sx = 0, sy = 0, items = [];
-    const itemsByType = {};
-    for (const { itemType, cluster } of group) {
-      const n = cluster.items.length;
-      totalItems += n;
-      sx += cluster.screenPt.x * n;
-      sy += cluster.screenPt.y * n;
-      items = items.concat(cluster.items);
-      itemsByType[itemType] = (itemsByType[itemType] || []).concat(cluster.items);
-    }
-    const cx = sx / totalItems;
-    const cy = sy / totalItems;
-    const dpr = pixelRatio();
-    const worldPt = { x: items.reduce((sum, item) => sum + item.point.x, 0) / totalItems,
-      y: items.reduce((sum, item) => sum + item.point.y, 0) / totalItems };
-    const drawn = group.length >= megaClusterMinMembersFor(group);
-    const compact = new Set(group.flatMap(({ itemType, cluster }) => clusterPreviewEntries(itemType, cluster).map(entry => entry.key))).size === 1;
-    const hit = drawn
-      ? clusterBadgeContains(screen, cx, cy, totalItems, true, dpr, Math.max(0.65, tiltPinScale(worldPt)), compact)
-      : group.some(({ itemType, cluster }) => cluster.items.length > 1
-        ? clusterBadgeContains(screen, cluster.screenPt.x, cluster.screenPt.y, cluster.items.length, false, dpr, Math.max(0.65, tiltPinScale(cluster.worldPt)), clusterPreviewEntries(itemType, cluster).length === 1)
-        : Math.hypot(cluster.screenPt.x - screen.x, cluster.screenPt.y - 20 * dpr - screen.y) < 24 * dpr);
-    if (hit) {
-      return { items, itemsByType, itemType: "_mega", screenPt: { x: cx, y: cy } };
-    }
+  let hit = null;
+  for (const marker of buildActiveMapMarkers(toScreen)) {
+    if (marker.items.length < 2) continue;
+    const scale = tilted ? Math.max(0.65, tiltPinScale(marker.worldPt)) : 1;
+    if (!clusterBadgeContains(screen, marker.screenPt.x, marker.screenPt.y, marker.items.length, dpr, scale)) continue;
+    if (!hit || marker.screenPt.y > hit.screenPt.y) hit = marker;
   }
-
-  const absorbed = new Set(megaGroups.filter(g => g.length >= megaClusterMinMembersFor(g)).flatMap(g => g.map(m => m.cluster)));
-  const allClusters = [...treeClusters, ...landmarkClusters, ...cowClusters, ...pathClusters, ...waterClusters];
-  for (const cluster of allClusters) {
-    if (cluster.items.length <= 1 || absorbed.has(cluster)) continue;
-    if (clusterBadgeContains(screen, cluster.screenPt.x, cluster.screenPt.y, cluster.items.length, false, dpr, Math.max(0.65, tiltPinScale(cluster.worldPt)), clusterPreviewEntries(cluster.itemType, cluster).length === 1)) return cluster;
-  }
-  return null;
+  return hit;
 }
 
 // --- Detail views ---
@@ -1263,10 +1192,10 @@ function markerOpacityFor(kind, item) {
   // strength regardless of which category filters happen to be active -- a search should never
   // come back dimmed just because Map setup was last left on a different category.
   if (state.searchScreenOpen) return 1;
-  const locationSelected = state.selected && ["tree", "landmark", "cow", "path"].includes(state.selected.type);
+  const locationSelected = state.selected && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type);
   if (locationSelected) {
     if (state.selected.type === kind && state.selected.item === item) return 1;
-    return 0.5;
+    return 0;
   }
 
   if (!state.overviewFilters.length) {
@@ -1441,6 +1370,7 @@ function onInspectorHeightTransitionEnd(callback, timeoutMs = INSPECTOR_MINIMIZE
 function holdSelectionMapUntilCameraSettles() {
   const transitionToken = {};
   state.selectionTransition.mapHeld = true;
+  state.selectionTransition.startedAt = performance.now();
   state.selectionMapTransitionToken = transitionToken;
   const settleMapTransition = () => {
     if (state.selectionMapTransitionToken !== transitionToken) return;
@@ -1457,9 +1387,9 @@ function holdSelectionMapUntilCameraSettles() {
       return;
     }
     state.selectionTransition.mapHeld = false;
+    state.selectionTransition.startedAt = null;
+    state.selectionTransition.outgoingIconLookup = null;
     state.selectionMapTransitionToken = null;
-    state.selectionMapTransitionIconLookup = null;
-    state.selectionMapTransitionOriginPoint = null;
     requestDraw();
   };
   requestAnimationFrame(settleMapTransition);
@@ -1469,13 +1399,27 @@ function zoomToSelection() {
   const waitForInspectorTransition = state.inspectorMinimizeTransitionPending;
   state.inspectorMinimizeTransitionPending = false;
   holdSelectionMapUntilCameraSettles();
-  const doZoom = () => {
+  const startCamera = () => {
     state.selectionTransition.viewportPending = false;
     if (typeof animateToHeadingUpNavigationViewport === "function" && selectedNavigationHeadingUpActive()) {
       animateToHeadingUpNavigationViewport(500, { deliberate: true });
     } else {
       ensureUserAndSelectionVisible({ animate: true, force: true, durationMs: HEADING_UP_NAV_ANIMATION_MS, deliberate: true });
     }
+  };
+  const doZoom = () => {
+    const delay = typeof selectionOutgoingRevealDurationMs === "function"
+      ? selectionOutgoingRevealDurationMs()
+      : 0;
+    if (!delay) {
+      startCamera();
+      return;
+    }
+    const transitionToken = state.selectionMapTransitionToken;
+    setTimeout(() => {
+      if (state.selectionMapTransitionToken !== transitionToken) return;
+      startCamera();
+    }, delay);
   };
 
   if (!els.inspector.classList.contains("minimized")) {

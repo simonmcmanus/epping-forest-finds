@@ -417,6 +417,7 @@ globalThis.__forestFindsTest = {
   // Replaces a top-level app function (a global in this sandbox) and returns the original, so a
   // test can count how often a hot path reaches an expensive helper. Restore it with the return.
   swapGlobalFunction(name, fn) { const previous = globalThis[name]; globalThis[name] = fn; return previous; },
+  setFindLandingSelectionPending(value) { findLandingSelectionPending = Boolean(value); },
   drawEnvironment,
   drawLayer,
   clusterFocusTarget,
@@ -464,6 +465,7 @@ globalThis.__forestFindsTest = {
   navigateInApp,
   overviewHeadingText,
   landingPageCategoryLabel,
+  findLandingAwaitingPlace,
   updateDocumentTitle,
   normalizeSearchText,
   searchQueryTokens,
@@ -516,6 +518,7 @@ globalThis.__forestFindsTest = {
   DEFAULT_LOCATION,
   DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES,
   applyDefaultLocation,
+  applyLocationFix,
   hasRealLocation,
   ROUTE_PATHS,
   NEARBY_PATH,
@@ -634,6 +637,8 @@ globalThis.__forestFindsTest = {
   nearbyOriginTransitionActive,
   nearbyRevealOpacity,
   nearbyRevealInProgress,
+  selectionOutgoingMarkerOpacity,
+  selectionDestinationOpacity,
   NEARBY_REVEAL_MS,
   cameraOriginPoint,
   tiltHidesWhatIsBehind,
@@ -658,6 +663,8 @@ globalThis.__forestFindsTest = {
   highBeachStandIn,
   currentNavigationMapRotationDegrees,
   updateCompassOverlay,
+  updateOverviewDirectionArrows,
+  directionArrowAngleForWorldPoint,
   setNearbyAnchor,
   clearNearbyAnchor,
   focusNearbyWithinWalkMinutes,
@@ -725,12 +732,21 @@ globalThis.__forestFindsTest = {
   mapEmojiScale,
   MAP_PNG_ICON_SIZE,
   MAP_ICON_SCALE_UNSELECTED,
-  CLUSTER_RADIUS_ICON_SIZE_REF,
-  MEGA_CLUSTER_MERGE_RADIUS_CSS_PX,
-  buildTypeClusters,
+  buildMapMarkers,
+  resetMarkerGroupMemory,
+  placeUserLabel,
+  markerPaintedRects,
+  clusterBadgeGeometry,
+  clusterMarkerRect,
+  clusterPreviewEntries,
+  clusterKindsByCategory,
+  clusterOverflowEntries,
+  clusterStackChipGeometry,
+  clusterMorePlusGeometry,
+  drawMapMarkers,
+  drawClusterMarker,
   clusterTreeIconSrc,
-  buildSuperClusters,
-  drawMegaClusters,
+  treeSpeciesIconPath,
   clusterJoinAnimationState,
   settleClusterJoinAnimations,
   zoomAlongTween,
@@ -990,9 +1006,9 @@ function resetData(app) {
   app.state.selectionTransition.viewportPending = false;
   app.state.inspectorMinimizeTransitionPending = false;
   app.state.selectionTransition.mapHeld = false;
+  app.state.selectionTransition.startedAt = null;
+  app.state.selectionTransition.outgoingIconLookup = null;
   app.state.selectionMapTransitionToken = null;
-  app.state.selectionMapTransitionIconLookup = null;
-  app.state.selectionMapTransitionOriginPoint = null;
   app.state.headingUpEntryAnim = null;
   app.state.renderedNavigationHeading = null;
   // resetData simulates an app already well past first load, so heading-up activations here
@@ -1162,30 +1178,406 @@ async function runRegisteredTests() {
 
 const app = loadAppForTests();
 
-test("a mega badge's displayed count is exactly what was merged into it, not a separate radius scan", () => {
-  const fakeCluster = (id, x, n) => ({
-    items: Array.from({ length: n }, (_, i) => ({ id: `${id}-${i}` })),
-    screenPt: { x, y: 0 },
-    worldPt: { x: 0, y: 0 },
+// Map markers: one clustering pass across every category. Items carry their screen position
+// directly as `point` here, with an identity projection, so each case controls the exact layout.
+const markerScreen = (p) => p;
+const markerLookup = (items) => {
+  const lookup = { tree: new Set(), landmark: new Set(), cow: new Set(), path: new Set(), water: new Set() };
+  for (const { type, item } of items) lookup[type].add(item);
+  return lookup;
+};
+const markerItem = (type, id, x, y) => ({ type, item: { id, commonName: "Oak", point: { x, y } } });
+const markerRectsOverlap = (a, b) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+const drawnMarkerRect = (marker) => app.clusterMarkerRect(marker.screenPt.x, marker.screenPt.y,
+  marker.items.length, app.pixelRatio(), marker.items.length > 1 ? 1 : app.mapEmojiScale());
+// Deterministic pseudo-random layout so a failure is reproducible.
+function markerScatter(count, spread, types) {
+  let seed = 12345;
+  const next = () => (seed = (seed * 1103515245 + 12345) % 2147483648) / 2147483648;
+  return Array.from({ length: count }, (_, i) =>
+    markerItem(types[i % types.length], `m${i}`, next() * spread, next() * spread));
+}
+
+test("no two map markers overlap, however densely different categories are packed", () => {
+  const types = ["tree", "landmark", "cow", "path", "water"];
+  const layouts = {
+    dense: markerScatter(300, 260, types),
+    collinear: Array.from({ length: 60 }, (_, i) => markerItem(types[i % 5], `c${i}`, i * 9, 100)),
+    coincident: Array.from({ length: 12 }, (_, i) => markerItem(types[i % 5], `p${i}`, 50, 50)),
+    sparseTrees: markerScatter(80, 1500, ["tree"]),
+  };
+  for (const [name, items] of Object.entries(layouts)) {
+    app.resetMarkerGroupMemory();
+    const markers = app.buildMapMarkers(markerLookup(items), markerScreen);
+    const rects = markers.map(drawnMarkerRect);
+    for (let i = 0; i < rects.length; i++) {
+      for (let j = i + 1; j < rects.length; j++) {
+        assert.equal(markerRectsOverlap(rects[i], rects[j]), false,
+          `${name}: markers ${i} and ${j} are drawn on top of each other`);
+      }
+    }
+  }
+});
+
+test("every item is in exactly one map marker, and a marker's count is its item count", () => {
+  const items = markerScatter(250, 300, ["tree", "landmark", "cow", "path", "water"]);
+  const markers = app.buildMapMarkers(markerLookup(items), markerScreen);
+  const seen = new Map();
+  for (const marker of markers) {
+    assert.equal(Object.values(marker.itemsByType).flat().length, marker.items.length,
+      "the per-category breakdown holds exactly the marker's items");
+    for (const item of marker.items) seen.set(item, (seen.get(item) || 0) + 1);
+  }
+  assert.equal(seen.size, items.length, "no item is lost");
+  assert.ok([...seen.values()].every(n => n === 1), "no item is claimed by two markers");
+});
+
+test("different categories standing on one spot become one group wherever the user is", () => {
+  resetData(app);
+  const spot = makePoint(app, 51.665, 0.045);
+  for (const user of [makePoint(app, 51.665, 0.045), makePoint(app, 51.68, 0.1)]) {
+    app.state.userLocation = user;
+    const cow = { id: "cow", ...spot };
+    const tree = { id: "tree", commonName: "Oak", latinName: "Quercus robur", ...spot };
+    const church = { id: "church", name: "Church", category: "place_of_worship", ...spot };
+    const lookup = markerLookup([{ type: "cow", item: cow }, { type: "tree", item: tree }, { type: "landmark", item: church }]);
+    const markers = app.buildMapMarkers(lookup, app.worldToScreen);
+    assert.equal(markers.length, 1, "three different things on one spot never just stack");
+    assert.equal(markers[0].items.length, 3);
+    assert.equal(markers[0].itemType, "_mega", "a mixed group is flagged as mixed for the tap handler");
+    assert.deepEqual(Object.keys(markers[0].itemsByType).sort(), ["cow", "landmark", "tree"]);
+  }
+  app.state.userLocation = null;
+});
+
+test("map markers are drawn at the densest item's own point and are deterministic", () => {
+  // A row plus one outlier: the middle item has two neighbours in reach, the ends one each.
+  const items = [markerItem("tree", "a", 0, 0), markerItem("tree", "b", 40, 0), markerItem("tree", "c", 70, 0),
+    markerItem("cow", "far", 600, 600)];
+  app.resetMarkerGroupMemory();
+  const first = app.buildMapMarkers(markerLookup(items), markerScreen);
+  const again = app.buildMapMarkers(markerLookup(items), markerScreen);
+  const summary = (markers) => Array.from(markers, m => ({ at: [m.screenPt.x, m.screenPt.y], ids: Array.from(m.items, i => i.id).sort() }))
+    .sort((a, b) => a.at[0] - b.at[0]);
+  assert.deepEqual(summary(first), summary(again), "the same view always yields the same markers");
+  const group = first.find(m => m.items.length > 1);
+  assert.deepEqual(Array.from(group.items, i => i.id).sort(), ["a", "b", "c"]);
+  assert.equal(group.screenPt.x, 40, "the group sits on the densest member, not on the members' average");
+  assert.equal(group.worldPt, group.items.find(i => i.id === "b").point, "tilt scaling reads that same member");
+});
+
+// Stable groups: grouping remembers the last build, so zooming does not make items hop or split.
+const markerBox = () => {
+  const dpr = app.pixelRatio();
+  const rect = app.clusterMarkerRect(0, 0, 100, dpr, 1);
+  const gap = 4 * dpr;
+  return { w: rect.right - rect.left + gap, h: rect.bottom - rect.top + gap };
+};
+const placeMarkerItems = (items, at) => items.forEach(({ item }) => { item.point = at(item.id); });
+const markerGroupsOf = (markers) => Array.from(markers, m => Array.from(m.items, i => i.id).sort().join("+")).sort();
+const groupWith = (markers, id) => markers.find(m => m.items.some(i => i.id === id));
+
+test("a pair just outside the normal box stays one group once grouped, and is two groups when built fresh", () => {
+  const { w } = markerBox();
+  const items = [markerItem("tree", "a", 0, 0), markerItem("tree", "b", 0, 0)];
+  const build = (gapX) => { placeMarkerItems(items, id => ({ x: id === "b" ? gapX : 0, y: 0 })); return app.buildMapMarkers(markerLookup(items), markerScreen); };
+  app.resetMarkerGroupMemory();
+  assert.equal(build(w * 0.9).length, 1, "close enough to group");
+  assert.equal(build(w * 1.1).length, 1, "outside the normal box but inside the split box: still one group");
+  app.resetMarkerGroupMemory();
+  assert.equal(build(w * 1.1).length, 2, "built fresh at the same spacing they are separate");
+});
+
+test("a grouped pair separates once it is outside the split box", () => {
+  const { w } = markerBox();
+  const items = [markerItem("tree", "a", 0, 0), markerItem("tree", "b", 0, 0)];
+  const build = (gapX) => { placeMarkerItems(items, id => ({ x: id === "b" ? gapX : 0, y: 0 })); return app.buildMapMarkers(markerLookup(items), markerScreen); };
+  app.resetMarkerGroupMemory();
+  build(w * 0.9);
+  assert.equal(build(w * 1.2).length, 1, "still inside the split box");
+  assert.equal(build(w * 1.3).length, 2, "outside the split box it leaves");
+});
+
+test("an item between two groups stays with its group across small zooms instead of hopping", () => {
+  const { w } = markerBox();
+  const items = [markerItem("tree", "a1", 0, 0), markerItem("tree", "a2", 0, 0), markerItem("tree", "a3", 0, 0),
+    markerItem("tree", "m", 0, 0),
+    markerItem("tree", "c1", 0, 0), markerItem("tree", "c2", 0, 0), markerItem("tree", "c3", 0, 0)];
+  const layout = (mx, cx, f = 1) => placeMarkerItems(items, id => {
+    const n = Number(id.slice(1)) || 0;
+    if (id === "m") return { x: mx * w * f, y: 0 };
+    return { x: (id[0] === "a" ? 0 : cx * w) * f, y: n * f };
   });
-  // Two clusters close enough to merge into one mega badge -- 3 trees and 2 landmarks, so the
-  // badge should read "5", never some other number from an unrelated nearby-list scan.
-  const megaGroups = app.buildSuperClusters([
-    { itemType: "tree", clusters: [fakeCluster("tree", 0, 3)] },
-    { itemType: "landmark", clusters: [fakeCluster("landmark", 1, 2)] },
-  ]);
-  assert.equal(megaGroups.length, 1, "the two clusters merge into a single mega group");
-  assert.equal(megaGroups[0].reduce((n, m) => n + m.cluster.items.length, 0), 5);
+  app.resetMarkerGroupMemory();
+  layout(0.5, 2.2);
+  assert.ok(groupWith(app.buildMapMarkers(markerLookup(items), markerScreen), "m").items.some(i => i.id === "a1"), "starts with group a");
+  for (const f of [1, 1.04, 0.96, 1.02, 1]) {
+    layout(1.1, 2.2, f);
+    const markers = app.buildMapMarkers(markerLookup(items), markerScreen);
+    const group = groupWith(markers, "m");
+    assert.ok(group.items.some(i => i.id === "a1") && !group.items.some(i => i.id === "c1"), `zoom x${f}: m has not hopped`);
+  }
+});
+
+test("panning keeps the grouping that zooming left behind, which a fresh build would not give", () => {
+  const items = markerScatter(160, 420, ["tree", "landmark", "cow"]);
+  const base = new Map(items.map(({ item }) => [item.id, { x: item.point.x, y: item.point.y }]));
+  const layout = (f, dx = 0, dy = 0) => placeMarkerItems(items, id => ({ x: base.get(id).x * f + dx, y: base.get(id).y * f + dy }));
+  app.resetMarkerGroupMemory();
+  layout(0.8);
+  app.buildMapMarkers(markerLookup(items), markerScreen);
+  layout(1);
+  const remembered = markerGroupsOf(app.buildMapMarkers(markerLookup(items), markerScreen));
+  app.resetMarkerGroupMemory();
+  assert.notDeepEqual(remembered, markerGroupsOf(app.buildMapMarkers(markerLookup(items), markerScreen)),
+    "precondition: zooming out then in left groups that a fresh build would not form");
+  app.resetMarkerGroupMemory();
+  layout(0.8);
+  app.buildMapMarkers(markerLookup(items), markerScreen);
+  layout(1);
+  app.buildMapMarkers(markerLookup(items), markerScreen);
+  for (let step = 1; step <= 12; step++) {
+    layout(1, step * 17.3, -step * 9.1);
+    assert.deepEqual(markerGroupsOf(app.buildMapMarkers(markerLookup(items), markerScreen)), remembered, `after pan step ${step}`);
+  }
+});
+
+test("a remembered seed that now falls inside an earlier seed's box is absorbed, never a second anchor", () => {
+  const { w, h } = markerBox();
+  const items = [markerItem("tree", "a", 0, 0), markerItem("tree", "b", 0, 0)];
+  const build = (bx) => { placeMarkerItems(items, id => ({ x: id === "b" ? bx : 0, y: 0 })); return app.buildMapMarkers(markerLookup(items), markerScreen); };
+  app.resetMarkerGroupMemory();
+  assert.equal(build(w * 1.5).length, 2, "two separate seeds to remember");
+  const closer = build(w * 0.5);
+  assert.equal(closer.length, 1, "the later seed is absorbed by the earlier one");
+  assert.equal(closer[0].items.length, 2);
+  for (const markerSet of [build(w * 0.9), build(w * 1.5)]) {
+    const [first, second] = markerSet.map(m => m.screenPt);
+    if (second) assert.ok(Math.abs(first.x - second.x) >= w || Math.abs(first.y - second.y) >= h, "anchors stay a box apart");
+  }
+});
+
+test("expanding a cluster and collapsing it again leaves the main map's groups as they were", () => {
+  const { w } = markerBox();
+  const items = [markerItem("tree", "a", 0, 0), markerItem("tree", "b", 0, 0)];
+  placeMarkerItems(items, id => ({ x: id === "b" ? w * 0.9 : 0, y: 0 }));
+  app.resetMarkerGroupMemory();
+  app.buildMapMarkers(markerLookup(items), markerScreen);
+  placeMarkerItems(items, id => ({ x: id === "b" ? w * 1.1 : 0, y: 0 }));
+  const before = markerGroupsOf(app.buildMapMarkers(markerLookup(items), markerScreen));
+  assert.deepEqual(before, ["a+b"], "precondition: remembered as one group");
+  app.buildMapMarkers(markerLookup([items[0]]), markerScreen, "expanded");
+  assert.deepEqual(markerGroupsOf(app.buildMapMarkers(markerLookup(items), markerScreen)), before);
+});
+
+test("building twice on the same view gives identical markers, whatever came before", () => {
+  const items = markerScatter(160, 420, ["tree", "landmark", "cow"]);
+  const base = new Map(items.map(({ item }) => [item.id, { x: item.point.x, y: item.point.y }]));
+  app.resetMarkerGroupMemory();
+  for (const f of [1, 0.5, 1.3]) {
+    placeMarkerItems(items, id => ({ x: base.get(id).x * f, y: base.get(id).y * f }));
+    const first = app.buildMapMarkers(markerLookup(items), markerScreen);
+    const second = app.buildMapMarkers(markerLookup(items), markerScreen);
+    const shape = (markers) => Array.from(markers, m => `${m.screenPt.x},${m.screenPt.y}:${Array.from(m.items, i => i.id).join("+")}`);
+    assert.deepEqual(shape(second), shape(first), `zoom x${f}`);
+  }
+});
+
+test("no two anchors come within the normal box after a run of zoom-out and zoom-in builds", () => {
+  const { w, h } = markerBox();
+  const items = markerScatter(200, 500, ["tree", "landmark", "cow", "path", "water"]);
+  const base = new Map(items.map(({ item }) => [item.id, { x: item.point.x, y: item.point.y }]));
+  app.resetMarkerGroupMemory();
+  for (const f of [1, 0.8, 0.6, 0.35, 0.5, 0.8, 1.2, 1.6, 1.2, 1]) {
+    placeMarkerItems(items, id => ({ x: base.get(id).x * f, y: base.get(id).y * f }));
+    const markers = app.buildMapMarkers(markerLookup(items), markerScreen);
+    for (let i = 0; i < markers.length; i++) {
+      for (let j = i + 1; j < markers.length; j++) {
+        const a = markers[i].screenPt, b = markers[j].screenPt;
+        assert.ok(Math.abs(a.x - b.x) >= w || Math.abs(a.y - b.y) >= h, `zoom x${f}: anchors ${i} and ${j} are inside each other's box`);
+      }
+    }
+    assert.equal(markers.reduce((n, m) => n + m.items.length, 0), items.length, "every item is still in exactly one marker");
+  }
+});
+
+test("the You label takes the first free side adjacent to the dot, keeps it while free, and is hidden when all four are covered", () => {
+  const dpr = app.pixelRatio();
+  const dot = { x: 200, y: 200 };
+  const place = (rects, last) => app.placeUserLabel(dot, 4 * dpr, 24 * dpr, 11 * dpr, 3 * dpr, 4 * dpr, rects, last);
+  const cover = (x, y, half = 14 * dpr) => ({ left: x - half, right: x + half, top: y - half, bottom: y + half });
+  const rightOf = cover(200 + 20 * dpr, 200, 8 * dpr), leftOf = cover(200 - 20 * dpr, 200, 8 * dpr);
+  const belowIt = cover(200, 200 + 16 * dpr), aboveIt = cover(200, 200 - 16 * dpr);
+  assert.equal(place([], "right").side, "right", "free default side");
+  assert.equal(place([rightOf], "right").side, "left", "a marker over the right side moves it left");
+  assert.equal(place([rightOf, leftOf], "right").side, "below");
+  assert.equal(place([rightOf, leftOf, belowIt], "right").side, "above");
+  assert.equal(place([rightOf, leftOf, belowIt, aboveIt], "right"), null, "all four covered: no label");
+  assert.equal(place([], "left").side, "left", "keeps last frame's side while it is still free");
+  assert.equal(place([leftOf], "left").side, "right", "leaves it once covered");
+  const label = place([rightOf], "right");
+  assert.equal(label.box.left < rightOf.right && rightOf.left < label.box.right && label.box.top < rightOf.bottom && rightOf.top < label.box.bottom, false);
+});
+
+test("a marker's painted rectangles leave the corners beside its pointer free, and only groups have a chip", () => {
+  const dpr = app.pixelRatio();
+  const overlaps = (rects, box) => rects.some(r => box.left < r.right && r.left < box.right && box.top < r.bottom && r.top < box.bottom);
+  const lone = app.markerPaintedRects(100, 100, 1, dpr, 1);
+  const group = app.markerPaintedRects(100, 100, 27, dpr, 1);
+  assert.equal(lone.length, 2, "a lone pin is a face and a pointer");
+  assert.equal(group.length, 3, "a group adds its count chip");
+  const face = app.clusterMarkerRect(100, 100, 1, dpr, 1);
+  const corner = { left: face.right - 6 * dpr, right: face.right + 40 * dpr, top: 100 - 5 * dpr, bottom: 100 };
+  assert.equal(overlaps([app.clusterMarkerRect(100, 100, 27, dpr, 1)], corner), true, "the bounding box claims the corner");
+  assert.equal(overlaps(group, corner), false, "the painted rectangles do not");
+  assert.equal(overlaps(group, { left: 99, right: 101, top: 98, bottom: 100 }), true, "the pointer itself is painted");
+});
+
+test("zooming out and in keeps remembered groups until the camera lands, then a fresh layout matches a fresh build", () => {
+  const items = markerScatter(160, 420, ["tree", "landmark", "cow"]);
+  const base = new Map(items.map(({ item }) => [item.id, { x: item.point.x, y: item.point.y }]));
+  const layout = (f) => placeMarkerItems(items, id => ({ x: base.get(id).x * f, y: base.get(id).y * f }));
+  const build = () => markerGroupsOf(app.buildMapMarkers(markerLookup(items), markerScreen));
+  app.resetMarkerGroupMemory();
+  for (const f of [1, 0.8, 0.6, 0.8, 1]) { layout(f); build(); }
+  const withMemory = build();
+  assert.deepEqual(build(), withMemory, "memory holds across builds");
+  app.resetMarkerGroupMemory();
+  const fresh = build();
+  assert.notDeepEqual(withMemory, fresh, "precondition: the zoom path left remembered groups");
+  assert.deepEqual(build(), fresh, "after the reset the layout is the fresh one and stays");
+});
+
+test("a lone item stays an ordinary single-item map marker", () => {
+  const items = [markerItem("cow", "lone", 10, 10), markerItem("tree", "other", 900, 900)];
+  const markers = app.buildMapMarkers(markerLookup(items), markerScreen);
+  assert.equal(markers.length, 2);
+  for (const marker of markers) {
+    assert.equal(marker.items.length, 1);
+    assert.equal(marker.itemType, Object.keys(marker.itemsByType)[0], "a single-category marker names its category");
+  }
+});
+
+test("a mixed group's chips show one per category first, and its count is the exact member count", () => {
+  const beech = { id: "beech", commonName: "Common beech", latinName: "Fagus sylvatica", point: { x: 0, y: 0 } };
+  const oaks = [1, 2, 3].map(n => ({ id: `oak${n}`, commonName: "English oak", latinName: "Quercus robur", point: { x: n, y: 0 } }));
+  const cow = { id: "cow", point: { x: 0, y: 1 } };
+  const items = [...oaks.map(item => ({ type: "tree", item })), { type: "tree", item: beech }, { type: "cow", item: cow }];
+  const markers = app.buildMapMarkers(markerLookup(items), markerScreen);
+  assert.equal(markers.length, 1);
+  const entries = Array.from(app.clusterPreviewEntries(markers[0]));
+  assert.equal(entries.length, 2);
+  assert.equal(entries[0].src, app.ICON_PATHS["tree-english-oak"], "the biggest category shows its most common kind first");
+  assert.equal(entries[1].itemType, "cow", "a one-cow minority is not hidden behind a second tree species");
+  assert.deepEqual(Array.from(app.clusterOverflowEntries(markers[0]), entry => entry.src),
+    [app.treeSpeciesIconPath("Common beech", "Fagus sylvatica")], "the stack uses the hidden visual kind");
 
   const texts = [];
   const ctx = {
-    save() {}, restore() {}, beginPath() {}, closePath() {}, clip() {},
+    save() {}, restore() {}, beginPath() {}, closePath() {}, clip() {}, roundRect() {},
     arc() {}, fill() {}, stroke() {}, lineTo() {}, moveTo() {}, drawImage() {},
     createRadialGradient() { return { addColorStop() {} }; },
     fillText(text) { texts.push(text); },
   };
-  app.drawMegaClusters(ctx, megaGroups);
-  assert.deepEqual(texts, ["5"], "the badge shows the raw number of items merged into it");
+  app.drawMapMarkers(ctx, markers, markerScreen, false);
+  assert.deepEqual(texts, ["5"], "the stack leaves the raw member count as the only text");
+});
+
+test("the hidden category stack stays inside the face at every tilt scale", () => {
+  const ctx = {
+    save() {}, restore() {}, beginPath() {}, closePath() {}, clip() {}, roundRect() {},
+    arc() {}, fill() {}, stroke() {}, lineTo() {}, moveTo() {}, drawImage() {},
+    fillText(text) { this.labels.push(text); }, labels: [],
+  };
+  for (const scale of [1, 0.8, 0.65]) {
+    const face = app.clusterBadgeGeometry(100, 100, 3, app.pixelRatio(), scale);
+    for (const total of [1, 2, 3]) {
+      for (let i = 0; i < total; i++) {
+        const chip = app.clusterStackChipGeometry(100, 100, 3, app.pixelRatio(), scale, i, total);
+        assert.ok(chip.cx - chip.radius >= face.left && chip.cx + chip.radius <= face.left + face.width,
+          `horizontal fit at scale ${scale}, stack size ${total}`);
+        assert.ok(chip.cy - chip.radius >= face.top && chip.cy + chip.radius <= face.bottom,
+          `vertical fit at scale ${scale}, stack size ${total}`);
+      }
+      const plus = app.clusterMorePlusGeometry(100, 100, 3, app.pixelRatio(), scale, total);
+      assert.ok(plus.cx - plus.radius >= face.left && plus.cx + plus.radius <= face.left + face.width,
+        `horizontal fit at scale ${scale}, plus stack size ${total}`);
+      assert.ok(plus.cy - plus.radius >= face.top && plus.cy + plus.radius <= face.bottom,
+        `vertical fit at scale ${scale}, plus stack size ${total}`);
+      if (total <= 2) {
+        const chip = app.clusterStackChipGeometry(100, 100, 3, app.pixelRatio(), scale, 0, total);
+        assert.ok(Math.abs(plus.cx - chip.cx) < plus.radius + chip.radius,
+          `the plus overlaps the peek icon at scale ${scale}, stack size ${total}`);
+      }
+    }
+  }
+  app.drawClusterMarker(ctx, 100, 100, 3, [], app.pixelRatio(), 0.65, ["hidden-a", "hidden-b"]);
+  assert.deepEqual(ctx.labels, ["3"], "the stack adds no competing text");
+});
+
+test("a single-category group's second chip is its second most common kind", () => {
+  const oak = n => ({ commonName: "English oak", latinName: "Quercus robur", point: { x: n, y: 0 } });
+  const beech = n => ({ commonName: "Common beech", latinName: "Fagus sylvatica", point: { x: n, y: 1 } });
+  const items = [oak(0), oak(1), oak(2), beech(3)].map(item => ({ type: "tree", item }));
+  const entries = Array.from(app.clusterPreviewEntries(app.buildMapMarkers(markerLookup(items), markerScreen)[0]));
+  assert.deepEqual(entries.map(e => e.src), [app.ICON_PATHS["tree-english-oak"], app.treeSpeciesIconPath("Common beech", "Fagus sylvatica")]);
+});
+
+test("a long evenly spaced row closer than a marker's width does not chain into one marker", () => {
+  const width = app.clusterMarkerRect(0, 0, 100, app.pixelRatio(), 1);
+  const step = (width.right - width.left) * 0.6;
+  const items = Array.from({ length: 40 }, (_, i) => markerItem("tree", `r${i}`, i * step, 0));
+  const markers = app.buildMapMarkers(markerLookup(items), markerScreen);
+  assert.ok(markers.length > 4, "the row splits into several markers");
+  for (const marker of markers) {
+    const xs = Array.from(marker.items, item => item.point.x);
+    assert.ok(Math.max(...xs) - Math.min(...xs) <= 2 * (width.right - width.left), "a marker only reaches one box from its seed");
+  }
+});
+
+test("settling clears pending merges so the next frame starts none", () => {
+  const first = { point: { x: -10, y: 0 } };
+  const second = { point: { x: 10, y: 0 } };
+  app.clusterJoinAnimationState({ items: [first], screenPt: first.point }, 0);
+  app.clusterJoinAnimationState({ items: [second], screenPt: second.point }, 0);
+  app.settleClusterJoinAnimations();
+  assert.equal(app.clusterJoinAnimationState({ items: [first, second], screenPt: { x: 0, y: 0 } }, 1), null,
+    "a group that forms right after settling is drawn settled, not shrinking its members in");
+});
+
+test("Nearby pins are hidden during the selection handoff instead of dimmed", () => {
+  resetData(app);
+  const spot = makePoint(app, 51.665, 0.045);
+  const pubs = [1, 2].map(n => ({ id: `pub${n}`, name: "Pub", category: "pub", ...spot }));
+  app.state.selected = { type: "tree", item: { id: "sel", point: { x: 0, y: 0 } } };
+  app.state.selectionTransition.mapHeld = true;
+  let drawImageCount = 0;
+  const ctx = {
+    save() {}, restore() {}, beginPath() {}, closePath() {}, clip() {}, roundRect() {},
+    arc() {}, fill() {}, stroke() {}, lineTo() {}, moveTo() {}, drawImage() { drawImageCount += 1; }, fillText() {},
+  };
+  try {
+    app.drawMapMarkers(ctx, app.buildMapMarkers(markerLookup(pubs.map(item => ({ type: "landmark", item }))), markerScreen.bind(null)), p => p, false);
+  } finally {
+    app.state.selectionTransition.mapHeld = false;
+    app.state.selected = null;
+  }
+  assert.equal(drawImageCount, 0, "non-selected Nearby pins are not painted during the handoff");
+});
+
+test("the selection handoff hides Nearby pins before revealing the destination", () => {
+  resetData(app);
+  const startedAt = 1000;
+  app.state.selected = { type: "tree", item: { id: "selected", point: { x: 0, y: 0 } } };
+  app.state.selectionTransition.mapHeld = true;
+  app.state.selectionTransition.startedAt = startedAt;
+
+  assert.equal(app.selectionDestinationOpacity(startedAt), 0, "the destination waits for Nearby pins to leave");
+  assert.ok(app.selectionDestinationOpacity(startedAt + 300) > 0, "the destination then starts to appear");
+  assert.equal(app.selectionDestinationOpacity(startedAt + 1000), 1, "the destination settles fully visible");
+  assert.equal(app.selectionOutgoingMarkerOpacity(0, startedAt), 1, "the outgoing set starts visible");
+  assert.ok(app.selectionOutgoingMarkerOpacity(0, startedAt + 60) < 1, "the outgoing set fades after the handoff starts");
+  assert.equal(app.selectionOutgoingMarkerOpacity(0, startedAt + 300), 0, "the outgoing set finishes hidden");
 });
 
 test("a tree cluster's icon is the shared species only when every member agrees", () => {
@@ -1196,27 +1588,6 @@ test("a tree cluster's icon is the shared species only when every member agrees"
     "a cluster of same-species trees still shows that species' own icon");
   assert.equal(app.clusterTreeIconSrc([oak, oak, beech]), app.ICON_PATHS["tree"],
     "a cluster mixing oaks and a beech must not draw as a plain oak -- the generic tree icon doesn't claim a species the cluster isn't");
-});
-
-test("buildSuperClusters does not chain far-apart clusters into one mega cluster", () => {
-  const dpr = app.pixelRatio();
-  const radius = app.MEGA_CLUSTER_MERGE_RADIUS_CSS_PX * dpr * (app.MAP_PNG_ICON_SIZE / app.CLUSTER_RADIUS_ICON_SIZE_REF);
-  const fakeCluster = (id, x) => ({ items: [{ id }], screenPt: { x, y: 0 }, worldPt: { x: 0, y: 0 } });
-  // Four single-item clusters in a line, each just inside merge radius of its
-  // immediate neighbour (0.6 * radius apart) but the first and last four times
-  // that -- far outside the merge radius of one another.
-  const a = fakeCluster("a", 0);
-  const b = fakeCluster("b", radius * 0.6);
-  const c = fakeCluster("c", radius * 1.2);
-  const d = fakeCluster("d", radius * 1.8);
-
-  const superClusters = app.buildSuperClusters([{ itemType: "tree", clusters: [a, b, c, d] }]);
-
-  const groupOf = (cluster) => superClusters.find(group => group.some(member => member.cluster === cluster));
-  assert.notEqual(groupOf(a), groupOf(d), "the first and last cluster in the chain must not end up merged together");
-  assert.ok(superClusters.length > 1, "a long, roughly-uniform run of clusters must not collapse into a single mega cluster");
-  // Directly-close pairs still merge: this isn't a regression to "never merge anything".
-  assert.equal(groupOf(a), groupOf(b), "clusters within the merge radius of each other still merge");
 });
 
 test("a zoom between two scales eases geometrically, so each step changes the view by the same proportion", () => {
@@ -2652,6 +3023,25 @@ test("updateDocumentTitle names a selected place in Epping Forest", () => {
   app.updateDocumentTitle();
 });
 
+test("leaving a /find/ place does not keep the old landing panel on the first Nearby tap", () => {
+  resetData(app);
+  app.location.pathname = "/find/example-place/";
+  app.state.landmarks = [{ findSlug: "example-place", name: "Example place" }];
+  app.state.selected = null;
+
+  // The initial route is still protected while the landing's place is being resolved.
+  app.setFindLandingSelectionPending(true);
+  assert.equal(app.findLandingAwaitingPlace(), true);
+
+  // Once the place detail has replaced that panel, returning to Nearby must be allowed to
+  // render immediately even though goToInitialView has not written /nearby yet.
+  app.setFindLandingSelectionPending(false);
+  assert.equal(app.findLandingAwaitingPlace(), false);
+
+  app.location.pathname = "/";
+  app.setFindLandingSelectionPending(false);
+});
+
 test("navigateInApp pushes a real history entry and applies the new route, instead of leaving it to the browser's own navigation", () => {
   resetData(app);
   app.location.pathname = "/find/the-forresters/";
@@ -2847,6 +3237,33 @@ test("applyDefaultLocation stands in for a real fix at DEFAULT_LOCATION, flagged
 
   app.state.userLocation = { ...makePoint(app, 51.6, 0.03), isDefault: false };
   assert.equal(app.hasRealLocation(), true, "a real fix has no isDefault flag at all");
+});
+
+test("a real location fix can preserve the selected destination so navigation starts from the shared position", () => {
+  resetData(app);
+  app.state.userLocation = null;
+  const target = { id: "destination", ...makePoint(app, 51.666, 0.046) };
+  app.state.selected = { type: "landmark", item: target };
+
+  app.applyLocationFix({
+    coords: { latitude: 51.665, longitude: 0.045, accuracy: 10 },
+  }, { preserveSelection: true });
+
+  assert.equal(app.state.selected.item, target, "sharing location must not dismiss the place being viewed");
+  assert.equal(app.canGuideToPlaces(), true, "the real fix enables navigation");
+  assert.equal(app.selectedCompassTarget(), target, "the viewed place remains the route destination");
+});
+
+test("a real location fix does not dismiss the Feedback screen", () => {
+  resetData(app);
+  app.state.userLocation = null;
+  app.state.selected = { type: "report", item: null };
+
+  app.applyLocationFix({
+    coords: { latitude: 51.665, longitude: 0.045, accuracy: 10 },
+  });
+
+  assert.equal(app.state.selected.type, "report", "location updates must not discard an open report");
 });
 
 test("applyDefaultLocation keeps the normal radius, but never overrides a deliberate one", () => {
@@ -6560,6 +6977,35 @@ test("applying an update activates the fully downloaded waiting worker and never
   app.state.swPendingReload = false;
 });
 
+test("applying an update does not reload while the old worker still controls the page", async () => {
+  resetData(app);
+  const messages = [];
+  const controller = {};
+  let safetyNet;
+  const nav = app.navigator;
+  const previousServiceWorker = nav.serviceWorker;
+  const previousLocation = app.swapGlobalFunction("location", { reload: () => { throw new Error("should not reload"); } });
+  const previousTimeout = app.swapGlobalFunction("setTimeout", (callback) => {
+    safetyNet = callback;
+    return 1;
+  });
+  nav.serviceWorker = { controller };
+  app.state.swWaiting = { postMessage: (message) => messages.push(message) };
+  try {
+    assert.equal(await app.applySwUpdate(), true);
+    assert.deepEqual(JSON.parse(JSON.stringify(messages)), [{ type: "SKIP_WAITING" }]);
+    safetyNet();
+    assert.equal(app.state.swPendingReload, false, "a failed activation clears the pending reload marker");
+    assert.equal(app.state.appUpdateStatus, "failed", "the page reports that activation failed");
+  } finally {
+    nav.serviceWorker = previousServiceWorker;
+    app.state.swWaiting = null;
+    app.state.swPendingReload = false;
+    app.swapGlobalFunction("location", previousLocation);
+    app.swapGlobalFunction("setTimeout", previousTimeout);
+  }
+});
+
 test("applying an update with no complete downloaded worker leaves the current app running", async () => {
   resetData(app);
   app.state.swWaiting = null;
@@ -7076,6 +7522,31 @@ test("findRoutePoints falls back to null when a point is too far from the networ
     { ...routingOptions(), maxSnapMetres: 250 }
   );
   assert.equal(route, null, "a point ~1.1km from the nearest road must not snap onto it");
+});
+
+test("a long walk still follows the network when its endpoint is within 250 metres of a mapped node", () => {
+  const road = routingFeature("residential", [[51.6500, 0.0000], [51.6500, 0.0200], [51.6600, 0.0200]]);
+  const graph = app.buildRoutingGraph([road], [], app.unprojectPoint, app.distanceMetres);
+  const from = routingWorldPoint(51.6500, 0.0000);
+  const to = routingWorldPoint(51.6615, 0.0200); // 167m from the final mapped vertex
+  const route = app.findRoutePoints(graph, from, to, routingOptions());
+  assert.ok(route, "a mapped multi-kilometre walk must not become a straight line for a 167m endpoint connector");
+  assert.ok(route.some((p) => p === graph.nodes[1]), "the walk follows the road's bend");
+  assert.equal(route[route.length - 1], to);
+  assert.equal(app.findRoutePoints(graph, from, to, { ...routingOptions(), maxSnapMetres: 100 }), null,
+    "an explicitly stricter snap limit remains respected");
+});
+
+test("a long walk uses a nearby connected start when the preferred forward node is beyond the snap limit", () => {
+  const road = routingFeature("residential", [[51.6500, -0.0010], [51.6500, 0.0040], [51.6600, 0.0200]]);
+  const graph = app.buildRoutingGraph([road], [], app.unprojectPoint, app.distanceMetres);
+  const from = routingWorldPoint(51.6500, 0.0000);
+  const to = routingWorldPoint(51.6600, 0.0200);
+  const route = app.findRoutePoints(graph, from, to, { ...routingOptions(), maxSnapMetres: 100 });
+  assert.ok(route, "a 69m start connector must remain usable even if direction scoring prefers a node 276m away");
+  assert.equal(route[1], graph.nodes[0], "start on the nearby connected node");
+  assert.equal(route[0], from);
+  assert.equal(route[route.length - 1], to);
 });
 
 test("a route starts from the node ahead toward its destination, not an equally near one behind", () => {
@@ -9846,6 +10317,40 @@ test("a beta-only orientation event starts the tilt loop even without a trusted 
   assert.notEqual(app.state.compassAnimationFrame, null, "pitch still needs a smoothing loop without a heading");
 });
 
+test("beta-only tilt refreshes directional arrows while the 3D projection moves", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.665, 0.045);
+  app.state.compassHeading = null;
+  app.state.compassHeadingTarget = null;
+  app.state.tiltBetaSmoothed = 0;
+  app.state.tiltBetaTarget = 55;
+  app.state.compassAnimationFrame = null;
+
+  const frames = [];
+  let overviewUpdates = 0;
+  let compassUpdates = 0;
+  const originals = {
+    raf: app.swapGlobalFunction("requestAnimationFrame", (fn) => { frames.push(fn); return frames.length; }),
+    overview: app.swapGlobalFunction("updateOverviewDirectionArrows", () => { overviewUpdates += 1; }),
+    compass: app.swapGlobalFunction("updateCompassOverlay", () => { compassUpdates += 1; }),
+    drawOverlay: app.swapGlobalFunction("drawOverlay", () => {}),
+    requestDraw: app.swapGlobalFunction("requestDraw", () => {}),
+  };
+  try {
+    app.startCompassSmoothing();
+    frames.shift()(1000);
+    assert.equal(overviewUpdates, 1, "beta-only tilt updates Nearby arrows without a heading");
+    assert.equal(compassUpdates, 1, "beta-only tilt updates the selected-location arrow path too");
+  } finally {
+    app.swapGlobalFunction("requestAnimationFrame", originals.raf);
+    app.swapGlobalFunction("updateOverviewDirectionArrows", originals.overview);
+    app.swapGlobalFunction("updateCompassOverlay", originals.compass);
+    app.swapGlobalFunction("drawOverlay", originals.drawOverlay);
+    app.swapGlobalFunction("requestDraw", originals.requestDraw);
+    app.state.compassAnimationFrame = null;
+  }
+});
+
 test("changing the browse anchor outside setNearbyAnchor still moves the camera with it", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.665, 0.045);
@@ -10778,15 +11283,12 @@ test("selection entry points capture the browse pivot before clearing the anchor
   settleNearbySlide(app);
 
   const nearbyScale = app.state.viewport.scale;
-  const outgoingIconLookup = app.activeIconLookup();
   app.focusOverviewItem("tree", "r1");
   assert.equal(app.state.nearbyAnchor, null, "selection should still clear the browse anchor");
   assert.equal(app.state.selectionTransition.mapHeld, true,
-    "the outgoing Nearby map should remain visible during selection");
-  assert.ok(app.activeIconLookup().tree.size > 0,
-    "Nearby pins should remain available during the handoff");
-  assert.equal(app.activeIconLookup(), outgoingIconLookup,
-    "the handoff should retain the outgoing Nearby pins, not rebuild a new set around the user");
+    "the camera handoff should remain active during selection");
+  assert.equal(app.activeIconLookup().tree.size, 0,
+    "Nearby pins should be removed from drawing and hit testing during the handoff");
   assert.ok(app.state.cameraOriginTransition, "selection should animate the camera pivot basis change");
   assert.ok(
     Math.abs(app.state.cameraOriginTransition.fromX - anchor.point.x) < 1e-9
@@ -11523,21 +12025,15 @@ test("tapping a location from a browsed Nearby anchor keeps the outgoing map dur
   app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
   assert.ok(app.state.nearbyOriginTransition, "sanity: the Nearby-origin transition is in flight");
 
-  const outgoingIconLookup = app.activeIconLookup();
   const treeTap = pinTapPoint(app, tree.point);
   assert.equal(app.findHit(treeTap, app.screenToWorld(treeTap.x, treeTap.y)).type, "tree");
   tapMap(app, treeTap);
 
   assert.equal(app.state.selected?.type, "tree", "the Nearby pin should open the location");
   assert.equal(app.state.selectionTransition.mapHeld, true,
-    "the outgoing map should remain active during a direct map selection");
-  assert.equal(app.activeIconLookup(), outgoingIconLookup,
-    "direct map selection should retain the pins from the browsed Nearby view");
-  assert.ok(
-    Math.abs(app.state.selectionMapTransitionOriginPoint.x - anchor.point.x) < 1e-9
-      && Math.abs(app.state.selectionMapTransitionOriginPoint.y - anchor.point.y) < 1e-9,
-    "direct map selection should retain the browsed pivot during handoff"
-  );
+    "the camera handoff should remain active during a direct map selection");
+  assert.equal(app.activeIconLookup().tree.size, 0,
+    "direct map selection should hide Nearby pins during the handoff");
   assert.equal(app.state.nearbyOriginTransition, null,
     "selection should cancel the obsolete Nearby-origin transition");
   app.stopViewportAnimation();
@@ -14096,6 +14592,50 @@ test("the Nearby list hides its direction arrows while far from the forest", () 
   const html = app.overviewNearestHtml();
   assertHasElement(html, ".nearest-arrow[hidden]", "the list is still shown, with its arrow hidden");
   assertLacksText(html, "↑", "but no arrow is visible");
+});
+
+test("direction arrows use projected screen direction while 3D tilt is active", () => {
+  resetData(app);
+  useSmallForest(app);
+  withRealFix(app, 51.6675, 0.0375);
+  app.state.tiltBetaSmoothed = 30;
+
+  const target = makePoint(app, 51.6676, 0.0376);
+  const projected = app.swapGlobalFunction("worldToScreenForOverlayTilted", (point) => (
+    point === app.state.userLocation.point ? { x: 100, y: 100 } : { x: 110, y: 90 }
+  ));
+  const oldArrows = app.els.inspectorBody.querySelectorAll;
+  const listArrow = { dataset: { itemLat: String(target.latitude), itemLon: String(target.longitude), currentAngle: "0" }, style: {} };
+  app.els.inspectorBody.querySelectorAll = () => [listArrow];
+  const selectedBefore = app.state.selected;
+  try {
+    assert.equal(app.directionArrowAngleForWorldPoint(target.point, 123), 45,
+      "the arrow follows the projected target ray, not the flat bearing");
+    const clippedProjection = app.swapGlobalFunction("worldToScreenForOverlayTilted", (point) => (
+      point === app.state.userLocation.point ? { x: 100, y: 100 } : { x: 110, y: 90, clipped: true }
+    ));
+    assert.equal(app.directionArrowAngleForWorldPoint(target.point, 123, 10), 10,
+      "a near-plane target holds its last valid projected direction");
+    app.swapGlobalFunction("worldToScreenForOverlayTilted", clippedProjection);
+
+    app.state.selected = { type: "landmark", item: target };
+    app.state.compassHeading = 0;
+    app.els.compassArrow.hidden = true;
+    app.updateCompassOverlay();
+    assert.match(app.els.compassArrow.style.transform,
+      /^perspective\([^)]*px\) rotateX\([^)]*deg\) rotate\(-?[\d.]+deg\)$/,
+      "the selected-location arrow uses the projected ray and 3D foreshortening");
+
+    app.state.selected = null;
+    app.updateOverviewDirectionArrows();
+    assert.match(listArrow.style.transform,
+      /^perspective\([^)]*px\) rotateX\([^)]*deg\) rotate\(-?[\d.]+deg\)$/,
+      "the Nearby list arrow uses the projected ray and 3D foreshortening");
+  } finally {
+    app.state.selected = selectedBefore;
+    app.els.inspectorBody.querySelectorAll = oldArrows;
+    app.swapGlobalFunction("worldToScreenForOverlayTilted", projected);
+  }
 });
 
 // Hostile values from the server or from stored data, as a page would receive them. Each one would run

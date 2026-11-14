@@ -7,6 +7,31 @@ const { skipOnboarding, mockCowApi, gotoAndWaitForMap, FIXTURE_TREE, waitForFram
 // updateFarFromForest() never raises the far-from-the-forest notice for these tests.
 const FOREST_LOCATION = { latitude: 51.6650, longitude: 0.0450, accuracy: 10 };
 
+// A client point on genuinely open ground, near (0.5, 0.3) of the map: the first candidate on a
+// small grid that none of the app's own tap tests (handleMapClick's order: group, pin or line,
+// label) reports anything at, and that is clear of the inspector panel. Which pixels are open
+// depends on how the markers grouped, so a fixed point is not safe. Fails loudly if none is.
+async function findOpenGroundPoint(page, box) {
+  const point = await page.evaluate(({ box }) => {
+    const panel = document.querySelector("#inspector")?.getBoundingClientRect();
+    for (const dy of [0, -0.05, 0.05, -0.1, 0.1, 0.15]) {
+      for (const dx of [0, 0.05, -0.05, 0.1, -0.1, 0.15, -0.15, 0.2, -0.2]) {
+        const clientX = box.x + box.width * (0.5 + dx), clientY = box.y + box.height * (0.3 + dy);
+        if (panel && clientX > panel.left - 24 && clientX < panel.right + 24 && clientY > panel.top - 24 && clientY < panel.bottom + 24) continue;
+        const screen = canvasPoint({ clientX, clientY });
+        const world = screenToWorld(screen.x, screen.y);
+        if (findClusterHit(screen)) continue;
+        if (findHit(screen, world).type !== "none") continue;
+        if (findMapLabelHit(screen)) continue;
+        return { clientX, clientY };
+      }
+    }
+    return null;
+  }, { box });
+  expect(point, "an open-ground point exists on the settled map").not.toBeNull();
+  return point;
+}
+
 async function dragCanvas(page, from, to, steps = 4) {
   await page.mouse.move(from.x, from.y);
   await page.mouse.down();
@@ -435,7 +460,8 @@ test.describe("Anchored drag edge cases", () => {
 
   test("a tap leaves no drag hold behind on the anchored map (leak guard)", async ({ page }) => {
     const box = await openAnchoredNearby(page);
-    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.3);
+    const tap = await findOpenGroundPoint(page, box);
+    await page.mouse.click(tap.clientX, tap.clientY);
     const after = await page.evaluate(() => ({ hold: state.anchoredDragHold, moved: state.moved, dragging: state.dragging }));
     expect(after).toEqual({ hold: false, moved: false, dragging: false });
     await waitForFrames(page, 10);
@@ -445,7 +471,8 @@ test.describe("Anchored drag edge cases", () => {
   test("tapping open ground on the anchored Nearby map previews that spot", async ({ page }) => {
     const box = await openAnchoredNearby(page);
     expect(await page.evaluate(() => state.nearbyAnchor)).toBeFalsy();
-    await page.mouse.click(box.x + box.width * 0.5, box.y + box.height * 0.3);
+    const tap = await findOpenGroundPoint(page, box);
+    await page.mouse.click(tap.clientX, tap.clientY);
     // handleMapClick on open ground sets a browse anchor (the Nearby view moves to that spot).
     await expect.poll(() => page.evaluate(() => Boolean(state.nearbyAnchor))).toBe(true);
     expect(await page.evaluate(() => state.selected)).toBeNull();

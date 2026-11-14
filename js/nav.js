@@ -317,17 +317,56 @@ function showUpdateBanner() {
   banner.innerHTML = '<span class="update-banner-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg></span>'
     + `<span class="update-banner-text"><strong>${title}</strong><span>${detail}</span></span>`
     + '<button id="updateBannerButton" type="button">Restart</button>';
+  banner.inert = true;
   document.body.appendChild(banner);
   banner.querySelector("button").addEventListener("click", async (event) => {
     const button = event.currentTarget;
+    banner.dataset.restoreFocus = String(banner.contains(document.activeElement));
     button.disabled = true;
     button.textContent = "Restarting…";
+    banner.inert = true;
+    banner.classList.remove("is-visible");
+    banner.classList.add("is-exiting");
+    // Give the dismissal transition time to be seen before activation reloads the page, unless
+    // the person has asked for motion to be reduced.
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (!reducedMotion) await new Promise((resolve) => setTimeout(resolve, 220));
+    banner.classList.add("is-dismissed");
     const started = (state.swWaiting || state.swUpdateAvailable) ? await applySwUpdate() : (location.reload(), true);
     if (!started) {
       button.disabled = false;
       button.textContent = "Restart";
+      banner.classList.remove("is-exiting", "is-dismissed");
+      requestAnimationFrame(() => {
+        banner.inert = false;
+        banner.classList.add("is-visible");
+        if (banner.dataset.restoreFocus === "true") button.focus();
+        delete banner.dataset.restoreFocus;
+      });
     }
   });
+  requestAnimationFrame(() => {
+    banner.inert = false;
+    banner.classList.add("is-visible");
+  });
+}
+
+function resetUpdateBannerButton() {
+  const button = document.getElementById("updateBannerButton");
+  if (!button) return;
+  const banner = document.getElementById("updateBanner");
+  if (banner) {
+    const restoreFocus = banner.dataset.restoreFocus === "true";
+    delete banner.dataset.restoreFocus;
+    banner.classList.remove("is-exiting", "is-dismissed");
+    requestAnimationFrame(() => {
+      banner.inert = false;
+      banner.classList.add("is-visible");
+      if (restoreFocus) banner.querySelector("button")?.focus();
+    });
+  }
+  button.disabled = false;
+  button.textContent = "Restart";
 }
 
 // Before announcing a waiting worker, let it finish its own data sync so the one restart brings
@@ -378,17 +417,35 @@ async function applySwUpdate() {
   }
 
   if (state.swWaiting) {
+    const previousController = navigator.serviceWorker && navigator.serviceWorker.controller;
     state.swPendingReload = true;
     try {
       state.swWaiting.postMessage({ type: "SKIP_WAITING" });
     } catch {
+      state.swWaiting = null;
       state.swPendingReload = false;
+      setAppUpdateStatus("failed");
       return;
     }
     // controllerchange normally reloads the page. Keep a long safety net for browsers that do
     // not deliver controllerchange after a worker has already finished installing; this path is
     // only reachable after the complete replacement worker was downloaded.
-    setTimeout(() => location.reload(), 10000);
+    setTimeout(() => {
+      // A reload while the old worker is still controlling the page just serves the old shell
+      // again, after which the same waiting worker shows this banner again. Only use the safety
+      // net when the replacement is actually in control; otherwise leave the page usable and
+      // let the person retry activation.
+      const currentController = navigator.serviceWorker && navigator.serviceWorker.controller;
+      if (currentController && currentController !== previousController) {
+        location.reload();
+        return;
+      }
+      state.swWaiting = null;
+      state.swPendingReload = false;
+      setAppUpdateStatus("failed");
+      resetUpdateBannerButton();
+      setRefreshStatus("The update could not be activated. Your current app is still safe.", { error: true });
+    }, 10000);
     return true;
   }
 
@@ -1646,7 +1703,7 @@ function restoreNearbyAnchorFromHistory() {
 }
 
 // Tapping a grouped set of pins -- a same-category cluster or a cross-category "mega" badge
-// (buildSuperClusters, js/renderer.js) alike -- moves the Nearby browse anchor to the group's
+// (buildMapMarkers, js/renderer.js) alike -- moves the Nearby browse anchor to the group's
 // centre and grows the walking radius just far enough to keep every member inside the ring, the
 // same way a tap on open ground does (focusNearbyOnMapPoint). The Nearby list then reads "what's
 // in this group" on its own, with no separate cluster-list screen to learn -- one interaction
@@ -1664,7 +1721,7 @@ function restoreNearbyAnchorFromHistory() {
 // explanation for where the view went.
 //
 // Shared by focusNearbyOnClusterGroup (below) and the mega badge's own
-// count display (drawMegaClusters, js/renderer.js), so the two can never disagree: the centre
+// count display (drawMapMarkers, js/renderer.js), so the two can never disagree: the centre
 // and walking radius a tap on this group will actually land on, computed once.
 function clusterFocusTarget(items) {
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
@@ -1957,7 +2014,7 @@ function updateNearbyRadiusPinch() {
 // The ring and the camera framing it (state.walkingDistanceMinutes plus an instant, unanimated
 // ensureOverviewTargetsVisible) are updated on every call, so both track the gesture at full
 // pointer rate -- canvas-only work, cheap regardless of how often it happens, now that clustering
-// is O(n) rather than all-pairs (see buildScreenPointGrid, js/renderer.js). What is not cheap is
+// is O(n) rather than all-pairs (see buildMapMarkers, js/renderer.js). What is not cheap is
 // the Nearby list's own HTML re-render and the nearest-item rescan (selectOverview,
 // refreshNearestTreeForNearbyOrigin) -- a pinch or trackpad pinch can fire many pointermove events
 // inside a single animation frame, and rebuilding the list on every one of them (rather than the
@@ -2689,6 +2746,9 @@ function nearbyRetap() {
 }
 
 function goToInitialView(updateHash = true, { enterAnimated = true } = {}) {
+  // Leaving a /find/<slug>/ detail view is explicit Nearby navigation. Clear the launch-only
+  // protection before selectOverview() runs so the old landing panel cannot survive one tap.
+  findLandingSelectionPending = false;
   // If compass hasn't fired in >5 s, clear the heading so the map goes north-up
   // rather than showing a frozen direction when the user returns to the overview.
   // New orientation events will re-enable heading-up naturally.
@@ -2709,6 +2769,13 @@ function goToInitialView(updateHash = true, { enterAnimated = true } = {}) {
   const wasMinimized = els.inspector.classList.contains("minimized");
   // Before state.selected changes below -- see startCameraOriginTransition (js/app.js).
   startCameraOriginTransition();
+  // Nearby is the new destination, so abandon the selection handoff immediately rather than
+  // letting its stale camera-settle callback keep suppressing the pins until the old move ends.
+  state.selectionMapTransitionToken = null;
+  state.selectionTransition.mapHeld = false;
+  state.selectionTransition.startedAt = null;
+  state.selectionTransition.outgoingIconLookup = null;
+  state.selectionTransition.viewportPending = false;
   state.selected = null;
   clearManualCameraOverride();
   state.clusterZoomed = false;

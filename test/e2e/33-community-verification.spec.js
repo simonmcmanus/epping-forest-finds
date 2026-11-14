@@ -812,7 +812,7 @@ test.describe("Optimistic score", () => {
 });
 
 test.describe("Trees added by walkers", () => {
-  test("a tree another walker added is marked on the ordinary map", async ({ page }) => {
+  test("a tree another walker added is not drawn on the ordinary map", async ({ page }) => {
     const entries = {
       "new:tree:tag:T-77": { s: "new-confirmed", st: "NEW_TREE", n: 2, tag: "T-77", lat: 51.665, lon: 0.045, t: 1 },
       "tree:1": { s: "verified", n: 1, t: 1 },
@@ -822,8 +822,14 @@ test.describe("Trees added by walkers", () => {
     await setup(page, "/nearby");
     await expect.poll(() => page.evaluate(() => communityOverlayNewTreeMarks().length)).toBe(1);
     expect(await page.evaluate(() => communityOverlayNewTreeMarks()[0].kind)).toBe("added");
-    // Drawing with the mark present must not throw
-    await page.evaluate(() => draw());
+    const calls = await page.evaluate(() => {
+      let count = 0;
+      const original = window.communityOverlayNewTreeMarks;
+      window.communityOverlayNewTreeMarks = () => { count += 1; return original(); };
+      draw();
+      return count;
+    });
+    expect(calls).toBe(0);
   });
 });
 
@@ -937,34 +943,8 @@ test.describe("Badges and streaks", () => {
   });
 });
 
-test.describe("Trees added by walkers: tap for details", () => {
+test.describe("Trees added by walkers: shared links", () => {
   test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 8 }, permissions: ["geolocation"] });
-
-  test("tapping a walker-added tree opens its page, with a way to add your own sighting", async ({ page }) => {
-    const entries = { "new:tree:tag:T-77": { s: "new-confirmed", st: "NEW_TREE", n: 2, tag: "T-77", lat: 51.6651, lon: 0.0451, t: 1 } };
-    await page.route(OVERLAY_URL, (route) =>
-      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries }) }));
-    await setup(page, "/nearby");
-    await expect.poll(() => page.evaluate(() => communityOverlayNewTreeMarks().length)).toBe(1);
-    expect(await page.evaluate(() => Boolean(communityFindAddedTree("t-77")))).toBe(true);
-    // Cluster badges sit over the same ground; this test is about the added-tree hit itself.
-    await page.evaluate(() => { window.findClusterHit = () => null; });
-    const spot = await page.evaluate(() => {
-      const mark = communityOverlayNewTreeMarks()[0];
-      const p = worldToScreen(projectLonLat(mark.lon, mark.lat));
-      const r = (document.querySelector(".map-stage") || document.getElementById("mapCanvas")).getBoundingClientRect();
-      return { x: r.left + (p.x - state.canvasInsetX) / pixelRatio(), y: r.top + (p.y - state.canvasInsetY) / pixelRatio() };
-    });
-    await page.mouse.click(spot.x, spot.y);
-    await expect(page.locator("#inspectorTitle")).toHaveText("Tree T-77");
-    await expect(page.locator("#inspectorType")).toHaveText("Added by walkers");
-    await expect(page.locator("#inspectorBody")).toContainText("Confirmed by a second walker");
-    await expect(page.locator("#inspectorBody")).toContainText("Not on the City of London register yet");
-    expect(await page.evaluate(() => window.location.hash)).toBe("#addedtree=T-77");
-    await page.click("[data-action='community-confirm-added']");
-    await expect(page.locator("#reportType")).toHaveValue("tree");
-    await expect(page.locator("#communityTagInput")).toHaveValue("T-77");
-  });
 
   test("a shared #addedtree link opens on a cold load, once the overlay is here", async ({ page }) => {
     const entries = { "new:tree:tag:T-77": { s: "new", st: "NEW_TREE", n: 1, tag: "T-77", lat: 51.6651, lon: 0.0451, t: 1 } };

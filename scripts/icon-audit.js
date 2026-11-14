@@ -91,7 +91,7 @@ function loadPlaces(rules, root) {
 
 /**
  * The renderer's own order for choosing a pin. The station roundels and the
- * two food/transport special cases live in drawLandmarks(), which wants a
+ * two food/transport special cases live in drawLandmarkIcon(), which wants a
  * canvas and the app's live state; everything after them is
  * `placeIconSlug()` in js/categories.js, which this calls rather than
  * restating, so the audit cannot drift from what the map draws.

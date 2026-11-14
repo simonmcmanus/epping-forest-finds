@@ -421,7 +421,7 @@ and files that are byte-identical to another under a different name, and map ico
 whose artwork reaches outside the pointer. `--json` gives the same result as
 data.
 
-The resolution order in `icon-audit.js` restates `drawLandmarks()` rather than
+The resolution order in `icon-audit.js` restates `drawLandmarkIcon()` rather than
 calling it, because the real function needs a canvas and live app state. If the
 renderer's order changes, the audit has to change with it or it stops
 describing the real map.

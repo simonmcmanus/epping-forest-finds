@@ -4,7 +4,6 @@ const MAP_PNG_ICON_SIZE = 30;
 // The 30 CSS-px clustering radius below was tuned against the original 16px icon size; scale
 // it with MAP_PNG_ICON_SIZE so bigger pins merge into a count badge sooner instead of just
 // overlapping each other when a lot of them fall close together.
-const CLUSTER_RADIUS_ICON_SIZE_REF = 16;
 const MAX_MAP_TREES = 60;
 const SELECTED_OVERLAY_PULSE_PERIOD_MS = 380;  // Shared pulse period for smooth animation
 const USER_RADAR_RADIUS_METRES = 80;
@@ -291,45 +290,11 @@ function draw() {
   const height = state.canvasLogicalHeight;
   const animatedEmojiScale = updateAnimatedEmojiScale();
   // During heading-up/tilt movement every pin is drawn through drawOverlay(), where it is
-  // projected and depth-sorted against the live camera. Rebuilding the main-canvas clusters as
+  // projected and depth-sorted against the live camera. Building the main-canvas markers as
   // well was pure duplicate work: on a populated forest map it was enough to make the sensor
-  // loop visibly paint in steps. Keep the flat-map clustering path intact, but defer it until we
-  // know the main canvas will actually draw pins.
+  // loop visibly paint in steps, so the flat path only runs when the main canvas draws pins.
   const useOverlayForPins = (typeof nearbyHeadingUpActive === "function" && nearbyHeadingUpActive())
     || (typeof tiltActive === "function" && tiltActive());
-  let nearbyIconLookup = null;
-  let megaGroups = [];
-  let filteredTreeClusters = [];
-  let filteredLandmarkClusters = [];
-  let filteredCowClusters = [];
-  let filteredPathClusters = [];
-  let filteredWaterClusters = [];
-  if (!useOverlayForPins) {
-    nearbyIconLookup = activeIconLookup();
-    const treeClusters = buildTypeClusters(nearbyIconLookup.tree, worldToScreen);
-    const landmarkClusters = buildLandmarkClusters(nearbyIconLookup.landmark, worldToScreen);
-    const cowClusters = buildTypeClusters(nearbyIconLookup.cow, worldToScreen);
-    const pathClusters = buildTypeClusters(nearbyIconLookup.path, worldToScreen);
-    const waterClusters = buildTypeClusters(nearbyIconLookup.water, worldToScreen);
-    // Expanding a cluster narrows nearbyIconLookup (buildNearbyIconLookup, above) down to that
-    // group's own items and nothing else -- but it deliberately does *not* force every one of them
-    // into its own singleton pin any more. Re-running the ordinary clustering passes on the
-    // narrowed set lets dense expanded groups keep offering the next level of clustering.
-    megaGroups = buildSuperClusters([
-      { itemType: "tree", clusters: treeClusters },
-      { itemType: "landmark", clusters: landmarkClusters },
-      { itemType: "cow", clusters: cowClusters },
-      { itemType: "path", clusters: pathClusters },
-      { itemType: "water", clusters: waterClusters },
-    ]).filter(group => group.length >= megaClusterMinMembersFor(group));
-    const megaClusterSet = new Set();
-    for (const group of megaGroups) for (const member of group) megaClusterSet.add(member.cluster);
-    filteredTreeClusters = treeClusters.filter(c => !megaClusterSet.has(c));
-    filteredLandmarkClusters = landmarkClusters.filter(c => !megaClusterSet.has(c));
-    filteredCowClusters = cowClusters.filter(c => !megaClusterSet.has(c));
-    filteredPathClusters = pathClusters.filter(c => !megaClusterSet.has(c));
-    filteredWaterClusters = waterClusters.filter(c => !megaClusterSet.has(c));
-  }
   ctx.clearRect(0, 0, width, height);
   drawBase(ctx, width, height);
 
@@ -346,13 +311,9 @@ function draw() {
   drawWalkingRadius(ctx);
   drawSelectedRoute(ctx);
   if (!useOverlayForPins) {
-    drawClusterFootprints(ctx, [...filteredTreeClusters, ...filteredLandmarkClusters, ...filteredCowClusters, ...filteredPathClusters, ...filteredWaterClusters], megaGroups);
-    drawTrees(ctx, nearbyIconLookup, undefined, filteredTreeClusters);
-    drawLandmarks(ctx, nearbyIconLookup, undefined, filteredLandmarkClusters);
-    drawCows(ctx, nearbyIconLookup, undefined, filteredCowClusters);
-    drawPathPins(ctx, nearbyIconLookup, undefined, filteredPathClusters);
-    drawWaterPins(ctx, nearbyIconLookup, undefined, filteredWaterClusters);
-    drawMegaClusters(ctx, megaGroups);
+    const nearbyIconLookup = activeIconLookup();
+    drawMapMarkers(ctx, buildMapMarkers(nearbyIconLookup, worldToScreen, markerMemoryKey()), worldToScreen);
+    drawSelectionExitMarkers(ctx, worldToScreen);
   }
   drawSelectedRoadOverlay(ctx);
   drawSelectedPathOverlay(ctx);
@@ -360,6 +321,8 @@ function draw() {
   drawOverlay();
 
   if (filterPinTransitionActive()) requestDraw();
+  if (selectionOutgoingRevealInProgress()) requestDraw();
+  if (selectionDestinationRevealInProgress()) requestDraw();
 
   if (Math.abs(animatedEmojiScale.target - animatedEmojiScale.value) > 0.001) {
     requestDraw();
@@ -398,7 +361,8 @@ function drawOverlay() {
   if (isTilted) drawUserRadarOverlayTilted(ctx);
   else drawUserRadarOverlay(ctx, toScreen);
   if (useOverlayForPins) {
-    drawAllPinsSorted(ctx, activeIconLookup(), toScreen);
+    drawMapMarkers(ctx, buildActiveMapMarkers(toScreen), toScreen, true);
+    drawSelectionExitMarkers(ctx, toScreen, true);
   }
   drawFilterTransitionPins(ctx, toScreen);
   drawUser(ctx, toScreen, isTilted);
@@ -419,11 +383,8 @@ function drawOverlay() {
 function drawCommunityMarks(ctx, toScreen) {
   if (typeof communityMapMarks !== "function") return;
   const onCommunityScreen = Boolean(state.selected) && state.selected.type === "community";
-  // Trees walkers have added show for everyone on every other screen; the Community screen
-  // shows only the user's own reports.
-  const shared = onCommunityScreen ? [] : communityOverlayNewTreeMarks();
-  const own = onCommunityScreen ? communityMapMarks() : (state.selected && state.selected.type === "tree" && typeof communitySelectedTreeMarks === "function" ? communitySelectedTreeMarks() : []);
-  const marks = shared.concat(own);
+  if (!onCommunityScreen) return;
+  const marks = communityMapMarks();
   if (!marks.length) return;
   if (!toScreen) toScreen = worldToScreen;
   const dpr = pixelRatio();
@@ -476,12 +437,11 @@ function drawCommunityMarks(ctx, toScreen) {
 // it's clear the radius/list have pivoted away from the user's actual GPS position without
 // moving it.
 function drawNearbyAnchorMarker(ctx, toScreen) {
-  const transitionOrigin = state.selectionTransition.mapHeld && state.selectionMapTransitionOriginPoint;
-  if (!state.nearbyAnchor && !transitionOrigin) return;
+  if (!state.nearbyAnchor || hasRealSelection()) return;
   if (!toScreen) toScreen = worldToScreen;
   // Rides the slide with the circle it sits at the centre of, rather than jumping to the new
   // anchor a frame before the circle gets there.
-  const point = toScreen(transitionOrigin || nearbyRenderOriginPoint() || state.nearbyAnchor.point);
+  const point = toScreen(nearbyRenderOriginPoint() || state.nearbyAnchor.point);
   if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
   const dpr = pixelRatio();
   ctx.save();
@@ -1262,11 +1222,9 @@ function drawWalkingRadiusRimHighlight(ctx, center, radiusPx, tilted, dpr) {
 function drawWalkingRadius(ctx) {
   // The *rendered* origin, so the circle stays still on screen while a browse-origin slide moves
   // the map behind it (nearbyRenderOriginPoint, index.html).
-  const originPoint = state.selectionTransition.mapHeld && state.selectionMapTransitionOriginPoint
-    ? state.selectionMapTransitionOriginPoint
-    : nearbyRenderOriginPoint();
+  const originPoint = nearbyRenderOriginPoint();
   if (!originPoint) return;
-  if (hasRealSelection() && !state.selectionTransition.mapHeld) return;
+  if (hasRealSelection()) return;
 
   const dpr = pixelRatio();
   // Centre and radius are measured on the flat (untilted) map, then projected as a whole —
@@ -1603,82 +1561,214 @@ function drawLayer(ctx, layer) {
   ctx.restore();
 }
 
-// Buckets points into cells the size of the clustering radius, so a neighbour search only has to
-// look at the 3x3 block of cells around a point instead of every other point on the map. A cell
-// edge equal to the radius guarantees that: two points within `radius` of each other can never be
-// more than one cell apart on either axis, so the 3x3 block never misses a real neighbour. This is
-// what turns clustering from an all-pairs O(n^2) scan into one bounded by how many points actually
-// land near each other -- the difference that matters once a fully zoomed-out view puts every item
-// in the forest on screen (and therefore "eligible") at once, redone on every animation frame of a
-// pan or zoom.
-function buildScreenPointGrid(points, cellSize, screenPointOf) {
+// Every marker on the map -- a lone pin or a group -- is built by this one pass, so what is drawn
+// is exactly what is tappable (findClusterHit, js/inspector.js) in the flat and the tilted view.
+//
+// Order of the categories: the tie-break for equal density, and the order a marker lists its
+// items in.
+const MARKER_TYPES = ["tree", "landmark", "cow", "path", "water"];
+// Breathing room added around every marker's collision box.
+const MARKER_COLLISION_GAP_CSS_PX = 4;
+// Past this many items in a seed's 3x3 cell block, occupancy replaces the exact overlap count.
+const MARKER_DENSITY_EXACT_LIMIT = 32;
+
+// Grouping remembers the last build (see buildMapMarkers) so a pinch or wheel zoom does not make
+// items hop between neighbouring groups or a group split and re-merge frame to frame. An item
+// stays with the seed it had last time until it leaves this larger "split" box (this multiple of
+// the normal collision box on each axis).
+const MARKER_SPLIT_BOX_FACTOR = 1.25;
+// Memory per lookup context (see markerMemoryKey): { seeds, count }, seeds a Map of seed item -> the
+// items it held, in seed order, count the size of the item set it was built from. Replaced wholesale by every build in its context, so it never outlives the items.
+const _markerMemory = new Map();
+
+// A clean slate for grouping: the next build forms its groups from scratch. Called when the Nearby
+// filter set changes; builds in a context whose lookup was empty also start clean.
+function resetMarkerGroupMemory() {
+  _markerMemory.clear();
+}
+
+// Memory belongs to one kind of lookup, so a narrowed one (an expanded cluster's members, search
+// results, a held transition) never overwrites the main map's.
+function markerMemoryKey() {
+  if (state.selectionTransition && state.selectionTransition.mapHeld) return "held";
+  if (state.searchScreenOpen && state.searchHighlightResults.length) return "search";
+  if (state.clusterExpanded) return "expanded";
+  return "main";
+}
+
+// The markers of what the map shows now: the one pass draw(), drawOverlay() and findClusterHit share.
+function buildActiveMapMarkers(toScreen) {
+  return buildMapMarkers(activeIconLookup(), toScreen, markerMemoryKey());
+}
+
+// The rectangle a compact cluster face covers with its tail and its count chip, relative to the
+// anchor point. Worst case on the chip (a "99+" label), at scale 1: one uniform box for every
+// marker, deliberately ignoring zoom and tilt shrink so the no-overlap guarantee is conservative.
+function markerCollisionBox(dpr) {
+  const rect = clusterMarkerRect(0, 0, 100, dpr, 1);
+  const gap = MARKER_COLLISION_GAP_CSS_PX * dpr;
+  return { width: rect.right - rect.left + gap, height: rect.bottom - rect.top + gap };
+}
+
+// Seed-anchored, single pass, deliberately not transitive (chaining A-near-B-near-C walked across
+// whole dense views and merged the lot into one badge):
+//  - seeds that were seeds on the previous build and are still present go first, in their previous
+//    order; the other candidates follow densest first (most other items inside their own box),
+//    ties broken by category then original order;
+//  - a seed claims every still-unclaimed item, of any category, whose box overlaps its own, and
+//    also keeps any item that was its member last time while it is inside the 1.25x split box
+//    (so a kept member can sit up to that far from its seed);
+//  - the marker is anchored at the seed item's own point, not at an average.
+// An item that no earlier seed claimed is outside every earlier seed's box by construction, so no
+// two markers can overlap (a remembered seed inside an earlier seed's box is simply absorbed).
+// Building twice on the same input gives the same markers, and a pure pan never regroups.
+// Grid-bounded: this runs every animation frame.
+//
+// Returns [{ items, itemsByType, itemType, screenPt, worldPt }]. `itemType` is the one category of
+// the group, or "_mega" when the group mixes categories. A group that claimed nothing is an
+// ordinary single-item pin.
+function buildMapMarkers(lookup, toScreen, memoryKey = "main") {
+  let memory = _markerMemory.get(memoryKey);
+  const box = markerCollisionBox(pixelRatio());
+  const boxW = box.width, boxH = box.height;
+  const splitW = boxW * MARKER_SPLIT_BOX_FACTOR, splitH = boxH * MARKER_SPLIT_BOX_FACTOR;
+  const cell = Math.max(boxW, boxH);
+  const nodes = [];
+  const nodeOfItem = new Map();
+  for (const type of MARKER_TYPES) {
+    const set = lookup && lookup[type];
+    if (!set) continue;
+    for (const item of set) {
+      if (!item.point) continue;
+      const sp = toScreen(item.point);
+      if (!Number.isFinite(sp.x) || !Number.isFinite(sp.y)) continue;
+      const node = { item, type, sp, order: nodes.length, density: 0, claimed: false, isSeed: false, cx: Math.floor(sp.x / cell), cy: Math.floor(sp.y / cell) };
+      nodes.push(node);
+      nodeOfItem.set(item, node);
+    }
+  }
+  if (!nodes.length) {
+    _markerMemory.delete(memoryKey);
+    return [];
+  }
+  // Memory only describes the item set it was built from: when items have arrived or left (data
+  // loading in, a radius or filter change) the layout starts fresh rather than inheriting an
+  // order formed against a different set.
+  if (memory) {
+    let known = memory.count === nodes.length;
+    if (known) for (const seedItem of memory.seeds.keys()) if (!nodeOfItem.has(seedItem)) { known = false; break; }
+    memory = known ? memory.seeds : undefined;
+  }
+  // Numeric cell keys (a collision between two far-apart cells only adds candidates the exact
+  // box test below rejects). A cell edge equal to the box's longer side guarantees an overlapping
+  // item is never more than one cell away on either axis, so a 3x3 block never misses one.
+  const cellKey = (cx, cy) => cx * 4194304 + cy;
   const grid = new Map();
-  for (const point of points) {
-    const { x, y } = screenPointOf(point);
-    const key = `${Math.floor(x / cellSize)},${Math.floor(y / cellSize)}`;
-    let bucket = grid.get(key);
-    if (!bucket) {
-      bucket = [];
-      grid.set(key, bucket);
+  for (const node of nodes) {
+    const key = cellKey(node.cx, node.cy);
+    const bucket = grid.get(key);
+    if (bucket) bucket.push(node);
+    else grid.set(key, [node]);
+  }
+  // Seed priority is the number of other items inside the item's own box. In a crowded block
+  // that exact count would be quadratic, so past DENSITY_EXACT_LIMIT the block's occupancy stands
+  // in for it (always ranked above any exact count), keeping this linear in the item count.
+  for (const node of nodes) {
+    let occupancy = 0;
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const bucket = grid.get(cellKey(node.cx + dx, node.cy + dy));
+        if (bucket) occupancy += bucket.length;
+      }
     }
-    bucket.push(point);
+    if (occupancy > MARKER_DENSITY_EXACT_LIMIT) {
+      node.density = occupancy;
+      continue;
+    }
+    let count = 0;
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const bucket = grid.get(cellKey(node.cx + dx, node.cy + dy));
+        if (!bucket) continue;
+        for (const other of bucket) {
+          if (other !== node && Math.abs(other.sp.x - node.sp.x) < boxW && Math.abs(other.sp.y - node.sp.y) < boxH) count++;
+        }
+      }
+    }
+    node.density = count;
   }
-  return grid;
-}
-
-function forEachNearbyGridPoint(grid, cellSize, screenPointOf, origin, visit) {
-  const cx = Math.floor(origin.x / cellSize);
-  const cy = Math.floor(origin.y / cellSize);
-  for (let dx = -1; dx <= 1; dx++) {
-    for (let dy = -1; dy <= 1; dy++) {
-      const bucket = grid.get(`${cx + dx},${cy + dy}`);
-      if (!bucket) continue;
-      for (const point of bucket) visit(point);
+  // Last build's seeds that are still present keep their previous order and go first; the rest
+  // follow densest first.
+  const seeds = [];
+  if (memory) {
+    for (const prevItem of memory.keys()) {
+      const node = nodeOfItem.get(prevItem);
+      if (node && !node.isSeed) { node.isSeed = true; seeds.push(node); }
     }
   }
-}
-
-function buildTypeClusters(itemSet, toScreen) {
-  const dpr = pixelRatio();
-  const clusterRadius = 30 * dpr * (MAP_PNG_ICON_SIZE / CLUSTER_RADIUS_ICON_SIZE_REF);
-  const assigned = new Set();
-  const clusters = [];
-
-  const eligible = [];
-  for (const item of (itemSet || [])) {
-    if (!item.point) continue;
-    eligible.push({ item, sp: toScreen(item.point), idx: eligible.length });
-  }
-  if (!eligible.length) return clusters;
-
-  const grid = buildScreenPointGrid(eligible, clusterRadius, (p) => p.sp);
-
-  for (const first of eligible) {
-    if (assigned.has(first.item)) continue;
-    const members = [];
-    forEachNearbyGridPoint(grid, clusterRadius, (p) => p.sp, first.sp, (other) => {
-      if (assigned.has(other.item)) return;
-      if (Math.hypot(first.sp.x - other.sp.x, first.sp.y - other.sp.y) < clusterRadius) {
+  const fresh = nodes.filter(node => !node.isSeed).sort((a, b) => b.density - a.density || a.order - b.order);
+  for (const node of fresh) seeds.push(node);
+  const markers = [];
+  const nextMemory = new Map();
+  for (const seed of seeds) {
+    if (seed.claimed) continue;
+    seed.claimed = true;
+    const members = [seed];
+    // New members need the normal box; members this seed held last time are kept up to the split
+    // box (looked up directly, not through the grid). Both are measured from this seed, so anchors
+    // stay a full box apart.
+    if (seed.density) {
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          const bucket = grid.get(cellKey(seed.cx + dx, seed.cy + dy));
+          if (!bucket) continue;
+          for (const other of bucket) {
+            if (other.claimed || Math.abs(other.sp.x - seed.sp.x) >= boxW || Math.abs(other.sp.y - seed.sp.y) >= boxH) continue;
+            other.claimed = true;
+            members.push(other);
+          }
+        }
+      }
+    }
+    const held = memory && memory.get(seed.item);
+    if (held) {
+      for (const heldItem of held) {
+        const other = nodeOfItem.get(heldItem);
+        if (!other || other.claimed || Math.abs(other.sp.x - seed.sp.x) >= splitW || Math.abs(other.sp.y - seed.sp.y) >= splitH) continue;
+        other.claimed = true;
         members.push(other);
       }
+    }
+    if (members.length > 1) members.sort((a, b) => a.order - b.order);
+    const itemsByType = {};
+    const items = new Array(members.length);
+    for (let i = 0; i < members.length; i++) {
+      const member = members[i];
+      items[i] = member.item;
+      (itemsByType[member.type] || (itemsByType[member.type] = [])).push(member.item);
+    }
+    nextMemory.set(seed.item, items);
+    const types = Object.keys(itemsByType);
+    markers.push({
+      items,
+      itemsByType,
+      itemType: types.length > 1 ? "_mega" : types[0],
+      screenPt: seed.sp,
+      worldPt: seed.item.point,
     });
-    // The grid visits its 9 cells in a fixed order, not the original eligible-array order that
-    // the old all-pairs scan produced (and that cluster.items[0] consumers -- see
-    // megaClusterMemberIconSrc/megaClusterDisplayKey -- rely on for a stable representative
-    // item). Restoring that order is one cheap sort over a small member list.
-    members.sort((a, b) => a.idx - b.idx);
-    for (const m of members) assigned.add(m.item);
-    const sx = members.reduce((s, m) => s + m.sp.x, 0) / members.length;
-    const sy = members.reduce((s, m) => s + m.sp.y, 0) / members.length;
-    const wx = members.reduce((s, m) => s + m.item.point.x, 0) / members.length;
-    const wy = members.reduce((s, m) => s + m.item.point.y, 0) / members.length;
-    clusters.push({ items: members.map(m => m.item), screenPt: { x: sx, y: sy }, worldPt: { x: wx, y: wy } });
   }
-
-  return clusters;
+  _markerMemory.set(memoryKey, { seeds: nextMemory, count: nodes.length });
+  return markers;
 }
 
-// Every draw() call rebuilds clusters from scratch (buildTypeClusters above), so there's no
+// The items of a tapped group by category: every marker carries this, and a hand-built
+// single-category group ({ itemType, items }) reads the same way.
+function clusterItemsByType(group) {
+  if (group.itemsByType) return group.itemsByType;
+  return group.itemType ? { [group.itemType]: group.items || [] } : {};
+}
+
+// Every draw() call rebuilds the markers from scratch (buildMapMarkers above), so there's no
 // persistent cluster identity to animate between frames -- only the underlying items (the same
 // tree/place/cow objects every frame, drawn fresh each time) have one. This tracks, per item,
 // the cluster size it was drawn in last frame; when that jumps from a lone pin (1) to a group
@@ -1773,6 +1863,7 @@ function filterPinTransitionActive(now = performance.now()) {
 // two sets are compared by object identity, which matches the renderer's existing dataset
 // model and avoids introducing a synthetic marker key for every feature type.
 function beginOverviewFilterPinTransition(previousLookup) {
+  resetMarkerGroupMemory();
   if (!previousLookup || (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches)) {
     _filterPinAnimations.clear();
     return;
@@ -1813,23 +1904,12 @@ function beginOverviewFilterPinTransition(previousLookup) {
   if (_filterPinAnimations.size && typeof requestDraw === "function") requestDraw();
 }
 
-function drawFilterTransitionIcon(ctx, type, item, x, y, size) {
-  if (type === "tree") {
-    const src = (typeof treeSpeciesIconPath === "function" && treeSpeciesIconPath(item.commonName, item.latinName)) || iconPath("tree");
-    return drawPngMapIcon(ctx, src, x, y, size);
-  }
-  if (type === "landmark") return drawLandmarkIcon(ctx, item, x, y, size);
-  if (type === "cow") return drawPngMapIcon(ctx, iconPath("cow"), x, y, size);
-  if (type === "path") return drawPngMapIcon(ctx, iconPath("waymarked"), x, y, size);
-  if (type === "water") return drawPngMapIcon(ctx, iconPath("ponds"), x, y, size);
-  return false;
-}
-
 // Removed pins are no longer part of the active lookup, so draw them briefly on the overlay
 // while they shrink. This keeps the normal clustered renderer authoritative for visible pins,
 // and means the outgoing marker never has to be resurrected in the hit-test lookup.
 function drawFilterTransitionPins(ctx, toScreen) {
-  if (!filterPinTransitionActive()) return;
+  _drawnTransitionSpecs = [];
+  if (!filterPinTransitionActive() || hasRealSelection() || pinsHiddenBySelection(true)) return;
   const dpr = pixelRatio();
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
   const reveal = nearbyRevealOpacity();
@@ -1841,9 +1921,10 @@ function drawFilterTransitionPins(ctx, toScreen) {
     const tiltScale = typeof tiltPinScale === "function" ? tiltPinScale(item.point) : 1;
     const scale = stateAtFrame.scale * tiltScale;
     if (!isNearCanvas(point, iconSize * 2)) continue;
+    _drawnTransitionSpecs.push({ worldPt: item.point, count: 1, scale: iconSize * scale / (MAP_PNG_ICON_SIZE * MAP_ICON_SCALE_UNSELECTED * dpr) });
     ctx.save();
     ctx.globalAlpha = reveal * stateAtFrame.alpha;
-    drawFilterTransitionIcon(ctx, animation.type, item, point.x, point.y, iconSize * scale);
+    drawItemPin(ctx, animation.type, item, point.x, point.y, iconSize * scale);
     ctx.restore();
   }
 }
@@ -1860,6 +1941,9 @@ function drawFilterTransitionPins(ctx, toScreen) {
 // frame could still catch pins mid-shrink depending on exactly when the interruption landed.
 function settleClusterJoinAnimations() {
   _clusterJoinAnimations.clear();
+  // Also forget which size each item was last drawn in: a lone-to-group jump is what starts a
+  // join, so without this the very next draw after a camera change would start one again.
+  _prevClusterSizeByItem.clear();
 }
 
 // Returns null when a cluster's items should draw exactly as they always have (a lone pin, or
@@ -1938,124 +2022,9 @@ function landmarkClusterKey(place) {
   return placeIconSlug(place) || "pin";
 }
 
-function buildLandmarkClusters(landmarkSet, toScreen) {
-  const byKey = new Map();
-  for (const lm of (landmarkSet || [])) {
-    if (!lm.point) continue;
-    const key = landmarkClusterKey(lm);
-    if (!byKey.has(key)) byKey.set(key, []);
-    byKey.get(key).push(lm);
-  }
-  const clusters = [];
-  for (const group of byKey.values()) {
-    clusters.push(...buildTypeClusters(group, toScreen));
-  }
-  return clusters;
-}
-
-// Individual per-type clustering (buildTypeClusters/buildLandmarkClusters) only merges pins of
-// the same kind, so at a low zoom level -- lots of different categories sharing one patch of
-// forest -- their badges still pile on top of each other: a dozen overlapping white teardrops
-// with no way to tell what's underneath. This second pass runs across every category's
-// already-built clusters and merges any that are still screen-close into one cross-category
-// "mega cluster", drawn as a single badge (see drawMegaClusters) instead of N overlapping pins.
-// Reuses the same radius buildTypeClusters uses, since that's the distance already tuned to
-// avoid icon overlap -- anything still closer than that once every category is on the table is
-// exactly the overlap this exists to fix.
-// Deliberately tighter than buildTypeClusters' own 30 CSS-px radius: that spacing already keeps
-// same-category badges from overlapping, so two *different* categories placed that far apart
-// are just neighbours, not the pile-up mega clustering exists to fix. Merging them there anyway
-// made mega badges appear far more readily than the density actually warranted; going too far
-// the other way (16px, tried briefly) left it barely merging anything, back to overlapping
-// individual pins with no group affordance to tap. 22px sits between the two.
-const MEGA_CLUSTER_MERGE_RADIUS_CSS_PX = 22;
-
-// A mega badge replaces genuinely crowded ground, not just two neighbours sharing a spot -- but
-// requiring three (tried briefly) left plenty of two-category overlaps as bare stacked pins with
-// no way to tap "both of these", which is exactly the confusing case mega clustering exists to
-// fix. Two is the right floor away from the user: buildSuperClusters' merge result is left as
-// individual pins only below that.
-const MEGA_CLUSTER_MIN_MEMBERS = 2;
-
-// Close to the user -- inside the distance a 5-minute walk covers -- is exactly where the extra
-// tap a mega badge costs matters most: it's the ground being actively navigated, where seeing
-// each pin without opening anything is the point. A merge that would happily declutter the far
-// side of the walking radius reads as unhelpful right next to "You", collapsing detail the
-// walker is standing in. Requiring more piled-up categories there means a badge only replaces
-// individual pins nearby when it's genuinely necessary, not merely possible.
-const MEGA_CLUSTER_MIN_MEMBERS_NEAR_USER = 4;
-
-// Picks MEGA_CLUSTER_MIN_MEMBERS or the stricter *_NEAR_USER floor for one candidate group,
-// based on how far its own spot is from nearbyOrigin() (GPS fix or browse anchor, matching the
-// walking-radius ring itself). Falls back to the ordinary floor with no origin to measure from.
-function megaClusterMinMembersFor(group) {
-  const origin = typeof nearbyOrigin === "function" ? nearbyOrigin() : null;
-  if (!origin) return MEGA_CLUSTER_MIN_MEMBERS;
-  const repr = group[0].cluster;
-  const lonLat = unprojectPoint(repr.worldPt);
-  const metres = distanceMetres(origin.latitude, origin.longitude, lonLat.latitude, lonLat.longitude);
-  return metres <= walkingDistanceToMetres(5) ? MEGA_CLUSTER_MIN_MEMBERS_NEAR_USER : MEGA_CLUSTER_MIN_MEMBERS;
-}
-
-function buildSuperClusters(taggedGroups) {
-  const dpr = pixelRatio();
-  const radius = MEGA_CLUSTER_MERGE_RADIUS_CSS_PX * dpr * (MAP_PNG_ICON_SIZE / CLUSTER_RADIUS_ICON_SIZE_REF);
-  const nodes = [];
-  for (const { itemType, clusters } of taggedGroups) {
-    for (const cluster of clusters) nodes.push({ itemType, cluster, idx: nodes.length });
-  }
-  if (!nodes.length) return [];
-  const grid = buildScreenPointGrid(nodes, radius, (n) => n.cluster.screenPt);
-  const assigned = new Set();
-  const superClusters = [];
-  for (const first of nodes) {
-    if (assigned.has(first)) continue;
-    const members = [first];
-    assigned.add(first);
-    // Only merges nodes directly within `radius` of `first` -- deliberately not transitive
-    // (used to BFS from every newly-added member too, chaining A-close-to-B-close-to-C into one
-    // region even when A and C were far apart). On a dense, roughly-uniform spread of pins --
-    // exactly what a zoomed-out forest view is -- that chain rarely stops: it walks neighbour to
-    // neighbour across most of what's on screen and merges the lot into one "super" cluster,
-    // whose badge then draws at the screen-space average of everything it absorbed. That average
-    // lands near the middle of the merged area, not on top of any real content, so the fix here
-    // trades "one mega badge sitting in the middle of the map, having swallowed pins nowhere near
-    // it" for several smaller, correctly-placed ones -- each still exactly big enough to cover
-    // one genuine same-spot pile-up, which is the only thing mega clustering exists to fix.
-    const found = [];
-    forEachNearbyGridPoint(grid, radius, (n) => n.cluster.screenPt, first.cluster.screenPt, (other) => {
-      if (assigned.has(other)) return;
-      if (Math.hypot(first.cluster.screenPt.x - other.cluster.screenPt.x, first.cluster.screenPt.y - other.cluster.screenPt.y) < radius) {
-        found.push(other);
-      }
-    });
-    // Same order restoration as buildTypeClusters -- a grid scan of the 9 nearby cells doesn't
-    // come out in the original nodes-array order that consumers keying off first-occurrence
-    // (the byTypeIconSrc/byDisplayKey maps in drawMegaClusters) depend on.
-    found.sort((a, b) => a.idx - b.idx);
-    for (const other of found) {
-      members.push(other);
-      assigned.add(other);
-    }
-    superClusters.push(members);
-  }
-  return superClusters;
-}
-
-// Conservative culling radius; taps use the actual badge rectangle and pointer.
-function megaClusterOuterRadius(totalItems, dpr) {
-  const b = clusterBadgeGeometry(0, 0, totalItems, true, dpr);
-  return Math.hypot(b.width / 2, -b.top);
-}
-
-// A tree cluster groups by screen proximity only, not by species, so a cluster can (and often
-// does) hold more than one kind of tree standing close together. Picking the first item's own
-// species icon for the whole group -- the old behaviour -- made a mixed cluster of, say, two
-// oaks and a beech draw as a plain oak badge: the icon implied every member was the same species
-// the count badge next to it was adding up, which wasn't true. Only draws a species icon when
-// every member would independently draw that exact same icon; any disagreement falls back to the
-// generic tree icon, the same fallback already used for a species with no icon of its own, so an
-// ambiguous cluster reads as "trees", not as a specific (and wrong) kind.
+// A tree's own pin artwork: its species icon, or the generic tree icon when the species has none.
+// Only draws a species icon when every given tree would independently draw that exact icon; any
+// disagreement falls back to the generic tree icon, so a mixed set never claims one species.
 function clusterTreeIconSrc(items) {
   const iconFor = (item) => (typeof treeSpeciesIconPath === "function" && treeSpeciesIconPath(item.commonName, item.latinName)) || iconPath("tree");
   const first = iconFor(items[0]);
@@ -2065,15 +2034,12 @@ function clusterTreeIconSrc(items) {
   return first;
 }
 
-// The same icon each category's own draw function would put in its pin -- picked from the
-// cluster's first item exactly the way drawTrees/drawLandmarks/drawPathPins/drawWaterPins/
-// drawCows do -- so a mega badge's ring shows the *actual* glyph for what's inside, not just a
-// colour standing in for it. Station groups retain their vector transport glyphs.
-function megaClusterMemberIconSrc(itemType, cluster) {
-  const repr = cluster.items[0];
-  switch (itemType) {
+// The icon a single item draws in its pin, so a group's face shows the *actual* glyph for what is
+// inside it. Station items keep their vector transport glyphs.
+function markerItemIconSrc(type, item) {
+  switch (type) {
     case "tree":
-      return clusterTreeIconSrc(cluster.items);
+      return clusterTreeIconSrc([item]);
     case "cow":
       return iconPath("cow");
     case "path":
@@ -2081,16 +2047,16 @@ function megaClusterMemberIconSrc(itemType, cluster) {
     case "water":
       return iconPath("ponds");
     case "landmark": {
-      if (isPubCategory(repr)) return iconPath("beer");
-      if (isCafeCategory(repr)) return iconPath("cafe");
-      if (isShopCategory(repr)) return iconPath("shop");
-      if (isTransportCategory(repr)) {
-        const transportType = getTransportType(repr);
+      if (isPubCategory(item)) return iconPath("beer");
+      if (isCafeCategory(item)) return iconPath("cafe");
+      if (isShopCategory(item)) return iconPath("shop");
+      if (isTransportCategory(item)) {
+        const transportType = getTransportType(item);
         if (transportType === "parking") return iconPath("landmark-parking");
         if (transportType === "underground" || transportType === "national_rail") return `vector:${transportType}`;
         return iconPath("bus");
       }
-      const slug = placeIconSlug(repr);
+      const slug = placeIconSlug(item);
       return (slug && iconPath(slug)) || iconPath("pin");
     }
     default:
@@ -2098,16 +2064,42 @@ function megaClusterMemberIconSrc(itemType, cluster) {
   }
 }
 
-// Landmarks are one itemType ("landmark") covering many visually distinct pins -- pub, cafe,
-// shop, a dozen monument/history sub-kinds -- already told apart by landmarkClusterKey when
-// buildLandmarkClusters groups them in the first place. Bucketing a mega badge's chips by the
-// coarse itemType alone collapsed every one of those sub-kinds into a single "landmark" bucket,
-// showing only whichever cluster happened to be processed first -- a badge piled with a pub, a
-// bench and a monument read as holding just one thing. This is the finer key the chip grouping
-// actually needs; every other type is already homogeneous enough that itemType alone is fine.
-function megaClusterDisplayKey(itemType, cluster) {
-  if (itemType !== "landmark") return itemType;
-  return `landmark:${landmarkClusterKey(cluster.items[0])}`;
+// The chips a group's face shows (at most two). Kinds are what artwork tells apart: tree species
+// sharing an icon share a slot, landmarks split by the pin they draw (pub, cafe, shop, station,
+// ...), and cows, paths and water are one kind each. A group of several categories shows one chip
+// per category first -- the categories with most items first, ties in category order, each as its
+// most common kind -- so no category is hidden behind another's species; only a single-category
+// group shows its second most common kind as the second chip.
+function clusterPreviewEntries(marker, byCategory = clusterKindsByCategory(marker)) {
+  if (byCategory.length === 1) return byCategory[0].kinds.slice(0, 2);
+  return byCategory.slice(0, 2).map(category => category.kinds[0]);
+}
+
+function clusterKindsByCategory(marker) {
+  const byCategory = [];
+  for (const type of MARKER_TYPES) {
+    const items = marker.itemsByType[type];
+    if (!items || !items.length) continue;
+    const byKey = new Map();
+    for (const item of items) {
+      const src = markerItemIconSrc(type, item);
+      const key = type === "tree" ? `tree:${src}` : type === "landmark" ? `landmark:${landmarkClusterKey(item)}` : type;
+      const entry = byKey.get(key);
+      if (entry) entry.count++;
+      else byKey.set(key, { key, src, count: 1, itemType: type });
+    }
+    byCategory.push({ total: items.length, kinds: Array.from(byKey.values()).sort((a, b) => b.count - a.count) });
+  }
+  byCategory.sort((a, b) => b.total - a.total);
+  return byCategory;
+}
+
+// The face previews at most two visual kinds. The remaining kinds feed the small stack behind
+// those preview chips; matching by key keeps the visible/hidden split aligned with the preview
+// ordering for both a single category and a mixed-category group.
+function clusterOverflowEntries(marker, byCategory = clusterKindsByCategory(marker)) {
+  const visible = new Set(clusterPreviewEntries(marker, byCategory).map(entry => entry.key));
+  return byCategory.flatMap(category => category.kinds).filter(entry => !visible.has(entry.key));
 }
 
 // One category's icon, cropped to a circle, sitting directly on the badge underneath it -- no
@@ -2118,27 +2110,7 @@ function megaClusterDisplayKey(itemType, cluster) {
 // circular clip stays: it is what keeps a square icon image from spilling past chipR at its
 // corners, not what gives it a background. Draws nothing (leans on getMapImage's own redraw
 // once loaded) if the icon image hasn't finished loading yet.
-function clusterPreviewEntries(itemType, cluster) {
-  if (itemType !== "tree") return [{ key: megaClusterDisplayKey(itemType, cluster), src: megaClusterMemberIconSrc(itemType, cluster), count: cluster.items.length, itemType }];
-  const byArtwork = new Map();
-  for (const item of cluster.items) {
-    const src = treeSpeciesIconPath(item.commonName, item.latinName) || iconPath("tree");
-    const entry = byArtwork.get(src);
-    if (entry) entry.count++;
-    else byArtwork.set(src, { key: `tree:${src}`, src, count: 1, itemType });
-  }
-  return Array.from(byArtwork.values());
-}
-
-function addClusterPreviewEntries(byType, byTypeIconSrc, itemType, cluster) {
-  for (const entry of clusterPreviewEntries(itemType, cluster)) {
-    const existing = byType.get(entry.key);
-    byType.set(entry.key, { count: (existing ? existing.count : 0) + entry.count, itemType });
-    byTypeIconSrc.set(entry.key, entry.src);
-  }
-}
-
-function drawMegaClusterIconChip(ctx, x, y, src, chipR) {
+function drawClusterIconChip(ctx, x, y, src, chipR) {
   if (src === "vector:underground" || src === "vector:national_rail") {
     ctx.save();
     ctx.beginPath();
@@ -2161,231 +2133,260 @@ function drawMegaClusterIconChip(ctx, x, y, src, chipR) {
   ctx.restore();
 }
 
-// The badge is an upright label; its short pointer anchors it to the group's centroid.
-// Shared geometry keeps the complete icon/count face tappable in flat and tilted views.
-function clusterBadgeGeometry(x, y, count, mixed, dpr, scale = 1, compact = false) {
+// A group's marker is the compact pin-sized face: its tail is the group's anchor, the artwork sits
+// in the head, and the count chip protrudes at the top right. Shared geometry keeps the whole face
+// tappable and measurable in flat and tilted views; `scale` shrinks it (tilt, merge animation).
+function clusterBadgeGeometry(x, y, count, dpr, scale = 1) {
   const unit = dpr * scale;
   const label = count > 99 ? "99+" : String(count);
-  if (compact) {
-    const size = MAP_PNG_ICON_SIZE * MAP_ICON_SCALE_UNSELECTED * unit;
-    const R = size * 0.32;
-    const width = R * 2.4, height = R * 2, bottom = y - R * 0.3;
-    const top = bottom - height;
-    const countWidth = (label.length > 2 ? 28 : 22) * unit;
-    return { left: x - width / 2, top, bottom, width, height, unit, label, size,
-      countX: x + width / 2 - 4 * unit, countY: top + 3 * unit, countWidth, countHeight: 18 * unit };
-  }
-  // Category composition changes the artwork, never the marker language.
-  const width = 78 * unit;
-  const height = 52 * unit;
-  const bottom = y - 7 * unit;
-  return { left: x - width / 2, top: bottom - height, bottom, width, height, unit, label };
+  const size = MAP_PNG_ICON_SIZE * MAP_ICON_SCALE_UNSELECTED * unit;
+  const R = size * 0.32;
+  const width = R * 2.4, height = R * 2, bottom = y - R * 0.3;
+  const top = bottom - height;
+  const countWidth = (label.length > 2 ? 28 : 22) * unit;
+  return { left: x - width / 2, top, bottom, width, height, unit, label, size,
+    countX: x + width / 2 - 4 * unit, countY: top + 3 * unit, countWidth, countHeight: 18 * unit };
 }
 
-function clusterBadgeContains(screen, x, y, count, mixed, dpr, scale = 1, compact = false) {
-  const b = clusterBadgeGeometry(x, y, count, mixed, dpr, scale, compact);
+// Everything a marker paints: face, tail and the protruding count chip.
+function clusterMarkerRect(x, y, count, dpr, scale = 1) {
+  const b = clusterBadgeGeometry(x, y, count, dpr, scale);
+  return {
+    left: b.left,
+    right: Math.max(b.left + b.width, b.countX + b.countWidth / 2),
+    top: Math.min(b.top, b.countY - b.countHeight / 2),
+    bottom: y,
+  };
+}
+
+// What a marker actually paints, as rectangles: the face, the count chip (groups only, at its real
+// label width) and the narrow pointer down to the anchor. Unlike clusterMarkerRect's bounding box
+// this leaves out the empty corners beside the pointer, so the "You" label can sit there.
+function markerPaintedRects(x, y, count, dpr, scale = 1) {
+  const b = clusterBadgeGeometry(x, y, count, dpr, scale);
+  const R = b.size * 0.32;
+  const rects = [
+    { left: b.left, right: b.left + b.width, top: b.top, bottom: b.bottom },
+    { left: x - R * 0.3, right: x + R * 0.3, top: b.bottom, bottom: y },
+  ];
+  if (count > 1) {
+    rects.push({ left: b.countX - b.countWidth / 2, right: b.countX + b.countWidth / 2,
+      top: b.countY - b.countHeight / 2, bottom: b.countY + b.countHeight / 2 });
+  }
+  return rects;
+}
+
+function clusterBadgeContains(screen, x, y, count, dpr, scale = 1) {
+  const b = clusterBadgeGeometry(x, y, count, dpr, scale);
   const pad = 3 * dpr;
-  if (compact && Math.abs(screen.x - b.countX) <= b.countWidth / 2 + pad
+  if (Math.abs(screen.x - b.countX) <= b.countWidth / 2 + pad
     && Math.abs(screen.y - b.countY) <= b.countHeight / 2 + pad) return true;
   return screen.x >= b.left - pad && screen.x <= b.left + b.width + pad
     && screen.y >= b.top - pad && screen.y <= y + pad;
 }
 
-function drawGroupBadge(ctx, x, y, count, iconSources, mixed, dpr, scale = 1) {
-  const sources = iconSources.slice(0, 3);
-  const compact = sources.length === 1;
-  const b = clusterBadgeGeometry(x, y, count, mixed, dpr, scale, compact);
+// The overflow chips form a distinct lower layer beneath the two preview chips. Keeping at most two
+// larger peek icons inside the white head makes the affordance legible on a phone; the plus covers
+// the rest without giving the group another pointer or changing its collision/hit geometry.
+function clusterStackChipGeometry(x, y, count, dpr, scale = 1, index = 0, total = 1) {
+  const b = clusterBadgeGeometry(x, y, count, dpr, scale);
+  const R = b.size * 0.32;
+  const chipR = total <= 2 ? R * 0.3 : R * 0.26;
+  const offsets = total === 1
+    ? [-0.24]
+    : total === 2
+      ? [-0.38, 0.38]
+      : [-0.45, 0, 0.45];
+  const xOffset = offsets[Math.min(index, offsets.length - 1)] * R;
+  const yOffset = total === 1 ? 0.5 : 0.52;
+  return { cx: x + xOffset, cy: b.top + b.height * 0.5 + yOffset * R, radius: chipR };
+}
+
+// The plus sits in front of the hidden artwork, making the stack read as an affordance rather
+// than a second row of equally-weighted pins. Its small half-opaque backing separates the mark
+// from the artwork without becoming another badge; the group's existing count remains the only
+// text.
+function clusterMorePlusGeometry(x, y, count, dpr, scale = 1, total = 1) {
+  const b = clusterBadgeGeometry(x, y, count, dpr, scale);
+  const R = b.size * 0.32;
+  return {
+    cx: x + (total === 1 ? 0.24 : 0) * R,
+    cy: b.top + b.height * 0.5 + 0.52 * R,
+    radius: R * 0.3,
+    unit: b.unit,
+  };
+}
+
+function drawClusterMorePlus(ctx, geometry) {
+  const { cx, cy, radius, unit } = geometry;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(255, 255, 255, 0.52)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(17, 17, 17, 0.25)";
+  ctx.lineWidth = 0.75 * unit;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx - radius * 0.48, cy);
+  ctx.lineTo(cx + radius * 0.48, cy);
+  ctx.moveTo(cx, cy - radius * 0.48);
+  ctx.lineTo(cx, cy + radius * 0.48);
+  ctx.strokeStyle = "#111111";
+  ctx.lineCap = "round";
+  ctx.lineWidth = 1.75 * unit;
+  ctx.stroke();
+}
+
+// One artwork fills the head; two (the two most common kinds) sit side by side in it.
+function drawClusterMarker(ctx, x, y, count, iconSources, dpr, scale = 1, overflowSources = []) {
+  const sources = iconSources.slice(0, 2);
+  const b = clusterBadgeGeometry(x, y, count, dpr, scale);
   const u = b.unit;
   ctx.save();
-  if (compact) {
-    const { cx, cy, R } = drawMapPinShape(ctx, x, y, b.size);
-    drawMegaClusterIconChip(ctx, cx, cy, sources[0], R * 0.86);
-    ctx.beginPath();
-    ctx.roundRect(b.countX - b.countWidth / 2, b.countY - b.countHeight / 2, b.countWidth, b.countHeight, 9 * u);
-    ctx.fillStyle = "#233d30";
-    ctx.fill();
-    ctx.strokeStyle = "white";
-    ctx.lineWidth = 1.5 * u;
-    ctx.stroke();
-    ctx.fillStyle = "white";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.font = `700 ${11 * u}px system-ui`;
-    ctx.fillText(b.label, b.countX, b.countY);
-    ctx.restore();
-    return;
+  const { cx, cy, R } = drawMapPinShape(ctx, x, y, b.size);
+  const stackSources = overflowSources.slice(0, 2);
+  stackSources.forEach((src, i) => {
+    const chip = clusterStackChipGeometry(x, y, count, dpr, scale, i, stackSources.length);
+    drawClusterIconChip(ctx, chip.cx, chip.cy, src, chip.radius);
+  });
+  if (stackSources.length) {
+    drawClusterMorePlus(ctx, clusterMorePlusGeometry(x, y, count, dpr, scale, stackSources.length));
   }
-  roundedPinPath(ctx, x, y, b.left, b.top, b.width, b.height, 19 * u, 7 * u);
-  ctx.fillStyle = "white";
-  ctx.strokeStyle = "rgba(0,0,0,0.25)";
-  ctx.lineWidth = Math.max(1, 2 * u);
-  ctx.fill();
-  ctx.stroke();
+  const previewCy = stackSources.length ? cy - R * 0.22 : cy;
+  const previewRadius = stackSources.length ? R * 0.43 : R * 0.52;
+  if (sources.length === 1) {
+    drawClusterIconChip(ctx, cx, stackSources.length ? cy - R * 0.18 : cy, sources[0], stackSources.length ? R * 0.72 : R * 0.86);
+  } else {
+    sources.forEach((src, i) => drawClusterIconChip(ctx, cx + (i ? 1 : -1) * R * 0.48, previewCy, src, previewRadius));
+  }
+  ctx.beginPath();
+  ctx.roundRect(b.countX - b.countWidth / 2, b.countY - b.countHeight / 2, b.countWidth, b.countHeight, 9 * u);
   ctx.fillStyle = "#233d30";
+  ctx.fill();
+  ctx.strokeStyle = "white";
+  ctx.lineWidth = 1.5 * u;
+  ctx.stroke();
+  ctx.fillStyle = "white";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.font = `700 ${18 * u}px system-ui`;
-  ctx.fillText(b.label, x, b.top + 16 * u);
-  sources.forEach((src, i) => {
-    const chipX = x + (i - (sources.length - 1) / 2) * 22 * u;
-    const chipY = b.top + 37 * u;
-    drawMegaClusterIconChip(ctx, chipX, chipY, src, 11 * u);
-  });
+  ctx.font = `700 ${11 * u}px system-ui`;
+  ctx.fillText(b.label, b.countX, b.countY);
   ctx.restore();
 }
 
-function drawSameCategoryCluster(ctx, cluster, itemType, dpr, scale = 1) {
-  if (cluster.items.length < 2) return false;
-  drawGroupBadge(ctx, cluster.screenPt.x, cluster.screenPt.y, cluster.items.length,
-    clusterPreviewEntries(itemType, cluster).sort((a, b) => b.count - a.count).map(entry => entry.src), false, dpr,
-    scale * filterPinClusterScale(cluster));
-  return true;
+// What a lone pin draws for one item, at `size`.
+function drawItemPin(ctx, type, item, x, y, size) {
+  if (type === "tree") return drawPngMapIcon(ctx, clusterTreeIconSrc([item]), x, y, size);
+  if (type === "landmark") return drawLandmarkIcon(ctx, item, x, y, size);
+  if (type === "cow") return drawPngMapIcon(ctx, iconPath("cow"), x, y, size);
+  if (type === "path") return drawPngMapIcon(ctx, iconPath("waymarked"), x, y, size);
+  if (type === "water") return drawPngMapIcon(ctx, iconPath("ponds"), x, y, size);
+  return false;
 }
 
-// Monotone-chain hull: bound the actual members, never a radius inferred from count.
-function clusterConvexHull(points) {
-  const sorted = points.slice().sort((a, b) => a.x - b.x || a.y - b.y)
-    .filter((p, i, all) => !i || p.x !== all[i - 1].x || p.y !== all[i - 1].y);
-  if (sorted.length < 3) return sorted;
-  const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
-  const half = list => {
-    const hull = [];
-    for (const p of list) {
-      while (hull.length > 1 && cross(hull[hull.length - 2], hull[hull.length - 1], p) <= 0) hull.pop();
-      hull.push(p);
-    }
-    return hull;
-  };
-  return half(sorted).slice(0, -1).concat(half(sorted.slice().reverse()).slice(0, -1));
+function markerItemType(marker, item) {
+  for (const type of MARKER_TYPES) {
+    const items = marker.itemsByType[type];
+    if (items && items.includes(item)) return type;
+  }
+  return null;
 }
 
-function clusterFootprintPoints(items, toFlat, project, padding) {
-  const points = items.filter(item => item.point).map(item => toFlat(item.point))
-    .filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
-  const hull = clusterConvexHull(points);
-  // Pad the hull, not every member: bounded work even for a very large group. Sampling
-  // circles also gives coincident/collinear members a visible rounded footprint.
-  const padded = [];
-  for (const p of hull) {
-    for (let i = 0; i < 16; i++) {
-      const angle = i * Math.PI / 8;
-      padded.push({ x: p.x + Math.cos(angle) * padding, y: p.y + Math.sin(angle) * padding });
+// Only landmarks and cows dim with the active filter/selection; the other pins never did.
+function lonePinOpacity(type, item) {
+  return type === "landmark" || type === "cow" ? markerOpacityFor(type, item) : 1;
+}
+
+// A group is as strong as its strongest member, so a group of dimmed pins dims like its neighbours.
+function groupOpacity(marker) {
+  let best = 0;
+  for (const type of MARKER_TYPES) {
+    const items = marker.itemsByType[type];
+    if (!items) continue;
+    for (const item of items) {
+      best = Math.max(best, lonePinOpacity(type, item));
+      if (best >= 1) return 1;
     }
   }
-  return clusterConvexHull(padded).map(project);
+  return best;
 }
 
-function drawClusterFootprints(ctx, clusters, megaGroups, overlay = false) {
-  // Match the per-type pin visibility; the flat renderer can still show mixed badges
-  // beside a selected destination, so those retain their footprints too.
-  const hideSameType = state.selected && !state.selectionTransition.mapHeld
-    && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type);
-  const tilted = tiltActive();
-  const toFlat = overlay ? worldToScreenForOverlay : worldToScreenFlat;
-  const project = tilted ? tiltProjectScreenPoint : p => p;
-  const groups = clusters.filter(c => !hideSameType && c.items.length > 1).map(c => c.items)
-    .concat(megaGroups.map(group => group.flatMap(member => member.cluster.items)));
+// While a location is selected the Nearby pins give way to the selected destination.
+function pinsHiddenBySelection(tilted) {
+  if (tilted) return selectedNavigationMapModeActive();
+  return Boolean(state.selected && MARKER_TYPES.includes(state.selected.type));
+}
+
+// What the last drawMapMarkers call (and drawFilterTransitionPins) painted -- world point, item
+// count and drawn scale -- so drawUser can derive each marker's rectangle in its own coordinates
+// and steer the "You" label clear of them.
+let _drawnMarkerSpecs = [];
+let _drawnTransitionSpecs = [];
+
+// Draws every marker in one pass, flat (main canvas) or tilted/heading-up (overlay). Painted in
+// ascending screen Y so a marker lower on screen -- closer to the viewer -- paints over one further
+// up, across all categories; faces cannot overlap, so this only orders tails, chips and labels.
+function drawMapMarkers(ctx, markers, toScreen, tilted = false, options = {}) {
+  _drawnMarkerSpecs = [];
+  if (!markers.length || (pinsHiddenBySelection(tilted) && !options.allowSelectionExit)) return;
   const dpr = pixelRatio();
-  ctx.save();
-  ctx.globalAlpha = nearbyRevealOpacity();
-  ctx.fillStyle = "rgba(242, 209, 132, 0.42)";
-  ctx.lineJoin = "round";
-  for (const items of groups) {
-    const points = clusterFootprintPoints(items, toFlat, project, 18 * dpr);
-    // Do not bridge the perspective near-plane clip into a screen-filling polygon.
-    if (points.length < 3 || points.some(p => p.clipped)) continue;
-    ctx.beginPath();
-    points.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
-    ctx.closePath();
-    ctx.fill();
-    // A light casing and dark edge remain legible over both dim forest and pale roads.
-    // This boundary follows the members, not the count badge's screen-space bounds.
-    ctx.strokeStyle = "rgba(255, 254, 249, 0.92)";
-    ctx.lineWidth = 4 * dpr;
-    ctx.stroke();
-    ctx.strokeStyle = "#86621c";
-    ctx.lineWidth = 2 * dpr;
-    ctx.stroke();
-  }
-  ctx.restore();
-}
-
-function drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr, pinScale = 1) {
-  const sources = Array.from(byType.entries()).sort((a, b) => b[1].count - a[1].count)
-    .slice(0, 3).map(([key]) => byTypeIconSrc.get(key));
-  drawGroupBadge(ctx, cx, cy, totalItems, sources, true, dpr, pinScale);
-}
-
-function drawMegaClusters(ctx, megaGroups) {
-  if (!megaGroups || !megaGroups.length) return;
-  const dpr = pixelRatio();
+  const loneSize = MAP_PNG_ICON_SIZE * dpr * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
   const reveal = nearbyRevealOpacity();
+  const visible = markers.filter(m => isNearCanvas(m.screenPt, m.items.length > 1 ? 84 * dpr : loneSize * 2));
+  visible.sort((a, b) => a.screenPt.y - b.screenPt.y);
   ctx.save();
-  ctx.globalAlpha = reveal;
-  for (const group of megaGroups) {
-    let totalItems = 0, sx = 0, sy = 0;
-    const byType = new Map();
-    const byTypeIconSrc = new Map();
-    for (const { itemType, cluster } of group) {
-      const n = cluster.items.length;
-      totalItems += n;
-      sx += cluster.screenPt.x * n;
-      sy += cluster.screenPt.y * n;
-      addClusterPreviewEntries(byType, byTypeIconSrc, itemType, cluster);
+  for (let markerIndex = 0; markerIndex < visible.length; markerIndex += 1) {
+    const marker = visible[markerIndex];
+    const transitionOpacity = options.markerOpacity
+      ? options.markerOpacity(markerIndex, visible.length, marker)
+      : 1;
+    if (transitionOpacity <= 0) continue;
+    const { screenPt, items, worldPt } = marker;
+    const tiltScale = tilted ? tiltPinScale(worldPt) : 1;
+    const joinState = clusterJoinAnimationState(marker);
+    const joinScale = joinState ? joinState.badgeScale : 1;
+    if (items.length > 1) {
+      ctx.globalAlpha = reveal * transitionOpacity * groupOpacity(marker);
+      const groupScale = Math.max(0.65, tiltScale) * joinScale * filterPinClusterScale(marker);
+      _drawnMarkerSpecs.push({ worldPt, count: items.length, scale: groupScale });
+      const kinds = clusterKindsByCategory(marker);
+      const overflow = clusterOverflowEntries(marker, kinds);
+      drawClusterMarker(ctx, screenPt.x, screenPt.y, items.length,
+        clusterPreviewEntries(marker, kinds).map(entry => entry.src), dpr, groupScale, overflow.map(entry => entry.src));
+    } else {
+      const type = marker.itemType;
+      const animation = filterPinAnimationFor(items[0]);
+      ctx.globalAlpha = reveal * transitionOpacity * lonePinOpacity(type, items[0]) * (animation ? animation.alpha : 1);
+      const pinSize = loneSize * tiltScale * joinScale * (animation ? animation.scale : 1);
+      _drawnMarkerSpecs.push({ worldPt, count: 1, scale: pinSize / (MAP_PNG_ICON_SIZE * MAP_ICON_SCALE_UNSELECTED * dpr) });
+      drawItemPin(ctx, type, items[0], screenPt.x, screenPt.y, pinSize);
     }
-    const cx = sx / totalItems;
-    const cy = sy / totalItems;
-    if (!isNearCanvas({ x: cx, y: cy }, megaClusterOuterRadius(totalItems, dpr) * 2)) continue;
-    // The badge and expanded list describe the same underlying members.
-    drawMegaBadge(ctx, cx, cy, totalItems, byType, byTypeIconSrc, dpr,
-      filterPinClusterScale({ items: group.flatMap(member => member.cluster.items) }));
-  }
-  ctx.globalAlpha = 1;
-  ctx.restore();
-}
-
-function drawTrees(ctx, nearbyIconLookup, toScreen, treeClusters) {
-  if (state.selected && !state.selectionTransition.mapHeld && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type)) return;
-  const resolvedToScreen = toScreen || worldToScreen;
-  const dpr = pixelRatio();
-  const mapScale = mapEmojiScale();
-  const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
-  const clusters = treeClusters || buildTypeClusters(nearbyIconLookup.tree, resolvedToScreen);
-  // Sorted ascending by screen Y (painter's algorithm) so a pin lower on
-  // screen -- closer to the viewer in this top-down layout -- always paints
-  // over one further up, instead of drawing in whatever order clusters
-  // happened to be built in.
-  const sortedClusters = clusters.slice().sort((a, b) => a.screenPt.y - b.screenPt.y);
-
-  const reveal = nearbyRevealOpacity();
-  ctx.save();
-  for (const cluster of sortedClusters) {
-    const { screenPt, items } = cluster;
-    if (!isNearCanvas(screenPt, items.length > 1 ? 84 * dpr : iconSize * 2)) continue;
-
-    ctx.globalAlpha = reveal;
-    const joinState = clusterJoinAnimationState(cluster);
-    const badgeSize = iconSize * (joinState ? joinState.badgeScale : 1);
-    const itemAnimation = items.length === 1 ? filterPinAnimationFor(items[0]) : null;
-    const itemScale = itemAnimation ? itemAnimation.scale : 1;
-
-    ctx.globalAlpha = reveal * (itemAnimation ? itemAnimation.alpha : 1);
-
-    const src = clusterTreeIconSrc(items);
-    if (!drawSameCategoryCluster(ctx, cluster, "tree", dpr, joinState ? joinState.badgeScale : 1)) {
-      drawPngMapIcon(ctx, src, screenPt.x, screenPt.y, badgeSize * itemScale);
-    }
-
     if (joinState) {
-      for (const r of joinState.shrinking) {
-        const p = resolvedToScreen(r.item.point);
-        const rSrc = (typeof treeSpeciesIconPath === "function" && treeSpeciesIconPath(r.item.commonName, r.item.latinName)) || iconPath("tree");
-        drawPngMapIcon(ctx, rSrc, p.x, p.y, iconSize * r.scale);
+      for (const shrinking of joinState.shrinking) {
+        const p = toScreen(shrinking.item.point);
+        const type = markerItemType(marker, shrinking.item);
+        ctx.globalAlpha = reveal * transitionOpacity * lonePinOpacity(type, shrinking.item);
+        drawItemPin(ctx, type, shrinking.item, p.x, p.y, loneSize * shrinking.scale);
       }
     }
+    ctx.globalAlpha = 1;
   }
-  ctx.globalAlpha = 1;
   ctx.restore();
+}
+
+// A render-only handoff for the set that was visible before a location was selected. The lookup
+// is intentionally never returned by activeIconLookup(): these pins are not tappable while they
+// leave. A short ordered fade preserves orientation during the camera move without resurrecting
+// the old 50%-opacity filter state.
+function drawSelectionExitMarkers(ctx, toScreen, tilted = false) {
+  const lookup = state.selectionTransition.outgoingIconLookup;
+  if (!lookup || !selectionOutgoingRevealInProgress()) return;
+  const markers = buildMapMarkers(lookup, toScreen, "selection-exit");
+  const now = performance.now();
+  drawMapMarkers(ctx, markers, toScreen, tilted, {
+    allowSelectionExit: true,
+    markerOpacity: (index) => selectionOutgoingMarkerOpacity(index, now),
+  });
 }
 
 // Draws just the operator's glyph, centred at (cx, cy) and sized sizePx wide/tall -- the shared
@@ -2579,14 +2580,9 @@ function selectedNavigationMapModeActive() {
 
 function activeIconLookup() {
   if (state.selected && state.selected.type === "community") return COMMUNITY_EMPTY_ICON_LOOKUP;
-  // Keep the outgoing Nearby pins under the selected destination while the inspector and camera
-  // handoff is in flight. The selected route/icon may not be drawable on the first frame (the
-  // routing graph and map artwork can both still be loading), and clearing the Nearby lookup at
-  // that exact moment leaves a blank map between the two states.
-  if (state.selectionTransition.mapHeld && state.selectionMapTransitionIconLookup) {
-    return state.selectionMapTransitionIconLookup;
-  }
-  if (state.selectionTransition.mapHeld) return buildNearbyIconLookup();
+  // Selection is a two-point map from its first frame. The camera can keep moving while the
+  // route/destination overlay catches up, but Nearby pins must not leak through the handoff.
+  if (hasRealSelection() && state.selectionTransition.mapHeld) return SELECTED_NAVIGATION_EMPTY_ICON_LOOKUP;
   if (selectedNavigationMapModeActive()) return SELECTED_NAVIGATION_EMPTY_ICON_LOOKUP;
   if (state.searchScreenOpen && state.searchHighlightResults.length) return buildSearchIconLookup();
   return buildNearbyIconLookup();
@@ -2607,17 +2603,10 @@ function buildNearbyIconLookup() {
     water: new Set(),
     outOfRadius: full.outOfRadius,
   };
-  // A mega cluster's items span several real types (see buildSuperClusters/findClusterHit) --
-  // its own itemType is the synthetic "_mega", which isn't one of the Sets above, so it carries
-  // an itemsByType breakdown instead and every real type gets its own slice restored. Without
-  // this, indexing result["_mega"] silently missed and left every set empty: expanding a mega
-  // cluster narrowed the map down to nothing rather than to its own items.
-  if (group.itemType === "_mega" && group.itemsByType) {
-    for (const [itemType, items] of Object.entries(group.itemsByType)) {
-      if (result[itemType]) result[itemType] = new Set(items);
-    }
-  } else if (result[group.itemType]) {
-    result[group.itemType] = new Set(group.items);
+  // A mixed group's own itemType is the synthetic "_mega", not one of the Sets above, so the
+  // restore goes by the group's per-category breakdown.
+  for (const [itemType, items] of Object.entries(clusterItemsByType(group))) {
+    if (result[itemType]) result[itemType] = new Set(items);
   }
   _groupIconLookupCache = { group, full, result };
   return result;
@@ -2703,14 +2692,13 @@ function buildFullNearbyIconLookup() {
 }
 
 function shouldDrawMapIcon(type, item, nearbyIconLookup) {
-  if (state.selected && !state.selectionTransition.mapHeld
-      && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type)) return false;
+  if (state.selected && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type)) return false;
   const typeSet = nearbyIconLookup && nearbyIconLookup[type];
   return Boolean(typeSet && typeSet.has(item));
 }
 
 // The pub/cafe/shop/transport/icon-slug/emoji chain a landmark pin picks its artwork from,
-// factored out so a shrinking pin mid-merge (drawLandmarks below) can draw the same artwork
+// factored out so a shrinking pin mid-merge (drawMapMarkers) can draw the same artwork
 // for its own place at its own size, not just the cluster's representative item.
 function drawLandmarkIcon(ctx, place, x, y, iconSize) {
   if (isPubCategory(place)) {
@@ -2742,171 +2730,6 @@ function drawLandmarkIcon(ctx, place, x, y, iconSize) {
     return drawPngMapIcon(ctx, iconPath(iconSlug), x, y, iconSize);
   }
   return drawEmojiMapPin(ctx, landmarkEmoji(place), x, y, iconSize);
-}
-
-function drawLandmarks(ctx, nearbyIconLookup, toScreen, landmarkClusters) {
-  if (state.selected && !state.selectionTransition.mapHeld && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type)) return;
-  const resolvedToScreen = toScreen || worldToScreen;
-  const dpr = pixelRatio();
-  const mapScale = mapEmojiScale();
-  const uScale = MAP_ICON_SCALE_UNSELECTED;
-  const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * uScale;
-  const clusters = landmarkClusters || buildLandmarkClusters(nearbyIconLookup.landmark, resolvedToScreen);
-  // Painter's algorithm -- see the matching comment in drawTrees.
-  const sortedClusters = clusters.slice().sort((a, b) => a.screenPt.y - b.screenPt.y);
-
-  const reveal = nearbyRevealOpacity();
-  ctx.save();
-  for (const cluster of sortedClusters) {
-    const { screenPt, items } = cluster;
-    // iconSize * 2, not a flat margin: the pin's head sits above its anchor point and grows
-    // with mapEmojiScale() as the user zooms in, the same way drawTrees/drawCows/drawPathPins/
-    // drawWaterPins already cull their own lone pins (see the matching line in each). A flat
-    // margin here used to cull landmark pins well before they were actually off-canvas at
-    // higher zoom levels -- pubs/cafes/shops popping out near the screen edge where every
-    // other category's pin stayed put.
-    if (!isNearCanvas(screenPt, items.length > 1 ? 84 * dpr : iconSize * 2)) continue;
-
-    const place = items[0];
-    const baseOpacity = markerOpacityFor("landmark", place);
-    const itemAnimation = items.length === 1 ? filterPinAnimationFor(place) : null;
-    const itemScale = itemAnimation ? itemAnimation.scale : 1;
-    const itemAlpha = itemAnimation ? itemAnimation.alpha : 1;
-    ctx.globalAlpha = markerOpacityFor("landmark", items[0]) * reveal;
-    const joinState = clusterJoinAnimationState(cluster);
-    const badgeScale = joinState ? joinState.badgeScale : 1;
-    ctx.globalAlpha = baseOpacity * reveal * itemAlpha;
-
-    if (!drawSameCategoryCluster(ctx, cluster, "landmark", dpr, joinState ? joinState.badgeScale : 1)) {
-      drawLandmarkIcon(ctx, place, screenPt.x, screenPt.y, iconSize * badgeScale * itemScale);
-    }
-
-
-    if (joinState) {
-      for (const r of joinState.shrinking) {
-        const p = resolvedToScreen(r.item.point);
-        ctx.globalAlpha = markerOpacityFor("landmark", r.item) * reveal;
-        drawLandmarkIcon(ctx, r.item, p.x, p.y, iconSize * r.scale);
-      }
-    }
-  }
-  ctx.globalAlpha = 1;
-  ctx.restore();
-}
-
-function drawPathPins(ctx, nearbyIconLookup, toScreen, pathClusters) {
-  if (state.selected && !state.selectionTransition.mapHeld && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type)) return;
-  const resolvedToScreen = toScreen || worldToScreen;
-  const dpr = pixelRatio();
-  const mapScale = mapEmojiScale();
-  const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
-  const clusters = pathClusters || buildTypeClusters(nearbyIconLookup.path, resolvedToScreen);
-  if (!clusters.length) return;
-  // Painter's algorithm -- see the matching comment in drawTrees.
-  const sortedClusters = clusters.slice().sort((a, b) => a.screenPt.y - b.screenPt.y);
-
-  const reveal = nearbyRevealOpacity();
-  ctx.save();
-  for (const cluster of sortedClusters) {
-    const { screenPt, items } = cluster;
-    if (!isNearCanvas(screenPt, items.length > 1 ? 84 * dpr : iconSize * 2)) continue;
-    ctx.globalAlpha = reveal;
-    const joinState = clusterJoinAnimationState(cluster);
-    const badgeSize = iconSize * (joinState ? joinState.badgeScale : 1);
-    const itemAnimation = items.length === 1 ? filterPinAnimationFor(items[0]) : null;
-    const itemScale = itemAnimation ? itemAnimation.scale : 1;
-    const itemAlpha = itemAnimation ? itemAnimation.alpha : 1;
-    ctx.globalAlpha = reveal;
-    if (!drawSameCategoryCluster(ctx, cluster, "path", dpr, joinState ? joinState.badgeScale : 1)) {
-      ctx.globalAlpha = reveal * itemAlpha;
-      drawPngMapIcon(ctx, iconPath("waymarked"), screenPt.x, screenPt.y, badgeSize * itemScale);
-    }
-    if (joinState) {
-      for (const r of joinState.shrinking) {
-        const p = resolvedToScreen(r.item.point);
-        drawPngMapIcon(ctx, iconPath("waymarked"), p.x, p.y, iconSize * r.scale);
-      }
-    }
-  }
-  ctx.globalAlpha = 1;
-  ctx.restore();
-}
-
-function drawWaterPins(ctx, nearbyIconLookup, toScreen, waterClusters) {
-  if (state.selected && !state.selectionTransition.mapHeld && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type)) return;
-  const resolvedToScreen = toScreen || worldToScreen;
-  const dpr = pixelRatio();
-  const mapScale = mapEmojiScale();
-  const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
-  const clusters = waterClusters || buildTypeClusters(nearbyIconLookup.water, resolvedToScreen);
-  if (!clusters.length) return;
-  // Painter's algorithm -- see the matching comment in drawTrees.
-  const sortedClusters = clusters.slice().sort((a, b) => a.screenPt.y - b.screenPt.y);
-
-  const reveal = nearbyRevealOpacity();
-  ctx.save();
-  for (const cluster of sortedClusters) {
-    const { screenPt, items } = cluster;
-    if (!isNearCanvas(screenPt, items.length > 1 ? 84 * dpr : iconSize * 2)) continue;
-    ctx.globalAlpha = reveal;
-    const joinState = clusterJoinAnimationState(cluster);
-    const badgeSize = iconSize * (joinState ? joinState.badgeScale : 1);
-    const itemAnimation = items.length === 1 ? filterPinAnimationFor(items[0]) : null;
-    const itemScale = itemAnimation ? itemAnimation.scale : 1;
-    const itemAlpha = itemAnimation ? itemAnimation.alpha : 1;
-    ctx.globalAlpha = reveal;
-    if (!drawSameCategoryCluster(ctx, cluster, "water", dpr, joinState ? joinState.badgeScale : 1)) {
-      ctx.globalAlpha = reveal * itemAlpha;
-      drawPngMapIcon(ctx, iconPath("ponds"), screenPt.x, screenPt.y, badgeSize * itemScale);
-    }
-    if (joinState) {
-      for (const r of joinState.shrinking) {
-        const p = resolvedToScreen(r.item.point);
-        drawPngMapIcon(ctx, iconPath("ponds"), p.x, p.y, iconSize * r.scale);
-      }
-    }
-  }
-  ctx.globalAlpha = 1;
-  ctx.restore();
-}
-
-function drawCows(ctx, nearbyIconLookup, toScreen, cowClusters) {
-  if (!state.cows.length) return;
-  if (state.selected && !state.selectionTransition.mapHeld && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type)) return;
-  const resolvedToScreen = toScreen || worldToScreen;
-  const dpr = pixelRatio();
-  const mapScale = mapEmojiScale();
-  const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
-  const clusters = cowClusters || buildTypeClusters(nearbyIconLookup.cow, resolvedToScreen);
-  // Painter's algorithm -- see the matching comment in drawTrees.
-  const sortedClusters = clusters.slice().sort((a, b) => a.screenPt.y - b.screenPt.y);
-
-  const reveal = nearbyRevealOpacity();
-  ctx.save();
-  for (const cluster of sortedClusters) {
-    const { screenPt, items } = cluster;
-    if (!isNearCanvas(screenPt, items.length > 1 ? 84 * dpr : iconSize * 2)) continue;
-    const baseOpacity = markerOpacityFor("cow", items[0]);
-    const itemAnimation = filterPinAnimationFor(items[0]);
-    const itemScale = itemAnimation ? itemAnimation.scale : 1;
-    const itemAlpha = itemAnimation ? itemAnimation.alpha : 1;
-    ctx.globalAlpha = markerOpacityFor("cow", items[0]) * reveal;
-    const joinState = clusterJoinAnimationState(cluster);
-    const badgeSize = iconSize * (joinState ? joinState.badgeScale : 1);
-    ctx.globalAlpha = baseOpacity * reveal * itemAlpha;
-    if (!drawSameCategoryCluster(ctx, cluster, "cow", dpr, joinState ? joinState.badgeScale : 1)) {
-      drawPngMapIcon(ctx, iconPath("cow"), screenPt.x, screenPt.y, badgeSize * itemScale);
-    }
-    if (joinState) {
-      for (const r of joinState.shrinking) {
-        const p = resolvedToScreen(r.item.point);
-        ctx.globalAlpha = markerOpacityFor("cow", r.item) * reveal;
-        drawPngMapIcon(ctx, iconPath("cow"), p.x, p.y, iconSize * r.scale);
-      }
-    }
-  }
-  ctx.globalAlpha = 1;
-  ctx.restore();
 }
 
 // Draws the flat radar cone on the overlay canvas so it gets the same per-frame compass
@@ -3034,217 +2857,32 @@ function drawUserRadarOverlayTilted(ctx) {
   ctx.restore();
 }
 
-// Collects all pin clusters across every type, sorts them by screen Y so items closer
-// to the user (higher Y in heading-up mode) paint over distant ones (painter's algorithm),
-// then draws them in a single pass. Selected item is still drawn last via drawSelectedOverlay.
-function drawAllPinsSorted(ctx, nearbyIconLookup, toScreen) {
-  if (selectedNavigationMapModeActive() && !state.selectionTransition.mapHeld) return;
-  const dpr = pixelRatio();
-  const mapScale = mapEmojiScale();
-  const uScale = MAP_ICON_SCALE_UNSELECTED;
-  const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * uScale;
-
-  const reveal = nearbyRevealOpacity();
-  const calls = [];
-
-  const treeClustersAll = buildTypeClusters(nearbyIconLookup.tree, toScreen);
-  const landmarkClustersAll = buildLandmarkClusters(nearbyIconLookup.landmark, toScreen);
-  const cowClustersAll = buildTypeClusters(nearbyIconLookup.cow, toScreen);
-  const pathClustersAll = buildTypeClusters(nearbyIconLookup.path, toScreen);
-  const waterClustersAll = buildTypeClusters(nearbyIconLookup.water, toScreen);
-
-  // Heading-up/tilt draws every pin type through this one sorted-by-depth pass instead of the
-  // five separate drawTrees/drawLandmarks/... calls draw() uses, but it still built its clusters
-  // per type only -- the same cross-category pile-up buildSuperClusters exists to fix on the flat
-  // map (see its own comment) was never applied here, so a phone with a compass (heading-up is
-  // the default there) never saw mega clusters at all. Same merge pass, same exclusion of the
-  // clusters it absorbs from their own type's pins. Also, like the flat path, still runs while a
-  // cluster is expanded -- a still-dense expanded view should offer a next, smaller level of
-  // clustering to tap into, not force every absorbed item into its own singleton pin regardless
-  // of how much screen space the zoom actually bought them.
-  const megaGroups = buildSuperClusters([
-    { itemType: "tree", clusters: treeClustersAll },
-    { itemType: "landmark", clusters: landmarkClustersAll },
-    { itemType: "cow", clusters: cowClustersAll },
-    { itemType: "path", clusters: pathClustersAll },
-    { itemType: "water", clusters: waterClustersAll },
-  ]).filter(group => group.length >= megaClusterMinMembersFor(group));
-  const megaClusterSet = new Set();
-  for (const group of megaGroups) for (const member of group) megaClusterSet.add(member.cluster);
-
-  const treeClusters = treeClustersAll.filter(c => !megaClusterSet.has(c));
-  const landmarkClusters = landmarkClustersAll.filter(c => !megaClusterSet.has(c));
-  const cowClusters = cowClustersAll.filter(c => !megaClusterSet.has(c));
-  const pathClusters = pathClustersAll.filter(c => !megaClusterSet.has(c));
-  const waterClusters = waterClustersAll.filter(c => !megaClusterSet.has(c));
-
-  drawClusterFootprints(ctx, [...treeClusters, ...landmarkClusters, ...cowClusters, ...pathClusters, ...waterClusters], megaGroups, true);
-
-  for (const group of megaGroups) {
-    let totalItems = 0, sx = 0, sy = 0, swx = 0, swy = 0;
-    const byType = new Map();
-    const byTypeIconSrc = new Map();
-    for (const { itemType, cluster } of group) {
-      const n = cluster.items.length;
-      totalItems += n;
-      sx += cluster.screenPt.x * n;
-      sy += cluster.screenPt.y * n;
-      swx += cluster.worldPt.x * n;
-      swy += cluster.worldPt.y * n;
-      addClusterPreviewEntries(byType, byTypeIconSrc, itemType, cluster);
-    }
-    const cx = sx / totalItems;
-    const cy = sy / totalItems;
-    const worldPt = { x: swx / totalItems, y: swy / totalItems };
-    if (!isNearCanvas({ x: cx, y: cy }, megaClusterOuterRadius(totalItems, dpr) * 2)) continue;
-    const pinScale = Math.max(0.65, tiltPinScale(worldPt))
-      * filterPinClusterScale({ items: group.flatMap(member => member.cluster.items) });
-    const badgeCount = totalItems;
-    calls.push({ y: cy, fn(c) {
-      c.globalAlpha = reveal;
-      drawMegaBadge(c, cx, cy, badgeCount, byType, byTypeIconSrc, dpr, pinScale);
-    }});
+// Where the "You" label goes, adjacent to the dot only: right, else left, below, above -- the first
+// whose text box meets no marker rectangle. The side used last frame is kept while it is still
+// free, so the label does not flip while the map pans or zooms. Returns null when all four are
+// covered: the label is then not drawn and the dot alone marks the user. Otherwise
+// { side, x, baseline, box }, x/baseline being the fillText origin.
+const USER_LABEL_SIDES = ["right", "left", "below", "above"];
+let _userLabelSide = "right";
+function placeUserLabel(dot, radius, textWidth, fontSize, gap, rightBaselineDrop, rects, lastSide, ascent = fontSize * 0.8, descent = fontSize * 0.2) {
+  const at = (side) => {
+    let x, baseline;
+    if (side === "right") { x = dot.x + radius + gap; baseline = dot.y + rightBaselineDrop; }
+    else if (side === "left") { x = dot.x - radius - gap - textWidth; baseline = dot.y + rightBaselineDrop; }
+    else if (side === "below") { x = dot.x - textWidth / 2; baseline = dot.y + radius + gap + ascent; }
+    else { x = dot.x - textWidth / 2; baseline = dot.y - radius - gap - descent; }
+    return { side, x, baseline, box: { left: x, right: x + textWidth, top: baseline - ascent, bottom: baseline + descent } };
+  };
+  const free = (c) => !rects.some(r => c.box.left < r.right && r.left < c.box.right && c.box.top < r.bottom && r.top < c.box.bottom);
+  if (USER_LABEL_SIDES.includes(lastSide)) {
+    const kept = at(lastSide);
+    if (free(kept)) return kept;
   }
-
-  for (const cluster of treeClusters) {
-    if (cluster.items.length > 1) {
-      if (!isNearCanvas(cluster.screenPt, 84 * dpr)) continue;
-      calls.push({ y: cluster.screenPt.y, fn(c) {
-        c.globalAlpha = reveal;
-        drawSameCategoryCluster(c, cluster, "tree", dpr, Math.max(0.65, tiltPinScale(cluster.worldPt)));
-      }});
-      continue;
-    }
-    const { screenPt, items, worldPt } = cluster;
-    if (!isNearCanvas(screenPt, iconSize * 2)) continue;
-    const pinScale = tiltPinScale(worldPt);
-    const src = clusterTreeIconSrc(items);
-    const itemAnimation = filterPinAnimationFor(items[0]);
-    calls.push({ y: screenPt.y, fn(c) {
-      c.globalAlpha = reveal * (itemAnimation ? itemAnimation.alpha : 1);
-      const drawn = drawPngMapIcon(c, src, screenPt.x, screenPt.y,
-        iconSize * pinScale * (itemAnimation ? itemAnimation.scale : 1));
-    }});
+  for (const side of USER_LABEL_SIDES) {
+    const candidate = at(side);
+    if (free(candidate)) return candidate;
   }
-
-  for (const cluster of landmarkClusters) {
-    if (cluster.items.length > 1) {
-      if (!isNearCanvas(cluster.screenPt, 84 * dpr)) continue;
-      calls.push({ y: cluster.screenPt.y, fn(c) {
-        c.globalAlpha = reveal;
-        drawSameCategoryCluster(c, cluster, "landmark", dpr, Math.max(0.65, tiltPinScale(cluster.worldPt)));
-      }});
-      continue;
-    }
-    const { screenPt, items, worldPt } = cluster;
-    if (!isNearCanvas(screenPt, 16 * dpr * uScale)) continue;
-    const pinScale = tiltPinScale(worldPt);
-    const place = items[0];
-    const baseOpacity = markerOpacityFor("landmark", place);
-    const itemAnimation = filterPinAnimationFor(place);
-    const isPub = isPubCategory(place);
-    const isCafe = isCafeCategory(place);
-    const isShop = isShopCategory(place);
-    const isTransport = isTransportCategory(place);
-    const transportType = isTransport ? getTransportType(place) : null;
-    const iconSlug = (!isPub && !isCafe && !isShop && !isTransport) ? placeIconSlug(place) : null;
-    calls.push({ y: screenPt.y, fn(c) {
-      c.globalAlpha = reveal * baseOpacity * (itemAnimation ? itemAnimation.alpha : 1);
-      let drawnAsPng = false;
-      const scaledIconSize = iconSize * pinScale * (itemAnimation ? itemAnimation.scale : 1);
-      if (isPub) {
-        drawnAsPng = drawPngMapIcon(c, iconPath("beer"), screenPt.x, screenPt.y, scaledIconSize);
-      } else if (isCafe) {
-        drawnAsPng = drawPngMapIcon(c, iconPath("cafe"), screenPt.x, screenPt.y, scaledIconSize);
-      } else if (isShop) {
-        drawnAsPng = drawPngMapIcon(c, iconPath("shop"), screenPt.x, screenPt.y, scaledIconSize);
-      } else if (isTransport) {
-        if (transportType === "underground") {
-          drawUndergroundRoundel(c, screenPt.x, screenPt.y, scaledIconSize);
-        } else if (transportType === "national_rail") {
-          drawNationalRailLogo(c, screenPt.x, screenPt.y, scaledIconSize);
-        } else if (transportType === "parking") {
-          drawnAsPng = drawPngMapIcon(c, iconPath("landmark-parking"), screenPt.x, screenPt.y, scaledIconSize);
-        } else {
-          drawnAsPng = drawPngMapIcon(c, iconPath("bus"), screenPt.x, screenPt.y, scaledIconSize);
-        }
-      } else if (iconSlug) {
-        drawnAsPng = drawPngMapIcon(c, iconPath(iconSlug), screenPt.x, screenPt.y, scaledIconSize);
-      } else {
-        drawnAsPng = drawEmojiMapPin(c, landmarkEmoji(place), screenPt.x, screenPt.y, scaledIconSize);
-      }
-    }});
-  }
-
-  for (const cluster of cowClusters) {
-    if (cluster.items.length > 1) {
-      if (!isNearCanvas(cluster.screenPt, 84 * dpr)) continue;
-      calls.push({ y: cluster.screenPt.y, fn(c) {
-        c.globalAlpha = reveal;
-        drawSameCategoryCluster(c, cluster, "cow", dpr, Math.max(0.65, tiltPinScale(cluster.worldPt)));
-      }});
-      continue;
-    }
-    const { screenPt, items, worldPt } = cluster;
-    if (!isNearCanvas(screenPt, iconSize * 2)) continue;
-    const pinScale = tiltPinScale(worldPt);
-    const baseOpacity = markerOpacityFor("cow", items[0]);
-    const itemAnimation = filterPinAnimationFor(items[0]);
-    calls.push({ y: screenPt.y, fn(c) {
-      c.globalAlpha = reveal * baseOpacity * (itemAnimation ? itemAnimation.alpha : 1);
-      const drawn = drawPngMapIcon(c, iconPath("cow"), screenPt.x, screenPt.y,
-        iconSize * pinScale * (itemAnimation ? itemAnimation.scale : 1));
-    }});
-  }
-
-  for (const cluster of pathClusters) {
-    if (cluster.items.length > 1) {
-      if (!isNearCanvas(cluster.screenPt, 84 * dpr)) continue;
-      calls.push({ y: cluster.screenPt.y, fn(c) {
-        c.globalAlpha = reveal;
-        drawSameCategoryCluster(c, cluster, "path", dpr, Math.max(0.65, tiltPinScale(cluster.worldPt)));
-      }});
-      continue;
-    }
-    const { screenPt, items, worldPt } = cluster;
-    if (!isNearCanvas(screenPt, iconSize * 2)) continue;
-    const pinScale = tiltPinScale(worldPt);
-    const itemAnimation = filterPinAnimationFor(items[0]);
-    calls.push({ y: screenPt.y, fn(c) {
-      c.globalAlpha = reveal * (itemAnimation ? itemAnimation.alpha : 1);
-      const drawn = drawPngMapIcon(c, iconPath("waymarked"), screenPt.x, screenPt.y,
-        iconSize * pinScale * (itemAnimation ? itemAnimation.scale : 1));
-    }});
-  }
-
-  for (const cluster of waterClusters) {
-    if (cluster.items.length > 1) {
-      if (!isNearCanvas(cluster.screenPt, 84 * dpr)) continue;
-      calls.push({ y: cluster.screenPt.y, fn(c) {
-        c.globalAlpha = reveal;
-        drawSameCategoryCluster(c, cluster, "water", dpr, Math.max(0.65, tiltPinScale(cluster.worldPt)));
-      }});
-      continue;
-    }
-    const { screenPt, items, worldPt } = cluster;
-    if (!isNearCanvas(screenPt, iconSize * 2)) continue;
-    const pinScale = tiltPinScale(worldPt);
-    const itemAnimation = filterPinAnimationFor(items[0]);
-    calls.push({ y: screenPt.y, fn(c) {
-      c.globalAlpha = reveal * (itemAnimation ? itemAnimation.alpha : 1);
-      const drawn = drawPngMapIcon(c, iconPath("ponds"), screenPt.x, screenPt.y,
-        iconSize * pinScale * (itemAnimation ? itemAnimation.scale : 1));
-    }});
-  }
-
-  // Ascending by Y: distant items (small Y = top of screen in heading-up) drawn first.
-  calls.sort((a, b) => a.y - b.y);
-  ctx.save();
-  for (const { fn } of calls) {
-    fn(ctx);
-    ctx.globalAlpha = 1;
-  }
-  ctx.restore();
+  return null;
 }
 
 function drawUser(ctx, toScreen, isTilted) {
@@ -3289,15 +2927,40 @@ function drawUser(ctx, toScreen, isTilted) {
   ctx.lineWidth = 2 * dpr * dotScale;
   ctx.stroke();
   ctx.fillStyle = "#14211d";
-  ctx.font = `800 ${11 * dpr * dotScale}px system-ui`;
-  ctx.fillText("You", point.x + radius + 3 * dpr, point.y + 4 * dpr * dotScale);
+  const fontSize = 11 * dpr * dotScale;
+  ctx.font = `800 ${fontSize}px system-ui`;
+  // The glyphs' real extent (cap height, no descender in "You"), not the font box around them.
+  const metrics = typeof ctx.measureText === "function" ? ctx.measureText("You") : null;
+  const textWidth = metrics ? metrics.width : fontSize * 1.8;
+  const ascent = metrics && metrics.actualBoundingBoxAscent > 0 ? metrics.actualBoundingBoxAscent : fontSize * 0.8;
+  const descent = metrics && metrics.actualBoundingBoxDescent >= 0 ? metrics.actualBoundingBoxDescent : fontSize * 0.2;
+  const rects = [];
+  for (const spec of _drawnMarkerSpecs.concat(_drawnTransitionSpecs)) {
+    const p = toScreen(spec.worldPt);
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
+    // A 1 CSS px margin around what is painted (2 px left the default Nearby view's right-hand
+    // side blocked by a gap of under a pixel).
+    for (const r of markerPaintedRects(p.x, p.y, spec.count, dpr, spec.scale)) {
+      rects.push({ left: r.left - dpr, right: r.right + dpr, top: r.top - dpr, bottom: r.bottom + dpr });
+    }
+  }
+  const label = placeUserLabel(point, radius, textWidth, fontSize, 3 * dpr, 4 * dpr * dotScale, rects, _userLabelSide, ascent, descent);
+  if (label) {
+    _userLabelSide = label.side;
+    ctx.fillText("You", label.x, label.baseline);
+  }
   ctx.globalAlpha = 1;  // Reset opacity for subsequent drawing
   ctx.restore();
 }
 
 function drawSelectedOverlay(ctx, toScreen) {
   if (!state.selected || !state.selected.item) return;
+  const reveal = selectionDestinationOpacity();
+  if (reveal <= 0) return;
   if (!toScreen) toScreen = worldToScreen;
+
+  ctx.save();
+  ctx.globalAlpha *= reveal;
 
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
@@ -3312,11 +2975,15 @@ function drawSelectedOverlay(ctx, toScreen) {
       const selectedTreeSrc = treeSpeciesIconPath(selectedTree.commonName, selectedTree.latinName) || iconPath("tree");
       drawDestinationIcon(ctx, selectedTreeSrc, point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
     }
+    ctx.restore();
     return;
   }
 
   const point = toScreen(state.selected.item.point);
-  if (!isNearCanvas(point, 24 * dpr * MAP_ICON_SCALE)) return;
+  if (!isNearCanvas(point, 24 * dpr * MAP_ICON_SCALE)) {
+    ctx.restore();
+    return;
+  }
 
   if (state.selected.type === "cow") {
     drawDestinationIcon(ctx, iconPath("cow"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
@@ -3353,6 +3020,7 @@ function drawSelectedOverlay(ctx, toScreen) {
         MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
     }
   }
+  ctx.restore();
 }
 
 function drawSelectedRoadOverlay(ctx) {
@@ -3443,7 +3111,7 @@ function drawSelectedPathOverlay(ctx) {
 function zoomEmojiScaleTarget() {
   const baselineScale = state.baseFitScale > 0 ? state.baseFitScale : state.fitScale;
   const zoomRatio = baselineScale > 0 ? state.viewport.scale / baselineScale : 1;
-  return clamp(Math.pow(Math.max(0.0001, zoomRatio), 0.35), 0.3, 1.15);
+  return clamp(Math.pow(Math.max(0.0001, zoomRatio), 0.35), 0.3, 1);
 }
 
 function updateAnimatedEmojiScale() {
