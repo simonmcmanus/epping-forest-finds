@@ -1427,12 +1427,21 @@ textarea.report-textarea {
   scrollbar-width: none;
   /* Fade the clipped edge over enough space that a partial next pill reads as a scroll
      affordance rather than a broken button in a phone screenshot. The fade starts before the
-     partial pill's text, so CI captures never show a cut-off label as if it were a complete control. */
+     partial pill's text, so CI captures never show a cut-off label as if it were a complete control.
+     The mask is enabled only while that edge actually has hidden content. */
+}
+
+.filter-rail.has-right-overflow .rail-pills {
   -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 72px), transparent);
   mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 72px), transparent);
 }
 
 .filter-rail.has-left-overflow .rail-pills {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 24px);
+  mask-image: linear-gradient(90deg, transparent 0, #000 24px);
+}
+
+.filter-rail.has-left-overflow.has-right-overflow .rail-pills {
   -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 72px), transparent);
   mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 72px), transparent);
 }
