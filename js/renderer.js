@@ -1895,21 +1895,25 @@ const FOOTPRINT_STROKE_ALPHA = 0.28;
 const FOOTPRINT_STROKE_CSS_PX = 1;
 const FOOTPRINT_CORNER_SAMPLES = 12;
 
+function footprintCross(o, a, b) {
+  return (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+}
+
+function footprintHullHalf(list) {
+  const hull = [];
+  for (const p of list) {
+    while (hull.length > 1 && footprintCross(hull[hull.length - 2], hull[hull.length - 1], p) <= 0) hull.pop();
+    hull.push(p);
+  }
+  return hull;
+}
+
 // Monotone-chain hull of the actual member positions (duplicates collapse).
 function footprintConvexHull(points) {
   const sorted = points.slice().sort((a, b) => a.x - b.x || a.y - b.y)
     .filter((p, i, all) => !i || p.x !== all[i - 1].x || p.y !== all[i - 1].y);
   if (sorted.length < 3) return sorted;
-  const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
-  const half = list => {
-    const hull = [];
-    for (const p of list) {
-      while (hull.length > 1 && cross(hull[hull.length - 2], hull[hull.length - 1], p) <= 0) hull.pop();
-      hull.push(p);
-    }
-    return hull;
-  };
-  return half(sorted).slice(0, -1).concat(half(sorted.slice().reverse()).slice(0, -1));
+  return footprintHullHalf(sorted).slice(0, -1).concat(footprintHullHalf(sorted.slice().reverse()).slice(0, -1));
 }
 
 // The padded hull of one group's own members: positions in the flat ground plane (`toFlat`), padded
@@ -1930,7 +1934,7 @@ function groupFootprintPoints(items, toFlat, project, padding) {
     }
   }
   const projected = footprintConvexHull(padded).map(project);
-  if (projected.length < 3 || projected.some(p => p.clipped)) return null;
+  if (projected.length < 3 || projected.some(p => !p || p.clipped)) return null;
   return projected;
 }
 
@@ -2551,10 +2555,22 @@ let _drawnTransitionSpecs = [];
 // Footprints paint first, beneath every face, at the same opacity their group is drawn at. They are
 // not hit targets and take no part in the collision box or clustering.
 function drawGroupFootprints(ctx, markers, visible, reveal, tilted, toScreen, options) {
-  const visibleSet = new Set(visible.filter(m => m.items.length > 1));
-  if (visibleSet.size === 0) return;
+  if (reveal <= 0) return;
+  // Only groups that will actually paint get a hull built.
+  const alphaOf = new Map();
+  const only = new Set();
+  for (let i = 0; i < visible.length; i++) {
+    const marker = visible[i];
+    if (marker.items.length < 2) continue;
+    const transitionOpacity = options.markerOpacity ? options.markerOpacity(i, visible.length, marker) : 1;
+    const alpha = reveal * transitionOpacity * groupOpacity(marker);
+    if (alpha <= 0) continue;
+    alphaOf.set(marker, alpha);
+    only.add(marker);
+  }
+  if (only.size === 0) return;
   const { toFlat, project } = footprintProjection(toScreen, tilted);
-  const footprints = markerFootprints(markers, toFlat, project, visibleSet);
+  const footprints = markerFootprints(markers, toFlat, project, only);
   if (!footprints.length) return;
   const dpr = pixelRatio();
   ctx.save();
@@ -2563,13 +2579,10 @@ function drawGroupFootprints(ctx, markers, visible, reveal, tilted, toScreen, op
   ctx.lineWidth = FOOTPRINT_STROKE_CSS_PX * dpr;
   ctx.lineJoin = "round";
   for (const { marker, points } of footprints) {
-    const transitionOpacity = options.markerOpacity
-      ? options.markerOpacity(visible.indexOf(marker), visible.length, marker)
-      : 1;
-    const alpha = reveal * transitionOpacity * groupOpacity(marker);
-    if (alpha <= 0) continue;
+    const alpha = alphaOf.get(marker);
     ctx.beginPath();
-    points.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
     ctx.closePath();
     ctx.globalAlpha = alpha * FOOTPRINT_FILL_ALPHA;
     ctx.fill();

@@ -15028,3 +15028,24 @@ test("a footprint of coincident members is a small finite shape, and a duplicate
     .find(f => f.marker === doubled);
   assert.deepEqual(extent(again.points), size);
 });
+
+test("a group whose hull crosses the near-camera clip draws no footprint while its neighbour still does", () => {
+  const { markers } = footprintLayout(footprintBoxW() * 1.8);
+  const clipLeftGroup = (p) => (p.x < footprintBoxW() * 0.5 && p.y > 5 ? null : p);
+  const footprints = app.markerFootprints(markers, markerScreen, clipLeftGroup);
+  assert.equal(footprints.length, 1);
+  assert.ok(footprints[0].marker.items.some(i => i.id.startsWith("b")), "the unclipped neighbour keeps its footprint");
+});
+
+test("footprints are the hull projected through the active tilt, and still contain the projected members", () => {
+  const { markers } = footprintLayout(footprintBoxW() * 1.8);
+  const project = (p) => ({ x: p.x * 0.5 + 100, y: p.y * 0.25 + 40 });
+  const projected = app.markerFootprints(markers, markerScreen, project);
+  const plain = footprintsFor(markers);
+  assert.equal(projected.length, 2);
+  for (const { marker, points } of projected) {
+    const flat = plain.find(f => f.marker === marker).points;
+    assert.deepEqual(points.map(p => [p.x, p.y]), flat.map(p => { const q = project(p); return [q.x, q.y]; }));
+    for (const item of marker.items) assert.ok(footprintContains(points, project(item.point)));
+  }
+});
