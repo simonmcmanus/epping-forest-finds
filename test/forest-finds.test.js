@@ -738,6 +738,7 @@ globalThis.__forestFindsTest = {
   clusterKindsByCategory,
   clusterOverflowEntries,
   clusterStackChipGeometry,
+  clusterMorePlusGeometry,
   drawMapMarkers,
   drawClusterMarker,
   clusterTreeIconSrc,
@@ -1492,6 +1493,11 @@ test("the hidden category stack stays inside the face at every tilt scale", () =
         assert.ok(chip.cy - chip.radius >= face.top && chip.cy + chip.radius <= face.bottom,
           `vertical fit at scale ${scale}, stack size ${total}`);
       }
+      const plus = app.clusterMorePlusGeometry(100, 100, 3, app.pixelRatio(), scale, total);
+      assert.ok(plus.cx - plus.radius >= face.left && plus.cx + plus.radius <= face.left + face.width,
+        `horizontal fit at scale ${scale}, plus stack size ${total}`);
+      assert.ok(plus.cy - plus.radius >= face.top && plus.cy + plus.radius <= face.bottom,
+        `vertical fit at scale ${scale}, plus stack size ${total}`);
     }
   }
   app.drawClusterMarker(ctx, 100, 100, 3, [], app.pixelRatio(), 0.65, ["hidden-a", "hidden-b"]);

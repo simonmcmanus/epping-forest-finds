@@ -2192,13 +2192,46 @@ function clusterStackChipGeometry(x, y, count, dpr, scale = 1, index = 0, total 
   const R = b.size * 0.32;
   const chipR = R * 0.26;
   const offsets = total === 1
-    ? [0]
+    ? [-0.32]
     : total === 2
-      ? [-0.3, 0.3]
+      ? [-0.36, 0.36]
       : [-0.45, 0, 0.45];
   const xOffset = offsets[Math.min(index, offsets.length - 1)] * R;
   const yOffset = total === 1 ? 0.5 : 0.52;
   return { cx: x + xOffset, cy: b.top + b.height * 0.5 + yOffset * R, radius: chipR };
+}
+
+// The plus sits in front of the hidden artwork, making the stack read as an affordance rather
+// than a second row of equally-weighted pins. It is deliberately a small disc with no number:
+// the group's existing count remains the only text and the visible artwork stays legible around it.
+function clusterMorePlusGeometry(x, y, count, dpr, scale = 1, total = 1) {
+  const b = clusterBadgeGeometry(x, y, count, dpr, scale);
+  const R = b.size * 0.32;
+  return {
+    cx: x + (total === 1 ? 0.32 : 0) * R,
+    cy: b.top + b.height * 0.5 + 0.52 * R,
+    radius: R * 0.25,
+    unit: b.unit,
+  };
+}
+
+function drawClusterMorePlus(ctx, geometry) {
+  const { cx, cy, radius, unit } = geometry;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fillStyle = "#233d30";
+  ctx.fill();
+  ctx.strokeStyle = "white";
+  ctx.lineWidth = 1.25 * unit;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx - radius * 0.43, cy);
+  ctx.lineTo(cx + radius * 0.43, cy);
+  ctx.moveTo(cx, cy - radius * 0.43);
+  ctx.lineTo(cx, cy + radius * 0.43);
+  ctx.lineCap = "round";
+  ctx.lineWidth = 1.5 * unit;
+  ctx.stroke();
 }
 
 // One artwork fills the head; two (the two most common kinds) sit side by side in it.
@@ -2213,6 +2246,9 @@ function drawClusterMarker(ctx, x, y, count, iconSources, dpr, scale = 1, overfl
     const chip = clusterStackChipGeometry(x, y, count, dpr, scale, i, stackSources.length);
     drawClusterIconChip(ctx, chip.cx, chip.cy, src, chip.radius);
   });
+  if (stackSources.length) {
+    drawClusterMorePlus(ctx, clusterMorePlusGeometry(x, y, count, dpr, scale, stackSources.length));
+  }
   const previewCy = stackSources.length ? cy - R * 0.22 : cy;
   const previewRadius = stackSources.length ? R * 0.43 : R * 0.52;
   if (sources.length === 1) {
