@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Food & Drink",
-  "generatedAt": "2026-10-31T09:06:17.054704Z",
+  "generatedAt": "2026-11-14T18:38:47.473144Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -43564,6 +43564,391 @@
         "openingHours": null,
         "distanceToForestBoundaryMetres": 27.3,
         "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/wagon-boulangerie",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0542364,
+          51.6467754
+        ]
+      },
+      "properties": {
+        "id": "manual/wagon-boulangerie",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Wagon Boulangerie",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Wagon Boulangerie Loughton, 174 High Road, Loughton, Essex, IG10 1DN",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 185.5,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "ledgerUrl": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/johnstons-cafe",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0123442,
+          51.5755272
+        ]
+      },
+      "properties": {
+        "id": "manual/johnstons-cafe",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Johnstons Cafe",
+        "category": "cafe",
+        "categoryLabel": "Caf\u00e9",
+        "amenity": "cafe",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "626 Lea Bridge Road, Leyton, London, E10 6AP",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 264.1,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "ledgerUrl": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/morleys-fried-chicken",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0564452,
+          51.6491873
+        ]
+      },
+      "properties": {
+        "id": "manual/morleys-fried-chicken",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Morleys fried chicken",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Morley's Fried Chicken, 252B High Road, Loughton, Essex, IG10 1RB",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 154.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "ledgerUrl": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/the-taru",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0421168,
+          51.6256427
+        ]
+      },
+      "properties": {
+        "id": "manual/the-taru",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "The Taru",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "TARU, 79 Queens Road, Buckhurst Hill, Essex, IG9 5BW",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 176.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "ledgerUrl": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/elite-burgers",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0249281,
+          51.5936117
+        ]
+      },
+      "properties": {
+        "id": "manual/elite-burgers",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Elite Burgers",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Rear Of, 156 George Lane, South Woodford, E18 1AY",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 265.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "ledgerUrl": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/nourished",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0540543,
+          51.606199
+        ]
+      },
+      "properties": {
+        "id": "manual/nourished",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Nourished",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "684 Chigwell Road, Woodford Green, IG8 8AQ",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 302.2,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "ledgerUrl": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/the-coriander-epping",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.111308,
+          51.699348
+        ]
+      },
+      "properties": {
+        "id": "manual/the-coriander-epping",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "The coriander Epping",
+        "category": "restaurant",
+        "categoryLabel": "Restaurant",
+        "amenity": "restaurant",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "The Coriander Epping, 199 High Street, Epping, Essex, CM16 4BL",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 290.4,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "ledgerUrl": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/mill-lane-local-express",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0197583,
+          51.6101843
+        ]
+      },
+      "properties": {
+        "id": "manual/mill-lane-local-express",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Mill Lane Local Express",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "17 Mill Lane, Woodford Green, London, IG8 0UN",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 15.6,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "ledgerUrl": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/valley-house-food-and-wine-valley-food-hub",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          -0.0129265,
+          51.6366313
+        ]
+      },
+      "properties": {
+        "id": "manual/valley-house-food-and-wine-valley-food-hub",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "Valley House Food and Wine/Valley Food Hub",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "75 Sewardstone Road, Chingford, London, E4 7PA",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 30.9,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "ledgerUrl": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/united-services-chingford-club",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.001713,
+          51.6290898
+        ]
+      },
+      "properties": {
+        "id": "manual/united-services-chingford-club",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "United Services (Chingford) Club",
+        "category": "pub",
+        "categoryLabel": "Pub",
+        "amenity": "pub",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "United Services Club 18 Kings Road, Chingford, London, E4 7EY",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 50.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "ledgerUrl": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/the-warren-deer-larder",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0354758,
+          51.6417308
+        ]
+      },
+      "properties": {
+        "id": "manual/the-warren-deer-larder",
+        "osmType": "manual",
+        "osmId": null,
+        "name": "The Warren Deer Larder",
+        "category": "convenience",
+        "categoryLabel": "Convenience Store",
+        "amenity": null,
+        "shop": "convenience",
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Epping Forest Conservators The Warren, Nursery Road, Loughton, Essex, IG10 4RN",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 84.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "ledgerUrl": null
       }
     }
   ]
