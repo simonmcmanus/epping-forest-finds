@@ -1562,8 +1562,11 @@ function applyBoundsToViewport(bounds, options = {}) {
   state.viewport.ty = targetTy;
 }
 
-function stopViewportAnimation() {
+// `keepMarkerPause` is for moveCamera replacing one tween with the next: the marker pause is decided
+// again for the new tween instead of revealing and hiding the pins in between.
+function stopViewportAnimation({ keepMarkerPause = false } = {}) {
   cancelZoomChase();
+  if (!keepMarkerPause && typeof endMarkerPause === "function") endMarkerPause("camera");
   if (state.viewportAnimationFrame != null) {
     cancelAnimationFrame(state.viewportAnimationFrame);
   }
@@ -1691,7 +1694,7 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
   // decided here, once, for every caller. The arc maths below is shared with `cinematic`, but a
   // deliberate arc does not take over the walking-radius ring's screen position (the reveal flags
   // stay cinematic-only) and keeps the same-target dedupe above.
-  stopViewportAnimation();
+  stopViewportAnimation({ keepMarkerPause: true });
   // A real camera tween owns the zoom from here, so a browse-origin slide must not keep easing back
   // towards the zoom it started from once this tween has landed.
   if (state.nearbyOriginTransition) state.nearbyOriginTransition.fromScale = null;
@@ -1756,6 +1759,17 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
     requestDraw();
     if (typeof onComplete === "function") onComplete();
     return "snapped";
+  }
+
+  // Marker grouping pauses for a tween that regroups: the scale changes (or the arc dips it). A pure
+  // pan never regroups, so it keeps the pins. The selection transition holds the markers itself.
+  const scaleChanges = from.scale > 0 && targetViewport.scale > 0
+    && Math.abs(Math.log(targetViewport.scale / from.scale)) > VIEWPORT_ANIMATION_SAME_TARGET_SCALE_RATIO;
+  const selectionOwnsMarkers = state.selectionTransition.mapHeld || hasRealSelection();
+  if ((scaleChanges || arc) && !selectionOwnsMarkers && typeof beginMarkerPause === "function") {
+    beginMarkerPause("camera", state.clusterExpanded ? "hold" : "fade");
+  } else if (typeof endMarkerPause === "function") {
+    endMarkerPause("camera");
   }
 
   state.viewportAnimationFrom = from;
@@ -4521,7 +4535,7 @@ function computeNearbyRenderOriginPoint() {
 // Starts the slide from wherever the origin is currently *drawn* -- not from the old logical
 // origin -- so relocating again mid-slide continues from what is on screen instead of
 // jumping back to where the last slide began.
-function startNearbyOriginTransition(fromPoint) {
+function startNearbyOriginTransition(fromPoint, { holdMarkers = false } = {}) {
   // The frame freeze above would otherwise hand the camera the pre-move origin for the rest
   // of this frame -- including the align refreshNearbyRadiusView runs immediately after.
   _nearbyRenderOriginCache = undefined;
@@ -4540,7 +4554,15 @@ function startNearbyOriginTransition(fromPoint) {
     fromScale: state.viewport.scale,
     startedAt: performance.now(),
     durationMs: NEARBY_ORIGIN_TRANSITION_MS,
+    // Whether this slide pauses marker grouping (see markerGroupingPaused, js/nav.js): the pins' own
+    // fade then replaces the slide's gradual reveal (nearbyRevealOpacity). The selection transition
+    // holds the markers itself while it holds the map.
+    groupingPaused: false,
   };
+  if (!state.selectionTransition.mapHeld && typeof beginMarkerPause === "function") {
+    state.nearbyOriginTransition.groupingPaused = true;
+    beginMarkerPause("originSlide", holdMarkers ? "hold" : "fade");
+  }
 }
 
 // Eased 0-1 progress of the in-flight browse-origin slide, or null when none is running.
@@ -4583,6 +4605,7 @@ function nearbyRevealOpacity() {
   const transition = state.nearbyOriginTransition;
   if (!transition) return 1;
   if (state.selectionTransition.mapHeld) return 1;
+  if (transition.groupingPaused) return 1;
   if (state.viewportAnimationTo != null) return 1;
   const sinceStart = performance.now() - transition.startedAt;
   if (sinceStart >= transition.durationMs) return 1;

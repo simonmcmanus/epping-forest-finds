@@ -553,6 +553,10 @@ globalThis.__forestFindsTest = {
   updateNearbyRadiusPinch,
   endNearbyRadiusPinch,
   zoomGestureLive,
+  markerGroupingPaused,
+  reconcileMarkerPauses,
+  moveCamera,
+  startNearbyOriginTransition,
   beginZoomGesture,
   endZoomGesture,
   mapPinFadeOpacity,
@@ -979,6 +983,7 @@ function resetSecondaryScreens(app) {
 }
 
 function resetData(app) {
+  restoreRefitTween();
   app.state.trees = [];
   app.state.cows = [];
   app.state.landmarks = [];
@@ -1017,6 +1022,8 @@ function resetData(app) {
   app.state.viewportAnimationTo = null;
   app.state.viewportAnimationStartTime = null;
   app.state.viewportAnimationDuration = 0;
+  // A tween or slide an earlier test left behind must not leave marker grouping paused.
+  app.reconcileMarkerPauses();
   app.state.dataLoaded = true;
   app.state.selectionTransition.viewportPending = false;
   app.state.inspectorMinimizeTransitionPending = false;
@@ -6271,6 +6278,18 @@ function wheelEvent(deltaY, options = {}) {
   return { deltaY, deltaMode: options.deltaMode ?? 0, ctrlKey: Boolean(options.ctrlKey) };
 }
 
+// These fixtures' camera is far from the ring's fit, so releasing a gesture starts a refit tween of
+// its own, which pauses grouping like any other zoom (covered by the camera-move tests). The gesture
+// tests are about the gesture alone, so they keep the camera still. Restored by the next resetData.
+let realMoveCamera = null;
+function withoutRefitTween() {
+  if (!realMoveCamera) realMoveCamera = app.swapGlobalFunction("moveCamera", () => "ignored");
+}
+function restoreRefitTween() {
+  if (realMoveCamera) app.swapGlobalFunction("moveCamera", realMoveCamera);
+  realMoveCamera = null;
+}
+
 function setUpWheelNearby(app) {
   resetData(app);
   app.state.trees.push({ id: "close-tree", commonName: "Close tree", ...makePoint(app, 0.0009, 0) }); // ~100m
@@ -6647,6 +6666,7 @@ test("a pinch and a wheel glide overlapping keep the pins hidden until both are 
 
 test("map pins are neither calculated nor tappable while a pinch is live, and are calculated once afterwards", () => {
   setUpWheelNearby(app);
+  withoutRefitTween();
   app.state.viewport = { scale: 1, tx: 0, ty: 0 };
   app.resetMarkerGroupMemory();
   assert.ok(app.buildActiveMapMarkers(app.worldToScreen, false).length > 0, "sanity: the nearby tree is a pin");
@@ -6694,6 +6714,7 @@ test("panning the map moves the existing pins instead of regrouping them every f
 
 test("pins leave in one quick fade, return in one ease-out reveal, and reverse from where they are", () => {
   setUpWheelNearby(app);
+  withoutRefitTween();
   withAppClock(({ at }) => {
     assert.equal(app.mapPinFadeOpacity(), 1);
     setFingers(100);
@@ -6750,6 +6771,275 @@ test("while the pins fade out they are painted where the ground is but are never
     assert.equal(app.mapMarkersToPaint(app.worldToScreen, false).length, 0, "once faded, nothing is painted");
     app.endNearbyRadiusPinch();
   });
+});
+
+// --- Programmatic camera transitions pause marker grouping like a zoom gesture does ----------------
+//
+// Runs `run` with the camera tween's animation frames driven by hand (`stepCamera(ms)` runs the
+// pending tween frame at that timestamp) and the app clock frozen (`at(ms)`), so a test sees each
+// frame the user would.
+function withCameraFrames(run) {
+  const queued = new Map();
+  let nextId = 0;
+  const raf = app.swapGlobalFunction("requestAnimationFrame", (fn) => { nextId += 1; queued.set(nextId, fn); return nextId; });
+  const caf = app.swapGlobalFunction("cancelAnimationFrame", (id) => { queued.delete(id); });
+  try {
+    withAppClock(({ at }) => {
+      const stepCamera = (ms) => {
+        at(ms);
+        const id = app.state.viewportAnimationFrame;
+        const frame = queued.get(id);
+        queued.delete(id);
+        if (frame) frame(ms);
+      };
+      run({ at, stepCamera });
+    });
+  } finally {
+    app.swapGlobalFunction("requestAnimationFrame", raf);
+    app.swapGlobalFunction("cancelAnimationFrame", caf);
+    app.stopViewportAnimation();
+  }
+}
+
+// Counts calls to the named app functions while `run` executes, leaving the animation-frame stub alone.
+function countAppCalls(names, run) {
+  const counts = Object.fromEntries(names.map((name) => [name, 0]));
+  const originals = {};
+  for (const name of names) {
+    const original = app.swapGlobalFunction(name, null);
+    originals[name] = original;
+    app.swapGlobalFunction(name, (...args) => { counts[name] += 1; return original(...args); });
+  }
+  try {
+    run(counts);
+  } finally {
+    for (const name of names) app.swapGlobalFunction(name, originals[name]);
+  }
+}
+
+function setUpCameraTransition() {
+  setUpWheelNearby(app);
+  for (let i = 1; i <= 4; i += 1) {
+    app.state.trees.push({ id: `near-${i}`, commonName: `Near ${i}`, ...makePoint(app, 0.0002 * i, 0.0001 * i) });
+  }
+  app.state.viewport = { scale: 1, tx: 0, ty: 0 };
+  app.resetMarkerGroupMemory();
+}
+
+const groupingSignature = (markers) => markers.map((marker) => marker.items.map((item) => item.id).join("+")).join("|");
+
+test("while a zooming camera move is in flight the pins stay frozen on their ground, nothing is built or tappable, and the fresh set arrives once it lands", () => {
+  setUpCameraTransition();
+  withCameraFrames(({ at, stepCamera }) => {
+    at(0);
+    const settled = app.buildActiveMapMarkers(app.worldToScreen, false);
+    assert.ok(settled.length > 0, "sanity: pins are on the map before the move");
+    const before = groupingSignature(settled);
+    countAppCalls(["buildMapMarkers", "buildNearbyIconLookup"], (counts) => {
+      assert.equal(app.moveCamera({ scale: 2, tx: -100, ty: -40 }, 600), "started");
+      assert.equal(app.markerGroupingPaused(), true, "a move that changes the zoom pauses grouping");
+      const signatures = new Set();
+      for (let ms = 0; ms <= 100; ms += 20) {
+        stepCamera(ms);
+        const painted = app.mapMarkersToPaint(app.worldToScreen, false);
+        signatures.add(groupingSignature(painted));
+        assert.equal(app.buildActiveMapMarkers(app.worldToScreen, false).length, 0, "nothing is tappable mid-move");
+      }
+      assert.deepEqual([...signatures], [before], "the set on screen at the start is the only one ever painted");
+      const painted = app.mapMarkersToPaint(app.worldToScreen, false);
+      painted.forEach((marker, index) => {
+        const ground = app.worldToScreen(marker.worldPt);
+        assert.equal(marker.screenPt.x, ground.x, "frozen pins are re-projected through the live camera");
+        assert.equal(marker.screenPt.y, ground.y);
+      });
+      stepCamera(300);
+      assert.equal(app.mapMarkersToPaint(app.worldToScreen, false).length, 0, "once faded, nothing is painted mid-move");
+      assert.equal(counts.buildMapMarkers, 0, "no grouping happens during the move");
+      assert.equal(counts.buildNearbyIconLookup, 0, "no icon lookup is rebuilt during the move");
+      stepCamera(600);
+      assert.equal(app.markerGroupingPaused(), false, "the move has landed");
+      assert.ok(app.buildActiveMapMarkers(app.worldToScreen, false).length > 0, "the fresh set is built once it lands");
+      assert.equal(counts.buildMapMarkers, 1, "and is built exactly once");
+    });
+    at(1000);
+    assert.equal(app.mapPinFadeOpacity(), 1, "the pins end fully visible");
+  });
+});
+
+test("a camera move that only pans keeps the pins visible: it never regroups, so nothing hides", () => {
+  setUpCameraTransition();
+  withCameraFrames(({ at, stepCamera }) => {
+    at(0);
+    app.buildActiveMapMarkers(app.worldToScreen, false);
+    assert.equal(app.moveCamera({ scale: 1, tx: 300, ty: 120 }, 600), "started");
+    assert.equal(app.markerGroupingPaused(), false);
+    stepCamera(0);
+    stepCamera(200);
+    assert.equal(app.mapPinFadeOpacity(), 1, "no hide-and-reveal flicker");
+    assert.ok(app.buildActiveMapMarkers(app.worldToScreen, false).length > 0, "pins stay tappable mid-pan");
+    stepCamera(600);
+  });
+});
+
+test("a snapped camera move hides nothing, and a user taking over a tween brings the pins back", () => {
+  setUpCameraTransition();
+  withCameraFrames(({ at, stepCamera }) => {
+    at(0);
+    app.buildActiveMapMarkers(app.worldToScreen, false);
+    assert.equal(app.moveCamera({ scale: 1, tx: 0, ty: 0 }, 600), "snapped");
+    assert.equal(app.markerGroupingPaused(), false);
+    assert.equal(app.mapPinFadeOpacity(), 1);
+
+    app.moveCamera({ scale: 3, tx: 0, ty: 0 }, 600);
+    stepCamera(0);
+    stepCamera(100);
+    assert.equal(app.markerGroupingPaused(), true);
+    app.stopViewportAnimation(); // a drag or tap takes the camera over
+    assert.equal(app.markerGroupingPaused(), false, "the interrupted move no longer pauses grouping");
+    at(1000);
+    assert.equal(app.mapPinFadeOpacity(), 1, "pins are not left hidden");
+    assert.ok(app.buildActiveMapMarkers(app.worldToScreen, false).length > 0);
+  });
+});
+
+test("a second camera move starting mid-fade or mid-reveal continues from the current opacity", () => {
+  setUpCameraTransition();
+  withCameraFrames(({ at, stepCamera }) => {
+    at(0);
+    app.buildActiveMapMarkers(app.worldToScreen, false);
+    app.moveCamera({ scale: 2, tx: 0, ty: 0 }, 600);
+    stepCamera(0);
+    at(60);
+    const midFade = app.mapPinFadeOpacity();
+    assert.ok(midFade > 0 && midFade < 1, "mid-fade");
+    app.moveCamera({ scale: 3, tx: 0, ty: 0 }, 600); // replaces the first move
+    assert.ok(Math.abs(app.mapPinFadeOpacity() - midFade) < 1e-9, "no jump when the next move replaces it");
+    assert.equal(app.markerGroupingPaused(), true, "still one continuous pause");
+    stepCamera(60);
+    stepCamera(1000);
+    assert.equal(app.markerGroupingPaused(), false);
+    at(1100);
+    const midReveal = app.mapPinFadeOpacity();
+    assert.ok(midReveal > 0 && midReveal < 1, "mid-reveal");
+    app.moveCamera({ scale: 1.2, tx: 0, ty: 0 }, 600);
+    assert.ok(Math.abs(app.mapPinFadeOpacity() - midReveal) < 1e-9, "a move starting mid-reveal hides from where it is");
+    app.stopViewportAnimation();
+    at(3000);
+    assert.equal(app.mapPinFadeOpacity(), 1);
+  });
+});
+
+test("a camera move overlapping a zoom gesture is one hide and one reveal, whichever ends first", () => {
+  for (const gestureEndsFirst of [false, true]) {
+    setUpCameraTransition();
+    withoutRefitTween(); // the release's own refit would be a second move; this test starts the only one
+    app.state.activePointers.clear();
+    withCameraFrames(({ at, stepCamera }) => {
+      at(0);
+      app.buildActiveMapMarkers(app.worldToScreen, false);
+      app.moveCamera({ scale: 2, tx: 0, ty: 0 }, 600);
+      stepCamera(0);
+      at(200);
+      assert.equal(app.mapPinFadeOpacity(), 0, "hidden by the move");
+      setFingers(100);
+      app.startNearbyRadiusPinch(); // the user pinches while the move is in flight
+      assert.equal(app.mapPinFadeOpacity(), 0, "the gesture does not hide a second time");
+      if (gestureEndsFirst) {
+        app.endNearbyRadiusPinch();
+        at(300);
+        assert.equal(app.mapPinFadeOpacity(), 0, "the move still holds the pins hidden");
+        assert.equal(app.markerGroupingPaused(), true);
+        stepCamera(600);
+      } else {
+        stepCamera(600);
+        at(700);
+        assert.equal(app.mapPinFadeOpacity(), 0, "the gesture still holds the pins hidden");
+        assert.equal(app.markerGroupingPaused(), true);
+        app.endNearbyRadiusPinch();
+      }
+      assert.equal(app.markerGroupingPaused(), false);
+      at(2000);
+      assert.equal(app.mapPinFadeOpacity(), 1, "one reveal at the end");
+      assert.ok(app.buildActiveMapMarkers(app.worldToScreen, false).length > 0);
+    });
+    app.state.activePointers.clear();
+  }
+});
+
+test("a browse-origin slide pauses grouping until it lands, then the pins come back once", () => {
+  setUpCameraTransition();
+  withCameraFrames(({ at }) => {
+    at(0);
+    app.buildActiveMapMarkers(app.worldToScreen, false);
+    app.startNearbyOriginTransition({ x: 0, y: 0 });
+    assert.equal(app.markerGroupingPaused(), true, "the slide changes where the set is anchored");
+    assert.equal(app.buildActiveMapMarkers(app.worldToScreen, false).length, 0, "nothing is tappable mid-slide");
+    at(300);
+    app.reconcileMarkerPauses();
+    assert.equal(app.markerGroupingPaused(), true, "still sliding");
+    at(600);
+    app.reconcileMarkerPauses(); // each frame does this before painting
+    assert.equal(app.markerGroupingPaused(), false, "landed");
+    at(1500);
+    assert.equal(app.mapPinFadeOpacity(), 1);
+    assert.ok(app.buildActiveMapMarkers(app.worldToScreen, false).length > 0);
+    assert.equal(app.nearbyRevealOpacity(), 1, "the slide's own gradual reveal does not fade the pins a second time");
+  });
+});
+
+test("tapping a cluster keeps its members on screen at full opacity while the camera flies in, then swaps in the fresh set once", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6500, 0.0500) };
+  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65000018, 0.0500) };
+  const elsewhere = { id: "elsewhere", commonName: "Elsewhere", ...makePoint(app, 51.6515, 0.0515) };
+  app.state.trees.push(oak1, oak2, elsewhere);
+  app.state.map3dEnabled = false;
+  app.state.walkingDistanceMinutes = 10;
+  app.state.viewport = { scale: 100000, tx: 500 - oak1.point.x * 100000, ty: 400 - oak1.point.y * 100000 };
+  app.resetMarkerGroupMemory();
+  withCameraFrames(({ at, stepCamera }) => {
+    at(0);
+    const settled = app.buildActiveMapMarkers(app.worldToScreen, false);
+    assert.ok(settled.some((marker) => marker.items.length === 2), "sanity: the two oaks are one cluster on the map");
+    assert.ok(settled.some((marker) => marker.items.includes(elsewhere)), "sanity: the distant tree is on the map too");
+    countAppCalls(["buildMapMarkers"], (counts) => {
+      app.focusNearbyOnClusterGroup({ itemType: "tree", items: [oak1, oak2] });
+      assert.equal(app.markerGroupingPaused(), true, "the cluster tap's moves pause grouping");
+      stepCamera(0);
+      stepCamera(250);
+      assert.equal(app.mapPinFadeOpacity(), 1, "the tapped group is held, not faded out");
+      const painted = app.mapMarkersToPaint(app.worldToScreen, false);
+      assert.ok(painted.length > 0 && painted.every((marker) => marker.items.every((item) => item === oak1 || item === oak2)),
+        "only the tapped group's members stay on screen");
+      assert.equal(app.buildActiveMapMarkers(app.worldToScreen, false).length, 0, "nothing is tappable meanwhile");
+      assert.equal(counts.buildMapMarkers, 0, "nothing is regrouped meanwhile");
+    });
+    app.stopViewportAnimation();
+    app.state.nearbyOriginTransition = null;
+    assert.equal(app.markerGroupingPaused(), false);
+    assert.equal(app.mapPinFadeOpacity(), 1);
+    assert.ok(app.buildActiveMapMarkers(app.worldToScreen, false).length > 0, "the fresh set is built once it lands");
+  });
+});
+
+test("with reduced motion a zooming camera move hides the pins at once and shows them after, without fades", () => {
+  setUpCameraTransition();
+  const previous = app.swapGlobalFunction("prefersReducedMotion", () => true);
+  try {
+    withCameraFrames(({ at, stepCamera }) => {
+      at(0);
+      app.buildActiveMapMarkers(app.worldToScreen, false);
+      app.moveCamera({ scale: 2, tx: 0, ty: 0 }, 600);
+      assert.equal(app.mapPinFadeOpacity(), 0, "hidden straight away");
+      stepCamera(0);
+      stepCamera(600);
+      assert.equal(app.mapPinFadeOpacity(), 1, "shown straight away on landing");
+      assert.ok(app.buildActiveMapMarkers(app.worldToScreen, false).length > 0);
+    });
+  } finally {
+    app.swapGlobalFunction("prefersReducedMotion", previous);
+  }
 });
 
 test("the outgoing selection markers and the exiting filter pins follow their own opacity, not the zoom fade", () => {
@@ -11976,32 +12266,29 @@ test("moving the nearby point holds the circle still on screen and slides the ma
   );
 });
 
-test("the new nearby set fades in while the map moves, so the move is never a blank stretch", () => {
+test("while the map slides to a new browse spot the old pins are frozen and the new set arrives once, in the shared reveal", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.665, 0.045);
   app.state.trees.push({ id: "t1", commonName: "Oak", ...makePoint(app, 51.6653, 0.045) });
   app.selectOverview();
   assert.equal(app.nearbyRevealOpacity(), 1, "settled, the nearby set is fully drawn");
+  assert.equal(app.markerGroupingPaused(), false);
 
   const anchor = makePoint(app, 51.66, 0.033);
   app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
   const transition = app.state.nearbyOriginTransition;
-  // Offsets are taken from the slide's own start time: the app runs in its own context with its own
-  // clock, so mixing in this file's clock would measure nothing.
   const startedAt = transition.startedAt;
-  const at = (fraction) => {
-    transition.startedAt = startedAt - fraction * transition.durationMs;
-    return app.nearbyRevealOpacity();
-  };
+  const at = (fraction) => { transition.startedAt = startedAt - fraction * transition.durationMs; };
 
-  assert.equal(at(0.02), 0, "the map starts to leave before the new area appears");
-  const early = at(0.3);
-  const middle = at(0.55);
-  const late = at(0.85);
-  assert.ok(early > 0, `pins are already arriving a third of the way through, got ${early}`);
-  assert.ok(early < middle && middle < late, `the set arrives steadily: ${early}, ${middle}, ${late}`);
-  assert.ok(late <= 1, "and never overshoots");
-  assert.equal(at(1.001), 1, "it is fully drawn the moment the slide lands");
+  for (const fraction of [0.02, 0.3, 0.55, 0.85]) {
+    at(fraction);
+    assert.equal(app.markerGroupingPaused(), true, `grouping is paused ${fraction} of the way through the slide`);
+    assert.equal(app.buildActiveMapMarkers(app.worldToScreen, false).length, 0, "nothing is built or tappable mid-slide");
+    assert.equal(app.nearbyRevealOpacity(), 1, "the slide's own gradual reveal does not fade the pins a second time");
+  }
+  at(1.001);
+  assert.equal(app.markerGroupingPaused(), false, "the slide has landed");
+  assert.equal(app.nearbyRevealOpacity(), 1);
 
   // The transition object has to outlive the slide itself, so the camera keeps re-deriving.
   transition.startedAt = startedAt - transition.durationMs - app.NEARBY_REVEAL_MS - 1;
@@ -12672,6 +12959,13 @@ test("tapping a location from a browsed Nearby anchor keeps the outgoing map dur
   // a pin is tapped while Nearby is still sliding/revealing its current view.
   app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
   assert.ok(app.state.nearbyOriginTransition, "sanity: the Nearby-origin transition is in flight");
+  // The pins are not tappable while the slide itself moves the map (grouping is paused); the
+  // intermittent case is a tap in the reveal tail, after the slide landed, while the transition
+  // object is still alive.
+  assert.equal(app.markerGroupingPaused(), true, "mid-slide the pins are not tappable");
+  app.state.nearbyOriginTransition.startedAt -= app.state.nearbyOriginTransition.durationMs + 1;
+  assert.equal(app.markerGroupingPaused(), false, "the slide has landed");
+  assert.ok(app.state.nearbyOriginTransition, "sanity: the transition object outlives the slide through its reveal");
 
   const treeTap = pinTapPoint(app, tree.point);
   assert.equal(app.findHit(treeTap, app.screenToWorld(treeTap.x, treeTap.y)).type, "tree");

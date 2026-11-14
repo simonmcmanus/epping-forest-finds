@@ -629,6 +629,23 @@ moving the real GPS fix:
   filter pins (`drawFilterTransitionPins`) follow the same shared fade; the outgoing selection set
   (`drawSelectionExitMarkers`) is not part of the radius hide and is never dimmed by it. Pan frames
   rewrite one reused translated marker array per build instead of allocating copies.
+  **Marker grouping pause (programmatic transitions).** A zoom gesture is one reason for the pause
+  below; a programmatic transition is the other, through the same state (`markerGroupingPaused()`,
+  `js/nav.js`) and the same fade, frozen set and single reveal. Each reason is a named source
+  (`"camera"`, `"originSlide"`, plus the gesture sources), so overlapping ones give exactly one hide and
+  one reveal and the pins return when the last ends. Rule, decided per transition from what changes:
+  a `moveCamera` tween pauses when its scale changes by more than 0.5% or it is a deliberate/cinematic
+  arc (which dips the scale mid-flight); a pure pan never regroups and never hides. Every browse-origin
+  slide (`startNearbyOriginTransition`) pauses, since it moves where the set is anchored and eases
+  the scale; its own gradual reveal (`nearbyRevealOpacity`) is then 1 so the pins never fade twice.
+  A snapped `moveCamera` hides nothing; a tween replaced by the next keeps one continuous pause and
+  continues from the current opacity; one cancelled by the user (`stopViewportAnimation`) reveals.
+  `reconcileMarkerPauses` (every draw, and inside `markerGroupingPaused`) drops a pause whose tween
+  or slide has gone, so pins cannot stay hidden. While paused nothing is built or tappable and no
+  allocation is added (the `_frozenPaintView` reuse). The selection transition stays in charge of
+  its own markers (`mapHeld`, `drawSelectionExitMarkers`): no camera pause starts while a real
+  selection is held. A cluster tap uses mode `hold`: the tapped group's frozen members stay at
+  full opacity while the camera grows into the ring, and the fresh set swaps in once on landing.
   **Pin transition.** At gesture start every pin and cluster leaves together in one fade
   (`ZOOM_PIN_FADE_OUT_MS`, 120ms, linear) applied as one shared opacity (`mapPinFadeOpacity()`) over
   the already-built set, which is frozen — not rebuilt — and re-projected through the live camera each
@@ -1203,6 +1220,7 @@ Behavior:
 - Following a link to a place (`showRoutedSelection`, `js/router.js`: in-app links, back/forward, deep links) frames it exactly as a tap does (`zoomToSelection`): with heading-up navigation on, the camera animates to the heading-up fit (`animateToHeadingUpNavigationViewport`, fitting against the open panel); otherwise to the flat user-and-place fit. A link used to take the flat fit even in heading-up, landing about twice as close as the heading-up follow keeps it, so the next compass or GPS update pulled the camera back out.
 - Switching between places: tapping a place in a list leaves the panel open and the map makes one zoom to the place. The panel's own tap handler (`js/nav.js`) opens it only for a tap that began on a minimised panel (recorded in the capture phase), so a tap that itself minimises the panel is not undone.
 - View transitions animate with configurable duration; all state-change transitions produce exactly one smooth animation with no intermediate jumps. Zoom eases geometrically (`zoomAlongTween`, `js/app.js`): scale is interpolated in log space so each step changes the view by the same proportion, rather than a linear blend that snaps near the end of a large zoom out. The offsets follow the scale (`viewportAlongTween`): a zoom keeps the world point under the camera focus fixed on screen at every step and lands exactly on both ends, so the view does not drift sideways while it zooms; a tween with almost no zoom is a straight pan. An animated Nearby refit requested while another camera move is still in flight (e.g. tapping Nearby during a place's zoom) is queued and runs once that move lands, rather than being dropped (`deferAnimatedNearbyRefit`, `js/app.js`).
+- **Pins pause during a scale-changing move.** A `moveCamera` tween that changes the scale (or arcs) and every browse-origin slide pause marker regrouping; a pure pan and a snapped move do not (see "Marker grouping pause" under Pinch-to-resize the radius).
 - **One ease per destination (`viewportAnimationAlreadyHeadedTo`):** `moveCamera` returns without doing anything when an animation is already in flight toward effectively the same viewport — within 0.5% on scale and 6 device px on `tx`/`ty`. The repeat callers (the GPS watch, the compass tick, the inspector resize drag) re-request their fit many times a second while the target itself barely moves; restarting the ease each time made the camera decelerate toward the end of every ease and then accelerate again from zero, so the motion arrived in visible steps rather than gliding. A genuinely different target still cancels and replaces the running animation as before.
 - **Inspector resizing:** The expanded panel has one fixed responsive height across screens and selections; there is no resize handle or per-screen height override. The map is re-fitted only for the existing screen/camera transitions, not because panel content changes.
 - **Waiting for the inspector to settle (`onInspectorHeightTransitionEnd`, `js/inspector.js`):** callers that change the panel between its deliberate minimized and expanded states still use the existing filtered transition listener and timeout fallback before measuring the map footprint. The expanded panel itself has no content-driven height transition.

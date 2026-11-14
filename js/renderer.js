@@ -300,6 +300,8 @@ function drawFrame() {
     startCompassSmoothing();
   }
   if (typeof prepareCanvasForDraw === "function") prepareCanvasForDraw();
+  // Before any pin is painted: a marker pause whose transition has gone must not hide the pins.
+  if (typeof reconcileMarkerPauses === "function") reconcileMarkerPauses();
   if (typeof syncCanvasMotionResolution === "function") syncCanvasMotionResolution();
   resetMapLabelHitRegions();
   const ctx = els.canvas.getContext("2d");
@@ -1635,8 +1637,9 @@ function markerMemoryKey() {
 // lookup (identity), the memory context and the memory epoch. The rotated (heading-up) and tilted
 // projections move markers non-uniformly, so they always rebuild.
 //
-// While a zoom gesture is live nothing is built at all: no in-radius scan, no grouping, and nothing
-// to tap. mapMarkersToPaint draws the frozen set for the short fade-out instead.
+// While marker grouping is paused (a zoom gesture, or a scale-changing camera tween or browse-origin
+// slide: markerGroupingPaused, js/nav.js) nothing is built at all: no in-radius scan, no grouping,
+// and nothing to tap. mapMarkersToPaint draws the frozen set for the short fade-out instead.
 let _panMarkerCache = null;
 let _lastMarkerBuild = null;
 // The frozen set's reusable re-projection while a zoom gesture fades the pins out.
@@ -1649,7 +1652,7 @@ function cloneMarkersForReuse(markers) {
 }
 
 function buildActiveMapMarkers(toScreen, tilted = false) {
-  if (zoomGestureLive()) return [];
+  if (markerGroupingPaused()) return [];
   const lookup = activeIconLookup();
   const memoryKey = markerMemoryKey();
   const view = state.viewport;
@@ -1685,7 +1688,7 @@ function buildActiveMapMarkers(toScreen, tilted = false) {
   return (_lastMarkerBuild = markers);
 }
 
-// --- Zoom-gesture pin fade ---------------------------------------------------------------------
+// --- Zoom-gesture and transition pin fade ---------------------------------------------------------------------
 //
 // While a zoom gesture is live (zoomGestureLive, js/nav.js) item pins and clusters are neither
 // calculated nor drawn. They leave together in one quick fade over the frozen set (re-projected
@@ -1733,13 +1736,19 @@ function revealMapPinsAfterZoom() {
   fadeMapPinsTo(1, ZOOM_PIN_REVEAL_MS);
 }
 
-// The markers draw()/drawOverlay() paint: normally the current build; during a gesture, the frozen
-// last build re-projected through the live camera while it fades out, then nothing.
+// The markers draw()/drawOverlay() paint: normally the current build; while grouping is paused, the
+// frozen last build re-projected through the live camera while it fades out, then nothing. A "hold"
+// pause (a cluster tap) keeps the frozen set at full opacity, narrowed to the expanded group's members.
 function mapMarkersToPaint(toScreen, tilted) {
-  if (!zoomGestureLive()) return buildActiveMapMarkers(toScreen, tilted);
+  if (!markerGroupingPaused()) return buildActiveMapMarkers(toScreen, tilted);
   if (!_lastMarkerBuild || framePinFade() < PIN_ALPHA_VISIBLE_MIN) return [];
-  if (!_frozenPaintView || _frozenPaintView.source !== _lastMarkerBuild) {
-    _frozenPaintView = { source: _lastMarkerBuild, markers: cloneMarkersForReuse(_lastMarkerBuild) };
+  const held = markerPauseHolds();
+  if (!_frozenPaintView || _frozenPaintView.source !== _lastMarkerBuild || _frozenPaintView.held !== held) {
+    _frozenPaintView = {
+      source: _lastMarkerBuild,
+      held,
+      markers: cloneMarkersForReuse(held ? markersOfExpandedGroup(_lastMarkerBuild) : _lastMarkerBuild),
+    };
   }
   const painted = _frozenPaintView.markers;
   for (let i = 0; i < painted.length; i += 1) {
@@ -1748,6 +1757,16 @@ function mapMarkersToPaint(toScreen, tilted) {
     painted[i].screenPt.y = point.y;
   }
   return painted;
+}
+
+// The part of a frozen build that belongs to the cluster the user tapped: the expanded view shows
+// that group and nothing else, so the rest of the old set must not linger while the camera flies in.
+function markersOfExpandedGroup(markers) {
+  const group = state.clusterExpanded;
+  if (!group) return markers;
+  const members = new Set();
+  for (const items of Object.values(clusterItemsByType(group))) for (const item of items) members.add(item);
+  return markers.filter((marker) => marker.items.every((item) => members.has(item)));
 }
 
 // The rectangle a compact cluster face covers with its tail and its count chip, relative to the

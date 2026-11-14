@@ -1799,8 +1799,9 @@ function focusNearbyOnClusterGroup(cluster) {
   }
   // Same slide restoreNearbyAnchorFromHistory/setNearbyAnchor use for any other anchor move --
   // started from wherever the ring is currently drawn so it continues smoothly even if this
-  // lands mid an earlier slide, rather than cutting straight to the new centre.
-  startNearbyOriginTransition(nearbyRenderOriginPoint());
+  // lands mid an earlier slide, rather than cutting straight to the new centre. The tapped group
+  // grows into the ring, so the frozen members stay put until the move lands (holdMarkers).
+  startNearbyOriginTransition(nearbyRenderOriginPoint(), { holdMarkers: true });
   state.nearbyAnchor = { latitude: center.latitude, longitude: center.longitude, point: centerPoint };
   state.walkingDistanceMinutes = targetMinutes;
   state.outOfRadiusRevealFilters = [];
@@ -1989,20 +1990,84 @@ function zoomGestureLive() {
   return _zoomGestureSources.size > 0;
 }
 
+// --- Marker grouping pause ----------------------------------------------------------------------
+//
+// A zoom gesture is one reason item pins and clusters stop being rebuilt and fade out together; a
+// programmatic transition is the other. While a camera tween that changes the scale (or sweeps a
+// deliberate zoom-out arc) or a browse-origin slide is in flight, the scale and/or the item set
+// changes frame to frame, so rebuilding each frame would visibly merge, split and re-form groups.
+// The two share one state, markerGroupingPaused(): the set that was on screen is frozen and leaves
+// in the shared fade, nothing is built or tappable, and one reveal brings the fresh set back when
+// the last reason ends. A pure pan with no scale change never pauses (it never regroups).
+//
+// Each reason names itself so overlapping ones count: "camera" (moveCamera, js/app.js) and
+// "originSlide" (startNearbyOriginTransition, js/app.js), plus the gesture sources above. Mode
+// "hold" is for a tap on a cluster (the expanded group grows into the ring): the frozen members
+// stay at full opacity to the end and the fresh set swaps in once, instead of fading out.
+const _markerPauseSources = new Map();
+
+function markerGroupingPaused() {
+  // Self-healing: a transition that has gone is dropped before the answer is given, so nothing that
+  // asks (a tap's hit test, the paint) can see a pause that nothing is holding open any more.
+  if (_markerPauseSources.size) reconcileMarkerPauses();
+  return _zoomGestureSources.size > 0 || _markerPauseSources.size > 0;
+}
+
+// True while the only reasons are "hold" ones: the frozen set stays at full opacity.
+function markerPauseHolds() {
+  if (_zoomGestureSources.size > 0 || !_markerPauseSources.size) return false;
+  for (const mode of _markerPauseSources.values()) if (mode !== "hold") return false;
+  return true;
+}
+
+function beginMarkerPause(source, mode = "fade") {
+  if (_markerPauseSources.has(source)) return;
+  const wasHiding = _zoomGestureSources.size > 0 || !markerPauseHolds() && _markerPauseSources.size > 0;
+  _markerPauseSources.set(source, mode);
+  if (mode === "fade" && !wasHiding) hideMapPinsForZoom();
+}
+
+function endMarkerPause(source) {
+  if (!_markerPauseSources.delete(source) || markerGroupingPaused()) return;
+  revealMapPinsAfterZoom();
+}
+
+// A pause whose transition has gone (a tween replaced or cancelled by a path that never reached
+// endMarkerPause, a slide dropped by a selection) must not leave the pins hidden: checked once per
+// frame, before anything is painted. The selection transition owns the markers while it holds the
+// map, so a pause that was begun before it takes over ends here too.
+let _reconcilingMarkerPauses = false;
+function reconcileMarkerPauses() {
+  if (!_markerPauseSources.size || _reconcilingMarkerPauses) return;
+  _reconcilingMarkerPauses = true;
+  try {
+    reconcileMarkerPausesNow();
+  } finally {
+    _reconcilingMarkerPauses = false;
+  }
+}
+
+function reconcileMarkerPausesNow() {
+  const selectionOwns = state.selectionTransition.mapHeld && hasRealSelection();
+  if (_markerPauseSources.has("camera") && (state.viewportAnimationTo == null || selectionOwns)) endMarkerPause("camera");
+  if (_markerPauseSources.has("originSlide") && (!nearbyOriginTransitionActive() || selectionOwns)) endMarkerPause("originSlide");
+}
+
 function beginZoomGesture(source) {
   if (_zoomGestureSources.has(source)) return;
   const wasLive = zoomGestureLive();
+  const wasHiding = wasLive || (_markerPauseSources.size > 0 && !markerPauseHolds());
   _zoomGestureSources.add(source);
   if (wasLive) return;
   _zoomGestureFloor = null;
-  hideMapPinsForZoom();
+  if (!wasHiding) hideMapPinsForZoom();
 }
 
 function endZoomGesture(source) {
   if (!_zoomGestureSources.delete(source) || zoomGestureLive()) return;
   _zoomGestureFloor = null;
   _zoomGestureFloorKey = null;
-  revealMapPinsAfterZoom();
+  if (!markerGroupingPaused()) revealMapPinsAfterZoom();
 }
 
 // Everything the floor is measured from: the origin and the active filters (and the live cow data
