@@ -161,6 +161,18 @@ function trackSelectionClick(itemType, item, source) {
   trackClick(itemType, item, uLat, uLng, source);
 }
 
+// handleMapClick asks for the same marker layout twice: once to give a group face priority, then
+// again to keep group members out of ordinary pin hit-testing. Reuse that synchronous layout while
+// the camera and data cannot change between the two calls.
+let _hitTestMarkerCache = null;
+function mapMarkersForHit(toScreen, tilted) {
+  if (_hitTestMarkerCache && _hitTestMarkerCache.toScreen === toScreen
+      && _hitTestMarkerCache.tilted === tilted) return _hitTestMarkerCache.markers;
+  const markers = buildActiveMapMarkers(toScreen, tilted);
+  _hitTestMarkerCache = { toScreen, tilted, markers };
+  return markers;
+}
+
 function findHit(screen, world) {
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
@@ -189,9 +201,10 @@ function findHit(screen, world) {
   // that one stays tappable, and tapping anywhere else near it is open ground).
   const iconLookup = activeIconLookup();
   const markerByItem = new Map();
-  for (const marker of buildActiveMapMarkers(toScreen, tilted)) {
+  for (const marker of mapMarkersForHit(toScreen, tilted)) {
     for (const item of marker.items) markerByItem.set(item, marker);
   }
+  _hitTestMarkerCache = null;
   const selectedItem = hasRealSelection() ? state.selected.item : null;
   function isTappablePin(type, item) {
     const marker = markerByItem.get(item);
@@ -330,16 +343,18 @@ function findHit(screen, world) {
 // faces never overlap, and where a tail or chip does, the marker lower on screen is the one on top.
 function findClusterHit(screen) {
   const dpr = pixelRatio();
-  const tilted = tiltActive();
-  const toScreen = tilted ? worldToScreenForOverlayTilted
+  const isTilted = tiltActive();
+  const tilted = isTilted || nearbyHeadingUpActive();
+  const toScreen = isTilted ? worldToScreenForOverlayTilted
     : nearbyHeadingUpActive() ? worldToScreenForOverlay : worldToScreen;
   let hit = null;
-  for (const marker of buildActiveMapMarkers(toScreen, tilted)) {
+  for (const marker of mapMarkersForHit(toScreen, tilted)) {
     if (marker.items.length < 2) continue;
-    const scale = tilted ? Math.max(0.65, tiltPinScale(marker.worldPt)) : 1;
+    const scale = isTilted ? Math.max(0.65, tiltPinScale(marker.worldPt)) : 1;
     if (!clusterBadgeContains(screen, marker.screenPt.x, marker.screenPt.y, marker.items.length, dpr, scale)) continue;
     if (!hit || marker.screenPt.y > hit.screenPt.y) hit = marker;
   }
+  if (hit) _hitTestMarkerCache = null;
   return hit;
 }
 
