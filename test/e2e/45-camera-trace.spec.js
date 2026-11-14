@@ -170,14 +170,34 @@ test.describe("Camera trace of user transitions", () => {
     // and the pending zoom used to be dropped, leaving the map at the Nearby ring for good.
     await setup(page, "/nearby");
     const { locators, ringScale } = await pickPlaces(page, 1);
-    await locators[0].evaluate((button) => {
+    const fadeDelayMs = await locators[0].evaluate((button) => {
       button.click();
       const slide = state.cameraOriginTransition;
       if (slide) slide.startedAt -= slide.durationMs;
+      return selectionOutgoingRevealDurationMs();
     });
+    expect(fadeDelayMs, "the delayed camera start is the branch under test").toBeGreaterThan(0);
     await expectZoomedInFrom(page, ringScale);
     await waitForUiToSettle(page);
     expect(await page.evaluate(() => state.selectionTransition.mapHeld), "the selection hold is released once the move lands").toBe(false);
+  });
+
+  test("a link followed inside the marker fade-out window leaves no selection hold behind", async ({ page }) => {
+    await setup(page, "/nearby");
+    const { locators, ringScale } = await pickPlaces(page, 1);
+    const fadeDelayMs = await locators[0].evaluate((button) => {
+      button.click();
+      const delay = selectionOutgoingRevealDurationMs();
+      navigateInApp("/find/onest/");
+      return delay;
+    });
+    expect(fadeDelayMs, "the delayed camera start is the branch under test").toBeGreaterThan(0);
+    await page.waitForFunction(() => state.selected?.type === "landmark");
+    await waitForUiToSettle(page);
+    expect(await page.evaluate(() => state.viewport.scale), "the camera framed the linked place").not.toBeCloseTo(ringScale, 0);
+    await expect.poll(() => page.evaluate(() => ({
+      held: state.selectionTransition.mapHeld, pending: state.selectionTransition.viewportPending,
+    }))).toEqual({ held: false, pending: false });
   });
 
   test("switching from one place to another is one zoom, not a pan cut short by a zoom", async ({ page }) => {
