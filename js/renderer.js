@@ -251,7 +251,25 @@ function getSelectedOverlayPulse() {
   return Math.sin(cyclePosition * Math.PI * 2) * 0.5 + 0.5;
 }
 
+// The shared pin opacity is sampled once per frame, at its start, so everything painted in the frame
+// (the map pins, the overlay pins, the exiting filter pins) agrees on one value instead of each
+// reading the clock a little later and seeing a different fade.
+let _frameFade = null;
+
+function framePinFade() {
+  return _frameFade == null ? mapPinFadeOpacity() : _frameFade;
+}
+
 function draw() {
+  _frameFade = mapPinFadeOpacity();
+  try {
+    drawFrame();
+  } finally {
+    _frameFade = null;
+  }
+}
+
+function drawFrame() {
   // Cancel any *other* frame already queued, rather than only clearing the flag. requestDraw's
   // guard (index.html) assumes a queued draw stays queued until it runs, but a direct draw()
   // call -- there are several, from boot, the location gate and the compass loop -- clears the
@@ -311,11 +329,10 @@ function draw() {
   drawWalkingRadius(ctx);
   drawSelectedRoute(ctx);
   if (!useOverlayForPins) {
-    const nearbyIconLookup = activeIconLookup();
     // Paint the live location beneath the map pins. A nearby pin should own its pointer
     // visually when its geographic point is the same as (or very close to) the user's fix.
     drawUser(ctx, worldToScreen, false, "dot");
-    drawMapMarkers(ctx, buildMapMarkers(nearbyIconLookup, worldToScreen, markerMemoryKey()), worldToScreen);
+    drawMapMarkers(ctx, mapMarkersToPaint(worldToScreen, false), worldToScreen);
     drawSelectionExitMarkers(ctx, worldToScreen);
   }
   drawSelectedRoadOverlay(ctx);
@@ -324,6 +341,7 @@ function draw() {
   drawOverlay();
 
   if (filterPinTransitionActive()) requestDraw();
+  if (mapPinFadeInProgress()) requestDraw();
   if (selectionOutgoingRevealInProgress()) requestDraw();
   if (selectionDestinationRevealInProgress()) requestDraw();
 
@@ -366,7 +384,7 @@ function drawOverlay() {
   if (useOverlayForPins) {
     // Keep the blue dot behind location pins in heading-up/tilted mode too.
     drawUser(ctx, toScreen, isTilted, "dot");
-    drawMapMarkers(ctx, buildActiveMapMarkers(toScreen, true), toScreen, true);
+    drawMapMarkers(ctx, mapMarkersToPaint(toScreen, true), toScreen, true);
     drawSelectionExitMarkers(ctx, toScreen, true);
   }
   drawFilterTransitionPins(ctx, toScreen);
@@ -1590,11 +1608,14 @@ const MARKER_SPLIT_BOX_FACTOR = 1.25;
 // it held, in seed order. Replaced wholesale by every build in its context, so it never outlives
 // the items.
 const _markerMemory = new Map();
+// Bumped whenever the memory is cleared, so a cached marker set built from the old memory is not reused.
+let _markerMemoryEpoch = 0;
 
 // A clean slate for grouping: the next build forms its groups from scratch. Called when the Nearby
 // filter set changes; builds in a context whose lookup was empty also start clean.
 function resetMarkerGroupMemory() {
   _markerMemory.clear();
+  _markerMemoryEpoch += 1;
 }
 
 // Memory belongs to one kind of lookup, so a narrowed one (an expanded cluster's members, search
@@ -1607,8 +1628,126 @@ function markerMemoryKey() {
 }
 
 // The markers of what the map shows now: the one pass draw(), drawOverlay() and findClusterHit share.
+//
+// A pure pan moves every marker by the same offset and never regroups them (see buildMapMarkers), so
+// on the flat main-canvas projection the last build is reused and only translated while everything
+// except the viewport's tx/ty is unchanged: scale, canvas size, pixel ratio, the pin scale, the
+// lookup (identity), the memory context and the memory epoch. The rotated (heading-up) and tilted
+// projections move markers non-uniformly, so they always rebuild.
+//
+// While a zoom gesture is live nothing is built at all: no in-radius scan, no grouping, and nothing
+// to tap. mapMarkersToPaint draws the frozen set for the short fade-out instead.
+let _panMarkerCache = null;
+let _lastMarkerBuild = null;
+// The frozen set's reusable re-projection while a zoom gesture fades the pins out.
+let _frozenPaintView = null;
+
+// A copy of a marker array whose screenPt objects belong to the copy, so it can be rewritten in
+// place every frame without touching the build it came from.
+function cloneMarkersForReuse(markers) {
+  return markers.map((marker) => ({ ...marker, screenPt: { x: 0, y: 0 } }));
+}
+
 function buildActiveMapMarkers(toScreen, tilted = false) {
-  return buildMapMarkers(activeIconLookup(), toScreen, markerMemoryKey(), tilted);
+  if (zoomGestureLive()) return [];
+  const lookup = activeIconLookup();
+  const memoryKey = markerMemoryKey();
+  const view = state.viewport;
+  const translatable = toScreen === worldToScreen && !tilted && !tiltActive() && !flatProjectionFrame().rotating;
+  if (!translatable) {
+    _panMarkerCache = null;
+    return (_lastMarkerBuild = buildMapMarkers(lookup, toScreen, memoryKey, tilted));
+  }
+  const dpr = pixelRatio();
+  const emojiScale = mapEmojiScale();
+  const cache = _panMarkerCache;
+  if (cache && cache.lookup === lookup && cache.memoryKey === memoryKey && cache.epoch === _markerMemoryEpoch
+      && cache.scale === view.scale && cache.dpr === dpr && cache.emojiScale === emojiScale
+      && cache.width === state.canvasLogicalWidth && cache.height === state.canvasLogicalHeight) {
+    const dx = view.tx - cache.tx;
+    const dy = view.ty - cache.ty;
+    if (!dx && !dy) return (_lastMarkerBuild = cache.markers);
+    // One reused array per build, rewritten in place: a pan frame allocates no marker objects.
+    const panned = cache.panned || (cache.panned = cloneMarkersForReuse(cache.markers));
+    for (let i = 0; i < panned.length; i += 1) {
+      const from = cache.markers[i].screenPt;
+      panned[i].screenPt.x = from.x + dx;
+      panned[i].screenPt.y = from.y + dy;
+    }
+    return (_lastMarkerBuild = panned);
+  }
+  const markers = buildMapMarkers(lookup, toScreen, memoryKey, tilted);
+  _panMarkerCache = {
+    lookup, memoryKey, epoch: _markerMemoryEpoch, scale: view.scale, dpr, emojiScale,
+    width: state.canvasLogicalWidth, height: state.canvasLogicalHeight,
+    tx: view.tx, ty: view.ty, markers,
+  };
+  return (_lastMarkerBuild = markers);
+}
+
+// --- Zoom-gesture pin fade ---------------------------------------------------------------------
+//
+// While a zoom gesture is live (zoomGestureLive, js/nav.js) item pins and clusters are neither
+// calculated nor drawn. They leave together in one quick fade over the frozen set (re-projected
+// each frame so they stay on their ground), and the freshly calculated set arrives together in one
+// ease-out reveal once the gesture ends. A gesture that starts mid-reveal fades out from the
+// current opacity, and one that ends mid-fade reveals from it, so opacity never jumps.
+// Below one 8-bit alpha step a pin cannot be seen: it is not painted at all.
+const PIN_ALPHA_VISIBLE_MIN = 1 / 255;
+const ZOOM_PIN_FADE_OUT_MS = 120;
+const ZOOM_PIN_REVEAL_MS = 220;
+const _mapPinFade = { value: 1, from: 1, to: 1, startedAt: 0, duration: 0 };
+
+function mapPinFadeOpacity(now = performance.now()) {
+  const fade = _mapPinFade;
+  if (!fade.duration) return fade.to;
+  const t = clamp((now - fade.startedAt) / fade.duration, 0, 1);
+  const eased = fade.to > fade.from ? easeOutCubic(t) : t;
+  return fade.from + (fade.to - fade.from) * eased;
+}
+
+function mapPinFadeInProgress(now = performance.now()) {
+  return _mapPinFade.duration > 0 && now - _mapPinFade.startedAt < _mapPinFade.duration;
+}
+
+// Aims the shared pin opacity at `to`. The duration scales with the distance still to cover, so a
+// reversal mid-fade keeps its speed instead of restarting a full-length fade.
+function fadeMapPinsTo(to, fullDurationMs, now = performance.now()) {
+  const current = mapPinFadeOpacity(now);
+  const duration = fullDurationMs * Math.abs(to - current);
+  if (typeof prefersReducedMotion === "function" && prefersReducedMotion() || !(duration > 0)) {
+    Object.assign(_mapPinFade, { value: to, from: to, to, startedAt: now, duration: 0 });
+  } else {
+    Object.assign(_mapPinFade, { value: current, from: current, to, startedAt: now, duration });
+  }
+  if (typeof requestDraw === "function") requestDraw();
+}
+
+function hideMapPinsForZoom() {
+  fadeMapPinsTo(0, ZOOM_PIN_FADE_OUT_MS);
+}
+
+function revealMapPinsAfterZoom() {
+  // Merges and splits caused by the zoom itself are not worth animating on top of the reveal.
+  settleClusterJoinAnimations();
+  fadeMapPinsTo(1, ZOOM_PIN_REVEAL_MS);
+}
+
+// The markers draw()/drawOverlay() paint: normally the current build; during a gesture, the frozen
+// last build re-projected through the live camera while it fades out, then nothing.
+function mapMarkersToPaint(toScreen, tilted) {
+  if (!zoomGestureLive()) return buildActiveMapMarkers(toScreen, tilted);
+  if (!_lastMarkerBuild || framePinFade() < PIN_ALPHA_VISIBLE_MIN) return [];
+  if (!_frozenPaintView || _frozenPaintView.source !== _lastMarkerBuild) {
+    _frozenPaintView = { source: _lastMarkerBuild, markers: cloneMarkersForReuse(_lastMarkerBuild) };
+  }
+  const painted = _frozenPaintView.markers;
+  for (let i = 0; i < painted.length; i += 1) {
+    const point = toScreen(painted[i].worldPt);
+    painted[i].screenPt.x = point.x;
+    painted[i].screenPt.y = point.y;
+  }
+  return painted;
 }
 
 // The rectangle a compact cluster face covers with its tail and its count chip, relative to the
@@ -2141,7 +2280,8 @@ function drawFilterTransitionPins(ctx, toScreen) {
   if (!filterPinTransitionActive() || hasRealSelection() || pinsHiddenBySelection(true)) return;
   const dpr = pixelRatio();
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
-  const reveal = nearbyRevealOpacity();
+  const reveal = nearbyRevealOpacity() * framePinFade();
+  if (reveal < PIN_ALPHA_VISIBLE_MIN) return;
   for (const [item, animation] of _filterPinAnimations) {
     if (animation.direction !== "exit") continue;
     const stateAtFrame = filterPinAnimationFor(item);
@@ -2598,9 +2738,13 @@ function drawGroupFootprints(ctx, markers, visible, reveal, tilted, toScreen, op
 function drawMapMarkers(ctx, markers, toScreen, tilted = false, options = {}) {
   _drawnMarkerSpecs = [];
   if (!markers.length || (pinsHiddenBySelection(tilted) && !options.allowSelectionExit)) return;
+  // The outgoing selection set is not part of the radius hide: it is a separate, short handoff.
+  const gestureOpacity = options.allowSelectionExit ? 1 : framePinFade();
+  if (gestureOpacity < PIN_ALPHA_VISIBLE_MIN) return;
+  if (!options.allowSelectionExit && mapPinFadeInProgress()) settleClusterJoinAnimations();
   const dpr = pixelRatio();
   const loneSize = MAP_PNG_ICON_SIZE * dpr * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
-  const reveal = nearbyRevealOpacity();
+  const reveal = nearbyRevealOpacity() * gestureOpacity;
   const visible = markers.filter(m => isNearCanvas(m.screenPt, m.items.length > 1 ? 84 * dpr : loneSize * 2));
   visible.sort((a, b) => a.screenPt.y - b.screenPt.y);
   ctx.save();
