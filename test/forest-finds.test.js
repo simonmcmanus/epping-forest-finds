@@ -7415,6 +7415,31 @@ test("findRoutePoints falls back to null when a point is too far from the networ
   assert.equal(route, null, "a point ~1.1km from the nearest road must not snap onto it");
 });
 
+test("a long walk still follows the network when its endpoint is within 250 metres of a mapped node", () => {
+  const road = routingFeature("residential", [[51.6500, 0.0000], [51.6500, 0.0200], [51.6600, 0.0200]]);
+  const graph = app.buildRoutingGraph([road], [], app.unprojectPoint, app.distanceMetres);
+  const from = routingWorldPoint(51.6500, 0.0000);
+  const to = routingWorldPoint(51.6615, 0.0200); // 167m from the final mapped vertex
+  const route = app.findRoutePoints(graph, from, to, routingOptions());
+  assert.ok(route, "a mapped multi-kilometre walk must not become a straight line for a 167m endpoint connector");
+  assert.ok(route.some((p) => p === graph.nodes[1]), "the walk follows the road's bend");
+  assert.equal(route[route.length - 1], to);
+  assert.equal(app.findRoutePoints(graph, from, to, { ...routingOptions(), maxSnapMetres: 100 }), null,
+    "an explicitly stricter snap limit remains respected");
+});
+
+test("a long walk uses a nearby connected start when the preferred forward node is beyond the snap limit", () => {
+  const road = routingFeature("residential", [[51.6500, -0.0010], [51.6500, 0.0040], [51.6600, 0.0200]]);
+  const graph = app.buildRoutingGraph([road], [], app.unprojectPoint, app.distanceMetres);
+  const from = routingWorldPoint(51.6500, 0.0000);
+  const to = routingWorldPoint(51.6600, 0.0200);
+  const route = app.findRoutePoints(graph, from, to, { ...routingOptions(), maxSnapMetres: 100 });
+  assert.ok(route, "a 69m start connector must remain usable even if direction scoring prefers a node 276m away");
+  assert.equal(route[1], graph.nodes[0], "start on the nearby connected node");
+  assert.equal(route[0], from);
+  assert.equal(route[route.length - 1], to);
+});
+
 test("a route starts from the node ahead toward its destination, not an equally near one behind", () => {
   // The walker stands at the origin and the destination lies due east. Both nodes are 5 m away.
   const graph = { nodes: [{ x: -5, y: 0 }, { x: 5, y: 0 }], componentId: [0, 0] };
