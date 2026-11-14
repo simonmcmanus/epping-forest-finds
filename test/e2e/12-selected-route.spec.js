@@ -67,6 +67,40 @@ test.describe("Selected route line follows the road/path network", () => {
     expect(pillText).toContain(await page.evaluate((metres) => formatDistance(metres), result.routeMetres));
   });
 
+  test("keeps a long selected walk on mapped roads when the destination is 167m from the final vertex", async ({ page }) => {
+    // Sparse OSM vertices near a destination must not erase the entire multi-kilometre route.
+    // Stub only map-data responses; loading, graph construction and selected navigation run normally.
+    await page.route("**/data/local-roads.geojson*", (route) => route.fulfill({
+      json: { type: "FeatureCollection", features: [{
+        type: "Feature", properties: { highway: "residential", name: "Fixture road" },
+        geometry: { type: "LineString", coordinates: [
+          [FOREST_LOCATION.longitude, FOREST_LOCATION.latitude],
+          [0.0236671, FOREST_LOCATION.latitude],
+          [0.0236671, 51.6452884],
+        ] },
+      }] },
+    }));
+    await page.route("**/data/local-paths.geojson*", (route) => route.fulfill({
+      json: { type: "FeatureCollection", features: [] },
+    }));
+    await setup(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await expect(page.locator("#inspectorTitle")).toContainText(FIXTURE_TREE.commonName);
+    await page.waitForFunction(() => state.routingGraphReady);
+    await expect.poll(() => page.evaluate(() => selectedRouteIsFallback(state.selected.item))).toBe(false);
+    const result = await page.evaluate(() => {
+      const points = selectedRoutePoints(state.selected.item);
+      const bend = projectLonLat(0.0236671, state.userLocation.latitude);
+      return {
+        followsBend: points.some((point) => Math.hypot(point.x - bend.x, point.y - bend.y) < 1e-8),
+        metres: selectedRouteMetres(state.selected.item),
+        label: formatDistance(selectedRouteMetres(state.selected.item)),
+      };
+    });
+    expect(result.followsBend).toBe(true);
+    expect(result.metres).toBeGreaterThan(3000);
+    await expect(page.locator('[data-live-field="distance"]').first()).toContainText(result.label);
+  });
+
   test("draws nothing at all while the graph is still building, rather than a crow-flies line it is about to replace", async ({ page }) => {
     // The straight line is a fallback for "we looked and there is no walkable route", not a
     // placeholder for "we have not looked yet". Flashing it up and swapping it for a winding

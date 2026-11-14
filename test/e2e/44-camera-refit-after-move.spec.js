@@ -20,6 +20,13 @@ test.describe("Camera after a quick change of screen", () => {
     await page.locator("#inspectorBody [data-overview-type][data-overview-key]").first().click();
     // Tap Nearby while the selection zoom is still easing.
     await page.locator("#nearbyToggle").click();
+    const returning = await page.evaluate(() => ({
+      holding: state.selectionTransition.mapHeld,
+      nearbyPins: ["tree", "landmark", "cow", "path", "water"]
+        .reduce((count, type) => count + activeIconLookup()[type].size, 0),
+    }));
+    expect(returning.holding).toBe(false);
+    expect(returning.nearbyPins).toBeGreaterThan(0);
     await waitForUiToSettle(page);
     await expect.poll(() => page.evaluate(() => state.selected == null && state.viewportAnimationTo == null)).toBe(true);
 
@@ -48,6 +55,27 @@ test.describe("Camera after a quick change of screen", () => {
     await expect(page.locator("#inspector")).not.toHaveClass(/minimized/);
     await waitForUiToSettle(page);
     await expect(page.locator("#inspector")).not.toHaveClass(/minimized/);
+  });
+
+  test("selection handoff hides Nearby pins before revealing the destination", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await setup(page, "/nearby");
+    const during = await page.evaluate(() => {
+      document.querySelector("#inspectorBody [data-overview-type][data-overview-key]").click();
+      const lookup = activeIconLookup();
+      return {
+        holding: state.selectionTransition.mapHeld,
+        nearbyPins: ["tree", "landmark", "cow", "path", "water"]
+          .reduce((count, type) => count + lookup[type].size, 0),
+        destinationOpacity: selectionDestinationOpacity(),
+      };
+    });
+    expect(during.holding).toBe(true);
+    expect(during.nearbyPins).toBe(0);
+    expect(during.destinationOpacity).toBeLessThan(1);
+
+    await waitForUiToSettle(page);
+    await expect.poll(() => page.evaluate(() => state.selectionTransition.mapHeld)).toBe(false);
   });
 
   test("a tap on a place inside a minimised panel opens the panel", async ({ page }) => {

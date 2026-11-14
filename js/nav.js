@@ -317,22 +317,54 @@ function showUpdateBanner() {
   banner.innerHTML = '<span class="update-banner-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg></span>'
     + `<span class="update-banner-text"><strong>${title}</strong><span>${detail}</span></span>`
     + '<button id="updateBannerButton" type="button">Restart</button>';
+  banner.inert = true;
   document.body.appendChild(banner);
   banner.querySelector("button").addEventListener("click", async (event) => {
     const button = event.currentTarget;
+    banner.dataset.restoreFocus = String(banner.contains(document.activeElement));
     button.disabled = true;
     button.textContent = "Restarting…";
+    banner.inert = true;
+    banner.classList.remove("is-visible");
+    banner.classList.add("is-exiting");
+    // Give the dismissal transition time to be seen before activation reloads the page, unless
+    // the person has asked for motion to be reduced.
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (!reducedMotion) await new Promise((resolve) => setTimeout(resolve, 220));
+    banner.classList.add("is-dismissed");
     const started = (state.swWaiting || state.swUpdateAvailable) ? await applySwUpdate() : (location.reload(), true);
     if (!started) {
       button.disabled = false;
       button.textContent = "Restart";
+      banner.classList.remove("is-exiting", "is-dismissed");
+      requestAnimationFrame(() => {
+        banner.inert = false;
+        banner.classList.add("is-visible");
+        if (banner.dataset.restoreFocus === "true") button.focus();
+        delete banner.dataset.restoreFocus;
+      });
     }
+  });
+  requestAnimationFrame(() => {
+    banner.inert = false;
+    banner.classList.add("is-visible");
   });
 }
 
 function resetUpdateBannerButton() {
   const button = document.getElementById("updateBannerButton");
   if (!button) return;
+  const banner = document.getElementById("updateBanner");
+  if (banner) {
+    const restoreFocus = banner.dataset.restoreFocus === "true";
+    delete banner.dataset.restoreFocus;
+    banner.classList.remove("is-exiting", "is-dismissed");
+    requestAnimationFrame(() => {
+      banner.inert = false;
+      banner.classList.add("is-visible");
+      if (restoreFocus) banner.querySelector("button")?.focus();
+    });
+  }
   button.disabled = false;
   button.textContent = "Restart";
 }
@@ -390,7 +422,9 @@ async function applySwUpdate() {
     try {
       state.swWaiting.postMessage({ type: "SKIP_WAITING" });
     } catch {
+      state.swWaiting = null;
       state.swPendingReload = false;
+      setAppUpdateStatus("failed");
       return;
     }
     // controllerchange normally reloads the page. Keep a long safety net for browsers that do
@@ -406,6 +440,7 @@ async function applySwUpdate() {
         location.reload();
         return;
       }
+      state.swWaiting = null;
       state.swPendingReload = false;
       setAppUpdateStatus("failed");
       resetUpdateBannerButton();
@@ -2711,6 +2746,9 @@ function nearbyRetap() {
 }
 
 function goToInitialView(updateHash = true, { enterAnimated = true } = {}) {
+  // Leaving a /find/<slug>/ detail view is explicit Nearby navigation. Clear the launch-only
+  // protection before selectOverview() runs so the old landing panel cannot survive one tap.
+  findLandingSelectionPending = false;
   // If compass hasn't fired in >5 s, clear the heading so the map goes north-up
   // rather than showing a frozen direction when the user returns to the overview.
   // New orientation events will re-enable heading-up naturally.
@@ -2731,6 +2769,13 @@ function goToInitialView(updateHash = true, { enterAnimated = true } = {}) {
   const wasMinimized = els.inspector.classList.contains("minimized");
   // Before state.selected changes below -- see startCameraOriginTransition (js/app.js).
   startCameraOriginTransition();
+  // Nearby is the new destination, so abandon the selection handoff immediately rather than
+  // letting its stale camera-settle callback keep suppressing the pins until the old move ends.
+  state.selectionMapTransitionToken = null;
+  state.selectionTransition.mapHeld = false;
+  state.selectionTransition.startedAt = null;
+  state.selectionTransition.outgoingIconLookup = null;
+  state.selectionTransition.viewportPending = false;
   state.selected = null;
   clearManualCameraOverride();
   state.clusterZoomed = false;

@@ -417,6 +417,7 @@ globalThis.__forestFindsTest = {
   // Replaces a top-level app function (a global in this sandbox) and returns the original, so a
   // test can count how often a hot path reaches an expensive helper. Restore it with the return.
   swapGlobalFunction(name, fn) { const previous = globalThis[name]; globalThis[name] = fn; return previous; },
+  setFindLandingSelectionPending(value) { findLandingSelectionPending = Boolean(value); },
   drawEnvironment,
   drawLayer,
   clusterFocusTarget,
@@ -464,6 +465,7 @@ globalThis.__forestFindsTest = {
   navigateInApp,
   overviewHeadingText,
   landingPageCategoryLabel,
+  findLandingAwaitingPlace,
   updateDocumentTitle,
   normalizeSearchText,
   searchQueryTokens,
@@ -516,6 +518,7 @@ globalThis.__forestFindsTest = {
   DEFAULT_LOCATION,
   DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES,
   applyDefaultLocation,
+  applyLocationFix,
   hasRealLocation,
   ROUTE_PATHS,
   NEARBY_PATH,
@@ -634,6 +637,8 @@ globalThis.__forestFindsTest = {
   nearbyOriginTransitionActive,
   nearbyRevealOpacity,
   nearbyRevealInProgress,
+  selectionOutgoingMarkerOpacity,
+  selectionDestinationOpacity,
   NEARBY_REVEAL_MS,
   cameraOriginPoint,
   tiltHidesWhatIsBehind,
@@ -658,6 +663,8 @@ globalThis.__forestFindsTest = {
   highBeachStandIn,
   currentNavigationMapRotationDegrees,
   updateCompassOverlay,
+  updateOverviewDirectionArrows,
+  directionArrowAngleForWorldPoint,
   setNearbyAnchor,
   clearNearbyAnchor,
   focusNearbyWithinWalkMinutes,
@@ -991,9 +998,9 @@ function resetData(app) {
   app.state.selectionTransition.viewportPending = false;
   app.state.inspectorMinimizeTransitionPending = false;
   app.state.selectionTransition.mapHeld = false;
+  app.state.selectionTransition.startedAt = null;
+  app.state.selectionTransition.outgoingIconLookup = null;
   app.state.selectionMapTransitionToken = null;
-  app.state.selectionMapTransitionIconLookup = null;
-  app.state.selectionMapTransitionOriginPoint = null;
   app.state.headingUpEntryAnim = null;
   app.state.renderedNavigationHeading = null;
   // resetData simulates an app already well past first load, so heading-up activations here
@@ -1496,17 +1503,16 @@ test("settling clears pending merges so the next frame starts none", () => {
     "a group that forms right after settling is drawn settled, not shrinking its members in");
 });
 
-test("a group of dimmed pins draws as dim as its neighbours", () => {
+test("Nearby pins are hidden during the selection handoff instead of dimmed", () => {
   resetData(app);
   const spot = makePoint(app, 51.665, 0.045);
   const pubs = [1, 2].map(n => ({ id: `pub${n}`, name: "Pub", category: "pub", ...spot }));
   app.state.selected = { type: "tree", item: { id: "sel", point: { x: 0, y: 0 } } };
   app.state.selectionTransition.mapHeld = true;
-  const alphas = [];
+  let drawImageCount = 0;
   const ctx = {
     save() {}, restore() {}, beginPath() {}, closePath() {}, clip() {}, roundRect() {},
-    arc() {}, fill() {}, stroke() {}, lineTo() {}, moveTo() {}, drawImage() {}, fillText() {},
-    set globalAlpha(v) { alphas.push(v); },
+    arc() {}, fill() {}, stroke() {}, lineTo() {}, moveTo() {}, drawImage() { drawImageCount += 1; }, fillText() {},
   };
   try {
     app.drawMapMarkers(ctx, app.buildMapMarkers(markerLookup(pubs.map(item => ({ type: "landmark", item }))), markerScreen.bind(null)), p => p, false);
@@ -1514,7 +1520,22 @@ test("a group of dimmed pins draws as dim as its neighbours", () => {
     app.state.selectionTransition.mapHeld = false;
     app.state.selected = null;
   }
-  assert.ok(alphas.some(a => a > 0 && a < 1), "a group of non-selected places is dimmed like a lone one");
+  assert.equal(drawImageCount, 0, "non-selected Nearby pins are not painted during the handoff");
+});
+
+test("the selection handoff hides Nearby pins before revealing the destination", () => {
+  resetData(app);
+  const startedAt = 1000;
+  app.state.selected = { type: "tree", item: { id: "selected", point: { x: 0, y: 0 } } };
+  app.state.selectionTransition.mapHeld = true;
+  app.state.selectionTransition.startedAt = startedAt;
+
+  assert.equal(app.selectionDestinationOpacity(startedAt), 0, "the destination waits for Nearby pins to leave");
+  assert.ok(app.selectionDestinationOpacity(startedAt + 300) > 0, "the destination then starts to appear");
+  assert.equal(app.selectionDestinationOpacity(startedAt + 1000), 1, "the destination settles fully visible");
+  assert.equal(app.selectionOutgoingMarkerOpacity(0, startedAt), 1, "the outgoing set starts visible");
+  assert.ok(app.selectionOutgoingMarkerOpacity(0, startedAt + 60) < 1, "the outgoing set fades after the handoff starts");
+  assert.equal(app.selectionOutgoingMarkerOpacity(0, startedAt + 300), 0, "the outgoing set finishes hidden");
 });
 
 test("a tree cluster's icon is the shared species only when every member agrees", () => {
@@ -2960,6 +2981,25 @@ test("updateDocumentTitle names a selected place in Epping Forest", () => {
   app.updateDocumentTitle();
 });
 
+test("leaving a /find/ place does not keep the old landing panel on the first Nearby tap", () => {
+  resetData(app);
+  app.location.pathname = "/find/example-place/";
+  app.state.landmarks = [{ findSlug: "example-place", name: "Example place" }];
+  app.state.selected = null;
+
+  // The initial route is still protected while the landing's place is being resolved.
+  app.setFindLandingSelectionPending(true);
+  assert.equal(app.findLandingAwaitingPlace(), true);
+
+  // Once the place detail has replaced that panel, returning to Nearby must be allowed to
+  // render immediately even though goToInitialView has not written /nearby yet.
+  app.setFindLandingSelectionPending(false);
+  assert.equal(app.findLandingAwaitingPlace(), false);
+
+  app.location.pathname = "/";
+  app.setFindLandingSelectionPending(false);
+});
+
 test("navigateInApp pushes a real history entry and applies the new route, instead of leaving it to the browser's own navigation", () => {
   resetData(app);
   app.location.pathname = "/find/the-forresters/";
@@ -3155,6 +3195,33 @@ test("applyDefaultLocation stands in for a real fix at DEFAULT_LOCATION, flagged
 
   app.state.userLocation = { ...makePoint(app, 51.6, 0.03), isDefault: false };
   assert.equal(app.hasRealLocation(), true, "a real fix has no isDefault flag at all");
+});
+
+test("a real location fix can preserve the selected destination so navigation starts from the shared position", () => {
+  resetData(app);
+  app.state.userLocation = null;
+  const target = { id: "destination", ...makePoint(app, 51.666, 0.046) };
+  app.state.selected = { type: "landmark", item: target };
+
+  app.applyLocationFix({
+    coords: { latitude: 51.665, longitude: 0.045, accuracy: 10 },
+  }, { preserveSelection: true });
+
+  assert.equal(app.state.selected.item, target, "sharing location must not dismiss the place being viewed");
+  assert.equal(app.canGuideToPlaces(), true, "the real fix enables navigation");
+  assert.equal(app.selectedCompassTarget(), target, "the viewed place remains the route destination");
+});
+
+test("a real location fix does not dismiss the Feedback screen", () => {
+  resetData(app);
+  app.state.userLocation = null;
+  app.state.selected = { type: "report", item: null };
+
+  app.applyLocationFix({
+    coords: { latitude: 51.665, longitude: 0.045, accuracy: 10 },
+  });
+
+  assert.equal(app.state.selected.type, "report", "location updates must not discard an open report");
 });
 
 test("applyDefaultLocation keeps the normal radius, but never overrides a deliberate one", () => {
@@ -7415,6 +7482,31 @@ test("findRoutePoints falls back to null when a point is too far from the networ
   assert.equal(route, null, "a point ~1.1km from the nearest road must not snap onto it");
 });
 
+test("a long walk still follows the network when its endpoint is within 250 metres of a mapped node", () => {
+  const road = routingFeature("residential", [[51.6500, 0.0000], [51.6500, 0.0200], [51.6600, 0.0200]]);
+  const graph = app.buildRoutingGraph([road], [], app.unprojectPoint, app.distanceMetres);
+  const from = routingWorldPoint(51.6500, 0.0000);
+  const to = routingWorldPoint(51.6615, 0.0200); // 167m from the final mapped vertex
+  const route = app.findRoutePoints(graph, from, to, routingOptions());
+  assert.ok(route, "a mapped multi-kilometre walk must not become a straight line for a 167m endpoint connector");
+  assert.ok(route.some((p) => p === graph.nodes[1]), "the walk follows the road's bend");
+  assert.equal(route[route.length - 1], to);
+  assert.equal(app.findRoutePoints(graph, from, to, { ...routingOptions(), maxSnapMetres: 100 }), null,
+    "an explicitly stricter snap limit remains respected");
+});
+
+test("a long walk uses a nearby connected start when the preferred forward node is beyond the snap limit", () => {
+  const road = routingFeature("residential", [[51.6500, -0.0010], [51.6500, 0.0040], [51.6600, 0.0200]]);
+  const graph = app.buildRoutingGraph([road], [], app.unprojectPoint, app.distanceMetres);
+  const from = routingWorldPoint(51.6500, 0.0000);
+  const to = routingWorldPoint(51.6600, 0.0200);
+  const route = app.findRoutePoints(graph, from, to, { ...routingOptions(), maxSnapMetres: 100 });
+  assert.ok(route, "a 69m start connector must remain usable even if direction scoring prefers a node 276m away");
+  assert.equal(route[1], graph.nodes[0], "start on the nearby connected node");
+  assert.equal(route[0], from);
+  assert.equal(route[route.length - 1], to);
+});
+
 test("a route starts from the node ahead toward its destination, not an equally near one behind", () => {
   // The walker stands at the origin and the destination lies due east. Both nodes are 5 m away.
   const graph = { nodes: [{ x: -5, y: 0 }, { x: 5, y: 0 }], componentId: [0, 0] };
@@ -10183,6 +10275,40 @@ test("a beta-only orientation event starts the tilt loop even without a trusted 
   assert.notEqual(app.state.compassAnimationFrame, null, "pitch still needs a smoothing loop without a heading");
 });
 
+test("beta-only tilt refreshes directional arrows while the 3D projection moves", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.665, 0.045);
+  app.state.compassHeading = null;
+  app.state.compassHeadingTarget = null;
+  app.state.tiltBetaSmoothed = 0;
+  app.state.tiltBetaTarget = 55;
+  app.state.compassAnimationFrame = null;
+
+  const frames = [];
+  let overviewUpdates = 0;
+  let compassUpdates = 0;
+  const originals = {
+    raf: app.swapGlobalFunction("requestAnimationFrame", (fn) => { frames.push(fn); return frames.length; }),
+    overview: app.swapGlobalFunction("updateOverviewDirectionArrows", () => { overviewUpdates += 1; }),
+    compass: app.swapGlobalFunction("updateCompassOverlay", () => { compassUpdates += 1; }),
+    drawOverlay: app.swapGlobalFunction("drawOverlay", () => {}),
+    requestDraw: app.swapGlobalFunction("requestDraw", () => {}),
+  };
+  try {
+    app.startCompassSmoothing();
+    frames.shift()(1000);
+    assert.equal(overviewUpdates, 1, "beta-only tilt updates Nearby arrows without a heading");
+    assert.equal(compassUpdates, 1, "beta-only tilt updates the selected-location arrow path too");
+  } finally {
+    app.swapGlobalFunction("requestAnimationFrame", originals.raf);
+    app.swapGlobalFunction("updateOverviewDirectionArrows", originals.overview);
+    app.swapGlobalFunction("updateCompassOverlay", originals.compass);
+    app.swapGlobalFunction("drawOverlay", originals.drawOverlay);
+    app.swapGlobalFunction("requestDraw", originals.requestDraw);
+    app.state.compassAnimationFrame = null;
+  }
+});
+
 test("changing the browse anchor outside setNearbyAnchor still moves the camera with it", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.665, 0.045);
@@ -11115,15 +11241,12 @@ test("selection entry points capture the browse pivot before clearing the anchor
   settleNearbySlide(app);
 
   const nearbyScale = app.state.viewport.scale;
-  const outgoingIconLookup = app.activeIconLookup();
   app.focusOverviewItem("tree", "r1");
   assert.equal(app.state.nearbyAnchor, null, "selection should still clear the browse anchor");
   assert.equal(app.state.selectionTransition.mapHeld, true,
-    "the outgoing Nearby map should remain visible during selection");
-  assert.ok(app.activeIconLookup().tree.size > 0,
-    "Nearby pins should remain available during the handoff");
-  assert.equal(app.activeIconLookup(), outgoingIconLookup,
-    "the handoff should retain the outgoing Nearby pins, not rebuild a new set around the user");
+    "the camera handoff should remain active during selection");
+  assert.equal(app.activeIconLookup().tree.size, 0,
+    "Nearby pins should be removed from drawing and hit testing during the handoff");
   assert.ok(app.state.cameraOriginTransition, "selection should animate the camera pivot basis change");
   assert.ok(
     Math.abs(app.state.cameraOriginTransition.fromX - anchor.point.x) < 1e-9
@@ -11860,21 +11983,15 @@ test("tapping a location from a browsed Nearby anchor keeps the outgoing map dur
   app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
   assert.ok(app.state.nearbyOriginTransition, "sanity: the Nearby-origin transition is in flight");
 
-  const outgoingIconLookup = app.activeIconLookup();
   const treeTap = pinTapPoint(app, tree.point);
   assert.equal(app.findHit(treeTap, app.screenToWorld(treeTap.x, treeTap.y)).type, "tree");
   tapMap(app, treeTap);
 
   assert.equal(app.state.selected?.type, "tree", "the Nearby pin should open the location");
   assert.equal(app.state.selectionTransition.mapHeld, true,
-    "the outgoing map should remain active during a direct map selection");
-  assert.equal(app.activeIconLookup(), outgoingIconLookup,
-    "direct map selection should retain the pins from the browsed Nearby view");
-  assert.ok(
-    Math.abs(app.state.selectionMapTransitionOriginPoint.x - anchor.point.x) < 1e-9
-      && Math.abs(app.state.selectionMapTransitionOriginPoint.y - anchor.point.y) < 1e-9,
-    "direct map selection should retain the browsed pivot during handoff"
-  );
+    "the camera handoff should remain active during a direct map selection");
+  assert.equal(app.activeIconLookup().tree.size, 0,
+    "direct map selection should hide Nearby pins during the handoff");
   assert.equal(app.state.nearbyOriginTransition, null,
     "selection should cancel the obsolete Nearby-origin transition");
   app.stopViewportAnimation();
@@ -14408,6 +14525,50 @@ test("the Nearby list hides its direction arrows while far from the forest", () 
   const html = app.overviewNearestHtml();
   assertHasElement(html, ".nearest-arrow[hidden]", "the list is still shown, with its arrow hidden");
   assertLacksText(html, "↑", "but no arrow is visible");
+});
+
+test("direction arrows use projected screen direction while 3D tilt is active", () => {
+  resetData(app);
+  useSmallForest(app);
+  withRealFix(app, 51.6675, 0.0375);
+  app.state.tiltBetaSmoothed = 30;
+
+  const target = makePoint(app, 51.6676, 0.0376);
+  const projected = app.swapGlobalFunction("worldToScreenForOverlayTilted", (point) => (
+    point === app.state.userLocation.point ? { x: 100, y: 100 } : { x: 110, y: 90 }
+  ));
+  const oldArrows = app.els.inspectorBody.querySelectorAll;
+  const listArrow = { dataset: { itemLat: String(target.latitude), itemLon: String(target.longitude), currentAngle: "0" }, style: {} };
+  app.els.inspectorBody.querySelectorAll = () => [listArrow];
+  const selectedBefore = app.state.selected;
+  try {
+    assert.equal(app.directionArrowAngleForWorldPoint(target.point, 123), 45,
+      "the arrow follows the projected target ray, not the flat bearing");
+    const clippedProjection = app.swapGlobalFunction("worldToScreenForOverlayTilted", (point) => (
+      point === app.state.userLocation.point ? { x: 100, y: 100 } : { x: 110, y: 90, clipped: true }
+    ));
+    assert.equal(app.directionArrowAngleForWorldPoint(target.point, 123, 10), 10,
+      "a near-plane target holds its last valid projected direction");
+    app.swapGlobalFunction("worldToScreenForOverlayTilted", clippedProjection);
+
+    app.state.selected = { type: "landmark", item: target };
+    app.state.compassHeading = 0;
+    app.els.compassArrow.hidden = true;
+    app.updateCompassOverlay();
+    assert.match(app.els.compassArrow.style.transform,
+      /^perspective\([^)]*px\) rotateX\([^)]*deg\) rotate\(-?[\d.]+deg\)$/,
+      "the selected-location arrow uses the projected ray and 3D foreshortening");
+
+    app.state.selected = null;
+    app.updateOverviewDirectionArrows();
+    assert.match(listArrow.style.transform,
+      /^perspective\([^)]*px\) rotateX\([^)]*deg\) rotate\(-?[\d.]+deg\)$/,
+      "the Nearby list arrow uses the projected ray and 3D foreshortening");
+  } finally {
+    app.state.selected = selectedBefore;
+    app.els.inspectorBody.querySelectorAll = oldArrows;
+    app.swapGlobalFunction("worldToScreenForOverlayTilted", projected);
+  }
 });
 
 // Hostile values from the server or from stored data, as a page would receive them. Each one would run

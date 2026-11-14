@@ -313,6 +313,7 @@ function draw() {
   if (!useOverlayForPins) {
     const nearbyIconLookup = activeIconLookup();
     drawMapMarkers(ctx, buildMapMarkers(nearbyIconLookup, worldToScreen, markerMemoryKey()), worldToScreen);
+    drawSelectionExitMarkers(ctx, worldToScreen);
   }
   drawSelectedRoadOverlay(ctx);
   drawSelectedPathOverlay(ctx);
@@ -320,6 +321,8 @@ function draw() {
   drawOverlay();
 
   if (filterPinTransitionActive()) requestDraw();
+  if (selectionOutgoingRevealInProgress()) requestDraw();
+  if (selectionDestinationRevealInProgress()) requestDraw();
 
   if (Math.abs(animatedEmojiScale.target - animatedEmojiScale.value) > 0.001) {
     requestDraw();
@@ -359,6 +362,7 @@ function drawOverlay() {
   else drawUserRadarOverlay(ctx, toScreen);
   if (useOverlayForPins) {
     drawMapMarkers(ctx, buildActiveMapMarkers(toScreen), toScreen, true);
+    drawSelectionExitMarkers(ctx, toScreen, true);
   }
   drawFilterTransitionPins(ctx, toScreen);
   drawUser(ctx, toScreen, isTilted);
@@ -433,12 +437,11 @@ function drawCommunityMarks(ctx, toScreen) {
 // it's clear the radius/list have pivoted away from the user's actual GPS position without
 // moving it.
 function drawNearbyAnchorMarker(ctx, toScreen) {
-  const transitionOrigin = state.selectionTransition.mapHeld && state.selectionMapTransitionOriginPoint;
-  if (!state.nearbyAnchor && !transitionOrigin) return;
+  if (!state.nearbyAnchor || hasRealSelection()) return;
   if (!toScreen) toScreen = worldToScreen;
   // Rides the slide with the circle it sits at the centre of, rather than jumping to the new
   // anchor a frame before the circle gets there.
-  const point = toScreen(transitionOrigin || nearbyRenderOriginPoint() || state.nearbyAnchor.point);
+  const point = toScreen(nearbyRenderOriginPoint() || state.nearbyAnchor.point);
   if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
   const dpr = pixelRatio();
   ctx.save();
@@ -1219,11 +1222,9 @@ function drawWalkingRadiusRimHighlight(ctx, center, radiusPx, tilted, dpr) {
 function drawWalkingRadius(ctx) {
   // The *rendered* origin, so the circle stays still on screen while a browse-origin slide moves
   // the map behind it (nearbyRenderOriginPoint, index.html).
-  const originPoint = state.selectionTransition.mapHeld && state.selectionMapTransitionOriginPoint
-    ? state.selectionMapTransitionOriginPoint
-    : nearbyRenderOriginPoint();
+  const originPoint = nearbyRenderOriginPoint();
   if (!originPoint) return;
-  if (hasRealSelection() && !state.selectionTransition.mapHeld) return;
+  if (hasRealSelection()) return;
 
   const dpr = pixelRatio();
   // Centre and radius are measured on the flat (untilted) map, then projected as a whole —
@@ -1908,7 +1909,7 @@ function beginOverviewFilterPinTransition(previousLookup) {
 // and means the outgoing marker never has to be resurrected in the hit-test lookup.
 function drawFilterTransitionPins(ctx, toScreen) {
   _drawnTransitionSpecs = [];
-  if (!filterPinTransitionActive()) return;
+  if (!filterPinTransitionActive() || hasRealSelection() || pinsHiddenBySelection(true)) return;
   const dpr = pixelRatio();
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
   const reveal = nearbyRevealOpacity();
@@ -2238,7 +2239,6 @@ function groupOpacity(marker) {
 
 // While a location is selected the Nearby pins give way to the selected destination.
 function pinsHiddenBySelection(tilted) {
-  if (state.selectionTransition.mapHeld) return false;
   if (tilted) return selectedNavigationMapModeActive();
   return Boolean(state.selected && MARKER_TYPES.includes(state.selected.type));
 }
@@ -2252,22 +2252,27 @@ let _drawnTransitionSpecs = [];
 // Draws every marker in one pass, flat (main canvas) or tilted/heading-up (overlay). Painted in
 // ascending screen Y so a marker lower on screen -- closer to the viewer -- paints over one further
 // up, across all categories; faces cannot overlap, so this only orders tails, chips and labels.
-function drawMapMarkers(ctx, markers, toScreen, tilted = false) {
+function drawMapMarkers(ctx, markers, toScreen, tilted = false, options = {}) {
   _drawnMarkerSpecs = [];
-  if (!markers.length || pinsHiddenBySelection(tilted)) return;
+  if (!markers.length || (pinsHiddenBySelection(tilted) && !options.allowSelectionExit)) return;
   const dpr = pixelRatio();
   const loneSize = MAP_PNG_ICON_SIZE * dpr * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
   const reveal = nearbyRevealOpacity();
   const visible = markers.filter(m => isNearCanvas(m.screenPt, m.items.length > 1 ? 84 * dpr : loneSize * 2));
   visible.sort((a, b) => a.screenPt.y - b.screenPt.y);
   ctx.save();
-  for (const marker of visible) {
+  for (let markerIndex = 0; markerIndex < visible.length; markerIndex += 1) {
+    const marker = visible[markerIndex];
+    const transitionOpacity = options.markerOpacity
+      ? options.markerOpacity(markerIndex, visible.length, marker)
+      : 1;
+    if (transitionOpacity <= 0) continue;
     const { screenPt, items, worldPt } = marker;
     const tiltScale = tilted ? tiltPinScale(worldPt) : 1;
     const joinState = clusterJoinAnimationState(marker);
     const joinScale = joinState ? joinState.badgeScale : 1;
     if (items.length > 1) {
-      ctx.globalAlpha = reveal * groupOpacity(marker);
+      ctx.globalAlpha = reveal * transitionOpacity * groupOpacity(marker);
       const groupScale = Math.max(0.65, tiltScale) * joinScale * filterPinClusterScale(marker);
       _drawnMarkerSpecs.push({ worldPt, count: items.length, scale: groupScale });
       drawClusterMarker(ctx, screenPt.x, screenPt.y, items.length,
@@ -2275,7 +2280,7 @@ function drawMapMarkers(ctx, markers, toScreen, tilted = false) {
     } else {
       const type = marker.itemType;
       const animation = filterPinAnimationFor(items[0]);
-      ctx.globalAlpha = reveal * lonePinOpacity(type, items[0]) * (animation ? animation.alpha : 1);
+      ctx.globalAlpha = reveal * transitionOpacity * lonePinOpacity(type, items[0]) * (animation ? animation.alpha : 1);
       const pinSize = loneSize * tiltScale * joinScale * (animation ? animation.scale : 1);
       _drawnMarkerSpecs.push({ worldPt, count: 1, scale: pinSize / (MAP_PNG_ICON_SIZE * MAP_ICON_SCALE_UNSELECTED * dpr) });
       drawItemPin(ctx, type, items[0], screenPt.x, screenPt.y, pinSize);
@@ -2284,13 +2289,28 @@ function drawMapMarkers(ctx, markers, toScreen, tilted = false) {
       for (const shrinking of joinState.shrinking) {
         const p = toScreen(shrinking.item.point);
         const type = markerItemType(marker, shrinking.item);
-        ctx.globalAlpha = reveal * lonePinOpacity(type, shrinking.item);
+        ctx.globalAlpha = reveal * transitionOpacity * lonePinOpacity(type, shrinking.item);
         drawItemPin(ctx, type, shrinking.item, p.x, p.y, loneSize * shrinking.scale);
       }
     }
     ctx.globalAlpha = 1;
   }
   ctx.restore();
+}
+
+// A render-only handoff for the set that was visible before a location was selected. The lookup
+// is intentionally never returned by activeIconLookup(): these pins are not tappable while they
+// leave. A short ordered fade preserves orientation during the camera move without resurrecting
+// the old 50%-opacity filter state.
+function drawSelectionExitMarkers(ctx, toScreen, tilted = false) {
+  const lookup = state.selectionTransition.outgoingIconLookup;
+  if (!lookup || !selectionOutgoingRevealInProgress()) return;
+  const markers = buildMapMarkers(lookup, toScreen, "selection-exit");
+  const now = performance.now();
+  drawMapMarkers(ctx, markers, toScreen, tilted, {
+    allowSelectionExit: true,
+    markerOpacity: (index) => selectionOutgoingMarkerOpacity(index, now),
+  });
 }
 
 // Draws just the operator's glyph, centred at (cx, cy) and sized sizePx wide/tall -- the shared
@@ -2484,14 +2504,9 @@ function selectedNavigationMapModeActive() {
 
 function activeIconLookup() {
   if (state.selected && state.selected.type === "community") return COMMUNITY_EMPTY_ICON_LOOKUP;
-  // Keep the outgoing Nearby pins under the selected destination while the inspector and camera
-  // handoff is in flight. The selected route/icon may not be drawable on the first frame (the
-  // routing graph and map artwork can both still be loading), and clearing the Nearby lookup at
-  // that exact moment leaves a blank map between the two states.
-  if (state.selectionTransition.mapHeld && state.selectionMapTransitionIconLookup) {
-    return state.selectionMapTransitionIconLookup;
-  }
-  if (state.selectionTransition.mapHeld) return buildNearbyIconLookup();
+  // Selection is a two-point map from its first frame. The camera can keep moving while the
+  // route/destination overlay catches up, but Nearby pins must not leak through the handoff.
+  if (hasRealSelection() && state.selectionTransition.mapHeld) return SELECTED_NAVIGATION_EMPTY_ICON_LOOKUP;
   if (selectedNavigationMapModeActive()) return SELECTED_NAVIGATION_EMPTY_ICON_LOOKUP;
   if (state.searchScreenOpen && state.searchHighlightResults.length) return buildSearchIconLookup();
   return buildNearbyIconLookup();
@@ -2601,8 +2616,7 @@ function buildFullNearbyIconLookup() {
 }
 
 function shouldDrawMapIcon(type, item, nearbyIconLookup) {
-  if (state.selected && !state.selectionTransition.mapHeld
-      && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type)) return false;
+  if (state.selected && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type)) return false;
   const typeSet = nearbyIconLookup && nearbyIconLookup[type];
   return Boolean(typeSet && typeSet.has(item));
 }
@@ -2865,7 +2879,12 @@ function drawUser(ctx, toScreen, isTilted) {
 
 function drawSelectedOverlay(ctx, toScreen) {
   if (!state.selected || !state.selected.item) return;
+  const reveal = selectionDestinationOpacity();
+  if (reveal <= 0) return;
   if (!toScreen) toScreen = worldToScreen;
+
+  ctx.save();
+  ctx.globalAlpha *= reveal;
 
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
@@ -2880,11 +2899,15 @@ function drawSelectedOverlay(ctx, toScreen) {
       const selectedTreeSrc = treeSpeciesIconPath(selectedTree.commonName, selectedTree.latinName) || iconPath("tree");
       drawDestinationIcon(ctx, selectedTreeSrc, point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
     }
+    ctx.restore();
     return;
   }
 
   const point = toScreen(state.selected.item.point);
-  if (!isNearCanvas(point, 24 * dpr * MAP_ICON_SCALE)) return;
+  if (!isNearCanvas(point, 24 * dpr * MAP_ICON_SCALE)) {
+    ctx.restore();
+    return;
+  }
 
   if (state.selected.type === "cow") {
     drawDestinationIcon(ctx, iconPath("cow"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
@@ -2921,6 +2944,7 @@ function drawSelectedOverlay(ctx, toScreen) {
         MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
     }
   }
+  ctx.restore();
 }
 
 function drawSelectedRoadOverlay(ctx) {

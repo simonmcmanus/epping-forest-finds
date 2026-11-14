@@ -47,6 +47,11 @@ const FEATURE_LAYERS = [
 const NEARBY_ORIGIN_TRANSITION_MS = 520; // slide between two browse origins -- see nearbyRenderOriginPoint()
 const NEARBY_REVEAL_START_FRACTION = 0.1; // share of a browse-origin slide that passes before the new pins start to appear -- see nearbyRevealOpacity()
 const NEARBY_REVEAL_MS = 180; // how quickly the new nearby set fades in once a slide lands -- see nearbyRevealOpacity()
+const SELECTION_MARKER_EXIT_MS = 120; // fade the outgoing marker set before the destination arrives
+const SELECTION_MARKER_EXIT_STAGGER_MS = 5; // small per-marker offset so the old set leaves in a wave
+const SELECTION_MARKER_EXIT_MAX_STAGGER_MS = 60; // keep a dense view's exit short and readable
+const SELECTION_MARKER_REVEAL_DELAY_MS = 180; // let the old Nearby pins leave before the destination arrives
+const SELECTION_MARKER_REVEAL_MS = 220; // selected destination fade-in after that handoff gap
 const OVERVIEW_REFIT_ANIMATION_MS = 420; // recompute the overview/secondary-screen camera fit after a UI state change (filter change, opening Filter/Settings/Report, radius toggle, a late location fix)
 const OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS = 520; // ensureOverviewTargetsVisible's (and centerOverviewOnUserLocation's) own default when a caller doesn't specify one
 const HEADING_UP_NAV_ANIMATION_MS = 500; // standard duration for heading-up alignment and selection-commit transitions (goToInitialView, zoomToSelection)
@@ -389,11 +394,14 @@ const state = {
   tiltWasActive: false,
   // One owner for the selection-driven camera hold: the viewport move a selection has queued but not
   // yet started (viewportPending), and whether the Nearby map is held hidden until that move lands (mapHeld).
-  selectionTransition: { viewportPending: false, mapHeld: false },
+  selectionTransition: {
+    viewportPending: false,
+    mapHeld: false,
+    startedAt: null,
+    outgoingIconLookup: null,
+  },
   inspectorMinimizeTransitionPending: false,
   selectionMapTransitionToken: null,
-  selectionMapTransitionIconLookup: null,
-  selectionMapTransitionOriginPoint: null,
   viewportAnimationFrame: null,
   viewportAnimationFrom: null,
   viewportAnimationTo: null,
@@ -539,6 +547,10 @@ const SELECTION_ROUTES = [
 // covers the boot sequence, which puts the app on the screen the launch URL asked for.
 let routeApplyDepth = 0;
 let routerBooting = true;
+// /find/<slug>/ landings start with a server-rendered place panel, but unlike /nearby/<slug>/
+// landings they do not use _serverRenderedNearbyList. Keep their initial selection pending so
+// incremental data arrivals cannot paint Nearby over the requested place before it is resolved.
+let findLandingSelectionPending = false;
 
 // A first, "cold" enableHighAccuracy fix routinely takes longer than a few seconds,
 // and tree canopy -- this app's whole subject -- slows GPS lock further still. A
@@ -656,6 +668,7 @@ async function boot() {
   // _serverRenderedNearbyList, js/inspector.js); keep it there until a real fix or the reveal.
   _staticNearbyIndex = Boolean(document.querySelector("[data-server-rendered-nearby]"));
   _serverRenderedNearbyList = isNearbyCategoryLandingPath() || (_staticNearbyIndex && staticNearbyIndexFiltersAreDefault());
+  findLandingSelectionPending = Boolean(findLandingSlug());
   initSelectedIconMotion();
   initRouter();
   // Keep the launch route available while the first GPS fix is arriving. applyLocationFix()
@@ -1042,7 +1055,7 @@ const LOCATION_FAST_SNAP_METRES = 150;
 // lands on the fix rather than crawling at it forever.
 const LOCATION_GLIDE_EPSILON = 1e-7;
 
-function applyLocationFix(position) {
+function applyLocationFix(position, { preserveSelection = false } = {}) {
   const { latitude, longitude, accuracy, speed } = position.coords;
   const previousPoint = state.userLocation && state.userLocation.point;
   state.userLocation = ingestLocationFix(latitude, longitude, accuracy, performance.now(), speed);
@@ -1057,8 +1070,12 @@ function applyLocationFix(position) {
   state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
   if (typeof adventureMaybeShow === "function") window.setTimeout(adventureMaybeShow, 250);
   // A cold load of /community has already opened its screen (boot); a fix must not wipe it. Nor
-  // must Settings' own "Use my location": that answer shows in place, on the row that asked.
-  if (!communityScreenOpen() && state.selected?.type !== "settings") state.selected = null;
+  // must Settings or Feedback: their own location actions answer in place, on the screen that
+  // asked.
+  // A selected destination can also opt in to staying open while a real fix replaces the
+  // High Beach stand-in, so the route can be drawn from the newly shared position.
+  if (!preserveSelection && !communityScreenOpen()
+      && !["settings", "report"].includes(state.selected?.type)) state.selected = null;
   if (typeof communityNudgeCheck === "function") setTimeout(communityNudgeCheck, 0);
   return { latitude, longitude, previousPoint };
 }
@@ -1132,8 +1149,9 @@ function locateUser({ initial, preserveSelection = false }) {
     (position) => {
       setLocationRequestPending(false);
       const shouldPreserveSelection = selectionToPreserve && state.selected === selectionToPreserve;
-      const { latitude, longitude, previousPoint } = applyLocationFix(position);
-      if (shouldPreserveSelection && !state.selected) state.selected = selectionToPreserve;
+      const { latitude, longitude, previousPoint } = applyLocationFix(position, {
+        preserveSelection: Boolean(shouldPreserveSelection),
+      });
       ensureLocationWatch();
       setLoadStep("location", "done");
       syncSettingsLocationRow();
@@ -3855,10 +3873,13 @@ function startCompassSmoothing() {
     state.tiltBetaSmoothed += betaDiff * (1 - Math.exp(-4 * dt));
 
     const tiltNeedsFullRedraw = tiltRenderStale();
-    if (hasHeading) {
+    // Beta-only tilt is supported before the compass has a usable heading. The map overlay
+    // still moves through the 3D projection in that state, so refresh its directional arrows
+    // too; otherwise they would keep their last flat bearing until heading calibration finishes.
+    if (hasHeading || hasBetaWork) {
       updateOverviewDirectionArrows();
-      refreshNearbyListForHeading();
       updateCompassOverlay();
+      if (hasHeading) refreshNearbyListForHeading();
     }
     const alignmentDue = state.compassViewportAlignmentAt == null
       || timestamp - state.compassViewportAlignmentAt >= 33;
@@ -4013,20 +4034,17 @@ function ensureLocationWatch() {
   state.locationWatchId = Native.geolocation.watchPosition(
     (position) => {
       state.lastLocationUpdateAt = performance.now();
-      const { latitude, longitude, accuracy, speed } = position.coords;
-      const previousPoint = state.userLocation && state.userLocation.point;
-      state.userLocation = ingestLocationFix(latitude, longitude, accuracy, performance.now(), speed);
+      const { latitude, longitude } = position.coords;
+      const { previousPoint } = applyLocationFix(position, {
+        // Once a destination is selected, a live GPS update only changes the route origin.
+        // Clearing the destination here makes the route disappear immediately after the
+        // one-shot location request hands over to watchPosition.
+        preserveSelection: Boolean(state.selected?.item),
+      });
       if (Native.heading) Native.heading.setLocation(latitude, longitude);
       const point = state.userLocation.point;
       state.userInMapArea = pointInsideBounds(point, state.bounds);
       updateFarFromForest(latitude, longitude);
-      const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
-      state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;
-      state.nearestCow = nearestCowTo(latitude, longitude);
-      state.nearestPub = nearestPlaceByFilter(latitude, longitude, (place) => isPubCategory(place));
-      state.nearestRestaurant = nearestPlaceByFilter(latitude, longitude, (place) => isRestaurantCategory(place));
-      state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isRestaurantCategory(place) && !isCafeCategory(place) && !isShopCategory(place) && !isTransportCategory(place));
-      state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
       checkEventProximityAlert(latitude, longitude);
       if (typeof communityNudgeCheck === "function") communityNudgeCheck();
       // Walked out of a radius that was framing one nearby find? Grow it back to whatever is
@@ -4087,6 +4105,62 @@ function selectedCompassTarget() {
     return state.selected.navTarget;
   }
   return null;
+}
+
+// A flat bearing is enough for the compass and list arrows while the map is flat, but it is
+// not the direction a person sees once the ground has been projected into 3D: points at different
+// distances are pulled toward the horizon by different amounts. Use the same projected screen
+// positions as the map overlays so every directional arrow agrees with the terrain beneath it.
+function directionArrowAngleForWorldPoint(targetPoint, fallbackAngle, previousAngle = null) {
+  if (!(typeof tiltActive === "function" && tiltActive()) || !state.userLocation?.point || !targetPoint) {
+    return fallbackAngle;
+  }
+  if (typeof worldToScreenForOverlayTilted !== "function") return fallbackAngle;
+
+  const origin = worldToScreenForOverlayTilted(state.userLocation.point);
+  const target = worldToScreenForOverlayTilted(targetPoint);
+  // A clipped target is behind the camera's near plane. Its clamped coordinates are only a
+  // safety bound, not a real screen position; hold the last valid projected direction so the
+  // arrow does not jump to an artificial angle or back to a flat bearing at the clip boundary.
+  // The same hold handles a user point clipped while browsing around a distant anchor.
+  if (origin.clipped || target.clipped) return Number.isFinite(previousAngle) ? previousAngle : fallbackAngle;
+  const dx = target.x - origin.x;
+  const dy = target.y - origin.y;
+  if (!Number.isFinite(dx) || !Number.isFinite(dy) || Math.hypot(dx, dy) < 0.001) return fallbackAngle;
+  return normalizeDegrees(Math.atan2(dx, -dy) * 180 / Math.PI);
+}
+
+// The directional arrows are DOM glyphs rather than canvas pins, so give them the same visible
+// ground-plane treatment as the map while tilt is active. The angle above is the projected ray;
+// this transform also foreshortens the glyph itself instead of leaving a flat 2D arrow floating
+// over a perspective map.
+function directionArrowTransform(angle) {
+  if (!(typeof tiltActive === "function" && tiltActive())) return `rotate(${angle}deg)`;
+  const rotateX = typeof tiltRotateXDeg === "function" ? tiltRotateXDeg() : 0;
+  // worldToScreenForOverlayTilted() has already populated the per-frame projection
+  // snapshot before callers get here. Reuse its camera distance instead of asking
+  // tiltPerspectivePx() to repeat the layout-heavy visible-rect calculation once for
+  // every arrow in the same compass frame.
+  const projection = typeof tiltProjection === "function" ? tiltProjection() : null;
+  const perspective = projection?.perspectivePx
+    ?? (typeof tiltPerspectivePx === "function" ? tiltPerspectivePx() : 1000);
+  // The ray angle already includes the map's perspective projection. Compensate the arrow's
+  // local rotation for the following rotateX so foreshortening changes the glyph shape without
+  // tilting its final screen direction a second time.
+  const radians = angle * Math.PI / 180;
+  const compensatedAngle = Math.atan2(
+    Math.sin(radians) * Math.cos(rotateX * Math.PI / 180),
+    Math.cos(radians),
+  ) * 180 / Math.PI;
+  return `perspective(${perspective}px) rotateX(${rotateX}deg) rotate(${compensatedAngle}deg)`;
+}
+
+// The projected ray can move by several screen degrees when a target is close to the
+// perspective horizon. Ease the DOM glyph toward that ray as well as easing the sensor
+// values, so a tiny beta/heading fluctuation cannot make a 3D arrow twitch.
+function smoothDirectionArrowAngle(previousAngle, targetAngle) {
+  if (!Number.isFinite(targetAngle) || !Number.isFinite(previousAngle)) return targetAngle;
+  return previousAngle + shortestCompassDelta(previousAngle, targetAngle) * 0.2;
 }
 
 // A street has no single position of its own, so navigating to one aims at the point on its
@@ -4345,16 +4419,13 @@ function cameraOriginPoint(useFinalBrowseState = false) {
 // that feeds selectedNavigationHeadingUpActive()/nearbyOrigin() does), mirroring how
 // startNearbyOriginTransition is called before state.nearbyAnchor changes.
 function startCameraOriginTransition() {
-  // Selection clears a browsed Nearby anchor immediately, but the map still needs the exact
-  // pins and pivot that were visible before that state change while the camera slides away from
-  // it. Rebuilding the Nearby lookup after the clear scopes pins to the user's GPS position and
-  // can leave the in-between camera looking at empty terrain.
-  state.selectionMapTransitionIconLookup = typeof buildNearbyIconLookup === "function"
-    ? buildNearbyIconLookup()
+  // Keep a render-only snapshot of the set that is leaving. Hit testing still switches to the
+  // destination lookup immediately, but the old pins can now fade out in order instead of
+  // disappearing as one opaque slab and leaving a blank map under the camera move.
+  state.selectionTransition.outgoingIconLookup = !hasRealSelection()
+    && typeof activeIconLookup === "function"
+    ? activeIconLookup()
     : null;
-  state.selectionMapTransitionOriginPoint = typeof nearbyRenderOriginPoint === "function"
-    ? nearbyRenderOriginPoint()
-    : (typeof nearbyOrigin === "function" ? nearbyOrigin()?.point || null : null);
   const fromPoint = cameraOriginPoint();
   // A selection owns the camera from this frame onward. If a Nearby anchor move is still in
   // flight, leaving its transition alive lets prepareCanvasForDraw run an old Nearby refit over
@@ -4507,6 +4578,48 @@ function nearbyRevealInProgress() {
   if (state.selectionTransition.mapHeld) return false;
   if (state.viewportAnimationTo != null) return false;
   return performance.now() - transition.startedAt < transition.durationMs + NEARBY_REVEAL_MS;
+}
+
+// A selection is a deliberate handoff: remove the Nearby set from drawing and hit testing, let a
+// render-only copy leave in a short ordered fade, then reveal only the destination. Keeping the
+// old Nearby lookup during the camera move made every other landmark/cow appear at markerOpacityFor()'s
+// filter dim (0.5), while trees, paths and water stayed fully opaque.
+function selectionDestinationOpacity(now = performance.now()) {
+  const transition = state.selectionTransition;
+  if (!hasRealSelection() || !transition.mapHeld || transition.startedAt == null || prefersReducedMotion()) return 1;
+  const progress = clamp(
+    (now - transition.startedAt - SELECTION_MARKER_REVEAL_DELAY_MS) / SELECTION_MARKER_REVEAL_MS,
+    0,
+    1,
+  );
+  return progress * progress * (3 - 2 * progress);
+}
+
+function selectionDestinationRevealInProgress(now = performance.now()) {
+  const transition = state.selectionTransition;
+  if (!hasRealSelection() || !transition.mapHeld || transition.startedAt == null || prefersReducedMotion()) return false;
+  return now - transition.startedAt < SELECTION_MARKER_REVEAL_DELAY_MS + SELECTION_MARKER_REVEAL_MS;
+}
+
+function selectionOutgoingMarkerOpacity(index = 0, now = performance.now()) {
+  const transition = state.selectionTransition;
+  if (!hasRealSelection() || !transition.mapHeld || transition.startedAt == null || prefersReducedMotion()) return 0;
+  const delay = Math.min(index * SELECTION_MARKER_EXIT_STAGGER_MS, SELECTION_MARKER_EXIT_MAX_STAGGER_MS);
+  const progress = clamp((now - transition.startedAt - delay) / SELECTION_MARKER_EXIT_MS, 0, 1);
+  const eased = progress * progress * (3 - 2 * progress);
+  return 1 - eased;
+}
+
+function selectionOutgoingRevealInProgress(now = performance.now()) {
+  const transition = state.selectionTransition;
+  if (!hasRealSelection() || !transition.mapHeld || transition.startedAt == null || prefersReducedMotion()) return false;
+  return now - transition.startedAt < SELECTION_MARKER_EXIT_MS + SELECTION_MARKER_EXIT_MAX_STAGGER_MS;
+}
+
+function selectionOutgoingRevealDurationMs() {
+  const transition = state.selectionTransition;
+  if (!transition.outgoingIconLookup || prefersReducedMotion()) return 0;
+  return SELECTION_MARKER_EXIT_MS + SELECTION_MARKER_EXIT_MAX_STAGGER_MS;
 }
 
 function nearbyOriginTransitionActive() {
@@ -6412,10 +6525,15 @@ function updateCompassOverlay() {
     return;
   }
 
+  const tilted = typeof tiltActive === "function" && tiltActive();
   const bearingToTarget = bearingDegrees(state.userLocation.latitude, state.userLocation.longitude, target.latitude, target.longitude);
   const hasHeading = Number.isFinite(state.compassHeading);
   const relative = hasHeading ? shortestCompassDelta(state.compassHeading, bearingToTarget) : bearingToTarget;
-  state.compassArrowAngle = unwrapAngle(state.compassArrowAngle, relative);
+  const projected = directionArrowAngleForWorldPoint(target.point, relative, state.compassArrowAngle);
+  const unwrapped = unwrapAngle(state.compassArrowAngle, projected);
+  state.compassArrowAngle = tilted
+    ? smoothDirectionArrowAngle(state.compassArrowAngle, unwrapped)
+    : unwrapped;
 
   const title = state.selected.type === "tree"
     ? treeDisplayName(target)
@@ -6428,14 +6546,24 @@ function updateCompassOverlay() {
     const settlingIn = arrow.hidden || arrow.classList.contains("title-compass-arrow--searching");
     arrow.classList.remove("title-compass-arrow--searching");
     arrow.hidden = false;
+    arrow.classList.toggle("title-compass-arrow--tilted", tilted);
+    arrow.style.transformStyle = tilted ? "preserve-3d" : "";
     if (settlingIn) {
       arrow.style.transition = "none";
-      arrow.style.transform = `rotate(${state.compassArrowAngle + 720}deg)`;
-      void arrow.offsetWidth;
-      arrow.style.transition = "transform 1.6s cubic-bezier(0.2, 0.7, 0.2, 1)";
-      arrow.addEventListener("transitionend", () => { arrow.style.transition = ""; }, { once: true });
+      arrow.style.transform = directionArrowTransform(tilted
+        ? state.compassArrowAngle
+        : state.compassArrowAngle + 720);
+      if (!tilted) {
+        void arrow.offsetWidth;
+        arrow.style.transition = "transform 1.6s cubic-bezier(0.2, 0.7, 0.2, 1)";
+        arrow.addEventListener("transitionend", () => { arrow.style.transition = ""; }, { once: true });
+      }
     }
-    arrow.style.transform = `rotate(${state.compassArrowAngle}deg)`;
+    // The tilt projection is already smoothed in the compass loop. A second, long CSS
+    // interpolation makes the DOM arrow chase each new 3D angle and reads as stutter.
+    if (tilted) arrow.style.transition = "none";
+    else if (!settlingIn) arrow.style.transition = "";
+    arrow.style.transform = directionArrowTransform(state.compassArrowAngle);
     arrow.setAttribute("aria-label", `Direction to ${title}, ${detailTypeLabel(distanceFromUser(target))}`);
   }
 }
@@ -6445,6 +6573,7 @@ function updateOverviewDirectionArrows() {
   const arrows = els.inspectorBody.querySelectorAll(".nearest-arrow[data-item-lat]");
   if (!arrows.length) return;
   const { latitude, longitude } = state.userLocation;
+  const tilted = typeof tiltActive === "function" && tiltActive();
 
   for (const arrow of arrows) {
     const itemLat = Number(arrow.dataset.itemLat);
@@ -6455,9 +6584,18 @@ function updateOverviewDirectionArrows() {
       ? shortestCompassDelta(state.compassHeading, bearing)
       : bearing;
     const previousAngle = Number(arrow.dataset.currentAngle);
-    const nextAngle = unwrapAngle(previousAngle, relative);
+    const projected = directionArrowAngleForWorldPoint(
+      projectLonLat(itemLon, itemLat),
+      relative,
+      previousAngle,
+    );
+    const unwrapped = unwrapAngle(previousAngle, projected);
+    const nextAngle = tilted
+      ? smoothDirectionArrowAngle(previousAngle, unwrapped)
+      : unwrapped;
     arrow.dataset.currentAngle = String(nextAngle);
-    arrow.style.transform = `rotate(${nextAngle}deg)`;
+    if (arrow.classList?.toggle) arrow.classList.toggle("nearest-arrow--tilted", tilted);
+    arrow.style.transform = directionArrowTransform(nextAngle);
   }
 }
 
@@ -7188,6 +7326,10 @@ function worldToScreenForOverlay(point) {
 function worldToScreenForOverlayTilted(point) {
   const flat = worldToScreenForOverlay(point);
   if (!tiltActive() || !state.userLocation) return flat;
+  // During heading-up entry, worldToScreenForOverlay delegates to worldToScreen so the
+  // animation's intermediate camera already includes tilt. Applying tiltProjectScreenPoint
+  // again here would project every overlay twice for the duration of that transition.
+  if (state.headingUpEntryAnim != null) return flat;
   return tiltProjectScreenPoint(flat);
 }
 
