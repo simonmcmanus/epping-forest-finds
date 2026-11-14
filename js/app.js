@@ -4117,7 +4117,13 @@ function directionArrowAngleForWorldPoint(targetPoint, fallbackAngle, previousAn
 function directionArrowTransform(angle) {
   if (!(typeof tiltActive === "function" && tiltActive())) return `rotate(${angle}deg)`;
   const rotateX = typeof tiltRotateXDeg === "function" ? tiltRotateXDeg() : 0;
-  const perspective = typeof tiltPerspectivePx === "function" ? tiltPerspectivePx() : 1000;
+  // worldToScreenForOverlayTilted() has already populated the per-frame projection
+  // snapshot before callers get here. Reuse its camera distance instead of asking
+  // tiltPerspectivePx() to repeat the layout-heavy visible-rect calculation once for
+  // every arrow in the same compass frame.
+  const projection = typeof tiltProjection === "function" ? tiltProjection() : null;
+  const perspective = projection?.perspectivePx
+    ?? (typeof tiltPerspectivePx === "function" ? tiltPerspectivePx() : 1000);
   // The ray angle already includes the map's perspective projection. Compensate the arrow's
   // local rotation for the following rotateX so foreshortening changes the glyph shape without
   // tilting its final screen direction a second time.
