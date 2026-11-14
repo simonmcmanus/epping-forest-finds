@@ -130,6 +130,62 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     expect(glyphs).toEqual(['underground', 'rail']);
   });
 
+  test('zoomed-out phone pins use the available space while fixed group faces stay clear', async ({ page, isMobile }) => {
+    test.skip(!isMobile, 'this before/after measurement is phone-specific');
+    await setup(page);
+    const result = await page.evaluate(() => {
+      const item = (type, id, x) => ({ type, item: { id, commonName: 'Oak', point: { x, y: 100 } } });
+      const items = [item('tree', 'a', 0), item('tree', 'b', 145)];
+      const lookup = { tree: new Set(), landmark: new Set(), cow: new Set(), path: new Set(), water: new Set() };
+      items.forEach(({ type, item: markerItem }) => lookup[type].add(markerItem));
+    const canvas = document.createElement('canvas');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const ctx = canvas.getContext('2d');
+    const centre = { x: canvas.width / 2, y: canvas.height / 2 };
+    const drawPin = drawItemPin;
+    const measureAt = scale => {
+      state.emojiScaleAnimated = scale;
+      resetMarkerGroupMemory();
+      settleClusterJoinAnimations();
+      let drawnPins = 0;
+      drawItemPin = (...args) => {
+        drawnPins++;
+        return drawPin(...args);
+      };
+      try {
+        const markers = buildMapMarkers(lookup,
+          point => ({ x: centre.x + point.x, y: centre.y + point.y }), 'zoomed-out-phone');
+        drawMapMarkers(ctx, markers,
+          point => ({ x: centre.x + point.x, y: centre.y + point.y }));
+        return { individual: drawnPins, places: markers.reduce((count, marker) => count + marker.items.length, 0) };
+      } finally {
+        drawItemPin = drawPin;
+      }
+    };
+      const previousScale = state.emojiScaleAnimated;
+      try {
+      const before = measureAt(1);
+      const after = measureAt(0.3);
+        return {
+        beforeIndividual: before.individual,
+        afterIndividual: after.individual,
+        beforePlaces: before.places,
+        afterPlaces: after.places,
+        };
+      } finally {
+        state.emojiScaleAnimated = previousScale;
+        resetMarkerGroupMemory();
+      }
+    });
+    expect(result.beforePlaces).toBe(2);
+    expect(result.afterPlaces).toBe(2);
+    expect(result.beforeIndividual).toBe(0);
+    expect(result.afterIndividual).toBe(2);
+    expect(result.afterIndividual - result.beforeIndividual,
+      'zooming out exposes two places that fit beside the smaller pins').toBe(2);
+  });
+
   // Records what draw() really paints on a settled frame and derives each rectangle from the
   // renderer's own geometry.
   const MEASURE_OVERLAPS = `(() => {

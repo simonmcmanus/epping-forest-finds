@@ -730,6 +730,7 @@ globalThis.__forestFindsTest = {
   screenToWorld,
   pixelRatio,
   mapEmojiScale,
+  mapMarkerPinHitRadius,
   MAP_PNG_ICON_SIZE,
   MAP_ICON_SCALE_UNSELECTED,
   buildMapMarkers,
@@ -1178,6 +1179,8 @@ const app = loadAppForTests();
 
 // Map markers: one clustering pass across every category. Items carry their screen position
 // directly as `point` here, with an identity projection, so each case controls the exact layout.
+// Keep shared fixtures at the normal-size camera; zoom-specific cases set this around their build.
+app.state.emojiScaleAnimated = 1;
 const markerScreen = (p) => p;
 const markerLookup = (items) => {
   const lookup = { tree: new Set(), landmark: new Set(), cow: new Set(), path: new Set(), water: new Set() };
@@ -1284,6 +1287,49 @@ test("a pair just outside the normal box stays one group once grouped, and is tw
   assert.equal(build(w * 1.1).length, 1, "outside the normal box but inside the split box: still one group");
   app.resetMarkerGroupMemory();
   assert.equal(build(w * 1.1).length, 2, "built fresh at the same spacing they are separate");
+});
+
+test("zoomed-out lone pins use the available space without losing their touch floor", () => {
+  const items = [markerItem("tree", "a", 0, 0), markerItem("tree", "b", 56, 0)];
+  const previousScale = app.state.emojiScaleAnimated;
+  try {
+    app.state.emojiScaleAnimated = 1;
+    app.resetMarkerGroupMemory();
+    assert.equal(app.buildMapMarkers(markerLookup(items), markerScreen).length, 1,
+      "the full-size faces still group at this spacing");
+
+    app.state.emojiScaleAnimated = 0.3;
+    app.resetMarkerGroupMemory();
+    const markers = app.buildMapMarkers(markerLookup(items), markerScreen);
+    assert.equal(markers.length, 2, "small lone pins that fit side by side stay individual");
+    assert.equal(markers.reduce((count, marker) => count + marker.items.length, 0), items.length);
+  } finally {
+    app.state.emojiScaleAnimated = previousScale;
+    app.resetMarkerGroupMemory();
+  }
+});
+
+test("zoomed-out lone pins retain a 44 CSS-pixel hit radius", () => {
+  const dpr = app.pixelRatio();
+  const full = app.mapMarkerPinHitRadius(dpr, 1);
+  const zoomedOut = app.mapMarkerPinHitRadius(dpr, 0.3);
+  assert.ok(zoomedOut >= 22 * dpr, "the smallest lone pin still has a 44px diameter touch target");
+  assert.ok(zoomedOut < full, "the touch target follows the drawn pin while above its floor");
+});
+
+test("a fixed-size group reserves space against a neighbouring zoomed-out lone pin", () => {
+  const items = [markerItem("tree", "a", 0, 0), markerItem("tree", "b", 5, 0), markerItem("cow", "c", 30, 0)];
+  const previousScale = app.state.emojiScaleAnimated;
+  try {
+    app.state.emojiScaleAnimated = 0.3;
+    app.resetMarkerGroupMemory();
+    const markers = app.buildMapMarkers(markerLookup(items), markerScreen);
+    assert.equal(markers.length, 1, "the neighbouring pin is included instead of overlapping the group face");
+    assert.equal(markers[0].items.length, items.length);
+  } finally {
+    app.state.emojiScaleAnimated = previousScale;
+    app.resetMarkerGroupMemory();
+  }
 });
 
 test("a grouped pair separates once it is outside the split box", () => {
@@ -11700,7 +11746,7 @@ test("an expanded group hides every other highlighted location from the map", ()
   resetData(app);
   app.state.userLocation = makePoint(app, 51.65, 0.05);
   const grouped = { id: "t1", commonName: "Oak", ...makePoint(app, 51.6503, 0.05) };
-  const otherTree = { id: "t2", commonName: "Beech", ...makePoint(app, 51.6504, 0.0501) };
+  const otherTree = { id: "t2", commonName: "Beech", ...makePoint(app, 51.6508, 0.0501) };
   const pub = { id: "p1", name: "The Forester", category: "pub", ...makePoint(app, 51.6502, 0.0503) };
   app.state.trees.push(grouped, otherTree);
   app.state.landmarks.push(pub);
@@ -11720,7 +11766,7 @@ test("a pin hidden by an expanded group is no longer tappable where it used to b
   resetData(app);
   app.state.userLocation = makePoint(app, 51.65, 0.05);
   const grouped = { id: "t1", commonName: "Oak", ...makePoint(app, 51.6503, 0.05) };
-  const otherTree = { id: "t2", commonName: "Beech", ...makePoint(app, 51.6504, 0.0501) };
+  const otherTree = { id: "t2", commonName: "Beech", ...makePoint(app, 51.6508, 0.0501) };
   app.state.trees.push(grouped, otherTree);
   app.state.viewport = { scale: 200000, tx: 0, ty: 0 };
   app.state.viewport.tx = 500 - otherTree.point.x * 200000;
@@ -11735,11 +11781,48 @@ test("a pin hidden by an expanded group is no longer tappable where it used to b
   assert.equal(app.findHit(tap, world).type, "none", "a hidden pin must not stay selectable");
 });
 
+test("a member represented by a visible group is not individually tappable outside its face", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const grouped = { id: "grouped", commonName: "Oak", ...makePoint(app, 51.6503, 0.05) };
+  const member = { id: "member", commonName: "Beech", ...makePoint(app, 51.65034, 0.05) };
+  app.state.trees.push(grouped, member);
+  app.state.viewport = { scale: 200000, tx: 500 - member.point.x * 200000, ty: 400 - member.point.y * 200000 };
+  app.state.emojiScaleAnimated = 1;
+  app.resetMarkerGroupMemory();
+  const markers = app.buildMapMarkers(app.buildNearbyIconLookup(), app.worldToScreen);
+  assert.equal(markers.length, 1, "the two nearby trees are represented by one visible group");
+
+  const tap = pinTapPoint(app, member.point);
+  assert.equal(app.findHit(tap, app.screenToWorld(tap.x, tap.y)).type, "none",
+    "a member hidden inside the group must not be selected at its old pin position");
+});
+
+test("a remembered lone seed cannot overlap a group that becomes fixed-size later", () => {
+  resetData(app);
+  const previousScale = app.state.emojiScaleAnimated;
+  app.state.emojiScaleAnimated = 0.3;
+  const lone = { id: "lone", point: { x: 0, y: 0 } };
+  const groupSeed = { id: "group-seed", point: { x: 47, y: 0 } };
+  const movedIntoGroup = { id: "moved", point: { x: 200, y: 0 } };
+  const lookup = () => ({ tree: new Set([lone, groupSeed, movedIntoGroup]) });
+
+  app.resetMarkerGroupMemory();
+  const first = app.buildMapMarkers(lookup(), point => point);
+  assert.equal(first.length, 3, "the initial separated layout remembers the lone seed first");
+
+  movedIntoGroup.point = { x: 52, y: 0 };
+  const second = app.buildMapMarkers(lookup(), point => point);
+  assert.equal(second.length, 1, "the newly formed group claims the nearby remembered lone seed");
+  assert.deepEqual(new Set(second[0].items), new Set([lone, groupSeed, movedIntoGroup]));
+  app.state.emojiScaleAnimated = previousScale;
+});
+
 test("a pin hidden behind a selection is no longer tappable, so the tap is open ground", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.65, 0.05);
   const selected = { id: "t1", commonName: "Oak", ...makePoint(app, 51.6503, 0.05) };
-  const otherTree = { id: "t2", commonName: "Beech", ...makePoint(app, 51.6504, 0.0501) };
+  const otherTree = { id: "t2", commonName: "Beech", ...makePoint(app, 51.6508, 0.0501) };
   app.state.trees.push(selected, otherTree);
   app.state.viewport = { scale: 200000, tx: 0, ty: 0 };
   app.state.viewport.tx = 500 - otherTree.point.x * 200000;
