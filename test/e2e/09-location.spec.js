@@ -67,7 +67,9 @@ test.describe("Location and GPS — happy path", () => {
       await expect(adventure).toBeVisible({ timeout: 10_000 });
       await expect(adventure).toContainText("Let’s go on an adventure");
       await expect(adventure).toContainText("Look for a tree with this tag on it");
+      await expect(adventure.locator("#adventureTag span")).toHaveText("Tag number");
       await expect(adventure.locator("#adventureTag strong")).toHaveText(/\d+/);
+      await expect(adventure.locator(".adventure-age small")).toHaveText("Estimated age");
       await expect(adventure).toContainText("Verify it for +10 points");
       await expect(page.locator("#communityNudge")).toBeHidden();
       await waitForUiToSettle(page);
