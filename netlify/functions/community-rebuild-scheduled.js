@@ -3,11 +3,11 @@
 const { openStore } = require("./lib/community-store");
 const { rebuildComputed } = require("./lib/community-computed");
 const { escalateConflicts } = require("./lib/community-escalation");
-const { originOf, makeGithubIssuePoster } = require("./lib/community-fetch");
+const { originOf, makeFetchJson, makeGithubIssuePoster } = require("./lib/community-fetch");
 
 exports.handler = async (event) => {
   const store = openStore(event);
-  const computed = await rebuildComputed(store);
+  const computed = await rebuildComputed(store, { fetchJson: makeFetchJson(event) });
   const escalated = await escalateConflicts(store, computed, { post: process.env.CONTEXT === "production" ? makeGithubIssuePoster() : null, siteUrl: originOf(event) });
   console.log("community-rebuild", JSON.stringify({ reports: computed.reportCount, targets: Object.keys(computed.overlay).length, escalated }));
   return { statusCode: 200, body: JSON.stringify({ reports: computed.reportCount, escalated }) };

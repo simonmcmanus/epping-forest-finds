@@ -29,14 +29,43 @@ function scoreShard(deviceId) {
 
 const EMPTY_SCORE = { points: 0, reports: 0, verified: 0, confirmed: 0, validated: 0, fixed: 0 };
 
+// The adventure reward is the one client-visible bonus that needs a server-side identity check.
+// Keep the register lookup out of the request path: rebuilds already run on a schedule and can
+// validate every claimed record against the same public tree chunks the app uses.
+async function loadAdventureTargets(fetchJson) {
+  if (typeof fetchJson !== "function") return null;
+  try {
+    const index = await fetchJson("data/trees/index.json");
+    const targets = new Map();
+    await mapLimit(index.chunks || [], 25, async (chunk) => {
+      const data = await fetchJson(chunk.url);
+      for (const tree of data.trees || []) {
+        const record = tree.recordNumber;
+        const location = tree.location && tree.location.wgs84 ? tree.location.wgs84 : tree;
+        const lat = Number(location.latitude);
+        const lon = Number(location.longitude);
+        if (record != null && Number.isFinite(lat) && Number.isFinite(lon)) {
+          targets.set(`tree:${record}`, { lat, lon });
+        }
+      }
+    });
+    return targets;
+  } catch {
+    // A failed register fetch must not make a rebuild fail, but it must also not grant a
+    // register-backed adventure reward without the validation data.
+    return new Map();
+  }
+}
+
 // `strict` (used when rebuilding after a data deletion) makes a failed read abort the rebuild, so a snapshot is
 // never published from a partial ledger. The routine hourly rebuild keeps skipping records it cannot read.
-async function rebuildComputed(store, { strict = false } = {}) {
+async function rebuildComputed(store, { strict = false, fetchJson = null } = {}) {
   const get = strict && store.getStrict ? (k) => store.getStrict(k) : (k) => store.get(k);
   const reports = await loadLedger(store, { strict });
   const validations = ((await get("validations")) || {}).items || [];
   const owners = await loadDeviceOwners(store);
-  const state = computeCommunityState(reports, validations, owners);
+  const adventureTargets = await loadAdventureTargets(fetchJson);
+  const state = computeCommunityState(reports, validations, owners, { adventureTargets });
   const { overlay, conflicts, conflictDetails, scores, rewards } = state;
   const generatedAt = Date.now();
   const shards = {};
@@ -77,4 +106,4 @@ async function loadScore(store, deviceId) {
   return { ...EMPTY_SCORE, ...((shard && shard.scores && shard.scores[deviceId]) || {}), generatedAt: shard ? shard.generatedAt : 0 };
 }
 
-module.exports = { loadComputed, rebuildComputed, loadAdminStats, loadScore, scoreShard, EMPTY_SCORE };
+module.exports = { loadComputed, rebuildComputed, loadAdminStats, loadScore, scoreShard, EMPTY_SCORE, loadAdventureTargets };

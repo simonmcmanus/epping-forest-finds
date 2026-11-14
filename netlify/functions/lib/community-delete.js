@@ -29,7 +29,7 @@ const strict = (store, key) => (store.getStrict ? store.getStrict(key) : store.g
 
 // `photos` (optional) removes the tag photo a tree report kept: { delete(photoId) }. A failure throws, so the
 // report is kept and the request can be sent again, the same as any other storage failure here.
-async function deleteCommunityData(store, { deviceId, includeAccount = false, github = null, redactIssues = false, photos = null } = {}) {
+async function deleteCommunityData(store, { deviceId, includeAccount = false, github = null, redactIssues = false, photos = null, fetchJson = null } = {}) {
   if (typeof deviceId !== "string" || !/^[A-Za-z0-9_-]{8,64}$/.test(deviceId)) throw new Error("a device id is required");
   const summary = { devices: 0, reports: 0, links: 0, refs: 0, rewards: 0, counters: 0, issues: { redacted: [], pending: [], failed: [] } };
 
@@ -108,7 +108,7 @@ async function deleteCommunityData(store, { deviceId, includeAccount = false, gi
   }
 
   // 8. The snapshot, so the overlay and scores stop including it.
-  await rebuildComputed(store, { strict: true });
+  await rebuildComputed(store, { strict: true, fetchJson });
   return summary;
 }
 

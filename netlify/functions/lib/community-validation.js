@@ -174,7 +174,7 @@ async function runValidation(deps) {
   // than overwrite it, so no reward either run found is lost.
   const latest = (await store.get("validations")) || {};
   await store.put("validations", mergeValidationStates(latest, state));
-  await rebuildComputed(store); // so the overlay and scores include the new rewards at once
+  await rebuildComputed(store, { fetchJson }); // so the overlay and scores include the new rewards at once
   return summary;
 }
 
