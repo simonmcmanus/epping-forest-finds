@@ -305,6 +305,9 @@ test.describe("Check card while walking up to a tree", () => {
   });
 
   test("the subtle hint plays on Verify only when the user is at the tree and the button is on screen", async ({ page, context }) => {
+    // A short window, so the detail's scroll range is large enough that scrolled to the bottom the promoted
+    // Verify is truly out of the panel's view (the check below proves it rather than assuming it).
+    await page.setViewportSize({ width: page.viewportSize().width, height: 680 });
     await setup(page, TREE_HASH);
     const scroller = page.locator(".inspector-scroll");
     await expect.poll(() => scroller.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeGreaterThan(40);
@@ -314,6 +317,13 @@ test.describe("Check card while walking up to a tree", () => {
     await waitForUiToSettle(page);
     // Promoted to the top while the panel is scrolled down: Verify is off screen, so nothing plays.
     await waitForFrames(page, 20);
+    const verify = page.locator(`${CARD} .community-verify`);
+    await expect.poll(() => verify.evaluate((el) => {
+      const view = el.closest(".inspector-scroll").getBoundingClientRect();
+      const box = el.getBoundingClientRect();
+      return Math.max(0, Math.min(box.bottom, view.bottom) - Math.max(box.top, view.top)) / box.height;
+    })).toBeLessThan(0.6);
+    await expect(verify).not.toHaveAttribute("data-hint-plays", /[1-9]/);
     await expect(page.locator(".community-verify-hint")).toHaveCount(0);
     await scroller.evaluate((el) => { el.scrollTop = 0; });
     await expect(page.locator(`${CARD} .community-verify`)).toHaveClass(/community-verify-hint/);

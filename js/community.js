@@ -1291,6 +1291,13 @@ function communityHintSettle() {
   }, COMMUNITY_CARD_MOTION_MS + 100);
 }
 
+// The card's own FLIP move is a Web Animation that can start late on a busy device, so the clock alone does
+// not say it is over. While one is still running the button's reported position is the animation's, not its real one.
+function communityHintMoving(section) {
+  if (!section || typeof section.getAnimations !== "function") return false;
+  return section.getAnimations().some((a) => !a.animationName && !a.transitionProperty && a.playState !== "finished" && a.playState !== "idle");
+}
+
 function communityHintPlaying() {
   return Boolean(communityHint.button && communityHint.button.classList.contains("community-verify-hint"));
 }
@@ -1329,6 +1336,17 @@ function communityHintMaybePlay() {
   if (!section || section.dataset.tier !== "near") return;
   if (communityReducedMotion()) { communityHint.want = false; return; }
   if (communityCardBusy(section)) return;
+  if (communityHintMoving(section)) {
+    // Look again, from the settled geometry, once the move has finished.
+    communityHint.visible = false;
+    Promise.allSettled(section.getAnimations().map((a) => a.finished)).then(() => {
+      const { observer, button: current } = communityHint;
+      if (!observer || current !== button || !button.isConnected) return;
+      observer.unobserve(button);
+      observer.observe(button);
+    });
+    return;
+  }
   if (section.classList.contains("community-highlight")) { communitySchedulePresentation(400); return; }
   const now = Date.now();
   if (now < communityHint.quietUntil || section.classList.contains("community-nudge-pulse")) {
