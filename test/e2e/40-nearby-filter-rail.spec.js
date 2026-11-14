@@ -346,6 +346,33 @@ test.describe("Nearby filter rail", () => {
     await pill(page, "nature").click();
     await waitForUiToSettle(page);
     await settleMapIconsAndDraw(page);
+
+    const navAlignment = await page.locator(".inspector-actions > a").evaluateAll((tabs) => {
+      const boxes = tabs.map((tab) => {
+        const tabBox = tab.getBoundingClientRect();
+        const label = tab.querySelector(".nav-label").getBoundingClientRect();
+        return {
+          fits: label.left >= tabBox.left && label.right <= tabBox.right,
+          centerY: (label.top + label.bottom) / 2,
+        };
+      });
+      return {
+        allFit: boxes.every((box) => box.fits),
+        centerSpread: Math.max(...boxes.map((box) => box.centerY)) - Math.min(...boxes.map((box) => box.centerY)),
+      };
+    });
+    expect(navAlignment.allFit).toBe(true);
+    expect(navAlignment.centerSpread).toBeLessThanOrEqual(1);
+
+    const countAlignment = await pill(page, "nature").evaluate((element) => {
+      const label = [...element.querySelectorAll(":scope > span")]
+        .find((span) => !span.classList.contains("rail-count") && !span.classList.contains("rail-check"));
+      const count = element.querySelector(".rail-count");
+      const centerY = (box) => (box.top + box.bottom) / 2;
+      return Math.abs(centerY(label.getBoundingClientRect()) - centerY(count.getBoundingClientRect()));
+    });
+    expect(countAlignment).toBeLessThanOrEqual(1);
+
     await expect(rail(page)).toHaveScreenshot("nearby-pixel5-filter-rail.png");
     await expect(page.locator(".inspector-actions")).toHaveScreenshot("nearby-pixel5-navigation.png");
   });
