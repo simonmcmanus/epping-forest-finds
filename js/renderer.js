@@ -2069,8 +2069,7 @@ function markerItemIconSrc(type, item) {
 // per category first -- the categories with most items first, ties in category order, each as its
 // most common kind -- so no category is hidden behind another's species; only a single-category
 // group shows its second most common kind as the second chip.
-function clusterPreviewEntries(marker) {
-  const byCategory = clusterKindsByCategory(marker);
+function clusterPreviewEntries(marker, byCategory = clusterKindsByCategory(marker)) {
   if (byCategory.length === 1) return byCategory[0].kinds.slice(0, 2);
   return byCategory.slice(0, 2).map(category => category.kinds[0]);
 }
@@ -2094,15 +2093,12 @@ function clusterKindsByCategory(marker) {
   return byCategory;
 }
 
-// The face previews at most two visual kinds. Return the number that the overflow badge makes
-// discoverable, rather than a boolean, so the cue tells the reader how much more is behind it.
-function clusterAdditionalKindCount(marker, byCategory = clusterKindsByCategory(marker)) {
-  const kindCount = byCategory.reduce((total, category) => total + category.kinds.length, 0);
-  return Math.max(0, kindCount - 2);
-}
-
-function clusterHasMoreKinds(marker, byCategory = clusterKindsByCategory(marker)) {
-  return clusterAdditionalKindCount(marker, byCategory) > 0;
+// The face previews at most two visual kinds. The remaining kinds feed the small stack behind
+// those preview chips; matching by key keeps the visible/hidden split aligned with the preview
+// ordering for both a single category and a mixed-category group.
+function clusterOverflowEntries(marker, byCategory = clusterKindsByCategory(marker)) {
+  const visible = new Set(clusterPreviewEntries(marker, byCategory).map(entry => entry.key));
+  return byCategory.flatMap(category => category.kinds).filter(entry => !visible.has(entry.key));
 }
 
 // One category's icon, cropped to a circle, sitting directly on the badge underneath it -- no
@@ -2188,47 +2184,38 @@ function clusterBadgeContains(screen, x, y, count, dpr, scale = 1) {
     && screen.y >= b.top - pad && screen.y <= y + pad;
 }
 
-// The extra-kinds badge sits in the lower-left of the face, balancing the total-count chip in the
-// upper-right. Its number is deliberately explicit: a reader can distinguish "there are more
-// kinds" from the marker's total member count without deciphering a lone plus symbol.
-function clusterMoreBadgeGeometry(x, y, count, dpr, scale = 1, moreCount = 0) {
+// The overflow chips sit in a tight, centred stack behind the two preview chips. They stay inside
+// the white head, so the group keeps one visual anchor and the existing collision/hit geometry.
+function clusterStackChipGeometry(x, y, count, dpr, scale = 1, index = 0, total = 1) {
   const b = clusterBadgeGeometry(x, y, count, dpr, scale);
-  const u = b.unit;
-  const label = moreCount > 99 ? "+99" : `+${moreCount}`;
-  const width = (label.length > 2 ? 25 : 20) * u;
-  const height = 13 * u;
-  const left = b.left + 3 * u;
-  const bottom = b.bottom - 3 * u;
-  return { left, top: bottom - height, width, height, right: left + width, bottom, label,
-    radius: 6 * u, fontSize: 8.5 * u };
+  const R = b.size * 0.32;
+  const chipR = R * 0.3;
+  const offsets = total === 1
+    ? [0]
+    : total === 2
+      ? [-0.28, 0.28]
+      : [-0.38, 0, 0.38];
+  const xOffset = offsets[Math.min(index, offsets.length - 1)] * R;
+  const yOffset = total === 1 ? 0.48 : total === 2 ? 0.43 : (index === 1 ? 0.52 : 0.38);
+  return { cx: x + xOffset, cy: b.top + b.height * 0.5 + yOffset * R, radius: chipR };
 }
 
 // One artwork fills the head; two (the two most common kinds) sit side by side in it.
-function drawClusterMarker(ctx, x, y, count, iconSources, dpr, scale = 1, moreCount = 0) {
+function drawClusterMarker(ctx, x, y, count, iconSources, dpr, scale = 1, overflowSources = []) {
   const sources = iconSources.slice(0, 2);
   const b = clusterBadgeGeometry(x, y, count, dpr, scale);
   const u = b.unit;
   ctx.save();
   const { cx, cy, R } = drawMapPinShape(ctx, x, y, b.size);
+  const stackSources = overflowSources.slice(0, 3);
+  stackSources.forEach((src, i) => {
+    const chip = clusterStackChipGeometry(x, y, count, dpr, scale, i, stackSources.length);
+    drawClusterIconChip(ctx, chip.cx, chip.cy, src, chip.radius);
+  });
   if (sources.length === 1) {
     drawClusterIconChip(ctx, cx, cy, sources[0], R * 0.86);
   } else {
     sources.forEach((src, i) => drawClusterIconChip(ctx, cx + (i ? 1 : -1) * R * 0.56, cy, src, R * 0.52));
-  }
-  if (moreCount > 0) {
-    const more = clusterMoreBadgeGeometry(x, y, count, dpr, scale, moreCount);
-    ctx.beginPath();
-    ctx.roundRect(more.left, more.top, more.width, more.height, more.radius);
-    ctx.fillStyle = "#233d30";
-    ctx.fill();
-    ctx.strokeStyle = "white";
-    ctx.lineWidth = 1.25 * u;
-    ctx.stroke();
-    ctx.fillStyle = "white";
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-    ctx.font = `700 ${more.fontSize}px system-ui`;
-    ctx.fillText(more.label, more.left + more.width / 2, more.top + more.height / 2);
   }
   ctx.beginPath();
   ctx.roundRect(b.countX - b.countWidth / 2, b.countY - b.countHeight / 2, b.countWidth, b.countHeight, 9 * u);
@@ -2317,8 +2304,9 @@ function drawMapMarkers(ctx, markers, toScreen, tilted = false) {
       const groupScale = Math.max(0.65, tiltScale) * joinScale * filterPinClusterScale(marker);
       _drawnMarkerSpecs.push({ worldPt, count: items.length, scale: groupScale });
       const kinds = clusterKindsByCategory(marker);
+      const overflow = clusterOverflowEntries(marker, kinds);
       drawClusterMarker(ctx, screenPt.x, screenPt.y, items.length,
-        clusterPreviewEntries(marker).map(entry => entry.src), dpr, groupScale, clusterAdditionalKindCount(marker, kinds));
+        clusterPreviewEntries(marker, kinds).map(entry => entry.src), dpr, groupScale, overflow.map(entry => entry.src));
     } else {
       const type = marker.itemType;
       const animation = filterPinAnimationFor(items[0]);
