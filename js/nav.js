@@ -317,22 +317,54 @@ function showUpdateBanner() {
   banner.innerHTML = '<span class="update-banner-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg></span>'
     + `<span class="update-banner-text"><strong>${title}</strong><span>${detail}</span></span>`
     + '<button id="updateBannerButton" type="button">Restart</button>';
+  banner.inert = true;
   document.body.appendChild(banner);
   banner.querySelector("button").addEventListener("click", async (event) => {
     const button = event.currentTarget;
+    banner.dataset.restoreFocus = String(banner.contains(document.activeElement));
     button.disabled = true;
     button.textContent = "Restarting…";
+    banner.inert = true;
+    banner.classList.remove("is-visible");
+    banner.classList.add("is-exiting");
+    // Give the dismissal transition time to be seen before activation reloads the page, unless
+    // the person has asked for motion to be reduced.
+    const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    if (!reducedMotion) await new Promise((resolve) => setTimeout(resolve, 220));
+    banner.classList.add("is-dismissed");
     const started = (state.swWaiting || state.swUpdateAvailable) ? await applySwUpdate() : (location.reload(), true);
     if (!started) {
       button.disabled = false;
       button.textContent = "Restart";
+      banner.classList.remove("is-exiting", "is-dismissed");
+      requestAnimationFrame(() => {
+        banner.inert = false;
+        banner.classList.add("is-visible");
+        if (banner.dataset.restoreFocus === "true") button.focus();
+        delete banner.dataset.restoreFocus;
+      });
     }
+  });
+  requestAnimationFrame(() => {
+    banner.inert = false;
+    banner.classList.add("is-visible");
   });
 }
 
 function resetUpdateBannerButton() {
   const button = document.getElementById("updateBannerButton");
   if (!button) return;
+  const banner = document.getElementById("updateBanner");
+  if (banner) {
+    const restoreFocus = banner.dataset.restoreFocus === "true";
+    delete banner.dataset.restoreFocus;
+    banner.classList.remove("is-exiting", "is-dismissed");
+    requestAnimationFrame(() => {
+      banner.inert = false;
+      banner.classList.add("is-visible");
+      if (restoreFocus) banner.querySelector("button")?.focus();
+    });
+  }
   button.disabled = false;
   button.textContent = "Restart";
 }
@@ -390,7 +422,9 @@ async function applySwUpdate() {
     try {
       state.swWaiting.postMessage({ type: "SKIP_WAITING" });
     } catch {
+      state.swWaiting = null;
       state.swPendingReload = false;
+      setAppUpdateStatus("failed");
       return;
     }
     // controllerchange normally reloads the page. Keep a long safety net for browsers that do
@@ -406,6 +440,7 @@ async function applySwUpdate() {
         location.reload();
         return;
       }
+      state.swWaiting = null;
       state.swPendingReload = false;
       setAppUpdateStatus("failed");
       resetUpdateBannerButton();
