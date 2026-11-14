@@ -549,6 +549,15 @@ globalThis.__forestFindsTest = {
   startNearbyRadiusGesture,
   updateNearbyRadiusGesture,
   endNearbyRadiusGesture,
+  startNearbyRadiusPinch,
+  updateNearbyRadiusPinch,
+  endNearbyRadiusPinch,
+  zoomGestureLive,
+  beginZoomGesture,
+  endZoomGesture,
+  mapPinFadeOpacity,
+  buildActiveMapMarkers,
+  mapMarkersToPaint,
   WHEEL_RADIUS_RATE_PER_PIXEL,
   TRACKPAD_PINCH_RATE_MULTIPLIER,
   WALKING_RADIUS_PRESET_MINUTES,
@@ -6326,6 +6335,161 @@ test("the wheel stops at the walking-radius floor and shows the same limit notic
   app.endNearbyRadiusWheel();
   assert.equal(app.state.walkingRadiusAtFloor, false);
   assert.equal(app.state.wheelRadiusMinutes, null, "the next scroll starts from where the radius ended up");
+});
+
+// Runs `run` with the named app functions replaced by counting wrappers (the originals still run)
+// and requestAnimationFrame queued by hand, so a test sees exactly what a gesture's ticks, and the
+// frames after them, cost. Returns the counts and a flush for the queued frames.
+function withCountedCalls(names, run) {
+  const counts = Object.fromEntries(names.map((name) => [name, 0]));
+  const originals = {};
+  const frames = [];
+  originals.raf = app.swapGlobalFunction("requestAnimationFrame", (fn) => { frames.push(fn); return frames.length; });
+  originals.caf = app.swapGlobalFunction("cancelAnimationFrame", () => {});
+  for (const name of names) {
+    const original = app.swapGlobalFunction(name, null); // reads the app's own function
+    originals[name] = original;
+    app.swapGlobalFunction(name, (...args) => { counts[name] += 1; return original(...args); });
+  }
+  const flush = () => { for (let guard = 0; frames.length && guard < 200; guard += 1) frames.shift()(16 * guard); };
+  try {
+    run(counts, flush);
+  } finally {
+    for (const name of names) app.swapGlobalFunction(name, originals[name]);
+    app.swapGlobalFunction("requestAnimationFrame", originals.raf);
+    app.swapGlobalFunction("cancelAnimationFrame", originals.caf);
+  }
+}
+
+const GESTURE_WORK = ["selectOverview", "walkingRadiusFloorMinutes", "refreshNearestTreeForNearbyOrigin", "overviewItemsForActiveFilter"];
+
+test("a wheel zoom leaves the Nearby list and item scans alone until it settles, then updates them once", () => {
+  setUpWheelNearby(app);
+  app.selectOverview();
+  withCountedCalls(GESTURE_WORK, (counts, flush) => {
+    for (let i = 0; i < 40; i += 1) app.updateNearbyRadiusWheel(wheelEvent(-20, { ctrlKey: true }));
+    flush();
+    assert.equal(counts.selectOverview, 0, "the list is not rebuilt mid-gesture");
+    assert.equal(counts.refreshNearestTreeForNearbyOrigin, 0, "the nearest item is not rescanned mid-gesture");
+    assert.equal(counts.overviewItemsForActiveFilter, 0, "the in-radius items are not scanned mid-gesture");
+    assert.ok(counts.walkingRadiusFloorMinutes <= 1, `the radius floor is scanned once for the gesture, not per tick (${counts.walkingRadiusFloorMinutes})`);
+    assert.equal(app.zoomGestureLive(), true);
+
+    app.endNearbyRadiusWheel();
+    assert.equal(counts.selectOverview, 1, "the list is rebuilt once when the gesture ends");
+    assert.equal(counts.refreshNearestTreeForNearbyOrigin, 1, "and the nearest item rescanned once");
+    assert.equal(app.zoomGestureLive(), false);
+  });
+});
+
+test("a two-finger pinch leaves the Nearby list and item scans alone until the fingers lift, then updates them once", () => {
+  setUpWheelNearby(app);
+  app.selectOverview();
+  const fingers = (gap) => {
+    app.state.activePointers.clear();
+    app.state.activePointers.set(1, { x: 100 - gap / 2, y: 100 });
+    app.state.activePointers.set(2, { x: 100 + gap / 2, y: 100 });
+  };
+  withCountedCalls(GESTURE_WORK, (counts, flush) => {
+    fingers(100);
+    app.startNearbyRadiusPinch();
+    for (let i = 1; i <= 40; i += 1) { fingers(100 + i * 4); app.updateNearbyRadiusPinch(); }
+    flush();
+    assert.ok(app.state.walkingDistanceMinutes < 5, "sanity: the ring followed the fingers");
+    assert.equal(counts.selectOverview, 0);
+    assert.equal(counts.refreshNearestTreeForNearbyOrigin, 0);
+    assert.equal(counts.overviewItemsForActiveFilter, 0);
+    assert.ok(counts.walkingRadiusFloorMinutes <= 1, `floor scanned once (${counts.walkingRadiusFloorMinutes})`);
+
+    app.endNearbyRadiusPinch();
+    assert.equal(counts.selectOverview, 1, "one list rebuild when the fingers lift");
+    assert.equal(app.zoomGestureLive(), false);
+  });
+  app.state.activePointers.clear();
+});
+
+test("map pins are neither calculated nor tappable while a zoom gesture is live, and are calculated once afterwards", () => {
+  setUpWheelNearby(app);
+  app.state.viewport = { scale: 1, tx: 0, ty: 0 };
+  app.resetMarkerGroupMemory();
+  assert.ok(app.buildActiveMapMarkers(app.worldToScreen, false).length > 0, "sanity: the nearby tree is a pin");
+  withCountedCalls(["buildNearbyIconLookup", "buildMapMarkers"], (counts) => {
+    app.beginZoomGesture("test");
+    app.state.viewport.scale = 2;
+    assert.equal(app.buildActiveMapMarkers(app.worldToScreen, false).length, 0, "nothing is tappable mid-gesture");
+    assert.equal(counts.buildNearbyIconLookup, 0, "the in-radius icon lookup is not rebuilt mid-gesture");
+    assert.equal(counts.buildMapMarkers, 0, "no grouping happens mid-gesture");
+    app.endZoomGesture("test");
+    assert.ok(app.buildActiveMapMarkers(app.worldToScreen, false).length > 0, "the pins are back once it ends");
+    assert.equal(counts.buildMapMarkers, 1, "and are calculated once");
+  });
+});
+
+test("panning the map moves the existing pins instead of regrouping them every frame", () => {
+  setUpWheelNearby(app);
+  app.state.trees.push({ id: "far-tree", commonName: "Far tree", ...makePoint(app, 0.0009, 0.0009) });
+  app.state.viewport = { scale: 1, tx: 0, ty: 0 };
+  app.resetMarkerGroupMemory();
+  withCountedCalls(["buildMapMarkers"], (counts) => {
+    const first = app.buildActiveMapMarkers(app.worldToScreen, false);
+    assert.ok(first.length > 0);
+    const start = first.map((marker) => ({ ...marker.screenPt }));
+    for (let step = 1; step <= 30; step += 1) {
+      app.state.viewport.tx = step * 7;
+      app.state.viewport.ty = -step * 3;
+      const panned = app.buildActiveMapMarkers(app.worldToScreen, false);
+      panned.forEach((marker, index) => {
+        assert.equal(marker.screenPt.x, start[index].x + step * 7, "pins follow the pan horizontally");
+        assert.equal(marker.screenPt.y, start[index].y - step * 3, "pins follow the pan vertically");
+      });
+    }
+    assert.equal(counts.buildMapMarkers, 1, "30 pan frames cost one marker build");
+    app.state.viewport.scale = 1.5;
+    app.buildActiveMapMarkers(app.worldToScreen, false);
+    assert.equal(counts.buildMapMarkers, 2, "a zoom still regroups");
+    app.resetMarkerGroupMemory();
+    app.buildActiveMapMarkers(app.worldToScreen, false);
+    assert.equal(counts.buildMapMarkers, 3, "clearing the group memory (a filter change) regroups too");
+  });
+});
+
+test("pins leave in one quick fade, return in one ease-out reveal, and reverse from where they are", () => {
+  setUpWheelNearby(app);
+  const clock = app.performance;
+  const realNow = clock.now;
+  let now = realNow.call(clock) + 1e6; // well past any fade an earlier test left running
+  const base = now;
+  clock.now = () => now;
+  try {
+    assert.equal(app.mapPinFadeOpacity(), 1);
+    app.beginZoomGesture("test");
+    const out = [];
+    for (let t = 0; t <= 150; t += 10) { now = base + t; out.push(app.mapPinFadeOpacity()); }
+    assert.ok(out.every((value, i) => i === 0 || value <= out[i - 1]), "opacity only falls while hiding");
+    assert.equal(out[out.length - 1], 0, "fully hidden within the fade-out");
+    assert.ok(out[3] > 0 && out[3] < 1, "it is a fade, not a cut");
+
+    // Interrupt a reveal part-way and hide again: continues from the current opacity.
+    now = base + 1000;
+    app.endZoomGesture("test");
+    now = base + 1100;
+    const midReveal = app.mapPinFadeOpacity();
+    assert.ok(midReveal > 0 && midReveal < 1, "mid-reveal");
+    app.beginZoomGesture("test");
+    assert.ok(Math.abs(app.mapPinFadeOpacity() - midReveal) < 1e-9, "no jump when a new gesture starts mid-reveal");
+    now = base + 1400;
+    assert.equal(app.mapPinFadeOpacity(), 0);
+
+    app.endZoomGesture("test");
+    const back = [];
+    for (let t = 0; t <= 260; t += 10) { now = base + 2000 + t; back.push(app.mapPinFadeOpacity()); }
+    assert.ok(back.every((value, i) => i === 0 || value >= back[i - 1]), "opacity only rises while revealing");
+    assert.equal(back[back.length - 1], 1);
+    assert.ok(back[5] > 0.5 * back[back.length - 1] / 2, "ease-out: well under way by the quarter mark");
+  } finally {
+    clock.now = realNow;
+    app.endZoomGesture("test");
+  }
 });
 
 test("a wheel over a real selection is left to zoom the map", () => {

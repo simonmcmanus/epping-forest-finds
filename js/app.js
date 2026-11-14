@@ -1939,6 +1939,7 @@ function zoomAt(factor, screenPoint) {
   const world = screenToWorld(screenPoint.x, screenPoint.y);
   stopViewportAnimation();
   state.zoomChase = { target, screenPoint: { x: screenPoint.x, y: screenPoint.y }, world, frame: null, last: now };
+  beginZoomGesture("mapWheel");
   stepZoomChase(last == null ? ZOOM_CHASE_FIRST_STEP_MS : now - last);
 }
 
@@ -1957,6 +1958,7 @@ function cancelZoomChase() {
   if (!chase) return;
   if (chase.frame != null) cancelAnimationFrame(chase.frame);
   state.zoomChase = null;
+  endZoomGesture("mapWheel");
 }
 
 function stepZoomChase(dtMs) {
@@ -1972,6 +1974,7 @@ function stepZoomChase(dtMs) {
   requestDraw();
   if (done) {
     state.zoomChase = null;
+    endZoomGesture("mapWheel");
     return;
   }
   chase.frame = requestAnimationFrame((timestamp) => {
