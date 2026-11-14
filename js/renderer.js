@@ -2070,7 +2070,12 @@ function markerItemIconSrc(type, item) {
 // per category first -- the categories with most items first, ties in category order, each as its
 // most common kind -- so no category is hidden behind another's species; only a single-category
 // group shows its second most common kind as the second chip.
-function clusterPreviewEntries(marker) {
+function clusterPreviewEntries(marker, byCategory = clusterKindsByCategory(marker)) {
+  if (byCategory.length === 1) return byCategory[0].kinds.slice(0, 2);
+  return byCategory.slice(0, 2).map(category => category.kinds[0]);
+}
+
+function clusterKindsByCategory(marker) {
   const byCategory = [];
   for (const type of MARKER_TYPES) {
     const items = marker.itemsByType[type];
@@ -2086,8 +2091,15 @@ function clusterPreviewEntries(marker) {
     byCategory.push({ total: items.length, kinds: Array.from(byKey.values()).sort((a, b) => b.count - a.count) });
   }
   byCategory.sort((a, b) => b.total - a.total);
-  if (byCategory.length === 1) return byCategory[0].kinds.slice(0, 2);
-  return byCategory.slice(0, 2).map(category => category.kinds[0]);
+  return byCategory;
+}
+
+// The face previews at most two visual kinds. The remaining kinds feed the small stack behind
+// those preview chips; matching by key keeps the visible/hidden split aligned with the preview
+// ordering for both a single category and a mixed-category group.
+function clusterOverflowEntries(marker, byCategory = clusterKindsByCategory(marker)) {
+  const visible = new Set(clusterPreviewEntries(marker, byCategory).map(entry => entry.key));
+  return byCategory.flatMap(category => category.kinds).filter(entry => !visible.has(entry.key));
 }
 
 // One category's icon, cropped to a circle, sitting directly on the badge underneath it -- no
@@ -2173,17 +2185,79 @@ function clusterBadgeContains(screen, x, y, count, dpr, scale = 1) {
     && screen.y >= b.top - pad && screen.y <= y + pad;
 }
 
+// The overflow chips form a distinct lower layer beneath the two preview chips. Keeping at most two
+// larger peek icons inside the white head makes the affordance legible on a phone; the plus covers
+// the rest without giving the group another pointer or changing its collision/hit geometry.
+function clusterStackChipGeometry(x, y, count, dpr, scale = 1, index = 0, total = 1) {
+  const b = clusterBadgeGeometry(x, y, count, dpr, scale);
+  const R = b.size * 0.32;
+  const chipR = total <= 2 ? R * 0.3 : R * 0.26;
+  const offsets = total === 1
+    ? [-0.24]
+    : total === 2
+      ? [-0.38, 0.38]
+      : [-0.45, 0, 0.45];
+  const xOffset = offsets[Math.min(index, offsets.length - 1)] * R;
+  const yOffset = total === 1 ? 0.5 : 0.52;
+  return { cx: x + xOffset, cy: b.top + b.height * 0.5 + yOffset * R, radius: chipR };
+}
+
+// The plus sits in front of the hidden artwork, making the stack read as an affordance rather
+// than a second row of equally-weighted pins. Its small half-opaque backing separates the mark
+// from the artwork without becoming another badge; the group's existing count remains the only
+// text.
+function clusterMorePlusGeometry(x, y, count, dpr, scale = 1, total = 1) {
+  const b = clusterBadgeGeometry(x, y, count, dpr, scale);
+  const R = b.size * 0.32;
+  return {
+    cx: x + (total === 1 ? 0.24 : 0) * R,
+    cy: b.top + b.height * 0.5 + 0.52 * R,
+    radius: R * 0.3,
+    unit: b.unit,
+  };
+}
+
+function drawClusterMorePlus(ctx, geometry) {
+  const { cx, cy, radius, unit } = geometry;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(255, 255, 255, 0.52)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(17, 17, 17, 0.25)";
+  ctx.lineWidth = 0.75 * unit;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx - radius * 0.48, cy);
+  ctx.lineTo(cx + radius * 0.48, cy);
+  ctx.moveTo(cx, cy - radius * 0.48);
+  ctx.lineTo(cx, cy + radius * 0.48);
+  ctx.strokeStyle = "#111111";
+  ctx.lineCap = "round";
+  ctx.lineWidth = 1.75 * unit;
+  ctx.stroke();
+}
+
 // One artwork fills the head; two (the two most common kinds) sit side by side in it.
-function drawClusterMarker(ctx, x, y, count, iconSources, dpr, scale = 1) {
+function drawClusterMarker(ctx, x, y, count, iconSources, dpr, scale = 1, overflowSources = []) {
   const sources = iconSources.slice(0, 2);
   const b = clusterBadgeGeometry(x, y, count, dpr, scale);
   const u = b.unit;
   ctx.save();
   const { cx, cy, R } = drawMapPinShape(ctx, x, y, b.size);
+  const stackSources = overflowSources.slice(0, 2);
+  stackSources.forEach((src, i) => {
+    const chip = clusterStackChipGeometry(x, y, count, dpr, scale, i, stackSources.length);
+    drawClusterIconChip(ctx, chip.cx, chip.cy, src, chip.radius);
+  });
+  if (stackSources.length) {
+    drawClusterMorePlus(ctx, clusterMorePlusGeometry(x, y, count, dpr, scale, stackSources.length));
+  }
+  const previewCy = stackSources.length ? cy - R * 0.22 : cy;
+  const previewRadius = stackSources.length ? R * 0.43 : R * 0.52;
   if (sources.length === 1) {
-    drawClusterIconChip(ctx, cx, cy, sources[0], R * 0.86);
+    drawClusterIconChip(ctx, cx, stackSources.length ? cy - R * 0.18 : cy, sources[0], stackSources.length ? R * 0.72 : R * 0.86);
   } else {
-    sources.forEach((src, i) => drawClusterIconChip(ctx, cx + (i ? 1 : -1) * R * 0.56, cy, src, R * 0.52));
+    sources.forEach((src, i) => drawClusterIconChip(ctx, cx + (i ? 1 : -1) * R * 0.48, previewCy, src, previewRadius));
   }
   ctx.beginPath();
   ctx.roundRect(b.countX - b.countWidth / 2, b.countY - b.countHeight / 2, b.countWidth, b.countHeight, 9 * u);
@@ -2275,8 +2349,10 @@ function drawMapMarkers(ctx, markers, toScreen, tilted = false, options = {}) {
       ctx.globalAlpha = reveal * transitionOpacity * groupOpacity(marker);
       const groupScale = Math.max(0.65, tiltScale) * joinScale * filterPinClusterScale(marker);
       _drawnMarkerSpecs.push({ worldPt, count: items.length, scale: groupScale });
+      const kinds = clusterKindsByCategory(marker);
+      const overflow = clusterOverflowEntries(marker, kinds);
       drawClusterMarker(ctx, screenPt.x, screenPt.y, items.length,
-        clusterPreviewEntries(marker).map(entry => entry.src), dpr, groupScale);
+        clusterPreviewEntries(marker, kinds).map(entry => entry.src), dpr, groupScale, overflow.map(entry => entry.src));
     } else {
       const type = marker.itemType;
       const animation = filterPinAnimationFor(items[0]);
