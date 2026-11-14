@@ -32,9 +32,8 @@ test.describe("Community screen snapshots", () => {
   test("snapshot: community screen, signed out", async ({ page }) => {
     await mockCommunity(page, { me: { signedIn: false } });
     await setup(page, "/community");
-    await expect(page.locator("#communityAccount")).toContainText("Sign in to take your points with you");
-    // Reports sit in a disclosure that starts collapsed, so its summary row is what shows.
-    await expect(page.locator("#communityReportsDetails > summary")).toBeVisible();
+    await expect(page.locator(".community-signin-required")).toContainText("Sign in to use Community");
+    await expect(page.locator(".community-contributions, #communityReportsDetails")).toHaveCount(0);
     await settle(page);
     await expect(page).toHaveScreenshot("community-signed-out.png", { fullPage: false });
   });

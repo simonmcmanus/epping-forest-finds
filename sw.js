@@ -571,36 +571,6 @@ self.addEventListener("fetch", (event) => {
   // Marketing ships independently: never read or write its assets in app caches.
   if (requestUrl.pathname.startsWith("/assets/home/")) return;
 
-  // The community overlay is served stale-while-revalidate from its own cache: instant (and
-  // available offline) from the last copy, refreshed from the network in the background. The
-  // per-user score query (?me=) is not cached.
-  if (
-    requestUrl.origin === self.location.origin &&
-    requestUrl.pathname === COMMUNITY_OVERLAY_PATH &&
-    !requestUrl.search &&
-    event.request.method === "GET"
-  ) {
-    event.respondWith(
-      caches.open(COMMUNITY_CACHE_NAME).then(async (cache) => {
-        const cached = await cache.match(event.request);
-        const fromNetwork = fetch(event.request).then(async (response) => {
-          if (!response.ok) return response;
-          const changed = !cached || await communityResponseChanged(cached, response);
-          const data = await response.clone().json().catch(() => null);
-          await cache.put(event.request, response.clone());
-          if (changed && data) await notifyCommunityUpdated(data);
-          return response;
-        });
-        if (cached) {
-          fromNetwork.catch(() => {});
-          return cached;
-        }
-        return fromNetwork;
-      })
-    );
-    return;
-  }
-
   // Always bypass cache for API and admin requests
   if (
     requestUrl.origin === self.location.origin &&

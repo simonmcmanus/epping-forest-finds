@@ -1,4 +1,4 @@
-// GET /api/community/overlay        — the public delta of community findings (cacheable).
+// GET /api/community/overlay        — the signed-in delta of community findings (never cached).
 // GET /api/community/overlay?me=<deviceId> — that device's score (small, per-user).
 //
 // The overlay is rebuilt from the report ledger hourly (COMMUNITY_TTL_MINUTES, default 60) by
@@ -9,6 +9,7 @@ const { reportOutcome, canonicalTarget } = require("./lib/community-consensus");
 const { loadComputed, loadAdminStats, loadScore } = require("./lib/community-computed");
 const { sessionFrom } = require("./lib/auth-session");
 const { devicesForRequest, mergeScores } = require("./lib/community-account");
+const { requireCommunitySession } = require("./lib/community-auth");
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 const { isAdminRequest } = require("./lib/admin-auth");
@@ -34,6 +35,8 @@ async function adminStats(event) {
 exports.handler = async (event) => {
   if (event.httpMethod !== "GET") return { statusCode: 405, body: "GET only" };
   if (queryParam(event, "admin")) return adminStats(event);
+  const access = requireCommunitySession(event);
+  if (access.response) return access.response;
   const me = queryParam(event, "me");
   // "My score" reads one small shard; only the other views need the whole snapshot.
   if (me && !queryParam(event, "list")) {
@@ -70,10 +73,9 @@ exports.handler = async (event) => {
     statusCode: 200,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
-      // Browsers keep it 5 minutes; Netlify's edge shares one copy between everyone for 5 minutes
-      // and may serve it a while longer while it refreshes, so cost does not grow with users.
-      "Cache-Control": "public, max-age=300",
-      "Netlify-CDN-Cache-Control": "public, s-maxage=300, stale-while-revalidate=3600",
+      // This response is private to signed-in visitors. It must never be shared by a browser, CDN,
+      // or service worker with a signed-out visitor.
+      "Cache-Control": "no-store",
       ETag: `"c${computed.generatedAt}"`,
     },
     body: JSON.stringify({ generatedAt: computed.generatedAt, entries: computed.overlay }),

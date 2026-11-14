@@ -2,6 +2,14 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const vm = require("node:vm");
+const testAuth = require("../netlify/functions/lib/auth-session.js");
+
+// Community endpoint tests use the same signed session boundary as production requests.
+process.env.AUTH0_DOMAIN = "test.auth0.example";
+process.env.AUTH0_CLIENT_ID = "test-client";
+process.env.AUTH0_CLIENT_SECRET = "test-client-secret";
+process.env.AUTH_SECRET = "t".repeat(40);
+const COMMUNITY_TEST_COOKIE = `ff_session=${encodeURIComponent(testAuth.sign({ sub: "auth0|community-test", name: "Test Walker", exp: Date.now() + 3600000 }, process.env.AUTH_SECRET))}`;
 
 function createElementStub(id = "") {
   const classes = new Set();
@@ -266,7 +274,11 @@ function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
   assert.ok(appSource.trim(), "js/app.js should contain the app script");
 
   const elements = new Map();
-  const storage = new Map(Object.entries({ "ff-features-v1": JSON.stringify({ community: true }), ...initialLocalStorage }));
+  const storage = new Map(Object.entries({
+    "ff-features-v1": JSON.stringify({ community: true }),
+    "ff-community-account-v1": JSON.stringify({ signedIn: true, name: "Test Walker", account: "test-account" }),
+    ...initialLocalStorage,
+  }));
   const localStorage = {
     getItem(key) {
       return storage.get(String(key)) ?? null;
@@ -379,7 +391,7 @@ function loadAppForTests({ localStorage: initialLocalStorage = {} } = {}) {
     console,
     document,
     window,
-    navigator: { geolocation: null, userAgent: "node-test" },
+    navigator: { geolocation: null, userAgent: "node-test", onLine: false },
     // A real session-history stack: the router pushes an entry per screen change and relies on
     // history.state carrying the depth, and on back() delivering a popstate, so a stub that
     // only rewrote the hash could not exercise any of it.
@@ -13245,6 +13257,7 @@ const feedbackEvent = (overrides = {}) => ({
 });
 const placeCheckEvent = (overrides = {}) => ({
   httpMethod: "POST",
+  headers: { cookie: COMMUNITY_TEST_COOKIE },
   body: JSON.stringify({
     reportType: "place-check",
     placeCheck: { status: "CLOSED", key: "place:id:123", name: "The Test Arms", category: "Pubs" },
@@ -13386,7 +13399,7 @@ test("a device that sends too many reports in an hour is refused with 429 and a 
   await withStubbedGithub(
     (url) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 1, html_url: "https://github.com/x/y/issues/1" })),
     async (handler, calls) => {
-      const send = (n) => handler({ ...placeCheckEvent({ deviceId: "device-flood-0001", requestId: `req-flood-${n}`, placeCheck: { status: "CLOSED", key: `place:id:${n}`, name: "x" } }), headers: {} });
+      const send = (n) => handler({ ...placeCheckEvent({ deviceId: "device-flood-0001", requestId: `req-flood-${n}`, placeCheck: { status: "CLOSED", key: `place:id:${n}`, name: "x" } }), headers: { cookie: COMMUNITY_TEST_COOKIE } });
       for (let n = 0; n < reportRateLimit.DEFAULT_LIMITS.perDevice; n += 1) assert.equal((await send(n)).statusCode, 200);
       const refused = await send(99);
       assert.equal(refused.statusCode, 429);
@@ -13402,7 +13415,7 @@ test("a network is capped by its address however many device ids it invents, and
   await withStubbedGithub(
     (url) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 1, html_url: "u" })),
     async (handler) => {
-      const fromIp = (ip, n) => handler({ ...placeCheckEvent({ deviceId: `device-${ip.replace(/\./g, "")}-${String(n).padStart(4, "0")}`, requestId: `req-ip-${ip}-${n}`, placeCheck: { status: "CLOSED", key: `place:id:${n}`, name: "x" } }), headers: { "x-nf-client-connection-ip": ip } });
+      const fromIp = (ip, n) => handler({ ...placeCheckEvent({ deviceId: `device-${ip.replace(/\./g, "")}-${String(n).padStart(4, "0")}`, requestId: `req-ip-${ip}-${n}`, placeCheck: { status: "CLOSED", key: `place:id:${n}`, name: "x" } }), headers: { cookie: COMMUNITY_TEST_COOKIE, "x-nf-client-connection-ip": ip } });
       for (let n = 0; n < reportRateLimit.DEFAULT_LIMITS.perIp; n += 1) assert.equal((await fromIp("203.0.113.9", n)).statusCode, 200);
       assert.equal((await fromIp("203.0.113.9", 500)).statusCode, 429, "fresh device ids do not get past the address cap");
       assert.equal((await fromIp("203.0.113.10", 0)).statusCode, 200, "another address is unaffected");
@@ -13414,7 +13427,7 @@ test("a network is capped by its address however many device ids it invents, and
     await withStubbedGithub(
       (url) => (url.includes("/search/issues") ? jsonResponse(200, { items: [] }) : jsonResponse(201, { number: 1, html_url: "u" })),
       async (handler) => {
-        const one = (ip, n) => handler({ ...placeCheckEvent({ deviceId: `device-glob-${n}-aaaa`, requestId: `req-glob-${n}`, placeCheck: { status: "CLOSED", key: `place:id:${n}`, name: "x" } }), headers: { "x-nf-client-connection-ip": ip } });
+        const one = (ip, n) => handler({ ...placeCheckEvent({ deviceId: `device-glob-${n}-aaaa`, requestId: `req-glob-${n}`, placeCheck: { status: "CLOSED", key: `place:id:${n}`, name: "x" } }), headers: { cookie: COMMUNITY_TEST_COOKIE, "x-nf-client-connection-ip": ip } });
         assert.equal((await one("198.51.100.1", 1)).statusCode, 200);
         assert.equal((await one("198.51.100.2", 2)).statusCode, 200);
         assert.equal((await one("198.51.100.3", 3)).statusCode, 429, "the site-wide cap stops new addresses too");
@@ -13474,7 +13487,7 @@ test("ids that mean something to JavaScript are refused, and cannot reach Object
   assert.equal(Object.keys(state.scores).includes("__proto__"), false);
   const handler = require("../netlify/functions/community-report").handler;
   const result = await handler({ httpMethod: "POST", body: JSON.stringify({ id: "report-proto-1", deviceId: "__proto__", kind: "tree", target: "tree:1", status: "VERIFIED", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01 }) });
-  assert.equal(result.statusCode, 400);
+  assert.equal(result.statusCode, 401, "community reports require a signed-in session before validation");
 });
 
 test("a new tree's outcome is found under its tag, so a register reward shows as validated", () => {
@@ -13641,7 +13654,7 @@ test("one network cannot mint endless device ids to confirm its own reports: com
   try {
     const send = (ip, n) => reportEndpoint.handler({
       httpMethod: "POST",
-      headers: { "x-nf-client-connection-ip": ip },
+      headers: { cookie: COMMUNITY_TEST_COOKIE, "x-nf-client-connection-ip": ip },
       body: JSON.stringify({ id: `report-sybil-${ip}-${n}`.replace(/\./g, ""), deviceId: `device-sybil-${n}-x`, kind: "tree", target: "tree:5", status: "VERIFIED", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01 }),
     });
     for (let n = 0; n < 3; n += 1) assert.equal((await send("203.0.113.7", n)).statusCode, 200);
@@ -13668,7 +13681,7 @@ test("many people behind one mobile-network address can all report, well past on
     for (let n = 0; n < 150; n += 1) {
       const result = await reportEndpoint.handler({
         httpMethod: "POST",
-        headers: { "x-nf-client-connection-ip": "198.51.100.20" },
+        headers: { cookie: COMMUNITY_TEST_COOKIE, "x-nf-client-connection-ip": "198.51.100.20" },
         body: JSON.stringify({ id: `report-cgnat-${String(n).padStart(4, "0")}`, deviceId: `device-cgnat-${n}-x`, kind: "tree", target: `tree:${n}`, status: "VERIFIED", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01 }),
       });
       assert.equal(result.statusCode, 200, `report ${n + 1} from the shared address`);
@@ -13687,7 +13700,7 @@ test("'My reports' keeps a device's latest 1,000 reports, dropping the oldest", 
   try {
     const result = await reportEndpoint.handler({
       httpMethod: "POST",
-      headers: { "x-nf-client-connection-ip": "198.51.100.21" },
+      headers: { cookie: COMMUNITY_TEST_COOKIE, "x-nf-client-connection-ip": "198.51.100.21" },
       body: JSON.stringify({ id: "report-newest-0001", deviceId, kind: "tree", target: "tree:9", status: "VERIFIED", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01 }),
     });
     assert.equal(result.statusCode, 200);
@@ -13707,7 +13720,7 @@ test("a tree report with a tag photo that is not a JPEG, PNG or WebP is refused 
   try {
     const result = await reportEndpoint.handler({
       httpMethod: "POST",
-      headers: { "x-nf-client-connection-ip": "198.51.100.30" },
+      headers: { cookie: COMMUNITY_TEST_COOKIE, "x-nf-client-connection-ip": "198.51.100.30" },
       body: JSON.stringify({ id: "report-badphoto-0001", deviceId: "device-badphoto-1", kind: "tree", status: "NEW_TREE", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01, accuracy: 5, tagNumber: "11383", photo: { contentType: "image/gif", dataUrl: "data:image/gif;base64,R0lGOD" } }),
     });
     assert.equal(result.statusCode, 400);
@@ -13725,7 +13738,7 @@ test("a tree report whose tag photo cannot be kept is refused so the outbox send
   try {
     const body = { id: "report-photo-retry-1", deviceId: "device-photo-retry-1", kind: "tree", status: "NEW_TREE", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01, accuracy: 5, tagNumber: "11383", photo: { contentType: "image/jpeg", dataUrl: `data:image/jpeg;base64,${Buffer.from("jpegbytes").toString("base64")}` } };
     // No Netlify blob context in a unit test, so the photo cannot be stored.
-    const result = await reportEndpoint.handler({ httpMethod: "POST", headers: { "x-nf-client-connection-ip": "198.51.100.31" }, body: JSON.stringify(body) });
+    const result = await reportEndpoint.handler({ httpMethod: "POST", headers: { cookie: COMMUNITY_TEST_COOKIE, "x-nf-client-connection-ip": "198.51.100.31" }, body: JSON.stringify(body) });
     assert.equal(result.statusCode, 503);
     assert.ok(!(await store.get("reports/report-photo-retry-1")), "the report is not filed without its photo");
   } finally {
@@ -13745,7 +13758,7 @@ test("a tag photo a tree report keeps is stored in a private namespace, not besi
     const tiny = Buffer.from("not really a jpeg, but bytes").toString("base64");
     const body = { id: "report-privphoto-1", deviceId: "device-privphoto-1", kind: "tree", status: "NEW_TREE", targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01, accuracy: 5, tagNumber: "11383",
       photo: { contentType: "image/jpeg", dataUrl: `data:image/jpeg;base64,${tiny}` } };
-    const result = await reportEndpoint.handler({ httpMethod: "POST", headers: { "x-nf-client-connection-ip": "198.51.100.41" }, body: JSON.stringify(body) });
+    const result = await reportEndpoint.handler({ httpMethod: "POST", headers: { cookie: COMMUNITY_TEST_COOKIE, "x-nf-client-connection-ip": "198.51.100.41" }, body: JSON.stringify(body) });
     assert.equal(result.statusCode, 200);
     const saved = await store.get("reports/report-privphoto-1");
     assert.ok(saved.photoId.startsWith("tree-photos/"), `the report should point at a private photo, not ${saved.photoId}`);

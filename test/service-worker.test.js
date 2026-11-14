@@ -414,21 +414,16 @@ test.describe("serving requests", () => {
     assert.equal(await body((await offlineSw.request("/js/app.js")).response), "cached js");
   });
 
-  test("the community overlay is served stale-while-revalidate and open pages hear about changes", async () => {
+  test("the signed-in community overlay always goes to the network and is never cached", async () => {
     const overlay = { reports: [1] };
     const sw = loadServiceWorker({ network: () => new Response(JSON.stringify(overlay), { headers: { "Content-Type": "application/json" } }) });
     const cache = await sw.cacheStorage.open(sw.constant("COMMUNITY_CACHE_NAME"));
     await cache.put("/api/community/overlay", new Response(JSON.stringify({ reports: [] })));
 
     const { response } = await sw.request("/api/community/overlay");
-    assert.deepEqual(await response.json(), { reports: [] }, "the cached overlay is served immediately");
+    assert.deepEqual(await response.json(), overlay, "a private overlay must not come from a shared cache");
     await sw.settle();
-    assert.deepEqual(JSON.parse(JSON.stringify(sw.posted)), [{ type: "COMMUNITY_UPDATED", data: overlay }]);
-
-    sw.posted.length = 0;
-    await sw.request("/api/community/overlay");
-    await sw.settle();
-    assert.deepEqual(sw.posted, [], "an unchanged overlay does not notify");
+    assert.equal(await body(await cache.match("/api/community/overlay")), JSON.stringify({ reports: [] }));
   });
 });
 

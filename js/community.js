@@ -194,8 +194,8 @@ function communityDeviceId() {
   return primary;
 }
 
-// --- Feature gate: Community is shown to the testers on the server's list (everyone while it is empty) ---
-// The answer is kept on the device so the app works offline; until the first answer arrives it is off.
+// --- Feature gate: Community requires a signed-in account as well as the server-held rollout flag. ---
+// The answer is kept on the device so the app works offline; until the identity check has answered it is off.
 const COMMUNITY_FEATURES_KEY = "ff-features-v1";
 let communityFeaturesMemory;
 
@@ -206,7 +206,7 @@ function communityFeatureCache() {
 
 function communityEnabled() {
   const cache = communityFeatureCache();
-  return Boolean(cache && cache.community);
+  return Boolean(cache && cache.community && communitySignedIn());
 }
 
 function communityFeaturesKnown() {
@@ -228,6 +228,7 @@ function communityRefreshFeatures() {
   if (communityFeaturesInflight) return communityFeaturesInflight;
   communityFeaturesInflight = (async () => {
     try {
+      if (!communitySignedIn()) return false;
       if (!navigator.onLine) return communityEnabled();
       const id = await communityTesterId(communityPrimaryDeviceId());
       const response = await fetch(`/api/features?id=${encodeURIComponent(id)}`, { cache: "no-store", signal: AbortSignal.timeout(6000) });
@@ -404,6 +405,7 @@ function communityDisplayScore(score, local, waitingIds) {
 
 // Builds, saves locally (optimistic) and queues one report. Resolves the stored local record.
 async function communitySubmitReport({ kind = "tree", target, status, targetLat, targetLon, newLat, newLon, note, tagNumber, accuracy, photo }) {
+  if (!communityEnabled()) return;
   const here = typeof hasRealLocation === "function" && hasRealLocation() ? state.userLocation : null;
   const id = communityRandomId();
   const payload = {
@@ -684,6 +686,16 @@ function communitySectionHtml(tree) {
     </section>`;
 }
 
+function communityHideVisibleFeatures() {
+  if (typeof communityNudgeDismiss === "function") communityNudgeDismiss();
+  communityOverlay = { generatedAt: 0, entries: {} };
+  document.querySelectorAll(
+    ".community-check, .community-verified-slot, .community-verified-detail-slot, " +
+    ".community-place-status-slot, .community-place-status-chip-slot, .community-place-status-detail-slot"
+  ).forEach((el) => el.remove());
+  if (typeof requestDraw === "function") requestDraw();
+}
+
 function communityRefreshSections() {
   document.querySelectorAll(".community-check").forEach((section) => {
     const body = section.querySelector(".community-body");
@@ -743,6 +755,7 @@ function communityApplyOverlay(data) {
 
 function communityLoadOverlay() {
   if (communityOverlayInflight) return communityOverlayInflight;
+  if (!communityEnabled()) return Promise.resolve();
   communityOverlayInflight = (async () => {
     try {
       const response = await fetch(COMMUNITY_OVERLAY_URL);
@@ -780,6 +793,7 @@ const COMMUNITY_SCORE_MAX_AGE_MS = 60 * 60 * 1000;
 async function communityRefreshScore(force = true) {
   if (!navigator.onLine) return;
   if (!(await communityWhenIdentityKnown())) return;
+  if (!communityEnabled()) return;
   try {
     if (!force) {
       const at = Number(localStorage.getItem(communityScoped(COMMUNITY_SCORE_AT_KEY))) || 0;
@@ -1127,6 +1141,7 @@ function communityCancelAddTree() {
 async function communitySubmitNewTree() {
   const statusEl = document.getElementById("communityAddTreeStatus");
   const say = (text) => { if (statusEl) statusEl.textContent = text; };
+  if (!communityEnabled()) return say("Sign in to use Community.");
   const tag = ((document.getElementById("communityTagInput") || {}).value || "").trim();
   const note = ((document.getElementById("communityTreeNote") || {}).value || "").trim();
   const fix = communityCurrentFix();
@@ -1230,6 +1245,7 @@ function communityCancelAddPlace() {
 async function communitySubmitNewPlace() {
   const statusEl = document.getElementById("communityAddPlaceStatus");
   const say = (text) => { if (statusEl) statusEl.textContent = text; };
+  if (!communityEnabled()) return say("Sign in to use Community.");
   const name = ((document.getElementById("communityPlaceName") || {}).value || "").trim();
   const category = ((document.getElementById("communityPlaceType") || {}).value || "Other").trim();
   const note = ((document.getElementById("communityPlaceNote") || {}).value || "").trim();
@@ -1432,6 +1448,7 @@ function communityRefreshPlaceConfirmation(target) {
 }
 
 async function communitySubmitPlace(section, status, note, photo = null) {
+  if (!communityEnabled()) return;
   const target = section.dataset.communityTarget;
   const lat = Number(section.dataset.lat);
   const lon = Number(section.dataset.lon);
@@ -1557,6 +1574,7 @@ function communityMarkKind(entry) {
 // The shared verdict on the tree whose page is open (from the overlay, so everyone's reports show), drawn
 // on its own pin. Questioned and verified only: a tree with no community entry gets no mark.
 function communitySelectedTreeMarks() {
+  if (!communityEnabled()) return [];
   const item = state.selected && state.selected.item;
   if (!item || item.latitude == null || item.longitude == null) return [];
   const key = communityTreeTarget(item);
@@ -1567,6 +1585,7 @@ function communitySelectedTreeMarks() {
 
 // [{ lat, lon, kind, status, key }] for every report this device has made that has a position.
 function communityMapMarks() {
+  if (!communityEnabled()) return [];
   const marks = [];
   for (const [key, entry] of Object.entries(communityReadLocal())) {
     let lat = Number(entry.lat);
@@ -1585,6 +1604,7 @@ function communityMapMarks() {
 // These remain available for shared links and detail routes; map highlights are limited to the
 // Community screen so they do not sit over the ordinary map's labels and pins.
 function communityOverlayNewTreeMarks() {
+  if (!communityEnabled()) return [];
   const marks = [];
   for (const [key, entry] of Object.entries(communityOverlay.entries || {})) {
     if (!key.startsWith("new:tree:") || !entry || (entry.s !== "new" && entry.s !== "new-confirmed")) continue;
@@ -1981,7 +2001,7 @@ function communityMarksChanged() {
   if (typeof requestDraw === "function") requestDraw();
 }
 
-// --- Sign-in: optional. Points work anonymously; an account lets them follow the person across devices ---
+// --- Sign-in: required for every in-app Community feature ---
 function communityAccountHtml() {
   return `<section class="community-account" id="communityAccount" aria-live="polite">
       <p class="community-account-line is-loading" data-account="line"><span class="community-skel-text" aria-hidden="true"></span></p>
@@ -1993,6 +2013,17 @@ function communityAccountHtml() {
 // Who is signed in, as last told by /api/auth/me. Kept in memory as well as in storage: where storage is
 // blocked the page must still know which account it is acting for, or it would file reports under the wrong id.
 let communityAccountMemory;
+
+// Cached account data is useful for an offline signed-in session, but it is not trusted for a fresh
+// online page. Community content remains hidden until /api/auth/me has confirmed the current cookie.
+function communitySignedIn() {
+  const account = communityReadAccount();
+  // An offline launch may use the last confirmed account immediately; online launches must wait for
+  // /api/auth/me so a shared browser never trusts the previous person's cached identity.
+  if (!communityIdentitySettled && navigator.onLine !== false) return false;
+  if (communityIdentityFailed || !account) return false;
+  return Boolean(account && account.signedIn && account.account);
+}
 
 function communityReadAccount() {
   if (communityAccountMemory !== undefined) return communityAccountMemory;
@@ -2045,6 +2076,9 @@ function communityRefreshAccount() {
   communityAccountInflight = communityRefreshAccountOnce().then((result) => {
     communityIdentityFailed = result === "failed";
     if (!communityIdentityFailed) communityIdentitySettled = true;
+    if (!communitySignedIn()) communityHideVisibleFeatures();
+    if (typeof applyFeatureGates === "function") applyFeatureGates();
+    if (communitySignedIn()) communityRefreshFeatures();
     return result;
   }).finally(() => { communityAccountInflight = null; });
   return communityAccountInflight;
@@ -2053,13 +2087,13 @@ function communityRefreshAccount() {
 // Until /api/auth/me has answered once on this page, the stored account may be a previous person's, so
 // nothing that names a device on the network goes out yet: a request must never carry the last account's id
 // while someone else is signing in. A failed answer does not count as one: while a signed-in account is
-// remembered and the check keeps failing, those requests stay unsent (an anonymous browser has no one to leak).
+// remembered and the check keeps failing, those requests stay unsent until identity is confirmed.
 let communityIdentitySettled = false;
 let communityIdentityFailed = false;
 async function communityWhenIdentityKnown() {
   if (!communityIdentitySettled) await communityRefreshAccount();
   const known = communityReadAccount();
-  return !(communityIdentityFailed && known && known.signedIn);
+  return !communityIdentityFailed && Boolean(known && known.signedIn && known.account);
 }
 
 async function communityPostLink(deviceId) {
@@ -2076,8 +2110,8 @@ const COMMUNITY_NATIVE_ACCOUNT_NOTE = "Your points stay on this device. Signing 
 // Resolves "ok" once /api/auth/me has answered (and the device is linked), "offline" when there is no network
 // (the last known account stands), or "failed" when the network is there but who is signed in could not be found out.
 async function communityRefreshAccountOnce() {
-  // The app has no sign-in (its cookie redirect cannot come back into the shell, and /api/auth/* is not
-  // open to it), so there is no one to ask about: it is always this device, anonymously.
+  // The native app has no sign-in (its cookie redirect cannot come back into the shell, and /api/auth/* is not
+  // open to it), so Community remains unavailable there until native authentication is added.
   if (Native.isNative) {
     communityAccountMemory = { signedIn: false };
     communityRenderAccount(communityAccountMemory, COMMUNITY_NATIVE_ACCOUNT_NOTE);
@@ -2119,7 +2153,7 @@ async function communityRefreshAccountOnce() {
           note = linked.error || "Couldn't link this device right now.";
         }
       }
-      if (communityAccountDevicesUnsaved && communityAccountDevices()[account.account]) {
+      if ((communityAccountDevicesUnsaved || !communityDeviceIdIsDurable()) && communityAccountDevices()[account.account]) {
         note = `${note ? `${note} ` : ""}This browser can't save your sign-in here, so history made on it won't be remembered after you close this page. Your account's other devices are not affected.`;
       }
     }
@@ -2133,7 +2167,7 @@ async function communityRefreshAccountOnce() {
 // Who is signed in decides which device's history and score belong on this screen, so nothing is drawn from
 // storage until that is known: otherwise a second person on a shared browser could see the first person's
 // rows for a moment. Offline there is nothing to ask and the last known account stands. If the network is there
-// but the answer is not, a signed-in browser shows no history at all; an anonymous one carries on as normal.
+// but the answer is not, no Community history is shown until identity is confirmed.
 async function communityOpenContributions() {
   if (!navigator.onLine) communityRenderAccount(communityReadAccount());
   else {
@@ -2144,6 +2178,7 @@ async function communityOpenContributions() {
   }
   const identity = await communityRefreshAccount();
   const known = communityReadAccount();
+  if (!communitySignedIn()) return;
   if (identity === "failed" && known && known.signedIn) {
     communityResetHosts("Couldn't check who is signed in just now. Reload to try again.");
     communityResetAccount();

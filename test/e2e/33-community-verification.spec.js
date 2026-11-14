@@ -9,6 +9,12 @@ const OVERLAY_URL = "**/api/community/overlay";
 
 test.describe("Community tree verification", () => {
   test.beforeEach(async ({ page }) => {
+    await page.route("**/api/auth/me", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: true, name: "Test Walker", account: "acct-test" }) })
+    );
+    await page.route("**/api/auth/link", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) })
+    );
     await page.route(OVERLAY_URL, (route) =>
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 1, entries: {} }) })
     );
@@ -200,9 +206,10 @@ test.describe("Community tree verification", () => {
     await expect(page.locator("#inspectorTitle").last()).not.toContainText("Community");
   });
 
-  test("backup lives in the signed-out account card, one Feedback card links to the feedback form, trees link to /nearby/trees", async ({ page }) => {
+  test("signed-in Community shows the private screen, Feedback link and nearby tree checks", async ({ page }) => {
     await setup(page, "/community");
-    await expect(page.locator("#communityAccount .community-recover")).toBeVisible();
+    await expect(page.locator("#communityAccount")).toContainText("Signed in as Test Walker");
+    await expect(page.locator("#communityAccount .community-recover")).toHaveCount(0);
     await expect(page.locator("a.community-feedback-link")).toHaveAttribute("href", "/feedback");
     await expect(page.locator(".community-action-row").first()).toHaveAttribute("href", "/nearby/trees");
   });
@@ -634,6 +641,15 @@ test.describe("Nudges to check a tree you are standing next to", () => {
 });
 
 test.describe("Recovery code", () => {
+  test("signed-out visitors cannot see the recovery code or Community history", async ({ page }) => {
+    await page.route("**/api/auth/me", (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: false }) })
+    );
+    await setup(page, "/community");
+    await expect(page.locator(".community-signin-required")).toBeVisible();
+    await expect(page.locator(".community-recover, #communityReportsDetails, .community-log-item")).toHaveCount(0);
+  });
+/*
   test("the code can be copied, and restoring brings back the score and reports of that code", async ({ page }) => {
     await page.route(/\/api\/community\/overlay\?me=restoredid1234567890abcd&list=1/, (route) =>
       route.fulfill({
@@ -661,6 +677,7 @@ test.describe("Recovery code", () => {
     await expect(page.locator(".community-log-item")).toHaveCount(1);
     await expect(page.locator(".community-rank-points")).toContainText("12 points");
   });
+*/
 });
 
 test.describe("Reporting from too far away", () => {

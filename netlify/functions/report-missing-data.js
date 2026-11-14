@@ -4,6 +4,7 @@ const { openStore, MINE_LOG_MAX } = require("./lib/community-store");
 const { checkRateLimit, clientIp } = require("./lib/report-rate-limit");
 const { connectLambda, getStore } = require("@netlify/blobs");
 const { REPORT_PHOTO_MAX_BYTES, REPORT_PHOTO_STORE, configureBlobContext, parsePhoto } = require("./lib/report-photo");
+const { requireCommunitySession } = require("./lib/community-auth");
 
 function reportPhotoUrl(photoId, pageUrl) {
   // `URL` is the production site even during a deploy preview, while Blobs are scoped to
@@ -183,6 +184,10 @@ exports.handler = async (event) => {
   const placeCheck = isPlaceCheck ? parsePlaceCheck(payload.placeCheck) : null;
   if (isPlaceCheck && !placeCheck) {
     return response(400, { error: "Invalid place check" });
+  }
+  if (isPlaceCheck) {
+    const access = requireCommunitySession(event);
+    if (access.response) return access.response;
   }
   // A place check's status is the report; the free text is an optional note on top of it.
   if (!isPlaceCheck && !details) {

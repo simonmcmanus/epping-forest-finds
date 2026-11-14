@@ -4,6 +4,7 @@ const { openStore, MINE_LOG_MAX } = require("./lib/community-store");
 const { validateReport } = require("./lib/community-consensus");
 const { checkRateLimit, configuredCommunityLimits, clientIp } = require("./lib/report-rate-limit");
 const { parsePhoto, savePhoto, PRIVATE_TREE_PHOTOS } = require("./lib/report-photo");
+const { requireCommunitySession } = require("./lib/community-auth");
 
 // Large enough for one tag photo (base64 of REPORT_PHOTO_MAX_BYTES plus its JSON wrapper); a report
 // without a photo is a few hundred bytes.
@@ -29,6 +30,8 @@ exports.handler = async (event) => {
   let input;
   try { input = JSON.parse(raw); } catch { return respond(400, { error: "Invalid JSON" }); }
   if (!input || typeof input !== "object") return respond(400, { error: "Invalid report" });
+  const access = requireCommunitySession(event);
+  if (access.response) return access.response;
 
   const report = {
     id: input.id,

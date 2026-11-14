@@ -13,14 +13,15 @@ test.describe("Community sign-in", () => {
     );
   });
 
-  test("an anonymous visitor is offered sign-in and keeps the anonymous check-ins", async ({ page }) => {
+  test("an anonymous visitor sees no Community features and is offered sign-in", async ({ page }) => {
     await page.route(ME_URL, (route) =>
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: false }) })
     );
     await setup(page, "/community");
-    await expect(page.locator("#communityAccount")).toContainText("Sign in to take your points with you");
-    await expect(page.locator("#communityAccount a[href^='/api/auth/login']")).toBeVisible();
-    await expect(page.locator(".community-contributions")).toBeVisible();
+    await expect(page.locator(".community-signin-required")).toContainText("Sign in to use Community");
+    await expect(page.locator(".community-signin-required a[href^='/api/auth/login']")).toBeVisible();
+    await expect(page.locator(".community-contributions")).toHaveCount(0);
+    await expect(page.locator(".community-check, .community-action-card, #communityReportsDetails")).toHaveCount(0);
   });
 
   test("the screen is drawn once as a skeleton and later renders only update values in place", async ({ page }) => {
@@ -178,8 +179,8 @@ test.describe("Community sign-in: history, account switching, storage", () => {
     await expect(page.locator(".community-log-item")).toHaveCount(1);
     me = { signedIn: false };
     await page.reload();
-    await expect(page.locator("#communityAccount")).toContainText("Sign in to take your points with you");
-    await expect(page.locator(".community-log-item")).toHaveCount(0);
+    await expect(page.locator(".community-signin-required")).toBeVisible();
+    await expect(page.locator(".community-contributions, .community-log-item")).toHaveCount(0);
     me = { signedIn: true, name: "Alex", account: "acct-bbbb" };
     await page.reload();
     await expect.poll(() => linked.length).toBe(3);
@@ -283,13 +284,13 @@ test.describe("Community sign-in: history, account switching, storage", () => {
       Storage.prototype.getItem = function (key) { if (throwFor(key)) throw new Error("blocked"); return get.call(this, key); };
       Storage.prototype.setItem = function (key, value) { if (throwFor(key)) throw new Error("blocked"); return set.call(this, key, value); };
     });
-    await page.route(ME_URL, (route) => route.fulfill(json({ signedIn: false })));
+    await page.route(ME_URL, (route) => route.fulfill(json({ signedIn: true, name: "Test Walker", account: "acct-test" })));
     await setup(page, "/community");
     const ids = await page.evaluate(() => [communityDeviceId(), communityDeviceId(), communityDeviceId()]);
     expect(new Set(ids).size).toBe(1);
     expect(ids[0]).toMatch(/^[a-z0-9]{24}$/);
     expect(await page.evaluate(() => communityDeviceIdIsDurable())).toBe(false);
-    await expect(page.locator(".community-recover .community-log-error")).toContainText("can't save your Community code");
+    await expect(page.locator("#communityAccount .community-account-note")).toContainText("can't save your sign-in");
     // A report made in this page is filed under that same id.
     const posted = [];
     await page.route("**/api/community/report", (route) => { posted.push(route.request().postDataJSON()); return route.fulfill(json({ ok: true })); });

@@ -720,12 +720,17 @@ async function boot() {
     // boot() is called mid-script: wait one microtask so the declarations below it (the document
     // title constants openCommunity() uses) have initialised before the screen is built.
     await Promise.resolve();
-    // Not yet told whether Community is on for this person: ask, briefly, rather than flash the wrong screen.
-    if (!communityFeaturesKnown()) await Promise.race([communityRefreshFeatures(), new Promise((resolve) => setTimeout(resolve, 2500))]);
+    // Resolve the current cookie before painting any Community content. A cached account or feature
+    // answer must never make a signed-out visitor see another person's private community data.
+    await Promise.race([communityRefreshAccount(), new Promise((resolve) => setTimeout(resolve, 2500))]);
+    if (communitySignedIn() && !communityFeaturesKnown()) await Promise.race([communityRefreshFeatures(), new Promise((resolve) => setTimeout(resolve, 2500))]);
     try { openCommunityOrFeedback(); } catch (error) { console.error(error); }
   }
   applyFeatureGates();
-  communityRefreshFeatures();
+  // Learn the current session on every app entry so a signed-in visitor gets Community controls on
+  // tree/place screens without first opening the Community tab. The request is non-blocking except
+  // for a cold /community deep link handled above.
+  communityRefreshAccount();
 
   // Start data loading immediately so it runs in parallel with location and onboarding
   const hasCachedCowData = applyCachedCowData();
@@ -2242,11 +2247,20 @@ function communityScreenOpen() {
   return Boolean(state.selected && state.selected.type === "community");
 }
 
-// Community is gated (see communityEnabled): people without it get the Feedback page in its place, and the
-// nav tab becomes the Feedback tab.
+// Community is gated by both the rollout flag and a confirmed signed-in account. Signed-out visitors get a
+// sign-in wall, while signed-in visitors who are not in the rollout get the ordinary Feedback page.
 function openCommunityOrFeedback() {
   if (typeof dismissOnboarding === "function") dismissOnboarding();
-  if (communityEnabled()) openCommunity(); else openReportModal();
+  if (communityEnabled() || !communitySignedIn()) openCommunity(); else openReportModal();
+}
+
+function communitySignInRequiredHtml() {
+  return `<section class="community-signin-required" aria-labelledby="community-signin-title">
+      <div class="community-signin-icon">${typeof communityIcon === "function" ? communityIcon("shield") : ""}</div>
+      <h3 id="community-signin-title">Sign in to use Community</h3>
+      <p>Community checks, reports and points are private to signed-in walkers.</p>
+      ${Native.isNative ? `<p class="report-note">Community sign-in is available in the website.</p>` : `<a class="community-send" href="/api/auth/login?return=/community">Sign in</a>`}
+    </section>`;
 }
 
 // Declared inside: boot() calls this mid-script, before top-level constants further down have initialised.
@@ -2256,15 +2270,18 @@ function applyFeatureGates() {
   const tab = els.reportToggle;
   if (!tab) return;
   const on = communityEnabled();
-  const label = on ? "Community" : "Feedback";
-  tab.setAttribute("href", on ? "/community" : "/feedback");
+  const signedIn = communitySignedIn();
+  const label = on || !signedIn ? "Community" : "Feedback";
+  tab.setAttribute("href", on || !signedIn ? "/community" : "/feedback");
   tab.setAttribute("aria-label", label);
   const icon = tab.querySelector("svg");
-  if (icon) icon.innerHTML = on ? NAV_COMMUNITY_ICON : NAV_FEEDBACK_ICON;
+  if (icon) icon.innerHTML = on || !signedIn ? NAV_COMMUNITY_ICON : NAV_FEEDBACK_ICON;
   const text = tab.querySelector(".nav-label");
   if (text) text.textContent = label;
   // The Community screen is open for someone who no longer has it (the list changed): show Feedback instead.
-  if (!on && communityScreenOpen()) openReportModal();
+  if (!on && communityScreenOpen()) {
+    if (signedIn) openReportModal(); else openCommunity();
+  }
 }
 
 function openCommunity() {
@@ -2276,8 +2293,12 @@ function openCommunity() {
   els.inspectorTools.hidden = true;
   els.inspectorTitle.textContent = "Community";
   els.inspectorType.textContent = "Checks, points and new trees";
-  transitionInspectorBody(communityScreenHtml(), "forward");
-  communityOpenContributions();
+  const canUseCommunity = communityEnabled();
+  transitionInspectorBody(canUseCommunity ? communityScreenHtml() : communitySignInRequiredHtml(), "forward");
+  if (canUseCommunity) {
+    communityOpenContributions();
+    communityLoadOverlay();
+  }
   setInspectorMinimized(false);
   updateCompassOverlay();
   syncHashFromSelection();

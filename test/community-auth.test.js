@@ -274,6 +274,9 @@ const callback = require("../netlify/functions/auth-callback.js");
 const logout = require("../netlify/functions/auth-logout.js");
 const linkHandler = require("../netlify/functions/auth-link.js");
 const meHandler = require("../netlify/functions/auth-me.js");
+const communityOverlay = require("../netlify/functions/community-overlay.js");
+const communityReport = require("../netlify/functions/community-report.js");
+const reportMissingData = require("../netlify/functions/report-missing-data.js");
 
 const AUTH_ENV = { AUTH0_DOMAIN: "tenant.example.auth0.test", AUTH0_CLIENT_ID: "client-id-1", AUTH0_CLIENT_SECRET: "client-secret-1", AUTH_SECRET: KEY };
 
@@ -480,6 +483,33 @@ test("me reports who is signed in and never an error for a visitor; link refuses
     assert.strictEqual((await linkHandler.handler({ httpMethod: "POST", headers: { cookie }, body: JSON.stringify({ deviceId: "x" }) })).statusCode, 400);
     assert.strictEqual((await linkHandler.handler({ httpMethod: "POST", headers: { cookie }, body: "{not json" })).statusCode, 400);
     assert.strictEqual((await linkHandler.handler({ httpMethod: "POST", headers: { cookie }, body: "null" })).statusCode, 400, "a body of null is not a device");
+  });
+});
+
+test("community data and report endpoints refuse visitors without a session", async () => {
+  await withAuthEnv(async () => {
+    const overlay = await communityOverlay.handler({ httpMethod: "GET", queryStringParameters: {}, headers: {} });
+    assert.equal(overlay.statusCode, 401);
+    assert.deepStrictEqual(JSON.parse(overlay.body), { error: "Sign in to use Community." });
+
+    const report = await communityReport.handler({
+      httpMethod: "POST",
+      headers: {},
+      body: JSON.stringify({ id: "report-anonymous-1", deviceId: "device-anonymous-1", kind: "tree", target: "tree:1", status: "VERIFIED", targetLat: 51.64, targetLon: 0.01 }),
+    });
+    assert.equal(report.statusCode, 401);
+    assert.deepStrictEqual(JSON.parse(report.body), { error: "Sign in to use Community." });
+
+    const placeCheck = await reportMissingData.handler({
+      httpMethod: "POST",
+      headers: {},
+      body: JSON.stringify({
+        reportType: "place-check",
+        placeCheck: { status: "CLOSED", key: "place:id:123", name: "Test place" },
+      }),
+    });
+    assert.equal(placeCheck.statusCode, 401);
+    assert.deepStrictEqual(JSON.parse(placeCheck.body), { error: "Sign in to use Community." });
   });
 });
 test("cookies are Secure over https and not over plain http on localhost, where a Secure cookie could never come back", async () => {
