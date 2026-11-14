@@ -63,6 +63,36 @@
 .adventure-banner-copy strong { display: block; font-size: 1rem; font-weight: 850; }
 .adventure-banner-copy p { margin: 3px 0 0; color: var(--muted); font-size: 0.83rem; line-height: 1.4; }
 
+.adventure-tag {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 9px;
+  padding: 7px 10px;
+  border: 1px solid rgba(47, 121, 83, 0.28);
+  border-radius: 10px;
+  background: #eef7ee;
+  color: #285b3c;
+}
+
+.adventure-tag[hidden] { display: none; }
+.adventure-tag span {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.adventure-tag strong {
+  padding: 2px 8px;
+  border-radius: 7px;
+  background: #285b3c;
+  color: #fff;
+  font-size: 1.05rem;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
+}
+
 .adventure-meta {
   display: flex;
   flex-wrap: wrap;

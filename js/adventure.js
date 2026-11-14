@@ -40,9 +40,19 @@ function treeAdventureWalkLabel(metres) {
   return `${minutes} min walk`;
 }
 
+function treeAdventureTag(tree) {
+  if (!tree || tree.tagNumber == null) return null;
+  const tag = String(tree.tagNumber).trim();
+  return tag && tag !== "0" ? tag : null;
+}
+
 function treeAdventureTarget() {
-  const nearest = state && state.nearestTree;
-  if (!nearest || !nearest.tree || typeof communityTreeTarget !== "function") return null;
+  if (!state || !state.userLocation || typeof communityTreeTarget !== "function") return null;
+  const candidates = typeof nearestTreesTo === "function"
+    ? nearestTreesTo(state.userLocation.latitude, state.userLocation.longitude, 50)
+    : (state.nearestTree ? [state.nearestTree] : []);
+  const nearest = candidates.find(({ tree }) => treeAdventureTag(tree)) || null;
+  if (!nearest || !nearest.tree) return null;
   const target = communityTreeTarget(nearest.tree);
   return target ? { ...nearest, target } : null;
 }
@@ -76,11 +86,18 @@ function treeAdventureShow(tree, straightLineMetres) {
   const walkMetres = treeAdventureWalkMetres(tree, straightLineMetres);
   const species = tree.commonName || "veteran tree";
   const age = treeAdventureAge(tree);
+  const tag = treeAdventureTag(tree);
   const target = communityTreeTarget(tree);
   if (!target) return;
 
   els.adventureTitle.textContent = "Let’s go on an adventure";
-  els.adventureMessage.textContent = `Take a ${treeAdventureWalkLabel(walkMetres)} to the nearest ${species}.`;
+  els.adventureMessage.textContent = `Take a ${treeAdventureWalkLabel(walkMetres)} to the nearest ${species}${tag ? ". Look for a tree with this tag on it:" : "."}`;
+  if (els.adventureTag) {
+    els.adventureTag.hidden = !tag;
+    els.adventureTag.innerHTML = tag
+      ? `<span>Tree tag</span><strong>#${escapeHtml(tag)}</strong>`
+      : "";
+  }
   els.adventureMeta.innerHTML = `${age ? `<span>${escapeHtml(age)}</span>` : ""}<span class="adventure-reward">Verify it for +${TREE_ADVENTURE_REWARD} points</span>`;
   treeAdventureWrite(TREE_ADVENTURE_ACTIVE_KEY, { target, shownAt: Date.now() });
   banner.hidden = false;

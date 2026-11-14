@@ -29,6 +29,7 @@ const els = {
   adventureBanner: document.getElementById("adventureBanner"),
   adventureTitle: document.getElementById("adventureTitle"),
   adventureMessage: document.getElementById("adventureMessage"),
+  adventureTag: document.getElementById("adventureTag"),
   adventureMeta: document.getElementById("adventureMeta"),
   adventureStart: document.getElementById("adventureStart"),
   adventureDismiss: document.getElementById("adventureDismiss"),

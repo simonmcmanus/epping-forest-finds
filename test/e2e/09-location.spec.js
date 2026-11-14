@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, skipOnboarding, mockCowApi, gotoAndWaitForMap, settleMapIconsAndDraw, waitForFrames, waitForUiToSettle } = require("./helpers");
+const { setup, skipOnboarding, mockCowApi, gotoAndWaitForMap, settleMapIconsAndDraw, waitForFrames, waitForUiToSettle, waitForStableBoundingBox } = require("./helpers");
 
 // A GPS fix inside Epping Forest
 const FOREST_LOCATION = { latitude: 51.6650, longitude: 0.0450, accuracy: 10 };
@@ -63,10 +63,16 @@ test.describe("Location and GPS — happy path", () => {
       // The generated /nearby shell paints its first-visit consent card before boot. This test
       // represents the next state: location has been shared and the consent card is gone.
       await page.evaluate(() => { els.consentBanner.hidden = true; });
-      await expect(page.locator("#adventureBanner")).toBeVisible({ timeout: 10_000 });
-      await expect(page.locator("#adventureBanner")).toContainText("Let’s go on an adventure");
-      await expect(page.locator("#adventureBanner")).toContainText("Verify it for +10 points");
+      const adventure = page.locator("#adventureBanner");
+      await expect(adventure).toBeVisible({ timeout: 10_000 });
+      await expect(adventure).toContainText("Let’s go on an adventure");
+      await expect(adventure).toContainText("Look for a tree with this tag on it");
+      await expect(adventure.locator("#adventureTag strong")).toHaveText(/#\d+/);
+      await expect(adventure).toContainText("Verify it for +10 points");
       await waitForUiToSettle(page);
+      const box = await waitForStableBoundingBox(adventure, { timeout: 3_000 });
+      expect(box && box.width, "the adventure card should be fully laid out before capture").toBeGreaterThan(300);
+      expect(box && box.height, "the adventure card should be fully laid out before capture").toBeGreaterThan(140);
       await settleMapIconsAndDraw(page);
       await expect(page).toHaveScreenshot("veteran-tree-adventure.png", { fullPage: false });
     });
