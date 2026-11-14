@@ -714,6 +714,26 @@ button.settings-toggle.has-update::after {
   font-weight: 600;
   line-height: 1.3;
   letter-spacing: -0.2px;
+  white-space: nowrap;
+}
+
+/* On the narrowest phones, keep a compact Back cell even while it is disabled. Its width must not
+   change when a detail screen enables Back, or the four tab tracks and shared highlight jump. */
+@media (max-width: 320px) {
+  .inspector-actions {
+    gap: 1px;
+    grid-template-columns: 22px repeat(4, minmax(0, 1fr));
+  }
+
+  .inspector-actions > .nav-back .nav-icon {
+    width: 18px;
+    height: 18px;
+  }
+
+  .inspector-actions .nav-label {
+    font-size: 0.6rem;
+    letter-spacing: -0.6px;
+  }
 }
 
 .inspector-actions .nav-icon {
@@ -1409,13 +1429,25 @@ textarea.report-textarea {
   padding: 2px;
   overflow-x: auto;
   scrollbar-width: none;
-  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 14px), transparent);
-  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 14px), transparent);
+  /* Fade the clipped edge over enough space that a partial next pill reads as a scroll
+     affordance rather than a broken button in a phone screenshot. The fade starts before the
+     partial pill's text, so CI captures never show a cut-off label as if it were a complete control.
+     The mask is enabled only while that edge actually has hidden content. */
+}
+
+.filter-rail.has-right-overflow .rail-pills {
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 72px), transparent);
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 72px), transparent);
 }
 
 .filter-rail.has-left-overflow .rail-pills {
-  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 14px), transparent);
-  mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 14px), transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 24px);
+  mask-image: linear-gradient(90deg, transparent 0, #000 24px);
+}
+
+.filter-rail.has-left-overflow.has-right-overflow .rail-pills {
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 72px), transparent);
+  mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 72px), transparent);
 }
 
 .rail-pills::-webkit-scrollbar {

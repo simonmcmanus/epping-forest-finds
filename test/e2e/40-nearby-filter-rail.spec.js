@@ -336,6 +336,60 @@ test.describe("Nearby filter rail", () => {
     await settleMapIconsAndDraw(page);
     await expect(page).toHaveScreenshot("nearby-with-a-rail-pick.png", { fullPage: false });
   });
+
+  test("snapshot: Pixel 5 filter rail and navigation alignment", async ({ page, isMobile }) => {
+    test.skip(!isMobile, "the alignment capture is mobile-only");
+    // Keep these focused captures at the renderer's actual Pixel 5 viewport. The full-sheet
+    // snapshot can hide a one-line alignment regression behind map and list pixels; these images
+    // make the rail count, clipped-edge fade, filter badge, and tab labels independently reviewable.
+    await page.setViewportSize({ width: 393, height: 727 });
+    await pill(page, "nature").click();
+    await waitForUiToSettle(page);
+    await settleMapIconsAndDraw(page);
+
+    const navAlignment = await page.locator(".inspector-actions > a").evaluateAll((tabs) => {
+      const boxes = tabs.map((tab) => {
+        const tabBox = tab.getBoundingClientRect();
+        const label = tab.querySelector(".nav-label").getBoundingClientRect();
+        return {
+          fits: label.left >= tabBox.left && label.right <= tabBox.right,
+          centerY: (label.top + label.bottom) / 2,
+        };
+      });
+      return {
+        allFit: boxes.every((box) => box.fits),
+        centerSpread: Math.max(...boxes.map((box) => box.centerY)) - Math.min(...boxes.map((box) => box.centerY)),
+      };
+    });
+    expect(navAlignment.allFit).toBe(true);
+    expect(navAlignment.centerSpread).toBeLessThanOrEqual(1);
+
+    const countAlignment = await pill(page, "nature").evaluate((element) => {
+      const label = [...element.querySelectorAll(":scope > span")]
+        .find((span) => !span.classList.contains("rail-count") && !span.classList.contains("rail-check"));
+      const count = element.querySelector(".rail-count");
+      const centerY = (box) => (box.top + box.bottom) / 2;
+      return Math.abs(centerY(label.getBoundingClientRect()) - centerY(count.getBoundingClientRect()));
+    });
+    expect(countAlignment).toBeLessThanOrEqual(1);
+
+    await expect(rail(page)).toHaveScreenshot("nearby-pixel5-filter-rail.png", { scale: "device" });
+    // The badge is positioned just outside its toggle's border box. Clip a small, deterministic
+    // cushion around the toggle so the published evidence contains the complete circle instead
+    // of cutting through its top/right edge.
+    const badgeBox = await page.locator(".inspector-filter-toggle").boundingBox();
+    expect(badgeBox).not.toBeNull();
+    await expect(page).toHaveScreenshot("nearby-pixel5-filter-badge.png", {
+      scale: "device",
+      clip: {
+        x: Math.max(0, badgeBox.x - 8),
+        y: Math.max(0, badgeBox.y - 8),
+        width: badgeBox.width + 16,
+        height: badgeBox.height + 16,
+      },
+    });
+    await expect(page.locator(".inspector-actions")).toHaveScreenshot("nearby-pixel5-navigation.png", { scale: "device" });
+  });
 });
 
 test.describe("Nearby without a location fix", () => {
@@ -377,6 +431,31 @@ test("when more pills fit than are visible, the row can scroll sideways and retu
   await expect.poll(() => row.evaluate((el) => el.scrollLeft)).toBeGreaterThan(10);
   await row.evaluate((el) => { el.scrollLeft = 0; });
   await expect.poll(() => page.evaluate(() => document.querySelector(".rail-pills").scrollLeft)).toBe(0);
+});
+
+test("narrow phones keep every navigation label inside its tab", async ({ page, isMobile }) => {
+  test.skip(!isMobile, "the narrow-phone layout is mobile-only");
+  await setup(page, "/nearby");
+  await page.setViewportSize({ width: 280, height: 844 });
+  await expect.poll(() => page.locator(".inspector-actions > a").count()).toBe(4);
+  const tabLayout = () => page.locator(".inspector-actions > a").evaluateAll((tabs) => tabs.map((tab) => {
+    const tabBox = tab.getBoundingClientRect();
+    const label = tab.querySelector(".nav-label").getBoundingClientRect();
+    return {
+      left: tabBox.left,
+      right: tabBox.right,
+      fits: label.left >= tabBox.left && label.right <= tabBox.right && label.height <= tabBox.height,
+    };
+  }));
+  const before = await tabLayout();
+  expect(before.every((tab) => tab.fits)).toBe(true);
+
+  // Enabling Back from a real nearby result must not resize or shift the four tabs.
+  await page.locator(".nearest-item").first().click();
+  await expect(page.locator(".nav-back")).toBeEnabled();
+  const after = await tabLayout();
+  expect(after.every((tab) => tab.fits)).toBe(true);
+  expect(after.map(({ left, right }) => [left, right])).toEqual(before.map(({ left, right }) => [left, right]));
 });
 
 // Keep motion enabled: ordinary rail coverage uses reduced motion and would hide an intro nudge.
