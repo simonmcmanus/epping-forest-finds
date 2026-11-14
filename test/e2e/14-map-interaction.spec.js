@@ -428,7 +428,9 @@ test.describe("Map interaction", () => {
         focusNearbyOnMapPoint({ latitude, longitude }, projectLonLat(longitude, latitude));
       };
 
-      const during = await sampleEvery(page, startSlide, sampleBody, 5, 60);
+      // Keep sampling beyond the 520ms slide: on a loaded runner a timer can be late enough
+      // that five samples only reach the early part of the reveal ramp.
+      const during = await sampleEvery(page, startSlide, sampleBody, 10, 60);
       const sliding = during.filter((s) => s.sliding);
       expect(sliding.length, "the slide should have been observed running").toBeGreaterThan(0);
       // Arrives steadily: never goes back down while the map is travelling.
