@@ -55,6 +55,9 @@ class VisualReporter {
       fs.copyFileSync(prefix + file, path.join(this.dir, target));
       added.push({ name: file, file: target });
     }
+    // Pixel mismatches are intentionally advisory: classify-visual-results.js emits the warning
+    // and the publisher preserves the before/after/diff evidence. Launch, setup, assertion and
+    // timeout failures remain blocking here.
     const blockingFailure = [...this.entries.values()].some((entry) =>
       entry.status === 'failed' && !entry.missingBaseline && !entry.pixelDifference);
     const status = this.errors.length || blockingFailure || (!this.entries.size && result.status !== 'passed')

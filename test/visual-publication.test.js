@@ -169,6 +169,38 @@ test('reporter treats new baselines as reviewable evidence rather than a failed 
   assert.equal(report.tests[0].missingBaseline, true);
 });
 
+test('reporter keeps completed pixel differences advisory while preserving their evidence', (t) => {
+  const root = fixture(t);
+  const originalCwd = process.cwd();
+  const originalEnv = { VISUAL_PROJECT: process.env.VISUAL_PROJECT, VISUAL_EVIDENCE_DIR: process.env.VISUAL_EVIDENCE_DIR };
+  t.after(() => {
+    process.chdir(originalCwd);
+    for (const [key, value] of Object.entries(originalEnv)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  });
+  execFileSync('git', ['init', '--quiet', root]);
+  process.chdir(root);
+  process.env.VISUAL_PROJECT = 'mobile';
+  process.env.VISUAL_EVIDENCE_DIR = path.join(root, 'visual-evidence-mobile');
+  fs.mkdirSync('test/e2e/__screenshots__', { recursive: true });
+  const actual = path.join(root, 'actual.png');
+  fs.writeFileSync(actual, 'changed screenshot');
+  const reporter = new Reporter();
+  reporter.onTestEnd(
+    { id: 'pixel-difference', expectedStatus: 'passed', titlePath: () => ['root', 'pixel difference'] },
+    {
+      status: 'failed',
+      attachments: [{ name: 'screen-actual.png', contentType: 'image/png', path: actual }],
+      errors: [{ message: 'expect(page).toHaveScreenshot("screen.png") failed: 12 pixels (ratio 0.01 of all image pixels) are different.' }],
+    },
+  );
+  reporter.onEnd({ status: 'failed' });
+  const report = JSON.parse(fs.readFileSync(path.join(process.env.VISUAL_EVIDENCE_DIR, 'manifest.json')));
+  assert.equal(report.status, 'passed');
+  assert.equal(report.tests[0].pixelDifference, true);
+});
+
 test('reporter retains final retry outcome and images without collisions, and includes generated baselines', (t) => {
   const root = fixture(t);
   const originalCwd = process.cwd();
