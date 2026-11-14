@@ -3,9 +3,9 @@ name: Weekly Epping Forest Ledger
 # Runs entirely on GitHub's servers -- no laptop or local device needed.
 #
 # NOTE on the cron time: GitHub Actions cron is UTC only, no DST awareness.
-# 01:00 UTC is 2am in the UK during BST (roughly late Mar-late Oct) and 1am
-# during GMT (winter) -- an hour early for part of the year. Adjust if that
-# matters to you.
+# The first attempt is Saturday 04:23 UTC (04:23 GMT / 05:23 BST), during
+# the UK overnight lull and off the busy top of the hour. GitHub may delay
+# scheduled runs; no clock time guarantees unused Claude capacity.
 #
 # NOTE on github_token: passed explicitly below to work around a currently
 # open bug in anthropics/claude-code-action where its default GitHub App
@@ -55,15 +55,20 @@ name: Weekly Epping Forest Ledger
 # "resume once notified", and the job just ended there with nothing committed
 # -- there is no "later" in a single unattended Actions run.
 #
-# NOTE on cadence: weekly, Saturdays at 02:00 UTC, after the usage allowance renews. It ran nightly from 2026-09-30 while the
-# business-detection data was brought up to scratch, then went back to weekly.
-# The report file name and the weekly-data-report/<date>-$RUN_NUMBER branch are
-# keyed by calendar date, so the cadence can change without touching anything
-# else here.
+# Six opportunities, spaced six hours apart to outlast a five-hour usage
+# window without holding a runner open. Later slots only research if this
+# weekend has no successful Ledger job; manual dispatch always forces a run.
 on:
   schedule:
-    - cron: "0 2 * * 6"
+    - cron: "23 4,10,16,22 * * 6"
+    - cron: "23 4,10 * * 0"
   workflow_dispatch: {}
+
+# Serialize the gate and research together, including manual runs. A queued
+# attempt checks success again after the preceding run has finished.
+concurrency:
+  group: weekly-ledger
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -74,8 +79,36 @@ permissions:
   actions: read
 
 jobs:
+  schedule-gate:
+    name: Check whether this week's Ledger already succeeded
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+    steps:
+      - name: Checkout scheduling helper
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Decide whether to attempt the Ledger
+        id: gate
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const decide = require('./scripts/weekly-ledger-schedule.cjs');
+            const decision = await decide({ github, context });
+            core.setOutput('run', String(decision.run));
+            core.info(decision.reason);
+            await core.summary.addHeading('Ledger schedule')
+              .addRaw(decision.reason).write();
+
   weekly-ledger:
-    name: Research, propose, test and merge this week's changes
+    needs: schedule-gate
+    if: needs.schedule-gate.outputs.run == 'true'
+    name: Research, propose and open this week's Ledger PR
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -139,7 +172,7 @@ jobs:
             leave it for a human instead of guessing.
 
             HOUSEKEEPING (do this first, before any research): this workflow
-            runs nightly and auto-merge is disabled, so an earlier run's PR
+            runs weekly with retry windows and auto-merge is disabled, so an earlier run's PR
             is often still open and unmerged when this run starts -- and
             because a fresh run otherwise branches from `main` independently
             of it, the two would edit the same data files on diverging
@@ -841,3 +874,17 @@ jobs:
           # Add it back (and flip the prompt language above) once he is happy.
           claude_args: |
             --allowedTools "Read,Write,Glob,Grep,WebSearch,WebFetch,Bash(git checkout:*),Bash(git fetch:*),Bash(git merge:*),Bash(git branch:*),Bash(git add:*),Bash(git commit:*),Bash(git config:*),Bash(git push:*),Bash(git diff:*),Bash(git log:*),Bash(git status:*),Bash(git rev-parse:*),Bash(npm ci:*),Bash(node:*),Bash(python3:*),Bash(curl:*),Bash(date:*),Bash(gh pr create:*),Bash(gh pr list:*),Bash(gh pr close:*),Bash(gh pr edit:*),Bash(gh pr view:*),Bash(gh issue create:*)"
+
+      - name: Explain a failed attempt
+        if: failure()
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'NOTE'
+          ## Ledger attempt failed
+          This attempt did not finish successfully. Remaining retry windows are
+          Saturday 04:23, 10:23, 16:23, 22:23 and Sunday 04:23, 10:23 UTC.
+          Each window checks for a successful Ledger job before starting Claude.
+          Check the failed step above: usage limits need available allowance;
+          expired credentials or other persistent errors need repair.
+          If the final Sunday window fails, use Run workflow after fixing the
+          failure or after the allowance resets. No paid overage is enabled here.
+          NOTE

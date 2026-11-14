@@ -6,10 +6,32 @@ generator owns the design, layout and SVG map; the
 research and the written findings come from the weekly workflow
 (`.github/workflows/weekly-ledger.yml`).
 
-The workflow's cron runs weekly, Saturdays at 02:00 UTC (after the usage allowance renews). The report file name and
-PR branch are keyed by calendar date, and `business_watch`'s escalation counts
-runs, not weeks, so a change of cadence only changes how fast a repeating signal
-reaches confidence.
+The workflow's first attempt is Saturday at 04:23 UTC (04:23 GMT / 05:23
+BST), during the UK overnight lull and away from the busy top of the hour.
+GitHub may delay scheduled jobs and Claude capacity is shared with other use;
+this time does not guarantee available credits. Retry opportunities follow at
+10:23, 16:23 and 22:23 Saturday, then 04:23 and 10:23 Sunday UTC. Six-hour
+spacing gives a five-hour usage window time to reset without keeping a runner
+waiting. No paid overage is enabled by this workflow.
+
+A read-only schedule gate checks the workflow's default-branch history since
+Saturday 00:00 UTC. Once an actual Ledger research job has completed
+successfully, the remaining scheduled opportunities skip research (including
+Claude and dependency installation). A successful gate-only/skipped run does
+not count as a delivered edition. Failures remain visible and are eligible for
+the next retry window; an API error fails the gate rather than guessing.
+Workflow-wide concurrency serializes manual and scheduled runs, including the
+gate, so overlapping attempts cannot both start research. Manual Run workflow
+always forces an attempt. If every window fails, the job summary explains how
+to run it manually after restoring allowance or fixing the failure; there is
+no automatic retry beyond Sunday morning.
+
+The report file name and PR branch use the actual run's calendar date.
+Retries reuse the existing open Ledger PR through HOUSEKEEPING below.
+`business_watch`'s escalation counts runs, not weeks, so skipping successful
+weeks' remaining windows avoids repeatedly banking patience. A failed run may
+already have pushed partial work; the next attempt inspects the existing PR
+rather than assuming the failure made no changes.
 
 ## Keeping the map's businesses current
 
