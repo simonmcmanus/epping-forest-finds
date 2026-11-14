@@ -11023,7 +11023,7 @@ test("tapping a nearby cluster pans to it at today's zoom, then zooms in -- two 
   const cluster = { itemType: "tree", items: [oak1, oak2] };
   app.focusNearbyOnClusterGroup(cluster);
 
-  // The group is a couple of metres from the user's own location -- already on screen -- so
+  // The group is a few hundred metres from the user's own location -- already on screen -- so
   // this should be the staged pan-then-zoom (alignHeadingUpNavigationViewport's
   // stagePanThenZoom branch, js/app.js): a short pan at *today's* scale first, not the single
   // combined ease. The first (and, synchronously, only observable) leg is the pan: same scale
@@ -11057,11 +11057,20 @@ test("tapping a cluster at the camera's own pivot starts the zoom on the tap, wi
 });
 
 test("tapping a cluster a mid-distance away gives its pan leg a shorter share than a full-distance pan", () => {
-  const tap = tapClusterOffsetFromUser(0.0012, 0.0012);
+  // About 90% of the reference pan distance: long enough to run as its own leg, not a full one.
+  const tap = tapClusterOffsetFromUser(0.0024, 0.0014);
   assert.ok(tap.to, "the tap should start a camera animation");
   assert.equal(tap.to.scale, tap.before.scale, "the pan leg holds the scale the camera already had");
   assert.ok(tap.duration < 208, `a mid-distance pan is shorter than the full 208ms leg (got ${tap.duration})`);
-  assert.ok(tap.duration >= 90, `but never below the pan floor (got ${tap.duration})`);
+  assert.ok(tap.duration >= 180, `but never shorter than the camera's minimum leg (got ${tap.duration})`);
+});
+
+test("tapping a cluster a small but visible distance away zooms on the tap rather than holding a short same-scale pan", () => {
+  // Roughly 51 CSS px of pan: too short to run as its own leg, so it rides the one ease.
+  const tap = tapClusterOffsetFromUser(0.0012, 0.0012);
+  assert.ok(tap.to, "the tap should start a camera animation");
+  assert.notEqual(tap.to.scale, tap.before.scale, "the first animation already zooms");
+  assert.equal(tap.duration, 520, "the zoom runs the whole slide duration (NEARBY_ORIGIN_TRANSITION_MS)");
 });
 
 test("tapping a cluster far outside the current view skips staging -- one direct ease instead", () => {
