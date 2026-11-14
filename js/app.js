@@ -1042,7 +1042,7 @@ const LOCATION_FAST_SNAP_METRES = 150;
 // lands on the fix rather than crawling at it forever.
 const LOCATION_GLIDE_EPSILON = 1e-7;
 
-function applyLocationFix(position) {
+function applyLocationFix(position, { preserveSelection = false } = {}) {
   const { latitude, longitude, accuracy, speed } = position.coords;
   const previousPoint = state.userLocation && state.userLocation.point;
   state.userLocation = ingestLocationFix(latitude, longitude, accuracy, performance.now(), speed);
@@ -1056,8 +1056,12 @@ function applyLocationFix(position) {
   state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isRestaurantCategory(place) && !isCafeCategory(place) && !isShopCategory(place) && !isTransportCategory(place));
   state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
   // A cold load of /community has already opened its screen (boot); a fix must not wipe it. Nor
-  // must Settings' own "Use my location": that answer shows in place, on the row that asked.
-  if (!communityScreenOpen() && state.selected?.type !== "settings") state.selected = null;
+  // must Settings or Feedback: their own location actions answer in place, on the screen that
+  // asked.
+  // A selected destination can also opt in to staying open while a real fix replaces the
+  // High Beach stand-in, so the route can be drawn from the newly shared position.
+  if (!preserveSelection && !communityScreenOpen()
+      && !["settings", "report"].includes(state.selected?.type)) state.selected = null;
   if (typeof communityNudgeCheck === "function") setTimeout(communityNudgeCheck, 0);
   return { latitude, longitude, previousPoint };
 }
@@ -1131,8 +1135,9 @@ function locateUser({ initial, preserveSelection = false }) {
     (position) => {
       setLocationRequestPending(false);
       const shouldPreserveSelection = selectionToPreserve && state.selected === selectionToPreserve;
-      const { latitude, longitude, previousPoint } = applyLocationFix(position);
-      if (shouldPreserveSelection && !state.selected) state.selected = selectionToPreserve;
+      const { latitude, longitude, previousPoint } = applyLocationFix(position, {
+        preserveSelection: Boolean(shouldPreserveSelection),
+      });
       ensureLocationWatch();
       setLoadStep("location", "done");
       syncSettingsLocationRow();
@@ -4012,20 +4017,17 @@ function ensureLocationWatch() {
   state.locationWatchId = Native.geolocation.watchPosition(
     (position) => {
       state.lastLocationUpdateAt = performance.now();
-      const { latitude, longitude, accuracy, speed } = position.coords;
-      const previousPoint = state.userLocation && state.userLocation.point;
-      state.userLocation = ingestLocationFix(latitude, longitude, accuracy, performance.now(), speed);
+      const { latitude, longitude } = position.coords;
+      const { previousPoint } = applyLocationFix(position, {
+        // Once a destination is selected, a live GPS update only changes the route origin.
+        // Clearing the destination here makes the route disappear immediately after the
+        // one-shot location request hands over to watchPosition.
+        preserveSelection: Boolean(state.selected?.item),
+      });
       if (Native.heading) Native.heading.setLocation(latitude, longitude);
       const point = state.userLocation.point;
       state.userInMapArea = pointInsideBounds(point, state.bounds);
       updateFarFromForest(latitude, longitude);
-      const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
-      state.nearestTree = nearestTrees.length > 0 ? nearestTrees[0] : null;
-      state.nearestCow = nearestCowTo(latitude, longitude);
-      state.nearestPub = nearestPlaceByFilter(latitude, longitude, (place) => isPubCategory(place));
-      state.nearestRestaurant = nearestPlaceByFilter(latitude, longitude, (place) => isRestaurantCategory(place));
-      state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isRestaurantCategory(place) && !isCafeCategory(place) && !isShopCategory(place) && !isTransportCategory(place));
-      state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
       checkEventProximityAlert(latitude, longitude);
       if (typeof communityNudgeCheck === "function") communityNudgeCheck();
       // Walked out of a radius that was framing one nearby find? Grow it back to whatever is
