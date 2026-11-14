@@ -1426,14 +1426,15 @@ textarea.report-textarea {
   overflow-x: auto;
   scrollbar-width: none;
   /* Fade the clipped edge over enough space that a partial next pill reads as a scroll
-     affordance rather than a broken button in a phone screenshot. */
-  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 42px), transparent);
-  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 42px), transparent);
+     affordance rather than a broken button in a phone screenshot. The fade starts before the
+     partial pill's text, so CI captures never show a cut-off label as if it were a complete control. */
+  -webkit-mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 72px), transparent);
+  mask-image: linear-gradient(90deg, #000 0, #000 calc(100% - 72px), transparent);
 }
 
 .filter-rail.has-left-overflow .rail-pills {
-  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 42px), transparent);
-  mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 42px), transparent);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 72px), transparent);
+  mask-image: linear-gradient(90deg, transparent 0, #000 24px, #000 calc(100% - 72px), transparent);
 }
 
 .rail-pills::-webkit-scrollbar {
