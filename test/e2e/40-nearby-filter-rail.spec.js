@@ -336,6 +336,19 @@ test.describe("Nearby filter rail", () => {
     await settleMapIconsAndDraw(page);
     await expect(page).toHaveScreenshot("nearby-with-a-rail-pick.png", { fullPage: false });
   });
+
+  test("snapshot: Pixel 5 filter rail and navigation alignment", async ({ page, isMobile }) => {
+    test.skip(!isMobile, "the alignment capture is mobile-only");
+    // Keep these focused captures at the renderer's actual Pixel 5 viewport. The full-sheet
+    // snapshot can hide a one-line alignment regression behind map and list pixels; these images
+    // make the rail count, clipped-edge fade, and tab labels independently reviewable.
+    await page.setViewportSize({ width: 393, height: 727 });
+    await pill(page, "nature").click();
+    await waitForUiToSettle(page);
+    await settleMapIconsAndDraw(page);
+    await expect(rail(page)).toHaveScreenshot("nearby-pixel5-filter-rail.png");
+    await expect(page.locator(".inspector-actions")).toHaveScreenshot("nearby-pixel5-navigation.png");
+  });
 });
 
 test.describe("Nearby without a location fix", () => {
