@@ -2746,6 +2746,9 @@ function nearbyRetap() {
 }
 
 function goToInitialView(updateHash = true, { enterAnimated = true } = {}) {
+  // Leaving a /find/<slug>/ detail view is explicit Nearby navigation. Clear the launch-only
+  // protection before selectOverview() runs so the old landing panel cannot survive one tap.
+  findLandingSelectionPending = false;
   // If compass hasn't fired in >5 s, clear the heading so the map goes north-up
   // rather than showing a frozen direction when the user returns to the overview.
   // New orientation events will re-enable heading-up naturally.

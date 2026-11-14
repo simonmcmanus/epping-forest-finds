@@ -547,6 +547,10 @@ const SELECTION_ROUTES = [
 // covers the boot sequence, which puts the app on the screen the launch URL asked for.
 let routeApplyDepth = 0;
 let routerBooting = true;
+// /find/<slug>/ landings start with a server-rendered place panel, but unlike /nearby/<slug>/
+// landings they do not use _serverRenderedNearbyList. Keep their initial selection pending so
+// incremental data arrivals cannot paint Nearby over the requested place before it is resolved.
+let findLandingSelectionPending = false;
 
 // A first, "cold" enableHighAccuracy fix routinely takes longer than a few seconds,
 // and tree canopy -- this app's whole subject -- slows GPS lock further still. A
@@ -664,6 +668,7 @@ async function boot() {
   // _serverRenderedNearbyList, js/inspector.js); keep it there until a real fix or the reveal.
   _staticNearbyIndex = Boolean(document.querySelector("[data-server-rendered-nearby]"));
   _serverRenderedNearbyList = isNearbyCategoryLandingPath() || (_staticNearbyIndex && staticNearbyIndexFiltersAreDefault());
+  findLandingSelectionPending = Boolean(findLandingSlug());
   initSelectedIconMotion();
   initRouter();
   // Keep the launch route available while the first GPS fix is arriving. applyLocationFix()

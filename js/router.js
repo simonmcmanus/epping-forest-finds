@@ -167,7 +167,13 @@ function findLandingSlug() {
 // loaded without the place, the landing has nothing to wait for and falls back to the Nearby list.
 function findLandingAwaitingPlace() {
   const slug = findLandingSlug();
-  return Boolean(slug) && !state.selected && (!state.dataLoaded || Boolean(findPlaceByFindSlug(slug)));
+  // A /find/ landing is protected only while its initial route is pending. Once that detail view
+  // has been shown, a tap on Nearby is an explicit request to render the overview even though the
+  // address bar may still be /find/<slug>/ until goToInitialView() writes the new route. Without
+  // the lifecycle flag, the first tap refit the map but left old details in the inspector; the
+  // second tap finally rendered Nearby.
+  return Boolean(slug) && findLandingSelectionPending && !state.selected
+    && (!state.dataLoaded || Boolean(findPlaceByFindSlug(slug)));
 }
 
 // The reverse of urlPartsForRouteValue: reconstructs the bare route value currentScreenRoute()
@@ -415,6 +421,7 @@ function applyRouteToScreen(raw, announceMissing) {
 }
 
 function showRoutedSelection(route, item) {
+  findLandingSelectionPending = false;
   // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
   // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
   // rather than lingering for whenever Nearby is next shown.
