@@ -41,6 +41,30 @@ async function startCameraTrace(page) {
   });
 }
 
+/**
+ * Lists the Nearby items that are not cows. A cow can sit at the user's own position (0 m), where
+ * selecting it needs no zoom, so the camera journeys must not take "whichever is first".
+ * Returns locators for the first `count` such items, in list order, and the Nearby ring scale.
+ */
+async function pickPlaces(page, count) {
+  const items = page.locator("#inspectorBody [data-overview-type][data-overview-key]");
+  await expect(items.first()).toBeVisible();
+  const listed = await items.evaluateAll((els) => els.map((el) => ({
+    type: el.getAttribute("data-overview-type"), key: el.getAttribute("data-overview-key") })));
+  const places = listed.filter((item) => item.type !== "cow").slice(0, count);
+  expect(places.length, `needs ${count} non-cow Nearby items, listed: ${JSON.stringify(listed)}`).toBe(count);
+  const ringScale = await page.evaluate(() => state.viewport.scale);
+  const locators = places.map((p) => page.locator(
+    `#inspectorBody [data-overview-type=${JSON.stringify(p.type)}][data-overview-key=${JSON.stringify(p.key)}]`));
+  return { locators, ringScale };
+}
+
+/** Fails clearly if opening a place did not zoom in from the Nearby ring, so the journey is meaningful. */
+async function expectZoomedInFrom(page, ringScale) {
+  await expect.poll(() => page.evaluate(() => state.viewport.scale),
+    { message: `opening a place must zoom in beyond the Nearby ring scale ${ringScale}` }).toBeGreaterThan(ringScale * 1.5);
+}
+
 /** Camera moves recorded since startCameraTrace, without the raw timestamps. */
 async function cameraMoves(page) {
   return page.evaluate(() => window.__cameraTrace.map(({ t, ...rest }) => rest));
@@ -128,9 +152,11 @@ test.describe("Back from a zoomed-in place to a browse view", () => {
 test.describe("Camera trace of user transitions", () => {
   test("opening a place from Nearby is one zoom, with no un-animated jumps", async ({ page }) => {
     await setup(page, "/nearby");
+    const { locators, ringScale } = await pickPlaces(page, 1);
     await startCameraTrace(page);
-    await page.locator("#inspectorBody [data-overview-type][data-overview-key]").nth(0).click();
+    await locators[0].click();
     await waitForUiToSettle(page);
+    await expectZoomedInFrom(page, ringScale);
 
     const moves = await cameraMoves(page);
     expect(moves.filter((m) => m.kind === "direct")).toEqual([]);
@@ -138,15 +164,54 @@ test.describe("Camera trace of user transitions", () => {
     expect(moves.filter((m) => m.kind === "tween").length).toBeGreaterThan(0);
   });
 
+  test("opening a place still zooms in when the camera-origin slide ends before the marker fade-out has", async ({ page }) => {
+    // The marker fade-out holds the zoom back for a moment. If the origin slide (and every other
+    // reason to hold the map) is already over by then, nothing else keeps the selection hold alive,
+    // and the pending zoom used to be dropped, leaving the map at the Nearby ring for good.
+    await setup(page, "/nearby");
+    const { locators, ringScale } = await pickPlaces(page, 1);
+    const fadeDelayMs = await locators[0].evaluate((button) => {
+      button.click();
+      const slide = state.cameraOriginTransition;
+      if (slide) slide.startedAt -= slide.durationMs;
+      return selectionOutgoingRevealDurationMs();
+    });
+    expect(fadeDelayMs, "the delayed camera start is the branch under test").toBeGreaterThan(0);
+    await expectZoomedInFrom(page, ringScale);
+    await waitForUiToSettle(page);
+    expect(await page.evaluate(() => state.selectionTransition.mapHeld), "the selection hold is released once the move lands").toBe(false);
+  });
+
+  test("a link followed inside the marker fade-out window leaves no selection hold behind", async ({ page }) => {
+    await setup(page, "/nearby");
+    const { locators, ringScale } = await pickPlaces(page, 1);
+    const fadeDelayMs = await locators[0].evaluate((button) => {
+      button.click();
+      const delay = selectionOutgoingRevealDurationMs();
+      navigateInApp("/find/onest/");
+      return delay;
+    });
+    expect(fadeDelayMs, "the delayed camera start is the branch under test").toBeGreaterThan(0);
+    await page.waitForFunction(() => state.selected?.type === "landmark");
+    await waitForUiToSettle(page);
+    const framedScale = await page.evaluate(() => state.viewport.scale);
+    expect(Math.abs(Math.log(framedScale / ringScale)), `the camera framed the linked place (scale ${framedScale}, ring ${ringScale})`).toBeGreaterThan(Math.log(1.25));
+    await expect.poll(() => page.evaluate(() => ({
+      held: state.selectionTransition.mapHeld, pending: state.selectionTransition.viewportPending,
+    }))).toEqual({ held: false, pending: false });
+  });
+
   test("switching from one place to another is one zoom, not a pan cut short by a zoom", async ({ page }) => {
     await setup(page, "/nearby");
-    await page.locator("#inspectorBody [data-overview-type][data-overview-key]").nth(0).click();
+    const { locators, ringScale } = await pickPlaces(page, 2);
+    await locators[0].click();
     await waitForUiToSettle(page);
+    await expectZoomedInFrom(page, ringScale);
     await page.locator("#nearbyToggle").click();
     await waitForUiToSettle(page);
 
     await startCameraTrace(page);
-    await page.locator("#inspectorBody [data-overview-type][data-overview-key]").nth(1).click();
+    await locators[1].click();
     await waitForUiToSettle(page);
 
     const moves = await cameraMoves(page);
@@ -156,8 +221,10 @@ test.describe("Camera trace of user transitions", () => {
 
   test("returning to Nearby from a place is one zoom out, with no un-animated jumps", async ({ page }) => {
     await setup(page, "/nearby");
-    await page.locator("#inspectorBody [data-overview-type][data-overview-key]").nth(0).click();
+    const { locators, ringScale } = await pickPlaces(page, 1);
+    await locators[0].click();
     await waitForUiToSettle(page);
+    await expectZoomedInFrom(page, ringScale);
 
     await startCameraTrace(page);
     await page.locator("#nearbyToggle").click();
