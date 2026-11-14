@@ -18,14 +18,13 @@ async function gotoLinkedNearby(page, path) {
 // Samples a pure in-page function every intervalMs, entirely inside the page. The cadence is the
 // thing being measured (what is on screen at steady instants of a wall-clock slide), so it is kept
 // out of the Playwright round trip, whose latency grows on a loaded runner and would let a short
-// slide finish before the first sample.
-// `startFn` runs in the same round trip, immediately before the first interval, so no latency
-// sits between triggering the slide and measuring it.
+// slide finish before the first sample. `startFn` runs in the same round trip as the immediate
+// first sample, followed by the existing interval cadence.
 function sampleEvery(page, startFn, sampleFn, count, intervalMs) {
   return page.evaluate(async ({ startSrc, src, count, intervalMs }) => {
     const fn = (0, eval)(`(${src})`);
     (0, eval)(`(${startSrc})`)();
-    const out = [];
+    const out = [fn()];
     for (let i = 0; i < count; i += 1) {
       await new Promise((resolve) => setTimeout(resolve, intervalMs));
       out.push(fn());
