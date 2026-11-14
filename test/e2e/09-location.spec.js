@@ -65,12 +65,14 @@ test.describe("Location and GPS — happy path", () => {
       await page.evaluate(() => { els.consentBanner.hidden = true; });
       const adventure = page.locator("#adventureBanner");
       await expect(adventure).toBeVisible({ timeout: 10_000 });
-      await expect(adventure).toContainText("Let’s go on an adventure");
-      await expect(adventure).toContainText("Look for a tree with this tag on it");
-      await expect(adventure.locator("#adventureTag span")).toHaveText("Tag number");
+      await expect(adventure).toContainText("Find the nearest veteran tree");
+      await expect(adventure).toContainText("Take a 1 min walk to this English Oak");
+      await expect(adventure.locator("#adventureDirection")).toBeVisible();
+      await expect(adventure.locator("#adventureDirection")).toHaveAttribute("aria-label", "Direction to the suggested tree");
+      await expect(adventure.locator("#adventureTag span")).toHaveText("Look for this tag on the tree");
       await expect(adventure.locator("#adventureTag strong")).toHaveText(/\d+/);
       await expect(adventure.locator(".adventure-age small")).toHaveText("Estimated age");
-      await expect(adventure).toContainText("Verify it for +10 points");
+      await expect(adventure).toContainText("+10 points when verified");
       await expect(page.locator("#communityNudge")).toBeHidden();
       await waitForUiToSettle(page);
       const box = await waitForStableBoundingBox(adventure, { timeout: 3_000 });

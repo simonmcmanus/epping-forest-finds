@@ -6504,6 +6504,7 @@ function syncNativeWalkingAids() {
 }
 
 function updateCompassOverlay() {
+  if (typeof updateTreeAdventureDirection === "function") updateTreeAdventureDirection();
   syncNativeWalkingAids();
   const target = selectedCompassTarget();
   const arrow = els.compassArrow;

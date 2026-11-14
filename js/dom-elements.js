@@ -27,6 +27,7 @@ const els = {
   locationInviteButton: document.getElementById("locationInviteButton"),
   locationInviteDismiss: document.getElementById("locationInviteDismiss"),
   adventureBanner: document.getElementById("adventureBanner"),
+  adventureDirection: document.getElementById("adventureDirection"),
   adventureTitle: document.getElementById("adventureTitle"),
   adventureMessage: document.getElementById("adventureMessage"),
   adventureTag: document.getElementById("adventureTag"),

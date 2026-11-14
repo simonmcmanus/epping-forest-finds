@@ -6,6 +6,8 @@ const TREE_ADVENTURE_SEEN_KEY = "ff-tree-adventure-seen-v1";
 const TREE_ADVENTURE_ACTIVE_KEY = "ff-tree-adventure-active-v1";
 const TREE_ADVENTURE_REWARD = 10;
 let treeAdventureRetryTimer = null;
+let treeAdventureTargetItem = null;
+let treeAdventureArrowAngle = null;
 
 function treeAdventureRead(key) {
   try { return JSON.parse(localStorage.getItem(key) || "null"); } catch { return null; }
@@ -78,13 +80,59 @@ function treeAdventureDismiss() {
   window.setTimeout(() => {
     banner.hidden = true;
     banner.classList.remove("fading-out");
+    treeAdventureTargetItem = null;
+    treeAdventureArrowAngle = null;
   }, prefersReducedMotion() ? 0 : 320);
+}
+
+// Keep the invitation's small arrow on the same projected ground plane as the map and the
+// selected-location compass arrow. This makes it useful in 3D/heading-up mode instead of being
+// a decorative, north-up glyph that disagrees with the direction the map is showing.
+function updateTreeAdventureDirection() {
+  const arrow = els.adventureDirection;
+  const banner = els.adventureBanner;
+  if (!arrow || !banner || banner.hidden || !treeAdventureTargetItem || !state.userLocation
+      || state.userLocation.isDefault || typeof bearingDegrees !== "function"
+      || typeof directionArrowTransform !== "function") {
+    if (arrow) arrow.hidden = true;
+    treeAdventureArrowAngle = null;
+    return;
+  }
+  const target = communityTreeTarget(treeAdventureTargetItem);
+  if (!target) {
+    arrow.hidden = true;
+    treeAdventureArrowAngle = null;
+    return;
+  }
+  const bearing = bearingDegrees(
+    state.userLocation.latitude,
+    state.userLocation.longitude,
+    target.latitude,
+    target.longitude,
+  );
+  const relative = Number.isFinite(state.compassHeading)
+    ? shortestCompassDelta(state.compassHeading, bearing)
+    : bearing;
+  const projected = typeof directionArrowAngleForWorldPoint === "function"
+    ? directionArrowAngleForWorldPoint(target.point, relative, treeAdventureArrowAngle)
+    : relative;
+  const unwrapped = unwrapAngle(treeAdventureArrowAngle, projected);
+  const tilted = typeof tiltActive === "function" && tiltActive();
+  treeAdventureArrowAngle = tilted
+    ? smoothDirectionArrowAngle(treeAdventureArrowAngle, unwrapped)
+    : unwrapped;
+  arrow.hidden = false;
+  arrow.classList.toggle("adventure-direction--tilted", tilted);
+  arrow.style.transform = directionArrowTransform(treeAdventureArrowAngle);
+  arrow.setAttribute("aria-label", "Direction to the suggested tree");
 }
 
 function treeAdventureShow(tree, straightLineMetres) {
   const banner = els.adventureBanner;
   if (!banner || !tree || !hasRealLocation() || state.userLocation.isDefault) return;
   if (typeof communityNudgeDismiss === "function") communityNudgeDismiss();
+  treeAdventureTargetItem = tree;
+  treeAdventureArrowAngle = null;
   const walkMetres = treeAdventureWalkMetres(tree, straightLineMetres);
   const species = tree.commonName || "veteran tree";
   const age = treeAdventureAge(tree);
@@ -92,18 +140,19 @@ function treeAdventureShow(tree, straightLineMetres) {
   const target = communityTreeTarget(tree);
   if (!target) return;
 
-  els.adventureTitle.textContent = "Let’s go on an adventure";
-  els.adventureMessage.textContent = `Take a ${treeAdventureWalkLabel(walkMetres)} to the nearest ${species}${tag ? ". Look for a tree with this tag on it:" : "."}`;
+  els.adventureTitle.textContent = "Find the nearest veteran tree";
+  els.adventureMessage.textContent = `Take a ${treeAdventureWalkLabel(walkMetres)} to this ${species}.`;
   if (els.adventureTag) {
     els.adventureTag.hidden = !tag;
     els.adventureTag.innerHTML = tag
-      ? `<span>Tag number</span><strong>${escapeHtml(tag)}</strong>`
+      ? `<span>Look for this tag on the tree</span><strong>${escapeHtml(tag)}</strong>`
       : "";
   }
-  els.adventureMeta.innerHTML = `${age ? `<span class="adventure-age"><small>Estimated age</small><strong>${escapeHtml(age)} years</strong></span>` : ""}<span class="adventure-reward">Verify it for +${TREE_ADVENTURE_REWARD} points</span>`;
+  els.adventureMeta.innerHTML = `${age ? `<span class="adventure-age"><small>Estimated age</small><strong>${escapeHtml(age)} years</strong></span>` : ""}<span class="adventure-reward">+${TREE_ADVENTURE_REWARD} points when verified</span>`;
   treeAdventureWrite(TREE_ADVENTURE_ACTIVE_KEY, { target, shownAt: Date.now() });
   banner.hidden = false;
   banner.classList.remove("fading-out");
+  updateTreeAdventureDirection();
 
   const start = () => {
     treeAdventureDismiss();

@@ -171,18 +171,18 @@
 
       <!-- First-location veteran tree invitation. It lives outside the inspector so the desktop
            panel's overflow/transition styles cannot clip or squash the fixed-position card. -->
-      <div id="adventureBanner" class="adventure-banner" role="dialog" aria-labelledby="adventureTitle" aria-describedby="adventureMessage" hidden>
-        <div class="adventure-banner-art" aria-hidden="true"><img src="data/icons/trees/logo.png" alt=""></div>
+      <div id="adventureBanner" class="adventure-banner" role="dialog" aria-labelledby="adventureTitle" aria-describedby="adventureMessage adventureTag" hidden>
+        <div class="adventure-banner-art"><img src="data/icons/trees/logo.png" alt=""><span id="adventureDirection" class="adventure-direction" role="img" hidden>↑</span></div>
         <div class="adventure-banner-copy">
-          <span class="adventure-eyebrow">A little adventure nearby</span>
-          <strong id="adventureTitle" class="adventure-title">Meet an ancient tree</strong>
+          <span class="adventure-eyebrow">A tree worth finding</span>
+          <strong id="adventureTitle" class="adventure-title">Find the nearest veteran tree</strong>
           <p id="adventureMessage"></p>
           <div id="adventureTag" class="adventure-tag" hidden></div>
           <div id="adventureMeta" class="adventure-meta"></div>
         </div>
         <div class="adventure-banner-actions">
           <button id="adventureDismiss" class="onboarding-skip-btn" type="button">Not now</button>
-          <button id="adventureStart" class="button" type="button">Let's go</button>
+          <button id="adventureStart" class="button" type="button">Start walk</button>
         </div>
       </div>
 
