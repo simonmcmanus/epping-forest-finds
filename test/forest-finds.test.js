@@ -11798,6 +11798,26 @@ test("a member represented by a visible group is not individually tappable outsi
     "a member hidden inside the group must not be selected at its old pin position");
 });
 
+test("a remembered lone seed cannot overlap a group that becomes fixed-size later", () => {
+  resetData(app);
+  const previousScale = app.state.emojiScaleAnimated;
+  app.state.emojiScaleAnimated = 0.3;
+  const lone = { id: "lone", point: { x: 0, y: 0 } };
+  const groupSeed = { id: "group-seed", point: { x: 47, y: 0 } };
+  const movedIntoGroup = { id: "moved", point: { x: 200, y: 0 } };
+  const lookup = () => ({ tree: new Set([lone, groupSeed, movedIntoGroup]) });
+
+  app.resetMarkerGroupMemory();
+  const first = app.buildMapMarkers(lookup(), point => point);
+  assert.equal(first.length, 3, "the initial separated layout remembers the lone seed first");
+
+  movedIntoGroup.point = { x: 52, y: 0 };
+  const second = app.buildMapMarkers(lookup(), point => point);
+  assert.equal(second.length, 1, "the newly formed group claims the nearby remembered lone seed");
+  assert.deepEqual(new Set(second[0].items), new Set([lone, groupSeed, movedIntoGroup]));
+  app.state.emojiScaleAnimated = previousScale;
+});
+
 test("a pin hidden behind a selection is no longer tappable, so the tap is open ground", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.65, 0.05);

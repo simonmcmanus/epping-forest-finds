@@ -1800,17 +1800,28 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main", tilted = false) {
     }
     node.density = count;
   }
-  // Last build's seeds that are still present keep their previous order and go first; the rest
-  // follow densest first.
-  const seeds = [];
+  // Group-sized seeds must claim before lone remembered seeds. A lone seed can be earlier in
+  // memory than a seed that has just become a group (for example, when a distant item moves next
+  // to the latter without changing the item count). If the lone seed claims itself first, the
+  // later group's fixed face can overlap it even though the group box would have claimed it.
+  // Keep the previous order within remembered groups, then use densest-first for new groups; the
+  // same ordering is applied to lone seeds after all group-sized exclusions have been reserved.
+  const rememberedGroups = [];
+  const rememberedLone = [];
   if (memory) {
     for (const prevItem of memory.keys()) {
       const node = nodeOfItem.get(prevItem);
-      if (node && !node.isSeed) { node.isSeed = true; seeds.push(node); }
+      if (node && !node.isSeed) {
+        node.isSeed = true;
+        const held = memory.get(prevItem);
+        (node.density > 0 || (held && held.length > 1) ? rememberedGroups : rememberedLone).push(node);
+      }
     }
   }
   const fresh = nodes.filter(node => !node.isSeed).sort((a, b) => b.density - a.density || a.order - b.order);
-  for (const node of fresh) seeds.push(node);
+  const freshGroups = fresh.filter(node => node.density > 0);
+  const freshLone = fresh.filter(node => node.density === 0);
+  const seeds = [...rememberedGroups, ...freshGroups, ...rememberedLone, ...freshLone];
   const markers = [];
   const nextMemory = new Map();
   for (const seed of seeds) {
