@@ -19,11 +19,12 @@
   height: 18px;
   padding: 0 5px;
   border-radius: 999px;
-  display: inline-grid;
-  place-items: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 0.68rem;
   font-weight: 900;
-  line-height: 1;
+  line-height: 1.15;
   border: 1px solid currentColor;
   background: rgba(255, 255, 255, 0.92);
   color: inherit;

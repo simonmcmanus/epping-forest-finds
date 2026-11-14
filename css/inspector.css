@@ -464,8 +464,8 @@
 
 .inspector-filter-toggle .filter-count {
   position: absolute;
-  top: -6px;
-  right: -6px;
+  top: -5px;
+  right: -5px;
   pointer-events: none;
 }
 
@@ -1516,6 +1516,7 @@ textarea.report-textarea {
   /* Match the neighbouring label's line box so the small count's glyphs sit on the same optical
      center instead of riding high inside the badge. */
   line-height: 1.15;
+  transform: translateY(1px);
 }
 
 /* A group that is off keeps its count but drops the tinted fill, so the on groups read first. */

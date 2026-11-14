@@ -373,8 +373,8 @@ test.describe("Nearby filter rail", () => {
     });
     expect(countAlignment).toBeLessThanOrEqual(1);
 
-    await expect(rail(page)).toHaveScreenshot("nearby-pixel5-filter-rail.png");
-    await expect(page.locator(".inspector-actions")).toHaveScreenshot("nearby-pixel5-navigation.png");
+    await expect(rail(page)).toHaveScreenshot("nearby-pixel5-filter-rail.png", { scale: "device" });
+    await expect(page.locator(".inspector-actions")).toHaveScreenshot("nearby-pixel5-navigation.png", { scale: "device" });
   });
 });
 
