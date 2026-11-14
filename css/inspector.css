@@ -1769,7 +1769,7 @@ textarea.report-textarea {
 }
 .community-check-reported .community-local-status { margin: 0; }
 .community-head { display: flex; align-items: center; gap: 12px; max-height: 80px; margin-bottom: 14px; overflow: hidden; opacity: 1; transform: none; transition: max-height 220ms ease, margin 220ms ease, opacity 180ms ease, transform 220ms ease; }
-.community-head-reported { max-height: 0; margin-bottom: 0; opacity: 0; transform: translateY(-5px); pointer-events: none; }
+.community-head-reported { max-height: 0; margin-bottom: 0; opacity: 0; visibility: hidden; transform: translateY(-5px); pointer-events: none; transition: max-height 220ms ease, margin 220ms ease, opacity 180ms ease, transform 220ms ease, visibility 0s linear 220ms; }
 .community-head-icon {
   width: 38px; height: 38px; flex-shrink: 0; border-radius: 11px;
   display: grid; place-items: center; color: var(--tree); background: rgba(var(--forest-rgb), 0.1);
@@ -2961,17 +2961,17 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 .tree-measurements dd small { display: inline-block; white-space: nowrap; font-size: 0.72rem; font-weight: 400; color: #6a7764; letter-spacing: 0; }
 .tree-comments .row { gap: 5px; min-height: 0; margin-bottom: 8px; align-content: center; }
 .tree-comments dd { font-size: 0.87rem; line-height: 1.55; }
-.tree-detail > .community-check { margin: 16px 0 0; padding: 12px; border-radius: 10px; box-shadow: none; background: #fff; border-color: var(--tree-rule); }
-.tree-detail > .community-check .community-head { gap: 9px; }
-.tree-detail > .community-check .community-head-icon { width: 30px; height: 30px; border-radius: 8px; }
-.tree-detail > .community-check .community-title { font-size: 0.88rem; }
-.tree-detail > .community-check .community-sub { font-size: 0.76rem; }
-.tree-detail > .community-check .community-verify { border-radius: 8px; }
-.tree-detail > .community-check .community-more { justify-content: flex-start; gap: 5px; text-transform: none; letter-spacing: 0; font-size: 0.78rem; }
-.tree-detail > .community-check .community-more::before, .tree-detail > .community-check .community-more::after { display: none; }
-.tree-detail > .community-check .community-range { padding: 4px 0 0; border: 0; border-radius: 0; background: transparent; color: var(--muted); }
-.tree-detail > .community-check .community-range strong { font-size: 0.75rem; font-weight: 500; }
-.tree-detail > .community-check .community-range svg { width: 15px; height: 15px; }
+.tree-detail .community-check { margin: 16px 0 0; padding: 12px; border-radius: 10px; box-shadow: none; background: #fff; border-color: var(--tree-rule); }
+.tree-detail .community-check .community-head { gap: 9px; }
+.tree-detail .community-check .community-head-icon { width: 30px; height: 30px; border-radius: 8px; }
+.tree-detail .community-check .community-title { font-size: 0.88rem; }
+.tree-detail .community-check .community-sub { font-size: 0.76rem; }
+.tree-detail .community-check .community-verify { border-radius: 8px; }
+.tree-detail .community-check .community-more { justify-content: flex-start; gap: 5px; text-transform: none; letter-spacing: 0; font-size: 0.78rem; }
+.tree-detail .community-check .community-more::before, .tree-detail .community-check .community-more::after { display: none; }
+.tree-detail .community-check .community-range { padding: 4px 0 0; border: 0; border-radius: 0; background: transparent; color: var(--muted); }
+.tree-detail .community-check .community-range strong { font-size: 0.75rem; font-weight: 500; }
+.tree-detail .community-check .community-range svg { width: 15px; height: 15px; }
 .tree-detail .detail-section-heading { margin-top: 18px; padding-top: 14px; border-color: var(--tree-rule); font-size: 0.78rem; letter-spacing: 0.025em; }
 .tree-detail .related-cards { gap: 6px; }
 .tree-detail .nearest-item { border-radius: 10px; box-shadow: none; }
@@ -3209,3 +3209,139 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   }
 }
 
+
+/* Check card by proximity (spec/spec-community.md, "Check card by proximity"). Far: one quiet disclosure row.
+   Approaching: the full card. Near (at the location): the same card, promoted to the top slot with a
+   stronger accent. Whichever slot does not hold the card holds a pointer to it. Height changes use the
+   grid-rows trick so the fold animates without measuring; the slot move itself is a FLIP in JS. */
+/* One motion vocabulary for the whole block: 280 ms on the app's usual curve (COMMUNITY_CARD_MOTION_MS in js/community.js). */
+.community-check, .community-slot, .community-pointer-slot, .community-placeholder { --community-ease: cubic-bezier(0.22, 0.8, 0.24, 1); }
+.community-check { transition: padding 280ms var(--community-ease), border-color 280ms var(--community-ease), background-color 280ms var(--community-ease), box-shadow 280ms var(--community-ease); }
+.community-fold { display: grid; grid-template-rows: 1fr; transition: grid-template-rows 280ms var(--community-ease), opacity 280ms var(--community-ease), visibility 0s; }
+/* The padding and the equal negative margin give focus rings and the verify cue room inside the clip. */
+.community-fold-inner { min-height: 0; overflow: hidden; padding: 10px 12px 12px; margin: -10px -12px -12px; }
+.community-slot-top:empty { display: none; }
+.tree-detail .community-slot-top > .community-check { margin: 2px 0 14px; }
+.place-detail .community-slot > .community-check { margin: 0; }
+
+/* The quiet row's toggle and the placeholder share one base: a full-width 44px row button. */
+.community-row-btn {
+  display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; box-sizing: border-box; padding: 0;
+  border: 0; border-radius: 8px; background: none; color: var(--muted); font: inherit; text-align: left; cursor: pointer;
+}
+.community-row-btn:focus-visible { outline: 2px solid var(--tree); outline-offset: 2px; }
+.community-quiet-toggle { display: none; gap: 10px; }
+.community-quiet-toggle .community-head-icon, .community-placeholder-btn .community-head-icon { width: 28px; height: 28px; border-radius: 8px; color: var(--muted); background: rgba(var(--forest-rgb), 0.06); }
+.community-quiet-toggle .community-head-icon .community-icon, .community-placeholder-btn .community-head-icon .community-icon { width: 17px; height: 17px; }
+.community-quiet-copy { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.community-quiet-title { font-size: 0.82rem; font-weight: 650; color: var(--ink); }
+.community-quiet-copy small { font-size: 0.74rem; font-weight: 500; line-height: 1.3; color: var(--muted); }
+.community-quiet-chevron { width: 16px; height: 16px; flex: none; color: var(--muted); transition: transform 280ms var(--community-ease); }
+.community-quiet-toggle[aria-expanded="true"] .community-quiet-chevron { transform: rotate(90deg); }
+
+.community-check[data-tier="far"] { padding-top: 2px; padding-bottom: 2px; box-shadow: none; background: var(--surface); border: var(--c-hairline); }
+.community-check[data-tier="far"] .community-quiet-toggle { display: flex; }
+.community-check[data-tier="far"] .community-head { display: none; }
+.community-check[data-tier="far"] .community-body { padding-top: 8px; }
+.community-check[data-tier="far"]:not([data-unfolded="1"]) .community-fold {
+  grid-template-rows: 0fr; opacity: 0; visibility: hidden;
+  transition: grid-template-rows 280ms var(--community-ease), opacity 280ms var(--community-ease), visibility 0s linear 280ms;
+}
+
+/* The title keeps at least a readable line; when the cue would squeeze it, the cue drops to its own line. */
+.community-check .community-head { flex-wrap: wrap; row-gap: 6px; }
+.community-check .community-head > div { flex: 1 1 8.5rem; min-width: 0; }
+/* An eyebrow above the title, the same on trees and places: it takes no height until the card is near. */
+.community-here-cue {
+  display: block; width: fit-content; box-sizing: border-box; max-height: 0; margin: 0; padding: 0 10px; overflow: hidden; white-space: nowrap; opacity: 0; visibility: hidden;
+  border-radius: 999px; background: var(--tree); color: #fff; font-size: 0.72rem; font-weight: 700; line-height: 1.6;
+  transition: max-height 280ms var(--community-ease), margin 280ms var(--community-ease), opacity 280ms var(--community-ease), visibility 0s linear 280ms;
+}
+.community-check[data-tier="near"] .community-here-cue { max-height: 1.6em; margin-bottom: 4px; opacity: 1; visibility: visible; transition-delay: 0s; }
+.community-check[data-tier="near"] .community-head-reported .community-here-cue, .community-head-reported .community-here-cue { max-height: 0; margin: 0; opacity: 0; visibility: hidden; }
+.community-check[data-tier="near"] {
+  border-color: var(--tree); background: rgba(var(--forest-rgb), 0.045);
+  box-shadow: var(--inspector-shadow-small);
+}
+.community-check[data-tier="near"] .community-head-icon { color: #fff; background: var(--tree); }
+
+.community-range-distance, .community-distance-line { display: none; margin: 2px 0 0; font-size: 0.75rem; font-weight: 500; color: var(--muted); }
+.community-check[data-tier="approaching"] .community-range-distance, .community-check[data-tier="approaching"] .community-distance-line { display: block; }
+.community-distance-line:empty { display: none !important; }
+
+/* The chip in the top row that leads down to the card. The slot's negative margin cancels the row's gap
+   while it is folded away, so nothing beside it moves. 36px tall like the map and share buttons, with the
+   same 4px of invisible hit area (44px target). */
+.community-pointer-slot {
+  display: inline-grid; grid-template-columns: 0fr; margin-left: -8px; opacity: 0; visibility: hidden;
+  transition: grid-template-columns 280ms var(--community-ease), margin-left 280ms var(--community-ease), opacity 280ms var(--community-ease), visibility 0s linear 280ms;
+}
+.community-pointer-slot.is-shown { grid-template-columns: 1fr; margin-left: 0; opacity: 1; visibility: visible; transition-delay: 0s; }
+.community-pointer-inner { min-width: 0; overflow: hidden; padding: 4px; margin: -4px; }
+.community-check-pointer {
+  position: relative; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+  height: 36px; padding: 0 10px; border: 1px solid var(--border-accent); border-radius: 8px; white-space: nowrap;
+  background: rgba(var(--forest-rgb), 0.06); color: var(--accent-ink); font: inherit; font-size: 0.82rem; font-weight: 650; cursor: pointer;
+}
+.community-check-pointer svg { width: 16px; height: 16px; flex: none; }
+.community-check-pointer::after { content: ""; position: absolute; inset: -4px; }
+.community-check-pointer:hover { background: rgba(var(--forest-rgb), 0.12); }
+.community-check-pointer:focus-visible { outline: 2px solid var(--nav); outline-offset: 2px; }
+/* Icon-only when the labelled chip would make the top row wrap (js/community.js communityFitPointerRow). The probe
+   state opens the chip with its label, without transitions, to measure that. */
+.detail-top-row.community-pointer-compact .community-check-pointer { width: 36px; padding: 0; }
+.detail-top-row.community-pointer-compact .community-check-pointer-label { display: none; }
+.detail-top-row.community-fit-probe .community-pointer-slot { grid-template-columns: 1fr; margin-left: 0; }
+
+/* The quiet row left in the card's usual slot while the card is promoted. */
+.community-placeholder {
+  display: grid; grid-template-rows: 0fr; opacity: 0; visibility: hidden;
+  transition: grid-template-rows 280ms var(--community-ease), opacity 280ms var(--community-ease), visibility 0s linear 280ms;
+}
+.community-placeholder.is-shown { grid-template-rows: 1fr; opacity: 1; visibility: visible; transition-delay: 0s; }
+.community-placeholder-inner { min-height: 0; overflow: hidden; padding: 4px; margin: -4px; }
+/* Looks like the quiet far row (same tile, type and white bordered row); the chevron points up, the way it goes. */
+.community-placeholder-btn {
+  gap: 10px; padding: 2px 12px; border: var(--c-hairline); border-radius: 10px; background: var(--surface);
+}
+.place-detail .community-placeholder-btn { padding-inline: 16px; border-radius: var(--c-radius); }
+.community-placeholder-btn .community-quiet-chevron { transform: rotate(-90deg); }
+.community-placeholder-btn:hover { background: rgba(var(--forest-rgb), 0.05); }
+/* Inset: the row's clip (overflow hidden, no bottom padding on a tree) would cut an outer ring. */
+.community-placeholder-btn:focus-visible { outline-offset: -2px; }
+.tree-detail .community-placeholder-btn { margin-top: 14px; width: 100%; }
+.tree-detail .community-placeholder-inner { padding-bottom: 0; }
+
+/* A short highlight after a pointer brings the walker to the card. */
+.community-check.community-highlight { animation: community-highlight 1.5s ease-out 1; }
+@keyframes community-highlight {
+  0% { box-shadow: 0 0 0 0 rgba(var(--forest-rgb), 0.4); }
+  30% { box-shadow: 0 0 0 6px rgba(var(--forest-rgb), 0.2); }
+  100% { box-shadow: 0 0 0 0 rgba(var(--forest-rgb), 0); }
+}
+
+/* The cue on Verify/Confirm at the location: a soft ring that grows and fades, twice, then rests.
+   A pseudo-element's transform and opacity, so it never repaints the card. */
+.community-verify { position: relative; }
+.community-verify.community-verify-hint::after {
+  content: ""; position: absolute; inset: -1px; border: 2px solid rgba(var(--forest-rgb), 0.5); border-radius: inherit; pointer-events: none;
+  animation: community-verify-hint 1.5s ease-out 2;
+}
+.community-check.community-nudge-pulse .community-verify-hint::after { animation: none; display: none; }
+@keyframes community-verify-hint { 0% { opacity: 0.7; transform: scale(1); } 100% { opacity: 0; transform: scale(1.07, 1.28); } }
+
+/* A move or fold that must happen at once (first render, reduced motion, content above the reader). */
+.community-instant .community-check, .community-instant .community-fold, .community-instant .community-pointer-slot,
+.community-instant .community-placeholder, .community-instant .community-here-cue { transition: none !important; }
+
+.community-announce { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* !important: the far row's own rule is more specific than any plain selector here, and none may animate. */
+  .community-check, .community-check .community-fold, .community-check[data-tier] .community-fold,
+  .community-check[data-tier="far"]:not([data-unfolded="1"]) .community-fold, .community-check .community-here-cue,
+  .community-check[data-tier] .community-here-cue, .community-pointer-slot, .community-pointer-slot.is-shown,
+  .community-placeholder, .community-placeholder.is-shown, .community-check .community-quiet-chevron { transition: none !important; }
+  .community-check.community-highlight { animation: none; outline: 2px solid var(--tree); outline-offset: 2px; }
+  .community-verify.community-verify-hint::after { animation: none; display: none; }
+}
