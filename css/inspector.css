@@ -1513,7 +1513,9 @@ textarea.report-textarea {
   font-size: 0.6rem;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
-  line-height: 1;
+  /* Match the neighbouring label's line box so the small count's glyphs sit on the same optical
+     center instead of riding high inside the badge. */
+  line-height: 1.15;
 }
 
 /* A group that is off keeps its count but drops the tinted fill, so the on groups read first. */
