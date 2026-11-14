@@ -726,6 +726,9 @@ globalThis.__forestFindsTest = {
   MAP_PNG_ICON_SIZE,
   MAP_ICON_SCALE_UNSELECTED,
   buildMapMarkers,
+  resetMarkerGroupMemory,
+  placeUserLabel,
+  markerPaintedRects,
   clusterMarkerRect,
   clusterPreviewEntries,
   drawMapMarkers,
@@ -1189,6 +1192,7 @@ test("no two map markers overlap, however densely different categories are packe
     sparseTrees: markerScatter(80, 1500, ["tree"]),
   };
   for (const [name, items] of Object.entries(layouts)) {
+    app.resetMarkerGroupMemory();
     const markers = app.buildMapMarkers(markerLookup(items), markerScreen);
     const rects = markers.map(drawnMarkerRect);
     for (let i = 0; i < rects.length; i++) {
@@ -1235,6 +1239,7 @@ test("map markers are drawn at the densest item's own point and are deterministi
   // A row plus one outlier: the middle item has two neighbours in reach, the ends one each.
   const items = [markerItem("tree", "a", 0, 0), markerItem("tree", "b", 40, 0), markerItem("tree", "c", 70, 0),
     markerItem("cow", "far", 600, 600)];
+  app.resetMarkerGroupMemory();
   const first = app.buildMapMarkers(markerLookup(items), markerScreen);
   const again = app.buildMapMarkers(markerLookup(items), markerScreen);
   const summary = (markers) => Array.from(markers, m => ({ at: [m.screenPt.x, m.screenPt.y], ids: Array.from(m.items, i => i.id).sort() }))
@@ -1244,6 +1249,188 @@ test("map markers are drawn at the densest item's own point and are deterministi
   assert.deepEqual(Array.from(group.items, i => i.id).sort(), ["a", "b", "c"]);
   assert.equal(group.screenPt.x, 40, "the group sits on the densest member, not on the members' average");
   assert.equal(group.worldPt, group.items.find(i => i.id === "b").point, "tilt scaling reads that same member");
+});
+
+// Stable groups: grouping remembers the last build, so zooming does not make items hop or split.
+const markerBox = () => {
+  const dpr = app.pixelRatio();
+  const rect = app.clusterMarkerRect(0, 0, 100, dpr, 1);
+  const gap = 4 * dpr;
+  return { w: rect.right - rect.left + gap, h: rect.bottom - rect.top + gap };
+};
+const placeMarkerItems = (items, at) => items.forEach(({ item }) => { item.point = at(item.id); });
+const markerGroupsOf = (markers) => Array.from(markers, m => Array.from(m.items, i => i.id).sort().join("+")).sort();
+const groupWith = (markers, id) => markers.find(m => m.items.some(i => i.id === id));
+
+test("a pair just outside the normal box stays one group once grouped, and is two groups when built fresh", () => {
+  const { w } = markerBox();
+  const items = [markerItem("tree", "a", 0, 0), markerItem("tree", "b", 0, 0)];
+  const build = (gapX) => { placeMarkerItems(items, id => ({ x: id === "b" ? gapX : 0, y: 0 })); return app.buildMapMarkers(markerLookup(items), markerScreen); };
+  app.resetMarkerGroupMemory();
+  assert.equal(build(w * 0.9).length, 1, "close enough to group");
+  assert.equal(build(w * 1.1).length, 1, "outside the normal box but inside the split box: still one group");
+  app.resetMarkerGroupMemory();
+  assert.equal(build(w * 1.1).length, 2, "built fresh at the same spacing they are separate");
+});
+
+test("a grouped pair separates once it is outside the split box", () => {
+  const { w } = markerBox();
+  const items = [markerItem("tree", "a", 0, 0), markerItem("tree", "b", 0, 0)];
+  const build = (gapX) => { placeMarkerItems(items, id => ({ x: id === "b" ? gapX : 0, y: 0 })); return app.buildMapMarkers(markerLookup(items), markerScreen); };
+  app.resetMarkerGroupMemory();
+  build(w * 0.9);
+  assert.equal(build(w * 1.2).length, 1, "still inside the split box");
+  assert.equal(build(w * 1.3).length, 2, "outside the split box it leaves");
+});
+
+test("an item between two groups stays with its group across small zooms instead of hopping", () => {
+  const { w } = markerBox();
+  const items = [markerItem("tree", "a1", 0, 0), markerItem("tree", "a2", 0, 0), markerItem("tree", "a3", 0, 0),
+    markerItem("tree", "m", 0, 0),
+    markerItem("tree", "c1", 0, 0), markerItem("tree", "c2", 0, 0), markerItem("tree", "c3", 0, 0)];
+  const layout = (mx, cx, f = 1) => placeMarkerItems(items, id => {
+    const n = Number(id.slice(1)) || 0;
+    if (id === "m") return { x: mx * w * f, y: 0 };
+    return { x: (id[0] === "a" ? 0 : cx * w) * f, y: n * f };
+  });
+  app.resetMarkerGroupMemory();
+  layout(0.5, 2.2);
+  assert.ok(groupWith(app.buildMapMarkers(markerLookup(items), markerScreen), "m").items.some(i => i.id === "a1"), "starts with group a");
+  for (const f of [1, 1.04, 0.96, 1.02, 1]) {
+    layout(1.1, 2.2, f);
+    const markers = app.buildMapMarkers(markerLookup(items), markerScreen);
+    const group = groupWith(markers, "m");
+    assert.ok(group.items.some(i => i.id === "a1") && !group.items.some(i => i.id === "c1"), `zoom x${f}: m has not hopped`);
+  }
+});
+
+test("panning keeps the grouping that zooming left behind, which a fresh build would not give", () => {
+  const items = markerScatter(160, 420, ["tree", "landmark", "cow"]);
+  const base = new Map(items.map(({ item }) => [item.id, { x: item.point.x, y: item.point.y }]));
+  const layout = (f, dx = 0, dy = 0) => placeMarkerItems(items, id => ({ x: base.get(id).x * f + dx, y: base.get(id).y * f + dy }));
+  app.resetMarkerGroupMemory();
+  layout(0.8);
+  app.buildMapMarkers(markerLookup(items), markerScreen);
+  layout(1);
+  const remembered = markerGroupsOf(app.buildMapMarkers(markerLookup(items), markerScreen));
+  app.resetMarkerGroupMemory();
+  assert.notDeepEqual(remembered, markerGroupsOf(app.buildMapMarkers(markerLookup(items), markerScreen)),
+    "precondition: zooming out then in left groups that a fresh build would not form");
+  app.resetMarkerGroupMemory();
+  layout(0.8);
+  app.buildMapMarkers(markerLookup(items), markerScreen);
+  layout(1);
+  app.buildMapMarkers(markerLookup(items), markerScreen);
+  for (let step = 1; step <= 12; step++) {
+    layout(1, step * 17.3, -step * 9.1);
+    assert.deepEqual(markerGroupsOf(app.buildMapMarkers(markerLookup(items), markerScreen)), remembered, `after pan step ${step}`);
+  }
+});
+
+test("a remembered seed that now falls inside an earlier seed's box is absorbed, never a second anchor", () => {
+  const { w, h } = markerBox();
+  const items = [markerItem("tree", "a", 0, 0), markerItem("tree", "b", 0, 0)];
+  const build = (bx) => { placeMarkerItems(items, id => ({ x: id === "b" ? bx : 0, y: 0 })); return app.buildMapMarkers(markerLookup(items), markerScreen); };
+  app.resetMarkerGroupMemory();
+  assert.equal(build(w * 1.5).length, 2, "two separate seeds to remember");
+  const closer = build(w * 0.5);
+  assert.equal(closer.length, 1, "the later seed is absorbed by the earlier one");
+  assert.equal(closer[0].items.length, 2);
+  for (const markerSet of [build(w * 0.9), build(w * 1.5)]) {
+    const [first, second] = markerSet.map(m => m.screenPt);
+    if (second) assert.ok(Math.abs(first.x - second.x) >= w || Math.abs(first.y - second.y) >= h, "anchors stay a box apart");
+  }
+});
+
+test("expanding a cluster and collapsing it again leaves the main map's groups as they were", () => {
+  const { w } = markerBox();
+  const items = [markerItem("tree", "a", 0, 0), markerItem("tree", "b", 0, 0)];
+  placeMarkerItems(items, id => ({ x: id === "b" ? w * 0.9 : 0, y: 0 }));
+  app.resetMarkerGroupMemory();
+  app.buildMapMarkers(markerLookup(items), markerScreen);
+  placeMarkerItems(items, id => ({ x: id === "b" ? w * 1.1 : 0, y: 0 }));
+  const before = markerGroupsOf(app.buildMapMarkers(markerLookup(items), markerScreen));
+  assert.deepEqual(before, ["a+b"], "precondition: remembered as one group");
+  app.buildMapMarkers(markerLookup([items[0]]), markerScreen, "expanded");
+  assert.deepEqual(markerGroupsOf(app.buildMapMarkers(markerLookup(items), markerScreen)), before);
+});
+
+test("building twice on the same view gives identical markers, whatever came before", () => {
+  const items = markerScatter(160, 420, ["tree", "landmark", "cow"]);
+  const base = new Map(items.map(({ item }) => [item.id, { x: item.point.x, y: item.point.y }]));
+  app.resetMarkerGroupMemory();
+  for (const f of [1, 0.5, 1.3]) {
+    placeMarkerItems(items, id => ({ x: base.get(id).x * f, y: base.get(id).y * f }));
+    const first = app.buildMapMarkers(markerLookup(items), markerScreen);
+    const second = app.buildMapMarkers(markerLookup(items), markerScreen);
+    const shape = (markers) => Array.from(markers, m => `${m.screenPt.x},${m.screenPt.y}:${Array.from(m.items, i => i.id).join("+")}`);
+    assert.deepEqual(shape(second), shape(first), `zoom x${f}`);
+  }
+});
+
+test("no two anchors come within the normal box after a run of zoom-out and zoom-in builds", () => {
+  const { w, h } = markerBox();
+  const items = markerScatter(200, 500, ["tree", "landmark", "cow", "path", "water"]);
+  const base = new Map(items.map(({ item }) => [item.id, { x: item.point.x, y: item.point.y }]));
+  app.resetMarkerGroupMemory();
+  for (const f of [1, 0.8, 0.6, 0.35, 0.5, 0.8, 1.2, 1.6, 1.2, 1]) {
+    placeMarkerItems(items, id => ({ x: base.get(id).x * f, y: base.get(id).y * f }));
+    const markers = app.buildMapMarkers(markerLookup(items), markerScreen);
+    for (let i = 0; i < markers.length; i++) {
+      for (let j = i + 1; j < markers.length; j++) {
+        const a = markers[i].screenPt, b = markers[j].screenPt;
+        assert.ok(Math.abs(a.x - b.x) >= w || Math.abs(a.y - b.y) >= h, `zoom x${f}: anchors ${i} and ${j} are inside each other's box`);
+      }
+    }
+    assert.equal(markers.reduce((n, m) => n + m.items.length, 0), items.length, "every item is still in exactly one marker");
+  }
+});
+
+test("the You label takes the first free side adjacent to the dot, keeps it while free, and is hidden when all four are covered", () => {
+  const dpr = app.pixelRatio();
+  const dot = { x: 200, y: 200 };
+  const place = (rects, last) => app.placeUserLabel(dot, 4 * dpr, 24 * dpr, 11 * dpr, 3 * dpr, 4 * dpr, rects, last);
+  const cover = (x, y, half = 14 * dpr) => ({ left: x - half, right: x + half, top: y - half, bottom: y + half });
+  const rightOf = cover(200 + 20 * dpr, 200, 8 * dpr), leftOf = cover(200 - 20 * dpr, 200, 8 * dpr);
+  const belowIt = cover(200, 200 + 16 * dpr), aboveIt = cover(200, 200 - 16 * dpr);
+  assert.equal(place([], "right").side, "right", "free default side");
+  assert.equal(place([rightOf], "right").side, "left", "a marker over the right side moves it left");
+  assert.equal(place([rightOf, leftOf], "right").side, "below");
+  assert.equal(place([rightOf, leftOf, belowIt], "right").side, "above");
+  assert.equal(place([rightOf, leftOf, belowIt, aboveIt], "right"), null, "all four covered: no label");
+  assert.equal(place([], "left").side, "left", "keeps last frame's side while it is still free");
+  assert.equal(place([leftOf], "left").side, "right", "leaves it once covered");
+  const label = place([rightOf], "right");
+  assert.equal(label.box.left < rightOf.right && rightOf.left < label.box.right && label.box.top < rightOf.bottom && rightOf.top < label.box.bottom, false);
+});
+
+test("a marker's painted rectangles leave the corners beside its pointer free, and only groups have a chip", () => {
+  const dpr = app.pixelRatio();
+  const overlaps = (rects, box) => rects.some(r => box.left < r.right && r.left < box.right && box.top < r.bottom && r.top < box.bottom);
+  const lone = app.markerPaintedRects(100, 100, 1, dpr, 1);
+  const group = app.markerPaintedRects(100, 100, 27, dpr, 1);
+  assert.equal(lone.length, 2, "a lone pin is a face and a pointer");
+  assert.equal(group.length, 3, "a group adds its count chip");
+  const face = app.clusterMarkerRect(100, 100, 1, dpr, 1);
+  const corner = { left: face.right - 6 * dpr, right: face.right + 40 * dpr, top: 100 - 5 * dpr, bottom: 100 };
+  assert.equal(overlaps([app.clusterMarkerRect(100, 100, 27, dpr, 1)], corner), true, "the bounding box claims the corner");
+  assert.equal(overlaps(group, corner), false, "the painted rectangles do not");
+  assert.equal(overlaps(group, { left: 99, right: 101, top: 98, bottom: 100 }), true, "the pointer itself is painted");
+});
+
+test("zooming out and in keeps remembered groups until the camera lands, then a fresh layout matches a fresh build", () => {
+  const items = markerScatter(160, 420, ["tree", "landmark", "cow"]);
+  const base = new Map(items.map(({ item }) => [item.id, { x: item.point.x, y: item.point.y }]));
+  const layout = (f) => placeMarkerItems(items, id => ({ x: base.get(id).x * f, y: base.get(id).y * f }));
+  const build = () => markerGroupsOf(app.buildMapMarkers(markerLookup(items), markerScreen));
+  app.resetMarkerGroupMemory();
+  for (const f of [1, 0.8, 0.6, 0.8, 1]) { layout(f); build(); }
+  const withMemory = build();
+  assert.deepEqual(build(), withMemory, "memory holds across builds");
+  app.resetMarkerGroupMemory();
+  const fresh = build();
+  assert.notDeepEqual(withMemory, fresh, "precondition: the zoom path left remembered groups");
+  assert.deepEqual(build(), fresh, "after the reset the layout is the fresh one and stays");
 });
 
 test("a lone item stays an ordinary single-item map marker", () => {
