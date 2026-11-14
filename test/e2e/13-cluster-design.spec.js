@@ -467,6 +467,104 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     expect(shown.inList, 'the list shows the group, up to its usual cap').toBe(Math.min(target.count, shown.listCap));
   });
 
+  test('adjacent groups paint a faint footprint beneath their faces, and tapping inside it is an open-ground tap', async ({ page }) => {
+    await setup(page);
+    await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
+    await waitForUiToSettle(page);
+    // Zoom out about the centre, step by step, to the first camera at which two groups sit close
+    // together; the data fixes which step that is, so the journey is the same every run.
+    const scene = await page.evaluate(`(() => {
+      stopViewportAnimation();
+      const centre = { x: state.canvasLogicalWidth / 2, y: state.canvasLogicalHeight / 2 };
+      const world = screenToWorld(centre.x, centre.y);
+      const footprints = () => markerFootprints(buildActiveMapMarkers(worldToScreen), worldToScreenFlat,
+        tiltActive() ? tiltProjectScreenPoint : p => p);
+      for (let step = 0; step < 14; step++) {
+        if (footprints().length >= 2) break;
+        state.viewport.scale *= 0.8;
+        for (let i = 0; i < 2; i++) {
+          const now = worldToScreen(world);
+          state.viewport.tx += centre.x - now.x;
+          state.viewport.ty += centre.y - now.y;
+        }
+        state.emojiScaleAnimated = zoomEmojiScaleTarget();
+        resetMarkerGroupMemory();
+      }
+      const list = footprints();
+      const markers = buildActiveMapMarkers(worldToScreen);
+      const rects = markers.map(m => clusterMarkerRect(m.screenPt.x, m.screenPt.y, m.items.length, pixelRatio(),
+        m.items.length > 1 ? 1 : mapEmojiScale()));
+      const free = (x, y) => {
+        const pad = 12 * pixelRatio();
+        if (rects.some(r => x > r.left - pad && x < r.right + pad && y > r.top - pad && y < r.bottom + pad)) return false;
+        const screen = { x, y };
+        const world = screenToWorld(x, y);
+        return !findClusterHit(screen) && findHit(screen, world).type === 'none' && !findMapLabelHit(screen);
+      };
+      const inside = (pts, x, y) => {
+        let on = false;
+        for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+          const a = pts[i], b = pts[j];
+          if ((a.y > y) !== (b.y > y) && x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x) on = !on;
+        }
+        return on;
+      };
+      let point = null;
+      for (const { points } of list) {
+        const xs = points.map(p => p.x), ys = points.map(p => p.y);
+        for (let y = Math.min(...ys); y <= Math.max(...ys) && !point; y += 3) {
+          for (let x = Math.min(...xs); x <= Math.max(...xs); x += 3) {
+            if (inside(points, x, y) && free(x, y)) { point = { x, y }; break; }
+          }
+        }
+        if (point) break;
+      }
+      return { count: list.length, point };
+    })()`);
+    expect(scene.count, 'two close groups both draw a footprint').toBeGreaterThanOrEqual(2);
+    expect(scene.point, 'an open-ground spot inside a footprint, away from every face').not.toBeNull();
+
+    const painted = await page.evaluate(`((point) => {
+      const events = [];
+      const proto = CanvasRenderingContext2D.prototype;
+      const fill = proto.fill, face = drawClusterMarker, real = markerFootprints;
+      proto.fill = function (...args) {
+        if (this.fillStyle === '#233d30' && this.globalAlpha > 0 && this.globalAlpha < 0.2) events.push('footprint');
+        return fill.apply(this, args);
+      };
+      drawClusterMarker = (...args) => { events.push('face'); return face(...args); };
+      const sample = () => {
+        const c = els.canvas.getContext('2d');
+        return Array.from(c.getImageData(Math.round(point.x), Math.round(point.y), 1, 1).data);
+      };
+      try {
+        draw();
+        const withFootprint = sample();
+        const order = events.slice();
+        markerFootprints = () => [];
+        draw();
+        const without = sample();
+        return { order, withFootprint, without };
+      } finally {
+        proto.fill = fill;
+        drawClusterMarker = face;
+        markerFootprints = real;
+      }
+    })(${JSON.stringify(scene.point)})`);
+    const firstFace = painted.order.indexOf('face');
+    expect(painted.order.filter(e => e === 'footprint').length).toBeGreaterThanOrEqual(2);
+    expect(firstFace).toBeGreaterThan(-1);
+    expect(painted.order.lastIndexOf('footprint'), 'every footprint is painted before the first face').toBeLessThan(firstFace);
+    const channelSum = px => px[0] + px[1] + px[2];
+    expect(channelSum(painted.withFootprint), 'the ground inside the footprint is slightly darker').toBeLessThan(channelSum(painted.without));
+    expect(channelSum(painted.without) - channelSum(painted.withFootprint), 'only very slightly').toBeLessThan(120);
+
+    await page.evaluate(() => draw());
+    await tapCanvasPoint(page, scene.point);
+    await expect.poll(() => page.evaluate(() => Boolean(state.nearbyAnchor))).toBe(true);
+    expect(await page.evaluate(() => state.clusterExpanded)).toBeNull();
+  });
+
   test('a group marker opens its members when tapped on either side of the count', async ({ page }) => {
     await setup(page);
     await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
