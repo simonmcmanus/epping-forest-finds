@@ -414,6 +414,90 @@ test.describe("Zoom gestures hide the pins and bring them back together", () => 
     });
   }
 
+  test("a notice shown at the floor is gone after release even when the list is otherwise unchanged", async ({ page }) => {
+    await openNearby(page);
+    // Start with the ring already at its floor, so the list after release is the one before the squeeze.
+    await page.evaluate(() => {
+      state.walkingDistanceMinutes = walkingRadiusFloorMinutes(nearbyOrigin());
+      selectOverview();
+    });
+    await waitForUiToSettle(page);
+    await page.evaluate(() => {
+      window.__noticesAdded = 0;
+      new MutationObserver((records) => {
+        for (const record of records) for (const node of record.addedNodes) {
+          if (node.classList && node.classList.contains("walk-radius-floor-notice")) window.__noticesAdded += 1;
+        }
+      }).observe(els.inspectorBody, { childList: true, subtree: true });
+    });
+    await spreadFingersAcrossFrames(page, { startHalfGap: 20, endHalfGap: 900, steps: 20 });
+    await expect(page.locator(".walk-radius-floor-notice")).toHaveCount(1);
+    // Out of the floor and back in again: the one notice is kept, not re-inserted (live region).
+    await spreadFingersAcrossFrames(page, { startHalfGap: 900, endHalfGap: 60, steps: 10, press: false });
+    await spreadFingersAcrossFrames(page, { startHalfGap: 60, endHalfGap: 900, steps: 10, press: false });
+    expect(await page.evaluate(() => window.__noticesAdded), "the notice is inserted once per gesture").toBeLessThanOrEqual(1);
+    await liftFingers(page);
+    await expect(page.locator(".walk-radius-floor-notice")).toHaveCount(0);
+  });
+
+  test("the ring is painted in the same frame the pinch applies it", async ({ page }) => {
+    await openNearby(page);
+    await page.evaluate(() => {
+      window.__ringMinutes = [];
+      const original = window.drawWalkingRadius;
+      window.drawWalkingRadius = function recordedRing(...args) {
+        window.__ringMinutes.push(state.walkingDistanceMinutes);
+        return original.apply(this, args);
+      };
+    });
+    await spreadFingersAcrossFrames(page, { startHalfGap: 160, endHalfGap: 150, steps: 1 });
+    const result = await page.evaluate(async () => {
+      const canvas = els.canvas;
+      const rect = canvas.getBoundingClientRect();
+      const cx = rect.left + rect.width / 2;
+      const cy = rect.top + rect.height / 2;
+      const move = (id, x) => canvas.dispatchEvent(new PointerEvent("pointermove", { pointerId: id, clientX: x, clientY: cy, bubbles: true, cancelable: true, pointerType: "touch" }));
+      window.__ringMinutes.length = 0;
+      move(5001, cx - 80);
+      move(5002, cx + 80);
+      await new Promise((resolve) => requestAnimationFrame(resolve));
+      return { drawn: window.__ringMinutes.slice(), applied: state.walkingDistanceMinutes };
+    });
+    expect(result.drawn.length, "the ring was painted within the frame of the move").toBeGreaterThan(0);
+    expect(result.drawn[result.drawn.length - 1], "and shows the latest pinch radius").toBe(result.applied);
+    await liftFingers(page);
+  });
+
+  test("after a wheel glide arrives, the settle does not move the camera or regroup the pins", async ({ page }) => {
+    await openNearby(page);
+    const box = await page.locator("#mapCanvas").boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 3);
+    await page.evaluate(() => {
+      window.__cameraMoves = 0;
+      window.__afterArrival = false;
+      const move = window.moveCamera;
+      window.moveCamera = function countedMove(...args) { if (window.__afterArrival) window.__cameraMoves += 1; return move.apply(this, args); };
+      const end = window.endZoomGesture;
+      window.endZoomGesture = function recordedEnd(source) {
+        const result = end.call(this, source);
+        if (!zoomGestureLive()) window.__afterArrival = true;
+        return result;
+      };
+      window.__markerCounts = [];
+    });
+    await page.mouse.wheel(0, -100);
+    await expect.poll(() => page.evaluate(() => window.__afterArrival)).toBe(true);
+    await page.evaluate(() => {
+      const sample = () => { window.__markerCounts.push(buildActiveMapMarkers(worldToScreen, false).length); window.__sampling = requestAnimationFrame(sample); };
+      sample();
+    });
+    await expect.poll(() => page.evaluate(() => !state.wheelRadiusSettleTimer && state.wheelRadiusTargetMinutes == null)).toBe(true);
+    await waitForUiToSettle(page);
+    const result = await page.evaluate(() => { cancelAnimationFrame(window.__sampling); return { moves: window.__cameraMoves, counts: window.__markerCounts }; });
+    expect(new Set(result.counts).size, `pin/cluster count stays put through the settle ${JSON.stringify(result.counts)}`).toBe(1);
+    expect(result.moves, "the settle refit does not move the camera after the reveal").toBe(0);
+  });
+
   test("squeezing the ring to its floor shows the limit notice without re-rendering the list", async ({ page }) => {
     await openNearby(page);
     await page.evaluate(() => {

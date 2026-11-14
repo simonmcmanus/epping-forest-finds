@@ -6567,14 +6567,41 @@ test("a pinch whose end event never arrives is ended by the safety net: pins ret
   });
 });
 
-test("a Safari gesturestart with no gestureend is ended by its inactivity watchdog", async () => {
+test("a Safari gesturestart with no gestureend is ended by its inactivity watchdog", () => {
   setUpWheelNearby(app);
   app.selectOverview();
-  app.startNearbyRadiusGesture();
-  assert.equal(app.zoomGestureLive(), true);
-  await new Promise((resolve) => setTimeout(resolve, app.SAFARI_GESTURE_IDLE_MS + 200));
-  assert.equal(app.zoomGestureLive(), false, "the pins come back without a gestureend");
-  assert.equal(app.state.gestureRadiusBaseMinutes, null);
+  const armed = [];
+  const realSetTimeout = app.swapGlobalFunction("setTimeout", (fn, ms) => { armed.push({ fn, ms }); return armed.length; });
+  const realClearTimeout = app.swapGlobalFunction("clearTimeout", () => {});
+  try {
+    app.startNearbyRadiusGesture();
+    assert.equal(app.zoomGestureLive(), true);
+    const watchdog = armed.filter((timer) => timer.ms === app.SAFARI_GESTURE_IDLE_MS).pop();
+    assert.ok(watchdog, "an inactivity watchdog is armed for the gesture");
+    watchdog.fn(); // the idle time passes with no gesturechange or gestureend
+    assert.equal(app.zoomGestureLive(), false, "the pins come back without a gestureend");
+    assert.equal(app.state.gestureRadiusBaseMinutes, null);
+  } finally {
+    app.swapGlobalFunction("setTimeout", realSetTimeout);
+    app.swapGlobalFunction("clearTimeout", realClearTimeout);
+  }
+});
+
+test("opening a selection in the settle window after a wheel glide arrives keeps the selection", () => {
+  setUpWheelNearby(app);
+  app.selectOverview();
+  withCountedCalls(["selectOverview"], (counts, flush) => {
+    for (let i = 0; i < 6; i += 1) app.updateNearbyRadiusWheel(wheelEvent(-10, { ctrlKey: true }));
+    flush(); // the glide arrives; the settle timer is now pending
+    assert.equal(app.zoomGestureLive(), false);
+    const tree = app.state.trees[0];
+    app.state.selected = { type: "tree", item: tree };
+    app.endAllZoomGestures(); // entering the selection's screen ends whatever is still pending
+    app.endNearbyRadiusWheel(); // and the settle timer firing late must not undo it either
+    assert.equal(counts.selectOverview, 0, "the Nearby list does not replace the selection");
+    assert.equal(app.state.selected && app.state.selected.item, tree);
+    app.state.selected = null;
+  });
 });
 
 test("a GPS fix or filter change mid-gesture refreshes the cached radius floor, an unchanged origin does not", () => {

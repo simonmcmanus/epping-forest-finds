@@ -617,7 +617,13 @@ moving the real GPS fix:
   (`zoomGestureFloorMinutes`, on its first tick) and reused while the origin and active filters are
   unchanged; a GPS fix or filter change mid-gesture rescans it (cheap key compare per tick). The
   one list change is the "at floor" notice, patched in place (`patchFloorNoticeInPlace`, one element
-  added or removed) and never a list re-render; the list is swapped once, at the end. Exiting
+  inserted, latched for the whole gesture so the live region is not re-announced when the floor is
+  re-entered) and never a list re-render; patching invalidates the list's render key so the end
+  render always removes it. The list is swapped once, at the end. The wheel's settle re-fit is
+  instant (the glide already fitted the camera), so no camera move runs under the reveal. A settle
+  or gesture end arriving after the user opened a selection does not refresh Nearby over it, and
+  `endAllZoomGestures` also ends a pending wheel settle. The pinch's per-frame apply draws in that
+  same frame. Exiting
   filter pins (`drawFilterTransitionPins`) follow the same shared fade; the outgoing selection set
   (`drawSelectionExitMarkers`) is not part of the radius hide and is never dimmed by it. Pan frames
   rewrite one reused translated marker array per build instead of allocating copies.

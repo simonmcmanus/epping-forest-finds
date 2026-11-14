@@ -700,6 +700,10 @@ function showEnvironmentDetails(feature) {
 // --- Overview screen ---
 
 let _overviewListKey;
+
+function invalidateOverviewListKey() {
+  _overviewListKey = undefined;
+}
 // True while a /nearby/<slug>/ landing's own server-rendered list (generate-find-pages.js) is the
 // one on screen. Set by boot() and cleared by the first reveal that finishes (revealMapCenteredOnUser),
 // or by showNearbyLocatingState() once the reader asks for their location.

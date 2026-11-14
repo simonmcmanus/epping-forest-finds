@@ -2028,7 +2028,8 @@ function zoomGestureFloorMinutes() {
 // no pointerup/pointercancel/lostpointercapture, a Safari gesturestart with no gestureend, the
 // screen changing under it): without it the pins would stay hidden and the list stale for good.
 function endAllZoomGestures({ dropPointers = false } = {}) {
-  if (!zoomGestureLive() && !state.pinchActive && !Number.isFinite(state.gestureRadiusBaseMinutes)) return;
+  const wheelPending = Number.isFinite(state.wheelRadiusTargetMinutes) || state.wheelRadiusSettleTimer != null;
+  if (!zoomGestureLive() && !state.pinchActive && !Number.isFinite(state.gestureRadiusBaseMinutes) && !wheelPending) return;
   if (dropPointers) {
     state.activePointers.clear();
     state.dragging = false;
@@ -2048,9 +2049,11 @@ function endAllZoomGestures({ dropPointers = false } = {}) {
 // One URL write for a whole radius gesture, at its end: history.replaceState is rate limited (iOS
 // Safari throws a SecurityError after ~100 calls in 30s), so it is never called per tick, and a
 // throw must never stop the view refresh that follows.
-function finishRadiusGesture() {
+function finishRadiusGesture(options = {}) {
   try { syncLiveQueryStringForScreen(); } catch {}
-  refreshNearbyRadiusView();
+  // A selection the user has since opened is its own view: the Nearby refresh would replace it.
+  if (!isOverviewScreenActive() && !secondaryScreenActive()) return;
+  refreshNearbyRadiusView(options);
 }
 
 // The floor notice is the one list change a live gesture makes, and it is patched in place (one
@@ -2061,11 +2064,12 @@ function patchFloorNoticeInPlace() {
   const list = root.querySelector(".nearest-list");
   if (!list || !list.parentNode) return;
   const existing = root.querySelector(".walk-radius-floor-notice");
-  if (!state.walkingRadiusAtFloor) {
-    if (existing && existing.remove) existing.remove();
-    return;
-  }
-  if (existing) return;
+  // Latched for the whole gesture: once shown it stays until the final render, so re-entering the
+  // floor does not insert (and a live region re-announce) a new notice each time.
+  if (!state.walkingRadiusAtFloor || existing) return;
+  // The patched list no longer matches what the last full render recorded, so the end-of-gesture
+  // render must not take selectOverview's "unchanged list" shortcut and leave this notice behind.
+  invalidateOverviewListKey();
   const notice = document.createElement("p");
   notice.className = "source-note walk-radius-floor-notice";
   notice.textContent = FLOOR_NOTICE_TEXT;
@@ -2117,6 +2121,10 @@ function requestRadiusGesture(rawMinutes) {
   _radiusGestureFrame = requestAnimationFrame(() => {
     _radiusGestureFrame = null;
     flushRadiusGesture();
+    // Painted in the same frame as the fit: a draw requested from inside this callback would land a
+    // frame later, leaving the ring and camera one frame behind the fingers. draw() cancels any
+    // other queued frame itself.
+    draw();
   });
 }
 
@@ -2316,7 +2324,9 @@ function endNearbyRadiusWheel() {
   cancelRadiusChase();
   state.walkingRadiusAtFloor = false;
   endZoomGesture("wheel");
-  finishRadiusGesture();
+  // The glide's last tick already fitted the camera to this radius (and the pins were revealed at
+  // arrival), so the settle re-fits instantly instead of animating a camera move under the reveal.
+  finishRadiusGesture({ animate: false });
   syncSettingsWalkSlider();
 }
 
