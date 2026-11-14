@@ -516,6 +516,7 @@ globalThis.__forestFindsTest = {
   DEFAULT_LOCATION,
   DEFAULT_LOCATION_WALKING_DISTANCE_MINUTES,
   applyDefaultLocation,
+  applyLocationFix,
   hasRealLocation,
   ROUTE_PATHS,
   NEARBY_PATH,
@@ -3155,6 +3156,33 @@ test("applyDefaultLocation stands in for a real fix at DEFAULT_LOCATION, flagged
 
   app.state.userLocation = { ...makePoint(app, 51.6, 0.03), isDefault: false };
   assert.equal(app.hasRealLocation(), true, "a real fix has no isDefault flag at all");
+});
+
+test("a real location fix can preserve the selected destination so navigation starts from the shared position", () => {
+  resetData(app);
+  app.state.userLocation = null;
+  const target = { id: "destination", ...makePoint(app, 51.666, 0.046) };
+  app.state.selected = { type: "landmark", item: target };
+
+  app.applyLocationFix({
+    coords: { latitude: 51.665, longitude: 0.045, accuracy: 10 },
+  }, { preserveSelection: true });
+
+  assert.equal(app.state.selected.item, target, "sharing location must not dismiss the place being viewed");
+  assert.equal(app.canGuideToPlaces(), true, "the real fix enables navigation");
+  assert.equal(app.selectedCompassTarget(), target, "the viewed place remains the route destination");
+});
+
+test("a real location fix does not dismiss the Feedback screen", () => {
+  resetData(app);
+  app.state.userLocation = null;
+  app.state.selected = { type: "report", item: null };
+
+  app.applyLocationFix({
+    coords: { latitude: 51.665, longitude: 0.045, accuracy: 10 },
+  });
+
+  assert.equal(app.state.selected.type, "report", "location updates must not discard an open report");
 });
 
 test("applyDefaultLocation keeps the normal radius, but never overrides a deliberate one", () => {
