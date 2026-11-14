@@ -143,8 +143,11 @@ async function settleMapIconsAndDraw(page) {
  * The test harness waits for the app's data milestones instead: this keeps map-first production
  * behaviour intact while preventing a test from racing a late dataset or the first GPS camera fit.
  */
-async function gotoAndWaitForMap(page, path = "/nearby", { timeout = 30_000 } = {}) {
+async function gotoAndWaitForMap(page, path = "/nearby", { timeout = 30_000, suppressAdventure = false } = {}) {
   await denyGeolocationUnlessGranted(page);
+  if (suppressAdventure) {
+    await page.addInitScript(() => localStorage.setItem("ff-tree-adventure-seen-v1", "1"));
+  }
   await page.goto(path);
   await page.waitForFunction(
     () => typeof state !== "undefined" && state.dataLoaded === true,
