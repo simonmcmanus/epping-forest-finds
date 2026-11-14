@@ -438,12 +438,24 @@ test("narrow phones keep every navigation label inside its tab", async ({ page, 
   await setup(page, "/nearby");
   await page.setViewportSize({ width: 280, height: 844 });
   await expect.poll(() => page.locator(".inspector-actions > a").count()).toBe(4);
-  const labelsFit = await page.locator(".inspector-actions > a").evaluateAll((tabs) => tabs.every((tab) => {
+  const tabLayout = () => page.locator(".inspector-actions > a").evaluateAll((tabs) => tabs.map((tab) => {
     const tabBox = tab.getBoundingClientRect();
     const label = tab.querySelector(".nav-label").getBoundingClientRect();
-    return label.left >= tabBox.left && label.right <= tabBox.right && label.height <= tabBox.height;
+    return {
+      left: tabBox.left,
+      right: tabBox.right,
+      fits: label.left >= tabBox.left && label.right <= tabBox.right && label.height <= tabBox.height,
+    };
   }));
-  expect(labelsFit).toBe(true);
+  const before = await tabLayout();
+  expect(before.every((tab) => tab.fits)).toBe(true);
+
+  // Enabling Back from a real nearby result must not resize or shift the four tabs.
+  await page.locator(".nearest-item").first().click();
+  await expect(page.locator(".nav-back")).toBeEnabled();
+  const after = await tabLayout();
+  expect(after.every((tab) => tab.fits)).toBe(true);
+  expect(after.map(({ left, right }) => [left, right])).toEqual(before.map(({ left, right }) => [left, right]));
 });
 
 // Keep motion enabled: ordinary rail coverage uses reduced motion and would hide an intro nudge.

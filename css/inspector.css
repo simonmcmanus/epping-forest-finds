@@ -717,26 +717,22 @@ button.settings-toggle.has-update::after {
   white-space: nowrap;
 }
 
-/* On the narrowest phones, do not spend four tab widths on an inactive Back control. It is not
-   actionable in that state, so collapse its reserved cell and let the labels keep their normal
-   size. When Back becomes actionable, restore its touch-sized track so the tabs remain stable. */
+/* On the narrowest phones, keep a compact Back cell even while it is disabled. Its width must not
+   change when a detail screen enables Back, or the four tab tracks and shared highlight jump. */
 @media (max-width: 320px) {
   .inspector-actions {
     gap: 1px;
+    grid-template-columns: 22px repeat(4, minmax(0, 1fr));
   }
 
-  .inspector-actions:has(> .nav-back:disabled) {
-    grid-template-columns: 0 repeat(4, minmax(0, 1fr));
+  .inspector-actions > .nav-back .nav-icon {
+    width: 18px;
+    height: 18px;
   }
 
-  .inspector-actions > .nav-back:disabled {
-    width: 0;
-    min-width: 0;
-    overflow: hidden;
-  }
-
-  .inspector-actions:has(> .nav-back:not(:disabled)) {
-    grid-template-columns: 44px repeat(4, minmax(0, 1fr));
+  .inspector-actions .nav-label {
+    font-size: 0.6rem;
+    letter-spacing: -0.6px;
   }
 }
 
