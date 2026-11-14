@@ -31,6 +31,13 @@
   color: inherit;
 }
 
+.filter-count-value {
+  display: inline-block;
+  line-height: 1;
+  /* Keep the circle fixed while nudging only the glyph down within it. */
+  transform: translateY(2px);
+}
+
 /* Badge when on filter screen (dark bg) */
 .filter-toggle.screen-active .filter-count {
   background: rgba(255, 255, 255, 0.16);

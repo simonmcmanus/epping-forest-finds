@@ -2079,7 +2079,7 @@ function updateFilterUi() {
     els.filterToggle.title = "Choose what appears on the map";
     if (els.filterCount) {
       els.filterCount.hidden = !hasActiveFilter;
-      els.filterCount.textContent = String(activeGroupCount);
+      (els.filterCountValue || els.filterCount).textContent = String(activeGroupCount);
     }
   }
 }
