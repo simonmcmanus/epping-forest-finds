@@ -1979,9 +1979,11 @@ function focusNearbyOnMapPoint(lonLat, worldPoint) {
 // one ends the pins return in one reveal. Each input names itself, so overlapping inputs (a wheel
 // glide still settling as fingers land) keep the gesture live until all of them have ended.
 const _zoomGestureSources = new Set();
-// The walking-radius floor, scanned lazily on the first tick of a gesture and reused for the rest
-// of it: the origin cannot move mid-gesture, so a nearest-item scan per tick would be wasted.
+// The walking-radius floor, scanned lazily on the first tick of a gesture and reused for as long as
+// what it was scanned from is unchanged (_zoomGestureFloorKey): a nearest-item scan per tick would
+// be wasted, but a GPS fix or filter change mid-gesture must not leave a stale floor behind.
 let _zoomGestureFloor = null;
+let _zoomGestureFloorKey = null;
 
 function zoomGestureLive() {
   return _zoomGestureSources.size > 0;
@@ -1999,13 +2001,75 @@ function beginZoomGesture(source) {
 function endZoomGesture(source) {
   if (!_zoomGestureSources.delete(source) || zoomGestureLive()) return;
   _zoomGestureFloor = null;
+  _zoomGestureFloorKey = null;
   revealMapPinsAfterZoom();
 }
 
+// Everything the floor is measured from: the origin and the active filters (and the live cow data
+// the nearest-item scan reads). Cheap to build, so it is compared per tick instead of rescanning.
+function zoomGestureFloorKey(origin) {
+  if (!origin) return "none";
+  return `${origin.latitude}|${origin.longitude}|${state.overviewFilters.join(",")}|${state.cowLastUpdatedAt}`;
+}
+
 function zoomGestureFloorMinutes() {
-  if (!zoomGestureLive()) return walkingRadiusFloorMinutes(nearbyOrigin());
-  if (_zoomGestureFloor == null) _zoomGestureFloor = walkingRadiusFloorMinutes(nearbyOrigin());
+  const origin = nearbyOrigin();
+  if (!zoomGestureLive()) return walkingRadiusFloorMinutes(origin);
+  const key = zoomGestureFloorKey(origin);
+  if (_zoomGestureFloor == null || _zoomGestureFloorKey !== key) {
+    _zoomGestureFloor = walkingRadiusFloorMinutes(origin);
+    _zoomGestureFloorKey = key;
+  }
   return _zoomGestureFloor;
+}
+
+// Ends every zoom input still holding the gesture open, the way its own end event would. The safety
+// net for a gesture whose end never arrives (the tab hidden or blurred mid-pinch, pointers lost with
+// no pointerup/pointercancel/lostpointercapture, a Safari gesturestart with no gestureend, the
+// screen changing under it): without it the pins would stay hidden and the list stale for good.
+function endAllZoomGestures({ dropPointers = false } = {}) {
+  if (!zoomGestureLive() && !state.pinchActive && !Number.isFinite(state.gestureRadiusBaseMinutes)) return;
+  if (dropPointers) {
+    state.activePointers.clear();
+    state.dragging = false;
+    state.multiTouchOccurred = false;
+  }
+  endNearbyRadiusPinch();
+  endNearbyRadiusGesture();
+  if (Number.isFinite(state.wheelRadiusTargetMinutes) || state.wheelRadiusSettleTimer != null) {
+    clearTimeout(state.wheelRadiusSettleTimer);
+    endNearbyRadiusWheel();
+  }
+  cancelZoomChase();
+  // Whatever source is left (a custom one) must not keep the pins hidden.
+  for (const source of Array.from(_zoomGestureSources)) endZoomGesture(source);
+}
+
+// One URL write for a whole radius gesture, at its end: history.replaceState is rate limited (iOS
+// Safari throws a SecurityError after ~100 calls in 30s), so it is never called per tick, and a
+// throw must never stop the view refresh that follows.
+function finishRadiusGesture() {
+  try { syncLiveQueryStringForScreen(); } catch {}
+  refreshNearbyRadiusView();
+}
+
+// The floor notice is the one list change a live gesture makes, and it is patched in place (one
+// element added or removed) rather than re-rendering the list: the list is swapped once, at the end.
+function patchFloorNoticeInPlace() {
+  const root = els.inspectorBody;
+  if (!root || typeof root.querySelector !== "function" || secondaryScreenActive()) return;
+  const list = root.querySelector(".nearest-list");
+  if (!list || !list.parentNode) return;
+  const existing = root.querySelector(".walk-radius-floor-notice");
+  if (!state.walkingRadiusAtFloor) {
+    if (existing && existing.remove) existing.remove();
+    return;
+  }
+  if (existing) return;
+  const notice = document.createElement("p");
+  notice.className = "source-note walk-radius-floor-notice";
+  notice.textContent = FLOOR_NOTICE_TEXT;
+  list.parentNode.insertBefore(notice, list.previousElementSibling && list.previousElementSibling.classList.contains("source-note") ? list.previousElementSibling : list);
 }
 
 function currentPinchDistance() {
@@ -2022,6 +2086,7 @@ function startNearbyRadiusPinch() {
   const distance = currentPinchDistance();
   if (distance == null) return;
   state.pinchActive = true;
+  _radiusGesturePending = null;
   beginZoomGesture("pinch");
   state.pinchBaseDistance = distance;
   state.pinchBaseMinutes = state.walkingDistanceMinutes;
@@ -2036,7 +2101,34 @@ function updateNearbyRadiusPinch() {
   const distance = currentPinchDistance();
   if (distance == null || !state.pinchBaseDistance) return;
   const ratio = distance / state.pinchBaseDistance;
-  applyWalkingRadiusGesture(state.pinchBaseMinutes / ratio);
+  requestRadiusGesture(state.pinchBaseMinutes / ratio);
+}
+
+// A pinch (and Safari's gesturechange) can deliver several events inside one animation frame, and
+// each applied radius costs a camera fit. So the move only records the radius it is asking for, and
+// the latest one is applied once per frame; the gesture's end applies the last request
+// synchronously (flushRadiusGesture) so the final radius is exact, and cancels the frame.
+let _radiusGesturePending = null;
+let _radiusGestureFrame = null;
+
+function requestRadiusGesture(rawMinutes) {
+  _radiusGesturePending = rawMinutes;
+  if (_radiusGestureFrame != null) return;
+  _radiusGestureFrame = requestAnimationFrame(() => {
+    _radiusGestureFrame = null;
+    flushRadiusGesture();
+  });
+}
+
+function flushRadiusGesture() {
+  if (_radiusGestureFrame != null) {
+    cancelAnimationFrame(_radiusGestureFrame);
+    _radiusGestureFrame = null;
+  }
+  if (_radiusGesturePending == null) return;
+  const rawMinutes = _radiusGesturePending;
+  _radiusGesturePending = null;
+  applyWalkingRadiusGesture(rawMinutes);
 }
 
 // The shared body of every continuous radius gesture -- the two-finger pinch above and the
@@ -2069,10 +2161,9 @@ function applyWalkingRadiusGesture(rawMinutes) {
     // recovers back above) it -- applyWalkingRadiusChange would no-op here since the minutes
     // value itself hasn't moved, so the floor notice needs its own lightweight refresh to stay
     // in sync with the flag instead of going stale.
-    // The floor notice lives in the Nearby list, so only that screen has anything to re-render;
-    // on Filters/Settings/Report selectOverview() would throw the open screen away instead.
+    // The floor notice lives in the Nearby list: patched in place, never a list re-render mid-gesture.
     if (flagChanged) {
-      if (!secondaryScreenActive()) selectOverview();
+      patchFloorNoticeInPlace();
       requestDraw();
     }
     return floor;
@@ -2085,7 +2176,8 @@ function applyWalkingRadiusGesture(rawMinutes) {
   // own members regardless -- the camera and list silently stopped tracking the gesture.
   exitClusterExpansion({ restoreRadius: false });
   state.walkingDistanceMinutes = minutes;
-  syncLiveQueryStringForScreen();
+  // No URL write here: it happens once, when the gesture ends (finishRadiusGesture).
+  if (flagChanged) patchFloorNoticeInPlace();
   state.outOfRadiusRevealFilters = [];
   ensureOverviewTargetsVisible({ animate: false, durationMs: OVERVIEW_REFIT_ANIMATION_MS, force: true });
   requestDraw();
@@ -2194,6 +2286,10 @@ function stepRadiusChase(dtMs) {
   if (done) {
     _radiusChaseFrame = null;
     _radiusChaseLastAt = null;
+    // The pins come back as soon as the glide has arrived, not after the settle wait below; a
+    // further notch after this simply starts a new hide. The settle timer only decides when the
+    // wheel "gesture" is over for the list, the URL and the running value.
+    endZoomGesture("wheel");
     state.wheelRadiusSettleTimer = setTimeout(endNearbyRadiusWheel, WHEEL_RADIUS_SETTLE_MS);
   }
   return done;
@@ -2220,7 +2316,7 @@ function endNearbyRadiusWheel() {
   cancelRadiusChase();
   state.walkingRadiusAtFloor = false;
   endZoomGesture("wheel");
-  refreshNearbyRadiusView();
+  finishRadiusGesture();
   syncSettingsWalkSlider();
 }
 
@@ -2230,7 +2326,19 @@ function endNearbyRadiusWheel() {
 // spreading apart (scale > 1) shrinks the radius.
 function startNearbyRadiusGesture() {
   state.gestureRadiusBaseMinutes = state.walkingDistanceMinutes;
+  _radiusGesturePending = null;
   beginZoomGesture("safari");
+  armSafariGestureWatchdog();
+}
+
+// Safari can send gesturestart and never gestureend (the gesture interrupted by the system). Every
+// gesturechange re-arms this; if it ever runs out the gesture is ended as if gestureend had come.
+const SAFARI_GESTURE_IDLE_MS = 1500;
+let _safariGestureWatchdog = null;
+
+function armSafariGestureWatchdog() {
+  clearTimeout(_safariGestureWatchdog);
+  _safariGestureWatchdog = setTimeout(endNearbyRadiusGesture, SAFARI_GESTURE_IDLE_MS);
 }
 
 function updateNearbyRadiusGesture(event) {
@@ -2239,15 +2347,19 @@ function updateNearbyRadiusGesture(event) {
   const base = Number.isFinite(state.gestureRadiusBaseMinutes)
     ? state.gestureRadiusBaseMinutes
     : state.walkingDistanceMinutes;
-  applyWalkingRadiusGesture(base / scale);
+  armSafariGestureWatchdog();
+  requestRadiusGesture(base / scale);
 }
 
 function endNearbyRadiusGesture() {
+  clearTimeout(_safariGestureWatchdog);
+  _safariGestureWatchdog = null;
   if (!Number.isFinite(state.gestureRadiusBaseMinutes)) return;
+  flushRadiusGesture();
   state.gestureRadiusBaseMinutes = null;
   state.walkingRadiusAtFloor = false;
   endZoomGesture("safari");
-  refreshNearbyRadiusView();
+  finishRadiusGesture();
   syncSettingsWalkSlider();
 }
 
@@ -2264,6 +2376,7 @@ function endNearbyRadiusPinch() {
   // bail out immediately for those instead of forcing selectOverview() over whatever screen
   // is actually active (e.g. a just-tapped selection).
   if (!state.pinchActive) return;
+  flushRadiusGesture();
   state.pinchActive = false;
   state.pinchBaseDistance = null;
   state.pinchBaseMinutes = null;
@@ -2271,7 +2384,7 @@ function endNearbyRadiusPinch() {
   endZoomGesture("pinch");
   // One smooth settling animation now that the gesture has ended, mirroring the single
   // animated re-fit a Settings-slider release triggers (bindSettingsHandlers, index.html).
-  refreshNearbyRadiusView();
+  finishRadiusGesture();
   // The gesture runs over the Settings screen too, where its own slider must not be left
   // showing the radius the ring had before the pinch.
   syncSettingsWalkSlider();
@@ -2547,6 +2660,14 @@ function setupMapCanvasHandlers() {
     event.preventDefault();
     endNearbyRadiusGesture();
   }, { passive: false });
+
+  // A gesture whose end event never comes must not leave the pins hidden: losing the page mid-pinch
+  // ends every live zoom input (and drops the pointers the page will never hear lifted).
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") endAllZoomGestures({ dropPointers: true });
+  });
+  window.addEventListener("blur", () => endAllZoomGestures({ dropPointers: true }));
+  window.addEventListener("pagehide", () => endAllZoomGestures({ dropPointers: true }));
 
   setupMapHoverHandlers();
 }

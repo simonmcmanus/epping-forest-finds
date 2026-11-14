@@ -1621,6 +1621,14 @@ function markerMemoryKey() {
 // to tap. mapMarkersToPaint draws the frozen set for the short fade-out instead.
 let _panMarkerCache = null;
 let _lastMarkerBuild = null;
+// The frozen set's reusable re-projection while a zoom gesture fades the pins out.
+let _frozenPaintView = null;
+
+// A copy of a marker array whose screenPt objects belong to the copy, so it can be rewritten in
+// place every frame without touching the build it came from.
+function cloneMarkersForReuse(markers) {
+  return markers.map((marker) => ({ ...marker, screenPt: { x: 0, y: 0 } }));
+}
 
 function buildActiveMapMarkers(toScreen, tilted = false) {
   if (zoomGestureLive()) return [];
@@ -1641,10 +1649,14 @@ function buildActiveMapMarkers(toScreen, tilted = false) {
     const dx = view.tx - cache.tx;
     const dy = view.ty - cache.ty;
     if (!dx && !dy) return (_lastMarkerBuild = cache.markers);
-    return (_lastMarkerBuild = cache.markers.map((marker) => ({
-      ...marker,
-      screenPt: { x: marker.screenPt.x + dx, y: marker.screenPt.y + dy },
-    })));
+    // One reused array per build, rewritten in place: a pan frame allocates no marker objects.
+    const panned = cache.panned || (cache.panned = cloneMarkersForReuse(cache.markers));
+    for (let i = 0; i < panned.length; i += 1) {
+      const from = cache.markers[i].screenPt;
+      panned[i].screenPt.x = from.x + dx;
+      panned[i].screenPt.y = from.y + dy;
+    }
+    return (_lastMarkerBuild = panned);
   }
   const markers = buildMapMarkers(lookup, toScreen, memoryKey, tilted);
   _panMarkerCache = {
@@ -1706,7 +1718,16 @@ function revealMapPinsAfterZoom() {
 function mapMarkersToPaint(toScreen, tilted) {
   if (!zoomGestureLive()) return buildActiveMapMarkers(toScreen, tilted);
   if (!_lastMarkerBuild || mapPinFadeOpacity() <= 0) return [];
-  return _lastMarkerBuild.map((marker) => ({ ...marker, screenPt: toScreen(marker.worldPt) }));
+  if (!_frozenPaintView || _frozenPaintView.source !== _lastMarkerBuild) {
+    _frozenPaintView = { source: _lastMarkerBuild, markers: cloneMarkersForReuse(_lastMarkerBuild) };
+  }
+  const painted = _frozenPaintView.markers;
+  for (let i = 0; i < painted.length; i += 1) {
+    const point = toScreen(painted[i].worldPt);
+    painted[i].screenPt.x = point.x;
+    painted[i].screenPt.y = point.y;
+  }
+  return painted;
 }
 
 // The rectangle a compact cluster face covers with its tail and its count chip, relative to the
@@ -2132,7 +2153,8 @@ function drawFilterTransitionPins(ctx, toScreen) {
   if (!filterPinTransitionActive() || hasRealSelection() || pinsHiddenBySelection(true)) return;
   const dpr = pixelRatio();
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
-  const reveal = nearbyRevealOpacity();
+  const reveal = nearbyRevealOpacity() * mapPinFadeOpacity();
+  if (reveal <= 0) return;
   for (const [item, animation] of _filterPinAnimations) {
     if (animation.direction !== "exit") continue;
     const stateAtFrame = filterPinAnimationFor(item);
@@ -2549,9 +2571,10 @@ let _drawnTransitionSpecs = [];
 function drawMapMarkers(ctx, markers, toScreen, tilted = false, options = {}) {
   _drawnMarkerSpecs = [];
   if (!markers.length || (pinsHiddenBySelection(tilted) && !options.allowSelectionExit)) return;
-  const gestureOpacity = mapPinFadeOpacity();
+  // The outgoing selection set is not part of the radius hide: it is a separate, short handoff.
+  const gestureOpacity = options.allowSelectionExit ? 1 : mapPinFadeOpacity();
   if (gestureOpacity <= 0) return;
-  if (mapPinFadeInProgress()) settleClusterJoinAnimations();
+  if (!options.allowSelectionExit && mapPinFadeInProgress()) settleClusterJoinAnimations();
   const dpr = pixelRatio();
   const loneSize = MAP_PNG_ICON_SIZE * dpr * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
   const reveal = nearbyRevealOpacity() * gestureOpacity;

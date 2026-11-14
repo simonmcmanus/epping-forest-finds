@@ -592,10 +592,21 @@ moving the real GPS fix:
   **A zoom gesture hides the pins and calculates nothing item-related until it ends.**
   `zoomGestureLive()` (`js/nav.js`) is the one notion of "a zoom gesture is live": the set of
   inputs that called `beginZoomGesture(source)` and have not yet called `endZoomGesture(source)` —
-  the radius pinch (`"pinch"`), the radius wheel including its glide until the settle timer ends it
-  (`"wheel"`), Safari's gesture events (`"safari"`) and the map-scale wheel zoom glide used when a
-  selection is shown (`"mapWheel"`, `zoomAt`/`stepZoomChase`/`cancelZoomChase`, js/app.js).
-  Overlapping inputs keep it live until the last has ended.
+  the radius pinch (`"pinch"`), the radius wheel glide (`"wheel"`, ended when the glide arrives, not
+  when the 220ms settle timer fires; a further notch after arrival starts a new hide), Safari's
+  gesture events (`"safari"`) and the map-scale wheel zoom glide (`"mapWheel"`, js/app.js), which runs
+  whenever `zoomAt` runs, i.e. whenever `zoomInputResizesNearbyRadius()` is false (no location fix, a
+  selection, search, other screens). `zoomAt` re-aiming its own glide keeps the gesture live (no
+  reveal-then-hide per notch). Overlapping inputs keep it live until the last has ended.
+  **Coalescing and the URL.** Pinch and Safari `gesturechange` only record the requested radius; it is
+  applied once per animation frame and flushed synchronously (frame cancelled) when the gesture ends,
+  so the final radius is exact. The `?radius=` URL is written once, at gesture end
+  (`finishRadiusGesture`, errors from `history.replaceState` swallowed), never per tick.
+  **Stuck-gesture safety net.** `endAllZoomGestures()` ends every live input when the page becomes
+  hidden, blurs or pages out (dropping lost pointers), when the inspector enters another screen
+  (`transitionInspectorBody`), and Safari's gesture has a 1500ms inactivity watchdog re-armed on each
+  `gesturechange`; pins return and the list updates once. `pointercancel`/`lostpointercapture` end a
+  pinch through the normal pointer path.
   `applyWalkingRadiusGesture` (`js/nav.js`) therefore does only canvas-cheap work on **every** tick:
   the ring's value and an instant (`animate:false`) camera re-fit (`ensureOverviewTargetsVisible`),
   so the base map, the ring, the user dot and the browse-anchor marker track the gesture at full
@@ -603,9 +614,13 @@ moving the real GPS fix:
   marker grouping, the nearest-item rescan (`refreshNearestTreeForNearbyOrigin`) and the Nearby list
   re-render (`selectOverview`) do not run, and the list keeps its pre-gesture content untouched (it
   is not blanked, so the layout does not jump). The walking-radius floor is scanned once per gesture
-  (`zoomGestureFloorMinutes`, on its first tick) and reused; the origin cannot change mid-gesture.
-  The one exception is the "at floor" notice, which lives in the list and may re-render it on the
-  rare tick the flag flips.
+  (`zoomGestureFloorMinutes`, on its first tick) and reused while the origin and active filters are
+  unchanged; a GPS fix or filter change mid-gesture rescans it (cheap key compare per tick). The
+  one list change is the "at floor" notice, patched in place (`patchFloorNoticeInPlace`, one element
+  added or removed) and never a list re-render; the list is swapped once, at the end. Exiting
+  filter pins (`drawFilterTransitionPins`) follow the same shared fade; the outgoing selection set
+  (`drawSelectionExitMarkers`) is not part of the radius hide and is never dimmed by it. Pan frames
+  rewrite one reused translated marker array per build instead of allocating copies.
   **Pin transition.** At gesture start every pin and cluster leaves together in one fade
   (`ZOOM_PIN_FADE_OUT_MS`, 120ms, linear) applied as one shared opacity (`mapPinFadeOpacity()`) over
   the already-built set, which is frozen — not rebuilt — and re-projected through the live camera each
@@ -655,9 +670,8 @@ moving the real GPS fix:
   While a pinch is actively pinned at the floor, `state.walkingRadiusAtFloor` is true
   and `overviewNearestHtml()` shows a transient "nothing closer to show" notice
   (`.walk-radius-floor-notice`); both clear as soon as the gesture ends or backs off. That notice
-  lives in the Nearby list, so the lightweight re-render that keeps it in sync is skipped on
-  Filter/Settings/Report — there is nothing there to refresh, and `selectOverview()` would
-  replace the open screen. On the
+  lives in the Nearby list, so the in-place patch that keeps it in sync is skipped on
+  Filter/Settings/Report — there is nothing there to refresh. On the
   Settings slider, the same floor is enforced natively via the `<input type="range">`'s own
   `min` attribute (rounded up onto the value grid, since a range input steps from its own `min`)
   with a matching `step`, and a `#settingsWalkMinsFloorNote` appears whenever the slider sits

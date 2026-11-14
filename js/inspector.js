@@ -1113,6 +1113,9 @@ function transitionInspectorBody(newHtml, direction, onDone, { preserveScroll = 
     if (onDone) onDone();
     if (scroll) scroll.scrollTop = scrollTop;
   } else {
+    // Entering another screen ends any zoom gesture still holding the pins hidden: its end event
+    // may now never reach the map.
+    if (typeof endAllZoomGestures === "function") endAllZoomGestures();
     applyScreenTransition(direction, onDone);
   }
 }

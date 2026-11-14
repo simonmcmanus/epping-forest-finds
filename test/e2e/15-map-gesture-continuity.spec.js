@@ -214,6 +214,20 @@ async function recordPaintedPins(page) {
   });
 }
 
+// Samples the shared pin opacity every animation frame, so a test can see that the pins really
+// faded to nothing (the paint recorder cannot: nothing is painted at opacity 0).
+async function trackPinFade(page) {
+  await page.evaluate(() => {
+    window.__fadeSamples = [];
+    const sample = () => { window.__fadeSamples.push(mapPinFadeOpacity()); requestAnimationFrame(sample); };
+    requestAnimationFrame(sample);
+  });
+}
+
+async function lowestPinFade(page) {
+  return page.evaluate(() => Math.min(...window.__fadeSamples));
+}
+
 // A finger pair spread in steps, one animation frame per step, left down. Resolves once moved.
 async function spreadFingersAcrossFrames(page, { startHalfGap, endHalfGap, steps, press = true }) {
   await page.evaluate(async ({ startHalfGap, endHalfGap, steps, press }) => {
@@ -275,6 +289,7 @@ test.describe("Zoom gestures hide the pins and bring them back together", () => 
     await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
     await waitForUiToSettle(page);
     await recordPaintedPins(page);
+    await trackPinFade(page);
     await page.evaluate(() => requestDraw());
     await waitForFrames(page, 3);
     expect(await page.evaluate(() => window.__pins.length), "sanity: the Nearby map paints pins before the gesture").toBeGreaterThan(0);
@@ -326,9 +341,92 @@ test.describe("Zoom gestures hide the pins and bring them back together", () => 
 
     const result = await page.evaluate(() => ({ pins: window.__pins, listWrites: window.__listWrites }));
     expect(result.listWrites, "the Nearby list is swapped once, when the zoom settles").toBe(1);
+    expect(await lowestPinFade(page), "the pins really faded all the way out during the wheel zoom").toBe(0);
     expect(result.pins.filter((pin) => pin.live && pin.fade === 0), "no pin is painted while hidden").toHaveLength(0);
     expect(result.pins.length, "the pins return after the zoom settles").toBeGreaterThan(0);
     expectOneHideOneReveal(result.pins);
+  });
+
+  test("the pins return when the wheel glide arrives, not after the settle wait", async ({ page }) => {
+    await openNearby(page);
+    const box = await page.locator("#mapCanvas").boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 3);
+    await page.evaluate(() => {
+      window.__arrivedAt = null;
+      window.__settledAt = null;
+      const wrap = (name, key) => {
+        const original = window[name];
+        window[name] = function wrapped(...args) { window[key] = performance.now(); return original.apply(this, args); };
+      };
+      const end = window.endZoomGesture;
+      window.endZoomGesture = function recordedEnd(source) {
+        const wasLive = zoomGestureLive();
+        const result = end.call(this, source);
+        if (wasLive && !zoomGestureLive()) window.__arrivedAt = performance.now();
+        return result;
+      };
+      wrap("refreshNearbyRadiusView", "__settledAt");
+    });
+    await page.mouse.wheel(0, -100);
+    await expect.poll(() => page.evaluate(() => window.__settledAt != null)).toBe(true);
+    const times = await page.evaluate(() => ({ arrived: window.__arrivedAt, settled: window.__settledAt }));
+    expect(times.arrived, "the gesture ended at arrival").not.toBeNull();
+    expect(times.settled - times.arrived, "the list waits for the settle timer, the pins do not").toBeGreaterThan(150);
+  });
+
+  test("a stuck pinch is ended when the page is hidden: the pins return and the list updates once", async ({ page }) => {
+    await openNearby(page);
+    await page.evaluate(() => {
+      window.__listWrites = 0;
+      const original = window.selectOverview;
+      window.selectOverview = function countedSelectOverview(...args) { window.__listWrites += 1; return original.apply(this, args); };
+    });
+    await spreadFingersAcrossFrames(page, { startHalfGap: 160, endHalfGap: 60, steps: 12 });
+    await expect.poll(() => page.evaluate(() => zoomGestureLive() && mapPinFadeOpacity() === 0)).toBe(true);
+    // The fingers are never lifted and no pointer event follows: the tab goes to the background.
+    await page.evaluate(() => {
+      Object.defineProperty(document, "visibilityState", { configurable: true, get: () => "hidden" });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await expect.poll(() => page.evaluate(() => !zoomGestureLive() && mapPinFadeOpacity() === 1)).toBe(true);
+    expect(await page.evaluate(() => window.__listWrites), "the list is updated once").toBe(1);
+    expect(await page.evaluate(() => state.activePointers.size), "the lost fingers are forgotten").toBe(0);
+  });
+
+  for (const endEvent of ["pointercancel", "lostpointercapture"]) {
+    test(`a pinch ended by ${endEvent} brings the pins back and updates the list once`, async ({ page }) => {
+      await openNearby(page);
+      await page.evaluate(() => {
+        window.__listWrites = 0;
+        const original = window.selectOverview;
+        window.selectOverview = function countedSelectOverview(...args) { window.__listWrites += 1; return original.apply(this, args); };
+      });
+      await spreadFingersAcrossFrames(page, { startHalfGap: 160, endHalfGap: 60, steps: 12 });
+      await expect.poll(() => page.evaluate(() => zoomGestureLive() && mapPinFadeOpacity() === 0)).toBe(true);
+      await page.evaluate((type) => {
+        for (const id of [5001, 5002]) {
+          els.canvas.dispatchEvent(new PointerEvent(type, { pointerId: id, bubbles: true, cancelable: true, pointerType: "touch" }));
+        }
+      }, endEvent);
+      await expect.poll(() => page.evaluate(() => !zoomGestureLive() && mapPinFadeOpacity() === 1)).toBe(true);
+      expect(await page.evaluate(() => window.__listWrites)).toBe(1);
+      expect(await page.evaluate(() => state.pinchActive)).toBe(false);
+    });
+  }
+
+  test("squeezing the ring to its floor shows the limit notice without re-rendering the list", async ({ page }) => {
+    await openNearby(page);
+    await page.evaluate(() => {
+      window.__listWrites = 0;
+      const original = window.selectOverview;
+      window.selectOverview = function countedSelectOverview(...args) { window.__listWrites += 1; return original.apply(this, args); };
+    });
+    await spreadFingersAcrossFrames(page, { startHalfGap: 20, endHalfGap: 900, steps: 30 });
+    await expect(page.locator(".walk-radius-floor-notice")).toBeVisible();
+    expect(await page.evaluate(() => window.__listWrites), "the notice is patched in place, the list is not re-rendered").toBe(0);
+    await liftFingers(page);
+    await expect(page.locator(".walk-radius-floor-notice")).toHaveCount(0);
+    expect(await page.evaluate(() => window.__listWrites), "the list is swapped once, at the end").toBe(1);
   });
 
   test("a pinch is a hard hide and show, with no fades, when the user prefers reduced motion", async ({ page }) => {
@@ -343,6 +441,33 @@ test.describe("Zoom gestures hide the pins and bring them back together", () => 
     const pins = await page.evaluate(() => window.__pins);
     expect(pins.length).toBeGreaterThan(0);
     expect(pins.every((pin) => pin.fade === 1), "pins appear only at full gesture opacity").toBe(true);
+  });
+});
+
+test.describe("The map-scale wheel zoom hides the pins the same way", () => {
+  test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"], reducedMotion: "no-preference" });
+
+  test("with no radius to resize (a selection or search is open) a run of wheel notches is one hide and one reveal", async ({ page }) => {
+    await setup(page);
+    await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+    await waitForUiToSettle(page);
+    await recordPaintedPins(page);
+    await trackPinFade(page);
+    // Without a location fix the wheel zooms the map scale (zoomAt) instead of resizing the radius.
+    await page.evaluate(() => { state.userLocation = null; requestDraw(); });
+    await waitForFrames(page, 3);
+    expect(await page.evaluate(() => zoomInputResizesNearbyRadius()), "sanity: this is the map-scale wheel").toBe(false);
+    await page.evaluate(() => { window.__pins.length = 0; });
+    const box = await page.locator("#mapCanvas").boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 3);
+    for (let notch = 0; notch < 5; notch += 1) {
+      await page.mouse.wheel(0, -100);
+      await waitForFrames(page, 2);
+    }
+    await expect.poll(() => page.evaluate(() => !zoomGestureLive() && mapPinFadeOpacity() === 1)).toBe(true);
+    expect(await lowestPinFade(page), "the pins faded all the way out while the map zoomed").toBe(0);
+    const pins = await page.evaluate(() => window.__pins);
+    expectOneHideOneReveal(pins);
   });
 });
 

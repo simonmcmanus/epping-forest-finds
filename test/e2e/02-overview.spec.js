@@ -757,7 +757,7 @@ test.describe("Overview / Nearby screen", () => {
       // Inspects state mid-gesture (before the fingers lift) by dispatching the pointer
       // sequence inline rather than through firePinch, which only returns once the gesture --
       // and its "settle" reset of state.walkingRadiusAtFloor -- has already finished.
-      const result = await page.evaluate(() => {
+      const result = await page.evaluate(async () => {
         const canvas = els.canvas;
         canvas.setPointerCapture = () => {};
         canvas.releasePointerCapture = () => {};
@@ -775,6 +775,8 @@ test.describe("Overview / Nearby screen", () => {
           fire("pointermove", 1001, cx - gap, cy);
           fire("pointermove", 1002, cx + gap, cy);
         }
+        // The pinch applies its latest radius once per animation frame.
+        await new Promise((resolve) => requestAnimationFrame(resolve));
         const mid = {
           minutes: state.walkingDistanceMinutes,
           floor: walkingRadiusFloorMinutes(nearbyOrigin()),

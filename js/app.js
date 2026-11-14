@@ -1906,7 +1906,24 @@ function inspectorCanvasOverlapRect({ assumeInspectorOpen = false } = {}) {
   return result;
 }
 
+// Shown (and patched in place mid-gesture, patchFloorNoticeInPlace, js/nav.js) while the radius is
+// pinned at its floor.
+const FLOOR_NOTICE_TEXT = "This is as close as it gets — nothing closer to show.";
+
+// A re-aim of the glide this call itself cancels (stopViewportAnimation ends the "mapWheel" source)
+// must not read as the end of the gesture: the pins would reveal and hide again on every notch.
+// Holding the gesture under its own source across the call keeps it live throughout.
 function zoomAt(factor, screenPoint) {
+  const holding = Boolean(state.zoomChase);
+  if (holding) beginZoomGesture("mapWheelAim");
+  try {
+    zoomAtNow(factor, screenPoint);
+  } finally {
+    if (holding) endZoomGesture("mapWheelAim");
+  }
+}
+
+function zoomAtNow(factor, screenPoint) {
   if (!state.bounds) return;
   // Read before stopViewportAnimation, which ends any wheel glide already in flight.
   const priorChase = state.zoomChase;
@@ -3113,7 +3130,7 @@ function overviewNearestHtml() {
   // is actively squeezing past the walking-radius floor -- visual feedback for a gesture
   // that has no slider to show it on. Transient: cleared as soon as the pinch ends.
   const floorNotice = state.walkingRadiusAtFloor
-    ? `<p class="source-note walk-radius-floor-notice">This is as close as it gets — nothing closer to show.</p>`
+    ? `<p class="source-note walk-radius-floor-notice">${FLOOR_NOTICE_TEXT}</p>`
     : "";
 
   // overviewItemsForActiveFilter() now returns every match within the radius (see its
