@@ -736,9 +736,15 @@ globalThis.__forestFindsTest = {
   resetMarkerGroupMemory,
   placeUserLabel,
   markerPaintedRects,
+  clusterBadgeGeometry,
   clusterMarkerRect,
   clusterPreviewEntries,
+  clusterKindsByCategory,
+  clusterOverflowEntries,
+  clusterStackChipGeometry,
+  clusterMorePlusGeometry,
   drawMapMarkers,
+  drawClusterMarker,
   clusterTreeIconSrc,
   treeSpeciesIconPath,
   clusterJoinAnimationState,
@@ -1461,6 +1467,8 @@ test("a mixed group's chips show one per category first, and its count is the ex
   assert.equal(entries.length, 2);
   assert.equal(entries[0].src, app.ICON_PATHS["tree-english-oak"], "the biggest category shows its most common kind first");
   assert.equal(entries[1].itemType, "cow", "a one-cow minority is not hidden behind a second tree species");
+  assert.deepEqual(Array.from(app.clusterOverflowEntries(markers[0]), entry => entry.src),
+    [app.treeSpeciesIconPath("Common beech", "Fagus sylvatica")], "the stack uses the hidden visual kind");
 
   const texts = [];
   const ctx = {
@@ -1470,7 +1478,39 @@ test("a mixed group's chips show one per category first, and its count is the ex
     fillText(text) { texts.push(text); },
   };
   app.drawMapMarkers(ctx, markers, markerScreen, false);
-  assert.deepEqual(texts, ["5"], "the marker shows the raw number of items in the group");
+  assert.deepEqual(texts, ["5"], "the stack leaves the raw member count as the only text");
+});
+
+test("the hidden category stack stays inside the face at every tilt scale", () => {
+  const ctx = {
+    save() {}, restore() {}, beginPath() {}, closePath() {}, clip() {}, roundRect() {},
+    arc() {}, fill() {}, stroke() {}, lineTo() {}, moveTo() {}, drawImage() {},
+    fillText(text) { this.labels.push(text); }, labels: [],
+  };
+  for (const scale of [1, 0.8, 0.65]) {
+    const face = app.clusterBadgeGeometry(100, 100, 3, app.pixelRatio(), scale);
+    for (const total of [1, 2, 3]) {
+      for (let i = 0; i < total; i++) {
+        const chip = app.clusterStackChipGeometry(100, 100, 3, app.pixelRatio(), scale, i, total);
+        assert.ok(chip.cx - chip.radius >= face.left && chip.cx + chip.radius <= face.left + face.width,
+          `horizontal fit at scale ${scale}, stack size ${total}`);
+        assert.ok(chip.cy - chip.radius >= face.top && chip.cy + chip.radius <= face.bottom,
+          `vertical fit at scale ${scale}, stack size ${total}`);
+      }
+      const plus = app.clusterMorePlusGeometry(100, 100, 3, app.pixelRatio(), scale, total);
+      assert.ok(plus.cx - plus.radius >= face.left && plus.cx + plus.radius <= face.left + face.width,
+        `horizontal fit at scale ${scale}, plus stack size ${total}`);
+      assert.ok(plus.cy - plus.radius >= face.top && plus.cy + plus.radius <= face.bottom,
+        `vertical fit at scale ${scale}, plus stack size ${total}`);
+      if (total <= 2) {
+        const chip = app.clusterStackChipGeometry(100, 100, 3, app.pixelRatio(), scale, 0, total);
+        assert.ok(Math.abs(plus.cx - chip.cx) < plus.radius + chip.radius,
+          `the plus overlaps the peek icon at scale ${scale}, stack size ${total}`);
+      }
+    }
+  }
+  app.drawClusterMarker(ctx, 100, 100, 3, [], app.pixelRatio(), 0.65, ["hidden-a", "hidden-b"]);
+  assert.deepEqual(ctx.labels, ["3"], "the stack adds no competing text");
 });
 
 test("a single-category group's second chip is its second most common kind", () => {
