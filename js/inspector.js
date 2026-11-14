@@ -1442,6 +1442,10 @@ function zoomToSelection() {
       return;
     }
     const transitionToken = state.selectionMapTransitionToken;
+    // The camera has not started yet, so the selection hold must not release in the meantime:
+    // with the origin slide already over and nothing animating, settleMapTransition would clear
+    // the token and the guard below would then drop this zoom for good.
+    state.selectionTransition.viewportPending = true;
     setTimeout(() => {
       if (state.selectionMapTransitionToken !== transitionToken) return;
       startCamera();

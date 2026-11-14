@@ -164,6 +164,22 @@ test.describe("Camera trace of user transitions", () => {
     expect(moves.filter((m) => m.kind === "tween").length).toBeGreaterThan(0);
   });
 
+  test("opening a place still zooms in when the camera-origin slide ends before the marker fade-out has", async ({ page }) => {
+    // The marker fade-out holds the zoom back for a moment. If the origin slide (and every other
+    // reason to hold the map) is already over by then, nothing else keeps the selection hold alive,
+    // and the pending zoom used to be dropped, leaving the map at the Nearby ring for good.
+    await setup(page, "/nearby");
+    const { locators, ringScale } = await pickPlaces(page, 1);
+    await locators[0].evaluate((button) => {
+      button.click();
+      const slide = state.cameraOriginTransition;
+      if (slide) slide.startedAt -= slide.durationMs;
+    });
+    await expectZoomedInFrom(page, ringScale);
+    await waitForUiToSettle(page);
+    expect(await page.evaluate(() => state.selectionTransition.mapHeld), "the selection hold is released once the move lands").toBe(false);
+  });
+
   test("switching from one place to another is one zoom, not a pan cut short by a zoom", async ({ page }) => {
     await setup(page, "/nearby");
     const { locators, ringScale } = await pickPlaces(page, 2);
