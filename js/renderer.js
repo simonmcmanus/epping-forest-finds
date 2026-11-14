@@ -1615,9 +1615,14 @@ function buildActiveMapMarkers(toScreen, tilted = false) {
 // anchor point. A lone pin uses this same conservative shape at its drawn scale, with a minimum
 // touch-sized box; a group always passes scale 1 because its face stays fixed across map zoom.
 function markerCollisionBox(dpr, scale = 1) {
+  const left = markerCollisionLeft(dpr, scale);
+  const right = markerCollisionRight(dpr, scale);
   return {
-    width: markerCollisionWidth(dpr, scale),
-    height: markerCollisionHeight(dpr, scale),
+    left,
+    right,
+    top: markerCollisionTop(dpr, scale),
+    width: left + right,
+    height: markerCollisionTop(dpr, scale),
   };
 }
 
@@ -1628,18 +1633,34 @@ function markerCollisionUnit(dpr, scale) {
   return dpr * scale;
 }
 
-function markerCollisionWidth(dpr, scale) {
+function markerCollisionRadius(dpr, scale) {
   const unit = markerCollisionUnit(dpr, scale);
-  const radius = MAP_PNG_ICON_SIZE * MAP_ICON_SCALE_UNSELECTED * unit * 0.32;
-  const gap = MARKER_COLLISION_GAP_CSS_PX * dpr;
-  return Math.max(MARKER_MIN_COLLISION_SIZE_CSS_PX * dpr, radius * 2.4 + 10 * unit + gap);
+  return MAP_PNG_ICON_SIZE * MAP_ICON_SCALE_UNSELECTED * unit * 0.32;
 }
 
-function markerCollisionHeight(dpr, scale) {
+function markerCollisionFloorExtra(dpr, scale) {
   const unit = markerCollisionUnit(dpr, scale);
-  const radius = MAP_PNG_ICON_SIZE * MAP_ICON_SCALE_UNSELECTED * unit * 0.32;
-  const gap = MARKER_COLLISION_GAP_CSS_PX * dpr;
-  return Math.max(MARKER_MIN_COLLISION_SIZE_CSS_PX * dpr, radius * 2.3 + 6 * unit + gap);
+  const radius = markerCollisionRadius(dpr, scale);
+  const rawWidth = radius * 2.4 + 10 * unit + MARKER_COLLISION_GAP_CSS_PX * dpr;
+  return Math.max(0, (MARKER_MIN_COLLISION_SIZE_CSS_PX * dpr - rawWidth) / 2);
+}
+
+function markerCollisionLeft(dpr, scale) {
+  return markerCollisionRadius(dpr, scale) * 1.2
+    + MARKER_COLLISION_GAP_CSS_PX * dpr / 2 + markerCollisionFloorExtra(dpr, scale);
+}
+
+function markerCollisionRight(dpr, scale) {
+  const unit = markerCollisionUnit(dpr, scale);
+  return markerCollisionRadius(dpr, scale) * 1.2 + 10 * unit
+    + MARKER_COLLISION_GAP_CSS_PX * dpr / 2 + markerCollisionFloorExtra(dpr, scale);
+}
+
+function markerCollisionTop(dpr, scale) {
+  const unit = markerCollisionUnit(dpr, scale);
+  const radius = markerCollisionRadius(dpr, scale);
+  return Math.max(MARKER_MIN_COLLISION_SIZE_CSS_PX * dpr,
+    radius * 2.3 + 6 * unit + MARKER_COLLISION_GAP_CSS_PX * dpr);
 }
 
 // The individual pin's drawn scale and hit target are shared with inspector.js. A 44 CSS-px
@@ -1659,12 +1680,16 @@ function markerLoneScale(item, tilted = false) {
 }
 
 function markerCollisionBoxesOverlap(a, b, aBox = a.collisionBox, bBox = b.collisionBox) {
-  const aWidth = aBox ? aBox.width : a.collisionWidth;
-  const aHeight = aBox ? aBox.height : a.collisionHeight;
-  const bWidth = bBox ? bBox.width : b.collisionWidth;
-  const bHeight = bBox ? bBox.height : b.collisionHeight;
-  return Math.abs(a.sp.x - b.sp.x) < (aWidth + bWidth) / 2
-    && Math.abs(a.sp.y - b.sp.y) < (aHeight + bHeight) / 2;
+  const aLeft = aBox ? aBox.left : a.collisionLeft;
+  const aRight = aBox ? aBox.right : a.collisionRight;
+  const aTop = aBox ? aBox.top : a.collisionTop;
+  const bLeft = bBox ? bBox.left : b.collisionLeft;
+  const bRight = bBox ? bBox.right : b.collisionRight;
+  const bTop = bBox ? bBox.top : b.collisionTop;
+  return a.sp.x - aLeft < b.sp.x + bRight
+    && b.sp.x - bLeft < a.sp.x + aRight
+    && a.sp.y - aTop < b.sp.y
+    && b.sp.y - bTop < a.sp.y;
 }
 
 // Seed-anchored, single pass, deliberately not transitive (chaining A-near-B-near-C walked across
@@ -1702,8 +1727,9 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main", tilted = false) {
       if (!Number.isFinite(sp.x) || !Number.isFinite(sp.y)) continue;
       const loneScale = markerLoneScale(item, tilted);
       const node = { item, type, sp, order: nodes.length, density: 0,
-        collisionWidth: markerCollisionWidth(dpr, loneScale),
-        collisionHeight: markerCollisionHeight(dpr, loneScale),
+        collisionLeft: markerCollisionLeft(dpr, loneScale),
+        collisionRight: markerCollisionRight(dpr, loneScale),
+        collisionTop: markerCollisionTop(dpr, loneScale),
         claimed: false, isSeed: false, cx: Math.floor(sp.x / cell), cy: Math.floor(sp.y / cell) };
       nodes.push(node);
       nodeOfItem.set(item, node);
