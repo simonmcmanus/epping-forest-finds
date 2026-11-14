@@ -1745,6 +1745,9 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
     state.viewport.scale = targetViewport.scale;
     state.viewport.tx = targetViewport.tx;
     state.viewport.ty = targetViewport.ty;
+    // A programmatic camera move resets grouping even when it has no animation frames to land
+    // on. Without this, the synchronous path can retain a layout from a previous item set.
+    if (typeof resetMarkerGroupMemory === "function") resetMarkerGroupMemory();
     requestDraw();
     if (typeof onComplete === "function") onComplete();
     return "snapped";
