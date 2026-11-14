@@ -75,6 +75,8 @@
         "name": "Zest Salad & Juice Bar",
         "ratingDate": "2024-11-08T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Zest Salad & Juice Bar",
@@ -117,6 +119,8 @@
         "name": "Hatch Lane Food Centre",
         "ratingDate": "2025-08-13T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Hatch Lane Food Centre",
@@ -137,6 +141,8 @@
         "name": "Leytonstone Tavern/Tavern Events",
         "ratingDate": "2025-11-06T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Leytonstone Tavern/Tavern Events",
@@ -157,6 +163,8 @@
         "name": "Billet Road Post Office & Convenience Store",
         "ratingDate": "2025-03-12T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Billet Road Post Office & Convenience Store",
@@ -199,6 +207,8 @@
         "name": "Gospodina",
         "ratingDate": "2026-03-28T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Gospodina",
@@ -219,6 +229,8 @@
         "name": "LDF Chicken",
         "ratingDate": "2025-05-05T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "LDF Chicken",
@@ -239,6 +251,8 @@
         "name": "Kaspas Desserts",
         "ratingDate": "2026-01-28T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Kaspas Desserts",
@@ -259,6 +273,8 @@
         "name": "Breeze Mezze Bar & Grill",
         "ratingDate": "2025-07-31T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Breeze Mezze Bar & Grill",
@@ -279,6 +295,8 @@
         "name": "Sushi Monster at The Rusty Bike",
         "ratingDate": "2025-07-07T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Sushi Monster at The Rusty Bike",
@@ -299,6 +317,8 @@
         "name": "Harleys Bistro Lounge",
         "ratingDate": "2025-06-16T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Harleys Bistro Lounge",
@@ -319,6 +339,8 @@
         "name": "Hokkaido Japanese Restaurant",
         "ratingDate": "2025-06-10T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Hokkaido Japanese Restaurant",
@@ -339,6 +361,8 @@
         "name": "Woodies Spice/Woodies Grill/The Sultan/Curry On",
         "ratingDate": "2025-03-24T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Woodies Spice/Woodies Grill/The Sultan/Curry On",
@@ -379,6 +403,8 @@
         "name": "Neelam Fruit & Veg",
         "ratingDate": "2026-02-21T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Neelam Fruit & Veg",
@@ -399,6 +425,8 @@
         "name": "Ohba Leaf Walthamstow",
         "ratingDate": "2026-07-15T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Ohba Leaf Walthamstow",
@@ -419,6 +447,8 @@
         "name": "Mooboo South Woodford",
         "ratingDate": "2025-07-14T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Mooboo South Woodford",
@@ -439,6 +469,8 @@
         "name": "Marlos brasserie",
         "ratingDate": "2025-08-22T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Marlos brasserie",
@@ -481,6 +513,8 @@
         "name": "MUM LIKES THAI FOOD-Leytonstone",
         "ratingDate": "2026-03-06T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "MUM LIKES THAI FOOD-Leytonstone",
@@ -501,6 +535,8 @@
         "name": "Survivor Caribbean Restaurant",
         "ratingDate": "2025-10-22T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Survivor Caribbean Restaurant",
@@ -521,6 +557,8 @@
         "name": "Aldi Stores",
         "ratingDate": "2025-10-06T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Aldi Stores",
@@ -541,6 +579,8 @@
         "name": "Sainsburys Loughton Church Hill Local",
         "ratingDate": "2026-08-17T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Sainsburys Loughton Church Hill Local",
@@ -561,6 +601,8 @@
         "name": "La Vita Bistro Cafe",
         "ratingDate": "2024-11-18T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "La Vita Bistro Cafe",
@@ -603,6 +645,8 @@
         "name": "Warren wood kitchen",
         "ratingDate": "2025-06-18T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Warren wood kitchen",
@@ -623,6 +667,8 @@
         "name": "Almasara Lebanese Grill",
         "ratingDate": "2025-09-19T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Almasara Lebanese Grill",
@@ -643,6 +689,8 @@
         "name": "La Valentino Cristina",
         "ratingDate": "2025-09-09T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "La Valentino Cristina",
@@ -663,6 +711,8 @@
         "name": "Good Friend Chinese Restaurant",
         "ratingDate": "2026-09-19T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Good Friend Chinese Restaurant",
@@ -867,6 +917,8 @@
         "name": "Great Wall Chinese Takeaway",
         "ratingDate": "2025-06-25T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Great Wall Chinese Takeaway",
@@ -887,6 +939,8 @@
         "name": "Toby Carvery (Eagle)",
         "ratingDate": "2025-06-20T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Toby Carvery (Eagle)",
@@ -907,6 +961,8 @@
         "name": "Wing Sing (2015)",
         "ratingDate": "2026-08-03T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Wing Sing (2015)",
@@ -927,6 +983,8 @@
         "name": "Tesco Stores",
         "ratingDate": "2025-03-14T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Tesco Stores",
@@ -991,6 +1049,8 @@
         "name": "Gandhi Tandoori",
         "ratingDate": "2025-02-20T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Gandhi Tandoori",
@@ -1011,6 +1071,8 @@
         "name": "Greggs the Bakers",
         "ratingDate": "2026-01-06T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Greggs the Bakers",
@@ -1053,6 +1115,8 @@
         "name": "Gandhi Express",
         "ratingDate": "2025-02-20T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Gandhi Express",
@@ -1073,6 +1137,8 @@
         "name": "Jaipur",
         "ratingDate": "2024-11-19T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Jaipur",
@@ -1093,6 +1159,8 @@
         "name": "Tesco",
         "ratingDate": "2026-05-02T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Tesco",
@@ -1113,6 +1181,8 @@
         "name": "Robins",
         "ratingDate": "2025-07-22T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Robins",
@@ -1133,6 +1203,8 @@
         "name": "Ninos Cucina Italiana",
         "ratingDate": "2025-10-23T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Ninos Cucina Italiana",
@@ -1153,6 +1225,8 @@
         "name": "Harveys SK",
         "ratingDate": "2024-08-02T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Harveys SK",
@@ -1173,6 +1247,8 @@
         "name": "Co-op",
         "ratingDate": "2026-05-09T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Co-op",
@@ -1193,6 +1269,8 @@
         "name": "1 The Avenue",
         "ratingDate": "2026-03-05T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "1 The Avenue",
@@ -1213,6 +1291,8 @@
         "name": "La Baita",
         "ratingDate": "2025-02-28T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "La Baita",
@@ -1233,6 +1313,8 @@
         "name": "Purbani Tandoori",
         "ratingDate": "2025-11-25T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Purbani Tandoori",
@@ -1253,6 +1335,8 @@
         "name": "Shish Mahal",
         "ratingDate": "2025-11-20T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Shish Mahal",
@@ -1273,6 +1357,8 @@
         "name": "Tesco",
         "ratingDate": "2025-01-24T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Tesco",
@@ -1293,6 +1379,8 @@
         "name": "Sainsbury's",
         "ratingDate": "2025-01-20T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Sainsbury's",
@@ -1377,6 +1465,8 @@
         "name": "The Bull PH",
         "ratingDate": "2025-08-05T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "The Bull PH",
@@ -1397,6 +1487,8 @@
         "name": "Shiv News",
         "ratingDate": "1901-01-01T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Shiv News",
@@ -1417,6 +1509,8 @@
         "name": "Mezze on the Green",
         "ratingDate": "2025-02-13T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Mezze on the Green",
@@ -1437,6 +1531,8 @@
         "name": "Green owl cafe & Deli",
         "ratingDate": "2025-06-18T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Green owl cafe & Deli",
@@ -1457,6 +1553,8 @@
         "name": "Quickpay Supermarket",
         "ratingDate": "2026-03-26T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Quickpay Supermarket",
@@ -1541,6 +1639,8 @@
         "name": "The Sunflower",
         "ratingDate": "2025-05-14T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "The Sunflower",
@@ -1561,6 +1661,8 @@
         "name": "Panda Dim Sum",
         "ratingDate": "2025-02-04T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Panda Dim Sum",
@@ -1603,6 +1705,8 @@
         "name": "Wesleyan Christian Centre",
         "ratingDate": "2026-05-20T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Wesleyan Christian Centre",
@@ -1623,6 +1727,8 @@
         "name": "Co-op",
         "ratingDate": "2026-07-27T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Co-op",
@@ -1643,6 +1749,8 @@
         "name": "Cafe Chicchi Trading as Sensei burgers/N\u2019Zalad/Maki Kazzo",
         "ratingDate": "2026-01-06T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Cafe Chicchi Trading as Sensei burgers/N\u2019Zalad/Maki Kazzo",
@@ -1663,6 +1771,8 @@
         "name": "Exceline",
         "ratingDate": "2025-02-04T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Exceline",
@@ -1683,6 +1793,8 @@
         "name": "Gail's Bakery Wanstead",
         "ratingDate": "2026-09-29T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Gail's Bakery Wanstead",
@@ -1703,6 +1815,8 @@
         "name": "Piya Kitchen",
         "ratingDate": "2025-06-16T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Piya Kitchen",
@@ -1723,6 +1837,8 @@
         "name": "Perky Blenders @ Project 660",
         "ratingDate": "2026-04-22T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Perky Blenders @ Project 660",
