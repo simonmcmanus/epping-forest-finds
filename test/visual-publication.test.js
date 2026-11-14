@@ -137,6 +137,38 @@ test('untrusted artifact paths cannot read outside their evidence directory', (t
   assert.match(render(root, path.join(root, 'published'), options), /mobile: capture unavailable/);
 });
 
+test('reporter treats new baselines as reviewable evidence rather than a failed run', (t) => {
+  const root = fixture(t);
+  const originalCwd = process.cwd();
+  const originalEnv = { VISUAL_PROJECT: process.env.VISUAL_PROJECT, VISUAL_EVIDENCE_DIR: process.env.VISUAL_EVIDENCE_DIR };
+  t.after(() => {
+    process.chdir(originalCwd);
+    for (const [key, value] of Object.entries(originalEnv)) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  });
+  execFileSync('git', ['init', '--quiet', root]);
+  process.chdir(root);
+  process.env.VISUAL_PROJECT = 'mobile';
+  process.env.VISUAL_EVIDENCE_DIR = path.join(root, 'visual-evidence-mobile');
+  fs.mkdirSync('test/e2e/__screenshots__', { recursive: true });
+  const actual = path.join(root, 'actual.png');
+  fs.writeFileSync(actual, 'new screenshot');
+  const reporter = new Reporter();
+  reporter.onTestEnd(
+    { id: 'new-baseline', expectedStatus: 'passed', titlePath: () => ['root', 'new baseline'] },
+    {
+      status: 'failed',
+      attachments: [{ name: 'screen-actual.png', path: actual }],
+      errors: [{ message: "A snapshot doesn't exist at test/e2e/__screenshots__/new-mobile-linux.png, writing actual." }],
+    },
+  );
+  reporter.onEnd({ status: 'failed' });
+  const report = JSON.parse(fs.readFileSync(path.join(process.env.VISUAL_EVIDENCE_DIR, 'manifest.json')));
+  assert.equal(report.status, 'passed');
+  assert.equal(report.tests[0].missingBaseline, true);
+});
+
 test('reporter retains final retry outcome and images without collisions, and includes generated baselines', (t) => {
   const root = fixture(t);
   const originalCwd = process.cwd();
