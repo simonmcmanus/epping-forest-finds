@@ -366,7 +366,7 @@ function drawOverlay() {
   if (useOverlayForPins) {
     // Keep the blue dot behind location pins in heading-up/tilted mode too.
     drawUser(ctx, toScreen, isTilted, "dot");
-    drawMapMarkers(ctx, buildActiveMapMarkers(toScreen), toScreen, true);
+    drawMapMarkers(ctx, buildActiveMapMarkers(toScreen, true), toScreen, true);
     drawSelectionExitMarkers(ctx, toScreen, true);
   }
   drawFilterTransitionPins(ctx, toScreen);
@@ -1607,8 +1607,8 @@ function markerMemoryKey() {
 }
 
 // The markers of what the map shows now: the one pass draw(), drawOverlay() and findClusterHit share.
-function buildActiveMapMarkers(toScreen) {
-  return buildMapMarkers(activeIconLookup(), toScreen, markerMemoryKey());
+function buildActiveMapMarkers(toScreen, tilted = false) {
+  return buildMapMarkers(activeIconLookup(), toScreen, markerMemoryKey(), tilted);
 }
 
 // The rectangle a compact cluster face covers with its tail and its count chip, relative to the
@@ -1623,14 +1623,25 @@ function markerCollisionBox(dpr, scale = 1) {
   };
 }
 
-function markerLoneScale(item) {
-  const tiltScale = typeof tiltPinScale === "function" ? tiltPinScale(item.point) : 1;
+// The individual pin's drawn scale and hit target are shared with inspector.js. A 44 CSS-px
+// diameter is the minimum touch target even when the artwork shrinks to its zoom floor.
+function mapMarkerPinScale(item, tilted = false) {
+  const tiltScale = tilted && typeof tiltPinScale === "function" ? tiltPinScale(item.point) : 1;
   return mapEmojiScale() * tiltScale;
 }
 
+function mapMarkerPinHitRadius(dpr, scale) {
+  const iconSize = MAP_PNG_ICON_SIZE * dpr * scale * MAP_ICON_SCALE_UNSELECTED;
+  return Math.max(iconSize * 0.32 * 1.3, 22 * dpr);
+}
+
+function markerLoneScale(item, tilted = false) {
+  return mapMarkerPinScale(item, tilted);
+}
+
 function markerCollisionBoxesOverlap(a, b, aBox = a.collisionBox, bBox = b.collisionBox) {
-  return Math.abs(a.sp.x - b.sp.x) < Math.max(aBox.width, bBox.width)
-    && Math.abs(a.sp.y - b.sp.y) < Math.max(aBox.height, bBox.height);
+  return Math.abs(a.sp.x - b.sp.x) < (aBox.width + bBox.width) / 2
+    && Math.abs(a.sp.y - b.sp.y) < (aBox.height + bBox.height) / 2;
 }
 
 // Seed-anchored, single pass, deliberately not transitive (chaining A-near-B-near-C walked across
@@ -1650,7 +1661,7 @@ function markerCollisionBoxesOverlap(a, b, aBox = a.collisionBox, bBox = b.colli
 // Returns [{ items, itemsByType, itemType, screenPt, worldPt }]. `itemType` is the one category of
 // the group, or "_mega" when the group mixes categories. A group that claimed nothing is an
 // ordinary single-item pin.
-function buildMapMarkers(lookup, toScreen, memoryKey = "main") {
+function buildMapMarkers(lookup, toScreen, memoryKey = "main", tilted = false) {
   let memory = _markerMemory.get(memoryKey);
   const dpr = pixelRatio();
   const groupBox = markerCollisionBox(dpr);
@@ -1666,7 +1677,7 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main") {
       if (!item.point) continue;
       const sp = toScreen(item.point);
       if (!Number.isFinite(sp.x) || !Number.isFinite(sp.y)) continue;
-      const collisionBox = markerCollisionBox(dpr, markerLoneScale(item));
+      const collisionBox = markerCollisionBox(dpr, markerLoneScale(item, tilted));
       const node = { item, type, sp, order: nodes.length, density: 0, collisionBox,
         claimed: false, isSeed: false, cx: Math.floor(sp.x / cell), cy: Math.floor(sp.y / cell) };
       nodes.push(node);
@@ -1769,7 +1780,8 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main") {
           const bucket = grid.get(cellKey(seed.cx + dx, seed.cy + dy));
           if (!bucket) continue;
           for (const other of bucket) {
-            if (other.claimed || !markerCollisionBoxesOverlap(seed, other, seedBox, other.collisionBox)) continue;
+            const otherBox = other.density > 0 ? groupBox : other.collisionBox;
+            if (other.claimed || !markerCollisionBoxesOverlap(seed, other, seedBox, otherBox)) continue;
             other.claimed = true;
             members.push(other);
           }
@@ -2426,7 +2438,7 @@ function drawMapMarkers(ctx, markers, toScreen, tilted = false, options = {}) {
 function drawSelectionExitMarkers(ctx, toScreen, tilted = false) {
   const lookup = state.selectionTransition.outgoingIconLookup;
   if (!lookup || !selectionOutgoingRevealInProgress()) return;
-  const markers = buildMapMarkers(lookup, toScreen, "selection-exit");
+  const markers = buildMapMarkers(lookup, toScreen, "selection-exit", tilted);
   const now = performance.now();
   drawMapMarkers(ctx, markers, toScreen, tilted, {
     allowSelectionExit: true,

@@ -164,15 +164,20 @@ function trackSelectionClick(itemType, item, source) {
 function findHit(screen, world) {
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
+  const tilted = tiltActive() || nearbyHeadingUpActive();
+  const toScreen = tiltActive()
+    ? worldToScreenForOverlayTilted
+    : nearbyHeadingUpActive()
+      ? worldToScreenForOverlay
+      : worldToScreen;
   // Compact pin head: half-width R*1.2, half-height R; centre R*1.3 above the tip.
   // Unselected pins drive overview taps; use MAP_ICON_SCALE_UNSELECTED for accurate centering.
-  const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
-  const pinR = iconSize * 0.32 * 1.3;   // R * 1.3 — slightly larger than visual for easy tapping
-  const pinYOffset = iconSize * 0.416;   // R * 1.3 = head centre above tip
-
-  function pinDistance(point) {
+  const pinScaleFor = item => tilted ? mapMarkerPinScale(item, true) : mapScale;
+  const pinDistance = (point, item) => {
+    const iconSize = MAP_PNG_ICON_SIZE * dpr * pinScaleFor(item) * MAP_ICON_SCALE_UNSELECTED;
+    const pinYOffset = iconSize * 0.416; // R * 1.3 = head centre above tip
     return Math.max(Math.abs(point.x - screen.x) / 1.2, Math.abs((point.y - pinYOffset) - screen.y));
-  }
+  };
 
   // Only pins that are actually on screen are tappable: hit testing asks the renderer's own
   // "is this drawn?" predicate rather than sweeping the raw datasets. Tapping something
@@ -193,9 +198,9 @@ function findHit(screen, world) {
     if (!isTappablePin("landmark", place)) continue;
     const opacity = markerOpacityFor("landmark", place);
     if (opacity < 0.5) continue;
-    const point = worldToScreen(place.point);
-    const distance = pinDistance(point);
-    if (distance < pinR && (!bestPlace || distance < bestPlace.distance)) {
+    const point = toScreen(place.point);
+    const distance = pinDistance(point, place);
+    if (distance < mapMarkerPinHitRadius(dpr, pinScaleFor(place)) && (!bestPlace || distance < bestPlace.distance)) {
       bestPlace = { type: "landmark", item: place, distance };
     }
   }
@@ -206,9 +211,9 @@ function findHit(screen, world) {
     if (!isTappablePin("cow", cow)) continue;
     const opacity = markerOpacityFor("cow", cow);
     if (opacity < 0.5) continue;
-    const point = worldToScreen(cow.point);
-    const distance = pinDistance(point);
-    if (distance < pinR && (!bestCow || distance < bestCow.distance)) {
+    const point = toScreen(cow.point);
+    const distance = pinDistance(point, cow);
+    if (distance < mapMarkerPinHitRadius(dpr, pinScaleFor(cow)) && (!bestCow || distance < bestCow.distance)) {
       bestCow = { type: "cow", item: cow, distance };
     }
   }
@@ -217,10 +222,10 @@ function findHit(screen, world) {
   let bestTree = null;
   for (const tree of state.trees) {
     if (!isTappablePin("tree", tree)) continue;
-    const point = worldToScreen(tree.point);
+    const point = toScreen(tree.point);
     if (!isNearCanvas(point, 20 * dpr)) continue;
-    const distance = pinDistance(point);
-    if (distance < pinR && (!bestTree || distance < bestTree.distance)) {
+    const distance = pinDistance(point, tree);
+    if (distance < mapMarkerPinHitRadius(dpr, pinScaleFor(tree)) && (!bestTree || distance < bestTree.distance)) {
       bestTree = { type: "tree", item: tree, distance };
     }
   }
@@ -229,9 +234,9 @@ function findHit(screen, world) {
   let bestWater = null;
   for (const water of state.waterFeatures) {
     if (!isTappablePin("water", water)) continue;
-    const point = worldToScreen(water.point);
-    const distance = pinDistance(point);
-    if (distance < pinR && (!bestWater || distance < bestWater.distance)) {
+    const point = toScreen(water.point);
+    const distance = pinDistance(point, water);
+    if (distance < mapMarkerPinHitRadius(dpr, pinScaleFor(water)) && (!bestWater || distance < bestWater.distance)) {
       bestWater = { type: "water", item: water, distance };
     }
   }
@@ -323,7 +328,7 @@ function findClusterHit(screen) {
   const toScreen = tilted ? worldToScreenForOverlayTilted
     : nearbyHeadingUpActive() ? worldToScreenForOverlay : worldToScreen;
   let hit = null;
-  for (const marker of buildActiveMapMarkers(toScreen)) {
+  for (const marker of buildActiveMapMarkers(toScreen, tilted)) {
     if (marker.items.length < 2) continue;
     const scale = tilted ? Math.max(0.65, tiltPinScale(marker.worldPt)) : 1;
     if (!clusterBadgeContains(screen, marker.screenPt.x, marker.screenPt.y, marker.items.length, dpr, scale)) continue;

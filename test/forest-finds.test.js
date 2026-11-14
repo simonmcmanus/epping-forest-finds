@@ -730,6 +730,7 @@ globalThis.__forestFindsTest = {
   screenToWorld,
   pixelRatio,
   mapEmojiScale,
+  mapMarkerPinHitRadius,
   MAP_PNG_ICON_SIZE,
   MAP_ICON_SCALE_UNSELECTED,
   buildMapMarkers,
@@ -1306,6 +1307,14 @@ test("zoomed-out lone pins use the available space without losing their touch fl
     app.state.emojiScaleAnimated = previousScale;
     app.resetMarkerGroupMemory();
   }
+});
+
+test("zoomed-out lone pins retain a 44 CSS-pixel hit radius", () => {
+  const dpr = app.pixelRatio();
+  const full = app.mapMarkerPinHitRadius(dpr, 1);
+  const zoomedOut = app.mapMarkerPinHitRadius(dpr, 0.3);
+  assert.ok(zoomedOut >= 22 * dpr, "the smallest lone pin still has a 44px diameter touch target");
+  assert.ok(zoomedOut < full, "the touch target follows the drawn pin while above its floor");
 });
 
 test("a fixed-size group reserves space against a neighbouring zoomed-out lone pin", () => {
