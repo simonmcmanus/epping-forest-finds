@@ -1576,6 +1576,8 @@ function drawLayer(ctx, layer) {
 const MARKER_TYPES = ["tree", "landmark", "cow", "path", "water"];
 // Breathing room added around every marker's collision box.
 const MARKER_COLLISION_GAP_CSS_PX = 4;
+// Keep a lone pin's collision target comfortably tappable after its artwork shrinks with zoom.
+const MARKER_MIN_COLLISION_SIZE_CSS_PX = 44;
 // Past this many items in a seed's 3x3 cell block, occupancy replaces the exact overlap count.
 const MARKER_DENSITY_EXACT_LIMIT = 32;
 
@@ -1610,12 +1612,25 @@ function buildActiveMapMarkers(toScreen) {
 }
 
 // The rectangle a compact cluster face covers with its tail and its count chip, relative to the
-// anchor point. Worst case on the chip (a "99+" label), at scale 1: one uniform box for every
-// marker, deliberately ignoring zoom and tilt shrink so the no-overlap guarantee is conservative.
-function markerCollisionBox(dpr) {
-  const rect = clusterMarkerRect(0, 0, 100, dpr, 1);
+// anchor point. A lone pin uses this same conservative shape at its drawn scale, with a minimum
+// touch-sized box; a group always passes scale 1 because its face stays fixed across map zoom.
+function markerCollisionBox(dpr, scale = 1) {
+  const rect = clusterMarkerRect(0, 0, 100, dpr, scale);
   const gap = MARKER_COLLISION_GAP_CSS_PX * dpr;
-  return { width: rect.right - rect.left + gap, height: rect.bottom - rect.top + gap };
+  return {
+    width: Math.max(MARKER_MIN_COLLISION_SIZE_CSS_PX * dpr, rect.right - rect.left + gap),
+    height: Math.max(MARKER_MIN_COLLISION_SIZE_CSS_PX * dpr, rect.bottom - rect.top + gap),
+  };
+}
+
+function markerLoneScale(item) {
+  const tiltScale = typeof tiltPinScale === "function" ? tiltPinScale(item.point) : 1;
+  return mapEmojiScale() * tiltScale;
+}
+
+function markerCollisionBoxesOverlap(a, b, aBox = a.collisionBox, bBox = b.collisionBox) {
+  return Math.abs(a.sp.x - b.sp.x) < Math.max(aBox.width, bBox.width)
+    && Math.abs(a.sp.y - b.sp.y) < Math.max(aBox.height, bBox.height);
 }
 
 // Seed-anchored, single pass, deliberately not transitive (chaining A-near-B-near-C walked across
@@ -1637,10 +1652,11 @@ function markerCollisionBox(dpr) {
 // ordinary single-item pin.
 function buildMapMarkers(lookup, toScreen, memoryKey = "main") {
   let memory = _markerMemory.get(memoryKey);
-  const box = markerCollisionBox(pixelRatio());
-  const boxW = box.width, boxH = box.height;
-  const splitW = boxW * MARKER_SPLIT_BOX_FACTOR, splitH = boxH * MARKER_SPLIT_BOX_FACTOR;
-  const cell = Math.max(boxW, boxH);
+  const dpr = pixelRatio();
+  const groupBox = markerCollisionBox(dpr);
+  const groupBoxW = groupBox.width, groupBoxH = groupBox.height;
+  const splitW = groupBoxW * MARKER_SPLIT_BOX_FACTOR, splitH = groupBoxH * MARKER_SPLIT_BOX_FACTOR;
+  const cell = Math.max(groupBoxW, groupBoxH);
   const nodes = [];
   const nodeOfItem = new Map();
   for (const type of MARKER_TYPES) {
@@ -1650,7 +1666,9 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main") {
       if (!item.point) continue;
       const sp = toScreen(item.point);
       if (!Number.isFinite(sp.x) || !Number.isFinite(sp.y)) continue;
-      const node = { item, type, sp, order: nodes.length, density: 0, claimed: false, isSeed: false, cx: Math.floor(sp.x / cell), cy: Math.floor(sp.y / cell) };
+      const collisionBox = markerCollisionBox(dpr, markerLoneScale(item));
+      const node = { item, type, sp, order: nodes.length, density: 0, collisionBox,
+        claimed: false, isSeed: false, cx: Math.floor(sp.x / cell), cy: Math.floor(sp.y / cell) };
       nodes.push(node);
       nodeOfItem.set(item, node);
     }
@@ -1714,7 +1732,7 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main") {
         const bucket = grid.get(cellKey(node.cx + dx, node.cy + dy));
         if (!bucket) continue;
         for (const other of bucket) {
-          if (other !== node && Math.abs(other.sp.x - node.sp.x) < boxW && Math.abs(other.sp.y - node.sp.y) < boxH) count++;
+          if (other !== node && markerCollisionBoxesOverlap(node, other)) count++;
         }
       }
     }
@@ -1737,23 +1755,27 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main") {
     if (seed.claimed) continue;
     seed.claimed = true;
     const members = [seed];
+    const held = memory && memory.get(seed.item);
+    // Once a seed has a member, its fixed-size group face becomes the exclusion box too. This
+    // absorbs a small neighbouring pin before it can overlap the face after zoom-out.
+    const isGroup = seed.density > 0 || (held && held.length > 1);
+    const seedBox = isGroup ? groupBox : seed.collisionBox;
     // New members need the normal box; members this seed held last time are kept up to the split
     // box (looked up directly, not through the grid). Both are measured from this seed, so anchors
     // stay a full box apart.
-    if (seed.density) {
+    if (isGroup) {
       for (let dx = -1; dx <= 1; dx++) {
         for (let dy = -1; dy <= 1; dy++) {
           const bucket = grid.get(cellKey(seed.cx + dx, seed.cy + dy));
           if (!bucket) continue;
           for (const other of bucket) {
-            if (other.claimed || Math.abs(other.sp.x - seed.sp.x) >= boxW || Math.abs(other.sp.y - seed.sp.y) >= boxH) continue;
+            if (other.claimed || !markerCollisionBoxesOverlap(seed, other, seedBox, other.collisionBox)) continue;
             other.claimed = true;
             members.push(other);
           }
         }
       }
     }
-    const held = memory && memory.get(seed.item);
     if (held) {
       for (const heldItem of held) {
         const other = nodeOfItem.get(heldItem);

@@ -1178,6 +1178,8 @@ const app = loadAppForTests();
 
 // Map markers: one clustering pass across every category. Items carry their screen position
 // directly as `point` here, with an identity projection, so each case controls the exact layout.
+// Keep shared fixtures at the normal-size camera; zoom-specific cases set this around their build.
+app.state.emojiScaleAnimated = 1;
 const markerScreen = (p) => p;
 const markerLookup = (items) => {
   const lookup = { tree: new Set(), landmark: new Set(), cow: new Set(), path: new Set(), water: new Set() };
@@ -1284,6 +1286,41 @@ test("a pair just outside the normal box stays one group once grouped, and is tw
   assert.equal(build(w * 1.1).length, 1, "outside the normal box but inside the split box: still one group");
   app.resetMarkerGroupMemory();
   assert.equal(build(w * 1.1).length, 2, "built fresh at the same spacing they are separate");
+});
+
+test("zoomed-out lone pins use the available space without losing their touch floor", () => {
+  const items = [markerItem("tree", "a", 0, 0), markerItem("tree", "b", 56, 0)];
+  const previousScale = app.state.emojiScaleAnimated;
+  try {
+    app.state.emojiScaleAnimated = 1;
+    app.resetMarkerGroupMemory();
+    assert.equal(app.buildMapMarkers(markerLookup(items), markerScreen).length, 1,
+      "the full-size faces still group at this spacing");
+
+    app.state.emojiScaleAnimated = 0.3;
+    app.resetMarkerGroupMemory();
+    const markers = app.buildMapMarkers(markerLookup(items), markerScreen);
+    assert.equal(markers.length, 2, "small lone pins that fit side by side stay individual");
+    assert.equal(markers.reduce((count, marker) => count + marker.items.length, 0), items.length);
+  } finally {
+    app.state.emojiScaleAnimated = previousScale;
+    app.resetMarkerGroupMemory();
+  }
+});
+
+test("a fixed-size group reserves space against a neighbouring zoomed-out lone pin", () => {
+  const items = [markerItem("tree", "a", 0, 0), markerItem("tree", "b", 5, 0), markerItem("cow", "c", 30, 0)];
+  const previousScale = app.state.emojiScaleAnimated;
+  try {
+    app.state.emojiScaleAnimated = 0.3;
+    app.resetMarkerGroupMemory();
+    const markers = app.buildMapMarkers(markerLookup(items), markerScreen);
+    assert.equal(markers.length, 1, "the neighbouring pin is included instead of overlapping the group face");
+    assert.equal(markers[0].items.length, items.length);
+  } finally {
+    app.state.emojiScaleAnimated = previousScale;
+    app.resetMarkerGroupMemory();
+  }
 });
 
 test("a grouped pair separates once it is outside the split box", () => {

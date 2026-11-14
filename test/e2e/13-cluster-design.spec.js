@@ -130,6 +130,39 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     expect(glyphs).toEqual(['underground', 'rail']);
   });
 
+  test('zoomed-out phone pins use the available space while fixed group faces stay clear', async ({ page }) => {
+    await setup(page);
+    const result = await page.evaluate(() => {
+      const item = (type, id, x) => ({ type, item: { id, commonName: 'Oak', point: { x, y: 100 } } });
+      const items = [item('tree', 'a', 0), item('tree', 'b', 145)];
+      const lookup = { tree: new Set(), landmark: new Set(), cow: new Set(), path: new Set(), water: new Set() };
+      items.forEach(({ type, item: markerItem }) => lookup[type].add(markerItem));
+      const previousScale = state.emojiScaleAnimated;
+      const buildAt = scale => {
+        state.emojiScaleAnimated = scale;
+        resetMarkerGroupMemory();
+        return buildMapMarkers(lookup, p => p, 'zoomed-out-phone');
+      };
+      try {
+        const before = buildAt(1);
+        const after = buildAt(0.3);
+        return {
+          beforeIndividual: before.filter(marker => marker.items.length === 1).length,
+          afterIndividual: after.filter(marker => marker.items.length === 1).length,
+          beforePlaces: before.reduce((count, marker) => count + marker.items.length, 0),
+          afterPlaces: after.reduce((count, marker) => count + marker.items.length, 0),
+        };
+      } finally {
+        state.emojiScaleAnimated = previousScale;
+        resetMarkerGroupMemory();
+      }
+    });
+    expect(result.beforePlaces).toBe(2);
+    expect(result.afterPlaces).toBe(2);
+    expect(result.afterIndividual - result.beforeIndividual,
+      'zooming out exposes places that fit beside the smaller pins').toBeGreaterThan(0);
+  });
+
   // Records what draw() really paints on a settled frame and derives each rectangle from the
   // renderer's own geometry.
   const MEASURE_OVERLAPS = `(() => {
