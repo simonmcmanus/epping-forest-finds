@@ -417,6 +417,7 @@ globalThis.__forestFindsTest = {
   // Replaces a top-level app function (a global in this sandbox) and returns the original, so a
   // test can count how often a hot path reaches an expensive helper. Restore it with the return.
   swapGlobalFunction(name, fn) { const previous = globalThis[name]; globalThis[name] = fn; return previous; },
+  setFindLandingSelectionPending(value) { findLandingSelectionPending = Boolean(value); },
   drawEnvironment,
   drawLayer,
   clusterFocusTarget,
@@ -464,6 +465,7 @@ globalThis.__forestFindsTest = {
   navigateInApp,
   overviewHeadingText,
   landingPageCategoryLabel,
+  findLandingAwaitingPlace,
   updateDocumentTitle,
   normalizeSearchText,
   searchQueryTokens,
@@ -2958,6 +2960,25 @@ test("updateDocumentTitle names a selected place in Epping Forest", () => {
   assert.equal(app.documentStub.title, "Hillside Tandoori in Epping Forest | Epping Forest Finds");
   app.state.selected = null;
   app.updateDocumentTitle();
+});
+
+test("leaving a /find/ place does not keep the old landing panel on the first Nearby tap", () => {
+  resetData(app);
+  app.location.pathname = "/find/example-place/";
+  app.state.landmarks = [{ findSlug: "example-place", name: "Example place" }];
+  app.state.selected = null;
+
+  // The initial route is still protected while the landing's place is being resolved.
+  app.setFindLandingSelectionPending(true);
+  assert.equal(app.findLandingAwaitingPlace(), true);
+
+  // Once the place detail has replaced that panel, returning to Nearby must be allowed to
+  // render immediately even though goToInitialView has not written /nearby yet.
+  app.setFindLandingSelectionPending(false);
+  assert.equal(app.findLandingAwaitingPlace(), false);
+
+  app.location.pathname = "/";
+  app.setFindLandingSelectionPending(false);
 });
 
 test("navigateInApp pushes a real history entry and applies the new route, instead of leaving it to the browser's own navigation", () => {

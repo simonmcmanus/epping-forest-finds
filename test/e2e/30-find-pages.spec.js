@@ -414,6 +414,37 @@ test.describe("generated find/nearby pages", () => {
       await expect(page.locator("#inspectorBody > .place-detail")).toHaveClass(/place-detail--landmark/);
     });
 
+    test("the first Nearby tap after a /find/ place replaces the detail panel as well as refitting the map", async ({ page }) => {
+      await skipOnboarding(page);
+      await gotoAndWaitForMap(page, `/find/${EXAMPLE_PUB.slug}/`);
+      await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("landmark");
+
+      await page.evaluate(() => {
+        stopViewportAnimation();
+        state.viewport.tx += 180;
+        state.viewport.ty -= 120;
+      });
+      await page.locator("#nearbyToggle").click();
+      await waitForUiToSettle(page);
+
+      await expect(page.locator("#inspectorTitle")).toHaveText("Nearby");
+      await expect(page.locator("#inspectorBody .nearest-list")).toBeVisible();
+      await expect(page.locator("#inspectorBody > .place-detail")).toHaveCount(0);
+
+      const settled = await page.evaluate(() => ({
+        scale: state.viewport.scale,
+        tx: state.viewport.tx,
+        ty: state.viewport.ty,
+      }));
+      const fresh = await page.evaluate(() => {
+        ensureOverviewTargetsVisible({ animate: false, force: true });
+        return { scale: state.viewport.scale, tx: state.viewport.tx, ty: state.viewport.ty };
+      });
+      expect(Math.abs(settled.scale - fresh.scale) / fresh.scale).toBeLessThan(0.001);
+      expect(Math.abs(settled.tx - fresh.tx)).toBeLessThan(1);
+      expect(Math.abs(settled.ty - fresh.ty)).toBeLessThan(1);
+    });
+
     test("the live inspector shows the same opening hours and phone tel: link as the static page", async ({ page }) => {
       await skipOnboarding(page);
       await gotoAndWaitForMap(page, `/find/${EXAMPLE_WITH_HOURS.slug}/`);
