@@ -60,8 +60,10 @@ class VisualReporter {
     // timeout failures remain blocking here.
     const blockingFailure = [...this.entries.values()].some((entry) =>
       entry.status === 'failed' && !entry.missingBaseline && !entry.pixelDifference);
-    const status = this.errors.length || blockingFailure || (!this.entries.size && result.status !== 'passed')
-      ? 'failed' : result.status === 'skipped' ? 'skipped' : 'passed';
+    const advisoryOnlyFailure = result.status === 'failed' && this.entries.size > 0
+      && !this.errors.length && !blockingFailure;
+    const status = result.status === 'skipped' ? 'skipped'
+      : result.status === 'failed' && advisoryOnlyFailure ? 'passed' : 'failed';
     fs.writeFileSync(path.join(this.dir, 'manifest.json'), JSON.stringify({
       version: 1, project: this.project, status,
       tests: [...this.entries.values()], added, errors: this.errors,
