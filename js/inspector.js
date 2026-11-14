@@ -1191,10 +1191,10 @@ function markerOpacityFor(kind, item) {
   // strength regardless of which category filters happen to be active -- a search should never
   // come back dimmed just because Map setup was last left on a different category.
   if (state.searchScreenOpen) return 1;
-  const locationSelected = state.selected && ["tree", "landmark", "cow", "path"].includes(state.selected.type);
+  const locationSelected = state.selected && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type);
   if (locationSelected) {
     if (state.selected.type === kind && state.selected.item === item) return 1;
-    return 0.5;
+    return 0;
   }
 
   if (!state.overviewFilters.length) {
@@ -1369,6 +1369,7 @@ function onInspectorHeightTransitionEnd(callback, timeoutMs = INSPECTOR_MINIMIZE
 function holdSelectionMapUntilCameraSettles() {
   const transitionToken = {};
   state.selectionTransition.mapHeld = true;
+  state.selectionTransition.startedAt = performance.now();
   state.selectionMapTransitionToken = transitionToken;
   const settleMapTransition = () => {
     if (state.selectionMapTransitionToken !== transitionToken) return;
@@ -1385,9 +1386,9 @@ function holdSelectionMapUntilCameraSettles() {
       return;
     }
     state.selectionTransition.mapHeld = false;
+    state.selectionTransition.startedAt = null;
+    state.selectionTransition.outgoingIconLookup = null;
     state.selectionMapTransitionToken = null;
-    state.selectionMapTransitionIconLookup = null;
-    state.selectionMapTransitionOriginPoint = null;
     requestDraw();
   };
   requestAnimationFrame(settleMapTransition);
@@ -1397,13 +1398,27 @@ function zoomToSelection() {
   const waitForInspectorTransition = state.inspectorMinimizeTransitionPending;
   state.inspectorMinimizeTransitionPending = false;
   holdSelectionMapUntilCameraSettles();
-  const doZoom = () => {
+  const startCamera = () => {
     state.selectionTransition.viewportPending = false;
     if (typeof animateToHeadingUpNavigationViewport === "function" && selectedNavigationHeadingUpActive()) {
       animateToHeadingUpNavigationViewport(500, { deliberate: true });
     } else {
       ensureUserAndSelectionVisible({ animate: true, force: true, durationMs: HEADING_UP_NAV_ANIMATION_MS, deliberate: true });
     }
+  };
+  const doZoom = () => {
+    const delay = typeof selectionOutgoingRevealDurationMs === "function"
+      ? selectionOutgoingRevealDurationMs()
+      : 0;
+    if (!delay) {
+      startCamera();
+      return;
+    }
+    const transitionToken = state.selectionMapTransitionToken;
+    setTimeout(() => {
+      if (state.selectionMapTransitionToken !== transitionToken) return;
+      startCamera();
+    }, delay);
   };
 
   if (!els.inspector.classList.contains("minimized")) {

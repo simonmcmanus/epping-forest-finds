@@ -2766,6 +2766,13 @@ function goToInitialView(updateHash = true, { enterAnimated = true } = {}) {
   const wasMinimized = els.inspector.classList.contains("minimized");
   // Before state.selected changes below -- see startCameraOriginTransition (js/app.js).
   startCameraOriginTransition();
+  // Nearby is the new destination, so abandon the selection handoff immediately rather than
+  // letting its stale camera-settle callback keep suppressing the pins until the old move ends.
+  state.selectionMapTransitionToken = null;
+  state.selectionTransition.mapHeld = false;
+  state.selectionTransition.startedAt = null;
+  state.selectionTransition.outgoingIconLookup = null;
+  state.selectionTransition.viewportPending = false;
   state.selected = null;
   clearManualCameraOverride();
   state.clusterZoomed = false;

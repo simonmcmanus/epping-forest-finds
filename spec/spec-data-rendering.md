@@ -165,7 +165,7 @@ Draw order (back to front):
 - Roads rendering limited to **2,000 segments per frame**
 - Only markers within canvas bounds (+ padding) are drawn (`isNearCanvas` check)
 - Only markers in the active overview set are drawn on map (`shouldDrawMapIcon`)
-- When a tree, landmark, cow, or path is selected (navigation mode), `shouldDrawMapIcon` returns `false` for **all** items — the selected item is rendered exclusively by `drawSelectedOverlay`. This clears the map of all other pins while navigating.
+- When a tree, landmark, cow, path, or water location is selected (navigation mode), `shouldDrawMapIcon` returns `false` for **all** Nearby items — the selected item is rendered exclusively by `drawSelectedOverlay`. This clears unrelated Nearby items from hit testing immediately and prevents the old 50% opacity state. During the camera handoff a render-only copy of the outgoing pins leaves in a short ordered fade, then the destination marker fades in; reduced-motion users get the final selected-only marker state without these transition frames.
 - `drawSelectedOverlay` runs on `#overlayCanvas` (not `#mapCanvas`) and uses `worldToScreenForOverlay()` so the selected pin stays locked to its geographic location while heading-up uses CSS delta rotation between redraws.
 - When `nearbyHeadingUpActive()` is true **or** `tiltActive()` is true, tree/landmark/cow pins are moved from `#mapCanvas` to `#overlayCanvas` (drawn in `drawOverlay()` before the user dot). In tilt mode the projected `worldToScreenForOverlayTilted` function is used so pins appear to lie flat on the tilted ground plane rather than being CSS-rotated as if they were flat objects leaning back. This makes 3D behaviour consistent across all screens — nearby overview, selected navigation (location detail), filter panel, and settings.
 - While `tiltActive()` is true (full 3D), pins and road/path lines behind the user's current heading are not drawn at all — see "Full 3D — hiding what's behind" under Camera Behavior.
@@ -858,7 +858,10 @@ moving the real GPS fix:
     starts the slide. It is called, before `state.selected` changes, from `handleMapClick` and
     `focusOverviewItem` (js/inspector.js), `openSearchResult` (entering a selection) and
     `goToInitialView` (js/nav.js, leaving one back to Nearby) — the same place in each flow
-    `startNearbyOriginTransition` is called before `state.nearbyAnchor` changes.
+    `startNearbyOriginTransition` is called before `state.nearbyAnchor` changes. The selection
+    handoff keeps this camera continuity independent from marker visibility: Nearby hit targets
+    and the browse ring switch away immediately, the outgoing pins leave in a short staggered
+    fade, and the selected destination marker is revealed after that handoff.
 - **Browsing is not a first-person view.** Three tilt behaviours exist to model standing
   somewhere and facing forward, and all three are suspended while a browse anchor is set, via
   the shared `tiltHidesWhatIsBehind()` (`!state.nearbyAnchor`):

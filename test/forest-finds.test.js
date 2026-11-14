@@ -635,6 +635,8 @@ globalThis.__forestFindsTest = {
   nearbyOriginTransitionActive,
   nearbyRevealOpacity,
   nearbyRevealInProgress,
+  selectionOutgoingMarkerOpacity,
+  selectionDestinationOpacity,
   NEARBY_REVEAL_MS,
   cameraOriginPoint,
   tiltHidesWhatIsBehind,
@@ -994,9 +996,9 @@ function resetData(app) {
   app.state.selectionTransition.viewportPending = false;
   app.state.inspectorMinimizeTransitionPending = false;
   app.state.selectionTransition.mapHeld = false;
+  app.state.selectionTransition.startedAt = null;
+  app.state.selectionTransition.outgoingIconLookup = null;
   app.state.selectionMapTransitionToken = null;
-  app.state.selectionMapTransitionIconLookup = null;
-  app.state.selectionMapTransitionOriginPoint = null;
   app.state.headingUpEntryAnim = null;
   app.state.renderedNavigationHeading = null;
   // resetData simulates an app already well past first load, so heading-up activations here
@@ -1499,17 +1501,16 @@ test("settling clears pending merges so the next frame starts none", () => {
     "a group that forms right after settling is drawn settled, not shrinking its members in");
 });
 
-test("a group of dimmed pins draws as dim as its neighbours", () => {
+test("Nearby pins are hidden during the selection handoff instead of dimmed", () => {
   resetData(app);
   const spot = makePoint(app, 51.665, 0.045);
   const pubs = [1, 2].map(n => ({ id: `pub${n}`, name: "Pub", category: "pub", ...spot }));
   app.state.selected = { type: "tree", item: { id: "sel", point: { x: 0, y: 0 } } };
   app.state.selectionTransition.mapHeld = true;
-  const alphas = [];
+  let drawImageCount = 0;
   const ctx = {
     save() {}, restore() {}, beginPath() {}, closePath() {}, clip() {}, roundRect() {},
-    arc() {}, fill() {}, stroke() {}, lineTo() {}, moveTo() {}, drawImage() {}, fillText() {},
-    set globalAlpha(v) { alphas.push(v); },
+    arc() {}, fill() {}, stroke() {}, lineTo() {}, moveTo() {}, drawImage() { drawImageCount += 1; }, fillText() {},
   };
   try {
     app.drawMapMarkers(ctx, app.buildMapMarkers(markerLookup(pubs.map(item => ({ type: "landmark", item }))), markerScreen.bind(null)), p => p, false);
@@ -1517,7 +1518,22 @@ test("a group of dimmed pins draws as dim as its neighbours", () => {
     app.state.selectionTransition.mapHeld = false;
     app.state.selected = null;
   }
-  assert.ok(alphas.some(a => a > 0 && a < 1), "a group of non-selected places is dimmed like a lone one");
+  assert.equal(drawImageCount, 0, "non-selected Nearby pins are not painted during the handoff");
+});
+
+test("the selection handoff hides Nearby pins before revealing the destination", () => {
+  resetData(app);
+  const startedAt = 1000;
+  app.state.selected = { type: "tree", item: { id: "selected", point: { x: 0, y: 0 } } };
+  app.state.selectionTransition.mapHeld = true;
+  app.state.selectionTransition.startedAt = startedAt;
+
+  assert.equal(app.selectionDestinationOpacity(startedAt), 0, "the destination waits for Nearby pins to leave");
+  assert.ok(app.selectionDestinationOpacity(startedAt + 300) > 0, "the destination then starts to appear");
+  assert.equal(app.selectionDestinationOpacity(startedAt + 1000), 1, "the destination settles fully visible");
+  assert.equal(app.selectionOutgoingMarkerOpacity(0, startedAt), 1, "the outgoing set starts visible");
+  assert.ok(app.selectionOutgoingMarkerOpacity(0, startedAt + 60) < 1, "the outgoing set fades after the handoff starts");
+  assert.equal(app.selectionOutgoingMarkerOpacity(0, startedAt + 300), 0, "the outgoing set finishes hidden");
 });
 
 test("a tree cluster's icon is the shared species only when every member agrees", () => {
@@ -11204,15 +11220,12 @@ test("selection entry points capture the browse pivot before clearing the anchor
   settleNearbySlide(app);
 
   const nearbyScale = app.state.viewport.scale;
-  const outgoingIconLookup = app.activeIconLookup();
   app.focusOverviewItem("tree", "r1");
   assert.equal(app.state.nearbyAnchor, null, "selection should still clear the browse anchor");
   assert.equal(app.state.selectionTransition.mapHeld, true,
-    "the outgoing Nearby map should remain visible during selection");
-  assert.ok(app.activeIconLookup().tree.size > 0,
-    "Nearby pins should remain available during the handoff");
-  assert.equal(app.activeIconLookup(), outgoingIconLookup,
-    "the handoff should retain the outgoing Nearby pins, not rebuild a new set around the user");
+    "the camera handoff should remain active during selection");
+  assert.equal(app.activeIconLookup().tree.size, 0,
+    "Nearby pins should be removed from drawing and hit testing during the handoff");
   assert.ok(app.state.cameraOriginTransition, "selection should animate the camera pivot basis change");
   assert.ok(
     Math.abs(app.state.cameraOriginTransition.fromX - anchor.point.x) < 1e-9
@@ -11949,21 +11962,15 @@ test("tapping a location from a browsed Nearby anchor keeps the outgoing map dur
   app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
   assert.ok(app.state.nearbyOriginTransition, "sanity: the Nearby-origin transition is in flight");
 
-  const outgoingIconLookup = app.activeIconLookup();
   const treeTap = pinTapPoint(app, tree.point);
   assert.equal(app.findHit(treeTap, app.screenToWorld(treeTap.x, treeTap.y)).type, "tree");
   tapMap(app, treeTap);
 
   assert.equal(app.state.selected?.type, "tree", "the Nearby pin should open the location");
   assert.equal(app.state.selectionTransition.mapHeld, true,
-    "the outgoing map should remain active during a direct map selection");
-  assert.equal(app.activeIconLookup(), outgoingIconLookup,
-    "direct map selection should retain the pins from the browsed Nearby view");
-  assert.ok(
-    Math.abs(app.state.selectionMapTransitionOriginPoint.x - anchor.point.x) < 1e-9
-      && Math.abs(app.state.selectionMapTransitionOriginPoint.y - anchor.point.y) < 1e-9,
-    "direct map selection should retain the browsed pivot during handoff"
-  );
+    "the camera handoff should remain active during a direct map selection");
+  assert.equal(app.activeIconLookup().tree.size, 0,
+    "direct map selection should hide Nearby pins during the handoff");
   assert.equal(app.state.nearbyOriginTransition, null,
     "selection should cancel the obsolete Nearby-origin transition");
   app.stopViewportAnimation();
