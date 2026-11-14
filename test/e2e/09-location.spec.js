@@ -17,13 +17,20 @@ test.describe("Location and GPS — happy path", () => {
     test.beforeEach(async ({ page }, testInfo) => {
       await skipOnboarding(page);
       await mockCowApi(page);
-      if (testInfo.title.includes("first-location veteran tree adventure")) {
+      if (testInfo.title.includes("veteran tree adventure")) {
         await page.addInitScript(() => localStorage.setItem("ff-location-v1", "granted"));
         await page.route("**/api/features**", (route) =>
           route.fulfill({
             status: 200,
             contentType: "application/json",
             body: JSON.stringify({ community: true }),
+          })
+        );
+        await page.route("**/api/community/overlay", (route) =>
+          route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({ generatedAt: 1, entries: {} }),
           })
         );
       }
@@ -80,6 +87,23 @@ test.describe("Location and GPS — happy path", () => {
       expect(box && box.height, "the adventure card should be fully laid out before capture").toBeGreaterThan(140);
       await settleMapIconsAndDraw(page);
       await expect(page).toHaveScreenshot("veteran-tree-adventure.png", { fullPage: false });
+    });
+
+    test("the veteran tree adventure prefers a nearby tree that is not already verified", async ({ page }) => {
+      const choice = await page.evaluate(() => {
+        const candidates = nearestTreesTo(state.userLocation.latitude, state.userLocation.longitude, 50)
+          .filter(({ tree }) => treeAdventureTag(tree));
+        const alreadyVerified = candidates[0].tree;
+        communityOverlay.entries = { [communityTreeTarget(alreadyVerified)]: { s: "verified", n: 1 } };
+        communityOverlay.generatedAt = 1;
+        const selected = treeAdventureTarget();
+        return {
+          alreadyVerified: treeHashKey(alreadyVerified),
+          selected: selected && treeHashKey(selected.tree),
+        };
+      });
+      expect(choice.selected).toBeTruthy();
+      expect(choice.selected).not.toBe(choice.alreadyVerified);
     });
 
     test("on a train, the You marker keeps moving between GPS fixes rather than holding still and then jumping", async ({ page, context }) => {

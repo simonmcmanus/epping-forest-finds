@@ -8,6 +8,8 @@ const TREE_ADVENTURE_REWARD = 10;
 let treeAdventureRetryTimer = null;
 let treeAdventureTargetItem = null;
 let treeAdventureArrowAngle = null;
+let treeAdventureOverlayAttempted = false;
+let treeAdventureOverlayWait = null;
 
 function treeAdventureRead(key) {
   try { return JSON.parse(localStorage.getItem(key) || "null"); } catch { return null; }
@@ -49,12 +51,39 @@ function treeAdventureTag(tree) {
   return tag && tag !== "0" ? tag : null;
 }
 
+function treeAdventureCommunityEntry(target) {
+  if (!target || typeof communityOverlay === "undefined") return null;
+  return communityOverlay.entries && communityOverlay.entries[target] || null;
+}
+
+function treeAdventureAlreadyVerified(tree) {
+  const target = communityTreeTarget(tree);
+  const remote = treeAdventureCommunityEntry(target);
+  if (remote && (remote.s === "verified" || remote.s === "confirmed")) return true;
+  if (typeof communityReadLocal !== "function") return false;
+  const local = communityReadLocal()[target];
+  return Boolean(local && local.status === "VERIFIED");
+}
+
+function treeAdventureAlreadyReported(tree) {
+  if (typeof communityReadLocal !== "function") return false;
+  const target = communityTreeTarget(tree);
+  return Boolean(target && communityReadLocal()[target]);
+}
+
 function treeAdventureTarget() {
   if (!state || !state.userLocation || typeof communityTreeTarget !== "function") return null;
   const candidates = typeof nearestTreesTo === "function"
     ? nearestTreesTo(state.userLocation.latitude, state.userLocation.longitude, 50)
     : (state.nearestTree ? [state.nearestTree] : []);
-  const nearest = candidates.find(({ tree }) => treeAdventureTag(tree)) || null;
+  const tagged = candidates.filter(({ tree }) => treeAdventureTag(tree));
+  // Coverage is more useful than repeatedly confirming a tree the community already knows. Keep
+  // the nearest-first ordering within each group so the adventure remains genuinely local, and
+  // avoid a tree this device has already reported because its detail screen will show the saved
+  // report instead of offering the verify action again.
+  const unverified = tagged.filter(({ tree }) => !treeAdventureAlreadyVerified(tree));
+  const fresh = unverified.filter(({ tree }) => !treeAdventureAlreadyReported(tree));
+  const nearest = fresh[0] || unverified[0] || tagged[0] || null;
   if (!nearest || !nearest.tree) return null;
   const target = communityTreeTarget(nearest.tree);
   return target ? { ...nearest, target } : null;
@@ -83,6 +112,21 @@ function treeAdventureDismiss() {
     treeAdventureTargetItem = null;
     treeAdventureArrowAngle = null;
   }, prefersReducedMotion() ? 0 : 320);
+}
+
+function treeAdventureWaitForCommunityOverlay() {
+  if (treeAdventureOverlayWait) return true;
+  if (treeAdventureOverlayAttempted || typeof communityOverlay === "undefined"
+      || communityOverlay.generatedAt || typeof communityLoadOverlay !== "function") return false;
+  treeAdventureOverlayAttempted = true;
+  const timeout = new Promise((resolve) => window.setTimeout(resolve, 1200));
+  treeAdventureOverlayWait = Promise.race([communityLoadOverlay(), timeout])
+    .catch(() => {})
+    .finally(() => {
+      treeAdventureOverlayWait = null;
+      adventureMaybeShow();
+    });
+  return true;
 }
 
 // Keep the invitation's small arrow on the same projected ground plane as the map and the
@@ -187,6 +231,7 @@ function adventureMaybeShow() {
     treeAdventureRetry();
     return;
   }
+  if (treeAdventureWaitForCommunityOverlay()) return;
   const nearest = treeAdventureTarget();
   if (!nearest) return;
   try { localStorage.setItem(TREE_ADVENTURE_SEEN_KEY, "1"); } catch {}
