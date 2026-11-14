@@ -1615,12 +1615,31 @@ function buildActiveMapMarkers(toScreen, tilted = false) {
 // anchor point. A lone pin uses this same conservative shape at its drawn scale, with a minimum
 // touch-sized box; a group always passes scale 1 because its face stays fixed across map zoom.
 function markerCollisionBox(dpr, scale = 1) {
-  const rect = clusterMarkerRect(0, 0, 100, dpr, scale);
-  const gap = MARKER_COLLISION_GAP_CSS_PX * dpr;
   return {
-    width: Math.max(MARKER_MIN_COLLISION_SIZE_CSS_PX * dpr, rect.right - rect.left + gap),
-    height: Math.max(MARKER_MIN_COLLISION_SIZE_CSS_PX * dpr, rect.bottom - rect.top + gap),
+    width: markerCollisionWidth(dpr, scale),
+    height: markerCollisionHeight(dpr, scale),
   };
+}
+
+// The count-100 badge is the conservative collision shape. Keep these calculations numeric in
+// the per-item path: clusterMarkerRect/clusterBadgeGeometry return several short-lived objects,
+// and buildMapMarkers runs on every animation frame.
+function markerCollisionUnit(dpr, scale) {
+  return dpr * scale;
+}
+
+function markerCollisionWidth(dpr, scale) {
+  const unit = markerCollisionUnit(dpr, scale);
+  const radius = MAP_PNG_ICON_SIZE * MAP_ICON_SCALE_UNSELECTED * unit * 0.32;
+  const gap = MARKER_COLLISION_GAP_CSS_PX * dpr;
+  return Math.max(MARKER_MIN_COLLISION_SIZE_CSS_PX * dpr, radius * 2.4 + 10 * unit + gap);
+}
+
+function markerCollisionHeight(dpr, scale) {
+  const unit = markerCollisionUnit(dpr, scale);
+  const radius = MAP_PNG_ICON_SIZE * MAP_ICON_SCALE_UNSELECTED * unit * 0.32;
+  const gap = MARKER_COLLISION_GAP_CSS_PX * dpr;
+  return Math.max(MARKER_MIN_COLLISION_SIZE_CSS_PX * dpr, radius * 2.3 + 6 * unit + gap);
 }
 
 // The individual pin's drawn scale and hit target are shared with inspector.js. A 44 CSS-px
@@ -1640,8 +1659,12 @@ function markerLoneScale(item, tilted = false) {
 }
 
 function markerCollisionBoxesOverlap(a, b, aBox = a.collisionBox, bBox = b.collisionBox) {
-  return Math.abs(a.sp.x - b.sp.x) < (aBox.width + bBox.width) / 2
-    && Math.abs(a.sp.y - b.sp.y) < (aBox.height + bBox.height) / 2;
+  const aWidth = aBox ? aBox.width : a.collisionWidth;
+  const aHeight = aBox ? aBox.height : a.collisionHeight;
+  const bWidth = bBox ? bBox.width : b.collisionWidth;
+  const bHeight = bBox ? bBox.height : b.collisionHeight;
+  return Math.abs(a.sp.x - b.sp.x) < (aWidth + bWidth) / 2
+    && Math.abs(a.sp.y - b.sp.y) < (aHeight + bHeight) / 2;
 }
 
 // Seed-anchored, single pass, deliberately not transitive (chaining A-near-B-near-C walked across
@@ -1677,8 +1700,10 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main", tilted = false) {
       if (!item.point) continue;
       const sp = toScreen(item.point);
       if (!Number.isFinite(sp.x) || !Number.isFinite(sp.y)) continue;
-      const collisionBox = markerCollisionBox(dpr, markerLoneScale(item, tilted));
-      const node = { item, type, sp, order: nodes.length, density: 0, collisionBox,
+      const loneScale = markerLoneScale(item, tilted);
+      const node = { item, type, sp, order: nodes.length, density: 0,
+        collisionWidth: markerCollisionWidth(dpr, loneScale),
+        collisionHeight: markerCollisionHeight(dpr, loneScale),
         claimed: false, isSeed: false, cx: Math.floor(sp.x / cell), cy: Math.floor(sp.y / cell) };
       nodes.push(node);
       nodeOfItem.set(item, node);
@@ -1770,7 +1795,7 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main", tilted = false) {
     // Once a seed has a member, its fixed-size group face becomes the exclusion box too. This
     // absorbs a small neighbouring pin before it can overlap the face after zoom-out.
     const isGroup = seed.density > 0 || (held && held.length > 1);
-    const seedBox = isGroup ? groupBox : seed.collisionBox;
+    const seedBox = isGroup ? groupBox : null;
     // New members need the normal box; members this seed held last time are kept up to the split
     // box (looked up directly, not through the grid). Both are measured from this seed, so anchors
     // stay a full box apart.
@@ -1780,7 +1805,7 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main", tilted = false) {
           const bucket = grid.get(cellKey(seed.cx + dx, seed.cy + dy));
           if (!bucket) continue;
           for (const other of bucket) {
-            const otherBox = other.density > 0 ? groupBox : other.collisionBox;
+            const otherBox = other.density > 0 ? groupBox : null;
             if (other.claimed || !markerCollisionBoxesOverlap(seed, other, seedBox, otherBox)) continue;
             other.claimed = true;
             members.push(other);
