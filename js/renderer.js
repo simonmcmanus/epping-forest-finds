@@ -1805,7 +1805,10 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main", tilted = false) {
           const bucket = grid.get(cellKey(seed.cx + dx, seed.cy + dy));
           if (!bucket) continue;
           for (const other of bucket) {
-            const otherBox = other.density > 0 ? groupBox : null;
+            const rememberedGroup = memory && memory.get(other.item);
+            const otherBox = other.density > 0 || (rememberedGroup && rememberedGroup.length > 1)
+              ? groupBox
+              : null;
             if (other.claimed || !markerCollisionBoxesOverlap(seed, other, seedBox, otherBox)) continue;
             other.claimed = true;
             members.push(other);
@@ -2448,7 +2451,8 @@ function drawMapMarkers(ctx, markers, toScreen, tilted = false, options = {}) {
         const p = toScreen(shrinking.item.point);
         const type = markerItemType(marker, shrinking.item);
         ctx.globalAlpha = reveal * transitionOpacity * lonePinOpacity(type, shrinking.item);
-        drawItemPin(ctx, type, shrinking.item, p.x, p.y, loneSize * shrinking.scale);
+        const shrinkingTiltScale = tilted ? tiltPinScale(shrinking.item.point) : 1;
+        drawItemPin(ctx, type, shrinking.item, p.x, p.y, loneSize * shrinkingTiltScale * shrinking.scale);
       }
     }
     ctx.globalAlpha = 1;

@@ -11746,7 +11746,7 @@ test("an expanded group hides every other highlighted location from the map", ()
   resetData(app);
   app.state.userLocation = makePoint(app, 51.65, 0.05);
   const grouped = { id: "t1", commonName: "Oak", ...makePoint(app, 51.6503, 0.05) };
-  const otherTree = { id: "t2", commonName: "Beech", ...makePoint(app, 51.6504, 0.0501) };
+  const otherTree = { id: "t2", commonName: "Beech", ...makePoint(app, 51.6508, 0.0501) };
   const pub = { id: "p1", name: "The Forester", category: "pub", ...makePoint(app, 51.6502, 0.0503) };
   app.state.trees.push(grouped, otherTree);
   app.state.landmarks.push(pub);
@@ -11766,7 +11766,7 @@ test("a pin hidden by an expanded group is no longer tappable where it used to b
   resetData(app);
   app.state.userLocation = makePoint(app, 51.65, 0.05);
   const grouped = { id: "t1", commonName: "Oak", ...makePoint(app, 51.6503, 0.05) };
-  const otherTree = { id: "t2", commonName: "Beech", ...makePoint(app, 51.6504, 0.0501) };
+  const otherTree = { id: "t2", commonName: "Beech", ...makePoint(app, 51.6508, 0.0501) };
   app.state.trees.push(grouped, otherTree);
   app.state.viewport = { scale: 200000, tx: 0, ty: 0 };
   app.state.viewport.tx = 500 - otherTree.point.x * 200000;
@@ -11781,11 +11781,28 @@ test("a pin hidden by an expanded group is no longer tappable where it used to b
   assert.equal(app.findHit(tap, world).type, "none", "a hidden pin must not stay selectable");
 });
 
+test("a member represented by a visible group is not individually tappable outside its face", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const grouped = { id: "grouped", commonName: "Oak", ...makePoint(app, 51.6503, 0.05) };
+  const member = { id: "member", commonName: "Beech", ...makePoint(app, 51.65034, 0.05) };
+  app.state.trees.push(grouped, member);
+  app.state.viewport = { scale: 200000, tx: 500 - member.point.x * 200000, ty: 400 - member.point.y * 200000 };
+  app.state.emojiScaleAnimated = 1;
+  app.resetMarkerGroupMemory();
+  const markers = app.buildMapMarkers(app.buildNearbyIconLookup(), app.worldToScreen);
+  assert.equal(markers.length, 1, "the two nearby trees are represented by one visible group");
+
+  const tap = pinTapPoint(app, member.point);
+  assert.equal(app.findHit(tap, app.screenToWorld(tap.x, tap.y)).type, "none",
+    "a member hidden inside the group must not be selected at its old pin position");
+});
+
 test("a pin hidden behind a selection is no longer tappable, so the tap is open ground", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.65, 0.05);
   const selected = { id: "t1", commonName: "Oak", ...makePoint(app, 51.6503, 0.05) };
-  const otherTree = { id: "t2", commonName: "Beech", ...makePoint(app, 51.6504, 0.0501) };
+  const otherTree = { id: "t2", commonName: "Beech", ...makePoint(app, 51.6508, 0.0501) };
   app.state.trees.push(selected, otherTree);
   app.state.viewport = { scale: 200000, tx: 0, ty: 0 };
   app.state.viewport.tx = 500 - otherTree.point.x * 200000;

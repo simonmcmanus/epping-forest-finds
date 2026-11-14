@@ -176,7 +176,7 @@ function findHit(screen, world) {
   const pinDistance = (point, item) => {
     const iconSize = MAP_PNG_ICON_SIZE * dpr * pinScaleFor(item) * MAP_ICON_SCALE_UNSELECTED;
     const pinYOffset = iconSize * 0.416; // R * 1.3 = head centre above tip
-    return Math.max(Math.abs(point.x - screen.x) / 1.2, Math.abs((point.y - pinYOffset) - screen.y));
+    return Math.max(Math.abs(point.x - screen.x), Math.abs((point.y - pinYOffset) - screen.y));
   };
 
   // Only pins that are actually on screen are tappable: hit testing asks the renderer's own
@@ -188,9 +188,15 @@ function findHit(screen, world) {
   // hidden because a location is selected (where only the selected pin itself is drawn -- so
   // that one stays tappable, and tapping anywhere else near it is open ground).
   const iconLookup = activeIconLookup();
+  const markerByItem = new Map();
+  for (const marker of buildActiveMapMarkers(toScreen, tilted)) {
+    for (const item of marker.items) markerByItem.set(item, marker);
+  }
   const selectedItem = hasRealSelection() ? state.selected.item : null;
   function isTappablePin(type, item) {
-    return item === selectedItem || shouldDrawMapIcon(type, item, iconLookup);
+    const marker = markerByItem.get(item);
+    return item === selectedItem
+      || (shouldDrawMapIcon(type, item, iconLookup) && marker && marker.items.length === 1);
   }
 
   let bestPlace = null;
