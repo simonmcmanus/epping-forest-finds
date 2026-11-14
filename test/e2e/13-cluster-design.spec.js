@@ -96,12 +96,14 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
       try { drawMapMarkers(ctx, markers, p => p); }
       finally { drawClusterIconChip = chip; }
       return { markers: markers.length, sources, labels, entries: clusterPreviewEntries(markers[0]).length,
+        additionalKinds: clusterAdditionalKindCount(markers[0]),
         expected: [treeSpeciesIconPath(oak.commonName, oak.latinName), iconPath('cafe')] };
     });
     expect(result.markers).toBe(1);
     expect(result.sources).toEqual(result.expected);
     expect(result.entries).toBe(2);
-    expect(result.labels).toEqual(['8']);
+    expect(result.additionalKinds).toBe(2);
+    expect(result.labels, 'the marker calls out the two kinds hidden behind its two preview chips').toEqual(['+2', '8']);
   });
 
   test('station groups retain their Underground and National Rail symbols', async ({ page }) => {

@@ -732,9 +732,15 @@ globalThis.__forestFindsTest = {
   resetMarkerGroupMemory,
   placeUserLabel,
   markerPaintedRects,
+  clusterBadgeGeometry,
   clusterMarkerRect,
   clusterPreviewEntries,
+  clusterKindsByCategory,
+  clusterAdditionalKindCount,
+  clusterHasMoreKinds,
+  clusterMoreBadgeGeometry,
   drawMapMarkers,
+  drawClusterMarker,
   clusterTreeIconSrc,
   treeSpeciesIconPath,
   clusterJoinAnimationState,
@@ -1457,6 +1463,8 @@ test("a mixed group's chips show one per category first, and its count is the ex
   assert.equal(entries.length, 2);
   assert.equal(entries[0].src, app.ICON_PATHS["tree-english-oak"], "the biggest category shows its most common kind first");
   assert.equal(entries[1].itemType, "cow", "a one-cow minority is not hidden behind a second tree species");
+  assert.equal(app.clusterAdditionalKindCount(markers[0]), 1, "the overflow badge counts the hidden visual kind");
+  assert.equal(app.clusterHasMoreKinds(markers[0]), true);
 
   const texts = [];
   const ctx = {
@@ -1466,7 +1474,26 @@ test("a mixed group's chips show one per category first, and its count is the ex
     fillText(text) { texts.push(text); },
   };
   app.drawMapMarkers(ctx, markers, markerScreen, false);
-  assert.deepEqual(texts, ["5"], "the marker shows the raw number of items in the group");
+  assert.deepEqual(texts, ["+1", "5"], "the marker shows the hidden-kind count before the raw member count");
+});
+
+test("the explicit overflow badge is absent when two kinds fit, and stays inside the face at tilt scale", () => {
+  const ctx = {
+    save() {}, restore() {}, beginPath() {}, closePath() {}, clip() {}, roundRect() {},
+    arc() {}, fill() {}, stroke() {}, lineTo() {}, moveTo() {}, drawImage() {},
+    fillText(text) { this.labels.push(text); }, labels: [],
+  };
+  app.drawClusterMarker(ctx, 100, 100, 3, [], app.pixelRatio(), 1, 0);
+  assert.deepEqual(ctx.labels, ["3"], "two visible kinds need no overflow badge");
+  for (const scale of [1, 0.8, 0.65]) {
+    const badge = app.clusterMoreBadgeGeometry(100, 100, 3, app.pixelRatio(), scale, 1);
+    const face = app.clusterBadgeGeometry(100, 100, 3, app.pixelRatio(), scale);
+    assert.ok(badge.left >= face.left && badge.right <= face.left + face.width, `horizontal fit at ${scale}`);
+    assert.ok(badge.top >= face.top && badge.bottom <= face.bottom, `vertical fit at ${scale}`);
+    assert.equal(badge.label, "+1");
+  }
+  app.drawClusterMarker(ctx, 100, 100, 3, [], app.pixelRatio(), 0.65, 1);
+  assert.deepEqual(ctx.labels, ["3", "+1", "3"], "the small badge remains legible at the tilt floor");
 });
 
 test("a single-category group's second chip is its second most common kind", () => {

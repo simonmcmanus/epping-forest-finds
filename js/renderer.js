@@ -2070,6 +2070,12 @@ function markerItemIconSrc(type, item) {
 // most common kind -- so no category is hidden behind another's species; only a single-category
 // group shows its second most common kind as the second chip.
 function clusterPreviewEntries(marker) {
+  const byCategory = clusterKindsByCategory(marker);
+  if (byCategory.length === 1) return byCategory[0].kinds.slice(0, 2);
+  return byCategory.slice(0, 2).map(category => category.kinds[0]);
+}
+
+function clusterKindsByCategory(marker) {
   const byCategory = [];
   for (const type of MARKER_TYPES) {
     const items = marker.itemsByType[type];
@@ -2085,8 +2091,18 @@ function clusterPreviewEntries(marker) {
     byCategory.push({ total: items.length, kinds: Array.from(byKey.values()).sort((a, b) => b.count - a.count) });
   }
   byCategory.sort((a, b) => b.total - a.total);
-  if (byCategory.length === 1) return byCategory[0].kinds.slice(0, 2);
-  return byCategory.slice(0, 2).map(category => category.kinds[0]);
+  return byCategory;
+}
+
+// The face previews at most two visual kinds. Return the number that the overflow badge makes
+// discoverable, rather than a boolean, so the cue tells the reader how much more is behind it.
+function clusterAdditionalKindCount(marker, byCategory = clusterKindsByCategory(marker)) {
+  const kindCount = byCategory.reduce((total, category) => total + category.kinds.length, 0);
+  return Math.max(0, kindCount - 2);
+}
+
+function clusterHasMoreKinds(marker, byCategory = clusterKindsByCategory(marker)) {
+  return clusterAdditionalKindCount(marker, byCategory) > 0;
 }
 
 // One category's icon, cropped to a circle, sitting directly on the badge underneath it -- no
@@ -2172,8 +2188,23 @@ function clusterBadgeContains(screen, x, y, count, dpr, scale = 1) {
     && screen.y >= b.top - pad && screen.y <= y + pad;
 }
 
+// The extra-kinds badge sits in the lower-left of the face, balancing the total-count chip in the
+// upper-right. Its number is deliberately explicit: a reader can distinguish "there are more
+// kinds" from the marker's total member count without deciphering a lone plus symbol.
+function clusterMoreBadgeGeometry(x, y, count, dpr, scale = 1, moreCount = 0) {
+  const b = clusterBadgeGeometry(x, y, count, dpr, scale);
+  const u = b.unit;
+  const label = moreCount > 99 ? "+99" : `+${moreCount}`;
+  const width = (label.length > 2 ? 25 : 20) * u;
+  const height = 13 * u;
+  const left = b.left + 3 * u;
+  const bottom = b.bottom - 3 * u;
+  return { left, top: bottom - height, width, height, right: left + width, bottom, label,
+    radius: 6 * u, fontSize: 8.5 * u };
+}
+
 // One artwork fills the head; two (the two most common kinds) sit side by side in it.
-function drawClusterMarker(ctx, x, y, count, iconSources, dpr, scale = 1) {
+function drawClusterMarker(ctx, x, y, count, iconSources, dpr, scale = 1, moreCount = 0) {
   const sources = iconSources.slice(0, 2);
   const b = clusterBadgeGeometry(x, y, count, dpr, scale);
   const u = b.unit;
@@ -2183,6 +2214,21 @@ function drawClusterMarker(ctx, x, y, count, iconSources, dpr, scale = 1) {
     drawClusterIconChip(ctx, cx, cy, sources[0], R * 0.86);
   } else {
     sources.forEach((src, i) => drawClusterIconChip(ctx, cx + (i ? 1 : -1) * R * 0.56, cy, src, R * 0.52));
+  }
+  if (moreCount > 0) {
+    const more = clusterMoreBadgeGeometry(x, y, count, dpr, scale, moreCount);
+    ctx.beginPath();
+    ctx.roundRect(more.left, more.top, more.width, more.height, more.radius);
+    ctx.fillStyle = "#233d30";
+    ctx.fill();
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = 1.25 * u;
+    ctx.stroke();
+    ctx.fillStyle = "white";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = `700 ${more.fontSize}px system-ui`;
+    ctx.fillText(more.label, more.left + more.width / 2, more.top + more.height / 2);
   }
   ctx.beginPath();
   ctx.roundRect(b.countX - b.countWidth / 2, b.countY - b.countHeight / 2, b.countWidth, b.countHeight, 9 * u);
@@ -2270,8 +2316,9 @@ function drawMapMarkers(ctx, markers, toScreen, tilted = false) {
       ctx.globalAlpha = reveal * groupOpacity(marker);
       const groupScale = Math.max(0.65, tiltScale) * joinScale * filterPinClusterScale(marker);
       _drawnMarkerSpecs.push({ worldPt, count: items.length, scale: groupScale });
+      const kinds = clusterKindsByCategory(marker);
       drawClusterMarker(ctx, screenPt.x, screenPt.y, items.length,
-        clusterPreviewEntries(marker).map(entry => entry.src), dpr, groupScale);
+        clusterPreviewEntries(marker).map(entry => entry.src), dpr, groupScale, clusterAdditionalKindCount(marker, kinds));
     } else {
       const type = marker.itemType;
       const animation = filterPinAnimationFor(items[0]);
