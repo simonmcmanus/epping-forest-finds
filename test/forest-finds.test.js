@@ -730,15 +730,22 @@ globalThis.__forestFindsTest = {
   screenToWorld,
   pixelRatio,
   mapEmojiScale,
+  mapMarkerPinHitRadius,
   MAP_PNG_ICON_SIZE,
   MAP_ICON_SCALE_UNSELECTED,
   buildMapMarkers,
   resetMarkerGroupMemory,
   placeUserLabel,
   markerPaintedRects,
+  clusterBadgeGeometry,
   clusterMarkerRect,
   clusterPreviewEntries,
+  clusterKindsByCategory,
+  clusterOverflowEntries,
+  clusterStackChipGeometry,
+  clusterMorePlusGeometry,
   drawMapMarkers,
+  drawClusterMarker,
   clusterTreeIconSrc,
   treeSpeciesIconPath,
   clusterJoinAnimationState,
@@ -1172,6 +1179,8 @@ const app = loadAppForTests();
 
 // Map markers: one clustering pass across every category. Items carry their screen position
 // directly as `point` here, with an identity projection, so each case controls the exact layout.
+// Keep shared fixtures at the normal-size camera; zoom-specific cases set this around their build.
+app.state.emojiScaleAnimated = 1;
 const markerScreen = (p) => p;
 const markerLookup = (items) => {
   const lookup = { tree: new Set(), landmark: new Set(), cow: new Set(), path: new Set(), water: new Set() };
@@ -1280,6 +1289,49 @@ test("a pair just outside the normal box stays one group once grouped, and is tw
   assert.equal(build(w * 1.1).length, 2, "built fresh at the same spacing they are separate");
 });
 
+test("zoomed-out lone pins use the available space without losing their touch floor", () => {
+  const items = [markerItem("tree", "a", 0, 0), markerItem("tree", "b", 56, 0)];
+  const previousScale = app.state.emojiScaleAnimated;
+  try {
+    app.state.emojiScaleAnimated = 1;
+    app.resetMarkerGroupMemory();
+    assert.equal(app.buildMapMarkers(markerLookup(items), markerScreen).length, 1,
+      "the full-size faces still group at this spacing");
+
+    app.state.emojiScaleAnimated = 0.3;
+    app.resetMarkerGroupMemory();
+    const markers = app.buildMapMarkers(markerLookup(items), markerScreen);
+    assert.equal(markers.length, 2, "small lone pins that fit side by side stay individual");
+    assert.equal(markers.reduce((count, marker) => count + marker.items.length, 0), items.length);
+  } finally {
+    app.state.emojiScaleAnimated = previousScale;
+    app.resetMarkerGroupMemory();
+  }
+});
+
+test("zoomed-out lone pins retain a 44 CSS-pixel hit radius", () => {
+  const dpr = app.pixelRatio();
+  const full = app.mapMarkerPinHitRadius(dpr, 1);
+  const zoomedOut = app.mapMarkerPinHitRadius(dpr, 0.3);
+  assert.ok(zoomedOut >= 22 * dpr, "the smallest lone pin still has a 44px diameter touch target");
+  assert.ok(zoomedOut < full, "the touch target follows the drawn pin while above its floor");
+});
+
+test("a fixed-size group reserves space against a neighbouring zoomed-out lone pin", () => {
+  const items = [markerItem("tree", "a", 0, 0), markerItem("tree", "b", 5, 0), markerItem("cow", "c", 30, 0)];
+  const previousScale = app.state.emojiScaleAnimated;
+  try {
+    app.state.emojiScaleAnimated = 0.3;
+    app.resetMarkerGroupMemory();
+    const markers = app.buildMapMarkers(markerLookup(items), markerScreen);
+    assert.equal(markers.length, 1, "the neighbouring pin is included instead of overlapping the group face");
+    assert.equal(markers[0].items.length, items.length);
+  } finally {
+    app.state.emojiScaleAnimated = previousScale;
+    app.resetMarkerGroupMemory();
+  }
+});
+
 test("a grouped pair separates once it is outside the split box", () => {
   const { w } = markerBox();
   const items = [markerItem("tree", "a", 0, 0), markerItem("tree", "b", 0, 0)];
@@ -1360,6 +1412,55 @@ test("expanding a cluster and collapsing it again leaves the main map's groups a
   assert.deepEqual(before, ["a+b"], "precondition: remembered as one group");
   app.buildMapMarkers(markerLookup([items[0]]), markerScreen, "expanded");
   assert.deepEqual(markerGroupsOf(app.buildMapMarkers(markerLookup(items), markerScreen)), before);
+});
+
+test("an item-count change keeps valid memory for unaffected groups", () => {
+  const { w } = markerBox();
+  const items = [markerItem("tree", "a1", 0, 0), markerItem("tree", "a2", 0, 0),
+    markerItem("tree", "b1", 240, 0), markerItem("tree", "b2", 240, 0)];
+  const build = (currentItems) => app.buildMapMarkers(markerLookup(currentItems), markerScreen);
+  app.resetMarkerGroupMemory();
+  const initial = build(items);
+  assert.deepEqual(markerGroupsOf(initial), ["a1+a2", "b1+b2"]);
+
+  items[3].item.point = { x: 240 + w * 1.1, y: 0 };
+  const added = [...items, markerItem("tree", "new", 0, 0)];
+  const after = build(added);
+  assert.deepEqual(Array.from(groupWith(after, "b1").items, item => item.id).sort(), ["b1", "b2"],
+    "the unchanged b seed keeps its previous member across the count change");
+  assert.ok(groupWith(after, "a1").items.some(item => item.id === "new"),
+    "the changed a group can claim the newly present item normally");
+});
+
+test("missing seeds and missing members drop only their own memory", () => {
+  const { w } = markerBox();
+  const makeItems = () => [markerItem("tree", "a1", 0, 0), markerItem("tree", "a2", 0, 0),
+    markerItem("tree", "b1", 240, 0), markerItem("tree", "b2", 240, 0)];
+  const build = (currentItems) => app.buildMapMarkers(markerLookup(currentItems), markerScreen);
+
+  const seedItems = makeItems();
+  app.resetMarkerGroupMemory();
+  build(seedItems);
+  seedItems[3].item.point = { x: 240 + w * 1.1, y: 0 };
+  const withoutSeed = seedItems.filter(({ item }) => item.id !== "a1");
+  withoutSeed.push(markerItem("tree", "replacement", 900, 900));
+  const afterMissingSeed = build(withoutSeed);
+  assert.deepEqual(Array.from(groupWith(afterMissingSeed, "b1").items, item => item.id).sort(), ["b1", "b2"],
+    "a missing seed does not discard the unaffected b seed's memory");
+
+  const memberItems = [markerItem("tree", "a1", 0, 0), markerItem("tree", "a2", 0, 0),
+    markerItem("tree", "m", w * 0.5, 0), markerItem("tree", "b1", 3 * w, 0), markerItem("tree", "b2", 3 * w, 0)];
+  app.resetMarkerGroupMemory();
+  const initial = build(memberItems);
+  assert.ok(groupWith(initial, "a1").items.some(item => item.id === "m"), "m starts in a's group");
+  memberItems[2].item.point = { x: w * 1.05, y: 0 };
+  const withoutMember = memberItems.filter(({ item }) => item.id !== "a2");
+  withoutMember.push(markerItem("tree", "replacement", 900, 900));
+  const afterMissingMember = build(withoutMember);
+  assert.equal(groupWith(afterMissingMember, "a1").items.some(item => item.id === "m"), false,
+    "a seed with a missing remembered member starts fresh");
+  assert.deepEqual(Array.from(groupWith(afterMissingMember, "b1").items, item => item.id).sort(), ["b1", "b2"],
+    "dropping a's memory preserves the unaffected b seed's membership");
 });
 
 test("building twice on the same view gives identical markers, whatever came before", () => {
@@ -1461,6 +1562,8 @@ test("a mixed group's chips show one per category first, and its count is the ex
   assert.equal(entries.length, 2);
   assert.equal(entries[0].src, app.ICON_PATHS["tree-english-oak"], "the biggest category shows its most common kind first");
   assert.equal(entries[1].itemType, "cow", "a one-cow minority is not hidden behind a second tree species");
+  assert.deepEqual(Array.from(app.clusterOverflowEntries(markers[0]), entry => entry.src),
+    [app.treeSpeciesIconPath("Common beech", "Fagus sylvatica")], "the stack uses the hidden visual kind");
 
   const texts = [];
   const ctx = {
@@ -1470,7 +1573,39 @@ test("a mixed group's chips show one per category first, and its count is the ex
     fillText(text) { texts.push(text); },
   };
   app.drawMapMarkers(ctx, markers, markerScreen, false);
-  assert.deepEqual(texts, ["5"], "the marker shows the raw number of items in the group");
+  assert.deepEqual(texts, ["5"], "the stack leaves the raw member count as the only text");
+});
+
+test("the hidden category stack stays inside the face at every tilt scale", () => {
+  const ctx = {
+    save() {}, restore() {}, beginPath() {}, closePath() {}, clip() {}, roundRect() {},
+    arc() {}, fill() {}, stroke() {}, lineTo() {}, moveTo() {}, drawImage() {},
+    fillText(text) { this.labels.push(text); }, labels: [],
+  };
+  for (const scale of [1, 0.8, 0.65]) {
+    const face = app.clusterBadgeGeometry(100, 100, 3, app.pixelRatio(), scale);
+    for (const total of [1, 2, 3]) {
+      for (let i = 0; i < total; i++) {
+        const chip = app.clusterStackChipGeometry(100, 100, 3, app.pixelRatio(), scale, i, total);
+        assert.ok(chip.cx - chip.radius >= face.left && chip.cx + chip.radius <= face.left + face.width,
+          `horizontal fit at scale ${scale}, stack size ${total}`);
+        assert.ok(chip.cy - chip.radius >= face.top && chip.cy + chip.radius <= face.bottom,
+          `vertical fit at scale ${scale}, stack size ${total}`);
+      }
+      const plus = app.clusterMorePlusGeometry(100, 100, 3, app.pixelRatio(), scale, total);
+      assert.ok(plus.cx - plus.radius >= face.left && plus.cx + plus.radius <= face.left + face.width,
+        `horizontal fit at scale ${scale}, plus stack size ${total}`);
+      assert.ok(plus.cy - plus.radius >= face.top && plus.cy + plus.radius <= face.bottom,
+        `vertical fit at scale ${scale}, plus stack size ${total}`);
+      if (total <= 2) {
+        const chip = app.clusterStackChipGeometry(100, 100, 3, app.pixelRatio(), scale, 0, total);
+        assert.ok(Math.abs(plus.cx - chip.cx) < plus.radius + chip.radius,
+          `the plus overlaps the peek icon at scale ${scale}, stack size ${total}`);
+      }
+    }
+  }
+  app.drawClusterMarker(ctx, 100, 100, 3, [], app.pixelRatio(), 0.65, ["hidden-a", "hidden-b"]);
+  assert.deepEqual(ctx.labels, ["3"], "the stack adds no competing text");
 });
 
 test("a single-category group's second chip is its second most common kind", () => {
@@ -11611,7 +11746,7 @@ test("an expanded group hides every other highlighted location from the map", ()
   resetData(app);
   app.state.userLocation = makePoint(app, 51.65, 0.05);
   const grouped = { id: "t1", commonName: "Oak", ...makePoint(app, 51.6503, 0.05) };
-  const otherTree = { id: "t2", commonName: "Beech", ...makePoint(app, 51.6504, 0.0501) };
+  const otherTree = { id: "t2", commonName: "Beech", ...makePoint(app, 51.6508, 0.0501) };
   const pub = { id: "p1", name: "The Forester", category: "pub", ...makePoint(app, 51.6502, 0.0503) };
   app.state.trees.push(grouped, otherTree);
   app.state.landmarks.push(pub);
@@ -11631,7 +11766,7 @@ test("a pin hidden by an expanded group is no longer tappable where it used to b
   resetData(app);
   app.state.userLocation = makePoint(app, 51.65, 0.05);
   const grouped = { id: "t1", commonName: "Oak", ...makePoint(app, 51.6503, 0.05) };
-  const otherTree = { id: "t2", commonName: "Beech", ...makePoint(app, 51.6504, 0.0501) };
+  const otherTree = { id: "t2", commonName: "Beech", ...makePoint(app, 51.6508, 0.0501) };
   app.state.trees.push(grouped, otherTree);
   app.state.viewport = { scale: 200000, tx: 0, ty: 0 };
   app.state.viewport.tx = 500 - otherTree.point.x * 200000;
@@ -11646,11 +11781,48 @@ test("a pin hidden by an expanded group is no longer tappable where it used to b
   assert.equal(app.findHit(tap, world).type, "none", "a hidden pin must not stay selectable");
 });
 
+test("a member represented by a visible group is not individually tappable outside its face", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const grouped = { id: "grouped", commonName: "Oak", ...makePoint(app, 51.6503, 0.05) };
+  const member = { id: "member", commonName: "Beech", ...makePoint(app, 51.65034, 0.05) };
+  app.state.trees.push(grouped, member);
+  app.state.viewport = { scale: 200000, tx: 500 - member.point.x * 200000, ty: 400 - member.point.y * 200000 };
+  app.state.emojiScaleAnimated = 1;
+  app.resetMarkerGroupMemory();
+  const markers = app.buildMapMarkers(app.buildNearbyIconLookup(), app.worldToScreen);
+  assert.equal(markers.length, 1, "the two nearby trees are represented by one visible group");
+
+  const tap = pinTapPoint(app, member.point);
+  assert.equal(app.findHit(tap, app.screenToWorld(tap.x, tap.y)).type, "none",
+    "a member hidden inside the group must not be selected at its old pin position");
+});
+
+test("a remembered lone seed cannot overlap a group that becomes fixed-size later", () => {
+  resetData(app);
+  const previousScale = app.state.emojiScaleAnimated;
+  app.state.emojiScaleAnimated = 0.3;
+  const lone = { id: "lone", point: { x: 0, y: 0 } };
+  const groupSeed = { id: "group-seed", point: { x: 47, y: 0 } };
+  const movedIntoGroup = { id: "moved", point: { x: 200, y: 0 } };
+  const lookup = () => ({ tree: new Set([lone, groupSeed, movedIntoGroup]) });
+
+  app.resetMarkerGroupMemory();
+  const first = app.buildMapMarkers(lookup(), point => point);
+  assert.equal(first.length, 3, "the initial separated layout remembers the lone seed first");
+
+  movedIntoGroup.point = { x: 52, y: 0 };
+  const second = app.buildMapMarkers(lookup(), point => point);
+  assert.equal(second.length, 1, "the newly formed group claims the nearby remembered lone seed");
+  assert.deepEqual(new Set(second[0].items), new Set([lone, groupSeed, movedIntoGroup]));
+  app.state.emojiScaleAnimated = previousScale;
+});
+
 test("a pin hidden behind a selection is no longer tappable, so the tap is open ground", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.65, 0.05);
   const selected = { id: "t1", commonName: "Oak", ...makePoint(app, 51.6503, 0.05) };
-  const otherTree = { id: "t2", commonName: "Beech", ...makePoint(app, 51.6504, 0.0501) };
+  const otherTree = { id: "t2", commonName: "Beech", ...makePoint(app, 51.6508, 0.0501) };
   app.state.trees.push(selected, otherTree);
   app.state.viewport = { scale: 200000, tx: 0, ty: 0 };
   app.state.viewport.tx = 500 - otherTree.point.x * 200000;

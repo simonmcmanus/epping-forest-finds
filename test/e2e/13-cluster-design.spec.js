@@ -85,8 +85,9 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
       const oak = { commonName: 'English oak', latinName: 'Quercus robur' };
       const beech = { commonName: 'Common beech', latinName: 'Fagus sylvatica' };
       const hornbeam = { commonName: 'Hornbeam', latinName: 'Carpinus betulus' };
+      const chestnut = { commonName: 'Sweet chestnut', latinName: 'Castanea sativa' };
       const at = item => ({ ...item, point: { x: 100, y: 100 } });
-      const lookup = { tree: new Set([hornbeam, beech, oak, oak, beech, oak, { ...oak }].map(at)), landmark: new Set([at({ category: 'cafe' })]),
+      const lookup = { tree: new Set([hornbeam, beech, oak, oak, beech, oak, { ...oak }, chestnut].map(at)), landmark: new Set([at({ category: 'cafe' })]),
         cow: new Set(), path: new Set(), water: new Set() };
       const markers = buildMapMarkers(lookup, p => p);
       const ctx = document.createElement('canvas').getContext('2d');
@@ -96,12 +97,13 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
       try { drawMapMarkers(ctx, markers, p => p); }
       finally { drawClusterIconChip = chip; }
       return { markers: markers.length, sources, labels, entries: clusterPreviewEntries(markers[0]).length,
-        expected: [treeSpeciesIconPath(oak.commonName, oak.latinName), iconPath('cafe')] };
+        expected: [treeSpeciesIconPath(beech.commonName, beech.latinName), treeSpeciesIconPath(hornbeam.commonName, hornbeam.latinName),
+          treeSpeciesIconPath(oak.commonName, oak.latinName), iconPath('cafe')] };
     });
     expect(result.markers).toBe(1);
     expect(result.sources).toEqual(result.expected);
     expect(result.entries).toBe(2);
-    expect(result.labels).toEqual(['8']);
+    expect(result.labels, 'the marker keeps only its total member count as text while the hidden kinds stack visually').toEqual(['9']);
   });
 
   test('station groups retain their Underground and National Rail symbols', async ({ page }) => {
@@ -126,6 +128,62 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
       return calls;
     });
     expect(glyphs).toEqual(['underground', 'rail']);
+  });
+
+  test('zoomed-out phone pins use the available space while fixed group faces stay clear', async ({ page, isMobile }) => {
+    test.skip(!isMobile, 'this before/after measurement is phone-specific');
+    await setup(page);
+    const result = await page.evaluate(() => {
+      const item = (type, id, x) => ({ type, item: { id, commonName: 'Oak', point: { x, y: 100 } } });
+      const items = [item('tree', 'a', 0), item('tree', 'b', 145)];
+      const lookup = { tree: new Set(), landmark: new Set(), cow: new Set(), path: new Set(), water: new Set() };
+      items.forEach(({ type, item: markerItem }) => lookup[type].add(markerItem));
+    const canvas = document.createElement('canvas');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const ctx = canvas.getContext('2d');
+    const centre = { x: canvas.width / 2, y: canvas.height / 2 };
+    const drawPin = drawItemPin;
+    const measureAt = scale => {
+      state.emojiScaleAnimated = scale;
+      resetMarkerGroupMemory();
+      settleClusterJoinAnimations();
+      let drawnPins = 0;
+      drawItemPin = (...args) => {
+        drawnPins++;
+        return drawPin(...args);
+      };
+      try {
+        const markers = buildMapMarkers(lookup,
+          point => ({ x: centre.x + point.x, y: centre.y + point.y }), 'zoomed-out-phone');
+        drawMapMarkers(ctx, markers,
+          point => ({ x: centre.x + point.x, y: centre.y + point.y }));
+        return { individual: drawnPins, places: markers.reduce((count, marker) => count + marker.items.length, 0) };
+      } finally {
+        drawItemPin = drawPin;
+      }
+    };
+      const previousScale = state.emojiScaleAnimated;
+      try {
+      const before = measureAt(1);
+      const after = measureAt(0.3);
+        return {
+        beforeIndividual: before.individual,
+        afterIndividual: after.individual,
+        beforePlaces: before.places,
+        afterPlaces: after.places,
+        };
+      } finally {
+        state.emojiScaleAnimated = previousScale;
+        resetMarkerGroupMemory();
+      }
+    });
+    expect(result.beforePlaces).toBe(2);
+    expect(result.afterPlaces).toBe(2);
+    expect(result.beforeIndividual).toBe(0);
+    expect(result.afterIndividual).toBe(2);
+    expect(result.afterIndividual - result.beforeIndividual,
+      'zooming out exposes two places that fit beside the smaller pins').toBe(2);
   });
 
   // Records what draw() really paints on a settled frame and derives each rectangle from the
@@ -221,7 +279,9 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
       }
       return CanvasRenderingContext2D.prototype.fillText.apply(this, arguments);
     };
-    try { draw(); } finally { drawClusterMarker = drawnGroup; drawItemPin = drawnPin; delete overlay.fillText; }
+    try {
+      draw();
+    } finally { drawClusterMarker = drawnGroup; drawItemPin = drawnPin; delete overlay.fillText; }
     const covered = label ? rects.filter(r => label.left < r.right && r.left < label.right && label.top < r.bottom && r.top < label.bottom).length : -1;
     const dot = worldToScreen(state.userLocation.point);
     // Distance from the dot's centre to the nearest edge of the label box.
@@ -246,6 +306,7 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
           state.viewport.ty += centre.y - now.y;
         }
         state.emojiScaleAnimated = zoomEmojiScaleTarget();
+        resetMarkerGroupMemory();
         return ${MEASURE_YOU_LABEL};
       })(${factor})`);
       if (factor === 1) expect(view.labelDrawn, 'a free side exists at the default view, so the label is drawn').toBe(true);
@@ -300,6 +361,11 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     await waitForUiToSettle(page);
     const result = await page.evaluate(() => {
       const shape = (markers) => markers.map(m => `${Math.round(m.screenPt.x)},${Math.round(m.screenPt.y)}:${m.items.length}`).sort();
+      // Seed a remembered layout, then exercise the synchronous programmatic-camera landing
+      // path. It must clear that memory just like an animated landing does.
+      resetMarkerGroupMemory();
+      buildActiveMapMarkers(worldToScreen);
+      moveCamera({ ...state.viewport }, 0);
       const settled = shape(buildActiveMapMarkers(worldToScreen));
       resetMarkerGroupMemory();
       const fresh = shape(buildActiveMapMarkers(worldToScreen));
@@ -337,14 +403,14 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     expect(result.settled).toEqual(result.fresh);
   });
 
-  test('the user dot and its label are painted after every pin, flat and heading-up', async ({ page }) => {
+  test('the user dot is behind every pin while its label is painted afterward, flat and heading-up', async ({ page }) => {
     await setup(page);
     const order = await page.evaluate(() => {
       stopViewportAnimation();
       const markers = drawMapMarkers, user = drawUser;
       const events = [];
       drawMapMarkers = (...args) => { events.push('pins'); return markers(...args); };
-      drawUser = (...args) => { events.push('user'); return user(...args); };
+      drawUser = (...args) => { events.push(args[3] || 'all'); return user(...args); };
       try {
         draw();
         const flat = events.splice(0);
@@ -361,8 +427,8 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
       }
     });
     expect(order.tiltActive).toBe(true);
-    expect(order.flat).toEqual(['pins', 'user']);
-    expect(order.tilted).toEqual(['pins', 'user']);
+    expect(order.flat).toEqual(['dot', 'pins', 'label']);
+    expect(order.tilted).toEqual(['dot', 'pins', 'label']);
   });
 
   test('tapping a mixed group opens exactly its members, and the badge count matches the list and map', async ({ page }) => {

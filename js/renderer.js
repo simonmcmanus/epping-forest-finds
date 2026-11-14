@@ -312,6 +312,9 @@ function draw() {
   drawSelectedRoute(ctx);
   if (!useOverlayForPins) {
     const nearbyIconLookup = activeIconLookup();
+    // Paint the live location beneath the map pins. A nearby pin should own its pointer
+    // visually when its geographic point is the same as (or very close to) the user's fix.
+    drawUser(ctx, worldToScreen, false, "dot");
     drawMapMarkers(ctx, buildMapMarkers(nearbyIconLookup, worldToScreen, markerMemoryKey()), worldToScreen);
     drawSelectionExitMarkers(ctx, worldToScreen);
   }
@@ -361,11 +364,15 @@ function drawOverlay() {
   if (isTilted) drawUserRadarOverlayTilted(ctx);
   else drawUserRadarOverlay(ctx, toScreen);
   if (useOverlayForPins) {
-    drawMapMarkers(ctx, buildActiveMapMarkers(toScreen), toScreen, true);
+    // Keep the blue dot behind location pins in heading-up/tilted mode too.
+    drawUser(ctx, toScreen, isTilted, "dot");
+    drawMapMarkers(ctx, buildActiveMapMarkers(toScreen, true), toScreen, true);
     drawSelectionExitMarkers(ctx, toScreen, true);
   }
   drawFilterTransitionPins(ctx, toScreen);
-  drawUser(ctx, toScreen, isTilted);
+  // The label is placed after the pins so it remains readable; its collision check uses the
+  // marker rectangles recorded by the draw above.
+  drawUser(ctx, toScreen, isTilted, "label");
   drawNearbyAnchorMarker(ctx, toScreen);
   drawCommunityMarks(ctx, toScreen);
   drawSelectedOverlay(ctx, toScreen);
@@ -1569,6 +1576,8 @@ function drawLayer(ctx, layer) {
 const MARKER_TYPES = ["tree", "landmark", "cow", "path", "water"];
 // Breathing room added around every marker's collision box.
 const MARKER_COLLISION_GAP_CSS_PX = 4;
+// Keep a lone pin's collision target comfortably tappable after its artwork shrinks with zoom.
+const MARKER_MIN_COLLISION_SIZE_CSS_PX = 44;
 // Past this many items in a seed's 3x3 cell block, occupancy replaces the exact overlap count.
 const MARKER_DENSITY_EXACT_LIMIT = 32;
 
@@ -1577,8 +1586,9 @@ const MARKER_DENSITY_EXACT_LIMIT = 32;
 // stays with the seed it had last time until it leaves this larger "split" box (this multiple of
 // the normal collision box on each axis).
 const MARKER_SPLIT_BOX_FACTOR = 1.25;
-// Memory per lookup context (see markerMemoryKey): { seeds, count }, seeds a Map of seed item -> the
-// items it held, in seed order, count the size of the item set it was built from. Replaced wholesale by every build in its context, so it never outlives the items.
+// Memory per lookup context (see markerMemoryKey): { seeds }, seeds a Map of seed item -> the items
+// it held, in seed order. Replaced wholesale by every build in its context, so it never outlives
+// the items.
 const _markerMemory = new Map();
 
 // A clean slate for grouping: the next build forms its groups from scratch. Called when the Nearby
@@ -1597,17 +1607,89 @@ function markerMemoryKey() {
 }
 
 // The markers of what the map shows now: the one pass draw(), drawOverlay() and findClusterHit share.
-function buildActiveMapMarkers(toScreen) {
-  return buildMapMarkers(activeIconLookup(), toScreen, markerMemoryKey());
+function buildActiveMapMarkers(toScreen, tilted = false) {
+  return buildMapMarkers(activeIconLookup(), toScreen, markerMemoryKey(), tilted);
 }
 
 // The rectangle a compact cluster face covers with its tail and its count chip, relative to the
-// anchor point. Worst case on the chip (a "99+" label), at scale 1: one uniform box for every
-// marker, deliberately ignoring zoom and tilt shrink so the no-overlap guarantee is conservative.
-function markerCollisionBox(dpr) {
-  const rect = clusterMarkerRect(0, 0, 100, dpr, 1);
-  const gap = MARKER_COLLISION_GAP_CSS_PX * dpr;
-  return { width: rect.right - rect.left + gap, height: rect.bottom - rect.top + gap };
+// anchor point. A lone pin uses this same conservative shape at its drawn scale, with a minimum
+// touch-sized box; a group always passes scale 1 because its face stays fixed across map zoom.
+function markerCollisionBox(dpr, scale = 1) {
+  const left = markerCollisionLeft(dpr, scale);
+  const right = markerCollisionRight(dpr, scale);
+  return {
+    left,
+    right,
+    top: markerCollisionTop(dpr, scale),
+    width: left + right,
+    height: markerCollisionTop(dpr, scale),
+  };
+}
+
+// The count-100 badge is the conservative collision shape. Keep these calculations numeric in
+// the per-item path: clusterMarkerRect/clusterBadgeGeometry return several short-lived objects,
+// and buildMapMarkers runs on every animation frame.
+function markerCollisionUnit(dpr, scale) {
+  return dpr * scale;
+}
+
+function markerCollisionRadius(dpr, scale) {
+  const unit = markerCollisionUnit(dpr, scale);
+  return MAP_PNG_ICON_SIZE * MAP_ICON_SCALE_UNSELECTED * unit * 0.32;
+}
+
+function markerCollisionFloorExtra(dpr, scale) {
+  const unit = markerCollisionUnit(dpr, scale);
+  const radius = markerCollisionRadius(dpr, scale);
+  const rawWidth = radius * 2.4 + 10 * unit + MARKER_COLLISION_GAP_CSS_PX * dpr;
+  return Math.max(0, (MARKER_MIN_COLLISION_SIZE_CSS_PX * dpr - rawWidth) / 2);
+}
+
+function markerCollisionLeft(dpr, scale) {
+  return markerCollisionRadius(dpr, scale) * 1.2
+    + MARKER_COLLISION_GAP_CSS_PX * dpr / 2 + markerCollisionFloorExtra(dpr, scale);
+}
+
+function markerCollisionRight(dpr, scale) {
+  const unit = markerCollisionUnit(dpr, scale);
+  return markerCollisionRadius(dpr, scale) * 1.2 + 10 * unit
+    + MARKER_COLLISION_GAP_CSS_PX * dpr / 2 + markerCollisionFloorExtra(dpr, scale);
+}
+
+function markerCollisionTop(dpr, scale) {
+  const unit = markerCollisionUnit(dpr, scale);
+  const radius = markerCollisionRadius(dpr, scale);
+  return Math.max(MARKER_MIN_COLLISION_SIZE_CSS_PX * dpr,
+    radius * 2.3 + 6 * unit + MARKER_COLLISION_GAP_CSS_PX * dpr);
+}
+
+// The individual pin's drawn scale and hit target are shared with inspector.js. A 44 CSS-px
+// diameter is the minimum touch target even when the artwork shrinks to its zoom floor.
+function mapMarkerPinScale(item, tilted = false) {
+  const tiltScale = tilted && typeof tiltPinScale === "function" ? tiltPinScale(item.point) : 1;
+  return mapEmojiScale() * tiltScale;
+}
+
+function mapMarkerPinHitRadius(dpr, scale) {
+  const iconSize = MAP_PNG_ICON_SIZE * dpr * scale * MAP_ICON_SCALE_UNSELECTED;
+  return Math.max(iconSize * 0.32 * 1.3, 22 * dpr);
+}
+
+function markerLoneScale(item, tilted = false) {
+  return mapMarkerPinScale(item, tilted);
+}
+
+function markerCollisionBoxesOverlap(a, b, aBox = a.collisionBox, bBox = b.collisionBox) {
+  const aLeft = aBox ? aBox.left : a.collisionLeft;
+  const aRight = aBox ? aBox.right : a.collisionRight;
+  const aTop = aBox ? aBox.top : a.collisionTop;
+  const bLeft = bBox ? bBox.left : b.collisionLeft;
+  const bRight = bBox ? bBox.right : b.collisionRight;
+  const bTop = bBox ? bBox.top : b.collisionTop;
+  return a.sp.x - aLeft < b.sp.x + bRight
+    && b.sp.x - bLeft < a.sp.x + aRight
+    && a.sp.y - aTop < b.sp.y
+    && b.sp.y - bTop < a.sp.y;
 }
 
 // Seed-anchored, single pass, deliberately not transitive (chaining A-near-B-near-C walked across
@@ -1627,12 +1709,13 @@ function markerCollisionBox(dpr) {
 // Returns [{ items, itemsByType, itemType, screenPt, worldPt }]. `itemType` is the one category of
 // the group, or "_mega" when the group mixes categories. A group that claimed nothing is an
 // ordinary single-item pin.
-function buildMapMarkers(lookup, toScreen, memoryKey = "main") {
+function buildMapMarkers(lookup, toScreen, memoryKey = "main", tilted = false) {
   let memory = _markerMemory.get(memoryKey);
-  const box = markerCollisionBox(pixelRatio());
-  const boxW = box.width, boxH = box.height;
-  const splitW = boxW * MARKER_SPLIT_BOX_FACTOR, splitH = boxH * MARKER_SPLIT_BOX_FACTOR;
-  const cell = Math.max(boxW, boxH);
+  const dpr = pixelRatio();
+  const groupBox = markerCollisionBox(dpr);
+  const groupBoxW = groupBox.width, groupBoxH = groupBox.height;
+  const splitW = groupBoxW * MARKER_SPLIT_BOX_FACTOR, splitH = groupBoxH * MARKER_SPLIT_BOX_FACTOR;
+  const cell = Math.max(groupBoxW, groupBoxH);
   const nodes = [];
   const nodeOfItem = new Map();
   for (const type of MARKER_TYPES) {
@@ -1642,7 +1725,12 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main") {
       if (!item.point) continue;
       const sp = toScreen(item.point);
       if (!Number.isFinite(sp.x) || !Number.isFinite(sp.y)) continue;
-      const node = { item, type, sp, order: nodes.length, density: 0, claimed: false, isSeed: false, cx: Math.floor(sp.x / cell), cy: Math.floor(sp.y / cell) };
+      const loneScale = markerLoneScale(item, tilted);
+      const node = { item, type, sp, order: nodes.length, density: 0,
+        collisionLeft: markerCollisionLeft(dpr, loneScale),
+        collisionRight: markerCollisionRight(dpr, loneScale),
+        collisionTop: markerCollisionTop(dpr, loneScale),
+        claimed: false, isSeed: false, cx: Math.floor(sp.x / cell), cy: Math.floor(sp.y / cell) };
       nodes.push(node);
       nodeOfItem.set(item, node);
     }
@@ -1651,13 +1739,28 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main") {
     _markerMemory.delete(memoryKey);
     return [];
   }
-  // Memory only describes the item set it was built from: when items have arrived or left (data
-  // loading in, a radius or filter change) the layout starts fresh rather than inheriting an
-  // order formed against a different set.
+  // Keep valid seed memories when the lookup changes. A seed whose own item or any remembered
+  // member has gone is affected and starts fresh; other seeds keep their previous order and
+  // memberships, so a cow refresh or a newly in-range place does not regroup the whole map.
   if (memory) {
-    let known = memory.count === nodes.length;
-    if (known) for (const seedItem of memory.seeds.keys()) if (!nodeOfItem.has(seedItem)) { known = false; break; }
-    memory = known ? memory.seeds : undefined;
+    let hasInvalidSeed = false;
+    for (const [seedItem, heldItems] of memory.seeds) {
+      if (!nodeOfItem.has(seedItem) || heldItems.some(item => !nodeOfItem.has(item))) {
+        hasInvalidSeed = true;
+        break;
+      }
+    }
+    if (hasInvalidSeed) {
+      const validSeeds = new Map();
+      for (const [seedItem, heldItems] of memory.seeds) {
+        if (nodeOfItem.has(seedItem) && heldItems.every(item => nodeOfItem.has(item))) {
+          validSeeds.set(seedItem, heldItems);
+        }
+      }
+      memory = validSeeds.size ? validSeeds : undefined;
+    } else {
+      memory = memory.seeds;
+    }
   }
   // Numeric cell keys (a collision between two far-apart cells only adds candidates the exact
   // box test below rejects). A cell edge equal to the box's longer side guarantees an overlapping
@@ -1691,46 +1794,65 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main") {
         const bucket = grid.get(cellKey(node.cx + dx, node.cy + dy));
         if (!bucket) continue;
         for (const other of bucket) {
-          if (other !== node && Math.abs(other.sp.x - node.sp.x) < boxW && Math.abs(other.sp.y - node.sp.y) < boxH) count++;
+          if (other !== node && markerCollisionBoxesOverlap(node, other)) count++;
         }
       }
     }
     node.density = count;
   }
-  // Last build's seeds that are still present keep their previous order and go first; the rest
-  // follow densest first.
-  const seeds = [];
+  // Group-sized seeds must claim before lone remembered seeds. A lone seed can be earlier in
+  // memory than a seed that has just become a group (for example, when a distant item moves next
+  // to the latter without changing the item count). If the lone seed claims itself first, the
+  // later group's fixed face can overlap it even though the group box would have claimed it.
+  // Keep the previous order within remembered groups, then use densest-first for new groups; the
+  // same ordering is applied to lone seeds after all group-sized exclusions have been reserved.
+  const rememberedGroups = [];
+  const rememberedLone = [];
   if (memory) {
     for (const prevItem of memory.keys()) {
       const node = nodeOfItem.get(prevItem);
-      if (node && !node.isSeed) { node.isSeed = true; seeds.push(node); }
+      if (node && !node.isSeed) {
+        node.isSeed = true;
+        const held = memory.get(prevItem);
+        (node.density > 0 || (held && held.length > 1) ? rememberedGroups : rememberedLone).push(node);
+      }
     }
   }
   const fresh = nodes.filter(node => !node.isSeed).sort((a, b) => b.density - a.density || a.order - b.order);
-  for (const node of fresh) seeds.push(node);
+  const freshGroups = fresh.filter(node => node.density > 0);
+  const freshLone = fresh.filter(node => node.density === 0);
+  const seeds = [...rememberedGroups, ...freshGroups, ...rememberedLone, ...freshLone];
   const markers = [];
   const nextMemory = new Map();
   for (const seed of seeds) {
     if (seed.claimed) continue;
     seed.claimed = true;
     const members = [seed];
+    const held = memory && memory.get(seed.item);
+    // Once a seed has a member, its fixed-size group face becomes the exclusion box too. This
+    // absorbs a small neighbouring pin before it can overlap the face after zoom-out.
+    const isGroup = seed.density > 0 || (held && held.length > 1);
+    const seedBox = isGroup ? groupBox : null;
     // New members need the normal box; members this seed held last time are kept up to the split
     // box (looked up directly, not through the grid). Both are measured from this seed, so anchors
     // stay a full box apart.
-    if (seed.density) {
+    if (isGroup) {
       for (let dx = -1; dx <= 1; dx++) {
         for (let dy = -1; dy <= 1; dy++) {
           const bucket = grid.get(cellKey(seed.cx + dx, seed.cy + dy));
           if (!bucket) continue;
           for (const other of bucket) {
-            if (other.claimed || Math.abs(other.sp.x - seed.sp.x) >= boxW || Math.abs(other.sp.y - seed.sp.y) >= boxH) continue;
+            const rememberedGroup = memory && memory.get(other.item);
+            const otherBox = other.density > 0 || (rememberedGroup && rememberedGroup.length > 1)
+              ? groupBox
+              : null;
+            if (other.claimed || !markerCollisionBoxesOverlap(seed, other, seedBox, otherBox)) continue;
             other.claimed = true;
             members.push(other);
           }
         }
       }
     }
-    const held = memory && memory.get(seed.item);
     if (held) {
       for (const heldItem of held) {
         const other = nodeOfItem.get(heldItem);
@@ -1757,7 +1879,7 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main") {
       worldPt: seed.item.point,
     });
   }
-  _markerMemory.set(memoryKey, { seeds: nextMemory, count: nodes.length });
+  _markerMemory.set(memoryKey, { seeds: nextMemory });
   return markers;
 }
 
@@ -2070,7 +2192,12 @@ function markerItemIconSrc(type, item) {
 // per category first -- the categories with most items first, ties in category order, each as its
 // most common kind -- so no category is hidden behind another's species; only a single-category
 // group shows its second most common kind as the second chip.
-function clusterPreviewEntries(marker) {
+function clusterPreviewEntries(marker, byCategory = clusterKindsByCategory(marker)) {
+  if (byCategory.length === 1) return byCategory[0].kinds.slice(0, 2);
+  return byCategory.slice(0, 2).map(category => category.kinds[0]);
+}
+
+function clusterKindsByCategory(marker) {
   const byCategory = [];
   for (const type of MARKER_TYPES) {
     const items = marker.itemsByType[type];
@@ -2086,8 +2213,15 @@ function clusterPreviewEntries(marker) {
     byCategory.push({ total: items.length, kinds: Array.from(byKey.values()).sort((a, b) => b.count - a.count) });
   }
   byCategory.sort((a, b) => b.total - a.total);
-  if (byCategory.length === 1) return byCategory[0].kinds.slice(0, 2);
-  return byCategory.slice(0, 2).map(category => category.kinds[0]);
+  return byCategory;
+}
+
+// The face previews at most two visual kinds. The remaining kinds feed the small stack behind
+// those preview chips; matching by key keeps the visible/hidden split aligned with the preview
+// ordering for both a single category and a mixed-category group.
+function clusterOverflowEntries(marker, byCategory = clusterKindsByCategory(marker)) {
+  const visible = new Set(clusterPreviewEntries(marker, byCategory).map(entry => entry.key));
+  return byCategory.flatMap(category => category.kinds).filter(entry => !visible.has(entry.key));
 }
 
 // One category's icon, cropped to a circle, sitting directly on the badge underneath it -- no
@@ -2173,17 +2307,79 @@ function clusterBadgeContains(screen, x, y, count, dpr, scale = 1) {
     && screen.y >= b.top - pad && screen.y <= y + pad;
 }
 
+// The overflow chips form a distinct lower layer beneath the two preview chips. Keeping at most two
+// larger peek icons inside the white head makes the affordance legible on a phone; the plus covers
+// the rest without giving the group another pointer or changing its collision/hit geometry.
+function clusterStackChipGeometry(x, y, count, dpr, scale = 1, index = 0, total = 1) {
+  const b = clusterBadgeGeometry(x, y, count, dpr, scale);
+  const R = b.size * 0.32;
+  const chipR = total <= 2 ? R * 0.3 : R * 0.26;
+  const offsets = total === 1
+    ? [-0.24]
+    : total === 2
+      ? [-0.38, 0.38]
+      : [-0.45, 0, 0.45];
+  const xOffset = offsets[Math.min(index, offsets.length - 1)] * R;
+  const yOffset = total === 1 ? 0.5 : 0.52;
+  return { cx: x + xOffset, cy: b.top + b.height * 0.5 + yOffset * R, radius: chipR };
+}
+
+// The plus sits in front of the hidden artwork, making the stack read as an affordance rather
+// than a second row of equally-weighted pins. Its small half-opaque backing separates the mark
+// from the artwork without becoming another badge; the group's existing count remains the only
+// text.
+function clusterMorePlusGeometry(x, y, count, dpr, scale = 1, total = 1) {
+  const b = clusterBadgeGeometry(x, y, count, dpr, scale);
+  const R = b.size * 0.32;
+  return {
+    cx: x + (total === 1 ? 0.24 : 0) * R,
+    cy: b.top + b.height * 0.5 + 0.52 * R,
+    radius: R * 0.3,
+    unit: b.unit,
+  };
+}
+
+function drawClusterMorePlus(ctx, geometry) {
+  const { cx, cy, radius, unit } = geometry;
+  ctx.beginPath();
+  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(255, 255, 255, 0.52)";
+  ctx.fill();
+  ctx.strokeStyle = "rgba(17, 17, 17, 0.25)";
+  ctx.lineWidth = 0.75 * unit;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(cx - radius * 0.48, cy);
+  ctx.lineTo(cx + radius * 0.48, cy);
+  ctx.moveTo(cx, cy - radius * 0.48);
+  ctx.lineTo(cx, cy + radius * 0.48);
+  ctx.strokeStyle = "#111111";
+  ctx.lineCap = "round";
+  ctx.lineWidth = 1.75 * unit;
+  ctx.stroke();
+}
+
 // One artwork fills the head; two (the two most common kinds) sit side by side in it.
-function drawClusterMarker(ctx, x, y, count, iconSources, dpr, scale = 1) {
+function drawClusterMarker(ctx, x, y, count, iconSources, dpr, scale = 1, overflowSources = []) {
   const sources = iconSources.slice(0, 2);
   const b = clusterBadgeGeometry(x, y, count, dpr, scale);
   const u = b.unit;
   ctx.save();
   const { cx, cy, R } = drawMapPinShape(ctx, x, y, b.size);
+  const stackSources = overflowSources.slice(0, 2);
+  stackSources.forEach((src, i) => {
+    const chip = clusterStackChipGeometry(x, y, count, dpr, scale, i, stackSources.length);
+    drawClusterIconChip(ctx, chip.cx, chip.cy, src, chip.radius);
+  });
+  if (stackSources.length) {
+    drawClusterMorePlus(ctx, clusterMorePlusGeometry(x, y, count, dpr, scale, stackSources.length));
+  }
+  const previewCy = stackSources.length ? cy - R * 0.22 : cy;
+  const previewRadius = stackSources.length ? R * 0.43 : R * 0.52;
   if (sources.length === 1) {
-    drawClusterIconChip(ctx, cx, cy, sources[0], R * 0.86);
+    drawClusterIconChip(ctx, cx, stackSources.length ? cy - R * 0.18 : cy, sources[0], stackSources.length ? R * 0.72 : R * 0.86);
   } else {
-    sources.forEach((src, i) => drawClusterIconChip(ctx, cx + (i ? 1 : -1) * R * 0.56, cy, src, R * 0.52));
+    sources.forEach((src, i) => drawClusterIconChip(ctx, cx + (i ? 1 : -1) * R * 0.48, previewCy, src, previewRadius));
   }
   ctx.beginPath();
   ctx.roundRect(b.countX - b.countWidth / 2, b.countY - b.countHeight / 2, b.countWidth, b.countHeight, 9 * u);
@@ -2275,8 +2471,10 @@ function drawMapMarkers(ctx, markers, toScreen, tilted = false, options = {}) {
       ctx.globalAlpha = reveal * transitionOpacity * groupOpacity(marker);
       const groupScale = Math.max(0.65, tiltScale) * joinScale * filterPinClusterScale(marker);
       _drawnMarkerSpecs.push({ worldPt, count: items.length, scale: groupScale });
+      const kinds = clusterKindsByCategory(marker);
+      const overflow = clusterOverflowEntries(marker, kinds);
       drawClusterMarker(ctx, screenPt.x, screenPt.y, items.length,
-        clusterPreviewEntries(marker).map(entry => entry.src), dpr, groupScale);
+        clusterPreviewEntries(marker, kinds).map(entry => entry.src), dpr, groupScale, overflow.map(entry => entry.src));
     } else {
       const type = marker.itemType;
       const animation = filterPinAnimationFor(items[0]);
@@ -2290,7 +2488,16 @@ function drawMapMarkers(ctx, markers, toScreen, tilted = false, options = {}) {
         const p = toScreen(shrinking.item.point);
         const type = markerItemType(marker, shrinking.item);
         ctx.globalAlpha = reveal * transitionOpacity * lonePinOpacity(type, shrinking.item);
-        drawItemPin(ctx, type, shrinking.item, p.x, p.y, loneSize * shrinking.scale);
+        const shrinkingTiltScale = tilted ? tiltPinScale(shrinking.item.point) : 1;
+        // The transient pin is still visible while its group face grows. Include it in the
+        // label-avoidance geometry for the duration of the merge, even though it is no longer
+        // an independent marker in the settled layout.
+        _drawnMarkerSpecs.push({
+          worldPt: shrinking.item.point,
+          count: 1,
+          scale: mapEmojiScale() * shrinkingTiltScale * shrinking.scale,
+        });
+        drawItemPin(ctx, type, shrinking.item, p.x, p.y, loneSize * shrinkingTiltScale * shrinking.scale);
       }
     }
     ctx.globalAlpha = 1;
@@ -2305,7 +2512,7 @@ function drawMapMarkers(ctx, markers, toScreen, tilted = false, options = {}) {
 function drawSelectionExitMarkers(ctx, toScreen, tilted = false) {
   const lookup = state.selectionTransition.outgoingIconLookup;
   if (!lookup || !selectionOutgoingRevealInProgress()) return;
-  const markers = buildMapMarkers(lookup, toScreen, "selection-exit");
+  const markers = buildMapMarkers(lookup, toScreen, "selection-exit", tilted);
   const now = performance.now();
   drawMapMarkers(ctx, markers, toScreen, tilted, {
     allowSelectionExit: true,
@@ -2809,7 +3016,7 @@ function placeUserLabel(dot, radius, textWidth, fontSize, gap, rightBaselineDrop
   return null;
 }
 
-function drawUser(ctx, toScreen, isTilted) {
+function drawUser(ctx, toScreen, isTilted, phase = "all") {
   // isDefault (applyDefaultLocation, js/app.js): DEFAULT_LOCATION's High Beach stand-in, not a
   // real fix -- drawing "You" there would tell the reader they've been located somewhere they
   // are not actually standing.
@@ -2842,14 +3049,22 @@ function drawUser(ctx, toScreen, isTilted) {
   const dotScale = clamp(state.viewport.scale / baseScale, 0.1, 1.5) * pinScale;
   const radius = Math.max(2 * dpr, 4 * dpr * dotScale);
   
+  const labelOnly = phase === "label";
   ctx.save();
-  ctx.beginPath();
-  ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-  ctx.fillStyle = "#1f5eff";
-  ctx.fill();
-  ctx.strokeStyle = "#fff";
-  ctx.lineWidth = 2 * dpr * dotScale;
-  ctx.stroke();
+  if (!labelOnly) {
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    ctx.fillStyle = "#1f5eff";
+    ctx.fill();
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 2 * dpr * dotScale;
+    ctx.stroke();
+  }
+  if (phase === "dot") {
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    return;
+  }
   ctx.fillStyle = "#14211d";
   const fontSize = 11 * dpr * dotScale;
   ctx.font = `800 ${fontSize}px system-ui`;
