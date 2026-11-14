@@ -52,6 +52,14 @@ function treeAdventureActiveTarget() {
   return active && active.status !== "complete" ? active : null;
 }
 
+function treeAdventureRetry(delay = 800) {
+  if (treeAdventureRetryTimer) return;
+  treeAdventureRetryTimer = window.setTimeout(() => {
+    treeAdventureRetryTimer = null;
+    adventureMaybeShow();
+  }, delay);
+}
+
 function treeAdventureDismiss() {
   const banner = els.adventureBanner;
   if (!banner) return;
@@ -94,23 +102,23 @@ function treeAdventureShow(tree, straightLineMetres) {
 function adventureMaybeShow() {
   if (treeAdventureSeen() || !hasRealLocation() || state.userLocation.isDefault || isFarFromForest() || !state.nearestTree) return;
   if (typeof communityFeaturesKnown === "function" && !communityFeaturesKnown()) {
-    if (!treeAdventureRetryTimer) treeAdventureRetryTimer = window.setTimeout(() => {
-      treeAdventureRetryTimer = null;
-      adventureMaybeShow();
-    }, 1200);
+    treeAdventureRetry(1200);
     return;
   }
   if (typeof communityEnabled === "function" && !communityEnabled()) return;
   const overlay = document.getElementById("onboardingOverlay");
   if (overlay && (overlay._onboardingActive || !overlay.hidden)) {
-    if (!treeAdventureRetryTimer) treeAdventureRetryTimer = window.setTimeout(() => {
-      treeAdventureRetryTimer = null;
-      adventureMaybeShow();
-    }, 800);
+    treeAdventureRetry();
     return;
   }
-  if (els.consentBanner && !els.consentBanner.hidden) return;
-  if (els.locationInviteBanner && !els.locationInviteBanner.hidden) return;
+  if (els.consentBanner && !els.consentBanner.hidden) {
+    treeAdventureRetry();
+    return;
+  }
+  if (els.locationInviteBanner && !els.locationInviteBanner.hidden) {
+    treeAdventureRetry();
+    return;
+  }
   const nearest = treeAdventureTarget();
   if (!nearest) return;
   try { localStorage.setItem(TREE_ADVENTURE_SEEN_KEY, "1"); } catch {}

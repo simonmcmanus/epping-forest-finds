@@ -14,9 +14,19 @@ test.describe("Location and GPS — happy path", () => {
       permissions: ["geolocation"],
     });
 
-    test.beforeEach(async ({ page }) => {
+    test.beforeEach(async ({ page }, testInfo) => {
       await skipOnboarding(page);
       await mockCowApi(page);
+      if (testInfo.title.includes("first-location veteran tree adventure")) {
+        await page.addInitScript(() => localStorage.setItem("ff-location-v1", "granted"));
+        await page.route("**/api/features**", (route) =>
+          route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({ community: true }),
+          })
+        );
+      }
       await gotoAndWaitForMap(page);
     });
 
@@ -47,6 +57,18 @@ test.describe("Location and GPS — happy path", () => {
       await waitForUiToSettle(page);
       await settleMapIconsAndDraw(page);
       await expect(page).toHaveScreenshot("map-with-location.png", { fullPage: false });
+    });
+
+    test("snapshot: first-location veteran tree adventure", async ({ page }) => {
+      // The generated /nearby shell paints its first-visit consent card before boot. This test
+      // represents the next state: location has been shared and the consent card is gone.
+      await page.evaluate(() => { els.consentBanner.hidden = true; });
+      await expect(page.locator("#adventureBanner")).toBeVisible({ timeout: 10_000 });
+      await expect(page.locator("#adventureBanner")).toContainText("Let’s go on an adventure");
+      await expect(page.locator("#adventureBanner")).toContainText("Verify it for +10 points");
+      await waitForUiToSettle(page);
+      await settleMapIconsAndDraw(page);
+      await expect(page).toHaveScreenshot("veteran-tree-adventure.png", { fullPage: false });
     });
 
     test("on a train, the You marker keeps moving between GPS fixes rather than holding still and then jumping", async ({ page, context }) => {
