@@ -1577,8 +1577,9 @@ const MARKER_DENSITY_EXACT_LIMIT = 32;
 // stays with the seed it had last time until it leaves this larger "split" box (this multiple of
 // the normal collision box on each axis).
 const MARKER_SPLIT_BOX_FACTOR = 1.25;
-// Memory per lookup context (see markerMemoryKey): { seeds, count }, seeds a Map of seed item -> the
-// items it held, in seed order, count the size of the item set it was built from. Replaced wholesale by every build in its context, so it never outlives the items.
+// Memory per lookup context (see markerMemoryKey): { seeds }, seeds a Map of seed item -> the items
+// it held, in seed order. Replaced wholesale by every build in its context, so it never outlives
+// the items.
 const _markerMemory = new Map();
 
 // A clean slate for grouping: the next build forms its groups from scratch. Called when the Nearby
@@ -1651,13 +1652,28 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main") {
     _markerMemory.delete(memoryKey);
     return [];
   }
-  // Memory only describes the item set it was built from: when items have arrived or left (data
-  // loading in, a radius or filter change) the layout starts fresh rather than inheriting an
-  // order formed against a different set.
+  // Keep valid seed memories when the lookup changes. A seed whose own item or any remembered
+  // member has gone is affected and starts fresh; other seeds keep their previous order and
+  // memberships, so a cow refresh or a newly in-range place does not regroup the whole map.
   if (memory) {
-    let known = memory.count === nodes.length;
-    if (known) for (const seedItem of memory.seeds.keys()) if (!nodeOfItem.has(seedItem)) { known = false; break; }
-    memory = known ? memory.seeds : undefined;
+    let hasInvalidSeed = false;
+    for (const [seedItem, heldItems] of memory.seeds) {
+      if (!nodeOfItem.has(seedItem) || heldItems.some(item => !nodeOfItem.has(item))) {
+        hasInvalidSeed = true;
+        break;
+      }
+    }
+    if (hasInvalidSeed) {
+      const validSeeds = new Map();
+      for (const [seedItem, heldItems] of memory.seeds) {
+        if (nodeOfItem.has(seedItem) && heldItems.every(item => nodeOfItem.has(item))) {
+          validSeeds.set(seedItem, heldItems);
+        }
+      }
+      memory = validSeeds.size ? validSeeds : undefined;
+    } else {
+      memory = memory.seeds;
+    }
   }
   // Numeric cell keys (a collision between two far-apart cells only adds candidates the exact
   // box test below rejects). A cell edge equal to the box's longer side guarantees an overlapping
@@ -1757,7 +1773,7 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main") {
       worldPt: seed.item.point,
     });
   }
-  _markerMemory.set(memoryKey, { seeds: nextMemory, count: nodes.length });
+  _markerMemory.set(memoryKey, { seeds: nextMemory });
   return markers;
 }
 

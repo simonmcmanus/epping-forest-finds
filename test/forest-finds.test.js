@@ -1368,6 +1368,55 @@ test("expanding a cluster and collapsing it again leaves the main map's groups a
   assert.deepEqual(markerGroupsOf(app.buildMapMarkers(markerLookup(items), markerScreen)), before);
 });
 
+test("an item-count change keeps valid memory for unaffected groups", () => {
+  const { w } = markerBox();
+  const items = [markerItem("tree", "a1", 0, 0), markerItem("tree", "a2", 0, 0),
+    markerItem("tree", "b1", 240, 0), markerItem("tree", "b2", 240, 0)];
+  const build = (currentItems) => app.buildMapMarkers(markerLookup(currentItems), markerScreen);
+  app.resetMarkerGroupMemory();
+  const initial = build(items);
+  assert.deepEqual(markerGroupsOf(initial), ["a1+a2", "b1+b2"]);
+
+  items[3].item.point = { x: 240 + w * 1.1, y: 0 };
+  const added = [...items, markerItem("tree", "new", 0, 0)];
+  const after = build(added);
+  assert.deepEqual(Array.from(groupWith(after, "b1").items, item => item.id).sort(), ["b1", "b2"],
+    "the unchanged b seed keeps its previous member across the count change");
+  assert.ok(groupWith(after, "a1").items.some(item => item.id === "new"),
+    "the changed a group can claim the newly present item normally");
+});
+
+test("missing seeds and missing members drop only their own memory", () => {
+  const { w } = markerBox();
+  const makeItems = () => [markerItem("tree", "a1", 0, 0), markerItem("tree", "a2", 0, 0),
+    markerItem("tree", "b1", 240, 0), markerItem("tree", "b2", 240, 0)];
+  const build = (currentItems) => app.buildMapMarkers(markerLookup(currentItems), markerScreen);
+
+  const seedItems = makeItems();
+  app.resetMarkerGroupMemory();
+  build(seedItems);
+  seedItems[3].item.point = { x: 240 + w * 1.1, y: 0 };
+  const withoutSeed = seedItems.filter(({ item }) => item.id !== "a1");
+  withoutSeed.push(markerItem("tree", "replacement", 900, 900));
+  const afterMissingSeed = build(withoutSeed);
+  assert.deepEqual(Array.from(groupWith(afterMissingSeed, "b1").items, item => item.id).sort(), ["b1", "b2"],
+    "a missing seed does not discard the unaffected b seed's memory");
+
+  const memberItems = [markerItem("tree", "a1", 0, 0), markerItem("tree", "a2", 0, 0),
+    markerItem("tree", "m", w * 0.5, 0), markerItem("tree", "b1", 3 * w, 0), markerItem("tree", "b2", 3 * w, 0)];
+  app.resetMarkerGroupMemory();
+  const initial = build(memberItems);
+  assert.ok(groupWith(initial, "a1").items.some(item => item.id === "m"), "m starts in a's group");
+  memberItems[2].item.point = { x: w * 1.05, y: 0 };
+  const withoutMember = memberItems.filter(({ item }) => item.id !== "a2");
+  withoutMember.push(markerItem("tree", "replacement", 900, 900));
+  const afterMissingMember = build(withoutMember);
+  assert.equal(groupWith(afterMissingMember, "a1").items.some(item => item.id === "m"), false,
+    "a seed with a missing remembered member starts fresh");
+  assert.deepEqual(Array.from(groupWith(afterMissingMember, "b1").items, item => item.id).sort(), ["b1", "b2"],
+    "dropping a's memory preserves the unaffected b seed's membership");
+});
+
 test("building twice on the same view gives identical markers, whatever came before", () => {
   const items = markerScatter(160, 420, ["tree", "landmark", "cow"]);
   const base = new Map(items.map(({ item }) => [item.id, { x: item.point.x, y: item.point.y }]));

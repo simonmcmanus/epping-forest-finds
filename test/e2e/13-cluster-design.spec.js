@@ -223,7 +223,9 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
       }
       return CanvasRenderingContext2D.prototype.fillText.apply(this, arguments);
     };
-    try { draw(); } finally { drawClusterMarker = drawnGroup; drawItemPin = drawnPin; delete overlay.fillText; }
+    try {
+      draw();
+    } finally { drawClusterMarker = drawnGroup; drawItemPin = drawnPin; delete overlay.fillText; }
     const covered = label ? rects.filter(r => label.left < r.right && r.left < label.right && label.top < r.bottom && r.top < label.bottom).length : -1;
     const dot = worldToScreen(state.userLocation.point);
     // Distance from the dot's centre to the nearest edge of the label box.
@@ -248,6 +250,7 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
           state.viewport.ty += centre.y - now.y;
         }
         state.emojiScaleAnimated = zoomEmojiScaleTarget();
+        resetMarkerGroupMemory();
         return ${MEASURE_YOU_LABEL};
       })(${factor})`);
       if (factor === 1) expect(view.labelDrawn, 'a free side exists at the default view, so the label is drawn').toBe(true);
@@ -302,6 +305,11 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     await waitForUiToSettle(page);
     const result = await page.evaluate(() => {
       const shape = (markers) => markers.map(m => `${Math.round(m.screenPt.x)},${Math.round(m.screenPt.y)}:${m.items.length}`).sort();
+      // Seed a remembered layout, then exercise the synchronous programmatic-camera landing
+      // path. It must clear that memory just like an animated landing does.
+      resetMarkerGroupMemory();
+      buildActiveMapMarkers(worldToScreen);
+      moveCamera({ ...state.viewport }, 0);
       const settled = shape(buildActiveMapMarkers(worldToScreen));
       resetMarkerGroupMemory();
       const fresh = shape(buildActiveMapMarkers(worldToScreen));
