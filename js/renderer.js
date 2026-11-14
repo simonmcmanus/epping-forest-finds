@@ -2184,19 +2184,20 @@ function clusterBadgeContains(screen, x, y, count, dpr, scale = 1) {
     && screen.y >= b.top - pad && screen.y <= y + pad;
 }
 
-// The overflow chips sit in a tight, centred stack behind the two preview chips. They stay inside
-// the white head, so the group keeps one visual anchor and the existing collision/hit geometry.
+// The overflow chips form a distinct lower layer beneath the two preview chips. Keeping the layers
+// inside the white head makes each hidden icon readable without giving the group another pointer or
+// changing its collision/hit geometry.
 function clusterStackChipGeometry(x, y, count, dpr, scale = 1, index = 0, total = 1) {
   const b = clusterBadgeGeometry(x, y, count, dpr, scale);
   const R = b.size * 0.32;
-  const chipR = R * 0.3;
+  const chipR = R * 0.26;
   const offsets = total === 1
     ? [0]
     : total === 2
-      ? [-0.28, 0.28]
-      : [-0.38, 0, 0.38];
+      ? [-0.3, 0.3]
+      : [-0.45, 0, 0.45];
   const xOffset = offsets[Math.min(index, offsets.length - 1)] * R;
-  const yOffset = total === 1 ? 0.48 : total === 2 ? 0.43 : (index === 1 ? 0.52 : 0.38);
+  const yOffset = total === 1 ? 0.5 : 0.52;
   return { cx: x + xOffset, cy: b.top + b.height * 0.5 + yOffset * R, radius: chipR };
 }
 
@@ -2212,10 +2213,12 @@ function drawClusterMarker(ctx, x, y, count, iconSources, dpr, scale = 1, overfl
     const chip = clusterStackChipGeometry(x, y, count, dpr, scale, i, stackSources.length);
     drawClusterIconChip(ctx, chip.cx, chip.cy, src, chip.radius);
   });
+  const previewCy = stackSources.length ? cy - R * 0.22 : cy;
+  const previewRadius = stackSources.length ? R * 0.43 : R * 0.52;
   if (sources.length === 1) {
-    drawClusterIconChip(ctx, cx, cy, sources[0], R * 0.86);
+    drawClusterIconChip(ctx, cx, stackSources.length ? cy - R * 0.18 : cy, sources[0], stackSources.length ? R * 0.72 : R * 0.86);
   } else {
-    sources.forEach((src, i) => drawClusterIconChip(ctx, cx + (i ? 1 : -1) * R * 0.56, cy, src, R * 0.52));
+    sources.forEach((src, i) => drawClusterIconChip(ctx, cx + (i ? 1 : -1) * R * 0.48, previewCy, src, previewRadius));
   }
   ctx.beginPath();
   ctx.roundRect(b.countX - b.countWidth / 2, b.countY - b.countHeight / 2, b.countWidth, b.countHeight, 9 * u);
