@@ -734,6 +734,7 @@ globalThis.__forestFindsTest = {
   MAP_PNG_ICON_SIZE,
   MAP_ICON_SCALE_UNSELECTED,
   buildMapMarkers,
+  markerFootprints,
   resetMarkerGroupMemory,
   placeUserLabel,
   markerPaintedRects,
@@ -11009,12 +11010,12 @@ test("pinching/wheeling the walking radius also drops an expanded cluster", () =
 test("tapping a nearby cluster pans to it at today's zoom, then zooms in -- two tweens, not one", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.65, 0.05);
-  // A couple of hundred metres from the user's own location -- on screen at the walking-radius
-  // framing the camera already has, but not so coincident with its current pivot that the pan
-  // leg below is a zero-distance no-op (moveCamera's own near-identical-target snap,
-  // which would resolve synchronously and skip straight to the chained zoom leg).
-  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6520, 0.0510) };
-  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65201797, 0.0510) };
+  // A few hundred metres from the user's own location -- on screen at the walking-radius
+  // framing the camera already has, and far enough from its current pivot that the pan covers at
+  // least the reference distance the full pan leg is reserved for (a nearer group gets a shorter
+  // pan, or none -- see the two tests below).
+  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6530, 0.0520) };
+  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65301797, 0.0520) };
   app.state.trees.push(oak1, oak2);
   app.selectOverview();
   app.ensureOverviewTargetsVisible({ animate: false, force: true });
@@ -11023,7 +11024,7 @@ test("tapping a nearby cluster pans to it at today's zoom, then zooms in -- two 
   const cluster = { itemType: "tree", items: [oak1, oak2] };
   app.focusNearbyOnClusterGroup(cluster);
 
-  // The group is a couple of metres from the user's own location -- already on screen -- so
+  // The group is a few hundred metres from the user's own location -- already on screen -- so
   // this should be the staged pan-then-zoom (alignHeadingUpNavigationViewport's
   // stagePanThenZoom branch, js/app.js): a short pan at *today's* scale first, not the single
   // combined ease. The first (and, synchronously, only observable) leg is the pan: same scale
@@ -11032,6 +11033,45 @@ test("tapping a nearby cluster pans to it at today's zoom, then zooms in -- two 
   assert.ok(app.state.viewportAnimationTo, "the tap should start a camera animation");
   assert.equal(app.state.viewportAnimationDuration, 208, "the first leg is the 40%-of-520ms pan, not the full duration");
   assert.equal(app.state.viewportAnimationTo.scale, scaleBeforeTap, "the pan leg holds the scale the camera already had");
+});
+
+function tapClusterOffsetFromUser(offsetLat, offsetLon) {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  // Members a couple of metres apart, centred offsetLat/offsetLon degrees from the user's location.
+  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.65 + offsetLat, 0.05 + offsetLon) };
+  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65 + offsetLat + 0.00001797, 0.05 + offsetLon) };
+  app.state.trees.push(oak1, oak2);
+  app.selectOverview();
+  app.ensureOverviewTargetsVisible({ animate: false, force: true });
+  const before = { ...app.state.viewport };
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: [oak1, oak2] });
+  return { before, to: app.state.viewportAnimationTo, duration: app.state.viewportAnimationDuration };
+}
+
+test("tapping a cluster at the camera's own pivot starts the zoom on the tap, with no same-scale hold", () => {
+  // A few metres off the pivot: roughly 17 CSS px of pan, far below anything worth its own leg.
+  const tap = tapClusterOffsetFromUser(0.00004, 0.00004);
+  assert.ok(tap.to, "the tap should start a camera animation");
+  assert.notEqual(tap.to.scale, tap.before.scale, "the first animation already zooms -- the negligible pan is not given its own leg");
+  assert.equal(tap.duration, 520, "the zoom runs the whole slide duration (NEARBY_ORIGIN_TRANSITION_MS)");
+});
+
+test("tapping a cluster a mid-distance away gives its pan leg a shorter share than a full-distance pan", () => {
+  // About 90% of the reference pan distance: long enough to run as its own leg, not a full one.
+  const tap = tapClusterOffsetFromUser(0.0024, 0.0014);
+  assert.ok(tap.to, "the tap should start a camera animation");
+  assert.equal(tap.to.scale, tap.before.scale, "the pan leg holds the scale the camera already had");
+  assert.ok(tap.duration < 208, `a mid-distance pan is shorter than the full 208ms leg (got ${tap.duration})`);
+  assert.ok(tap.duration >= 180, `but never shorter than the camera's minimum leg (got ${tap.duration})`);
+});
+
+test("tapping a cluster a small but visible distance away zooms on the tap rather than holding a short same-scale pan", () => {
+  // Roughly 51 CSS px of pan: too short to run as its own leg, so it rides the one ease.
+  const tap = tapClusterOffsetFromUser(0.0012, 0.0012);
+  assert.ok(tap.to, "the tap should start a camera animation");
+  assert.notEqual(tap.to.scale, tap.before.scale, "the first animation already zooms");
+  assert.equal(tap.duration, 520, "the zoom runs the whole slide duration (NEARBY_ORIGIN_TRANSITION_MS)");
 });
 
 test("tapping a cluster far outside the current view skips staging -- one direct ease instead", () => {
@@ -14920,5 +14960,92 @@ test("a stop's departures show a hostile minutes value from the server as text",
     app.els.inspectorBody.appendChild = previousAppendChild;
     app.state.selected = previousSelected;
     app.state.transportLookupCache.delete(app.transportCacheKey(place, type));
+  }
+});
+
+// Group footprints: a very faint patch of ground under a group, only where groups sit close together.
+const footprintBoxW = () => markerBox().w;
+const footprintLayout = (neighbourX) => {
+  const items = [
+    markerItem("tree", "a1", 0, 0), markerItem("tree", "a2", 6, 0), markerItem("tree", "a3", 0, 9),
+    markerItem("tree", "b1", neighbourX, 0), markerItem("tree", "b2", neighbourX + 6, 0), markerItem("tree", "b3", neighbourX, 9),
+  ];
+  app.resetMarkerGroupMemory();
+  return { items, markers: app.buildMapMarkers(markerLookup(items), markerScreen) };
+};
+const footprintContains = (points, p) => {
+  let inside = false;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+    const a = points[i], b = points[j];
+    if ((a.y > p.y) !== (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+  }
+  return inside;
+};
+const footprintsFor = (markers) => app.markerFootprints(markers, markerScreen, markerScreen);
+
+test("two group markers close together each get a footprint around their own members only", () => {
+  const { items, markers } = footprintLayout(footprintBoxW() * 1.8);
+  assert.equal(markers.length, 2);
+  const footprints = footprintsFor(markers);
+  assert.equal(footprints.length, 2, "both neighbours draw a footprint");
+  for (const { marker, points } of footprints) {
+    for (const item of marker.items) assert.ok(footprintContains(points, item.point), `${item.id} inside its own footprint`);
+    const other = markers.find(m => m !== marker);
+    assert.equal(footprintContains(points, other.screenPt), false, "the neighbour's seed is outside");
+  }
+  assert.equal(items.length, 6);
+});
+
+test("an isolated group and individual pins draw no footprint", () => {
+  assert.equal(footprintsFor(footprintLayout(footprintBoxW() * 6).markers).length, 0, "far-apart groups are isolated");
+  const lone = [markerItem("tree", "p", 0, 0), markerItem("tree", "q", footprintBoxW() * 1.8, 0)];
+  app.resetMarkerGroupMemory();
+  const markers = app.buildMapMarkers(markerLookup(lone), markerScreen);
+  assert.equal(markers.every(m => m.items.length === 1), true);
+  assert.equal(footprintsFor(markers).length, 0);
+  // a group beside only a lone pin has no group neighbour
+  const mixed = [markerItem("tree", "a1", 0, 0), markerItem("tree", "a2", 6, 0), markerItem("tree", "q", footprintBoxW() * 1.8, 0)];
+  app.resetMarkerGroupMemory();
+  assert.equal(footprintsFor(app.buildMapMarkers(markerLookup(mixed), markerScreen)).length, 0);
+});
+
+test("a footprint of coincident members is a small finite shape, and a duplicated member does not enlarge it", () => {
+  const items = [markerItem("tree", "a1", 0, 0), markerItem("tree", "a2", 0, 0),
+    markerItem("tree", "b1", footprintBoxW() * 1.8, 0), markerItem("tree", "b2", footprintBoxW() * 1.8, 0)];
+  app.resetMarkerGroupMemory();
+  const markers = app.buildMapMarkers(markerLookup(items), markerScreen);
+  const extent = points => {
+    const xs = points.map(p => p.x), ys = points.map(p => p.y);
+    return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+  };
+  const [first] = footprintsFor(markers);
+  assert.ok(first.points.length >= 3 && first.points.every(p => Number.isFinite(p.x) && Number.isFinite(p.y)));
+  const size = extent(first.points);
+  assert.ok(size.w > 0 && size.w < 30 * app.pixelRatio() && size.h < 30 * app.pixelRatio(), `small shape, got ${size.w}x${size.h}`);
+  const duplicate = markers[0] === first.marker ? markers[0] : markers[1];
+  const doubled = { ...duplicate, items: [...duplicate.items, duplicate.items[0], duplicate.items[0]] };
+  const again = app.markerFootprints([doubled, markers.find(m => m !== duplicate)], markerScreen, markerScreen)
+    .find(f => f.marker === doubled);
+  assert.deepEqual(extent(again.points), size);
+});
+
+test("a group whose hull crosses the near-camera clip draws no footprint while its neighbour still does", () => {
+  const { markers } = footprintLayout(footprintBoxW() * 1.8);
+  const clipLeftGroup = (p) => (p.x < footprintBoxW() * 0.5 && p.y > 5 ? null : p);
+  const footprints = app.markerFootprints(markers, markerScreen, clipLeftGroup);
+  assert.equal(footprints.length, 1);
+  assert.ok(footprints[0].marker.items.some(i => i.id.startsWith("b")), "the unclipped neighbour keeps its footprint");
+});
+
+test("footprints are the hull projected through the active tilt, and still contain the projected members", () => {
+  const { markers } = footprintLayout(footprintBoxW() * 1.8);
+  const project = (p) => ({ x: p.x * 0.5 + 100, y: p.y * 0.25 + 40 });
+  const projected = app.markerFootprints(markers, markerScreen, project);
+  const plain = footprintsFor(markers);
+  assert.equal(projected.length, 2);
+  for (const { marker, points } of projected) {
+    const flat = plain.find(f => f.marker === marker).points;
+    assert.deepEqual(points.map(p => [p.x, p.y]), flat.map(p => { const q = project(p); return [q.x, q.y]; }));
+    for (const item of marker.items) assert.ok(footprintContains(points, project(item.point)));
   }
 });
