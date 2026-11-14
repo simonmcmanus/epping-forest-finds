@@ -194,6 +194,10 @@ test.describe("Tree nudge snapshot", () => {
     await page.waitForFunction(() => state.userLocation && !state.userLocation.isDefault && state.trees.length > 0);
     // Pin the nearest tree and distance so the card's text is the same on every run.
     await page.evaluate(() => {
+      // This snapshot covers the proximity nudge on its own, not the first-location adventure.
+      localStorage.setItem("ff-tree-adventure-seen-v1", "1");
+      const adventure = document.getElementById("adventureBanner");
+      if (adventure) adventure.hidden = true;
       localStorage.removeItem("ff-community-nudge-seen-v1");
       localStorage.removeItem("ff-community-nudges-off-v1");
       localStorage.removeItem("ff-community-local-v1");
