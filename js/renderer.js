@@ -2478,6 +2478,14 @@ function drawMapMarkers(ctx, markers, toScreen, tilted = false, options = {}) {
         const type = markerItemType(marker, shrinking.item);
         ctx.globalAlpha = reveal * transitionOpacity * lonePinOpacity(type, shrinking.item);
         const shrinkingTiltScale = tilted ? tiltPinScale(shrinking.item.point) : 1;
+        // The transient pin is still visible while its group face grows. Include it in the
+        // label-avoidance geometry for the duration of the merge, even though it is no longer
+        // an independent marker in the settled layout.
+        _drawnMarkerSpecs.push({
+          worldPt: shrinking.item.point,
+          count: 1,
+          scale: mapEmojiScale() * shrinkingTiltScale * shrinking.scale,
+        });
         drawItemPin(ctx, type, shrinking.item, p.x, p.y, loneSize * shrinkingTiltScale * shrinking.scale);
       }
     }
