@@ -372,7 +372,7 @@ function findRoutePoints(graph, fromPoint, toPoint, options) {
   if (!graph || !graph.nodes || !graph.nodes.length) return null;
   const toLatLon = options.toLatLon;
   const distanceMetresFn = options.distanceMetresFn;
-  const maxSnapMetres = options.maxSnapMetres != null ? options.maxSnapMetres : 100;
+  const maxSnapMetres = options.maxSnapMetres != null ? options.maxSnapMetres : 250;
   const maxDetourRatio = options.maxDetourRatio != null ? options.maxDetourRatio : 4;
 
   const fromLatLon = toLatLon(fromPoint);
@@ -388,18 +388,28 @@ function findRoutePoints(graph, fromPoint, toPoint, options) {
   // This prevents the user from snapping to a road node that's the wrong direction
   // (e.g., around a building instead of toward the destination). The destination itself snaps to its
   // nearest node: pulling it toward the start as well would let both ends collapse onto one node in between.
-  const fromSnap = nearestRoutingNode(graph, fromPoint, mainComponent, toPoint);
+  let fromSnap = nearestRoutingNode(graph, fromPoint, mainComponent, toPoint);
   if (!fromSnap) return null;
   const toSnap = nearestRoutingNode(graph, toPoint, mainComponent);
 
-  if (!toSnap || fromSnap.nodeId === toSnap.nodeId) return null;
+  if (!toSnap) return null;
 
-  const fromSnapLatLon = toLatLon(fromSnap.point);
+  function snapMetres(snap, origin) {
+    const snapped = toLatLon(snap.point);
+    return distanceMetresFn(origin.latitude, origin.longitude, snapped.latitude, snapped.longitude);
+  }
+  // Direction is a preference, not a reason to abandon a reachable walk. Its score can
+  // favour a forward vertex outside the connector limit over a close vertex behind us.
+  // Retry the actual nearest vertex before concluding there is no network nearby.
+  let fromSnapMetres = snapMetres(fromSnap, fromLatLon);
+  if (fromSnapMetres > maxSnapMetres) {
+    fromSnap = nearestRoutingNode(graph, fromPoint, mainComponent);
+    if (!fromSnap) return null;
+    fromSnapMetres = snapMetres(fromSnap, fromLatLon);
+  }
+  if (fromSnap.nodeId === toSnap.nodeId) return null;
+
   const toSnapLatLon = toLatLon(toSnap.point);
-  const fromSnapMetres = distanceMetresFn(
-    fromLatLon.latitude, fromLatLon.longitude,
-    fromSnapLatLon.latitude, fromSnapLatLon.longitude
-  );
   const toSnapMetres = distanceMetresFn(
     toLatLonValue.latitude, toLatLonValue.longitude,
     toSnapLatLon.latitude, toSnapLatLon.longitude
