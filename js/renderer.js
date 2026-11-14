@@ -1656,12 +1656,24 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main") {
   // member has gone is affected and starts fresh; other seeds keep their previous order and
   // memberships, so a cow refresh or a newly in-range place does not regroup the whole map.
   if (memory) {
-    const validSeeds = new Map();
+    let hasInvalidSeed = false;
     for (const [seedItem, heldItems] of memory.seeds) {
-      if (!nodeOfItem.has(seedItem) || heldItems.some(item => !nodeOfItem.has(item))) continue;
-      validSeeds.set(seedItem, heldItems);
+      if (!nodeOfItem.has(seedItem) || heldItems.some(item => !nodeOfItem.has(item))) {
+        hasInvalidSeed = true;
+        break;
+      }
     }
-    memory = validSeeds.size ? validSeeds : undefined;
+    if (hasInvalidSeed) {
+      const validSeeds = new Map();
+      for (const [seedItem, heldItems] of memory.seeds) {
+        if (nodeOfItem.has(seedItem) && heldItems.every(item => nodeOfItem.has(item))) {
+          validSeeds.set(seedItem, heldItems);
+        }
+      }
+      memory = validSeeds.size ? validSeeds : undefined;
+    } else {
+      memory = memory.seeds;
+    }
   }
   // Numeric cell keys (a collision between two far-apart cells only adds candidates the exact
   // box test below rejects). A cell edge equal to the box's longer side guarantees an overlapping
