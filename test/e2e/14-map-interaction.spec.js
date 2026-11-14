@@ -18,16 +18,23 @@ async function gotoLinkedNearby(page, path) {
 // Samples a pure in-page function every intervalMs, entirely inside the page. The cadence is the
 // thing being measured (what is on screen at steady instants of a wall-clock slide), so it is kept
 // out of the Playwright round trip, whose latency grows on a loaded runner and would let a short
-// slide finish before the first sample.
-// `startFn` runs in the same round trip, immediately before the first interval, so no latency
-// sits between triggering the slide and measuring it.
+// slide finish before the first sample. `startFn` runs in the same round trip as the immediate
+// first sample, followed by the existing interval cadence. The cadence waits on animation frames
+// rather than a timer, so a late timer cannot skip the rendered part of a short transition.
 function sampleEvery(page, startFn, sampleFn, count, intervalMs) {
   return page.evaluate(async ({ startSrc, src, count, intervalMs }) => {
     const fn = (0, eval)(`(${src})`);
     (0, eval)(`(${startSrc})`)();
-    const out = [];
+    const out = [fn()];
     for (let i = 0; i < count; i += 1) {
-      await new Promise((resolve) => setTimeout(resolve, intervalMs));
+      await new Promise((resolve) => {
+        const startedAt = performance.now();
+        const waitForFrame = (timestamp) => {
+          if (timestamp - startedAt >= intervalMs) resolve();
+          else requestAnimationFrame(waitForFrame);
+        };
+        requestAnimationFrame(waitForFrame);
+      });
       out.push(fn());
     }
     return out;
@@ -429,7 +436,9 @@ test.describe("Map interaction", () => {
         focusNearbyOnMapPoint({ latitude, longitude }, projectLonLat(longitude, latitude));
       };
 
-      const during = await sampleEvery(page, startSlide, sampleBody, 5, 60);
+      // Keep sampling beyond the 520ms slide: on a loaded runner a timer can be late enough
+      // that five samples only reach the early part of the reveal ramp.
+      const during = await sampleEvery(page, startSlide, sampleBody, 10, 60);
       const sliding = during.filter((s) => s.sliding);
       expect(sliding.length, "the slide should have been observed running").toBeGreaterThan(0);
       // Arrives steadily: never goes back down while the map is travelling.
