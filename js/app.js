@@ -58,6 +58,9 @@ const HEADING_UP_NAV_ANIMATION_MS = 500; // standard duration for heading-up ali
 const MIN_HEADING_UP_ANIMATION_MS = 200; // floor for animateToHeadingUpNavigationViewport's duration
 const DEFAULT_VIEWPORT_ANIMATION_MS = 480; // generic fallback duration for the low-level viewport animators when nothing else is specified
 const MIN_VIEWPORT_ANIMATION_MS = 180; // floor for moveCamera's duration
+const STAGED_PAN_FULL_LEG_SHARE = 0.4; // share of a staged cluster-tap move given to its pan leg when the pan covers the reference distance -- see alignHeadingUpNavigationViewport()
+const STAGED_PAN_REFERENCE_SHORT_SIDE_SHARE = 0.25; // pan distance, as a share of the focus rect's shorter side, that earns the full pan-leg share
+const STAGED_PAN_MIN_MS = 90; // a proportional pan leg shorter than this is skipped, so the zoom starts on the tap
 const FIRST_LOAD_REVEAL_ANIMATION_MS = 700; // the first-time "reveal the map" animation, in all its variants (fit to user+items, centered-on-user)
 const FIRST_LOCATION_FLY_TO_ANIMATION_MS = 1250; // the High Beach stand-in -> real GPS handoff, with a cinematic fly-to arc
 const DEFAULT_FIT_PADDING_PX = 54; // default screen-space padding for fitToPoints (around content bounds)
@@ -5715,9 +5718,21 @@ function alignHeadingUpNavigationViewport(options = {}) {
       ty: focusY - userPoint.y * previousScale,
     };
     const totalMs = options.durationMs || HEADING_UP_NAV_ANIMATION_MS;
-    const panMs = Math.round(totalMs * 0.4);
-    const zoomMs = Math.max(MIN_VIEWPORT_ANIMATION_MS, totalMs - panMs);
-    moveCamera(panViewport, panMs, () => moveCamera(targetViewport, zoomMs));
+    // The pan leg's time follows how far it really travels on screen: a group already near the
+    // camera focus would otherwise hold a few pixels of movement for the full share, a dead beat
+    // before the zoom. A negligible pan is skipped and its residual offset rides the one ease.
+    const referencePanPx = Math.min(focusRect.width, focusRect.height) * STAGED_PAN_REFERENCE_SHORT_SIDE_SHARE;
+    const panShare = referencePanPx > 0 ? Math.min(1, panDistancePx / referencePanPx) : 1;
+    const proportionalPanMs = Math.round(totalMs * STAGED_PAN_FULL_LEG_SHARE * panShare);
+    if (proportionalPanMs < STAGED_PAN_MIN_MS) {
+      moveCamera(targetViewport, totalMs);
+    } else {
+      // moveCamera raises any duration to MIN_VIEWPORT_ANIMATION_MS, so budget the zoom leg
+      // against the pan time it will actually run, keeping the legs within totalMs.
+      const panMs = Math.max(proportionalPanMs, MIN_VIEWPORT_ANIMATION_MS);
+      const zoomMs = Math.max(MIN_VIEWPORT_ANIMATION_MS, totalMs - panMs);
+      moveCamera(panViewport, panMs, () => moveCamera(targetViewport, zoomMs));
+    }
   } else if (options.animate) {
     moveCamera(
       targetViewport,

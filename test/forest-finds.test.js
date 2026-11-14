@@ -11009,12 +11009,12 @@ test("pinching/wheeling the walking radius also drops an expanded cluster", () =
 test("tapping a nearby cluster pans to it at today's zoom, then zooms in -- two tweens, not one", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.65, 0.05);
-  // A couple of hundred metres from the user's own location -- on screen at the walking-radius
-  // framing the camera already has, but not so coincident with its current pivot that the pan
-  // leg below is a zero-distance no-op (moveCamera's own near-identical-target snap,
-  // which would resolve synchronously and skip straight to the chained zoom leg).
-  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6520, 0.0510) };
-  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65201797, 0.0510) };
+  // A few hundred metres from the user's own location -- on screen at the walking-radius
+  // framing the camera already has, and far enough from its current pivot that the pan covers at
+  // least the reference distance the full pan leg is reserved for (a nearer group gets a shorter
+  // pan, or none -- see the two tests below).
+  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6530, 0.0520) };
+  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65301797, 0.0520) };
   app.state.trees.push(oak1, oak2);
   app.selectOverview();
   app.ensureOverviewTargetsVisible({ animate: false, force: true });
@@ -11032,6 +11032,36 @@ test("tapping a nearby cluster pans to it at today's zoom, then zooms in -- two 
   assert.ok(app.state.viewportAnimationTo, "the tap should start a camera animation");
   assert.equal(app.state.viewportAnimationDuration, 208, "the first leg is the 40%-of-520ms pan, not the full duration");
   assert.equal(app.state.viewportAnimationTo.scale, scaleBeforeTap, "the pan leg holds the scale the camera already had");
+});
+
+function tapClusterOffsetFromUser(offsetLat, offsetLon) {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  // Members a couple of metres apart, centred offsetLat/offsetLon degrees from the user's location.
+  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.65 + offsetLat, 0.05 + offsetLon) };
+  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65 + offsetLat + 0.00001797, 0.05 + offsetLon) };
+  app.state.trees.push(oak1, oak2);
+  app.selectOverview();
+  app.ensureOverviewTargetsVisible({ animate: false, force: true });
+  const before = { ...app.state.viewport };
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: [oak1, oak2] });
+  return { before, to: app.state.viewportAnimationTo, duration: app.state.viewportAnimationDuration };
+}
+
+test("tapping a cluster at the camera's own pivot starts the zoom on the tap, with no same-scale hold", () => {
+  // A few metres off the pivot: roughly 17 CSS px of pan, far below anything worth its own leg.
+  const tap = tapClusterOffsetFromUser(0.00004, 0.00004);
+  assert.ok(tap.to, "the tap should start a camera animation");
+  assert.notEqual(tap.to.scale, tap.before.scale, "the first animation already zooms -- the negligible pan is not given its own leg");
+  assert.equal(tap.duration, 520, "the zoom runs the whole slide duration (NEARBY_ORIGIN_TRANSITION_MS)");
+});
+
+test("tapping a cluster a mid-distance away gives its pan leg a shorter share than a full-distance pan", () => {
+  const tap = tapClusterOffsetFromUser(0.0012, 0.0012);
+  assert.ok(tap.to, "the tap should start a camera animation");
+  assert.equal(tap.to.scale, tap.before.scale, "the pan leg holds the scale the camera already had");
+  assert.ok(tap.duration < 208, `a mid-distance pan is shorter than the full 208ms leg (got ${tap.duration})`);
+  assert.ok(tap.duration >= 90, `but never below the pan floor (got ${tap.duration})`);
 });
 
 test("tapping a cluster far outside the current view skips staging -- one direct ease instead", () => {
