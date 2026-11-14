@@ -2192,9 +2192,9 @@ function clusterStackChipGeometry(x, y, count, dpr, scale = 1, index = 0, total 
   const R = b.size * 0.32;
   const chipR = total <= 2 ? R * 0.3 : R * 0.26;
   const offsets = total === 1
-    ? [-0.4]
+    ? [-0.24]
     : total === 2
-      ? [-0.42, 0.42]
+      ? [-0.38, 0.38]
       : [-0.45, 0, 0.45];
   const xOffset = offsets[Math.min(index, offsets.length - 1)] * R;
   const yOffset = total === 1 ? 0.5 : 0.52;
@@ -2208,9 +2208,9 @@ function clusterMorePlusGeometry(x, y, count, dpr, scale = 1, total = 1) {
   const b = clusterBadgeGeometry(x, y, count, dpr, scale);
   const R = b.size * 0.32;
   return {
-    cx: x + (total === 1 ? 0.32 : 0) * R,
+    cx: x + (total === 1 ? 0.24 : 0) * R,
     cy: b.top + b.height * 0.5 + 0.52 * R,
-    radius: R * 0.29,
+    radius: R * 0.31,
     unit: b.unit,
   };
 }

@@ -1498,6 +1498,11 @@ test("the hidden category stack stays inside the face at every tilt scale", () =
         `horizontal fit at scale ${scale}, plus stack size ${total}`);
       assert.ok(plus.cy - plus.radius >= face.top && plus.cy + plus.radius <= face.bottom,
         `vertical fit at scale ${scale}, plus stack size ${total}`);
+      if (total <= 2) {
+        const chip = app.clusterStackChipGeometry(100, 100, 3, app.pixelRatio(), scale, 0, total);
+        assert.ok(Math.abs(plus.cx - chip.cx) < plus.radius + chip.radius,
+          `the plus overlaps the peek icon at scale ${scale}, stack size ${total}`);
+      }
     }
   }
   app.drawClusterMarker(ctx, 100, 100, 3, [], app.pixelRatio(), 0.65, ["hidden-a", "hidden-b"]);
