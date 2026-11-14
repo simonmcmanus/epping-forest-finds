@@ -41,6 +41,30 @@ async function startCameraTrace(page) {
   });
 }
 
+/**
+ * Lists the Nearby items that are not cows. A cow can sit at the user's own position (0 m), where
+ * selecting it needs no zoom, so the camera journeys must not take "whichever is first".
+ * Returns locators for the first `count` such items, in list order, and the Nearby ring scale.
+ */
+async function pickPlaces(page, count) {
+  const items = page.locator("#inspectorBody [data-overview-type][data-overview-key]");
+  await expect(items.first()).toBeVisible();
+  const listed = await items.evaluateAll((els) => els.map((el) => ({
+    type: el.getAttribute("data-overview-type"), key: el.getAttribute("data-overview-key") })));
+  const places = listed.filter((item) => item.type !== "cow").slice(0, count);
+  expect(places.length, `needs ${count} non-cow Nearby items, listed: ${JSON.stringify(listed)}`).toBe(count);
+  const ringScale = await page.evaluate(() => state.viewport.scale);
+  const locators = places.map((p) => page.locator(
+    `#inspectorBody [data-overview-type=${JSON.stringify(p.type)}][data-overview-key=${JSON.stringify(p.key)}]`));
+  return { locators, ringScale };
+}
+
+/** Fails clearly if opening a place did not zoom in from the Nearby ring, so the journey is meaningful. */
+async function expectZoomedInFrom(page, ringScale) {
+  await expect.poll(() => page.evaluate(() => state.viewport.scale),
+    { message: `opening a place must zoom in beyond the Nearby ring scale ${ringScale}` }).toBeGreaterThan(ringScale * 1.5);
+}
+
 /** Camera moves recorded since startCameraTrace, without the raw timestamps. */
 async function cameraMoves(page) {
   return page.evaluate(() => window.__cameraTrace.map(({ t, ...rest }) => rest));
@@ -128,9 +152,11 @@ test.describe("Back from a zoomed-in place to a browse view", () => {
 test.describe("Camera trace of user transitions", () => {
   test("opening a place from Nearby is one zoom, with no un-animated jumps", async ({ page }) => {
     await setup(page, "/nearby");
+    const { locators, ringScale } = await pickPlaces(page, 1);
     await startCameraTrace(page);
-    await page.locator("#inspectorBody [data-overview-type][data-overview-key]").nth(0).click();
+    await locators[0].click();
     await waitForUiToSettle(page);
+    await expectZoomedInFrom(page, ringScale);
 
     const moves = await cameraMoves(page);
     expect(moves.filter((m) => m.kind === "direct")).toEqual([]);
@@ -140,13 +166,15 @@ test.describe("Camera trace of user transitions", () => {
 
   test("switching from one place to another is one zoom, not a pan cut short by a zoom", async ({ page }) => {
     await setup(page, "/nearby");
-    await page.locator("#inspectorBody [data-overview-type][data-overview-key]").nth(0).click();
+    const { locators, ringScale } = await pickPlaces(page, 2);
+    await locators[0].click();
     await waitForUiToSettle(page);
+    await expectZoomedInFrom(page, ringScale);
     await page.locator("#nearbyToggle").click();
     await waitForUiToSettle(page);
 
     await startCameraTrace(page);
-    await page.locator("#inspectorBody [data-overview-type][data-overview-key]").nth(1).click();
+    await locators[1].click();
     await waitForUiToSettle(page);
 
     const moves = await cameraMoves(page);
@@ -156,8 +184,10 @@ test.describe("Camera trace of user transitions", () => {
 
   test("returning to Nearby from a place is one zoom out, with no un-animated jumps", async ({ page }) => {
     await setup(page, "/nearby");
-    await page.locator("#inspectorBody [data-overview-type][data-overview-key]").nth(0).click();
+    const { locators, ringScale } = await pickPlaces(page, 1);
+    await locators[0].click();
     await waitForUiToSettle(page);
+    await expectZoomedInFrom(page, ringScale);
 
     await startCameraTrace(page);
     await page.locator("#nearbyToggle").click();
