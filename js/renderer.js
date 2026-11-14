@@ -312,6 +312,9 @@ function draw() {
   drawSelectedRoute(ctx);
   if (!useOverlayForPins) {
     const nearbyIconLookup = activeIconLookup();
+    // Paint the live location beneath the map pins. A nearby pin should own its pointer
+    // visually when its geographic point is the same as (or very close to) the user's fix.
+    drawUser(ctx, worldToScreen, false, "dot");
     drawMapMarkers(ctx, buildMapMarkers(nearbyIconLookup, worldToScreen, markerMemoryKey()), worldToScreen);
     drawSelectionExitMarkers(ctx, worldToScreen);
   }
@@ -361,11 +364,15 @@ function drawOverlay() {
   if (isTilted) drawUserRadarOverlayTilted(ctx);
   else drawUserRadarOverlay(ctx, toScreen);
   if (useOverlayForPins) {
+    // Keep the blue dot behind location pins in heading-up/tilted mode too.
+    drawUser(ctx, toScreen, isTilted, "dot");
     drawMapMarkers(ctx, buildActiveMapMarkers(toScreen), toScreen, true);
     drawSelectionExitMarkers(ctx, toScreen, true);
   }
   drawFilterTransitionPins(ctx, toScreen);
-  drawUser(ctx, toScreen, isTilted);
+  // The label is placed after the pins so it remains readable; its collision check uses the
+  // marker rectangles recorded by the draw above.
+  drawUser(ctx, toScreen, isTilted, "label");
   drawNearbyAnchorMarker(ctx, toScreen);
   drawCommunityMarks(ctx, toScreen);
   drawSelectedOverlay(ctx, toScreen);
@@ -2901,7 +2908,7 @@ function placeUserLabel(dot, radius, textWidth, fontSize, gap, rightBaselineDrop
   return null;
 }
 
-function drawUser(ctx, toScreen, isTilted) {
+function drawUser(ctx, toScreen, isTilted, phase = "all") {
   // isDefault (applyDefaultLocation, js/app.js): DEFAULT_LOCATION's High Beach stand-in, not a
   // real fix -- drawing "You" there would tell the reader they've been located somewhere they
   // are not actually standing.
@@ -2934,14 +2941,22 @@ function drawUser(ctx, toScreen, isTilted) {
   const dotScale = clamp(state.viewport.scale / baseScale, 0.1, 1.5) * pinScale;
   const radius = Math.max(2 * dpr, 4 * dpr * dotScale);
   
+  const labelOnly = phase === "label";
   ctx.save();
-  ctx.beginPath();
-  ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-  ctx.fillStyle = "#1f5eff";
-  ctx.fill();
-  ctx.strokeStyle = "#fff";
-  ctx.lineWidth = 2 * dpr * dotScale;
-  ctx.stroke();
+  if (!labelOnly) {
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    ctx.fillStyle = "#1f5eff";
+    ctx.fill();
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 2 * dpr * dotScale;
+    ctx.stroke();
+  }
+  if (phase === "dot") {
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    return;
+  }
   ctx.fillStyle = "#14211d";
   const fontSize = 11 * dpr * dotScale;
   ctx.font = `800 ${fontSize}px system-ui`;

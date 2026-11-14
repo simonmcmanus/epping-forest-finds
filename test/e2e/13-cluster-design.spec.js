@@ -347,14 +347,14 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     expect(result.settled).toEqual(result.fresh);
   });
 
-  test('the user dot and its label are painted after every pin, flat and heading-up', async ({ page }) => {
+  test('the user dot is behind every pin while its label is painted afterward, flat and heading-up', async ({ page }) => {
     await setup(page);
     const order = await page.evaluate(() => {
       stopViewportAnimation();
       const markers = drawMapMarkers, user = drawUser;
       const events = [];
       drawMapMarkers = (...args) => { events.push('pins'); return markers(...args); };
-      drawUser = (...args) => { events.push('user'); return user(...args); };
+      drawUser = (...args) => { events.push(args[3] || 'all'); return user(...args); };
       try {
         draw();
         const flat = events.splice(0);
@@ -371,8 +371,8 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
       }
     });
     expect(order.tiltActive).toBe(true);
-    expect(order.flat).toEqual(['pins', 'user']);
-    expect(order.tilted).toEqual(['pins', 'user']);
+    expect(order.flat).toEqual(['dot', 'pins', 'label']);
+    expect(order.tilted).toEqual(['dot', 'pins', 'label']);
   });
 
   test('tapping a mixed group opens exactly its members, and the badge count matches the list and map', async ({ page }) => {
