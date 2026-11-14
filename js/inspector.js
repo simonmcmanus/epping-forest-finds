@@ -188,21 +188,6 @@ function findHit(screen, world) {
     return item === selectedItem || shouldDrawMapIcon(type, item, iconLookup);
   }
 
-  // Trees other walkers added are drawn as marks (drawCommunityMarks) over everything else, so a tap
-  // on one wins.
-  if (typeof communityOverlayNewTreeMarks === "function" && !(state.selected && state.selected.type === "community")) {
-    let bestAdded = null;
-    for (const mark of communityOverlayNewTreeMarks()) {
-      if (!mark.tag) continue;
-      const point = worldToScreen(projectLonLat(mark.lon, mark.lat));
-      const distance = Math.hypot(point.x - screen.x, point.y - screen.y);
-      if (distance < 22 * dpr && (!bestAdded || distance < bestAdded.distance)) {
-        bestAdded = { type: "addedtree", item: communityAddedTreeItem(mark), distance };
-      }
-    }
-    if (bestAdded) return bestAdded;
-  }
-
   let bestPlace = null;
   for (const place of state.landmarks) {
     if (!isTappablePin("landmark", place)) continue;
@@ -338,7 +323,7 @@ function findClusterHit(screen) {
   const toScreen = tilted ? worldToScreenForOverlayTilted
     : nearbyHeadingUpActive() ? worldToScreenForOverlay : worldToScreen;
   let hit = null;
-  for (const marker of buildMapMarkers(activeIconLookup(), toScreen)) {
+  for (const marker of buildActiveMapMarkers(toScreen)) {
     if (marker.items.length < 2) continue;
     const scale = tilted ? Math.max(0.65, tiltPinScale(marker.worldPt)) : 1;
     if (!clusterBadgeContains(screen, marker.screenPt.x, marker.screenPt.y, marker.items.length, dpr, scale)) continue;
@@ -1206,10 +1191,10 @@ function markerOpacityFor(kind, item) {
   // strength regardless of which category filters happen to be active -- a search should never
   // come back dimmed just because Map setup was last left on a different category.
   if (state.searchScreenOpen) return 1;
-  const locationSelected = state.selected && ["tree", "landmark", "cow", "path"].includes(state.selected.type);
+  const locationSelected = state.selected && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type);
   if (locationSelected) {
     if (state.selected.type === kind && state.selected.item === item) return 1;
-    return 0.5;
+    return 0;
   }
 
   if (!state.overviewFilters.length) {
@@ -1384,6 +1369,7 @@ function onInspectorHeightTransitionEnd(callback, timeoutMs = INSPECTOR_MINIMIZE
 function holdSelectionMapUntilCameraSettles() {
   const transitionToken = {};
   state.selectionTransition.mapHeld = true;
+  state.selectionTransition.startedAt = performance.now();
   state.selectionMapTransitionToken = transitionToken;
   const settleMapTransition = () => {
     if (state.selectionMapTransitionToken !== transitionToken) return;
@@ -1400,9 +1386,9 @@ function holdSelectionMapUntilCameraSettles() {
       return;
     }
     state.selectionTransition.mapHeld = false;
+    state.selectionTransition.startedAt = null;
+    state.selectionTransition.outgoingIconLookup = null;
     state.selectionMapTransitionToken = null;
-    state.selectionMapTransitionIconLookup = null;
-    state.selectionMapTransitionOriginPoint = null;
     requestDraw();
   };
   requestAnimationFrame(settleMapTransition);
@@ -1412,13 +1398,27 @@ function zoomToSelection() {
   const waitForInspectorTransition = state.inspectorMinimizeTransitionPending;
   state.inspectorMinimizeTransitionPending = false;
   holdSelectionMapUntilCameraSettles();
-  const doZoom = () => {
+  const startCamera = () => {
     state.selectionTransition.viewportPending = false;
     if (typeof animateToHeadingUpNavigationViewport === "function" && selectedNavigationHeadingUpActive()) {
       animateToHeadingUpNavigationViewport(500, { deliberate: true });
     } else {
       ensureUserAndSelectionVisible({ animate: true, force: true, durationMs: HEADING_UP_NAV_ANIMATION_MS, deliberate: true });
     }
+  };
+  const doZoom = () => {
+    const delay = typeof selectionOutgoingRevealDurationMs === "function"
+      ? selectionOutgoingRevealDurationMs()
+      : 0;
+    if (!delay) {
+      startCamera();
+      return;
+    }
+    const transitionToken = state.selectionMapTransitionToken;
+    setTimeout(() => {
+      if (state.selectionMapTransitionToken !== transitionToken) return;
+      startCamera();
+    }, delay);
   };
 
   if (!els.inspector.classList.contains("minimized")) {

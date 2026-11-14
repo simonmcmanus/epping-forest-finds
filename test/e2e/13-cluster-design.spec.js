@@ -198,6 +198,145 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     expect(view.overlaps, 'drawn markers overlapping').toBe(0);
   });
 
+  // Paints one flat frame, recording every marker rectangle and the real extent of the "You" text.
+  const MEASURE_YOU_LABEL = `(() => {
+    settleClusterJoinAnimations();
+    const dpr = pixelRatio();
+    const drawnGroup = drawClusterMarker, drawnPin = drawItemPin;
+    const rects = [];
+    drawClusterMarker = (ctx, x, y, count, sources, d, scale = 1) => {
+      rects.push(...markerPaintedRects(x, y, count, dpr, scale));
+      return drawnGroup(ctx, x, y, count, sources, d, scale);
+    };
+    drawItemPin = (ctx, type, item, x, y, size) => {
+      rects.push(...markerPaintedRects(x, y, 1, dpr, size / (MAP_PNG_ICON_SIZE * MAP_ICON_SCALE_UNSELECTED * dpr)));
+      return drawnPin(ctx, type, item, x, y, size);
+    };
+    const overlay = els.overlayCanvas.getContext('2d');
+    let label = null;
+    overlay.fillText = function (text, x, y) {
+      if (text === 'You') {
+        const m = this.measureText(text);
+        label = { left: x - m.actualBoundingBoxLeft, right: x + m.actualBoundingBoxRight, top: y - m.actualBoundingBoxAscent, bottom: y + m.actualBoundingBoxDescent };
+      }
+      return CanvasRenderingContext2D.prototype.fillText.apply(this, arguments);
+    };
+    try { draw(); } finally { drawClusterMarker = drawnGroup; drawItemPin = drawnPin; delete overlay.fillText; }
+    const covered = label ? rects.filter(r => label.left < r.right && r.left < label.right && label.top < r.bottom && r.top < label.bottom).length : -1;
+    const dot = worldToScreen(state.userLocation.point);
+    // Distance from the dot's centre to the nearest edge of the label box.
+    const gap = label ? Math.hypot(Math.max(label.left - dot.x, 0, dot.x - label.right), Math.max(label.top - dot.y, 0, dot.y - label.bottom)) : null;
+    return { markers: rects.length, labelDrawn: Boolean(label), covered, side: _userLabelSide, gap, dpr };
+  })()`;
+
+  test('the You label, when drawn, never touches a marker and stays beside the dot, at the default view and after zooming', async ({ page }) => {
+    await setup(page);
+    await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
+    await waitForUiToSettle(page);
+    let shown = 0;
+    for (const factor of [1, 0.45, 2.2]) {
+      const view = await page.evaluate(`((factor) => {
+        stopViewportAnimation();
+        const centre = { x: state.canvasLogicalWidth / 2, y: state.canvasLogicalHeight / 2 };
+        const world = screenToWorld(centre.x, centre.y);
+        state.viewport.scale *= factor;
+        for (let i = 0; i < 2; i++) {
+          const now = worldToScreen(world);
+          state.viewport.tx += centre.x - now.x;
+          state.viewport.ty += centre.y - now.y;
+        }
+        state.emojiScaleAnimated = zoomEmojiScaleTarget();
+        return ${MEASURE_YOU_LABEL};
+      })(${factor})`);
+      if (factor === 1) expect(view.labelDrawn, 'a free side exists at the default view, so the label is drawn').toBe(true);
+      if (!view.labelDrawn) continue;
+      shown += 1;
+      expect(view.covered, `zoom x${factor}: markers over the You label`).toBe(0);
+      expect(view.gap, `zoom x${factor}: the label sits beside the dot`).toBeLessThanOrEqual(12 * view.dpr);
+    }
+    expect(shown, 'the label is drawn in at least one of the views').toBeGreaterThan(0);
+  });
+
+  test('the You label steps aside when a marker stands right beside the user', async ({ page }) => {
+    await setup(page);
+    await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
+    await waitForUiToSettle(page);
+    const view = await page.evaluate(`(() => {
+      stopViewportAnimation();
+      const dpr = pixelRatio();
+      const marker = buildMapMarkers(activeIconLookup(), worldToScreen).reduce((a, b) => (a.screenPt.x <= b.screenPt.x ? a : b));
+      // The user stands just left of the marker's face, level with it: the default right-hand label
+      // would land on the marker, while the other three sides are clear.
+      const face = clusterMarkerRect(marker.screenPt.x, marker.screenPt.y, marker.items.length, dpr, marker.items.length > 1 ? 1 : mapEmojiScale());
+      const dot = { x: face.left - 15 * dpr, y: (face.top + face.bottom) / 2 };
+      state.userLocation = { ...state.userLocation, point: screenToWorld(dot.x, dot.y) };
+      return ${MEASURE_YOU_LABEL};
+    })()`);
+    expect(view.labelDrawn).toBe(true);
+    expect(view.covered, 'markers over the You label').toBe(0);
+    expect(view.gap).toBeLessThanOrEqual(12 * view.dpr);
+    expect(view.side, 'the label moved off the covered right side').not.toBe('right');
+  });
+
+  test('the You label is left out when markers cover every side of the dot', async ({ page }) => {
+    await setup(page);
+    await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
+    await waitForUiToSettle(page);
+    const view = await page.evaluate(`(() => {
+      stopViewportAnimation();
+      const dpr = pixelRatio();
+      const marker = buildMapMarkers(activeIconLookup(), worldToScreen).find(m => m.items.length > 1);
+      // The user stands in the middle of a group's face: right, left, below and above all touch it.
+      const face = clusterMarkerRect(marker.screenPt.x, marker.screenPt.y, marker.items.length, dpr, 1);
+      state.userLocation = { ...state.userLocation, point: screenToWorld((face.left + face.right) / 2, (face.top + face.bottom) / 2) };
+      return ${MEASURE_YOU_LABEL};
+    })()`);
+    expect(view.labelDrawn, 'no label when every side is covered').toBe(false);
+  });
+
+  test('once the opening camera move has landed, the markers are exactly a fresh layout at that camera', async ({ page }) => {
+    await setup(page);
+    await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
+    await waitForUiToSettle(page);
+    const result = await page.evaluate(() => {
+      const shape = (markers) => markers.map(m => `${Math.round(m.screenPt.x)},${Math.round(m.screenPt.y)}:${m.items.length}`).sort();
+      const settled = shape(buildActiveMapMarkers(worldToScreen));
+      resetMarkerGroupMemory();
+      const fresh = shape(buildActiveMapMarkers(worldToScreen));
+      return { settled, fresh };
+    });
+    expect(result.fresh.length, 'something is drawn').toBeGreaterThan(0);
+    expect(result.settled).toEqual(result.fresh);
+  });
+
+  test('a programmatic camera move that lands leaves exactly a fresh layout, however the camera got there', async ({ page }) => {
+    await setup(page);
+    await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
+    await waitForUiToSettle(page);
+    const result = await page.evaluate(() => new Promise((resolve) => {
+      stopViewportAnimation();
+      const home = { ...state.viewport };
+      const centre = { x: state.canvasLogicalWidth / 2, y: state.canvasLogicalHeight / 2 };
+      // A user-style zoom out and back in builds groups with memory.
+      for (const factor of [0.8, 0.6, 0.45, 0.6, 0.8, 1.15, 1]) {
+        const world = screenToWorld(centre.x, centre.y);
+        state.viewport.scale *= factor;
+        const now = worldToScreen(world);
+        state.viewport.tx += centre.x - now.x;
+        state.viewport.ty += centre.y - now.y;
+        buildActiveMapMarkers(worldToScreen);
+      }
+      const shape = (markers) => markers.map(m => `${Math.round(m.screenPt.x)},${Math.round(m.screenPt.y)}:${m.items.length}`).sort();
+      moveCamera({ scale: home.scale * 1.37, tx: home.tx, ty: home.ty }, 300, () => {
+        const settled = shape(buildActiveMapMarkers(worldToScreen));
+        resetMarkerGroupMemory();
+        resolve({ settled, fresh: shape(buildActiveMapMarkers(worldToScreen)) });
+      });
+    }));
+    expect(result.fresh.length, 'something is drawn').toBeGreaterThan(0);
+    expect(result.settled).toEqual(result.fresh);
+  });
+
   test('the user dot and its label are painted after every pin, flat and heading-up', async ({ page }) => {
     await setup(page);
     const order = await page.evaluate(() => {

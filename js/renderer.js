@@ -312,7 +312,8 @@ function draw() {
   drawSelectedRoute(ctx);
   if (!useOverlayForPins) {
     const nearbyIconLookup = activeIconLookup();
-    drawMapMarkers(ctx, buildMapMarkers(nearbyIconLookup, worldToScreen), worldToScreen);
+    drawMapMarkers(ctx, buildMapMarkers(nearbyIconLookup, worldToScreen, markerMemoryKey()), worldToScreen);
+    drawSelectionExitMarkers(ctx, worldToScreen);
   }
   drawSelectedRoadOverlay(ctx);
   drawSelectedPathOverlay(ctx);
@@ -320,6 +321,8 @@ function draw() {
   drawOverlay();
 
   if (filterPinTransitionActive()) requestDraw();
+  if (selectionOutgoingRevealInProgress()) requestDraw();
+  if (selectionDestinationRevealInProgress()) requestDraw();
 
   if (Math.abs(animatedEmojiScale.target - animatedEmojiScale.value) > 0.001) {
     requestDraw();
@@ -358,7 +361,8 @@ function drawOverlay() {
   if (isTilted) drawUserRadarOverlayTilted(ctx);
   else drawUserRadarOverlay(ctx, toScreen);
   if (useOverlayForPins) {
-    drawMapMarkers(ctx, buildMapMarkers(activeIconLookup(), toScreen), toScreen, true);
+    drawMapMarkers(ctx, buildActiveMapMarkers(toScreen), toScreen, true);
+    drawSelectionExitMarkers(ctx, toScreen, true);
   }
   drawFilterTransitionPins(ctx, toScreen);
   drawUser(ctx, toScreen, isTilted);
@@ -379,11 +383,8 @@ function drawOverlay() {
 function drawCommunityMarks(ctx, toScreen) {
   if (typeof communityMapMarks !== "function") return;
   const onCommunityScreen = Boolean(state.selected) && state.selected.type === "community";
-  // Trees walkers have added show for everyone on every other screen; the Community screen
-  // shows only the user's own reports.
-  const shared = onCommunityScreen ? [] : communityOverlayNewTreeMarks();
-  const own = onCommunityScreen ? communityMapMarks() : (state.selected && state.selected.type === "tree" && typeof communitySelectedTreeMarks === "function" ? communitySelectedTreeMarks() : []);
-  const marks = shared.concat(own);
+  if (!onCommunityScreen) return;
+  const marks = communityMapMarks();
   if (!marks.length) return;
   if (!toScreen) toScreen = worldToScreen;
   const dpr = pixelRatio();
@@ -436,12 +437,11 @@ function drawCommunityMarks(ctx, toScreen) {
 // it's clear the radius/list have pivoted away from the user's actual GPS position without
 // moving it.
 function drawNearbyAnchorMarker(ctx, toScreen) {
-  const transitionOrigin = state.selectionTransition.mapHeld && state.selectionMapTransitionOriginPoint;
-  if (!state.nearbyAnchor && !transitionOrigin) return;
+  if (!state.nearbyAnchor || hasRealSelection()) return;
   if (!toScreen) toScreen = worldToScreen;
   // Rides the slide with the circle it sits at the centre of, rather than jumping to the new
   // anchor a frame before the circle gets there.
-  const point = toScreen(transitionOrigin || nearbyRenderOriginPoint() || state.nearbyAnchor.point);
+  const point = toScreen(nearbyRenderOriginPoint() || state.nearbyAnchor.point);
   if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
   const dpr = pixelRatio();
   ctx.save();
@@ -1222,11 +1222,9 @@ function drawWalkingRadiusRimHighlight(ctx, center, radiusPx, tilted, dpr) {
 function drawWalkingRadius(ctx) {
   // The *rendered* origin, so the circle stays still on screen while a browse-origin slide moves
   // the map behind it (nearbyRenderOriginPoint, index.html).
-  const originPoint = state.selectionTransition.mapHeld && state.selectionMapTransitionOriginPoint
-    ? state.selectionMapTransitionOriginPoint
-    : nearbyRenderOriginPoint();
+  const originPoint = nearbyRenderOriginPoint();
   if (!originPoint) return;
-  if (hasRealSelection() && !state.selectionTransition.mapHeld) return;
+  if (hasRealSelection()) return;
 
   const dpr = pixelRatio();
   // Centre and radius are measured on the flat (untilted) map, then projected as a whole —
@@ -1574,6 +1572,35 @@ const MARKER_COLLISION_GAP_CSS_PX = 4;
 // Past this many items in a seed's 3x3 cell block, occupancy replaces the exact overlap count.
 const MARKER_DENSITY_EXACT_LIMIT = 32;
 
+// Grouping remembers the last build (see buildMapMarkers) so a pinch or wheel zoom does not make
+// items hop between neighbouring groups or a group split and re-merge frame to frame. An item
+// stays with the seed it had last time until it leaves this larger "split" box (this multiple of
+// the normal collision box on each axis).
+const MARKER_SPLIT_BOX_FACTOR = 1.25;
+// Memory per lookup context (see markerMemoryKey): { seeds, count }, seeds a Map of seed item -> the
+// items it held, in seed order, count the size of the item set it was built from. Replaced wholesale by every build in its context, so it never outlives the items.
+const _markerMemory = new Map();
+
+// A clean slate for grouping: the next build forms its groups from scratch. Called when the Nearby
+// filter set changes; builds in a context whose lookup was empty also start clean.
+function resetMarkerGroupMemory() {
+  _markerMemory.clear();
+}
+
+// Memory belongs to one kind of lookup, so a narrowed one (an expanded cluster's members, search
+// results, a held transition) never overwrites the main map's.
+function markerMemoryKey() {
+  if (state.selectionTransition && state.selectionTransition.mapHeld) return "held";
+  if (state.searchScreenOpen && state.searchHighlightResults.length) return "search";
+  if (state.clusterExpanded) return "expanded";
+  return "main";
+}
+
+// The markers of what the map shows now: the one pass draw(), drawOverlay() and findClusterHit share.
+function buildActiveMapMarkers(toScreen) {
+  return buildMapMarkers(activeIconLookup(), toScreen, markerMemoryKey());
+}
+
 // The rectangle a compact cluster face covers with its tail and its count chip, relative to the
 // anchor point. Worst case on the chip (a "99+" label), at scale 1: one uniform box for every
 // marker, deliberately ignoring zoom and tilt shrink so the no-overlap guarantee is conservative.
@@ -1585,21 +1612,29 @@ function markerCollisionBox(dpr) {
 
 // Seed-anchored, single pass, deliberately not transitive (chaining A-near-B-near-C walked across
 // whole dense views and merged the lot into one badge):
-//  - candidate seeds are taken densest first (most other items inside their own box), ties broken
-//    by category then original order, so a given view always clusters the same way;
-//  - a seed claims every still-unclaimed item, of any category, whose box overlaps its own;
+//  - seeds that were seeds on the previous build and are still present go first, in their previous
+//    order; the other candidates follow densest first (most other items inside their own box),
+//    ties broken by category then original order;
+//  - a seed claims every still-unclaimed item, of any category, whose box overlaps its own, and
+//    also keeps any item that was its member last time while it is inside the 1.25x split box
+//    (so a kept member can sit up to that far from its seed);
 //  - the marker is anchored at the seed item's own point, not at an average.
 // An item that no earlier seed claimed is outside every earlier seed's box by construction, so no
-// two markers can overlap. Grid-bounded: this runs every animation frame.
+// two markers can overlap (a remembered seed inside an earlier seed's box is simply absorbed).
+// Building twice on the same input gives the same markers, and a pure pan never regroups.
+// Grid-bounded: this runs every animation frame.
 //
 // Returns [{ items, itemsByType, itemType, screenPt, worldPt }]. `itemType` is the one category of
 // the group, or "_mega" when the group mixes categories. A group that claimed nothing is an
 // ordinary single-item pin.
-function buildMapMarkers(lookup, toScreen) {
+function buildMapMarkers(lookup, toScreen, memoryKey = "main") {
+  let memory = _markerMemory.get(memoryKey);
   const box = markerCollisionBox(pixelRatio());
   const boxW = box.width, boxH = box.height;
+  const splitW = boxW * MARKER_SPLIT_BOX_FACTOR, splitH = boxH * MARKER_SPLIT_BOX_FACTOR;
   const cell = Math.max(boxW, boxH);
   const nodes = [];
+  const nodeOfItem = new Map();
   for (const type of MARKER_TYPES) {
     const set = lookup && lookup[type];
     if (!set) continue;
@@ -1607,10 +1642,23 @@ function buildMapMarkers(lookup, toScreen) {
       if (!item.point) continue;
       const sp = toScreen(item.point);
       if (!Number.isFinite(sp.x) || !Number.isFinite(sp.y)) continue;
-      nodes.push({ item, type, sp, order: nodes.length, density: 0, claimed: false, cx: Math.floor(sp.x / cell), cy: Math.floor(sp.y / cell) });
+      const node = { item, type, sp, order: nodes.length, density: 0, claimed: false, isSeed: false, cx: Math.floor(sp.x / cell), cy: Math.floor(sp.y / cell) };
+      nodes.push(node);
+      nodeOfItem.set(item, node);
     }
   }
-  if (!nodes.length) return [];
+  if (!nodes.length) {
+    _markerMemory.delete(memoryKey);
+    return [];
+  }
+  // Memory only describes the item set it was built from: when items have arrived or left (data
+  // loading in, a radius or filter change) the layout starts fresh rather than inheriting an
+  // order formed against a different set.
+  if (memory) {
+    let known = memory.count === nodes.length;
+    if (known) for (const seedItem of memory.seeds.keys()) if (!nodeOfItem.has(seedItem)) { known = false; break; }
+    memory = known ? memory.seeds : undefined;
+  }
   // Numeric cell keys (a collision between two far-apart cells only adds candidates the exact
   // box test below rejects). A cell edge equal to the box's longer side guarantees an overlapping
   // item is never more than one cell away on either axis, so a 3x3 block never misses one.
@@ -1649,12 +1697,26 @@ function buildMapMarkers(lookup, toScreen) {
     }
     node.density = count;
   }
-  const seeds = nodes.slice().sort((a, b) => b.density - a.density || a.order - b.order);
+  // Last build's seeds that are still present keep their previous order and go first; the rest
+  // follow densest first.
+  const seeds = [];
+  if (memory) {
+    for (const prevItem of memory.keys()) {
+      const node = nodeOfItem.get(prevItem);
+      if (node && !node.isSeed) { node.isSeed = true; seeds.push(node); }
+    }
+  }
+  const fresh = nodes.filter(node => !node.isSeed).sort((a, b) => b.density - a.density || a.order - b.order);
+  for (const node of fresh) seeds.push(node);
   const markers = [];
+  const nextMemory = new Map();
   for (const seed of seeds) {
     if (seed.claimed) continue;
     seed.claimed = true;
     const members = [seed];
+    // New members need the normal box; members this seed held last time are kept up to the split
+    // box (looked up directly, not through the grid). Both are measured from this seed, so anchors
+    // stay a full box apart.
     if (seed.density) {
       for (let dx = -1; dx <= 1; dx++) {
         for (let dy = -1; dy <= 1; dy++) {
@@ -1667,8 +1729,17 @@ function buildMapMarkers(lookup, toScreen) {
           }
         }
       }
-      members.sort((a, b) => a.order - b.order);
     }
+    const held = memory && memory.get(seed.item);
+    if (held) {
+      for (const heldItem of held) {
+        const other = nodeOfItem.get(heldItem);
+        if (!other || other.claimed || Math.abs(other.sp.x - seed.sp.x) >= splitW || Math.abs(other.sp.y - seed.sp.y) >= splitH) continue;
+        other.claimed = true;
+        members.push(other);
+      }
+    }
+    if (members.length > 1) members.sort((a, b) => a.order - b.order);
     const itemsByType = {};
     const items = new Array(members.length);
     for (let i = 0; i < members.length; i++) {
@@ -1676,6 +1747,7 @@ function buildMapMarkers(lookup, toScreen) {
       items[i] = member.item;
       (itemsByType[member.type] || (itemsByType[member.type] = [])).push(member.item);
     }
+    nextMemory.set(seed.item, items);
     const types = Object.keys(itemsByType);
     markers.push({
       items,
@@ -1685,6 +1757,7 @@ function buildMapMarkers(lookup, toScreen) {
       worldPt: seed.item.point,
     });
   }
+  _markerMemory.set(memoryKey, { seeds: nextMemory, count: nodes.length });
   return markers;
 }
 
@@ -1790,6 +1863,7 @@ function filterPinTransitionActive(now = performance.now()) {
 // two sets are compared by object identity, which matches the renderer's existing dataset
 // model and avoids introducing a synthetic marker key for every feature type.
 function beginOverviewFilterPinTransition(previousLookup) {
+  resetMarkerGroupMemory();
   if (!previousLookup || (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches)) {
     _filterPinAnimations.clear();
     return;
@@ -1834,7 +1908,8 @@ function beginOverviewFilterPinTransition(previousLookup) {
 // while they shrink. This keeps the normal clustered renderer authoritative for visible pins,
 // and means the outgoing marker never has to be resurrected in the hit-test lookup.
 function drawFilterTransitionPins(ctx, toScreen) {
-  if (!filterPinTransitionActive()) return;
+  _drawnTransitionSpecs = [];
+  if (!filterPinTransitionActive() || hasRealSelection() || pinsHiddenBySelection(true)) return;
   const dpr = pixelRatio();
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
   const reveal = nearbyRevealOpacity();
@@ -1846,6 +1921,7 @@ function drawFilterTransitionPins(ctx, toScreen) {
     const tiltScale = typeof tiltPinScale === "function" ? tiltPinScale(item.point) : 1;
     const scale = stateAtFrame.scale * tiltScale;
     if (!isNearCanvas(point, iconSize * 2)) continue;
+    _drawnTransitionSpecs.push({ worldPt: item.point, count: 1, scale: iconSize * scale / (MAP_PNG_ICON_SIZE * MAP_ICON_SCALE_UNSELECTED * dpr) });
     ctx.save();
     ctx.globalAlpha = reveal * stateAtFrame.alpha;
     drawItemPin(ctx, animation.type, item, point.x, point.y, iconSize * scale);
@@ -2071,6 +2147,23 @@ function clusterMarkerRect(x, y, count, dpr, scale = 1) {
   };
 }
 
+// What a marker actually paints, as rectangles: the face, the count chip (groups only, at its real
+// label width) and the narrow pointer down to the anchor. Unlike clusterMarkerRect's bounding box
+// this leaves out the empty corners beside the pointer, so the "You" label can sit there.
+function markerPaintedRects(x, y, count, dpr, scale = 1) {
+  const b = clusterBadgeGeometry(x, y, count, dpr, scale);
+  const R = b.size * 0.32;
+  const rects = [
+    { left: b.left, right: b.left + b.width, top: b.top, bottom: b.bottom },
+    { left: x - R * 0.3, right: x + R * 0.3, top: b.bottom, bottom: y },
+  ];
+  if (count > 1) {
+    rects.push({ left: b.countX - b.countWidth / 2, right: b.countX + b.countWidth / 2,
+      top: b.countY - b.countHeight / 2, bottom: b.countY + b.countHeight / 2 });
+  }
+  return rects;
+}
+
 function clusterBadgeContains(screen, x, y, count, dpr, scale = 1) {
   const b = clusterBadgeGeometry(x, y, count, dpr, scale);
   const pad = 3 * dpr;
@@ -2146,50 +2239,78 @@ function groupOpacity(marker) {
 
 // While a location is selected the Nearby pins give way to the selected destination.
 function pinsHiddenBySelection(tilted) {
-  if (state.selectionTransition.mapHeld) return false;
   if (tilted) return selectedNavigationMapModeActive();
   return Boolean(state.selected && MARKER_TYPES.includes(state.selected.type));
 }
 
+// What the last drawMapMarkers call (and drawFilterTransitionPins) painted -- world point, item
+// count and drawn scale -- so drawUser can derive each marker's rectangle in its own coordinates
+// and steer the "You" label clear of them.
+let _drawnMarkerSpecs = [];
+let _drawnTransitionSpecs = [];
+
 // Draws every marker in one pass, flat (main canvas) or tilted/heading-up (overlay). Painted in
 // ascending screen Y so a marker lower on screen -- closer to the viewer -- paints over one further
 // up, across all categories; faces cannot overlap, so this only orders tails, chips and labels.
-function drawMapMarkers(ctx, markers, toScreen, tilted = false) {
-  if (!markers.length || pinsHiddenBySelection(tilted)) return;
+function drawMapMarkers(ctx, markers, toScreen, tilted = false, options = {}) {
+  _drawnMarkerSpecs = [];
+  if (!markers.length || (pinsHiddenBySelection(tilted) && !options.allowSelectionExit)) return;
   const dpr = pixelRatio();
   const loneSize = MAP_PNG_ICON_SIZE * dpr * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
   const reveal = nearbyRevealOpacity();
   const visible = markers.filter(m => isNearCanvas(m.screenPt, m.items.length > 1 ? 84 * dpr : loneSize * 2));
   visible.sort((a, b) => a.screenPt.y - b.screenPt.y);
   ctx.save();
-  for (const marker of visible) {
+  for (let markerIndex = 0; markerIndex < visible.length; markerIndex += 1) {
+    const marker = visible[markerIndex];
+    const transitionOpacity = options.markerOpacity
+      ? options.markerOpacity(markerIndex, visible.length, marker)
+      : 1;
+    if (transitionOpacity <= 0) continue;
     const { screenPt, items, worldPt } = marker;
     const tiltScale = tilted ? tiltPinScale(worldPt) : 1;
     const joinState = clusterJoinAnimationState(marker);
     const joinScale = joinState ? joinState.badgeScale : 1;
     if (items.length > 1) {
-      ctx.globalAlpha = reveal * groupOpacity(marker);
+      ctx.globalAlpha = reveal * transitionOpacity * groupOpacity(marker);
+      const groupScale = Math.max(0.65, tiltScale) * joinScale * filterPinClusterScale(marker);
+      _drawnMarkerSpecs.push({ worldPt, count: items.length, scale: groupScale });
       drawClusterMarker(ctx, screenPt.x, screenPt.y, items.length,
-        clusterPreviewEntries(marker).map(entry => entry.src), dpr,
-        Math.max(0.65, tiltScale) * joinScale * filterPinClusterScale(marker));
+        clusterPreviewEntries(marker).map(entry => entry.src), dpr, groupScale);
     } else {
       const type = marker.itemType;
       const animation = filterPinAnimationFor(items[0]);
-      ctx.globalAlpha = reveal * lonePinOpacity(type, items[0]) * (animation ? animation.alpha : 1);
-      drawItemPin(ctx, type, items[0], screenPt.x, screenPt.y,
-        loneSize * tiltScale * joinScale * (animation ? animation.scale : 1));
+      ctx.globalAlpha = reveal * transitionOpacity * lonePinOpacity(type, items[0]) * (animation ? animation.alpha : 1);
+      const pinSize = loneSize * tiltScale * joinScale * (animation ? animation.scale : 1);
+      _drawnMarkerSpecs.push({ worldPt, count: 1, scale: pinSize / (MAP_PNG_ICON_SIZE * MAP_ICON_SCALE_UNSELECTED * dpr) });
+      drawItemPin(ctx, type, items[0], screenPt.x, screenPt.y, pinSize);
     }
     if (joinState) {
       for (const shrinking of joinState.shrinking) {
         const p = toScreen(shrinking.item.point);
         const type = markerItemType(marker, shrinking.item);
-        ctx.globalAlpha = reveal * lonePinOpacity(type, shrinking.item);
+        ctx.globalAlpha = reveal * transitionOpacity * lonePinOpacity(type, shrinking.item);
         drawItemPin(ctx, type, shrinking.item, p.x, p.y, loneSize * shrinking.scale);
       }
     }
     ctx.globalAlpha = 1;
   }
   ctx.restore();
+}
+
+// A render-only handoff for the set that was visible before a location was selected. The lookup
+// is intentionally never returned by activeIconLookup(): these pins are not tappable while they
+// leave. A short ordered fade preserves orientation during the camera move without resurrecting
+// the old 50%-opacity filter state.
+function drawSelectionExitMarkers(ctx, toScreen, tilted = false) {
+  const lookup = state.selectionTransition.outgoingIconLookup;
+  if (!lookup || !selectionOutgoingRevealInProgress()) return;
+  const markers = buildMapMarkers(lookup, toScreen, "selection-exit");
+  const now = performance.now();
+  drawMapMarkers(ctx, markers, toScreen, tilted, {
+    allowSelectionExit: true,
+    markerOpacity: (index) => selectionOutgoingMarkerOpacity(index, now),
+  });
 }
 
 // Draws just the operator's glyph, centred at (cx, cy) and sized sizePx wide/tall -- the shared
@@ -2383,14 +2504,9 @@ function selectedNavigationMapModeActive() {
 
 function activeIconLookup() {
   if (state.selected && state.selected.type === "community") return COMMUNITY_EMPTY_ICON_LOOKUP;
-  // Keep the outgoing Nearby pins under the selected destination while the inspector and camera
-  // handoff is in flight. The selected route/icon may not be drawable on the first frame (the
-  // routing graph and map artwork can both still be loading), and clearing the Nearby lookup at
-  // that exact moment leaves a blank map between the two states.
-  if (state.selectionTransition.mapHeld && state.selectionMapTransitionIconLookup) {
-    return state.selectionMapTransitionIconLookup;
-  }
-  if (state.selectionTransition.mapHeld) return buildNearbyIconLookup();
+  // Selection is a two-point map from its first frame. The camera can keep moving while the
+  // route/destination overlay catches up, but Nearby pins must not leak through the handoff.
+  if (hasRealSelection() && state.selectionTransition.mapHeld) return SELECTED_NAVIGATION_EMPTY_ICON_LOOKUP;
   if (selectedNavigationMapModeActive()) return SELECTED_NAVIGATION_EMPTY_ICON_LOOKUP;
   if (state.searchScreenOpen && state.searchHighlightResults.length) return buildSearchIconLookup();
   return buildNearbyIconLookup();
@@ -2500,8 +2616,7 @@ function buildFullNearbyIconLookup() {
 }
 
 function shouldDrawMapIcon(type, item, nearbyIconLookup) {
-  if (state.selected && !state.selectionTransition.mapHeld
-      && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type)) return false;
+  if (state.selected && ["tree", "landmark", "cow", "path", "water"].includes(state.selected.type)) return false;
   const typeSet = nearbyIconLookup && nearbyIconLookup[type];
   return Boolean(typeSet && typeSet.has(item));
 }
@@ -2666,6 +2781,34 @@ function drawUserRadarOverlayTilted(ctx) {
   ctx.restore();
 }
 
+// Where the "You" label goes, adjacent to the dot only: right, else left, below, above -- the first
+// whose text box meets no marker rectangle. The side used last frame is kept while it is still
+// free, so the label does not flip while the map pans or zooms. Returns null when all four are
+// covered: the label is then not drawn and the dot alone marks the user. Otherwise
+// { side, x, baseline, box }, x/baseline being the fillText origin.
+const USER_LABEL_SIDES = ["right", "left", "below", "above"];
+let _userLabelSide = "right";
+function placeUserLabel(dot, radius, textWidth, fontSize, gap, rightBaselineDrop, rects, lastSide, ascent = fontSize * 0.8, descent = fontSize * 0.2) {
+  const at = (side) => {
+    let x, baseline;
+    if (side === "right") { x = dot.x + radius + gap; baseline = dot.y + rightBaselineDrop; }
+    else if (side === "left") { x = dot.x - radius - gap - textWidth; baseline = dot.y + rightBaselineDrop; }
+    else if (side === "below") { x = dot.x - textWidth / 2; baseline = dot.y + radius + gap + ascent; }
+    else { x = dot.x - textWidth / 2; baseline = dot.y - radius - gap - descent; }
+    return { side, x, baseline, box: { left: x, right: x + textWidth, top: baseline - ascent, bottom: baseline + descent } };
+  };
+  const free = (c) => !rects.some(r => c.box.left < r.right && r.left < c.box.right && c.box.top < r.bottom && r.top < c.box.bottom);
+  if (USER_LABEL_SIDES.includes(lastSide)) {
+    const kept = at(lastSide);
+    if (free(kept)) return kept;
+  }
+  for (const side of USER_LABEL_SIDES) {
+    const candidate = at(side);
+    if (free(candidate)) return candidate;
+  }
+  return null;
+}
+
 function drawUser(ctx, toScreen, isTilted) {
   // isDefault (applyDefaultLocation, js/app.js): DEFAULT_LOCATION's High Beach stand-in, not a
   // real fix -- drawing "You" there would tell the reader they've been located somewhere they
@@ -2708,15 +2851,40 @@ function drawUser(ctx, toScreen, isTilted) {
   ctx.lineWidth = 2 * dpr * dotScale;
   ctx.stroke();
   ctx.fillStyle = "#14211d";
-  ctx.font = `800 ${11 * dpr * dotScale}px system-ui`;
-  ctx.fillText("You", point.x + radius + 3 * dpr, point.y + 4 * dpr * dotScale);
+  const fontSize = 11 * dpr * dotScale;
+  ctx.font = `800 ${fontSize}px system-ui`;
+  // The glyphs' real extent (cap height, no descender in "You"), not the font box around them.
+  const metrics = typeof ctx.measureText === "function" ? ctx.measureText("You") : null;
+  const textWidth = metrics ? metrics.width : fontSize * 1.8;
+  const ascent = metrics && metrics.actualBoundingBoxAscent > 0 ? metrics.actualBoundingBoxAscent : fontSize * 0.8;
+  const descent = metrics && metrics.actualBoundingBoxDescent >= 0 ? metrics.actualBoundingBoxDescent : fontSize * 0.2;
+  const rects = [];
+  for (const spec of _drawnMarkerSpecs.concat(_drawnTransitionSpecs)) {
+    const p = toScreen(spec.worldPt);
+    if (!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
+    // A 1 CSS px margin around what is painted (2 px left the default Nearby view's right-hand
+    // side blocked by a gap of under a pixel).
+    for (const r of markerPaintedRects(p.x, p.y, spec.count, dpr, spec.scale)) {
+      rects.push({ left: r.left - dpr, right: r.right + dpr, top: r.top - dpr, bottom: r.bottom + dpr });
+    }
+  }
+  const label = placeUserLabel(point, radius, textWidth, fontSize, 3 * dpr, 4 * dpr * dotScale, rects, _userLabelSide, ascent, descent);
+  if (label) {
+    _userLabelSide = label.side;
+    ctx.fillText("You", label.x, label.baseline);
+  }
   ctx.globalAlpha = 1;  // Reset opacity for subsequent drawing
   ctx.restore();
 }
 
 function drawSelectedOverlay(ctx, toScreen) {
   if (!state.selected || !state.selected.item) return;
+  const reveal = selectionDestinationOpacity();
+  if (reveal <= 0) return;
   if (!toScreen) toScreen = worldToScreen;
+
+  ctx.save();
+  ctx.globalAlpha *= reveal;
 
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
@@ -2731,11 +2899,15 @@ function drawSelectedOverlay(ctx, toScreen) {
       const selectedTreeSrc = treeSpeciesIconPath(selectedTree.commonName, selectedTree.latinName) || iconPath("tree");
       drawDestinationIcon(ctx, selectedTreeSrc, point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
     }
+    ctx.restore();
     return;
   }
 
   const point = toScreen(state.selected.item.point);
-  if (!isNearCanvas(point, 24 * dpr * MAP_ICON_SCALE)) return;
+  if (!isNearCanvas(point, 24 * dpr * MAP_ICON_SCALE)) {
+    ctx.restore();
+    return;
+  }
 
   if (state.selected.type === "cow") {
     drawDestinationIcon(ctx, iconPath("cow"), point.x, point.y, MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
@@ -2772,6 +2944,7 @@ function drawSelectedOverlay(ctx, toScreen) {
         MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE * selectedScale);
     }
   }
+  ctx.restore();
 }
 
 function drawSelectedRoadOverlay(ctx) {

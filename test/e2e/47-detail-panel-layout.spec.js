@@ -2,7 +2,7 @@
 // panels on the screen sit one shared gap apart (spec/spec-data-rendering.md, "Place Details" and
 // "Cow Details"). Runs on the phone project, where the inspector is the bottom sheet a visitor reads.
 const { test, expect } = require("@playwright/test");
-const { setup, waitForUiToSettle } = require("./helpers");
+const { gotoAndWaitForMap, setup, skipOnboarding, waitForUiToSettle } = require("./helpers");
 
 const PANEL_GAP = 16;
 
@@ -15,6 +15,39 @@ async function gapBetween(upper, lower) {
   expect(b, "lower panel is rendered").not.toBeNull();
   return b.y - (a.y + a.height);
 }
+
+test.describe("Nearby return from a location page", () => {
+  test("the first Nearby tap after a /find/ place replaces the detail panel and refits the map", async ({ page }) => {
+    await skipOnboarding(page);
+    await gotoAndWaitForMap(page, "/find/railway-bell/");
+    await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("landmark");
+
+    await page.evaluate(() => {
+      stopViewportAnimation();
+      state.viewport.tx += 180;
+      state.viewport.ty -= 120;
+    });
+    await page.locator("#nearbyToggle").click();
+    await waitForUiToSettle(page);
+
+    await expect(page.locator("#inspectorTitle")).toHaveText("Nearby");
+    await expect(page.locator("#inspectorBody .nearest-list")).toBeVisible();
+    await expect(page.locator("#inspectorBody > .place-detail")).toHaveCount(0);
+
+    const settled = await page.evaluate(() => ({
+      scale: state.viewport.scale,
+      tx: state.viewport.tx,
+      ty: state.viewport.ty,
+    }));
+    const fresh = await page.evaluate(() => {
+      ensureOverviewTargetsVisible({ animate: false, force: true });
+      return { scale: state.viewport.scale, tx: state.viewport.tx, ty: state.viewport.ty };
+    });
+    expect(Math.abs(settled.scale - fresh.scale) / fresh.scale).toBeLessThan(0.001);
+    expect(Math.abs(settled.tx - fresh.tx)).toBeLessThan(1);
+    expect(Math.abs(settled.ty - fresh.ty)).toBeLessThan(1);
+  });
+});
 
 test.describe("Place detail panel layout", () => {
   test.beforeEach(async ({ page }) => {

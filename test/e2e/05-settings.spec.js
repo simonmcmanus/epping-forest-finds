@@ -175,12 +175,50 @@ test.describe("Settings screen", () => {
 
   test("a single update banner appears once an update is ready and one tap restarts", async ({ page }) => {
     await expect(page.locator("#updateBanner")).toHaveCount(0);
-    await page.evaluate(() => { _markDataUpdateAvailable(); });
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.evaluate(() => {
+      window.__updateBannerTransitionRuns = 0;
+      _markDataUpdateAvailable();
+      document.getElementById("updateBanner").addEventListener("transitionrun", () => {
+        window.__updateBannerTransitionRuns += 1;
+      });
+    });
     await expect(page.locator("#updateBanner")).toBeVisible();
+    await expect(page.locator("#updateBanner")).toHaveClass(/is-visible/);
+    await page.waitForFunction(() => window.__updateBannerTransitionRuns >= 1);
     await expect(page.locator("#updateBanner")).toContainText("New map data");
+    const entranceTransitionRuns = await page.evaluate(() => window.__updateBannerTransitionRuns);
     await page.evaluate(() => { window.__reloadMarker = true; });
     await page.click("#updateBannerButton");
+    await expect(page.locator("#updateBanner")).toHaveClass(/is-exiting/);
+    await page.waitForFunction((count) => window.__updateBannerTransitionRuns > count, entranceTransitionRuns);
     await page.waitForFunction(() => !window.__reloadMarker);
+  });
+
+  test("a failed restart restores the banner, focus, and retry state", async ({ page }) => {
+    await page.evaluate(() => {
+      state.swWaiting = { postMessage() { throw new Error("activation failed"); } };
+      _markSwUpdateAvailable(state.swWaiting);
+    });
+    const button = page.locator("#updateBannerButton");
+    await expect(button).toBeVisible();
+    await button.focus();
+    await button.click();
+    await page.waitForFunction(() => state.swWaiting === null);
+    await expect(button).toBeEnabled();
+    await expect(button).toBeFocused();
+    await expect(page.locator("#updateBanner")).toHaveClass(/is-visible/);
+  });
+
+  test("reduced motion dismisses the banner without waiting for the exit transition", async ({ page }) => {
+    await page.evaluate(() => {
+      state.swWaiting = { postMessage() {} };
+      _markSwUpdateAvailable(state.swWaiting);
+    });
+    const banner = page.locator("#updateBanner");
+    await expect(banner).toBeVisible();
+    await page.click("#updateBannerButton");
+    await expect(banner).toHaveClass(/is-dismissed/);
   });
 
   test("data arriving while a waiting worker is still preparing does not show the banner early", async ({ page }) => {

@@ -407,6 +407,14 @@
   opacity: 0.85;
 }
 
+/* In tilt mode the angle is eased by the compass loop and the glyph is placed on the
+   same perspective ground plane as Nearby arrows. A CSS transition here would chase
+   every eased frame and make the panel arrow visibly stutter. */
+.title-compass-arrow.title-compass-arrow--tilted {
+  transition: none;
+  transform-style: preserve-3d;
+}
+
 .title-compass-arrow[hidden] {
   display: none;
 }
@@ -2538,6 +2546,8 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 /* "Update ready" prompt (showUpdateBanner in js/nav.js). Top card on phones, where the bottom is
    taken by the nav bar and the inspector sheet; bottom-centre on wider screens. */
 .update-banner {
+  --update-banner-rest-transform: none;
+  --update-banner-hidden-transform: translateY(-10px);
   position: fixed;
   z-index: 60;
   left: 10px;
@@ -2554,6 +2564,29 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   box-shadow: var(--shadow);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  opacity: 0;
+  visibility: hidden;
+  transform: var(--update-banner-hidden-transform);
+  transition: opacity 180ms ease, transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  pointer-events: none;
+}
+
+.update-banner.is-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: var(--update-banner-rest-transform);
+  pointer-events: auto;
+}
+
+.update-banner.is-exiting {
+  opacity: 0;
+  visibility: visible;
+  transform: var(--update-banner-hidden-transform);
+  pointer-events: none;
+}
+
+.update-banner.is-dismissed {
+  visibility: hidden;
 }
 
 .update-banner-icon {
@@ -2614,12 +2647,19 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 
 @media (min-width: 761px) {
   .update-banner {
+    --update-banner-rest-transform: translateX(-50%);
+    --update-banner-hidden-transform: translateX(-50%) translateY(10px);
     top: auto;
     left: 50%;
     right: auto;
     bottom: calc(16px + var(--safe-bottom));
-    transform: translateX(-50%);
     width: min(420px, calc(100vw - 32px));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .update-banner {
+    transition: none;
   }
 }
 

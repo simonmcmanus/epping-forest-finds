@@ -109,6 +109,7 @@ test.describe("Deliberate camera moves", () => {
     await page.locator("#nearbyToggle").click();
     await camerasAtRest(page);
     await page.locator("#inspectorBody [data-overview-type][data-overview-key]").first().click();
+    await expect.poll(() => page.evaluate(() => state.selectionTransition.mapHeld)).toBe(false);
     await camerasAtRest(page);
     const result = await page.evaluate(() => {
       cancelAnimationFrame(window.__revealFrame);
