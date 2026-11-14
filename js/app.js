@@ -47,6 +47,11 @@ const FEATURE_LAYERS = [
 const NEARBY_ORIGIN_TRANSITION_MS = 520; // slide between two browse origins -- see nearbyRenderOriginPoint()
 const NEARBY_REVEAL_START_FRACTION = 0.1; // share of a browse-origin slide that passes before the new pins start to appear -- see nearbyRevealOpacity()
 const NEARBY_REVEAL_MS = 180; // how quickly the new nearby set fades in once a slide lands -- see nearbyRevealOpacity()
+const SELECTION_MARKER_EXIT_MS = 120; // fade the outgoing marker set before the destination arrives
+const SELECTION_MARKER_EXIT_STAGGER_MS = 5; // small per-marker offset so the old set leaves in a wave
+const SELECTION_MARKER_EXIT_MAX_STAGGER_MS = 60; // keep a dense view's exit short and readable
+const SELECTION_MARKER_REVEAL_DELAY_MS = 180; // let the old Nearby pins leave before the destination arrives
+const SELECTION_MARKER_REVEAL_MS = 220; // selected destination fade-in after that handoff gap
 const OVERVIEW_REFIT_ANIMATION_MS = 420; // recompute the overview/secondary-screen camera fit after a UI state change (filter change, opening Filter/Settings/Report, radius toggle, a late location fix)
 const OVERVIEW_TARGETS_DEFAULT_ANIMATION_MS = 520; // ensureOverviewTargetsVisible's (and centerOverviewOnUserLocation's) own default when a caller doesn't specify one
 const HEADING_UP_NAV_ANIMATION_MS = 500; // standard duration for heading-up alignment and selection-commit transitions (goToInitialView, zoomToSelection)
@@ -389,11 +394,14 @@ const state = {
   tiltWasActive: false,
   // One owner for the selection-driven camera hold: the viewport move a selection has queued but not
   // yet started (viewportPending), and whether the Nearby map is held hidden until that move lands (mapHeld).
-  selectionTransition: { viewportPending: false, mapHeld: false },
+  selectionTransition: {
+    viewportPending: false,
+    mapHeld: false,
+    startedAt: null,
+    outgoingIconLookup: null,
+  },
   inspectorMinimizeTransitionPending: false,
   selectionMapTransitionToken: null,
-  selectionMapTransitionIconLookup: null,
-  selectionMapTransitionOriginPoint: null,
   viewportAnimationFrame: null,
   viewportAnimationFrom: null,
   viewportAnimationTo: null,
@@ -4344,16 +4352,13 @@ function cameraOriginPoint(useFinalBrowseState = false) {
 // that feeds selectedNavigationHeadingUpActive()/nearbyOrigin() does), mirroring how
 // startNearbyOriginTransition is called before state.nearbyAnchor changes.
 function startCameraOriginTransition() {
-  // Selection clears a browsed Nearby anchor immediately, but the map still needs the exact
-  // pins and pivot that were visible before that state change while the camera slides away from
-  // it. Rebuilding the Nearby lookup after the clear scopes pins to the user's GPS position and
-  // can leave the in-between camera looking at empty terrain.
-  state.selectionMapTransitionIconLookup = typeof buildNearbyIconLookup === "function"
-    ? buildNearbyIconLookup()
+  // Keep a render-only snapshot of the set that is leaving. Hit testing still switches to the
+  // destination lookup immediately, but the old pins can now fade out in order instead of
+  // disappearing as one opaque slab and leaving a blank map under the camera move.
+  state.selectionTransition.outgoingIconLookup = !hasRealSelection()
+    && typeof activeIconLookup === "function"
+    ? activeIconLookup()
     : null;
-  state.selectionMapTransitionOriginPoint = typeof nearbyRenderOriginPoint === "function"
-    ? nearbyRenderOriginPoint()
-    : (typeof nearbyOrigin === "function" ? nearbyOrigin()?.point || null : null);
   const fromPoint = cameraOriginPoint();
   // A selection owns the camera from this frame onward. If a Nearby anchor move is still in
   // flight, leaving its transition alive lets prepareCanvasForDraw run an old Nearby refit over
@@ -4506,6 +4511,48 @@ function nearbyRevealInProgress() {
   if (state.selectionTransition.mapHeld) return false;
   if (state.viewportAnimationTo != null) return false;
   return performance.now() - transition.startedAt < transition.durationMs + NEARBY_REVEAL_MS;
+}
+
+// A selection is a deliberate handoff: remove the Nearby set from drawing and hit testing, let a
+// render-only copy leave in a short ordered fade, then reveal only the destination. Keeping the
+// old Nearby lookup during the camera move made every other landmark/cow appear at markerOpacityFor()'s
+// filter dim (0.5), while trees, paths and water stayed fully opaque.
+function selectionDestinationOpacity(now = performance.now()) {
+  const transition = state.selectionTransition;
+  if (!hasRealSelection() || !transition.mapHeld || transition.startedAt == null || prefersReducedMotion()) return 1;
+  const progress = clamp(
+    (now - transition.startedAt - SELECTION_MARKER_REVEAL_DELAY_MS) / SELECTION_MARKER_REVEAL_MS,
+    0,
+    1,
+  );
+  return progress * progress * (3 - 2 * progress);
+}
+
+function selectionDestinationRevealInProgress(now = performance.now()) {
+  const transition = state.selectionTransition;
+  if (!hasRealSelection() || !transition.mapHeld || transition.startedAt == null || prefersReducedMotion()) return false;
+  return now - transition.startedAt < SELECTION_MARKER_REVEAL_DELAY_MS + SELECTION_MARKER_REVEAL_MS;
+}
+
+function selectionOutgoingMarkerOpacity(index = 0, now = performance.now()) {
+  const transition = state.selectionTransition;
+  if (!hasRealSelection() || !transition.mapHeld || transition.startedAt == null || prefersReducedMotion()) return 0;
+  const delay = Math.min(index * SELECTION_MARKER_EXIT_STAGGER_MS, SELECTION_MARKER_EXIT_MAX_STAGGER_MS);
+  const progress = clamp((now - transition.startedAt - delay) / SELECTION_MARKER_EXIT_MS, 0, 1);
+  const eased = progress * progress * (3 - 2 * progress);
+  return 1 - eased;
+}
+
+function selectionOutgoingRevealInProgress(now = performance.now()) {
+  const transition = state.selectionTransition;
+  if (!hasRealSelection() || !transition.mapHeld || transition.startedAt == null || prefersReducedMotion()) return false;
+  return now - transition.startedAt < SELECTION_MARKER_EXIT_MS + SELECTION_MARKER_EXIT_MAX_STAGGER_MS;
+}
+
+function selectionOutgoingRevealDurationMs() {
+  const transition = state.selectionTransition;
+  if (!transition.outgoingIconLookup || prefersReducedMotion()) return 0;
+  return SELECTION_MARKER_EXIT_MS + SELECTION_MARKER_EXIT_MAX_STAGGER_MS;
 }
 
 function nearbyOriginTransitionActive() {
