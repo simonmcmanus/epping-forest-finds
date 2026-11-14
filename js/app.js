@@ -4135,6 +4135,14 @@ function directionArrowTransform(angle) {
   return `perspective(${perspective}px) rotateX(${rotateX}deg) rotate(${compensatedAngle}deg)`;
 }
 
+// The projected ray can move by several screen degrees when a target is close to the
+// perspective horizon. Ease the DOM glyph toward that ray as well as easing the sensor
+// values, so a tiny beta/heading fluctuation cannot make a 3D arrow twitch.
+function smoothDirectionArrowAngle(previousAngle, targetAngle) {
+  if (!Number.isFinite(targetAngle) || !Number.isFinite(previousAngle)) return targetAngle;
+  return previousAngle + shortestCompassDelta(previousAngle, targetAngle) * 0.2;
+}
+
 // A street has no single position of its own, so navigating to one aims at the point on its
 // geometry nearest the user at the moment it was selected -- a fixed destination like any
 // other, exposed as a pseudo-item the compass arrow, route line, and camera fit can all read
@@ -6458,11 +6466,15 @@ function updateCompassOverlay() {
     return;
   }
 
+  const tilted = typeof tiltActive === "function" && tiltActive();
   const bearingToTarget = bearingDegrees(state.userLocation.latitude, state.userLocation.longitude, target.latitude, target.longitude);
   const hasHeading = Number.isFinite(state.compassHeading);
   const relative = hasHeading ? shortestCompassDelta(state.compassHeading, bearingToTarget) : bearingToTarget;
   const projected = directionArrowAngleForWorldPoint(target.point, relative, state.compassArrowAngle);
-  state.compassArrowAngle = unwrapAngle(state.compassArrowAngle, projected);
+  const unwrapped = unwrapAngle(state.compassArrowAngle, projected);
+  state.compassArrowAngle = tilted
+    ? smoothDirectionArrowAngle(state.compassArrowAngle, unwrapped)
+    : unwrapped;
 
   const title = state.selected.type === "tree"
     ? treeDisplayName(target)
@@ -6475,7 +6487,7 @@ function updateCompassOverlay() {
     const settlingIn = arrow.hidden || arrow.classList.contains("title-compass-arrow--searching");
     arrow.classList.remove("title-compass-arrow--searching");
     arrow.hidden = false;
-    const tilted = typeof tiltActive === "function" && tiltActive();
+    arrow.classList.toggle("title-compass-arrow--tilted", tilted);
     arrow.style.transformStyle = tilted ? "preserve-3d" : "";
     if (settlingIn) {
       arrow.style.transition = "none";
@@ -6513,11 +6525,15 @@ function updateOverviewDirectionArrows() {
       ? shortestCompassDelta(state.compassHeading, bearing)
       : bearing;
     const previousAngle = Number(arrow.dataset.currentAngle);
-    const nextAngle = unwrapAngle(previousAngle, directionArrowAngleForWorldPoint(
+    const projected = directionArrowAngleForWorldPoint(
       projectLonLat(itemLon, itemLat),
       relative,
       previousAngle,
-    ));
+    );
+    const unwrapped = unwrapAngle(previousAngle, projected);
+    const nextAngle = tilted
+      ? smoothDirectionArrowAngle(previousAngle, unwrapped)
+      : unwrapped;
     arrow.dataset.currentAngle = String(nextAngle);
     if (arrow.classList?.toggle) arrow.classList.toggle("nearest-arrow--tilted", tilted);
     arrow.style.transform = directionArrowTransform(nextAngle);
