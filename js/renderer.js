@@ -312,6 +312,7 @@ function draw() {
   drawSelectedRoute(ctx);
   if (!useOverlayForPins) {
     const nearbyIconLookup = activeIconLookup();
+    drawExpandedGroupOutline(ctx, worldToScreen);
     drawMapMarkers(ctx, buildMapMarkers(nearbyIconLookup, worldToScreen, markerMemoryKey()), worldToScreen);
   }
   drawSelectedRoadOverlay(ctx);
@@ -358,6 +359,7 @@ function drawOverlay() {
   if (isTilted) drawUserRadarOverlayTilted(ctx);
   else drawUserRadarOverlay(ctx, toScreen);
   if (useOverlayForPins) {
+    drawExpandedGroupOutline(ctx, worldToScreenForOverlay, isTilted && state.userLocation ? tiltProjectScreenPoint : identityProjection);
     drawMapMarkers(ctx, buildActiveMapMarkers(toScreen), toScreen, true);
   }
   drawFilterTransitionPins(ctx, toScreen);
@@ -2070,6 +2072,12 @@ function markerItemIconSrc(type, item) {
 // most common kind -- so no category is hidden behind another's species; only a single-category
 // group shows its second most common kind as the second chip.
 function clusterPreviewEntries(marker) {
+  const byCategory = clusterKindsByCategory(marker);
+  if (byCategory.length === 1) return byCategory[0].kinds.slice(0, 2);
+  return byCategory.slice(0, 2).map(category => category.kinds[0]);
+}
+
+function clusterKindsByCategory(marker) {
   const byCategory = [];
   for (const type of MARKER_TYPES) {
     const items = marker.itemsByType[type];
@@ -2085,8 +2093,14 @@ function clusterPreviewEntries(marker) {
     byCategory.push({ total: items.length, kinds: Array.from(byKey.values()).sort((a, b) => b.count - a.count) });
   }
   byCategory.sort((a, b) => b.total - a.total);
-  if (byCategory.length === 1) return byCategory[0].kinds.slice(0, 2);
-  return byCategory.slice(0, 2).map(category => category.kinds[0]);
+  return byCategory;
+}
+
+// True when the group holds more kinds than its face's two chips show.
+function clusterHasMoreKinds(marker) {
+  let kinds = 0;
+  for (const category of clusterKindsByCategory(marker)) kinds += category.kinds.length;
+  return kinds > 2;
 }
 
 // One category's icon, cropped to a circle, sitting directly on the badge underneath it -- no
@@ -2163,6 +2177,14 @@ function markerPaintedRects(x, y, count, dpr, scale = 1) {
   return rects;
 }
 
+// The "more inside" plus: centred under the two chips, inside the face's lower edge (which is
+// inside the collision box), clear of the count chip at the top right.
+function clusterMoreCueGeometry(x, y, count, dpr, scale = 1) {
+  const b = clusterBadgeGeometry(x, y, count, dpr, scale);
+  const R = b.size * 0.32;
+  return { cx: x, cy: b.bottom - R * 0.3, half: 4.5 * b.unit, thickness: 2 * b.unit, halo: 1.5 * b.unit };
+}
+
 function clusterBadgeContains(screen, x, y, count, dpr, scale = 1) {
   const b = clusterBadgeGeometry(x, y, count, dpr, scale);
   const pad = 3 * dpr;
@@ -2173,7 +2195,7 @@ function clusterBadgeContains(screen, x, y, count, dpr, scale = 1) {
 }
 
 // One artwork fills the head; two (the two most common kinds) sit side by side in it.
-function drawClusterMarker(ctx, x, y, count, iconSources, dpr, scale = 1) {
+function drawClusterMarker(ctx, x, y, count, iconSources, dpr, scale = 1, moreInside = false) {
   const sources = iconSources.slice(0, 2);
   const b = clusterBadgeGeometry(x, y, count, dpr, scale);
   const u = b.unit;
@@ -2183,6 +2205,21 @@ function drawClusterMarker(ctx, x, y, count, iconSources, dpr, scale = 1) {
     drawClusterIconChip(ctx, cx, cy, sources[0], R * 0.86);
   } else {
     sources.forEach((src, i) => drawClusterIconChip(ctx, cx + (i ? 1 : -1) * R * 0.56, cy, src, R * 0.52));
+  }
+  if (moreInside) {
+    const m = clusterMoreCueGeometry(x, y, count, dpr, scale);
+    ctx.beginPath();
+    ctx.moveTo(m.cx - m.half, m.cy);
+    ctx.lineTo(m.cx + m.half, m.cy);
+    ctx.moveTo(m.cx, m.cy - m.half);
+    ctx.lineTo(m.cx, m.cy + m.half);
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "white";
+    ctx.lineWidth = m.thickness + m.halo * 2;
+    ctx.stroke();
+    ctx.strokeStyle = "#233d30";
+    ctx.lineWidth = m.thickness;
+    ctx.stroke();
   }
   ctx.beginPath();
   ctx.roundRect(b.countX - b.countWidth / 2, b.countY - b.countHeight / 2, b.countWidth, b.countHeight, 9 * u);
@@ -2249,6 +2286,72 @@ function pinsHiddenBySelection(tilted) {
 let _drawnMarkerSpecs = [];
 let _drawnTransitionSpecs = [];
 
+// The expanded group's coverage: convex hull of its member points padded by 14 CSS px, drawn as a
+// thin dark-gold outline beneath the pins. The hull of the members is camera-independent (the
+// screen transforms are affine), so it is cached per group; each frame only projects it.
+const EXPANDED_OUTLINE_PADDING_CSS_PX = 14;
+let _expandedHullCache = null;
+
+function clusterConvexHull(points) {
+  const sorted = points.slice().sort((a, b) => a.x - b.x || a.y - b.y)
+    .filter((p, i, all) => !i || p.x !== all[i - 1].x || p.y !== all[i - 1].y);
+  if (sorted.length < 3) return sorted;
+  const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const half = list => {
+    const hull = [];
+    for (const p of list) {
+      while (hull.length > 1 && cross(hull[hull.length - 2], hull[hull.length - 1], p) <= 0) hull.pop();
+      hull.push(p);
+    }
+    return hull;
+  };
+  return half(sorted).slice(0, -1).concat(half(sorted.slice().reverse()).slice(0, -1));
+}
+
+// Closed outline around `points`: the hull grown by `padding` with rounded corners (a lone or
+// coincident point gives a circle, collinear points a capsule). Only hull vertices are padded.
+function clusterPaddedOutline(points, padding) {
+  const padded = [];
+  for (const p of clusterConvexHull(points)) {
+    for (let i = 0; i < 16; i++) {
+      const angle = i * Math.PI / 8;
+      padded.push({ x: p.x + Math.cos(angle) * padding, y: p.y + Math.sin(angle) * padding });
+    }
+  }
+  return clusterConvexHull(padded);
+}
+
+function expandedGroupHull(group) {
+  if (_expandedHullCache && _expandedHullCache.group === group) return _expandedHullCache.hull;
+  const points = Object.values(clusterItemsByType(group)).flat()
+    .map(item => item.point).filter(p => p && Number.isFinite(p.x) && Number.isFinite(p.y));
+  const hull = clusterConvexHull(points);
+  _expandedHullCache = { group, hull };
+  return hull;
+}
+
+// toFlat maps a world point to the untilted canvas; project is the tilt projection (identity when flat).
+function drawExpandedGroupOutline(ctx, toFlat, project = identityProjection) {
+  const group = state.clusterExpanded;
+  if (!group || pinsHiddenBySelection(project !== identityProjection)) return;
+  const dpr = pixelRatio();
+  const outline = clusterPaddedOutline(expandedGroupHull(group).map(toFlat), EXPANDED_OUTLINE_PADDING_CSS_PX * dpr)
+    .map(project);
+  // Never bridge the perspective near-plane clip into a screen-filling polygon.
+  if (outline.length < 3 || outline.some(p => p.clipped || !Number.isFinite(p.x) || !Number.isFinite(p.y))) return;
+  ctx.save();
+  ctx.globalAlpha = nearbyRevealOpacity() * 0.8;
+  ctx.beginPath();
+  outline.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+  ctx.closePath();
+  ctx.lineJoin = "round";
+  ctx.strokeStyle = "#86621c";
+  ctx.lineWidth = 1.5 * dpr;
+  ctx.stroke();
+  ctx.restore();
+}
+const identityProjection = p => p;
+
 // Draws every marker in one pass, flat (main canvas) or tilted/heading-up (overlay). Painted in
 // ascending screen Y so a marker lower on screen -- closer to the viewer -- paints over one further
 // up, across all categories; faces cannot overlap, so this only orders tails, chips and labels.
@@ -2271,7 +2374,7 @@ function drawMapMarkers(ctx, markers, toScreen, tilted = false) {
       const groupScale = Math.max(0.65, tiltScale) * joinScale * filterPinClusterScale(marker);
       _drawnMarkerSpecs.push({ worldPt, count: items.length, scale: groupScale });
       drawClusterMarker(ctx, screenPt.x, screenPt.y, items.length,
-        clusterPreviewEntries(marker).map(entry => entry.src), dpr, groupScale);
+        clusterPreviewEntries(marker).map(entry => entry.src), dpr, groupScale, clusterHasMoreKinds(marker));
     } else {
       const type = marker.itemType;
       const animation = filterPinAnimationFor(items[0]);

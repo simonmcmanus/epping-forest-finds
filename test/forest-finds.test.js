@@ -731,7 +731,10 @@ globalThis.__forestFindsTest = {
   markerPaintedRects,
   clusterMarkerRect,
   clusterPreviewEntries,
+  clusterPaddedOutline,
+  clusterHasMoreKinds,
   drawMapMarkers,
+  drawClusterMarker,
   clusterTreeIconSrc,
   treeSpeciesIconPath,
   clusterJoinAnimationState,
@@ -1472,6 +1475,98 @@ test("a single-category group's second chip is its second most common kind", () 
   const items = [oak(0), oak(1), oak(2), beech(3)].map(item => ({ type: "tree", item }));
   const entries = Array.from(app.clusterPreviewEntries(app.buildMapMarkers(markerLookup(items), markerScreen)[0]));
   assert.deepEqual(entries.map(e => e.src), [app.ICON_PATHS["tree-english-oak"], app.treeSpeciesIconPath("Common beech", "Fagus sylvatica")]);
+});
+
+// Records the line segments drawn between a beginPath and the stroke that follows it.
+function recordingMarkerContext() {
+  const strokes = [];
+  let path = [];
+  const noop = () => {};
+  const ctx = {
+    save: noop, restore: noop, closePath: noop, clip: noop, roundRect: noop, arc: noop, fill: noop,
+    drawImage: noop, fillText: noop, quadraticCurveTo: noop, bezierCurveTo: noop,
+    beginPath() { path = []; },
+    moveTo(x, y) { path.push({ x, y }); },
+    lineTo(x, y) { path.push({ x, y }); },
+    stroke() { strokes.push({ points: path.slice(), strokeStyle: ctx.strokeStyle, lineWidth: ctx.lineWidth }); },
+  };
+  return { ctx, strokes };
+}
+
+const moreInsideCueStrokes = (strokes) => strokes.filter(s => s.strokeStyle === "#233d30" && s.points.length === 4);
+
+test("a group holding more kinds than its two chips show draws a plus cue, and a two-kind group does not", () => {
+  const tree = (id, name, latin, x) => ({ type: "tree", item: { id, commonName: name, latinName: latin, point: { x, y: 0 } } });
+  const drawCues = (items) => {
+    const { ctx, strokes } = recordingMarkerContext();
+    const markers = app.buildMapMarkers(markerLookup(items), markerScreen);
+    assert.equal(markers.length, 1, "the fixture forms one group");
+    app.drawMapMarkers(ctx, markers, markerScreen, false);
+    return { cues: moreInsideCueStrokes(strokes), marker: markers[0] };
+  };
+  const two = drawCues([tree("a", "English oak", "Quercus robur", 0), tree("b", "Common beech", "Fagus sylvatica", 1)]);
+  assert.equal(two.cues.length, 0, "two kinds both fit on the face");
+  assert.equal(app.clusterHasMoreKinds(two.marker), false);
+  const three = drawCues([tree("a", "English oak", "Quercus robur", 0), tree("b", "Common beech", "Fagus sylvatica", 1),
+    tree("c", "Silver birch", "Betula pendula", 2)]);
+  assert.equal(three.cues.length, 1, "a third kind in one category gets the cue");
+  assert.equal(app.clusterHasMoreKinds(three.marker), true);
+  const mixed = drawCues([tree("a", "English oak", "Quercus robur", 0), markerItem("cow", "c", 1, 0), markerItem("water", "w", 2, 0)]);
+  assert.equal(mixed.cues.length, 1, "three categories also get it");
+});
+
+test("the plus cue stays inside the marker's collision box at every face scale", () => {
+  const tree = (id, name, latin, x) => ({ type: "tree", item: { id, commonName: name, latinName: latin, point: { x: 300 + x, y: 300 } } });
+  const items = [tree("a", "English oak", "Quercus robur", 0), tree("b", "Common beech", "Fagus sylvatica", 1),
+    tree("c", "Silver birch", "Betula pendula", 2)];
+  const marker = app.buildMapMarkers(markerLookup(items), markerScreen)[0];
+  for (const scale of [1, 0.8, 0.65]) {
+    const { ctx, strokes } = recordingMarkerContext();
+    app.drawClusterMarker(ctx, marker.screenPt.x, marker.screenPt.y, marker.items.length, [], app.pixelRatio(), scale, true);
+    const cue = moreInsideCueStrokes(strokes)[0];
+    assert.ok(cue, `the cue is drawn at scale ${scale}`);
+    const box = app.clusterMarkerRect(marker.screenPt.x, marker.screenPt.y, marker.items.length, app.pixelRatio(), 1);
+    const face = app.clusterMarkerRect(marker.screenPt.x, marker.screenPt.y, marker.items.length, app.pixelRatio(), scale);
+    for (const p of cue.points) {
+      assert.ok(p.x >= box.left && p.x <= box.right && p.y >= box.top && p.y <= box.bottom, "inside the collision box");
+      assert.ok(p.x >= face.left && p.x <= face.right && p.y >= face.top && p.y <= face.bottom, "inside the scaled face's rect");
+    }
+  }
+});
+
+test("the expanded-group outline contains every member whether they coincide, line up or scatter, and padding ignores duplicates", () => {
+  const padding = 14;
+  const inside = (outline, p) => {
+    let sign = 0;
+    for (let i = 0; i < outline.length; i++) {
+      const a = outline[i], b = outline[(i + 1) % outline.length];
+      const cross = (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
+      if (Math.abs(cross) < 1e-9) continue;
+      if (sign && Math.sign(cross) !== sign) return false;
+      sign = Math.sign(cross);
+    }
+    return true;
+  };
+  const extent = (outline) => ({
+    w: Math.max(...outline.map(p => p.x)) - Math.min(...outline.map(p => p.x)),
+    h: Math.max(...outline.map(p => p.y)) - Math.min(...outline.map(p => p.y)),
+  });
+  const layouts = {
+    coincident: [{ x: 50, y: 50 }, { x: 50, y: 50 }, { x: 50, y: 50 }],
+    collinear: [{ x: 0, y: 0 }, { x: 40, y: 0 }, { x: 100, y: 0 }],
+    scattered: [{ x: 0, y: 0 }, { x: 80, y: 10 }, { x: 30, y: 90 }, { x: 40, y: 30 }],
+  };
+  for (const [name, points] of Object.entries(layouts)) {
+    const outline = app.clusterPaddedOutline(points, padding);
+    assert.ok(outline.length >= 8, `${name}: a closed rounded outline`);
+    for (const p of points) assert.ok(inside(outline, p), `${name}: every member is inside`);
+    const doubled = app.clusterPaddedOutline(points.concat(points, points), padding);
+    const a = extent(outline), b = extent(doubled);
+    assert.ok(Math.abs(a.w - b.w) < 1e-6 && Math.abs(a.h - b.h) < 1e-6, `${name}: duplicates do not grow it`);
+    const xs = points.map(p => p.x), ys = points.map(p => p.y);
+    assert.ok(a.w <= Math.max(...xs) - Math.min(...xs) + 2 * padding + 1e-6, `${name}: padded by about ${padding}, no more`);
+    assert.ok(a.h <= Math.max(...ys) - Math.min(...ys) + 2 * padding + 1e-6);
+  }
 });
 
 test("a long evenly spaced row closer than a marker's width does not chain into one marker", () => {
