@@ -251,7 +251,25 @@ function getSelectedOverlayPulse() {
   return Math.sin(cyclePosition * Math.PI * 2) * 0.5 + 0.5;
 }
 
+// The shared pin opacity is sampled once per frame, at its start, so everything painted in the frame
+// (the map pins, the overlay pins, the exiting filter pins) agrees on one value instead of each
+// reading the clock a little later and seeing a different fade.
+let _frameFade = null;
+
+function framePinFade() {
+  return _frameFade == null ? mapPinFadeOpacity() : _frameFade;
+}
+
 function draw() {
+  _frameFade = mapPinFadeOpacity();
+  try {
+    drawFrame();
+  } finally {
+    _frameFade = null;
+  }
+}
+
+function drawFrame() {
   // Cancel any *other* frame already queued, rather than only clearing the flag. requestDraw's
   // guard (index.html) assumes a queued draw stays queued until it runs, but a direct draw()
   // call -- there are several, from boot, the location gate and the compass loop -- clears the
@@ -1674,6 +1692,8 @@ function buildActiveMapMarkers(toScreen, tilted = false) {
 // each frame so they stay on their ground), and the freshly calculated set arrives together in one
 // ease-out reveal once the gesture ends. A gesture that starts mid-reveal fades out from the
 // current opacity, and one that ends mid-fade reveals from it, so opacity never jumps.
+// Below one 8-bit alpha step a pin cannot be seen: it is not painted at all.
+const PIN_ALPHA_VISIBLE_MIN = 1 / 255;
 const ZOOM_PIN_FADE_OUT_MS = 120;
 const ZOOM_PIN_REVEAL_MS = 220;
 const _mapPinFade = { value: 1, from: 1, to: 1, startedAt: 0, duration: 0 };
@@ -1717,7 +1737,7 @@ function revealMapPinsAfterZoom() {
 // last build re-projected through the live camera while it fades out, then nothing.
 function mapMarkersToPaint(toScreen, tilted) {
   if (!zoomGestureLive()) return buildActiveMapMarkers(toScreen, tilted);
-  if (!_lastMarkerBuild || mapPinFadeOpacity() <= 0) return [];
+  if (!_lastMarkerBuild || framePinFade() < PIN_ALPHA_VISIBLE_MIN) return [];
   if (!_frozenPaintView || _frozenPaintView.source !== _lastMarkerBuild) {
     _frozenPaintView = { source: _lastMarkerBuild, markers: cloneMarkersForReuse(_lastMarkerBuild) };
   }
@@ -2153,8 +2173,8 @@ function drawFilterTransitionPins(ctx, toScreen) {
   if (!filterPinTransitionActive() || hasRealSelection() || pinsHiddenBySelection(true)) return;
   const dpr = pixelRatio();
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
-  const reveal = nearbyRevealOpacity() * mapPinFadeOpacity();
-  if (reveal <= 0) return;
+  const reveal = nearbyRevealOpacity() * framePinFade();
+  if (reveal < PIN_ALPHA_VISIBLE_MIN) return;
   for (const [item, animation] of _filterPinAnimations) {
     if (animation.direction !== "exit") continue;
     const stateAtFrame = filterPinAnimationFor(item);
@@ -2572,8 +2592,8 @@ function drawMapMarkers(ctx, markers, toScreen, tilted = false, options = {}) {
   _drawnMarkerSpecs = [];
   if (!markers.length || (pinsHiddenBySelection(tilted) && !options.allowSelectionExit)) return;
   // The outgoing selection set is not part of the radius hide: it is a separate, short handoff.
-  const gestureOpacity = options.allowSelectionExit ? 1 : mapPinFadeOpacity();
-  if (gestureOpacity <= 0) return;
+  const gestureOpacity = options.allowSelectionExit ? 1 : framePinFade();
+  if (gestureOpacity < PIN_ALPHA_VISIBLE_MIN) return;
   if (!options.allowSelectionExit && mapPinFadeInProgress()) settleClusterJoinAnimations();
   const dpr = pixelRatio();
   const loneSize = MAP_PNG_ICON_SIZE * dpr * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;

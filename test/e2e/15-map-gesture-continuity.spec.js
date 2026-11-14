@@ -202,7 +202,7 @@ async function recordPaintedPins(page) {
     for (const name of ["drawItemPin", "drawClusterMarker"]) {
       const original = window[name];
       window[name] = function recordedPaint(ctx, ...args) {
-        window.__pins.push({ t: performance.now(), fade: mapPinFadeOpacity(), live: zoomGestureLive(), alpha: ctx.globalAlpha });
+        window.__pins.push({ t: performance.now(), fade: framePinFade(), live: zoomGestureLive(), alpha: ctx.globalAlpha });
         return original.call(this, ctx, ...args);
       };
     }
@@ -345,6 +345,29 @@ test.describe("Zoom gestures hide the pins and bring them back together", () => 
     expect(result.pins.filter((pin) => pin.live && pin.fade === 0), "no pin is painted while hidden").toHaveLength(0);
     expect(result.pins.length, "the pins return after the zoom settles").toBeGreaterThan(0);
     expectOneHideOneReveal(result.pins);
+  });
+
+  test("a pin is never painted in the last instant of the fade-out, however the clock advances during a frame", async ({ page }) => {
+    await openNearby(page);
+    const painted = await page.evaluate(() => {
+      // Drive one frame by hand with a clock that moves 0.5ms every time the app reads it, so the
+      // frame straddles the instant the fade reaches zero.
+      const realNow = performance.now.bind(performance);
+      const fingers = (x) => { els.canvas.dispatchEvent(new PointerEvent("pointerdown", { pointerId: 7001 + x, clientX: 100 + x * 50, clientY: 100, bubbles: true, cancelable: true, pointerType: "touch" })); };
+      els.canvas.setPointerCapture = () => {};
+      fingers(0); fingers(1);
+      const startedAt = realNow();
+      let reads = 0;
+      let base = startedAt;
+      performance.now = () => { reads += 1; return base + 117 + reads * 0.5; };
+      window.__pins.length = 0;
+      draw();
+      performance.now = realNow;
+      const seen = window.__pins.map((pin) => ({ fade: pin.fade, alpha: pin.alpha }));
+      for (const id of [7001, 7051]) els.canvas.dispatchEvent(new PointerEvent("pointerup", { pointerId: id, bubbles: true, cancelable: true, pointerType: "touch" }));
+      return seen;
+    });
+    expect(painted.filter((pin) => pin.fade < 1 / 255), "no pin is painted once the fade is effectively zero").toHaveLength(0);
   });
 
   test("the pins return when the wheel glide arrives, not after the settle wait", async ({ page }) => {
