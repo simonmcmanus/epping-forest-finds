@@ -658,6 +658,8 @@ globalThis.__forestFindsTest = {
   highBeachStandIn,
   currentNavigationMapRotationDegrees,
   updateCompassOverlay,
+  updateOverviewDirectionArrows,
+  directionArrowAngleForWorldPoint,
   setNearbyAnchor,
   clearNearbyAnchor,
   focusNearbyWithinWalkMinutes,
@@ -9996,6 +9998,40 @@ test("a beta-only orientation event starts the tilt loop even without a trusted 
   assert.notEqual(app.state.compassAnimationFrame, null, "pitch still needs a smoothing loop without a heading");
 });
 
+test("beta-only tilt refreshes directional arrows while the 3D projection moves", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.665, 0.045);
+  app.state.compassHeading = null;
+  app.state.compassHeadingTarget = null;
+  app.state.tiltBetaSmoothed = 0;
+  app.state.tiltBetaTarget = 55;
+  app.state.compassAnimationFrame = null;
+
+  const frames = [];
+  let overviewUpdates = 0;
+  let compassUpdates = 0;
+  const originals = {
+    raf: app.swapGlobalFunction("requestAnimationFrame", (fn) => { frames.push(fn); return frames.length; }),
+    overview: app.swapGlobalFunction("updateOverviewDirectionArrows", () => { overviewUpdates += 1; }),
+    compass: app.swapGlobalFunction("updateCompassOverlay", () => { compassUpdates += 1; }),
+    drawOverlay: app.swapGlobalFunction("drawOverlay", () => {}),
+    requestDraw: app.swapGlobalFunction("requestDraw", () => {}),
+  };
+  try {
+    app.startCompassSmoothing();
+    frames.shift()(1000);
+    assert.equal(overviewUpdates, 1, "beta-only tilt updates Nearby arrows without a heading");
+    assert.equal(compassUpdates, 1, "beta-only tilt updates the selected-location arrow path too");
+  } finally {
+    app.swapGlobalFunction("requestAnimationFrame", originals.raf);
+    app.swapGlobalFunction("updateOverviewDirectionArrows", originals.overview);
+    app.swapGlobalFunction("updateCompassOverlay", originals.compass);
+    app.swapGlobalFunction("drawOverlay", originals.drawOverlay);
+    app.swapGlobalFunction("requestDraw", originals.requestDraw);
+    app.state.compassAnimationFrame = null;
+  }
+});
+
 test("changing the browse anchor outside setNearbyAnchor still moves the camera with it", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.665, 0.045);
@@ -14194,6 +14230,42 @@ test("the Nearby list hides its direction arrows while far from the forest", () 
   const html = app.overviewNearestHtml();
   assertHasElement(html, ".nearest-arrow[hidden]", "the list is still shown, with its arrow hidden");
   assertLacksText(html, "↑", "but no arrow is visible");
+});
+
+test("direction arrows use projected screen direction while 3D tilt is active", () => {
+  resetData(app);
+  useSmallForest(app);
+  withRealFix(app, 51.6675, 0.0375);
+  app.state.tiltBetaSmoothed = 30;
+
+  const target = makePoint(app, 51.6676, 0.0376);
+  const projected = app.swapGlobalFunction("worldToScreenForOverlayTilted", (point) => (
+    point === app.state.userLocation.point ? { x: 100, y: 100 } : { x: 110, y: 90 }
+  ));
+  const oldArrows = app.els.inspectorBody.querySelectorAll;
+  const listArrow = { dataset: { itemLat: String(target.latitude), itemLon: String(target.longitude), currentAngle: "0" }, style: {} };
+  app.els.inspectorBody.querySelectorAll = () => [listArrow];
+  const selectedBefore = app.state.selected;
+  try {
+    assert.equal(app.directionArrowAngleForWorldPoint(target.point, 123), 45,
+      "the arrow follows the projected target ray, not the flat bearing");
+
+    app.state.selected = { type: "landmark", item: target };
+    app.state.compassHeading = 0;
+    app.els.compassArrow.hidden = true;
+    app.updateCompassOverlay();
+    assert.equal(app.els.compassArrow.style.transform, "rotate(45deg)",
+      "the selected-location arrow uses the same projected ray");
+
+    app.state.selected = null;
+    app.updateOverviewDirectionArrows();
+    assert.equal(listArrow.style.transform, "rotate(45deg)",
+      "the Nearby list arrow uses the same projected ray");
+  } finally {
+    app.state.selected = selectedBefore;
+    app.els.inspectorBody.querySelectorAll = oldArrows;
+    app.swapGlobalFunction("worldToScreenForOverlayTilted", projected);
+  }
 });
 
 // Hostile values from the server or from stored data, as a page would receive them. Each one would run

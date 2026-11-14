@@ -3850,10 +3850,13 @@ function startCompassSmoothing() {
     state.tiltBetaSmoothed += betaDiff * (1 - Math.exp(-4 * dt));
 
     const tiltNeedsFullRedraw = tiltRenderStale();
-    if (hasHeading) {
+    // Beta-only tilt is supported before the compass has a usable heading. The map overlay
+    // still moves through the 3D projection in that state, so refresh its directional arrows
+    // too; otherwise they would keep their last flat bearing until heading calibration finishes.
+    if (hasHeading || hasBetaWork) {
       updateOverviewDirectionArrows();
-      refreshNearbyListForHeading();
       updateCompassOverlay();
+      if (hasHeading) refreshNearbyListForHeading();
     }
     const alignmentDue = state.compassViewportAlignmentAt == null
       || timestamp - state.compassViewportAlignmentAt >= 33;
@@ -4082,6 +4085,28 @@ function selectedCompassTarget() {
     return state.selected.navTarget;
   }
   return null;
+}
+
+// A flat bearing is enough for the compass and list arrows while the map is flat, but it is
+// not the direction a person sees once the ground has been projected into 3D: points at different
+// distances are pulled toward the horizon by different amounts. Use the same projected screen
+// positions as the map overlays so every directional arrow agrees with the terrain beneath it.
+function directionArrowAngleForWorldPoint(targetPoint, fallbackAngle) {
+  if (!(typeof tiltActive === "function" && tiltActive()) || !state.userLocation?.point || !targetPoint) {
+    return fallbackAngle;
+  }
+  if (typeof worldToScreenForOverlayTilted !== "function") return fallbackAngle;
+
+  const origin = worldToScreenForOverlayTilted(state.userLocation.point);
+  const target = worldToScreenForOverlayTilted(targetPoint);
+  // A point clipped at the near plane has no stable screen-space direction: its returned
+  // coordinates are deliberately clamped to keep the perspective divide finite. Keep the
+  // ordinary bearing in that case rather than pointing at the artificial clipped position.
+  if (origin.clipped || target.clipped) return fallbackAngle;
+  const dx = target.x - origin.x;
+  const dy = target.y - origin.y;
+  if (!Number.isFinite(dx) || !Number.isFinite(dy) || Math.hypot(dx, dy) < 0.001) return fallbackAngle;
+  return normalizeDegrees(Math.atan2(dx, -dy) * 180 / Math.PI);
 }
 
 // A street has no single position of its own, so navigating to one aims at the point on its
@@ -6410,7 +6435,8 @@ function updateCompassOverlay() {
   const bearingToTarget = bearingDegrees(state.userLocation.latitude, state.userLocation.longitude, target.latitude, target.longitude);
   const hasHeading = Number.isFinite(state.compassHeading);
   const relative = hasHeading ? shortestCompassDelta(state.compassHeading, bearingToTarget) : bearingToTarget;
-  state.compassArrowAngle = unwrapAngle(state.compassArrowAngle, relative);
+  const projected = directionArrowAngleForWorldPoint(target.point, relative);
+  state.compassArrowAngle = unwrapAngle(state.compassArrowAngle, projected);
 
   const title = state.selected.type === "tree"
     ? treeDisplayName(target)
@@ -6450,7 +6476,10 @@ function updateOverviewDirectionArrows() {
       ? shortestCompassDelta(state.compassHeading, bearing)
       : bearing;
     const previousAngle = Number(arrow.dataset.currentAngle);
-    const nextAngle = unwrapAngle(previousAngle, relative);
+    const nextAngle = unwrapAngle(previousAngle, directionArrowAngleForWorldPoint(
+      projectLonLat(itemLon, itemLat),
+      relative,
+    ));
     arrow.dataset.currentAngle = String(nextAngle);
     arrow.style.transform = `rotate(${nextAngle}deg)`;
   }
@@ -7183,6 +7212,10 @@ function worldToScreenForOverlay(point) {
 function worldToScreenForOverlayTilted(point) {
   const flat = worldToScreenForOverlay(point);
   if (!tiltActive() || !state.userLocation) return flat;
+  // During heading-up entry, worldToScreenForOverlay delegates to worldToScreen so the
+  // animation's intermediate camera already includes tilt. Applying tiltProjectScreenPoint
+  // again here would project every overlay twice for the duration of that transition.
+  if (state.headingUpEntryAnim != null) return flat;
   return tiltProjectScreenPoint(flat);
 }
 
