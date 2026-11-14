@@ -282,7 +282,7 @@ function communityReadScore() {
 // once a score computed after it (generatedAt) arrives, unless it is still in the outbox, because
 // that score cannot have seen it. Reports made from too far away or refused never count.
 // Mirrors POINTS in netlify/functions/lib/community-points.js (a unit test keeps them equal).
-const COMMUNITY_POINTS = { verify: 1, newTree: 1 };
+const COMMUNITY_POINTS = { verify: 1, newTree: 1, adventure: 10 };
 
 function communityPendingScore(local, generatedAt = 0, waitingIds = new Set()) {
   const pending = { points: 0, verified: 0 };
@@ -290,7 +290,7 @@ function communityPendingScore(local, generatedAt = 0, waitingIds = new Set()) {
     if (!entry || entry.counted || entry.far || entry.failed || entry.kind === "place" || entry.kind === "feedback") continue;
     if (!(Number(entry.ts) > generatedAt || waitingIds.has(entry.id))) continue;
     if (entry.status === "VERIFIED") {
-      pending.points += COMMUNITY_POINTS.verify;
+      pending.points += entry.adventure ? COMMUNITY_POINTS.adventure : COMMUNITY_POINTS.verify;
       pending.verified += 1;
     } else if (entry.status === "NEW_TREE") {
       pending.points += COMMUNITY_POINTS.newTree;
@@ -403,7 +403,7 @@ function communityDisplayScore(score, local, waitingIds) {
 }
 
 // Builds, saves locally (optimistic) and queues one report. Resolves the stored local record.
-async function communitySubmitReport({ kind = "tree", target, status, targetLat, targetLon, newLat, newLon, note, tagNumber, accuracy, photo }) {
+async function communitySubmitReport({ kind = "tree", target, status, targetLat, targetLon, newLat, newLon, note, tagNumber, accuracy, photo, adventure = false }) {
   const here = typeof hasRealLocation === "function" && hasRealLocation() ? state.userLocation : null;
   const id = communityRandomId();
   const payload = {
@@ -421,6 +421,7 @@ async function communitySubmitReport({ kind = "tree", target, status, targetLat,
     note,
     tagNumber,
     accuracy,
+    ...(adventure ? { adventure: true } : {}),
     ...(photo ? { photo } : {}),
   };
   const local = communityReadLocal();
@@ -429,7 +430,7 @@ async function communitySubmitReport({ kind = "tree", target, status, targetLat,
   const markLon = Number.isFinite(Number(targetLon)) ? Number(targetLon) : payload.lon;
   // Made from too far away (or with no position), it is still saved, but it will not score.
   const far = kind === "tree" && Number.isFinite(Number(targetLat)) && Number.isFinite(Number(targetLon)) && communityRange(Number(targetLat), Number(targetLon)).state !== "near";
-  local[key] = { id, status, ts: Date.now(), lat: markLat, lon: markLon, ...(far ? { far: true } : {}), ...(tagNumber ? { name: `Tree ${tagNumber}` } : {}) };
+  local[key] = { id, status, ts: Date.now(), lat: markLat, lon: markLon, ...(adventure ? { adventure: true } : {}), ...(far ? { far: true } : {}), ...(tagNumber ? { name: `Tree ${tagNumber}` } : {}) };
   communityWriteLocal(local);
   communityRefreshVerifiedSlots();
   // The local record above is what the screen shows; queueing (an IndexedDB write) can be slow, so it
@@ -611,8 +612,9 @@ function communityRange(lat, lon) {
 // The points a check earns, given where it was made (server rules: community-points.js). A verify
 // earns 1 now and 1 more when someone else confirms; a "this is wrong" report earns 2 only if others
 // agree; nothing counts from outside the zone.
-function communityPointsText(status, rangeState) {
+function communityPointsText(status, rangeState, adventure = false) {
   if (rangeState !== "near") return "You'll get 0 points from this check";
+  if (adventure && (!status || status === "VERIFIED")) return `You'll get ${COMMUNITY_POINTS.adventure} points from this adventure`;
   if (!status || status === "VERIFIED") return "You'll get 1 point from this check";
   return "You'll get up to 2 points from this check";
 }
@@ -623,9 +625,9 @@ function communityPointsChipFor(status, rangeState) {
   return !status || status === "VERIFIED" ? communityPointsChipHtml(1) : communityPointsChipHtml(2, { upTo: true });
 }
 
-function communityRangeNoteHtml(lat, lon, status) {
+function communityRangeNoteHtml(lat, lon, status, adventure = false) {
   const range = communityRange(lat, lon);
-  return `<div class="community-range community-range-${range.state}">${communityIcon(range.state === "near" ? "check" : "locate")}<div><strong>${escapeHtml(communityPointsText(status, range.state))}</strong></div></div>`;
+  return `<div class="community-range community-range-${range.state}">${communityIcon(range.state === "near" ? "check" : "locate")}<div><strong>${escapeHtml(communityPointsText(status, range.state, adventure))}</strong></div></div>`;
 }
 
 // Called with each GPS fix so the note follows the reader as they walk up to the tree.
@@ -636,12 +638,12 @@ function communityUpdateRangeNotes() {
     const chosen = section.querySelector(".is-chosen");
     const lat = Number(section.dataset.lat);
     const lon = Number(section.dataset.lon);
-    note.outerHTML = communityRangeNoteHtml(lat, lon, chosen ? chosen.dataset.status : null);
+    note.outerHTML = communityRangeNoteHtml(lat, lon, chosen ? chosen.dataset.status : null, section.dataset.adventure === "1");
   });
 }
 
 // "You reported: ..." as one quiet line; the thank-you and points detail opens on demand.
-function communityMineHtml(title, status) {
+function communityMineHtml(title, status, adventure = false) {
   const confirmed = status === "VERIFIED" || status === "OPEN_CONFIRMED";
   const icon = COMMUNITY_STATUS_ICON[status] || (confirmed ? "check" : "alert");
   const reviewNote = !confirmed && (status === "CLOSED" || status === "MOVED" || status === "RENAMED" || status === "DETAILS_CHANGED" || status === "WRONG_CATEGORY")
@@ -649,23 +651,24 @@ function communityMineHtml(title, status) {
     : "";
   const placeConfirmedNote = status === "OPEN_CONFIRMED" ? "You have verified this location" : "";
   return `<div class="community-mine community-mine-compact community-local-status${confirmed ? " community-local-status-confirmed" : " community-local-status-problem"}${status === "OPEN_CONFIRMED" ? " community-place-confirmed-marker" : ""}" role="status">
-      <div class="community-place-status-summary"><span class="community-mine-icon">${communityIcon(icon)}</span><span class="community-place-status-copy"><strong>${placeConfirmedNote || "Your report"}</strong><small>You reported: ${escapeHtml(title)}</small>${reviewNote ? `<small>${reviewNote}</small>` : ""}</span></div>
+      <div class="community-place-status-summary"><span class="community-mine-icon">${communityIcon(icon)}</span><span class="community-place-status-copy"><strong>${placeConfirmedNote || "Your report"}</strong><small>You reported: ${escapeHtml(title)}</small>${adventure && confirmed ? `<small>Adventure complete · +${COMMUNITY_POINTS.adventure} points</small>` : ""}${reviewNote ? `<small>${reviewNote}</small>` : ""}</span></div>
       <button class="community-link" type="button" data-action="community-change">Change</button>
     </div>`;
 }
 
-function communitySectionInnerHtml(target, editing, lat, lon, more = false) {
+function communitySectionInnerHtml(target, editing, lat, lon, more = false, adventure = false) {
   const local = communityReadLocal()[target];
   const remote = communityOverlay.entries[target];
+  const adventureCheck = adventure || Boolean(local && local.adventure);
   if (local && !editing) {
-    return `${communityBadgeHtml(remote)}${communityMineHtml(COMMUNITY_STATUS_TEXT[local.status] || local.status, local.status)}`;
+    return `${communityBadgeHtml(remote)}${communityMineHtml(COMMUNITY_STATUS_TEXT[local.status] || local.status, local.status, Boolean(local.adventure))}`;
   }
   const [primary, ...others] = COMMUNITY_TREE_CHOICES;
   const chosen = local ? local.status : null;
   return `${communityBadgeHtml(remote)}
       ${communityChoiceHtml(primary, chosen === primary.status)}
       ${communityMoreHtml(others.map((c) => communityChoiceHtml(c, chosen === c.status)).join(""), Boolean(local) || more)}
-      ${communityRangeNoteHtml(lat, lon, chosen)}
+      ${communityRangeNoteHtml(lat, lon, chosen, adventureCheck)}
       <p class="report-note community-status" aria-live="polite"></p>`;
 }
 
@@ -675,7 +678,8 @@ function communitySectionHtml(tree) {
   const target = communityTreeTarget(tree);
   if (!target || tree.latitude == null || tree.longitude == null) return "";
   const reported = Boolean(communityReadLocal()[target]);
-  return `<section class="community-check${reported ? " community-check-reported" : ""}" data-community-target="${escapeHtml(target)}" data-lat="${escapeHtml(tree.latitude)}" data-lon="${escapeHtml(tree.longitude)}">
+  const adventure = typeof treeAdventureTargetIsActive === "function" && treeAdventureTargetIsActive(target);
+  return `<section class="community-check${reported ? " community-check-reported" : ""}" data-community-target="${escapeHtml(target)}" data-adventure="${adventure ? "1" : "0"}" data-lat="${escapeHtml(tree.latitude)}" data-lon="${escapeHtml(tree.longitude)}">
       <div class="community-head${reported ? " community-head-reported" : ""}">
         <span class="community-head-icon">${communityIcon("shield")}</span>
         <div><h3 class="community-title">Help check this tree</h3><p class="community-sub">Is it where the map says it is?</p></div>
@@ -693,7 +697,7 @@ function communityRefreshSections() {
     const reported = Boolean(communityReadLocal()[target]) && !editing;
     body.innerHTML = section.dataset.kind === "place"
       ? communityPlaceInnerHtml(section)
-      : communitySectionInnerHtml(target, editing, Number(section.dataset.lat), Number(section.dataset.lon), section.dataset.more === "1");
+      : communitySectionInnerHtml(target, editing, Number(section.dataset.lat), Number(section.dataset.lon), section.dataset.more === "1", section.dataset.adventure === "1");
     section.classList.toggle("community-check-reported", reported);
     section.querySelector(".community-head")?.classList.toggle("community-head-reported", reported);
   });
@@ -717,7 +721,7 @@ async function communityHandleChoice(button) {
     newLat = Number(state.userLocation.latitude.toFixed(6));
     newLon = Number(state.userLocation.longitude.toFixed(6));
   }
-  await communitySubmitReport({ kind: "tree", target, status, targetLat, targetLon, newLat, newLon });
+  await communitySubmitReport({ kind: "tree", target, status, targetLat, targetLon, newLat, newLon, adventure: section.dataset.adventure === "1" && status === "VERIFIED" });
   delete section.dataset.editing;
   communityRefreshSections();
   communityRefreshVerifiedSlots();
@@ -904,7 +908,7 @@ function communityNudgeSeen() {
 function communityNudgeDismiss() {
   clearTimeout(communityNudgeTimer);
   const el = document.getElementById("communityNudge");
-  if (el) el.remove();
+  if (el && typeof el.remove === "function") el.remove();
 }
 
 // The decision, with no DOM: what should happen for this GPS fix? Returns "card" (offer on any
@@ -923,6 +927,13 @@ function communityNudgeDecision({ on, fixOk, isDefault, nearest, target, already
 function communityNudgeCheck(now = Date.now()) {
   if (!communityEnabled()) return;
   communityUpdateRangeNotes();
+  // The first-location adventure is the more useful invitation at this moment. Keeping the
+  // proximity nudge off the screen prevents two competing tree prompts from stacking together.
+  const adventureBanner = document.getElementById("adventureBanner");
+  if (adventureBanner && !adventureBanner.hidden) {
+    communityNudgeDismiss();
+    return;
+  }
   const nearest = state.nearestTree;
   const tree = nearest && nearest.tree;
   const target = tree ? communityTreeTarget(tree) : null;

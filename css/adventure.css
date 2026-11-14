@@ -1,0 +1,200 @@
+/* The first-location suggestion is a friendly invitation, separate from permission cards so
+   location consent never feels tied to the reward. Its graphite/gold treatment follows the
+   nearby-tree nudge, while the tag plaque deliberately matches the tree detail panel. */
+.adventure-banner {
+  --adventure-gold: var(--cta);
+  position: fixed;
+  top: max(12px, env(safe-area-inset-top, 0px));
+  left: 12px;
+  right: 12px;
+  z-index: 108;
+  max-width: 560px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 56px minmax(0, 1fr);
+  grid-template-areas: "art copy" "art actions";
+  gap: 0 13px;
+  align-items: start;
+  box-sizing: border-box;
+  padding: 16px 16px 14px 14px;
+  overflow: hidden;
+  border: 1px solid rgba(228, 204, 133, 0.42);
+  border-radius: 20px;
+  background: linear-gradient(160deg, #262e37 0%, #161b21 100%);
+  color: #fff;
+  box-shadow: 0 22px 48px rgba(10, 14, 18, 0.45), 0 2px 0 rgba(255, 255, 255, 0.06) inset, 0 0 0 1px rgba(0, 0, 0, 0.25);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, ui-sans-serif, system-ui, sans-serif;
+  transition: opacity 0.32s ease, transform 0.32s ease;
+}
+
+.adventure-banner::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 240, 200, 0.12) 50%, transparent 65%);
+  transform: translateX(-120%);
+  pointer-events: none;
+  animation: adventure-banner-sheen 1.6s ease-out 0.45s 1 both;
+}
+
+@media (min-width: 761px) {
+  .adventure-banner {
+    top: 14px;
+    left: 16px;
+    right: calc(14px + 390px + 16px);
+    max-width: none;
+    margin: 0;
+  }
+}
+
+.adventure-banner[hidden] { display: none; }
+.adventure-banner.fading-out { opacity: 0; transform: translateY(-5px); pointer-events: none; }
+
+.adventure-banner-art {
+  grid-area: art;
+  width: 46px;
+  height: 56px;
+  display: grid;
+  place-items: center;
+  background: none;
+  color: var(--adventure-gold);
+}
+
+.adventure-banner-art img { width: 52px; height: 52px; object-fit: contain; filter: drop-shadow(0 0 12px rgba(228, 204, 133, 0.45)); }
+
+.adventure-direction {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(228, 204, 133, 0.72);
+  border-radius: 50%;
+  background: #161b21;
+  color: var(--adventure-gold);
+  font-size: 1.25rem;
+  font-weight: 900;
+  line-height: 1;
+  transform-origin: 50% 50%;
+  transition: transform 40ms linear;
+  user-select: none;
+}
+
+.adventure-direction[hidden] { display: none; }
+.adventure-direction.adventure-direction--tilted {
+  transition: none;
+  transform-style: preserve-3d;
+}
+
+.adventure-banner-copy { grid-area: copy; min-width: 0; padding-right: 25px; }
+.adventure-eyebrow {
+  display: block;
+  margin-bottom: 1px;
+  color: var(--adventure-gold);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.adventure-title { display: block; color: #fff; font-size: 1.02rem; font-weight: 800; letter-spacing: -0.01em; }
+.adventure-banner-copy p { margin: 3px 0 0; color: rgba(255, 255, 255, 0.68); font-size: 0.83rem; line-height: 1.4; }
+
+.adventure-tag {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 11px;
+}
+
+.adventure-tag[hidden] { display: none; }
+.adventure-tag span {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.adventure-tag strong {
+  position: relative;
+  min-width: 92px;
+  padding: 6px 26px;
+  border: 1px solid #a8b4a5;
+  border-radius: 5px;
+  background: linear-gradient(155deg, #eef0e8, #d5ddd0);
+  box-shadow: inset 0 1px 0 #ffffffb3;
+  color: #354e3c;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1.25;
+  letter-spacing: 0.06em;
+  text-align: center;
+}
+
+.adventure-tag strong::before,
+.adventure-tag strong::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  width: 5px;
+  height: 5px;
+  margin-top: -2.5px;
+  border-radius: 50%;
+  background: #687e65;
+}
+
+.adventure-tag strong::before { left: 9px; }
+.adventure-tag strong::after { right: 9px; }
+
+@keyframes adventure-banner-sheen {
+  from { transform: translateX(-120%); }
+  to { transform: translateX(120%); }
+}
+
+.adventure-meta {
+  grid-area: copy;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.adventure-meta span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 25px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(228, 204, 133, 0.16);
+  color: var(--adventure-gold);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.adventure-meta .adventure-age { display: grid; align-items: center; gap: 1px; border-radius: 10px; background: transparent; padding: 0 10px 0 0; }
+.adventure-age small { color: rgba(255, 255, 255, 0.58); font-size: 0.62rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.adventure-age strong { color: #fff; font-size: 0.92rem; line-height: 1.1; }
+
+.adventure-banner-actions {
+  grid-area: actions;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.adventure-banner-actions .onboarding-skip-btn { min-height: 38px; color: rgba(255, 255, 255, 0.68); }
+.adventure-banner-actions .button { min-height: 42px; padding: 0 20px; border-radius: 999px; background: linear-gradient(180deg, #ecd796, var(--cta)); color: var(--cta-ink); box-shadow: 0 6px 16px rgba(228, 204, 133, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.5); font-size: 0.92rem; font-weight: 800; }
+
+@media (prefers-reduced-motion: reduce) {
+  .adventure-banner, .adventure-banner::after { transition: none; animation: none; }
+}

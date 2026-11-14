@@ -84,6 +84,22 @@ function isNear(r) {
   return distanceMetres(r.lat, r.lon, r.targetLat, r.targetLon) <= NEAR_METRES;
 }
 
+// The adventure flag is only a claim from the browser. The score pass must verify the claim against
+// the tree register, and always requires a real nearby GPS report. If the register is unavailable,
+// fail closed: report coordinates are never a substitute for register-backed target data.
+function isAdventureEligibleReport(r, adventureTargets = null) {
+  if (!r || r.kind !== "tree" || r.status !== "VERIFIED" || r.adventure !== true) return false;
+  if (!/^tree:\d+$/.test(String(r.target || ""))) return false;
+  if (!Number.isFinite(r.lat) || !Number.isFinite(r.lon)) return false;
+  if (!(adventureTargets instanceof Map)) return false;
+  const registered = adventureTargets.get(r.target);
+  if (!registered) return false;
+  const targetLat = registered.lat;
+  const targetLon = registered.lon;
+  if (!Number.isFinite(targetLat) || !Number.isFinite(targetLon)) return false;
+  return distanceMetres(r.lat, r.lon, targetLat, targetLon) <= NEAR_METRES;
+}
+
 // "0" is the placeholder tag on thousands of untagged register entries, so it names nothing.
 function normalizeTag(value) {
   const tag = String(value == null ? "" : value).trim().toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -123,7 +139,7 @@ function mostCommon(values) {
 
 // -> { overlay: { [target]: {s,st,n,t,...} }, conflicts: [target], scores: { [deviceId]: {...} } }
 // `owners` (optional): deviceId -> account key for devices linked to an account (lib/community-account.js).
-function computeCommunityState(reports, validations = [], owners = null) {
+function computeCommunityState(reports, validations = [], owners = null, { adventureTargets = null } = {}) {
   const valid = reports.filter((r) => !validateReport(r));
   const voterOf = (deviceId) => (owners && owners[deviceId]) || deviceId;
   const latest = latestPerDevice(valid, voterOf);
@@ -185,6 +201,15 @@ function computeCommunityState(reports, validations = [], owners = null) {
   // Scores. Verify = 1 point at once; +1 when an independent device agrees. New find = 1,
   // +3 once a second device finds it. A question that the community upheld = 2.
   const scores = Object.create(null);
+  const adventureAwarded = new Set();
+  const adventureReports = new Set();
+  for (const r of [...latest].sort((a, b) => (a.ts || 0) - (b.ts || 0) || String(a.id).localeCompare(String(b.id)))) {
+    const voter = voterOf(r.deviceId);
+    if (!adventureAwarded.has(voter) && isAdventureEligibleReport(r, adventureTargets)) {
+      adventureAwarded.add(voter);
+      adventureReports.add(r.id);
+    }
+  }
   const ensure = (id) => (scores[id] ||= { points: 0, reports: 0, verified: 0, confirmed: 0, validated: 0, fixed: 0 });
   for (const [target, list] of byTarget) {
     const near = list.filter(isNear);
@@ -197,7 +222,7 @@ function computeCommunityState(reports, validations = [], owners = null) {
         continue; // confirming a place scores nothing; only a confirmed report of a wrong business does
       } else if (cls === "confirm") {
         score.verified += 1;
-        score.points += POINTS.verify;
+        score.points += adventureReports.has(r.id) ? POINTS.adventure : POINTS.verify;
         if (near.some((o) => voterOf(o.deviceId) !== voterOf(r.deviceId) && statusClass(o.kind, o.status) === "confirm")) {
           score.confirmed += 1;
           score.points += POINTS.verifyConfirmed;
@@ -289,4 +314,4 @@ function communityAdminStats(reports, state, now = Date.now()) {
   };
 }
 
-module.exports = { canonicalTarget, isNear, REWARD_POINTS, normalizeTag, reportOutcome, communityAdminStats, STATUSES, NEAR_METRES, statusClass, validateReport, computeCommunityState, distanceMetres };
+module.exports = { canonicalTarget, isNear, isAdventureEligibleReport, REWARD_POINTS, normalizeTag, reportOutcome, communityAdminStats, STATUSES, NEAR_METRES, statusClass, validateReport, computeCommunityState, distanceMetres };

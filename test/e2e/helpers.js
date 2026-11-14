@@ -143,8 +143,11 @@ async function settleMapIconsAndDraw(page) {
  * The test harness waits for the app's data milestones instead: this keeps map-first production
  * behaviour intact while preventing a test from racing a late dataset or the first GPS camera fit.
  */
-async function gotoAndWaitForMap(page, path = "/nearby", { timeout = 30_000 } = {}) {
+async function gotoAndWaitForMap(page, path = "/nearby", { timeout = 30_000, suppressAdventure = false } = {}) {
   await denyGeolocationUnlessGranted(page);
+  if (suppressAdventure) {
+    await page.addInitScript(() => localStorage.setItem("ff-tree-adventure-seen-v1", "1"));
+  }
   await page.goto(path);
   await page.waitForFunction(
     () => typeof state !== "undefined" && state.dataLoaded === true,
@@ -202,6 +205,13 @@ async function setup(page, urlPath = "/nearby") {
     // intercept their corner taps; the compass-specific spec uses gotoAndWaitForMap directly.
     const compassBanner = document.getElementById("compassCalibrationBanner");
     if (compassBanner && !compassBanner.hidden) compassBanner.hidden = true;
+    // Generic map-interaction tests exercise canvas gestures, not the first-location adventure.
+    // Keep its real-location banner from covering the map tap targets used by those tests; the
+    // adventure-specific specs deliberately leave it visible and assert its rendered view.
+    const adventureBanner = document.getElementById("adventureBanner");
+    try { localStorage.setItem("ff-tree-adventure-seen-v1", "1"); } catch {}
+    if (typeof treeAdventureDismiss === "function") treeAdventureDismiss();
+    if (adventureBanner) adventureBanner.hidden = true;
     if (state.userLocation && state.userLocation.isDefault) {
       state.userLocation = null;
       // This fixture removes the default location entirely, so its static

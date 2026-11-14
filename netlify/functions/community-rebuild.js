@@ -4,7 +4,7 @@
 const { openStore } = require("./lib/community-store");
 const { rebuildComputed } = require("./lib/community-computed");
 const { escalateConflicts } = require("./lib/community-escalation");
-const { originOf, makeGithubIssuePoster } = require("./lib/community-fetch");
+const { originOf, makeFetchJson, makeGithubIssuePoster } = require("./lib/community-fetch");
 
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || "";
 const { isAdminRequest } = require("./lib/admin-auth");
@@ -14,7 +14,7 @@ exports.handler = async (event) => {
     return { statusCode: 401, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ error: "Unauthorized" }) };
   }
   const store = openStore(event);
-  const computed = await rebuildComputed(store);
+  const computed = await rebuildComputed(store, { fetchJson: makeFetchJson(event) });
   // Issues are filed against the real repository, so only the production deploy does it; a preview
   // rebuild reports what it would have filed.
   const post = process.env.CONTEXT === "production" ? makeGithubIssuePoster() : null;

@@ -563,6 +563,10 @@ test.describe("Nudges to check a tree you are standing next to", () => {
   async function standNextToATree(page) {
     await page.waitForFunction(() => state.userLocation && !state.userLocation.isDefault && state.trees.length > 0);
     await page.evaluate(() => {
+      // This describe isolates the proximity nudge from the first-location adventure prompt.
+      localStorage.setItem("ff-tree-adventure-seen-v1", "1");
+      const adventure = document.getElementById("adventureBanner");
+      if (adventure) adventure.hidden = true;
       localStorage.removeItem("ff-community-nudge-seen-v1");
       localStorage.removeItem("ff-community-nudges-off-v1");
       localStorage.removeItem("ff-community-local-v1");

@@ -174,7 +174,9 @@ async function runValidation(deps) {
   // than overwrite it, so no reward either run found is lost.
   const latest = (await store.get("validations")) || {};
   await store.put("validations", mergeValidationStates(latest, state));
-  await rebuildComputed(store); // so the overlay and scores include the new rewards at once
+  // A failed register read must leave the previous computed snapshot in place. Rebuilding here
+  // would either fail again or publish scores with adventure rewards stripped from them.
+  if (!summary.registerError) await rebuildComputed(store, { fetchJson }); // so the overlay and scores include the new rewards at once
   return summary;
 }
 

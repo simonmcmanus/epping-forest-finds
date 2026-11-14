@@ -7,6 +7,7 @@ Every number below lives in one file: `netlify/functions/lib/community-points.js
 | Action | Points | Config key | Notes |
 |---|---|---|---|
 | Verify a tree you are standing next to | 1 | `verify` | Must be within 10 m (`NEAR_METRES`). |
+| Complete the first nearby-tree adventure | 10 | `adventure` | One-time reward for verifying the tree suggested on first location. |
 | ...and a different person independently confirms the same tree | +1 | `verifyConfirmed` | Paid to the first verifier. |
 | Add a missing tree (tag number and an accurate GPS fix, 30 m or better) | 1 | `newTree` | Tag "0" is not valid. |
 | ...and a second person finds the same new tree | +3 | `newTreeSecondFinder` | |

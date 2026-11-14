@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { setup, skipOnboarding, mockCowApi, gotoAndWaitForMap, settleMapIconsAndDraw, waitForFrames, waitForUiToSettle } = require("./helpers");
+const { setup, skipOnboarding, mockCowApi, gotoAndWaitForMap, settleMapIconsAndDraw, waitForFrames, waitForUiToSettle, waitForStableBoundingBox } = require("./helpers");
 
 // A GPS fix inside Epping Forest
 const FOREST_LOCATION = { latitude: 51.6650, longitude: 0.0450, accuracy: 10 };
@@ -14,10 +14,37 @@ test.describe("Location and GPS — happy path", () => {
       permissions: ["geolocation"],
     });
 
-    test.beforeEach(async ({ page }) => {
+    test.beforeEach(async ({ page }, testInfo) => {
       await skipOnboarding(page);
       await mockCowApi(page);
+      if (testInfo.title.includes("veteran tree adventure")) {
+        await page.addInitScript(() => localStorage.setItem("ff-location-v1", "granted"));
+        await page.route("**/api/features**", (route) =>
+          route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({ community: true }),
+          })
+        );
+        await page.route("**/api/community/overlay", (route) =>
+          route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({ generatedAt: 1, entries: {} }),
+          })
+        );
+      } else {
+        // The other location snapshots cover the map itself. Keep the first-location adventure
+        // out of those captures; its dedicated tests above intentionally exercise the banner.
+        await page.addInitScript(() => localStorage.setItem("ff-tree-adventure-seen-v1", "1"));
+      }
       await gotoAndWaitForMap(page);
+      if (!testInfo.title.includes("veteran tree adventure")) {
+        await page.evaluate(() => {
+          const card = document.getElementById("consentBanner");
+          if (card) card.hidden = true;
+        });
+      }
     });
 
     test("location loading step reaches 'done' after a GPS fix", async ({ page }) => {
@@ -47,6 +74,46 @@ test.describe("Location and GPS — happy path", () => {
       await waitForUiToSettle(page);
       await settleMapIconsAndDraw(page);
       await expect(page).toHaveScreenshot("map-with-location.png", { fullPage: false });
+    });
+
+    test("snapshot: first-location veteran tree adventure", async ({ page }) => {
+      // The generated /nearby shell paints its first-visit consent card before boot. This test
+      // represents the next state: location has been shared and the consent card is gone.
+      await page.evaluate(() => { els.consentBanner.hidden = true; });
+      const adventure = page.locator("#adventureBanner");
+      await expect(adventure).toBeVisible({ timeout: 10_000 });
+      await expect(adventure).toContainText("Find the nearest veteran tree");
+      await expect(adventure).toContainText("Take a 1 min walk to this English Oak");
+      await expect(adventure.locator("#adventureDirection")).toBeVisible();
+      await expect(adventure.locator("#adventureDirection")).toHaveAttribute("aria-label", "Direction to the suggested tree");
+      await expect(adventure.locator("#adventureTag span")).toHaveText("Look for this tag on the tree");
+      await expect(adventure.locator("#adventureTag strong")).toHaveText(/\d+/);
+      await expect(adventure.locator(".adventure-age small")).toHaveText("Estimated age");
+      await expect(adventure).toContainText("+10 points when verified");
+      await expect(page.locator("#communityNudge")).toBeHidden();
+      await waitForUiToSettle(page);
+      const box = await waitForStableBoundingBox(adventure, { timeout: 3_000 });
+      expect(box && box.width, "the adventure card should be fully laid out before capture").toBeGreaterThan(300);
+      expect(box && box.height, "the adventure card should be fully laid out before capture").toBeGreaterThan(140);
+      await settleMapIconsAndDraw(page);
+      await expect(page).toHaveScreenshot("veteran-tree-adventure.png", { fullPage: false });
+    });
+
+    test("the veteran tree adventure prefers a nearby tree that is not already verified", async ({ page }) => {
+      const choice = await page.evaluate(() => {
+        const candidates = nearestTreesTo(state.userLocation.latitude, state.userLocation.longitude, 50)
+          .filter(({ tree }) => treeAdventureTag(tree));
+        const alreadyVerified = candidates[0].tree;
+        communityOverlay.entries = { [communityTreeTarget(alreadyVerified)]: { s: "verified", n: 1 } };
+        communityOverlay.generatedAt = 1;
+        const selected = treeAdventureTarget();
+        return {
+          alreadyVerified: treeHashKey(alreadyVerified),
+          selected: selected && treeHashKey(selected.tree),
+        };
+      });
+      expect(choice.selected).toBeTruthy();
+      expect(choice.selected).not.toBe(choice.alreadyVerified);
     });
 
     test("on a train, the You marker keeps moving between GPS fixes rather than holding still and then jumping", async ({ page, context }) => {

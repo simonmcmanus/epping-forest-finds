@@ -205,6 +205,14 @@ async function loadMapData() {
     // The "done" step above ran before these trees existed, so Search re-runs against them here.
     refreshOpenSearchResults();
 
+    // A first GPS fix can arrive before the tree chunks. Re-derive the nearest tree once those
+    // chunks land so location-triggered experiences, including the first-visit adventure, do not
+    // miss their only opportunity to appear.
+    if (state.userLocation && typeof refreshNearestTreeForNearbyOrigin === "function") {
+      refreshNearestTreeForNearbyOrigin();
+      if (typeof adventureMaybeShow === "function") window.setTimeout(adventureMaybeShow, 0);
+    }
+
     if (state.dataLoaded) {
       state.bounds = calculateBounds();
       // A /find/ landing's place is resolvable now that the data is in: select it rather than

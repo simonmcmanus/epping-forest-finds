@@ -1068,6 +1068,7 @@ function applyLocationFix(position, { preserveSelection = false } = {}) {
   state.nearestRestaurant = nearestPlaceByFilter(latitude, longitude, (place) => isRestaurantCategory(place));
   state.nearestLandmark = nearestPlaceByFilter(latitude, longitude, (place) => !isPubCategory(place) && !isRestaurantCategory(place) && !isCafeCategory(place) && !isShopCategory(place) && !isTransportCategory(place));
   state.nearestPlace = nearestPlacesTo(latitude, longitude, 1)[0] || null;
+  if (typeof adventureMaybeShow === "function") window.setTimeout(adventureMaybeShow, 250);
   // A cold load of /community has already opened its screen (boot); a fix must not wipe it. Nor
   // must Settings or Feedback: their own location actions answer in place, on the screen that
   // asked.
@@ -6509,6 +6510,7 @@ function syncNativeWalkingAids() {
 }
 
 function updateCompassOverlay() {
+  if (typeof updateTreeAdventureDirection === "function") updateTreeAdventureDirection();
   syncNativeWalkingAids();
   const target = selectedCompassTarget();
   const arrow = els.compassArrow;

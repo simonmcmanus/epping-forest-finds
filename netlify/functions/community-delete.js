@@ -10,7 +10,7 @@ const { openStore } = require("./lib/community-store");
 const { isAdminRequest } = require("./lib/admin-auth");
 const { deleteCommunityData } = require("./lib/community-delete");
 const { deletePhoto } = require("./lib/report-photo");
-const { makeGithubIssueEditor } = require("./lib/community-fetch");
+const { makeFetchJson, makeGithubIssueEditor } = require("./lib/community-fetch");
 
 function respond(statusCode, body) {
   return { statusCode, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }, body: JSON.stringify(body) };
@@ -32,6 +32,7 @@ exports.handler = async (event) => {
       includeAccount: input.includeAccount === true,
       github: redact ? makeGithubIssueEditor() : null,
       redactIssues: redact,
+      fetchJson: makeFetchJson(event),
     });
     return respond(200, { deleted: true, ...summary });
   } catch (error) {

@@ -7,6 +7,7 @@
 const { openStore } = require("./lib/community-store");
 const { reportOutcome, canonicalTarget } = require("./lib/community-consensus");
 const { loadComputed, loadAdminStats, loadScore } = require("./lib/community-computed");
+const { makeFetchJson } = require("./lib/community-fetch");
 const { sessionFrom } = require("./lib/auth-session");
 const { devicesForRequest, mergeScores } = require("./lib/community-account");
 
@@ -23,7 +24,7 @@ async function adminStats(event) {
   if (!isAdminRequest(event, ADMIN_PASSWORD)) {
     return { statusCode: 401, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ error: "Unauthorized" }) };
   }
-  const stats = await loadAdminStats(openStore(event));
+  const stats = await loadAdminStats(openStore(event), { fetchJson: makeFetchJson(event) });
   return {
     statusCode: 200,
     headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
@@ -46,7 +47,7 @@ exports.handler = async (event) => {
       body: JSON.stringify(score),
     };
   }
-  const computed = await loadComputed(openStore(event));
+  const computed = await loadComputed(openStore(event), { fetchJson: makeFetchJson(event) });
   if (me && queryParam(event, "list")) {
     const store = openStore(event);
     const devices = await devicesForRequest(store, me, sessionFrom(event));
