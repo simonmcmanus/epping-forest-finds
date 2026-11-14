@@ -1883,6 +1883,109 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main", tilted = false) {
   return markers;
 }
 
+// The dark green of a group's count chip; group footprints reuse it at low opacity.
+const MARKER_COUNT_CHIP_COLOR = "#233d30";
+// A group draws a footprint only when another group's seed is within this many collision-box
+// widths of its own on screen.
+const FOOTPRINT_NEIGHBOUR_BOX_WIDTHS = 2.5;
+// How far a footprint extends beyond its members' hull (ground plane, CSS px), with rounded corners.
+const FOOTPRINT_PADDING_CSS_PX = 6;
+const FOOTPRINT_FILL_ALPHA = 0.11;
+const FOOTPRINT_STROKE_ALPHA = 0.28;
+const FOOTPRINT_STROKE_CSS_PX = 1;
+const FOOTPRINT_CORNER_SAMPLES = 12;
+
+// Monotone-chain hull of the actual member positions (duplicates collapse).
+function footprintConvexHull(points) {
+  const sorted = points.slice().sort((a, b) => a.x - b.x || a.y - b.y)
+    .filter((p, i, all) => !i || p.x !== all[i - 1].x || p.y !== all[i - 1].y);
+  if (sorted.length < 3) return sorted;
+  const cross = (o, a, b) => (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  const half = list => {
+    const hull = [];
+    for (const p of list) {
+      while (hull.length > 1 && cross(hull[hull.length - 2], hull[hull.length - 1], p) <= 0) hull.pop();
+      hull.push(p);
+    }
+    return hull;
+  };
+  return half(sorted).slice(0, -1).concat(half(sorted.slice().reverse()).slice(0, -1));
+}
+
+// The padded hull of one group's own members: positions in the flat ground plane (`toFlat`), padded
+// with rounded corners, then projected through the active tilt (`project`). Coincident members give
+// a small round shape, collinear ones a capsule. Null when any point crosses the near-camera clip.
+function groupFootprintPoints(items, toFlat, project, padding) {
+  const points = [];
+  for (const item of items) {
+    if (!item.point) continue;
+    const p = toFlat(item.point);
+    if (Number.isFinite(p.x) && Number.isFinite(p.y)) points.push(p);
+  }
+  const padded = [];
+  for (const p of footprintConvexHull(points)) {
+    for (let i = 0; i < FOOTPRINT_CORNER_SAMPLES; i++) {
+      const angle = i * 2 * Math.PI / FOOTPRINT_CORNER_SAMPLES;
+      padded.push({ x: p.x + Math.cos(angle) * padding, y: p.y + Math.sin(angle) * padding });
+    }
+  }
+  const projected = footprintConvexHull(padded).map(project);
+  if (projected.length < 3 || projected.some(p => p.clipped)) return null;
+  return projected;
+}
+
+// Which group markers draw a footprint, and its outline: [{ marker, points }]. Only a group
+// (more than one item) with another group's seed within FOOTPRINT_NEIGHBOUR_BOX_WIDTHS collision
+// boxes on screen qualifies, so an isolated group and every lone pin draw none. Neighbours come
+// from a grid of that distance (3x3 cells), never all pairs; hulls are built for qualifiers only.
+// `only` optionally limits which markers get an outline (neighbours still count).
+function markerFootprints(markers, toFlat, project = p => p, only = null) {
+  const dpr = pixelRatio();
+  const reach = markerCollisionBox(dpr).width * FOOTPRINT_NEIGHBOUR_BOX_WIDTHS;
+  const grid = new Map();
+  const groups = [];
+  for (const marker of markers) {
+    if (marker.items.length < 2) continue;
+    groups.push(marker);
+    const key = Math.floor(marker.screenPt.x / reach) * 4194304 + Math.floor(marker.screenPt.y / reach);
+    const bucket = grid.get(key);
+    if (bucket) bucket.push(marker);
+    else grid.set(key, [marker]);
+  }
+  const result = [];
+  if (groups.length < 2) return result;
+  for (const marker of groups) {
+    if (only && !only.has(marker)) continue;
+    const cx = Math.floor(marker.screenPt.x / reach), cy = Math.floor(marker.screenPt.y / reach);
+    let near = false;
+    for (let dx = -1; dx <= 1 && !near; dx++) {
+      for (let dy = -1; dy <= 1 && !near; dy++) {
+        const bucket = grid.get((cx + dx) * 4194304 + cy + dy);
+        if (!bucket) continue;
+        for (const other of bucket) {
+          if (other !== marker && Math.hypot(other.screenPt.x - marker.screenPt.x, other.screenPt.y - marker.screenPt.y) <= reach) {
+            near = true;
+            break;
+          }
+        }
+      }
+    }
+    if (!near) continue;
+    const points = groupFootprintPoints(marker.items, toFlat, project, FOOTPRINT_PADDING_CSS_PX * dpr);
+    if (points) result.push({ marker, points });
+  }
+  return result;
+}
+
+// The ground-plane and tilt projections a footprint hull needs for the toScreen a draw path uses.
+function footprintProjection(toScreen, tilted) {
+  if (!tilted) {
+    return { toFlat: worldToScreenFlat, project: tiltActive() ? tiltProjectScreenPoint : p => p };
+  }
+  const projects = tiltActive() && state.userLocation && state.headingUpEntryAnim == null;
+  return { toFlat: worldToScreenForOverlay, project: projects ? tiltProjectScreenPoint : p => p };
+}
+
 // The items of a tapped group by category: every marker carries this, and a hand-built
 // single-category group ({ itemType, items }) reads the same way.
 function clusterItemsByType(group) {
@@ -2383,7 +2486,7 @@ function drawClusterMarker(ctx, x, y, count, iconSources, dpr, scale = 1, overfl
   }
   ctx.beginPath();
   ctx.roundRect(b.countX - b.countWidth / 2, b.countY - b.countHeight / 2, b.countWidth, b.countHeight, 9 * u);
-  ctx.fillStyle = "#233d30";
+  ctx.fillStyle = MARKER_COUNT_CHIP_COLOR;
   ctx.fill();
   ctx.strokeStyle = "white";
   ctx.lineWidth = 1.5 * u;
@@ -2445,6 +2548,37 @@ function pinsHiddenBySelection(tilted) {
 let _drawnMarkerSpecs = [];
 let _drawnTransitionSpecs = [];
 
+// Footprints paint first, beneath every face, at the same opacity their group is drawn at. They are
+// not hit targets and take no part in the collision box or clustering.
+function drawGroupFootprints(ctx, markers, visible, reveal, tilted, toScreen, options) {
+  const visibleSet = new Set(visible.filter(m => m.items.length > 1));
+  if (visibleSet.size === 0) return;
+  const { toFlat, project } = footprintProjection(toScreen, tilted);
+  const footprints = markerFootprints(markers, toFlat, project, visibleSet);
+  if (!footprints.length) return;
+  const dpr = pixelRatio();
+  ctx.save();
+  ctx.fillStyle = MARKER_COUNT_CHIP_COLOR;
+  ctx.strokeStyle = MARKER_COUNT_CHIP_COLOR;
+  ctx.lineWidth = FOOTPRINT_STROKE_CSS_PX * dpr;
+  ctx.lineJoin = "round";
+  for (const { marker, points } of footprints) {
+    const transitionOpacity = options.markerOpacity
+      ? options.markerOpacity(visible.indexOf(marker), visible.length, marker)
+      : 1;
+    const alpha = reveal * transitionOpacity * groupOpacity(marker);
+    if (alpha <= 0) continue;
+    ctx.beginPath();
+    points.forEach((p, i) => i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y));
+    ctx.closePath();
+    ctx.globalAlpha = alpha * FOOTPRINT_FILL_ALPHA;
+    ctx.fill();
+    ctx.globalAlpha = alpha * FOOTPRINT_STROKE_ALPHA;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 // Draws every marker in one pass, flat (main canvas) or tilted/heading-up (overlay). Painted in
 // ascending screen Y so a marker lower on screen -- closer to the viewer -- paints over one further
 // up, across all categories; faces cannot overlap, so this only orders tails, chips and labels.
@@ -2457,6 +2591,7 @@ function drawMapMarkers(ctx, markers, toScreen, tilted = false, options = {}) {
   const visible = markers.filter(m => isNearCanvas(m.screenPt, m.items.length > 1 ? 84 * dpr : loneSize * 2));
   visible.sort((a, b) => a.screenPt.y - b.screenPt.y);
   ctx.save();
+  drawGroupFootprints(ctx, markers, visible, reveal, tilted, toScreen, options);
   for (let markerIndex = 0; markerIndex < visible.length; markerIndex += 1) {
     const marker = visible[markerIndex];
     const transitionOpacity = options.markerOpacity

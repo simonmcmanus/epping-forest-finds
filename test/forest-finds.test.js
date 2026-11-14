@@ -734,6 +734,7 @@ globalThis.__forestFindsTest = {
   MAP_PNG_ICON_SIZE,
   MAP_ICON_SCALE_UNSELECTED,
   buildMapMarkers,
+  markerFootprints,
   resetMarkerGroupMemory,
   placeUserLabel,
   markerPaintedRects,
@@ -14960,4 +14961,70 @@ test("a stop's departures show a hostile minutes value from the server as text",
     app.state.selected = previousSelected;
     app.state.transportLookupCache.delete(app.transportCacheKey(place, type));
   }
+});
+
+// Group footprints: a very faint patch of ground under a group, only where groups sit close together.
+const footprintBoxW = () => markerBox().w;
+const footprintLayout = (neighbourX) => {
+  const items = [
+    markerItem("tree", "a1", 0, 0), markerItem("tree", "a2", 6, 0), markerItem("tree", "a3", 0, 9),
+    markerItem("tree", "b1", neighbourX, 0), markerItem("tree", "b2", neighbourX + 6, 0), markerItem("tree", "b3", neighbourX, 9),
+  ];
+  app.resetMarkerGroupMemory();
+  return { items, markers: app.buildMapMarkers(markerLookup(items), markerScreen) };
+};
+const footprintContains = (points, p) => {
+  let inside = false;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+    const a = points[i], b = points[j];
+    if ((a.y > p.y) !== (b.y > p.y) && p.x < (b.x - a.x) * (p.y - a.y) / (b.y - a.y) + a.x) inside = !inside;
+  }
+  return inside;
+};
+const footprintsFor = (markers) => app.markerFootprints(markers, markerScreen, markerScreen);
+
+test("two group markers close together each get a footprint around their own members only", () => {
+  const { items, markers } = footprintLayout(footprintBoxW() * 1.8);
+  assert.equal(markers.length, 2);
+  const footprints = footprintsFor(markers);
+  assert.equal(footprints.length, 2, "both neighbours draw a footprint");
+  for (const { marker, points } of footprints) {
+    for (const item of marker.items) assert.ok(footprintContains(points, item.point), `${item.id} inside its own footprint`);
+    const other = markers.find(m => m !== marker);
+    assert.equal(footprintContains(points, other.screenPt), false, "the neighbour's seed is outside");
+  }
+  assert.equal(items.length, 6);
+});
+
+test("an isolated group and individual pins draw no footprint", () => {
+  assert.equal(footprintsFor(footprintLayout(footprintBoxW() * 6).markers).length, 0, "far-apart groups are isolated");
+  const lone = [markerItem("tree", "p", 0, 0), markerItem("tree", "q", footprintBoxW() * 1.8, 0)];
+  app.resetMarkerGroupMemory();
+  const markers = app.buildMapMarkers(markerLookup(lone), markerScreen);
+  assert.equal(markers.every(m => m.items.length === 1), true);
+  assert.equal(footprintsFor(markers).length, 0);
+  // a group beside only a lone pin has no group neighbour
+  const mixed = [markerItem("tree", "a1", 0, 0), markerItem("tree", "a2", 6, 0), markerItem("tree", "q", footprintBoxW() * 1.8, 0)];
+  app.resetMarkerGroupMemory();
+  assert.equal(footprintsFor(app.buildMapMarkers(markerLookup(mixed), markerScreen)).length, 0);
+});
+
+test("a footprint of coincident members is a small finite shape, and a duplicated member does not enlarge it", () => {
+  const items = [markerItem("tree", "a1", 0, 0), markerItem("tree", "a2", 0, 0),
+    markerItem("tree", "b1", footprintBoxW() * 1.8, 0), markerItem("tree", "b2", footprintBoxW() * 1.8, 0)];
+  app.resetMarkerGroupMemory();
+  const markers = app.buildMapMarkers(markerLookup(items), markerScreen);
+  const extent = points => {
+    const xs = points.map(p => p.x), ys = points.map(p => p.y);
+    return { w: Math.max(...xs) - Math.min(...xs), h: Math.max(...ys) - Math.min(...ys) };
+  };
+  const [first] = footprintsFor(markers);
+  assert.ok(first.points.length >= 3 && first.points.every(p => Number.isFinite(p.x) && Number.isFinite(p.y)));
+  const size = extent(first.points);
+  assert.ok(size.w > 0 && size.w < 30 * app.pixelRatio() && size.h < 30 * app.pixelRatio(), `small shape, got ${size.w}x${size.h}`);
+  const duplicate = markers[0] === first.marker ? markers[0] : markers[1];
+  const doubled = { ...duplicate, items: [...duplicate.items, duplicate.items[0], duplicate.items[0]] };
+  const again = app.markerFootprints([doubled, markers.find(m => m !== duplicate)], markerScreen, markerScreen)
+    .find(f => f.marker === doubled);
+  assert.deepEqual(extent(again.points), size);
 });
