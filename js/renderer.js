@@ -2202,15 +2202,15 @@ function clusterStackChipGeometry(x, y, count, dpr, scale = 1, index = 0, total 
 }
 
 // The plus sits in front of the hidden artwork, making the stack read as an affordance rather
-// than a second row of equally-weighted pins. It is deliberately a small, lighter disc with no
-// number: the group's existing count remains the only text and the visible artwork stays legible.
+// than a second row of equally-weighted pins. It has no disc or number: the group's existing
+// count remains the only text and the visible artwork stays legible.
 function clusterMorePlusGeometry(x, y, count, dpr, scale = 1, total = 1) {
   const b = clusterBadgeGeometry(x, y, count, dpr, scale);
   const R = b.size * 0.32;
   return {
     cx: x + (total === 1 ? 0.24 : 0) * R,
     cy: b.top + b.height * 0.5 + 0.52 * R,
-    radius: R * 0.24,
+    radius: R * 0.3,
     unit: b.unit,
   };
 }
@@ -2218,19 +2218,13 @@ function clusterMorePlusGeometry(x, y, count, dpr, scale = 1, total = 1) {
 function drawClusterMorePlus(ctx, geometry) {
   const { cx, cy, radius, unit } = geometry;
   ctx.beginPath();
-  ctx.arc(cx, cy, radius, 0, Math.PI * 2);
-  ctx.fillStyle = "#4f8b62";
-  ctx.fill();
-  ctx.strokeStyle = "white";
-  ctx.lineWidth = 1 * unit;
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(cx - radius * 0.4, cy);
-  ctx.lineTo(cx + radius * 0.4, cy);
-  ctx.moveTo(cx, cy - radius * 0.4);
-  ctx.lineTo(cx, cy + radius * 0.4);
+  ctx.moveTo(cx - radius * 0.48, cy);
+  ctx.lineTo(cx + radius * 0.48, cy);
+  ctx.moveTo(cx, cy - radius * 0.48);
+  ctx.lineTo(cx, cy + radius * 0.48);
+  ctx.strokeStyle = "#111111";
   ctx.lineCap = "round";
-  ctx.lineWidth = 1.25 * unit;
+  ctx.lineWidth = 1.75 * unit;
   ctx.stroke();
 }
 
