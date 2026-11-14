@@ -194,7 +194,8 @@ test.describe("Camera trace of user transitions", () => {
     expect(fadeDelayMs, "the delayed camera start is the branch under test").toBeGreaterThan(0);
     await page.waitForFunction(() => state.selected?.type === "landmark");
     await waitForUiToSettle(page);
-    expect(await page.evaluate(() => state.viewport.scale), "the camera framed the linked place").not.toBeCloseTo(ringScale, 0);
+    const framedScale = await page.evaluate(() => state.viewport.scale);
+    expect(Math.abs(Math.log(framedScale / ringScale)), `the camera framed the linked place (scale ${framedScale}, ring ${ringScale})`).toBeGreaterThan(Math.log(1.25));
     await expect.poll(() => page.evaluate(() => ({
       held: state.selectionTransition.mapHeld, pending: state.selectionTransition.viewportPending,
     }))).toEqual({ held: false, pending: false });
