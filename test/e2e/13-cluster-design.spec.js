@@ -130,8 +130,8 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     expect(glyphs).toEqual(['underground', 'rail']);
   });
 
-  test('zoomed-out phone pins use the available space while fixed group faces stay clear', async ({ page }) => {
-    test.skip(({ isMobile }) => !isMobile, 'this before/after measurement is phone-specific');
+  test('zoomed-out phone pins use the available space while fixed group faces stay clear', async ({ page, isMobile }) => {
+    test.skip(!isMobile, 'this before/after measurement is phone-specific');
     await setup(page);
     const result = await page.evaluate(() => {
       const item = (type, id, x) => ({ type, item: { id, commonName: 'Oak', point: { x, y: 100 } } });
