@@ -318,6 +318,7 @@ test.describe("Zoom gestures hide the pins and bring them back together", () => 
     const lastFix = await page.evaluate(() => Number(state.lastLocationUpdateAt) || 0);
     await page.context().setGeolocation(FOREST_LOCATION);
     await expect.poll(() => page.evaluate(() => state.lastLocationUpdateAt)).toBeGreaterThan(lastFix);
+    await waitForUiToSettle(page);
     await expect.poll(() => page.evaluate(() => state.trees.length)).toBe(2);
     await expect(page.locator("#inspectorType")).toContainText("5 min walk");
     const near = page.locator("#inspectorBody .nearest-item").filter({ hasText: "Pinch near tree" });
@@ -347,8 +348,11 @@ test.describe("Zoom gestures hide the pins and bring them back together", () => 
 
   test("a two-finger pinch fades the pins out together, paints none while it runs, and reveals the new set once on release", async ({ page }) => {
     const { near, far } = await openBoundaryNearby(page);
-    const listBefore = await page.locator("#inspectorBody").innerHTML();
-    await page.evaluate(() => { window.__pins.length = 0; });
+    const listBefore = await page.locator("#inspectorBody .nearest-list").innerText();
+    await page.evaluate(() => {
+      window.__heldNearbyList = els.inspectorBody.querySelector(".nearest-list");
+      window.__pins.length = 0;
+    });
 
     await spreadFingersAcrossFrames(page, { startHalfGap: 160, endHalfGap: 60, steps: 24 });
     await expect.poll(() => page.evaluate(() => zoomGestureLive() && mapPinFadeOpacity() === 0)).toBe(true);
@@ -360,7 +364,9 @@ test.describe("Zoom gestures hide the pins and bring them back together", () => 
     expect(mid.live, "the zoom gesture is still live while the fingers are down").toBe(true);
     expect(mid.painted, "no pin is painted while the zoom is changing").toBe(0);
     expect(mid.builds, "no marker layout is calculated while the zoom is changing").toBe(0);
-    expect(await page.locator("#inspectorBody").innerHTML(), "the Nearby list keeps its pre-gesture content").toBe(listBefore);
+    expect(await page.locator("#inspectorBody .nearest-list").innerText(), "the Nearby list keeps its pre-gesture content").toBe(listBefore);
+    expect(await page.evaluate(() => els.inspectorBody.querySelector(".nearest-list") === window.__heldNearbyList),
+      "the existing list stays in place throughout the gesture").toBe(true);
 
     await liftFingers(page);
     await expect.poll(() => page.evaluate(() => !zoomGestureLive() && mapPinFadeOpacity() === 1)).toBe(true);
