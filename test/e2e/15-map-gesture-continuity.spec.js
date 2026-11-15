@@ -707,20 +707,53 @@ test.describe("Programmatic camera moves pause regrouping like a zoom gesture", 
     expect(await page.evaluate(() => window.__pins.length), "the pins are painted again").toBeGreaterThan(0);
   });
 
-  test("a move overlapping a zoom gesture is one hide and one reveal", async ({ page }) => {
+  test("a move overlapping a wheel zoom gesture is one hide and one reveal, fully visible at the end", async ({ page }) => {
     await openNearby(page);
-    await page.evaluate(() => { stopViewportAnimation(); window.__pins.length = 0; });
-    expect(await startZoomingMove(page, 0.5, 1200)).toBe("started");
+    await page.evaluate(() => { stopViewportAnimation(); window.__pins.length = 0; window.__fadeSamples.length = 0; });
+    expect(await startZoomingMove(page, 0.5, 1500)).toBe("started");
     await expect.poll(() => page.evaluate(() => markerGroupingPaused() && mapPinFadeOpacity() === 0)).toBe(true);
-    await spreadFingersAcrossFrames(page, { startHalfGap: 160, endHalfGap: 100, steps: 6 });
-    await liftFingers(page);
-    await expect.poll(() => page.evaluate(() => !zoomGestureLive() && !markerGroupingPaused() && mapPinFadeOpacity() === 1)).toBe(true);
+    const box = await page.locator("#mapCanvas").boundingBox();
+    await page.mouse.move(box.x + box.width * 0.25, box.y + box.height * 0.25);
+    // The wheel does not take the camera over (unlike a finger), so the gesture truly overlaps the tween.
+    await page.mouse.wheel(0, -200);
+    await expect.poll(() => page.evaluate(() => zoomGestureLive() && state.viewportAnimationTo != null), "the wheel gesture overlaps the running move").toBe(true);
+    await expect.poll(() => page.evaluate(() => !zoomGestureLive() && state.viewportAnimationTo == null && !markerGroupingPaused() && mapPinFadeOpacity() === 1)).toBe(true);
     await waitForFrames(page, 3);
-    const pins = await page.evaluate(() => window.__pins);
-    expect(pins.length).toBeGreaterThan(0);
-    expectOneHideOneReveal(pins);
-    expect(await page.evaluate(() => window.__fadeSamples.filter((value, i, all) => i && all[i - 1] === 0 && value > 0).length),
-      "the pins come back only once, after both have ended").toBeGreaterThan(0);
+    const result = await page.evaluate(() => ({ pins: window.__pins, fades: window.__fadeSamples.slice() }));
+    expect(result.pins.length, "the fresh set is painted at the end").toBeGreaterThan(0);
+    expectOneHideOneReveal(result.fades.map((fade) => ({ fade })));
+    const rises = result.fades.filter((value, i, all) => i && value > all[i - 1] + 1e-9 && !(all[i - 1] > all[i - 2] + 1e-9)).length;
+    const falls = result.fades.filter((value, i, all) => i && value < all[i - 1] - 1e-9 && !(all[i - 1] < all[i - 2] - 1e-9)).length;
+    expect({ falls, rises }, "exactly one hide and one reveal").toEqual({ falls: 1, rises: 1 });
+    expect(result.fades[result.fades.length - 1]).toBe(1);
+  });
+
+  test("a browse-origin slide overlapping a pure-pan camera move holds one hide until the last leg lands, then reveals once", async ({ page }) => {
+    await openNearby(page);
+    await page.evaluate(() => { stopViewportAnimation(); window.__pins.length = 0; window.__markerBuilds = 0; window.__fadeSamples.length = 0; });
+    // The compound shape of a cluster tap's staged pan or Back mid-flight: a slide plus a camera move
+    // that never changes the scale, longer than the slide so the slide lands first.
+    await page.evaluate(() => {
+      window.__frames = [];
+      const sample = () => {
+        window.__frames.push({ paused: markerGroupingPaused(), moving: state.viewportAnimationTo != null, builds: window.__markerBuilds });
+        requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+      startNearbyOriginTransition(nearbyRenderOriginPoint());
+      moveCamera({ scale: state.viewport.scale, tx: state.viewport.tx + 90, ty: state.viewport.ty + 30 }, NEARBY_ORIGIN_TRANSITION_MS + 700, undefined, { fixedDuration: true });
+    });
+    await expect.poll(() => page.evaluate(() => state.viewportAnimationTo == null && !markerGroupingPaused() && mapPinFadeOpacity() === 1)).toBe(true);
+    await waitForFrames(page, 3);
+    const frames = await page.evaluate(() => window.__frames);
+    const landedAt = frames.findIndex((f, i) => i > 0 && frames[i - 1].paused && !f.paused);
+    expect(landedAt, "the pause ends once").toBeGreaterThan(0);
+    expect(frames.slice(0, landedAt).every((f) => f.paused), "paused on every frame until then (no early swap-in)").toBe(true);
+    expect(frames.slice(landedAt).every((f) => !f.moving && !f.paused), "nothing is still flying once it ends").toBe(true);
+    expect(frames[landedAt].builds, "no layout is built while it flies").toBe(frames[0].builds);
+    const fades = await page.evaluate(() => window.__fadeSamples.slice());
+    expectOneHideOneReveal(fades.map((fade) => ({ fade })));
+    expect(fades[fades.length - 1]).toBe(1);
   });
 
   test("tapping open ground slides the map to the new browse spot with the pins hidden, then reveals the new set once", async ({ page }) => {
