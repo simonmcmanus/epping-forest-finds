@@ -1079,8 +1079,15 @@ const LOCATION_GLIDE_EPSILON = 1e-7;
 
 function applyLocationFix(position, { preserveSelection = false } = {}) {
   const { latitude, longitude, accuracy, speed } = position.coords;
+  const enteringTilt = !hasRealLocation();
   const previousPoint = state.userLocation && state.userLocation.point;
   state.userLocation = ingestLocationFix(latitude, longitude, accuracy, performance.now(), speed);
+  if (enteringTilt) {
+    // Orientation can settle while location permission/the first fix is pending. The
+    // visible map was flat then: ease from that view, retaining the latest sensor target.
+    state.tiltBetaSmoothed = 0;
+    startCompassSmoothing();
+  }
   const point = state.userLocation.point;
   state.userInMapArea = pointInsideBounds(point, state.bounds);
   const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);

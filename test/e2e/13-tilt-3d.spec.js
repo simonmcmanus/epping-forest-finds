@@ -74,6 +74,41 @@ test.describe("3D tilt view", () => {
     });
   });
 
+  for (const full3d of [false, true]) {
+    test(`entering ${full3d ? "full 3D" : "gentle tilt"} after location arrives eases from the flat map`, async ({ page }) => {
+      const result = await page.evaluate(async ({ location, full3d }) => {
+        stopViewportAnimation();
+        state.map3dEnabled = full3d;
+        applyDefaultLocation();
+        state.compassHeading = null;
+        state.compassHeadingTarget = null;
+        const event = new Event("deviceorientation");
+        event.beta = 60;
+        window.dispatchEvent(event);
+        // Let pitch settle while the location gate still keeps the map flat.
+        while (Math.abs(state.tiltBetaSmoothed - 60) > 0.1) {
+          await new Promise(requestAnimationFrame);
+        }
+        draw();
+        const before = state.renderedTiltRotateXDeg;
+        applyLocationFix({ coords: location });
+        draw();
+        const entry = state.renderedTiltRotateXDeg;
+        const samples = [];
+        for (let frame = 0; frame < 30; frame += 1) {
+          await new Promise(requestAnimationFrame);
+          samples.push(state.renderedTiltRotateXDeg);
+        }
+        return { before, entry, samples };
+      }, { location: FOREST_LOCATION, full3d });
+
+      expect(result.before).toBe(0);
+      expect(result.entry, "the first real fix must not jump to the settled pitch").toBe(0);
+      expect(result.samples.some(angle => angle > 0 && angle < 20), "paint intermediate camera angles").toBe(true);
+      expect(result.samples.at(-1), "continue toward the raised-phone view").toBeGreaterThan(20);
+    });
+  }
+
   test("tilting the map leaves the user where a fresh heading-up fit puts them", async ({ page }) => {
     // Tilting solves the heading-up fit, then the canvas can change its visible origin. A fit
     // solved against the old origin is stale until the next compass reading, so the user's
