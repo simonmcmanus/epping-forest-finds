@@ -1051,12 +1051,39 @@ function isOverviewScreenActive() {
 
 let _transitionSnapshot = null;
 let _transitionAnimation = null;
+// Every effect the running transition started on the furniture and body (not the card itself), so an
+// interrupted transition can put them straight back rather than leaving them half faded.
+let _transitionEffects = [];
+// The Nearby row a tap is opening: its box, a copy of its markup and its key. Set only for the
+// synchronous render that tap causes (pressOverviewItem), so the place panel grows out of that row.
+let _pressedOverviewRow = null;
+// The Nearby row the reader last opened, so Back from its place panel can fold back into that row.
+let _lastOpenedOverviewKey = null;
+
+// Timings (ms) for the Nearby <-> place panel morph. The card moves first; the furniture and the
+// new body only fade in once it has landed, so there is one movement at a time.
+const PANEL_MORPH = { grow: 340, bodyDelay: 180, bodyIn: 240, cardFadeDelay: 240, cardFade: 160, furnitureDelay: 320, furnitureIn: 200 };
+const PANEL_MORPH_EASE = "cubic-bezier(0.2, 0, 0, 1)";
+
+// The chrome that is removed at the start of a morph: the drag handle, the tools row, the title
+// section and the nav bar. Each one fades back in after the card lands.
+function panelFurniture() {
+  return [
+    els.inspector && els.inspector.querySelector(".inspector-drag-handle"),
+    els.inspectorTools,
+    els.inspector && els.inspector.querySelector(".inspector-title-section"),
+    els.inspectorActions,
+  ].filter(Boolean);
+}
 
 function _cleanupTransition() {
   const scroll = els.inspector && els.inspector.querySelector(".inspector-scroll");
   const screen = scroll && scroll.querySelector(".inspector-screen");
   const ghost  = scroll && scroll.querySelector(".inspector-screen-ghost");
   if (ghost)  ghost.remove();
+  for (const effect of _transitionEffects) effect.cancel();
+  _transitionEffects = [];
+  for (const el of panelFurniture()) el.style.pointerEvents = "";
   // Only the outgoing screen animation is owned by this transition. Cancelling every animation
   // on the screen also cancels child animations (walk chips, icons, etc.) that entered with the
   // replacement markup, cutting their reveal off when the parent slide finishes.
@@ -1068,15 +1095,125 @@ function resetInspectorScrollPosition(scroll = els.inspector && els.inspector.qu
   if (scroll) scroll.scrollTop = 0;
 }
 
-function applyScreenTransition(direction, onDone) {
+// A viewport box expressed in the sheet's scroll coordinates, which is where the transition card
+// is positioned. The scroll is the card's containing block (`position: relative`).
+function sheetBoxOf(rect, scroll) {
+  const frame = scroll.getBoundingClientRect();
+  return {
+    left: rect.left - frame.left - scroll.clientLeft,
+    top: rect.top - frame.top - scroll.clientTop + scroll.scrollTop,
+    width: rect.width,
+    height: rect.height,
+  };
+}
+
+function boxKeyframes(from, to) {
+  const px = (box) => ({ left: `${box.left}px`, top: `${box.top}px`, width: `${box.width}px`, height: `${box.height}px` });
+  return [px(from), px(to)];
+}
+
+// The card is the only thing that moves in a morph. It is inert and aria-hidden: nothing can focus
+// or tap it, and nothing addresses it.
+function makeMorphCard(scroll, box) {
+  const card = document.createElement("div");
+  card.className = "inspector-screen-ghost inspector-morph-card";
+  card.setAttribute("aria-hidden", "true");
+  card.inert = true;
+  card.style.cssText = `position:absolute;overflow:hidden;z-index:1;pointer-events:none;background:var(--panel);`
+    + `left:${box.left}px;top:${box.top}px;width:${box.width}px;height:${box.height}px;`;
+  scroll.appendChild(card);
+  return card;
+}
+
+// Shared tail of both morphs: the card grows (its own animation), the card fades out over its last
+// part, the new body fades in beneath it, and the furniture fades back in after the card has landed.
+function startPanelMorph(scroll, card, grow, onDone) {
+  const effects = [grow];
+  const track = (anim) => { effects.push(anim); return anim; };
+  _transitionAnimation = grow;
+  scroll.style.overflow = "hidden";
+  scroll.style.height = scroll.offsetHeight + "px";
+
+  track(card.animate([{ opacity: 1 }, { opacity: 0 }], {
+    delay: PANEL_MORPH.cardFadeDelay, duration: PANEL_MORPH.cardFade, easing: "ease-in", fill: "forwards",
+  }));
+  track(els.inspectorBody.animate([{ opacity: 0 }, { opacity: 1 }], {
+    delay: PANEL_MORPH.bodyDelay, duration: PANEL_MORPH.bodyIn, easing: "ease-out", fill: "backwards",
+  }));
+  for (const el of panelFurniture()) {
+    // Removed at once rather than faded out, so a title that has already changed never flashes its
+    // new text. Taps pass through it until it is back.
+    el.style.pointerEvents = "none";
+    track(el.animate([{ opacity: 0 }, { opacity: 1 }], {
+      delay: PANEL_MORPH.furnitureDelay, duration: PANEL_MORPH.furnitureIn, easing: "ease-out", fill: "backwards",
+    }));
+  }
+  _transitionEffects = effects;
+
+  Promise.all(effects.map((anim) => anim.finished)).then(() => {
+    _transitionAnimation = null;
+    _cleanupTransition();
+    if (onDone) onDone();
+    resetInspectorScrollPosition(scroll);
+  }).catch(() => { /* cancelled by next transition */ });
+}
+
+// Forward, from a tapped Nearby row: the row itself (a copy of it, at the row's own box) grows to
+// fill the panel, and the place panel is revealed beneath it.
+function playRowToPanelMorph(scroll, pressed, onDone) {
+  const from = sheetBoxOf(pressed.rect, scroll);
+  const full = { left: 0, top: 0, width: scroll.clientWidth, height: scroll.clientHeight };
+  const card = makeMorphCard(scroll, from);
+  pressed.clone.style.cssText = `position:absolute;top:0;left:0;margin:0;box-sizing:border-box;width:${from.width}px;height:${from.height}px;`;
+  card.appendChild(pressed.clone);
+  // The row's own content fades as the card grows, so the panel reads as the row opening up.
+  const grow = card.animate(boxKeyframes(from, full), { duration: PANEL_MORPH.grow, easing: PANEL_MORPH_EASE, fill: "forwards" });
+  pressed.clone.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, easing: "ease-out", fill: "forwards" });
+  startPanelMorph(scroll, card, grow, onDone);
+}
+
+// Back, from a place panel: the outgoing panel (its snapshot) shrinks back into the Nearby row it was
+// opened from, or into the middle of the panel when that row is not on the list any more.
+function playPanelToRowMorph(scroll, snapshot, targetRow, onDone) {
+  const full = { left: 0, top: 0, width: scroll.clientWidth, height: scroll.clientHeight };
+  const to = targetRow
+    ? sheetBoxOf(targetRow.getBoundingClientRect(), scroll)
+    : { left: full.width * 0.04, top: full.height * 0.3, width: full.width * 0.92, height: full.height * 0.4 };
+  const card = makeMorphCard(scroll, full);
+  snapshot.style.cssText = `position:absolute;top:0;left:0;margin:0;box-sizing:border-box;width:${full.width}px;`;
+  card.appendChild(snapshot);
+  const grow = card.animate(boxKeyframes(full, to), { duration: PANEL_MORPH.grow, easing: PANEL_MORPH_EASE, fill: "forwards" });
+  snapshot.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: "ease-out", fill: "forwards" });
+  startPanelMorph(scroll, card, grow, onDone);
+}
+
+function findNearbyRow(type, key) {
+  if (!type || !key) return null;
+  return [...els.inspectorBody.querySelectorAll(".nearest-item[data-overview-type][data-overview-key]")]
+    .find((el) => el.dataset.overviewType === type && el.dataset.overviewKey === key) || null;
+}
+
+function applyScreenTransition(direction, onDone, leavingPlace = false) {
   const scroll    = els.inspector && els.inspector.querySelector(".inspector-scroll");
   const screen    = scroll && scroll.querySelector(".inspector-screen");
   const snapshot  = _transitionSnapshot;
+  const pressed   = _pressedOverviewRow;
   _transitionSnapshot = null;
+  _pressedOverviewRow = null;
 
   // Every newly-entered screen starts at its own top, including reduced-motion and
   // no-snapshot paths where there is no animation to perform.
   resetInspectorScrollPosition(scroll);
+  if (direction && scroll && screen && !prefersReducedMotion()) {
+    if (direction === "forward" && pressed) {
+      playRowToPanelMorph(scroll, pressed, onDone);
+      return;
+    }
+    if (direction === "back" && leavingPlace && snapshot) {
+      playPanelToRowMorph(scroll, snapshot, findNearbyRow(_lastOpenedOverviewKey?.type, _lastOpenedOverviewKey?.key), onDone);
+      return;
+    }
+  }
   if (!direction || !snapshot || !screen || !scroll || prefersReducedMotion()) {
     if (onDone) onDone();
     resetInspectorScrollPosition(scroll);
@@ -1126,6 +1263,9 @@ function transitionInspectorBody(newHtml, direction, onDone, { preserveScroll = 
   const scrollTop = scroll ? scroll.scrollTop : 0;
   const oldRail = preserveScroll && els.inspectorBody.querySelector(".filter-rail .rail-pills");
   const railScrollLeft = oldRail ? oldRail.scrollLeft : 0;
+  // Whether the panel being left is a place's detail (not the Nearby list, Settings, Report...).
+  // Only those fold back into a Nearby row; any other exit keeps the sideways slide.
+  const leavingPlace = Boolean(els.inspectorBody.querySelector(".place-detail, .tree-detail"));
   // Replacing the initial Nearby content invalidates its server-rendered stand-in.
   _serverRenderedNearbyList = false;
   els.inspectorBody.innerHTML = newHtml;
@@ -1143,7 +1283,27 @@ function transitionInspectorBody(newHtml, direction, onDone, { preserveScroll = 
     // Entering another screen ends any zoom gesture still holding the pins hidden: its end event
     // may now never reach the map.
     if (typeof endAllZoomGestures === "function") endAllZoomGestures();
-    applyScreenTransition(direction, onDone);
+    applyScreenTransition(direction, onDone, leavingPlace);
+  }
+}
+
+// A Nearby row tap. Records the row's box and markup before the place panel replaces the list, so the
+// panel can grow out of that row, and which row Back should fold into. Only the render this tap
+// causes sees the press; it is cleared straight after.
+function pressOverviewItem(button) {
+  const type = button.dataset.overviewType;
+  const key = button.dataset.overviewKey;
+  const clone = button.cloneNode(true);
+  clone.removeAttribute("id");
+  clone.removeAttribute("data-overview-type");
+  clone.removeAttribute("data-overview-key");
+  clone.querySelectorAll("[id]").forEach((node) => node.removeAttribute("id"));
+  _pressedOverviewRow = { rect: button.getBoundingClientRect(), clone };
+  _lastOpenedOverviewKey = { type, key };
+  try {
+    focusOverviewItem(type, key);
+  } finally {
+    _pressedOverviewRow = null;
   }
 }
 
