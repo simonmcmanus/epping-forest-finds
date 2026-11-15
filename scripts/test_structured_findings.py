@@ -118,6 +118,27 @@ class EventFindingsTests(unittest.TestCase):
         self.assertEqual(findings[0]["status_label"], "Coming up")
         self.assertEqual(findings[0]["when"], "month")
 
+    def test_christmas_market_over_a_month_away_is_included(self):
+        findings = event_findings([
+            self._event(title="North Chingford Christmas Market", date="2026-12-19")
+        ], date(2026, 11, 15))
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0]["when"], "month")
+        self.assertEqual(findings[0]["status_label"], "Coming up")
+
+    def test_sixty_day_boundary_is_inclusive(self):
+        findings = event_findings([
+            self._event(title="At boundary", date="2027-01-14"),
+            self._event(title="Too far away", date="2027-01-15"),
+        ], date(2026, 11, 15))
+        self.assertEqual([f["title"] for f in findings], ["At boundary"])
+
+    def test_explicit_shorter_horizon_is_respected(self):
+        findings = event_findings([
+            self._event(date="2026-12-19")
+        ], date(2026, 11, 15), horizon_days=30)
+        self.assertEqual(findings, [])
+
     def test_past_event_is_excluded(self):
         findings = event_findings([self._event(date="2026-01-01")], date(2026, 10, 10))
         self.assertEqual(findings, [])

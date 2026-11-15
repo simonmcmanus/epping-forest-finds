@@ -64,7 +64,7 @@ are added by the renderer itself -- never write either by hand.
       // "event" findings only, optional: "week" (happening within the next
       // 7 days) or "month" (further out, or recurring with no next date
       // confirmed). Groups the Events section into "This week" and "Coming
-      // up in the next month" so a month-out event doesn't read as this
+      // up in the next two months" so a future event doesn't read as this
       // week's news. Omit it only for "week" -- that's the default.
       "when": "week"
     }

@@ -22,8 +22,8 @@ import sys
 from datetime import date
 from pathlib import Path
 
-EVENT_HORIZON_DAYS = 30
-# Where the "This week" / "Coming up in the next month" split falls, in days
+EVENT_HORIZON_DAYS = 60
+# Where the "This week" / "Coming up in the next two months" split falls, in days
 # from as_of. Matches a calendar week, not the report's own publish cadence.
 EVENT_THIS_WEEK_DAYS = 7
 NEEDS_CHECK_SUFFIX = (
