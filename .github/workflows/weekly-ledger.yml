@@ -416,39 +416,46 @@ jobs:
                   Railway and Waltham Abbey, broader than any single town's
                   own listing. Also check Epping Town Council's own events
                   diary, https://www.eppingtowncouncil.gov.uk/Events_Diary_35167.aspx
-                  -- a plain page like Copped Hall's, not a feed. Loughton
-                  Town Council, Waltham Abbey Town Council, Waltham Forest's
-                  borough-wide listings (which would cover Chingford),
-                  Theydon Bois Parish Council's events category page,
-                  Chigwell Parish Council, the Essex Libraries events site
-                  (which lists Loughton, Buckhurst Hill, Chigwell, Waltham
-                  Abbey and Epping library branches, but as a room-booking
-                  engine, not a syndicated feed), and Chingford Historical
-                  Society's own events/heritage-festival listing were
-                  evaluated and found to have no feed and no current,
-                  checkable events listing as of this evaluation -- still
-                  worth a skim each run since any of them could add one, but
-                  don't expect automation there yet. Epping Ongar Railway's
-                  own site (eorailway.co.uk, a heritage railway in the
-                  district running galas and a Real Ale and Cider Weekend)
-                  returned HTTP 503 to a direct fetch and is covered via
-                  Visit Epping Forest's listing above instead -- re-test
-                  eorailway.co.uk directly occasionally in case that was
-                  transient or bot-blocking rather than permanent. Waltham
-                  Abbey Town Council's own events page runs the same
-                  calendar plugin as the two working feeds above, but the
-                  whole site 403s on every URL tried -- the plain pages and
-                  its own ?ical=1 export alike -- so it's blocked outright,
-                  not just a wrong path. theydon.org.uk, which Theydon Bois
-                  Parish Council itself points residents to as "the village
-                  website," 403s the same way. Bedford House / Buckhurst
-                  Hill Community Association (bedfordhouse.org.uk) is a
-                  real, active local charity with its own Upcoming
-                  Events section, but its exact events URL and whether it
-                  has a feed are still unconfirmed -- worth finding and
-                  checking properly on a future run. See the sourceNotes in
-                  data/forest-events.json before re-evaluating any of this
-                  same ground.
+                  -- check all results pages and dated detail pages for both
+                  tourism and council listings; a landing-page skim is not
+                  enough. Also check these current public HTML calendars and
+                  organiser pages every run (working feeds not yet verified):
+                  - https://theydonbois-pc.gov.uk/events/month/
+                    (supersedes the old news-category assessment; distinguish
+                    the lights/choir time from the market stalls' opening).
+                  - https://highamspark.london/events/
+                  - https://chingfordmarket.com/ and
+                    https://www.yourdreamfactory.org/ (public events section)
+                  - https://www.41steppingforestscouts.org.uk/events
+                    (public school/community fairs, not member-only events).
+                  Waltham Abbey Town Council's current events index,
+                  https://www.walthamabbey-tc.gov.uk/events/,
+                  has dated listings but still returned HTTP 403 to direct
+                  fetches on 2026-11-15. Epping Town Council's diary also
+                  returned 403 on that check. Use indexed council listings
+                  for discovery and cross-check Visit Epping Forest or the
+                  organiser where possible; do not infer no events from a
+                  blocked fetch. Do not use the undated Waltham Abbey
+                  Cavalcade information page or older Christmas leaflets to
+                  establish this year's dates. Record unresolved details with
+                  needsReverification instead of inventing dates or times.
+                  Retain Loughton Town Council, Waltham Forest borough-wide
+                  listings, Chigwell Parish Council, Essex Libraries,
+                  Chingford Historical Society and Bedford House as secondary
+                  pages to skim. Epping Ongar Railway previously returned
+                  503; use Visit Epping Forest as fallback and occasionally
+                  re-test the organiser. Consult data/forest-events.json's
+                  sourceNotes for access limitations and previous checks.
+
+                  Research the next 60 days, including Christmas bookings
+                  more than a month away. Search each coverage settlement
+                  explicitly for Christmas/Xmas, market/fair/fayre, lights
+                  switch-on, lantern parade and carols during the festive
+                  season. Prefer current-year organiser/council dates; record
+                  lights ceremonies separately from market opening times in
+                  the same entry when part of one event. De-dupe by event
+                  title+date+venue across all sources, retaining corroborating
+                  links rather than printing duplicate events.
                e. For each finding, look up its real coordinates in
                   data/local-roads.geojson or data/local-landmarks-food.geojson
                   rather than guessing -- put them in report-data.json's
@@ -459,7 +466,7 @@ jobs:
                   "when" to "week" if it's happening today or within 7 days,
                   or "month" if it's further out or recurring with no next
                   date confirmed -- that's what splits the report's Events
-                  section into "This week" and "Coming up in the next month"
+                  section into "This week" and "Coming up in the next two months"
                   rather than one list that reads as all being this week's
                   news.
                f. Follow up on anything the previous report flagged as

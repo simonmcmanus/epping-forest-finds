@@ -305,6 +305,18 @@ does not spend time on them (see the `sourceNotes` in
 sources were checked and found to have no usable feed yet, or to block
 automated requests outright).
 
+The weekly research also checks the dated parish/community calendars and
+public organiser listings recorded in `data/forest-events.json`'s
+`sourceNotes`. Research the next 60 days, with explicit seasonal searches
+for Christmas/Xmas markets, fairs/fayres, lights switch-ons, lantern parades
+and carols. Check paginated results and event details, prefer the organiser's
+current-year dates, and distinguish market opening from a lights ceremony.
+A blocked fetch or missing feed is an access limitation, not evidence that
+no events exist: use indexed listings for discovery and corroborate through
+another official listing where possible. Record unconfirmed details as
+needing reverification rather than inventing a date or time. De-duplicate
+across all sources by event title, date and venue.
+
 `data/road-closures.json`, `data/forest-events.json` and
 `data/forest-notices.json` are a first step towards fixing that: real,
 researched entries (road/utility works, dated events, and standing
@@ -326,7 +338,7 @@ day, in `report-data.json`'s finding shape — see "Road, access and event
 findings" in `report-data.schema.md`. A multi-week roadworks project or a
 dated event now shows up every week it's genuinely true, not only the week a
 web search happened to resurface it. Dated events surface up to
-`EVENT_HORIZON_DAYS` (30 days) ahead, not just the current week: the ledger's
+`EVENT_HORIZON_DAYS` (60 days) ahead, not just the current week: the ledger's
 main job is this week's news, but a reader also wants enough notice of a
 dated event to plan it into their diary, not only a mention once it's days
 away. A recurring series with no next date confirmed is always surfaced,
@@ -337,9 +349,9 @@ The published report's Events section splits on this: each event finding
 carries a `when` of `"week"` (happening within the next 7 days) or `"month"`
 (further out, or recurring with no next date confirmed), and
 `render_report.py` groups the section into a "This week" and a "Coming up in
-the next month" subheading accordingly, only showing a subheading that
-actually has something under it. Without this split, a 30-day horizon would
-read as if the whole month were "this week"'s news. `structured_findings.py`
+the next two months" subheading accordingly, only showing a subheading that
+actually has something under it. Without this split, a 60-day horizon would
+read as if the whole planning window were "this week"'s news. `structured_findings.py`
 sets `when` itself from the date; a finding written by hand straight into
 `report-data.json` (the workflow's own fresh research) needs it set
 explicitly — see `report-data.schema.md`.
