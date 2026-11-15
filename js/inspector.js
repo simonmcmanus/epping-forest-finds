@@ -1403,6 +1403,10 @@ function onInspectorHeightTransitionEnd(callback, timeoutMs = INSPECTOR_MINIMIZE
 function holdSelectionMapUntilCameraSettles() {
   const transitionToken = {};
   state.selectionTransition.mapHeld = true;
+  // Replacing the token abandons any delayed camera start of an earlier selection (its timer
+  // returns on the token check), so the "camera not started" flag it set must not outlive it.
+  // A caller that does start its own delayed camera sets the flag again after this call.
+  state.selectionTransition.viewportPending = false;
   state.selectionTransition.startedAt = performance.now();
   state.selectionMapTransitionToken = transitionToken;
   const settleMapTransition = () => {
@@ -1449,6 +1453,10 @@ function zoomToSelection() {
       return;
     }
     const transitionToken = state.selectionMapTransitionToken;
+    // The camera has not started yet, so the selection hold must not release in the meantime:
+    // with the origin slide already over and nothing animating, settleMapTransition would clear
+    // the token and the guard below would then drop this zoom for good.
+    state.selectionTransition.viewportPending = true;
     setTimeout(() => {
       if (state.selectionMapTransitionToken !== transitionToken) return;
       startCamera();
