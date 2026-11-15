@@ -85,7 +85,11 @@ function handleMapClick(event) {
   }
 
   state.clusterZoomed = false;
+  // The group this pick belongs to: the one just expanded, or the one the current selection came
+  // from (tapping a dimmed sibling). A place outside it ends the group context.
+  const pickGroup = state.clusterExpanded || selectionClusterGroup();
   exitClusterExpansion();
+  state.selectionCluster = clusterGroupHasItem(pickGroup, hit.item) ? pickGroup : null;
   // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
   // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
   // rather than lingering for whenever Nearby is next shown.
@@ -210,10 +214,21 @@ function findHit(screen, world) {
   }
   _hitTestMarkerCache = null;
   const selectedItem = hasRealSelection() ? state.selected.item : null;
+  // Dimmed members of the selected place's group (selectionSiblingLookup) are tappable as lone pins
+  // at the ordinary pin hit size; shouldDrawMapIcon refuses everything while a place is selected.
+  const siblingsActive = Boolean(selectionClusterGroup());
+  if (siblingsActive && selectedItem && selectedItem.point && MARKER_TYPES.includes(state.selected.type)) {
+    // The selected place's own target wins wherever a sibling's overlaps it.
+    const selectedDistance = pinDistance(toScreen(selectedItem.point), selectedItem);
+    if (selectedDistance < mapMarkerPinHitRadius(dpr, pinScaleFor(selectedItem))) {
+      return { type: state.selected.type, item: selectedItem, distance: selectedDistance };
+    }
+  }
   function isTappablePin(type, item) {
     const marker = markerByItem.get(item);
-    return item === selectedItem
-      || (shouldDrawMapIcon(type, item, iconLookup) && marker && marker.items.length === 1);
+    if (item === selectedItem) return true;
+    if (siblingsActive) return Boolean(iconLookup[type] && iconLookup[type].has(item) && marker && marker.items.length === 1);
+    return shouldDrawMapIcon(type, item, iconLookup) && marker && marker.items.length === 1;
   }
 
   let bestPlace = null;
@@ -1257,7 +1272,9 @@ function focusOverviewItem(type, key) {
     return;
   }
   state.clusterZoomed = false;
+  const pickGroup = state.clusterExpanded || selectionClusterGroup();
   exitClusterExpansion();
+  state.selectionCluster = pickGroup;
   // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
   // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
   // rather than lingering for whenever Nearby is next shown.

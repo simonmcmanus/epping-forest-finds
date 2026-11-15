@@ -37,6 +37,9 @@ When a user has selected a location and is being shown directions to it. A route
 **Expanded cluster**
 Nearby mode after tapping a multi-item cluster pin (`state.clusterExpanded` set to the tapped group). Not a separate screen — the inspector still reads "Nearby" — but the walking-radius ring moves to cover the group and both the map and the Nearby list narrow to exactly that group's own members, not a fresh within-radius scan (see "Cluster tap interaction", spec-data-rendering.md). Tapping a member opens full selected-detail, and Back from it returns to the same expanded group; tapping open map ground, dragging/zooming the map, or going back past the tap clears `state.clusterExpanded` and returns to plain nearby mode.
 
+**Dimmed sibling**
+Another member of the expanded group a selected place was picked from. It stays on the map at reduced opacity while that place is selected (`state.selectionCluster`), can be tapped to step to it, and disappears when the selection ends or a place outside the group is chosen.
+
 **Feedback / Report screen**
 One of the four secondary screens (alongside Search, Filter and Settings). "Feedback" is the user-facing nav button label; "report" is the code term (`state.selected?.type === "report"`, `openReportModal()`, the Report form). Shares `secondaryScreenActive()` navigation behaviour with Search, Filter and Settings.
 

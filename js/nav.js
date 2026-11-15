@@ -3016,6 +3016,7 @@ function clearSelectionForNearby() {
   state.selectionTransition.outgoingIconLookup = null;
   state.selectionTransition.viewportPending = false;
   state.selected = null;
+  state.selectionCluster = null;
   clearManualCameraOverride();
 }
 

@@ -446,6 +446,7 @@ function showRoutedSelection(route, item) {
   // Capture the currently drawn browse pivot before clearing it; otherwise entering a linked
   // selection from an anchored Nearby view makes the 3D/heading-up camera jump to the GPS fix
   // before the selection's own camera animation can take over.
+  state.selectionCluster = null;
   startCameraOriginTransition();
   state.nearbyAnchor = null;
   state.selected = { type: route.type, item };

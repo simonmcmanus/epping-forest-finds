@@ -431,6 +431,11 @@ const state = {
   overviewOutsideRadiusFallback: false,
   clusterZoomed: false,
   clusterExpanded: null,
+  // The expanded group a place was just picked from (map tap or list), kept only while that place stays
+  // selected so the group's other members can stay on the map, dimmed (selectionSiblingLookup, js/renderer.js).
+  // Never written to history: Back restores the group from the entry's own snapshot. Cleared wherever the
+  // selection is replaced from outside the group or ends.
+  selectionCluster: null,
   // The radius in effect just before a cluster tap grew it to cover the group's own members
   // (focusNearbyOnClusterGroup) -- restored by exitClusterExpansion (js/nav.js) wherever
   // clusterExpanded is cleared, so leaving that exact-membership view leaves its radius behind
@@ -4505,7 +4510,11 @@ function startCameraOriginTransition() {
   const pinsHiddenOrLeaving = (typeof markerGroupingPaused === "function" && markerGroupingPaused())
     || (typeof mapPinFadeTarget === "function" && mapPinFadeTarget() < 1)
     || currentOpacity < PIN_ALPHA_VISIBLE_MIN;
+  // A pick from an expanded group keeps its members on the map, so there is no outgoing set to fade
+  // and nothing for the camera move to wait for. Read raw, not through selectionClusterGroup(): the
+  // pick sets the record just before state.selected changes, so the validated reader cannot see it yet.
   state.selectionTransition.outgoingIconLookup = !hasRealSelection() && !pinsHiddenOrLeaving
+    && !state.selectionCluster
     && typeof activeIconLookup === "function"
     ? activeIconLookup()
     : null;

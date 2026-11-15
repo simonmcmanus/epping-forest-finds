@@ -15777,6 +15777,98 @@ test("Outbox drops a queued item the server refuses with a 4xx straight away", a
   assert.deepEqual(outbox.sentEvents(), [{ id: "report-6", ok: false, response: { error: "Bad report" } }]);
 });
 
+// Picking a place out of an expanded group keeps the group's other members on the map, dimmed
+// (spec-data-rendering.md "Places picked from a group"). Real functions throughout: a group tap, a
+// list pick or map tap, the history stub's Back, and the renderer's own lookup and hit test.
+function siblingGroupFixture() {
+  resetData(app);
+  resetRouter(app);
+  app.setupSearchAndNavHandlers();
+  app.state.userLocation = makePoint(app, 51.64, 0.04);
+  app.state.walkingDistanceMinutes = 7;
+  const mk = (id, n, lat, lon) => ({ id, recordNumber: n, commonName: "Oak", location: { britishNationalGrid: {} }, ...makePoint(app, lat, lon) });
+  const trees = [mk("sib1", 9401, 51.6500, 0.0500), mk("sib2", 9402, 51.6504, 0.0500), mk("sib3", 9403, 51.6500, 0.0507)];
+  const outsider = mk("sibout", 9404, 51.6540, 0.0580);
+  app.state.trees.push(...trees, outsider);
+  const scale = 400000;
+  app.state.viewport = { scale, tx: 500 - trees[0].point.x * scale, ty: 400 - trees[0].point.y * scale };
+  return { trees, outsider, key: (tree) => app.treeHashKey(tree) };
+}
+
+function lookupTrees() {
+  return [...app.activeIconLookup().tree].map((tree) => tree.id).sort().join(",");
+}
+
+test("a place picked from the list keeps its group's other members on the map, and they leave with the selection", () => {
+  const { trees, outsider, key } = siblingGroupFixture();
+  const group = { itemType: "tree", items: trees };
+  app.focusNearbyOnClusterGroup(group);
+  app.focusOverviewItem("tree", key(trees[1]));
+  assert.equal(app.state.selected.item, trees[1]);
+  assert.equal(lookupTrees(), "sib1,sib3", "the other members stay, the selected place is drawn by the selection itself");
+  assert.equal(app.state.selectionTransition.outgoingIconLookup, null, "nothing fades out, so the camera move has nothing to wait for");
+
+  app.history.back();
+  assert.equal(app.state.selected, null);
+  assert.equal(app.state.selectionCluster, null, "Back drops the dimmed members; the group itself is restored");
+  assert.equal(lookupTrees(), "sib1,sib2,sib3");
+
+  app.focusOverviewItem("tree", key(trees[0]));
+  assert.equal(lookupTrees(), "sib2,sib3");
+  app.focusOverviewItem("tree", key(outsider));
+  assert.equal(lookupTrees(), "", "a place outside the group ends the group context");
+  assert.equal(app.state.selectionCluster, null);
+});
+
+test("a place picked with nothing expanded behaves as before: the other pins give way", () => {
+  const { trees, key } = siblingGroupFixture();
+  app.focusOverviewItem("tree", key(trees[1]));
+  assert.ok(!app.state.selectionCluster);
+  assert.equal(lookupTrees(), "");
+  assert.ok(app.state.selectionTransition.outgoingIconLookup, "the outgoing pins still fade, so the move still waits for them");
+});
+
+test("tapping a dimmed sibling selects it and keeps the group; the selected place's own pin wins an overlap", () => {
+  const { trees, key } = siblingGroupFixture();
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  app.focusOverviewItem("tree", key(trees[0]));
+  // The pick's own camera move is not under test here: put the camera back where the pins can be tapped.
+  app.stopViewportAnimation();
+  app.state.selectionTransition.mapHeld = false;
+  const scale = 400000;
+  app.state.viewport = { scale, tx: 500 - trees[0].point.x * scale, ty: 400 - trees[0].point.y * scale };
+  const group = app.state.selectionCluster;
+  assert.ok(group);
+
+  const siblingTap = pinTapPoint(app, trees[2].point);
+  assert.equal(app.findHit(siblingTap, app.screenToWorld(siblingTap.x, siblingTap.y)).item, trees[2], "a dimmed sibling is hit-tested");
+  tapMap(app, siblingTap);
+  assert.equal(app.state.selected.item, trees[2]);
+  assert.equal(app.state.selectionCluster, group, "stepping to a sibling keeps the group context");
+  assert.equal(lookupTrees(), "sib1,sib2");
+  assert.equal(app.state.selectionTransition.outgoingIconLookup, null);
+
+  // A sibling standing on the selected place's own pin must not take the tap.
+  const original = trees[1].point;
+  trees[1].point = { ...trees[2].point };
+  const overlapTap = pinTapPoint(app, trees[2].point);
+  assert.equal(app.findHit(overlapTap, app.screenToWorld(overlapTap.x, overlapTap.y)).item, trees[2]);
+  trees[1].point = original;
+});
+
+test("a pin outside the group is not tappable while a group place is selected, and a tap on open ground leaves the group", () => {
+  const { trees, outsider, key } = siblingGroupFixture();
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  app.focusOverviewItem("tree", key(trees[0]));
+  app.stopViewportAnimation();
+  const far = pinTapPoint(app, outsider.point);
+  assert.notEqual(app.findHit(far, app.screenToWorld(far.x, far.y)).item, outsider);
+  const open = { x: 40, y: 40 };
+  tapMap(app, open);
+  assert.equal(app.state.selected, null);
+  assert.equal(app.activeIconLookup(), app.buildNearbyIconLookup(), "the map is the ordinary Nearby view again, no dimmed members");
+});
+
 runRegisteredTests().catch((error) => {
   console.error(error);
   process.exitCode = 1;
@@ -16290,3 +16382,4 @@ test("footprints are the hull projected through the active tilt, and still conta
     for (const item of marker.items) assert.ok(footprintContains(points, project(item.point)));
   }
 });
+
