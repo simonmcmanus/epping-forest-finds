@@ -379,6 +379,11 @@ function drawOverlay() {
   const toScreen = isTilted && typeof worldToScreenForOverlayTilted === "function"
     ? worldToScreenForOverlayTilted
     : (typeof worldToScreenForOverlay === "function" ? worldToScreenForOverlay : worldToScreen);
+  const radiusGeometry = walkingRadiusScreenGeometry(true);
+  if (radiusGeometry) {
+    const { center, radiusPx, tilted, dpr } = radiusGeometry;
+    drawWalkingRadiusLimitFeedback(ctx, center, radiusPx, tilted, dpr);
+  }
   if (isTilted) drawUserRadarOverlayTilted(ctx);
   else drawUserRadarOverlay(ctx, toScreen);
   if (useOverlayForPins) {
@@ -1227,25 +1232,93 @@ function drawWalkingRadiusDimming(ctx, center, radiusPx, tilted, cone) {
 const NEARBY_RIM_HIGHLIGHT = "rgba(255, 250, 235, 0.55)";
 const NEARBY_RIM_SHADOW = "rgba(20, 30, 24, 0.16)";
 
-// A single soft colour pulse; holding a gesture against the limit must not keep it lit.
-let _walkingRadiusLimitStartedAt = null;
-const WALKING_RADIUS_LIMIT_FADE_IN_MS = 90;
-const WALKING_RADIUS_LIMIT_FADE_OUT_MS = 220;
+// The feedback stays on the actual radius boundary. Only its light breathes: the
+// radius and camera never move to suggest that more zoom is available.
+const _walkingRadiusLimitFeedback = { active: false, startedAt: null, from: 0, releasedAt: null, releaseOpacity: 0 };
+const WALKING_RADIUS_LIMIT_ATTACK_MS = 180;
+const WALKING_RADIUS_LIMIT_RELEASE_MS = 220;
+const WALKING_RADIUS_LIMIT_BREATH_MS = 760;
 
-function pulseWalkingRadiusLimit() {
-  _walkingRadiusLimitStartedAt = performance.now();
-  requestDraw();
+let _walkingRadiusLimitFrame = null;
+
+function requestWalkingRadiusLimitDraw() {
+  if (_walkingRadiusLimitFrame != null || document.visibilityState === "hidden") return;
+  _walkingRadiusLimitFrame = requestAnimationFrame(() => {
+    _walkingRadiusLimitFrame = null;
+    drawOverlay();
+  });
+}
+
+function setWalkingRadiusLimitFeedback(active) {
+  const feedback = _walkingRadiusLimitFeedback;
+  if (feedback.active === active) return;
+  const now = performance.now();
+  const opacity = walkingRadiusLimitOpacity(now);
+  feedback.active = active;
+  if (active) {
+    feedback.startedAt = now;
+    feedback.from = opacity;
+    feedback.releasedAt = null;
+  } else {
+    feedback.releasedAt = now;
+    feedback.releaseOpacity = opacity;
+  }
+  requestWalkingRadiusLimitDraw();
 }
 
 function walkingRadiusLimitOpacity(now = performance.now()) {
-  if (_walkingRadiusLimitStartedAt == null) return 0;
-  const elapsed = Math.max(0, now - _walkingRadiusLimitStartedAt);
-  const duration = WALKING_RADIUS_LIMIT_FADE_IN_MS + WALKING_RADIUS_LIMIT_FADE_OUT_MS;
-  if (elapsed >= duration) return 0;
-  requestDraw();
-  return 0.3 * (elapsed < WALKING_RADIUS_LIMIT_FADE_IN_MS
-    ? elapsed / WALKING_RADIUS_LIMIT_FADE_IN_MS
-    : 1 - (elapsed - WALKING_RADIUS_LIMIT_FADE_IN_MS) / WALKING_RADIUS_LIMIT_FADE_OUT_MS);
+  const feedback = _walkingRadiusLimitFeedback;
+  if (feedback.startedAt == null) return 0;
+  if (!feedback.active) {
+    const t = clamp((now - feedback.releasedAt) / WALKING_RADIUS_LIMIT_RELEASE_MS, 0, 1);
+    if (t >= 1) return 0;
+    return feedback.releaseOpacity * (1 - t) ** 2;
+  }
+  const elapsed = Math.max(0, now - feedback.startedAt);
+  const reducedMotion = _iconMotionPreference?.matches ?? window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const breath = (1 - Math.cos(elapsed * Math.PI * 2 / WALKING_RADIUS_LIMIT_BREATH_MS)) / 2;
+  const target = reducedMotion ? 0.24 : 0.16 + 0.16 * breath;
+  return feedback.from + (target - feedback.from) * easeOutCubic(clamp(elapsed / WALKING_RADIUS_LIMIT_ATTACK_MS, 0, 1));
+}
+
+function drawWalkingRadiusLimitFeedback(ctx, center, radiusPx, tilted, dpr) {
+  const feedback = _walkingRadiusLimitFeedback;
+  const now = performance.now();
+  const reducedMotion = _iconMotionPreference?.matches ?? window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  if ((feedback.active && (!reducedMotion || now - feedback.startedAt < WALKING_RADIUS_LIMIT_ATTACK_MS))
+      || (!feedback.active && feedback.releasedAt != null && now - feedback.releasedAt < WALKING_RADIUS_LIMIT_RELEASE_MS)) {
+    requestWalkingRadiusLimitDraw();
+  }
+  const opacity = walkingRadiusLimitOpacity(now);
+  if (opacity <= 0) return;
+  ctx.save();
+  const feather = Math.min(20 * dpr, radiusPx * 0.45);
+  if (!tilted) {
+    const glow = ctx.createRadialGradient(center.x, center.y, radiusPx - feather, center.x, center.y, radiusPx + feather);
+    glow.addColorStop(0, "rgba(205, 75, 65, 0)");
+    glow.addColorStop(0.5, `rgba(205, 75, 65, ${opacity * 0.35})`);
+    glow.addColorStop(1, "rgba(205, 75, 65, 0)");
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, radiusPx + feather, 0, Math.PI * 2);
+    ctx.fillStyle = glow;
+    ctx.fill();
+  }
+  ctx.beginPath();
+  if (tilted) traceGroundCirclePath(ctx, center, radiusPx);
+  else ctx.arc(center.x, center.y, radiusPx, 0, Math.PI * 2);
+  // A projected circle cannot use a radial gradient. Reuse its exact path for a fine
+  // screen-space feather so its light still meets the boundary, without canvas blur.
+  if (tilted) {
+    for (let step = 20; step >= 1; step--) {
+      ctx.lineWidth = 2 * feather * step / 20;
+      ctx.strokeStyle = `rgba(205, 75, 65, ${opacity * 0.04})`;
+      ctx.stroke();
+    }
+  }
+  ctx.lineWidth = 1.5 * dpr;
+  ctx.strokeStyle = `rgba(205, 75, 65, ${opacity})`;
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawWalkingRadiusRimHighlight(ctx, center, radiusPx, tilted, dpr) {
@@ -1262,15 +1335,10 @@ function drawWalkingRadiusRimHighlight(ctx, center, radiusPx, tilted, dpr) {
   ctx.strokeStyle = gradient;
   ctx.lineWidth = lineWidth;
   ctx.stroke();
-  const limitOpacity = walkingRadiusLimitOpacity();
-  if (limitOpacity > 0) {
-    ctx.strokeStyle = `rgba(205, 75, 65, ${limitOpacity})`;
-    ctx.stroke();
-  }
   ctx.restore();
 }
 
-function drawWalkingRadius(ctx) {
+function walkingRadiusScreenGeometry(overlay = false) {
   // The *rendered* origin, so the circle stays still on screen while a browse-origin slide moves
   // the map behind it (nearbyRenderOriginPoint, index.html).
   const originPoint = nearbyRenderOriginPoint();
@@ -1290,13 +1358,21 @@ function drawWalkingRadius(ctx) {
     && state.locationRevealFocusPoint
     && Number.isFinite(state.locationRevealFocusPoint.x)
     && Number.isFinite(state.locationRevealFocusPoint.y);
-  const projectedOrigin = worldToScreenFlat(originPoint);
+  const tilted = typeof tiltActive === "function" && tiltActive();
+  const projectedOrigin = overlay && !tilted ? worldToScreenForOverlay(originPoint) : worldToScreenFlat(originPoint);
   const center = holdingRevealFocus
     ? state.locationRevealFocusPoint
     : projectedOrigin;
   const edge = worldToScreenFlat({ x: originPoint.x + walkingRadiusWorldUnits(), y: originPoint.y });
-  const radiusPx = Math.max(8, Math.hypot(edge.x - projectedOrigin.x, edge.y - projectedOrigin.y));
-  const tilted = typeof tiltActive === "function" && tiltActive();
+  const flatOrigin = worldToScreenFlat(originPoint);
+  const radiusPx = Math.max(8, Math.hypot(edge.x - flatOrigin.x, edge.y - flatOrigin.y));
+  return { center, radiusPx, tilted, dpr };
+}
+
+function drawWalkingRadius(ctx) {
+  const geometry = walkingRadiusScreenGeometry();
+  if (!geometry) return;
+  const { center, radiusPx, tilted, dpr } = geometry;
 
   drawWalkingRadiusDimming(ctx, center, radiusPx, tilted, nearbyUserCone(center, radiusPx, tilted));
   drawWalkingRadiusRimHighlight(ctx, center, radiusPx, tilted, dpr);

@@ -4,20 +4,22 @@ const { skipOnboarding, mockCowApi, gotoAndWaitForMap } = require("./helpers");
 
 test.describe("Radius zoom limit feedback", () => {
   test.use({
+    reducedMotion: "no-preference",
     geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 },
     permissions: ["geolocation"],
   });
 
   for (const input of ["wheel", "pinch", "safari"]) {
     for (const limit of ["floor", "ceiling"]) {
-      test(`${input} at the ${limit} softly fades the border red then clears it`, async ({ page }, testInfo) => {
+      test(`${input} at the ${limit} gently throbs on the exact radius edge until released`, async ({ page }, testInfo) => {
         await skipOnboarding(page);
         await mockCowApi(page);
         await gotoAndWaitForMap(page);
         await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
         await expect.poll(() => page.evaluate(() => state.viewportAnimationFrame == null)).toBe(true);
-        await page.clock.install();
-        await page.clock.pauseAt(new Date());
+        const clockTime = new Date("2026-11-15T12:00:00Z");
+        await page.clock.install({ time: clockTime });
+        await page.clock.pauseAt(clockTime);
         await page.evaluate((limit) => {
           state.walkingDistanceMinutes = limit === "floor" ? walkingRadiusFloorMinutes(nearbyOrigin()) : WALKING_RADIUS_MAX_MINUTES;
           ensureOverviewTargetsVisible({ animate: false, force: true });
@@ -27,11 +29,14 @@ test.describe("Radius zoom limit feedback", () => {
             const canvas = document.createElement("canvas");
             canvas.width = canvas.height = 160;
             const ctx = canvas.getContext("2d");
-            drawWalkingRadiusRimHighlight(ctx, { x: 80, y: 80 }, 60, false, 1);
+            drawWalkingRadiusLimitFeedback(ctx, { x: 80, y: 80 }, 60, false, 1);
             const data = ctx.getImageData(0, 0, 160, 160).data;
             let red = 0;
             for (let i = 0; i < data.length; i += 4) red += Math.max(0, data[i] - data[i + 1]) * data[i + 3] / 255;
-            return { red, centreAlpha: ctx.getImageData(80, 80, 1, 1).data[3], image: canvas.toDataURL() };
+            const alpha = (x) => ctx.getImageData(x, 80, 1, 1).data[3];
+            let brightest = 0;
+            for (let x = 120; x < 159; x++) if (alpha(x) > alpha(brightest)) brightest = x;
+            return { red, brightest, edgeAlpha: Math.max(alpha(139), alpha(140)), nearAlpha: alpha(145), farAlpha: alpha(155), outsideAlpha: alpha(159), centreAlpha: alpha(80), image: canvas.toDataURL() };
           };
         }, limit);
         const before = await page.evaluate(() => window.__sampleRim());
@@ -53,17 +58,46 @@ test.describe("Radius zoom limit feedback", () => {
             }
           }
         }, { input, limit });
-        await page.clock.runFor(60);
+        // Flush the pinch's coalesced request once, then advance time without rendering every
+        // intermediate map frame. We sample the actual canvas at each visual milestone.
+        await page.clock.runFor(16);
+        const advance = async (ms) => {
+          if (input === "wheel") {
+            // Wheel input stays live only while the reader keeps trying to scroll.
+            for (let elapsed = 0; elapsed < ms; elapsed += 100) {
+              await page.evaluate((limit) => els.canvas.dispatchEvent(new WheelEvent("wheel", {
+                deltaY: limit === "floor" ? -100 : 100, bubbles: true, cancelable: true,
+              })), limit);
+              await page.clock.fastForward(Math.min(100, ms - elapsed));
+            }
+          } else await page.clock.fastForward(ms);
+        };
+        await advance(90);
         const rising = await page.evaluate(() => window.__sampleRim());
         expect(rising.red).toBeGreaterThan(before.red + 100);
-        await page.clock.runFor(50);
+        await advance(290);
         const peak = await page.evaluate(() => window.__sampleRim());
         expect(peak.red).toBeGreaterThan(rising.red);
+        expect(Math.abs(peak.brightest - 140)).toBeLessThanOrEqual(1);
+        expect(peak.edgeAlpha).toBeGreaterThan(peak.nearAlpha);
+        expect(peak.nearAlpha).toBeGreaterThan(peak.farAlpha);
+        expect(peak.farAlpha).toBeGreaterThanOrEqual(peak.outsideAlpha);
         expect(peak.centreAlpha).toBe(0);
-        await page.clock.runFor(140);
-        const falling = await page.evaluate(() => window.__sampleRim());
-        expect(falling.red).toBeLessThan(peak.red);
-        await page.clock.runFor(180);
+        await advance(380);
+        const trough = await page.evaluate(() => window.__sampleRim());
+        expect(trough.red).toBeGreaterThan(before.red);
+        expect(trough.red).toBeLessThan(peak.red);
+        await advance(380);
+        expect((await page.evaluate(() => window.__sampleRim())).red).toBeGreaterThan(trough.red);
+        await page.evaluate((input) => {
+          if (input === "pinch") {
+            for (const id of [7101, 7102]) els.canvas.dispatchEvent(new PointerEvent("pointerup", {
+              pointerId: id, pointerType: "touch", bubbles: true, cancelable: true,
+            }));
+          } else if (input === "safari") els.canvas.dispatchEvent(new Event("gestureend", { bubbles: true, cancelable: true }));
+        }, input);
+        await page.clock.fastForward(220);
+        await page.clock.fastForward(240);
         const after = await page.evaluate(() => window.__sampleRim());
         expect(after.red).toBe(before.red);
         for (const [name, sample] of [["before", before], ["red-feedback", peak], ["after", after]]) {
@@ -72,4 +106,40 @@ test.describe("Radius zoom limit feedback", () => {
       });
     }
   }
+
+  test("reduced motion keeps the edge steady while blocked and fades it on release", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await gotoAndWaitForMap(page);
+    await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
+    await expect.poll(() => page.evaluate(() => state.viewportAnimationFrame == null)).toBe(true);
+    const time = new Date("2026-11-15T12:00:00Z");
+    await page.clock.install({ time });
+    await page.clock.pauseAt(time);
+    await page.evaluate(() => {
+      state.walkingDistanceMinutes = walkingRadiusFloorMinutes(nearbyOrigin());
+      els.canvas.dispatchEvent(new Event("gesturestart", { bubbles: true, cancelable: true }));
+      const change = new Event("gesturechange", { bubbles: true, cancelable: true });
+      Object.defineProperty(change, "scale", { value: 2 });
+      els.canvas.dispatchEvent(change);
+    });
+    const sample = () => page.evaluate(() => {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 160;
+      const ctx = canvas.getContext("2d");
+      drawWalkingRadiusLimitFeedback(ctx, { x: 80, y: 80 }, 60, false, 1);
+      return ctx.getImageData(139, 80, 1, 1).data[3];
+    });
+    await page.clock.runFor(16);
+    await page.clock.fastForward(400);
+    const steady = await sample();
+    expect(steady).toBeGreaterThan(0);
+    await page.clock.fastForward(380);
+    expect(await sample()).toBe(steady);
+    await page.evaluate(() => els.canvas.dispatchEvent(new Event("gestureend", { bubbles: true, cancelable: true })));
+    await page.clock.fastForward(240);
+    expect(await sample()).toBe(0);
+  });
+
 });

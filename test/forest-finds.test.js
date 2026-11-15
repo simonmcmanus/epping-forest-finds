@@ -576,6 +576,8 @@ globalThis.__forestFindsTest = {
   bestVisibleCanvasRect,
   walkingRadiusCirclePoints,
   drawWalkingRadius,
+  walkingRadiusScreenGeometry,
+  drawWalkingRadiusLimitFeedback,
   nearbyUserCone,
   selectOverview,
   ensureOverviewTargetsVisible,
@@ -3767,7 +3769,7 @@ test("walking radius marker still draws when nearest results use fallback", () =
   assert.equal(arcCount, 2);
 });
 
-test("the radius rim briefly fades red at either zoom limit and re-arms after backing off", () => {
+test("the radius edge breathes while held at either zoom limit and fades on backing off", () => {
   const isolated = loadAppForTests();
   resetData(isolated);
   isolated.state.userLocation = makePoint(isolated, 0, 0);
@@ -3775,13 +3777,21 @@ test("the radius rim briefly fades red at either zoom limit and re-arms after ba
   const floor = isolated.walkingRadiusFloorMinutes();
   const ctx = createElementStub().getContext();
   ctx.rect = () => {};
-  let red = 0;
+  let red = 0, edge = null, pathRadius = null, feedbackRadius = null;
+  ctx.arc = (x, y, radius) => { if (edge == null) edge = radius; pathRadius = radius; };
   ctx.stroke = function () {
     if (typeof this.strokeStyle === "string" && this.strokeStyle.startsWith("rgba(205, 75, 65,")) {
-      red = Number(this.strokeStyle.split(",")[3].replace(")", ""));
+      red = Math.max(red, Number(this.strokeStyle.split(",")[3].replace(")", "")));
+      feedbackRadius = pathRadius;
     }
   };
-  const paint = () => { red = 0; isolated.drawWalkingRadius(ctx); return red; };
+  const paint = () => {
+    red = 0; edge = null;
+    isolated.drawWalkingRadius(ctx);
+    const { center, radiusPx, tilted, dpr } = isolated.walkingRadiusScreenGeometry();
+    isolated.drawWalkingRadiusLimitFeedback(ctx, center, radiusPx, tilted, dpr);
+    return red;
+  };
   const realNow = Date.now;
   let now = realNow();
   Date.now = () => now;
@@ -3789,24 +3799,28 @@ test("the radius rim briefly fades red at either zoom limit and re-arms after ba
     for (const limit of [floor, isolated.WALKING_RADIUS_MAX_MINUTES]) {
       isolated.applyWalkingRadiusGesture(floor * 2);
       now += 1000;
-      assert.equal(paint(), 0, "in-range zoom has the ordinary rim");
+      assert.equal(paint(), 0, "in-range zoom has no red feedback");
       isolated.applyWalkingRadiusGesture(limit);
       assert.equal(paint(), 0, "the tint starts transparent");
-      now += 45;
-      const rising = paint();
-      assert.ok(rising > 0 && rising < 0.3, "the border gently fades red");
-      now += 45;
-      const peak = paint();
-      assert.ok(peak > rising && peak <= 0.3, "the red stays subtle");
-      now += 110;
-      assert.ok(paint() < peak, "it fades away quickly");
-      now += 200;
-      isolated.applyWalkingRadiusGesture(limit);
-      assert.equal(paint(), 0, "holding against the same limit does not restart the pulse");
-      isolated.applyWalkingRadiusGesture(floor * 2);
-      isolated.applyWalkingRadiusGesture(limit);
       now += 90;
-      assert.ok(paint() > 0, "backing off re-arms feedback for the next hit");
+      const rising = paint();
+      assert.ok(rising > 0 && rising < 0.32, "the border gently fades red");
+      now += 290;
+      const peak = paint();
+      assert.ok(peak > rising && peak <= 0.32, "the red stays subtle");
+      assert.equal(feedbackRadius, edge, "the red core sits on the actual cutout edge, not the inset rim");
+      now += 380;
+      isolated.applyWalkingRadiusGesture(limit);
+      const trough = paint();
+      assert.ok(trough > 0 && trough < peak, "holding at the limit gently dims rather than switching off");
+      now += 380;
+      assert.ok(paint() > trough, "the next throb grows without restarting the gesture");
+      isolated.applyWalkingRadiusGesture(floor * 2);
+      const atRelease = paint();
+      now += 110;
+      assert.ok(paint() < atRelease, "backing off fades from the current brightness");
+      now += 150;
+      assert.equal(paint(), 0, "the feedback disappears quickly once released");
     }
   } finally {
     Date.now = realNow;
