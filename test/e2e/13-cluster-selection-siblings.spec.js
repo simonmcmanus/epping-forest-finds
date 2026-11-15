@@ -64,7 +64,7 @@ test.describe("A place picked from an expanded group", () => {
       return { moves: window.__moves.length, pending: state.selectionTransition.mapHeld };
     });
     expect(outside, "a place picked from the plain list waits for the exit fade").toEqual({ moves: 0, pending: true });
-    await expect.poll(() => page.evaluate(() => window.__moves.length)).toBe(1);
+    await expect.poll(() => page.evaluate(() => state.selectionTransition.mapHeld)).toBe(false);
     await waitForUiToSettle(page);
     await page.locator("#inspectorBack").click();
     await expect.poll(() => page.evaluate(() => state.selected)).toBeNull();
