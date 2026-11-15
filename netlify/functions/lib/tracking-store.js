@@ -11,7 +11,10 @@
 // few MB rather than tens of thousands of small blobs.
 const { mapLimit } = require("./map-limit");
 
-const TYPES = ["location", "click"];
+const TYPES = ["location", "click", "navigation"];
+// Explicit navigation events (navigation_start, navigation_arrive, navigation_end) share one storage type.
+const NAV_KINDS = ["start", "arrive", "end"];
+const storageType = (event) => (event && typeof event.type === "string" && event.type.startsWith("navigation_") ? "navigation" : event && event.type);
 const DAY_MS = 24 * 60 * 60 * 1000;
 const READ_CONCURRENCY = 25;
 // The app queues events offline (js/tracker.js keeps the newest 500), so a batch can arrive late,
@@ -40,6 +43,12 @@ function number(value) {
   if (value == null || value === "") return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+// Distances are metres: finite and not negative, else unknown.
+function metres(value) {
+  const n = number(value);
+  return n == null || n < 0 ? null : Math.round(n * 10) / 10;
 }
 
 function coord(value, limit) {
@@ -93,6 +102,27 @@ function sanitizeEvent(event, { now = Date.now(), maxAgeMs = MAX_EVENT_AGE_MS } 
     };
   }
 
+  const kind = typeof event.type === "string" && event.type.startsWith("navigation_") ? event.type.slice(11) : null;
+  if (NAV_KINDS.includes(kind)) {
+    const targetLat = coord(event.targetLat, 90);
+    const targetLng = coord(event.targetLng, 180);
+    if (kind !== "end" && (targetLat == null || targetLng == null)) return null;
+    return {
+      ...base,
+      navId: text(event.navId, 80),
+      navName: kind === "start" ? text(event.navName, 120) : null,
+      navType: kind === "start" ? text(event.navType, 30) : null,
+      targetLat: kind === "end" ? null : targetLat,
+      targetLng: kind === "end" ? null : targetLng,
+      userLat: coord(event.userLat, 90),
+      userLng: coord(event.userLng, 180),
+      routeM: kind === "start" ? metres(event.routeM) : null,
+      walkedM: kind === "start" ? null : metres(event.walkedM),
+      remainingM: kind === "end" ? metres(event.remainingM) : null,
+      reason: kind === "end" ? text(event.reason, 30) : null,
+    };
+  }
+
   return null;
 }
 
@@ -100,6 +130,12 @@ function sanitizeEvent(event, { now = Date.now(), maxAgeMs = MAX_EVENT_AGE_MS } 
 
 const LOCATION_FIELDS = ["lat", "lng", "heading"];
 const CLICK_FIELDS = ["userLat", "userLng", "targetLat", "targetLng", "itemType", "itemId", "itemName", "source"];
+
+const NAVIGATION_FIELDS = ["navId", "navName", "navType", "targetLat", "targetLng", "userLat", "userLng", "routeM", "walkedM", "remainingM", "reason"];
+
+function fieldsFor(type) {
+  return type === "location" ? LOCATION_FIELDS : type === "navigation" ? NAVIGATION_FIELDS : CLICK_FIELDS;
+}
 
 function packEvents(type, events) {
   const uids = [];
@@ -110,9 +146,11 @@ function packEvents(type, events) {
     if (!map.has(key)) { map.set(key, list.length); list.push(value); }
     return map.get(key);
   };
-  const fields = type === "location" ? LOCATION_FIELDS : CLICK_FIELDS;
+  const fields = fieldsFor(type);
   const rows = events.map((event) => {
     const row = [indexOf(uidIndex, uids, event.uid, event.uid), eventMs(event), ...fields.map((f) => event[f] ?? null)];
+    // A navigation row ends with its kind (start, arrive or end) so one table holds all three.
+    if (type === "navigation") row.push(String(event.type).slice(11));
     if (type === "location") {
       const nav = event.navTarget;
       row.push(nav ? indexOf(targetIndex, targets, JSON.stringify(nav), nav) : -1);
@@ -125,9 +163,10 @@ function packEvents(type, events) {
 function unpackEvents(packed) {
   if (!packed || !Array.isArray(packed.rows)) return [];
   const type = packed.type;
-  const fields = type === "location" ? LOCATION_FIELDS : CLICK_FIELDS;
+  const fields = fieldsFor(type);
   return packed.rows.map((row) => {
     const event = { type, uid: packed.uids[row[0]], ts: new Date(row[1]).toISOString() };
+    if (type === "navigation") event.type = `navigation_${row[fields.length + 2]}`;
     fields.forEach((field, i) => { event[field] = row[i + 2]; });
     if (type === "location") {
       const t = row[fields.length + 2];
@@ -140,7 +179,7 @@ function unpackEvents(packed) {
 // A crash between writing a daily file and deleting the batches it absorbed would merge those
 // batches twice on the next run; an event's own fields identify it well enough to drop the copy.
 function eventIdentity(event) {
-  return [event.type, event.uid, event.ts, event.lat ?? event.userLat, event.lng ?? event.userLng, event.itemId ?? ""].join("|");
+  return [event.type, event.uid, event.ts, event.lat ?? event.userLat, event.lng ?? event.userLng, event.itemId ?? event.navId ?? ""].join("|");
 }
 
 function mergeEvents(...lists) {
@@ -191,7 +230,7 @@ function blobAdapter(store) {
 async function storeBatch(adapter, events, { now = Date.now(), rand = Math.random().toString(36).slice(2, 8) } = {}) {
   const groups = new Map();
   for (const event of events) {
-    const group = `${event.type}|${dayOf(eventMs(event))}`;
+    const group = `${storageType(event)}|${dayOf(eventMs(event))}`;
     if (!groups.has(group)) groups.set(group, []);
     groups.get(group).push(event);
   }
@@ -242,7 +281,9 @@ async function readDay(adapter, type, day, deadline, clock) {
 
 // Rough size of an event once packed into the admin response.
 function packedSize(event) {
-  return event.type === "location" ? 48 : 64 + JSON.stringify([event.itemType, event.itemId, event.itemName, event.source]).length;
+  if (event.type === "location") return 48;
+  if (storageType(event) === "navigation") return 120 + JSON.stringify([event.navId, event.navName, event.navType, event.reason]).length;
+  return 64 + JSON.stringify([event.itemType, event.itemId, event.itemName, event.source]).length;
 }
 
 // Newest day first, a few days at a time, until the window, the time budget or the response size
@@ -253,7 +294,7 @@ function packedSize(event) {
 async function readWindow(adapter, { windowDays, now = Date.now(), budgetMs = 7000, maxBytes = 4_500_000, clock = Date.now, dayGroup = 3 } = {}) {
   const deadline = clock() + budgetMs;
   const days = Array.from({ length: windowDays }, (_, i) => dayOf(now - i * DAY_MS));
-  const kept = { location: [], click: [] };
+  const kept = { location: [], click: [], navigation: [] };
   let bytes = 0;
   let partial = false;
   let oldestDay = null;
@@ -264,23 +305,23 @@ async function readWindow(adapter, { windowDays, now = Date.now(), budgetMs = 70
     if (clock() > deadline) { partial = true; break; }
     const group = days.slice(i, i + dayGroup);
     const results = await Promise.all(group.map(async (day) => {
-      const [location, click] = await Promise.all(TYPES.map((type) => readDay(adapter, type, day, deadline, clock)));
-      return { day, location, click };
+      const [location, click, navigation] = await Promise.all(TYPES.map((type) => readDay(adapter, type, day, deadline, clock)));
+      return { day, location, click, navigation };
     }));
     for (const result of results) {
-      const events = [...result.location.events, ...result.click.events].sort((a, b) => eventMs(b) - eventMs(a));
+      const events = [...result.location.events, ...result.click.events, ...result.navigation.events].sort((a, b) => eventMs(b) - eventMs(a));
       for (const event of events) {
         const size = packedSize(event);
         if (bytes + size > maxBytes) { partial = true; oldestDay = result.day; oldestDayIncomplete = true; break outer; }
         bytes += size;
-        kept[event.type].push(event);
+        kept[storageType(event)].push(event);
       }
       oldestDay = result.day;
-      if (result.location.partial || result.click.partial) { partial = true; oldestDayIncomplete = true; break outer; }
+      if (result.location.partial || result.click.partial || result.navigation.partial) { partial = true; oldestDayIncomplete = true; break outer; }
     }
   }
 
-  return { locations: kept.location.reverse(), clicks: kept.click.reverse(), partial, oldestDay, oldestDayIncomplete };
+  return { locations: kept.location.reverse(), clicks: kept.click.reverse(), navigation: kept.navigation.reverse(), partial, oldestDay, oldestDayIncomplete };
 }
 
 // ---- Compaction (track-compact-scheduled.js) ----
@@ -341,7 +382,7 @@ async function compact(adapter, { now = Date.now(), budgetMs = 20000, clock = Da
     for (const { events } of read) {
       for (const raw of events) {
         // Old batches predate the age check, so keep them whatever their date.
-        const event = sanitizeEvent({ ...raw, type }, { now, maxAgeMs: Number.POSITIVE_INFINITY });
+        const event = sanitizeEvent({ ...raw, type: type === "navigation" ? raw.type : type }, { now, maxAgeMs: Number.POSITIVE_INFINITY });
         if (!event) continue;
         const day = dayOf(eventMs(event));
         if (!byDay.has(day)) byDay.set(day, []);
@@ -373,6 +414,7 @@ module.exports = {
   dailyKey,
   rawPrefix,
   sanitizeEvent,
+  storageType,
   packEvents,
   unpackEvents,
   mergeEvents,

@@ -1,4 +1,4 @@
-// POST /api/track  — store a batch of location & click events.
+// POST /api/track  — store a batch of location, click & navigation events.
 // GET  /api/admin/tracks?days=N — the events in the last N days, packed (admin only).
 //
 // Storage strategy:
@@ -178,11 +178,12 @@ function checkAuth(event) {
 
 // The admin response packs locations and clicks (lib/tracking-store.js packEvents); js/admin.js
 // unpacks them back into the event objects the dashboard draws.
-function adminBody(locations, clicks, meta) {
+function adminBody(locations, clicks, navigation, meta) {
   return {
     format: 2,
     locations: tracking.packEvents("location", locations),
     clicks: tracking.packEvents("click", clicks),
+    navigation: tracking.packEvents("navigation", navigation),
     meta,
   };
 }
@@ -226,8 +227,8 @@ exports.handler = async (event) => {
 
     try {
       const result = await tracking.readWindow(openAdapter(), { windowDays: days });
-      logTrack("read-ok", { windowDays, locations: result.locations.length, clicks: result.clicks.length, partial: result.partial, oldestDay: result.oldestDay });
-      return response(200, adminBody(result.locations, result.clicks, {
+      logTrack("read-ok", { windowDays, locations: result.locations.length, clicks: result.clicks.length, navigation: result.navigation.length, partial: result.partial, oldestDay: result.oldestDay });
+      return response(200, adminBody(result.locations, result.clicks, result.navigation, {
         ...baseMeta,
         ...(result.partial ? { partial: true, oldestDay: result.oldestDay, oldestDayIncomplete: result.oldestDayIncomplete } : {}),
       }));
@@ -242,7 +243,8 @@ exports.handler = async (event) => {
         const sinceMs = windowSinceMs(days);
         const locations = fileRead("location.ndjson").filter((e) => eventWithinWindow(e, sinceMs));
         const clicks = fileRead("click.ndjson").filter((e) => eventWithinWindow(e, sinceMs));
-        return response(200, adminBody(locations, clicks, baseMeta));
+        const navigation = fileRead("navigation.ndjson").filter((e) => eventWithinWindow(e, sinceMs));
+        return response(200, adminBody(locations, clicks, navigation, baseMeta));
       } catch (fileErr) {
         return response(500, { error: String(fileErr.message) });
       }
@@ -287,7 +289,9 @@ exports.handler = async (event) => {
         const locationEvents = events.filter((e) => e.type === "location");
         const clickEvents = events.filter((e) => e.type === "click");
         if (locationEvents.length) fileAppend("location.ndjson", locationEvents);
+        const navigationEvents = events.filter((e) => tracking.storageType(e) === "navigation");
         if (clickEvents.length) fileAppend("click.ndjson", clickEvents);
+        if (navigationEvents.length) fileAppend("navigation.ndjson", navigationEvents);
         return response(200, { ok: true, received: incoming.length, stored: events.length, storage: "file-fallback" });
       } catch (fileErr) {
         return response(500, { error: String(fileErr.message) });

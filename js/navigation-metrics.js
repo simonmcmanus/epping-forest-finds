@@ -71,6 +71,72 @@ function deriveNavJourneys(pings) {
   return journeys.sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt));
 }
 
+// Explicit journeys come from the app's own navigation_start / navigation_arrive / navigation_end
+// events. A start opens a journey for its user; an arrive (same navId) marks arrival; an end (same
+// navId) closes it, and an end with reason "arrived" also counts as arrival. A newer start by the same
+// user closes the previous journey as abandoned. Arrive or end events with no open journey are ignored.
+function buildExplicitJourneys(events) {
+  const byUid = new Map();
+  for (const e of events || []) {
+    const time = Date.parse(e && e.ts);
+    if (!e || !Number.isFinite(time) || typeof e.type !== "string") continue;
+    if (!byUid.has(e.uid)) byUid.set(e.uid, []);
+    byUid.get(e.uid).push({ e, time });
+  }
+  const journeys = [];
+  const num = (v) => (Number.isFinite(v) ? v : null);
+  for (const [uid, list] of byUid) {
+    list.sort((a, b) => a.time - b.time);
+    let cur = null;
+    const close = () => {
+      if (!cur) return;
+      journeys.push({
+        uid, explicit: true, navId: cur.navId, target: cur.target, startedAt: cur.startedAt, endedAt: cur.endedAt,
+        arrived: cur.arrived, arrivedAt: cur.arrivedAt, distanceWalkedM: cur.walkedM || 0, walkedM: cur.walkedM,
+        routeM: cur.routeM, remainingM: cur.arrived ? null : cur.remainingM, reason: cur.reason,
+      });
+      cur = null;
+    };
+    for (const { e } of list) {
+      if (e.type === "navigation_start") {
+        close();
+        if (!Number.isFinite(e.targetLat) || !Number.isFinite(e.targetLng)) continue;
+        cur = {
+          navId: e.navId ?? null, startedAt: e.ts, endedAt: e.ts, arrived: false, arrivedAt: null,
+          routeM: num(e.routeM), walkedM: null, remainingM: null, reason: null,
+          target: { id: e.navId ?? null, name: e.navName ?? null, type: e.navType ?? null, targetLat: e.targetLat, targetLng: e.targetLng },
+        };
+      } else if (cur && (e.type === "navigation_arrive" || e.type === "navigation_end") && (e.navId ?? null) === cur.navId) {
+        cur.endedAt = e.ts;
+        if (num(e.walkedM) !== null) cur.walkedM = e.walkedM;
+        if (e.type === "navigation_arrive") {
+          if (!cur.arrived) { cur.arrived = true; cur.arrivedAt = e.ts; }
+        } else {
+          if (e.reason === "arrived" && !cur.arrived) { cur.arrived = true; cur.arrivedAt = e.ts; }
+          cur.remainingM = num(e.remainingM);
+          cur.reason = e.reason ?? null;
+          close();
+        }
+      }
+    }
+    close();
+  }
+  return journeys.sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt));
+}
+
+// Explicit journeys win. A derived journey (from pings) is kept only when no explicit journey of the
+// same user covers it: its span overlaps an explicit journey's start to end plus NAV_GAP_MS.
+function combineNavJourneys(explicit, derived) {
+  const ex = explicit || [];
+  const kept = (derived || []).filter((d) => {
+    const ds = Date.parse(d.startedAt);
+    const de = Date.parse(d.endedAt);
+    return !ex.some((x) => x.uid === d.uid
+      && ds <= Date.parse(x.endedAt) + NAV_GAP_MS && de >= Date.parse(x.startedAt));
+  });
+  return [...ex, ...kept].sort((a, b) => Date.parse(a.startedAt) - Date.parse(b.startedAt));
+}
+
 function navTimeBucket(minutes) {
   if (minutes < 5) return "lt5";
   if (minutes < 15) return "b5to15";
@@ -93,10 +159,15 @@ function summariseNavJourneys(journeys) {
       remaining.push(j.remainingM);
     }
   }
-  remaining.sort((a, b) => a - b);
-  const mid = remaining.length >> 1;
-  const medianRemainingM = !remaining.length ? null
-    : remaining.length % 2 ? remaining[mid] : (remaining[mid - 1] + remaining[mid]) / 2;
+  const median = (values) => {
+    values.sort((a, b) => a - b);
+    const mid = values.length >> 1;
+    return !values.length ? null : values.length % 2 ? values[mid] : (values[mid - 1] + values[mid]) / 2;
+  };
+  const medianRemainingM = median(remaining);
+  // Detour ratio: metres walked per metre of the shortest route at the start (explicit journeys only).
+  const ratios = list.filter((j) => Number.isFinite(j.routeM) && j.routeM > 0 && Number.isFinite(j.walkedM))
+    .map((j) => j.walkedM / j.routeM);
   return {
     started: list.length,
     completed,
@@ -105,11 +176,13 @@ function summariseNavJourneys(journeys) {
     totalDistanceWalkedM,
     abandoned: list.length - completed,
     medianRemainingM,
+    medianDetourRatio: median(ratios),
+    detourCount: ratios.length,
   };
 }
 
 if (typeof module !== "undefined") {
   module.exports = {
-    NAV_ARRIVAL_RADIUS_M, NAV_GAP_MS, haversineMetres, deriveNavJourneys, summariseNavJourneys, navTimeBucket,
+    NAV_ARRIVAL_RADIUS_M, NAV_GAP_MS, haversineMetres, deriveNavJourneys, buildExplicitJourneys, combineNavJourneys, summariseNavJourneys, navTimeBucket,
   };
 }
