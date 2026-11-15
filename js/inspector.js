@@ -1114,13 +1114,16 @@ function boxKeyframes(from, to) {
 
 // The card is the only thing that moves in a morph. It is inert and aria-hidden: nothing can focus
 // or tap it, and nothing addresses it.
-function makeMorphCard(scroll, box) {
+// The content is put inside the card before the card joins the sheet: a child added to a card that is
+// already in the page is a change inside the ghost, which the transition's own checks must not see.
+function makeMorphCard(scroll, box, content) {
   const card = document.createElement("div");
   card.className = "inspector-screen-ghost inspector-morph-card";
   card.setAttribute("aria-hidden", "true");
   card.inert = true;
   card.style.cssText = `position:absolute;overflow:hidden;z-index:1;pointer-events:none;background:var(--panel);`
     + `left:${box.left}px;top:${box.top}px;width:${box.width}px;height:${box.height}px;`;
+  card.appendChild(content);
   scroll.appendChild(card);
   return card;
 }
@@ -1163,9 +1166,8 @@ function startPanelMorph(scroll, card, grow, onDone) {
 function playRowToPanelMorph(scroll, pressed, onDone) {
   const from = sheetBoxOf(pressed.rect, scroll);
   const full = { left: 0, top: 0, width: scroll.clientWidth, height: scroll.clientHeight };
-  const card = makeMorphCard(scroll, from);
   pressed.clone.style.cssText = `position:absolute;top:0;left:0;margin:0;box-sizing:border-box;width:${from.width}px;height:${from.height}px;`;
-  card.appendChild(pressed.clone);
+  const card = makeMorphCard(scroll, from, pressed.clone);
   // The row's own content fades as the card grows, so the panel reads as the row opening up.
   const grow = card.animate(boxKeyframes(from, full), { duration: PANEL_MORPH.grow, easing: PANEL_MORPH_EASE, fill: "forwards" });
   pressed.clone.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 180, easing: "ease-out", fill: "forwards" });
@@ -1179,9 +1181,8 @@ function playPanelToRowMorph(scroll, snapshot, targetRow, onDone) {
   const to = targetRow
     ? sheetBoxOf(targetRow.getBoundingClientRect(), scroll)
     : { left: full.width * 0.04, top: full.height * 0.3, width: full.width * 0.92, height: full.height * 0.4 };
-  const card = makeMorphCard(scroll, full);
   snapshot.style.cssText = `position:absolute;top:0;left:0;margin:0;box-sizing:border-box;width:${full.width}px;`;
-  card.appendChild(snapshot);
+  const card = makeMorphCard(scroll, full, snapshot);
   const grow = card.animate(boxKeyframes(full, to), { duration: PANEL_MORPH.grow, easing: PANEL_MORPH_EASE, fill: "forwards" });
   snapshot.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 200, easing: "ease-out", fill: "forwards" });
   startPanelMorph(scroll, card, grow, onDone);
