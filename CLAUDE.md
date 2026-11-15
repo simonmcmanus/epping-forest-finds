@@ -4,6 +4,10 @@ Vanilla HTML/CSS/JS, phone-first, offline-first. Keep changes scoped and use the
 `app.html` is markup and script references only. Marketing (`index.html`, `assets/home/`) is an
 independent surface: never import app CSS/JS or reference app icons there at runtime.
 
+**Mandatory:** before editing any app or website file, or any place data under `data/**`, invoke the
+`team` skill with the Skill tool and follow its lead playbook. Do not hand-edit those files directly
+in the main session. Only skip it for read-only questions.
+
 - Delegate implementation to one scoped `implementer` per owned part of a coherent batch, on a
   branch/worktree from `origin/main`; place-fact corrections go to `data-curator`. The lead plans,
   dispatches and reports. If those agents are unavailable, say so and work directly. Subagents do
