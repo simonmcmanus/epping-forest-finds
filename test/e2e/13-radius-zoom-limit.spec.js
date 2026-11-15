@@ -36,7 +36,7 @@ test.describe("Radius zoom limit feedback", () => {
             const alpha = (x) => ctx.getImageData(x, 80, 1, 1).data[3];
             let brightest = 0;
             for (let x = 120; x < 159; x++) if (alpha(x) > alpha(brightest)) brightest = x;
-            return { red, brightest, edgeAlpha: Math.max(alpha(139), alpha(140)), nearAlpha: alpha(145), farAlpha: alpha(155), outsideAlpha: alpha(159), centreAlpha: alpha(80), image: canvas.toDataURL() };
+            return { red, brightest, edgeAlpha: Math.max(alpha(139), alpha(140)), nearAlpha: alpha(145), farAlpha: alpha(155), outsideAlpha: alpha(159), innerAlpha: alpha(130), outerAlpha: alpha(149), centreAlpha: alpha(80), image: canvas.toDataURL() };
           };
         }, limit);
         const before = await page.evaluate(() => window.__sampleRim());
@@ -75,20 +75,21 @@ test.describe("Radius zoom limit feedback", () => {
         await advance(90);
         const rising = await page.evaluate(() => window.__sampleRim());
         expect(rising.red).toBeGreaterThan(before.red + 100);
-        await advance(290);
+        await advance(190);
         const peak = await page.evaluate(() => window.__sampleRim());
         expect(peak.red).toBeGreaterThan(rising.red);
         expect(Math.abs(peak.brightest - 140)).toBeLessThanOrEqual(1);
         expect(peak.edgeAlpha, "the edge is strong enough to read over the map").toBeGreaterThan(140);
         expect(peak.edgeAlpha).toBeGreaterThan(peak.nearAlpha);
         expect(peak.nearAlpha).toBeGreaterThan(peak.farAlpha);
+        expect(peak.outerAlpha).toBeGreaterThan(peak.innerAlpha);
         expect(peak.farAlpha).toBeGreaterThanOrEqual(peak.outsideAlpha);
         expect(peak.centreAlpha).toBe(0);
-        await advance(380);
+        await advance(840);
         const trough = await page.evaluate(() => window.__sampleRim());
         expect(trough.red).toBeGreaterThan(before.red);
         expect(trough.red).toBeLessThan(peak.red);
-        await advance(380);
+        await advance(280);
         expect((await page.evaluate(() => window.__sampleRim())).red).toBeGreaterThan(trough.red);
         await page.evaluate((input) => {
           if (input === "pinch") {
@@ -98,7 +99,7 @@ test.describe("Radius zoom limit feedback", () => {
           } else if (input === "safari") els.canvas.dispatchEvent(new Event("gestureend", { bubbles: true, cancelable: true }));
         }, input);
         await page.clock.fastForward(220);
-        await page.clock.fastForward(240);
+        await page.clock.fastForward(280);
         const after = await page.evaluate(() => window.__sampleRim());
         expect(after.red).toBe(before.red);
         for (const [name, sample] of [["before", before], ["red-feedback", peak], ["after", after]]) {
@@ -133,13 +134,17 @@ test.describe("Radius zoom limit feedback", () => {
       return ctx.getImageData(139, 80, 1, 1).data[3];
     });
     await page.clock.runFor(16);
+    const notice = page.locator(".walk-radius-floor-notice");
+    await expect(notice).toBeVisible();
+    expect(await notice.evaluate((el) => el.getAnimations().filter((a) => a.playState === "running").length),
+      "reduced motion also keeps the supporting notice still").toBe(0);
     await page.clock.fastForward(400);
     const steady = await sample();
     expect(steady, "reduced-motion feedback remains clearly visible").toBeGreaterThan(120);
     await page.clock.fastForward(380);
     expect(await sample()).toBe(steady);
     await page.evaluate(() => els.canvas.dispatchEvent(new Event("gestureend", { bubbles: true, cancelable: true })));
-    await page.clock.fastForward(240);
+    await page.clock.fastForward(280);
     expect(await sample()).toBe(0);
   });
 
@@ -198,9 +203,40 @@ test.describe("Radius zoom limit feedback", () => {
       await page.clock.fastForward(380);
       expect((await sample()).red).toBeGreaterThan(before.red + 500);
       await page.evaluate(() => els.canvas.dispatchEvent(new Event("gestureend", { bubbles: true, cancelable: true })));
-      await page.clock.fastForward(240);
+      await page.clock.fastForward(280);
       expect((await sample()).red).toBeLessThan(before.red + 100);
     });
   }
+
+
+  test("a new wheel attempt during release resumes the entire light without a visual jump", async ({ page }) => {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await gotoAndWaitForMap(page);
+    await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
+    await expect.poll(() => page.evaluate(() => state.viewportAnimationFrame == null)).toBe(true);
+    const time = new Date("2026-11-15T12:00:00Z");
+    await page.clock.install({ time });
+    await page.clock.pauseAt(new Date(time.getTime() + 10_000));
+    await page.evaluate(() => { state.walkingDistanceMinutes = walkingRadiusFloorMinutes(nearbyOrigin()); });
+    const wheel = () => page.evaluate(() => els.canvas.dispatchEvent(new WheelEvent("wheel", {
+      deltaY: -100, bubbles: true, cancelable: true,
+    })));
+    const sample = () => page.evaluate(() => {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 160;
+      drawWalkingRadiusLimitFeedback(canvas.getContext("2d"), { x: 80, y: 80 }, 60, false, 1);
+      return canvas.toDataURL();
+    });
+    await wheel();
+    await page.clock.fastForward(120);
+    await page.clock.fastForward(100);
+    await page.clock.fastForward(80);
+    const releasing = await sample();
+    await wheel();
+    expect(await sample(), "core, shading and halo all preserve their current light").toBe(releasing);
+    await page.clock.fastForward(120);
+    expect(await sample(), "the resumed light continues breathing").not.toBe(releasing);
+  });
 
 });

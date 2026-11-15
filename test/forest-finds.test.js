@@ -57,6 +57,7 @@ function createElementStub(id = "") {
         restore() {},
         beginPath() {},
         closePath() {},
+        clip() {},
         moveTo() {},
         lineTo() {},
         bezierCurveTo() {},
@@ -578,6 +579,7 @@ globalThis.__forestFindsTest = {
   drawWalkingRadius,
   walkingRadiusScreenGeometry,
   drawWalkingRadiusLimitFeedback,
+  walkingRadiusLimitOpacity,
   nearbyUserCone,
   selectOverview,
   ensureOverviewTargetsVisible,
@@ -3777,20 +3779,15 @@ test("the radius edge breathes while held at either zoom limit and fades on back
   const floor = isolated.walkingRadiusFloorMinutes();
   const ctx = createElementStub().getContext();
   ctx.rect = () => {};
-  let red = 0, edge = null, pathRadius = null, feedbackRadius = null;
+  let edge = null, pathRadius = null, feedbackRadius = null;
   ctx.arc = (x, y, radius) => { if (edge == null) edge = radius; pathRadius = radius; };
-  ctx.stroke = function () {
-    if (typeof this.strokeStyle === "string" && this.strokeStyle.startsWith("rgba(205, 75, 65,")) {
-      red = Math.max(red, Number(this.strokeStyle.split(",")[3].replace(")", "")));
-      feedbackRadius = pathRadius;
-    }
-  };
+  ctx.stroke = () => { feedbackRadius = pathRadius; };
   const paint = () => {
-    red = 0; edge = null;
+    edge = null;
     isolated.drawWalkingRadius(ctx);
     const { center, radiusPx, tilted, dpr } = isolated.walkingRadiusScreenGeometry();
     isolated.drawWalkingRadiusLimitFeedback(ctx, center, radiusPx, tilted, dpr);
-    return red;
+    return isolated.walkingRadiusLimitOpacity();
   };
   const realNow = Date.now;
   let now = realNow();
@@ -3804,16 +3801,16 @@ test("the radius edge breathes while held at either zoom limit and fades on back
       assert.equal(paint(), 0, "the tint starts transparent");
       now += 90;
       const rising = paint();
-      assert.ok(rising > 0 && rising < 0.72, "the border gently fades red");
-      now += 290;
+      assert.ok(rising > 0 && rising < 0.84, "the border gently fades red");
+      now += 190;
       const peak = paint();
-      assert.ok(peak > rising && peak >= 0.6 && peak <= 0.72, "the peak is clearly visible");
+      assert.ok(peak > rising && peak >= 0.6 && peak <= 0.84, "the peak is clearly visible");
       assert.equal(feedbackRadius, edge, "the red core sits on the actual cutout edge, not the inset rim");
-      now += 380;
+      now += 840;
       isolated.applyWalkingRadiusGesture(limit);
       const trough = paint();
       assert.ok(trough > 0 && trough < peak, "holding at the limit gently dims rather than switching off");
-      now += 380;
+      now += 280;
       assert.ok(paint() > trough, "the next throb grows without restarting the gesture");
       isolated.applyWalkingRadiusGesture(floor * 2);
       const atRelease = paint();

@@ -1240,10 +1240,16 @@ const NEARBY_RIM_SHADOW = "rgba(20, 30, 24, 0.16)";
 
 // The feedback stays on the actual radius boundary. Only its light breathes: the
 // radius and camera never move to suggest that more zoom is available.
-const _walkingRadiusLimitFeedback = { active: false, startedAt: null, from: 0, releasedAt: null, releaseOpacity: 0 };
+const _walkingRadiusLimitFeedback = { active: false, startedAt: null, phaseStartedAt: null, from: 0, releasedAt: null, releaseOpacity: 0 };
 const WALKING_RADIUS_LIMIT_ATTACK_MS = 120;
-const WALKING_RADIUS_LIMIT_RELEASE_MS = 220;
-const WALKING_RADIUS_LIMIT_BREATH_MS = 760;
+const WALKING_RADIUS_LIMIT_RELEASE_MS = 260;
+const WALKING_RADIUS_LIMIT_BREATH_MS = 1120;
+const WALKING_RADIUS_LIMIT_INHALE_MS = 280;
+// A map-interaction colour, distinct from the UI's error red. The warm light direction
+// matches the existing top-left-lit radius rim and map markers.
+const WALKING_RADIUS_LIMIT_CORAL = "226, 120, 108";
+const WALKING_RADIUS_LIMIT_LIGHT = "255, 214, 190";
+const WALKING_RADIUS_LIMIT_SHADE = "199, 94, 86";
 
 let _walkingRadiusLimitFrame = null;
 
@@ -1262,6 +1268,11 @@ function setWalkingRadiusLimitFeedback(active) {
   const opacity = walkingRadiusLimitOpacity(now);
   feedback.active = active;
   if (active) {
+    // A new attempt during release resumes the held light's phase as well as its
+    // brightness; otherwise its halo would snap dimmer while the core stayed still.
+    feedback.phaseStartedAt = opacity > 0 && feedback.releasedAt != null
+      ? feedback.phaseStartedAt + now - feedback.releasedAt
+      : now;
     feedback.startedAt = now;
     feedback.from = opacity;
     feedback.releasedAt = null;
@@ -1272,18 +1283,26 @@ function setWalkingRadiusLimitFeedback(active) {
   requestWalkingRadiusLimitDraw();
 }
 
+function walkingRadiusLimitBreath(elapsed) {
+  const phase = Math.max(0, elapsed) % WALKING_RADIUS_LIMIT_BREATH_MS;
+  const t = phase < WALKING_RADIUS_LIMIT_INHALE_MS
+    ? phase / WALKING_RADIUS_LIMIT_INHALE_MS
+    : (WALKING_RADIUS_LIMIT_BREATH_MS - phase) / (WALKING_RADIUS_LIMIT_BREATH_MS - WALKING_RADIUS_LIMIT_INHALE_MS);
+  return (1 - Math.cos(Math.PI * t)) / 2;
+}
+
 function walkingRadiusLimitOpacity(now = performance.now()) {
   const feedback = _walkingRadiusLimitFeedback;
   if (feedback.startedAt == null) return 0;
   if (!feedback.active) {
     const t = clamp((now - feedback.releasedAt) / WALKING_RADIUS_LIMIT_RELEASE_MS, 0, 1);
     if (t >= 1) return 0;
-    return feedback.releaseOpacity * (1 - t) ** 2;
+    return feedback.releaseOpacity * (1 + Math.cos(Math.PI * t)) / 2;
   }
   const elapsed = Math.max(0, now - feedback.startedAt);
   const reducedMotion = _iconMotionPreference?.matches ?? window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
-  const breath = (1 - Math.cos(elapsed * Math.PI * 2 / WALKING_RADIUS_LIMIT_BREATH_MS)) / 2;
-  const target = reducedMotion ? 0.56 : 0.40 + 0.32 * breath;
+  const breath = walkingRadiusLimitBreath(now - feedback.phaseStartedAt);
+  const target = reducedMotion ? 0.70 : 0.58 + 0.26 * breath;
   return feedback.from + (target - feedback.from) * easeOutCubic(clamp(elapsed / WALKING_RADIUS_LIMIT_ATTACK_MS, 0, 1));
 }
 
@@ -1298,33 +1317,53 @@ function drawWalkingRadiusLimitFeedback(ctx, center, radiusPx, tilted, dpr) {
   const opacity = walkingRadiusLimitOpacity(now);
   if (opacity <= 0) return;
   ctx.save();
-  const feather = Math.min(20 * dpr, radiusPx * 0.45);
-  if (!tilted) {
-    const glow = ctx.createRadialGradient(center.x, center.y, radiusPx - feather, center.x, center.y, radiusPx + feather);
-    glow.addColorStop(0, "rgba(205, 75, 65, 0)");
-    glow.addColorStop(0.5, `rgba(205, 75, 65, ${opacity * 0.55})`);
-    glow.addColorStop(1, "rgba(205, 75, 65, 0)");
-    ctx.beginPath();
-    ctx.arc(center.x, center.y, radiusPx + feather, 0, Math.PI * 2);
-    ctx.fillStyle = glow;
-    ctx.fill();
-  }
+  const lightAt = feedback.active ? now : feedback.releasedAt;
+  const breath = reducedMotion ? 0.5 : walkingRadiusLimitBreath(lightAt - feedback.phaseStartedAt);
+  drawWalkingRadiusLimitHalo(ctx, center, radiusPx, tilted, dpr, opacity * (0.10 + 0.24 * breath));
   ctx.beginPath();
   if (tilted) traceGroundCirclePath(ctx, center, radiusPx);
   else ctx.arc(center.x, center.y, radiusPx, 0, Math.PI * 2);
-  // A projected circle cannot use a radial gradient. Reuse its exact path for a fine
-  // screen-space feather so its light still meets the boundary, without canvas blur.
-  if (tilted) {
-    for (let step = 20; step >= 1; step--) {
-      ctx.lineWidth = 2 * feather * step / 20;
-      ctx.strokeStyle = `rgba(205, 75, 65, ${opacity * 0.04})`;
-      ctx.stroke();
-    }
-  }
-  ctx.lineWidth = 3 * dpr;
-  ctx.strokeStyle = `rgba(205, 75, 65, ${opacity})`;
+  const light = ctx.createLinearGradient(center.x - radiusPx, center.y - radiusPx, center.x + radiusPx, center.y + radiusPx);
+  light.addColorStop(0, `rgba(${WALKING_RADIUS_LIMIT_LIGHT}, ${opacity})`);
+  light.addColorStop(0.45, `rgba(${WALKING_RADIUS_LIMIT_CORAL}, ${opacity})`);
+  light.addColorStop(1, `rgba(${WALKING_RADIUS_LIMIT_SHADE}, ${opacity})`);
+  ctx.lineWidth = 2.5 * dpr;
+  ctx.strokeStyle = light;
   ctx.stroke();
   ctx.restore();
+}
+
+// Most of the light falls outside the clear circle. Keep the same asymmetry under
+// perspective: clipping each shoulder at the exact projected edge avoids a second ring.
+function drawWalkingRadiusLimitHalo(ctx, center, radiusPx, tilted, dpr, opacity) {
+  const inner = Math.min(6 * dpr, radiusPx * 0.3);
+  const outer = Math.min(20 * dpr, radiusPx * 0.45);
+  if (!tilted) {
+    const glow = ctx.createRadialGradient(center.x, center.y, radiusPx - inner, center.x, center.y, radiusPx + outer);
+    glow.addColorStop(0, `rgba(${WALKING_RADIUS_LIMIT_CORAL}, 0)`);
+    glow.addColorStop(inner / (inner + outer), `rgba(${WALKING_RADIUS_LIMIT_CORAL}, ${opacity})`);
+    glow.addColorStop(1, `rgba(${WALKING_RADIUS_LIMIT_CORAL}, 0)`);
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, radiusPx + outer, 0, Math.PI * 2);
+    ctx.fillStyle = glow;
+    ctx.fill();
+    return;
+  }
+  for (const shoulder of [{ outside: true, reach: outer, steps: 20 }, { outside: false, reach: inner, steps: 12 }]) {
+    ctx.save();
+    ctx.beginPath();
+    if (shoulder.outside) ctx.rect(0, 0, state.canvasLogicalWidth, state.canvasLogicalHeight);
+    traceGroundCirclePath(ctx, center, radiusPx);
+    ctx.clip(shoulder.outside ? "evenodd" : "nonzero");
+    ctx.beginPath();
+    traceGroundCirclePath(ctx, center, radiusPx);
+    for (let step = shoulder.steps; step >= 1; step--) {
+      ctx.lineWidth = 2 * shoulder.reach * step / shoulder.steps;
+      ctx.strokeStyle = `rgba(${WALKING_RADIUS_LIMIT_CORAL}, ${opacity * 1.2 / shoulder.steps})`;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
 }
 
 function drawWalkingRadiusRimHighlight(ctx, center, radiusPx, tilted, dpr) {
