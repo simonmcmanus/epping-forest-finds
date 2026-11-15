@@ -424,7 +424,7 @@ function startLocationTracking() {
 }
 
 function stopLocationTracking() {
-  trackerEndJourney("stopped");
+  // The open journey is kept: the app backgrounding must not split one walk into two journeys.
   clearInterval(_trackerInterval);
   clearInterval(_trackerNavInterval);
   _trackerInterval = null;

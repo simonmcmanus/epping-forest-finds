@@ -223,20 +223,27 @@ test("a journey walked without consent sends nothing once consent is granted lat
   w.clock.now += 20_000; w.walkTo(10);
   // Consent starts a clean journey with its own start; nothing is sent for the pre-consent one.
   const types = w.events().map((e) => e.type);
-  assert.equal(types.includes("navigation_arrive"), false);
-  assert.ok(types.length === 0 || types[0] === "navigation_start", types.join());
+  assert.deepEqual(types, ["navigation_start", "navigation_end"]);
+  const [start, end] = w.events();
+  assert.equal(end.reason, "cleared");
+  assert.ok(start.userLat > 51.649 && start.userLat < 51.65, "start is the fix at consent time, not the pre-consent one");
 });
 
-test("stopping location tracking mid-journey ends it with reason stopped", () => {
+test("pausing and resuming location tracking after arrival keeps one journey with one start and one arrive", () => {
   const w = load();
   w.walkTo(400);
   w.select(w.target);
   w.walkTo(400);
-  w.clock.now += 20_000; w.walkTo(300);
+  w.clock.now += 20_000; w.walkTo(200);
+  w.clock.now += 20_000; w.walkTo(20);
   w.context.api.stopLocationTracking();
-  const ends = w.events().filter((e) => e.type === "navigation_end");
-  assert.equal(ends.length, 1);
-  assert.equal(ends[0].reason, "stopped");
-  w.context.api.stopLocationTracking();
-  assert.equal(w.events().filter((e) => e.type === "navigation_end").length, 1);
+  w.clock.now += 10 * 60_000;
+  w.context.api.startLocationTracking();
+  w.walkTo(15);
+  w.clock.now += 20_000; w.walkTo(10);
+  const events = w.events();
+  assert.equal(events.filter((e) => e.type === "navigation_start").length, 1);
+  assert.equal(events.filter((e) => e.type === "navigation_arrive").length, 1);
+  assert.equal(events.filter((e) => e.type === "navigation_end" && e.reason === "stopped").length, 0);
+  assert.equal(events.filter((e) => e.type === "navigation_end").length, 0);
 });
