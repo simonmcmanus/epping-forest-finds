@@ -3201,10 +3201,27 @@ function clusterGroupHasItem(group, item) {
 
 // The group a selected place was picked from, while that context still applies: a real selection
 // that is itself a member. Anything else (selection ended, replaced from outside) drops the record.
+//
+// Called several times a frame, so the membership scan is remembered per (record, selected place). The
+// record and the selection are still read on every call, so a replaced record or a changed selection
+// recomputes and a ended one returns null; group objects are replaced, never edited in place.
+let _selectionClusterCheck = null;
 function selectionClusterGroup() {
   const group = state.selectionCluster;
-  if (!group) return null;
-  return hasRealSelection() && clusterGroupHasItem(group, state.selected.item) ? group : null;
+  if (!group || !hasRealSelection()) return null;
+  const item = state.selected.item;
+  if (_selectionClusterCheck && _selectionClusterCheck.group === group && _selectionClusterCheck.item === item) {
+    return _selectionClusterCheck.member ? group : null;
+  }
+  const member = clusterGroupHasItem(group, item);
+  _selectionClusterCheck = { group, item, member };
+  return member ? group : null;
+}
+
+// Forgets the group the selected place came from. Every path that ends or replaces the selection calls
+// this (or clearSelectionForNearby, which does); the one deliberate raw read is startCameraOriginTransition.
+function clearSelectionClusterRecord() {
+  state.selectionCluster = null;
 }
 
 // While a place picked from an expanded group is selected, the group's other members stay on the

@@ -466,6 +466,7 @@ function openSearchScreen() {
   exitClusterExpansion();
   state.filterScreenOpen = false;
   state.selected = null;
+  clearSelectionClusterRecord();
   // Building the index here rather than on the first keystroke keeps the hitch off the
   // moment the user is typing into the field.
   ensureSearchIndex();

@@ -1617,6 +1617,7 @@ function setNearbyAnchor(latitude, longitude, point, label = null) {
 // rather than calling each of those two functions in turn and refreshing twice.
 function focusNearbyWithinWalkMinutes(latitude, longitude, minutes, label = null) {
   state.selected = null;
+  clearSelectionClusterRecord();
   setInspectorMinimized(false);
   startNearbyOriginTransition(nearbyRenderOriginPoint());
   state.nearbyAnchor = { latitude, longitude, point: projectLonLat(longitude, latitude), label };
@@ -1644,6 +1645,7 @@ function focusNearbyWithinWalkMinutes(latitude, longitude, minutes, label = null
 // reverse case.
 function applyNearbyAnchorFromRoute(anchor) {
   state.selected = null;
+  clearSelectionClusterRecord();
   setInspectorMinimized(false);
   setNearbyAnchor(anchor.latitude, anchor.longitude, projectLonLat(anchor.longitude, anchor.latitude), anchor.label || null);
 }
@@ -1838,6 +1840,7 @@ function focusNearbyOnClusterGroup(cluster) {
   state.searchScreenOpen = false;
   if (state.selected && ["settings", "report", "community"].includes(state.selected.type)) {
     state.selected = null;
+    clearSelectionClusterRecord();
   }
   // Same slide restoreNearbyAnchorFromHistory/setNearbyAnchor use for any other anchor move --
   // started from wherever the ring is currently drawn so it continues smoothly even if this
