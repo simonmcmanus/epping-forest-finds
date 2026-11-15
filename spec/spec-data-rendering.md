@@ -721,10 +721,31 @@ moving the real GPS fix:
   attribute (`roundWalkingMinutes`). Sub-minute radii are shown in seconds ("15 sec"); everywhere
   else the continuous minutes value is rounded to the nearest whole minute for display —
   `formatWalkingRadius()` is what every user-facing radius label goes through.
+  At either zoom limit, one consistent rose-red (#D85669) light sits exactly on the clear
+  circle's boundary, independently of the inset decorative rim. The 4 CSS px core stays
+  readable at 76–82% opacity; the halo varies only slightly to avoid a flashing appearance.
+  It feathers approximately 6 CSS px inward and 20 CSS px outward, including under tilt,
+  leaving the centre clear. A 120ms arrival makes brief wheel attempts visible. Held input
+  breathes slowly over 1500ms (500ms gathering, 1000ms settling), with a narrow halo gain
+  of 16–21% of core opacity. Reduced motion uses a steady 79% core and static halo.
+  The radius stays fixed. Backing off or ending a pinch fades over 260ms with a smooth
+  cosine release; re-entry preserves brightness and halo phase. Wheel feedback remains
+  continuous across normal notches: the list still settles at 220ms, but the light has its
+  own extra 380ms grace, giving 600ms of input quiet before release. A new attempt cancels
+  that pending release without restarting the breath. Pointer interruption, blur, hiding
+  the page or moving back into range cancels the grace and releases immediately.
+  The limit light paints above the radar wash and below pins and labels, preserving its hue
+  under tilt. The animation redraws only the overlay, coalesces with terrain/compass frames, and stops
+  when hidden or faded out. The existing Nearby and Settings floor notes use muted guidance
+  text rather than error red, and have no entry motion with reduced motion.
+  Non-navigation list refreshes from data, GPS, heading or nearby controls wait until the
+  active radius gesture ends, so the list and its existing floor note are not replaced
+  mid-gesture. The final refresh uses the latest data.
   While a pinch is actively pinned at the floor, `state.walkingRadiusAtFloor` is true
   and `overviewNearestHtml()` shows a transient "nothing closer to show" notice
-  (`.walk-radius-floor-notice`); both clear as soon as the gesture ends or backs off. That notice
-  lives in the Nearby list, so the in-place patch that keeps it in sync is skipped on
+  (`.walk-radius-floor-notice`). The flag clears on backoff or release; the existing notice
+  stays in place until the gesture's final refresh removes it, avoiding repeated announcements.
+  The notice lives in the Nearby list, so its in-place patch is skipped on
   Filter/Settings/Report — there is nothing there to refresh. On the
   Settings slider, the same floor is enforced natively via the `<input type="range">`'s own
   `min` attribute (rounded up onto the value grid, since a range input steps from its own `min`)

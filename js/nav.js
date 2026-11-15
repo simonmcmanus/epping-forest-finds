@@ -2136,6 +2136,7 @@ function zoomGestureFloorMinutes() {
 // no pointerup/pointercancel/lostpointercapture, a Safari gesturestart with no gestureend, the
 // screen changing under it): without it the pins would stay hidden and the list stale for good.
 function endAllZoomGestures({ dropPointers = false } = {}) {
+  setWalkingRadiusLimitFeedback(false);
   const wheelPending = Number.isFinite(state.wheelRadiusTargetMinutes) || state.wheelRadiusSettleTimer != null;
   if (!zoomGestureLive() && !state.pinchActive && !Number.isFinite(state.gestureRadiusBaseMinutes) && !wheelPending) return;
   if (dropPointers) {
@@ -2268,6 +2269,8 @@ function flushRadiusGesture() {
 
 function applyWalkingRadiusGesture(rawMinutes) {
   const floor = zoomGestureFloorMinutes();
+  const limit = rawMinutes <= floor ? "floor" : rawMinutes >= WALKING_RADIUS_MAX_MINUTES ? "ceiling" : null;
+  setWalkingRadiusLimitFeedback(Boolean(limit));
   const atFloor = rawMinutes < floor;
   const flagChanged = atFloor !== state.walkingRadiusAtFloor;
   state.walkingRadiusAtFloor = atFloor;
@@ -2318,6 +2321,9 @@ const TRACKPAD_PINCH_RATE_MULTIPLIER = 4;
 // "nothing closer to show" notice both key off it, and a wheel has no equivalent of the pinch's
 // pointerup to end on. Long enough to span the gap between notches of one deliberate scroll.
 const WHEEL_RADIUS_SETTLE_MS = 220;
+// The list can settle promptly, but the light needs to span ordinary mouse-wheel
+// notches. Together these windows keep one continuous light for gaps up to 600ms.
+const WHEEL_LIMIT_FEEDBACK_GRACE_MS = 380;
 
 // deltaY is in whichever unit deltaMode names -- pixels on every trackpad and most wheels, but
 // Firefox reports a mouse wheel in lines, and page mode exists. Normalised to pixels so one
@@ -2406,7 +2412,7 @@ function stepRadiusChase(dtMs) {
     // further notch after this simply starts a new hide. The settle timer only decides when the
     // wheel "gesture" is over for the list, the URL and the running value.
     endZoomGesture("wheel");
-    state.wheelRadiusSettleTimer = setTimeout(endNearbyRadiusWheel, WHEEL_RADIUS_SETTLE_MS);
+    state.wheelRadiusSettleTimer = setTimeout(() => endNearbyRadiusWheel({ feedbackReleaseGraceMs: WHEEL_LIMIT_FEEDBACK_GRACE_MS }), WHEEL_RADIUS_SETTLE_MS);
   }
   return done;
 }
@@ -2424,13 +2430,14 @@ function scheduleRadiusChase() {
 // The wheel's equivalent of lifting the fingers (endNearbyRadiusPinch below): one smooth settling
 // animation, the transient floor notice cleared, and the running value dropped so the next scroll
 // starts from wherever the radius actually ended up.
-function endNearbyRadiusWheel() {
+function endNearbyRadiusWheel({ feedbackReleaseGraceMs = 0 } = {}) {
   state.wheelRadiusSettleTimer = null;
   state.wheelRadiusMinutes = null;
   state.wheelRadiusTargetMinutes = null;
   state.wheelRadiusOvershoot = false;
   cancelRadiusChase();
   state.walkingRadiusAtFloor = false;
+  setWalkingRadiusLimitFeedback(false, { delayMs: feedbackReleaseGraceMs });
   endZoomGesture("wheel");
   // The glide's last tick already fitted the camera to this radius (and the pins were revealed at
   // arrival), so the settle re-fits instantly instead of animating a camera move under the reveal.
@@ -2476,6 +2483,7 @@ function endNearbyRadiusGesture() {
   flushRadiusGesture();
   state.gestureRadiusBaseMinutes = null;
   state.walkingRadiusAtFloor = false;
+  setWalkingRadiusLimitFeedback(false);
   endZoomGesture("safari");
   finishRadiusGesture();
   syncSettingsWalkSlider();
@@ -2499,6 +2507,7 @@ function endNearbyRadiusPinch() {
   state.pinchBaseDistance = null;
   state.pinchBaseMinutes = null;
   state.walkingRadiusAtFloor = false;
+  setWalkingRadiusLimitFeedback(false);
   endZoomGesture("pinch");
   // One smooth settling animation now that the gesture has ended, mirroring the single
   // animated re-fit a Settings-slider release triggers (bindSettingsHandlers, index.html).
@@ -2531,6 +2540,8 @@ function releasePointerSafely(element, pointerId) {
 // while a finger was still on the glass, so the map went completely dead to that finger --
 // the user had to lift off entirely and start again.
 function beginMapDrag(clientX, clientY) {
+  // A new drag also interrupts wheel light whose list has already settled.
+  setWalkingRadiusLimitFeedback(false);
   // The viewport has to be still before dragStart snapshots it -- otherwise the drag and a
   // running animation both write state.viewport.tx/ty and fight each other. pointerdown already
   // stops animations; the multi-touch handover does not, and the pinch it just ended queues an

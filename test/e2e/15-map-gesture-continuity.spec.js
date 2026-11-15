@@ -284,8 +284,8 @@ function expectOneHideOneReveal(pins) {
 test.describe("Zoom gestures hide the pins and bring them back together", () => {
   test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"], reducedMotion: "no-preference" });
 
-  async function openNearby(page) {
-    await setup(page);
+  async function openNearby(page, path = "/nearby") {
+    await setup(page, path);
     await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
     await waitForUiToSettle(page);
     await recordPaintedPins(page);
@@ -295,10 +295,64 @@ test.describe("Zoom gestures hide the pins and bring them back together", () => 
     expect(await page.evaluate(() => window.__pins.length), "sanity: the Nearby map paints pins before the gesture").toBeGreaterThan(0);
   }
 
+  // Arrange a required membership change instead of relying on incidental nearest-ten HTML.
+  async function openBoundaryNearby(page, { farLatitudeOffset = 0.012, farInitiallyVisible = false } = {}) {
+    const trees = [
+      {
+        id: "123001", recordNumber: 123001, commonName: "Pinch near tree",
+        latinName: "Quercus robur", status: "Alive",
+        location: { wgs84: { latitude: FOREST_LOCATION.latitude + 0.001, longitude: FOREST_LOCATION.longitude } },
+      },
+      {
+        id: "123002", recordNumber: 123002, commonName: "Pinch far tree",
+        latinName: "Quercus robur", status: "Alive",
+        location: { wgs84: { latitude: FOREST_LOCATION.latitude + farLatitudeOffset, longitude: FOREST_LOCATION.longitude } },
+      },
+    ];
+    await page.route("**/data/trees/index.json*", (route) => route.fulfill({ json: {
+      dataset: "Pinch boundary fixture", recordCount: 2,
+      chunks: [{ url: "data/trees/pinch-boundary-fixture.json", count: 2 }],
+    } }));
+    await page.route("**/data/trees/pinch-boundary-fixture.json*", (route) => route.fulfill({ json: { trees } }));
+    await openNearby(page, "/nearby?radius=5&show=trees");
+    const lastFix = await page.evaluate(() => Number(state.lastLocationUpdateAt) || 0);
+    await page.context().setGeolocation(FOREST_LOCATION);
+    await expect.poll(() => page.evaluate(() => state.lastLocationUpdateAt)).toBeGreaterThan(lastFix);
+    await waitForUiToSettle(page);
+    await expect.poll(() => page.evaluate(() => state.trees.length)).toBe(2);
+    await expect(page.locator("#inspectorType")).toContainText("5 min walk");
+    const near = page.locator("#inspectorBody .nearest-item").filter({ hasText: "Pinch near tree" });
+    const far = page.locator("#inspectorBody .nearest-item").filter({ hasText: "Pinch far tree" });
+    await expect(near).toBeVisible();
+    if (farInitiallyVisible) await expect(far).toBeVisible();
+    else await expect(far).toHaveCount(0);
+    return { near, far };
+  }
+
+  // Count real full-body list replacements, not refresh requests that may be deferred.
+  async function trackListReplacements(page) {
+    await page.evaluate(() => {
+      window.__listReplacements = 0;
+      const containsList = (nodes) => Array.from(nodes).some((node) => node.nodeType === 1
+        && (node.matches(".nearest-list") || node.querySelector(".nearest-list")));
+      const collect = (records) => {
+        for (const record of records) {
+          if (containsList(record.removedNodes) && containsList(record.addedNodes)) window.__listReplacements += 1;
+        }
+      };
+      const observer = new MutationObserver(collect);
+      observer.observe(els.inspectorBody, { childList: true });
+      window.__readListReplacements = () => { collect(observer.takeRecords()); return window.__listReplacements; };
+    });
+  }
+
   test("a two-finger pinch fades the pins out together, paints none while it runs, and reveals the new set once on release", async ({ page }) => {
-    await openNearby(page);
-    const listBefore = await page.locator("#inspectorBody").innerHTML();
-    await page.evaluate(() => { window.__pins.length = 0; });
+    const { near, far } = await openBoundaryNearby(page);
+    const listBefore = await page.locator("#inspectorBody .nearest-list").innerText();
+    await page.evaluate(() => {
+      window.__heldNearbyList = els.inspectorBody.querySelector(".nearest-list");
+      window.__pins.length = 0;
+    });
 
     await spreadFingersAcrossFrames(page, { startHalfGap: 160, endHalfGap: 60, steps: 24 });
     await expect.poll(() => page.evaluate(() => zoomGestureLive() && mapPinFadeOpacity() === 0)).toBe(true);
@@ -310,11 +364,15 @@ test.describe("Zoom gestures hide the pins and bring them back together", () => 
     expect(mid.live, "the zoom gesture is still live while the fingers are down").toBe(true);
     expect(mid.painted, "no pin is painted while the zoom is changing").toBe(0);
     expect(mid.builds, "no marker layout is calculated while the zoom is changing").toBe(0);
-    expect(await page.locator("#inspectorBody").innerHTML(), "the Nearby list keeps its pre-gesture content").toBe(listBefore);
+    expect(await page.locator("#inspectorBody .nearest-list").innerText(), "the Nearby list keeps its pre-gesture content").toBe(listBefore);
+    expect(await page.evaluate(() => els.inspectorBody.querySelector(".nearest-list") === window.__heldNearbyList),
+      "the existing list stays in place throughout the gesture").toBe(true);
 
     await liftFingers(page);
     await expect.poll(() => page.evaluate(() => !zoomGestureLive() && mapPinFadeOpacity() === 1)).toBe(true);
-    await expect(page.locator("#inspectorBody")).not.toHaveJSProperty("innerHTML", listBefore);
+    await expect(near).toBeVisible();
+    await expect(far).toBeVisible();
+    await expect(page.locator("#inspectorType")).toContainText("27 min walk");
 
     const pins = await page.evaluate(() => ({ during: window.__duringGesture, after: window.__pins }));
     expect(pins.after.length, "the pins are back after the gesture").toBeGreaterThan(0);
@@ -323,24 +381,22 @@ test.describe("Zoom gestures hide the pins and bring them back together", () => 
   });
 
   test("a run of wheel notches reads as one hide and one reveal, with the list updated once at the end", async ({ page }) => {
-    await openNearby(page);
+    const { far } = await openBoundaryNearby(page, { farLatitudeOffset: 0.003, farInitiallyVisible: true });
     const box = await page.locator("#mapCanvas").boundingBox();
     await page.mouse.move(box.x + box.width / 2, box.y + box.height / 3);
-    await page.evaluate(() => {
-      window.__pins.length = 0;
-      window.__listWrites = 0;
-      const original = window.selectOverview;
-      window.selectOverview = function countedSelectOverview(...args) { window.__listWrites += 1; return original.apply(this, args); };
-    });
+    await page.evaluate(() => { window.__pins.length = 0; });
+    await trackListReplacements(page);
 
     for (let notch = 0; notch < 6; notch += 1) {
       await page.mouse.wheel(0, -100);
       await waitForFrames(page, 2);
     }
     await expect.poll(() => page.evaluate(() => !zoomGestureLive() && mapPinFadeOpacity() === 1)).toBe(true);
+    await expect.poll(() => page.evaluate(() => state.wheelRadiusSettleTimer == null && state.wheelRadiusTargetMinutes == null)).toBe(true);
 
-    const result = await page.evaluate(() => ({ pins: window.__pins, listWrites: window.__listWrites }));
+    const result = await page.evaluate(() => ({ pins: window.__pins, listWrites: window.__readListReplacements() }));
     expect(result.listWrites, "the Nearby list is swapped once, when the zoom settles").toBe(1);
+    await expect(far).toHaveCount(0);
     expect(await lowestPinFade(page), "the pins really faded all the way out during the wheel zoom").toBe(0);
     expect(result.pins.filter((pin) => pin.live && pin.fade === 0), "no pin is painted while hidden").toHaveLength(0);
     expect(result.pins.length, "the pins return after the zoom settles").toBeGreaterThan(0);
@@ -398,12 +454,8 @@ test.describe("Zoom gestures hide the pins and bring them back together", () => 
   });
 
   test("a stuck pinch is ended when the page is hidden: the pins return and the list updates once", async ({ page }) => {
-    await openNearby(page);
-    await page.evaluate(() => {
-      window.__listWrites = 0;
-      const original = window.selectOverview;
-      window.selectOverview = function countedSelectOverview(...args) { window.__listWrites += 1; return original.apply(this, args); };
-    });
+    const { far } = await openBoundaryNearby(page, { farLatitudeOffset: 0.009 });
+    await trackListReplacements(page);
     await spreadFingersAcrossFrames(page, { startHalfGap: 160, endHalfGap: 60, steps: 12 });
     await expect.poll(() => page.evaluate(() => zoomGestureLive() && mapPinFadeOpacity() === 0)).toBe(true);
     // The fingers are never lifted and no pointer event follows: the tab goes to the background.
@@ -412,18 +464,15 @@ test.describe("Zoom gestures hide the pins and bring them back together", () => 
       document.dispatchEvent(new Event("visibilitychange"));
     });
     await expect.poll(() => page.evaluate(() => !zoomGestureLive() && mapPinFadeOpacity() === 1)).toBe(true);
-    expect(await page.evaluate(() => window.__listWrites), "the list is updated once").toBe(1);
+    await expect(far).toBeVisible();
+    expect(await page.evaluate(() => window.__readListReplacements()), "the list is updated once").toBe(1);
     expect(await page.evaluate(() => state.activePointers.size), "the lost fingers are forgotten").toBe(0);
   });
 
   for (const endEvent of ["pointercancel", "lostpointercapture"]) {
     test(`a pinch ended by ${endEvent} brings the pins back and updates the list once`, async ({ page }) => {
-      await openNearby(page);
-      await page.evaluate(() => {
-        window.__listWrites = 0;
-        const original = window.selectOverview;
-        window.selectOverview = function countedSelectOverview(...args) { window.__listWrites += 1; return original.apply(this, args); };
-      });
+      const { far } = await openBoundaryNearby(page, { farLatitudeOffset: 0.009 });
+      await trackListReplacements(page);
       await spreadFingersAcrossFrames(page, { startHalfGap: 160, endHalfGap: 60, steps: 12 });
       await expect.poll(() => page.evaluate(() => zoomGestureLive() && mapPinFadeOpacity() === 0)).toBe(true);
       await page.evaluate((type) => {
@@ -432,7 +481,8 @@ test.describe("Zoom gestures hide the pins and bring them back together", () => 
         }
       }, endEvent);
       await expect.poll(() => page.evaluate(() => !zoomGestureLive() && mapPinFadeOpacity() === 1)).toBe(true);
-      expect(await page.evaluate(() => window.__listWrites)).toBe(1);
+      await expect(far).toBeVisible();
+      expect(await page.evaluate(() => window.__readListReplacements())).toBe(1);
       expect(await page.evaluate(() => state.pinchActive)).toBe(false);
     });
   }
@@ -455,9 +505,14 @@ test.describe("Zoom gestures hide the pins and bring them back together", () => 
     });
     await spreadFingersAcrossFrames(page, { startHalfGap: 20, endHalfGap: 900, steps: 20 });
     await expect(page.locator(".walk-radius-floor-notice")).toHaveCount(1);
-    // Out of the floor and back in again: the one notice is kept, not re-inserted (live region).
-    await spreadFingersAcrossFrames(page, { startHalfGap: 900, endHalfGap: 60, steps: 10, press: false });
-    await spreadFingersAcrossFrames(page, { startHalfGap: 60, endHalfGap: 900, steps: 10, press: false });
+    // A real location-watch callback must not rebuild the list or re-announce the note.
+    const lastFix = await page.evaluate(() => Number(state.lastLocationUpdateAt) || 0);
+    await page.context().setGeolocation({ ...FOREST_LOCATION, accuracy: 11 });
+    await expect.poll(() => page.evaluate(() => state.lastLocationUpdateAt)).toBeGreaterThan(lastFix);
+    // Out of the floor and back in again: move inside the initial half-gap of 20.
+    await spreadFingersAcrossFrames(page, { startHalfGap: 900, endHalfGap: 10, steps: 10, press: false });
+    await expect.poll(() => page.evaluate(() => state.walkingRadiusAtFloor)).toBe(false);
+    await spreadFingersAcrossFrames(page, { startHalfGap: 10, endHalfGap: 900, steps: 10, press: false });
     expect(await page.evaluate(() => window.__noticesAdded), "the notice is inserted once per gesture").toBeLessThanOrEqual(1);
     await liftFingers(page);
     await expect(page.locator(".walk-radius-floor-notice")).toHaveCount(0);
@@ -523,17 +578,13 @@ test.describe("Zoom gestures hide the pins and bring them back together", () => 
 
   test("squeezing the ring to its floor shows the limit notice without re-rendering the list", async ({ page }) => {
     await openNearby(page);
-    await page.evaluate(() => {
-      window.__listWrites = 0;
-      const original = window.selectOverview;
-      window.selectOverview = function countedSelectOverview(...args) { window.__listWrites += 1; return original.apply(this, args); };
-    });
+    await trackListReplacements(page);
     await spreadFingersAcrossFrames(page, { startHalfGap: 20, endHalfGap: 900, steps: 30 });
     await expect(page.locator(".walk-radius-floor-notice")).toBeVisible();
-    expect(await page.evaluate(() => window.__listWrites), "the notice is patched in place, the list is not re-rendered").toBe(0);
+    expect(await page.evaluate(() => window.__readListReplacements()), "the notice is patched in place, the list is not re-rendered").toBe(0);
     await liftFingers(page);
     await expect(page.locator(".walk-radius-floor-notice")).toHaveCount(0);
-    expect(await page.evaluate(() => window.__listWrites), "the list is swapped once, at the end").toBe(1);
+    expect(await page.evaluate(() => window.__readListReplacements()), "the list is swapped once, at the end").toBe(1);
   });
 
   test("a pinch is a hard hide and show, with no fades, when the user prefers reduced motion", async ({ page }) => {

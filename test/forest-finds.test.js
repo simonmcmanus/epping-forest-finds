@@ -57,6 +57,7 @@ function createElementStub(id = "") {
         restore() {},
         beginPath() {},
         closePath() {},
+        clip() {},
         moveTo() {},
         lineTo() {},
         bezierCurveTo() {},
@@ -584,6 +585,9 @@ globalThis.__forestFindsTest = {
   bestVisibleCanvasRect,
   walkingRadiusCirclePoints,
   drawWalkingRadius,
+  walkingRadiusScreenGeometry,
+  drawWalkingRadiusLimitFeedback,
+  walkingRadiusLimitOpacity,
   nearbyUserCone,
   selectOverview,
   ensureOverviewTargetsVisible,
@@ -3778,6 +3782,59 @@ test("walking radius marker still draws when nearest results use fallback", () =
 
   // One arc for the dimming cutout, one for the rim highlight stroke traced inside it.
   assert.equal(arcCount, 2);
+});
+
+test("the radius edge breathes while held at either zoom limit and fades on backing off", () => {
+  const isolated = loadAppForTests();
+  resetData(isolated);
+  isolated.state.userLocation = makePoint(isolated, 0, 0);
+  isolated.state.overviewFilters = ["trees"];
+  const floor = isolated.walkingRadiusFloorMinutes();
+  const ctx = createElementStub().getContext();
+  ctx.rect = () => {};
+  let edge = null, pathRadius = null, feedbackRadius = null;
+  ctx.arc = (x, y, radius) => { if (edge == null) edge = radius; pathRadius = radius; };
+  ctx.stroke = () => { feedbackRadius = pathRadius; };
+  const paint = () => {
+    edge = null;
+    isolated.drawWalkingRadius(ctx);
+    const { center, radiusPx, tilted, dpr } = isolated.walkingRadiusScreenGeometry();
+    isolated.drawWalkingRadiusLimitFeedback(ctx, center, radiusPx, tilted, dpr);
+    return isolated.walkingRadiusLimitOpacity();
+  };
+  const realNow = Date.now;
+  let now = realNow();
+  Date.now = () => now;
+  try {
+    for (const limit of [floor, isolated.WALKING_RADIUS_MAX_MINUTES]) {
+      isolated.applyWalkingRadiusGesture(floor * 2);
+      now += 1000;
+      assert.equal(paint(), 0, "in-range zoom has no red feedback");
+      isolated.applyWalkingRadiusGesture(limit);
+      assert.equal(paint(), 0, "the tint starts transparent");
+      now += 90;
+      const rising = paint();
+      assert.ok(rising > 0 && rising < 0.84, "the border gently fades red");
+      now += 410;
+      const peak = paint();
+      assert.ok(peak > rising && peak >= 0.6 && peak <= 0.84, "the peak is clearly visible");
+      assert.equal(feedbackRadius, edge, "the red core sits on the actual cutout edge, not the inset rim");
+      now += 1000;
+      isolated.applyWalkingRadiusGesture(limit);
+      const trough = paint();
+      assert.ok(trough > 0 && trough < peak, "holding at the limit gently dims rather than switching off");
+      now += 500;
+      assert.ok(paint() > trough, "the next throb grows without restarting the gesture");
+      isolated.applyWalkingRadiusGesture(floor * 2);
+      const atRelease = paint();
+      now += 110;
+      assert.ok(paint() < atRelease, "backing off fades from the current brightness");
+      now += 150;
+      assert.equal(paint(), 0, "the feedback disappears quickly once released");
+    }
+  } finally {
+    Date.now = realNow;
+  }
 });
 
 test("walking radius stays at the camera focus during the cinematic location handoff", () => {
