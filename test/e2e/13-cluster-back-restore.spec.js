@@ -12,7 +12,8 @@ test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, pe
 const FIND_GROUP = (preferSmall) => `(() => {
   const dpr = pixelRatio();
   const markers = buildMapMarkers(activeIconLookup(), worldToScreen);
-  if (${preferSmall}) markers.sort((a, b) => a.items.length - b.items.length);
+  if (${preferSmall === "largest" ? "false" : Boolean(preferSmall)}) markers.sort((a, b) => a.items.length - b.items.length);
+  if (${preferSmall === "largest"}) markers.sort((a, b) => b.items.length - a.items.length);
   for (const marker of markers) {
     if (marker.items.length < 2) continue;
     const box = clusterBadgeGeometry(marker.screenPt.x, marker.screenPt.y, marker.items.length, dpr);
@@ -44,6 +45,21 @@ async function tapGroupOnMap(page, preferSmall = false) {
   await tapCanvasPoint(page, target.point);
   await expect.poll(() => page.evaluate(() => state.clusterExpanded?.items.length)).toBe(target.count);
   await waitForUiToSettle(page);
+}
+
+/** Drills into a sub-group of the expanded group: the same call a tap on a smaller badge makes. Returns its size. */
+function drillIntoInnerGroup(page) {
+  return page.evaluate(() => {
+    const items = state.clusterExpanded.items.slice(0, Math.max(2, Math.ceil(state.clusterExpanded.items.length / 2)));
+    const itemsByType = {};
+    for (const [type, list] of Object.entries(clusterItemsByType(state.clusterExpanded))) {
+      const subset = list.filter((item) => items.includes(item));
+      if (subset.length) itemsByType[type] = subset;
+    }
+    const types = Object.keys(itemsByType);
+    focusNearbyOnClusterGroup({ items, itemsByType, itemType: types.length > 1 ? "_mega" : types[0] });
+    return items.length;
+  });
 }
 
 test.describe("Back returns to the expanded group", () => {
@@ -118,18 +134,7 @@ test.describe("Back returns to the expanded group", () => {
     const realRadius = await page.evaluate(() => state.walkingDistanceMinutes);
     await tapGroupOnMap(page);
     const outer = await page.evaluate(GROUP_SUMMARY);
-    // Drill into a sub-group: the same call a tap on a smaller badge makes.
-    const innerCount = await page.evaluate(() => {
-      const items = state.clusterExpanded.items.slice(0, Math.max(2, Math.ceil(state.clusterExpanded.items.length / 2)));
-      const itemsByType = {};
-      for (const [type, list] of Object.entries(clusterItemsByType(state.clusterExpanded))) {
-        const subset = list.filter((item) => items.includes(item));
-        if (subset.length) itemsByType[type] = subset;
-      }
-      const types = Object.keys(itemsByType);
-      focusNearbyOnClusterGroup({ items, itemsByType, itemType: types.length > 1 ? "_mega" : types[0] });
-      return items.length;
-    });
+    const innerCount = await drillIntoInnerGroup(page);
     await waitForUiToSettle(page);
     const inner = await page.evaluate(GROUP_SUMMARY);
     expect(inner.keys.length).toBe(innerCount);
@@ -409,3 +414,111 @@ test.describe("Back from Filters onto a group with the phone held up (motion ena
     expect(await page.evaluate(GROUP_SUMMARY)).toEqual(before);
   });
 });
+
+test.describe("Back from a place picked inside nested groups", () => {
+  test("two quick Back presses end on the outer group with its radius and the reader's own radius to give back", async ({ page }) => {
+    await setup(page);
+    const realRadius = await page.evaluate(() => state.walkingDistanceMinutes);
+    await tapGroupOnMap(page);
+    const outer = await page.evaluate(GROUP_SUMMARY);
+    const outerPre = await page.evaluate(() => state.preClusterWalkingDistanceMinutes);
+    await drillIntoInnerGroup(page);
+    await waitForUiToSettle(page);
+    const inner = await page.evaluate(GROUP_SUMMARY);
+    expect(inner.radius, "the inner group borrowed a radius of its own").not.toBe(outer.radius);
+    await page.locator("#inspectorBody .nearest-item").first().click();
+    await expect.poll(() => page.evaluate(() => state.selected?.type ?? null)).not.toBeNull();
+    await waitForUiToSettle(page);
+
+    // Both presses land in one task, before the first has been applied.
+    await page.evaluate(() => { history.back(); history.back(); });
+    await expect.poll(() => page.evaluate(() => state.clusterExpanded?.items.length ?? 0)).toBe(outer.keys.length);
+    await waitForUiToSettle(page);
+    expect(await page.evaluate(GROUP_SUMMARY), "the outer group, its radius and its list").toEqual(outer);
+    expect(await page.evaluate(() => state.preClusterWalkingDistanceMinutes), "the radius it will give back").toBe(outerPre);
+    expect(await page.evaluate(() => state.selectionCluster)).toBeNull();
+    await page.evaluate(() => exitClusterExpansion());
+    expect(await page.evaluate(() => state.walkingDistanceMinutes), "leaving the group gives back the reader's own radius").toBe(realRadius);
+  });
+});
+
+test.describe("The Nearby list after Back from a place picked in a group", () => {
+  // Decision: Back rebuilds the group's Nearby list from scratch (as every Back to a Nearby view does), so it
+  // opens at the top with nothing focused. Nothing records or restores a scroll offset or a focused row, and
+  // nothing leaves focus on a row that no longer exists.
+  test("opens at the top with focus released, not stranded on a removed row", async ({ page }) => {
+    await setup(page);
+    await tapGroupOnMap(page, "largest");
+    const scroller = () => page.evaluate(() => {
+      const el = document.querySelector("#inspectorBody").closest(".inspector-scroll");
+      return { top: el.scrollTop, scrollable: el.scrollHeight > el.clientHeight + 2 };
+    });
+    const row = page.locator("#inspectorBody .nearest-item").last();
+    await row.scrollIntoViewIfNeeded();
+    await page.evaluate(() => { document.querySelector("#inspectorBody").closest(".inspector-scroll").scrollTop = 60; });
+    await row.focus();
+    const scrolled = await scroller();
+    expect(scrolled.scrollable, "the group list is taller than the panel, so a scroll offset is meaningful").toBe(true);
+    expect(scrolled.top).toBeGreaterThan(0);
+    await row.click();
+    await expect.poll(() => page.evaluate(() => state.selected?.type ?? null)).not.toBeNull();
+    await waitForUiToSettle(page);
+    await page.goBack();
+    await expect.poll(() => page.evaluate(() => state.selected)).toBeNull();
+    await waitForUiToSettle(page);
+    expect((await scroller()).top, "a fresh list, at the top").toBe(0);
+    const focus = await page.evaluate(() => ({
+      connected: document.activeElement?.isConnected ?? false,
+      onRow: Boolean(document.activeElement?.closest?.("#inspectorBody .nearest-item")),
+    }));
+    expect(focus.connected, "focus is never left on a removed element").toBe(true);
+    expect(focus.onRow, "no row keeps focus from before the pick").toBe(false);
+  });
+});
+
+test.describe("Back after a deliberate camera arc with the phone held up (motion enabled)", () => {
+  test("the restore is not mistaken for the arc already in flight, and lands on the group's own framing", async ({ page }) => {
+    await setup(page);
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.evaluate(() => {
+      state.compassHeadingTarget = 40;
+      state.compassHeading = 40;
+      state.renderedNavigationHeading = 40;
+      window.__keepCompassFresh = setInterval(() => { state.compassLastEventAt = performance.now(); }, 50);
+      state.compassLastEventAt = performance.now();
+    });
+    await tapGroupOnMap(page);
+    const before = await page.evaluate(() => ({ ...state.viewport }));
+    await page.evaluate(() => {
+      window.__moves = [];
+      const orig = window.moveCamera;
+      window.moveCamera = function (target, ms, cb, opts) {
+        const outcome = orig.apply(this, arguments);
+        window.__moves.push({ deliberate: Boolean(opts && opts.deliberate), outcome: outcome ?? null, toScale: target.scale });
+        return outcome;
+      };
+    });
+    await page.locator("#inspectorBody .nearest-item").first().click();
+    await expect.poll(() => page.evaluate(() => state.viewportAnimationTo != null), { message: "the pick's arc is in flight" }).toBe(true);
+    const arc = await page.evaluate(() => window.__moves.slice());
+    expect(arc.some((move) => move.deliberate), "the pick made a deliberate move").toBe(true);
+    await page.evaluate(() => {
+      const restore = window.restoreNearbyAnchorFromHistory;
+      window.restoreNearbyAnchorFromHistory = function () {
+        window.__moves = [];
+        window.restoreNearbyAnchorFromHistory = restore;
+        return restore.apply(this, arguments);
+      };
+      history.back();
+    });
+    await expect.poll(() => page.evaluate(() => state.selected)).toBeNull();
+    await waitForUiToSettle(page);
+    await expect.poll(() => page.evaluate(() => state.viewportAnimationTo == null)).toBe(true);
+    const after = await page.evaluate(() => ({ viewport: { ...state.viewport }, moves: window.__moves }));
+    expect(after.moves.length, "Back moved the camera").toBeGreaterThan(0);
+    expect(after.moves.map((move) => move.outcome), "no restore move was dropped as a repeat of the arc").not.toContain("ignored");
+    expect(after.viewport.scale / before.scale, "back on the group's own framing").toBeGreaterThan(0.98);
+    expect(after.viewport.scale / before.scale).toBeLessThan(1.02);
+  });
+});
+

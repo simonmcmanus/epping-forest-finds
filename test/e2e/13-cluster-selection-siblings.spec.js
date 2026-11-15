@@ -20,15 +20,26 @@ const FIND_SMALL_GROUP = `(() => {
   return null;
 })()`;
 
-async function expandSmallGroup(page) {
+async function expandSmallGroup(page, { largest = false } = {}) {
   await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
   await waitForUiToSettle(page);
-  const target = await page.evaluate(`(() => { stopViewportAnimation(); return ${FIND_SMALL_GROUP}; })()`);
+  const find = largest ? FIND_SMALL_GROUP.replace("a.items.length - b.items.length", "b.items.length - a.items.length") : FIND_SMALL_GROUP;
+  const target = await page.evaluate(`(() => { stopViewportAnimation(); return ${find}; })()`);
   expect(target, "a group badge is on screen at the default view").not.toBeNull();
   await tapCanvasPoint(page, target.point);
   await expect.poll(() => page.evaluate(() => state.clusterExpanded?.items.length)).toBe(target.count);
   await waitForUiToSettle(page);
   return target.count;
+}
+
+/**
+ * The first selection starts the lazy routing-graph build, and its completion deliberately refits
+ * the camera (refitSelectionAfterRoutingGraphReady, js/app.js). Wait for it before a tap whose
+ * camera moves are counted, so a late build is not mistaken for a second move of that tap.
+ */
+async function waitForRoutingGraph(page) {
+  await page.waitForFunction(() => state.routingGraphReady === true, null, { timeout: 20_000 });
+  await waitForUiToSettle(page);
 }
 
 /** Records every camera move and the alpha each pin is drawn at, from now on. */
@@ -157,6 +168,7 @@ test.describe("A place picked from an expanded group", () => {
     await page.locator("#inspectorBody .nearest-item").first().click();
     await expect.poll(() => page.evaluate(() => state.selectionCluster != null)).toBe(true);
     await waitForUiToSettle(page);
+    await waitForRoutingGraph(page);
 
     // Bring the whole group into view the way a reader would zoom out, then pick a lone sibling pin to tap.
     const pin = await page.evaluate(() => {
@@ -312,6 +324,7 @@ test.describe("A place picked from an expanded group", () => {
     await page.locator("#inspectorBody .nearest-item").first().click();
     await expect.poll(() => page.evaluate(() => selectionClusterGroup() != null)).toBe(true);
     await waitForUiToSettle(page);
+    await waitForRoutingGraph(page);
     const first = await page.evaluate(selectedId);
     const pin = await findTappableSibling(page);
     expect(pin, "a lone dimmed sibling is on screen and tappable").not.toBeNull();
@@ -392,3 +405,257 @@ test.describe("A place picked from an expanded group", () => {
     for (const alpha of end.alphas) expect(alpha, "nothing dimmed is left drawn").toBeGreaterThan(0.45);
   });
 });
+
+/** Expands the smallest group, picks its first listed place and waits until the group context is live. */
+async function pickFromGroup(page, options) {
+  const count = await expandSmallGroup(page, options);
+  await page.locator("#inspectorBody .nearest-item").first().click();
+  await expect.poll(() => page.evaluate(() => selectionClusterGroup() != null)).toBe(true);
+  await waitForUiToSettle(page);
+  return count;
+}
+
+/** Holds the phone up and tilted, the way the existing tilted-sibling test does. */
+async function holdPhoneTilted(page, beta = 55) {
+  await page.evaluate(async (b) => {
+    window.__keepCompassFresh = setInterval(() => { state.compassLastEventAt = performance.now(); }, 50);
+    state.compassHeadingTarget = 0; state.compassHeading = 0; state.renderedNavigationHeading = 0;
+    state.compassLastEventAt = performance.now();
+    state.tiltBetaTarget = b; state.tiltBetaSmoothed = b;
+    stopViewportAnimation();
+    requestDraw();
+  }, beta);
+  await expect.poll(() => page.evaluate(() => tiltActive())).toBe(true);
+}
+
+test.describe("The group record ends with the selection", () => {
+  // The raw field is read on purpose: selectionClusterGroup() already hides a stale record, and the point
+  // here is that no stale record is left behind to be revived by a later pick of one of its members.
+  const rawRecord = (page) => page.evaluate(() => state.selectionCluster);
+
+  const LEAVES = {
+    "opening Settings": (page) => page.locator("#settingsToggle").click(),
+    "opening Community": (page) => page.locator("#reportToggle").click(),
+    "opening Feedback": (page) => page.evaluate(() => openReportModal()),
+    "opening Search": (page) => page.locator("#searchToggle").click(),
+    "a location fix replacing the stand-in position": (page) => page.evaluate(() =>
+      applyLocationFix({ coords: { latitude: 51.666, longitude: 0.046, accuracy: 10 } })),
+    "following a shared Nearby-point link": (page) => page.evaluate(() => navigateInApp("/nearby?near=51.66,0.04")),
+  };
+  for (const [how, leave] of Object.entries(LEAVES)) {
+    test(`${how} leaves no group record behind`, async ({ page }) => {
+      await setup(page);
+      await pickFromGroup(page);
+      expect(await rawRecord(page), "the record exists while the place is selected").not.toBeNull();
+      await leave(page);
+      await expect.poll(() => page.evaluate(() => hasRealSelection())).toBe(false);
+      await waitForUiToSettle(page);
+      expect(await rawRecord(page) ? "a record is left behind" : null).toBeNull();
+    });
+  }
+
+  test("the place's own 'everything within a walk' button leaves no group record behind", async ({ page }) => {
+    await setup(page);
+    await pickFromGroup(page);
+    const button = page.locator("#inspectorBody [data-nearby-walk-minutes], #inspectorBody button:has-text('min walk')").first();
+    await expect(button, "the selected place offers its walk-radius button").toBeVisible();
+    await button.click();
+    await expect.poll(() => page.evaluate(() => hasRealSelection())).toBe(false);
+    await waitForUiToSettle(page);
+    expect(await rawRecord(page) ? "a record is left behind" : null).toBeNull();
+  });
+
+  test("tapping a group badge while a group place is selected leaves no group record behind", async ({ page }) => {
+    await setup(page);
+    await pickFromGroup(page, { largest: true });
+    // Zoom out so the siblings and the rest of the map regroup into a badge, then tap one like a reader would.
+    const badge = await page.evaluate(() => {
+      stopViewportAnimation();
+      const dpr = pixelRatio();
+      for (const factor of [1, 0.5, 0.25, 0.12]) {
+        state.viewport.scale = state.viewport.scale * factor;
+        requestDraw();
+        draw();
+        for (const marker of buildActiveMapMarkers(worldToScreen)) {
+          if (marker.items.length < 2) continue;
+          const box = clusterBadgeGeometry(marker.screenPt.x, marker.screenPt.y, marker.items.length, dpr);
+          const point = { x: box.left + 8 * dpr, y: box.top + box.height / 2 };
+          const hit = findClusterHit(point);
+          if (hit && hit.items[0] === marker.items[0]) return { point, count: marker.items.length };
+        }
+      }
+      return null;
+    });
+    expect(badge, "a group badge is on screen once zoomed out").not.toBeNull();
+    await tapCanvasPoint(page, badge.point);
+    await expect.poll(() => page.evaluate(() => Boolean(state.clusterExpanded))).toBe(true);
+    await waitForUiToSettle(page);
+    expect(await page.evaluate(() => state.selected)).toBeNull();
+    expect(await rawRecord(page) ? "a record is left behind" : null).toBeNull();
+  });
+
+  test("the group context is validated on every read: it follows the selection, not the record", async ({ page }) => {
+    await setup(page);
+    await pickFromGroup(page);
+    const result = await page.evaluate(() => {
+      const group = state.selectionCluster;
+      const member = state.selected;
+      const outsider = { type: "landmark", item: { name: "Not in the group", point: { x: 0, y: 0 } } };
+      const read = () => selectionClusterGroup() === group;
+      const out = { member: read() };
+      state.selected = outsider; out.outsider = read();
+      state.selected = member; out.memberAgain = read();
+      state.selected = { type: "settings", item: null }; out.settings = read();
+      state.selected = member; out.memberThird = read();
+      state.selected = null; out.none = read();
+      state.selected = member;
+      return out;
+    });
+    expect(result).toEqual({ member: true, outsider: false, memberAgain: true, settings: false, memberThird: true, none: false });
+  });
+});
+
+test.describe("Dimmed siblings with the phone held up and tilted", () => {
+  test("draw on the overlay every frame, dimmed, without popping, and above the route line", async ({ page }) => {
+    await setup(page);
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await pickFromGroup(page);
+    await holdPhoneTilted(page);
+    await page.evaluate(() => {
+      window.__frames = [];
+      window.__routeOnOverlay = 0;
+      window.__routeOnMain = 0;
+      let current = null;
+      const draw = window.drawItemPin;
+      window.drawItemPin = function (ctx, type, item) {
+        if (current) current.pins.push({ id: item.id ?? item.name, overlay: ctx.canvas === els.overlayCanvas, alpha: ctx.globalAlpha });
+        return draw.apply(this, arguments);
+      };
+      const route = window.drawSelectedRoute;
+      window.drawSelectedRoute = function (ctx) {
+        if (ctx.canvas === els.overlayCanvas) window.__routeOnOverlay += 1; else window.__routeOnMain += 1;
+        return route.apply(this, arguments);
+      };
+      window.__sample = async (n) => {
+        for (let i = 0; i < n; i += 1) {
+          current = { pins: [], hiddenByTilt: pinsHiddenBySelection(true) };
+          requestDraw();
+          drawOverlay();
+          window.__frames.push(current);
+          current = null;
+          await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+        }
+      };
+    });
+    await page.evaluate(() => window.__sample(40));
+    const result = await page.evaluate(() => {
+      clearInterval(window.__keepCompassFresh);
+      return { frames: window.__frames, routeOnOverlay: window.__routeOnOverlay };
+    });
+    const overlayIds = result.frames.map((frame) => frame.pins.filter((pin) => pin.overlay).map((pin) => pin.id).sort().join("|"));
+    expect(overlayIds[0], "siblings are drawn in the first sampled frame").not.toBe("");
+    expect(new Set(overlayIds).size, "the same siblings are drawn in every frame: none pops in or out").toBe(1);
+    expect(result.frames.every((frame) => frame.hiddenByTilt), "the tilted navigation view hides ordinary pins, so only the sibling bypass draws these").toBe(true);
+    for (const frame of result.frames) {
+      for (const pin of frame.pins) {
+        expect(pin.overlay).toBe(true);
+        expect(pin.alpha, "dimmed, never faded in or out").toBeCloseTo(0.45, 2);
+      }
+    }
+    // The route is a terrain-layer line; the pins are on the overlay above it, so a sibling can never be painted under it.
+    expect(result.routeOnOverlay, "the route line is never drawn on the overlay the pins use").toBe(0);
+  });
+});
+
+test.describe("Back onto a group that changed", () => {
+  test("a group that lost a member falls back to the plain anchor view, with nothing dimmed left", async ({ page }) => {
+    const errors = [];
+    page.on("pageerror", (error) => errors.push(String(error)));
+    await setup(page);
+    await pickFromGroup(page);
+    // One of the group's other members stops existing in the loaded data (what a data refresh can do).
+    const gone = await page.evaluate(() => {
+      const picked = state.selected.item;
+      const group = state.selectionCluster;
+      for (const [type, items] of Object.entries(clusterItemsByType(group))) {
+        const other = items.find((item) => item !== picked);
+        if (!other) continue;
+        const route = SELECTION_ROUTES.find((entry) => entry.type === type);
+        const lostKey = route.toKey(other);
+        const find = route.find;
+        route.find = (key) => (key === lostKey ? null : find(key));
+        window.__restoreRoute = () => { route.find = find; };
+        return { type, key: lostKey };
+      }
+      return null;
+    });
+    expect(gone, "the group has another member to lose").not.toBeNull();
+    await page.goBack();
+    await expect.poll(() => page.evaluate(() => state.selected)).toBeNull();
+    await waitForUiToSettle(page);
+    const end = await page.evaluate(() => ({
+      expanded: Boolean(state.clusterExpanded),
+      record: state.selectionCluster ? "left behind" : null,
+      anchored: state.nearbyAnchor != null,
+      plain: activeIconLookup() === buildNearbyIconLookup(),
+    }));
+    expect(end).toEqual({ expanded: false, record: null, anchored: true, plain: true });
+    await startTrace(page);
+    await page.evaluate(() => requestDraw());
+    await expect.poll(() => page.evaluate(() => window.__pins.length)).toBeGreaterThan(0);
+    for (const pin of await page.evaluate(() => window.__pins)) expect(pin.alpha, "no stale dimming").toBeGreaterThan(0.45);
+    expect(errors).toEqual([]);
+  });
+});
+
+test.describe("Dimmed siblings are not results", () => {
+  test("neither the Nearby list nor search results gain the group's dimmed siblings", async ({ page }) => {
+    await setup(page);
+    const count = await pickFromGroup(page);
+    const members = await page.evaluate(() => Object.entries(clusterItemsByType(selectionClusterGroup()))
+      .flatMap(([type, items]) => items.map((item) => `${type}:${SELECTION_ROUTES.find((r) => r.type === type).toKey(item)}`)));
+    expect(members).toHaveLength(count);
+
+    // Search replaces the place, so the dimmed siblings give way to the results' own map pins.
+    const siblingItems = await page.evaluate(() => {
+      window.__siblingItems = Object.values(selectionSiblingLookup()).flatMap((set) => [...set]);
+      return window.__siblingItems.length;
+    });
+    expect(siblingItems, "the siblings are on the map before Search opens").toBe(count - 1);
+    const searchRows = async () => {
+      await page.locator("#searchToggle").click();
+      await expect.poll(() => page.evaluate(() => state.searchScreenOpen)).toBe(true);
+      await page.locator("#mapSearchInput").fill("road");
+      await expect.poll(() => page.evaluate(() => state.searchHighlightResults.length)).toBeGreaterThan(0);
+      return page.evaluate(() => ({
+        rows: [...document.querySelectorAll("#mapSearchResults [data-search-type][data-search-key]")]
+          .map((el) => `${el.getAttribute("data-search-type")}:${el.getAttribute("data-search-key")}`),
+        sibling: selectionSiblingLookup(),
+      }));
+    };
+    const withGroupBehind = await searchRows();
+    expect(withGroupBehind.rows.length, "the search lists its own matches").toBeGreaterThan(0);
+    expect(withGroupBehind.sibling, "no dimmed siblings once Search has replaced the place").toBeNull();
+    // The same query from plain Nearby, with no group ever involved, lists exactly the same rows.
+    await page.evaluate(() => goToInitialView());
+    await expect.poll(() => page.evaluate(() => state.searchScreenOpen)).toBe(false);
+    await waitForUiToSettle(page);
+    const plain = await searchRows();
+    expect(withGroupBehind.rows, "the group's siblings add and remove no search result").toEqual(plain.rows);
+  });
+
+  test("the Nearby list after Back is exactly the group", async ({ page }) => {
+    await setup(page);
+    const count = await pickFromGroup(page);
+    await page.goBack();
+    await expect.poll(() => page.evaluate(() => state.selected)).toBeNull();
+    await waitForUiToSettle(page);
+    const listed = await page.evaluate(() => [...document.querySelectorAll("#inspectorBody [data-overview-type][data-overview-key]")]
+      .map((el) => `${el.getAttribute("data-overview-type")}:${el.getAttribute("data-overview-key")}`).sort());
+    const members = await page.evaluate(() => Object.entries(clusterItemsByType(state.clusterExpanded))
+      .flatMap(([type, items]) => items.map((item) => `${type}:${SELECTION_ROUTES.find((r) => r.type === type).toKey(item)}`)).sort());
+    expect(listed, "one row per group member: no extra row for a dimmed sibling").toEqual(members);
+    expect(listed).toHaveLength(count);
+  });
+});
+

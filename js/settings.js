@@ -10,6 +10,7 @@ function openSettings() {
   // Without this the walk-radius slider here showed the tapped group's borrowed radius as if it
   // were the user's own setting.
   exitClusterExpansion();
+  clearSelectionClusterRecord();
   state.selected = { type: "settings", item: null };
   setInspectorSelectionChrome({ emoji: appIconHtml("settings", "app-icon title-icon"), showBack: true, preserveNavHighlight: true });
   setNavScreenActive(els.settingsToggle);

@@ -36,6 +36,7 @@ function handleMapClick(event) {
   if (cluster) {
     if (state.selected) {
       state.selected = null;
+      clearSelectionClusterRecord();
       syncHashFromSelection();
     }
     if (focusNearbyOnClusterGroup(cluster)) {
