@@ -82,7 +82,9 @@ function urlMatchesCurrentScreen(raw) {
   // An expanded cluster is a group of pins at one spot on the map, not something a link can
   // re-derive, so it has no URL of its own and never counts as matching one. That is what
   // makes any route arriving from the URL apply -- and so closes the group on back.
-  if (state.clusterExpanded) return false;
+  // The exception is landing on a history entry that was itself written for this exact group
+  // (Back/Forward restoring it, restoreNearbyAnchorFromHistory): that is the same screen.
+  if (state.clusterExpanded && !historyEntryDescribesExpandedCluster()) return false;
   const current = currentScreenRoute();
   if (raw === current) return true;
   // #report=<text> is the Report screen carrying a pre-fill, not a different screen.
@@ -230,6 +232,22 @@ function setHashFromSelection(value, { force = false } = {}) {
 // forced push to get a back-button step at all.
 function pushNearbyAnchorHistory() {
   syncHashFromSelection();
+  // A group the current entry does not describe needs an entry of its own, even when its URL is
+  // identical (a sub-group with the same centre as its parent, or a group centred exactly on a
+  // plain browse anchor): replacing the snapshot instead would make Back skip the parent level
+  // or overwrite a plain entry. Not during a route/boot replay, which never writes history.
+  if (routeApplyDepth > 0 || routerBooting || !state.clusterExpanded) return;
+  if (clusterHistorySnapshot(state.clusterExpanded) && !historyEntryDescribesExpandedCluster()) {
+    setHashFromSelection(currentScreenRoute(), { force: true });
+  }
+}
+
+// Rewrites the current entry's anchor snapshot to match state without adding an entry. For a
+// reader who has just left an expanded group while staying on the same entry (see
+// exitClusterExpansion's forgetInHistory): the entry must stop describing the group.
+function refreshHistoryEntryAnchorSnapshot() {
+  if (routeApplyDepth > 0 || routerBooting || !history.state) return;
+  history.replaceState({ ...history.state, [NEARBY_ANCHOR_KEY]: nearbyAnchorSnapshot() }, "");
 }
 
 // Corrects the current entry's URL without adding one, keeping the entry's depth.
@@ -428,6 +446,7 @@ function showRoutedSelection(route, item) {
   // Capture the currently drawn browse pivot before clearing it; otherwise entering a linked
   // selection from an anchored Nearby view makes the 3D/heading-up camera jump to the GPS fix
   // before the selection's own camera animation can take over.
+  state.selectionCluster = null;
   startCameraOriginTransition();
   state.nearbyAnchor = null;
   state.selected = { type: route.type, item };
@@ -501,9 +520,76 @@ function showRoutedSelection(route, item) {
 // effect *when that entry was created*, so landing back on it (in either direction) restores
 // exactly that anchor. Absent (older entries, or the initial boot entry before this existed)
 // reads as "no anchor" via nearbyAnchorSnapshot's own null default.
+//
+// While a map group is expanded (state.clusterExpanded) the snapshot also carries
+// `cluster`, enough to rebuild that group from loaded data: the member keys per category (the
+// same SELECTION_ROUTES keys a #place=/#tree= link uses), the radius in effect and the real
+// radius it borrowed from. History never holds live item references.
 function nearbyAnchorSnapshot() {
   const anchor = state.nearbyAnchor;
-  return anchor ? { latitude: anchor.latitude, longitude: anchor.longitude } : null;
+  if (!anchor) return null;
+  const snapshot = { latitude: anchor.latitude, longitude: anchor.longitude };
+  const cluster = clusterHistorySnapshot(state.clusterExpanded);
+  if (cluster) snapshot.cluster = cluster;
+  return snapshot;
+}
+
+function clusterHistorySnapshot(group) {
+  if (!group) return null;
+  const keys = {};
+  for (const [itemType, items] of Object.entries(clusterItemsByType(group))) {
+    const route = SELECTION_ROUTES.find((entry) => entry.type === itemType);
+    if (!route) return null;
+    const list = [];
+    for (const item of items) {
+      const key = route.toKey(item);
+      if (!key) return null;
+      list.push(String(key));
+    }
+    if (list.length) keys[itemType] = list.sort();
+  }
+  if (!Object.keys(keys).length) return null;
+  return {
+    keys,
+    radius: state.walkingDistanceMinutes,
+    preRadius: state.preClusterWalkingDistanceMinutes,
+  };
+}
+
+// The inverse of clusterHistorySnapshot: the live group object for a snapshot, or null when any
+// member no longer exists in the loaded data (the caller then falls back to the plain anchor).
+function clusterFromHistorySnapshot(snapshot) {
+  if (!snapshot || !snapshot.keys || !Number.isFinite(snapshot.radius)) return null;
+  const itemsByType = {};
+  const items = [];
+  for (const [itemType, keys] of Object.entries(snapshot.keys)) {
+    const route = SELECTION_ROUTES.find((entry) => entry.type === itemType);
+    if (!route || !Array.isArray(keys)) return null;
+    for (const key of keys) {
+      const item = route.find(key);
+      if (!item) return null;
+      (itemsByType[itemType] || (itemsByType[itemType] = [])).push(item);
+      items.push(item);
+    }
+  }
+  const types = Object.keys(itemsByType);
+  if (!types.length) return null;
+  return { items, itemsByType, itemType: types.length > 1 ? "_mega" : types[0] };
+}
+
+// Does the history entry the browser is on describe the group that is expanded right now? Used
+// by urlMatchesCurrentScreen: an entry written (or restored) for this very group needs no
+// route re-application, which would otherwise close it.
+function historyEntryDescribesExpandedCluster() {
+  const entry = history.state;
+  const snapshot = entry ? entry[NEARBY_ANCHOR_KEY] : null;
+  const live = clusterHistorySnapshot(state.clusterExpanded);
+  return Boolean(live) && clusterSnapshotsMatch(snapshot && snapshot.cluster, live);
+}
+
+function clusterSnapshotsMatch(a, b) {
+  if (!a || !b) return !a && !b;
+  return a.radius === b.radius && JSON.stringify(a.keys) === JSON.stringify(b.keys);
 }
 
 // A /nearby/<slug> category page IS the app (scripts/generate-find-pages.js templates it off
@@ -658,5 +744,12 @@ function applyRadiusFromQuery() {
   }
   const raw = Number(param);
   if (!Number.isFinite(raw)) return;
-  state.walkingDistanceMinutes = clamp(raw, WALKING_RADIUS_MIN_MINUTES, WALKING_RADIUS_MAX_MINUTES);
+  const radius = clamp(raw, WALKING_RADIUS_MIN_MINUTES, WALKING_RADIUS_MAX_MINUTES);
+  // While a group is expanded the live radius is the one it borrowed; the URL carries the real
+  // one (searchStringForPath), so that is what it updates.
+  if (state.clusterExpanded && state.preClusterWalkingDistanceMinutes != null) {
+    state.preClusterWalkingDistanceMinutes = radius;
+    return;
+  }
+  state.walkingDistanceMinutes = radius;
 }

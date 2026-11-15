@@ -521,6 +521,7 @@ function openSearchResult(type, key) {
   // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
   // rather than lingering for whenever Nearby is next shown.
   // Before state.selected changes below -- see startCameraOriginTransition.
+  state.selectionCluster = null;
   startCameraOriginTransition();
   state.nearbyAnchor = null;
   state.selected = { type, item };

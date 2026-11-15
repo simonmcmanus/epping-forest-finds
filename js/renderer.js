@@ -1627,6 +1627,7 @@ function resetMarkerGroupMemory() {
 // Memory belongs to one kind of lookup, so a narrowed one (an expanded cluster's members, search
 // results, a held transition) never overwrites the main map's.
 function markerMemoryKey() {
+  if (selectionClusterGroup()) return "siblings";
   if (state.selectionTransition && state.selectionTransition.mapHeld) return "held";
   if (state.searchScreenOpen && state.searchHighlightResults.length) return "search";
   if (state.clusterExpanded) return "expanded";
@@ -2709,6 +2710,9 @@ function groupOpacity(marker) {
   return best;
 }
 
+// How strongly the other members of the selected place's group stay drawn. Static, so reduced motion needs no variant.
+const SELECTION_SIBLING_OPACITY = 0.45;
+
 // While a location is selected the Nearby pins give way to the selected destination.
 function pinsHiddenBySelection(tilted) {
   if (tilted) return selectedNavigationMapModeActive();
@@ -2766,7 +2770,12 @@ function drawGroupFootprints(ctx, markers, visible, reveal, tilted, toScreen, op
 // up, across all categories; faces cannot overlap, so this only orders tails, chips and labels.
 function drawMapMarkers(ctx, markers, toScreen, tilted = false, options = {}) {
   _drawnMarkerSpecs = [];
-  if (!markers.length || (pinsHiddenBySelection(tilted) && !options.allowSelectionExit)) return;
+  const siblingsShown = !options.allowSelectionExit && Boolean(selectionClusterGroup());
+  if (!markers.length || (pinsHiddenBySelection(tilted) && !options.allowSelectionExit && !siblingsShown)) return;
+  if (siblingsShown) {
+    // Dimmed members of the group the selected place came from; reaches footprints and faces alike.
+    options = { ...options, markerOpacity: () => SELECTION_SIBLING_OPACITY };
+  }
   // The outgoing selection set is not part of the radius hide: it is a separate, short handoff.
   const gestureOpacity = options.allowSelectionExit ? 1 : framePinFade();
   if (gestureOpacity < PIN_ALPHA_VISIBLE_MIN) return;
@@ -3034,8 +3043,46 @@ function selectedNavigationMapModeActive() {
   );
 }
 
+function clusterGroupHasItem(group, item) {
+  if (!group || !item) return false;
+  return Object.values(clusterItemsByType(group)).some(items => items.includes(item));
+}
+
+// The group a selected place was picked from, while that context still applies: a real selection
+// that is itself a member. Anything else (selection ended, replaced from outside) drops the record.
+function selectionClusterGroup() {
+  const group = state.selectionCluster;
+  if (!group) return null;
+  return hasRealSelection() && clusterGroupHasItem(group, state.selected.item) ? group : null;
+}
+
+// While a place picked from an expanded group is selected, the group's other members stay on the
+// map (dimmed, see SELECTION_SIBLING_OPACITY) so the place reads as one of the group. The selected
+// place itself is drawn by the selection overlay, so it is left out here.
+let _siblingLookupCache = null;
+function selectionSiblingLookup() {
+  const group = selectionClusterGroup();
+  if (!group) return null;
+  const selectedItem = state.selected.item;
+  if (_siblingLookupCache && _siblingLookupCache.group === group && _siblingLookupCache.selectedItem === selectedItem) {
+    return _siblingLookupCache.result;
+  }
+  const result = {
+    tree: new Set(), landmark: new Set(), cow: new Set(), path: new Set(), water: new Set(),
+    outOfRadius: new Set(),
+  };
+  for (const [itemType, items] of Object.entries(clusterItemsByType(group))) {
+    if (!result[itemType]) continue;
+    for (const item of items) if (item !== selectedItem) result[itemType].add(item);
+  }
+  _siblingLookupCache = { group, selectedItem, result };
+  return result;
+}
+
 function activeIconLookup() {
   if (state.selected && state.selected.type === "community") return COMMUNITY_EMPTY_ICON_LOOKUP;
+  const siblings = selectionSiblingLookup();
+  if (siblings) return siblings;
   // Selection is a two-point map from its first frame. The camera can keep moving while the
   // route/destination overlay catches up, but Nearby pins must not leak through the handoff.
   if (hasRealSelection() && state.selectionTransition.mapHeld) return SELECTED_NAVIGATION_EMPTY_ICON_LOOKUP;
