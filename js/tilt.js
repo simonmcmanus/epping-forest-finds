@@ -56,7 +56,9 @@ function tiltAnchorFraction() {
 // is (selectedNavigationTargetBearingOffsetRadians()) -- dead ahead leaves it
 // untouched (matching the previous fixed-anchor behaviour exactly), dead behind
 // flips it to `1 - anchor` (as much room below the user as the old anchor gave
-// above), and a target to the side lands near the centre. Without this, a
+// above), and a target to the side lands near the centre -- but only in proportion to
+// how far away the destination is: within a few metres the bearing is GPS noise, so the
+// mirroring fades in linearly up to HEADING_UP_MIRROR_FULL_DISTANCE_METRES. The result is also floored at HEADING_UP_MIRRORED_ANCHOR_FLOOR (the flat anchor mirrored), so tilt never lifts the user toward the horizon. Without this, a
 // destination behind the user got squeezed into the small margin below a pivot
 // fixed near the bottom of the screen, forcing a needlessly wide zoom-out instead of
 // making use of the screen space that's actually available in the destination's own

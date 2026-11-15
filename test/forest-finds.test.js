@@ -4589,8 +4589,9 @@ test("headingUpAnchorFraction mirrors the selected-navigation anchor around the 
   // Dead behind (target due west): mirrors to 1 - anchor, i.e. most of the room now sits
   // below the user instead of above.
   app.state.selected = { type: "tree", item: { id: "behind", ...makePoint(app, 0, -0.001) } };
-  assert.ok(Math.abs(app.headingUpAnchorFraction(true) - (1 - plainSelectedAnchor)) < 1e-9,
-    `dead-behind anchor should mirror to 1 - ${plainSelectedAnchor}, got ${app.headingUpAnchorFraction(true)}`);
+  // Under tilt the mirror is floored at the flat anchor mirrored (1 - 0.62), not pushed to 1 - 0.88.
+  assert.ok(Math.abs(app.headingUpAnchorFraction(true) - 0.38) < 1e-9,
+    `dead-behind tilted anchor should stop at the flat mirrored anchor 0.38, got ${app.headingUpAnchorFraction(true)}`);
 
   // Directly to a side (target due north): lands at the screen's vertical centre.
   app.state.selected = { type: "tree", item: { id: "side", ...makePoint(app, 0.001, 0) } };
@@ -4602,6 +4603,27 @@ test("headingUpAnchorFraction mirrors the selected-navigation anchor around the 
   // state (defensive: confirms the bearing adaptation is scoped to isSelected only).
   assert.ok(Math.abs(app.headingUpAnchorFraction(false) - aheadAnchor) < 1e-9,
     `nearby anchor should be unaffected by any selected-target bearing, got ${app.headingUpAnchorFraction(false)}`);
+});
+
+test("headingUpAnchorFraction does not mirror to the top for a destination only metres behind the heading, and mirrors fully when far", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90; // facing east
+  app.state.tiltBetaSmoothed = 85;
+  const metresToDegrees = (m) => m / 111195;
+  const anchorFor = (eastMetres) => {
+    app.state.selected = { type: "tree", item: { id: `d${eastMetres}`, ...makePoint(app, 0, metresToDegrees(eastMetres)) } };
+    return app.headingUpAnchorFraction(true);
+  };
+  const near = anchorFor(-12);
+  const mid = anchorFor(-25);
+  const far = anchorFor(-200);
+  const ahead = anchorFor(300);
+  assert.ok(near > 0.7, `12 m behind should keep the ahead anchor, got ${near}`);
+  assert.ok(far < 0.5, `200 m behind should still mirror, got ${far}`);
+  assert.ok(far >= 0.38 - 1e-9, `mirroring never lifts the user above the flat mirrored anchor, got ${far}`);
+  assert.ok(Math.abs(ahead - 0.88) < 1e-9, `300 m ahead unchanged, got ${ahead}`);
+  assert.ok(near > mid && mid > far, `anchor should fall monotonically with distance behind: ${near}, ${mid}, ${far}`);
 });
 
 test("maxHeadingUpNavigationScale actually fits a destination that is behind the user during full 3D tilt, instead of leaving the stale current scale in place", () => {
@@ -8858,7 +8880,7 @@ test("tiltAvailableAheadCssPx / tiltPerspectivePx do not collapse when the desti
   const behindAnchor = app.headingUpAnchorFraction(true);
   const behindAvailable = app.tiltAvailableAheadCssPx();
   const behindP = app.tiltPerspectivePx();
-  assert.ok(Math.abs(behindAnchor - 0.12) < 1e-9, `dead-behind anchor should mirror to 0.12, got ${behindAnchor}`);
+  assert.ok(Math.abs(behindAnchor - 0.38) < 1e-9, `dead-behind anchor should mirror down to the flat mirrored floor 0.38, got ${behindAnchor}`);
 
   // The whole point of the fix: despite the mirrored anchor being small (0.12 vs 0.88),
   // the *available reach* -- and therefore the camera distance -- must come out identical

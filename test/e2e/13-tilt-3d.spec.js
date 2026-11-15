@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { skipOnboarding, mockCowApi, gotoAndWaitForMap, tapCanvasPoint } = require("./helpers");
+const { skipOnboarding, mockCowApi, gotoAndWaitForMap, tapCanvasPoint, setup } = require("./helpers");
 
 // A GPS fix inside Epping Forest
 const FOREST_LOCATION = { latitude: 51.6538, longitude: 0.0400, accuracy: 10 };
@@ -592,4 +592,114 @@ test.describe("3D tilt view", () => {
     // Nothing else moves the camera, so the restoring frame must come from the still timer alone.
     await expect.poll(async () => (await bitmap()).w).toBe(still.w);
   });
+});
+
+test.describe("3D tilt selection from the Nearby list", () => {
+  test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ["geolocation"] });
+
+  test("selecting a close place behind the heading keeps you and it off the top edge of the map", async ({ page }) => {
+    await setup(page, "/nearby");
+    await page.evaluate(() => { state.map3dEnabled = true; });
+    await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+
+    // A listed tree within 30 m: turn the phone so it is dead behind the heading.
+    const key = await page.evaluate(() => {
+      for (const button of document.querySelectorAll('.nearest-item[data-overview-type="tree"]')) {
+        const tree = findTreeByHashKey(button.dataset.overviewKey);
+        if (!tree || !tree.point) continue;
+        const metres = distanceMetres(state.userLocation.latitude, state.userLocation.longitude, tree.latitude, tree.longitude);
+        if (metres > 30 || metres < 5) continue;
+        const origin = state.userLocation.point;
+        const bearing = Math.atan2(tree.point.x - origin.x, -(tree.point.y - origin.y)) * 180 / Math.PI;
+        const heading = (bearing + 180 + 360) % 360;
+        // Phone held up: heading-up with a gentle tilt and a live compass, facing away from the tree.
+        state.compassHeadingTarget = heading;
+        state.compassHeading = heading;
+        state.renderedNavigationHeading = heading;
+        state.compassLastEventAt = performance.now();
+        state.tiltBetaTarget = 60;
+        state.tiltBetaSmoothed = 60;
+        return button.dataset.overviewKey;
+      }
+      return null;
+    });
+    expect(key, "a listed tree within 30 m and behind the heading").not.toBeNull();
+
+    await page.locator(`.nearest-item[data-overview-type="tree"][data-overview-key="${key}"]`).click();
+    await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("tree");
+    // Settled: the selection camera move has started and finished, and the viewport has held
+    // still for several frames (the move begins a frame after the tap).
+    await expect.poll(() => page.evaluate(async () => {
+      if (state.viewportAnimationTo != null || state.selectionTransition.viewportPending) return false;
+      const read = () => JSON.stringify([state.viewport.scale, state.viewport.tx, state.viewport.ty]);
+      const before = read();
+      for (let i = 0; i < 12; i += 1) await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+      return read() === before && state.viewportAnimationTo == null;
+    }), { timeout: 15000 }).toBe(true);
+    await expect.poll(() => page.evaluate(() => state.canvasMotion.capped)).toBe(false);
+
+    const fractions = await page.evaluate(() => {
+      draw();
+      const rect = bestVisibleCanvasRect();
+      const user = worldToScreen(state.userLocation.point);
+      const place = worldToScreen(state.selected.item.point);
+      return {
+        user: (user.y - rect.y) / rect.height,
+        place: (place.y - rect.y) / rect.height,
+      };
+    });
+    expect(fractions.user, "the You marker sits well below the top edge").toBeGreaterThanOrEqual(0.25);
+    expect(fractions.place, "the selected place sits well below the top edge").toBeGreaterThanOrEqual(0.25);
+  });
+});
+
+test.describe("3D tilt moving between two nearby places", () => {
+  test.use({ geolocation: { latitude: 51.6555, longitude: 0.0662, accuracy: 10 }, permissions: ["geolocation"] });
+
+  for (const heading of [135, 270]) {
+    test(`going pub to Lidl to pub at heading ${heading} keeps you and the place well below the top edge`, async ({ page }) => {
+      await setup(page, "/nearby");
+      await expect.poll(() => page.evaluate(() => Math.abs((state.userLocation?.latitude ?? 0) - 51.6555) < 1e-6 && !state.userLocation.isDefault)).toBe(true);
+      await page.evaluate((h) => {
+        state.map3dEnabled = true;
+        state.compassHeadingTarget = h;
+        state.compassHeading = h;
+        state.renderedNavigationHeading = h;
+        state.compassLastEventAt = performance.now();
+        state.tiltBetaTarget = 60;
+        state.tiltBetaSmoothed = 60;
+      }, heading);
+
+      const select = async (path, type) => {
+        await page.evaluate((p) => navigateInApp(p), path);
+        await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe(type);
+        await expect.poll(() => page.evaluate(async () => {
+          if (state.viewportAnimationTo != null || state.selectionTransition.viewportPending) return false;
+          const read = () => JSON.stringify([state.viewport.scale, state.viewport.tx, state.viewport.ty]);
+          const before = read();
+          for (let i = 0; i < 12; i += 1) await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+          return read() === before && state.viewportAnimationTo == null;
+        }), { timeout: 15000 }).toBe(true);
+        return page.evaluate(() => {
+          draw();
+          const panelTop = bestVisibleCanvasRect().height; // the visible map height the camera frames
+          const user = worldToScreen(state.userLocation.point);
+          const place = worldToScreen(state.selected.item.point);
+          return { anchor: headingUpAnchorFraction(true), panelTop, userY: user.y, placeY: place.y };
+        });
+      };
+
+      const steps = [];
+      for (const [path, type] of [["/find/the-plume-of-feathers/", "landmark"], ["/find/lidl/", "landmark"], ["/find/the-plume-of-feathers/", "landmark"]]) {
+        steps.push({ path, ...(await select(path, type)) });
+      }
+      for (const step of steps) {
+        expect(step.userY, `${step.path} user marker`).toBeGreaterThanOrEqual(step.panelTop * 0.25);
+        expect(step.placeY, `${step.path} place`).toBeGreaterThanOrEqual(step.panelTop * 0.25);
+      }
+      const ys = steps.map((x) => x.userY);
+      const swing = Math.max(...ys) - Math.min(...ys);
+      expect(swing, "the user marker does not swing between the two places").toBeLessThan(steps[0].panelTop * 0.5);
+    });
+  }
 });

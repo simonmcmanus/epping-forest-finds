@@ -4227,6 +4227,16 @@ function roadNavTarget(road) {
 const HEADING_UP_ANCHOR_SELECTED = 0.62; // user anchored below center so destination shows above
 const HEADING_UP_ANCHOR_NEARBY = 0.5; // flat/2D nearby: dead centre, so the walking-radius circle -- the only thing this view's camera frames -- is centred in the available map space
 const HEADING_UP_ANCHOR_SELECTED_TILT = 0.88; // at max tilt (full 3D), user sits near the bottom edge with a small gap so the view isn't obscured by anything behind
+// Distance at which a selected destination's bearing is trusted fully by headingUpAnchorFraction's
+// behind-the-user mirroring. About four times typical phone GPS accuracy (~10 m): closer than that the
+// bearing is mostly noise, so the mirroring fades out linearly towards zero metres instead of flipping the
+// anchor between top and bottom from one nearby tap to the next.
+const HEADING_UP_MIRROR_FULL_DISTANCE_METRES = 40;
+// Highest the mirroring may lift the user on screen: the flat heading-up anchor mirrored. Flat view
+// already mirrors to exactly this, so the floor changes nothing there; under tilt the mirror used to
+// push the user toward the horizon (anchor as low as 0.12), which only made the framing flip between
+// destinations. Far destinations behind still get the room below the user that the mirror exists for.
+const HEADING_UP_MIRRORED_ANCHOR_FLOOR = 1 - HEADING_UP_ANCHOR_SELECTED;
 const HEADING_UP_ANCHOR_NEARBY_TILT = 0.94;   // at max tilt (full 3D), you sit right down at the bottom edge: a heads-up view is about what is in front of you, and every pixel spent on the ground behind you is a pixel not spent on where you are walking
 const HEADING_UP_SCALE_EPSILON = 0.000001; // Ignore sub-pixel scale noise between successive fits.
 const HEADING_UP_POSITION_PX_THRESHOLD = 0.5; // Ignore half-pixel translation jitter between frames.
@@ -4671,7 +4681,27 @@ function headingUpAnchorFraction(isSelected, useFinalBrowseState = false) {
   if (!isSelected) return aheadAnchor;
   const offset = selectedNavigationTargetBearingOffsetRadians();
   if (offset == null) return aheadAnchor;
-  return 0.5 + (aheadAnchor - 0.5) * Math.cos(offset);
+  const weight = clamp(selectedNavigationTargetDistanceMetres() / HEADING_UP_MIRROR_FULL_DISTANCE_METRES, 0, 1);
+  const factor = 1 + (Math.cos(offset) - 1) * weight;
+  return Math.max(HEADING_UP_MIRRORED_ANCHOR_FLOOR, 0.5 + (aheadAnchor - 0.5) * factor);
+}
+
+// Metres from the navigation origin to the averaged selected-target point: the same vector
+// selectedNavigationTargetBearingOffsetRadians resolves the bearing of, so the mirroring weight
+// and the bearing it weights always describe the same destination.
+function selectedNavigationTargetDistanceMetres() {
+  if (!state.userLocation) return 0;
+  const points = selectedNavigationTargetPoints();
+  if (!points.length) return 0;
+  let sumX = 0;
+  let sumY = 0;
+  for (const point of points) {
+    sumX += point.x;
+    sumY += point.y;
+  }
+  const target = unprojectPoint({ x: sumX / points.length, y: sumY / points.length });
+  const origin = unprojectPoint(navigationOriginPoint());
+  return distanceMetres(origin.latitude, origin.longitude, target.latitude, target.longitude);
 }
 
 // Signed-magnitude offset (radians) of the selected navigation target's bearing from
@@ -4851,12 +4881,21 @@ function balancedNavigationAnchorY(focusRect, anchorFraction) {
   return top + usable * aheadRatio;
 }
 
+// A routed line (three or more points) is balanced by its ahead/behind extents, which for a route lying
+// behind the user puts them at the very top of the rect -- the same horizon-pinning the mirrored anchor
+// is floored against. Under tilt the same floor (HEADING_UP_MIRRORED_ANCHOR_FLOOR) therefore applies to
+// the balanced position; flat view keeps the balanced position untouched.
+function floorTiltedFocusY(y, focusRect) {
+  if (!tiltActive()) return y;
+  return Math.max(y, focusRect.y + focusRect.height * HEADING_UP_MIRRORED_ANCHOR_FLOOR);
+}
+
 function navigationFocusPoint(focusRect = bestVisibleCanvasRect()) {
   const anchor = headingUpAnchorFraction(selectedNavigationHeadingUpActive());
   return {
     x: focusRect.x + focusRect.width / 2,
     y: selectedNavigationHeadingUpActive()
-      ? balancedNavigationAnchorY(focusRect, anchor)
+      ? floorTiltedFocusY(balancedNavigationAnchorY(focusRect, anchor), focusRect)
       : focusRect.y + focusRect.height * anchor,
   };
 }
