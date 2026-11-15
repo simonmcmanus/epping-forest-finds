@@ -599,7 +599,6 @@ test.describe("3D tilt selection from the Nearby list", () => {
 
   test("selecting a close place behind the heading keeps you and it off the top edge of the map", async ({ page }) => {
     await setup(page, "/nearby");
-    await page.evaluate(() => { state.map3dEnabled = true; });
     await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
 
     // A listed tree within 30 m: turn the phone so it is dead behind the heading.
@@ -663,7 +662,6 @@ test.describe("3D tilt moving between two nearby places", () => {
       await setup(page, "/nearby");
       await expect.poll(() => page.evaluate(() => Math.abs((state.userLocation?.latitude ?? 0) - 51.6555) < 1e-6 && !state.userLocation.isDefault)).toBe(true);
       await page.evaluate((h) => {
-        state.map3dEnabled = true;
         state.compassHeadingTarget = h;
         state.compassHeading = h;
         state.renderedNavigationHeading = h;
