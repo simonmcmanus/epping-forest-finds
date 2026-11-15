@@ -619,3 +619,208 @@ test.describe("Panning keeps the pins and does not recalculate them", () => {
     for (const offset of dragging.offsets) expect(offset, "each pin sits on its own ground after the pan").toBeLessThan(0.01);
   });
 });
+
+test.describe("Programmatic camera moves pause regrouping like a zoom gesture", () => {
+  test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"], reducedMotion: "no-preference" });
+
+  async function openNearby(page) {
+    await setup(page);
+    await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+    await waitForUiToSettle(page);
+    await recordPaintedPins(page);
+    await trackPinFade(page);
+    await page.evaluate(() => requestDraw());
+    await waitForFrames(page, 3);
+    expect(await page.evaluate(() => window.__pins.length), "sanity: the Nearby map paints pins first").toBeGreaterThan(0);
+  }
+
+  // A camera move that doubles the zoom about the screen centre, the way the app's own refits do.
+  function startZoomingMove(page, factor, durationMs = 900) {
+    return page.evaluate(({ factor, durationMs }) => {
+      const view = state.viewport;
+      const cx = els.canvas.width / 2;
+      const cy = els.canvas.height / 2;
+      const scale = view.scale * factor;
+      return moveCamera({
+        scale,
+        tx: cx - (cx - view.tx) / view.scale * scale,
+        ty: cy - (cy - view.ty) / view.scale * scale,
+      }, durationMs, undefined, { fixedDuration: true });
+    }, { factor, durationMs });
+  }
+
+  test("a zooming camera move freezes the pins, builds nothing while it runs, and reveals the new set once it lands", async ({ page }) => {
+    await openNearby(page);
+    await page.evaluate(() => { stopViewportAnimation(); window.__pins.length = 0; });
+    // Start the move and take every mid-flight sample inside this one evaluate, on animation frames,
+    // so a slow Playwright round trip cannot let the tween land between the move and the sample.
+    // The move is long enough that the frames below always fall inside it.
+    const mid = await page.evaluate(() => new Promise((resolve) => {
+      const view = state.viewport;
+      const cx = els.canvas.width / 2;
+      const cy = els.canvas.height / 2;
+      const scale = view.scale * 0.5;
+      const started = moveCamera({
+        scale,
+        tx: cx - (cx - view.tx) / view.scale * scale,
+        ty: cy - (cy - view.ty) / view.scale * scale,
+      }, 2500, undefined, { fixedDuration: true });
+      let frames = 0;
+      let waiting = 0;
+      const step = () => {
+        if (!(markerGroupingPaused() && mapPinFadeOpacity() === 0) && waiting++ < 600) { requestAnimationFrame(step); return; }
+        if (frames === 0) { window.__during = window.__pins.slice(); window.__pins.length = 0; window.__markerBuilds = 0; }
+        frames += 1;
+        if (frames <= 8) { requestAnimationFrame(step); return; }
+        resolve({
+          started,
+          hidden: markerGroupingPaused() && mapPinFadeOpacity() === 0,
+          painted: window.__pins.length,
+          builds: window.__markerBuilds,
+          moving: state.viewportAnimationTo != null,
+          tappable: buildActiveMapMarkers(worldToScreen, false).length,
+        });
+      };
+      requestAnimationFrame(step);
+    }));
+    expect(mid.started).toBe("started");
+    expect(mid.hidden, "the pins are hidden for the move").toBe(true);
+    expect(mid.moving, "the camera is still moving").toBe(true);
+    expect(mid.painted, "no regrouped pin is painted while the zoom changes").toBe(0);
+    expect(mid.builds, "no marker layout is calculated while the zoom changes").toBe(0);
+    expect(mid.tappable, "nothing hidden is tappable").toBe(0);
+
+    await expect.poll(() => page.evaluate(() => state.viewportAnimationTo == null && !markerGroupingPaused() && mapPinFadeOpacity() === 1)).toBe(true);
+    await waitForFrames(page, 3);
+    const pins = await page.evaluate(() => ({ during: window.__during, after: window.__pins }));
+    expect(pins.after.length, "the fresh set is back once the camera lands").toBeGreaterThan(0);
+    expect(await lowestPinFade(page)).toBe(0);
+    expectOneHideOneReveal([...pins.during, ...pins.after]);
+  });
+
+  test("a camera move that only pans keeps the pins visible", async ({ page }) => {
+    await openNearby(page);
+    await page.evaluate(() => { stopViewportAnimation(); });
+    await page.evaluate(() => {
+      window.__fadeSamples.length = 0;
+      window.__sawPaused = false;
+      const sample = () => { if (markerGroupingPaused()) window.__sawPaused = true; requestAnimationFrame(sample); };
+      requestAnimationFrame(sample);
+    });
+    expect(await page.evaluate(() => moveCamera(
+      { scale: state.viewport.scale, tx: state.viewport.tx + 120, ty: state.viewport.ty + 60 }, 600, undefined, { fixedDuration: true },
+    ))).toBe("started");
+    await expect.poll(() => page.evaluate(() => state.viewportAnimationTo == null)).toBe(true);
+    await waitForFrames(page, 2);
+    expect(await page.evaluate(() => window.__sawPaused), "a pan never pauses grouping").toBe(false);
+    expect(await lowestPinFade(page), "the pins never dip").toBe(1);
+  });
+
+  test("a move cut short by the user does not leave the pins hidden", async ({ page }) => {
+    await openNearby(page);
+    await page.evaluate(() => { stopViewportAnimation(); });
+    // Long enough that the move cannot land before the sample, however slow the round trips are.
+    expect(await startZoomingMove(page, 0.5, 8000)).toBe("started");
+    await expect.poll(() => page.evaluate(() => markerGroupingPaused() && mapPinFadeOpacity() === 0)).toBe(true);
+    // A finger on the map takes the camera over mid-move.
+    await page.evaluate(() => stopViewportAnimation());
+    await expect.poll(() => page.evaluate(() => !markerGroupingPaused() && mapPinFadeOpacity() === 1)).toBe(true);
+    await page.evaluate(() => { window.__pins.length = 0; requestDraw(); });
+    await waitForFrames(page, 3);
+    expect(await page.evaluate(() => window.__pins.length), "the pins are painted again").toBeGreaterThan(0);
+  });
+
+  test("a move overlapping a wheel zoom gesture is one hide and one reveal, fully visible at the end", async ({ page }) => {
+    await openNearby(page);
+    await page.evaluate(() => { stopViewportAnimation(); window.__pins.length = 0; window.__fadeSamples.length = 0; });
+    expect(await startZoomingMove(page, 0.5, 3500)).toBe("started");
+    await expect.poll(() => page.evaluate(() => markerGroupingPaused() && mapPinFadeOpacity() === 0)).toBe(true);
+    const box = await page.locator("#mapCanvas").boundingBox();
+    await page.mouse.move(box.x + box.width * 0.25, box.y + box.height * 0.25);
+    // The wheel does not take the camera over (unlike a finger), so the gesture truly overlaps the tween.
+    await page.mouse.wheel(0, -200);
+    await expect.poll(() => page.evaluate(() => zoomGestureLive() && state.viewportAnimationTo != null), "the wheel gesture overlaps the running move").toBe(true);
+    await expect.poll(() => page.evaluate(() => !zoomGestureLive() && state.viewportAnimationTo == null && !markerGroupingPaused() && mapPinFadeOpacity() === 1)).toBe(true);
+    await waitForFrames(page, 3);
+    const result = await page.evaluate(() => ({ pins: window.__pins, fades: window.__fadeSamples.slice() }));
+    expect(result.pins.length, "the fresh set is painted at the end").toBeGreaterThan(0);
+    expectOneHideOneReveal(result.fades.map((fade) => ({ fade })));
+    const rises = result.fades.filter((value, i, all) => i && value > all[i - 1] + 1e-9 && !(all[i - 1] > all[i - 2] + 1e-9)).length;
+    const falls = result.fades.filter((value, i, all) => i && value < all[i - 1] - 1e-9 && !(all[i - 1] < all[i - 2] - 1e-9)).length;
+    expect({ falls, rises }, "exactly one hide and one reveal").toEqual({ falls: 1, rises: 1 });
+    expect(result.fades[result.fades.length - 1]).toBe(1);
+  });
+
+  test("a browse-origin slide overlapping a pure-pan camera move holds one hide until the last leg lands, then reveals once", async ({ page }) => {
+    await openNearby(page);
+    await page.evaluate(() => { stopViewportAnimation(); window.__pins.length = 0; window.__markerBuilds = 0; window.__fadeSamples.length = 0; });
+    // The compound shape of a cluster tap's staged pan or Back mid-flight: a slide plus a camera move
+    // that never changes the scale, longer than the slide so the slide lands first.
+    await page.evaluate(() => {
+      window.__frames = [];
+      const sample = () => {
+        window.__frames.push({ paused: markerGroupingPaused(), moving: state.viewportAnimationTo != null, builds: window.__markerBuilds });
+        requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+      startNearbyOriginTransition(nearbyRenderOriginPoint());
+      moveCamera({ scale: state.viewport.scale, tx: state.viewport.tx + 90, ty: state.viewport.ty + 30 }, NEARBY_ORIGIN_TRANSITION_MS + 700, undefined, { fixedDuration: true });
+    });
+    await expect.poll(() => page.evaluate(() => state.viewportAnimationTo == null && !markerGroupingPaused() && mapPinFadeOpacity() === 1)).toBe(true);
+    await waitForFrames(page, 3);
+    const frames = await page.evaluate(() => window.__frames);
+    const landedAt = frames.findIndex((f, i) => i > 0 && frames[i - 1].paused && !f.paused);
+    expect(landedAt, "the pause ends once").toBeGreaterThan(0);
+    expect(frames.slice(0, landedAt).every((f) => f.paused), "paused on every frame until then (no early swap-in)").toBe(true);
+    expect(frames.slice(landedAt).every((f) => !f.moving && !f.paused), "nothing is still flying once it ends").toBe(true);
+    expect(frames[landedAt].builds, "no layout is built while it flies").toBe(frames[0].builds);
+    const fades = await page.evaluate(() => window.__fadeSamples.slice());
+    expectOneHideOneReveal(fades.map((fade) => ({ fade })));
+    expect(fades[fades.length - 1]).toBe(1);
+  });
+
+  test("tapping open ground slides the map to the new browse spot with the pins hidden, then reveals the new set once", async ({ page }) => {
+    await openNearby(page);
+    await page.evaluate(() => { stopViewportAnimation(); });
+    const point = await page.evaluate(() => {
+      const rect = els.canvas.getBoundingClientRect();
+      for (let r = 40; r < 160; r += 20) {
+        for (let angle = 0; angle < 360; angle += 30) {
+          const x = rect.width / 2 + r * Math.cos(angle * Math.PI / 180);
+          const y = rect.height / 2 + r * Math.sin(angle * Math.PI / 180);
+          const dpr = pixelRatio();
+          const screen = { x: x * dpr, y: y * dpr };
+          if (findHit(screen, screenToWorld(screen.x, screen.y)).type === "none") return { x: rect.left + x, y: rect.top + y };
+        }
+      }
+      return null;
+    });
+    expect(point, "an open-ground spot is on the map").not.toBeNull();
+    await page.evaluate(() => { window.__pins.length = 0; window.__markerBuilds = 0; });
+    await page.mouse.click(point.x, point.y);
+    await expect.poll(() => page.evaluate(() => state.nearbyAnchor != null)).toBe(true);
+    await expect.poll(() => page.evaluate(() => markerGroupingPaused() && mapPinFadeOpacity() === 0)).toBe(true);
+    await page.evaluate(() => { window.__during = window.__pins.slice(); window.__pins.length = 0; window.__markerBuilds = 0; });
+    await waitForFrames(page, 4);
+    expect(await page.evaluate(() => ({ painted: window.__pins.length, builds: window.__markerBuilds })), "nothing is regrouped mid-slide")
+      .toEqual({ painted: 0, builds: 0 });
+
+    await expect.poll(() => page.evaluate(() => !state.nearbyOriginTransition && !markerGroupingPaused() && mapPinFadeOpacity() === 1)).toBe(true);
+    await waitForUiToSettle(page);
+    const pins = await page.evaluate(() => ({ during: window.__during, after: window.__pins }));
+    expectOneHideOneReveal([...pins.during, ...pins.after]);
+  });
+
+  test("with reduced motion a zooming camera move hides the pins during the move and shows them after, without fades", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await openNearby(page);
+    await page.evaluate(() => { stopViewportAnimation(); window.__pins.length = 0; });
+    expect(await startZoomingMove(page, 0.5)).toBe("started");
+    expect(await page.evaluate(() => mapPinFadeOpacity()), "hidden straight away").toBe(0);
+    await expect.poll(() => page.evaluate(() => state.viewportAnimationTo == null && mapPinFadeOpacity() === 1)).toBe(true);
+    await waitForFrames(page, 3);
+    const pins = await page.evaluate(() => window.__pins);
+    expect(pins.length).toBeGreaterThan(0);
+    expect(pins.every((pin) => pin.fade === 1), "pins appear only at full opacity").toBe(true);
+  });
+});
