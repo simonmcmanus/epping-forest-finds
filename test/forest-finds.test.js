@@ -419,6 +419,7 @@ globalThis.__forestFindsTest = {
   swapGlobalFunction(name, fn) { const previous = globalThis[name]; globalThis[name] = fn; return previous; },
   setFindLandingSelectionPending(value) { findLandingSelectionPending = Boolean(value); },
   drawEnvironment,
+  draw,
   drawLayer,
   clusterFocusTarget,
   focusNearbyOnClusterGroup,
@@ -652,11 +653,13 @@ globalThis.__forestFindsTest = {
   updateNearbyAnchorBar,
   nearbyRenderOriginPoint,
   nearbyOriginTransitionActive,
-  nearbyRevealOpacity,
   nearbyRevealInProgress,
+  nearbyOriginSlideHoldsPause,
+  tapLandsOnFrozenPaintedMarker,
+  framePinFade,
+  MARKER_PAUSE_SCALE_RATIO,
   selectionOutgoingMarkerOpacity,
   selectionDestinationOpacity,
-  NEARBY_REVEAL_MS,
   cameraOriginPoint,
   tiltHidesWhatIsBehind,
   tiltProjection,
@@ -6983,11 +6986,10 @@ test("a browse-origin slide pauses grouping until it lands, then the pins come b
     at(1500);
     assert.equal(app.mapPinFadeOpacity(), 1);
     assert.ok(app.buildActiveMapMarkers(app.worldToScreen, false).length > 0);
-    assert.equal(app.nearbyRevealOpacity(), 1, "the slide's own gradual reveal does not fade the pins a second time");
   });
 });
 
-test("tapping a cluster keeps its members on screen at full opacity while the camera flies in, then swaps in the fresh set once", () => {
+test("tapping a cluster fades the old set out once like every other move, and the fresh set reveals once after the last leg", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.65, 0.05);
   const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6500, 0.0500) };
@@ -7002,25 +7004,125 @@ test("tapping a cluster keeps its members on screen at full opacity while the ca
     at(0);
     const settled = app.buildActiveMapMarkers(app.worldToScreen, false);
     assert.ok(settled.some((marker) => marker.items.length === 2), "sanity: the two oaks are one cluster on the map");
-    assert.ok(settled.some((marker) => marker.items.includes(elsewhere)), "sanity: the distant tree is on the map too");
     countAppCalls(["buildMapMarkers"], (counts) => {
       app.focusNearbyOnClusterGroup({ itemType: "tree", items: [oak1, oak2] });
       assert.equal(app.markerGroupingPaused(), true, "the cluster tap's moves pause grouping");
       stepCamera(0);
-      stepCamera(250);
-      assert.equal(app.mapPinFadeOpacity(), 1, "the tapped group is held, not faded out");
-      const painted = app.mapMarkersToPaint(app.worldToScreen, false);
-      assert.ok(painted.length > 0 && painted.every((marker) => marker.items.every((item) => item === oak1 || item === oak2)),
-        "only the tapped group's members stay on screen");
-      assert.equal(app.buildActiveMapMarkers(app.worldToScreen, false).length, 0, "nothing is tappable meanwhile");
+      at(200);
+      assert.equal(app.mapPinFadeOpacity(), 0, "the old set has faded out: nothing is held at full opacity");
+      assert.equal(app.mapMarkersToPaint(app.worldToScreen, false).length, 0, "and nothing is painted for the flight");
       assert.equal(counts.buildMapMarkers, 0, "nothing is regrouped meanwhile");
     });
     app.stopViewportAnimation();
     app.state.nearbyOriginTransition = null;
+    at(5000);
     assert.equal(app.markerGroupingPaused(), false);
+    at(6000);
     assert.equal(app.mapPinFadeOpacity(), 1);
     assert.ok(app.buildActiveMapMarkers(app.worldToScreen, false).length > 0, "the fresh set is built once it lands");
   });
+});
+
+test("a browse-origin slide overlapping a pure-pan camera tween keeps the pause until the last of them lands", () => {
+  setUpCameraTransition();
+  withCameraFrames(({ at, stepCamera }) => {
+    at(0);
+    app.buildActiveMapMarkers(app.worldToScreen, false);
+    app.startNearbyOriginTransition({ x: 0, y: 0 });
+    const slideMs = app.state.nearbyOriginTransition.durationMs;
+    // A pure pan: no camera pause of its own, so only the slide holds the pins.
+    assert.equal(app.moveCamera({ scale: 1, tx: 60, ty: 20 }, slideMs + 400), "started");
+    stepCamera(0);
+    for (const ms of [16, 32, 48, 200, slideMs - 20]) {
+      at(ms);
+      app.prepareCanvasForDraw(); // what drops the slide object while the tween runs
+      app.reconcileMarkerPauses();
+      assert.equal(app.markerGroupingPaused(), true, `still one pause ${ms}ms in, the fresh set is not swapped in mid-flight`);
+      assert.equal(app.buildActiveMapMarkers(app.worldToScreen, false).length, 0);
+    }
+    at(slideMs + 100);
+    app.prepareCanvasForDraw();
+    assert.equal(app.markerGroupingPaused(), true, "the slide has landed but the tween is still flying");
+    stepCamera(slideMs + 400);
+    assert.equal(app.markerGroupingPaused(), false, "the last leg has landed");
+    at(slideMs + 5000);
+    assert.equal(app.mapPinFadeOpacity(), 1);
+    assert.ok(app.buildActiveMapMarkers(app.worldToScreen, false).length > 0);
+  });
+});
+
+test("a camera move pauses the pins only when its scale change could visibly regroup them", () => {
+  setUpCameraTransition();
+  const ratio = app.MARKER_PAUSE_SCALE_RATIO;
+  for (const [factor, pauses] of [[1 + (ratio - 1) / 2, false], [1 / (1 + (ratio - 1) / 2), false], [ratio * 1.05, true], [1 / (ratio * 1.05), true]]) {
+    withCameraFrames(({ at }) => {
+      at(0);
+      app.state.viewport = { scale: 1, tx: 0, ty: 0 };
+      app.buildActiveMapMarkers(app.worldToScreen, false);
+      assert.equal(app.moveCamera({ scale: factor, tx: 5, ty: 5 }, 600), "started");
+      assert.equal(app.markerGroupingPaused(), pauses, `a ${factor.toFixed(3)}x scale change ${pauses ? "pauses" : "keeps the live pins"}`);
+      app.stopViewportAnimation();
+    });
+  }
+});
+
+test("a pause hands the camera back after the slide lands: no extra frames are spent on a fade nothing is running", () => {
+  setUpCameraTransition();
+  withCameraFrames(({ at }) => {
+    at(0);
+    app.buildActiveMapMarkers(app.worldToScreen, false);
+    app.startNearbyOriginTransition({ x: 0, y: 0 });
+    const slideMs = app.state.nearbyOriginTransition.durationMs;
+    assert.equal(app.nearbyRevealInProgress(), true, "the slide is running");
+    at(slideMs + 1);
+    assert.equal(app.nearbyRevealInProgress(), false, "landed: nothing left to fade");
+    app.prepareCanvasForDraw();
+    assert.equal(app.state.nearbyOriginTransition, null, "the transition is dropped on the landing frame");
+    assert.equal(app.markerGroupingPaused(), false, "and the pause has ended with it");
+  });
+});
+
+test("a tap on a marker still painted while a move fades it out is swallowed, but open ground and live zoom gestures are not", () => {
+  setUpCameraTransition();
+  withCameraFrames(({ at }) => {
+    at(0);
+    const settled = app.buildActiveMapMarkers(app.worldToScreen, false);
+    assert.ok(settled.length > 0);
+    const marker = settled[0];
+    const onMarker = { x: marker.screenPt.x, y: marker.screenPt.y - 4 };
+    assert.equal(app.tapLandsOnFrozenPaintedMarker(onMarker), false, "nothing is frozen while the map is settled");
+    app.moveCamera({ scale: 2, tx: 0, ty: 0 }, 600);
+    at(30);
+    app.mapMarkersToPaint(app.worldToScreen, false); // a frame paints the frozen set
+    const painted = app.mapMarkersToPaint(app.worldToScreen, false)[0];
+    assert.equal(app.tapLandsOnFrozenPaintedMarker({ x: painted.screenPt.x, y: painted.screenPt.y - 4 }), true, "the painted marker is not open ground");
+    assert.equal(app.tapLandsOnFrozenPaintedMarker({ x: painted.screenPt.x + 5000, y: painted.screenPt.y }), false, "empty ground is unchanged");
+    at(400);
+    assert.equal(app.tapLandsOnFrozenPaintedMarker({ x: painted.screenPt.x, y: painted.screenPt.y - 4 }), false, "once faded out nothing is painted there");
+    app.stopViewportAnimation();
+  });
+});
+
+test("a pause that ends in a frame paints that frame with the new fade", () => {
+  setUpCameraTransition();
+  const previous = app.swapGlobalFunction("prefersReducedMotion", () => true);
+  try {
+    withCameraFrames(({ at }) => {
+      at(0);
+      app.buildActiveMapMarkers(app.worldToScreen, false);
+      app.moveCamera({ scale: 2, tx: 0, ty: 0 }, 600);
+      assert.equal(app.mapPinFadeOpacity(), 0);
+      // The tween is gone without going through endMarkerPause (the next draw has to notice).
+      app.stopViewportAnimation({ keepMarkerPause: true });
+      let fadeSeenByPaint = null;
+      const realDraw = app.swapGlobalFunction("drawBase", () => { fadeSeenByPaint = app.framePinFade(); });
+      try { app.draw(); } catch { /* the stub canvas may not paint further */ }
+      app.swapGlobalFunction("drawBase", realDraw);
+      assert.equal(fadeSeenByPaint, 1, "the frame that ends the pause is painted at the revealed opacity");
+    });
+  } finally {
+    app.swapGlobalFunction("prefersReducedMotion", previous);
+  }
 });
 
 test("with reduced motion a zooming camera move hides the pins at once and shows them after, without fades", () => {
@@ -11938,7 +12040,7 @@ function enterNearby3D(app) {
 function settleNearbySlide(app) {
   const transition = app.state.nearbyOriginTransition;
   if (!transition) return;
-  transition.startedAt -= transition.durationMs + app.NEARBY_REVEAL_MS + 1;
+  transition.startedAt -= transition.durationMs + 1;
   app.prepareCanvasForDraw();
   app.stopViewportAnimation();
 }
@@ -12254,7 +12356,7 @@ test("moving the nearby point holds the circle still on screen and slides the ma
   // has finished, applies the final camera and clears it -- rather than dropping the transition
   // from under it, which would leave the camera one frame behind the origin. The transition
   // object lives on through the reveal fade, so age it past that too.
-  app.state.nearbyOriginTransition.startedAt -= app.state.nearbyOriginTransition.durationMs + app.NEARBY_REVEAL_MS + 1;
+  app.state.nearbyOriginTransition.startedAt -= app.state.nearbyOriginTransition.durationMs + 1;
   const after = circleCentreOnScreen();
   assert.equal(app.state.nearbyOriginTransition, null, "the slide clears itself when it lands");
   const mapAfter = mapPointOnScreen();
@@ -12271,7 +12373,6 @@ test("while the map slides to a new browse spot the old pins are frozen and the 
   app.state.userLocation = makePoint(app, 51.665, 0.045);
   app.state.trees.push({ id: "t1", commonName: "Oak", ...makePoint(app, 51.6653, 0.045) });
   app.selectOverview();
-  assert.equal(app.nearbyRevealOpacity(), 1, "settled, the nearby set is fully drawn");
   assert.equal(app.markerGroupingPaused(), false);
 
   const anchor = makePoint(app, 51.66, 0.033);
@@ -12284,15 +12385,10 @@ test("while the map slides to a new browse spot the old pins are frozen and the 
     at(fraction);
     assert.equal(app.markerGroupingPaused(), true, `grouping is paused ${fraction} of the way through the slide`);
     assert.equal(app.buildActiveMapMarkers(app.worldToScreen, false).length, 0, "nothing is built or tappable mid-slide");
-    assert.equal(app.nearbyRevealOpacity(), 1, "the slide's own gradual reveal does not fade the pins a second time");
   }
   at(1.001);
   assert.equal(app.markerGroupingPaused(), false, "the slide has landed");
-  assert.equal(app.nearbyRevealOpacity(), 1);
-
-  // The transition object has to outlive the slide itself, so the camera keeps re-deriving.
-  transition.startedAt = startedAt - transition.durationMs - app.NEARBY_REVEAL_MS - 1;
-  assert.equal(app.nearbyRevealInProgress(), false);
+  assert.equal(app.nearbyRevealInProgress(), false, "nothing is left to fade once it lands: no extra frames are spent on it");
 });
 
 test("relocating again mid-slide continues from what is on screen", () => {

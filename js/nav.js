@@ -1480,7 +1480,7 @@ function refreshNearbyRadiusView(options = {}) {
   if (!secondaryScreenActive()) selectOverview();
   updateNearbyAnchorBar();
   // A caller that also just started a nearby-origin slide (focusNearbyOnClusterGroup) passes
-  // its own duration so the two tweens land on the same frame -- see nearbyRevealOpacity's
+  // its own duration so the two tweens land on the same frame -- see nearbyRevealInProgress's
   // concurrent-viewport-animation check, which otherwise has a gap to fall through if this one
   // finishes first.
   ensureOverviewTargetsVisible({
@@ -1800,8 +1800,9 @@ function focusNearbyOnClusterGroup(cluster) {
   // Same slide restoreNearbyAnchorFromHistory/setNearbyAnchor use for any other anchor move --
   // started from wherever the ring is currently drawn so it continues smoothly even if this
   // lands mid an earlier slide, rather than cutting straight to the new centre. The tapped group
-  // grows into the ring, so the frozen members stay put until the move lands (holdMarkers).
-  startNearbyOriginTransition(nearbyRenderOriginPoint(), { holdMarkers: true });
+  // grows into the ring, and like every programmatic move the old set fades out once and the fresh
+  // set reveals once after the last leg lands (markerGroupingPaused).
+  startNearbyOriginTransition(nearbyRenderOriginPoint());
   state.nearbyAnchor = { latitude: center.latitude, longitude: center.longitude, point: centerPoint };
   state.walkingDistanceMinutes = targetMinutes;
   state.outOfRadiusRevealFilters = [];
@@ -1828,7 +1829,7 @@ function focusNearbyOnClusterGroup(cluster) {
   // anchor bar, and ensureOverviewTargetsVisible's own camera fit. Matches the nearby-origin
   // slide's own duration (started above, via startNearbyOriginTransition -- always
   // NEARBY_ORIGIN_TRANSITION_MS) so the camera's fly-to-cluster tween and the ring/pin reveal
-  // land on the same frame -- see nearbyRevealOpacity.
+  // land on the same frame -- see nearbyRevealInProgress.
   refreshNearbyRadiusView({ animate: true, durationMs: NEARBY_ORIGIN_TRANSITION_MS, stagePanThenZoom: true });
   pushNearbyAnchorHistory();
   return true;
@@ -2001,10 +2002,10 @@ function zoomGestureLive() {
 // the last reason ends. A pure pan with no scale change never pauses (it never regroups).
 //
 // Each reason names itself so overlapping ones count: "camera" (moveCamera, js/app.js) and
-// "originSlide" (startNearbyOriginTransition, js/app.js), plus the gesture sources above. Mode
-// "hold" is for a tap on a cluster (the expanded group grows into the ring): the frozen members
-// stay at full opacity to the end and the fresh set swaps in once, instead of fading out.
-const _markerPauseSources = new Map();
+// "originSlide" (startNearbyOriginTransition, js/app.js), plus the gesture sources above. A compound
+// transition (a cluster tap's slide with its staged pan then zoom, Back/forward mid-flight) holds the
+// pause across all of its legs: one hide at the start, one reveal after the last leg lands.
+const _markerPauseSources = new Set();
 
 function markerGroupingPaused() {
   // Self-healing: a transition that has gone is dropped before the answer is given, so nothing that
@@ -2013,18 +2014,16 @@ function markerGroupingPaused() {
   return _zoomGestureSources.size > 0 || _markerPauseSources.size > 0;
 }
 
-// True while the only reasons are "hold" ones: the frozen set stays at full opacity.
-function markerPauseHolds() {
-  if (_zoomGestureSources.size > 0 || !_markerPauseSources.size) return false;
-  for (const mode of _markerPauseSources.values()) if (mode !== "hold") return false;
-  return true;
+// True while a programmatic transition (not a live zoom gesture) is what pauses grouping.
+function programmaticMarkerPauseActive() {
+  return _zoomGestureSources.size === 0 && markerGroupingPaused();
 }
 
-function beginMarkerPause(source, mode = "fade") {
+function beginMarkerPause(source) {
   if (_markerPauseSources.has(source)) return;
-  const wasHiding = _zoomGestureSources.size > 0 || !markerPauseHolds() && _markerPauseSources.size > 0;
-  _markerPauseSources.set(source, mode);
-  if (mode === "fade" && !wasHiding) hideMapPinsForZoom();
+  const wasHiding = _zoomGestureSources.size > 0 || _markerPauseSources.size > 0;
+  _markerPauseSources.add(source);
+  if (!wasHiding) hideMapPinsForZoom();
 }
 
 function endMarkerPause(source) {
@@ -2050,13 +2049,16 @@ function reconcileMarkerPauses() {
 function reconcileMarkerPausesNow() {
   const selectionOwns = state.selectionTransition.mapHeld && hasRealSelection();
   if (_markerPauseSources.has("camera") && (state.viewportAnimationTo == null || selectionOwns)) endMarkerPause("camera");
-  if (_markerPauseSources.has("originSlide") && (!nearbyOriginTransitionActive() || selectionOwns)) endMarkerPause("originSlide");
+  // The slide's pause outlasts the slide itself while a camera tween it overlaps is still flying:
+  // the slide object is dropped as soon as a tween runs (prepareCanvasForDraw), so the slide is judged
+  // by its own end time (nearbyOriginSlideHoldsPause, js/app.js), not by whether the object survives.
+  if (_markerPauseSources.has("originSlide") && (!nearbyOriginSlideHoldsPause() || selectionOwns)) endMarkerPause("originSlide");
 }
 
 function beginZoomGesture(source) {
   if (_zoomGestureSources.has(source)) return;
   const wasLive = zoomGestureLive();
-  const wasHiding = wasLive || (_markerPauseSources.size > 0 && !markerPauseHolds());
+  const wasHiding = wasLive || _markerPauseSources.size > 0;
   _zoomGestureSources.add(source);
   if (wasLive) return;
   _zoomGestureFloor = null;

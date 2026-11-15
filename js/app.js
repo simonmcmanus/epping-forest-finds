@@ -45,8 +45,6 @@ const FEATURE_LAYERS = [
 // specific transition are left as plain literals rather than forced into single-use
 // names.
 const NEARBY_ORIGIN_TRANSITION_MS = 520; // slide between two browse origins -- see nearbyRenderOriginPoint()
-const NEARBY_REVEAL_START_FRACTION = 0.1; // share of a browse-origin slide that passes before the new pins start to appear -- see nearbyRevealOpacity()
-const NEARBY_REVEAL_MS = 180; // how quickly the new nearby set fades in once a slide lands -- see nearbyRevealOpacity()
 const SELECTION_MARKER_EXIT_MS = 120; // fade the outgoing marker set before the destination arrives
 const SELECTION_MARKER_EXIT_STAGGER_MS = 5; // small per-marker offset so the old set leaves in a wave
 const SELECTION_MARKER_EXIT_MAX_STAGGER_MS = 60; // keep a dense view's exit short and readable
@@ -1588,6 +1586,14 @@ function stopViewportAnimation({ keepMarkerPause = false } = {}) {
 // treated as the same destination. Scale is compared as a ratio (0.5%), position in device
 // pixels -- both well below what reads as a different framing on screen.
 const VIEWPORT_ANIMATION_SAME_TARGET_SCALE_RATIO = 0.005;
+// How far a camera tween must change the scale before marker grouping pauses for it (see
+// markerGroupingPaused, js/nav.js). Grouping is hysteretic: a group only splits once its members
+// spread beyond MARKER_SPLIT_BOX_FACTOR (1.25x) of the box that merged them, so a remembered group
+// cannot split for a scale change well inside that. 1.1x (a tenth, under half the 25% tolerance)
+// leaves that margin: panel minimise/expand recentres, resizes and GPS refits stay under it and keep
+// their live pins, while a deliberate zoom (a refit to a new radius, a cluster zoom, an arc) is far over.
+// Below the threshold the pins are rebuilt live as usual, with grouping memory intact.
+const MARKER_PAUSE_SCALE_RATIO = 1.1;
 const VIEWPORT_ANIMATION_SAME_TARGET_PX = 6;
 
 // True when an animation is already running toward effectively this same viewport.
@@ -1710,7 +1716,7 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
     && deliberateMoveIsLarge(from, targetViewport, focusPoint);
   const arc = cinematic || deliberateArc;
   // Not while a browse-origin slide is running: its callers pass a duration chosen so the tween and the
-  // slide land on the same frame (see nearbyRevealOpacity), and stretching one would pull them apart.
+  // slide land on the same frame (see nearbyRevealInProgress), and stretching one would pull them apart.
   if (!cinematic && !options.fixedDuration && !state.nearbyOriginTransition
     && from.scale > 0 && targetViewport.scale > 0) {
     const zoomRatio = Math.max(from.scale / targetViewport.scale, targetViewport.scale / from.scale);
@@ -1764,10 +1770,10 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
   // Marker grouping pauses for a tween that regroups: the scale changes (or the arc dips it). A pure
   // pan never regroups, so it keeps the pins. The selection transition holds the markers itself.
   const scaleChanges = from.scale > 0 && targetViewport.scale > 0
-    && Math.abs(Math.log(targetViewport.scale / from.scale)) > VIEWPORT_ANIMATION_SAME_TARGET_SCALE_RATIO;
+    && Math.abs(Math.log(targetViewport.scale / from.scale)) > Math.log(MARKER_PAUSE_SCALE_RATIO);
   const selectionOwnsMarkers = state.selectionTransition.mapHeld || hasRealSelection();
   if ((scaleChanges || arc) && !selectionOwnsMarkers && typeof beginMarkerPause === "function") {
-    beginMarkerPause("camera", state.clusterExpanded ? "hold" : "fade");
+    beginMarkerPause("camera");
   } else if (typeof endMarkerPause === "function") {
     endMarkerPause("camera");
   }
@@ -4472,6 +4478,7 @@ function startCameraOriginTransition() {
   // flight, leaving its transition alive lets prepareCanvasForDraw run an old Nearby refit over
   // the new selection animation, which is an intermittent blank/snap depending on tap timing.
   state.nearbyOriginTransition = null;
+  _pausingNearbySlide = null;
   _nearbyRenderOriginCache = undefined;
   if (!fromPoint) {
     state.cameraOriginTransition = null;
@@ -4535,7 +4542,7 @@ function computeNearbyRenderOriginPoint() {
 // Starts the slide from wherever the origin is currently *drawn* -- not from the old logical
 // origin -- so relocating again mid-slide continues from what is on screen instead of
 // jumping back to where the last slide began.
-function startNearbyOriginTransition(fromPoint, { holdMarkers = false } = {}) {
+function startNearbyOriginTransition(fromPoint) {
   // The frame freeze above would otherwise hand the camera the pre-move origin for the rest
   // of this frame -- including the align refreshNearbyRadiusView runs immediately after.
   _nearbyRenderOriginCache = undefined;
@@ -4554,15 +4561,28 @@ function startNearbyOriginTransition(fromPoint, { holdMarkers = false } = {}) {
     fromScale: state.viewport.scale,
     startedAt: performance.now(),
     durationMs: NEARBY_ORIGIN_TRANSITION_MS,
-    // Whether this slide pauses marker grouping (see markerGroupingPaused, js/nav.js): the pins' own
-    // fade then replaces the slide's gradual reveal (nearbyRevealOpacity). The selection transition
-    // holds the markers itself while it holds the map.
+    // Whether this slide pauses marker grouping (see markerGroupingPaused, js/nav.js). The selection
+    // transition holds the markers itself while it holds the map.
     groupingPaused: false,
   };
   if (!state.selectionTransition.mapHeld && typeof beginMarkerPause === "function") {
     state.nearbyOriginTransition.groupingPaused = true;
-    beginMarkerPause("originSlide", holdMarkers ? "hold" : "fade");
+    _pausingNearbySlide = state.nearbyOriginTransition;
+    beginMarkerPause("originSlide");
   }
+}
+
+// The slide's pause is judged by the slide itself while its object is alive and running, and after
+// that by any camera tween still flying: prepareCanvasForDraw drops state.nearbyOriginTransition as
+// soon as a tween runs, so a slide overlapping a tween would otherwise end its pause on about the
+// second frame, and a pure-pan tween would then swap the fresh set in mid-flight. The pause ends when
+// the last leg lands. A slide replaced or cleared by anything else (a selection) no longer holds it.
+let _pausingNearbySlide = null;
+function nearbyOriginSlideHoldsPause() {
+  if (!_pausingNearbySlide) return false;
+  if (state.nearbyOriginTransition === _pausingNearbySlide && nearbyOriginTransitionActive()) return true;
+  if (state.nearbyOriginTransition && state.nearbyOriginTransition !== _pausingNearbySlide) return false;
+  return state.viewportAnimationTo != null;
 }
 
 // Eased 0-1 progress of the in-flight browse-origin slide, or null when none is running.
@@ -4578,56 +4598,17 @@ function nearbyOriginTransitionEasedProgress() {
     : 1 - Math.pow(-2 * progress + 2, 3) / 2;
 }
 
-// Opacity for everything that describes the *nearby set* -- the highlighted pins. A smooth ramp
-// from 0 to 1 across a browse-origin slide that runs *with the camera otherwise pinned in place*,
-// so the new surroundings arrive with the map instead of appearing after a blank stretch.
-// (It used to be 0 for the whole slide and a fade after it, which read as a blank screen.)
-//
-// Those pins and lines belong to the destination, but the map underneath them is still
-// travelling: drawing them straight away means a fan of lines pinned to a stationary circle
-// sweeping across moving terrain, and pins sliding under a marker that is not moving. It
-// reads as jitter even though every individual element is where it should be. Holding them
-// back until the map settles turns a busy half-second into one clean movement followed by the
-// new surroundings arriving.
-//
-// That reasoning assumes the ring is the only thing moving on screen -- true for a plain
-// anchor move (tap open ground, a Settings/pinch radius change), where the camera itself does
-// not animate and nearbyRenderOriginPoint's slide is what fakes the ring holding still while
-// the terrain pans beneath it. A cluster-tap expansion also re-zooms the camera
-// (focusNearbyOnClusterGroup -> ensureOverviewTargetsVisible's own moveCamera tween),
-// so nothing is pinned: ring, pins and terrain are all being redrawn every frame under one
-// live, moving transform, exactly like any other selection fit. Gating opacity here on top of
-// that hid the group's own members for the whole ~450ms flight and then popped them in once
-// both tweens happened to finish -- reported as "it animates to the position and then
-// suddenly snaps afterwards". Skipping the gate whenever a viewport animation is also running
-// leaves the plain-anchor-move case (no concurrent viewport tween) exactly as it was.
-function nearbyRevealOpacity() {
-  const transition = state.nearbyOriginTransition;
-  if (!transition) return 1;
-  if (state.selectionTransition.mapHeld) return 1;
-  if (transition.groupingPaused) return 1;
-  if (state.viewportAnimationTo != null) return 1;
-  const sinceStart = performance.now() - transition.startedAt;
-  if (sinceStart >= transition.durationMs) return 1;
-  // The destination's pins fade in while the map travels, rather than being absent for the whole
-  // slide and then appearing. A move between two places should show how they relate, which needs
-  // the surroundings visible on the way; the pins are world-anchored, so they slide in with the
-  // terrain. Starts after the first tenth so the move reads as the map leaving before the new
-  // area arrives, and is fully drawn by the time it lands.
-  const progress = sinceStart / transition.durationMs;
-  const t = clamp((progress - NEARBY_REVEAL_START_FRACTION) / (1 - NEARBY_REVEAL_START_FRACTION), 0, 1);
-  return t * t * (3 - 2 * t);
-}
-
-// True while the reveal fade still has frames left to draw, so prepareCanvasForDraw keeps
-// asking for them after the slide itself has finished. See nearbyRevealOpacity: no fade to
-// wait out while a viewport animation is also running, since nothing was hidden to begin with.
+// True while the browse-origin slide still has frames to drive. The transition object only lives for
+// the slide itself: the old pins leave and the fresh set arrives through the shared pin fade
+// (markerGroupingPaused, js/nav.js), so nothing is left to fade once the slide has landed and the
+// last frame's align (prepareCanvasForDraw) already snaps the camera onto the final origin.
+// Not while a camera tween is also flying: it owns the camera then.
 function nearbyRevealInProgress() {
   const transition = state.nearbyOriginTransition;
   if (!transition) return false;
   if (state.selectionTransition.mapHeld) return false;
   if (state.viewportAnimationTo != null) return false;
-  return performance.now() - transition.startedAt < transition.durationMs + NEARBY_REVEAL_MS;
+  return nearbyOriginTransitionActive();
 }
 
 // A selection is a deliberate handoff: remove the Nearby set from drawing and hit testing, let a
@@ -5867,19 +5848,13 @@ function prepareCanvasForDraw() {
   // is re-derived from the interpolated origin every frame (see nearbyRenderOriginPoint),
   // which is what holds the walking-radius circle still while the map moves behind it.
   if (state.nearbyOriginTransition) {
-    // The transition object outlives the slide itself by NEARBY_REVEAL_MS so the fade-in has
-    // frames to run.
-    const sliding = nearbyOriginTransitionActive();
+    // The transition object lives for the slide itself. The frame the slide lands on is the last one
+    // that runs the align below: nearbyRenderOriginPoint() has by then snapped from the interpolated
+    // origin to the final one, and this one forced fit puts the camera on it, so the walking-radius
+    // circle (which the slide exists to hold still) does not twitch as it lands. No later frames are
+    // needed: the pins' own fade (markerGroupingPaused) carries the reveal.
     const fading = nearbyRevealInProgress();
     if (!fading) state.nearbyOriginTransition = null;
-    // Re-derive the camera on every frame the transition object is alive, not just while the
-    // slide is moving. This used to be `sliding || !fading`, which skipped exactly the frames
-    // where the slide had landed but the reveal fade was still running -- and on those frames
-    // nearbyRenderOriginPoint() has already snapped from the interpolated origin to the final
-    // one while the camera is still the last interpolated framing. The walking-radius circle,
-    // which the whole slide exists to hold still, twitched a few pixels as the slide landed
-    // and hopped back when the fade ended. Once the origin has stopped moving this call is a
-    // no-op that costs a fit solve for the ~180ms of the fade.
     alignHeadingUpNavigationViewport({ animate: false, force: true });
     if (fading) requestDraw();
   }
