@@ -63,7 +63,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from scripts.place_matching import same_premises  # noqa: E402
+from scripts.place_matching import same_premises, metres_between  # noqa: E402
 DATA = ROOT / "data"
 MASTER_FILE = DATA / "local-landmarks.geojson"
 FOREST_BOUNDARY_FILE = DATA / "epping-forest-land.geojson"
@@ -259,13 +259,25 @@ def apply_changeset(master, changeset, segments, ref_lat_rad):
 
     # Redirect provenance records deliberate merges, including differently named
     # counters inside a shop that fuzzy name matching cannot recognise.
-    merged_ids = set(re.findall(r"^# was (\S+) at ", (ROOT / "netlify.toml").read_text(), re.MULTILINE))
+    merged_places = {
+        record_id: (float(lon), float(lat))
+        for record_id, lat, lon in re.findall(
+            r"^# was (\S+) at (-?[\d.]+),(-?[\d.]+)$",
+            (ROOT / "netlify.toml").read_text(), re.MULTILINE,
+        )
+    }
     for entry in changeset.get("add", []):
-        entry_id = entry.get("id") or f"manual/{slugify(entry['name'])}"
+        entry_id = entry.get("id")
         osm_id = None
         if entry.get("osmType") and entry.get("osmId") is not None:
             osm_id = f"{entry['osmType']}/{entry['osmId']}"
-        merged_id = next((key for key in (entry_id, osm_id) if key in merged_ids), None)
+        merged_id = next((key for key in (entry_id, osm_id) if key in merged_places), None)
+        # A generated manual ID is name-based, so only reuse its merge
+        # decision near the old premises; another branch may share the name.
+        fallback_id = f"manual/{slugify(entry['name'])}"
+        if not merged_id and not entry_id and fallback_id in merged_places:
+            if metres_between((float(entry["lon"]), float(entry["lat"])), merged_places[fallback_id]) < 100:
+                merged_id = fallback_id
         if merged_id:
             log["skipped"].append({
                 "op": "add", "entry": entry,

@@ -147,6 +147,18 @@ class TestApplyChangeset(unittest.TestCase):
             self.assertEqual(master["features"], [])
             self.assertEqual(len(log["skipped"]), 1)
 
+    def test_a_different_osm_branch_can_reuse_a_previously_merged_name(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "netlify.toml").write_text('# was manual/old-shop at 51.646,0.051\n')
+            master = make_master()
+            entry = {"name": "Old Shop", "category": "convenience", "lon": 0.064, "lat": 51.654,
+                     "osmType": "node", "osmId": 999}
+            with patch.object(awc, "ROOT", root):
+                log = awc.apply_changeset(master, {"add": [entry]}, self.segments, self.ref_lat_rad)
+            self.assertEqual(len(log["added"]), 1)
+            self.assertEqual(log["skipped"], [])
+
     def test_merge_history_does_not_block_a_different_osm_record(self):
         master = make_master()
         entry = {"id": "node/999999999999", "name": "1 Stop Halal at Tesco",
