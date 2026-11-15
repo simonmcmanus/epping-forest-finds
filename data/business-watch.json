@@ -1,45 +1,5 @@
 {
   "entries": {
-    "fsa/1023155": {
-      "confident": true,
-      "detail": {
-        "address": "Wagon Boulangerie Loughton, 174 High Road, Loughton, Essex, IG10 1DN",
-        "authority": "Epping Forest",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 1023155,
-        "lat": 51.6467754,
-        "lon": 0.0542364,
-        "name": "Wagon Boulangerie",
-        "ratingDate": "2026-01-21T00:00:00"
-      },
-      "firstSeen": "2026-11-14",
-      "lastSeen": "2026-11-14",
-      "name": "Wagon Boulangerie",
-      "runs": 1,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1034979": {
-      "confident": true,
-      "detail": {
-        "address": "626 Lea Bridge Road, Leyton, London, E10 6AP",
-        "authority": "Waltham Forest",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "cafe",
-        "fhrsId": 1034979,
-        "lat": 51.5755272,
-        "lon": -0.0123442,
-        "name": "Johnstons Cafe",
-        "ratingDate": "2026-04-27T00:00:00"
-      },
-      "firstSeen": "2026-11-14",
-      "lastSeen": "2026-11-14",
-      "name": "Johnstons Cafe",
-      "runs": 1,
-      "signal": "new",
-      "source": "fsa"
-    },
     "fsa/1038192": {
       "confident": false,
       "detail": {
@@ -63,7 +23,7 @@
       "source": "fsa"
     },
     "fsa/1045072": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "194 High Road, Loughton, Essex, IG10 1DN",
         "authority": "Epping Forest",
@@ -107,7 +67,7 @@
       "source": "fsa"
     },
     "fsa/1073956": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "39 - 43 Hatch Lane, Chingford, London, E4 6LP",
         "authority": "Waltham Forest",
@@ -129,7 +89,7 @@
       "source": "fsa"
     },
     "fsa/1095174": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "119 Harrow Road, Leytonstone, London, E11 3PX",
         "authority": "Waltham Forest",
@@ -151,7 +111,7 @@
       "source": "fsa"
     },
     "fsa/1109332": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "Billet Road Post Office 174 Billet Road, Walthamstow, London, E17 5DX",
         "authority": "Waltham Forest",
@@ -195,7 +155,7 @@
       "source": "fsa"
     },
     "fsa/1177878": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "Ground Floor 341 High Road Leytonstone, Leytonstone, London, E11 4JT",
         "authority": "Waltham Forest",
@@ -217,7 +177,7 @@
       "source": "fsa"
     },
     "fsa/1196703": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "249 Cann Hall Road, Leytonstone, London, E11 3NL",
         "authority": "Waltham Forest",
@@ -239,7 +199,7 @@
       "source": "fsa"
     },
     "fsa/1214437": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "301-303 High Road, Loughton, Essex, IG10 1AH",
         "authority": "Epping Forest",
@@ -261,7 +221,7 @@
       "source": "fsa"
     },
     "fsa/1218440": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "Ground Floor 139 Station Road, Chingford, London, E4 6AG",
         "authority": "Waltham Forest",
@@ -283,7 +243,7 @@
       "source": "fsa"
     },
     "fsa/1267509": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "Rusty Bike Public House 134 - 138 Station Road, Chingford, London, E4 6AN",
         "authority": "Waltham Forest",
@@ -305,7 +265,7 @@
       "source": "fsa"
     },
     "fsa/1366274": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "184 High Street, Epping, Essex, CM16 4AQ",
         "authority": "Epping Forest",
@@ -327,7 +287,7 @@
       "source": "fsa"
     },
     "fsa/1379656": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "160 Station Road, Chingford, London, E4 6AN",
         "authority": "Waltham Forest",
@@ -349,7 +309,7 @@
       "source": "fsa"
     },
     "fsa/1403333": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "Ground Floor 239 Wood Street, Walthamstow, London, E17 3NT",
         "authority": "Waltham Forest",
@@ -370,28 +330,8 @@
       "signal": "new",
       "source": "fsa"
     },
-    "fsa/1412708": {
-      "confident": true,
-      "detail": {
-        "address": "Morley's Fried Chicken, 252B High Road, Loughton, Essex, IG10 1RB",
-        "authority": "Epping Forest",
-        "businessType": "Takeaway/sandwich shop",
-        "category": "restaurant",
-        "fhrsId": 1412708,
-        "lat": 51.6491873,
-        "lon": 0.0564452,
-        "name": "Morleys fried chicken",
-        "ratingDate": "2026-01-28T00:00:00"
-      },
-      "firstSeen": "2026-11-14",
-      "lastSeen": "2026-11-14",
-      "name": "Morleys fried chicken",
-      "runs": 1,
-      "signal": "new",
-      "source": "fsa"
-    },
     "fsa/1492682": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "486 Hoe Street, Walthamstow, London, E17 9AH",
         "authority": "Waltham Forest",
@@ -413,7 +353,7 @@
       "source": "fsa"
     },
     "fsa/1492686": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "Ground Floor 125 Grove Road, Walthamstow, London, E17 9BU",
         "authority": "Waltham Forest",
@@ -435,7 +375,7 @@
       "source": "fsa"
     },
     "fsa/1497451": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "147 George Lane, South Woodford, E18 1AN",
         "authority": "Redbridge",
@@ -457,7 +397,7 @@
       "source": "fsa"
     },
     "fsa/1521770": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "Marlos, 275 High Street, Epping, Essex, CM16 4DA",
         "authority": "Epping Forest",
@@ -501,7 +441,7 @@
       "source": "fsa"
     },
     "fsa/1644586": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "682 High Road Leytonstone, Leytonstone, London, E11 3AA",
         "authority": "Waltham Forest",
@@ -523,7 +463,7 @@
       "source": "fsa"
     },
     "fsa/1679437": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "460 Larkshall Road, Chingford, London, E4 9HH",
         "authority": "Waltham Forest",
@@ -545,7 +485,7 @@
       "source": "fsa"
     },
     "fsa/1735243": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "Aldi 829 - 837 High Road Leytonstone, Leytonstone, London, E11 1HH",
         "authority": "Waltham Forest",
@@ -567,7 +507,7 @@
       "source": "fsa"
     },
     "fsa/1737843": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "Sainsburys Store, 119 Church Hill, Loughton, Essex, IG10 1QR",
         "authority": "Epping Forest",
@@ -589,7 +529,7 @@
       "source": "fsa"
     },
     "fsa/1767146": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "Ground Floor 117 Station Road, Chingford, London, E4 6AG",
         "authority": "Waltham Forest",
@@ -633,7 +573,7 @@
       "source": "fsa"
     },
     "fsa/1843317": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "Warren Wood Kitchen Warren Wood Service, Epping New Road, Buckhurst Hill, Essex, IG9 5UA",
         "authority": "Epping Forest",
@@ -655,7 +595,7 @@
       "source": "fsa"
     },
     "fsa/1867015": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "Ground Floor 877 High Road Leytonstone, Leytonstone, London, E11 1HR",
         "authority": "Waltham Forest",
@@ -677,7 +617,7 @@
       "source": "fsa"
     },
     "fsa/1867018": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "328 High Road Leytonstone, Leytonstone, London, E11 3HS",
         "authority": "Waltham Forest",
@@ -699,7 +639,7 @@
       "source": "fsa"
     },
     "fsa/1878167": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "23 Winchester Road, Chingford, London, E4 9LH",
         "authority": "Waltham Forest",
@@ -716,26 +656,6 @@
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Good Friend Chinese Restaurant",
-      "runs": 1,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/1905247": {
-      "confident": true,
-      "detail": {
-        "address": "TARU, 79 Queens Road, Buckhurst Hill, Essex, IG9 5BW",
-        "authority": "Epping Forest",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 1905247,
-        "lat": 51.6256427,
-        "lon": 0.0421168,
-        "name": "The Taru",
-        "ratingDate": "2025-12-01T00:00:00"
-      },
-      "firstSeen": "2026-11-14",
-      "lastSeen": "2026-11-14",
-      "name": "The Taru",
       "runs": 1,
       "signal": "new",
       "source": "fsa"
@@ -784,86 +704,6 @@
       "signal": "new",
       "source": "fsa"
     },
-    "fsa/2010549": {
-      "confident": true,
-      "detail": {
-        "address": "Rear Of, 156 George Lane, South Woodford, E18 1AY",
-        "authority": "Redbridge",
-        "businessType": "Takeaway/sandwich shop",
-        "category": "restaurant",
-        "fhrsId": 2010549,
-        "lat": 51.5936117,
-        "lon": 0.0249281,
-        "name": "Elite Burgers",
-        "ratingDate": "1901-01-01T00:00:00"
-      },
-      "firstSeen": "2026-11-14",
-      "lastSeen": "2026-11-14",
-      "name": "Elite Burgers",
-      "runs": 1,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/2010553": {
-      "confident": true,
-      "detail": {
-        "address": "684 Chigwell Road, Woodford Green, IG8 8AQ",
-        "authority": "Redbridge",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 2010553,
-        "lat": 51.606199,
-        "lon": 0.0540543,
-        "name": "Nourished",
-        "ratingDate": "1901-01-01T00:00:00"
-      },
-      "firstSeen": "2026-11-14",
-      "lastSeen": "2026-11-14",
-      "name": "Nourished",
-      "runs": 1,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/2012991": {
-      "confident": true,
-      "detail": {
-        "address": "The Coriander Epping, 199 High Street, Epping, Essex, CM16 4BL",
-        "authority": "Epping Forest",
-        "businessType": "Restaurant/Cafe/Canteen",
-        "category": "restaurant",
-        "fhrsId": 2012991,
-        "lat": 51.699348,
-        "lon": 0.111308,
-        "name": "The coriander Epping",
-        "ratingDate": "1901-01-01T00:00:00"
-      },
-      "firstSeen": "2026-11-14",
-      "lastSeen": "2026-11-14",
-      "name": "The coriander Epping",
-      "runs": 1,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/2013724": {
-      "confident": true,
-      "detail": {
-        "address": "17 Mill Lane, Woodford Green, London, IG8 0UN",
-        "authority": "Waltham Forest",
-        "businessType": "Retailers - other",
-        "category": "convenience",
-        "fhrsId": 2013724,
-        "lat": 51.6101843,
-        "lon": 0.0197583,
-        "name": "Mill Lane Local Express",
-        "ratingDate": "1901-01-01T00:00:00"
-      },
-      "firstSeen": "2026-11-14",
-      "lastSeen": "2026-11-14",
-      "name": "Mill Lane Local Express",
-      "runs": 1,
-      "signal": "new",
-      "source": "fsa"
-    },
     "fsa/2013726": {
       "confident": true,
       "detail": {
@@ -877,35 +717,17 @@
         "name": "Crop & Cleaver",
         "ratingDate": "1901-01-01T00:00:00"
       },
+      "dismissed": true,
+      "dismissedReason": "Already on the map under a near-identical name (Crop and Cleaver / Uzbegim); the check matched on spelling, not a real gap.",
       "firstSeen": "2026-11-14",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Crop & Cleaver",
-      "runs": 1,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/2013730": {
-      "confident": true,
-      "detail": {
-        "address": "75 Sewardstone Road, Chingford, London, E4 7PA",
-        "authority": "Waltham Forest",
-        "businessType": "Retailers - other",
-        "category": "convenience",
-        "fhrsId": 2013730,
-        "lat": 51.6366313,
-        "lon": -0.0129265,
-        "name": "Valley House Food and Wine/Valley Food Hub",
-        "ratingDate": "1901-01-01T00:00:00"
-      },
-      "firstSeen": "2026-11-14",
-      "lastSeen": "2026-11-14",
-      "name": "Valley House Food and Wine/Valley Food Hub",
-      "runs": 1,
+      "runs": 2,
       "signal": "new",
       "source": "fsa"
     },
     "fsa/442972": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "12 Roding Lane South, Ilford, IG4 5NX",
         "authority": "Redbridge",
@@ -927,7 +749,7 @@
       "source": "fsa"
     },
     "fsa/442997": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "73 Hollybush Hill, Wanstead, E11 1PE",
         "authority": "Redbridge",
@@ -949,7 +771,7 @@
       "source": "fsa"
     },
     "fsa/443055": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "78 George Lane, South Woodford, E18 1JJ",
         "authority": "Redbridge",
@@ -971,7 +793,7 @@
       "source": "fsa"
     },
     "fsa/443272": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "Southend Road, Woodford Green, IG8 8GE",
         "authority": "Redbridge",
@@ -1037,7 +859,7 @@
       "source": "fsa"
     },
     "fsa/443381": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "712 Chigwell Road, Woodford Green, IG8 8AL",
         "authority": "Redbridge",
@@ -1059,7 +881,7 @@
       "source": "fsa"
     },
     "fsa/443414": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "85 High Street, Wanstead, E11 2AE",
         "authority": "Redbridge",
@@ -1103,7 +925,7 @@
       "source": "fsa"
     },
     "fsa/443541": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "710 Chigwell Road, Woodford Green, IG8 8AL",
         "authority": "Redbridge",
@@ -1125,7 +947,7 @@
       "source": "fsa"
     },
     "fsa/443579": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "734 Chigwell Road, Woodford Green, IG8 8AL",
         "authority": "Redbridge",
@@ -1147,7 +969,7 @@
       "source": "fsa"
     },
     "fsa/443630": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "Unit 1, 253-269 High Road, Woodford Green, IG8 9FB",
         "authority": "Redbridge",
@@ -1169,7 +991,7 @@
       "source": "fsa"
     },
     "fsa/443657": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "14 High Street, Wanstead, E11 2AJ",
         "authority": "Redbridge",
@@ -1191,7 +1013,7 @@
       "source": "fsa"
     },
     "fsa/443964": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "18 Electric Parade, George Lane, South Woodford, E18 2LY",
         "authority": "Redbridge",
@@ -1213,7 +1035,7 @@
       "source": "fsa"
     },
     "fsa/443967": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "6 Clock House Parade, High Street, Wanstead, E11 2AG",
         "authority": "Redbridge",
@@ -1235,7 +1057,7 @@
       "source": "fsa"
     },
     "fsa/443972": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "686 Chigwell Road, Woodford Green, IG8 8AQ",
         "authority": "Redbridge",
@@ -1257,7 +1079,7 @@
       "source": "fsa"
     },
     "fsa/514293": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "1C The Avenue, Chingford, London, E4 9LB",
         "authority": "Waltham Forest",
@@ -1279,7 +1101,7 @@
       "source": "fsa"
     },
     "fsa/514312": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "98 Station Road, Chingford, London, E4 7BA",
         "authority": "Waltham Forest",
@@ -1301,7 +1123,7 @@
       "source": "fsa"
     },
     "fsa/514605": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "34 The Avenue, Chingford, London, E4 9LD",
         "authority": "Waltham Forest",
@@ -1323,7 +1145,7 @@
       "source": "fsa"
     },
     "fsa/514616": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "815 High Road Leyton, Leyton, London, E10 7AA",
         "authority": "Waltham Forest",
@@ -1345,7 +1167,7 @@
       "source": "fsa"
     },
     "fsa/514920": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "Tesco Express 567 - 569 High Road Leytonstone, Leytonstone, London, E11 4PB",
         "authority": "Waltham Forest",
@@ -1367,7 +1189,7 @@
       "source": "fsa"
     },
     "fsa/515033": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "Ground Floor Sainsburys Supermarkets Ltd 14 - 15 Church Lane, Leytonstone, London, E11 1HG",
         "authority": "Waltham Forest",
@@ -1432,28 +1254,8 @@
       "signal": "new",
       "source": "fsa"
     },
-    "fsa/515508": {
-      "confident": true,
-      "detail": {
-        "address": "United Services Club 18 Kings Road, Chingford, London, E4 7EY",
-        "authority": "Waltham Forest",
-        "businessType": "Pub/bar/nightclub",
-        "category": "pub",
-        "fhrsId": 515508,
-        "lat": 51.6290898,
-        "lon": 0.001713,
-        "name": "United Services (Chingford) Club",
-        "ratingDate": "2024-02-20T00:00:00"
-      },
-      "firstSeen": "2026-11-14",
-      "lastSeen": "2026-11-14",
-      "name": "United Services (Chingford) Club",
-      "runs": 1,
-      "signal": "new",
-      "source": "fsa"
-    },
     "fsa/553727": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "Station Approach, Theydon Bois, Epping, Essex, CM16 7HR",
         "authority": "Epping Forest",
@@ -1475,7 +1277,7 @@
       "source": "fsa"
     },
     "fsa/554594": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "51 High Street, Epping, Essex, CM16 4BA",
         "authority": "Epping Forest",
@@ -1497,7 +1299,7 @@
       "source": "fsa"
     },
     "fsa/570068": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "2 Johnston Road, Woodford Green, IG8 0XA",
         "authority": "Redbridge",
@@ -1519,7 +1321,7 @@
       "source": "fsa"
     },
     "fsa/589448": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "Green Owl Cafe & Deli, 44 Queens Road, Buckhurst Hill, Essex, IG9 5BY",
         "authority": "Epping Forest",
@@ -1541,7 +1343,7 @@
       "source": "fsa"
     },
     "fsa/592040": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "766 Lea Bridge Road, Walthamstow, London, E17 9DN",
         "authority": "Waltham Forest",
@@ -1558,26 +1360,6 @@
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
       "name": "Quickpay Supermarket",
-      "runs": 1,
-      "signal": "new",
-      "source": "fsa"
-    },
-    "fsa/610047": {
-      "confident": true,
-      "detail": {
-        "address": "Epping Forest Conservators The Warren, Nursery Road, Loughton, Essex, IG10 4RN",
-        "authority": "Epping Forest",
-        "businessType": "Retailers - other",
-        "category": "convenience",
-        "fhrsId": 610047,
-        "lat": 51.6417308,
-        "lon": 0.0354758,
-        "name": "The Warren Deer Larder",
-        "ratingDate": "1901-01-01T00:00:00"
-      },
-      "firstSeen": "2026-11-14",
-      "lastSeen": "2026-11-14",
-      "name": "The Warren Deer Larder",
       "runs": 1,
       "signal": "new",
       "source": "fsa"
@@ -1627,7 +1409,7 @@
       "source": "fsa"
     },
     "fsa/689534": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "777 - 779 High Road Leytonstone, Leytonstone, London, E11 4QS",
         "authority": "Waltham Forest",
@@ -1649,7 +1431,7 @@
       "source": "fsa"
     },
     "fsa/705022": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "767 High Road Leytonstone, Leytonstone, London, E11 4QS",
         "authority": "Waltham Forest",
@@ -1693,7 +1475,7 @@
       "source": "fsa"
     },
     "fsa/735384": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "Wesleyan Christian Centre 1 Harrow Green, Leytonstone, London, E11 3HP",
         "authority": "Waltham Forest",
@@ -1715,7 +1497,7 @@
       "source": "fsa"
     },
     "fsa/896471": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "Co-Operative Food, 55-57 George Lane, South Woodford, E18 1JJ",
         "authority": "Redbridge",
@@ -1737,7 +1519,7 @@
       "source": "fsa"
     },
     "fsa/918676": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "123 High Street, Wanstead, E11 2RL",
         "authority": "Redbridge",
@@ -1759,7 +1541,7 @@
       "source": "fsa"
     },
     "fsa/947780": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "527 - 529 High Road Leytonstone, Leytonstone, London, E11 4PB",
         "authority": "Waltham Forest",
@@ -1781,7 +1563,7 @@
       "source": "fsa"
     },
     "fsa/983825": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "55-57 High Street, Wanstead, E11 2AE",
         "authority": "Redbridge",
@@ -1803,7 +1585,7 @@
       "source": "fsa"
     },
     "fsa/984784": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "Piya Kitchen, 74-76 High Street, Epping, Essex, CM16 4AE",
         "authority": "Epping Forest",
@@ -1825,7 +1607,7 @@
       "source": "fsa"
     },
     "fsa/985066": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "660 High Road Leyton, Leyton, London, E10 6JP",
         "authority": "Waltham Forest",
@@ -1881,9 +1663,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Baden-Powell Bust",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -1900,9 +1682,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "The Chief\u2019s Drum",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -1919,9 +1701,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Baden-Powell Statue",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -1938,9 +1720,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -1957,9 +1739,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-10-16",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Shake a Shake",
-      "runs": 11,
+      "runs": 12,
       "signal": "missing",
       "source": "osm"
     },
@@ -1976,14 +1758,14 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
     "node/12232978047": {
-      "confident": false,
+      "confident": true,
       "detail": {
         "address": "13 Church Lane London E11 1HG",
         "category": "restaurant",
@@ -2001,10 +1783,12 @@
         "status": "open",
         "website": "https://www.marrakechdelightgrill.co.uk/"
       },
+      "dismissed": true,
+      "dismissedReason": "Already on the map under a near-identical name (Crop and Cleaver / Uzbegim); the check matched on spelling, not a real gap.",
       "firstSeen": "2026-11-14",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Uzbegim",
-      "runs": 1,
+      "runs": 2,
       "signal": "changed",
       "source": "osm"
     },
@@ -2021,9 +1805,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-10-31",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Gjana Bakery",
-      "runs": 3,
+      "runs": 4,
       "signal": "missing",
       "source": "osm"
     },
@@ -2068,9 +1852,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2087,9 +1871,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-11-14",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Capital Fruit Market",
-      "runs": 1,
+      "runs": 2,
       "signal": "missing",
       "source": "osm"
     },
@@ -2108,10 +1892,12 @@
         "status": "open",
         "website": null
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented by Eatwell Restaurant (eatwell-restaurant); previously merged manual/eatwell-express record.",
       "firstSeen": "2026-11-14",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Eatwell Express",
-      "runs": 1,
+      "runs": 2,
       "signal": "new",
       "source": "osm"
     },
@@ -2152,9 +1938,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2215,7 +2001,7 @@
       "source": "osm"
     },
     "node/3163720403": {
-      "confident": false,
+      "confident": true,
       "detail": {
         "address": null,
         "category": "community_centre",
@@ -2230,9 +2016,9 @@
         "website": null
       },
       "firstSeen": "2026-11-14",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "St Anne's Parish Centre",
-      "runs": 1,
+      "runs": 2,
       "signal": "new",
       "source": "osm"
     },
@@ -2249,9 +2035,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2268,9 +2054,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2289,10 +2075,12 @@
         "status": "open",
         "website": null
       },
+      "dismissed": true,
+      "dismissedReason": "Already represented by Tesco (tesco-e11); previously merged record, retained in netlify.toml redirect provenance.",
       "firstSeen": "2026-11-14",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "1 Stop Halal at Tesco",
-      "runs": 1,
+      "runs": 2,
       "signal": "new",
       "source": "osm"
     },
@@ -2309,9 +2097,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2328,9 +2116,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Tesco Express",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2375,9 +2163,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-10-08",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Mr Bakery",
-      "runs": 14,
+      "runs": 15,
       "signal": "missing",
       "source": "osm"
     },
@@ -2394,9 +2182,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Loughton BBQ",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2441,9 +2229,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Bishops",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2488,14 +2276,14 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "El Cafecito/Belle Juin",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
     "node/8609999353": {
-      "confident": false,
+      "confident": true,
       "detail": {
         "address": "Station Road London E4 6AL",
         "category": "community_centre",
@@ -2510,9 +2298,9 @@
         "website": null
       },
       "firstSeen": "2026-11-14",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Chingford Community Hub",
-      "runs": 1,
+      "runs": 2,
       "signal": "new",
       "source": "osm"
     },
@@ -2529,9 +2317,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2548,9 +2336,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2567,9 +2355,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "High Beech Kiosk",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2614,9 +2402,9 @@
         "osmType": "relation"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2633,9 +2421,9 @@
         "osmType": "relation"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Ripley Grange",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2652,9 +2440,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2685,9 +2473,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2704,9 +2492,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2723,9 +2511,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Drinking Fountain",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2742,9 +2530,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "The Pigsty",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2761,9 +2549,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Eccles (Baden-Powell\u2019s Caravan)",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2780,9 +2568,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Columbarium",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2799,9 +2587,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Promise Path",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2846,9 +2634,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2865,9 +2653,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2884,9 +2672,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2927,9 +2715,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "The Larder at the Butler's Retreat",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2946,9 +2734,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Manor House",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2965,9 +2753,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Dower House",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -2984,9 +2772,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Arabin House",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -3059,9 +2847,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "The Black Cottage",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -3078,9 +2866,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "City of London Cemetery and Crematorium",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -3125,9 +2913,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -3144,9 +2932,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -3191,9 +2979,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "St Nicholas' Chapel",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -3210,9 +2998,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Copped Hall Temple",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -3229,9 +3017,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Double Bubble",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -3276,9 +3064,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -3323,9 +3111,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -3342,9 +3130,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "The Warren",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -3361,9 +3149,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -3380,9 +3168,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "The Farm",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -3495,9 +3283,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -3514,9 +3302,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "The Royal Regency",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -3533,9 +3321,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -3552,9 +3340,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Ladderstile Farmhouse",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -3571,9 +3359,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -3590,9 +3378,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Park Cottage",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -3609,9 +3397,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -3628,9 +3416,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -3647,9 +3435,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Pakes Farmhouse",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -3666,9 +3454,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "The Cottage",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -3685,9 +3473,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Heathfield Cottage",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -3704,9 +3492,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": "Baldocks",
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     },
@@ -3751,9 +3539,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-14",
+      "lastSeen": "2026-11-15",
       "name": null,
-      "runs": 20,
+      "runs": 21,
       "signal": "missing",
       "source": "osm"
     }
@@ -3881,14 +3669,14 @@
   ],
   "sources": {
     "fsa": {
-      "checkedAt": "2026-11-14",
+      "checkedAt": "2026-11-15",
       "population": 933
     },
     "osm": {
-      "checkedAt": "2026-11-14",
+      "checkedAt": "2026-11-15",
       "population": 2575
     }
   },
-  "updatedAt": "2026-11-14",
+  "updatedAt": "2026-11-15",
   "version": 1
 }

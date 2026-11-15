@@ -182,9 +182,16 @@ Guard rails, because this runs unattended:
 - A signal that stops appearing is forgotten rather than banked, so an
   intermittent source can never accumulate its way to confidence.
 - Setting `"dismissed": true` on an entry by hand parks it permanently. This
-  is the only way to stop a false positive being re-proposed every week, and
+  stops a false positive being re-proposed every week, and
   it is how the closures confirmed on foot in September 2026 are kept from
   being re-added by a source that has not caught up.
+
+The apply script also refuses additions whose record ID appears in the merge
+provenance (`# was <id> at ...`) in `netlify.toml`, even if the source changes
+the name or the watchlist dismissal is absent. It logs a skip for human review;
+IDs present before the changeset remain eligible for changed-hands replacements;
+a generated manual ID is matched only within 100 metres of the old position,
+so a new branch elsewhere remains eligible under the usual checks.
 
 **Agreement beats repetition.** Two sources that have never heard of each
 other describing the same new place is stronger evidence than one source
