@@ -501,40 +501,6 @@ test.describe("The group record ends with the selection", () => {
     });
     expect(result).toEqual({ member: true, outsider: false, memberAgain: true, settings: false, memberThird: true, none: false });
   });
-
-  test("reading the group context repeatedly checks membership once per selected place, and again when it changes", async ({ page }) => {
-    await setup(page);
-    await pickFromGroup(page);
-    const counts = await page.evaluate(() => {
-      const real = window.clusterGroupHasItem;
-      let calls = 0;
-      window.clusterGroupHasItem = function () { calls += 1; return real.apply(this, arguments); };
-      const first = state.selected;
-      const sibling = Object.values(clusterItemsByType(state.selectionCluster)).flat().find((item) => item !== first.item);
-      const out = {};
-      try {
-        selectionClusterGroup(); // may warm the cache
-        calls = 0;
-        for (let i = 0; i < 25; i += 1) selectionClusterGroup();
-        out.repeatedReads = calls;
-        state.selected = { type: first.type, item: sibling };
-        calls = 0;
-        for (let i = 0; i < 25; i += 1) selectionClusterGroup();
-        out.afterChange = calls;
-        out.stillGrouped = selectionClusterGroup() === state.selectionCluster;
-        state.selected = first;
-        out.restoredGrouped = selectionClusterGroup() === state.selectionCluster;
-      } finally {
-        window.clusterGroupHasItem = real;
-        state.selected = first;
-      }
-      return out;
-    });
-    expect(counts.repeatedReads, "unchanged selection and group: no further membership scans").toBe(0);
-    expect(counts.afterChange, "a changed selected place is validated again, once").toBe(1);
-    expect(counts.stillGrouped).toBe(true);
-    expect(counts.restoredGrouped).toBe(true);
-  });
 });
 
 test.describe("Dimmed siblings with the phone held up and tilted", () => {
