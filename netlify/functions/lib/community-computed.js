@@ -78,10 +78,7 @@ async function rebuildComputed(store, { strict = false, fetchJson = null, allowR
     }
   } else if (adventureClaims) {
     // A caller without a register fetcher may not publish a snapshot that changes adventure scoring.
-    if (!allowRegisterFailure && !Array.isArray(previous?.adventureReports)) {
-      throw new Error("veteran tree register fetcher required for adventure scores");
-    }
-    adventureReportIds = new Set(Array.isArray(previous?.adventureReports) ? previous.adventureReports : []);
+    throw new Error("veteran tree register fetcher required for adventure scores");
   }
   const state = computeCommunityState(reports, validations, owners, { adventureTargets, adventureReportIds });
   const { overlay, conflicts, conflictDetails, scores, rewards, adventureReports } = state;
