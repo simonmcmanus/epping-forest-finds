@@ -32,6 +32,16 @@ async function expandSmallGroup(page, { largest = false } = {}) {
   return target.count;
 }
 
+/**
+ * The first selection starts the lazy routing-graph build, and its completion deliberately refits
+ * the camera (refitSelectionAfterRoutingGraphReady, js/app.js). Wait for it before a tap whose
+ * camera moves are counted, so a late build is not mistaken for a second move of that tap.
+ */
+async function waitForRoutingGraph(page) {
+  await page.waitForFunction(() => state.routingGraphReady === true, null, { timeout: 20_000 });
+  await waitForUiToSettle(page);
+}
+
 /** Records every camera move and the alpha each pin is drawn at, from now on. */
 async function startTrace(page) {
   await page.evaluate(() => {
@@ -158,6 +168,7 @@ test.describe("A place picked from an expanded group", () => {
     await page.locator("#inspectorBody .nearest-item").first().click();
     await expect.poll(() => page.evaluate(() => state.selectionCluster != null)).toBe(true);
     await waitForUiToSettle(page);
+    await waitForRoutingGraph(page);
 
     // Bring the whole group into view the way a reader would zoom out, then pick a lone sibling pin to tap.
     const pin = await page.evaluate(() => {
@@ -313,6 +324,7 @@ test.describe("A place picked from an expanded group", () => {
     await page.locator("#inspectorBody .nearest-item").first().click();
     await expect.poll(() => page.evaluate(() => selectionClusterGroup() != null)).toBe(true);
     await waitForUiToSettle(page);
+    await waitForRoutingGraph(page);
     const first = await page.evaluate(selectedId);
     const pin = await findTappableSibling(page);
     expect(pin, "a lone dimmed sibling is on screen and tappable").not.toBeNull();
