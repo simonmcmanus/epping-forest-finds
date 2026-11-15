@@ -358,6 +358,12 @@ function drawFrame() {
 }
 
 function drawOverlay() {
+  // A terrain/compass repaint already refreshes this layer. Coalesce the feedback's
+  // pending frame so a held limit does not build the same overlay twice per frame.
+  if (_walkingRadiusLimitFrame != null) {
+    cancelAnimationFrame(_walkingRadiusLimitFrame);
+    _walkingRadiusLimitFrame = null;
+  }
   clearTimeout(_selectedIconMotionTimer);
   _selectedIconMotionTimer = null;
   _selectedIconMotionDrawn = false;

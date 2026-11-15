@@ -19,7 +19,7 @@ test.describe("Radius zoom limit feedback", () => {
         await expect.poll(() => page.evaluate(() => state.viewportAnimationFrame == null)).toBe(true);
         const clockTime = new Date("2026-11-15T12:00:00Z");
         await page.clock.install({ time: clockTime });
-        await page.clock.pauseAt(clockTime);
+        await page.clock.pauseAt(new Date(clockTime.getTime() + 10_000));
         await page.evaluate((limit) => {
           state.walkingDistanceMinutes = limit === "floor" ? walkingRadiusFloorMinutes(nearbyOrigin()) : WALKING_RADIUS_MAX_MINUTES;
           ensureOverviewTargetsVisible({ animate: false, force: true });
@@ -116,7 +116,7 @@ test.describe("Radius zoom limit feedback", () => {
     await expect.poll(() => page.evaluate(() => state.viewportAnimationFrame == null)).toBe(true);
     const time = new Date("2026-11-15T12:00:00Z");
     await page.clock.install({ time });
-    await page.clock.pauseAt(time);
+    await page.clock.pauseAt(new Date(time.getTime() + 10_000));
     await page.evaluate(() => {
       state.walkingDistanceMinutes = walkingRadiusFloorMinutes(nearbyOrigin());
       els.canvas.dispatchEvent(new Event("gesturestart", { bubbles: true, cancelable: true }));
@@ -141,5 +141,65 @@ test.describe("Radius zoom limit feedback", () => {
     await page.clock.fastForward(240);
     expect(await sample()).toBe(0);
   });
+
+
+  for (const tilted of [false, true]) {
+    test(`the visible ${tilted ? "tilted" : "flat"} overlay lights the radius edge and clears on release`, async ({ page }) => {
+      await skipOnboarding(page);
+      await mockCowApi(page);
+      await gotoAndWaitForMap(page);
+      await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
+      await expect.poll(() => page.evaluate(() => state.viewportAnimationFrame == null)).toBe(true);
+      await page.evaluate((tilted) => {
+        if (tilted) {
+          state.map3dEnabled = true;
+          state.compassHeadingTarget = state.compassHeading = state.renderedNavigationHeading = 0;
+          state.compassLastEventAt = performance.now();
+          state.tiltBetaTarget = state.tiltBetaSmoothed = 50;
+        }
+        state.walkingDistanceMinutes = walkingRadiusFloorMinutes(nearbyOrigin());
+        ensureOverviewTargetsVisible({ animate: false, force: true });
+        draw();
+      }, tilted);
+      expect(await page.evaluate(() => tiltActive())).toBe(tilted);
+      const time = new Date("2026-11-15T12:00:00Z");
+      await page.clock.install({ time });
+      await page.clock.pauseAt(new Date(time.getTime() + 10_000));
+      const sample = () => page.evaluate(() => {
+        // Exercise the actual display integration, so dropping the feedback from drawOverlay
+        // cannot pass merely because an isolated helper can still paint a red circle.
+        drawOverlay();
+        const { center, radiusPx, tilted } = walkingRadiusScreenGeometry(true);
+        const ctx = els.overlayCanvas.getContext("2d");
+        const scale = state.canvasMotion.scale;
+        let red = 0, samples = 0;
+        for (let i = 0; i < 64; i++) {
+          const a = i * Math.PI * 2 / 64;
+          const flat = { x: center.x + radiusPx * Math.cos(a), y: center.y + radiusPx * Math.sin(a) };
+          const point = tilted ? tiltProjectScreenPoint(flat) : flat;
+          const x = Math.round(point.x * scale), y = Math.round(point.y * scale);
+          if (x < 1 || y < 1 || x >= ctx.canvas.width - 1 || y >= ctx.canvas.height - 1) continue;
+          samples++;
+          const data = ctx.getImageData(x - 1, y - 1, 3, 3).data;
+          for (let j = 0; j < data.length; j += 4) red += Math.max(0, data[j] - data[j + 1]) * data[j + 3] / 255;
+        }
+        return { red, samples };
+      });
+      const before = await sample();
+      expect(before.samples).toBeGreaterThan(8);
+      await page.evaluate(() => {
+        els.canvas.dispatchEvent(new Event("gesturestart", { bubbles: true, cancelable: true }));
+        const change = new Event("gesturechange", { bubbles: true, cancelable: true });
+        Object.defineProperty(change, "scale", { value: 2 });
+        els.canvas.dispatchEvent(change);
+      });
+      await page.clock.runFor(16);
+      await page.clock.fastForward(380);
+      expect((await sample()).red).toBeGreaterThan(before.red + 500);
+      await page.evaluate(() => els.canvas.dispatchEvent(new Event("gestureend", { bubbles: true, cancelable: true })));
+      await page.clock.fastForward(240);
+      expect((await sample()).red).toBeLessThan(before.red + 100);
+    });
+  }
 
 });
