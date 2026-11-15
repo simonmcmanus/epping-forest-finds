@@ -1178,9 +1178,13 @@ function transitionInspectorBody(newHtml, direction, onDone, { preserveScroll = 
   const scrollTop = scroll ? scroll.scrollTop : 0;
   const oldRail = preserveScroll && els.inspectorBody.querySelector(".filter-rail .rail-pills");
   const railScrollLeft = oldRail ? oldRail.scrollLeft : 0;
-  // A Nearby <-> place switch in either direction: the panel being left or entered is a place's detail.
+  // A Nearby <-> place switch: the panel is the Nearby list on one side and a place's detail on the other.
+  // Anything else (Settings, Report, Search, one place straight to another) keeps the sideways slide.
   const leavingPlace = Boolean(els.inspectorBody.querySelector(".place-detail, .tree-detail"));
+  const leavingNearby = Boolean(els.inspectorBody.querySelector(".nearest-list, .nearest-item"));
   const enteringPlace = /class="(?:place|tree)-detail/.test(newHtml);
+  const enteringNearby = /class="nearest-(?:list|item)/.test(newHtml);
+  const nearbyPlaceSwitch = (leavingNearby && enteringPlace) || (leavingPlace && enteringNearby);
   // Replacing the initial Nearby content invalidates its server-rendered stand-in.
   _serverRenderedNearbyList = false;
   els.inspectorBody.innerHTML = newHtml;
@@ -1198,7 +1202,7 @@ function transitionInspectorBody(newHtml, direction, onDone, { preserveScroll = 
     // Entering another screen ends any zoom gesture still holding the pins hidden: its end event
     // may now never reach the map.
     if (typeof endAllZoomGestures === "function") endAllZoomGestures();
-    applyScreenTransition(direction, onDone, { headerSlide: leavingPlace || enteringPlace });
+    applyScreenTransition(direction, onDone, { headerSlide: nearbyPlaceSwitch });
   }
 }
 

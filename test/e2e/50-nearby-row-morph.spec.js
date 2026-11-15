@@ -104,3 +104,29 @@ test.describe("Nearby <-> place header slide with reduced motion", () => {
     await expect(page.locator(".inspector-screen:not(.inspector-screen-ghost) .inspector-title-section")).toHaveCSS("transform", "none");
   });
 });
+
+test.describe("Header slide is only for Nearby <-> place switches", () => {
+  test("Settings opened from a place keeps the sideways slide, not the header slide", async ({ page }) => {
+    await setup(page, "/nearby");
+    await expect(listed(page).first()).toBeVisible();
+    await listed(page).first().click();
+    await expect(page.locator("#inspectorTitle")).not.toHaveText("Nearby");
+
+    const seen = await page.evaluate(() => new Promise((resolve) => {
+      const observer = new MutationObserver(() => {
+        if (!document.querySelector(".inspector-screen-ghost")) return;
+        observer.disconnect();
+        const targets = document.getAnimations().map((a) => a.effect && a.effect.target).filter(Boolean);
+        resolve({
+          headerAnimated: targets.some((t) => t.classList && t.classList.contains("inspector-title-section")),
+          screenAnimated: targets.some((t) => t.classList && t.classList.contains("inspector-screen")),
+        });
+      });
+      observer.observe(document.getElementById("inspector"), { childList: true, subtree: true });
+      document.getElementById("settingsToggle").click();
+    }));
+    expect(seen.headerAnimated, "no header slide for Settings").toBe(false);
+    expect(seen.screenAnimated, "the screen slides sideways for Settings").toBe(true);
+    await expect(page.locator("#inspectorTitle")).toHaveText("Settings");
+  });
+});
