@@ -1638,14 +1638,18 @@ function zoomAlongTween(fromScale, toScale, eased) {
 // sideways during every zoom, which reads as jitter. When the two views differ in scale, they
 // agree on one world point (the zoom's invariant point); the offsets are then
 // `offset0 + world0 * (scale0 - scale)`, which keeps that point still while everything zooms about
-// it and lands exactly on both ends. A near-equal scale is a pure pan, so the offsets are blended
-// directly.
+// it and lands exactly on both ends. A near-equal scale is a pure pan, so scale and offsets are all
+// blended linearly on the same curve: a geometric scale beside linear offsets would shift a world
+// point by `world * (geometric - linear scale)`, which is tiny for a point near the origin but
+// thousands of pixels for the far-off mercator coordinates heading-up uses, flinging the user
+// marker off-screen mid-move. Linear and geometric differ by under 0.03% at the 5% threshold.
 function viewportAlongTween(from, to, eased) {
-  const scale = zoomAlongTween(from.scale, to.scale, eased);
   const ratio = from.scale > 0 && to.scale > 0 ? to.scale / from.scale : 1;
   if (!(Math.abs(Math.log(ratio)) >= VIEWPORT_TWEEN_ZOOM_ABOUT_POINT_MIN_LOG_RATIO)) {
-    return { scale, tx: from.tx + (to.tx - from.tx) * eased, ty: from.ty + (to.ty - from.ty) * eased };
+    const linearScale = from.scale + (to.scale - from.scale) * eased;
+    return { scale: linearScale, tx: from.tx + (to.tx - from.tx) * eased, ty: from.ty + (to.ty - from.ty) * eased };
   }
+  const scale = zoomAlongTween(from.scale, to.scale, eased);
   const worldX = (to.tx - from.tx) / (from.scale - to.scale);
   const worldY = (to.ty - from.ty) / (from.scale - to.scale);
   return {
@@ -1695,6 +1699,65 @@ function zoomAwareDurationMs(baseMs, zoomRatio) {
   if (!(zoomRatio > ZOOM_DURATION_MIN_RATIO)) return baseMs;
   const extraDoublings = Math.log2(zoomRatio) - Math.log2(ZOOM_DURATION_MIN_RATIO);
   return Math.min(Math.max(baseMs, ZOOM_DURATION_MAX_MS), baseMs * (1 + ZOOM_DURATION_PER_DOUBLING * extraDoublings));
+}
+
+// The heading-up rotation as worldToScreenFlat applies it, for a move that pivots on `point`. Not
+// rotating (no heading, or no user) is the identity, so the helpers below reduce to raw screen space.
+function headingUpRotationFor(point) {
+  const rotation = navigationMapRotationDegrees();
+  const rotating = Boolean(rotation) && Boolean(state.userLocation) && Boolean(point);
+  const radians = rotating ? toRadians(rotation) : 0;
+  return { rotating, cos: Math.cos(radians), sin: Math.sin(radians) };
+}
+
+// Whether a screen point is within the canvas's height (a vertical band; x is not a limit for a pivot).
+function onCanvasHeight(point) {
+  const height = els.canvas ? els.canvas.height : Infinity;
+  return Boolean(point) && point.y >= 0 && point.y <= height;
+}
+
+function rotateHeadingUp(x, y, rotation) {
+  return { x: x * rotation.cos - y * rotation.sin, y: x * rotation.sin + y * rotation.cos };
+}
+
+// Where the tilt draws a heading-up offset `w` (canvas px, from the camera origin): the same arithmetic as
+// tiltProjectScreenPoint, applied to the offset alone. Its result depends only on `w`, never on where the
+// origin sits, which is what lets the solve below run in closed form.
+function headingUpTiltedOffset(w) {
+  const cam = tiltProjection();
+  if (!cam) return w;
+  const dxCss = w.x / cam.dpr;
+  const dyCss = w.y / cam.dpr;
+  const dy = dyCss > cam.dyMax ? cam.dyMax : dyCss;
+  const scale = cam.perspectivePx / (cam.perspectivePx - dy * cam.sin);
+  return { x: dxCss * scale * cam.dpr, y: dy * cam.cos * scale * cam.dpr };
+}
+
+// The offset, in canvas px, from the camera origin to a world point under `viewport`, after the heading-up
+// rotation about the origin's own offset (the rotation pivots on the origin, so only the difference matters).
+function headingUpOffsetFor(viewport, point, rotation, origin) {
+  const o = origin || point;
+  return rotateHeadingUp((point.x - o.x) * viewport.scale, (point.y - o.y) * viewport.scale, rotation);
+}
+
+// Where a world point is drawn on screen (heading-up and tilted) under `viewport`, for a camera origin at
+// `origin`: the origin's raw screen point plus the tilted rotated offset. Mirrors worldToScreen.
+function headingUpScreenPointAt(viewport, point, rotation, origin) {
+  const o = origin || point;
+  const originScreen = { x: o.x * viewport.scale + viewport.tx, y: o.y * viewport.scale + viewport.ty };
+  const drawn = headingUpTiltedOffset(headingUpOffsetFor(viewport, point, rotation, o));
+  return { x: originScreen.x + drawn.x, y: originScreen.y + drawn.y };
+}
+
+// The translation that draws `point` at `screen` (on screen, heading-up and tilted) at `scale`, with the
+// camera origin at `origin`. The drawn position is origin-screen + tiltedOffset(offset), and the offset
+// does not depend on the translation, so the origin's screen point is `screen - tiltedOffset(offset)`
+// and the translation follows from it. Closed-form, no iteration.
+function headingUpTranslationFor(point, rotation, scale, origin, screen) {
+  const o = origin || point;
+  const drawn = headingUpTiltedOffset(headingUpOffsetFor({ scale }, point, rotation, o));
+  const originScreen = { x: screen.x - drawn.x, y: screen.y - drawn.y };
+  return { x: originScreen.x - o.x * scale, y: originScreen.y - o.y * scale };
 }
 
 // The single owner of an in-flight camera move. Every tween goes through here: it decides whether the
@@ -1767,10 +1830,23 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
   const pivot = deliberateArc && options.pivotWorldPoint
     && Number.isFinite(options.pivotWorldPoint.x) && Number.isFinite(options.pivotWorldPoint.y)
     ? options.pivotWorldPoint : null;
-  const pivotFromScreen = pivot
-    ? { x: from.tx + pivot.x * from.scale, y: from.ty + pivot.y * from.scale } : null;
-  const pivotToScreen = pivot
-    ? { x: targetViewport.tx + pivot.x * targetViewport.scale, y: targetViewport.ty + pivot.y * targetViewport.scale } : null;
+  // The pivot is eased where the user actually sees it (heading-up and tilted), not in raw un-rotated
+  // screen space: the camera origin itself moves during a browse -> selection move, so a raw line bends
+  // on screen. Start is where the pivot is drawn now; end is where the target draws it once the origin
+  // has landed on its final point.
+  // Only when both ends are on the canvas. From far off screen the drawn position is compressed by the
+  // tilt, so easing it drags the camera origin (and the horizon with it) down the screen; those moves
+  // keep the raw screen-space ease they always had.
+  const pivotDrawnRotation = pivot ? headingUpRotationFor(pivot) : null;
+  const pivotDrawnFrom = pivot ? worldToScreen(pivot) : null;
+  const pivotDrawnTo = pivot
+    ? headingUpScreenPointAt(targetViewport, pivot, pivotDrawnRotation, cameraOriginPoint(true)) : null;
+  const pivotDrawn = Boolean(pivot) && onCanvasHeight(pivotDrawnFrom) && onCanvasHeight(pivotDrawnTo);
+  const pivotRotation = pivotDrawn ? pivotDrawnRotation : { rotating: false, cos: 1, sin: 0 };
+  const pivotFromScreen = pivotDrawn ? pivotDrawnFrom
+    : pivot ? { x: from.tx + pivot.x * from.scale, y: from.ty + pivot.y * from.scale } : null;
+  const pivotToScreen = pivotDrawn ? pivotDrawnTo
+    : pivot ? { x: targetViewport.tx + pivot.x * targetViewport.scale, y: targetViewport.ty + pivot.y * targetViewport.scale } : null;
   const cinematicScaleFloor = cinematic && state.baseFitScale > 0
     ? state.baseFitScale * 0.92
     : deliberateArc ? Math.min(from.scale, targetViewport.scale) * 0.8 : 0;
@@ -1838,8 +1914,12 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
       if (pivot) {
         const screenX = pivotFromScreen.x + (pivotToScreen.x - pivotFromScreen.x) * eased;
         const screenY = pivotFromScreen.y + (pivotToScreen.y - pivotFromScreen.y) * eased;
-        state.viewport.tx = screenX - pivot.x * state.viewport.scale;
-        state.viewport.ty = screenY - pivot.y * state.viewport.scale;
+        const translation = headingUpTranslationFor(
+          pivot, pivotRotation, state.viewport.scale, pivotDrawn ? cameraOriginPoint() : null,
+          { x: screenX, y: screenY },
+        );
+        state.viewport.tx = translation.x;
+        state.viewport.ty = translation.y;
       } else {
         const centreX = fromCenter.x + (targetCenter.x - fromCenter.x) * eased;
         const centreY = fromCenter.y + (targetCenter.y - fromCenter.y) * eased;
@@ -2273,7 +2353,7 @@ function openFilterSetup() {
   showOnboarding({ mode: "filters" }).then((result) => {
     state.filterScreenOpen = false;
     const saved = Array.isArray(result.filters) && applyStagedFilterSet(result.filters);
-    if (!saved && openedOverUrl) history.replaceState(history.state, "", openedOverUrl);
+    if (!saved && openedOverUrl) writeHistoryEntry("replaceState", history.state, openedOverUrl);
     updateFilterUi();
     if (window.location.pathname === ROUTE_PATHS[ROUTE_FILTERS]) {
       replaceHashInPlace("");
@@ -3087,7 +3167,7 @@ function syncRailUrl() {
   if (routeApplyDepth > 0 || routerBooting) return;
   const url = `${NEARBY_PATH}${searchStringForPath(NEARBY_PATH)}${window.location.hash}`;
   if (`${window.location.pathname}${window.location.search}${window.location.hash}` === url) return;
-  history.replaceState(history.state, "", url);
+  writeHistoryEntry("replaceState", history.state, url);
 }
 
 // Saves a filter set: the reader's own choice, which persists and moves a view (a landing or an old ?show=
