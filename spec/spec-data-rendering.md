@@ -688,7 +688,8 @@ moving the real GPS fix:
   own extra 380ms grace, giving 600ms of input quiet before release. A new attempt cancels
   that pending release without restarting the breath. Pointer interruption, blur, hiding
   the page or moving back into range cancels the grace and releases immediately.
-  The animation redraws only the overlay, coalesces with terrain/compass frames, and stops
+  The limit light paints above the radar wash and below pins and labels, preserving its hue
+  under tilt. The animation redraws only the overlay, coalesces with terrain/compass frames, and stops
   when hidden or faded out. The existing Nearby and Settings floor notes use muted guidance
   text rather than error red, and have no entry motion with reduced motion.
   While a pinch is actively pinned at the floor, `state.walkingRadiusAtFloor` is true

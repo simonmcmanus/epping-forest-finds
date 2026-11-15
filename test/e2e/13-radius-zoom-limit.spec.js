@@ -199,7 +199,12 @@ test.describe("Radius zoom limit feedback", () => {
           const data = ctx.getImageData(x - 1, y - 1, 3, 3).data;
           for (let j = 0; j < data.length; j += 4) red += Math.max(0, data[j] - data[j + 1]) * data[j + 3] / 255;
         }
-        return { red, samples };
+        const top = { x: center.x, y: center.y - radiusPx };
+        const point = tilted ? tiltProjectScreenPoint(top) : top;
+        const pixels = ctx.getImageData(Math.round(point.x * scale) - 1, Math.round(point.y * scale) - 1, 3, 3).data;
+        let redOverBlue = -255;
+        for (let i = 0; i < pixels.length; i += 4) redOverBlue = Math.max(redOverBlue, pixels[i] - pixels[i + 2]);
+        return { red, samples, redOverBlue };
       });
       const before = await sample();
       expect(before.samples).toBeGreaterThan(8);
@@ -211,7 +216,9 @@ test.describe("Radius zoom limit feedback", () => {
       });
       await page.clock.runFor(16);
       await page.clock.fastForward(380);
-      expect((await sample()).red).toBeGreaterThan(before.red + 500);
+      const lit = await sample();
+      expect(lit.red).toBeGreaterThan(before.red + 500);
+      if (tilted) expect(lit.redOverBlue, "the radar wash must not turn the rose edge purple").toBeGreaterThan(20);
       await page.evaluate(() => els.canvas.dispatchEvent(new Event("gestureend", { bubbles: true, cancelable: true })));
       await page.clock.fastForward(280);
       expect((await sample()).red).toBeLessThan(before.red + 100);
@@ -305,5 +312,34 @@ test.describe("Radius zoom limit feedback", () => {
       expect(await page.evaluate(() => walkingRadiusLimitOpacity())).toBe(0);
     });
   }
+
+  test("pressing the map after wheel settling cancels the remaining limit light", async ({ page }) => {
+    await skipOnboarding(page);
+    await mockCowApi(page);
+    await gotoAndWaitForMap(page);
+    await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
+    await expect.poll(() => page.evaluate(() => state.viewportAnimationFrame == null)).toBe(true);
+    await page.evaluate(() => { state.walkingDistanceMinutes = walkingRadiusFloorMinutes(nearbyOrigin()); });
+    const time = new Date("2026-11-15T12:00:00Z");
+    await page.clock.install({ time });
+    await page.clock.pauseAt(new Date(time.getTime() + 10_000));
+    await page.evaluate(() => els.canvas.dispatchEvent(new WheelEvent("wheel", {
+      deltaY: -100, bubbles: true, cancelable: true,
+    })));
+    await page.clock.fastForward(300);
+    expect(await page.evaluate(() => walkingRadiusLimitOpacity())).toBeGreaterThan(0.5);
+    await page.evaluate(() => {
+      els.canvas.setPointerCapture = () => {};
+      const rect = els.canvas.getBoundingClientRect();
+      els.canvas.dispatchEvent(new PointerEvent("pointerdown", {
+        pointerId: 7201, pointerType: "touch", clientX: rect.left + rect.width / 2,
+        clientY: rect.top + rect.height / 3, bubbles: true, cancelable: true,
+      }));
+    });
+    await page.clock.fastForward(280);
+    expect(await page.evaluate(() => walkingRadiusLimitOpacity()), "a new drag releases the light immediately").toBe(0);
+    await page.clock.fastForward(600);
+    expect(await page.evaluate(() => walkingRadiusLimitOpacity()), "no pending wheel release revives it").toBe(0);
+  });
 
 });

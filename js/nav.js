@@ -2432,6 +2432,8 @@ function releasePointerSafely(element, pointerId) {
 // while a finger was still on the glass, so the map went completely dead to that finger --
 // the user had to lift off entirely and start again.
 function beginMapDrag(clientX, clientY) {
+  // A new drag also interrupts wheel light whose list has already settled.
+  setWalkingRadiusLimitFeedback(false);
   // The viewport has to be still before dragStart snapshots it -- otherwise the drag and a
   // running animation both write state.viewport.tx/ty and fight each other. pointerdown already
   // stops animations; the multi-touch handover does not, and the pinch it just ended queues an

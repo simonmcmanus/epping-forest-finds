@@ -385,13 +385,14 @@ function drawOverlay() {
   const toScreen = isTilted && typeof worldToScreenForOverlayTilted === "function"
     ? worldToScreenForOverlayTilted
     : (typeof worldToScreenForOverlay === "function" ? worldToScreenForOverlay : worldToScreen);
+  if (isTilted) drawUserRadarOverlayTilted(ctx);
+  else drawUserRadarOverlay(ctx, toScreen);
+  // Keep the limit colour above the radar wash, below the pins and labels.
   const radiusGeometry = walkingRadiusScreenGeometry(true);
   if (radiusGeometry) {
     const { center, radiusPx, tilted, dpr } = radiusGeometry;
     drawWalkingRadiusLimitFeedback(ctx, center, radiusPx, tilted, dpr);
   }
-  if (isTilted) drawUserRadarOverlayTilted(ctx);
-  else drawUserRadarOverlay(ctx, toScreen);
   if (useOverlayForPins) {
     // Keep the blue dot behind location pins in heading-up/tilted mode too.
     drawUser(ctx, toScreen, isTilted, "dot");
