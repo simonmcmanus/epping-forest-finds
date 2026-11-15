@@ -2806,6 +2806,32 @@ test("?radius= is clamped to the slider's own bounds, and a missing or invalid v
   app.location.search = "";
 });
 
+test("following a Nearest or Related link from a place keeps the reader's own walking radius, not the 30-minute landing default", () => {
+  resetData(app);
+  const savedWalkingDistanceMinutes = app.state.walkingDistanceMinutes;
+  app.state.walkingDistanceMinutes = 5;
+  const pub = { findSlug: "the-forresters", latitude: 51.65, longitude: 0.05, category: "pub" };
+  app.state.landmarks.push(pub);
+  app.state.trees.push({ latitude: 51.6502, longitude: 0.0502, id: "t1" });
+  const html = app.nearbySectionsHtml({ latitude: pub.latitude, longitude: pub.longitude, name: "The Forresters", subfilterKey: "pubs" });
+  // Every category card (Nearest and Related) browses a /nearby/<category>/ page.
+  const hrefs = [...html.matchAll(/href="(\/nearby\/[^"]*)"/g)].map((match) => match[1]);
+  assert.ok(hrefs.length >= 2, "the place offers at least a Nearest and a Related category link");
+  for (const href of hrefs) {
+    // Simulate the reader tapping the card: the address bar takes the link's own path and query, then
+    // the router reads the radius from it on arrival.
+    const url = new URL(href, "https://example.test");
+    app.location.pathname = url.pathname;
+    app.location.search = url.search;
+    app.applyRadiusFromQuery();
+    assert.equal(app.state.walkingDistanceMinutes, 5, `arriving via ${href} keeps the reader's 5-minute radius`);
+    app.state.walkingDistanceMinutes = 5;
+  }
+  app.location.pathname = "/";
+  app.location.search = "";
+  app.state.walkingDistanceMinutes = savedWalkingDistanceMinutes;
+});
+
 test("a /nearby/<slug> landing page defaults the radius to 30 minutes, not the ordinary 5", () => {
   resetData(app);
   app.state.walkingDistanceMinutes = 5;
@@ -14286,7 +14312,7 @@ test("nearbySectionsHtml renders a headed Nearest section (tree/cow, the walk-ra
   // The tree link carries this pub's own position via the target page's existing
   // "near=<lat>,<lon>" anchor route, so landing there re-centres on the pub rather than the
   // reader's own GPS fix. The out-of-radius cow is not advertised.
-  assertHasElement(html, 'a.nearest-item.nearby-link[href^="/nearby/trees/#near=51.650000%2C0.050000"] .nearest-meta');
+  assertHasElement(html, 'a.nearest-item.nearby-link[href^="/nearby/trees/?radius=30#near=51.650000%2C0.050000"] .nearest-meta');
   assert.ok(!html.includes("nearby/cows/"), "out-of-radius categories are omitted");
   assert.ok(
     queryHtmlAll(html, ".nearest-meta").map(htmlNodeText).some((meta) => /^(No |[\d,]+ ).*within \d+ min walk of/.test(meta)),
@@ -14302,8 +14328,8 @@ test("nearbySectionsHtml renders a headed Nearest section (tree/cow, the walk-ra
   assert.match(htmlNodeText(queryHtmlAll(html, walkCard)[0]), /locations within \d+ min walk/);
 
   // Category/group links are the same .nearest-item card as Nearby, not a different pill style.
-  assertElementShowsText(html, 'a.nearest-item.nearby-link[href^="/nearby/pubs/#near=51.650000%2C0.050000"]', "Pubs & bars");
-  assertElementShowsText(html, 'a.nearest-item.nearby-link[href^="/nearby/food/#near=51.650000%2C0.050000"]', "Food");
+  assertElementShowsText(html, 'a.nearest-item.nearby-link[href^="/nearby/pubs/?radius=30#near=51.650000%2C0.050000"]', "Pubs & bars");
+  assertElementShowsText(html, 'a.nearest-item.nearby-link[href^="/nearby/food/?radius=30#near=51.650000%2C0.050000"]', "Food");
   assert.ok(!html.includes("detail-map-link"), "related links no longer use the pill style -- same card as Nearby");
 
   // No mention of the data's source attached to these distances -- they're computed live, not
