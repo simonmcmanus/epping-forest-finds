@@ -702,6 +702,7 @@ test.describe("3D tilt moving between two nearby places", () => {
       expect(swing, "the user marker does not swing between the two places").toBeLessThan(steps[0].panelTop * 0.5);
     });
   }
+
 });
 
 test.describe("3D tilt first move from Nearby into a place", () => {
@@ -845,4 +846,72 @@ test.describe("3D tilt first move from Nearby into a place", () => {
       expect(horizonMax, "the horizon stays above the top of the canvas for the whole move").toBeLessThan(0);
     });
   }
+});
+
+// Reported geometry: a phone-sized viewport (393x800 CSS px at 2.75x) moving between two places ~65 m
+// apart in heading-up. Pinned explicitly so the desktop and Pixel 5 projects run the same camera path.
+test.describe("3D tilt marker during moves between two places (phone geometry)", () => {
+  test.use({
+    viewport: { width: 393, height: 800 },
+    deviceScaleFactor: 2.75,
+    isMobile: true,
+    hasTouch: true,
+    geolocation: { latitude: 51.6555, longitude: 0.0662, accuracy: 10 },
+    permissions: ["geolocation"],
+  });
+
+  // The settled checks above only sample the camera once it has stopped. A move is a tween that runs
+  // for about half a second, so this samples the "You" marker on every animation frame of each move and
+  // asserts it never travels outside the band between where it started and where it lands. A
+  // mid-move excursion (the marker flying far off the bottom of the phone and back) is exactly what the
+  // settled checks cannot see.
+  test("the \"You\" marker never flies past its start or end while moving between two places", async ({ page }) => {
+    await setup(page, "/nearby");
+    await expect.poll(() => page.evaluate(() => Math.abs((state.userLocation?.latitude ?? 0) - 51.6555) < 1e-6 && !state.userLocation.isDefault)).toBe(true);
+    await page.evaluate(() => {
+      state.map3dEnabled = true;
+      state.compassHeadingTarget = 90;
+      state.compassHeading = 90;
+      state.renderedNavigationHeading = 90;
+      state.compassLastEventAt = performance.now();
+      state.tiltBetaTarget = 60;
+      state.tiltBetaSmoothed = 60;
+      // A real compass keeps reporting while the user walks between two places; keep the reading fresh
+      // so the heading does not ease out during the moves being measured.
+      window.__compassKeepFresh = setInterval(() => { state.compassLastEventAt = performance.now(); }, 50);
+    });
+
+    const settle = () => expect.poll(() => page.evaluate(() => state.viewportAnimationTo == null && !state.selectionTransition.viewportPending)).toBe(true);
+    const move = async (path) => {
+      await page.evaluate(() => {
+        window.__markerSamples = [];
+        window.__markerStop = false;
+        const sample = () => {
+          if (window.__markerStop) return;
+          window.__markerSamples.push(worldToScreen(projectLonLat(state.userLocation.longitude, state.userLocation.latitude)).y);
+          requestAnimationFrame(sample);
+        };
+        requestAnimationFrame(sample);
+      });
+      await page.evaluate((p) => navigateInApp(p), path);
+      await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("landmark");
+      await settle();
+      await page.evaluate(() => { window.__markerStop = true; });
+      return page.evaluate(() => window.__markerSamples);
+    };
+
+    await move("/find/the-plume-of-feathers/");
+    for (const path of ["/find/lidl/", "/find/the-plume-of-feathers/", "/find/lidl/"]) {
+      const ys = await move(path);
+      expect(ys.length, `${path}: the move is sampled over several frames, not a single snap`).toBeGreaterThan(8);
+      const start = ys[0];
+      const end = ys[ys.length - 1];
+      const lo = Math.min(start, end);
+      const hi = Math.max(start, end);
+      const tolerance = 12;
+      const worst = ys.reduce((acc, y) => (y < lo - tolerance || y > hi + tolerance ? Math.max(acc, Math.abs(y - (y < lo ? lo : hi))) : acc), 0);
+      expect(worst, `${path}: the marker stayed between ${lo.toFixed(0)} and ${hi.toFixed(0)} (worst overshoot ${worst.toFixed(0)}px, range ${Math.min(...ys).toFixed(0)}..${Math.max(...ys).toFixed(0)})`).toBe(0);
+    }
+    await page.evaluate(() => clearInterval(window.__compassKeepFresh));
+  });
 });
