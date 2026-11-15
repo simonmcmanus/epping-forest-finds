@@ -1537,7 +1537,7 @@ function drawLoading(ctx) {
 function drawLayer(ctx, layer) {
   const style = layer.key === "buffer"
     ? { fill: "rgba(85, 167, 160, 0.24)", stroke: "rgba(20, 110, 105, 0.82)", width: 1.8 }
-    : { fill: "rgba(79, 139, 98, 0.29)", stroke: "rgba(21, 96, 56, 0.9)", width: 2.1 };
+    : { fill: "rgba(79, 139, 98, 0.29)", stroke: "rgba(21, 96, 56, 0.96)", width: 2.5 };
 
   ctx.save();
   ctx.fillStyle = style.fill;
