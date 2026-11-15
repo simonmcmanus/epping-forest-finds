@@ -55,6 +55,7 @@ test/home-counts.test.js, so any change here needs
 """
 import json
 import math
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -256,7 +257,21 @@ def apply_changeset(master, changeset, segments, ref_lat_rad):
         if filled:
             log["enriched"].append({"id": entry.get("id") or entry.get("name"), "name": entry.get("name"), "fields": filled})
 
+    # Redirect provenance records deliberate merges, including differently named
+    # counters inside a shop that fuzzy name matching cannot recognise.
+    merged_ids = set(re.findall(r"^# was (\S+) at ", (ROOT / "netlify.toml").read_text(), re.MULTILINE))
     for entry in changeset.get("add", []):
+        entry_id = entry.get("id") or f"manual/{slugify(entry['name'])}"
+        osm_id = None
+        if entry.get("osmType") and entry.get("osmId") is not None:
+            osm_id = f"{entry['osmType']}/{entry['osmId']}"
+        merged_id = next((key for key in (entry_id, osm_id) if key in merged_ids), None)
+        if merged_id:
+            log["skipped"].append({
+                "op": "add", "entry": entry,
+                "reason": f"{merged_id} was previously merged; needs a human review before re-adding",
+            })
+            continue
         # Matched on the name as typed AND as described, within a short walk
         # -- not on an exact lowercased string, which is all this used to do.
         # A run adding a hundred places a week meets both kinds of near-miss:

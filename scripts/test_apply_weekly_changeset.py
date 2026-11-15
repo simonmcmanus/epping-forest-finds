@@ -8,6 +8,8 @@ Run with:  python3 -m unittest scripts.test_apply_weekly_changeset -v
 import copy
 import sys
 import unittest
+import tempfile
+from unittest.mock import patch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -115,6 +117,42 @@ class TestApplyChangeset(unittest.TestCase):
         self.assertEqual(len(log["added"]), 1)
         self.assertEqual(log["added"][0]["name"], "The Hair of the Dog")
         self.assertEqual(log["skipped"], [])
+
+    def test_add_refuses_a_previously_merged_record_even_with_a_new_name(self):
+        for identity in ({"id": "node/123"}, {"osmType": "node", "osmId": 123},
+                         {"id": "manual/renamed-counter", "osmType": "node", "osmId": 123}):
+            with self.subTest(identity=identity), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root / "netlify.toml").write_text(
+                    '# was node/123 at 51.652,0.057\n[[redirects]]\n'
+                    '  from = "/find/old-shop/"\n  to = "/find/canonical-shop/"\n  status = 301\n'
+                )
+                master = make_master([make_existing_feature("Canonical shop")])
+                entry = {"name": "Renamed counter", "category": "butcher",
+                         "lon": 0.057, "lat": 51.652, **identity}
+                with patch.object(awc, "ROOT", root):
+                    log = awc.apply_changeset(master, {"add": [entry]}, self.segments, self.ref_lat_rad)
+                self.assertEqual(len(master["features"]), 1)
+                self.assertEqual(log["added"], [])
+                self.assertIn("previously merged", log["skipped"][0]["reason"])
+
+    def test_add_refuses_a_merged_manual_id_generated_from_the_name(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "netlify.toml").write_text('# was manual/old-shop at 51.652,0.057\n')
+            master = make_master()
+            entry = {"name": "Old Shop", "category": "convenience", "lon": 0.057, "lat": 51.652}
+            with patch.object(awc, "ROOT", root):
+                log = awc.apply_changeset(master, {"add": [entry]}, self.segments, self.ref_lat_rad)
+            self.assertEqual(master["features"], [])
+            self.assertEqual(len(log["skipped"]), 1)
+
+    def test_merge_history_does_not_block_a_different_osm_record(self):
+        master = make_master()
+        entry = {"id": "node/999999999999", "name": "1 Stop Halal at Tesco",
+                 "category": "butcher", "lon": 0.057, "lat": 51.652}
+        log = awc.apply_changeset(master, {"add": [entry]}, self.segments, self.ref_lat_rad)
+        self.assertEqual(len(log["added"]), 1)
 
     def test_add_skips_case_insensitive_duplicate(self):
         master = make_master([make_existing_feature("The Hair Of The Dog")])
