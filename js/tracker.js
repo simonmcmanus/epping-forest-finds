@@ -364,6 +364,8 @@ function trackerStartJourney(target, fix) {
 }
 
 function trackerNavigationTick() {
+  // No consent, no journey state: a later consent must not produce an arrive or end without a start.
+  if (!hasTrackingConsent()) return;
   const target = trackerCurrentNavTarget();
   if (!target && !_trackerJourney) return;
   const fix = trackedLocation();
@@ -379,7 +381,8 @@ function trackerNavigationTick() {
   if (!journey || !fix) return;
 
   const previous = journey.lastFix;
-  if (previous && fix.receivedAt !== previous.receivedAt) {
+  // The walk ends at arrival: jitter while standing at the place adds nothing.
+  if (!journey.arrived && previous && fix.receivedAt !== previous.receivedAt) {
     if (fix.receivedAt - previous.receivedAt <= TRACKER_WALK_MAX_GAP_MS) {
       journey.walkedM += trackerHaversineMetres(
         previous.latitude, previous.longitude, fix.latitude, fix.longitude);
@@ -421,6 +424,7 @@ function startLocationTracking() {
 }
 
 function stopLocationTracking() {
+  trackerEndJourney("stopped");
   clearInterval(_trackerInterval);
   clearInterval(_trackerNavInterval);
   _trackerInterval = null;

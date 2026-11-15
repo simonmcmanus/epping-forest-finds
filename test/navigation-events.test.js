@@ -181,3 +181,31 @@ test("summariseNavJourneys reports the median detour ratio over journeys with ro
   assert.equal(none.medianDetourRatio, null);
   assert.equal(M.summariseNavJourneys([]).medianDetourRatio, null);
 });
+
+test("an explicit end (changed) and the next start sharing a millisecond keep the old journey's data", async () => {
+  const store = memoryStore();
+  const now = Date.now();
+  const at = new Date(now - 10 * MIN).toISOString();
+  const events = [
+    start("u1", 0, { navId: "a" }),
+    { ...end("u1", 0, { navId: "a", reason: "changed", remainingM: 400, walkedM: 120 }), ts: at },
+    { ...start("u1", 0, { navId: "b" }), ts: at },
+  ];
+  events[0].ts = new Date(now - 20 * MIN).toISOString();
+  await tracking.storeBatch(store, events.map((e) => tracking.sanitizeEvent(e, { now })), { now });
+  const result = await tracking.readWindow(store, { windowDays: 2, now });
+  const journeys = M.buildExplicitJourneys(result.navigation);
+  const a = journeys.find((j) => j.navId === "a");
+  assert.equal(a.reason, "changed");
+  assert.equal(a.remainingM, 400);
+  assert.equal(a.walkedM, 120);
+  assert.ok(journeys.some((j) => j.navId === "b"));
+});
+
+test("a navigation_end with an absurd walkedM is stored as unknown, a plausible one is kept", () => {
+  const now = Date.now();
+  assert.equal(tracking.sanitizeEvent(end("u1", 0, { walkedM: 1e15 }), { now }).walkedM, null);
+  assert.equal(tracking.sanitizeEvent(end("u1", 0, { remainingM: 1e15 }), { now }).remainingM, null);
+  assert.equal(tracking.sanitizeEvent(start("u1", 0, { routeM: 1e15 }), { now }).routeM, null);
+  assert.equal(tracking.sanitizeEvent(end("u1", 0, { walkedM: 2000 }), { now }).walkedM, 2000);
+});

@@ -45,10 +45,12 @@ function number(value) {
   return Number.isFinite(n) ? n : null;
 }
 
-// Distances are metres: finite and not negative, else unknown.
+// Distances are metres: finite, not negative and at most MAX_METRES (a forged huge value would
+// swamp analytics), else unknown.
+const MAX_METRES = 1_000_000;
 function metres(value) {
   const n = number(value);
-  return n == null || n < 0 ? null : Math.round(n * 10) / 10;
+  return n == null || n < 0 || n > MAX_METRES ? null : Math.round(n * 10) / 10;
 }
 
 function coord(value, limit) {
@@ -291,6 +293,14 @@ function packedSize(event) {
 // well under it, and the newest events win when a single day is bigger than that. When reading stops
 // part-way through a day, that day's events are still returned (dropping them would return nothing
 // when a single day is over budget), and `oldestDayIncomplete` says the earliest day is only in part.
+// Newest first; the caller reverses to oldest first. Events in the same millisecond keep a fixed
+// order: an arrive or end comes before a start, so a "changed" end is never read after the start of
+// the next journey (which would close the old one without its data).
+const NAV_ORDER = { navigation_arrive: 0, navigation_end: 1, navigation_start: 2 };
+function newestFirst(a, b) {
+  return (eventMs(b) - eventMs(a)) || ((NAV_ORDER[b.type] ?? 0) - (NAV_ORDER[a.type] ?? 0));
+}
+
 async function readWindow(adapter, { windowDays, now = Date.now(), budgetMs = 7000, maxBytes = 4_500_000, clock = Date.now, dayGroup = 3 } = {}) {
   const deadline = clock() + budgetMs;
   const days = Array.from({ length: windowDays }, (_, i) => dayOf(now - i * DAY_MS));
@@ -309,7 +319,7 @@ async function readWindow(adapter, { windowDays, now = Date.now(), budgetMs = 70
       return { day, location, click, navigation };
     }));
     for (const result of results) {
-      const events = [...result.location.events, ...result.click.events, ...result.navigation.events].sort((a, b) => eventMs(b) - eventMs(a));
+      const events = [...result.location.events, ...result.click.events, ...result.navigation.events].sort(newestFirst);
       for (const event of events) {
         const size = packedSize(event);
         if (bytes + size > maxBytes) { partial = true; oldestDay = result.day; oldestDayIncomplete = true; break outer; }

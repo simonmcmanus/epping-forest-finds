@@ -155,3 +155,19 @@ test("an empty summary has a null completion rate", () => {
   assert.equal(s.medianRemainingM, null);
   assert.equal(s.totalDistanceWalkedM, 0);
 });
+
+test("a walker lingering at the target after arriving does not start more journeys", () => {
+  const journeys = M.deriveNavJourneys([ping(0, 300), ping(1, 100), ping(2, 20), ping(5, 15), ping(6, 12), ping(7, 18), ping(8, 10)]);
+  assert.equal(journeys.length, 1);
+  const s = M.summariseNavJourneys(journeys);
+  assert.equal(s.started, 1);
+  assert.equal(s.completed, 1);
+  near(s.totalDistanceWalkedM, 280, 3);
+});
+
+test("after arriving, the same target starts a fresh journey once the target clears or a long gap passes", () => {
+  const cleared = M.deriveNavJourneys([ping(0, 20), ping(1, 10), ping(2, 500, null), ping(3, 20)]);
+  assert.equal(cleared.length, 2);
+  const gap = M.deriveNavJourneys([ping(0, 20), ping(1, 10), ping(10, 20)]);
+  assert.equal(gap.length, 2);
+});

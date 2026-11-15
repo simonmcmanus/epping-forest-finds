@@ -104,6 +104,7 @@ The stats bar summarises walks to a navigation target. They are derived in the b
 - A journey starts at the first ping whose `navTarget` has finite target coordinates. It continues while later pings carry the same target (matched by id when present, otherwise by coordinates).
 - A journey ends when the target is cleared or changes, when the next ping is more than 3 minutes after the previous one (a later ping with a target then starts a new journey), on arrival, or when the data runs out.
 - Every location ping is a fresh fix, so arrival is the first journey ping, including the start ping, within 30 m of the target. The walk ends there.
+- After a journey arrives, further pings with the same target (same id, else same coordinates) do not start another journey: the walker lingering at the place is one journey. A new journey for that target needs the target to change or clear, or a gap of more than 3 minutes between pings.
 - Distance walked is the sum of straight-line distances between consecutive pings in the journey, skipping any pair more than 3 minutes apart. For a journey that did not arrive, the remaining distance is the distance from its last ping to the target.
 - Time to arrive is arrival time minus start time, bucketed as under 5 minutes, 5 up to (not including) 15, 15 to 30 inclusive, and over 30.
 - The block shows journeys started, arrived and the completion rate, the time buckets, total distance walked, and the abandoned count with the median remaining distance (n/a when none).
@@ -162,7 +163,7 @@ Location pings report the **raw GPS fix** (`state.rawUserLocation`), not `state.
 }
 ```
 
-**Navigation events.** `navigation_start` (a route begins), `navigation_arrive` (the user reaches the target) and `navigation_end` (the route is over, `reason` being `arrived`, `cleared`, `changed` or another short string, at most 30 characters). `routeM` is the shortest walking route from the start fix to the target, `walkedM` the metres walked so far (summed by the client), `remainingM` the metres from the last fix to the target; each is a number of metres or `null` when unknown. A start or arrive without valid target coordinates, and any navigation event without a valid `uid` or `ts`, is dropped; a distance that is negative or not finite becomes `null`. Other fields follow the same rules as the other events.
+**Navigation events.** `navigation_start` (a route begins), `navigation_arrive` (the user reaches the target) and `navigation_end` (the route is over, `reason` being `arrived`, `cleared`, `changed`, `stopped` or another short string, at most 30 characters). `routeM` is the shortest walking route from the start fix to the target, `walkedM` the metres walked so far (summed by the client), `remainingM` the metres from the last fix to the target; each is a number of metres or `null` when unknown. A start or arrive without valid target coordinates, and any navigation event without a valid `uid` or `ts`, is dropped; a distance that is negative, not finite or over 1,000,000 m becomes `null`. Events with the same timestamp are read in a fixed order, arrive then end then start, so an end that replaces a journey is never read after the next journey's start. Other fields follow the same rules as the other events.
 
 **Response:** `{ "ok": true, "received": <count>, "stored": <count> }`
 

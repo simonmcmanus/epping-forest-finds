@@ -43,7 +43,7 @@ function load({ consent = true, extra = {} } = {}) {
   };
   context.globalThis = context;
   vm.createContext(context);
-  vm.runInContext(`${SOURCE}\nglobalThis.api = { startLocationTracking, trackLocation };`, context);
+  vm.runInContext(`${SOURCE}\nglobalThis.api = { startLocationTracking, stopLocationTracking, trackLocation };`, context);
   const events = () => JSON.parse(storage.get("ff-track-queue") || "[]")
     .filter((e) => e.type.startsWith("navigation_"));
   const target = { id: "place-1", name: "Somewhere", lat: 51.65, lng: 0.04 };
@@ -56,7 +56,7 @@ function load({ consent = true, extra = {} } = {}) {
     timers.forEach((timer) => timer.fn());
   };
   context.api.startLocationTracking();
-  return { state, clock, events, select, walkTo, target, timers };
+  return { context, state, clock, events, select, walkTo, target, timers };
 }
 
 test("selecting a place, walking in and clearing it gives start, one arrive, then end arrived", () => {
@@ -194,4 +194,49 @@ test("a routing failure leaves routeM null and never breaks the journey", () => 
   w.walkTo(400);
   assert.equal(w.events()[0].type, "navigation_start");
   assert.equal(w.events()[0].routeM, null);
+});
+
+test("GPS jitter after arrival does not raise walkedM in the end event", () => {
+  const w = load();
+  w.walkTo(400);
+  w.select(w.target);
+  w.walkTo(400);
+  w.clock.now += 20_000; w.walkTo(200);
+  w.clock.now += 20_000; w.walkTo(20);
+  const arrive = w.events().find((e) => e.type === "navigation_arrive");
+  for (const m of [5, 25, 5, 25, 5]) { w.clock.now += 20_000; w.walkTo(m); }
+  w.select(null);
+  w.clock.now += 20_000; w.walkTo(5);
+  const end = w.events().find((e) => e.type === "navigation_end");
+  assert.equal(end.walkedM, arrive.walkedM);
+});
+
+test("a journey walked without consent sends nothing once consent is granted later", () => {
+  const w = load({ consent: false });
+  w.walkTo(400);
+  w.select(w.target);
+  w.walkTo(400);
+  w.clock.now += 20_000; w.walkTo(20);
+  w.context.localStorage.setItem("ff-track-v1", "1");
+  w.clock.now += 20_000; w.walkTo(10);
+  w.select(null);
+  w.clock.now += 20_000; w.walkTo(10);
+  // Consent starts a clean journey with its own start; nothing is sent for the pre-consent one.
+  const types = w.events().map((e) => e.type);
+  assert.equal(types.includes("navigation_arrive"), false);
+  assert.ok(types.length === 0 || types[0] === "navigation_start", types.join());
+});
+
+test("stopping location tracking mid-journey ends it with reason stopped", () => {
+  const w = load();
+  w.walkTo(400);
+  w.select(w.target);
+  w.walkTo(400);
+  w.clock.now += 20_000; w.walkTo(300);
+  w.context.api.stopLocationTracking();
+  const ends = w.events().filter((e) => e.type === "navigation_end");
+  assert.equal(ends.length, 1);
+  assert.equal(ends[0].reason, "stopped");
+  w.context.api.stopLocationTracking();
+  assert.equal(w.events().filter((e) => e.type === "navigation_end").length, 1);
 });

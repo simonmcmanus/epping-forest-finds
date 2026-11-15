@@ -35,6 +35,9 @@ function deriveNavJourneys(pings) {
   for (const [uid, list] of byUid) {
     list.sort((a, b) => a.time - b.time);
     let cur = null;
+    // The target just reached and the time of the latest ping still near it: while the walker stays
+    // with the same target, lingering pings do not open another journey.
+    let reached = null;
     const finish = () => {
       if (!cur) return;
       if (!cur.arrived) {
@@ -49,6 +52,10 @@ function deriveNavJourneys(pings) {
     };
     for (const { p, time } of list) {
       if (cur && (time - cur.lastTime > NAV_GAP_MS || !sameNavTarget(cur.target, p.navTarget))) finish();
+      if (reached) {
+        if (time - reached.time <= NAV_GAP_MS && sameNavTarget(reached.target, p.navTarget)) { reached.time = time; continue; }
+        reached = null;
+      }
       if (!cur) {
         if (!navTargetHasCoords(p.navTarget)) continue;
         cur = {
@@ -63,6 +70,7 @@ function deriveNavJourneys(pings) {
       if (haversineMetres(p.lat, p.lng, cur.target.targetLat, cur.target.targetLng) <= NAV_ARRIVAL_RADIUS_M) {
         cur.arrived = true;
         cur.arrivedAt = p.ts;
+        reached = { target: cur.target, time };
         finish();
       }
     }
