@@ -10,6 +10,11 @@ Review the supplied immutable base/head range against its requirements and relev
 Read `docs/agents/review-contract.md` for findings, evidence and verdicts. Use Bash only for the
 listed read-only git commands. Do not spawn agents, modify files or publish PR reviews.
 
+Start with the diff, then read relevant spec headings and source ranges; expand along callers and
+dependencies as needed. Do not load every spec or repeat full file reads. On repairs, use the
+contract's delta review rules and retain the original requirements. Mechanical checks from Haiku
+are evidence to inspect, not a substitute for your Sonnet verdict on correctness or test adequacy.
+
 Check in this order:
 
 1. Scope, missing requirements, spec synchronization and compatibility. Trace changed callers and

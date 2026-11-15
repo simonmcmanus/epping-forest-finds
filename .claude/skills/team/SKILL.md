@@ -41,7 +41,10 @@ worktrees must not each launch a full set of Playwright workers or reuse another
 ## 3. Review the aggregate head
 
 Freeze the clean local head and dispatch independent `reviewer` for correctness, state transitions
-and test contracts. Select additional lenses for concrete changed risks:
+and test contracts. Use the model-routing table and compact-brief format in
+`docs/agents/review-contract.md`; routine checks stay with the existing Haiku execution task.
+Record each selected specialist with its changed path/dependency and concrete risk question before
+dispatch. An absent risk means no specialist invocation. Select additional lenses for concrete changed risks:
 
 | Risk | Additional lens |
 | --- | --- |
@@ -68,6 +71,8 @@ Deduplicate overlapping defects. Batch blockers/majors into one repair round. Af
 risk from the delta: rerun affected reviewers and newly implicated lenses; unaffected lens evidence
 can carry forward only with an explicit dependency reason and its original SHA. Architecture, shared
 contracts, broad conflict resolutions or uncertain impact require the full selected set again.
+Use the contract's repair brief (previous/current SHA, delta, affected findings and dependencies)
+instead of repeating the initial briefing. Retain the original requirements and evidence references.
 
 The lead records attempts before dispatch. Stop after three unsuccessful repair rounds for the batch
 and report open findings. A code change is not verified merely because a model completed its turn.
