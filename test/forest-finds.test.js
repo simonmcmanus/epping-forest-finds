@@ -3802,15 +3802,15 @@ test("the radius edge breathes while held at either zoom limit and fades on back
       now += 90;
       const rising = paint();
       assert.ok(rising > 0 && rising < 0.84, "the border gently fades red");
-      now += 190;
+      now += 410;
       const peak = paint();
       assert.ok(peak > rising && peak >= 0.6 && peak <= 0.84, "the peak is clearly visible");
       assert.equal(feedbackRadius, edge, "the red core sits on the actual cutout edge, not the inset rim");
-      now += 840;
+      now += 1000;
       isolated.applyWalkingRadiusGesture(limit);
       const trough = paint();
       assert.ok(trough > 0 && trough < peak, "holding at the limit gently dims rather than switching off");
-      now += 280;
+      now += 500;
       assert.ok(paint() > trough, "the next throb grows without restarting the gesture");
       isolated.applyWalkingRadiusGesture(floor * 2);
       const atRelease = paint();

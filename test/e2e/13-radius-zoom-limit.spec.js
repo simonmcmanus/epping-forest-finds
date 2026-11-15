@@ -64,18 +64,27 @@ test.describe("Radius zoom limit feedback", () => {
         const advance = async (ms) => {
           if (input === "wheel") {
             // Wheel input stays live only while the reader keeps trying to scroll.
-            for (let elapsed = 0; elapsed < ms; elapsed += 100) {
+            for (let elapsed = 0; elapsed < ms; elapsed += 200) {
               await page.evaluate((limit) => els.canvas.dispatchEvent(new WheelEvent("wheel", {
                 deltaY: limit === "floor" ? -100 : 100, bubbles: true, cancelable: true,
               })), limit);
-              await page.clock.fastForward(Math.min(100, ms - elapsed));
+              await page.clock.fastForward(Math.min(200, ms - elapsed));
+            }
+          } else if (input === "safari") {
+            for (let elapsed = 0; elapsed < ms; elapsed += 400) {
+              await page.evaluate((limit) => {
+                const event = new Event("gesturechange", { bubbles: true, cancelable: true });
+                Object.defineProperty(event, "scale", { value: limit === "floor" ? 2 : 0.5 });
+                els.canvas.dispatchEvent(event);
+              }, limit);
+              await page.clock.fastForward(Math.min(400, ms - elapsed));
             }
           } else await page.clock.fastForward(ms);
         };
         await advance(90);
         const rising = await page.evaluate(() => window.__sampleRim());
         expect(rising.red).toBeGreaterThan(before.red + 100);
-        await advance(190);
+        await advance(410);
         const peak = await page.evaluate(() => window.__sampleRim());
         expect(peak.red).toBeGreaterThan(rising.red);
         expect(Math.abs(peak.brightest - 140)).toBeLessThanOrEqual(1);
@@ -85,11 +94,11 @@ test.describe("Radius zoom limit feedback", () => {
         expect(peak.outerAlpha).toBeGreaterThan(peak.innerAlpha);
         expect(peak.farAlpha).toBeGreaterThanOrEqual(peak.outsideAlpha);
         expect(peak.centreAlpha).toBe(0);
-        await advance(840);
+        await advance(1000);
         const trough = await page.evaluate(() => window.__sampleRim());
         expect(trough.red).toBeGreaterThan(before.red);
         expect(trough.red).toBeLessThan(peak.red);
-        await advance(280);
+        await advance(500);
         expect((await page.evaluate(() => window.__sampleRim())).red).toBeGreaterThan(trough.red);
         await page.evaluate((input) => {
           if (input === "pinch") {
@@ -99,6 +108,7 @@ test.describe("Radius zoom limit feedback", () => {
           } else if (input === "safari") els.canvas.dispatchEvent(new Event("gestureend", { bubbles: true, cancelable: true }));
         }, input);
         await page.clock.fastForward(220);
+        if (input === "wheel") await page.clock.fastForward(380);
         await page.clock.fastForward(280);
         const after = await page.evaluate(() => window.__sampleRim());
         expect(after.red).toBe(before.red);
@@ -231,12 +241,69 @@ test.describe("Radius zoom limit feedback", () => {
     await wheel();
     await page.clock.fastForward(120);
     await page.clock.fastForward(100);
+    await page.clock.fastForward(380);
     await page.clock.fastForward(80);
     const releasing = await sample();
     await wheel();
-    expect(await sample(), "core, shading and halo all preserve their current light").toBe(releasing);
+    expect(await sample(), "core and halo preserve their current light").toBe(releasing);
     await page.clock.fastForward(120);
     expect(await sample(), "the resumed light continues breathing").not.toBe(releasing);
   });
+
+
+  for (const interval of [400, 560]) {
+    test(`ordinary wheel notches ${interval}ms apart keep one continuous limit light`, async ({ page }) => {
+      await skipOnboarding(page);
+      await mockCowApi(page);
+      await gotoAndWaitForMap(page);
+      await expect(page.locator("[data-load-step='location']")).toHaveClass(/done/);
+      await expect.poll(() => page.evaluate(() => state.viewportAnimationFrame == null)).toBe(true);
+      await page.evaluate(() => {
+        state.walkingDistanceMinutes = walkingRadiusFloorMinutes(nearbyOrigin());
+        ensureOverviewTargetsVisible({ animate: false, force: true });
+        draw();
+      });
+      const time = new Date("2026-11-15T12:00:00Z");
+      await page.clock.install({ time });
+      await page.clock.pauseAt(new Date(time.getTime() + 10_000));
+      const samples = [];
+      for (let elapsed = 0; elapsed < 1600; elapsed += 20) {
+        if (elapsed % interval === 0) await page.evaluate(() => els.canvas.dispatchEvent(new WheelEvent("wheel", {
+          deltaY: -100, bubbles: true, cancelable: true,
+        })));
+        await page.clock.fastForward(20);
+        if (elapsed < 160) continue;
+        samples.push(await page.evaluate(() => {
+          drawOverlay();
+          const { center, radiusPx } = walkingRadiusScreenGeometry(true);
+          const ctx = els.overlayCanvas.getContext("2d"), scale = state.canvasMotion.scale;
+          const edges = [];
+          for (let i = 0; i < 8; i++) {
+            const angle = i * Math.PI / 4;
+            const x = Math.round((center.x + radiusPx * Math.cos(angle)) * scale);
+            const y = Math.round((center.y + radiusPx * Math.sin(angle)) * scale);
+            if (x < 1 || y < 1 || x >= ctx.canvas.width - 1 || y >= ctx.canvas.height - 1) continue;
+            const pixels = ctx.getImageData(x - 1, y - 1, 3, 3).data;
+            let alpha = 0;
+            for (let j = 3; j < pixels.length; j += 4) alpha = Math.max(alpha, pixels[j] / 255);
+            edges.push(alpha);
+          }
+          edges.sort((a, b) => a - b);
+          return { light: walkingRadiusLimitOpacity(), edge: edges[Math.floor(edges.length / 2)] };
+        }));
+      }
+      expect(Math.min(...samples.map((s) => s.light)), "regular input must not repeatedly fade and restart").toBeGreaterThan(0.5);
+      expect(Math.min(...samples.map((s) => s.edge)), "the visible boundary stays lit between notches").toBeGreaterThan(0.5);
+      if (interval === 400) {
+        // Cancellation must end even a light whose wheel gesture has already settled.
+        await page.evaluate(() => window.dispatchEvent(new Event("blur")));
+        await page.clock.fastForward(280);
+        expect(await page.evaluate(() => walkingRadiusLimitOpacity()), "blur cancels the pending visual grace").toBe(0);
+      }
+      await page.clock.fastForward(600);
+      await page.clock.fastForward(280);
+      expect(await page.evaluate(() => walkingRadiusLimitOpacity())).toBe(0);
+    });
+  }
 
 });

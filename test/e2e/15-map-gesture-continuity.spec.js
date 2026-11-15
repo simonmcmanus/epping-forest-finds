@@ -284,8 +284,8 @@ function expectOneHideOneReveal(pins) {
 test.describe("Zoom gestures hide the pins and bring them back together", () => {
   test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"], reducedMotion: "no-preference" });
 
-  async function openNearby(page) {
-    await setup(page);
+  async function openNearby(page, path = "/nearby") {
+    await setup(page, path);
     await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
     await waitForUiToSettle(page);
     await recordPaintedPins(page);
@@ -296,7 +296,32 @@ test.describe("Zoom gestures hide the pins and bring them back together", () => 
   }
 
   test("a two-finger pinch fades the pins out together, paints none while it runs, and reveals the new set once on release", async ({ page }) => {
-    await openNearby(page);
+    // Force a real membership change: expanding the radius may otherwise keep the same
+    // nearest ten rows, so changed HTML is not evidence that the final refresh happened.
+    const trees = [
+      {
+        id: "123001", recordNumber: 123001, commonName: "Pinch near tree",
+        latinName: "Quercus robur", status: "Alive",
+        location: { wgs84: { latitude: FOREST_LOCATION.latitude + 0.001, longitude: FOREST_LOCATION.longitude } },
+      },
+      {
+        id: "123002", recordNumber: 123002, commonName: "Pinch far tree",
+        latinName: "Quercus robur", status: "Alive",
+        location: { wgs84: { latitude: FOREST_LOCATION.latitude + 0.012, longitude: FOREST_LOCATION.longitude } },
+      },
+    ];
+    await page.route("**/data/trees/index.json*", (route) => route.fulfill({ json: {
+      dataset: "Pinch boundary fixture", recordCount: 2,
+      chunks: [{ url: "data/trees/pinch-boundary-fixture.json", count: 2 }],
+    } }));
+    await page.route("**/data/trees/pinch-boundary-fixture.json*", (route) => route.fulfill({ json: { trees } }));
+    await openNearby(page, "/nearby?radius=5&show=trees");
+    await expect.poll(() => page.evaluate(() => state.trees.length)).toBe(2);
+    await expect(page.locator("#inspectorType")).toContainText("5 min walk");
+    const near = page.locator("#inspectorBody .nearest-item").filter({ hasText: "Pinch near tree" });
+    const far = page.locator("#inspectorBody .nearest-item").filter({ hasText: "Pinch far tree" });
+    await expect(near).toBeVisible();
+    await expect(far).toHaveCount(0);
     const listBefore = await page.locator("#inspectorBody").innerHTML();
     await page.evaluate(() => { window.__pins.length = 0; });
 
@@ -314,7 +339,9 @@ test.describe("Zoom gestures hide the pins and bring them back together", () => 
 
     await liftFingers(page);
     await expect.poll(() => page.evaluate(() => !zoomGestureLive() && mapPinFadeOpacity() === 1)).toBe(true);
-    await expect(page.locator("#inspectorBody")).not.toHaveJSProperty("innerHTML", listBefore);
+    await expect(near).toBeVisible();
+    await expect(far).toBeVisible();
+    await expect(page.locator("#inspectorType")).toContainText("27 min walk");
 
     const pins = await page.evaluate(() => ({ during: window.__duringGesture, after: window.__pins }));
     expect(pins.after.length, "the pins are back after the gesture").toBeGreaterThan(0);

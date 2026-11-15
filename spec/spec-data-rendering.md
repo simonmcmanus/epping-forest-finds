@@ -675,20 +675,22 @@ moving the real GPS fix:
   attribute (`roundWalkingMinutes`). Sub-minute radii are shown in seconds ("15 sec"); everywhere
   else the continuous minutes value is rounded to the nearest whole minute for display —
   `formatWalkingRadius()` is what every user-facing radius label goes through.
-  At either zoom limit, a warm coral light sits exactly on the clear circle's boundary,
-  independently of the inset decorative rim. The 4 CSS px core shades from a restrained
-  peach highlight at the top-left (#FFD6BE) through coral (#E2786C) into a warmer shaded
-  edge (#C75E56). This is a dedicated map-interaction palette, separate from UI error red.
-  The halo feathers approximately 6 CSS px inward and 20 CSS px outward, including under
-  tilt, leaving the centre clear. A 120ms arrival makes brief wheel attempts visible; while
-  held, the light breathes over 1120ms (280ms gathering, 840ms settling). The core stays
-  readable at 58–84% opacity while the halo does more of the breathing. The radius stays fixed.
-  Backing off or ending input fades the current light over 260ms with a smooth cosine
-  release; re-entry preserves both current brightness and the halo phase. Wheel feedback spans the existing
-  220ms idle settle window so successive notches feel continuous. Reduced motion uses a
-  steady 70% core and static halo. The animation redraws only the overlay, coalesces with
-  terrain/compass frames, and stops when hidden or faded out. The existing Nearby and Settings floor notes use
-  muted guidance text, rather than error red, and has no entry motion with reduced motion.
+  At either zoom limit, one consistent rose-red (#D85669) light sits exactly on the clear
+  circle's boundary, independently of the inset decorative rim. The 4 CSS px core stays
+  readable at 76–82% opacity; the halo varies only slightly to avoid a flashing appearance.
+  It feathers approximately 6 CSS px inward and 20 CSS px outward, including under tilt,
+  leaving the centre clear. A 120ms arrival makes brief wheel attempts visible. Held input
+  breathes slowly over 1500ms (500ms gathering, 1000ms settling), with a narrow halo gain
+  of 16–21% of core opacity. Reduced motion uses a steady 79% core and static halo.
+  The radius stays fixed. Backing off or ending a pinch fades over 260ms with a smooth
+  cosine release; re-entry preserves brightness and halo phase. Wheel feedback remains
+  continuous across normal notches: the list still settles at 220ms, but the light has its
+  own extra 380ms grace, giving 600ms of input quiet before release. A new attempt cancels
+  that pending release without restarting the breath. Pointer interruption, blur, hiding
+  the page or moving back into range cancels the grace and releases immediately.
+  The animation redraws only the overlay, coalesces with terrain/compass frames, and stops
+  when hidden or faded out. The existing Nearby and Settings floor notes use muted guidance
+  text rather than error red, and have no entry motion with reduced motion.
   While a pinch is actively pinned at the floor, `state.walkingRadiusAtFloor` is true
   and `overviewNearestHtml()` shows a transient "nothing closer to show" notice
   (`.walk-radius-floor-notice`); both clear as soon as the gesture ends or backs off. That notice

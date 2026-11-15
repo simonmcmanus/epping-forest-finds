@@ -1243,15 +1243,13 @@ const NEARBY_RIM_SHADOW = "rgba(20, 30, 24, 0.16)";
 const _walkingRadiusLimitFeedback = { active: false, startedAt: null, phaseStartedAt: null, from: 0, releasedAt: null, releaseOpacity: 0 };
 const WALKING_RADIUS_LIMIT_ATTACK_MS = 120;
 const WALKING_RADIUS_LIMIT_RELEASE_MS = 260;
-const WALKING_RADIUS_LIMIT_BREATH_MS = 1120;
-const WALKING_RADIUS_LIMIT_INHALE_MS = 280;
-// A map-interaction colour, distinct from the UI's error red. The warm light direction
-// matches the existing top-left-lit radius rim and map markers.
-const WALKING_RADIUS_LIMIT_CORAL = "226, 120, 108";
-const WALKING_RADIUS_LIMIT_LIGHT = "255, 214, 190";
-const WALKING_RADIUS_LIMIT_SHADE = "199, 94, 86";
+const WALKING_RADIUS_LIMIT_BREATH_MS = 1500;
+const WALKING_RADIUS_LIMIT_INHALE_MS = 500;
+// One restrained rose-red hue, distinct from error red and the decorative rim's gold.
+const WALKING_RADIUS_LIMIT_ROSE = "216, 86, 105";
 
 let _walkingRadiusLimitFrame = null;
+let _walkingRadiusLimitReleaseTimer = null;
 
 function requestWalkingRadiusLimitDraw() {
   if (_walkingRadiusLimitFrame != null || document.visibilityState === "hidden") return;
@@ -1261,8 +1259,17 @@ function requestWalkingRadiusLimitDraw() {
   });
 }
 
-function setWalkingRadiusLimitFeedback(active) {
+function setWalkingRadiusLimitFeedback(active, { delayMs = 0 } = {}) {
   const feedback = _walkingRadiusLimitFeedback;
+  clearTimeout(_walkingRadiusLimitReleaseTimer);
+  _walkingRadiusLimitReleaseTimer = null;
+  if (!active && delayMs > 0 && feedback.active && document.visibilityState !== "hidden") {
+    _walkingRadiusLimitReleaseTimer = setTimeout(() => {
+      _walkingRadiusLimitReleaseTimer = null;
+      setWalkingRadiusLimitFeedback(false);
+    }, delayMs);
+    return;
+  }
   if (feedback.active === active) return;
   const now = performance.now();
   const opacity = walkingRadiusLimitOpacity(now);
@@ -1302,7 +1309,7 @@ function walkingRadiusLimitOpacity(now = performance.now()) {
   const elapsed = Math.max(0, now - feedback.startedAt);
   const reducedMotion = _iconMotionPreference?.matches ?? window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   const breath = walkingRadiusLimitBreath(now - feedback.phaseStartedAt);
-  const target = reducedMotion ? 0.70 : 0.58 + 0.26 * breath;
+  const target = reducedMotion ? 0.79 : 0.76 + 0.06 * breath;
   return feedback.from + (target - feedback.from) * easeOutCubic(clamp(elapsed / WALKING_RADIUS_LIMIT_ATTACK_MS, 0, 1));
 }
 
@@ -1319,16 +1326,12 @@ function drawWalkingRadiusLimitFeedback(ctx, center, radiusPx, tilted, dpr) {
   ctx.save();
   const lightAt = feedback.active ? now : feedback.releasedAt;
   const breath = reducedMotion ? 0.5 : walkingRadiusLimitBreath(lightAt - feedback.phaseStartedAt);
-  drawWalkingRadiusLimitHalo(ctx, center, radiusPx, tilted, dpr, opacity * (0.10 + 0.24 * breath));
+  drawWalkingRadiusLimitHalo(ctx, center, radiusPx, tilted, dpr, opacity * (0.16 + 0.05 * breath));
   ctx.beginPath();
   if (tilted) traceGroundCirclePath(ctx, center, radiusPx);
   else ctx.arc(center.x, center.y, radiusPx, 0, Math.PI * 2);
-  const light = ctx.createLinearGradient(center.x - radiusPx, center.y - radiusPx, center.x + radiusPx, center.y + radiusPx);
-  light.addColorStop(0, `rgba(${WALKING_RADIUS_LIMIT_LIGHT}, ${opacity})`);
-  light.addColorStop(0.45, `rgba(${WALKING_RADIUS_LIMIT_CORAL}, ${opacity})`);
-  light.addColorStop(1, `rgba(${WALKING_RADIUS_LIMIT_SHADE}, ${opacity})`);
   ctx.lineWidth = 4 * dpr;
-  ctx.strokeStyle = light;
+  ctx.strokeStyle = `rgba(${WALKING_RADIUS_LIMIT_ROSE}, ${opacity})`;
   ctx.stroke();
   ctx.restore();
 }
@@ -1340,9 +1343,9 @@ function drawWalkingRadiusLimitHalo(ctx, center, radiusPx, tilted, dpr, opacity)
   const outer = Math.min(20 * dpr, radiusPx * 0.45);
   if (!tilted) {
     const glow = ctx.createRadialGradient(center.x, center.y, radiusPx - inner, center.x, center.y, radiusPx + outer);
-    glow.addColorStop(0, `rgba(${WALKING_RADIUS_LIMIT_CORAL}, 0)`);
-    glow.addColorStop(inner / (inner + outer), `rgba(${WALKING_RADIUS_LIMIT_CORAL}, ${opacity})`);
-    glow.addColorStop(1, `rgba(${WALKING_RADIUS_LIMIT_CORAL}, 0)`);
+    glow.addColorStop(0, `rgba(${WALKING_RADIUS_LIMIT_ROSE}, 0)`);
+    glow.addColorStop(inner / (inner + outer), `rgba(${WALKING_RADIUS_LIMIT_ROSE}, ${opacity})`);
+    glow.addColorStop(1, `rgba(${WALKING_RADIUS_LIMIT_ROSE}, 0)`);
     ctx.beginPath();
     ctx.arc(center.x, center.y, radiusPx + outer, 0, Math.PI * 2);
     ctx.fillStyle = glow;
@@ -1359,7 +1362,7 @@ function drawWalkingRadiusLimitHalo(ctx, center, radiusPx, tilted, dpr, opacity)
     traceGroundCirclePath(ctx, center, radiusPx);
     for (let step = shoulder.steps; step >= 1; step--) {
       ctx.lineWidth = 2 * shoulder.reach * step / shoulder.steps;
-      ctx.strokeStyle = `rgba(${WALKING_RADIUS_LIMIT_CORAL}, ${opacity * 1.2 / shoulder.steps})`;
+      ctx.strokeStyle = `rgba(${WALKING_RADIUS_LIMIT_ROSE}, ${opacity * 1.2 / shoulder.steps})`;
       ctx.stroke();
     }
     ctx.restore();
