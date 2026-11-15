@@ -16072,3 +16072,50 @@ test("footprints are the hull projected through the active tilt, and still conta
     for (const item of marker.items) assert.ok(footprintContains(points, project(item.point)));
   }
 });
+
+// --- A deliberate arc that pivots on the user: the "You" marker travels straight ---------------------
+//
+// The selection move into a place in heading-up frames the user at a fixed screen spot. Easing the camera
+// centre (the default) while the scale grows 43x throws that marker far past both ends; the pivot option
+// eases the marker's own screen position instead.
+function runPivotArc(options) {
+  const pivot = { x: 25, y: 40 };
+  const focus = { x: 196, y: 400 };
+  const from = { scale: 4057, tx: 196 - pivot.x * 4057, ty: 152 - pivot.y * 4057 };
+  const target = { scale: 174919, tx: 196 - pivot.x * 174919, ty: 233 - pivot.y * 174919 };
+  const ys = [];
+  let last = null;
+  withCameraFrames(({ stepCamera }) => {
+    app.state.nearbyOriginTransition = null;
+    app.state.viewport = { ...from };
+    assert.equal(app.moveCamera(target, 900, undefined, { deliberate: true, focusPoint: focus, ...options(pivot) }), "started");
+    for (let ms = 0; ms <= 1200; ms += 20) {
+      stepCamera(ms);
+      ys.push(app.state.viewport.ty + pivot.y * app.state.viewport.scale);
+      if (!app.state.viewportAnimationTo) break;
+    }
+    last = { ...app.state.viewport };
+  });
+  return { ys, last, target };
+}
+
+test("a pivot-anchored deliberate move carries the user straight from where they are to where they land", () => {
+  resetData(app);
+  const { ys, last, target } = runPivotArc((pivotWorldPoint) => ({ pivotWorldPoint }));
+  assert.ok(ys.length > 10, "the move ran over several frames");
+  assert.deepEqual(last, target, "the last frame is exactly the target viewport");
+  for (let i = 1; i < ys.length; i += 1) {
+    assert.ok(ys[i] >= ys[i - 1] - 0.5, `the marker never turns back (frame ${i}: ${ys[i - 1]} -> ${ys[i]})`);
+  }
+  assert.ok(Math.min(...ys) >= 152 - 1 && Math.max(...ys) <= 233 + 1,
+    `the marker stays between its start (152) and end (233): ${Math.min(...ys)}..${Math.max(...ys)}`);
+});
+
+test("without a pivot the same big deliberate zoom still eases the camera centre and is unchanged", () => {
+  resetData(app);
+  const { ys, last, target } = runPivotArc(() => ({}));
+  assert.deepEqual(last, target);
+  // The documented unpivoted behaviour: the marker leaves the start/end band during the arc.
+  assert.ok(Math.min(...ys) < 152 - 20 || Math.max(...ys) > 233 + 20,
+    `the centre-eased arc throws an off-centre marker out of its band: ${Math.min(...ys)}..${Math.max(...ys)}`);
+});
