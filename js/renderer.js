@@ -1327,7 +1327,7 @@ function drawWalkingRadiusLimitFeedback(ctx, center, radiusPx, tilted, dpr) {
   light.addColorStop(0, `rgba(${WALKING_RADIUS_LIMIT_LIGHT}, ${opacity})`);
   light.addColorStop(0.45, `rgba(${WALKING_RADIUS_LIMIT_CORAL}, ${opacity})`);
   light.addColorStop(1, `rgba(${WALKING_RADIUS_LIMIT_SHADE}, ${opacity})`);
-  ctx.lineWidth = 2.5 * dpr;
+  ctx.lineWidth = 4 * dpr;
   ctx.strokeStyle = light;
   ctx.stroke();
   ctx.restore();

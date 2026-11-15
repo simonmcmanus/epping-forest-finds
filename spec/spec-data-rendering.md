@@ -676,7 +676,7 @@ moving the real GPS fix:
   else the continuous minutes value is rounded to the nearest whole minute for display —
   `formatWalkingRadius()` is what every user-facing radius label goes through.
   At either zoom limit, a warm coral light sits exactly on the clear circle's boundary,
-  independently of the inset decorative rim. The 2.5 CSS px core shades from a restrained
+  independently of the inset decorative rim. The 4 CSS px core shades from a restrained
   peach highlight at the top-left (#FFD6BE) through coral (#E2786C) into a warmer shaded
   edge (#C75E56). This is a dedicated map-interaction palette, separate from UI error red.
   The halo feathers approximately 6 CSS px inward and 20 CSS px outward, including under
