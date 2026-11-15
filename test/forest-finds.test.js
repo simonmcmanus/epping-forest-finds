@@ -2193,6 +2193,61 @@ test("full 3D is off by default, so pitching the phone gives a gentle tilt", () 
   assert.equal(freshApp.tiltInfluence(), 0, "pins do not collapse with pitch while 3D is off");
 });
 
+test("the gentle tilt eases into its limit instead of stopping dead at the phone pitch that reaches it", () => {
+  // Lifting the phone used to ramp the camera tilt linearly with pitch and then clamp it, so
+  // the plane kept rising at full speed and stopped abruptly at the limit. The approach now
+  // slows into the limit, so the last few degrees of pitch move the plane far less than the
+  // first few did.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90;
+  app.state.selected = null;
+  app.state.map3dEnabled = false; // the shipped gentle tilt, not the off-by-default full 3D
+  const rotateAt = (beta) => {
+    app.state.tiltBetaSmoothed = beta;
+    return app.tiltRotateXDeg();
+  };
+  const earlyStep = rotateAt(25.5) - rotateAt(25);
+  const lateStep = rotateAt(60) - rotateAt(59.5);
+  assert.ok(earlyStep > 0 && lateStep > 0, "the plane keeps moving up to the limit");
+  assert.ok(lateStep < earlyStep * 0.5,
+    `the last half-degree of pitch should move the plane much less than an early one (early ${earlyStep}, late ${lateStep})`);
+  assert.ok(Math.abs(rotateAt(60) - 64) < 1e-9, "the limit itself still reaches the gentle cap");
+});
+
+test("the gentle tilt bounces slightly past its limit when the phone reaches it, then settles back", () => {
+  // Reaching the limit should not simply freeze the plane: it carries a little past, then
+  // springs back and rests on the cap while the phone is still held there.
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = null;
+  app.state.compassHeadingTarget = null;
+  app.state.selected = null;
+  app.state.map3dEnabled = false; // the shipped gentle tilt, not the off-by-default full 3D
+  app.state.tiltBetaSmoothed = 50;
+  app.state.tiltBetaTarget = 80;
+  const frames = [];
+  const originalRaf = app.swapGlobalFunction("requestAnimationFrame", (fn) => { frames.push(fn); return frames.length; });
+  const originalCaf = app.swapGlobalFunction("cancelAnimationFrame", () => {});
+  const seen = [];
+  try {
+    app.startCompassSmoothing();
+    for (let frame = 0; frames.length && frame < 400; frame += 1) {
+      const callback = frames.shift();
+      callback(frame * 16);
+      seen.push(app.tiltRotateXDeg());
+    }
+  } finally {
+    app.swapGlobalFunction("requestAnimationFrame", originalRaf);
+    app.swapGlobalFunction("cancelAnimationFrame", originalCaf);
+  }
+  const peak = Math.max(...seen);
+  assert.ok(peak > 64.5 && peak < 67, `the plane should overshoot the 64° cap slightly, peaking between 64.5 and 67 (got ${peak})`);
+  assert.ok(Math.abs(seen[seen.length - 1] - 64) < 0.05, `the plane should settle back on 64° (got ${seen[seen.length - 1]})`);
+  assert.equal(app.state.tiltLimitBounceSeconds, null, "the bounce has finished");
+  assert.equal(app.state.compassAnimationFrame, null, "once settled the smoothing loop stops rather than spinning on a bounce");
+});
+
 test("only environment features overlapping the view are drawn, in their original order", () => {
   const square = (lon, lat) => ({ geometry: { type: "Polygon", coordinates: [[[lon, lat], [lon + 0.0005, lat], [lon + 0.0005, lat + 0.0005], [lon, lat]]] } });
   const features = [square(0.05, 51.65), square(0.5, 51.9), square(0.0501, 51.6501)];

@@ -70,6 +70,11 @@ const TILT_PERSPECTIVE_MAX_PX = 2600;   // ceiling so very tall viewports (table
 const TILT_ROTATEX_MAX = 75;       // max rotateX deg — the angle the horizon and tilt fit are calibrated to (see tiltPerspectivePx)
 const TILT_GENTLE_ROTATEX_MAX = 64; // visible depth while keeping the surrounding map in view
 const TILT_GENTLE_BETA_MAX = 60;    // reach the default tilt at a normal viewing angle
+const TILT_LIMIT_EASE_START = 0.6;  // share of the pitch range where the tilt starts easing into its cap -- see tiltEaseIntoLimit()
+const TILT_LIMIT_BOUNCE_DEG = 4;    // peak amplitude of the bounce past the cap; it peaks at roughly 1.5 degrees -- see tiltLimitBounceDeg()
+const TILT_LIMIT_BOUNCE_RATE = 7;   // decay of that bounce (1/s)
+const TILT_LIMIT_BOUNCE_OMEGA = 2 * Math.PI * 1.4; // bounce frequency (rad/s)
+const TILT_LIMIT_BOUNCE_SECONDS = 0.9; // the bounce is over (and the plane rests on the cap) after this long
 // Precomputed once: calibrating tiltPerspectivePx() against this fixed reference
 // angle (rather than the live, ever-changing tiltRotateXDeg()) keeps the camera
 // distance from collapsing at low/mid tilt angles -- see tiltPerspectivePx().
@@ -387,6 +392,7 @@ const state = {
   backgroundedUserLocation: null,
   tiltBetaTarget: 0,
   tiltBetaSmoothed: 0,
+  tiltLimitBounceSeconds: null, // seconds since the tilt last reached its cap; null when no bounce is running
   // Full 3D is fixed off (see FULL_3D_ENABLED): gentle tilt is the only tilt.
   map3dEnabled: FULL_3D_ENABLED,
   // rotateX angle baked into the main canvas by the last draw() -- see tiltRenderStale().
@@ -4012,7 +4018,8 @@ function startCompassSmoothing() {
     _tiltProjectionCache = undefined;
     _nearbyRenderOriginCache = undefined;
     const hasHeading = Number.isFinite(state.compassHeadingTarget) && Number.isFinite(state.compassHeading);
-    const hasBetaWork = Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) >= 0.05;
+    const hasBetaWork = Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) >= 0.05
+      || state.tiltLimitBounceSeconds != null;
     if (!hasHeading && !hasBetaWork) {
       state.compassAnimationFrame = null;
       state.compassAnimationFrameRequestedAt = null;
@@ -4041,7 +4048,9 @@ function startCompassSmoothing() {
     // through the whole 0-12deg dead zone quickly, so a fast filter here reads as the
     // collapsing map pins snapping to size rather than easing in.
     const betaDiff = state.tiltBetaTarget - state.tiltBetaSmoothed;
+    const previousBeta = state.tiltBetaSmoothed;
     state.tiltBetaSmoothed += betaDiff * (1 - Math.exp(-4 * dt));
+    tiltAdvanceLimitBounce(previousBeta, state.tiltBetaSmoothed, dt);
 
     const tiltNeedsFullRedraw = tiltRenderStale();
     // Beta-only tilt is supported before the compass has a usable heading. The map overlay
@@ -4082,7 +4091,8 @@ function startCompassSmoothing() {
       : 0;
     const lastEventAge = state.compassLastEventAt == null ? Infinity : (timestamp - state.compassLastEventAt);
     const sensorIsActive = lastEventAge < HEADING_UP_SENSOR_ACTIVE_MS;
-    const betaSettled = Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) < 0.1;
+    const betaSettled = Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) < 0.1
+      && state.tiltLimitBounceSeconds == null;
     if (!hasHeading && betaSettled) {
       if (tiltActive()) requestDraw();
       state.compassAnimationFrame = null;
