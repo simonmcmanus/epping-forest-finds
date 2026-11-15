@@ -1445,7 +1445,7 @@ function setupSearchAndNavHandlers() {
     }
     const button = event.target.closest("[data-overview-type][data-overview-key]");
     if (!button) return;
-    pressOverviewItem(button);
+    focusOverviewItem(button.dataset.overviewType, button.dataset.overviewKey);
   });
 }
 
