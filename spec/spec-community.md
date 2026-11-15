@@ -163,6 +163,9 @@ The public endpoint that files GitHub issues (`report-missing-data`: place check
 - Others' reports therefore show up roughly an hour after being made, plus up to the cache time; the reporter sees their own immediately.
 - "My reports" (`mine/<deviceId>`) keeps a device's latest 1,000 reports (`MINE_LOG_MAX`, `lib/community-store.js`). Scores are counted from the ledger, so the cap only limits how far back the list goes.
 
+### Environment isolation and reset
+Community records use the production store only on the production deploy. Branch deploys use `community-<branch>` and report photos use `report-photos-<branch>`; local development uses matching branch directories under `data/tracking/community/<branch>` and never the production namespace. This includes the feature-gate list, account links, rate limits, ledger cache, computed snapshots and uploaded tree/public report photos. The admin Community panel's **Reset all community data** action requires the exact phrase `RESET ALL COMMUNITY DATA` and clears the active context's records and photos. It does not edit external GitHub issues.
+
 ## Upstream loop
 The questioned/confirmed discrepancies are available as CSV and GeoJSON downloads on `/reports/tree-report` (feature id, status, count, last reported, position) to send to the City of London so they can issue a corrected dataset. **Not built:** an automated monthly export that produces and sends it. After a new dataset is ingested, the daily reward check clears resolved overlay entries.
 
