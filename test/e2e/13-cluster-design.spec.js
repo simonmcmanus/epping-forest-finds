@@ -730,12 +730,15 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
       };
       // Drive the clock rather than wait on frames: a slow device can outlast the 120ms fade-out
       // before a single rAF fires. 40ms in, the fade-out is mid-way and the old badge still painted.
+      // The clock is frozen at each step (not offset from the live one) so a slow tap handler under
+      // load cannot run the fade-out to its end before the next frame is drawn.
       const realNow = performance.now.bind(performance);
-      performance.now = () => realNow() + 40;
+      const start = realNow();
+      performance.now = () => start + 40;
       try {
         tap(2001);
         const firstAnchor = { latitude: state.nearbyAnchor.latitude, longitude: state.nearbyAnchor.longitude };
-        performance.now = () => realNow() + 80;
+        performance.now = () => start + 80;
         draw(); // the frame that paints the fading old set
         const opacity = mapPinFadeOpacity();
         const stillPainted = markerGroupingPaused() && opacity > PIN_ALPHA_VISIBLE_MIN && opacity < 1;
@@ -795,8 +798,12 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
         }
       }
       if (!open) return { error: 'no open ground' };
+      const before = { paused: markerGroupingPaused(), fade: mapPinFadeOpacity(), target: mapPinFadeTarget(), slide: nearbyOriginTransitionActive(), anim: state.viewportAnimationTo != null };
       const realNow = performance.now.bind(performance);
-      performance.now = () => realNow() + 60;
+      // A frozen clock, not an offset on the live one: under load the tap's own work can take
+      // longer than the whole 120ms fade-out, which would leave nothing painted by the next frame.
+      const frozen = realNow() + 60;
+      performance.now = () => frozen;
       try {
       tapScreen(open, 2001);
       if (!state.nearbyAnchor) return { error: 'the open-ground tap did not move the browse anchor' };
@@ -805,14 +812,14 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
       const painted = typeof _frozenPaintView !== 'undefined' && _frozenPaintView ? _frozenPaintView.markers : [];
       const badge = painted.find((marker) => marker.items.length >= 2 && !tapIsBesidePanel({ x: marker.screenPt.x, y: marker.screenPt.y - 12 * dpr }));
       const visible = markerGroupingPaused() && mapPinFadeOpacity() > PIN_ALPHA_VISIBLE_MIN;
-      if (!badge || !visible) return { error: 'no painted badge', visible, painted: painted.length };
+      if (!badge || !visible) return { error: 'no painted badge', before, visible, painted: painted.map((m) => ({ n: m.items.length, beside: tapIsBesidePanel({ x: m.screenPt.x, y: m.screenPt.y - 12 * dpr }) })), fade: mapPinFadeOpacity(), paused: markerGroupingPaused(), open, panel: [els.inspector, els.inspectorActions].map((el) => el && !el.hidden ? JSON.stringify(el.getBoundingClientRect()) : null) };
       tapScreen({ x: badge.screenPt.x, y: badge.screenPt.y - 12 * dpr }, 2002);
       return { firstAnchor, afterSecond: { latitude: state.nearbyAnchor.latitude, longitude: state.nearbyAnchor.longitude } };
       } finally {
         performance.now = realNow;
       }
     });
-    expect(result.error, 'sanity: an open spot and a painted badge exist').toBeUndefined();
+    expect(result.error, `sanity: an open spot and a painted badge exist: ${JSON.stringify(result)}`).toBeUndefined();
     expect(result.afterSecond, 'the tap on the fading badge did not relocate the anchor').toEqual(result.firstAnchor);
     await expect.poll(() => page.evaluate(() => !markerGroupingPaused() && mapPinFadeOpacity() === 1)).toBe(true);
     expect(await page.evaluate(() => ({ latitude: state.nearbyAnchor.latitude, longitude: state.nearbyAnchor.longitude }))).toEqual(result.firstAnchor);
