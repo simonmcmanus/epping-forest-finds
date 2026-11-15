@@ -805,6 +805,8 @@ globalThis.__forestFindsTest = {
   applyReportStatusContent,
   refreshCachedState,
   applySwUpdate,
+  showUpdateBanner,
+  fillUpdateBannerVersions,
   requestBackgroundDataSync,
   hasTrackingConsent,
   setTrackingConsent,
@@ -8205,6 +8207,193 @@ test("applying an update does not reload while the old worker still controls the
     app.state.swPendingReload = false;
     app.swapGlobalFunction("location", previousLocation);
     app.swapGlobalFunction("setTimeout", previousTimeout);
+  }
+});
+
+// Safari report: a reload found the replacement worker still "installed" and waiting, and the
+// banner came back on the same version. Restart must activate the waiting worker the registration
+// holds, even when this page never learned of it through prepareWaitingUpdate.
+async function withUntrackedWaitingWorker({ registration, controller = {} }, run) {
+  resetData(app);
+  const nav = app.navigator;
+  const previousServiceWorker = nav.serviceWorker;
+  const reloads = [];
+  const previousLocation = app.swapGlobalFunction("location", { reload: () => reloads.push("reload") });
+  const previousTimeout = app.swapGlobalFunction("setTimeout", () => 0);
+  nav.serviceWorker = {
+    controller,
+    addEventListener() {},
+    getRegistration: async () => registration,
+  };
+  app.state.swWaiting = null;
+  app.state.swPendingReload = false;
+  app.state.swActivatedElsewhere = true;
+  app.state.swUpdateAvailable = true;
+  try {
+    return await run(reloads);
+  } finally {
+    nav.serviceWorker = previousServiceWorker;
+    app.state.swWaiting = null;
+    app.state.swPendingReload = false;
+    app.state.swActivatedElsewhere = false;
+    app.state.swUpdateAvailable = false;
+    app.swapGlobalFunction("location", previousLocation);
+    app.swapGlobalFunction("setTimeout", previousTimeout);
+  }
+}
+
+test("Restart activates a waiting worker the registration holds, even when this page never tracked one", async () => {
+  const messages = [];
+  const waiting = { postMessage: (message) => messages.push(message) };
+  await withUntrackedWaitingWorker({ registration: { waiting } }, async (reloads) => {
+    assert.equal(await app.applySwUpdate(), true);
+    assert.deepEqual(JSON.parse(JSON.stringify(messages)), [{ type: "SKIP_WAITING" }], "the waiting worker is told to activate");
+    assert.deepEqual(reloads, [], "the reload waits for the new worker to take control");
+    assert.equal(app.state.swPendingReload, true);
+  });
+});
+
+test("Restart with no waiting worker anywhere still reloads the page once", async () => {
+  await withUntrackedWaitingWorker({ registration: { waiting: null } }, async (reloads) => {
+    assert.equal(await app.applySwUpdate(), true);
+    assert.deepEqual(reloads, ["reload"], "nothing to activate, so a plain reload picks up the new release");
+  });
+});
+
+test("Restart with no registration at all still reloads the page once", async () => {
+  await withUntrackedWaitingWorker({ registration: undefined }, async (reloads) => {
+    assert.equal(await app.applySwUpdate(), true);
+    assert.deepEqual(reloads, ["reload"]);
+  });
+});
+
+test("Restart falls back to the plain reload when the registration cannot be read", async () => {
+  const nav = app.navigator;
+  const previousServiceWorker = nav.serviceWorker;
+  const reloads = [];
+  const previousLocation = app.swapGlobalFunction("location", { reload: () => reloads.push("reload") });
+  nav.serviceWorker = {
+    controller: {},
+    addEventListener() {},
+    getRegistration: async () => { throw new Error("registry unavailable"); },
+  };
+  app.state.swWaiting = null;
+  app.state.swActivatedElsewhere = true;
+  try {
+    assert.equal(await app.applySwUpdate(), true, "an unreadable registry must not make Restart throw");
+    assert.deepEqual(reloads, ["reload"]);
+  } finally {
+    nav.serviceWorker = previousServiceWorker;
+    app.state.swActivatedElsewhere = false;
+    app.state.swUpdateAvailable = false;
+    app.swapGlobalFunction("location", previousLocation);
+  }
+});
+
+test("Restart does not reload when the waiting worker refuses to activate", async () => {
+  await withUntrackedWaitingWorker({
+    registration: { waiting: { postMessage() { throw new Error("worker gone"); } } },
+  }, async (reloads) => {
+    assert.ok(!(await app.applySwUpdate()), "a refused activation is reported as not started");
+    assert.deepEqual(reloads, [], "no reload that would just serve the old release again");
+    assert.equal(app.state.swPendingReload, false);
+    assert.equal(app.state.appUpdateStatus, "failed");
+  });
+});
+
+test("a waiting worker is activated once, however many times Restart is tapped before the reload", async () => {
+  const messages = [];
+  await withUntrackedWaitingWorker({
+    registration: { waiting: { postMessage: (message) => messages.push(message) } },
+  }, async (reloads) => {
+    await app.applySwUpdate();
+    app.state.swWaiting = null;
+    await app.applySwUpdate();
+    assert.equal(messages.length, 2, "each tap is a fresh request, so each one is answered with the same message");
+    assert.deepEqual(reloads, [], "neither tap reloads while activation is pending");
+  });
+});
+
+test("an unrequested controller change shows the banner, and Restart then activates the worker still waiting", async () => {
+  const localApp = loadAppForTests();
+  localApp.windowStub.__ENABLE_LOCAL_SERVICE_WORKER__ = true;
+  const listeners = {};
+  const messages = [];
+  const reloads = [];
+  const waiting = { postMessage: (message) => messages.push(message) };
+  const nav = localApp.navigator;
+  const wasOnline = nav.onLine;
+  const previousLocation = localApp.swapGlobalFunction("location", { reload: () => reloads.push("reload") });
+  const previousTimeout = localApp.swapGlobalFunction("setTimeout", () => 0);
+  nav.onLine = false;
+  nav.serviceWorker = {
+    controller: {},
+    ready: Promise.resolve(),
+    addEventListener: (type, listener) => { listeners[type] = listener; },
+    getRegistration: async () => ({ waiting }),
+    register: async () => ({ waiting: null, installing: null, addEventListener() {} }),
+  };
+  try {
+    localApp.setupPwa();
+    await new Promise((resolve) => setImmediate(resolve));
+    // The banner is a real card with a title, detail line and Restart button; the stub has to
+    // answer the same child lookups the banner code makes.
+    const bannerStub = localApp.documentStub.getElementById("updateBanner");
+    const bannerParts = new Map([
+      [".update-banner-text strong", createElementStub()],
+      [".update-banner-text span", createElementStub()],
+    ]);
+    bannerStub.querySelector = (selector) => bannerParts.get(selector) || null;
+    listeners.controllerchange();
+    assert.equal(localApp.state.swActivatedElsewhere, true, "the page is told the release changed under it");
+    assert.equal(localApp.state.swUpdateAvailable, true, "the banner is raised for the waiting worker");
+
+    assert.equal(await localApp.applySwUpdate(), true);
+    assert.deepEqual(JSON.parse(JSON.stringify(messages)), [{ type: "SKIP_WAITING" }]);
+    assert.deepEqual(reloads, [], "no reload until the replacement takes control");
+
+    listeners.controllerchange();
+    assert.deepEqual(reloads, ["reload"], "the replacement taking control reloads into the new release");
+  } finally {
+    nav.onLine = wasOnline;
+    delete nav.serviceWorker;
+    localApp.swapGlobalFunction("location", previousLocation);
+    localApp.swapGlobalFunction("setTimeout", previousTimeout);
+  }
+});
+
+test("the update banner names the old and new release in a small line", async () => {
+  const current = vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "js", "app-cache-version.js"), "utf8") + "\nAPP_CACHE_VERSION", {});
+  const previousCaches = app.swapGlobalFunction("caches", {
+    keys: async () => [`forest-finds-app-${current}`, "forest-finds-data-v51", "forest-finds-app-zz9"],
+  });
+  try {
+    await app.fillUpdateBannerVersions();
+    const line = app.documentStub.getElementById("updateBannerVersions");
+    assert.equal(line.textContent, `${current} \u2192 zz9`, "the running release, then the one the restart brings");
+  } finally {
+    app.swapGlobalFunction("caches", previousCaches);
+  }
+});
+
+test("the update banner shows no release line when the waiting release is the one already running", async () => {
+  const current = vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "js", "app-cache-version.js"), "utf8") + "\nAPP_CACHE_VERSION", {});
+  const previousCaches = app.swapGlobalFunction("caches", { keys: async () => [`forest-finds-app-${current}`] });
+  try {
+    await app.fillUpdateBannerVersions();
+    assert.equal(app.documentStub.getElementById("updateBannerVersions").textContent, "", "nothing to compare, so nothing is shown");
+  } finally {
+    app.swapGlobalFunction("caches", previousCaches);
+  }
+});
+
+test("the update banner shows no release line when the caches cannot be read", async () => {
+  const previousCaches = app.swapGlobalFunction("caches", { keys: async () => { throw new Error("storage unavailable"); } });
+  try {
+    await app.fillUpdateBannerVersions();
+    assert.equal(app.documentStub.getElementById("updateBannerVersions").textContent, "", "a failed read must not break the banner");
+  } finally {
+    app.swapGlobalFunction("caches", previousCaches);
   }
 });
 

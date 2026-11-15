@@ -2613,6 +2613,17 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
   color: var(--muted);
 }
 
+.update-banner-versions {
+  font-size: 0.68rem;
+  color: var(--muted);
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+}
+
+.update-banner-versions:empty {
+  display: none;
+}
+
 .update-banner button {
   flex: none;
   min-height: 40px;
