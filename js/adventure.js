@@ -173,7 +173,7 @@ function updateTreeAdventureDirection() {
 
 function treeAdventureShow(tree, straightLineMetres) {
   const banner = els.adventureBanner;
-  if (!banner || !tree || !hasRealLocation() || state.userLocation.isDefault) return;
+  if (!banner || !tree || !hasRealLocation() || state.userLocation.isDefault) return false;
   if (typeof communityNudgeDismiss === "function") communityNudgeDismiss();
   treeAdventureTargetItem = tree;
   treeAdventureArrowAngle = null;
@@ -182,7 +182,7 @@ function treeAdventureShow(tree, straightLineMetres) {
   const age = treeAdventureAge(tree);
   const tag = treeAdventureTag(tree);
   const target = communityTreeTarget(tree);
-  if (!target) return;
+  if (!target) return false;
 
   els.adventureTitle.textContent = "Find the nearest veteran tree";
   els.adventureMessage.textContent = `Take a ${treeAdventureWalkLabel(walkMetres)} to this ${species}.`;
@@ -209,10 +209,11 @@ function treeAdventureShow(tree, straightLineMetres) {
   };
   els.adventureStart.onclick = start;
   els.adventureDismiss.onclick = dismiss;
+  return true;
 }
 
 function adventureMaybeShow() {
-  if (treeAdventureSeen() || !hasRealLocation() || state.userLocation.isDefault || isFarFromForest() || !state.nearestTree) return;
+  if (treeAdventureSeen() || !hasRealLocation() || state.userLocation.isDefault || isFarFromForest()) return;
   if (typeof communityFeaturesKnown === "function" && !communityFeaturesKnown()) {
     treeAdventureRetry(1200);
     return;
@@ -233,9 +234,15 @@ function adventureMaybeShow() {
   }
   if (treeAdventureWaitForCommunityOverlay()) return;
   const nearest = treeAdventureTarget();
-  if (!nearest) return;
-  try { localStorage.setItem(TREE_ADVENTURE_SEEN_KEY, "1"); } catch {}
-  treeAdventureShow(nearest.tree, nearest.metres);
+  if (!nearest) {
+    // Tree chunks can arrive after the first location fix. The loader retries when the chunks
+    // finish, but keep this path resilient to a slow or partial data load too.
+    if (!state.dataLoaded || !state.trees || !state.trees.length) treeAdventureRetry(1200);
+    return;
+  }
+  if (treeAdventureShow(nearest.tree, nearest.metres)) {
+    try { localStorage.setItem(TREE_ADVENTURE_SEEN_KEY, "1"); } catch {}
+  }
 }
 
 function treeAdventureTargetIsActive(target) {

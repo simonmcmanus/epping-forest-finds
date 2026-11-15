@@ -237,6 +237,10 @@ function communityRefreshFeatures() {
       communityFeaturesMemory = { community: Boolean(data && data.community), at: Date.now() };
       try { localStorage.setItem(COMMUNITY_FEATURES_KEY, JSON.stringify(communityFeaturesMemory)); } catch {}
       if (typeof applyFeatureGates === "function") applyFeatureGates();
+      // A first location fix may have arrived while the feature response was in flight. Re-run
+      // the location invitation now that the gate is known instead of relying on a timing-sensitive
+      // retry from the location pipeline.
+      if (typeof adventureMaybeShow === "function") window.setTimeout(adventureMaybeShow, 0);
     } catch {}
     return communityEnabled();
   })().finally(() => { communityFeaturesInflight = null; });

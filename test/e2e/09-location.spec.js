@@ -116,6 +116,21 @@ test.describe("Location and GPS — happy path", () => {
       expect(choice.selected).not.toBe(choice.alreadyVerified);
     });
 
+    test("the veteran tree adventure still suggests a walk when the active radius has no nearest-tree result", async ({ page }) => {
+      const debug = await page.evaluate(() => {
+        localStorage.removeItem("ff-tree-adventure-seen-v1");
+        const banner = document.getElementById("adventureBanner");
+        if (banner) banner.hidden = true;
+        if (els.consentBanner) els.consentBanner.hidden = true;
+        // The invitation is based on the real GPS position, not on whichever walking radius the
+        // Nearby screen currently happens to use for its filtered nearest-tree summary.
+        state.nearestTree = null;
+        adventureMaybeShow();
+      });
+      await expect(page.locator("#adventureBanner")).toBeVisible();
+      await expect(page.locator("#adventureBanner")).toContainText("Take a");
+    });
+
     test("on a train, the You marker keeps moving between GPS fixes rather than holding still and then jumping", async ({ page, context }) => {
       await page.waitForFunction((start) => state.rawUserLocation && state.rawUserLocation.latitude === start, FOREST_LOCATION.latitude);
       // A fix a second, 15m north each, at 15 m/s: the speed the phone's own GPS reports on a moving
