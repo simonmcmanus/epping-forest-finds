@@ -89,3 +89,32 @@ the repository's live branch protection. Same-repository workflow changes can
 change the workflow, so they require human review; no fork code receives these
 credentials. A setup or policy error is a reported blocker, never a reason to
 skip the current-head gate.
+
+## Specialist record on the PR
+
+The PR template has a **Specialist review** table. For each specialist the lead
+records status (run, not selected with a reason, or not run), the head SHA it
+reviewed, and its verdict or comment link. A push that changes the head makes
+earlier rows stale: rerun the affected specialists, then update the SHA.
+
+`.github/workflows/claude-specialist.yml` runs one read-only specialist on demand.
+A repository writer (OWNER, MEMBER or COLLABORATOR) comments
+`@claude review <specialist-name>` on an open, non-draft PR. The name must be one
+of the eight read-only reviewers in `.claude/agents/`; anything else is ignored.
+
+- The reviewer definition is read from the default branch checkout, and the
+  diff is read from the PR head checkout. The job holds no write token for the
+  repository and does not execute PR code.
+- Tools are limited to Read, Glob, Grep and read-only git commands, with Edit,
+  Write, Agent and Task disallowed.
+- Before running, the job skips when a result for that name and head already
+  exists, identified by the marker `<!-- CLAUDE_SPECIALIST:<name>:<sha> -->`. The
+  run ends its comment with that marker. If a run does not write the marker, a
+  repeat request runs again; this is a duplicate cost, not a gate.
+- "Not selected" is a valid verdict. The specialist states that its risk does not
+  apply, with the reason, rather than inventing findings.
+
+These comments are advisory evidence for the lead. They do not replace the
+required CI review, a runtime check, or human approval. The trust model matches
+the read-only PR explainer: PR content is untrusted, and only writers can start
+the job.
