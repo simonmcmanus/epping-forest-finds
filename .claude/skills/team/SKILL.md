@@ -1,7 +1,6 @@
 ---
 name: team
-description: "Lead playbook for coherent batches: implement locally, review changed risks, verify evidence, push one reviewed batch and coordinate its PR."
-disable-model-invocation: true
+description: "REQUIRED first step for ANY change to the Epping Forest Finds app or website: app code (js/, css/, app.html, sw.js), marketing pages (index.html, assets/home/), icons, tests, specs or place data. Use before editing any file for such a change, including small fixes and copy tweaks. Runs the lead playbook: plans the batch, dispatches scoped implementer/data-curator agents, selects risk reviewers, verifies, and opens one PR. Skip only for questions with no file edits."
 ---
 
 The lead dispatches; subagents do not spawn agents. Read `docs/agents/review-contract.md` for the

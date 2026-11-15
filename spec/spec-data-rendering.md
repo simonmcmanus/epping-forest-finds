@@ -1022,7 +1022,9 @@ business, a veteran tree, a cow, or a landmark with no page of its own -- gets t
 (`nearbySectionsHtml`, js/inspector.js), with the walk-radius card as the last Nearest entry. A
 tree's Related section links its own category, a cow's its own, a water feature's Ponds & streams
 category, and a business or landmark the category its `placePrimaryFilterKey` names. Related links
-carry the selected feature's `near=<lat>,<lon>` browse anchor. It reuses the existing Nearby-browsing mechanism rather than
+carry the selected feature's `near=<lat>,<lon>` browse anchor, and the reader's current walking radius as
+`?radius=<minutes>`, so the category page they open uses the radius the card's count describes rather than the 30-minute
+`/nearby/<slug>` landing default (`applyRadiusFromQuery`, `js/router.js`). The same applies to the Nearest category cards. It reuses the existing Nearby-browsing mechanism rather than
 inventing a new one: tapping it drops the selection, moves the Nearby browse anchor to that exact
 point (`setNearbyAnchor`'s own mechanism -- the same one a tap on open ground or a shared
 `near=<lat>,<lon>` link already use), keeps the reader's own walking radius, and shows every category
