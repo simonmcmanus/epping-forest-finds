@@ -744,6 +744,10 @@ function swapStaticChipsForRail() {
 }
 
 function selectOverview(animate = false) {
+  // Keep live data/location/heading refreshes from replacing the held gesture's list
+  // or re-announcing its floor note. Each input clears its state before the final refresh.
+  if (!animate && (state.pinchActive || Number.isFinite(state.gestureRadiusBaseMinutes)
+    || Number.isFinite(state.wheelRadiusTargetMinutes))) return;
   if ((state.filterScreenOpen && !mapSetupModalActive()) || state.searchScreenOpen) return;
   const preserveScroll = !animate && els.inspector.classList.contains("nearby-overview");
   els.inspector.classList.add("nearby-overview");

@@ -482,9 +482,14 @@ test.describe("Zoom gestures hide the pins and bring them back together", () => 
     });
     await spreadFingersAcrossFrames(page, { startHalfGap: 20, endHalfGap: 900, steps: 20 });
     await expect(page.locator(".walk-radius-floor-notice")).toHaveCount(1);
-    // Out of the floor and back in again: the one notice is kept, not re-inserted (live region).
-    await spreadFingersAcrossFrames(page, { startHalfGap: 900, endHalfGap: 60, steps: 10, press: false });
-    await spreadFingersAcrossFrames(page, { startHalfGap: 60, endHalfGap: 900, steps: 10, press: false });
+    // A real location-watch callback must not rebuild the list or re-announce the note.
+    const lastFix = await page.evaluate(() => Number(state.lastLocationUpdateAt) || 0);
+    await page.context().setGeolocation({ ...FOREST_LOCATION, accuracy: 11 });
+    await expect.poll(() => page.evaluate(() => state.lastLocationUpdateAt)).toBeGreaterThan(lastFix);
+    // Out of the floor and back in again: move inside the initial half-gap of 20.
+    await spreadFingersAcrossFrames(page, { startHalfGap: 900, endHalfGap: 10, steps: 10, press: false });
+    await expect.poll(() => page.evaluate(() => state.walkingRadiusAtFloor)).toBe(false);
+    await spreadFingersAcrossFrames(page, { startHalfGap: 10, endHalfGap: 900, steps: 10, press: false });
     expect(await page.evaluate(() => window.__noticesAdded), "the notice is inserted once per gesture").toBeLessThanOrEqual(1);
     await liftFingers(page);
     await expect(page.locator(".walk-radius-floor-notice")).toHaveCount(0);

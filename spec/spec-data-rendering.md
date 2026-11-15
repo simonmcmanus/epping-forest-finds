@@ -692,6 +692,9 @@ moving the real GPS fix:
   under tilt. The animation redraws only the overlay, coalesces with terrain/compass frames, and stops
   when hidden or faded out. The existing Nearby and Settings floor notes use muted guidance
   text rather than error red, and have no entry motion with reduced motion.
+  Non-navigation list refreshes from data, GPS, heading or nearby controls wait until the
+  active radius gesture ends, so the list and its existing floor note are not replaced
+  mid-gesture. The final refresh uses the latest data.
   While a pinch is actively pinned at the floor, `state.walkingRadiusAtFloor` is true
   and `overviewNearestHtml()` shows a transient "nothing closer to show" notice
   (`.walk-radius-floor-notice`); both clear as soon as the gesture ends or backs off. That notice
