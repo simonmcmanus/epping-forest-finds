@@ -697,8 +697,9 @@ moving the real GPS fix:
   mid-gesture. The final refresh uses the latest data.
   While a pinch is actively pinned at the floor, `state.walkingRadiusAtFloor` is true
   and `overviewNearestHtml()` shows a transient "nothing closer to show" notice
-  (`.walk-radius-floor-notice`); both clear as soon as the gesture ends or backs off. That notice
-  lives in the Nearby list, so the in-place patch that keeps it in sync is skipped on
+  (`.walk-radius-floor-notice`). The flag clears on backoff or release; the existing notice
+  stays in place until the gesture's final refresh removes it, avoiding repeated announcements.
+  The notice lives in the Nearby list, so its in-place patch is skipped on
   Filter/Settings/Report — there is nothing there to refresh. On the
   Settings slider, the same floor is enforced natively via the `<input type="range">`'s own
   `min` attribute (rounded up onto the value grid, since a range input steps from its own `min`)
