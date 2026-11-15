@@ -18,6 +18,10 @@ function itemLonLatForTap(item, tapLonLat) {
 function handleMapClick(event) {
   const screen = canvasPoint(event);
 
+  // A marker still visibly fading out under a programmatic move is not open ground: swallow the tap
+  // rather than let it relocate the Nearby view out from under the move already in flight.
+  if (tapLandsOnFrozenPaintedMarker(screen)) return;
+
   // Tapping a multi-item group marker -- one category or several alike --
   // behaves like tapping open ground on that spot: the group becomes the Nearby browse anchor,
   // sized to cover it, and the Nearby list updates to show what's inside. See
@@ -81,7 +85,11 @@ function handleMapClick(event) {
   }
 
   state.clusterZoomed = false;
+  // The group this pick belongs to: the one just expanded, or the one the current selection came
+  // from (tapping a dimmed sibling). A place outside it ends the group context.
+  const pickGroup = state.clusterExpanded || selectionClusterGroup();
   exitClusterExpansion();
+  state.selectionCluster = clusterGroupHasItem(pickGroup, hit.item) ? pickGroup : null;
   // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
   // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
   // rather than lingering for whenever Nearby is next shown.
@@ -206,10 +214,21 @@ function findHit(screen, world) {
   }
   _hitTestMarkerCache = null;
   const selectedItem = hasRealSelection() ? state.selected.item : null;
+  // Dimmed members of the selected place's group (selectionSiblingLookup) are tappable as lone pins
+  // at the ordinary pin hit size; shouldDrawMapIcon refuses everything while a place is selected.
+  const siblingsActive = Boolean(selectionClusterGroup());
+  if (siblingsActive && selectedItem && selectedItem.point && MARKER_TYPES.includes(state.selected.type)) {
+    // The selected place's own target wins wherever a sibling's overlaps it.
+    const selectedDistance = pinDistance(toScreen(selectedItem.point), selectedItem);
+    if (selectedDistance < mapMarkerPinHitRadius(dpr, pinScaleFor(selectedItem))) {
+      return { type: state.selected.type, item: selectedItem, distance: selectedDistance };
+    }
+  }
   function isTappablePin(type, item) {
     const marker = markerByItem.get(item);
-    return item === selectedItem
-      || (shouldDrawMapIcon(type, item, iconLookup) && marker && marker.items.length === 1);
+    if (item === selectedItem) return true;
+    if (siblingsActive) return Boolean(iconLookup[type] && iconLookup[type].has(item) && marker && marker.items.length === 1);
+    return shouldDrawMapIcon(type, item, iconLookup) && marker && marker.items.length === 1;
   }
 
   let bestPlace = null;
@@ -744,6 +763,10 @@ function swapStaticChipsForRail() {
 }
 
 function selectOverview(animate = false) {
+  // Keep live data/location/heading refreshes from replacing the held gesture's list
+  // or re-announcing its floor note. Each input clears its state before the final refresh.
+  if (!animate && (state.pinchActive || Number.isFinite(state.gestureRadiusBaseMinutes)
+    || Number.isFinite(state.wheelRadiusTargetMinutes))) return;
   if ((state.filterScreenOpen && !mapSetupModalActive()) || state.searchScreenOpen) return;
   const preserveScroll = !animate && els.inspector.classList.contains("nearby-overview");
   els.inspector.classList.add("nearby-overview");
@@ -1253,7 +1276,10 @@ function focusOverviewItem(type, key) {
     return;
   }
   state.clusterZoomed = false;
+  // The Nearby list only offers members of the expanded group, so a list pick is always one of them.
+  const pickGroup = state.clusterExpanded;
   exitClusterExpansion();
+  state.selectionCluster = pickGroup;
   // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
   // map dot (drawNearbyAnchorMarker, js/renderer.js) -- goes back to the user's own location
   // rather than lingering for whenever Nearby is next shown.
@@ -1403,6 +1429,10 @@ function onInspectorHeightTransitionEnd(callback, timeoutMs = INSPECTOR_MINIMIZE
 function holdSelectionMapUntilCameraSettles() {
   const transitionToken = {};
   state.selectionTransition.mapHeld = true;
+  // Replacing the token abandons any delayed camera start of an earlier selection (its timer
+  // returns on the token check), so the "camera not started" flag it set must not outlive it.
+  // A caller that does start its own delayed camera sets the flag again after this call.
+  state.selectionTransition.viewportPending = false;
   state.selectionTransition.startedAt = performance.now();
   state.selectionMapTransitionToken = transitionToken;
   const settleMapTransition = () => {
@@ -1449,6 +1479,10 @@ function zoomToSelection() {
       return;
     }
     const transitionToken = state.selectionMapTransitionToken;
+    // The camera has not started yet, so the selection hold must not release in the meantime:
+    // with the origin slide already over and nothing animating, settleMapTransition would clear
+    // the token and the guard below would then drop this zoom for good.
+    state.selectionTransition.viewportPending = true;
     setTimeout(() => {
       if (state.selectionMapTransitionToken !== transitionToken) return;
       startCamera();

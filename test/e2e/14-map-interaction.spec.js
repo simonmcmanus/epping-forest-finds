@@ -416,19 +416,17 @@ test.describe("Map interaction", () => {
       expect(Math.abs(settled.mapX - before.mapX), "while the map behind it moved").toBeGreaterThan(10);
     });
 
-    test("the new nearby set fades in while the map moves, rather than appearing after a blank stretch", async ({ page }) => {
+    test("the old pins fade out once as the map slides, and the new set reveals once when it lands, rather than regrouping on the way", async ({ page }) => {
       await setup(page);
       await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
       await waitForViewportToSettle(page);
 
-      // Both read in one round trip: sampled separately, the slide can finish between them and
-      // the pair no longer describes the same instant.
       const sampleBody = () => {
         prepareCanvasForDraw();
-        return { sliding: nearbyOriginTransitionActive(), reveal: nearbyRevealOpacity() };
+        return { sliding: nearbyOriginTransitionActive(), paused: markerGroupingPaused(), fade: mapPinFadeOpacity() };
       };
       const sample = () => page.evaluate(sampleBody);
-      expect((await sample()).reveal, "settled, the nearby set is fully drawn").toBe(1);
+      expect((await sample()).fade, "settled, the nearby set is fully drawn").toBe(1);
 
       const startSlide = () => {
         const latitude = state.userLocation.latitude - 0.005;
@@ -436,19 +434,16 @@ test.describe("Map interaction", () => {
         focusNearbyOnMapPoint({ latitude, longitude }, projectLonLat(longitude, latitude));
       };
 
-      // Keep sampling beyond the 520ms slide: on a loaded runner a timer can be late enough
-      // that five samples only reach the early part of the reveal ramp.
       const during = await sampleEvery(page, startSlide, sampleBody, 10, 60);
       const sliding = during.filter((s) => s.sliding);
       expect(sliding.length, "the slide should have been observed running").toBeGreaterThan(0);
-      // Arrives steadily: never goes back down while the map is travelling.
+      expect(sliding.every((s) => s.paused), "grouping stays paused for the whole slide").toBe(true);
+      // Falls to nothing and stays there while the map travels: never comes back early.
       for (let i = 1; i < sliding.length; i++) {
-        expect(sliding[i].reveal, `frame ${i}: the set only ever fades in`).toBeGreaterThanOrEqual(sliding[i - 1].reveal);
+        expect(sliding[i].fade, `frame ${i}: the old set only ever fades out`).toBeLessThanOrEqual(sliding[i - 1].fade);
       }
-      // And is visible before the slide ends, so there is no blank screen to wait out.
-      expect(Math.max(...sliding.map((s) => s.reveal)), "pins are showing before the map lands").toBeGreaterThan(0.3);
 
-      await page.waitForFunction(() => nearbyRevealOpacity() === 1);
+      await page.waitForFunction(() => !markerGroupingPaused() && mapPinFadeOpacity() === 1);
     });
   });
 

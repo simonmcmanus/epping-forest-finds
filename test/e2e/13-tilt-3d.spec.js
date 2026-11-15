@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { skipOnboarding, mockCowApi, gotoAndWaitForMap, tapCanvasPoint } = require("./helpers");
+const { skipOnboarding, mockCowApi, gotoAndWaitForMap, tapCanvasPoint, setup } = require("./helpers");
 
 // A GPS fix inside Epping Forest
 const FOREST_LOCATION = { latitude: 51.6538, longitude: 0.0400, accuracy: 10 };
@@ -591,5 +591,327 @@ test.describe("3D tilt view", () => {
 
     // Nothing else moves the camera, so the restoring frame must come from the still timer alone.
     await expect.poll(async () => (await bitmap()).w).toBe(still.w);
+  });
+});
+
+test.describe("3D tilt selection from the Nearby list", () => {
+  test.use({ geolocation: { latitude: 51.665, longitude: 0.045, accuracy: 10 }, permissions: ["geolocation"] });
+
+  test("selecting a close place behind the heading keeps you and it off the top edge of the map", async ({ page }) => {
+    await setup(page, "/nearby");
+    await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+
+    // A listed tree within 30 m: turn the phone so it is dead behind the heading.
+    const key = await page.evaluate(() => {
+      for (const button of document.querySelectorAll('.nearest-item[data-overview-type="tree"]')) {
+        const tree = findTreeByHashKey(button.dataset.overviewKey);
+        if (!tree || !tree.point) continue;
+        const metres = distanceMetres(state.userLocation.latitude, state.userLocation.longitude, tree.latitude, tree.longitude);
+        if (metres > 30 || metres < 5) continue;
+        const origin = state.userLocation.point;
+        const bearing = Math.atan2(tree.point.x - origin.x, -(tree.point.y - origin.y)) * 180 / Math.PI;
+        const heading = (bearing + 180 + 360) % 360;
+        // Phone held up: heading-up with a gentle tilt and a live compass, facing away from the tree.
+        state.compassHeadingTarget = heading;
+        state.compassHeading = heading;
+        state.renderedNavigationHeading = heading;
+        state.compassLastEventAt = performance.now();
+        state.tiltBetaTarget = 60;
+        state.tiltBetaSmoothed = 60;
+        return button.dataset.overviewKey;
+      }
+      return null;
+    });
+    expect(key, "a listed tree within 30 m and behind the heading").not.toBeNull();
+
+    await page.locator(`.nearest-item[data-overview-type="tree"][data-overview-key="${key}"]`).click();
+    await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("tree");
+    // Settled: the selection camera move has started and finished, and the viewport has held
+    // still for several frames (the move begins a frame after the tap).
+    await expect.poll(() => page.evaluate(async () => {
+      if (state.viewportAnimationTo != null || state.selectionTransition.viewportPending) return false;
+      const read = () => JSON.stringify([state.viewport.scale, state.viewport.tx, state.viewport.ty]);
+      const before = read();
+      for (let i = 0; i < 12; i += 1) await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+      return read() === before && state.viewportAnimationTo == null;
+    }), { timeout: 15000 }).toBe(true);
+    await expect.poll(() => page.evaluate(() => state.canvasMotion.capped)).toBe(false);
+
+    const fractions = await page.evaluate(() => {
+      draw();
+      const rect = bestVisibleCanvasRect();
+      const user = worldToScreen(state.userLocation.point);
+      const place = worldToScreen(state.selected.item.point);
+      return {
+        user: (user.y - rect.y) / rect.height,
+        place: (place.y - rect.y) / rect.height,
+      };
+    });
+    expect(fractions.user, "the You marker sits well below the top edge").toBeGreaterThanOrEqual(0.25);
+    expect(fractions.place, "the selected place sits well below the top edge").toBeGreaterThanOrEqual(0.25);
+  });
+});
+
+test.describe("3D tilt moving between two nearby places", () => {
+  test.use({ geolocation: { latitude: 51.6555, longitude: 0.0662, accuracy: 10 }, permissions: ["geolocation"] });
+
+  // minFraction: how far down the visible map the user must land. At 270 the pub used to put the user at
+  // 37% of the map band (anchor 0.368, mirrored toward the horizon); the fix lands them in the lower half.
+  for (const [heading, minFraction] of [[135, 0.25], [270, 0.45]]) {
+    test(`going pub to Lidl to pub at heading ${heading} keeps you and the place well below the top edge`, async ({ page }) => {
+      await setup(page, "/nearby");
+      await expect.poll(() => page.evaluate(() => Math.abs((state.userLocation?.latitude ?? 0) - 51.6555) < 1e-6 && !state.userLocation.isDefault)).toBe(true);
+      await page.evaluate((h) => {
+        state.compassHeadingTarget = h;
+        state.compassHeading = h;
+        state.renderedNavigationHeading = h;
+        state.compassLastEventAt = performance.now();
+        state.tiltBetaTarget = 60;
+        state.tiltBetaSmoothed = 60;
+      }, heading);
+
+      const select = async (path, type) => {
+        await page.evaluate((p) => navigateInApp(p), path);
+        await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe(type);
+        await expect.poll(() => page.evaluate(async () => {
+          if (state.viewportAnimationTo != null || state.selectionTransition.viewportPending) return false;
+          const read = () => JSON.stringify([state.viewport.scale, state.viewport.tx, state.viewport.ty]);
+          const before = read();
+          for (let i = 0; i < 12; i += 1) await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+          return read() === before && state.viewportAnimationTo == null;
+        }), { timeout: 15000 }).toBe(true);
+        return page.evaluate(() => {
+          draw();
+          const panelTop = bestVisibleCanvasRect().height; // the visible map height the camera frames
+          const user = worldToScreen(state.userLocation.point);
+          const place = worldToScreen(state.selected.item.point);
+          return { anchor: headingUpAnchorFraction(true), panelTop, userY: user.y, placeY: place.y };
+        });
+      };
+
+      const steps = [];
+      for (const [path, type] of [["/find/the-plume-of-feathers/", "landmark"], ["/find/lidl/", "landmark"], ["/find/the-plume-of-feathers/", "landmark"]]) {
+        steps.push({ path, ...(await select(path, type)) });
+      }
+      for (const step of steps) {
+        expect(step.userY, `${step.path} user marker`).toBeGreaterThanOrEqual(step.panelTop * minFraction);
+        expect(step.placeY, `${step.path} place`).toBeGreaterThanOrEqual(step.panelTop * 0.25);
+      }
+      const ys = steps.map((x) => x.userY);
+      const swing = Math.max(...ys) - Math.min(...ys);
+      expect(swing, "the user marker does not swing between the two places").toBeLessThan(steps[0].panelTop * 0.5);
+    });
+  }
+
+});
+
+test.describe("3D tilt first move from Nearby into a place", () => {
+  test.use({
+    geolocation: { latitude: 51.6555, longitude: 0.0662, accuracy: 10 },
+    permissions: ["geolocation"],
+    reducedMotion: "no-preference",
+    viewport: { width: 393, height: 800 },
+    hasTouch: true,
+    isMobile: true,
+  });
+
+  for (const heading of [135, 270]) {
+    test(`selecting the pub at heading ${heading} carries the You marker straight to its place instead of up the screen`, async ({ page }) => {
+      await setup(page, "/nearby");
+      await expect.poll(() => page.evaluate(() => Math.abs((state.userLocation?.latitude ?? 0) - 51.6555) < 1e-6 && !state.userLocation.isDefault)).toBe(true);
+      const ready = await page.evaluate((h) => {
+        state.compassHeadingTarget = h;
+        state.compassHeading = h;
+        state.renderedNavigationHeading = h;
+        state.compassLastEventAt = performance.now();
+        state.tiltBetaTarget = 60;
+        state.tiltBetaSmoothed = 60;
+        alignHeadingUpNavigationViewport({ force: true });
+        draw();
+        return { tilted: state.tiltBetaSmoothed === 60, user: Boolean(state.userLocation?.point) };
+      }, heading);
+      expect(ready, "tilted heading-up with a located user").toEqual({ tilted: true, user: true });
+      await expect.poll(() => page.evaluate(() => state.viewportAnimationTo == null)).toBe(true);
+
+      // Sample the marker on every animation frame from before the tap until the move settles.
+      await page.evaluate(() => {
+        window.__youYs = [];
+        const tick = () => {
+          window.__youYs.push(worldToScreen(state.userLocation.point).y);
+          window.__youSampling = requestAnimationFrame(tick);
+        };
+        tick();
+      });
+      await page.evaluate(() => navigateInApp("/find/the-plume-of-feathers/"));
+      await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("landmark");
+      await expect.poll(() => page.evaluate(async () => {
+        if (state.viewportAnimationTo != null || state.selectionTransition.viewportPending) return false;
+        const read = () => JSON.stringify([state.viewport.scale, state.viewport.tx, state.viewport.ty]);
+        const before = read();
+        for (let i = 0; i < 12; i += 1) await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+        return read() === before && state.viewportAnimationTo == null;
+      }), { timeout: 15000 }).toBe(true);
+
+      const result = await page.evaluate(() => {
+        cancelAnimationFrame(window.__youSampling);
+        draw();
+        return {
+          ys: window.__youYs,
+          panelTop: bestVisibleCanvasRect().height,
+          settled: worldToScreen(state.userLocation.point).y,
+        };
+      });
+      expect(result.ys.length, "frames were sampled through the move").toBeGreaterThan(10);
+      const start = result.ys[0];
+      const floor = Math.min(start, result.settled) - result.panelTop * 0.15;
+      expect(Math.min(...result.ys), `You marker never rises more than 15% of the map band above ${start} -> ${result.settled}`).toBeGreaterThanOrEqual(floor);
+      expect(Math.abs(result.ys[result.ys.length - 1] - result.settled), "the last sampled frame is the settled position").toBeLessThan(1);
+    });
+
+    test(`a first move from a far browse anchor at heading ${heading} keeps the You marker between where it starts and lands, with the horizon off the top`, async ({ page }) => {
+      // Browsing a spot about a kilometre away, then tapping a place: the browse-origin slide and the
+      // selection's camera move run together, and the camera origin they rotate and tilt about travels
+      // through the screen on the way. The "You" marker used to be eased in raw screen space, so with the
+      // origin in motion it swung well below both ends (the lowest sample sat ~700 canvas px under the
+      // landing spot), and the horizon row was the origin's to carry. Frames are driven by hand here: this
+      // test's subject is the path the marker takes, so how fast headless paints must not change the
+      // samples.
+      await setup(page, "/nearby");
+      await expect.poll(() => page.evaluate(() => Math.abs((state.userLocation?.latitude ?? 0) - 51.6555) < 1e-6 && !state.userLocation.isDefault)).toBe(true);
+      await page.evaluate((h) => {
+        state.map3dEnabled = true;
+        state.compassHeadingTarget = h;
+        state.compassHeading = h;
+        state.renderedNavigationHeading = h;
+        state.compassLastEventAt = performance.now();
+        state.tiltBetaTarget = 60;
+        state.tiltBetaSmoothed = 60;
+      }, heading);
+
+      const result = await page.evaluate(() => {
+        window.__now = performance.now();
+        window.__frames = [];
+        window.requestAnimationFrame = (callback) => { window.__frames.push(callback); return window.__frames.length; };
+        performance.now = () => window.__now;
+        const stepFrame = (ms) => {
+          window.__now = ms;
+          const batch = window.__frames;
+          window.__frames = [];
+          for (const callback of batch) callback(ms);
+        };
+        let clock = window.__now;
+        const advance = (limit) => {
+          for (let i = 0; i < limit && (state.viewportAnimationTo != null || state.nearbyOriginTransition || window.__frames.length); i += 1) {
+            clock += 16;
+            stepFrame(clock);
+          }
+        };
+
+        setNearbyAnchor(state.userLocation.latitude + 0.012, state.userLocation.longitude + 0.012,
+          projectLonLat(state.userLocation.longitude + 0.012, state.userLocation.latitude + 0.012));
+        advance(400);
+        stopViewportAnimation();
+        alignHeadingUpNavigationViewport({ force: true });
+        draw();
+
+        const samples = [];
+        const sample = () => {
+          draw();
+          samples.push({ y: worldToScreen(state.userLocation.point).y, horizon: tiltHorizonCanvasY() });
+        };
+        sample();
+        navigateInApp("/find/lidl/");
+        sample();
+        for (let i = 0; i < 400 && (state.viewportAnimationTo != null || window.__frames.length); i += 1) {
+          clock += 16;
+          stepFrame(clock);
+          sample();
+        }
+        return { samples, canvasHeight: els.canvas.height, selected: state.selected?.type ?? null };
+      });
+
+      expect(result.selected, "sanity: the place was selected").toBe("landmark");
+      expect(result.samples.length, "frames were sampled through the move").toBeGreaterThan(10);
+      const ys = result.samples.map((s) => s.y);
+      const start = ys[0];
+      const settled = ys[ys.length - 1];
+      // A tenth of the canvas height is the room the marker may use on its way: a straight path with the
+      // origin settling on its landing point stays within a few tens of pixels of that band.
+      const slack = result.canvasHeight * 0.1;
+      const low = Math.min(start, settled) - slack;
+      const high = Math.max(start, settled) + slack;
+      const worst = Math.max(...ys.map((y) => Math.max(low - y, y - high, 0)));
+      expect(worst, `the You marker strayed ${worst.toFixed(0)}px outside ${start.toFixed(0)} -> ${settled.toFixed(0)}`).toBe(0);
+      const horizonMax = Math.max(...result.samples.slice(1).map((s) => s.horizon));
+      expect(horizonMax, "the horizon stays above the top of the canvas for the whole move").toBeLessThan(0);
+    });
+  }
+});
+
+// Reported geometry: a phone-sized viewport (393x800 CSS px at 2.75x) moving between two places ~65 m
+// apart in heading-up. Pinned explicitly so the desktop and Pixel 5 projects run the same camera path.
+test.describe("3D tilt marker during moves between two places (phone geometry)", () => {
+  test.use({
+    viewport: { width: 393, height: 800 },
+    deviceScaleFactor: 2.75,
+    isMobile: true,
+    hasTouch: true,
+    geolocation: { latitude: 51.6555, longitude: 0.0662, accuracy: 10 },
+    permissions: ["geolocation"],
+  });
+
+  // The settled checks above only sample the camera once it has stopped. A move is a tween that runs
+  // for about half a second, so this samples the "You" marker on every animation frame of each move and
+  // asserts it never travels outside the band between where it started and where it lands. A
+  // mid-move excursion (the marker flying far off the bottom of the phone and back) is exactly what the
+  // settled checks cannot see.
+  test("the \"You\" marker never flies past its start or end while moving between two places", async ({ page }) => {
+    await setup(page, "/nearby");
+    await expect.poll(() => page.evaluate(() => Math.abs((state.userLocation?.latitude ?? 0) - 51.6555) < 1e-6 && !state.userLocation.isDefault)).toBe(true);
+    await page.evaluate(() => {
+      state.map3dEnabled = true;
+      state.compassHeadingTarget = 90;
+      state.compassHeading = 90;
+      state.renderedNavigationHeading = 90;
+      state.compassLastEventAt = performance.now();
+      state.tiltBetaTarget = 60;
+      state.tiltBetaSmoothed = 60;
+      // A real compass keeps reporting while the user walks between two places; keep the reading fresh
+      // so the heading does not ease out during the moves being measured.
+      window.__compassKeepFresh = setInterval(() => { state.compassLastEventAt = performance.now(); }, 50);
+    });
+
+    const settle = () => expect.poll(() => page.evaluate(() => state.viewportAnimationTo == null && !state.selectionTransition.viewportPending)).toBe(true);
+    const move = async (path) => {
+      await page.evaluate(() => {
+        window.__markerSamples = [];
+        window.__markerStop = false;
+        const sample = () => {
+          if (window.__markerStop) return;
+          window.__markerSamples.push(worldToScreen(projectLonLat(state.userLocation.longitude, state.userLocation.latitude)).y);
+          requestAnimationFrame(sample);
+        };
+        requestAnimationFrame(sample);
+      });
+      await page.evaluate((p) => navigateInApp(p), path);
+      await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("landmark");
+      await settle();
+      await page.evaluate(() => { window.__markerStop = true; });
+      return page.evaluate(() => window.__markerSamples);
+    };
+
+    await move("/find/the-plume-of-feathers/");
+    for (const path of ["/find/lidl/", "/find/the-plume-of-feathers/", "/find/lidl/"]) {
+      const ys = await move(path);
+      expect(ys.length, `${path}: the move is sampled over several frames, not a single snap`).toBeGreaterThan(8);
+      const start = ys[0];
+      const end = ys[ys.length - 1];
+      const lo = Math.min(start, end);
+      const hi = Math.max(start, end);
+      const tolerance = 12;
+      const worst = ys.reduce((acc, y) => (y < lo - tolerance || y > hi + tolerance ? Math.max(acc, Math.abs(y - (y < lo ? lo : hi))) : acc), 0);
+      expect(worst, `${path}: the marker stayed between ${lo.toFixed(0)} and ${hi.toFixed(0)} (worst overshoot ${worst.toFixed(0)}px, range ${Math.min(...ys).toFixed(0)}..${Math.max(...ys).toFixed(0)})`).toBe(0);
+    }
+    await page.evaluate(() => clearInterval(window.__compassKeepFresh));
   });
 });

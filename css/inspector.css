@@ -988,9 +988,10 @@ button.settings-toggle.has-update::after {
   cursor: pointer;
 }
 
-.walk-radius-floor-note {
-  color: #b3492f;
-  font-weight: 700;
+.walk-radius-floor-note,
+.walk-radius-floor-notice {
+  color: var(--muted);
+  font-weight: 600;
 }
 
 .settings-refresh {
@@ -2264,9 +2265,11 @@ dd {
 }
 
 .walk-radius-floor-notice {
-  color: #b3492f;
-  font-weight: 700;
   animation: walk-radius-floor-pop 0.22s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .walk-radius-floor-notice { animation: none; }
 }
 
 .named-tree {

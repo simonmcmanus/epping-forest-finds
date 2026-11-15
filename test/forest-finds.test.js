@@ -57,6 +57,7 @@ function createElementStub(id = "") {
         restore() {},
         beginPath() {},
         closePath() {},
+        clip() {},
         moveTo() {},
         lineTo() {},
         bezierCurveTo() {},
@@ -419,8 +420,10 @@ globalThis.__forestFindsTest = {
   swapGlobalFunction(name, fn) { const previous = globalThis[name]; globalThis[name] = fn; return previous; },
   setFindLandingSelectionPending(value) { findLandingSelectionPending = Boolean(value); },
   drawEnvironment,
+  draw,
   drawLayer,
   clusterFocusTarget,
+  nearbyRetap,
   focusNearbyOnClusterGroup,
   expandedClusterOverviewEntries,
   // The sandbox's own clock object, so a test can freeze what the app reads from
@@ -493,6 +496,8 @@ globalThis.__forestFindsTest = {
   activeIconLookup,
   markerOpacityFor,
   treeHashKey,
+  clusterItemsByType,
+  exitClusterExpansion,
   findTreeByHashKey,
   treeDisplayName,
   releaseStrandedAnimationFrames,
@@ -553,6 +558,10 @@ globalThis.__forestFindsTest = {
   updateNearbyRadiusPinch,
   endNearbyRadiusPinch,
   zoomGestureLive,
+  markerGroupingPaused,
+  reconcileMarkerPauses,
+  moveCamera,
+  startNearbyOriginTransition,
   beginZoomGesture,
   endZoomGesture,
   mapPinFadeOpacity,
@@ -576,6 +585,9 @@ globalThis.__forestFindsTest = {
   bestVisibleCanvasRect,
   walkingRadiusCirclePoints,
   drawWalkingRadius,
+  walkingRadiusScreenGeometry,
+  drawWalkingRadiusLimitFeedback,
+  walkingRadiusLimitOpacity,
   nearbyUserCone,
   selectOverview,
   ensureOverviewTargetsVisible,
@@ -648,11 +660,13 @@ globalThis.__forestFindsTest = {
   updateNearbyAnchorBar,
   nearbyRenderOriginPoint,
   nearbyOriginTransitionActive,
-  nearbyRevealOpacity,
   nearbyRevealInProgress,
+  nearbyOriginSlideHoldsPause,
+  tapLandsOnFrozenPaintedMarker,
+  framePinFade,
+  MARKER_PAUSE_SCALE_RATIO,
   selectionOutgoingMarkerOpacity,
   selectionDestinationOpacity,
-  NEARBY_REVEAL_MS,
   cameraOriginPoint,
   tiltHidesWhatIsBehind,
   tiltProjection,
@@ -735,6 +749,7 @@ globalThis.__forestFindsTest = {
   placeHashKey,
   findPlaceByHashKey,
   focusOverviewItem,
+  CLUSTER_HISTORY_MAX_MEMBERS,
   treeSpeciesIconHtml,
   placeTitle,
   ICON_PATHS,
@@ -812,6 +827,7 @@ globalThis.__forestFindsTest = {
   setHashFromSelection,
   currentScreenRoute,
   urlMatchesCurrentScreen,
+  historyEntryDescribesExpandedCluster,
   routerBootFinished,
   initRouter,
   navDepth,
@@ -979,6 +995,7 @@ function resetSecondaryScreens(app) {
 }
 
 function resetData(app) {
+  restoreRefitTween();
   app.state.trees = [];
   app.state.cows = [];
   app.state.landmarks = [];
@@ -1017,6 +1034,8 @@ function resetData(app) {
   app.state.viewportAnimationTo = null;
   app.state.viewportAnimationStartTime = null;
   app.state.viewportAnimationDuration = 0;
+  // A tween or slide an earlier test left behind must not leave marker grouping paused.
+  app.reconcileMarkerPauses();
   app.state.dataLoaded = true;
   app.state.selectionTransition.viewportPending = false;
   app.state.inspectorMinimizeTransitionPending = false;
@@ -1797,6 +1816,25 @@ test("a pan with almost no zoom is blended straight across", () => {
   const to = { scale: 13571, tx: -554, ty: 821680 };
   const mid = app.viewportAlongTween(from, to, 0.5);
   assert.ok(Math.abs(mid.tx - -556) < 0.01 && Math.abs(mid.ty - 822659.5) < 0.01, "offsets are the straight midpoint");
+});
+
+test("a small zoom does not carry a far-off point off-screen mid-move", () => {
+  // Real heading-up case: mercator-degree world coordinates, so the user's point is far from the
+  // origin and any mismatch between scale and offset blending is magnified enormously on screen.
+  const from = { scale: 481129.4, tx: -31310, ty: 29122957 };
+  const to = { scale: 465825.8, tx: -30297, ty: 28196442 };
+  const world = { x: 0.0662, y: -60.52914436679489 };
+  const screenY = (v) => world.y * v.scale + v.ty;
+  const startY = screenY(from);
+  const endY = screenY(to);
+  const lo = Math.min(startY, endY) - 1e-6;
+  const hi = Math.max(startY, endY) + 1e-6;
+  for (let i = 0; i <= 100; i++) {
+    const y = screenY(app.viewportAlongTween(from, to, i / 100));
+    assert.ok(y >= lo && y <= hi, `step ${i}: screen y ${y} left the range ${startY}..${endY}`);
+  }
+  assert.ok(Math.abs(screenY(app.viewportAlongTween(from, to, 0)) - startY) < 1e-6, "starts at the source view");
+  assert.ok(Math.abs(screenY(app.viewportAlongTween(from, to, 1)) - endY) < 1e-6, "lands on the target view");
 });
 
 test("clusterJoinAnimationState leaves a lone pin undisturbed", () => {
@@ -3767,6 +3805,59 @@ test("walking radius marker still draws when nearest results use fallback", () =
   assert.equal(arcCount, 2);
 });
 
+test("the radius edge breathes while held at either zoom limit and fades on backing off", () => {
+  const isolated = loadAppForTests();
+  resetData(isolated);
+  isolated.state.userLocation = makePoint(isolated, 0, 0);
+  isolated.state.overviewFilters = ["trees"];
+  const floor = isolated.walkingRadiusFloorMinutes();
+  const ctx = createElementStub().getContext();
+  ctx.rect = () => {};
+  let edge = null, pathRadius = null, feedbackRadius = null;
+  ctx.arc = (x, y, radius) => { if (edge == null) edge = radius; pathRadius = radius; };
+  ctx.stroke = () => { feedbackRadius = pathRadius; };
+  const paint = () => {
+    edge = null;
+    isolated.drawWalkingRadius(ctx);
+    const { center, radiusPx, tilted, dpr } = isolated.walkingRadiusScreenGeometry();
+    isolated.drawWalkingRadiusLimitFeedback(ctx, center, radiusPx, tilted, dpr);
+    return isolated.walkingRadiusLimitOpacity();
+  };
+  const realNow = Date.now;
+  let now = realNow();
+  Date.now = () => now;
+  try {
+    for (const limit of [floor, isolated.WALKING_RADIUS_MAX_MINUTES]) {
+      isolated.applyWalkingRadiusGesture(floor * 2);
+      now += 1000;
+      assert.equal(paint(), 0, "in-range zoom has no red feedback");
+      isolated.applyWalkingRadiusGesture(limit);
+      assert.equal(paint(), 0, "the tint starts transparent");
+      now += 90;
+      const rising = paint();
+      assert.ok(rising > 0 && rising < 0.84, "the border gently fades red");
+      now += 410;
+      const peak = paint();
+      assert.ok(peak > rising && peak >= 0.6 && peak <= 0.84, "the peak is clearly visible");
+      assert.equal(feedbackRadius, edge, "the red core sits on the actual cutout edge, not the inset rim");
+      now += 1000;
+      isolated.applyWalkingRadiusGesture(limit);
+      const trough = paint();
+      assert.ok(trough > 0 && trough < peak, "holding at the limit gently dims rather than switching off");
+      now += 500;
+      assert.ok(paint() > trough, "the next throb grows without restarting the gesture");
+      isolated.applyWalkingRadiusGesture(floor * 2);
+      const atRelease = paint();
+      now += 110;
+      assert.ok(paint() < atRelease, "backing off fades from the current brightness");
+      now += 150;
+      assert.equal(paint(), 0, "the feedback disappears quickly once released");
+    }
+  } finally {
+    Date.now = realNow;
+  }
+});
+
 test("walking radius stays at the camera focus during the cinematic location handoff", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
@@ -4589,8 +4680,9 @@ test("headingUpAnchorFraction mirrors the selected-navigation anchor around the 
   // Dead behind (target due west): mirrors to 1 - anchor, i.e. most of the room now sits
   // below the user instead of above.
   app.state.selected = { type: "tree", item: { id: "behind", ...makePoint(app, 0, -0.001) } };
-  assert.ok(Math.abs(app.headingUpAnchorFraction(true) - (1 - plainSelectedAnchor)) < 1e-9,
-    `dead-behind anchor should mirror to 1 - ${plainSelectedAnchor}, got ${app.headingUpAnchorFraction(true)}`);
+  // Under tilt the mirror is floored at the flat anchor mirrored (1 - 0.62), not pushed to 1 - 0.88.
+  assert.ok(Math.abs(app.headingUpAnchorFraction(true) - 0.38) < 1e-9,
+    `dead-behind tilted anchor should stop at the flat mirrored anchor 0.38, got ${app.headingUpAnchorFraction(true)}`);
 
   // Directly to a side (target due north): lands at the screen's vertical centre.
   app.state.selected = { type: "tree", item: { id: "side", ...makePoint(app, 0.001, 0) } };
@@ -4602,6 +4694,83 @@ test("headingUpAnchorFraction mirrors the selected-navigation anchor around the 
   // state (defensive: confirms the bearing adaptation is scoped to isSelected only).
   assert.ok(Math.abs(app.headingUpAnchorFraction(false) - aheadAnchor) < 1e-9,
     `nearby anchor should be unaffected by any selected-target bearing, got ${app.headingUpAnchorFraction(false)}`);
+});
+
+test("headingUpAnchorFraction does not mirror to the top for a destination only metres behind the heading, and mirrors fully when far", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90; // facing east
+  app.state.tiltBetaSmoothed = 85;
+  const metresToDegrees = (m) => m / 111195;
+  const anchorFor = (eastMetres) => {
+    app.state.selected = { type: "tree", item: { id: `d${eastMetres}`, ...makePoint(app, 0, metresToDegrees(eastMetres)) } };
+    return app.headingUpAnchorFraction(true);
+  };
+  const near = anchorFor(-12);
+  const mid = anchorFor(-25);
+  const far = anchorFor(-200);
+  const ahead = anchorFor(300);
+  assert.ok(near > 0.7, `12 m behind should keep the ahead anchor, got ${near}`);
+  assert.ok(far < 0.5, `200 m behind should still mirror, got ${far}`);
+  assert.ok(far >= 0.38 - 1e-9, `mirroring never lifts the user above the flat mirrored anchor, got ${far}`);
+  assert.ok(Math.abs(ahead - 0.88) < 1e-9, `300 m ahead unchanged, got ${ahead}`);
+  assert.ok(near > mid && mid > far, `anchor should fall monotonically with distance behind: ${near}, ${mid}, ${far}`);
+});
+
+test("headingUpAnchorFraction reaches the pure bearing result when the user-to-target vector is 40 m long, and sits between it and the ahead anchor below that", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90; // facing east, so a target due north is directly to a side
+  app.state.tiltBetaSmoothed = 0; // flat: ahead anchor 0.62, side anchor 0.5
+  const metresToDegrees = (m) => m / 111195;
+  const anchorNorth = (metres) => {
+    app.state.selected = { type: "tree", item: { id: `n${metres}`, ...makePoint(app, metresToDegrees(metres), 0) } };
+    return app.headingUpAnchorFraction(true);
+  };
+  // Straight-line fallback: the user is one of the two averaged points, so the vector is half the distance.
+  const full = anchorNorth(80);
+  const below = anchorNorth(70);
+  const veryNear = anchorNorth(4);
+  const farAway = anchorNorth(300);
+  assert.ok(Math.abs(full - 0.5) < 2e-3, `a 40 m vector is fully side-weighted (0.5), got ${full}`);
+  assert.ok(Math.abs(farAway - 0.5) < 1e-9, `far targets stay at the side anchor, got ${farAway}`);
+  assert.ok(below > full && below < 0.62, `just under 40 m sits strictly between the side and ahead anchors, got ${below}`);
+  assert.ok(veryNear > below && veryNear <= 0.62, `a few metres keeps nearly the ahead anchor, got ${veryNear}`);
+});
+
+test("headingUpAnchorFraction returns the plain ahead anchor when there is no bearing to adapt to", () => {
+  resetData(app);
+  app.state.compassHeading = 90;
+  app.state.tiltBetaSmoothed = 85;
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = { type: "tree", item: { id: "behind", ...makePoint(app, 0, -0.001) } };
+  assert.ok(app.headingUpAnchorFraction(true) < app.tiltRampedAnchor(true), "sanity: a far target behind does change the anchor");
+  app.state.userLocation = null;
+  assert.equal(app.headingUpAnchorFraction(true), app.tiltRampedAnchor(true), "no user location -> the plain ahead anchor, unchanged");
+});
+
+test("navigationFocusPoint for a routed line behind the user moves smoothly as the phone tilts up, and stays off the top at the largest tilt", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90; // facing east: everything below is behind
+  app.state.map3dEnabled = false; // the gentle tilt the app actually offers
+  const behind = (m) => makePoint(app, 0, -m / 111195).point;
+  app.state.selected = { type: "path", item: { id: "line", segments: [[behind(30), behind(120), behind(220)]] } };
+  assert.ok(app.selectedNavigationTargetPoints().length >= 3, "fixture is a routed line");
+  const rect = { x: 0, y: 0, width: 400, height: 800 };
+  const yAt = (beta) => {
+    app.state.tiltBetaSmoothed = beta;
+    return app.navigationFocusPoint(rect).y;
+  };
+  let previous = yAt(12 - 0.01); // just below TILT_BETA_THRESHOLD
+  let worstStep = 0;
+  for (let beta = 12; beta <= 60; beta += 0.5) { // up to TILT_GENTLE_BETA_MAX
+    const y = yAt(beta);
+    worstStep = Math.max(worstStep, Math.abs(y - previous));
+    previous = y;
+  }
+  assert.ok(worstStep < 800 * 0.02, `focus y jumped ${worstStep}px between half-degree tilt steps`);
+  assert.ok(previous >= 800 * 0.38 - 1e-6, `at the largest tilt the user sits at the full floor, got ${previous}`);
 });
 
 test("maxHeadingUpNavigationScale actually fits a destination that is behind the user during full 3D tilt, instead of leaving the stale current scale in place", () => {
@@ -5331,6 +5500,26 @@ test("the nearby heading names the count too, so a /nearby/<slug> page answers '
   );
 
   assert.equal(app.overviewHeadingText(), "2 Trees within 5 min walk");
+});
+
+test("the nearby heading excludes distant fallback cows from its within-radius count", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.walkingDistanceMinutes = 30;
+  app.state.overviewFilters = ["cows"];
+  app.state.cows.push(...[0.04, 0.05, 0.06].map((latitude, index) => ({
+    serialNo: `far-cow-${index}`, ...makePoint(app, latitude, 0),
+  })));
+
+  assert.equal(app.overviewItemsForActiveFilter().length, 3, "distant cows remain available as fallback results");
+  assertShowsText(app.overviewNearestHtml(), "Nothing found within 30 min walking distance");
+  assert.equal(app.overviewHeadingText(), "0 Cows within 30 min walk");
+
+  app.state.walkingDistanceMinutes = 75;
+  assert.equal(app.overviewHeadingText(), "2 Cows within 75 min walk", "widening the radius counts only reachable cows");
+  app.state.showAllOutsideRadius = true;
+  assert.equal(app.overviewHeadingText(), "Nearest Cows around you");
+  app.state.showAllOutsideRadius = false;
 });
 
 test("untagged trees each keep their own identity instead of collapsing onto one another", () => {
@@ -6271,6 +6460,18 @@ function wheelEvent(deltaY, options = {}) {
   return { deltaY, deltaMode: options.deltaMode ?? 0, ctrlKey: Boolean(options.ctrlKey) };
 }
 
+// These fixtures' camera is far from the ring's fit, so releasing a gesture starts a refit tween of
+// its own, which pauses grouping like any other zoom (covered by the camera-move tests). The gesture
+// tests are about the gesture alone, so they keep the camera still. Restored by the next resetData.
+let realMoveCamera = null;
+function withoutRefitTween() {
+  if (!realMoveCamera) realMoveCamera = app.swapGlobalFunction("moveCamera", () => "ignored");
+}
+function restoreRefitTween() {
+  if (realMoveCamera) app.swapGlobalFunction("moveCamera", realMoveCamera);
+  realMoveCamera = null;
+}
+
 function setUpWheelNearby(app) {
   resetData(app);
   app.state.trees.push({ id: "close-tree", commonName: "Close tree", ...makePoint(app, 0.0009, 0) }); // ~100m
@@ -6647,6 +6848,7 @@ test("a pinch and a wheel glide overlapping keep the pins hidden until both are 
 
 test("map pins are neither calculated nor tappable while a pinch is live, and are calculated once afterwards", () => {
   setUpWheelNearby(app);
+  withoutRefitTween();
   app.state.viewport = { scale: 1, tx: 0, ty: 0 };
   app.resetMarkerGroupMemory();
   assert.ok(app.buildActiveMapMarkers(app.worldToScreen, false).length > 0, "sanity: the nearby tree is a pin");
@@ -6692,8 +6894,47 @@ test("panning the map moves the existing pins instead of regrouping them every f
   });
 });
 
+test("selecting a place while the pins are fading back in still records the outgoing set, from the current opacity", () => {
+  setUpWheelNearby(app);
+  withoutRefitTween();
+  withAppClock(({ at }) => {
+    at(0);
+    setFingers(100);
+    app.startNearbyRadiusPinch();
+    at(1000);
+    assert.equal(app.mapPinFadeOpacity(), 0);
+    app.endNearbyRadiusPinch();
+    at(1100);
+    const midReveal = app.mapPinFadeOpacity();
+    assert.ok(midReveal > 0.2 && midReveal < 1, "sanity: the pins are partway through their reveal");
+    app.state.selectionTransition.outgoingIconLookup = null;
+    app.startCameraOriginTransition();
+    assert.ok(app.state.selectionTransition.outgoingIconLookup, "the ordered exit still runs for pins the user can see");
+    assert.ok(Math.abs(app.state.selectionTransition.outgoingStartOpacity - midReveal) < 1e-9, "and it starts from the opacity on screen");
+    app.state.selectionTransition.outgoingIconLookup = null;
+  });
+});
+
+test("selecting a place while the pins are hidden, fading out or paused records no outgoing set", () => {
+  setUpWheelNearby(app);
+  withoutRefitTween();
+  withAppClock(({ at }) => {
+    at(0);
+    setFingers(100);
+    app.startNearbyRadiusPinch();
+    for (const ms of [30, 1000]) {
+      at(ms);
+      app.state.selectionTransition.outgoingIconLookup = null;
+      app.startCameraOriginTransition();
+      assert.equal(app.state.selectionTransition.outgoingIconLookup, null, `no exit repaint at ${ms}ms into the hide`);
+    }
+    app.endNearbyRadiusPinch();
+  });
+});
+
 test("pins leave in one quick fade, return in one ease-out reveal, and reverse from where they are", () => {
   setUpWheelNearby(app);
+  withoutRefitTween();
   withAppClock(({ at }) => {
     assert.equal(app.mapPinFadeOpacity(), 1);
     setFingers(100);
@@ -6750,6 +6991,395 @@ test("while the pins fade out they are painted where the ground is but are never
     assert.equal(app.mapMarkersToPaint(app.worldToScreen, false).length, 0, "once faded, nothing is painted");
     app.endNearbyRadiusPinch();
   });
+});
+
+// --- Programmatic camera transitions pause marker grouping like a zoom gesture does ----------------
+//
+// Runs `run` with the camera tween's animation frames driven by hand (`stepCamera(ms)` runs the
+// pending tween frame at that timestamp) and the app clock frozen (`at(ms)`), so a test sees each
+// frame the user would.
+function withCameraFrames(run) {
+  const queued = new Map();
+  let nextId = 0;
+  const raf = app.swapGlobalFunction("requestAnimationFrame", (fn) => { nextId += 1; queued.set(nextId, fn); return nextId; });
+  const caf = app.swapGlobalFunction("cancelAnimationFrame", (id) => { queued.delete(id); });
+  try {
+    withAppClock(({ at }) => {
+      const stepCamera = (ms) => {
+        at(ms);
+        const id = app.state.viewportAnimationFrame;
+        const frame = queued.get(id);
+        queued.delete(id);
+        if (frame) frame(ms);
+      };
+      run({ at, stepCamera });
+    });
+  } finally {
+    app.swapGlobalFunction("requestAnimationFrame", raf);
+    app.swapGlobalFunction("cancelAnimationFrame", caf);
+    app.stopViewportAnimation();
+  }
+}
+
+// Counts calls to the named app functions while `run` executes, leaving the animation-frame stub alone.
+function countAppCalls(names, run) {
+  const counts = Object.fromEntries(names.map((name) => [name, 0]));
+  const originals = {};
+  for (const name of names) {
+    const original = app.swapGlobalFunction(name, null);
+    originals[name] = original;
+    app.swapGlobalFunction(name, (...args) => { counts[name] += 1; return original(...args); });
+  }
+  try {
+    run(counts);
+  } finally {
+    for (const name of names) app.swapGlobalFunction(name, originals[name]);
+  }
+}
+
+function setUpCameraTransition() {
+  setUpWheelNearby(app);
+  for (let i = 1; i <= 4; i += 1) {
+    app.state.trees.push({ id: `near-${i}`, commonName: `Near ${i}`, ...makePoint(app, 0.0002 * i, 0.0001 * i) });
+  }
+  app.state.viewport = { scale: 1, tx: 0, ty: 0 };
+  app.resetMarkerGroupMemory();
+}
+
+const groupingSignature = (markers) => markers.map((marker) => marker.items.map((item) => item.id).join("+")).join("|");
+
+test("while a zooming camera move is in flight the pins stay frozen on their ground, nothing is built or tappable, and the fresh set arrives once it lands", () => {
+  setUpCameraTransition();
+  withCameraFrames(({ at, stepCamera }) => {
+    at(0);
+    const settled = app.buildActiveMapMarkers(app.worldToScreen, false);
+    assert.ok(settled.length > 0, "sanity: pins are on the map before the move");
+    const before = groupingSignature(settled);
+    countAppCalls(["buildMapMarkers", "buildNearbyIconLookup"], (counts) => {
+      assert.equal(app.moveCamera({ scale: 2, tx: -100, ty: -40 }, 600), "started");
+      assert.equal(app.markerGroupingPaused(), true, "a move that changes the zoom pauses grouping");
+      const signatures = new Set();
+      for (let ms = 0; ms <= 100; ms += 20) {
+        stepCamera(ms);
+        const painted = app.mapMarkersToPaint(app.worldToScreen, false);
+        signatures.add(groupingSignature(painted));
+        assert.equal(app.buildActiveMapMarkers(app.worldToScreen, false).length, 0, "nothing is tappable mid-move");
+      }
+      assert.deepEqual([...signatures], [before], "the set on screen at the start is the only one ever painted");
+      const painted = app.mapMarkersToPaint(app.worldToScreen, false);
+      painted.forEach((marker, index) => {
+        const ground = app.worldToScreen(marker.worldPt);
+        assert.equal(marker.screenPt.x, ground.x, "frozen pins are re-projected through the live camera");
+        assert.equal(marker.screenPt.y, ground.y);
+      });
+      stepCamera(300);
+      assert.equal(app.mapMarkersToPaint(app.worldToScreen, false).length, 0, "once faded, nothing is painted mid-move");
+      assert.equal(counts.buildMapMarkers, 0, "no grouping happens during the move");
+      assert.equal(counts.buildNearbyIconLookup, 0, "no icon lookup is rebuilt during the move");
+      stepCamera(600);
+      assert.equal(app.markerGroupingPaused(), false, "the move has landed");
+      assert.ok(app.buildActiveMapMarkers(app.worldToScreen, false).length > 0, "the fresh set is built once it lands");
+      assert.equal(counts.buildMapMarkers, 1, "and is built exactly once");
+    });
+    at(1000);
+    assert.equal(app.mapPinFadeOpacity(), 1, "the pins end fully visible");
+  });
+});
+
+test("a camera move that only pans keeps the pins visible: it never regroups, so nothing hides", () => {
+  setUpCameraTransition();
+  withCameraFrames(({ at, stepCamera }) => {
+    at(0);
+    app.buildActiveMapMarkers(app.worldToScreen, false);
+    assert.equal(app.moveCamera({ scale: 1, tx: 300, ty: 120 }, 600), "started");
+    assert.equal(app.markerGroupingPaused(), false);
+    stepCamera(0);
+    stepCamera(200);
+    assert.equal(app.mapPinFadeOpacity(), 1, "no hide-and-reveal flicker");
+    assert.ok(app.buildActiveMapMarkers(app.worldToScreen, false).length > 0, "pins stay tappable mid-pan");
+    stepCamera(600);
+  });
+});
+
+test("a snapped camera move hides nothing, and a user taking over a tween brings the pins back", () => {
+  setUpCameraTransition();
+  withCameraFrames(({ at, stepCamera }) => {
+    at(0);
+    app.buildActiveMapMarkers(app.worldToScreen, false);
+    assert.equal(app.moveCamera({ scale: 1, tx: 0, ty: 0 }, 600), "snapped");
+    assert.equal(app.markerGroupingPaused(), false);
+    assert.equal(app.mapPinFadeOpacity(), 1);
+
+    app.moveCamera({ scale: 3, tx: 0, ty: 0 }, 600);
+    stepCamera(0);
+    stepCamera(100);
+    assert.equal(app.markerGroupingPaused(), true);
+    app.stopViewportAnimation(); // a drag or tap takes the camera over
+    assert.equal(app.markerGroupingPaused(), false, "the interrupted move no longer pauses grouping");
+    at(1000);
+    assert.equal(app.mapPinFadeOpacity(), 1, "pins are not left hidden");
+    assert.ok(app.buildActiveMapMarkers(app.worldToScreen, false).length > 0);
+  });
+});
+
+test("a second camera move starting mid-fade or mid-reveal continues from the current opacity", () => {
+  setUpCameraTransition();
+  withCameraFrames(({ at, stepCamera }) => {
+    at(0);
+    app.buildActiveMapMarkers(app.worldToScreen, false);
+    app.moveCamera({ scale: 2, tx: 0, ty: 0 }, 600);
+    stepCamera(0);
+    at(60);
+    const midFade = app.mapPinFadeOpacity();
+    assert.ok(midFade > 0 && midFade < 1, "mid-fade");
+    app.moveCamera({ scale: 3, tx: 0, ty: 0 }, 600); // replaces the first move
+    assert.ok(Math.abs(app.mapPinFadeOpacity() - midFade) < 1e-9, "no jump when the next move replaces it");
+    assert.equal(app.markerGroupingPaused(), true, "still one continuous pause");
+    stepCamera(60);
+    stepCamera(1000);
+    assert.equal(app.markerGroupingPaused(), false);
+    at(1100);
+    const midReveal = app.mapPinFadeOpacity();
+    assert.ok(midReveal > 0 && midReveal < 1, "mid-reveal");
+    app.moveCamera({ scale: 1.2, tx: 0, ty: 0 }, 600);
+    assert.ok(Math.abs(app.mapPinFadeOpacity() - midReveal) < 1e-9, "a move starting mid-reveal hides from where it is");
+    app.stopViewportAnimation();
+    at(3000);
+    assert.equal(app.mapPinFadeOpacity(), 1);
+  });
+});
+
+test("a camera move overlapping a zoom gesture is one hide and one reveal, whichever ends first", () => {
+  for (const gestureEndsFirst of [false, true]) {
+    setUpCameraTransition();
+    withoutRefitTween(); // the release's own refit would be a second move; this test starts the only one
+    app.state.activePointers.clear();
+    withCameraFrames(({ at, stepCamera }) => {
+      at(0);
+      app.buildActiveMapMarkers(app.worldToScreen, false);
+      app.moveCamera({ scale: 2, tx: 0, ty: 0 }, 600);
+      stepCamera(0);
+      at(200);
+      assert.equal(app.mapPinFadeOpacity(), 0, "hidden by the move");
+      setFingers(100);
+      app.startNearbyRadiusPinch(); // the user pinches while the move is in flight
+      assert.equal(app.mapPinFadeOpacity(), 0, "the gesture does not hide a second time");
+      if (gestureEndsFirst) {
+        app.endNearbyRadiusPinch();
+        at(300);
+        assert.equal(app.mapPinFadeOpacity(), 0, "the move still holds the pins hidden");
+        assert.equal(app.markerGroupingPaused(), true);
+        stepCamera(600);
+      } else {
+        stepCamera(600);
+        at(700);
+        assert.equal(app.mapPinFadeOpacity(), 0, "the gesture still holds the pins hidden");
+        assert.equal(app.markerGroupingPaused(), true);
+        app.endNearbyRadiusPinch();
+      }
+      assert.equal(app.markerGroupingPaused(), false);
+      at(2000);
+      assert.equal(app.mapPinFadeOpacity(), 1, "one reveal at the end");
+      assert.ok(app.buildActiveMapMarkers(app.worldToScreen, false).length > 0);
+    });
+    app.state.activePointers.clear();
+  }
+});
+
+test("a browse-origin slide pauses grouping until it lands, then the pins come back once", () => {
+  setUpCameraTransition();
+  withCameraFrames(({ at }) => {
+    at(0);
+    app.buildActiveMapMarkers(app.worldToScreen, false);
+    app.startNearbyOriginTransition({ x: 0, y: 0 });
+    assert.equal(app.markerGroupingPaused(), true, "the slide changes where the set is anchored");
+    assert.equal(app.buildActiveMapMarkers(app.worldToScreen, false).length, 0, "nothing is tappable mid-slide");
+    at(300);
+    app.reconcileMarkerPauses();
+    assert.equal(app.markerGroupingPaused(), true, "still sliding");
+    at(600);
+    app.reconcileMarkerPauses(); // each frame does this before painting
+    assert.equal(app.markerGroupingPaused(), false, "landed");
+    at(1500);
+    assert.equal(app.mapPinFadeOpacity(), 1);
+    assert.ok(app.buildActiveMapMarkers(app.worldToScreen, false).length > 0);
+  });
+});
+
+test("tapping a cluster fades the old set out once like every other move, and the fresh set reveals once after the last leg", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6500, 0.0500) };
+  const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.65000018, 0.0500) };
+  const elsewhere = { id: "elsewhere", commonName: "Elsewhere", ...makePoint(app, 51.6515, 0.0515) };
+  app.state.trees.push(oak1, oak2, elsewhere);
+  app.state.map3dEnabled = false;
+  app.state.walkingDistanceMinutes = 10;
+  app.state.viewport = { scale: 100000, tx: 500 - oak1.point.x * 100000, ty: 400 - oak1.point.y * 100000 };
+  app.resetMarkerGroupMemory();
+  withCameraFrames(({ at, stepCamera }) => {
+    at(0);
+    const settled = app.buildActiveMapMarkers(app.worldToScreen, false);
+    assert.ok(settled.some((marker) => marker.items.length === 2), "sanity: the two oaks are one cluster on the map");
+    countAppCalls(["buildMapMarkers"], (counts) => {
+      app.focusNearbyOnClusterGroup({ itemType: "tree", items: [oak1, oak2] });
+      assert.equal(app.markerGroupingPaused(), true, "the cluster tap's moves pause grouping");
+      stepCamera(0);
+      at(200);
+      assert.equal(app.mapPinFadeOpacity(), 0, "the old set has faded out: nothing is held at full opacity");
+      assert.equal(app.mapMarkersToPaint(app.worldToScreen, false).length, 0, "and nothing is painted for the flight");
+      assert.equal(counts.buildMapMarkers, 0, "nothing is regrouped meanwhile");
+    });
+    app.stopViewportAnimation();
+    app.state.nearbyOriginTransition = null;
+    at(5000);
+    assert.equal(app.markerGroupingPaused(), false);
+    at(6000);
+    assert.equal(app.mapPinFadeOpacity(), 1);
+    assert.ok(app.buildActiveMapMarkers(app.worldToScreen, false).length > 0, "the fresh set is built once it lands");
+  });
+});
+
+test("a browse-origin slide overlapping a pure-pan camera tween keeps the pause until the last of them lands", () => {
+  setUpCameraTransition();
+  withCameraFrames(({ at, stepCamera }) => {
+    at(0);
+    app.buildActiveMapMarkers(app.worldToScreen, false);
+    app.startNearbyOriginTransition({ x: 0, y: 0 });
+    const slideMs = app.state.nearbyOriginTransition.durationMs;
+    // A pure pan: no camera pause of its own, so only the slide holds the pins.
+    assert.equal(app.moveCamera({ scale: 1, tx: 60, ty: 20 }, slideMs + 400), "started");
+    stepCamera(0);
+    for (const ms of [16, 32, 48, 200, slideMs - 20]) {
+      at(ms);
+      app.prepareCanvasForDraw(); // what drops the slide object while the tween runs
+      app.reconcileMarkerPauses();
+      assert.equal(app.markerGroupingPaused(), true, `still one pause ${ms}ms in, the fresh set is not swapped in mid-flight`);
+      assert.equal(app.buildActiveMapMarkers(app.worldToScreen, false).length, 0);
+    }
+    at(slideMs + 100);
+    app.prepareCanvasForDraw();
+    assert.equal(app.markerGroupingPaused(), true, "the slide has landed but the tween is still flying");
+    stepCamera(slideMs + 400);
+    assert.equal(app.markerGroupingPaused(), false, "the last leg has landed");
+    at(slideMs + 5000);
+    assert.equal(app.mapPinFadeOpacity(), 1);
+    assert.ok(app.buildActiveMapMarkers(app.worldToScreen, false).length > 0);
+  });
+});
+
+test("an unrelated pure-pan tween that starts after a slide has run out does not extend the slide's hide", () => {
+  setUpCameraTransition();
+  withCameraFrames(({ at, stepCamera }) => {
+    at(0);
+    app.buildActiveMapMarkers(app.worldToScreen, false);
+    app.startNearbyOriginTransition({ x: 0, y: 0 });
+    const slideMs = app.state.nearbyOriginTransition.durationMs;
+    assert.equal(app.markerGroupingPaused(), true);
+    // The slide's time has run out; before any frame notices, a GPS-style tween that would not pause
+    // on its own starts and outlives it.
+    at(slideMs + 10);
+    assert.equal(app.moveCamera({ scale: 1, tx: 30, ty: 10 }, 2000), "started");
+    stepCamera(slideMs + 10);
+    app.prepareCanvasForDraw();
+    app.reconcileMarkerPauses();
+    assert.equal(app.markerGroupingPaused(), false, "the pins are back at the slide's landing, not when the unrelated tween ends");
+    assert.ok(app.state.viewportAnimationTo, "sanity: the unrelated tween is still flying");
+    app.stopViewportAnimation();
+  });
+});
+
+test("a camera move pauses the pins only when its scale change could visibly regroup them", () => {
+  setUpCameraTransition();
+  const ratio = app.MARKER_PAUSE_SCALE_RATIO;
+  for (const [factor, pauses] of [[1 + (ratio - 1) / 2, false], [1 / (1 + (ratio - 1) / 2), false], [ratio * 1.05, true], [1 / (ratio * 1.05), true]]) {
+    withCameraFrames(({ at }) => {
+      at(0);
+      app.state.viewport = { scale: 1, tx: 0, ty: 0 };
+      app.buildActiveMapMarkers(app.worldToScreen, false);
+      assert.equal(app.moveCamera({ scale: factor, tx: 5, ty: 5 }, 600), "started");
+      assert.equal(app.markerGroupingPaused(), pauses, `a ${factor.toFixed(3)}x scale change ${pauses ? "pauses" : "keeps the live pins"}`);
+      app.stopViewportAnimation();
+    });
+  }
+});
+
+test("a pause hands the camera back after the slide lands: no extra frames are spent on a fade nothing is running", () => {
+  setUpCameraTransition();
+  withCameraFrames(({ at }) => {
+    at(0);
+    app.buildActiveMapMarkers(app.worldToScreen, false);
+    app.startNearbyOriginTransition({ x: 0, y: 0 });
+    const slideMs = app.state.nearbyOriginTransition.durationMs;
+    assert.equal(app.nearbyRevealInProgress(), true, "the slide is running");
+    at(slideMs + 1);
+    assert.equal(app.nearbyRevealInProgress(), false, "landed: nothing left to fade");
+    app.prepareCanvasForDraw();
+    assert.equal(app.state.nearbyOriginTransition, null, "the transition is dropped on the landing frame");
+    assert.equal(app.markerGroupingPaused(), false, "and the pause has ended with it");
+  });
+});
+
+test("a tap on a marker still painted while a move fades it out is swallowed, but open ground and live zoom gestures are not", () => {
+  setUpCameraTransition();
+  withCameraFrames(({ at }) => {
+    at(0);
+    const settled = app.buildActiveMapMarkers(app.worldToScreen, false);
+    assert.ok(settled.length > 0);
+    const marker = settled[0];
+    const onMarker = { x: marker.screenPt.x, y: marker.screenPt.y - 4 };
+    assert.equal(app.tapLandsOnFrozenPaintedMarker(onMarker), false, "nothing is frozen while the map is settled");
+    app.moveCamera({ scale: 2, tx: 0, ty: 0 }, 600);
+    at(30);
+    app.mapMarkersToPaint(app.worldToScreen, false); // a frame paints the frozen set
+    const painted = app.mapMarkersToPaint(app.worldToScreen, false)[0];
+    assert.equal(app.tapLandsOnFrozenPaintedMarker({ x: painted.screenPt.x, y: painted.screenPt.y - 4 }), true, "the painted marker is not open ground");
+    assert.equal(app.tapLandsOnFrozenPaintedMarker({ x: painted.screenPt.x + 5000, y: painted.screenPt.y }), false, "empty ground is unchanged");
+    at(400);
+    assert.equal(app.tapLandsOnFrozenPaintedMarker({ x: painted.screenPt.x, y: painted.screenPt.y - 4 }), false, "once faded out nothing is painted there");
+    app.stopViewportAnimation();
+  });
+});
+
+test("a pause that ends in a frame paints that frame with the new fade", () => {
+  setUpCameraTransition();
+  const previous = app.swapGlobalFunction("prefersReducedMotion", () => true);
+  try {
+    withCameraFrames(({ at }) => {
+      at(0);
+      app.buildActiveMapMarkers(app.worldToScreen, false);
+      app.moveCamera({ scale: 2, tx: 0, ty: 0 }, 600);
+      assert.equal(app.mapPinFadeOpacity(), 0);
+      // The tween is gone without going through endMarkerPause (the next draw has to notice).
+      app.stopViewportAnimation({ keepMarkerPause: true });
+      let fadeSeenByPaint = null;
+      const realDraw = app.swapGlobalFunction("drawBase", () => { fadeSeenByPaint = app.framePinFade(); });
+      try { app.draw(); } catch { /* the stub canvas may not paint further */ }
+      app.swapGlobalFunction("drawBase", realDraw);
+      assert.equal(fadeSeenByPaint, 1, "the frame that ends the pause is painted at the revealed opacity");
+    });
+  } finally {
+    app.swapGlobalFunction("prefersReducedMotion", previous);
+  }
+});
+
+test("with reduced motion a zooming camera move hides the pins at once and shows them after, without fades", () => {
+  setUpCameraTransition();
+  const previous = app.swapGlobalFunction("prefersReducedMotion", () => true);
+  try {
+    withCameraFrames(({ at, stepCamera }) => {
+      at(0);
+      app.buildActiveMapMarkers(app.worldToScreen, false);
+      app.moveCamera({ scale: 2, tx: 0, ty: 0 }, 600);
+      assert.equal(app.mapPinFadeOpacity(), 0, "hidden straight away");
+      stepCamera(0);
+      stepCamera(600);
+      assert.equal(app.mapPinFadeOpacity(), 1, "shown straight away on landing");
+      assert.ok(app.buildActiveMapMarkers(app.worldToScreen, false).length > 0);
+    });
+  } finally {
+    app.swapGlobalFunction("prefersReducedMotion", previous);
+  }
 });
 
 test("the outgoing selection markers and the exiting filter pins follow their own opacity, not the zoom fade", () => {
@@ -8858,7 +9488,7 @@ test("tiltAvailableAheadCssPx / tiltPerspectivePx do not collapse when the desti
   const behindAnchor = app.headingUpAnchorFraction(true);
   const behindAvailable = app.tiltAvailableAheadCssPx();
   const behindP = app.tiltPerspectivePx();
-  assert.ok(Math.abs(behindAnchor - 0.12) < 1e-9, `dead-behind anchor should mirror to 0.12, got ${behindAnchor}`);
+  assert.ok(Math.abs(behindAnchor - 0.38) < 1e-9, `dead-behind anchor should mirror down to the flat mirrored floor 0.38, got ${behindAnchor}`);
 
   // The whole point of the fix: despite the mirrored anchor being small (0.12 vs 0.88),
   // the *available reach* -- and therefore the camera distance -- must come out identical
@@ -11336,6 +11966,370 @@ test("the Nearby list and the map's highlighted pins agree on an expanded cluste
     "the list and the map agree on membership -- same two trees, outsider excluded from both");
 });
 
+// Back from a place opened out of an expanded group returns to that group (spec-data-rendering.md
+// "Leaving an expanded group"). Real functions throughout: a cluster tap, picking from the list, then
+// the browser's own back/forward through the history stub.
+function expandedGroupFixture() {
+  resetData(app);
+  resetRouter(app);
+  app.setupSearchAndNavHandlers();
+  app.state.userLocation = makePoint(app, 51.64, 0.04);
+  app.state.walkingDistanceMinutes = 7;
+  const trees = [
+    { id: "oak1", recordNumber: 9101, commonName: "Oak", location: { britishNationalGrid: {} }, ...makePoint(app, 51.6500, 0.0500) },
+    { id: "oak2", recordNumber: 9102, commonName: "Oak", location: { britishNationalGrid: {} }, ...makePoint(app, 51.65001797, 0.0500) },
+    { id: "oak3", recordNumber: 9103, commonName: "Oak", location: { britishNationalGrid: {} }, ...makePoint(app, 51.6500, 0.05002894) },
+  ];
+  const farTrees = [
+    { id: "far1", recordNumber: 9104, commonName: "Beech", location: { britishNationalGrid: {} }, ...makePoint(app, 51.6520, 0.0540) },
+    { id: "far2", recordNumber: 9105, commonName: "Beech", location: { britishNationalGrid: {} }, ...makePoint(app, 51.65201797, 0.0540) },
+  ];
+  app.state.trees.push(...trees, ...farTrees);
+  return { trees, farTrees, key: (tree) => app.treeHashKey(tree) };
+}
+
+function expandedIds() {
+  return Object.values(app.clusterItemsByType(app.state.clusterExpanded)).flat().map((item) => item.id).sort().join(",");
+}
+
+test("Back from a place picked out of an expanded group returns to that same group, radius and list", () => {
+  const { trees, key } = expandedGroupFixture();
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  const groupRadius = app.state.walkingDistanceMinutes;
+  assert.notEqual(groupRadius, 7, "sanity: the tap borrowed its own radius");
+
+  app.focusOverviewItem("tree", key(trees[1]));
+  assert.equal(app.state.selected?.item, trees[1]);
+  assert.equal(app.state.clusterExpanded, null, "opening a place leaves the group");
+
+  app.history.back();
+  assert.equal(app.state.selected, null, "the place closed");
+  assert.equal(expandedIds(), "oak1,oak2,oak3", "the same three members are expanded again");
+  assert.equal(app.state.walkingDistanceMinutes, groupRadius, "with the framing radius it had");
+  assert.equal(app.overviewItemsForActiveFilter().map((entry) => entry.item.id).sort().join(","), "oak1,oak2,oak3");
+  assert.equal(app.searchStringForPath("/nearby"), "?radius=7", "the address bar carries the real radius, never the borrowed one");
+
+  // A user can step through the group: pick the next place, back again.
+  app.focusOverviewItem("tree", key(trees[2]));
+  app.history.back();
+  assert.equal(expandedIds(), "oak1,oak2,oak3");
+
+  // Leaving the group later still gives back the radius from before the tap.
+  app.exitClusterExpansion();
+  assert.equal(app.state.walkingDistanceMinutes, 7, "the real pre-cluster radius, not the borrowed one");
+});
+
+test("Forward from a restored group opens the place again and closes the group", () => {
+  const { trees, key } = expandedGroupFixture();
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  app.focusOverviewItem("tree", key(trees[0]));
+  app.history.back();
+  assert.ok(app.state.clusterExpanded, "sanity: group restored");
+  app.history.forward();
+  assert.equal(app.state.selected?.item, trees[0], "the place is open again");
+  assert.equal(app.state.clusterExpanded, null);
+  assert.equal(app.state.walkingDistanceMinutes, 7, "the group's borrowed radius is given back");
+});
+
+test("repeated Back through a cluster, its sub-cluster and a place retraces each level", () => {
+  const { trees, farTrees, key } = expandedGroupFixture();
+  const outer = { itemsByType: { tree: [...trees, ...farTrees] }, items: [...trees, ...farTrees], itemType: "tree" };
+  app.focusNearbyOnClusterGroup(outer);
+  const outerRadius = app.state.walkingDistanceMinutes;
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  const innerRadius = app.state.walkingDistanceMinutes;
+  assert.notEqual(innerRadius, outerRadius, "sanity: the two levels frame differently");
+  app.focusOverviewItem("tree", key(trees[0]));
+
+  app.history.back();
+  assert.equal(expandedIds(), "oak1,oak2,oak3", "first Back: the sub-cluster");
+  assert.equal(app.state.walkingDistanceMinutes, innerRadius);
+  app.history.back();
+  assert.equal(expandedIds(), "far1,far2,oak1,oak2,oak3", "second Back: the outer cluster");
+  assert.equal(app.state.walkingDistanceMinutes, outerRadius);
+  assert.equal(app.searchStringForPath("/nearby"), "?radius=7");
+  app.history.back();
+  assert.equal(app.state.clusterExpanded, null, "third Back: before any cluster tap");
+  assert.equal(app.state.walkingDistanceMinutes, 7, "the reader's own radius is back");
+});
+
+test("Back to a group with a member missing from the data falls back to the plain anchor view", () => {
+  const { trees, key } = expandedGroupFixture();
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  app.focusOverviewItem("tree", key(trees[0]));
+  app.state.trees.splice(app.state.trees.indexOf(trees[2]), 1);
+  app.history.back();
+  assert.equal(app.state.clusterExpanded, null, "no group rebuilt");
+  assert.ok(app.state.nearbyAnchor, "the anchor view is still there");
+  assert.equal(app.state.selected, null);
+});
+
+test("a history entry for an expanded group holds item keys, not live item references", () => {
+  const { trees } = expandedGroupFixture();
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  const snapshot = app.history.state.forestNearbyAnchor?.cluster;
+  assert.ok(snapshot, "the entry describes the group");
+  assert.equal(JSON.stringify(snapshot), JSON.stringify(JSON.parse(JSON.stringify(snapshot))), "plain serialisable data");
+  assert.equal(snapshot.preRadius, 7);
+});
+
+test("a fresh load of a near= link shows a plain Nearby view with no expanded group", () => {
+  const { trees } = expandedGroupFixture();
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  app.exitClusterExpansion();
+  app.state.nearbyAnchor = null;
+  resetRouter(app, "#near=51.650000,0.050000");
+  assert.equal(app.applySelectionFromHash(false), true);
+  assert.equal(app.state.clusterExpanded, null);
+  assert.ok(app.state.nearbyAnchor);
+});
+
+test("Back from Search onto an expanded group restores the group with the search screen closed", () => {
+  const { trees } = expandedGroupFixture();
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  const groupRadius = app.state.walkingDistanceMinutes;
+  app.openSearchScreen();
+  assert.equal(app.state.searchScreenOpen, true);
+  app.history.back();
+  assert.equal(app.state.searchScreenOpen, false, "Search is closed");
+  assert.equal(expandedIds(), "oak1,oak2,oak3", "the group is back");
+  assert.equal(app.state.walkingDistanceMinutes, groupRadius);
+  assert.equal(app.urlMatchesCurrentScreen(app.routeValueFromLocation()), true, "the screen matches its URL, so no later route pass drops the group");
+});
+
+test("a group the reader left by resizing the ring is not re-expanded by a later Back, and their radius stays", () => {
+  const { trees, key } = expandedGroupFixture();
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  app.applyWalkingRadiusChange(12, { animate: false });
+  assert.equal(app.state.clusterExpanded, null, "resizing leaves the group");
+  app.focusOverviewItem("tree", key(trees[0]));
+  app.history.back();
+  assert.equal(app.state.clusterExpanded, null, "Back returns to the plain Nearby view they were last on");
+  assert.equal(app.state.walkingDistanceMinutes, 12, "with the radius they chose");
+  assert.ok(app.state.nearbyAnchor);
+});
+
+test("a group the reader left with a Nearby re-tap is not re-expanded by a later Back, and Forward onto that entry stays plain", () => {
+  const { trees, key } = expandedGroupFixture();
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  app.nearbyRetap();
+  assert.equal(app.state.clusterExpanded, null, "the re-tap leaves the group");
+  assert.equal(app.state.walkingDistanceMinutes, 7, "and gives back the real radius");
+  app.focusOverviewItem("tree", key(trees[0]));
+  app.history.back();
+  assert.equal(app.state.clusterExpanded, null, "Back returns to the plain view they were last on");
+  assert.equal(app.state.walkingDistanceMinutes, 7);
+  app.history.back();
+  app.history.forward();
+  assert.equal(app.state.clusterExpanded, null, "Forward onto the entry stays plain too");
+});
+
+test("Forward onto an entry whose group the reader had left does not bring the group back", () => {
+  const { trees, key } = expandedGroupFixture();
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  app.applyWalkingRadiusChange(12, { animate: false });
+  app.focusOverviewItem("tree", key(trees[0]));
+  app.history.back();
+  app.history.back();
+  app.history.forward();
+  assert.equal(app.state.clusterExpanded, null);
+  assert.equal(app.state.walkingDistanceMinutes, 12);
+});
+
+test("drilling into a same-centre sub-group pushes its own entry, so Back returns to the parent group", () => {
+  const { trees } = expandedGroupFixture();
+  const corners = [
+    { id: "c1", recordNumber: 9201, commonName: "Oak", location: { britishNationalGrid: {} }, ...makePoint(app, 51.6500, 0.0500) },
+    { id: "c2", recordNumber: 9202, commonName: "Oak", location: { britishNationalGrid: {} }, ...makePoint(app, 51.65002, 0.0500) },
+    { id: "c3", recordNumber: 9203, commonName: "Oak", location: { britishNationalGrid: {} }, ...makePoint(app, 51.6500, 0.05003) },
+    { id: "c4", recordNumber: 9204, commonName: "Oak", location: { britishNationalGrid: {} }, ...makePoint(app, 51.65002, 0.05003) },
+  ];
+  app.state.trees.push(...corners);
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: corners });
+  const entries = app.history.length;
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: [corners[0], corners[3]] });
+  assert.equal(app.history.length, entries + 1, "the sub-group got its own entry");
+  app.history.back();
+  assert.equal(expandedIds(), "c1,c2,c3,c4", "Back returns to the parent group");
+  void trees;
+});
+
+test("expanding a group centred exactly on the current browse anchor leaves that plain entry to go back to", () => {
+  expandedGroupFixture();
+  const a = { id: "m1", recordNumber: 9301, commonName: "Oak", location: { britishNationalGrid: {} }, ...makePoint(app, 51.6500, 0.0500) };
+  const b = { id: "m2", recordNumber: 9302, commonName: "Oak", location: { britishNationalGrid: {} }, ...makePoint(app, 51.65004, 0.0500) };
+  app.state.trees.push(a, b);
+  const group = { itemType: "tree", items: [a, b] };
+  const target = app.clusterFocusTarget(group.items).center;
+  app.setNearbyAnchor(target.latitude, target.longitude, app.projectLonLat(target.longitude, target.latitude));
+  assert.equal(app.state.clusterExpanded, null);
+  app.focusNearbyOnClusterGroup(group);
+  assert.ok(app.state.clusterExpanded);
+  app.history.back();
+  assert.equal(app.state.clusterExpanded, null, "Back reaches the plain anchor entry rather than skipping it");
+  assert.ok(app.state.nearbyAnchor);
+});
+
+test("Back from a place onto its group abandons the place's pending camera hold", () => {
+  const { trees, key } = expandedGroupFixture();
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  app.focusOverviewItem("tree", key(trees[0]));
+  assert.equal(app.state.selectionTransition.mapHeld, true, "sanity: the selection holds the map");
+  app.history.back();
+  assert.equal(app.state.selectionTransition.mapHeld, false);
+  assert.equal(app.state.selectionTransition.viewportPending, false);
+  assert.equal(app.state.selectionMapTransitionToken, null, "a pending selection camera callback is stale");
+});
+
+// A stale, hand-edited or corrupted history entry must not drive the app out of its own limits.
+function groupEntryWithCluster() {
+  return app.history.entries.find((entry) => entry.state?.forestNearbyAnchor?.cluster);
+}
+
+// `realRadius` 5 is the default radius, which the address bar leaves out; any other radius is
+// carried in ?radius= and wins over the entry's stored pre-cluster radius, so the stored value
+// only matters when the URL is silent.
+function backOntoDamagedGroup(damage, { realRadius = 7 } = {}) {
+  const { trees, key } = expandedGroupFixture();
+  app.state.walkingDistanceMinutes = realRadius;
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  app.focusOverviewItem("tree", key(trees[0]));
+  damage(groupEntryWithCluster().state.forestNearbyAnchor.cluster);
+  app.history.back();
+}
+
+for (const [label, garbage, expected] of [["999", 999, 30], ["-5", -5, 0.25], ["0.1", 0.1, 0.25]]) {
+  test(`Back onto a group entry holding a radius of ${label} minutes frames it within the walking-radius limits`, () => {
+    backOntoDamagedGroup((cluster) => { cluster.radius = garbage; });
+    assert.equal(expandedIds(), "oak1,oak2,oak3", "the group is restored");
+    assert.equal(app.state.walkingDistanceMinutes, expected, "the radius is clamped into the 0.25-30 minute range");
+    app.exitClusterExpansion();
+    assert.equal(app.state.walkingDistanceMinutes, 7, "leaving gives back the real radius, never the garbage value");
+  });
+}
+
+test("Back onto a group entry holding an out-of-range pre-cluster radius never leaves that radius after exiting", () => {
+  backOntoDamagedGroup((cluster) => { cluster.preRadius = 500; }, { realRadius: 5 });
+  assert.equal(expandedIds(), "oak1,oak2,oak3");
+  app.exitClusterExpansion();
+  assert.equal(app.state.walkingDistanceMinutes, 30, "the pre-cluster radius is clamped to the maximum");
+});
+
+test("Back onto a group entry holding a below-range pre-cluster radius clamps it to the tightest radius on exit", () => {
+  backOntoDamagedGroup((cluster) => { cluster.preRadius = -40; }, { realRadius: 5 });
+  app.exitClusterExpansion();
+  assert.equal(app.state.walkingDistanceMinutes, 0.25);
+});
+
+for (const [label, garbage] of [["a word", "abc"], ["NaN", NaN], ["a numeric string", "12"], ["null", null]]) {
+  test(`Back onto a group entry whose pre-cluster radius is ${label} ignores it and keeps a usable radius`, () => {
+    backOntoDamagedGroup((cluster) => { cluster.preRadius = garbage; });
+    const inRange = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0.25 && value <= 30;
+    assert.ok(inRange(app.state.walkingDistanceMinutes), "the framing radius is a usable number after Back");
+    assert.ok(app.state.preClusterWalkingDistanceMinutes == null || inRange(app.state.preClusterWalkingDistanceMinutes),
+      "no NaN or string is kept as the radius to give back");
+    app.exitClusterExpansion();
+    assert.ok(inRange(app.state.walkingDistanceMinutes), "the radius is still a usable number after leaving");
+  });
+}
+
+test("Back onto a group entry with a non-numeric radius falls back to the plain anchor view", () => {
+  backOntoDamagedGroup((cluster) => { cluster.radius = "12"; });
+  assert.equal(app.state.clusterExpanded, null);
+  assert.ok(app.state.nearbyAnchor);
+  assert.equal(app.state.walkingDistanceMinutes, 7);
+});
+
+test("a clamped group entry is recognised as the group on screen, so a later route pass does not re-restore it", () => {
+  backOntoDamagedGroup((cluster) => { cluster.radius = 999; });
+  assert.equal(app.historyEntryDescribesExpandedCluster(), true);
+  assert.equal(app.urlMatchesCurrentScreen(app.routeValueFromLocation()), true);
+  assert.equal(expandedIds(), "oak1,oak2,oak3");
+});
+
+function manyTrees(count) {
+  const trees = [];
+  for (let i = 0; i < count; i += 1) {
+    trees.push({
+      id: `bulk${i}`, recordNumber: 20000 + i, commonName: "Oak", location: { britishNationalGrid: {} },
+      ...makePoint(app, 51.6500 + (i % 20) * 0.000018, 0.0500 + Math.floor(i / 20) * 0.000029),
+    });
+  }
+  return trees;
+}
+
+for (const [label, delta, keepsGroup] of [["one over the cap", 1, false], ["exactly at the cap", 0, true], ["one under the cap", -1, true]]) {
+  test(`a group of ${label} members ${keepsGroup ? "is restored by Back with the same members" : "is stored as the plain anchor view and Back shows no group"}`, () => {
+    const cap = app.CLUSTER_HISTORY_MAX_MEMBERS;
+    assert.equal(typeof cap, "number", "the cap is defined");
+    expandedGroupFixture();
+    const bulk = manyTrees(cap + delta);
+    app.state.trees.push(...bulk);
+    app.focusNearbyOnClusterGroup({ itemType: "tree", items: bulk });
+    assert.equal(Boolean(app.state.clusterExpanded), true, "the tap expands the group");
+    const stored = app.history.state.forestNearbyAnchor;
+    assert.equal(Boolean(stored.cluster), keepsGroup, "the entry's cluster snapshot is present only within the cap");
+    assert.ok(stored.latitude !== undefined, "the entry still describes the anchor");
+    app.focusOverviewItem("tree", app.treeHashKey(bulk[0]));
+    app.history.back();
+    assert.equal(app.state.selected, null);
+    if (keepsGroup) {
+      assert.equal(expandedIds(), bulk.map((tree) => tree.id).sort().join(","));
+    } else {
+      assert.equal(app.state.clusterExpanded, null, "Back lands on the plain view");
+      assert.ok(app.state.nearbyAnchor);
+    }
+  });
+}
+
+function withThrowingHistoryWrites(run) {
+  const history = app.history;
+  const original = { push: history.pushState, replace: history.replaceState };
+  const calls = [];
+  history.pushState = function throwingPush(state, title, url) {
+    calls.push({ kind: "push", state, url });
+    throw new DOMException("too large", "DataCloneError");
+  };
+  history.replaceState = function throwingReplace(state, title, url) {
+    calls.push({ kind: "replace", state, url });
+    throw new DOMException("too large", "DataCloneError");
+  };
+  try { run(calls); } finally { history.pushState = original.push; history.replaceState = original.replace; }
+}
+
+test("tapping a cluster and opening a place still work when the browser refuses every history write", () => {
+  const { trees, key } = expandedGroupFixture();
+  withThrowingHistoryWrites(() => {
+    assert.doesNotThrow(() => app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees }));
+    assert.equal(expandedIds(), "oak1,oak2,oak3", "the group still expands");
+    assert.doesNotThrow(() => app.focusOverviewItem("tree", key(trees[1])));
+    assert.equal(app.state.selected?.item, trees[1], "the place still opens");
+  });
+});
+
+test("when the browser rejects a group entry as too large, the entry is retried as the plain anchor and the URL still updates", () => {
+  const { trees } = expandedGroupFixture();
+  const history = app.history;
+  const originalPush = history.pushState;
+  const attempts = [];
+  const lengthBefore = history.length;
+  history.pushState = function rejectingPush(state, title, url) {
+    attempts.push({ cluster: Boolean(state?.forestNearbyAnchor?.cluster), url });
+    if (state?.forestNearbyAnchor?.cluster) throw new DOMException("too large", "DataCloneError");
+    return originalPush.call(this, state, title, url);
+  };
+  try {
+    assert.doesNotThrow(() => app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees }));
+  } finally { history.pushState = originalPush; }
+  assert.equal(expandedIds(), "oak1,oak2,oak3");
+  assert.ok(attempts.some((attempt) => attempt.cluster), "the group entry was tried first");
+  const stored = app.history.state.forestNearbyAnchor;
+  assert.ok(stored && stored.latitude !== undefined, "the retried entry holds the plain anchor");
+  assert.equal(stored.cluster, undefined, "without the group snapshot");
+  assert.equal(app.history.entries[app.history.index].url, attempts[0].url, "the entry carries the URL that was being written");
+  assert.ok(app.history.length > lengthBefore, "the move still gets a back-button step");
+});
+
 test("tapping a cluster while already on Nearby actually refreshes the rendered list, not just the underlying data", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.65, 0.05);
@@ -11648,7 +12642,7 @@ function enterNearby3D(app) {
 function settleNearbySlide(app) {
   const transition = app.state.nearbyOriginTransition;
   if (!transition) return;
-  transition.startedAt -= transition.durationMs + app.NEARBY_REVEAL_MS + 1;
+  transition.startedAt -= transition.durationMs + 1;
   app.prepareCanvasForDraw();
   app.stopViewportAnimation();
 }
@@ -11964,7 +12958,7 @@ test("moving the nearby point holds the circle still on screen and slides the ma
   // has finished, applies the final camera and clears it -- rather than dropping the transition
   // from under it, which would leave the camera one frame behind the origin. The transition
   // object lives on through the reveal fade, so age it past that too.
-  app.state.nearbyOriginTransition.startedAt -= app.state.nearbyOriginTransition.durationMs + app.NEARBY_REVEAL_MS + 1;
+  app.state.nearbyOriginTransition.startedAt -= app.state.nearbyOriginTransition.durationMs + 1;
   const after = circleCentreOnScreen();
   assert.equal(app.state.nearbyOriginTransition, null, "the slide clears itself when it lands");
   const mapAfter = mapPointOnScreen();
@@ -11976,36 +12970,27 @@ test("moving the nearby point holds the circle still on screen and slides the ma
   );
 });
 
-test("the new nearby set fades in while the map moves, so the move is never a blank stretch", () => {
+test("while the map slides to a new browse spot the old pins are frozen and the new set arrives once, in the shared reveal", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.665, 0.045);
   app.state.trees.push({ id: "t1", commonName: "Oak", ...makePoint(app, 51.6653, 0.045) });
   app.selectOverview();
-  assert.equal(app.nearbyRevealOpacity(), 1, "settled, the nearby set is fully drawn");
+  assert.equal(app.markerGroupingPaused(), false);
 
   const anchor = makePoint(app, 51.66, 0.033);
   app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
   const transition = app.state.nearbyOriginTransition;
-  // Offsets are taken from the slide's own start time: the app runs in its own context with its own
-  // clock, so mixing in this file's clock would measure nothing.
   const startedAt = transition.startedAt;
-  const at = (fraction) => {
-    transition.startedAt = startedAt - fraction * transition.durationMs;
-    return app.nearbyRevealOpacity();
-  };
+  const at = (fraction) => { transition.startedAt = startedAt - fraction * transition.durationMs; };
 
-  assert.equal(at(0.02), 0, "the map starts to leave before the new area appears");
-  const early = at(0.3);
-  const middle = at(0.55);
-  const late = at(0.85);
-  assert.ok(early > 0, `pins are already arriving a third of the way through, got ${early}`);
-  assert.ok(early < middle && middle < late, `the set arrives steadily: ${early}, ${middle}, ${late}`);
-  assert.ok(late <= 1, "and never overshoots");
-  assert.equal(at(1.001), 1, "it is fully drawn the moment the slide lands");
-
-  // The transition object has to outlive the slide itself, so the camera keeps re-deriving.
-  transition.startedAt = startedAt - transition.durationMs - app.NEARBY_REVEAL_MS - 1;
-  assert.equal(app.nearbyRevealInProgress(), false);
+  for (const fraction of [0.02, 0.3, 0.55, 0.85]) {
+    at(fraction);
+    assert.equal(app.markerGroupingPaused(), true, `grouping is paused ${fraction} of the way through the slide`);
+    assert.equal(app.buildActiveMapMarkers(app.worldToScreen, false).length, 0, "nothing is built or tappable mid-slide");
+  }
+  at(1.001);
+  assert.equal(app.markerGroupingPaused(), false, "the slide has landed");
+  assert.equal(app.nearbyRevealInProgress(), false, "nothing is left to fade once it lands: no extra frames are spent on it");
 });
 
 test("relocating again mid-slide continues from what is on screen", () => {
@@ -12672,6 +13657,13 @@ test("tapping a location from a browsed Nearby anchor keeps the outgoing map dur
   // a pin is tapped while Nearby is still sliding/revealing its current view.
   app.setNearbyAnchor(anchor.latitude, anchor.longitude, anchor.point);
   assert.ok(app.state.nearbyOriginTransition, "sanity: the Nearby-origin transition is in flight");
+  // The pins are not tappable while the slide itself moves the map (grouping is paused); the
+  // intermittent case is a tap in the reveal tail, after the slide landed, while the transition
+  // object is still alive.
+  assert.equal(app.markerGroupingPaused(), true, "mid-slide the pins are not tappable");
+  app.state.nearbyOriginTransition.startedAt -= app.state.nearbyOriginTransition.durationMs + 1;
+  assert.equal(app.markerGroupingPaused(), false, "the slide has landed");
+  assert.ok(app.state.nearbyOriginTransition, "sanity: the transition object outlives the slide through its reveal");
 
   const treeTap = pinTapPoint(app, tree.point);
   assert.equal(app.findHit(treeTap, app.screenToWorld(treeTap.x, treeTap.y)).type, "tree");
@@ -15012,6 +16004,101 @@ test("Outbox drops a queued item the server refuses with a 4xx straight away", a
   assert.deepEqual(outbox.sentEvents(), [{ id: "report-6", ok: false, response: { error: "Bad report" } }]);
 });
 
+// Picking a place out of an expanded group keeps the group's other members on the map, dimmed
+// (spec-data-rendering.md "A place picked from an expanded group stays one of the group"). Real functions throughout: a group tap, a
+// list pick or map tap, the history stub's Back, and the renderer's own lookup and hit test.
+function siblingGroupFixture() {
+  resetData(app);
+  resetRouter(app);
+  app.setupSearchAndNavHandlers();
+  app.state.userLocation = makePoint(app, 51.64, 0.04);
+  app.state.walkingDistanceMinutes = 7;
+  const mk = (id, n, lat, lon) => ({ id, recordNumber: n, commonName: "Oak", location: { britishNationalGrid: {} }, ...makePoint(app, lat, lon) });
+  const trees = [mk("sib1", 9401, 51.6500, 0.0500), mk("sib2", 9402, 51.6504, 0.0500), mk("sib3", 9403, 51.6500, 0.0507)];
+  const outsider = mk("sibout", 9404, 51.6540, 0.0580);
+  app.state.trees.push(...trees, outsider);
+  const scale = 400000;
+  app.state.viewport = { scale, tx: 500 - trees[0].point.x * scale, ty: 400 - trees[0].point.y * scale };
+  return { trees, outsider, key: (tree) => app.treeHashKey(tree) };
+}
+
+function lookupTrees() {
+  return [...app.activeIconLookup().tree].map((tree) => tree.id).sort().join(",");
+}
+
+test("a place picked from the list keeps its group's other members on the map, and they leave with the selection", () => {
+  const { trees, outsider, key } = siblingGroupFixture();
+  const group = { itemType: "tree", items: trees };
+  app.focusNearbyOnClusterGroup(group);
+  app.focusOverviewItem("tree", key(trees[1]));
+  assert.equal(app.state.selected.item, trees[1]);
+  assert.equal(lookupTrees(), "sib1,sib3", "the other members stay, the selected place is drawn by the selection itself");
+  assert.equal(app.state.selectionTransition.outgoingIconLookup, null, "nothing fades out, so the camera move has nothing to wait for");
+
+  app.history.back();
+  assert.equal(app.state.selected, null);
+  assert.equal(app.state.selectionCluster, null, "Back drops the dimmed members; the group itself is restored");
+  assert.equal(lookupTrees(), "sib1,sib2,sib3");
+
+  app.focusOverviewItem("tree", key(trees[0]));
+  assert.equal(lookupTrees(), "sib2,sib3");
+  app.focusOverviewItem("tree", key(outsider));
+  assert.equal(lookupTrees(), "", "a place outside the group ends the group context");
+  assert.equal(app.state.selectionCluster, null);
+});
+
+test("a place picked with nothing expanded behaves as before: the other pins give way", () => {
+  const { trees, key } = siblingGroupFixture();
+  app.focusOverviewItem("tree", key(trees[1]));
+  assert.ok(!app.state.selectionCluster);
+  assert.equal(lookupTrees(), "");
+  assert.ok(app.state.selectionTransition.outgoingIconLookup, "the outgoing pins still fade, so the move still waits for them");
+});
+
+test("tapping a dimmed sibling selects it and keeps the group; the selected place's own pin wins an overlap", () => {
+  const { trees, key } = siblingGroupFixture();
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  app.focusOverviewItem("tree", key(trees[0]));
+  // The pick's own camera move is not under test here: put the camera back where the pins can be tapped.
+  app.stopViewportAnimation();
+  app.state.selectionTransition.mapHeld = false;
+  const scale = 400000;
+  app.state.viewport = { scale, tx: 500 - trees[0].point.x * scale, ty: 400 - trees[0].point.y * scale };
+  const group = app.state.selectionCluster;
+  assert.ok(group);
+
+  const siblingTap = pinTapPoint(app, trees[2].point);
+  assert.equal(app.findHit(siblingTap, app.screenToWorld(siblingTap.x, siblingTap.y)).item, trees[2], "a dimmed sibling is hit-tested");
+  tapMap(app, siblingTap);
+  assert.equal(app.state.selected.item, trees[2]);
+  assert.equal(app.state.selectionCluster, group, "stepping to a sibling keeps the group context");
+  assert.equal(lookupTrees(), "sib1,sib2");
+  assert.equal(app.state.selectionTransition.outgoingIconLookup, null);
+
+  // A sibling standing on the selected place's own pin must not take the tap.
+  const original = trees[1].point;
+  try {
+    trees[1].point = { ...trees[2].point };
+    const overlapTap = pinTapPoint(app, trees[2].point);
+    assert.equal(app.findHit(overlapTap, app.screenToWorld(overlapTap.x, overlapTap.y)).item, trees[2]);
+  } finally {
+    trees[1].point = original;
+  }
+});
+
+test("a pin outside the group is not tappable while a group place is selected, and a tap on open ground leaves the group", () => {
+  const { trees, outsider, key } = siblingGroupFixture();
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  app.focusOverviewItem("tree", key(trees[0]));
+  app.stopViewportAnimation();
+  const far = pinTapPoint(app, outsider.point);
+  assert.notEqual(app.findHit(far, app.screenToWorld(far.x, far.y)).item, outsider);
+  const open = { x: 40, y: 40 };
+  tapMap(app, open);
+  assert.equal(app.state.selected, null);
+  assert.equal(app.activeIconLookup(), app.buildNearbyIconLookup(), "the map is the ordinary Nearby view again, no dimmed members");
+});
+
 runRegisteredTests().catch((error) => {
   console.error(error);
   process.exitCode = 1;
@@ -15524,4 +16611,51 @@ test("footprints are the hull projected through the active tilt, and still conta
     assert.deepEqual(points.map(p => [p.x, p.y]), flat.map(p => { const q = project(p); return [q.x, q.y]; }));
     for (const item of marker.items) assert.ok(footprintContains(points, project(item.point)));
   }
+});
+
+// --- A deliberate arc that pivots on the user: the "You" marker travels straight ---------------------
+//
+// The selection move into a place in heading-up frames the user at a fixed screen spot. Easing the camera
+// centre (the default) while the scale grows 43x throws that marker far past both ends; the pivot option
+// eases the marker's own screen position instead.
+function runPivotArc(options) {
+  const pivot = { x: 25, y: 40 };
+  const focus = { x: 196, y: 400 };
+  const from = { scale: 4057, tx: 196 - pivot.x * 4057, ty: 152 - pivot.y * 4057 };
+  const target = { scale: 174919, tx: 196 - pivot.x * 174919, ty: 233 - pivot.y * 174919 };
+  const ys = [];
+  let last = null;
+  withCameraFrames(({ stepCamera }) => {
+    app.state.nearbyOriginTransition = null;
+    app.state.viewport = { ...from };
+    assert.equal(app.moveCamera(target, 900, undefined, { deliberate: true, focusPoint: focus, ...options(pivot) }), "started");
+    for (let ms = 0; ms <= 1200; ms += 20) {
+      stepCamera(ms);
+      ys.push(app.state.viewport.ty + pivot.y * app.state.viewport.scale);
+      if (!app.state.viewportAnimationTo) break;
+    }
+    last = { ...app.state.viewport };
+  });
+  return { ys, last, target };
+}
+
+test("a pivot-anchored deliberate move carries the user straight from where they are to where they land", () => {
+  resetData(app);
+  const { ys, last, target } = runPivotArc((pivotWorldPoint) => ({ pivotWorldPoint }));
+  assert.ok(ys.length > 10, "the move ran over several frames");
+  assert.deepEqual(last, target, "the last frame is exactly the target viewport");
+  for (let i = 1; i < ys.length; i += 1) {
+    assert.ok(ys[i] >= ys[i - 1] - 0.5, `the marker never turns back (frame ${i}: ${ys[i - 1]} -> ${ys[i]})`);
+  }
+  assert.ok(Math.min(...ys) >= 152 - 1 && Math.max(...ys) <= 233 + 1,
+    `the marker stays between its start (152) and end (233): ${Math.min(...ys)}..${Math.max(...ys)}`);
+});
+
+test("without a pivot the same big deliberate zoom still eases the camera centre and is unchanged", () => {
+  resetData(app);
+  const { ys, last, target } = runPivotArc(() => ({}));
+  assert.deepEqual(last, target);
+  // The documented unpivoted behaviour: the marker leaves the start/end band during the arc.
+  assert.ok(Math.min(...ys) < 152 - 20 || Math.max(...ys) > 233 + 20,
+    `the centre-eased arc throws an off-centre marker out of its band: ${Math.min(...ys)}..${Math.max(...ys)}`);
 });
