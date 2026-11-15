@@ -2,7 +2,7 @@
 // Deliberate, user-triggered camera moves that cover real distance get the cinematic zoom-out arc;
 // small moves and continuous camera work (GPS follow, drag return) stay a plain ease.
 const { test, expect } = require("@playwright/test");
-const { setup, waitForUiToSettle, waitForFrames } = require("./helpers");
+const { setup, tapCanvasPoint, waitForUiToSettle, waitForFrames } = require("./helpers");
 
 const FOREST_LOCATION = { latitude: 51.6650, longitude: 0.0450, accuracy: 10 };
 
@@ -39,6 +39,50 @@ function dipBelowEndpoints(scales) {
   const start = scales[0];
   const end = scales[scales.length - 1];
   return 1 - Math.min(...scales) / Math.min(start, end);
+}
+
+const FIND_LARGEST_GROUP = `(() => {
+  const dpr = pixelRatio();
+  const markers = buildMapMarkers(activeIconLookup(), worldToScreen).sort((a, b) => b.items.length - a.items.length);
+  for (const marker of markers) {
+    if (marker.items.length < 2) continue;
+    const box = clusterBadgeGeometry(marker.screenPt.x, marker.screenPt.y, marker.items.length, dpr);
+    const point = { x: box.left + 8 * dpr, y: box.top + box.height / 2 };
+    const hit = findClusterHit(point);
+    if (hit && hit.items.length === marker.items.length && hit.items[0] === marker.items[0]) return { point, count: marker.items.length };
+  }
+  return null;
+})()`;
+
+// Every frame of the move: the camera's scale plus where the user and the selected place are drawn.
+async function startFrameTrace(page) {
+  await page.evaluate(() => {
+    window.__frames = [];
+    const sample = () => {
+      const target = state.selected ? selectedCompassTarget() : null;
+      const at = (point) => {
+        if (!point) return null;
+        const p = worldToScreen(point);
+        return { x: p.x, y: p.y };
+      };
+      window.__frames.push({
+        scale: state.viewport.scale,
+        user: state.userLocation ? at(state.userLocation.point) : null,
+        place: target && target.point ? at(target.point) : null,
+        width: els.canvas.width,
+        height: els.canvas.height,
+      });
+      window.__frameTraceRaf = requestAnimationFrame(sample);
+    };
+    sample();
+  });
+}
+
+async function stopFrameTrace(page) {
+  return page.evaluate(() => {
+    cancelAnimationFrame(window.__frameTraceRaf);
+    return window.__frames;
+  });
 }
 
 test.describe("Deliberate camera moves", () => {
@@ -116,5 +160,48 @@ test.describe("Deliberate camera moves", () => {
       return { reveal: window.__reveal, mapHeld: state.selectionTransition.mapHeld, selected: Boolean(state.selected) };
     });
     expect(result).toEqual({ reveal: false, mapHeld: false, selected: true });
+  });
+});
+
+test.describe("A far selection from an expanded group, held up (heading-up)", () => {
+  test("the selected place stays on screen for the whole move, rather than swinging off the top and back", async ({ page }) => {
+    // The user has browsed about 1.5 km away from where they stand, so the camera origin is still
+    // sliding from that browse point back to the user when the group is picked and the place chosen.
+    await setup(page, "/nearby");
+    await page.evaluate(() => navigateInApp("/nearby/pubs/#near=51.655204,0.065731&label=Far"));
+    await page.waitForFunction(() => state.nearbyAnchor != null);
+    await waitForUiToSettle(page);
+    await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+
+    const group = await page.evaluate(`(() => { stopViewportAnimation(); return ${FIND_LARGEST_GROUP}; })()`);
+    expect(group, "a group badge is on screen from the far browse point").not.toBeNull();
+    await tapCanvasPoint(page, group.point);
+    await expect.poll(() => page.evaluate(() => state.clusterExpanded?.items.length)).toBe(group.count);
+    await waitForUiToSettle(page);
+
+    // Hold the phone up: a fresh heading keeps heading-up navigation on, as it does on a real phone.
+    await page.evaluate(() => {
+      const heading = 40;
+      state.compassHeadingTarget = heading;
+      state.compassHeading = heading;
+      state.renderedNavigationHeading = heading;
+      const keepFresh = () => { state.compassLastEventAt = performance.now(); };
+      window.__keepCompassFresh = setInterval(keepFresh, 50);
+      keepFresh();
+    });
+    await waitForUiToSettle(page);
+    expect(await page.evaluate(() => nearbyHeadingUpActive()), "heading-up is on before the pick").toBe(true);
+
+    await startFrameTrace(page);
+    await page.evaluate(() => document.querySelector("#inspectorBody .nearest-item").click());
+    await waitForUiToSettle(page);
+    await page.evaluate(() => clearInterval(window.__keepCompassFresh));
+    const frames = await stopFrameTrace(page);
+
+    const placeFrames = frames.filter((frame) => frame.place);
+    expect(placeFrames.length, "the move was sampled while the place was selected").toBeGreaterThan(10);
+    const offScreen = placeFrames.filter(({ place, width, height }) => (
+      place.x < 0 || place.y < 0 || place.x > width || place.y > height));
+    expect(offScreen, "the selected place never leaves the canvas during the move").toEqual([]);
   });
 });

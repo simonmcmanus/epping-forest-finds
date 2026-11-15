@@ -1713,12 +1713,6 @@ function headingUpRotationFor(point) {
   return { rotating, cos: Math.cos(radians), sin: Math.sin(radians) };
 }
 
-// Whether a screen point is within the canvas's height (a vertical band; x is not a limit for a pivot).
-function onCanvasHeight(point) {
-  const height = els.canvas ? els.canvas.height : Infinity;
-  return Boolean(point) && point.y >= 0 && point.y <= height;
-}
-
 function rotateHeadingUp(x, y, rotation) {
   return { x: x * rotation.cos - y * rotation.sin, y: x * rotation.sin + y * rotation.cos };
 }
@@ -1833,23 +1827,19 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
   const pivot = deliberateArc && options.pivotWorldPoint
     && Number.isFinite(options.pivotWorldPoint.x) && Number.isFinite(options.pivotWorldPoint.y)
     ? options.pivotWorldPoint : null;
-  // The pivot is eased where the user actually sees it (heading-up and tilted), not in raw un-rotated
-  // screen space: the camera origin itself moves during a browse -> selection move, so a raw line bends
-  // on screen. Start is where the pivot is drawn now; end is where the target draws it once the origin
-  // has landed on its final point.
-  // Only when both ends are on the canvas. From far off screen the drawn position is compressed by the
-  // tilt, so easing it drags the camera origin (and the horizon with it) down the screen; those moves
-  // keep the raw screen-space ease they always had.
-  const pivotDrawnRotation = pivot ? headingUpRotationFor(pivot) : null;
-  const pivotDrawnFrom = pivot ? worldToScreen(pivot) : null;
-  const pivotDrawnTo = pivot
-    ? headingUpScreenPointAt(targetViewport, pivot, pivotDrawnRotation, cameraOriginPoint(true)) : null;
-  const pivotDrawn = Boolean(pivot) && onCanvasHeight(pivotDrawnFrom) && onCanvasHeight(pivotDrawnTo);
-  const pivotRotation = pivotDrawn ? pivotDrawnRotation : { rotating: false, cos: 1, sin: 0 };
-  const pivotFromScreen = pivotDrawn ? pivotDrawnFrom
-    : pivot ? { x: from.tx + pivot.x * from.scale, y: from.ty + pivot.y * from.scale } : null;
-  const pivotToScreen = pivotDrawn ? pivotDrawnTo
-    : pivot ? { x: targetViewport.tx + pivot.x * targetViewport.scale, y: targetViewport.ty + pivot.y * targetViewport.scale } : null;
+  // The pivot is eased where the user actually sees it (heading-up and tilted), in drawn screen space,
+  // never in raw un-rotated screen space. The camera origin itself slides during a browse -> selection
+  // move (cameraOriginPoint eases from the browse point to the user), and the heading-up rotation pivots
+  // on that origin, so where a point is drawn depends on the origin of the frame. Both ends are therefore
+  // read as drawn: start is where the pivot is drawn now, end is where the target draws it once the
+  // origin has landed. Each frame then solves the translation against the live origin, so the pivot
+  // follows its eased path while the origin slides under it. Easing a pivot that starts off the canvas
+  // in raw space (assuming origin = pivot and no rotation) swung the whole map during that slide: the
+  // selected place flew off the top of the screen and back.
+  const pivotRotation = pivot ? headingUpRotationFor(pivot) : null;
+  const pivotFromScreen = pivot ? worldToScreen(pivot) : null;
+  const pivotToScreen = pivot
+    ? headingUpScreenPointAt(targetViewport, pivot, pivotRotation, cameraOriginPoint(true)) : null;
   const cinematicScaleFloor = cinematic && state.baseFitScale > 0
     ? state.baseFitScale * 0.92
     : deliberateArc ? Math.min(from.scale, targetViewport.scale) * 0.8 : 0;
@@ -1918,7 +1908,7 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
         const screenX = pivotFromScreen.x + (pivotToScreen.x - pivotFromScreen.x) * eased;
         const screenY = pivotFromScreen.y + (pivotToScreen.y - pivotFromScreen.y) * eased;
         const translation = headingUpTranslationFor(
-          pivot, pivotRotation, state.viewport.scale, pivotDrawn ? cameraOriginPoint() : null,
+          pivot, pivotRotation, state.viewport.scale, cameraOriginPoint(),
           { x: screenX, y: screenY },
         );
         state.viewport.tx = translation.x;
