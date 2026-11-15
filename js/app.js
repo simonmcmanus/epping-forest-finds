@@ -1638,14 +1638,18 @@ function zoomAlongTween(fromScale, toScale, eased) {
 // sideways during every zoom, which reads as jitter. When the two views differ in scale, they
 // agree on one world point (the zoom's invariant point); the offsets are then
 // `offset0 + world0 * (scale0 - scale)`, which keeps that point still while everything zooms about
-// it and lands exactly on both ends. A near-equal scale is a pure pan, so the offsets are blended
-// directly.
+// it and lands exactly on both ends. A near-equal scale is a pure pan, so scale and offsets are all
+// blended linearly on the same curve: a geometric scale beside linear offsets would shift a world
+// point by `world * (geometric - linear scale)`, which is tiny for a point near the origin but
+// thousands of pixels for the far-off mercator coordinates heading-up uses, flinging the user
+// marker off-screen mid-move. Linear and geometric differ by under 0.03% at the 5% threshold.
 function viewportAlongTween(from, to, eased) {
-  const scale = zoomAlongTween(from.scale, to.scale, eased);
   const ratio = from.scale > 0 && to.scale > 0 ? to.scale / from.scale : 1;
   if (!(Math.abs(Math.log(ratio)) >= VIEWPORT_TWEEN_ZOOM_ABOUT_POINT_MIN_LOG_RATIO)) {
-    return { scale, tx: from.tx + (to.tx - from.tx) * eased, ty: from.ty + (to.ty - from.ty) * eased };
+    const linearScale = from.scale + (to.scale - from.scale) * eased;
+    return { scale: linearScale, tx: from.tx + (to.tx - from.tx) * eased, ty: from.ty + (to.ty - from.ty) * eased };
   }
+  const scale = zoomAlongTween(from.scale, to.scale, eased);
   const worldX = (to.tx - from.tx) / (from.scale - to.scale);
   const worldY = (to.ty - from.ty) / (from.scale - to.scale);
   return {
