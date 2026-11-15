@@ -1181,7 +1181,21 @@ function updateStats() {
         ? ` (back to ${escapeHtml(lastMeta.oldestDay)}${lastMeta.oldestDayIncomplete ? ", that day only in part" : ""})`
         : ""}</em>`
       : "");
-  el.innerHTML = `<strong>${uids.size}</strong> user${uids.size !== 1 ? "s" : ""} &nbsp;·&nbsp; <strong>${locs.length}</strong> location pings &nbsp;·&nbsp; <strong>${clicks.length}</strong> taps${windowLabel}`;
+  el.innerHTML = `<strong>${uids.size}</strong> user${uids.size !== 1 ? "s" : ""} &nbsp;·&nbsp; <strong>${locs.length}</strong> location pings &nbsp;·&nbsp; <strong>${clicks.length}</strong> taps${windowLabel}${navigationStatsHtml(locs)}`;
+}
+
+// Navigation journey block under the stats bar: derived from the same filtered pings.
+function navigationStatsHtml(locs) {
+  if (typeof deriveNavJourneys !== "function") return "";
+  const s = summariseNavJourneys(deriveNavJourneys(locs));
+  if (!s.started) return "";
+  const km = (m) => (m / 1000).toFixed(1);
+  const rate = Math.round(s.completionRate * 100);
+  const b = s.timeBuckets;
+  const median = s.medianRemainingM === null ? "n/a" : `${Math.round(s.medianRemainingM)} m`;
+  return `<br><strong>Navigation:</strong> <strong>${s.started}</strong> started &nbsp;·&nbsp; <strong>${s.completed}</strong> arrived (${rate}%)`
+    + `<br>Time to arrive: &lt;5 min <strong>${b.lt5}</strong> &nbsp;·&nbsp; 5-15 <strong>${b.b5to15}</strong> &nbsp;·&nbsp; 15-30 <strong>${b.b15to30}</strong> &nbsp;·&nbsp; &gt;30 <strong>${b.gt30}</strong>`
+    + `<br>Walked <strong>${km(s.totalDistanceWalkedM)}</strong> km &nbsp;·&nbsp; <strong>${s.abandoned}</strong> abandoned (median <strong>${median}</strong> short)`;
 }
 
 function formatEventTime(value) {

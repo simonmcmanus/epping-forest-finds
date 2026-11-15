@@ -94,6 +94,19 @@ Fixed to bottom-right of the canvas. Shows:
 - Total location pings
 - Total tap events
 - The active time window (e.g. "last 30 days"), omitted when the API returned the full history
+- A Navigation block (see Navigation journeys), shown only when at least one journey was derived
+
+## Navigation journeys
+
+The stats bar summarises walks to a navigation target. They are derived in the browser by `js/navigation-metrics.js` (pure functions, no DOM) from the same filtered location pings the rest of the bar uses, so selecting a user narrows them too. Nothing new is sent or stored.
+
+- Pings with non-finite coordinates are ignored. Pings are grouped by user and read in time order.
+- A journey starts at the first ping whose `navTarget` has finite target coordinates. It continues while later pings carry the same target (matched by id when present, otherwise by coordinates).
+- A journey ends when the target is cleared or changes, when the next ping is more than 3 minutes after the previous one (a later ping with a target then starts a new journey), on arrival, or when the data runs out.
+- Every location ping is a fresh fix, so arrival is the first journey ping, including the start ping, within 30 m of the target. The walk ends there.
+- Distance walked is the sum of straight-line distances between consecutive pings in the journey, skipping any pair more than 3 minutes apart. For a journey that did not arrive, the remaining distance is the distance from its last ping to the target.
+- Time to arrive is arrival time minus start time, bucketed as under 5 minutes, 5 up to (not including) 15, 15 to 30 inclusive, and over 30.
+- The block shows journeys started, arrived and the completion rate, the time buckets, total distance walked, and the abandoned count with the median remaining distance (n/a when none).
 
 ## Tap / Click Details
 
