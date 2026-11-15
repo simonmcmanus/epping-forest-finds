@@ -808,10 +808,11 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
       tapScreen(open, 2001);
       if (!state.nearbyAnchor) return { error: 'the open-ground tap did not move the browse anchor' };
       const firstAnchor = { latitude: state.nearbyAnchor.latitude, longitude: state.nearbyAnchor.longitude };
+      performance.now = () => frozen + 40; // mid-fade, and still fixed
       draw(); // the frame that paints the fading old set
       const painted = typeof _frozenPaintView !== 'undefined' && _frozenPaintView ? _frozenPaintView.markers : [];
       const badge = painted.find((marker) => marker.items.length >= 2 && !tapIsBesidePanel({ x: marker.screenPt.x, y: marker.screenPt.y - 12 * dpr }));
-      const visible = markerGroupingPaused() && mapPinFadeOpacity() > PIN_ALPHA_VISIBLE_MIN;
+      const visible = markerGroupingPaused() && mapPinFadeOpacity() > PIN_ALPHA_VISIBLE_MIN && mapPinFadeOpacity() < 1;
       if (!badge || !visible) return { error: 'no painted badge', before, visible, painted: painted.map((m) => ({ n: m.items.length, beside: tapIsBesidePanel({ x: m.screenPt.x, y: m.screenPt.y - 12 * dpr }) })), fade: mapPinFadeOpacity(), paused: markerGroupingPaused(), open, panel: [els.inspector, els.inspectorActions].map((el) => el && !el.hidden ? JSON.stringify(el.getBoundingClientRect()) : null) };
       tapScreen({ x: badge.screenPt.x, y: badge.screenPt.y - 12 * dpr }, 2002);
       return { firstAnchor, afterSecond: { latitude: state.nearbyAnchor.latitude, longitude: state.nearbyAnchor.longitude } };
