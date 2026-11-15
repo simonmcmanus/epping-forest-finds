@@ -165,8 +165,13 @@ test.describe("Back onto an expanded group from other screens", () => {
       await page.goBack();
       await expect.poll(() => page.evaluate(() => state.clusterExpanded?.items.length)).toBe(before.keys.length);
       await waitForUiToSettle(page);
-      expect(await page.evaluate(() => state.searchScreenOpen || state.filterScreenOpen)).toBe(false);
-      expect(await page.evaluate(GROUP_SUMMARY)).toEqual(before);
+      expect(await page.evaluate(() => state.searchScreenOpen || state.filterScreenOpen || mapSetupModalActive())).toBe(false);
+      expect(await page.evaluate(GROUP_SUMMARY), "same members, radius, list and address bar").toEqual(before);
+
+      // Forward lands on the screen again, with the group closed behind it.
+      await page.goForward();
+      await expect.poll(() => page.evaluate(() => state.searchScreenOpen || state.filterScreenOpen)).toBe(true);
+      expect(await page.evaluate(() => state.clusterExpanded)).toBeNull();
     });
   }
 
@@ -194,6 +199,96 @@ test.describe("Back onto an expanded group from other screens", () => {
     await waitForUiToSettle(page);
     expect(await page.evaluate(() => Boolean(state.clusterExpanded))).toBe(false);
     expect(await page.evaluate(() => state.walkingDistanceMinutes)).toBe(realRadius);
+  });
+});
+
+test.describe("A group left in place stays left", () => {
+  async function leaveBy(page, how) {
+    if (how === "wheel") {
+      const box = await page.locator("#mapCanvas").boundingBox();
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 4);
+      await page.mouse.wheel(0, -300);
+    } else if (how === "slider") {
+      await page.evaluate(() => applyWalkingRadiusChange(12, { animate: false }));
+    } else {
+      const box = await page.locator("#mapCanvas").boundingBox();
+      const cx = box.x + box.width / 2;
+      const cy = box.y + box.height / 4;
+      await page.mouse.move(cx, cy);
+      await page.mouse.down();
+      await page.mouse.move(cx + 60, cy + 20, { steps: 6 });
+      await page.mouse.up();
+    }
+    await expect.poll(() => page.evaluate(() => Boolean(state.clusterExpanded))).toBe(false);
+    await page.waitForFunction(() => state.wheelRadiusSettleTimer == null);
+    await waitForUiToSettle(page);
+  }
+
+  for (const how of ["wheel", "slider", "drag"]) {
+    test(`after a ${how}, Back from a picked place and then Forward onto that entry both show the plain view`, async ({ page }) => {
+      await setup(page);
+      await tapGroupOnMap(page);
+      await leaveBy(page, how);
+      const left = await page.evaluate(() => state.walkingDistanceMinutes);
+      await page.locator("#inspectorBody .nearest-item").first().click();
+      await expect.poll(() => page.evaluate(() => state.selected?.type ?? null)).not.toBeNull();
+      await waitForUiToSettle(page);
+      await page.goBack();
+      await expect.poll(() => page.evaluate(() => state.selected)).toBeNull();
+      await waitForUiToSettle(page);
+      expect(await page.evaluate(() => Boolean(state.clusterExpanded)), "Back: plain view").toBe(false);
+      expect(await page.evaluate(() => state.walkingDistanceMinutes), "Back: the reader's radius").toBe(left);
+      // Back past the group's entry, then Forward onto it.
+      await page.goBack();
+      await waitForUiToSettle(page);
+      await page.goForward();
+      await waitForUiToSettle(page);
+      expect(await page.evaluate(() => Boolean(state.clusterExpanded)), "Forward: plain view").toBe(false);
+      expect(await page.evaluate(() => state.walkingDistanceMinutes), "Forward: the reader's radius").toBe(left);
+    });
+  }
+});
+
+test.describe("Rapid history steps", () => {
+  test("Back, Forward, Back in one task ends on a screen that matches its entry, with every selection hold released", async ({ page }) => {
+    await setup(page);
+    await tapGroupOnMap(page);
+    const before = await page.evaluate(GROUP_SUMMARY);
+    await page.locator("#inspectorBody .nearest-item").first().click();
+    await expect.poll(() => page.evaluate(() => state.selected?.type ?? null)).not.toBeNull();
+    await waitForUiToSettle(page);
+    await page.evaluate(() => {
+      const transition = state.selectionTransition;
+      let held = transition.mapHeld;
+      window.__holds = { started: 0, released: 0 };
+      Object.defineProperty(transition, "mapHeld", {
+        configurable: true,
+        get() { return held; },
+        set(next) {
+          if (next && !held) window.__holds.started += 1;
+          if (!next && held) window.__holds.released += 1;
+          held = next;
+        },
+      });
+      history.back();
+      history.forward();
+      history.back();
+    });
+    await expect.poll(() => page.evaluate(() => state.selected)).toBeNull();
+    await waitForUiToSettle(page);
+    // The browser resolves the three queued traversals itself; whichever entry it lands on, the
+    // screen must describe that entry: the group exactly when the entry carries one.
+    const landed = await page.evaluate(() => ({
+      entryHasGroup: Boolean(history.state && history.state.forestNearbyAnchor && history.state.forestNearbyAnchor.cluster),
+      expanded: Boolean(state.clusterExpanded),
+      selected: state.selected,
+    }));
+    expect(landed.selected).toBeNull();
+    expect(landed.expanded).toBe(landed.entryHasGroup);
+    if (landed.entryHasGroup) expect(await page.evaluate(GROUP_SUMMARY)).toEqual(before);
+    const holds = await page.evaluate(() => ({ ...window.__holds, held: state.selectionTransition.mapHeld }));
+    expect(holds.held).toBe(false);
+    expect(holds.released, "every hold that started was released exactly once").toBe(holds.started);
   });
 });
 
@@ -272,3 +367,43 @@ test.describe("Back before the place's exit fade has finished (motion enabled)",
   }
 });
 
+test.describe("Back from Filters onto a group with the phone held up (motion enabled)", () => {
+  test("makes one camera move and leaves no pins held", async ({ page }) => {
+    await setup(page);
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await page.evaluate(() => {
+      state.compassHeadingTarget = 40;
+      state.compassHeading = 40;
+      state.renderedNavigationHeading = 40;
+      window.__keepCompassFresh = setInterval(() => { state.compassLastEventAt = performance.now(); }, 50);
+      state.compassLastEventAt = performance.now();
+    });
+    await tapGroupOnMap(page);
+    const before = await page.evaluate(GROUP_SUMMARY);
+    await page.evaluate(() => openFiltersScreen());
+    await expect.poll(() => page.evaluate(() => state.filterScreenOpen)).toBe(true);
+    await waitForUiToSettle(page);
+    await page.evaluate(() => {
+      window.__moves = [];
+      const orig = window.moveCamera;
+      window.moveCamera = function (target) {
+        window.__moves.push({ toScale: target.scale });
+        return orig.apply(this, arguments);
+      };
+      const restore = window.restoreNearbyAnchorFromHistory;
+      window.restoreNearbyAnchorFromHistory = function () {
+        window.__moves = [];
+        window.restoreNearbyAnchorFromHistory = restore;
+        return restore.apply(this, arguments);
+      };
+      history.back();
+    });
+    await expect.poll(() => page.evaluate(() => state.clusterExpanded?.items.length)).toBe(before.keys.length);
+    await waitForUiToSettle(page);
+    const after = await page.evaluate(() => ({ moves: window.__moves.length, held: state.selectionTransition.mapHeld, token: state.selectionMapTransitionToken }));
+    expect(after.moves, "one ease").toBe(1);
+    expect(after.held).toBe(false);
+    expect(after.token).toBeNull();
+    expect(await page.evaluate(GROUP_SUMMARY)).toEqual(before);
+  });
+});
