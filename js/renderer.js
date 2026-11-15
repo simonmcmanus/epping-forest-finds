@@ -1713,6 +1713,11 @@ function mapPinFadeOpacity(now = performance.now()) {
   return fade.from + (fade.to - fade.from) * eased;
 }
 
+// Where the shared pin opacity is heading: below 1 while the pins are hidden or leaving.
+function mapPinFadeTarget() {
+  return _mapPinFade.to;
+}
+
 function mapPinFadeInProgress(now = performance.now()) {
   return _mapPinFade.duration > 0 && now - _mapPinFade.startedAt < _mapPinFade.duration;
 }
@@ -2832,7 +2837,11 @@ function drawSelectionExitMarkers(ctx, toScreen, tilted = false) {
   const now = performance.now();
   drawMapMarkers(ctx, markers, toScreen, tilted, {
     allowSelectionExit: true,
-    markerOpacity: (index) => selectionOutgoingMarkerOpacity(index, now),
+    // Pins caught mid-reveal leave from the opacity they were last seen at, never jumping up to 1.
+    markerOpacity: (index) => Math.min(
+      state.selectionTransition.outgoingStartOpacity ?? 1,
+      selectionOutgoingMarkerOpacity(index, now),
+    ),
   });
 }
 

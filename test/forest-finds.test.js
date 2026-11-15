@@ -6715,6 +6715,44 @@ test("panning the map moves the existing pins instead of regrouping them every f
   });
 });
 
+test("selecting a place while the pins are fading back in still records the outgoing set, from the current opacity", () => {
+  setUpWheelNearby(app);
+  withoutRefitTween();
+  withAppClock(({ at }) => {
+    at(0);
+    setFingers(100);
+    app.startNearbyRadiusPinch();
+    at(1000);
+    assert.equal(app.mapPinFadeOpacity(), 0);
+    app.endNearbyRadiusPinch();
+    at(1100);
+    const midReveal = app.mapPinFadeOpacity();
+    assert.ok(midReveal > 0.2 && midReveal < 1, "sanity: the pins are partway through their reveal");
+    app.state.selectionTransition.outgoingIconLookup = null;
+    app.startCameraOriginTransition();
+    assert.ok(app.state.selectionTransition.outgoingIconLookup, "the ordered exit still runs for pins the user can see");
+    assert.ok(Math.abs(app.state.selectionTransition.outgoingStartOpacity - midReveal) < 1e-9, "and it starts from the opacity on screen");
+    app.state.selectionTransition.outgoingIconLookup = null;
+  });
+});
+
+test("selecting a place while the pins are hidden, fading out or paused records no outgoing set", () => {
+  setUpWheelNearby(app);
+  withoutRefitTween();
+  withAppClock(({ at }) => {
+    at(0);
+    setFingers(100);
+    app.startNearbyRadiusPinch();
+    for (const ms of [30, 1000]) {
+      at(ms);
+      app.state.selectionTransition.outgoingIconLookup = null;
+      app.startCameraOriginTransition();
+      assert.equal(app.state.selectionTransition.outgoingIconLookup, null, `no exit repaint at ${ms}ms into the hide`);
+    }
+    app.endNearbyRadiusPinch();
+  });
+});
+
 test("pins leave in one quick fade, return in one ease-out reveal, and reverse from where they are", () => {
   setUpWheelNearby(app);
   withoutRefitTween();

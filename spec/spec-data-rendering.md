@@ -656,8 +656,11 @@ moving the real GPS fix:
   and one reveal after the last leg lands. A leg belongs to the transition when it started while the
   slide's time was running or chained from the landing of such a leg; an unrelated tween that starts
   after the slide has run out (a GPS or compass refit, a heading-up align) does not extend the hide.
-  A place selected while pins are paused or fading (`startCameraOriginTransition`) records no outgoing
-  set, so `drawSelectionExitMarkers` does not repaint pins the user already watched leave. The slide object lives only for the slide itself (`nearbyRevealInProgress`); the frame it
+  A place selected while the pins are hidden or leaving (grouping paused, or the fade heading below 1;
+  `startCameraOriginTransition`) records no outgoing set, so `drawSelectionExitMarkers` does not repaint
+  pins the user already watched leave. Pins caught fading back in still exit in order, starting from the
+  opacity they were last seen at (`outgoingStartOpacity`) rather than jumping to full.
+  The slide object lives only for the slide itself (`nearbyRevealInProgress`); the frame it
   lands on runs the last forced align, so the walking-radius circle does not twitch, and no later
   frames are spent. A snapped `moveCamera` hides nothing; a tween replaced by the next keeps one
   continuous pause and continues from the current opacity; one cancelled by the user

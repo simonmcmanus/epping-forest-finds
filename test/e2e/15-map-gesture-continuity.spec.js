@@ -652,17 +652,39 @@ test.describe("Programmatic camera moves pause regrouping like a zoom gesture", 
   test("a zooming camera move freezes the pins, builds nothing while it runs, and reveals the new set once it lands", async ({ page }) => {
     await openNearby(page);
     await page.evaluate(() => { stopViewportAnimation(); window.__pins.length = 0; });
-    expect(await startZoomingMove(page, 0.5)).toBe("started");
-
-    await expect.poll(() => page.evaluate(() => markerGroupingPaused() && mapPinFadeOpacity() === 0)).toBe(true);
-    await page.evaluate(() => { window.__during = window.__pins.slice(); window.__pins.length = 0; window.__markerBuilds = 0; });
-    await waitForFrames(page, 8);
-    const mid = await page.evaluate(() => ({
-      painted: window.__pins.length,
-      builds: window.__markerBuilds,
-      moving: state.viewportAnimationTo != null,
-      tappable: buildActiveMapMarkers(worldToScreen, false).length,
+    // Start the move and take every mid-flight sample inside this one evaluate, on animation frames,
+    // so a slow Playwright round trip cannot let the tween land between the move and the sample.
+    // The move is long enough that the frames below always fall inside it.
+    const mid = await page.evaluate(() => new Promise((resolve) => {
+      const view = state.viewport;
+      const cx = els.canvas.width / 2;
+      const cy = els.canvas.height / 2;
+      const scale = view.scale * 0.5;
+      const started = moveCamera({
+        scale,
+        tx: cx - (cx - view.tx) / view.scale * scale,
+        ty: cy - (cy - view.ty) / view.scale * scale,
+      }, 2500, undefined, { fixedDuration: true });
+      let frames = 0;
+      let waiting = 0;
+      const step = () => {
+        if (!(markerGroupingPaused() && mapPinFadeOpacity() === 0) && waiting++ < 600) { requestAnimationFrame(step); return; }
+        if (frames === 0) { window.__during = window.__pins.slice(); window.__pins.length = 0; window.__markerBuilds = 0; }
+        frames += 1;
+        if (frames <= 8) { requestAnimationFrame(step); return; }
+        resolve({
+          started,
+          hidden: markerGroupingPaused() && mapPinFadeOpacity() === 0,
+          painted: window.__pins.length,
+          builds: window.__markerBuilds,
+          moving: state.viewportAnimationTo != null,
+          tappable: buildActiveMapMarkers(worldToScreen, false).length,
+        });
+      };
+      requestAnimationFrame(step);
     }));
+    expect(mid.started).toBe("started");
+    expect(mid.hidden, "the pins are hidden for the move").toBe(true);
     expect(mid.moving, "the camera is still moving").toBe(true);
     expect(mid.painted, "no regrouped pin is painted while the zoom changes").toBe(0);
     expect(mid.builds, "no marker layout is calculated while the zoom changes").toBe(0);
@@ -697,7 +719,8 @@ test.describe("Programmatic camera moves pause regrouping like a zoom gesture", 
   test("a move cut short by the user does not leave the pins hidden", async ({ page }) => {
     await openNearby(page);
     await page.evaluate(() => { stopViewportAnimation(); });
-    expect(await startZoomingMove(page, 0.5)).toBe("started");
+    // Long enough that the move cannot land before the sample, however slow the round trips are.
+    expect(await startZoomingMove(page, 0.5, 8000)).toBe("started");
     await expect.poll(() => page.evaluate(() => markerGroupingPaused() && mapPinFadeOpacity() === 0)).toBe(true);
     // A finger on the map takes the camera over mid-move.
     await page.evaluate(() => stopViewportAnimation());
@@ -710,7 +733,7 @@ test.describe("Programmatic camera moves pause regrouping like a zoom gesture", 
   test("a move overlapping a wheel zoom gesture is one hide and one reveal, fully visible at the end", async ({ page }) => {
     await openNearby(page);
     await page.evaluate(() => { stopViewportAnimation(); window.__pins.length = 0; window.__fadeSamples.length = 0; });
-    expect(await startZoomingMove(page, 0.5, 1500)).toBe("started");
+    expect(await startZoomingMove(page, 0.5, 3500)).toBe("started");
     await expect.poll(() => page.evaluate(() => markerGroupingPaused() && mapPinFadeOpacity() === 0)).toBe(true);
     const box = await page.locator("#mapCanvas").boundingBox();
     await page.mouse.move(box.x + box.width * 0.25, box.y + box.height * 0.25);

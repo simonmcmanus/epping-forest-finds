@@ -399,6 +399,7 @@ const state = {
     mapHeld: false,
     startedAt: null,
     outgoingIconLookup: null,
+    outgoingStartOpacity: 1,
   },
   inspectorMinimizeTransitionPending: false,
   selectionMapTransitionToken: null,
@@ -4485,15 +4486,19 @@ function startCameraOriginTransition() {
   // Keep a render-only snapshot of the set that is leaving. Hit testing still switches to the
   // destination lookup immediately, but the old pins can now fade out in order instead of
   // disappearing as one opaque slab and leaving a blank map under the camera move.
-  // Not when a marker pause has already faded the pins out (or is fading them): the exit paint
-  // rebuilds the outgoing set live at full opacity, which would bring a set the user watched leave
-  // (and, under a pause, a different grouping from the frozen one) back for a moment.
-  const pinsAlreadyLeaving = (typeof markerGroupingPaused === "function" && markerGroupingPaused())
-    || (typeof mapPinFadeOpacity === "function" && mapPinFadeOpacity() < 1);
-  state.selectionTransition.outgoingIconLookup = !hasRealSelection() && !pinsAlreadyLeaving
+  // Not when the pins are hidden or leaving (grouping paused, or the fade heading below 1): the exit
+  // paint rebuilds the outgoing set live, which would bring a set the user watched leave (and, under
+  // a pause, a different grouping from the frozen one) back for a moment. Pins fading back IN still
+  // exit in order, starting from their current opacity.
+  const currentOpacity = typeof mapPinFadeOpacity === "function" ? mapPinFadeOpacity() : 1;
+  const pinsHiddenOrLeaving = (typeof markerGroupingPaused === "function" && markerGroupingPaused())
+    || (typeof mapPinFadeTarget === "function" && mapPinFadeTarget() < 1)
+    || currentOpacity < PIN_ALPHA_VISIBLE_MIN;
+  state.selectionTransition.outgoingIconLookup = !hasRealSelection() && !pinsHiddenOrLeaving
     && typeof activeIconLookup === "function"
     ? activeIconLookup()
     : null;
+  state.selectionTransition.outgoingStartOpacity = currentOpacity;
   const fromPoint = cameraOriginPoint();
   // A selection owns the camera from this frame onward. If a Nearby anchor move is still in
   // flight, leaving its transition alive lets prepareCanvasForDraw run an old Nearby refit over
