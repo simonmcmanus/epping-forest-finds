@@ -1755,6 +1755,17 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
   const zoomOutRatio = arc
     ? clamp(0.10 + (centreDistancePx / 900) * 0.045, 0.10, 0.24)
     : 0;
+  // options.pivotWorldPoint (a deliberate arc only): the world point the framings are built around
+  // (the user, in heading-up). Its screen position is eased directly between where it sits now and
+  // where the target puts it, so the pivot travels straight and never overshoots; the camera centre
+  // is derived from it. Without it the centre is eased, which flings a user-pivoted marker.
+  const pivot = deliberateArc && options.pivotWorldPoint
+    && Number.isFinite(options.pivotWorldPoint.x) && Number.isFinite(options.pivotWorldPoint.y)
+    ? options.pivotWorldPoint : null;
+  const pivotFromScreen = pivot
+    ? { x: from.tx + pivot.x * from.scale, y: from.ty + pivot.y * from.scale } : null;
+  const pivotToScreen = pivot
+    ? { x: targetViewport.tx + pivot.x * targetViewport.scale, y: targetViewport.ty + pivot.y * targetViewport.scale } : null;
   const cinematicScaleFloor = cinematic && state.baseFitScale > 0
     ? state.baseFitScale * 0.92
     : deliberateArc ? Math.min(from.scale, targetViewport.scale) * 0.8 : 0;
@@ -1819,10 +1830,17 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
       const baseScale = zoomAlongTween(from.scale, targetViewport.scale, eased);
       const zoomArc = Math.sin(Math.PI * eased) * zoomOutRatio;
       state.viewport.scale = Math.max(cinematicScaleFloor, baseScale * (1 - zoomArc));
-      const centreX = fromCenter.x + (targetCenter.x - fromCenter.x) * eased;
-      const centreY = fromCenter.y + (targetCenter.y - fromCenter.y) * eased;
-      state.viewport.tx = focusPoint.x - centreX * state.viewport.scale;
-      state.viewport.ty = focusPoint.y - centreY * state.viewport.scale;
+      if (pivot) {
+        const screenX = pivotFromScreen.x + (pivotToScreen.x - pivotFromScreen.x) * eased;
+        const screenY = pivotFromScreen.y + (pivotToScreen.y - pivotFromScreen.y) * eased;
+        state.viewport.tx = screenX - pivot.x * state.viewport.scale;
+        state.viewport.ty = screenY - pivot.y * state.viewport.scale;
+      } else {
+        const centreX = fromCenter.x + (targetCenter.x - fromCenter.x) * eased;
+        const centreY = fromCenter.y + (targetCenter.y - fromCenter.y) * eased;
+        state.viewport.tx = focusPoint.x - centreX * state.viewport.scale;
+        state.viewport.ty = focusPoint.y - centreY * state.viewport.scale;
+      }
     } else {
       const frame = viewportAlongTween(state.viewportAnimationFrom, state.viewportAnimationTo, eased);
       state.viewport.scale = frame.scale;
@@ -5913,7 +5931,7 @@ function animateToHeadingUpNavigationViewport(durationMs = HEADING_UP_NAV_ANIMAT
     scale: targetScale,
     tx: focus.x - userPoint.x * targetScale,
     ty: focusY - userPoint.y * targetScale,
-  }, safeDuration, undefined, { deliberate: Boolean(options.deliberate) });
+  }, safeDuration, undefined, { deliberate: Boolean(options.deliberate), pivotWorldPoint: userPoint });
 }
 
 function prepareCanvasForDraw() {

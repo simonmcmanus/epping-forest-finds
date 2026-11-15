@@ -703,3 +703,68 @@ test.describe("3D tilt moving between two nearby places", () => {
     });
   }
 });
+
+test.describe("3D tilt first move from Nearby into a place", () => {
+  test.use({
+    geolocation: { latitude: 51.6555, longitude: 0.0662, accuracy: 10 },
+    permissions: ["geolocation"],
+    reducedMotion: "no-preference",
+    viewport: { width: 393, height: 800 },
+    hasTouch: true,
+    isMobile: true,
+  });
+
+  for (const heading of [135, 270]) {
+    test(`selecting the pub at heading ${heading} carries the You marker straight to its place instead of up the screen`, async ({ page }) => {
+      await setup(page, "/nearby");
+      await expect.poll(() => page.evaluate(() => Math.abs((state.userLocation?.latitude ?? 0) - 51.6555) < 1e-6 && !state.userLocation.isDefault)).toBe(true);
+      const ready = await page.evaluate((h) => {
+        state.compassHeadingTarget = h;
+        state.compassHeading = h;
+        state.renderedNavigationHeading = h;
+        state.compassLastEventAt = performance.now();
+        state.tiltBetaTarget = 60;
+        state.tiltBetaSmoothed = 60;
+        alignHeadingUpNavigationViewport({ force: true });
+        draw();
+        return { tilted: state.tiltBetaSmoothed === 60, user: Boolean(state.userLocation?.point) };
+      }, heading);
+      expect(ready, "tilted heading-up with a located user").toEqual({ tilted: true, user: true });
+      await expect.poll(() => page.evaluate(() => state.viewportAnimationTo == null)).toBe(true);
+
+      // Sample the marker on every animation frame from before the tap until the move settles.
+      await page.evaluate(() => {
+        window.__youYs = [];
+        const tick = () => {
+          window.__youYs.push(worldToScreen(state.userLocation.point).y);
+          window.__youSampling = requestAnimationFrame(tick);
+        };
+        tick();
+      });
+      await page.evaluate(() => navigateInApp("/find/the-plume-of-feathers/"));
+      await expect.poll(() => page.evaluate(() => state.selected?.type)).toBe("landmark");
+      await expect.poll(() => page.evaluate(async () => {
+        if (state.viewportAnimationTo != null || state.selectionTransition.viewportPending) return false;
+        const read = () => JSON.stringify([state.viewport.scale, state.viewport.tx, state.viewport.ty]);
+        const before = read();
+        for (let i = 0; i < 12; i += 1) await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+        return read() === before && state.viewportAnimationTo == null;
+      }), { timeout: 15000 }).toBe(true);
+
+      const result = await page.evaluate(() => {
+        cancelAnimationFrame(window.__youSampling);
+        draw();
+        return {
+          ys: window.__youYs,
+          panelTop: bestVisibleCanvasRect().height,
+          settled: worldToScreen(state.userLocation.point).y,
+        };
+      });
+      expect(result.ys.length, "frames were sampled through the move").toBeGreaterThan(10);
+      const start = result.ys[0];
+      const floor = Math.min(start, result.settled) - result.panelTop * 0.15;
+      expect(Math.min(...result.ys), `You marker never rises more than 15% of the map band above ${start} -> ${result.settled}`).toBeGreaterThanOrEqual(floor);
+      expect(Math.abs(result.ys[result.ys.length - 1] - result.settled), "the last sampled frame is the settled position").toBeLessThan(1);
+    });
+  }
+});
