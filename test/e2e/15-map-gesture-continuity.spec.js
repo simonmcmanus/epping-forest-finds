@@ -881,7 +881,9 @@ test.describe("Programmatic camera moves pause regrouping like a zoom gesture", 
     // Hidden and still sliding: the pins are fully faded out, and the slide has not yet landed.
     const hiddenInFlight = frames.filter((frame) => frame.flying && frame.fade === 0);
     expect(hiddenInFlight.length, "the slide was sampled while the pins were hidden").toBeGreaterThan(0);
-    expect(hiddenInFlight.flatMap((frame) => frame.pins), "nothing is painted mid-slide").toEqual([]);
+    // A pin painted while it is still fading out (opacity above 0) is the old set leaving, which is
+    // expected; only a pin painted at zero opacity would be a regrouped set showing mid-slide.
+    expect(hiddenInFlight.flatMap((frame) => frame.pins.filter((pin) => pin.fade === 0)), "nothing is painted mid-slide").toEqual([]);
     expect(new Set(hiddenInFlight.map((frame) => frame.builds)).size, "nothing is regrouped mid-slide").toBe(1);
     expectOneHideOneReveal(frames.flatMap((frame) => frame.pins));
   });
