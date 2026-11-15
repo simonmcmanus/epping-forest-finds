@@ -108,7 +108,7 @@ async function deleteCommunityData(store, { deviceId, includeAccount = false, gi
   }
 
   // 8. The snapshot, so the overlay and scores stop including it.
-  await rebuildComputed(store, { strict: true, fetchJson });
+  await rebuildComputed(store, { strict: true, fetchJson, allowRegisterFailure: true });
   return summary;
 }
 

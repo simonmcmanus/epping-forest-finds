@@ -139,7 +139,7 @@ function mostCommon(values) {
 
 // -> { overlay: { [target]: {s,st,n,t,...} }, conflicts: [target], scores: { [deviceId]: {...} } }
 // `owners` (optional): deviceId -> account key for devices linked to an account (lib/community-account.js).
-function computeCommunityState(reports, validations = [], owners = null, { adventureTargets = null } = {}) {
+function computeCommunityState(reports, validations = [], owners = null, { adventureTargets = null, adventureReportIds = null } = {}) {
   const valid = reports.filter((r) => !validateReport(r));
   const voterOf = (deviceId) => (owners && owners[deviceId]) || deviceId;
   const latest = latestPerDevice(valid, voterOf);
@@ -205,7 +205,10 @@ function computeCommunityState(reports, validations = [], owners = null, { adven
   const adventureReports = new Set();
   for (const r of [...latest].sort((a, b) => (a.ts || 0) - (b.ts || 0) || String(a.id).localeCompare(String(b.id)))) {
     const voter = voterOf(r.deviceId);
-    if (!adventureAwarded.has(voter) && isAdventureEligibleReport(r, adventureTargets)) {
+    const eligible = adventureReportIds instanceof Set
+      ? adventureReportIds.has(r.id)
+      : isAdventureEligibleReport(r, adventureTargets);
+    if (!adventureAwarded.has(voter) && eligible) {
       adventureAwarded.add(voter);
       adventureReports.add(r.id);
     }
@@ -259,7 +262,7 @@ function computeCommunityState(reports, validations = [], owners = null, { adven
       score.fixed += 1;
     }
   }
-  return { overlay, conflicts, conflictDetails, scores, rewards };
+  return { overlay, conflicts, conflictDetails, scores, rewards, adventureReports: [...adventureReports] };
 }
 
 // What a contributor sees against one of their own reports, from the hourly snapshot.

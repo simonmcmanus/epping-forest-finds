@@ -14126,6 +14126,29 @@ test("a failed register fetch aborts a rebuild instead of publishing stripped ad
   assert.equal((await store.get("computed")).generatedAt, 10);
 });
 
+test("a rebuild without a register fetcher refuses new adventure claims", async () => {
+  const store = memoryStore();
+  await store.put("reports/1", communityReport({ id: "report-adventure-no-fetch", adventure: true }));
+  await assert.rejects(
+    communityComputed.rebuildComputed(store),
+    /register fetcher required/,
+  );
+  assert.equal(await store.get("computed"), null);
+});
+
+test("a deletion rebuild preserves known adventure awards during a register outage", async () => {
+  const report = communityReport({ id: "report-adventure-preserve", adventure: true });
+  const store = memoryStore({ computed: { generatedAt: 10, overlay: {}, conflicts: [], adventureReports: [report.id] } });
+  await store.put("reports/1", report);
+  const computed = await communityComputed.rebuildComputed(store, {
+    strict: true,
+    fetchJson: async () => { throw new Error("offline"); },
+    allowRegisterFailure: true,
+  });
+  assert.deepEqual(computed.adventureReports, [report.id]);
+  assert.equal((await communityComputed.loadScore(store, report.deviceId)).points, communityPointsConfig.POINTS.adventure);
+});
+
 test("in production a request serves an old snapshot, however old, instead of rebuilding inline", async () => {
   // If the scheduled rebuild stops because the ledger outgrew it, an inline rebuild would fail the same way
   // on every visitor's request; an old snapshot is better than none.

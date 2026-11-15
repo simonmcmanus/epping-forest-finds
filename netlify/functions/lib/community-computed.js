@@ -59,23 +59,38 @@ async function loadAdventureTargets(fetchJson) {
 
 // `strict` (used when rebuilding after a data deletion) makes a failed read abort the rebuild, so a snapshot is
 // never published from a partial ledger. The routine hourly rebuild keeps skipping records it cannot read.
-async function rebuildComputed(store, { strict = false, fetchJson = null } = {}) {
+// If the register is temporarily unavailable, previously awarded adventure report ids are retained so a rebuild
+// can still publish the rest of the snapshot without silently removing earned points.
+async function rebuildComputed(store, { strict = false, fetchJson = null, allowRegisterFailure = false } = {}) {
   const get = strict && store.getStrict ? (k) => store.getStrict(k) : (k) => store.get(k);
+  const previous = await get("computed");
   const reports = await loadLedger(store, { strict });
   const validations = ((await get("validations")) || {}).items || [];
   const owners = await loadDeviceOwners(store);
-  const adventureTargets = await loadAdventureTargets(fetchJson);
-  if (typeof fetchJson === "function" && adventureTargets === null) {
-    throw new Error("veteran tree register unavailable; refusing to publish community scores");
+  const adventureClaims = reports.some((report) => report && report.adventure === true);
+  let adventureTargets = null;
+  let adventureReportIds = null;
+  if (typeof fetchJson === "function") {
+    adventureTargets = await loadAdventureTargets(fetchJson);
+    if (adventureTargets === null) {
+      if (!allowRegisterFailure) throw new Error("veteran tree register unavailable; refusing to publish community scores");
+      adventureReportIds = new Set(Array.isArray(previous?.adventureReports) ? previous.adventureReports : []);
+    }
+  } else if (adventureClaims) {
+    // A caller without a register fetcher may not publish a snapshot that changes adventure scoring.
+    if (!allowRegisterFailure && !Array.isArray(previous?.adventureReports)) {
+      throw new Error("veteran tree register fetcher required for adventure scores");
+    }
+    adventureReportIds = new Set(Array.isArray(previous?.adventureReports) ? previous.adventureReports : []);
   }
-  const state = computeCommunityState(reports, validations, owners, { adventureTargets });
-  const { overlay, conflicts, conflictDetails, scores, rewards } = state;
+  const state = computeCommunityState(reports, validations, owners, { adventureTargets, adventureReportIds });
+  const { overlay, conflicts, conflictDetails, scores, rewards, adventureReports } = state;
   const generatedAt = Date.now();
   const shards = {};
   for (const [id, score] of Object.entries(scores)) (shards[scoreShard(id)] ||= Object.create(null))[id] = score;
   await mapLimit(Object.entries(shards), 25, ([shard, map]) => store.put(`scores/${shard}`, { generatedAt, scores: map }));
   await store.put(ADMIN_STATS_KEY, { generatedAt, ...communityAdminStats(reports, state, generatedAt) });
-  const computed = { generatedAt, overlay, conflicts, conflictDetails, rewards, reportCount: reports.length };
+  const computed = { generatedAt, overlay, conflicts, conflictDetails, rewards, adventureReports, reportCount: reports.length };
   await store.put("computed", computed);
   return computed;
 }
