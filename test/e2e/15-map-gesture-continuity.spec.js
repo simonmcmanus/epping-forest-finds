@@ -387,10 +387,17 @@ test.describe("Zoom gestures hide the pins and bring them back together", () => 
     await page.evaluate(() => { window.__pins.length = 0; });
     await trackListReplacements(page);
 
-    for (let notch = 0; notch < 6; notch += 1) {
-      await page.mouse.wheel(0, -100);
-      await waitForFrames(page, 2);
-    }
+    // The notches are fired from inside the page on a 30ms timer so the run is one continuous
+    // gesture whatever the machine is doing. Sending each with page.mouse.wheel adds a test-runner
+    // round trip (and a frame wait) between notches that stretches past the 220ms wheel-settle wait
+    // on a loaded CPU; the app then rightly settles and reveals the pins mid-run, which is two
+    // gestures. A stalled main thread still runs the earlier-due notch timer before the settle one.
+    await page.evaluate(async ({ x, y }) => {
+      for (let notch = 0; notch < 6; notch += 1) {
+        els.canvas.dispatchEvent(new WheelEvent("wheel", { deltaY: -100, clientX: x, clientY: y, bubbles: true, cancelable: true }));
+        await new Promise((resolve) => setTimeout(resolve, 30));
+      }
+    }, { x: box.x + box.width / 2, y: box.y + box.height / 3 });
     await expect.poll(() => page.evaluate(() => !zoomGestureLive() && mapPinFadeOpacity() === 1)).toBe(true);
     await expect.poll(() => page.evaluate(() => state.wheelRadiusSettleTimer == null && state.wheelRadiusTargetMinutes == null)).toBe(true);
 
