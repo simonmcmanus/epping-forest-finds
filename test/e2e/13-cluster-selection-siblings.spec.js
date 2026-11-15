@@ -185,4 +185,93 @@ test.describe("A place picked from an expanded group", () => {
     });
     expect(kept).toBe(true);
   });
+
+  test("siblings follow the group's captured membership: a Nearby filter that excludes them does not remove them", async ({ page }) => {
+    await setup(page);
+    await expandSmallGroup(page);
+    await page.locator("#inspectorBody .nearest-item").first().click();
+    await expect.poll(() => page.evaluate(() => selectionClusterGroup() != null)).toBe(true);
+    await waitForUiToSettle(page);
+    const lookupSize = () => page.evaluate(() => Object.values(activeIconLookup()).reduce((n, set) => n + set.size, 0));
+    const before = await lookupSize();
+    expect(before).toBeGreaterThan(0);
+    // The route a reader takes: Map setup, then apply a filter set that covers neither the picked place's nor the sibling's kind.
+    const after = await page.evaluate(() => {
+      openFiltersScreen();
+      applyStagedFilterSet(["events"]);
+      updateFilterUi();
+      return { selected: state.selected?.type ?? null, grouped: selectionClusterGroup() != null };
+    });
+    await waitForUiToSettle(page);
+    expect(after.selected, "opening Map setup and applying filters leaves the selection in place").not.toBeNull();
+    expect(after.grouped, "so the group context stays with it").toBe(true);
+    expect(await lookupSize(), "the siblings are the group's captured members, whatever the filter says").toBe(before);
+    // Leaving the selection removes them, nothing stale remains.
+    await page.evaluate(() => goToInitialView());
+    await expect.poll(() => page.evaluate(() => state.selected)).toBeNull();
+    expect(await page.evaluate(() => state.selectionCluster)).toBeNull();
+    expect(await page.evaluate(() => activeIconLookup() === buildNearbyIconLookup())).toBe(true);
+  });
+
+  test("History: each pick from the group pushes one entry; Back from a sibling returns to the previous place (group context gone), Back again to the group", async ({ page }) => {
+    await setup(page);
+    await expandSmallGroup(page);
+    const depth = () => page.evaluate(() => history.length);
+    const start = await depth();
+    await page.locator("#inspectorBody .nearest-item").first().click();
+    await expect.poll(() => page.evaluate(() => selectionClusterGroup() != null)).toBe(true);
+    await waitForUiToSettle(page);
+    const first = await page.evaluate(() => state.selected.item.id ?? state.selected.item.name);
+    expect(await depth(), "picking from the group pushes one entry").toBe(start + 1);
+    await page.evaluate(() => {
+      const sibling = Object.values(activeIconLookup()).flatMap((set) => [...set])[0];
+      const type = Object.keys(activeIconLookup()).find((key) => activeIconLookup()[key].has?.(sibling));
+      const key = SELECTION_ROUTES.find((route) => route.type === type).toKey(sibling);
+      focusOverviewItem(type, key);
+    });
+    await waitForUiToSettle(page);
+    const second = await page.evaluate(() => state.selected.item.id ?? state.selected.item.name);
+    expect(second).not.toBe(first);
+    expect(await depth(), "stepping to a sibling pushes one more entry").toBe(start + 2);
+
+    await page.goBack();
+    await expect.poll(() => page.evaluate(() => state.selected?.item?.id ?? state.selected?.item?.name)).toBe(first);
+    await waitForUiToSettle(page);
+    expect(await page.evaluate(() => state.selectionCluster), "the previous place reopens as a plain selection: its group context is not in history").toBeNull();
+    await page.goBack();
+    await expect.poll(() => page.evaluate(() => state.selected)).toBeNull();
+    await waitForUiToSettle(page);
+    expect(await page.evaluate(() => Boolean(state.clusterExpanded)), "the group itself is restored").toBe(true);
+  });
+
+  test("dimmed siblings are drawn on the overlay canvas, still dimmed, with the phone held up and tilted", async ({ page }) => {
+    await setup(page);
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await expandSmallGroup(page);
+    await page.locator("#inspectorBody .nearest-item").first().click();
+    await expect.poll(() => page.evaluate(() => selectionClusterGroup() != null)).toBe(true);
+    await waitForUiToSettle(page);
+    await page.evaluate(async () => {
+      window.__keepCompassFresh = setInterval(() => { state.compassLastEventAt = performance.now(); }, 50);
+      state.compassHeadingTarget = 0; state.compassHeading = 0; state.renderedNavigationHeading = 0;
+      state.compassLastEventAt = performance.now();
+      state.tiltBetaTarget = 55; state.tiltBetaSmoothed = 55;
+      window.__overlayPins = [];
+      const draw = window.drawItemPin;
+      window.drawItemPin = function (ctx) {
+        window.__overlayPins.push({ overlay: ctx.canvas === els.overlayCanvas, alpha: ctx.globalAlpha });
+        return draw.apply(this, arguments);
+      };
+      stopViewportAnimation();
+      requestDraw();
+    });
+    await expect.poll(() => page.evaluate(() => tiltActive())).toBe(true);
+    await page.evaluate(() => { window.__overlayPins.length = 0; drawOverlay(); });
+    const pins = await page.evaluate(() => { clearInterval(window.__keepCompassFresh); return window.__overlayPins; });
+    expect(pins.length, "siblings are drawn in the tilted view").toBeGreaterThan(0);
+    for (const pin of pins) {
+      expect(pin.overlay).toBe(true);
+      expect(pin.alpha).toBeLessThanOrEqual(0.45);
+    }
+  });
 });

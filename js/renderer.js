@@ -3053,9 +3053,7 @@ function clusterGroupHasItem(group, item) {
 function selectionClusterGroup() {
   const group = state.selectionCluster;
   if (!group) return null;
-  if (hasRealSelection() && clusterGroupHasItem(group, state.selected.item)) return group;
-  state.selectionCluster = null;
-  return null;
+  return hasRealSelection() && clusterGroupHasItem(group, state.selected.item) ? group : null;
 }
 
 // While a place picked from an expanded group is selected, the group's other members stay on the

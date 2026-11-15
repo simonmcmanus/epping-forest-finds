@@ -15778,7 +15778,7 @@ test("Outbox drops a queued item the server refuses with a 4xx straight away", a
 });
 
 // Picking a place out of an expanded group keeps the group's other members on the map, dimmed
-// (spec-data-rendering.md "Places picked from a group"). Real functions throughout: a group tap, a
+// (spec-data-rendering.md "A place picked from an expanded group stays one of the group"). Real functions throughout: a group tap, a
 // list pick or map tap, the history stub's Back, and the renderer's own lookup and hit test.
 function siblingGroupFixture() {
   resetData(app);
@@ -15850,10 +15850,13 @@ test("tapping a dimmed sibling selects it and keeps the group; the selected plac
 
   // A sibling standing on the selected place's own pin must not take the tap.
   const original = trees[1].point;
-  trees[1].point = { ...trees[2].point };
-  const overlapTap = pinTapPoint(app, trees[2].point);
-  assert.equal(app.findHit(overlapTap, app.screenToWorld(overlapTap.x, overlapTap.y)).item, trees[2]);
-  trees[1].point = original;
+  try {
+    trees[1].point = { ...trees[2].point };
+    const overlapTap = pinTapPoint(app, trees[2].point);
+    assert.equal(app.findHit(overlapTap, app.screenToWorld(overlapTap.x, overlapTap.y)).item, trees[2]);
+  } finally {
+    trees[1].point = original;
+  }
 });
 
 test("a pin outside the group is not tappable while a group place is selected, and a tap on open ground leaves the group", () => {
