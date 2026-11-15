@@ -51,9 +51,11 @@ Glossary and decisions live in `spec/`, not `GLOSSARY.md`/`docs/adr/`. See `docs
 
 ## Team of agents
 
-Use the lead's `/team` playbook for a coherent batch of related work. A branch and PR represent the
-batch, not necessarily one issue. Include associated specs, tests and review fixes together; separate
-unrelated, independently deployable or incompatible-risk changes. The user can authorize an overall
+Any change to the app or website (code, markup, styles, icons, tests, specs or `data/**`) starts with
+the `team` skill via the Skill tool; it is the default workflow, not an optional one. Only read-only
+questions skip it. Use the lead's `/team` playbook for a coherent batch of related work. A branch and
+PR represent the batch, not necessarily one issue. Include associated specs, tests and review fixes
+together; separate unrelated, independently deployable or incompatible-risk changes. The user can authorize an overall
 batch once; do not ask again for its routine subtasks. Serialize hot-file changes within the batch.
 
 The definitions in `.claude/agents/` are short-lived custom subagents. The
