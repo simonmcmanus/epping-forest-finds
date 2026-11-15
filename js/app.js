@@ -2349,7 +2349,7 @@ function openFilterSetup() {
   showOnboarding({ mode: "filters" }).then((result) => {
     state.filterScreenOpen = false;
     const saved = Array.isArray(result.filters) && applyStagedFilterSet(result.filters);
-    if (!saved && openedOverUrl) history.replaceState(history.state, "", openedOverUrl);
+    if (!saved && openedOverUrl) writeHistoryEntry("replaceState", history.state, openedOverUrl);
     updateFilterUi();
     if (window.location.pathname === ROUTE_PATHS[ROUTE_FILTERS]) {
       replaceHashInPlace("");
@@ -3163,7 +3163,7 @@ function syncRailUrl() {
   if (routeApplyDepth > 0 || routerBooting) return;
   const url = `${NEARBY_PATH}${searchStringForPath(NEARBY_PATH)}${window.location.hash}`;
   if (`${window.location.pathname}${window.location.search}${window.location.hash}` === url) return;
-  history.replaceState(history.state, "", url);
+  writeHistoryEntry("replaceState", history.state, url);
 }
 
 // Saves a filter set: the reader's own choice, which persists and moves a view (a landing or an old ?show=
