@@ -766,5 +766,83 @@ test.describe("3D tilt first move from Nearby into a place", () => {
       expect(Math.min(...result.ys), `You marker never rises more than 15% of the map band above ${start} -> ${result.settled}`).toBeGreaterThanOrEqual(floor);
       expect(Math.abs(result.ys[result.ys.length - 1] - result.settled), "the last sampled frame is the settled position").toBeLessThan(1);
     });
+
+    test(`a first move from a far browse anchor at heading ${heading} keeps the You marker between where it starts and lands, with the horizon off the top`, async ({ page }) => {
+      // Browsing a spot about a kilometre away, then tapping a place: the browse-origin slide and the
+      // selection's camera move run together, and the camera origin they rotate and tilt about travels
+      // through the screen on the way. The "You" marker used to be eased in raw screen space, so with the
+      // origin in motion it swung well below both ends (the lowest sample sat ~700 canvas px under the
+      // landing spot), and the horizon row was the origin's to carry. Frames are driven by hand here: this
+      // test's subject is the path the marker takes, so how fast headless paints must not change the
+      // samples.
+      await setup(page, "/nearby");
+      await expect.poll(() => page.evaluate(() => Math.abs((state.userLocation?.latitude ?? 0) - 51.6555) < 1e-6 && !state.userLocation.isDefault)).toBe(true);
+      await page.evaluate((h) => {
+        state.map3dEnabled = true;
+        state.compassHeadingTarget = h;
+        state.compassHeading = h;
+        state.renderedNavigationHeading = h;
+        state.compassLastEventAt = performance.now();
+        state.tiltBetaTarget = 60;
+        state.tiltBetaSmoothed = 60;
+      }, heading);
+
+      const result = await page.evaluate(() => {
+        window.__now = performance.now();
+        window.__frames = [];
+        window.requestAnimationFrame = (callback) => { window.__frames.push(callback); return window.__frames.length; };
+        performance.now = () => window.__now;
+        const stepFrame = (ms) => {
+          window.__now = ms;
+          const batch = window.__frames;
+          window.__frames = [];
+          for (const callback of batch) callback(ms);
+        };
+        let clock = window.__now;
+        const advance = (limit) => {
+          for (let i = 0; i < limit && (state.viewportAnimationTo != null || state.nearbyOriginTransition || window.__frames.length); i += 1) {
+            clock += 16;
+            stepFrame(clock);
+          }
+        };
+
+        setNearbyAnchor(state.userLocation.latitude + 0.012, state.userLocation.longitude + 0.012,
+          projectLonLat(state.userLocation.longitude + 0.012, state.userLocation.latitude + 0.012));
+        advance(400);
+        stopViewportAnimation();
+        alignHeadingUpNavigationViewport({ force: true });
+        draw();
+
+        const samples = [];
+        const sample = () => {
+          draw();
+          samples.push({ y: worldToScreen(state.userLocation.point).y, horizon: tiltHorizonCanvasY() });
+        };
+        sample();
+        navigateInApp("/find/lidl/");
+        sample();
+        for (let i = 0; i < 400 && (state.viewportAnimationTo != null || window.__frames.length); i += 1) {
+          clock += 16;
+          stepFrame(clock);
+          sample();
+        }
+        return { samples, canvasHeight: els.canvas.height, selected: state.selected?.type ?? null };
+      });
+
+      expect(result.selected, "sanity: the place was selected").toBe("landmark");
+      expect(result.samples.length, "frames were sampled through the move").toBeGreaterThan(10);
+      const ys = result.samples.map((s) => s.y);
+      const start = ys[0];
+      const settled = ys[ys.length - 1];
+      // A tenth of the canvas height is the room the marker may use on its way: a straight path with the
+      // origin settling on its landing point stays within a few tens of pixels of that band.
+      const slack = result.canvasHeight * 0.1;
+      const low = Math.min(start, settled) - slack;
+      const high = Math.max(start, settled) + slack;
+      const worst = Math.max(...ys.map((y) => Math.max(low - y, y - high, 0)));
+      expect(worst, `the You marker strayed ${worst.toFixed(0)}px outside ${start.toFixed(0)} -> ${settled.toFixed(0)}`).toBe(0);
+      const horizonMax = Math.max(...result.samples.slice(1).map((s) => s.horizon));
+      expect(horizonMax, "the horizon stays above the top of the canvas for the whole move").toBeLessThan(0);
+    });
   }
 });
