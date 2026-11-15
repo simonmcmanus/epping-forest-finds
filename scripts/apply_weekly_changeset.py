@@ -224,18 +224,22 @@ def build_feature(entry, segments, ref_lat_rad):
     }
 
 
-def apply_changeset(master, changeset, segments, ref_lat_rad):
+def record_ids(features):
+    ids = set()
+    for feature in features:
+        props = feature["properties"]
+        ids.update((feature.get("id"), props.get("id")))
+        if props.get("osmType") and props.get("osmId") is not None:
+            ids.add(f"{props['osmType']}/{props['osmId']}")
+    return ids
+
+
+def apply_changeset(master, changeset, segments, ref_lat_rad, live_record_ids=None):
     """Mutates master['features'] in place. Returns a log dict."""
     features = master["features"]
     log = {"added": [], "removed": [], "enriched": [], "skipped": []}
-    # Redirects also document renames of still-live records. Keep those IDs
-    # eligible across a remove/add changed-hands replacement in this batch.
-    live_ids = set()
-    for feature in features:
-        props = feature["properties"]
-        live_ids.update((feature.get("id"), props.get("id")))
-        if props.get("osmType") and props.get("osmId") is not None:
-            live_ids.add(f"{props['osmType']}/{props['osmId']}")
+    # Capture identities before removals, including other split files in CLI runs.
+    live_ids = live_record_ids if live_record_ids is not None else record_ids(features)
 
     for entry in changeset.get("remove", []):
         target_name = entry.get("name")
@@ -393,20 +397,13 @@ def main():
         per_file = split_changeset_by_file(changeset, datasets)
 
     log = {"added": [], "removed": [], "enriched": [], "skipped": []}
-    # Redirects also document renames of still-live records. Keep those IDs
-    # eligible across a remove/add changed-hands replacement in this batch.
-    live_ids = set()
-    for feature in features:
-        props = feature["properties"]
-        live_ids.update((feature.get("id"), props.get("id")))
-        if props.get("osmType") and props.get("osmId") is not None:
-            live_ids.add(f"{props['osmType']}/{props['osmId']}")
+    live_ids = record_ids([feature for dataset in datasets.values() for feature in dataset["features"]])
     written = []
     for path, dataset in datasets.items():
         part = per_file[path]
         if not any(part.get(op) for op in ("add", "remove", "enrich")):
             continue
-        file_log = apply_changeset(dataset, part, segments, ref_lat_rad)
+        file_log = apply_changeset(dataset, part, segments, ref_lat_rad, live_record_ids=live_ids)
         for key in log:
             log[key].extend(file_log[key])
         dataset["generatedAt"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")

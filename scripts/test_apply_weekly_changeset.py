@@ -6,6 +6,9 @@ Run with:  python3 -m unittest scripts.test_apply_weekly_changeset -v
        or:  python3 scripts/test_apply_weekly_changeset.py
 """
 import copy
+import json
+import io
+from contextlib import redirect_stdout, redirect_stderr
 import sys
 import unittest
 import tempfile
@@ -364,6 +367,31 @@ class VenueCategoryTests(unittest.TestCase):
 class FileRoutingTests(unittest.TestCase):
     """With no master file to re-split from (the unattended path), each entry
     has to be written to the split file it belongs in."""
+
+    def test_cli_replaces_a_live_renamed_record_across_split_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            food, misc = root / "food.json", root / "misc.json"
+            boundary, changes = root / "boundary.json", root / "changes.json"
+            existing = make_existing_feature("Old shop")
+            existing["id"] = existing["properties"]["id"] = "node/123"
+            existing["properties"].update(osmType="node", osmId=123)
+            food.write_text(json.dumps(make_master([existing])))
+            misc.write_text(json.dumps(make_master()))
+            boundary.write_text(json.dumps(SQUARE_BOUNDARY))
+            (root / "netlify.toml").write_text('# was node/123 at 51.652,0.057\n')
+            changes.write_text(json.dumps({"remove": [{"id": "node/123"}], "add": [{
+                "id": "node/123", "osmType": "node", "osmId": 123, "name": "New hall",
+                "category": "public_hall", "lon": 0.057, "lat": 51.652}]}))
+            with patch.multiple(awc, ROOT=root, FOOD_FILE=food, MISC_FILE=misc,
+                                MASTER_FILE=root / "absent.json", FOREST_BOUNDARY_FILE=boundary), \
+                    patch.object(sys, "argv", ["apply_weekly_changeset.py", str(changes)]), \
+                    redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+                awc.main()
+            self.assertEqual(json.loads(food.read_text())["features"], [])
+            written = json.loads(misc.read_text())["features"]
+            self.assertEqual(len(written), 1)
+            self.assertEqual(written[0]["properties"]["name"], "New hall")
 
     def test_food_and_venues_go_to_different_files(self):
         self.assertEqual(awc.file_for_category("cafe"), awc.FOOD_FILE)
