@@ -675,6 +675,11 @@ moving the real GPS fix:
   attribute (`roundWalkingMinutes`). Sub-minute radii are shown in seconds ("15 sec"); everywhere
   else the continuous minutes value is rounded to the nearest whole minute for display —
   `formatWalkingRadius()` is what every user-facing radius label goes through.
+  Reaching either zoom limit with a pinch, Safari gesture or wheel briefly tints only the
+  circle's rim a soft red: 90ms fade in to 30% opacity, then 220ms fade out. The map and
+  clear interior stay unchanged. Holding against a limit does not restart the pulse; moving
+  back into range or ending the gesture re-arms it. This colour-only feedback also applies
+  with reduced motion, without moving or scaling the circle.
   While a pinch is actively pinned at the floor, `state.walkingRadiusAtFloor` is true
   and `overviewNearestHtml()` shows a transient "nothing closer to show" notice
   (`.walk-radius-floor-notice`); both clear as soon as the gesture ends or backs off. That notice

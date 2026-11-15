@@ -2158,8 +2158,13 @@ function flushRadiusGesture() {
 // the floor is the one scanned at the start. The gesture's end handler calls refreshNearbyRadiusView
 // once, which recalculates the items, re-renders the list and brings the pins back.
 
+let _radiusGestureLimit = null;
+
 function applyWalkingRadiusGesture(rawMinutes) {
   const floor = zoomGestureFloorMinutes();
+  const limit = rawMinutes <= floor ? "floor" : rawMinutes >= WALKING_RADIUS_MAX_MINUTES ? "ceiling" : null;
+  if (limit && limit !== _radiusGestureLimit) pulseWalkingRadiusLimit();
+  _radiusGestureLimit = limit;
   const atFloor = rawMinutes < floor;
   const flagChanged = atFloor !== state.walkingRadiusAtFloor;
   state.walkingRadiusAtFloor = atFloor;
@@ -2323,6 +2328,7 @@ function endNearbyRadiusWheel() {
   state.wheelRadiusOvershoot = false;
   cancelRadiusChase();
   state.walkingRadiusAtFloor = false;
+  _radiusGestureLimit = null;
   endZoomGesture("wheel");
   // The glide's last tick already fitted the camera to this radius (and the pins were revealed at
   // arrival), so the settle re-fits instantly instead of animating a camera move under the reveal.
@@ -2368,6 +2374,7 @@ function endNearbyRadiusGesture() {
   flushRadiusGesture();
   state.gestureRadiusBaseMinutes = null;
   state.walkingRadiusAtFloor = false;
+  _radiusGestureLimit = null;
   endZoomGesture("safari");
   finishRadiusGesture();
   syncSettingsWalkSlider();
@@ -2391,6 +2398,7 @@ function endNearbyRadiusPinch() {
   state.pinchBaseDistance = null;
   state.pinchBaseMinutes = null;
   state.walkingRadiusAtFloor = false;
+  _radiusGestureLimit = null;
   endZoomGesture("pinch");
   // One smooth settling animation now that the gesture has ended, mirroring the single
   // animated re-fit a Settings-slider release triggers (bindSettingsHandlers, index.html).

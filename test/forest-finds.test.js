@@ -3767,6 +3767,52 @@ test("walking radius marker still draws when nearest results use fallback", () =
   assert.equal(arcCount, 2);
 });
 
+test("the radius rim briefly fades red at either zoom limit and re-arms after backing off", () => {
+  const isolated = loadAppForTests();
+  resetData(isolated);
+  isolated.state.userLocation = makePoint(isolated, 0, 0);
+  isolated.state.overviewFilters = ["trees"];
+  const floor = isolated.walkingRadiusFloorMinutes();
+  const ctx = createElementStub().getContext();
+  ctx.rect = () => {};
+  let red = 0;
+  ctx.stroke = function () {
+    if (typeof this.strokeStyle === "string" && this.strokeStyle.startsWith("rgba(205, 75, 65,")) {
+      red = Number(this.strokeStyle.split(",")[3].replace(")", ""));
+    }
+  };
+  const paint = () => { red = 0; isolated.drawWalkingRadius(ctx); return red; };
+  const realNow = Date.now;
+  let now = realNow();
+  Date.now = () => now;
+  try {
+    for (const limit of [floor, isolated.WALKING_RADIUS_MAX_MINUTES]) {
+      isolated.applyWalkingRadiusGesture(floor * 2);
+      now += 1000;
+      assert.equal(paint(), 0, "in-range zoom has the ordinary rim");
+      isolated.applyWalkingRadiusGesture(limit);
+      assert.equal(paint(), 0, "the tint starts transparent");
+      now += 45;
+      const rising = paint();
+      assert.ok(rising > 0 && rising < 0.3, "the border gently fades red");
+      now += 45;
+      const peak = paint();
+      assert.ok(peak > rising && peak <= 0.3, "the red stays subtle");
+      now += 110;
+      assert.ok(paint() < peak, "it fades away quickly");
+      now += 200;
+      isolated.applyWalkingRadiusGesture(limit);
+      assert.equal(paint(), 0, "holding against the same limit does not restart the pulse");
+      isolated.applyWalkingRadiusGesture(floor * 2);
+      isolated.applyWalkingRadiusGesture(limit);
+      now += 90;
+      assert.ok(paint() > 0, "backing off re-arms feedback for the next hit");
+    }
+  } finally {
+    Date.now = realNow;
+  }
+});
+
 test("walking radius stays at the camera focus during the cinematic location handoff", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);

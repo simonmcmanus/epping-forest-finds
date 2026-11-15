@@ -1227,6 +1227,27 @@ function drawWalkingRadiusDimming(ctx, center, radiusPx, tilted, cone) {
 const NEARBY_RIM_HIGHLIGHT = "rgba(255, 250, 235, 0.55)";
 const NEARBY_RIM_SHADOW = "rgba(20, 30, 24, 0.16)";
 
+// A single soft colour pulse; holding a gesture against the limit must not keep it lit.
+let _walkingRadiusLimitStartedAt = null;
+const WALKING_RADIUS_LIMIT_FADE_IN_MS = 90;
+const WALKING_RADIUS_LIMIT_FADE_OUT_MS = 220;
+
+function pulseWalkingRadiusLimit() {
+  _walkingRadiusLimitStartedAt = performance.now();
+  requestDraw();
+}
+
+function walkingRadiusLimitOpacity(now = performance.now()) {
+  if (_walkingRadiusLimitStartedAt == null) return 0;
+  const elapsed = Math.max(0, now - _walkingRadiusLimitStartedAt);
+  const duration = WALKING_RADIUS_LIMIT_FADE_IN_MS + WALKING_RADIUS_LIMIT_FADE_OUT_MS;
+  if (elapsed >= duration) return 0;
+  requestDraw();
+  return 0.3 * (elapsed < WALKING_RADIUS_LIMIT_FADE_IN_MS
+    ? elapsed / WALKING_RADIUS_LIMIT_FADE_IN_MS
+    : 1 - (elapsed - WALKING_RADIUS_LIMIT_FADE_IN_MS) / WALKING_RADIUS_LIMIT_FADE_OUT_MS);
+}
+
 function drawWalkingRadiusRimHighlight(ctx, center, radiusPx, tilted, dpr) {
   const lineWidth = Math.max(1.5 * dpr, radiusPx * 0.012);
   const inset = lineWidth * 1.2;
@@ -1241,6 +1262,11 @@ function drawWalkingRadiusRimHighlight(ctx, center, radiusPx, tilted, dpr) {
   ctx.strokeStyle = gradient;
   ctx.lineWidth = lineWidth;
   ctx.stroke();
+  const limitOpacity = walkingRadiusLimitOpacity();
+  if (limitOpacity > 0) {
+    ctx.strokeStyle = `rgba(205, 75, 65, ${limitOpacity})`;
+    ctx.stroke();
+  }
   ctx.restore();
 }
 
