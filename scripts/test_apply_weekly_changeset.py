@@ -159,6 +159,23 @@ class TestApplyChangeset(unittest.TestCase):
             self.assertEqual(len(log["added"]), 1)
             self.assertEqual(log["skipped"], [])
 
+    def test_a_live_renamed_osm_record_can_be_replaced_when_it_changes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "netlify.toml").write_text('# was node/123 at 51.652,0.057\n')
+            existing = make_existing_feature("Canonical shop")
+            existing["id"] = existing["properties"]["id"] = "node/123"
+            existing["properties"].update(osmType="node", osmId=123)
+            master = make_master([existing])
+            entry = {"name": "New operator", "category": "convenience", "lon": 0.057, "lat": 51.652,
+                     "osmType": "node", "osmId": 123}
+            with patch.object(awc, "ROOT", root):
+                log = awc.apply_changeset(master, {"remove": [{"id": "node/123"}], "add": [entry]},
+                                          self.segments, self.ref_lat_rad)
+            self.assertEqual(len(master["features"]), 1)
+            self.assertEqual(master["features"][0]["properties"]["name"], "New operator")
+            self.assertEqual(len(log["added"]), 1)
+
     def test_merge_history_does_not_block_a_different_osm_record(self):
         master = make_master()
         entry = {"id": "node/999999999999", "name": "1 Stop Halal at Tesco",

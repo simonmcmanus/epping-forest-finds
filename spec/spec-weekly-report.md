@@ -189,6 +189,7 @@ Guard rails, because this runs unattended:
 The apply script also refuses additions whose record ID appears in the merge
 provenance (`# was <id> at ...`) in `netlify.toml`, even if the source changes
 the name or the watchlist dismissal is absent. It logs a skip for human review;
+IDs present before the changeset remain eligible for changed-hands replacements;
 a generated manual ID is matched only within 100 metres of the old position,
 so a new branch elsewhere remains eligible under the usual checks.
 

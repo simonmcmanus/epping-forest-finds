@@ -228,6 +228,14 @@ def apply_changeset(master, changeset, segments, ref_lat_rad):
     """Mutates master['features'] in place. Returns a log dict."""
     features = master["features"]
     log = {"added": [], "removed": [], "enriched": [], "skipped": []}
+    # Redirects also document renames of still-live records. Keep those IDs
+    # eligible across a remove/add changed-hands replacement in this batch.
+    live_ids = set()
+    for feature in features:
+        props = feature["properties"]
+        live_ids.update((feature.get("id"), props.get("id")))
+        if props.get("osmType") and props.get("osmId") is not None:
+            live_ids.add(f"{props['osmType']}/{props['osmId']}")
 
     for entry in changeset.get("remove", []):
         target_name = entry.get("name")
@@ -271,11 +279,11 @@ def apply_changeset(master, changeset, segments, ref_lat_rad):
         osm_id = None
         if entry.get("osmType") and entry.get("osmId") is not None:
             osm_id = f"{entry['osmType']}/{entry['osmId']}"
-        merged_id = next((key for key in (entry_id, osm_id) if key in merged_places), None)
+        merged_id = next((key for key in (entry_id, osm_id) if key in merged_places and key not in live_ids), None)
         # A generated manual ID is name-based, so only reuse its merge
         # decision near the old premises; another branch may share the name.
         fallback_id = f"manual/{slugify(entry['name'])}"
-        if not merged_id and not entry_id and fallback_id in merged_places:
+        if not merged_id and not entry_id and fallback_id in merged_places and fallback_id not in live_ids:
             if metres_between((float(entry["lon"]), float(entry["lat"])), merged_places[fallback_id]) < 100:
                 merged_id = fallback_id
         if merged_id:
@@ -385,6 +393,14 @@ def main():
         per_file = split_changeset_by_file(changeset, datasets)
 
     log = {"added": [], "removed": [], "enriched": [], "skipped": []}
+    # Redirects also document renames of still-live records. Keep those IDs
+    # eligible across a remove/add changed-hands replacement in this batch.
+    live_ids = set()
+    for feature in features:
+        props = feature["properties"]
+        live_ids.update((feature.get("id"), props.get("id")))
+        if props.get("osmType") and props.get("osmId") is not None:
+            live_ids.add(f"{props['osmType']}/{props['osmId']}")
     written = []
     for path, dataset in datasets.items():
         part = per_file[path]
