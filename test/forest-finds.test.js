@@ -7051,6 +7051,27 @@ test("a browse-origin slide overlapping a pure-pan camera tween keeps the pause 
   });
 });
 
+test("an unrelated pure-pan tween that starts after a slide has run out does not extend the slide's hide", () => {
+  setUpCameraTransition();
+  withCameraFrames(({ at, stepCamera }) => {
+    at(0);
+    app.buildActiveMapMarkers(app.worldToScreen, false);
+    app.startNearbyOriginTransition({ x: 0, y: 0 });
+    const slideMs = app.state.nearbyOriginTransition.durationMs;
+    assert.equal(app.markerGroupingPaused(), true);
+    // The slide's time has run out; before any frame notices, a GPS-style tween that would not pause
+    // on its own starts and outlives it.
+    at(slideMs + 10);
+    assert.equal(app.moveCamera({ scale: 1, tx: 30, ty: 10 }, 2000), "started");
+    stepCamera(slideMs + 10);
+    app.prepareCanvasForDraw();
+    app.reconcileMarkerPauses();
+    assert.equal(app.markerGroupingPaused(), false, "the pins are back at the slide's landing, not when the unrelated tween ends");
+    assert.ok(app.state.viewportAnimationTo, "sanity: the unrelated tween is still flying");
+    app.stopViewportAnimation();
+  });
+});
+
 test("a camera move pauses the pins only when its scale change could visibly regroup them", () => {
   setUpCameraTransition();
   const ratio = app.MARKER_PAUSE_SCALE_RATIO;

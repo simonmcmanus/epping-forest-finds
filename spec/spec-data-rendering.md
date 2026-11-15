@@ -95,7 +95,7 @@ holds** before clearing it. Clearing alone is not enough: `draw()` is also calle
 the location gate, the compass loop), which drops the flag while a queued frame is still pending,
 so the next `requestDraw()` queues a second paint for the same frame. Since most draws end by
 requesting the next one — `prepareCanvasForDraw()` does exactly that for as long as a
-browse-origin slide or its reveal fade is running — each duplicate re-queues itself and the
+browse-origin slide is running (the pin fade has its own redraw request) — each duplicate re-queues itself and the
 pile-up persists: measured at four full map paints per animation frame during a browse-origin
 slide, around 100ms of redundant work per frame, which ran that animation at a fraction of the
 frame rate and made the camera move in visible steps. Cancelling collapses any pile-up back to
@@ -639,16 +639,25 @@ moving the real GPS fix:
   never regroups and never hides. The threshold is its own constant, not the 0.5% same-target dedupe:
   grouping is hysteretic (a group splits only beyond `MARKER_SPLIT_BOX_FACTOR`, 1.25x, of the box that
   merged it), so a scale change well inside that (panel minimise/expand recentre, resize, GPS refit)
-  cannot visibly regroup and keeps its live pins; below the threshold the pins are rebuilt live with
-  their grouping memory as usual. Every browse-origin
+  does not split a remembered group and keeps its live pins; below the threshold the pins are rebuilt
+  live with their grouping memory as usual. That is a bound, not a guarantee that nothing regroups:
+  never-grouped pins near the merge boundary can still merge mid-move (with the usual join
+  animation), and `resetMarkerGroupMemory()` on landing can re-form groups without a fade, including
+  after a sub-threshold tween that did not pause. The landing reset is kept for every programmatic
+  move because the resting layout must not depend on the path the camera took (see "When memory
+  applies and when it is cleared"); that residual silent regroup is accepted. Every browse-origin
   slide (`startNearbyOriginTransition`) pauses, since it moves where the set is anchored and eases
   the scale. There is no gradual per-slide reveal and no separate "hold" mode: every transition,
   including a cluster tap, fades the old set out once and reveals the fresh set once. A compound
   transition (a cluster tap's slide with its staged pan then zoom, Back/forward mid-flight) holds the
   pause across every leg: the slide's pause ends only when the slide's own time has run out and no
-  camera tween is still flying (`nearbyOriginSlideHoldsPause`, since `prepareCanvasForDraw` drops the
-  slide object while a tween runs), so there is one hide at the start and one reveal after the last
-  leg lands. The slide object lives only for the slide itself (`nearbyRevealInProgress`); the frame it
+  camera tween of its compound transition is still flying (`nearbyOriginSlideHoldsPause`, since
+  `prepareCanvasForDraw` drops the slide object while a tween runs), so there is one hide at the start
+  and one reveal after the last leg lands. A leg belongs to the transition when it started while the
+  slide's time was running or chained from the landing of such a leg; an unrelated tween that starts
+  after the slide has run out (a GPS or compass refit, a heading-up align) does not extend the hide.
+  A place selected while pins are paused or fading (`startCameraOriginTransition`) records no outgoing
+  set, so `drawSelectionExitMarkers` does not repaint pins the user already watched leave. The slide object lives only for the slide itself (`nearbyRevealInProgress`); the frame it
   lands on runs the last forced align, so the walking-radius circle does not twitch, and no later
   frames are spent. A snapped `moveCamera` hides nothing; a tween replaced by the next keeps one
   continuous pause and continues from the current opacity; one cancelled by the user

@@ -1576,6 +1576,7 @@ function stopViewportAnimation({ keepMarkerPause = false } = {}) {
   state.locationRevealFocusPoint = null;
   state.viewportAnimationStartTime = null;
   state.viewportAnimationDuration = 0;
+  _tweenOwnedBySlide = false;
   // The camera has just been told "stop, you're done" -- a pin-level cluster-join animation
   // still running against a now-unmoving view is the same kind of stale motion, so it settles
   // too. See settleClusterJoinAnimations (js/renderer.js).
@@ -1589,10 +1590,13 @@ const VIEWPORT_ANIMATION_SAME_TARGET_SCALE_RATIO = 0.005;
 // How far a camera tween must change the scale before marker grouping pauses for it (see
 // markerGroupingPaused, js/nav.js). Grouping is hysteretic: a group only splits once its members
 // spread beyond MARKER_SPLIT_BOX_FACTOR (1.25x) of the box that merged them, so a remembered group
-// cannot split for a scale change well inside that. 1.1x (a tenth, under half the 25% tolerance)
+// is not split by a scale change well inside that. 1.1x (a tenth, under half the 25% tolerance)
 // leaves that margin: panel minimise/expand recentres, resizes and GPS refits stay under it and keep
 // their live pins, while a deliberate zoom (a refit to a new radius, a cluster zoom, an arc) is far over.
-// Below the threshold the pins are rebuilt live as usual, with grouping memory intact.
+// Below the threshold the pins are rebuilt live as usual. That is not a guarantee nothing regroups:
+// never-grouped pins near the merge boundary can still merge mid-move (with the join animation), and
+// resetMarkerGroupMemory() on landing can re-form groups without a fade (kept: the resting layout must
+// not depend on the path the camera took).
 const MARKER_PAUSE_SCALE_RATIO = 1.1;
 const VIEWPORT_ANIMATION_SAME_TARGET_PX = 6;
 
@@ -1701,6 +1705,12 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
   // deliberate arc does not take over the walking-radius ring's screen position (the reveal flags
   // stay cinematic-only) and keeps the same-target dedupe above.
   stopViewportAnimation({ keepMarkerPause: true });
+  // Does this tween belong to the pausing browse-origin slide's compound transition: started while
+  // the slide's time was running, or chained from the landing of such a tween (the staged pan then
+  // zoom)? Only those extend the slide's hide (nearbyOriginSlideHoldsPause); an unrelated later tween
+  // (a GPS or compass refit) pauses on its own merits or not at all.
+  const ownedBySlide = Boolean(_pausingNearbySlide)
+    && (_slideLegLanding || performance.now() <= _pausingNearbySlide.startedAt + _pausingNearbySlide.durationMs);
   // A real camera tween owns the zoom from here, so a browse-origin slide must not keep easing back
   // towards the zoom it started from once this tween has landed.
   if (state.nearbyOriginTransition) state.nearbyOriginTransition.fromScale = null;
@@ -1783,6 +1793,7 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
   state.locationRevealAnimationActive = cinematic;
   state.locationRevealFocusPoint = cinematic ? { x: focusPoint.x, y: focusPoint.y } : null;
   state.viewportAnimationDuration = safeDuration;
+  _tweenOwnedBySlide = ownedBySlide;
 
   const tick = (timestamp) => {
     // Keep the timestamp through rendering so a thrown frame cannot hide a stranded camera.
@@ -1829,7 +1840,12 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
       if (typeof resetMarkerGroupMemory === "function") resetMarkerGroupMemory();
       stopViewportAnimation();
       requestDraw();
-      if (typeof onComplete === "function") onComplete();
+      _slideLegLanding = ownedBySlide;
+      try {
+        if (typeof onComplete === "function") onComplete();
+      } finally {
+        _slideLegLanding = false;
+      }
       return;
     }
 
@@ -4469,7 +4485,12 @@ function startCameraOriginTransition() {
   // Keep a render-only snapshot of the set that is leaving. Hit testing still switches to the
   // destination lookup immediately, but the old pins can now fade out in order instead of
   // disappearing as one opaque slab and leaving a blank map under the camera move.
-  state.selectionTransition.outgoingIconLookup = !hasRealSelection()
+  // Not when a marker pause has already faded the pins out (or is fading them): the exit paint
+  // rebuilds the outgoing set live at full opacity, which would bring a set the user watched leave
+  // (and, under a pause, a different grouping from the frozen one) back for a moment.
+  const pinsAlreadyLeaving = (typeof markerGroupingPaused === "function" && markerGroupingPaused())
+    || (typeof mapPinFadeOpacity === "function" && mapPinFadeOpacity() < 1);
+  state.selectionTransition.outgoingIconLookup = !hasRealSelection() && !pinsAlreadyLeaving
     && typeof activeIconLookup === "function"
     ? activeIconLookup()
     : null;
@@ -4577,12 +4598,21 @@ function startNearbyOriginTransition(fromPoint) {
 // soon as a tween runs, so a slide overlapping a tween would otherwise end its pause on about the
 // second frame, and a pure-pan tween would then swap the fresh set in mid-flight. The pause ends when
 // the last leg lands. A slide replaced or cleared by anything else (a selection) no longer holds it.
+//
+// Intentionally not cleared when a pause ends: it only identifies which slide the pause belongs to, and
+// every check is guarded by the pause source being live. A stale value is harmless and is replaced by
+// the next slide.
+//
+// After the slide's own time has run out only a tween that belongs to its compound transition keeps the
+// hold (_tweenOwnedBySlide, set in moveCamera); an unrelated tween that starts later does not.
 let _pausingNearbySlide = null;
+let _tweenOwnedBySlide = false;
+let _slideLegLanding = false;
 function nearbyOriginSlideHoldsPause() {
   if (!_pausingNearbySlide) return false;
   if (state.nearbyOriginTransition === _pausingNearbySlide && nearbyOriginTransitionActive()) return true;
   if (state.nearbyOriginTransition && state.nearbyOriginTransition !== _pausingNearbySlide) return false;
-  return state.viewportAnimationTo != null;
+  return state.viewportAnimationTo != null && _tweenOwnedBySlide;
 }
 
 // Eased 0-1 progress of the in-flight browse-origin slide, or null when none is running.
