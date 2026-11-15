@@ -249,6 +249,26 @@ test.describe("Overview / Nearby screen", () => {
       await expect(page.locator("#inspectorBody .nearby-heading")).toHaveCount(0);
     });
 
+    test("distant fallback cows are not counted as within the walking radius", async ({ page }) => {
+      await page.evaluate(() => {
+        const origin = nearbyOrigin();
+        state.cows = [0.04, 0.05, 0.06].map((offset, index) => {
+          const latitude = origin.latitude + offset;
+          const longitude = origin.longitude;
+          return { serialNo: `far-cow-${index}`, latitude, longitude, point: projectLonLat(longitude, latitude) };
+        });
+        state.walkingDistanceMinutes = 30;
+        state.showAllOutsideRadius = false;
+        setOverviewFilters(["cows"]);
+        selectOverview();
+      });
+
+      await expect(page.locator("#inspectorType")).toHaveText("0 Cows within 30 min walk");
+      await expect(page.locator("#inspectorBody")).toContainText("Nothing found within 30 min walking distance");
+      await expect(page.locator("#inspectorBody .nearest-item.out-of-radius")).toHaveCount(3);
+      await page.screenshot({ path: `/tmp/nearby-cows-${test.info().project.name}.png` });
+    });
+
     test("nearby entries show a combined distance and walk-time chip", async ({ page }) => {
       await setup(page);
       const walkChip = page.locator("#inspectorBody .nearest-item .walk-chip").first();
@@ -757,7 +777,7 @@ test.describe("Overview / Nearby screen", () => {
       // Inspects state mid-gesture (before the fingers lift) by dispatching the pointer
       // sequence inline rather than through firePinch, which only returns once the gesture --
       // and its "settle" reset of state.walkingRadiusAtFloor -- has already finished.
-      const result = await page.evaluate(() => {
+      const result = await page.evaluate(async () => {
         const canvas = els.canvas;
         canvas.setPointerCapture = () => {};
         canvas.releasePointerCapture = () => {};
@@ -775,6 +795,8 @@ test.describe("Overview / Nearby screen", () => {
           fire("pointermove", 1001, cx - gap, cy);
           fire("pointermove", 1002, cx + gap, cy);
         }
+        // The pinch applies its latest radius once per animation frame.
+        await new Promise((resolve) => requestAnimationFrame(resolve));
         const mid = {
           minutes: state.walkingDistanceMinutes,
           floor: walkingRadiusFloorMinutes(nearbyOrigin()),

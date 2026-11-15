@@ -55,6 +55,7 @@ test/home-counts.test.js, so any change here needs
 """
 import json
 import math
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -62,7 +63,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from scripts.place_matching import same_premises  # noqa: E402
+from scripts.place_matching import same_premises, metres_between  # noqa: E402
 DATA = ROOT / "data"
 MASTER_FILE = DATA / "local-landmarks.geojson"
 FOREST_BOUNDARY_FILE = DATA / "epping-forest-land.geojson"
@@ -223,10 +224,22 @@ def build_feature(entry, segments, ref_lat_rad):
     }
 
 
-def apply_changeset(master, changeset, segments, ref_lat_rad):
+def record_ids(features):
+    ids = set()
+    for feature in features:
+        props = feature["properties"]
+        ids.update((feature.get("id"), props.get("id")))
+        if props.get("osmType") and props.get("osmId") is not None:
+            ids.add(f"{props['osmType']}/{props['osmId']}")
+    return ids
+
+
+def apply_changeset(master, changeset, segments, ref_lat_rad, live_record_ids=None):
     """Mutates master['features'] in place. Returns a log dict."""
     features = master["features"]
     log = {"added": [], "removed": [], "enriched": [], "skipped": []}
+    # Capture identities before removals, including other split files in CLI runs.
+    live_ids = live_record_ids if live_record_ids is not None else record_ids(features)
 
     for entry in changeset.get("remove", []):
         target_name = entry.get("name")
@@ -256,7 +269,33 @@ def apply_changeset(master, changeset, segments, ref_lat_rad):
         if filled:
             log["enriched"].append({"id": entry.get("id") or entry.get("name"), "name": entry.get("name"), "fields": filled})
 
+    # Redirect provenance records deliberate merges, including differently named
+    # counters inside a shop that fuzzy name matching cannot recognise.
+    merged_places = {
+        record_id: (float(lon), float(lat))
+        for record_id, lat, lon in re.findall(
+            r"^# was (\S+) at (-?[\d.]+),(-?[\d.]+)$",
+            (ROOT / "netlify.toml").read_text(), re.MULTILINE,
+        )
+    }
     for entry in changeset.get("add", []):
+        entry_id = entry.get("id")
+        osm_id = None
+        if entry.get("osmType") and entry.get("osmId") is not None:
+            osm_id = f"{entry['osmType']}/{entry['osmId']}"
+        merged_id = next((key for key in (entry_id, osm_id) if key in merged_places and key not in live_ids), None)
+        # A generated manual ID is name-based, so only reuse its merge
+        # decision near the old premises; another branch may share the name.
+        fallback_id = f"manual/{slugify(entry['name'])}"
+        if not merged_id and not entry_id and fallback_id in merged_places and fallback_id not in live_ids:
+            if metres_between((float(entry["lon"]), float(entry["lat"])), merged_places[fallback_id]) < 100:
+                merged_id = fallback_id
+        if merged_id:
+            log["skipped"].append({
+                "op": "add", "entry": entry,
+                "reason": f"{merged_id} was previously merged; needs a human review before re-adding",
+            })
+            continue
         # Matched on the name as typed AND as described, within a short walk
         # -- not on an exact lowercased string, which is all this used to do.
         # A run adding a hundred places a week meets both kinds of near-miss:
@@ -358,12 +397,13 @@ def main():
         per_file = split_changeset_by_file(changeset, datasets)
 
     log = {"added": [], "removed": [], "enriched": [], "skipped": []}
+    live_ids = record_ids([feature for dataset in datasets.values() for feature in dataset["features"]])
     written = []
     for path, dataset in datasets.items():
         part = per_file[path]
         if not any(part.get(op) for op in ("add", "remove", "enrich")):
             continue
-        file_log = apply_changeset(dataset, part, segments, ref_lat_rad)
+        file_log = apply_changeset(dataset, part, segments, ref_lat_rad, live_record_ids=live_ids)
         for key in log:
             log[key].extend(file_log[key])
         dataset["generatedAt"] = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")

@@ -251,7 +251,28 @@ function getSelectedOverlayPulse() {
   return Math.sin(cyclePosition * Math.PI * 2) * 0.5 + 0.5;
 }
 
+// The shared pin opacity is sampled once per frame, at its start, so everything painted in the frame
+// (the map pins, the overlay pins, the exiting filter pins) agrees on one value instead of each
+// reading the clock a little later and seeing a different fade.
+let _frameFade = null;
+
+function framePinFade() {
+  return _frameFade == null ? mapPinFadeOpacity() : _frameFade;
+}
+
 function draw() {
+  // Reconcile first: a pause that ends this frame starts its reveal here, so this frame paints with
+  // the fade it started, not the one from before it.
+  if (typeof reconcileMarkerPauses === "function") reconcileMarkerPauses();
+  _frameFade = mapPinFadeOpacity();
+  try {
+    drawFrame();
+  } finally {
+    _frameFade = null;
+  }
+}
+
+function drawFrame() {
   // Cancel any *other* frame already queued, rather than only clearing the flag. requestDraw's
   // guard (index.html) assumes a queued draw stays queued until it runs, but a direct draw()
   // call -- there are several, from boot, the location gate and the compass loop -- clears the
@@ -282,6 +303,9 @@ function draw() {
     startCompassSmoothing();
   }
   if (typeof prepareCanvasForDraw === "function") prepareCanvasForDraw();
+  // Before any pin is painted: a marker pause whose transition has gone must not hide the pins.
+  if (typeof reconcileMarkerPauses === "function") reconcileMarkerPauses();
+  if (_frameFade != null) _frameFade = mapPinFadeOpacity();
   if (typeof syncCanvasMotionResolution === "function") syncCanvasMotionResolution();
   resetMapLabelHitRegions();
   const ctx = els.canvas.getContext("2d");
@@ -311,8 +335,10 @@ function draw() {
   drawWalkingRadius(ctx);
   drawSelectedRoute(ctx);
   if (!useOverlayForPins) {
-    const nearbyIconLookup = activeIconLookup();
-    drawMapMarkers(ctx, buildMapMarkers(nearbyIconLookup, worldToScreen, markerMemoryKey()), worldToScreen);
+    // Paint the live location beneath the map pins. A nearby pin should own its pointer
+    // visually when its geographic point is the same as (or very close to) the user's fix.
+    drawUser(ctx, worldToScreen, false, "dot");
+    drawMapMarkers(ctx, mapMarkersToPaint(worldToScreen, false), worldToScreen);
     drawSelectionExitMarkers(ctx, worldToScreen);
   }
   drawSelectedRoadOverlay(ctx);
@@ -321,6 +347,7 @@ function draw() {
   drawOverlay();
 
   if (filterPinTransitionActive()) requestDraw();
+  if (mapPinFadeInProgress()) requestDraw();
   if (selectionOutgoingRevealInProgress()) requestDraw();
   if (selectionDestinationRevealInProgress()) requestDraw();
 
@@ -361,11 +388,15 @@ function drawOverlay() {
   if (isTilted) drawUserRadarOverlayTilted(ctx);
   else drawUserRadarOverlay(ctx, toScreen);
   if (useOverlayForPins) {
-    drawMapMarkers(ctx, buildActiveMapMarkers(toScreen), toScreen, true);
+    // Keep the blue dot behind location pins in heading-up/tilted mode too.
+    drawUser(ctx, toScreen, isTilted, "dot");
+    drawMapMarkers(ctx, mapMarkersToPaint(toScreen, true), toScreen, true);
     drawSelectionExitMarkers(ctx, toScreen, true);
   }
   drawFilterTransitionPins(ctx, toScreen);
-  drawUser(ctx, toScreen, isTilted);
+  // The label is placed after the pins so it remains readable; its collision check uses the
+  // marker rectangles recorded by the draw above.
+  drawUser(ctx, toScreen, isTilted, "label");
   drawNearbyAnchorMarker(ctx, toScreen);
   drawCommunityMarks(ctx, toScreen);
   drawSelectedOverlay(ctx, toScreen);
@@ -1530,7 +1561,7 @@ function drawLoading(ctx) {
 function drawLayer(ctx, layer) {
   const style = layer.key === "buffer"
     ? { fill: "rgba(85, 167, 160, 0.24)", stroke: "rgba(20, 110, 105, 0.82)", width: 1.8 }
-    : { fill: "rgba(79, 139, 98, 0.29)", stroke: "rgba(21, 96, 56, 0.9)", width: 2.1 };
+    : { fill: "rgba(79, 139, 98, 0.29)", stroke: "rgba(21, 96, 56, 0.96)", width: 2.5 };
 
   ctx.save();
   ctx.fillStyle = style.fill;
@@ -1569,6 +1600,8 @@ function drawLayer(ctx, layer) {
 const MARKER_TYPES = ["tree", "landmark", "cow", "path", "water"];
 // Breathing room added around every marker's collision box.
 const MARKER_COLLISION_GAP_CSS_PX = 4;
+// Keep a lone pin's collision target comfortably tappable after its artwork shrinks with zoom.
+const MARKER_MIN_COLLISION_SIZE_CSS_PX = 44;
 // Past this many items in a seed's 3x3 cell block, occupancy replaces the exact overlap count.
 const MARKER_DENSITY_EXACT_LIMIT = 32;
 
@@ -1577,14 +1610,18 @@ const MARKER_DENSITY_EXACT_LIMIT = 32;
 // stays with the seed it had last time until it leaves this larger "split" box (this multiple of
 // the normal collision box on each axis).
 const MARKER_SPLIT_BOX_FACTOR = 1.25;
-// Memory per lookup context (see markerMemoryKey): { seeds, count }, seeds a Map of seed item -> the
-// items it held, in seed order, count the size of the item set it was built from. Replaced wholesale by every build in its context, so it never outlives the items.
+// Memory per lookup context (see markerMemoryKey): { seeds }, seeds a Map of seed item -> the items
+// it held, in seed order. Replaced wholesale by every build in its context, so it never outlives
+// the items.
 const _markerMemory = new Map();
+// Bumped whenever the memory is cleared, so a cached marker set built from the old memory is not reused.
+let _markerMemoryEpoch = 0;
 
 // A clean slate for grouping: the next build forms its groups from scratch. Called when the Nearby
 // filter set changes; builds in a context whose lookup was empty also start clean.
 function resetMarkerGroupMemory() {
   _markerMemory.clear();
+  _markerMemoryEpoch += 1;
 }
 
 // Memory belongs to one kind of lookup, so a narrowed one (an expanded cluster's members, search
@@ -1597,17 +1634,230 @@ function markerMemoryKey() {
 }
 
 // The markers of what the map shows now: the one pass draw(), drawOverlay() and findClusterHit share.
-function buildActiveMapMarkers(toScreen) {
-  return buildMapMarkers(activeIconLookup(), toScreen, markerMemoryKey());
+//
+// A pure pan moves every marker by the same offset and never regroups them (see buildMapMarkers), so
+// on the flat main-canvas projection the last build is reused and only translated while everything
+// except the viewport's tx/ty is unchanged: scale, canvas size, pixel ratio, the pin scale, the
+// lookup (identity), the memory context and the memory epoch. The rotated (heading-up) and tilted
+// projections move markers non-uniformly, so they always rebuild.
+//
+// While marker grouping is paused (a zoom gesture, or a scale-changing camera tween or browse-origin
+// slide: markerGroupingPaused, js/nav.js) nothing is built at all: no in-radius scan, no grouping,
+// and nothing to tap. mapMarkersToPaint draws the frozen set for the short fade-out instead.
+let _panMarkerCache = null;
+let _lastMarkerBuild = null;
+// The frozen set's reusable re-projection while a zoom gesture fades the pins out.
+let _frozenPaintView = null;
+
+// A copy of a marker array whose screenPt objects belong to the copy, so it can be rewritten in
+// place every frame without touching the build it came from.
+function cloneMarkersForReuse(markers) {
+  return markers.map((marker) => ({ ...marker, screenPt: { x: 0, y: 0 } }));
+}
+
+function buildActiveMapMarkers(toScreen, tilted = false) {
+  if (markerGroupingPaused()) return [];
+  const lookup = activeIconLookup();
+  const memoryKey = markerMemoryKey();
+  const view = state.viewport;
+  const translatable = toScreen === worldToScreen && !tilted && !tiltActive() && !flatProjectionFrame().rotating;
+  if (!translatable) {
+    _panMarkerCache = null;
+    return (_lastMarkerBuild = buildMapMarkers(lookup, toScreen, memoryKey, tilted));
+  }
+  const dpr = pixelRatio();
+  const emojiScale = mapEmojiScale();
+  const cache = _panMarkerCache;
+  if (cache && cache.lookup === lookup && cache.memoryKey === memoryKey && cache.epoch === _markerMemoryEpoch
+      && cache.scale === view.scale && cache.dpr === dpr && cache.emojiScale === emojiScale
+      && cache.width === state.canvasLogicalWidth && cache.height === state.canvasLogicalHeight) {
+    const dx = view.tx - cache.tx;
+    const dy = view.ty - cache.ty;
+    if (!dx && !dy) return (_lastMarkerBuild = cache.markers);
+    // One reused array per build, rewritten in place: a pan frame allocates no marker objects.
+    const panned = cache.panned || (cache.panned = cloneMarkersForReuse(cache.markers));
+    for (let i = 0; i < panned.length; i += 1) {
+      const from = cache.markers[i].screenPt;
+      panned[i].screenPt.x = from.x + dx;
+      panned[i].screenPt.y = from.y + dy;
+    }
+    return (_lastMarkerBuild = panned);
+  }
+  const markers = buildMapMarkers(lookup, toScreen, memoryKey, tilted);
+  _panMarkerCache = {
+    lookup, memoryKey, epoch: _markerMemoryEpoch, scale: view.scale, dpr, emojiScale,
+    width: state.canvasLogicalWidth, height: state.canvasLogicalHeight,
+    tx: view.tx, ty: view.ty, markers,
+  };
+  return (_lastMarkerBuild = markers);
+}
+
+// --- Zoom-gesture and transition pin fade ---------------------------------------------------------------------
+//
+// While a zoom gesture is live (zoomGestureLive, js/nav.js) item pins and clusters are neither
+// calculated nor drawn. They leave together in one quick fade over the frozen set (re-projected
+// each frame so they stay on their ground), and the freshly calculated set arrives together in one
+// ease-out reveal once the gesture ends. A gesture that starts mid-reveal fades out from the
+// current opacity, and one that ends mid-fade reveals from it, so opacity never jumps.
+// Below one 8-bit alpha step a pin cannot be seen: it is not painted at all.
+const PIN_ALPHA_VISIBLE_MIN = 1 / 255;
+const ZOOM_PIN_FADE_OUT_MS = 120;
+const ZOOM_PIN_REVEAL_MS = 220;
+const _mapPinFade = { value: 1, from: 1, to: 1, startedAt: 0, duration: 0 };
+
+function mapPinFadeOpacity(now = performance.now()) {
+  const fade = _mapPinFade;
+  if (!fade.duration) return fade.to;
+  const t = clamp((now - fade.startedAt) / fade.duration, 0, 1);
+  const eased = fade.to > fade.from ? easeOutCubic(t) : t;
+  return fade.from + (fade.to - fade.from) * eased;
+}
+
+// Where the shared pin opacity is heading: below 1 while the pins are hidden or leaving.
+function mapPinFadeTarget() {
+  return _mapPinFade.to;
+}
+
+function mapPinFadeInProgress(now = performance.now()) {
+  return _mapPinFade.duration > 0 && now - _mapPinFade.startedAt < _mapPinFade.duration;
+}
+
+// Aims the shared pin opacity at `to`. The duration scales with the distance still to cover, so a
+// reversal mid-fade keeps its speed instead of restarting a full-length fade.
+function fadeMapPinsTo(to, fullDurationMs, now = performance.now()) {
+  const current = mapPinFadeOpacity(now);
+  const duration = fullDurationMs * Math.abs(to - current);
+  if (typeof prefersReducedMotion === "function" && prefersReducedMotion() || !(duration > 0)) {
+    Object.assign(_mapPinFade, { value: to, from: to, to, startedAt: now, duration: 0 });
+  } else {
+    Object.assign(_mapPinFade, { value: current, from: current, to, startedAt: now, duration });
+  }
+  if (typeof requestDraw === "function") requestDraw();
+}
+
+function hideMapPinsForZoom() {
+  fadeMapPinsTo(0, ZOOM_PIN_FADE_OUT_MS);
+}
+
+function revealMapPinsAfterZoom() {
+  // Merges and splits caused by the zoom itself are not worth animating on top of the reveal.
+  settleClusterJoinAnimations();
+  fadeMapPinsTo(1, ZOOM_PIN_REVEAL_MS);
+}
+
+// The markers draw()/drawOverlay() paint: normally the current build; while grouping is paused, the
+// frozen last build re-projected through the live camera while it fades out, then nothing.
+function mapMarkersToPaint(toScreen, tilted) {
+  if (!markerGroupingPaused()) return buildActiveMapMarkers(toScreen, tilted);
+  if (!_lastMarkerBuild || framePinFade() < PIN_ALPHA_VISIBLE_MIN) return [];
+  if (!_frozenPaintView || _frozenPaintView.source !== _lastMarkerBuild) {
+    _frozenPaintView = { source: _lastMarkerBuild, markers: cloneMarkersForReuse(_lastMarkerBuild) };
+  }
+  const painted = _frozenPaintView.markers;
+  for (let i = 0; i < painted.length; i += 1) {
+    const point = toScreen(painted[i].worldPt);
+    painted[i].screenPt.x = point.x;
+    painted[i].screenPt.y = point.y;
+  }
+  return painted;
+}
+
+// True when a tap lands on a marker that is still visibly painted while a programmatic transition
+// fades the old set out. Nothing is tappable then (the set is about to be replaced), but the tap
+// must not be read as open ground either: handleMapClick swallows it, so an impatient double-tap on
+// a badge cannot move the Nearby anchor out from under the move already in flight. Once the fade
+// has finished nothing is painted, and a tap on that ground is an ordinary open-ground tap.
+function tapLandsOnFrozenPaintedMarker(screen) {
+  if (!programmaticMarkerPauseActive() || !_frozenPaintView) return false;
+  if (_frozenPaintView.source !== _lastMarkerBuild || mapPinFadeOpacity() < PIN_ALPHA_VISIBLE_MIN) return false;
+  const dpr = pixelRatio();
+  const box = markerCollisionBox(dpr, 1);
+  for (const marker of _frozenPaintView.markers) {
+    const { x, y } = marker.screenPt;
+    if (screen.x >= x - box.left && screen.x <= x + box.right && screen.y >= y - box.top && screen.y <= y) return true;
+  }
+  return false;
 }
 
 // The rectangle a compact cluster face covers with its tail and its count chip, relative to the
-// anchor point. Worst case on the chip (a "99+" label), at scale 1: one uniform box for every
-// marker, deliberately ignoring zoom and tilt shrink so the no-overlap guarantee is conservative.
-function markerCollisionBox(dpr) {
-  const rect = clusterMarkerRect(0, 0, 100, dpr, 1);
-  const gap = MARKER_COLLISION_GAP_CSS_PX * dpr;
-  return { width: rect.right - rect.left + gap, height: rect.bottom - rect.top + gap };
+// anchor point. A lone pin uses this same conservative shape at its drawn scale, with a minimum
+// touch-sized box; a group always passes scale 1 because its face stays fixed across map zoom.
+function markerCollisionBox(dpr, scale = 1) {
+  const left = markerCollisionLeft(dpr, scale);
+  const right = markerCollisionRight(dpr, scale);
+  return {
+    left,
+    right,
+    top: markerCollisionTop(dpr, scale),
+    width: left + right,
+    height: markerCollisionTop(dpr, scale),
+  };
+}
+
+// The count-100 badge is the conservative collision shape. Keep these calculations numeric in
+// the per-item path: clusterMarkerRect/clusterBadgeGeometry return several short-lived objects,
+// and buildMapMarkers runs on every animation frame.
+function markerCollisionUnit(dpr, scale) {
+  return dpr * scale;
+}
+
+function markerCollisionRadius(dpr, scale) {
+  const unit = markerCollisionUnit(dpr, scale);
+  return MAP_PNG_ICON_SIZE * MAP_ICON_SCALE_UNSELECTED * unit * 0.32;
+}
+
+function markerCollisionFloorExtra(dpr, scale) {
+  const unit = markerCollisionUnit(dpr, scale);
+  const radius = markerCollisionRadius(dpr, scale);
+  const rawWidth = radius * 2.4 + 10 * unit + MARKER_COLLISION_GAP_CSS_PX * dpr;
+  return Math.max(0, (MARKER_MIN_COLLISION_SIZE_CSS_PX * dpr - rawWidth) / 2);
+}
+
+function markerCollisionLeft(dpr, scale) {
+  return markerCollisionRadius(dpr, scale) * 1.2
+    + MARKER_COLLISION_GAP_CSS_PX * dpr / 2 + markerCollisionFloorExtra(dpr, scale);
+}
+
+function markerCollisionRight(dpr, scale) {
+  const unit = markerCollisionUnit(dpr, scale);
+  return markerCollisionRadius(dpr, scale) * 1.2 + 10 * unit
+    + MARKER_COLLISION_GAP_CSS_PX * dpr / 2 + markerCollisionFloorExtra(dpr, scale);
+}
+
+function markerCollisionTop(dpr, scale) {
+  const unit = markerCollisionUnit(dpr, scale);
+  const radius = markerCollisionRadius(dpr, scale);
+  return Math.max(MARKER_MIN_COLLISION_SIZE_CSS_PX * dpr,
+    radius * 2.3 + 6 * unit + MARKER_COLLISION_GAP_CSS_PX * dpr);
+}
+
+// The individual pin's drawn scale and hit target are shared with inspector.js. A 44 CSS-px
+// diameter is the minimum touch target even when the artwork shrinks to its zoom floor.
+function mapMarkerPinScale(item, tilted = false) {
+  const tiltScale = tilted && typeof tiltPinScale === "function" ? tiltPinScale(item.point) : 1;
+  return mapEmojiScale() * tiltScale;
+}
+
+function mapMarkerPinHitRadius(dpr, scale) {
+  const iconSize = MAP_PNG_ICON_SIZE * dpr * scale * MAP_ICON_SCALE_UNSELECTED;
+  return Math.max(iconSize * 0.32 * 1.3, 22 * dpr);
+}
+
+function markerLoneScale(item, tilted = false) {
+  return mapMarkerPinScale(item, tilted);
+}
+
+function markerCollisionBoxesOverlap(a, b, aBox = a.collisionBox, bBox = b.collisionBox) {
+  const aLeft = aBox ? aBox.left : a.collisionLeft;
+  const aRight = aBox ? aBox.right : a.collisionRight;
+  const aTop = aBox ? aBox.top : a.collisionTop;
+  const bLeft = bBox ? bBox.left : b.collisionLeft;
+  const bRight = bBox ? bBox.right : b.collisionRight;
+  const bTop = bBox ? bBox.top : b.collisionTop;
+  return a.sp.x - aLeft < b.sp.x + bRight
+    && b.sp.x - bLeft < a.sp.x + aRight
+    && a.sp.y - aTop < b.sp.y
+    && b.sp.y - bTop < a.sp.y;
 }
 
 // Seed-anchored, single pass, deliberately not transitive (chaining A-near-B-near-C walked across
@@ -1627,12 +1877,13 @@ function markerCollisionBox(dpr) {
 // Returns [{ items, itemsByType, itemType, screenPt, worldPt }]. `itemType` is the one category of
 // the group, or "_mega" when the group mixes categories. A group that claimed nothing is an
 // ordinary single-item pin.
-function buildMapMarkers(lookup, toScreen, memoryKey = "main") {
+function buildMapMarkers(lookup, toScreen, memoryKey = "main", tilted = false) {
   let memory = _markerMemory.get(memoryKey);
-  const box = markerCollisionBox(pixelRatio());
-  const boxW = box.width, boxH = box.height;
-  const splitW = boxW * MARKER_SPLIT_BOX_FACTOR, splitH = boxH * MARKER_SPLIT_BOX_FACTOR;
-  const cell = Math.max(boxW, boxH);
+  const dpr = pixelRatio();
+  const groupBox = markerCollisionBox(dpr);
+  const groupBoxW = groupBox.width, groupBoxH = groupBox.height;
+  const splitW = groupBoxW * MARKER_SPLIT_BOX_FACTOR, splitH = groupBoxH * MARKER_SPLIT_BOX_FACTOR;
+  const cell = Math.max(groupBoxW, groupBoxH);
   const nodes = [];
   const nodeOfItem = new Map();
   for (const type of MARKER_TYPES) {
@@ -1642,7 +1893,12 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main") {
       if (!item.point) continue;
       const sp = toScreen(item.point);
       if (!Number.isFinite(sp.x) || !Number.isFinite(sp.y)) continue;
-      const node = { item, type, sp, order: nodes.length, density: 0, claimed: false, isSeed: false, cx: Math.floor(sp.x / cell), cy: Math.floor(sp.y / cell) };
+      const loneScale = markerLoneScale(item, tilted);
+      const node = { item, type, sp, order: nodes.length, density: 0,
+        collisionLeft: markerCollisionLeft(dpr, loneScale),
+        collisionRight: markerCollisionRight(dpr, loneScale),
+        collisionTop: markerCollisionTop(dpr, loneScale),
+        claimed: false, isSeed: false, cx: Math.floor(sp.x / cell), cy: Math.floor(sp.y / cell) };
       nodes.push(node);
       nodeOfItem.set(item, node);
     }
@@ -1651,13 +1907,28 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main") {
     _markerMemory.delete(memoryKey);
     return [];
   }
-  // Memory only describes the item set it was built from: when items have arrived or left (data
-  // loading in, a radius or filter change) the layout starts fresh rather than inheriting an
-  // order formed against a different set.
+  // Keep valid seed memories when the lookup changes. A seed whose own item or any remembered
+  // member has gone is affected and starts fresh; other seeds keep their previous order and
+  // memberships, so a cow refresh or a newly in-range place does not regroup the whole map.
   if (memory) {
-    let known = memory.count === nodes.length;
-    if (known) for (const seedItem of memory.seeds.keys()) if (!nodeOfItem.has(seedItem)) { known = false; break; }
-    memory = known ? memory.seeds : undefined;
+    let hasInvalidSeed = false;
+    for (const [seedItem, heldItems] of memory.seeds) {
+      if (!nodeOfItem.has(seedItem) || heldItems.some(item => !nodeOfItem.has(item))) {
+        hasInvalidSeed = true;
+        break;
+      }
+    }
+    if (hasInvalidSeed) {
+      const validSeeds = new Map();
+      for (const [seedItem, heldItems] of memory.seeds) {
+        if (nodeOfItem.has(seedItem) && heldItems.every(item => nodeOfItem.has(item))) {
+          validSeeds.set(seedItem, heldItems);
+        }
+      }
+      memory = validSeeds.size ? validSeeds : undefined;
+    } else {
+      memory = memory.seeds;
+    }
   }
   // Numeric cell keys (a collision between two far-apart cells only adds candidates the exact
   // box test below rejects). A cell edge equal to the box's longer side guarantees an overlapping
@@ -1691,46 +1962,65 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main") {
         const bucket = grid.get(cellKey(node.cx + dx, node.cy + dy));
         if (!bucket) continue;
         for (const other of bucket) {
-          if (other !== node && Math.abs(other.sp.x - node.sp.x) < boxW && Math.abs(other.sp.y - node.sp.y) < boxH) count++;
+          if (other !== node && markerCollisionBoxesOverlap(node, other)) count++;
         }
       }
     }
     node.density = count;
   }
-  // Last build's seeds that are still present keep their previous order and go first; the rest
-  // follow densest first.
-  const seeds = [];
+  // Group-sized seeds must claim before lone remembered seeds. A lone seed can be earlier in
+  // memory than a seed that has just become a group (for example, when a distant item moves next
+  // to the latter without changing the item count). If the lone seed claims itself first, the
+  // later group's fixed face can overlap it even though the group box would have claimed it.
+  // Keep the previous order within remembered groups, then use densest-first for new groups; the
+  // same ordering is applied to lone seeds after all group-sized exclusions have been reserved.
+  const rememberedGroups = [];
+  const rememberedLone = [];
   if (memory) {
     for (const prevItem of memory.keys()) {
       const node = nodeOfItem.get(prevItem);
-      if (node && !node.isSeed) { node.isSeed = true; seeds.push(node); }
+      if (node && !node.isSeed) {
+        node.isSeed = true;
+        const held = memory.get(prevItem);
+        (node.density > 0 || (held && held.length > 1) ? rememberedGroups : rememberedLone).push(node);
+      }
     }
   }
   const fresh = nodes.filter(node => !node.isSeed).sort((a, b) => b.density - a.density || a.order - b.order);
-  for (const node of fresh) seeds.push(node);
+  const freshGroups = fresh.filter(node => node.density > 0);
+  const freshLone = fresh.filter(node => node.density === 0);
+  const seeds = [...rememberedGroups, ...freshGroups, ...rememberedLone, ...freshLone];
   const markers = [];
   const nextMemory = new Map();
   for (const seed of seeds) {
     if (seed.claimed) continue;
     seed.claimed = true;
     const members = [seed];
+    const held = memory && memory.get(seed.item);
+    // Once a seed has a member, its fixed-size group face becomes the exclusion box too. This
+    // absorbs a small neighbouring pin before it can overlap the face after zoom-out.
+    const isGroup = seed.density > 0 || (held && held.length > 1);
+    const seedBox = isGroup ? groupBox : null;
     // New members need the normal box; members this seed held last time are kept up to the split
     // box (looked up directly, not through the grid). Both are measured from this seed, so anchors
     // stay a full box apart.
-    if (seed.density) {
+    if (isGroup) {
       for (let dx = -1; dx <= 1; dx++) {
         for (let dy = -1; dy <= 1; dy++) {
           const bucket = grid.get(cellKey(seed.cx + dx, seed.cy + dy));
           if (!bucket) continue;
           for (const other of bucket) {
-            if (other.claimed || Math.abs(other.sp.x - seed.sp.x) >= boxW || Math.abs(other.sp.y - seed.sp.y) >= boxH) continue;
+            const rememberedGroup = memory && memory.get(other.item);
+            const otherBox = other.density > 0 || (rememberedGroup && rememberedGroup.length > 1)
+              ? groupBox
+              : null;
+            if (other.claimed || !markerCollisionBoxesOverlap(seed, other, seedBox, otherBox)) continue;
             other.claimed = true;
             members.push(other);
           }
         }
       }
     }
-    const held = memory && memory.get(seed.item);
     if (held) {
       for (const heldItem of held) {
         const other = nodeOfItem.get(heldItem);
@@ -1757,8 +2047,115 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main") {
       worldPt: seed.item.point,
     });
   }
-  _markerMemory.set(memoryKey, { seeds: nextMemory, count: nodes.length });
+  _markerMemory.set(memoryKey, { seeds: nextMemory });
   return markers;
+}
+
+// The dark green of a group's count chip; group footprints reuse it at low opacity.
+const MARKER_COUNT_CHIP_COLOR = "#233d30";
+// A group draws a footprint only when another group's seed is within this many collision-box
+// widths of its own on screen.
+const FOOTPRINT_NEIGHBOUR_BOX_WIDTHS = 2.5;
+// How far a footprint extends beyond its members' hull (ground plane, CSS px), with rounded corners.
+const FOOTPRINT_PADDING_CSS_PX = 6;
+const FOOTPRINT_FILL_ALPHA = 0.11;
+const FOOTPRINT_STROKE_ALPHA = 0.28;
+const FOOTPRINT_STROKE_CSS_PX = 1;
+const FOOTPRINT_CORNER_SAMPLES = 12;
+
+function footprintCross(o, a, b) {
+  return (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+}
+
+function footprintHullHalf(list) {
+  const hull = [];
+  for (const p of list) {
+    while (hull.length > 1 && footprintCross(hull[hull.length - 2], hull[hull.length - 1], p) <= 0) hull.pop();
+    hull.push(p);
+  }
+  return hull;
+}
+
+// Monotone-chain hull of the actual member positions (duplicates collapse).
+function footprintConvexHull(points) {
+  const sorted = points.slice().sort((a, b) => a.x - b.x || a.y - b.y)
+    .filter((p, i, all) => !i || p.x !== all[i - 1].x || p.y !== all[i - 1].y);
+  if (sorted.length < 3) return sorted;
+  return footprintHullHalf(sorted).slice(0, -1).concat(footprintHullHalf(sorted.slice().reverse()).slice(0, -1));
+}
+
+// The padded hull of one group's own members: positions in the flat ground plane (`toFlat`), padded
+// with rounded corners, then projected through the active tilt (`project`). Coincident members give
+// a small round shape, collinear ones a capsule. Null when any point crosses the near-camera clip.
+function groupFootprintPoints(items, toFlat, project, padding) {
+  const points = [];
+  for (const item of items) {
+    if (!item.point) continue;
+    const p = toFlat(item.point);
+    if (Number.isFinite(p.x) && Number.isFinite(p.y)) points.push(p);
+  }
+  const padded = [];
+  for (const p of footprintConvexHull(points)) {
+    for (let i = 0; i < FOOTPRINT_CORNER_SAMPLES; i++) {
+      const angle = i * 2 * Math.PI / FOOTPRINT_CORNER_SAMPLES;
+      padded.push({ x: p.x + Math.cos(angle) * padding, y: p.y + Math.sin(angle) * padding });
+    }
+  }
+  const projected = footprintConvexHull(padded).map(project);
+  if (projected.length < 3 || projected.some(p => !p || p.clipped)) return null;
+  return projected;
+}
+
+// Which group markers draw a footprint, and its outline: [{ marker, points }]. Only a group
+// (more than one item) with another group's seed within FOOTPRINT_NEIGHBOUR_BOX_WIDTHS collision
+// boxes on screen qualifies, so an isolated group and every lone pin draw none. Neighbours come
+// from a grid of that distance (3x3 cells), never all pairs; hulls are built for qualifiers only.
+// `only` optionally limits which markers get an outline (neighbours still count).
+function markerFootprints(markers, toFlat, project = p => p, only = null) {
+  const dpr = pixelRatio();
+  const reach = markerCollisionBox(dpr).width * FOOTPRINT_NEIGHBOUR_BOX_WIDTHS;
+  const grid = new Map();
+  const groups = [];
+  for (const marker of markers) {
+    if (marker.items.length < 2) continue;
+    groups.push(marker);
+    const key = Math.floor(marker.screenPt.x / reach) * 4194304 + Math.floor(marker.screenPt.y / reach);
+    const bucket = grid.get(key);
+    if (bucket) bucket.push(marker);
+    else grid.set(key, [marker]);
+  }
+  const result = [];
+  if (groups.length < 2) return result;
+  for (const marker of groups) {
+    if (only && !only.has(marker)) continue;
+    const cx = Math.floor(marker.screenPt.x / reach), cy = Math.floor(marker.screenPt.y / reach);
+    let near = false;
+    for (let dx = -1; dx <= 1 && !near; dx++) {
+      for (let dy = -1; dy <= 1 && !near; dy++) {
+        const bucket = grid.get((cx + dx) * 4194304 + cy + dy);
+        if (!bucket) continue;
+        for (const other of bucket) {
+          if (other !== marker && Math.hypot(other.screenPt.x - marker.screenPt.x, other.screenPt.y - marker.screenPt.y) <= reach) {
+            near = true;
+            break;
+          }
+        }
+      }
+    }
+    if (!near) continue;
+    const points = groupFootprintPoints(marker.items, toFlat, project, FOOTPRINT_PADDING_CSS_PX * dpr);
+    if (points) result.push({ marker, points });
+  }
+  return result;
+}
+
+// The ground-plane and tilt projections a footprint hull needs for the toScreen a draw path uses.
+function footprintProjection(toScreen, tilted) {
+  if (!tilted) {
+    return { toFlat: worldToScreenFlat, project: tiltActive() ? tiltProjectScreenPoint : p => p };
+  }
+  const projects = tiltActive() && state.userLocation && state.headingUpEntryAnim == null;
+  return { toFlat: worldToScreenForOverlay, project: projects ? tiltProjectScreenPoint : p => p };
 }
 
 // The items of a tapped group by category: every marker carries this, and a hand-built
@@ -1912,7 +2309,8 @@ function drawFilterTransitionPins(ctx, toScreen) {
   if (!filterPinTransitionActive() || hasRealSelection() || pinsHiddenBySelection(true)) return;
   const dpr = pixelRatio();
   const iconSize = MAP_PNG_ICON_SIZE * dpr * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
-  const reveal = nearbyRevealOpacity();
+  const reveal = framePinFade();
+  if (reveal < PIN_ALPHA_VISIBLE_MIN) return;
   for (const [item, animation] of _filterPinAnimations) {
     if (animation.direction !== "exit") continue;
     const stateAtFrame = filterPinAnimationFor(item);
@@ -2261,7 +2659,7 @@ function drawClusterMarker(ctx, x, y, count, iconSources, dpr, scale = 1, overfl
   }
   ctx.beginPath();
   ctx.roundRect(b.countX - b.countWidth / 2, b.countY - b.countHeight / 2, b.countWidth, b.countHeight, 9 * u);
-  ctx.fillStyle = "#233d30";
+  ctx.fillStyle = MARKER_COUNT_CHIP_COLOR;
   ctx.fill();
   ctx.strokeStyle = "white";
   ctx.lineWidth = 1.5 * u;
@@ -2323,18 +2721,63 @@ function pinsHiddenBySelection(tilted) {
 let _drawnMarkerSpecs = [];
 let _drawnTransitionSpecs = [];
 
+// Footprints paint first, beneath every face, at the same opacity their group is drawn at. They are
+// not hit targets and take no part in the collision box or clustering.
+function drawGroupFootprints(ctx, markers, visible, reveal, tilted, toScreen, options) {
+  if (reveal <= 0) return;
+  // Only groups that will actually paint get a hull built.
+  const alphaOf = new Map();
+  const only = new Set();
+  for (let i = 0; i < visible.length; i++) {
+    const marker = visible[i];
+    if (marker.items.length < 2) continue;
+    const transitionOpacity = options.markerOpacity ? options.markerOpacity(i, visible.length, marker) : 1;
+    const alpha = reveal * transitionOpacity * groupOpacity(marker);
+    if (alpha <= 0) continue;
+    alphaOf.set(marker, alpha);
+    only.add(marker);
+  }
+  if (only.size === 0) return;
+  const { toFlat, project } = footprintProjection(toScreen, tilted);
+  const footprints = markerFootprints(markers, toFlat, project, only);
+  if (!footprints.length) return;
+  const dpr = pixelRatio();
+  ctx.save();
+  ctx.fillStyle = MARKER_COUNT_CHIP_COLOR;
+  ctx.strokeStyle = MARKER_COUNT_CHIP_COLOR;
+  ctx.lineWidth = FOOTPRINT_STROKE_CSS_PX * dpr;
+  ctx.lineJoin = "round";
+  for (const { marker, points } of footprints) {
+    const alpha = alphaOf.get(marker);
+    ctx.beginPath();
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+    ctx.closePath();
+    ctx.globalAlpha = alpha * FOOTPRINT_FILL_ALPHA;
+    ctx.fill();
+    ctx.globalAlpha = alpha * FOOTPRINT_STROKE_ALPHA;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 // Draws every marker in one pass, flat (main canvas) or tilted/heading-up (overlay). Painted in
 // ascending screen Y so a marker lower on screen -- closer to the viewer -- paints over one further
 // up, across all categories; faces cannot overlap, so this only orders tails, chips and labels.
 function drawMapMarkers(ctx, markers, toScreen, tilted = false, options = {}) {
   _drawnMarkerSpecs = [];
   if (!markers.length || (pinsHiddenBySelection(tilted) && !options.allowSelectionExit)) return;
+  // The outgoing selection set is not part of the radius hide: it is a separate, short handoff.
+  const gestureOpacity = options.allowSelectionExit ? 1 : framePinFade();
+  if (gestureOpacity < PIN_ALPHA_VISIBLE_MIN) return;
+  if (!options.allowSelectionExit && mapPinFadeInProgress()) settleClusterJoinAnimations();
   const dpr = pixelRatio();
   const loneSize = MAP_PNG_ICON_SIZE * dpr * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
-  const reveal = nearbyRevealOpacity();
+  const reveal = gestureOpacity;
   const visible = markers.filter(m => isNearCanvas(m.screenPt, m.items.length > 1 ? 84 * dpr : loneSize * 2));
   visible.sort((a, b) => a.screenPt.y - b.screenPt.y);
   ctx.save();
+  drawGroupFootprints(ctx, markers, visible, reveal, tilted, toScreen, options);
   for (let markerIndex = 0; markerIndex < visible.length; markerIndex += 1) {
     const marker = visible[markerIndex];
     const transitionOpacity = options.markerOpacity
@@ -2366,7 +2809,16 @@ function drawMapMarkers(ctx, markers, toScreen, tilted = false, options = {}) {
         const p = toScreen(shrinking.item.point);
         const type = markerItemType(marker, shrinking.item);
         ctx.globalAlpha = reveal * transitionOpacity * lonePinOpacity(type, shrinking.item);
-        drawItemPin(ctx, type, shrinking.item, p.x, p.y, loneSize * shrinking.scale);
+        const shrinkingTiltScale = tilted ? tiltPinScale(shrinking.item.point) : 1;
+        // The transient pin is still visible while its group face grows. Include it in the
+        // label-avoidance geometry for the duration of the merge, even though it is no longer
+        // an independent marker in the settled layout.
+        _drawnMarkerSpecs.push({
+          worldPt: shrinking.item.point,
+          count: 1,
+          scale: mapEmojiScale() * shrinkingTiltScale * shrinking.scale,
+        });
+        drawItemPin(ctx, type, shrinking.item, p.x, p.y, loneSize * shrinkingTiltScale * shrinking.scale);
       }
     }
     ctx.globalAlpha = 1;
@@ -2381,11 +2833,15 @@ function drawMapMarkers(ctx, markers, toScreen, tilted = false, options = {}) {
 function drawSelectionExitMarkers(ctx, toScreen, tilted = false) {
   const lookup = state.selectionTransition.outgoingIconLookup;
   if (!lookup || !selectionOutgoingRevealInProgress()) return;
-  const markers = buildMapMarkers(lookup, toScreen, "selection-exit");
+  const markers = buildMapMarkers(lookup, toScreen, "selection-exit", tilted);
   const now = performance.now();
   drawMapMarkers(ctx, markers, toScreen, tilted, {
     allowSelectionExit: true,
-    markerOpacity: (index) => selectionOutgoingMarkerOpacity(index, now),
+    // Pins caught mid-reveal leave from the opacity they were last seen at, never jumping up to 1.
+    markerOpacity: (index) => Math.min(
+      state.selectionTransition.outgoingStartOpacity ?? 1,
+      selectionOutgoingMarkerOpacity(index, now),
+    ),
   });
 }
 
@@ -2885,7 +3341,7 @@ function placeUserLabel(dot, radius, textWidth, fontSize, gap, rightBaselineDrop
   return null;
 }
 
-function drawUser(ctx, toScreen, isTilted) {
+function drawUser(ctx, toScreen, isTilted, phase = "all") {
   // isDefault (applyDefaultLocation, js/app.js): DEFAULT_LOCATION's High Beach stand-in, not a
   // real fix -- drawing "You" there would tell the reader they've been located somewhere they
   // are not actually standing.
@@ -2918,14 +3374,22 @@ function drawUser(ctx, toScreen, isTilted) {
   const dotScale = clamp(state.viewport.scale / baseScale, 0.1, 1.5) * pinScale;
   const radius = Math.max(2 * dpr, 4 * dpr * dotScale);
   
+  const labelOnly = phase === "label";
   ctx.save();
-  ctx.beginPath();
-  ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-  ctx.fillStyle = "#1f5eff";
-  ctx.fill();
-  ctx.strokeStyle = "#fff";
-  ctx.lineWidth = 2 * dpr * dotScale;
-  ctx.stroke();
+  if (!labelOnly) {
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    ctx.fillStyle = "#1f5eff";
+    ctx.fill();
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 2 * dpr * dotScale;
+    ctx.stroke();
+  }
+  if (phase === "dot") {
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    return;
+  }
   ctx.fillStyle = "#14211d";
   const fontSize = 11 * dpr * dotScale;
   ctx.font = `800 ${fontSize}px system-ui`;

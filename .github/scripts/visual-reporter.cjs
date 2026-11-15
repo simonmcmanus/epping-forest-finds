@@ -63,6 +63,7 @@ class VisualReporter {
     const advisoryOnlyFailure = result.status === 'failed' && this.entries.size > 0
       && !this.errors.length && !blockingFailure;
     const status = result.status === 'skipped' ? 'skipped'
+      : result.status === 'passed' ? 'passed'
       : result.status === 'failed' && advisoryOnlyFailure ? 'passed' : 'failed';
     fs.writeFileSync(path.join(this.dir, 'manifest.json'), JSON.stringify({
       version: 1, project: this.project, status,

@@ -6,10 +6,32 @@ generator owns the design, layout and SVG map; the
 research and the written findings come from the weekly workflow
 (`.github/workflows/weekly-ledger.yml`).
 
-The workflow's cron runs weekly, Saturdays at 02:00 UTC (after the usage allowance renews). The report file name and
-PR branch are keyed by calendar date, and `business_watch`'s escalation counts
-runs, not weeks, so a change of cadence only changes how fast a repeating signal
-reaches confidence.
+The workflow's first attempt is Saturday at 04:23 UTC (04:23 GMT / 05:23
+BST), during the UK overnight lull and away from the busy top of the hour.
+GitHub may delay scheduled jobs and Claude capacity is shared with other use;
+this time does not guarantee available credits. Retry opportunities follow at
+10:23, 16:23 and 22:23 Saturday, then 04:23 and 10:23 Sunday UTC. Six-hour
+spacing gives a five-hour usage window time to reset without keeping a runner
+waiting. No paid overage is enabled by this workflow.
+
+A read-only schedule gate checks the workflow's default-branch history since
+Saturday 00:00 UTC. Once an actual Ledger research job has completed
+successfully, the remaining scheduled opportunities skip research (including
+Claude and dependency installation). A successful gate-only/skipped run does
+not count as a delivered edition. Failures remain visible and are eligible for
+the next retry window; an API error fails the gate rather than guessing.
+Workflow-wide concurrency serializes manual and scheduled runs, including the
+gate, so overlapping attempts cannot both start research. Manual Run workflow
+always forces an attempt. If every window fails, the job summary explains how
+to run it manually after restoring allowance or fixing the failure; there is
+no automatic retry beyond Sunday morning.
+
+The report file name and PR branch use the actual run's calendar date.
+Retries reuse the existing open Ledger PR through HOUSEKEEPING below.
+`business_watch`'s escalation counts runs, not weeks, so skipping successful
+weeks' remaining windows avoids repeatedly banking patience. A failed run may
+already have pushed partial work; the next attempt inspects the existing PR
+rather than assuming the failure made no changes.
 
 ## Keeping the map's businesses current
 
@@ -160,9 +182,16 @@ Guard rails, because this runs unattended:
 - A signal that stops appearing is forgotten rather than banked, so an
   intermittent source can never accumulate its way to confidence.
 - Setting `"dismissed": true` on an entry by hand parks it permanently. This
-  is the only way to stop a false positive being re-proposed every week, and
+  stops a false positive being re-proposed every week, and
   it is how the closures confirmed on foot in September 2026 are kept from
   being re-added by a source that has not caught up.
+
+The apply script also refuses additions whose record ID appears in the merge
+provenance (`# was <id> at ...`) in `netlify.toml`, even if the source changes
+the name or the watchlist dismissal is absent. It logs a skip for human review;
+IDs present before the changeset remain eligible for changed-hands replacements;
+a generated manual ID is matched only within 100 metres of the old position,
+so a new branch elsewhere remains eligible under the usual checks.
 
 **Agreement beats repetition.** Two sources that have never heard of each
 other describing the same new place is stronger evidence than one source
@@ -276,6 +305,18 @@ does not spend time on them (see the `sourceNotes` in
 sources were checked and found to have no usable feed yet, or to block
 automated requests outright).
 
+The weekly research also checks the dated parish/community calendars and
+public organiser listings recorded in `data/forest-events.json`'s
+`sourceNotes`. Research the next 60 days, with explicit seasonal searches
+for Christmas/Xmas markets, fairs/fayres, lights switch-ons, lantern parades
+and carols. Check paginated results and event details, prefer the organiser's
+current-year dates, and distinguish market opening from a lights ceremony.
+A blocked fetch or missing feed is an access limitation, not evidence that
+no events exist: use indexed listings for discovery and corroborate through
+another official listing where possible. Record unconfirmed details as
+needing reverification rather than inventing a date or time. De-duplicate
+across all sources by event title, date and venue.
+
 `data/road-closures.json`, `data/forest-events.json` and
 `data/forest-notices.json` are a first step towards fixing that: real,
 researched entries (road/utility works, dated events, and standing
@@ -297,7 +338,7 @@ day, in `report-data.json`'s finding shape — see "Road, access and event
 findings" in `report-data.schema.md`. A multi-week roadworks project or a
 dated event now shows up every week it's genuinely true, not only the week a
 web search happened to resurface it. Dated events surface up to
-`EVENT_HORIZON_DAYS` (30 days) ahead, not just the current week: the ledger's
+`EVENT_HORIZON_DAYS` (60 days) ahead, not just the current week: the ledger's
 main job is this week's news, but a reader also wants enough notice of a
 dated event to plan it into their diary, not only a mention once it's days
 away. A recurring series with no next date confirmed is always surfaced,
@@ -308,9 +349,9 @@ The published report's Events section splits on this: each event finding
 carries a `when` of `"week"` (happening within the next 7 days) or `"month"`
 (further out, or recurring with no next date confirmed), and
 `render_report.py` groups the section into a "This week" and a "Coming up in
-the next month" subheading accordingly, only showing a subheading that
-actually has something under it. Without this split, a 30-day horizon would
-read as if the whole month were "this week"'s news. `structured_findings.py`
+the next two months" subheading accordingly, only showing a subheading that
+actually has something under it. Without this split, a 60-day horizon would
+read as if the whole planning window were "this week"'s news. `structured_findings.py`
 sets `when` itself from the date; a finding written by hand straight into
 `report-data.json` (the workflow's own fresh research) needs it set
 explicitly — see `report-data.schema.md`.

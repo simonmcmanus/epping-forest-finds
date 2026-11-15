@@ -18,6 +18,10 @@ function itemLonLatForTap(item, tapLonLat) {
 function handleMapClick(event) {
   const screen = canvasPoint(event);
 
+  // A marker still visibly fading out under a programmatic move is not open ground: swallow the tap
+  // rather than let it relocate the Nearby view out from under the move already in flight.
+  if (tapLandsOnFrozenPaintedMarker(screen)) return;
+
   // Tapping a multi-item group marker -- one category or several alike --
   // behaves like tapping open ground on that spot: the group becomes the Nearby browse anchor,
   // sized to cover it, and the Nearby list updates to show what's inside. See
@@ -161,18 +165,35 @@ function trackSelectionClick(itemType, item, source) {
   trackClick(itemType, item, uLat, uLng, source);
 }
 
+// handleMapClick asks for the same marker layout twice: once to give a group face priority, then
+// again to keep group members out of ordinary pin hit-testing. Reuse that synchronous layout while
+// the camera and data cannot change between the two calls.
+let _hitTestMarkerCache = null;
+function mapMarkersForHit(toScreen, tilted) {
+  if (_hitTestMarkerCache && _hitTestMarkerCache.toScreen === toScreen
+      && _hitTestMarkerCache.tilted === tilted) return _hitTestMarkerCache.markers;
+  const markers = buildActiveMapMarkers(toScreen, tilted);
+  _hitTestMarkerCache = { toScreen, tilted, markers };
+  return markers;
+}
+
 function findHit(screen, world) {
   const dpr = pixelRatio();
   const mapScale = mapEmojiScale();
+  const tilted = tiltActive() || nearbyHeadingUpActive();
+  const toScreen = tiltActive()
+    ? worldToScreenForOverlayTilted
+    : nearbyHeadingUpActive()
+      ? worldToScreenForOverlay
+      : worldToScreen;
   // Compact pin head: half-width R*1.2, half-height R; centre R*1.3 above the tip.
   // Unselected pins drive overview taps; use MAP_ICON_SCALE_UNSELECTED for accurate centering.
-  const iconSize = MAP_PNG_ICON_SIZE * dpr * mapScale * MAP_ICON_SCALE_UNSELECTED;
-  const pinR = iconSize * 0.32 * 1.3;   // R * 1.3 — slightly larger than visual for easy tapping
-  const pinYOffset = iconSize * 0.416;   // R * 1.3 = head centre above tip
-
-  function pinDistance(point) {
-    return Math.max(Math.abs(point.x - screen.x) / 1.2, Math.abs((point.y - pinYOffset) - screen.y));
-  }
+  const pinScaleFor = item => tilted ? mapMarkerPinScale(item, true) : mapScale;
+  const pinDistance = (point, item) => {
+    const iconSize = MAP_PNG_ICON_SIZE * dpr * pinScaleFor(item) * MAP_ICON_SCALE_UNSELECTED;
+    const pinYOffset = iconSize * 0.416; // R * 1.3 = head centre above tip
+    return Math.max(Math.abs(point.x - screen.x), Math.abs((point.y - pinYOffset) - screen.y));
+  };
 
   // Only pins that are actually on screen are tappable: hit testing asks the renderer's own
   // "is this drawn?" predicate rather than sweeping the raw datasets. Tapping something
@@ -183,9 +204,16 @@ function findHit(screen, world) {
   // hidden because a location is selected (where only the selected pin itself is drawn -- so
   // that one stays tappable, and tapping anywhere else near it is open ground).
   const iconLookup = activeIconLookup();
+  const markerByItem = new Map();
+  for (const marker of mapMarkersForHit(toScreen, tilted)) {
+    for (const item of marker.items) markerByItem.set(item, marker);
+  }
+  _hitTestMarkerCache = null;
   const selectedItem = hasRealSelection() ? state.selected.item : null;
   function isTappablePin(type, item) {
-    return item === selectedItem || shouldDrawMapIcon(type, item, iconLookup);
+    const marker = markerByItem.get(item);
+    return item === selectedItem
+      || (shouldDrawMapIcon(type, item, iconLookup) && marker && marker.items.length === 1);
   }
 
   let bestPlace = null;
@@ -193,9 +221,9 @@ function findHit(screen, world) {
     if (!isTappablePin("landmark", place)) continue;
     const opacity = markerOpacityFor("landmark", place);
     if (opacity < 0.5) continue;
-    const point = worldToScreen(place.point);
-    const distance = pinDistance(point);
-    if (distance < pinR && (!bestPlace || distance < bestPlace.distance)) {
+    const point = toScreen(place.point);
+    const distance = pinDistance(point, place);
+    if (distance < mapMarkerPinHitRadius(dpr, pinScaleFor(place)) && (!bestPlace || distance < bestPlace.distance)) {
       bestPlace = { type: "landmark", item: place, distance };
     }
   }
@@ -206,9 +234,9 @@ function findHit(screen, world) {
     if (!isTappablePin("cow", cow)) continue;
     const opacity = markerOpacityFor("cow", cow);
     if (opacity < 0.5) continue;
-    const point = worldToScreen(cow.point);
-    const distance = pinDistance(point);
-    if (distance < pinR && (!bestCow || distance < bestCow.distance)) {
+    const point = toScreen(cow.point);
+    const distance = pinDistance(point, cow);
+    if (distance < mapMarkerPinHitRadius(dpr, pinScaleFor(cow)) && (!bestCow || distance < bestCow.distance)) {
       bestCow = { type: "cow", item: cow, distance };
     }
   }
@@ -217,10 +245,10 @@ function findHit(screen, world) {
   let bestTree = null;
   for (const tree of state.trees) {
     if (!isTappablePin("tree", tree)) continue;
-    const point = worldToScreen(tree.point);
+    const point = toScreen(tree.point);
     if (!isNearCanvas(point, 20 * dpr)) continue;
-    const distance = pinDistance(point);
-    if (distance < pinR && (!bestTree || distance < bestTree.distance)) {
+    const distance = pinDistance(point, tree);
+    if (distance < mapMarkerPinHitRadius(dpr, pinScaleFor(tree)) && (!bestTree || distance < bestTree.distance)) {
       bestTree = { type: "tree", item: tree, distance };
     }
   }
@@ -229,9 +257,9 @@ function findHit(screen, world) {
   let bestWater = null;
   for (const water of state.waterFeatures) {
     if (!isTappablePin("water", water)) continue;
-    const point = worldToScreen(water.point);
-    const distance = pinDistance(point);
-    if (distance < pinR && (!bestWater || distance < bestWater.distance)) {
+    const point = toScreen(water.point);
+    const distance = pinDistance(point, water);
+    if (distance < mapMarkerPinHitRadius(dpr, pinScaleFor(water)) && (!bestWater || distance < bestWater.distance)) {
       bestWater = { type: "water", item: water, distance };
     }
   }
@@ -319,16 +347,18 @@ function findHit(screen, world) {
 // faces never overlap, and where a tail or chip does, the marker lower on screen is the one on top.
 function findClusterHit(screen) {
   const dpr = pixelRatio();
-  const tilted = tiltActive();
-  const toScreen = tilted ? worldToScreenForOverlayTilted
+  const isTilted = tiltActive();
+  const tilted = isTilted || nearbyHeadingUpActive();
+  const toScreen = isTilted ? worldToScreenForOverlayTilted
     : nearbyHeadingUpActive() ? worldToScreenForOverlay : worldToScreen;
   let hit = null;
-  for (const marker of buildActiveMapMarkers(toScreen)) {
+  for (const marker of mapMarkersForHit(toScreen, tilted)) {
     if (marker.items.length < 2) continue;
-    const scale = tilted ? Math.max(0.65, tiltPinScale(marker.worldPt)) : 1;
+    const scale = isTilted ? Math.max(0.65, tiltPinScale(marker.worldPt)) : 1;
     if (!clusterBadgeContains(screen, marker.screenPt.x, marker.screenPt.y, marker.items.length, dpr, scale)) continue;
     if (!hit || marker.screenPt.y > hit.screenPt.y) hit = marker;
   }
+  if (hit) _hitTestMarkerCache = null;
   return hit;
 }
 
@@ -374,7 +404,7 @@ function showTreeDetails(tree, distance, label) {
   const distancePill = distance != null ? `<span data-live-field="distance">${walkInfoExpandableHtml(distance)}</span>` : "";
   const mapsLink = openInMapsHtml(tree.latitude, tree.longitude, tree.commonName || "Veteran tree");
   const verified = communityVerifiedSlotsHtml(tree);
-  const topRow = `<div class="detail-top-row">${distancePill}<span class="detail-top-actions">${verified.chip}${mapsLink}${shareLocationHtml()}</span></div>`;
+  const topRow = `<div class="detail-top-row">${distancePill}<span class="detail-top-actions">${verified.pointer}${verified.chip}${mapsLink}${shareLocationHtml()}</span></div>`;
   const technicalHtml = technicalRows.length
     ? `<details class="technical-details"><summary>Technical data</summary>${detailsHtml(technicalRows)}</details>`
     : "";
@@ -383,7 +413,7 @@ function showTreeDetails(tree, distance, label) {
   const issueHtml = reportIssueHtml({ type: "Veteran tree", name: treeDisplayName(tree), latitude: tree.latitude, longitude: tree.longitude });
   // Read the tree first; community checks follow the record and stay in the same host as
   // the live verification slots so saved-report updates can still find the header actions.
-  const factsHtml = `<section class="tree-facts" aria-label="Tree facts"><dl class="tree-summary">${tagHtml}${statusHtml}</dl>${topRow}${verified.detail}${measurementsHtml}${commentsHtml}</section>`;
+  const factsHtml = `<section class="tree-facts" aria-label="Tree facts"><dl class="tree-summary">${tagHtml}${statusHtml}</dl>${topRow}${verified.detail}${communityTopSlotHtml(tree)}${measurementsHtml}${commentsHtml}</section>`;
   transitionInspectorBody(`<article class="tree-detail">${factsHtml}${namedTreeHtml}${communitySectionHtml(tree)}<div data-live-nearby>${nearbySectionHtml}</div>${issueHtml}${technicalHtml}</article>`, "forward");
 }
 
@@ -424,11 +454,12 @@ function showLandmarkDetails(place, distance) {
   }
   const mapsLink = place.latitude != null ? openInMapsHtml(place.latitude, place.longitude, place.name) : "";
   const shareBtn = shareLocationHtml();
-  const communityPlaceStatus = isEvent ? { chip: "", detail: "" } : communityPlaceStatusSlotsHtml(place);
-  const actionsHtml = `<span class="detail-top-actions">${communityPlaceStatus.chip}${mapsLink}${shareBtn}</span>`;
+  const communityPlaceStatus = isEvent ? { chip: "", detail: "", pointer: "" } : communityPlaceStatusSlotsHtml(place);
+  const actionsHtml = `<span class="detail-top-actions">${communityPlaceStatus.pointer}${communityPlaceStatus.chip}${mapsLink}${shareBtn}</span>`;
   const topRow = `<div class="detail-top-row">${distancePill}${actionsHtml}</div>`;
   const communityPlaceMarker = isEvent ? "" : communityPlaceConfirmationHtml(place);
   const communityPlaceSection = isEvent ? "" : communityPlaceSectionHtml(place);
+  const communityPlaceTopSlot = isEvent ? "" : communityPlaceTopSlotHtml(place);
   const descriptionHtml = description ? `<p class="details-description">${escapeHtml(description)}</p>` : "";
   const ledgerHtml = ledgerMentionHtml(place);
   const issueHtml = place.latitude != null ? reportIssueHtml({ type: place.categoryLabel || "Local place", name: place.name || "Local place", latitude: place.latitude, longitude: place.longitude }) : "";
@@ -440,7 +471,7 @@ function showLandmarkDetails(place, distance) {
   // the bottom of the location details.
   // The place's own details (address, website, phone, hours) come straight under the action row, so
   // they are read before the community check card asks anything of the visitor.
-  const landmarkHtml = `<article class="place-detail place-detail--${isEvent ? "event" : "landmark"}">${topRow}${detailsHtml(rows, { labels: isEvent })}${communityPlaceStatus.detail}${communityPlaceMarker}${communityPlaceSection}${descriptionHtml}${ledgerHtml}${isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : ""}<div data-live-nearby>${relatedLinksHtml}</div>${issueHtml}</article>`;
+  const landmarkHtml = `<article class="place-detail place-detail--${isEvent ? "event" : "landmark"}">${topRow}${communityPlaceTopSlot}${detailsHtml(rows, { labels: isEvent })}${communityPlaceStatus.detail}${communityPlaceMarker}${communityPlaceSection}${descriptionHtml}${ledgerHtml}${isFolklorePlace(place) ? folkloreNote(place, { includeSummary: false }) : ""}<div data-live-nearby>${relatedLinksHtml}</div>${issueHtml}</article>`;
   // A /find/ landing's place replaces its server-rendered panel in place: no slide-in from the side.
   transitionInspectorBody(landmarkHtml, findLandingSlug() ? null : "forward");
   if (navigator.onLine && !isEvent && place.latitude != null) loadCommunityPlaceIssues(place);
@@ -673,6 +704,10 @@ function showEnvironmentDetails(feature) {
 // --- Overview screen ---
 
 let _overviewListKey;
+
+function invalidateOverviewListKey() {
+  _overviewListKey = undefined;
+}
 // True while a /nearby/<slug>/ landing's own server-rendered list (generate-find-pages.js) is the
 // one on screen. Set by boot() and cleared by the first reveal that finishes (revealMapCenteredOnUser),
 // or by showNearbyLocatingState() once the reader asks for their location.
@@ -1086,6 +1121,9 @@ function transitionInspectorBody(newHtml, direction, onDone, { preserveScroll = 
     if (onDone) onDone();
     if (scroll) scroll.scrollTop = scrollTop;
   } else {
+    // Entering another screen ends any zoom gesture still holding the pins hidden: its end event
+    // may now never reach the map.
+    if (typeof endAllZoomGestures === "function") endAllZoomGestures();
     applyScreenTransition(direction, onDone);
   }
 }
@@ -1369,6 +1407,10 @@ function onInspectorHeightTransitionEnd(callback, timeoutMs = INSPECTOR_MINIMIZE
 function holdSelectionMapUntilCameraSettles() {
   const transitionToken = {};
   state.selectionTransition.mapHeld = true;
+  // Replacing the token abandons any delayed camera start of an earlier selection (its timer
+  // returns on the token check), so the "camera not started" flag it set must not outlive it.
+  // A caller that does start its own delayed camera sets the flag again after this call.
+  state.selectionTransition.viewportPending = false;
   state.selectionTransition.startedAt = performance.now();
   state.selectionMapTransitionToken = transitionToken;
   const settleMapTransition = () => {
@@ -1415,6 +1457,10 @@ function zoomToSelection() {
       return;
     }
     const transitionToken = state.selectionMapTransitionToken;
+    // The camera has not started yet, so the selection hold must not release in the meantime:
+    // with the origin slide already over and nothing animating, settleMapTransition would clear
+    // the token and the guard below would then drop this zoom for good.
+    state.selectionTransition.viewportPending = true;
     setTimeout(() => {
       if (state.selectionMapTransitionToken !== transitionToken) return;
       startCamera();

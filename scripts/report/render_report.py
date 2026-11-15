@@ -92,7 +92,7 @@ AI_DISCLAIMER = (
 SECTION_TITLES = {
     "business": ("Shops, cafés, restaurants & pubs", "Local finds and changes around the forest."),
     "road": ("Road closures & access", "Things that might affect getting around the forest."),
-    "event": ("Events in the forest", "What's on this week, and what's coming up over the next month."),
+    "event": ("Events in the forest", "What's on this week, and what's coming up over the next two months."),
 }
 
 # Sections that always appear, even with nothing to report, each with the line
@@ -365,12 +365,12 @@ def render_empty_card(section_key):
 # Events carry an optional "when" field ("week" or "month") saying which
 # subgroup they belong under. Absent (older or hand-written entries with no
 # opinion on it) defaults to "week" -- today's flat-list behaviour.
-EVENT_SUBGROUPS = [("week", "This week"), ("month", "Coming up in the next month")]
+EVENT_SUBGROUPS = [("week", "This week"), ("month", "Coming up in the next two months")]
 
 
 def render_event_body(items):
-    """Events split into "This week" / "Coming up in the next month", so a
-    reader can tell the two apart instead of the whole month reading as
+    """Events split into "This week" / "Coming up in the next two months", so a
+    reader can tell the two apart instead of the whole planning window reading as
     "this week". A subgroup heading is only shown when it has something in
     it; an event with no "when" opinion defaults into "This week"."""
     groups = {key: [] for key, _ in EVENT_SUBGROUPS}

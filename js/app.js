@@ -45,8 +45,6 @@ const FEATURE_LAYERS = [
 // specific transition are left as plain literals rather than forced into single-use
 // names.
 const NEARBY_ORIGIN_TRANSITION_MS = 520; // slide between two browse origins -- see nearbyRenderOriginPoint()
-const NEARBY_REVEAL_START_FRACTION = 0.1; // share of a browse-origin slide that passes before the new pins start to appear -- see nearbyRevealOpacity()
-const NEARBY_REVEAL_MS = 180; // how quickly the new nearby set fades in once a slide lands -- see nearbyRevealOpacity()
 const SELECTION_MARKER_EXIT_MS = 120; // fade the outgoing marker set before the destination arrives
 const SELECTION_MARKER_EXIT_STAGGER_MS = 5; // small per-marker offset so the old set leaves in a wave
 const SELECTION_MARKER_EXIT_MAX_STAGGER_MS = 60; // keep a dense view's exit short and readable
@@ -58,6 +56,8 @@ const HEADING_UP_NAV_ANIMATION_MS = 500; // standard duration for heading-up ali
 const MIN_HEADING_UP_ANIMATION_MS = 200; // floor for animateToHeadingUpNavigationViewport's duration
 const DEFAULT_VIEWPORT_ANIMATION_MS = 480; // generic fallback duration for the low-level viewport animators when nothing else is specified
 const MIN_VIEWPORT_ANIMATION_MS = 180; // floor for moveCamera's duration
+const STAGED_PAN_FULL_LEG_SHARE = 0.4; // share of a staged cluster-tap move given to its pan leg when the pan covers the reference distance -- see alignHeadingUpNavigationViewport()
+const STAGED_PAN_REFERENCE_SHORT_SIDE_SHARE = 0.25; // pan distance, as a share of the focus rect's shorter side, that earns the full pan-leg share
 const FIRST_LOAD_REVEAL_ANIMATION_MS = 700; // the first-time "reveal the map" animation, in all its variants (fit to user+items, centered-on-user)
 const FIRST_LOCATION_FLY_TO_ANIMATION_MS = 1250; // the High Beach stand-in -> real GPS handoff, with a cinematic fly-to arc
 const DEFAULT_FIT_PADDING_PX = 54; // default screen-space padding for fitToPoints (around content bounds)
@@ -399,6 +399,7 @@ const state = {
     mapHeld: false,
     startedAt: null,
     outgoingIconLookup: null,
+    outgoingStartOpacity: 1,
   },
   inspectorMinimizeTransitionPending: false,
   selectionMapTransitionToken: null,
@@ -1561,8 +1562,11 @@ function applyBoundsToViewport(bounds, options = {}) {
   state.viewport.ty = targetTy;
 }
 
-function stopViewportAnimation() {
+// `keepMarkerPause` is for moveCamera replacing one tween with the next: the marker pause is decided
+// again for the new tween instead of revealing and hiding the pins in between.
+function stopViewportAnimation({ keepMarkerPause = false } = {}) {
   cancelZoomChase();
+  if (!keepMarkerPause && typeof endMarkerPause === "function") endMarkerPause("camera");
   if (state.viewportAnimationFrame != null) {
     cancelAnimationFrame(state.viewportAnimationFrame);
   }
@@ -1574,6 +1578,7 @@ function stopViewportAnimation() {
   state.locationRevealFocusPoint = null;
   state.viewportAnimationStartTime = null;
   state.viewportAnimationDuration = 0;
+  _tweenOwnedBySlide = false;
   // The camera has just been told "stop, you're done" -- a pin-level cluster-join animation
   // still running against a now-unmoving view is the same kind of stale motion, so it settles
   // too. See settleClusterJoinAnimations (js/renderer.js).
@@ -1584,6 +1589,17 @@ function stopViewportAnimation() {
 // treated as the same destination. Scale is compared as a ratio (0.5%), position in device
 // pixels -- both well below what reads as a different framing on screen.
 const VIEWPORT_ANIMATION_SAME_TARGET_SCALE_RATIO = 0.005;
+// How far a camera tween must change the scale before marker grouping pauses for it (see
+// markerGroupingPaused, js/nav.js). Grouping is hysteretic: a group only splits once its members
+// spread beyond MARKER_SPLIT_BOX_FACTOR (1.25x) of the box that merged them, so a remembered group
+// is not split by a scale change well inside that. 1.1x (a tenth, under half the 25% tolerance)
+// leaves that margin: panel minimise/expand recentres, resizes and GPS refits stay under it and keep
+// their live pins, while a deliberate zoom (a refit to a new radius, a cluster zoom, an arc) is far over.
+// Below the threshold the pins are rebuilt live as usual. That is not a guarantee nothing regroups:
+// never-grouped pins near the merge boundary can still merge mid-move (with the join animation), and
+// resetMarkerGroupMemory() on landing can re-form groups without a fade (kept: the resting layout must
+// not depend on the path the camera took).
+const MARKER_PAUSE_SCALE_RATIO = 1.1;
 const VIEWPORT_ANIMATION_SAME_TARGET_PX = 6;
 
 // True when an animation is already running toward effectively this same viewport.
@@ -1690,7 +1706,13 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
   // decided here, once, for every caller. The arc maths below is shared with `cinematic`, but a
   // deliberate arc does not take over the walking-radius ring's screen position (the reveal flags
   // stay cinematic-only) and keeps the same-target dedupe above.
-  stopViewportAnimation();
+  stopViewportAnimation({ keepMarkerPause: true });
+  // Does this tween belong to the pausing browse-origin slide's compound transition: started while
+  // the slide's time was running, or chained from the landing of such a tween (the staged pan then
+  // zoom)? Only those extend the slide's hide (nearbyOriginSlideHoldsPause); an unrelated later tween
+  // (a GPS or compass refit) pauses on its own merits or not at all.
+  const ownedBySlide = Boolean(_pausingNearbySlide)
+    && (_slideLegLanding || performance.now() <= _pausingNearbySlide.startedAt + _pausingNearbySlide.durationMs);
   // A real camera tween owns the zoom from here, so a browse-origin slide must not keep easing back
   // towards the zoom it started from once this tween has landed.
   if (state.nearbyOriginTransition) state.nearbyOriginTransition.fromScale = null;
@@ -1706,7 +1728,7 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
     && deliberateMoveIsLarge(from, targetViewport, focusPoint);
   const arc = cinematic || deliberateArc;
   // Not while a browse-origin slide is running: its callers pass a duration chosen so the tween and the
-  // slide land on the same frame (see nearbyRevealOpacity), and stretching one would pull them apart.
+  // slide land on the same frame (see nearbyRevealInProgress), and stretching one would pull them apart.
   if (!cinematic && !options.fixedDuration && !state.nearbyOriginTransition
     && from.scale > 0 && targetViewport.scale > 0) {
     const zoomRatio = Math.max(from.scale / targetViewport.scale, targetViewport.scale / from.scale);
@@ -1746,9 +1768,26 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
     state.viewport.scale = targetViewport.scale;
     state.viewport.tx = targetViewport.tx;
     state.viewport.ty = targetViewport.ty;
+    // A programmatic camera move resets grouping even when it has no animation frames to land
+    // on. Without this, the synchronous path can retain a layout from a previous item set. The
+    // reset comes after the first stop above, so stop once more to settle any join animation that
+    // the fresh regroup would otherwise start on the next draw.
+    if (typeof resetMarkerGroupMemory === "function") resetMarkerGroupMemory();
+    stopViewportAnimation();
     requestDraw();
     if (typeof onComplete === "function") onComplete();
     return "snapped";
+  }
+
+  // Marker grouping pauses for a tween that regroups: the scale changes (or the arc dips it). A pure
+  // pan never regroups, so it keeps the pins. The selection transition holds the markers itself.
+  const scaleChanges = from.scale > 0 && targetViewport.scale > 0
+    && Math.abs(Math.log(targetViewport.scale / from.scale)) > Math.log(MARKER_PAUSE_SCALE_RATIO);
+  const selectionOwnsMarkers = state.selectionTransition.mapHeld || hasRealSelection();
+  if ((scaleChanges || arc) && !selectionOwnsMarkers && typeof beginMarkerPause === "function") {
+    beginMarkerPause("camera");
+  } else if (typeof endMarkerPause === "function") {
+    endMarkerPause("camera");
   }
 
   state.viewportAnimationFrom = from;
@@ -1756,6 +1795,7 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
   state.locationRevealAnimationActive = cinematic;
   state.locationRevealFocusPoint = cinematic ? { x: focusPoint.x, y: focusPoint.y } : null;
   state.viewportAnimationDuration = safeDuration;
+  _tweenOwnedBySlide = ownedBySlide;
 
   const tick = (timestamp) => {
     // Keep the timestamp through rendering so a thrown frame cannot hide a stranded camera.
@@ -1802,7 +1842,12 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
       if (typeof resetMarkerGroupMemory === "function") resetMarkerGroupMemory();
       stopViewportAnimation();
       requestDraw();
-      if (typeof onComplete === "function") onComplete();
+      _slideLegLanding = ownedBySlide;
+      try {
+        if (typeof onComplete === "function") onComplete();
+      } finally {
+        _slideLegLanding = false;
+      }
       return;
     }
 
@@ -1901,7 +1946,24 @@ function inspectorCanvasOverlapRect({ assumeInspectorOpen = false } = {}) {
   return result;
 }
 
+// Shown (and patched in place mid-gesture, patchFloorNoticeInPlace, js/nav.js) while the radius is
+// pinned at its floor.
+const FLOOR_NOTICE_TEXT = "This is as close as it gets — nothing closer to show.";
+
+// A re-aim of the glide this call itself cancels (stopViewportAnimation ends the "mapWheel" source)
+// must not read as the end of the gesture: the pins would reveal and hide again on every notch.
+// Holding the gesture under its own source across the call keeps it live throughout.
 function zoomAt(factor, screenPoint) {
+  const holding = Boolean(state.zoomChase);
+  if (holding) beginZoomGesture("mapWheelAim");
+  try {
+    zoomAtNow(factor, screenPoint);
+  } finally {
+    if (holding) endZoomGesture("mapWheelAim");
+  }
+}
+
+function zoomAtNow(factor, screenPoint) {
   if (!state.bounds) return;
   // Read before stopViewportAnimation, which ends any wheel glide already in flight.
   const priorChase = state.zoomChase;
@@ -1934,6 +1996,7 @@ function zoomAt(factor, screenPoint) {
   const world = screenToWorld(screenPoint.x, screenPoint.y);
   stopViewportAnimation();
   state.zoomChase = { target, screenPoint: { x: screenPoint.x, y: screenPoint.y }, world, frame: null, last: now };
+  beginZoomGesture("mapWheel");
   stepZoomChase(last == null ? ZOOM_CHASE_FIRST_STEP_MS : now - last);
 }
 
@@ -1952,6 +2015,7 @@ function cancelZoomChase() {
   if (!chase) return;
   if (chase.frame != null) cancelAnimationFrame(chase.frame);
   state.zoomChase = null;
+  endZoomGesture("mapWheel");
 }
 
 function stepZoomChase(dtMs) {
@@ -1967,6 +2031,7 @@ function stepZoomChase(dtMs) {
   requestDraw();
   if (done) {
     state.zoomChase = null;
+    endZoomGesture("mapWheel");
     return;
   }
   chase.frame = requestAnimationFrame((timestamp) => {
@@ -2725,7 +2790,7 @@ function overviewHeadingText() {
   // which "Pubs and bars within 5 min walk" alone left the reader to count for themselves.
   return singleFilterTitle
     ? (radiusLabel
-        ? `${overviewItemsForActiveFilter().length} ${singleFilterTitle} within ${radiusLabel}${radiusOrigin}`
+        ? `${overviewItemsForActiveFilter().filter(entry => !entry.outOfRadius).length} ${singleFilterTitle} within ${radiusLabel}${radiusOrigin}`
         : `Nearest ${singleFilterTitle} ${aroundOrigin}`)
     : state.overviewFilters.length > 0
       ? (radiusLabel ? `Nearest selected filters within ${radiusLabel}${radiusOrigin}` : `Nearest selected filters ${aroundOrigin}`)
@@ -3105,7 +3170,7 @@ function overviewNearestHtml() {
   // is actively squeezing past the walking-radius floor -- visual feedback for a gesture
   // that has no slider to show it on. Transient: cleared as soon as the pinch ends.
   const floorNotice = state.walkingRadiusAtFloor
-    ? `<p class="source-note walk-radius-floor-notice">This is as close as it gets — nothing closer to show.</p>`
+    ? `<p class="source-note walk-radius-floor-notice">${FLOOR_NOTICE_TEXT}</p>`
     : "";
 
   // overviewItemsForActiveFilter() now returns every match within the radius (see its
@@ -4200,6 +4265,17 @@ function roadNavTarget(road) {
 const HEADING_UP_ANCHOR_SELECTED = 0.62; // user anchored below center so destination shows above
 const HEADING_UP_ANCHOR_NEARBY = 0.5; // flat/2D nearby: dead centre, so the walking-radius circle -- the only thing this view's camera frames -- is centred in the available map space
 const HEADING_UP_ANCHOR_SELECTED_TILT = 0.88; // at max tilt (full 3D), user sits near the bottom edge with a small gap so the view isn't obscured by anything behind
+// Vector length (metres, user to the averaged target point; see selectedNavigationTargetDistanceMetres) at
+// which a selected destination's bearing is trusted fully by headingUpAnchorFraction's
+// behind-the-user mirroring. About four times typical phone GPS accuracy (~10 m): closer than that the
+// bearing is mostly noise, so the mirroring fades out linearly towards zero metres instead of flipping the
+// anchor between top and bottom from one nearby tap to the next.
+const HEADING_UP_MIRROR_FULL_DISTANCE_METRES = 40;
+// Highest the mirroring may lift the user on screen: the flat heading-up anchor mirrored. Flat view
+// already mirrors to exactly this, so the floor changes nothing there; under tilt the mirror used to
+// push the user toward the horizon (anchor as low as 0.12), which only made the framing flip between
+// destinations. Far destinations behind still get the room below the user that the mirror exists for.
+const HEADING_UP_MIRRORED_ANCHOR_FLOOR = 1 - HEADING_UP_ANCHOR_SELECTED;
 const HEADING_UP_ANCHOR_NEARBY_TILT = 0.94;   // at max tilt (full 3D), you sit right down at the bottom edge: a heads-up view is about what is in front of you, and every pixel spent on the ground behind you is a pixel not spent on where you are walking
 const HEADING_UP_SCALE_EPSILON = 0.000001; // Ignore sub-pixel scale noise between successive fits.
 const HEADING_UP_POSITION_PX_THRESHOLD = 0.5; // Ignore half-pixel translation jitter between frames.
@@ -4422,15 +4498,25 @@ function startCameraOriginTransition() {
   // Keep a render-only snapshot of the set that is leaving. Hit testing still switches to the
   // destination lookup immediately, but the old pins can now fade out in order instead of
   // disappearing as one opaque slab and leaving a blank map under the camera move.
-  state.selectionTransition.outgoingIconLookup = !hasRealSelection()
+  // Not when the pins are hidden or leaving (grouping paused, or the fade heading below 1): the exit
+  // paint rebuilds the outgoing set live, which would bring a set the user watched leave (and, under
+  // a pause, a different grouping from the frozen one) back for a moment. Pins fading back IN still
+  // exit in order, starting from their current opacity.
+  const currentOpacity = typeof mapPinFadeOpacity === "function" ? mapPinFadeOpacity() : 1;
+  const pinsHiddenOrLeaving = (typeof markerGroupingPaused === "function" && markerGroupingPaused())
+    || (typeof mapPinFadeTarget === "function" && mapPinFadeTarget() < 1)
+    || currentOpacity < PIN_ALPHA_VISIBLE_MIN;
+  state.selectionTransition.outgoingIconLookup = !hasRealSelection() && !pinsHiddenOrLeaving
     && typeof activeIconLookup === "function"
     ? activeIconLookup()
     : null;
+  state.selectionTransition.outgoingStartOpacity = currentOpacity;
   const fromPoint = cameraOriginPoint();
   // A selection owns the camera from this frame onward. If a Nearby anchor move is still in
   // flight, leaving its transition alive lets prepareCanvasForDraw run an old Nearby refit over
   // the new selection animation, which is an intermittent blank/snap depending on tap timing.
   state.nearbyOriginTransition = null;
+  _pausingNearbySlide = null;
   _nearbyRenderOriginCache = undefined;
   if (!fromPoint) {
     state.cameraOriginTransition = null;
@@ -4513,7 +4599,37 @@ function startNearbyOriginTransition(fromPoint) {
     fromScale: state.viewport.scale,
     startedAt: performance.now(),
     durationMs: NEARBY_ORIGIN_TRANSITION_MS,
+    // Whether this slide pauses marker grouping (see markerGroupingPaused, js/nav.js). The selection
+    // transition holds the markers itself while it holds the map.
+    groupingPaused: false,
   };
+  if (!state.selectionTransition.mapHeld && typeof beginMarkerPause === "function") {
+    state.nearbyOriginTransition.groupingPaused = true;
+    _pausingNearbySlide = state.nearbyOriginTransition;
+    beginMarkerPause("originSlide");
+  }
+}
+
+// The slide's pause is judged by the slide itself while its object is alive and running, and after
+// that by any camera tween still flying: prepareCanvasForDraw drops state.nearbyOriginTransition as
+// soon as a tween runs, so a slide overlapping a tween would otherwise end its pause on about the
+// second frame, and a pure-pan tween would then swap the fresh set in mid-flight. The pause ends when
+// the last leg lands. A slide replaced or cleared by anything else (a selection) no longer holds it.
+//
+// Intentionally not cleared when a pause ends: it only identifies which slide the pause belongs to, and
+// every check is guarded by the pause source being live. A stale value is harmless and is replaced by
+// the next slide.
+//
+// After the slide's own time has run out only a tween that belongs to its compound transition keeps the
+// hold (_tweenOwnedBySlide, set in moveCamera); an unrelated tween that starts later does not.
+let _pausingNearbySlide = null;
+let _tweenOwnedBySlide = false;
+let _slideLegLanding = false;
+function nearbyOriginSlideHoldsPause() {
+  if (!_pausingNearbySlide) return false;
+  if (state.nearbyOriginTransition === _pausingNearbySlide && nearbyOriginTransitionActive()) return true;
+  if (state.nearbyOriginTransition && state.nearbyOriginTransition !== _pausingNearbySlide) return false;
+  return state.viewportAnimationTo != null && _tweenOwnedBySlide;
 }
 
 // Eased 0-1 progress of the in-flight browse-origin slide, or null when none is running.
@@ -4529,55 +4645,17 @@ function nearbyOriginTransitionEasedProgress() {
     : 1 - Math.pow(-2 * progress + 2, 3) / 2;
 }
 
-// Opacity for everything that describes the *nearby set* -- the highlighted pins. A smooth ramp
-// from 0 to 1 across a browse-origin slide that runs *with the camera otherwise pinned in place*,
-// so the new surroundings arrive with the map instead of appearing after a blank stretch.
-// (It used to be 0 for the whole slide and a fade after it, which read as a blank screen.)
-//
-// Those pins and lines belong to the destination, but the map underneath them is still
-// travelling: drawing them straight away means a fan of lines pinned to a stationary circle
-// sweeping across moving terrain, and pins sliding under a marker that is not moving. It
-// reads as jitter even though every individual element is where it should be. Holding them
-// back until the map settles turns a busy half-second into one clean movement followed by the
-// new surroundings arriving.
-//
-// That reasoning assumes the ring is the only thing moving on screen -- true for a plain
-// anchor move (tap open ground, a Settings/pinch radius change), where the camera itself does
-// not animate and nearbyRenderOriginPoint's slide is what fakes the ring holding still while
-// the terrain pans beneath it. A cluster-tap expansion also re-zooms the camera
-// (focusNearbyOnClusterGroup -> ensureOverviewTargetsVisible's own moveCamera tween),
-// so nothing is pinned: ring, pins and terrain are all being redrawn every frame under one
-// live, moving transform, exactly like any other selection fit. Gating opacity here on top of
-// that hid the group's own members for the whole ~450ms flight and then popped them in once
-// both tweens happened to finish -- reported as "it animates to the position and then
-// suddenly snaps afterwards". Skipping the gate whenever a viewport animation is also running
-// leaves the plain-anchor-move case (no concurrent viewport tween) exactly as it was.
-function nearbyRevealOpacity() {
-  const transition = state.nearbyOriginTransition;
-  if (!transition) return 1;
-  if (state.selectionTransition.mapHeld) return 1;
-  if (state.viewportAnimationTo != null) return 1;
-  const sinceStart = performance.now() - transition.startedAt;
-  if (sinceStart >= transition.durationMs) return 1;
-  // The destination's pins fade in while the map travels, rather than being absent for the whole
-  // slide and then appearing. A move between two places should show how they relate, which needs
-  // the surroundings visible on the way; the pins are world-anchored, so they slide in with the
-  // terrain. Starts after the first tenth so the move reads as the map leaving before the new
-  // area arrives, and is fully drawn by the time it lands.
-  const progress = sinceStart / transition.durationMs;
-  const t = clamp((progress - NEARBY_REVEAL_START_FRACTION) / (1 - NEARBY_REVEAL_START_FRACTION), 0, 1);
-  return t * t * (3 - 2 * t);
-}
-
-// True while the reveal fade still has frames left to draw, so prepareCanvasForDraw keeps
-// asking for them after the slide itself has finished. See nearbyRevealOpacity: no fade to
-// wait out while a viewport animation is also running, since nothing was hidden to begin with.
+// True while the browse-origin slide still has frames to drive. The transition object only lives for
+// the slide itself: the old pins leave and the fresh set arrives through the shared pin fade
+// (markerGroupingPaused, js/nav.js), so nothing is left to fade once the slide has landed and the
+// last frame's align (prepareCanvasForDraw) already snaps the camera onto the final origin.
+// Not while a camera tween is also flying: it owns the camera then.
 function nearbyRevealInProgress() {
   const transition = state.nearbyOriginTransition;
   if (!transition) return false;
   if (state.selectionTransition.mapHeld) return false;
   if (state.viewportAnimationTo != null) return false;
-  return performance.now() - transition.startedAt < transition.durationMs + NEARBY_REVEAL_MS;
+  return nearbyOriginTransitionActive();
 }
 
 // A selection is a deliberate handoff: remove the Nearby set from drawing and hit testing, let a
@@ -4644,7 +4722,29 @@ function headingUpAnchorFraction(isSelected, useFinalBrowseState = false) {
   if (!isSelected) return aheadAnchor;
   const offset = selectedNavigationTargetBearingOffsetRadians();
   if (offset == null) return aheadAnchor;
-  return 0.5 + (aheadAnchor - 0.5) * Math.cos(offset);
+  const weight = clamp(selectedNavigationTargetDistanceMetres() / HEADING_UP_MIRROR_FULL_DISTANCE_METRES, 0, 1);
+  const factor = 1 + (Math.cos(offset) - 1) * weight;
+  return Math.max(HEADING_UP_MIRRORED_ANCHOR_FLOOR, 0.5 + (aheadAnchor - 0.5) * factor);
+}
+
+// Metres from the navigation origin to the averaged selected-target point: the same vector
+// selectedNavigationTargetBearingOffsetRadians resolves the bearing of, so the mirroring weight
+// and the bearing it weights always describe the same vector (a short vector means an unreliable
+// bearing). For a straight line to a destination the user is one of the averaged points, so this is
+// half the distance to the destination.
+function selectedNavigationTargetDistanceMetres() {
+  if (!state.userLocation) return 0;
+  const points = selectedNavigationTargetPoints();
+  if (!points.length) return 0;
+  let sumX = 0;
+  let sumY = 0;
+  for (const point of points) {
+    sumX += point.x;
+    sumY += point.y;
+  }
+  const target = unprojectPoint({ x: sumX / points.length, y: sumY / points.length });
+  const origin = unprojectPoint(navigationOriginPoint());
+  return distanceMetres(origin.latitude, origin.longitude, target.latitude, target.longitude);
 }
 
 // Signed-magnitude offset (radians) of the selected navigation target's bearing from
@@ -4824,12 +4924,26 @@ function balancedNavigationAnchorY(focusRect, anchorFraction) {
   return top + usable * aheadRatio;
 }
 
+// A routed line (three or more points) is balanced by its ahead/behind extents, which for a route lying
+// behind the user puts them at the very top of the rect -- the same horizon-pinning the mirrored anchor
+// is floored against. Under tilt the same floor (HEADING_UP_MIRRORED_ANCHOR_FLOOR) therefore applies to
+// the balanced position, ramped in with the tilt (rotateX is exactly 0 at the tilt threshold
+// and continuous, and the ramp is normalised so the largest offered tilt gets the whole floor), so crossing the threshold never steps the user across the map; flat view keeps the
+// balanced position untouched.
+function floorTiltedFocusY(y, focusRect) {
+  // Normalised by the largest rotateX this build offers (the gentle 64 of the 75 full-3D degrees while
+  // full 3D is off), so the app's real maximum tilt reaches the whole floor rather than 64/75 of it.
+  const offeredMax = state.map3dEnabled ? TILT_ROTATEX_MAX : TILT_GENTLE_ROTATEX_MAX;
+  const ramp = Math.min(1, tiltRotateXDeg() / offeredMax);
+  return Math.max(y, focusRect.y + focusRect.height * HEADING_UP_MIRRORED_ANCHOR_FLOOR * ramp);
+}
+
 function navigationFocusPoint(focusRect = bestVisibleCanvasRect()) {
   const anchor = headingUpAnchorFraction(selectedNavigationHeadingUpActive());
   return {
     x: focusRect.x + focusRect.width / 2,
     y: selectedNavigationHeadingUpActive()
-      ? balancedNavigationAnchorY(focusRect, anchor)
+      ? floorTiltedFocusY(balancedNavigationAnchorY(focusRect, anchor), focusRect)
       : focusRect.y + focusRect.height * anchor,
   };
 }
@@ -5710,9 +5824,19 @@ function alignHeadingUpNavigationViewport(options = {}) {
       ty: focusY - userPoint.y * previousScale,
     };
     const totalMs = options.durationMs || HEADING_UP_NAV_ANIMATION_MS;
-    const panMs = Math.round(totalMs * 0.4);
-    const zoomMs = Math.max(MIN_VIEWPORT_ANIMATION_MS, totalMs - panMs);
-    moveCamera(panViewport, panMs, () => moveCamera(targetViewport, zoomMs));
+    // The pan leg's time follows how far it really travels on screen: a group already near the
+    // camera focus would otherwise hold a few pixels of movement for the full share, a dead beat
+    // before the zoom. moveCamera cannot run a leg shorter than MIN_VIEWPORT_ANIMATION_MS, so a pan
+    // too short to run as its own leg is folded into the one ease, which carries the residual offset.
+    const referencePanPx = Math.min(focusRect.width, focusRect.height) * STAGED_PAN_REFERENCE_SHORT_SIDE_SHARE;
+    const panShare = referencePanPx > 0 ? Math.min(1, panDistancePx / referencePanPx) : 1;
+    const panMs = Math.round(totalMs * STAGED_PAN_FULL_LEG_SHARE * panShare);
+    if (panMs < MIN_VIEWPORT_ANIMATION_MS) {
+      moveCamera(targetViewport, totalMs);
+    } else {
+      const zoomMs = Math.max(MIN_VIEWPORT_ANIMATION_MS, totalMs - panMs);
+      moveCamera(panViewport, panMs, () => moveCamera(targetViewport, zoomMs));
+    }
   } else if (options.animate) {
     moveCamera(
       targetViewport,
@@ -5807,19 +5931,13 @@ function prepareCanvasForDraw() {
   // is re-derived from the interpolated origin every frame (see nearbyRenderOriginPoint),
   // which is what holds the walking-radius circle still while the map moves behind it.
   if (state.nearbyOriginTransition) {
-    // The transition object outlives the slide itself by NEARBY_REVEAL_MS so the fade-in has
-    // frames to run.
-    const sliding = nearbyOriginTransitionActive();
+    // The transition object lives for the slide itself. The frame the slide lands on is the last one
+    // that runs the align below: nearbyRenderOriginPoint() has by then snapped from the interpolated
+    // origin to the final one, and this one forced fit puts the camera on it, so the walking-radius
+    // circle (which the slide exists to hold still) does not twitch as it lands. No later frames are
+    // needed: the pins' own fade (markerGroupingPaused) carries the reveal.
     const fading = nearbyRevealInProgress();
     if (!fading) state.nearbyOriginTransition = null;
-    // Re-derive the camera on every frame the transition object is alive, not just while the
-    // slide is moving. This used to be `sliding || !fading`, which skipped exactly the frames
-    // where the slide had landed but the reveal fade was still running -- and on those frames
-    // nearbyRenderOriginPoint() has already snapped from the interpolated origin to the final
-    // one while the camera is still the last interpolated framing. The walking-radius circle,
-    // which the whole slide exists to hold still, twitched a few pixels as the slide landed
-    // and hopped back when the fade ended. Once the origin has stopped moving this call is a
-    // no-op that costs a fit solve for the ~180ms of the fade.
     alignHeadingUpNavigationViewport({ animate: false, force: true });
     if (fading) requestDraw();
   }

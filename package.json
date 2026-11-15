@@ -29,7 +29,7 @@
     "gen:icons": "node scripts/generate-map-icons.js",
     "fit:icons": "node scripts/refit-map-icons.js",
     "audit:plaques": "node scripts/audit-plaques.js",
-    "test:agents": "node --test test/pr-status.test.js scripts/issue-clarification.test.js"
+    "test:agents": "node --test test/pr-status.test.js scripts/issue-clarification.test.js test/weekly-ledger-schedule.test.js"
   },
   "dependencies": {
     "@netlify/blobs": "^10.7.8",

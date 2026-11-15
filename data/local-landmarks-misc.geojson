@@ -1,7 +1,7 @@
 {
   "type": "FeatureCollection",
   "name": "Other Landmarks",
-  "generatedAt": "2026-10-31T09:06:17.103733Z",
+  "generatedAt": "2026-11-15T02:14:15.820581Z",
   "source": {
     "name": "OpenStreetMap via Overpass API",
     "license": "Open Data Commons Open Database License (ODbL)",
@@ -7102,6 +7102,76 @@
         "address": null,
         "distanceToForestBoundaryMetres": 398.7,
         "distanceLimitFromForestBoundaryMetres": 466.7
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/st-anne-s-parish-centre",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0006652,
+          51.6176518
+        ]
+      },
+      "properties": {
+        "id": "manual/st-anne-s-parish-centre",
+        "osmType": "node",
+        "osmId": 3163720403,
+        "name": "St Anne's Parish Centre",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": null,
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 41.0,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "ledgerUrl": null
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "manual/chingford-community-hub",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          0.0099632,
+          51.6332279
+        ]
+      },
+      "properties": {
+        "id": "manual/chingford-community-hub",
+        "osmType": "node",
+        "osmId": 8609999353,
+        "name": "Chingford Community Hub",
+        "category": "community_centre",
+        "categoryLabel": "Community Centre",
+        "amenity": "community_centre",
+        "shop": null,
+        "highway": null,
+        "tourism": null,
+        "historic": null,
+        "railway": null,
+        "barrier": null,
+        "entrance": null,
+        "heritage": null,
+        "website": null,
+        "phone": null,
+        "address": "Station Road London E4 6AL",
+        "openingHours": null,
+        "distanceToForestBoundaryMetres": 137.7,
+        "distanceLimitFromForestBoundaryMetres": 466.7,
+        "ledgerUrl": null
       }
     }
   ]

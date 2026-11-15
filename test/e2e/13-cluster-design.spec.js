@@ -130,6 +130,62 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     expect(glyphs).toEqual(['underground', 'rail']);
   });
 
+  test('zoomed-out phone pins use the available space while fixed group faces stay clear', async ({ page, isMobile }) => {
+    test.skip(!isMobile, 'this before/after measurement is phone-specific');
+    await setup(page);
+    const result = await page.evaluate(() => {
+      const item = (type, id, x) => ({ type, item: { id, commonName: 'Oak', point: { x, y: 100 } } });
+      const items = [item('tree', 'a', 0), item('tree', 'b', 145)];
+      const lookup = { tree: new Set(), landmark: new Set(), cow: new Set(), path: new Set(), water: new Set() };
+      items.forEach(({ type, item: markerItem }) => lookup[type].add(markerItem));
+    const canvas = document.createElement('canvas');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    const ctx = canvas.getContext('2d');
+    const centre = { x: canvas.width / 2, y: canvas.height / 2 };
+    const drawPin = drawItemPin;
+    const measureAt = scale => {
+      state.emojiScaleAnimated = scale;
+      resetMarkerGroupMemory();
+      settleClusterJoinAnimations();
+      let drawnPins = 0;
+      drawItemPin = (...args) => {
+        drawnPins++;
+        return drawPin(...args);
+      };
+      try {
+        const markers = buildMapMarkers(lookup,
+          point => ({ x: centre.x + point.x, y: centre.y + point.y }), 'zoomed-out-phone');
+        drawMapMarkers(ctx, markers,
+          point => ({ x: centre.x + point.x, y: centre.y + point.y }));
+        return { individual: drawnPins, places: markers.reduce((count, marker) => count + marker.items.length, 0) };
+      } finally {
+        drawItemPin = drawPin;
+      }
+    };
+      const previousScale = state.emojiScaleAnimated;
+      try {
+      const before = measureAt(1);
+      const after = measureAt(0.3);
+        return {
+        beforeIndividual: before.individual,
+        afterIndividual: after.individual,
+        beforePlaces: before.places,
+        afterPlaces: after.places,
+        };
+      } finally {
+        state.emojiScaleAnimated = previousScale;
+        resetMarkerGroupMemory();
+      }
+    });
+    expect(result.beforePlaces).toBe(2);
+    expect(result.afterPlaces).toBe(2);
+    expect(result.beforeIndividual).toBe(0);
+    expect(result.afterIndividual).toBe(2);
+    expect(result.afterIndividual - result.beforeIndividual,
+      'zooming out exposes two places that fit beside the smaller pins').toBe(2);
+  });
+
   // Records what draw() really paints on a settled frame and derives each rectangle from the
   // renderer's own geometry.
   const MEASURE_OVERLAPS = `(() => {
@@ -223,7 +279,9 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
       }
       return CanvasRenderingContext2D.prototype.fillText.apply(this, arguments);
     };
-    try { draw(); } finally { drawClusterMarker = drawnGroup; drawItemPin = drawnPin; delete overlay.fillText; }
+    try {
+      draw();
+    } finally { drawClusterMarker = drawnGroup; drawItemPin = drawnPin; delete overlay.fillText; }
     const covered = label ? rects.filter(r => label.left < r.right && r.left < label.right && label.top < r.bottom && r.top < label.bottom).length : -1;
     const dot = worldToScreen(state.userLocation.point);
     // Distance from the dot's centre to the nearest edge of the label box.
@@ -248,6 +306,7 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
           state.viewport.ty += centre.y - now.y;
         }
         state.emojiScaleAnimated = zoomEmojiScaleTarget();
+        resetMarkerGroupMemory();
         return ${MEASURE_YOU_LABEL};
       })(${factor})`);
       if (factor === 1) expect(view.labelDrawn, 'a free side exists at the default view, so the label is drawn').toBe(true);
@@ -302,6 +361,11 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     await waitForUiToSettle(page);
     const result = await page.evaluate(() => {
       const shape = (markers) => markers.map(m => `${Math.round(m.screenPt.x)},${Math.round(m.screenPt.y)}:${m.items.length}`).sort();
+      // Seed a remembered layout, then exercise the synchronous programmatic-camera landing
+      // path. It must clear that memory just like an animated landing does.
+      resetMarkerGroupMemory();
+      buildActiveMapMarkers(worldToScreen);
+      moveCamera({ ...state.viewport }, 0);
       const settled = shape(buildActiveMapMarkers(worldToScreen));
       resetMarkerGroupMemory();
       const fresh = shape(buildActiveMapMarkers(worldToScreen));
@@ -339,14 +403,14 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     expect(result.settled).toEqual(result.fresh);
   });
 
-  test('the user dot and its label are painted after every pin, flat and heading-up', async ({ page }) => {
+  test('the user dot is behind every pin while its label is painted afterward, flat and heading-up', async ({ page }) => {
     await setup(page);
     const order = await page.evaluate(() => {
       stopViewportAnimation();
       const markers = drawMapMarkers, user = drawUser;
       const events = [];
       drawMapMarkers = (...args) => { events.push('pins'); return markers(...args); };
-      drawUser = (...args) => { events.push('user'); return user(...args); };
+      drawUser = (...args) => { events.push(args[3] || 'all'); return user(...args); };
       try {
         draw();
         const flat = events.splice(0);
@@ -363,8 +427,8 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
       }
     });
     expect(order.tiltActive).toBe(true);
-    expect(order.flat).toEqual(['pins', 'user']);
-    expect(order.tilted).toEqual(['pins', 'user']);
+    expect(order.flat).toEqual(['dot', 'pins', 'label']);
+    expect(order.tilted).toEqual(['dot', 'pins', 'label']);
   });
 
   test('tapping a mixed group opens exactly its members, and the badge count matches the list and map', async ({ page }) => {
@@ -403,6 +467,104 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     expect(shown.inList, 'the list shows the group, up to its usual cap').toBe(Math.min(target.count, shown.listCap));
   });
 
+  test('adjacent groups paint a faint footprint beneath their faces, and tapping inside it is an open-ground tap', async ({ page }) => {
+    await setup(page);
+    await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
+    await waitForUiToSettle(page);
+    // Zoom out about the centre, step by step, to the first camera at which two groups sit close
+    // together; the data fixes which step that is, so the journey is the same every run.
+    const scene = await page.evaluate(`(() => {
+      stopViewportAnimation();
+      const centre = { x: state.canvasLogicalWidth / 2, y: state.canvasLogicalHeight / 2 };
+      const world = screenToWorld(centre.x, centre.y);
+      const footprints = () => markerFootprints(buildActiveMapMarkers(worldToScreen), worldToScreenFlat,
+        tiltActive() ? tiltProjectScreenPoint : p => p);
+      for (let step = 0; step < 14; step++) {
+        if (footprints().length >= 2) break;
+        state.viewport.scale *= 0.8;
+        for (let i = 0; i < 2; i++) {
+          const now = worldToScreen(world);
+          state.viewport.tx += centre.x - now.x;
+          state.viewport.ty += centre.y - now.y;
+        }
+        state.emojiScaleAnimated = zoomEmojiScaleTarget();
+        resetMarkerGroupMemory();
+      }
+      const list = footprints();
+      const markers = buildActiveMapMarkers(worldToScreen);
+      const rects = markers.map(m => clusterMarkerRect(m.screenPt.x, m.screenPt.y, m.items.length, pixelRatio(),
+        m.items.length > 1 ? 1 : mapEmojiScale()));
+      const free = (x, y) => {
+        const pad = 12 * pixelRatio();
+        if (rects.some(r => x > r.left - pad && x < r.right + pad && y > r.top - pad && y < r.bottom + pad)) return false;
+        const screen = { x, y };
+        const world = screenToWorld(x, y);
+        return !findClusterHit(screen) && findHit(screen, world).type === 'none' && !findMapLabelHit(screen);
+      };
+      const inside = (pts, x, y) => {
+        let on = false;
+        for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+          const a = pts[i], b = pts[j];
+          if ((a.y > y) !== (b.y > y) && x < (b.x - a.x) * (y - a.y) / (b.y - a.y) + a.x) on = !on;
+        }
+        return on;
+      };
+      let point = null;
+      for (const { points } of list) {
+        const xs = points.map(p => p.x), ys = points.map(p => p.y);
+        for (let y = Math.min(...ys); y <= Math.max(...ys) && !point; y += 3) {
+          for (let x = Math.min(...xs); x <= Math.max(...xs); x += 3) {
+            if (inside(points, x, y) && free(x, y)) { point = { x, y }; break; }
+          }
+        }
+        if (point) break;
+      }
+      return { count: list.length, point };
+    })()`);
+    expect(scene.count, 'two close groups both draw a footprint').toBeGreaterThanOrEqual(2);
+    expect(scene.point, 'an open-ground spot inside a footprint, away from every face').not.toBeNull();
+
+    const painted = await page.evaluate(`((point) => {
+      const events = [];
+      const proto = CanvasRenderingContext2D.prototype;
+      const fill = proto.fill, face = drawClusterMarker, real = markerFootprints;
+      proto.fill = function (...args) {
+        if (this.fillStyle === '#233d30' && this.globalAlpha > 0 && this.globalAlpha < 0.2) events.push('footprint');
+        return fill.apply(this, args);
+      };
+      drawClusterMarker = (...args) => { events.push('face'); return face(...args); };
+      const sample = () => {
+        const c = els.canvas.getContext('2d');
+        return Array.from(c.getImageData(Math.round(point.x), Math.round(point.y), 1, 1).data);
+      };
+      try {
+        draw();
+        const withFootprint = sample();
+        const order = events.slice();
+        markerFootprints = () => [];
+        draw();
+        const without = sample();
+        return { order, withFootprint, without };
+      } finally {
+        proto.fill = fill;
+        drawClusterMarker = face;
+        markerFootprints = real;
+      }
+    })(${JSON.stringify(scene.point)})`);
+    const firstFace = painted.order.indexOf('face');
+    expect(painted.order.filter(e => e === 'footprint').length).toBeGreaterThanOrEqual(2);
+    expect(firstFace).toBeGreaterThan(-1);
+    expect(painted.order.lastIndexOf('footprint'), 'every footprint is painted before the first face').toBeLessThan(firstFace);
+    const channelSum = px => px[0] + px[1] + px[2];
+    expect(channelSum(painted.withFootprint), 'the ground inside the footprint is slightly darker').toBeLessThan(channelSum(painted.without));
+    expect(channelSum(painted.without) - channelSum(painted.withFootprint), 'only very slightly').toBeLessThan(120);
+
+    await page.evaluate(() => draw());
+    await tapCanvasPoint(page, scene.point);
+    await expect.poll(() => page.evaluate(() => Boolean(state.nearbyAnchor))).toBe(true);
+    expect(await page.evaluate(() => state.clusterExpanded)).toBeNull();
+  });
+
   test('a group marker opens its members when tapped on either side of the count', async ({ page }) => {
     await setup(page);
     await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
@@ -420,26 +582,99 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
     await expect.poll(() => page.evaluate(() => state.clusterExpanded?.items.length)).toBe(target.count);
   });
 
-  test('expanding a cluster keeps its members visible throughout the camera flight, instead of hiding them until it snaps into place', async ({ page }) => {
-    // Field report: "going from nearby to a cluster does not have a smooth transition, it
-    // seems to animate to the position and then suddenly snap afterwards". focusNearbyOnClusterGroup
-    // starts a browse-origin slide (startNearbyOriginTransition) *and* a real camera zoom/pan
-    // tween (refreshNearbyRadiusView's moveCamera) together, but nearbyRevealOpacity --
-    // built for a plain anchor move where the camera does *not* animate and only the ring's own
-    // render position slides -- held the group's own member pins at opacity 0 for the entire
-    // ~500ms flight, then faded them in only once both tweens happened to finish. The camera
-    // motion was smooth; what "snapped" was the destination's own pins popping into existence
-    // after it had already stopped.
-    await setup(page);
-    await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
+  // Records, every animation frame, what a user would see: the shared pin fade, whether grouping is
+  // paused, whether any camera leg or slide is still running, how many marker layouts have been built
+  // and how many pins were painted that frame.
+  async function recordFlight(page) {
+    await page.evaluate(() => {
+      window.__flight = [];
+      window.__builds = 0;
+      window.__painted = 0;
+      const build = window.buildMapMarkers;
+      window.buildMapMarkers = function countedBuild(...args) { window.__builds += 1; return build.apply(this, args); };
+      for (const name of ['drawItemPin', 'drawClusterMarker']) {
+        const original = window[name];
+        window[name] = function recordedPaint(...args) { window.__painted += 1; return original.apply(this, args); };
+      }
+      const sample = () => {
+        window.__flight.push({
+          fade: mapPinFadeOpacity(),
+          paused: markerGroupingPaused(),
+          moving: state.viewportAnimationTo != null || nearbyOriginTransitionActive(),
+          builds: window.__builds,
+          painted: window.__painted,
+        });
+        window.__painted = 0;
+        requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+    });
+  }
+
+  async function findGroupOnScreen(page) {
     const target = await page.evaluate(`(() => {
       stopViewportAnimation();
       const found = ${FIND_GROUP};
       return found ? { point: found.point, count: found.marker.items.length } : null;
     })()`);
     expect(target).not.toBeNull();
+    return target;
+  }
 
-    const samples = await page.evaluate(async (point) => {
+  // The fade must really fall to (near) nothing during the flight, then rise: exactly one fall and
+  // one rise, ending fully visible. A fade that stays flat at 1 (no hide at all) fails.
+  function expectOneFadeOneReveal(fades) {
+    const directions = [];
+    for (let i = 1; i < fades.length; i += 1) {
+      const step = fades[i] - fades[i - 1];
+      if (Math.abs(step) < 1e-9) continue;
+      const next = step < 0 ? -1 : 1;
+      if (directions[directions.length - 1] !== next) directions.push(next);
+    }
+    const trace = `pin opacity ${JSON.stringify(fades.map((f) => +f.toFixed(2)))}`;
+    expect(directions, `${trace} should fall once, then rise once`).toEqual([-1, 1]);
+    expect(Math.min(...fades), `${trace}: the old pins really fade out during the flight`).toBeLessThan(0.05);
+    expect(fades[fades.length - 1], `${trace}: and end fully visible`).toBe(1);
+  }
+
+  test('tapping a cluster fades the old pins out once, paints no regrouped set during the staged flight, and reveals the fresh set once after the last leg lands', async ({ page }) => {
+    await setup(page);
+    await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
+    await waitForUiToSettle(page);
+    const target = await findGroupOnScreen(page);
+    await recordFlight(page);
+    await tapCanvasPoint(page, target.point);
+    await expect.poll(() => page.evaluate(() => state.clusterExpanded?.items.length)).toBe(target.count);
+    await expect.poll(() => page.evaluate(() => !markerGroupingPaused() && !state.viewportAnimationTo && mapPinFadeOpacity() === 1)).toBe(true);
+    await waitForUiToSettle(page);
+    const flight = await page.evaluate(() => window.__flight);
+
+    const started = flight.findIndex((f) => f.paused);
+    const landed = flight.findIndex((f, i) => i > started && !f.paused);
+    expect(started, 'the pause begins with the tap').toBeGreaterThanOrEqual(0);
+    expect(landed, 'and ends once').toBeGreaterThan(started);
+    const during = flight.slice(started, landed);
+    expect(during.length, 'sanity: the flight spans several frames').toBeGreaterThan(5);
+    expect(during.every((f) => f.builds === during[0].builds), 'no regrouped set is built while any leg or the slide is running').toBe(true);
+    expect(during.some((f) => f.moving), 'the camera really was moving').toBe(true);
+    expect(flight.slice(landed).every((f) => !f.paused), 'no second pause or flicker after it lands').toBe(true);
+    expect(flight.slice(landed).every((f) => !f.moving), 'the pause outlasts every leg: nothing is still flying once it ends').toBe(true);
+    expectOneFadeOneReveal(flight.map((f) => f.fade));
+    const last = flight[flight.length - 1];
+    expect(last.fade, 'fully visible at the end').toBe(1);
+    expect(flight.slice(landed).reduce((n, f) => n + f.painted, 0), 'the fresh set is painted after landing').toBeGreaterThan(0);
+  });
+
+  test('tapping a cluster and going Back mid-flight ends with one fade, the correct fresh set and full visibility', async ({ page }) => {
+    await setup(page);
+    await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
+    await waitForUiToSettle(page);
+    const before = await page.evaluate(() => ({ anchor: state.nearbyAnchor, clusterExpanded: Boolean(state.clusterExpanded) }));
+    const target = await findGroupOnScreen(page);
+    await recordFlight(page);
+    // Tap and, a few frames later, Back in one page task chain: a Playwright round trip alone can
+    // outlast the whole flight on a slow device, so the "mid-flight" must not depend on it.
+    const midFlight = await page.evaluate(async (point) => {
       const canvas = els.canvas;
       canvas.setPointerCapture = () => {};
       canvas.releasePointerCapture = () => {};
@@ -447,24 +682,198 @@ test.describe('Map markers: one compact pin per group, never overlapping', () =>
       const dpr = pixelRatio();
       const clientX = rect.left + (point.x - state.canvasInsetX) / dpr;
       const clientY = rect.top + (point.y - state.canvasInsetY) / dpr;
-      const fire = (type) => canvas.dispatchEvent(new PointerEvent(type, {
-        pointerId: 2001, clientX, clientY, bubbles: true, cancelable: true, pointerType: "touch",
-      }));
-      fire("pointerdown");
-      fire("pointerup");
+      for (const type of ['pointerdown', 'pointerup']) {
+        canvas.dispatchEvent(new PointerEvent(type, { pointerId: 2001, clientX, clientY, bubbles: true, cancelable: true, pointerType: 'touch' }));
+      }
+      for (let i = 0; i < 4; i += 1) await new Promise((resolve) => requestAnimationFrame(resolve));
+      const inFlight = markerGroupingPaused() && (state.viewportAnimationTo != null || nearbyOriginTransitionActive());
+      history.back();
+      return { inFlight, expanded: state.clusterExpanded?.items.length };
+    }, target.point);
+    expect(midFlight.expanded, 'the tap expanded the group').toBe(target.count);
+    expect(midFlight.inFlight, 'Back lands while the flight is still running').toBe(true);
+    await expect.poll(() => page.evaluate(() => state.clusterExpanded)).toBeNull();
+    await expect.poll(() => page.evaluate(() => !markerGroupingPaused() && !state.viewportAnimationTo && mapPinFadeOpacity() === 1)).toBe(true);
+    await waitForUiToSettle(page);
+    const flight = await page.evaluate(() => window.__flight);
+    expectOneFadeOneReveal(flight.map((f) => f.fade));
+    const landed = flight.findIndex((f, i) => i > 0 && flight[i - 1].paused && !f.paused);
+    expect(flight.slice(landed).every((f) => !f.paused), 'only one pause for the whole round trip').toBe(true);
+    const after = await page.evaluate(() => ({
+      anchor: state.nearbyAnchor,
+      fade: mapPinFadeOpacity(),
+      markers: buildActiveMapMarkers(worldToScreen, false).length,
+    }));
+    expect(after.anchor).toEqual(before.anchor);
+    expect(after.fade).toBe(1);
+    expect(after.markers, 'the fresh Nearby set is built and tappable').toBeGreaterThan(0);
+  });
 
-      const collected = [];
-      const start = performance.now();
-      while (performance.now() - start < 700) {
-        collected.push({ opacity: nearbyRevealOpacity(), animating: state.viewportAnimationTo != null });
+  test('a second tap on the same badge while the first flight is fading out leaves the first tap\'s anchor alone', async ({ page }) => {
+    await setup(page);
+    await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
+    await waitForUiToSettle(page);
+    const target = await findGroupOnScreen(page);
+    // Both taps in one round trip: a Playwright round trip alone can outlast the 120ms fade-out.
+    const taps = await page.evaluate(async (point) => {
+      const canvas = els.canvas;
+      canvas.setPointerCapture = () => {};
+      canvas.releasePointerCapture = () => {};
+      const rect = (els.mapStage || canvas).getBoundingClientRect();
+      const dpr = pixelRatio();
+      const clientX = rect.left + (point.x - state.canvasInsetX) / dpr;
+      const clientY = rect.top + (point.y - state.canvasInsetY) / dpr;
+      const tap = (id) => {
+        for (const type of ['pointerdown', 'pointerup']) {
+          canvas.dispatchEvent(new PointerEvent(type, { pointerId: id, clientX, clientY, bubbles: true, cancelable: true, pointerType: 'touch' }));
+        }
+      };
+      // Drive the clock rather than wait on frames: a slow device can outlast the 120ms fade-out
+      // before a single rAF fires. 40ms in, the fade-out is mid-way and the old badge still painted.
+      // The clock is frozen at each step (not offset from the live one) so a slow tap handler under
+      // load cannot run the fade-out to its end before the next frame is drawn.
+      const realNow = performance.now.bind(performance);
+      const start = realNow();
+      performance.now = () => start + 40;
+      try {
+        tap(2001);
+        const firstAnchor = { latitude: state.nearbyAnchor.latitude, longitude: state.nearbyAnchor.longitude };
+        performance.now = () => start + 80;
+        draw(); // the frame that paints the fading old set
+        const opacity = mapPinFadeOpacity();
+        const stillPainted = markerGroupingPaused() && opacity > PIN_ALPHA_VISIBLE_MIN && opacity < 1;
+        tap(2002);
+        return { firstAnchor, stillPainted };
+      } finally {
+        performance.now = realNow;
+      }
+    }, target.point);
+    const firstAnchor = taps.firstAnchor;
+    expect(taps.stillPainted, 'the old badge is still painted when the impatient second tap lands').toBe(true);
+    await expect.poll(() => page.evaluate(() => !markerGroupingPaused() && !state.viewportAnimationTo && mapPinFadeOpacity() === 1)).toBe(true);
+    await waitForUiToSettle(page);
+    const settled = await page.evaluate(() => ({
+      anchor: { latitude: state.nearbyAnchor.latitude, longitude: state.nearbyAnchor.longitude },
+      expanded: state.clusterExpanded?.items.length,
+    }));
+    expect(settled.anchor, 'the second tap did not relocate the browse anchor').toEqual(firstAnchor);
+    expect(settled.expanded, 'and the first tap\'s cluster is still the one open').toBe(target.count);
+  });
+
+  test('a tap on a badge still fading out under an open-ground slide is not open ground: it does not move the browse anchor again', async ({ page }) => {
+    await setup(page);
+    await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
+    await waitForUiToSettle(page);
+    await findGroupOnScreen(page);
+    const result = await page.evaluate(async () => {
+      const canvas = els.canvas;
+      canvas.setPointerCapture = () => {};
+      canvas.releasePointerCapture = () => {};
+      const rect = (els.mapStage || canvas).getBoundingClientRect();
+      const dpr = pixelRatio();
+      // A touch tap beside the open panel never reaches the map (isTouchTapBesidePanel, js/nav.js).
+      const tapIsBesidePanel = (screen) => {
+        const clientX = rect.left + (screen.x - state.canvasInsetX) / dpr;
+        const clientY = rect.top + (screen.y - state.canvasInsetY) / dpr;
+        return [els.inspector, els.inspectorActions].some((el) => {
+          if (!el || el.hidden) return false;
+          const r = el.getBoundingClientRect();
+          const m = PANEL_EDGE_TAP_MARGIN_PX;
+          return r.width && r.height && clientX >= r.left - m && clientX <= r.right + m && clientY >= r.top - m && clientY <= r.bottom + m;
+        });
+      };
+      const tapScreen = (screen, id) => {
+        const clientX = rect.left + (screen.x - state.canvasInsetX) / dpr;
+        const clientY = rect.top + (screen.y - state.canvasInsetY) / dpr;
+        for (const type of ['pointerdown', 'pointerup']) {
+          canvas.dispatchEvent(new PointerEvent(type, { pointerId: id, clientX, clientY, bubbles: true, cancelable: true, pointerType: 'touch' }));
+        }
+      };
+      // Open ground: nothing at all under this spot.
+      let open = null;
+      for (let r = 60; r < 300 && !open; r += 20) {
+        for (let angle = 0; angle < 360 && !open; angle += 20) {
+          const screen = { x: canvas.width / 2 + r * dpr * Math.cos(angle * Math.PI / 180), y: canvas.height / 2 + r * dpr * Math.sin(angle * Math.PI / 180) };
+          if (!tapIsBesidePanel(screen) && !findClusterHit(screen) && findHit(screen, screenToWorld(screen.x, screen.y)).type === 'none' && !findMapLabelHit(screen)) open = screen;
+        }
+      }
+      if (!open) return { error: 'no open ground' };
+      const before = { paused: markerGroupingPaused(), fade: mapPinFadeOpacity(), target: mapPinFadeTarget(), slide: nearbyOriginTransitionActive(), anim: state.viewportAnimationTo != null };
+      const realNow = performance.now.bind(performance);
+      // A frozen clock, not an offset on the live one: under load the tap's own work can take
+      // longer than the whole 120ms fade-out, which would leave nothing painted by the next frame.
+      const frozen = realNow() + 60;
+      performance.now = () => frozen;
+      try {
+      tapScreen(open, 2001);
+      if (!state.nearbyAnchor) return { error: 'the open-ground tap did not move the browse anchor' };
+      const firstAnchor = { latitude: state.nearbyAnchor.latitude, longitude: state.nearbyAnchor.longitude };
+      performance.now = () => frozen + 40; // mid-fade, and still fixed
+      draw(); // the frame that paints the fading old set
+      const painted = typeof _frozenPaintView !== 'undefined' && _frozenPaintView ? _frozenPaintView.markers : [];
+      const badge = painted.find((marker) => marker.items.length >= 2 && !tapIsBesidePanel({ x: marker.screenPt.x, y: marker.screenPt.y - 12 * dpr }));
+      const visible = markerGroupingPaused() && mapPinFadeOpacity() > PIN_ALPHA_VISIBLE_MIN && mapPinFadeOpacity() < 1;
+      if (!badge || !visible) return { error: 'no painted badge', before, visible, painted: painted.map((m) => ({ n: m.items.length, beside: tapIsBesidePanel({ x: m.screenPt.x, y: m.screenPt.y - 12 * dpr }) })), fade: mapPinFadeOpacity(), paused: markerGroupingPaused(), open, panel: [els.inspector, els.inspectorActions].map((el) => el && !el.hidden ? JSON.stringify(el.getBoundingClientRect()) : null) };
+      tapScreen({ x: badge.screenPt.x, y: badge.screenPt.y - 12 * dpr }, 2002);
+      return { firstAnchor, afterSecond: { latitude: state.nearbyAnchor.latitude, longitude: state.nearbyAnchor.longitude } };
+      } finally {
+        performance.now = realNow;
+      }
+    });
+    expect(result.error, `sanity: an open spot and a painted badge exist: ${JSON.stringify(result)}`).toBeUndefined();
+    expect(result.afterSecond, 'the tap on the fading badge did not relocate the anchor').toEqual(result.firstAnchor);
+    await expect.poll(() => page.evaluate(() => !markerGroupingPaused() && mapPinFadeOpacity() === 1)).toBe(true);
+    expect(await page.evaluate(() => ({ latitude: state.nearbyAnchor.latitude, longitude: state.nearbyAnchor.longitude }))).toEqual(result.firstAnchor);
+  });
+
+  test('selecting a place from the Nearby list mid-slide does not bring the already faded-out pins back', async ({ page }) => {
+    await setup(page);
+    await expect(page.locator('#inspectorBody .nearest-item').first()).toBeVisible();
+    await waitForUiToSettle(page);
+    const target = await findGroupOnScreen(page);
+    await recordFlight(page);
+    await page.evaluate(() => {
+      window.__draws = { user: 0, selected: 0, exitPainted: 0 };
+      const exit = window.drawSelectionExitMarkers;
+      window.drawSelectionExitMarkers = function recordedExit(...args) {
+        const before = window.__painted;
+        const result = exit.apply(this, args);
+        window.__draws.exitPainted += window.__painted - before;
+        return result;
+      };
+      for (const [name, key] of [['drawUser', 'user'], ['drawSelectedOverlay', 'selected']]) {
+        const original = window[name];
+        window[name] = function recordedDraw(...args) { window.__draws[key] += 1; return original.apply(this, args); };
+      }
+      const sample = () => {
+        const f = window.__flight[window.__flight.length - 1];
+        if (f) { f.selected = Boolean(state.selected); f.held = state.selectionTransition.mapHeld; }
+        requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+    });
+    await tapCanvasPoint(page, target.point);
+    // Choose the place in the very frame the pins have finished fading out: a Playwright click is a
+    // round trip that can outlast the whole slide on a slow device.
+    const chose = await page.evaluate(async () => {
+      for (let i = 0; i < 600 && !(markerGroupingPaused() && mapPinFadeOpacity() < PIN_ALPHA_VISIBLE_MIN); i += 1) {
         await new Promise((resolve) => requestAnimationFrame(resolve));
       }
-      return collected;
-    }, target.point);
-
-    const whileAnimating = samples.filter((s) => s.animating);
-    expect(whileAnimating.length, "sanity: the camera should actually have been animating for part of this").toBeGreaterThan(2);
-    expect(whileAnimating.every((s) => s.opacity === 1), "the cluster's own members must stay visible for the whole camera flight").toBe(true);
+      const hidden = markerGroupingPaused() && mapPinFadeOpacity() < PIN_ALPHA_VISIBLE_MIN;
+      const midFlight = nearbyOriginTransitionActive() || state.viewportAnimationTo != null;
+      window.__flight.length = 0;
+      document.querySelector('#inspectorBody .nearest-item').click();
+      return { hidden, midFlight };
+    });
+    expect(chose, 'sanity: the pins were hidden and the flight still running when the place was chosen').toEqual({ hidden: true, midFlight: true });
+    await expect.poll(() => page.evaluate(() => Boolean(state.selected) && !state.selectionTransition.mapHeld && !markerGroupingPaused() && mapPinFadeOpacity() === 1)).toBe(true);
+    await waitForUiToSettle(page);
+    const flight = await page.evaluate(() => window.__flight);
+    const heldFrames = flight.filter((f) => f.held);
+    expect(heldFrames.length, 'sanity: the selection handoff was observed').toBeGreaterThan(0);
+    expect(await page.evaluate(() => window.__draws.exitPainted), 'the outgoing set was not repainted after the pause had hidden it').toBe(0);
+    expect(await page.evaluate(() => window.__draws.selected), 'the selected pin overlay is drawn').toBeGreaterThan(0);
+    expect(await page.evaluate(() => window.__draws.user), 'the You dot is drawn').toBeGreaterThan(0);
   });
 
   test('a cluster tap in 3D solves the camera tween against the slide\'s actual destination, not a stale snapshot of it', async ({ page }) => {

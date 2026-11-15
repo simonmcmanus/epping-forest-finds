@@ -8,7 +8,10 @@
       "date": "2026-10-10",
       "body": "A trail half marathon (9:00 start) and 10K (9:30 start) through Epping Forest, chip-timed, with aid stations and limited parking. Entry around £37, ages 17+.",
       "sources": [
-        {"label": "Time Outdoors event listing", "url": "https://www.timeoutdoors.com/events/epping-forest-wildwood-trail-series-half-marathon-and-10k/half-marathon"}
+        {
+          "label": "Time Outdoors event listing",
+          "url": "https://www.timeoutdoors.com/events/epping-forest-wildwood-trail-series-half-marathon-and-10k/half-marathon"
+        }
       ],
       "lastVerified": "2026-10-10"
     },
@@ -20,7 +23,10 @@
       "startTime": "10:00",
       "body": "Free, volunteer-run litter pick at Hollow Ponds, part of the Epping Forest charity's recurring 'Top Picks' series.",
       "sources": [
-        {"label": "Eventbrite: Top Picks collection", "url": "https://www.eventbrite.co.uk/cc/top-picks-3973383"}
+        {
+          "label": "Eventbrite: Top Picks collection",
+          "url": "https://www.eventbrite.co.uk/cc/top-picks-3973383"
+        }
       ],
       "lastVerified": "2026-10-10"
     },
@@ -32,7 +38,10 @@
       "startTime": "11:00",
       "body": "Family event in the Mansion and gardens at Copped Hall: apple identification by an orchard expert, produce and plant stalls, live music (Chingford Morris Men, Harlow Brass Band) and children's entertainment. Gates open 11am, last entry 4pm. Tickets £12 in advance or £15 on the day; free for Friends of Copped Hall, under-18s and carers.",
       "sources": [
-        {"label": "Copped Hall Trust: Apple Day", "url": "https://www.coppedhalltrust.org.uk/?view=article&id=273&catid=29"}
+        {
+          "label": "Copped Hall Trust: Apple Day",
+          "url": "https://www.coppedhalltrust.org.uk/?view=article&id=273&catid=29"
+        }
       ],
       "lon": 0.0679867,
       "lat": 51.694336,
@@ -46,11 +55,122 @@
       "recurring": true,
       "body": "Free, one-hour drop-in sessions (1pm or 2pm) on Epping Forest's archives, run on multiple dates. Check the listing for the next date -- none is reliably current as of this verification.",
       "sources": [
-        {"label": "Eventbrite listing", "url": "https://www.eventbrite.co.uk/e/archives-on-show-epping-forest-tickets-1595749613049"}
+        {
+          "label": "Eventbrite listing",
+          "url": "https://www.eventbrite.co.uk/e/archives-on-show-epping-forest-tickets-1595749613049"
+        }
       ],
       "lastVerified": "2026-10-10",
       "needsReverification": true,
       "reverificationNote": "No specific upcoming date confirmed -- re-check the listing for the next session before using in a report."
+    },
+    {
+      "id": "theydon-bois-christmas-market-2026-11-27",
+      "title": "Theydon Bois Christmas lights and market",
+      "place": "Village Hall, Coppice Row, Theydon Bois",
+      "date": "2026-11-27",
+      "body": "Friday 27 November: Christmas lights and the primary school choir at the Village Hall at 5pm, followed by the village Christmas market from 5.30pm to 8pm.",
+      "sources": [
+        {
+          "label": "Theydon Bois Parish Council calendar",
+          "url": "https://theydonbois-pc.gov.uk/events/month/"
+        }
+      ],
+      "lastVerified": "2026-11-15",
+      "startTime": "17:00"
+    },
+    {
+      "id": "waltham-abbey-cavalcade-of-light-2026-11-27",
+      "title": "Waltham Abbey Cavalcade of Light",
+      "place": "Waltham Abbey",
+      "date": "2026-11-27",
+      "body": "The Cavalcade of Light takes place on Friday 27 November. Check the council listing for the route and timings.",
+      "sources": [
+        {
+          "label": "Waltham Abbey Town Council events",
+          "url": "https://www.walthamabbey-tc.gov.uk/events"
+        }
+      ],
+      "lastVerified": "2026-11-15"
+    },
+    {
+      "id": "epping-christmas-market-2026-12-04",
+      "title": "Epping Christmas Market",
+      "place": "Epping High Street",
+      "date": "2026-12-04",
+      "body": "Friday 4 December, noon to 8pm: a traditional Christmas market with entertainment, food, gifts, crafts, Santa and festive fun.",
+      "sources": [
+        {
+          "label": "Epping Town Council events diary",
+          "url": "https://www.eppingtowncouncil.gov.uk/Events_Diary_35167.aspx"
+        }
+      ],
+      "lastVerified": "2026-11-15",
+      "startTime": "12:00"
+    },
+    {
+      "id": "highams-park-christmas-fayre-2026-12-06",
+      "title": "Highams Park Christmas Fayre",
+      "place": "Highams Park",
+      "date": "2026-12-06",
+      "body": "Sunday 6 December, 11am to 5pm: a free Christmas fayre for all the family. Check the community calendar for locations and activities.",
+      "sources": [
+        {
+          "label": "Highams Park Portal calendar",
+          "url": "https://highamspark.london/events/month/2026-12/"
+        }
+      ],
+      "lastVerified": "2026-11-15",
+      "startTime": "11:00"
+    },
+    {
+      "id": "loughton-staples-road-christmas-fair-2026-12-06",
+      "title": "Loughton Christmas Fair and Market",
+      "place": "Staples Road Primary School, Loughton, IG10 1HR",
+      "date": "2026-12-06",
+      "body": "Sunday 6 December, noon to 3pm: free entry to the Staples Road School PTA Christmas fair, with stalls, games, performances and refreshments from the 41st Epping Forest Scouts.",
+      "sources": [
+        {
+          "label": "41st Epping Forest Scouts event listing",
+          "url": "https://www.41steppingforestscouts.org.uk/events/loughton-christmas-fair-market-2026-at-staples-road-school"
+        }
+      ],
+      "lastVerified": "2026-11-15",
+      "startTime": "12:00"
+    },
+    {
+      "id": "waltham-abbey-christmas-market-2026-12-12",
+      "title": "Waltham Abbey Christmas Market",
+      "place": "Sun Street and Market Square, Waltham Abbey",
+      "date": "2026-12-12",
+      "body": "Saturday 12 December, 9am to 3pm: Christmas market on Sun Street and Market Square.",
+      "sources": [
+        {
+          "label": "Visit Epping Forest event listing",
+          "url": "https://www.visiteppingforest.org/events/whats-on/waltham-abbey-christmas-market-p1940961"
+        }
+      ],
+      "lastVerified": "2026-11-15",
+      "startTime": "09:00"
+    },
+    {
+      "id": "north-chingford-christmas-market-2026-12-19",
+      "title": "North Chingford Christmas Market",
+      "place": "Chingford Assembly Hall and The Green",
+      "date": "2026-12-19",
+      "body": "Saturday 19 December, 11am to 4pm: free-entry market with more than 30 stalls, live entertainment and community carols. Santa’s grotto supports The Dream Factory and requires a separate advance booking.",
+      "sources": [
+        {
+          "label": "Love Chingford organiser listing",
+          "url": "https://chingfordmarket.com/"
+        },
+        {
+          "label": "The Dream Factory",
+          "url": "https://www.yourdreamfactory.org/the-dream-factory-santas-grotto"
+        }
+      ],
+      "lastVerified": "2026-11-15",
+      "startTime": "11:00"
     }
   ],
   "sourceNotes": [
@@ -96,13 +216,13 @@
     },
     {
       "source": "Visit Epping Forest events calendar (visiteppingforest.org/events/whats-on/events-calendar)",
-      "note": "The official Epping Forest District tourism site. A plain page with no feed, but its event list (dates, venue, description) is present in the raw HTML rather than requiring JavaScript, so it scrapes the same way Copped Hall's site does. Broader than any single town's listing: covers venues across the whole district, including Copped Hall and Epping Ongar Railway.",
-      "evaluated": "2026-10-10"
+      "note": "The official Epping Forest District tourism site. A plain page with no feed, but its event list (dates, venue, description) is present in the raw HTML rather than requiring JavaScript, so it scrapes the same way Copped Hall's site does. Broader than any single town's listing: covers venues across the whole district, including Copped Hall and Epping Ongar Railway. Rechecked 2026-11-15: dated Christmas listings include Waltham Abbey, Abridge and Chigwell Hall markets, Ongar lights festival and railway Santa specials. Check all results pages and event detail pages, not only the calendar landing page.",
+      "evaluated": "2026-11-15"
     },
     {
       "source": "Epping Town Council events diary (eppingtowncouncil.gov.uk/Events_Diary_35167.aspx)",
-      "note": "A plain page (Town Show, Christmas Market, Remembrance services, Monday Market) with no feed, same treatment as Copped Hall's site: worth checking by hand each run, not yet worth a scraper.",
-      "evaluated": "2026-10-10"
+      "note": "Already a required weekly source. Its indexed diary confirms Epping Christmas Market on 4 December 2026, noon-8pm. Direct WebFetch returned HTTP 403 on 2026-11-15; use current indexed council text for discovery and seek organiser corroboration if details cannot be fetched. Do not roll forward dates or switch-on times from older leaflets.",
+      "evaluated": "2026-11-15"
     },
     {
       "source": "Epping Ongar Railway (eorailway.co.uk) -- heritage railway in the district running galas and a Real Ale and Cider Weekend",
@@ -110,9 +230,9 @@
       "evaluated": "2026-10-10"
     },
     {
-      "source": "Loughton Town Council, Waltham Abbey Town Council 'What's On', Waltham Forest borough-wide listings (which would cover Chingford), and Theydon Bois Parish Council's events category page",
-      "note": "No usable feed found for any of the four, and no current, dated events listing confirmed as of this evaluation -- Loughton's site surfaces only its news section (most recent dated item from 2025), Waltham Abbey's calendar is advertised as email-submission-only with no feed, Waltham Forest's borough events listing is paginated HTML with no RSS/Atom link found and nothing specific to Chingford, and Theydon Bois PC's 'Events' category is actually news-style posts by publish date, not event date, with the newest confirmed-dated item (an exhibition) from January 2023. The parish council's own site points residents to theydon.org.uk as 'the village website', but that site also returned HTTP 403 to a direct fetch, so it couldn't be checked for a calendar either. Re-check each run rather than building automation against any of them yet; a council could add a feed at any time.",
-      "evaluated": "2026-10-10"
+      "source": "Loughton Town Council, Waltham Forest borough-wide listings, Chigwell Parish Council and Chingford Historical Society",
+      "note": "Retain as secondary research pages; no working syndicated feed confirmed. Do not confuse the lack of a feed with a lack of events: check current dated HTML pages and organiser sites. The October assessment of Theydon Bois is superseded by its accessible calendar below; Waltham Abbey is assessed separately below.",
+      "evaluated": "2026-11-15"
     },
     {
       "source": "South Woodford Village Gazette events calendar (swvg.co.uk/events/ -- covers South Woodford, Woodford Green, Snaresbrook and Aldersbrook)",
@@ -121,8 +241,8 @@
     },
     {
       "source": "Waltham Abbey Town Council's own events page (walthamabbey-tc.gov.uk/events/)",
-      "note": "Its URL structure (/events/<slug>, /event_category/past/page/N) matches the same WordPress 'The Events Calendar' plugin that gives the Wanstead Village Directory and South Woodford Village Gazette their working iCal feeds above -- but the whole site blocks automated requests: direct fetches of /events/, /whats-on, and the plugin's own /events/list/?ical=1 export URL all returned HTTP 403, not just a wrong path. Re-test occasionally in case the block lifts; not worth building anything against while it 403s even on the feed URL itself.",
-      "evaluated": "2026-10-10"
+      "note": "The current council events index is search-indexed with dated 2026 listings: Cavalcade of Light on 27 November and Christmas Market on 12 December, 9am-3pm, on Sun Street and Market Square. Direct fetching of /events still returned HTTP 403 on 2026-11-15; a working iCal feed is not verified. Use current indexed council listings for discovery and cross-check Visit Epping Forest or the organiser before publication. Avoid the undated /the-council/cavalcade-and-festival-of-light page, which still gives different dates without a year.",
+      "evaluated": "2026-11-15"
     },
     {
       "source": "Essex Libraries 'Events & Bookings' site (library-events.essex.gov.uk) -- lists events at Loughton, Buckhurst Hill, Chigwell, Waltham Abbey and Epping library branches among others",
@@ -143,6 +263,26 @@
       "source": "Bedford House / Buckhurst Hill Community Association (bedfordhouse.org.uk)",
       "note": "A real, active local charity (adult education classes, an 'Upcoming Events' section, named events like a Winter Fair) -- the best Buckhurst Hill-specific lead found, better than the generic aggregator noise that name alone turns up. Its homepage links to separate Courses & Activities / Upcoming Events / Past Events pages rather than listing them directly, and guessing the events page's URL (bedfordhouse.org.uk/events) 404s, so its actual events page path and whether it carries a feed are still unconfirmed. Worth finding the right URL and checking properly on a future run rather than re-searching from scratch.",
       "evaluated": "2026-10-10"
+    },
+    {
+      "source": "Theydon Bois Parish Council calendar (https://theydonbois-pc.gov.uk/events/month/)",
+      "note": "Accessible dated HTML calendar verified 2026-11-15, superseding the October assessment of its old news category. Lists the 27 November 2026 Christmas market: lights and choir 5pm, stalls 5.30pm-8pm. The calendar slot starts at 5pm; retain the distinction in event prose. /events/list/?ical=1 could not be accessed by the web tool, so an iCal feed remains unverified; use HTML now.",
+      "evaluated": "2026-11-15"
+    },
+    {
+      "source": "Highams Park Portal (https://highamspark.london/events/)",
+      "note": "Accessible dated community calendar verified 2026-11-15. December calendar lists the free Christmas Fayre on 6 December 2026, 11am-5pm, plus local performances. Useful for the southern forest edge. Read event details for locations; a working syndicated feed has not been verified.",
+      "evaluated": "2026-11-15"
+    },
+    {
+      "source": "Love Chingford (https://chingfordmarket.com/) and The Dream Factory (https://www.yourdreamfactory.org/the-dream-factory-santas-grotto)",
+      "note": "Both accessible organiser/charity HTML pages agree on North Chingford Christmas Market at Assembly Hall and The Green, 19 December 2026, 11am-4pm. Free market entry; grotto needs separate advance booking. Use the charity events index for additional local fundraisers. No feed verified; do not rely on social posts.",
+      "evaluated": "2026-11-15"
+    },
+    {
+      "source": "41st Epping Forest Scouts events (https://www.41steppingforestscouts.org.uk/events)",
+      "note": "Accessible dated organiser-participant HTML listings verified 2026-11-15. Confirms the Staples Road School PTA fair on 6 December 2026, noon-3pm, free entry. Covers community/school fairs that broader tourism calendars can miss; distinguish public fairs from member-only activities. No feed verified.",
+      "evaluated": "2026-11-15"
     }
   ]
 }
