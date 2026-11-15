@@ -1816,6 +1816,25 @@ test("a pan with almost no zoom is blended straight across", () => {
   assert.ok(Math.abs(mid.tx - -556) < 0.01 && Math.abs(mid.ty - 822659.5) < 0.01, "offsets are the straight midpoint");
 });
 
+test("a small zoom does not carry a far-off point off-screen mid-move", () => {
+  // Real heading-up case: mercator-degree world coordinates, so the user's point is far from the
+  // origin and any mismatch between scale and offset blending is magnified enormously on screen.
+  const from = { scale: 481129.4, tx: -31310, ty: 29122957 };
+  const to = { scale: 465825.8, tx: -30297, ty: 28196442 };
+  const world = { x: 0.0662, y: -60.52914436679489 };
+  const screenY = (v) => world.y * v.scale + v.ty;
+  const startY = screenY(from);
+  const endY = screenY(to);
+  const lo = Math.min(startY, endY) - 1e-6;
+  const hi = Math.max(startY, endY) + 1e-6;
+  for (let i = 0; i <= 100; i++) {
+    const y = screenY(app.viewportAlongTween(from, to, i / 100));
+    assert.ok(y >= lo && y <= hi, `step ${i}: screen y ${y} left the range ${startY}..${endY}`);
+  }
+  assert.ok(Math.abs(screenY(app.viewportAlongTween(from, to, 0)) - startY) < 1e-6, "starts at the source view");
+  assert.ok(Math.abs(screenY(app.viewportAlongTween(from, to, 1)) - endY) < 1e-6, "lands on the target view");
+});
+
 test("clusterJoinAnimationState leaves a lone pin undisturbed", () => {
   const lone = { point: { x: 0, y: 0 } };
   const cluster = { items: [lone], screenPt: { x: 0, y: 0 } };
