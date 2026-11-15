@@ -308,6 +308,7 @@ function showUpdateBanner() {
   if (existing) {
     existing.querySelector(".update-banner-text strong").textContent = title;
     existing.querySelector(".update-banner-text span").textContent = detail;
+    fillUpdateBannerVersions();
     return;
   }
   const banner = document.createElement("div");
@@ -315,10 +316,12 @@ function showUpdateBanner() {
   banner.className = "update-banner";
   banner.setAttribute("role", "status");
   banner.innerHTML = '<span class="update-banner-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg></span>'
-    + `<span class="update-banner-text"><strong>${title}</strong><span>${detail}</span></span>`
+    + `<span class="update-banner-text"><strong>${title}</strong><span>${detail}</span>`
+    + '<small id="updateBannerVersions" class="update-banner-versions" aria-hidden="true"></small></span>'
     + '<button id="updateBannerButton" type="button">Restart</button>';
   banner.inert = true;
   document.body.appendChild(banner);
+  fillUpdateBannerVersions();
   banner.querySelector("button").addEventListener("click", async (event) => {
     const button = event.currentTarget;
     banner.dataset.restoreFocus = String(banner.contains(document.activeElement));
@@ -349,6 +352,26 @@ function showUpdateBanner() {
     banner.inert = false;
     banner.classList.add("is-visible");
   });
+}
+
+// The old and new release names, small and out of the way under the banner's detail line. The new
+// name comes from the app cache the waiting worker has already filled; nothing is shown unless the
+// two differ.
+async function fillUpdateBannerVersions() {
+  const line = document.getElementById("updateBannerVersions");
+  if (!line) return;
+  const current = typeof APP_CACHE_VERSION === "string" ? APP_CACHE_VERSION : "";
+  let next = "";
+  try {
+    const keys = await caches.keys();
+    const versionOf = (key) => (key.startsWith("forest-finds-app-") || key.startsWith("forest-finds-dev-app-")
+      ? key.replace("forest-finds-", "").replace("app-", "")
+      : "");
+    next = keys.map(versionOf).find((version) => version && version !== current) || "";
+  } catch {
+    next = "";
+  }
+  line.textContent = current && next ? `${current} → ${next}` : "";
 }
 
 function resetUpdateBannerButton() {
@@ -408,9 +431,30 @@ function followInstallingWorker(installing) {
   onStateChange();
 }
 
+// The worker the registration is holding back, whether or not this page was told about it. A
+// reload can find a replacement still waiting that no event on this page ever reported.
+async function waitingWorkerOnRegistration() {
+  if (serviceWorkerDisabled || !("serviceWorker" in navigator)) return null;
+  try {
+    const registration = await navigator.serviceWorker.getRegistration();
+    return registration?.waiting || null;
+  } catch {
+    return null;
+  }
+}
+
 async function applySwUpdate() {
+  // Restart must activate a waiting worker when one exists. Without this, a page that never
+  // tracked the worker reloaded into the same release, found it still waiting, and showed the
+  // banner again: the restart loop.
+  if (!state.swWaiting) {
+    const waiting = await waitingWorkerOnRegistration();
+    if (waiting) state.swWaiting = waiting;
+  }
+
   // The new release already controls this page (another tab restarted into it, or the browser
-  // activated it): it has its complete shell, so a plain reload is all that is left.
+  // activated it) and nothing is waiting: it has its complete shell, so a plain reload is all that
+  // is left.
   if (!state.swWaiting && state.swActivatedElsewhere) {
     location.reload();
     return true;
