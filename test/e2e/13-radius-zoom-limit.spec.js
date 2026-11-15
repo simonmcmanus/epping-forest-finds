@@ -79,6 +79,7 @@ test.describe("Radius zoom limit feedback", () => {
         const peak = await page.evaluate(() => window.__sampleRim());
         expect(peak.red).toBeGreaterThan(rising.red);
         expect(Math.abs(peak.brightest - 140)).toBeLessThanOrEqual(1);
+        expect(peak.edgeAlpha, "the edge is strong enough to read over the map").toBeGreaterThan(140);
         expect(peak.edgeAlpha).toBeGreaterThan(peak.nearAlpha);
         expect(peak.nearAlpha).toBeGreaterThan(peak.farAlpha);
         expect(peak.farAlpha).toBeGreaterThanOrEqual(peak.outsideAlpha);
@@ -134,7 +135,7 @@ test.describe("Radius zoom limit feedback", () => {
     await page.clock.runFor(16);
     await page.clock.fastForward(400);
     const steady = await sample();
-    expect(steady).toBeGreaterThan(0);
+    expect(steady, "reduced-motion feedback remains clearly visible").toBeGreaterThan(120);
     await page.clock.fastForward(380);
     expect(await sample()).toBe(steady);
     await page.evaluate(() => els.canvas.dispatchEvent(new Event("gestureend", { bubbles: true, cancelable: true })));

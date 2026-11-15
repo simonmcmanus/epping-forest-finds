@@ -1241,7 +1241,7 @@ const NEARBY_RIM_SHADOW = "rgba(20, 30, 24, 0.16)";
 // The feedback stays on the actual radius boundary. Only its light breathes: the
 // radius and camera never move to suggest that more zoom is available.
 const _walkingRadiusLimitFeedback = { active: false, startedAt: null, from: 0, releasedAt: null, releaseOpacity: 0 };
-const WALKING_RADIUS_LIMIT_ATTACK_MS = 180;
+const WALKING_RADIUS_LIMIT_ATTACK_MS = 120;
 const WALKING_RADIUS_LIMIT_RELEASE_MS = 220;
 const WALKING_RADIUS_LIMIT_BREATH_MS = 760;
 
@@ -1283,7 +1283,7 @@ function walkingRadiusLimitOpacity(now = performance.now()) {
   const elapsed = Math.max(0, now - feedback.startedAt);
   const reducedMotion = _iconMotionPreference?.matches ?? window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
   const breath = (1 - Math.cos(elapsed * Math.PI * 2 / WALKING_RADIUS_LIMIT_BREATH_MS)) / 2;
-  const target = reducedMotion ? 0.24 : 0.16 + 0.16 * breath;
+  const target = reducedMotion ? 0.56 : 0.40 + 0.32 * breath;
   return feedback.from + (target - feedback.from) * easeOutCubic(clamp(elapsed / WALKING_RADIUS_LIMIT_ATTACK_MS, 0, 1));
 }
 
@@ -1302,7 +1302,7 @@ function drawWalkingRadiusLimitFeedback(ctx, center, radiusPx, tilted, dpr) {
   if (!tilted) {
     const glow = ctx.createRadialGradient(center.x, center.y, radiusPx - feather, center.x, center.y, radiusPx + feather);
     glow.addColorStop(0, "rgba(205, 75, 65, 0)");
-    glow.addColorStop(0.5, `rgba(205, 75, 65, ${opacity * 0.35})`);
+    glow.addColorStop(0.5, `rgba(205, 75, 65, ${opacity * 0.55})`);
     glow.addColorStop(1, "rgba(205, 75, 65, 0)");
     ctx.beginPath();
     ctx.arc(center.x, center.y, radiusPx + feather, 0, Math.PI * 2);
@@ -1321,7 +1321,7 @@ function drawWalkingRadiusLimitFeedback(ctx, center, radiusPx, tilted, dpr) {
       ctx.stroke();
     }
   }
-  ctx.lineWidth = 1.5 * dpr;
+  ctx.lineWidth = 3 * dpr;
   ctx.strokeStyle = `rgba(205, 75, 65, ${opacity})`;
   ctx.stroke();
   ctx.restore();

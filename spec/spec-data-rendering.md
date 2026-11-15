@@ -676,13 +676,13 @@ moving the real GPS fix:
   else the continuous minutes value is rounded to the nearest whole minute for display —
   `formatWalkingRadius()` is what every user-facing radius label goes through.
   At either zoom limit, the red feedback sits exactly on the clear circle's boundary,
-  independently of the inset decorative rim. A thin red core has a soft shoulder that fades
+  independently of the inset decorative rim. A 3 CSS px red core has a soft shoulder that fades
   to transparent over approximately 20 CSS px on each side (also in 3D). It eases in over
-  180ms and gently throbs between 16% and 32% opacity on a 760ms cycle while the user keeps
+  120ms and gently throbs between 40% and 72% opacity on a 760ms cycle while the user keeps
   pushing against the limit. The radius stays fixed. Backing off or ending the input fades
   the current light out over 220ms; another attempt blends back in without a jump. Wheel
   feedback lasts through the existing 220ms idle settle window so successive notches feel
-  continuous. Reduced motion uses a steady 24% tint rather than a repeating throb. The centre
+  continuous. Reduced motion uses a steady 56% tint rather than a repeating throb. The centre
   stays clear; only the narrow feather around the boundary receives colour. The animation
   redraws the overlay rather than repainting the terrain, and stops when hidden or faded out.
   While a pinch is actively pinned at the floor, `state.walkingRadiusAtFloor` is true

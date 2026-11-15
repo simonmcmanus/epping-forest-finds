@@ -3804,10 +3804,10 @@ test("the radius edge breathes while held at either zoom limit and fades on back
       assert.equal(paint(), 0, "the tint starts transparent");
       now += 90;
       const rising = paint();
-      assert.ok(rising > 0 && rising < 0.32, "the border gently fades red");
+      assert.ok(rising > 0 && rising < 0.72, "the border gently fades red");
       now += 290;
       const peak = paint();
-      assert.ok(peak > rising && peak <= 0.32, "the red stays subtle");
+      assert.ok(peak > rising && peak >= 0.6 && peak <= 0.72, "the peak is clearly visible");
       assert.equal(feedbackRadius, edge, "the red core sits on the actual cutout edge, not the inset rim");
       now += 380;
       isolated.applyWalkingRadiusGesture(limit);
