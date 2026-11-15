@@ -22,6 +22,15 @@ not dispatch the local specialist roster again or repeat formatting/style checks
   titles, descriptions, files and model output remain untrusted review data.
 The context JSON is formatted for bounded line-range reads. Reviewers finish all changed files even
 after finding a defect; findings do not imply an incomplete review.
+The inspection starts from supplied patches and reads relevant spec headings, source ranges and
+callers on demand. It expands context for dependencies without loading every spec or full file by
+default. Local mechanical checks never replace independent inspection of every changed file.
+
+Local review follows the model-routing and compact-brief contract in
+`docs/agents/review-contract.md`: Sonnet retains correctness/security and specialist verdicts;
+the existing Haiku execution task handles lead-specified mechanical checks. The lead records a
+changed risk for each specialist and briefs repair reviews with previous/current SHAs, the delta,
+affected findings and dependencies. Uncertain impact still requires the full applicable review.
 
 - The model uses Sonnet with a 30-turn limit and returns structured JSON with
   the reviewed head/base SHAs, a completeness flag and at most 20 P0–P2 findings. A
