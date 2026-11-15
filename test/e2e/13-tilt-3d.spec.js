@@ -656,7 +656,9 @@ test.describe("3D tilt selection from the Nearby list", () => {
 test.describe("3D tilt moving between two nearby places", () => {
   test.use({ geolocation: { latitude: 51.6555, longitude: 0.0662, accuracy: 10 }, permissions: ["geolocation"] });
 
-  for (const heading of [135, 270]) {
+  // minFraction: how far down the visible map the user must land. At 270 the pub used to put the user at
+  // 37% of the map band (anchor 0.368, mirrored toward the horizon); the fix lands them in the lower half.
+  for (const [heading, minFraction] of [[135, 0.25], [270, 0.45]]) {
     test(`going pub to Lidl to pub at heading ${heading} keeps you and the place well below the top edge`, async ({ page }) => {
       await setup(page, "/nearby");
       await expect.poll(() => page.evaluate(() => Math.abs((state.userLocation?.latitude ?? 0) - 51.6555) < 1e-6 && !state.userLocation.isDefault)).toBe(true);
@@ -694,7 +696,7 @@ test.describe("3D tilt moving between two nearby places", () => {
         steps.push({ path, ...(await select(path, type)) });
       }
       for (const step of steps) {
-        expect(step.userY, `${step.path} user marker`).toBeGreaterThanOrEqual(step.panelTop * 0.25);
+        expect(step.userY, `${step.path} user marker`).toBeGreaterThanOrEqual(step.panelTop * minFraction);
         expect(step.placeY, `${step.path} place`).toBeGreaterThanOrEqual(step.panelTop * 0.25);
       }
       const ys = steps.map((x) => x.userY);

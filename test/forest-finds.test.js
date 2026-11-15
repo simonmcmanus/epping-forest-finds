@@ -4626,6 +4626,54 @@ test("headingUpAnchorFraction does not mirror to the top for a destination only 
   assert.ok(near > mid && mid > far, `anchor should fall monotonically with distance behind: ${near}, ${mid}, ${far}`);
 });
 
+test("headingUpAnchorFraction reaches the pure bearing result when the user-to-target vector is 40 m long, and sits between it and the ahead anchor below that", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90; // facing east, so a target due north is directly to a side
+  app.state.tiltBetaSmoothed = 0; // flat: ahead anchor 0.62, side anchor 0.5
+  const metresToDegrees = (m) => m / 111195;
+  const anchorNorth = (metres) => {
+    app.state.selected = { type: "tree", item: { id: `n${metres}`, ...makePoint(app, metresToDegrees(metres), 0) } };
+    return app.headingUpAnchorFraction(true);
+  };
+  // Straight-line fallback: the user is one of the two averaged points, so the vector is half the distance.
+  const full = anchorNorth(80);
+  const below = anchorNorth(70);
+  const veryNear = anchorNorth(4);
+  const farAway = anchorNorth(300);
+  assert.ok(Math.abs(full - 0.5) < 2e-3, `a 40 m vector is fully side-weighted (0.5), got ${full}`);
+  assert.ok(Math.abs(farAway - 0.5) < 1e-9, `far targets stay at the side anchor, got ${farAway}`);
+  assert.ok(below > full && below < 0.62, `just under 40 m sits strictly between the side and ahead anchors, got ${below}`);
+  assert.ok(veryNear > below && veryNear <= 0.62, `a few metres keeps nearly the ahead anchor, got ${veryNear}`);
+});
+
+test("headingUpAnchorFraction returns the plain ahead anchor when there is no bearing to adapt to", () => {
+  resetData(app);
+  app.state.compassHeading = 90;
+  app.state.tiltBetaSmoothed = 85;
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.selected = { type: "tree", item: { id: "behind", ...makePoint(app, 0, -0.001) } };
+  assert.ok(app.headingUpAnchorFraction(true) < app.tiltRampedAnchor(true), "sanity: a far target behind does change the anchor");
+  app.state.userLocation = null;
+  assert.equal(app.headingUpAnchorFraction(true), app.tiltRampedAnchor(true), "no user location -> the plain ahead anchor, unchanged");
+});
+
+test("navigationFocusPoint keeps a routed line behind the user off the top of the map under tilt", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.compassHeading = 90; // facing east: everything below is behind
+  const behind = (m) => makePoint(app, 0, -m / 111195).point;
+  app.state.selected = { type: "path", item: { id: "line", segments: [[behind(30), behind(120), behind(220)]] } };
+  assert.ok(app.selectedNavigationTargetPoints().length >= 3, "fixture is a routed line");
+  const rect = { x: 0, y: 0, width: 400, height: 800 };
+  const yAt = (beta) => {
+    app.state.tiltBetaSmoothed = beta;
+    return app.navigationFocusPoint(rect).y;
+  };
+  const tilted = yAt(60);
+  assert.ok(tilted >= 800 * 0.38 - 1e-6, `tilted user stays below the floored top band, got ${tilted}`);
+});
+
 test("maxHeadingUpNavigationScale actually fits a destination that is behind the user during full 3D tilt, instead of leaving the stale current scale in place", () => {
   // Regression test for the "not much screen space available" complaint: previously,
   // maxScaleForHeadingUpPoints excluded behind-the-user points from the fit whenever tilt

@@ -4227,7 +4227,8 @@ function roadNavTarget(road) {
 const HEADING_UP_ANCHOR_SELECTED = 0.62; // user anchored below center so destination shows above
 const HEADING_UP_ANCHOR_NEARBY = 0.5; // flat/2D nearby: dead centre, so the walking-radius circle -- the only thing this view's camera frames -- is centred in the available map space
 const HEADING_UP_ANCHOR_SELECTED_TILT = 0.88; // at max tilt (full 3D), user sits near the bottom edge with a small gap so the view isn't obscured by anything behind
-// Distance at which a selected destination's bearing is trusted fully by headingUpAnchorFraction's
+// Vector length (metres, user to the averaged target point; see selectedNavigationTargetDistanceMetres) at
+// which a selected destination's bearing is trusted fully by headingUpAnchorFraction's
 // behind-the-user mirroring. About four times typical phone GPS accuracy (~10 m): closer than that the
 // bearing is mostly noise, so the mirroring fades out linearly towards zero metres instead of flipping the
 // anchor between top and bottom from one nearby tap to the next.
@@ -4688,7 +4689,9 @@ function headingUpAnchorFraction(isSelected, useFinalBrowseState = false) {
 
 // Metres from the navigation origin to the averaged selected-target point: the same vector
 // selectedNavigationTargetBearingOffsetRadians resolves the bearing of, so the mirroring weight
-// and the bearing it weights always describe the same destination.
+// and the bearing it weights always describe the same vector (a short vector means an unreliable
+// bearing). For a straight line to a destination the user is one of the averaged points, so this is
+// half the distance to the destination.
 function selectedNavigationTargetDistanceMetres() {
   if (!state.userLocation) return 0;
   const points = selectedNavigationTargetPoints();
