@@ -644,21 +644,26 @@ test.describe("Dimmed siblings are not results", () => {
       return window.__siblingItems.length;
     });
     expect(siblingItems, "the siblings are on the map before Search opens").toBe(count - 1);
-    await page.locator("#searchToggle").click();
-    await expect.poll(() => page.evaluate(() => state.searchScreenOpen)).toBe(true);
-    await page.locator("#mapSearchInput").fill("road");
-    await expect.poll(() => page.evaluate(() => state.searchHighlightResults.length)).toBeGreaterThan(0);
-    const search = await page.evaluate(() => ({
-      listed: [...document.querySelectorAll("#mapSearchResults [data-search-type][data-search-key]")]
-        .map((el) => ({ id: `${el.getAttribute("data-search-type")}:${el.getAttribute("data-search-key")}`, text: el.textContent.toLowerCase() })),
-      mapped: Object.values(activeIconLookup()).flatMap((set) => [...set]),
-      sibling: selectionSiblingLookup(),
-    }));
-    expect(search.listed.length, "the search lists its own matches").toBeGreaterThan(0);
-    for (const row of search.listed) {
-      if (members.includes(row.id)) expect(row.text, "a group member is listed only when it matches the query itself").toContain("road");
-    }
-    expect(search.sibling).toBeNull();
+    const searchRows = async () => {
+      await page.locator("#searchToggle").click();
+      await expect.poll(() => page.evaluate(() => state.searchScreenOpen)).toBe(true);
+      await page.locator("#mapSearchInput").fill("road");
+      await expect.poll(() => page.evaluate(() => state.searchHighlightResults.length)).toBeGreaterThan(0);
+      return page.evaluate(() => ({
+        rows: [...document.querySelectorAll("#mapSearchResults [data-search-type][data-search-key]")]
+          .map((el) => `${el.getAttribute("data-search-type")}:${el.getAttribute("data-search-key")}`),
+        sibling: selectionSiblingLookup(),
+      }));
+    };
+    const withGroupBehind = await searchRows();
+    expect(withGroupBehind.rows.length, "the search lists its own matches").toBeGreaterThan(0);
+    expect(withGroupBehind.sibling, "no dimmed siblings once Search has replaced the place").toBeNull();
+    // The same query from plain Nearby, with no group ever involved, lists exactly the same rows.
+    await page.evaluate(() => goToInitialView());
+    await expect.poll(() => page.evaluate(() => state.searchScreenOpen)).toBe(false);
+    await waitForUiToSettle(page);
+    const plain = await searchRows();
+    expect(withGroupBehind.rows, "the group's siblings add and remove no search result").toEqual(plain.rows);
   });
 
   test("the Nearby list after Back is exactly the group", async ({ page }) => {

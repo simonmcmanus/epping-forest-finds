@@ -1080,7 +1080,10 @@ function applyLocationFix(position, { preserveSelection = false } = {}) {
   // A selected destination can also opt in to staying open while a real fix replaces the
   // High Beach stand-in, so the route can be drawn from the newly shared position.
   if (!preserveSelection && !communityScreenOpen()
-      && !["settings", "report"].includes(state.selected?.type)) state.selected = null;
+      && !["settings", "report"].includes(state.selected?.type)) {
+    state.selected = null;
+    clearSelectionClusterRecord();
+  }
   if (typeof communityNudgeCheck === "function") setTimeout(communityNudgeCheck, 0);
   return { latitude, longitude, previousPoint };
 }
@@ -2352,6 +2355,7 @@ function applyFeatureGates() {
 function openCommunity() {
   if (typeof trackGaScreenView === "function") trackGaScreenView("Community");
   exitClusterExpansion();
+  clearSelectionClusterRecord();
   state.selected = { type: "community", item: null };
   setInspectorSelectionChrome({ emoji: appIconHtml("tree", "app-icon title-icon"), showBack: true, preserveNavHighlight: true });
   setNavScreenActive(els.reportToggle);
