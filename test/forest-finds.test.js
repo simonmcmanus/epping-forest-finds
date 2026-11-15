@@ -5343,6 +5343,26 @@ test("the nearby heading names the count too, so a /nearby/<slug> page answers '
   assert.equal(app.overviewHeadingText(), "2 Trees within 5 min walk");
 });
 
+test("the nearby heading excludes distant fallback cows from its within-radius count", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 0, 0);
+  app.state.walkingDistanceMinutes = 30;
+  app.state.overviewFilters = ["cows"];
+  app.state.cows.push(...[0.04, 0.05, 0.06].map((latitude, index) => ({
+    serialNo: `far-cow-${index}`, ...makePoint(app, latitude, 0),
+  })));
+
+  assert.equal(app.overviewItemsForActiveFilter().length, 3, "distant cows remain available as fallback results");
+  assertShowsText(app.overviewNearestHtml(), "Nothing found within 30 min walking distance");
+  assert.equal(app.overviewHeadingText(), "0 Cows within 30 min walk");
+
+  app.state.walkingDistanceMinutes = 75;
+  assert.equal(app.overviewHeadingText(), "2 Cows within 75 min walk", "widening the radius counts only reachable cows");
+  app.state.showAllOutsideRadius = true;
+  assert.equal(app.overviewHeadingText(), "Nearest Cows around you");
+  app.state.showAllOutsideRadius = false;
+});
+
 test("untagged trees each keep their own identity instead of collapsing onto one another", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);

@@ -2789,7 +2789,7 @@ function overviewHeadingText() {
   // which "Pubs and bars within 5 min walk" alone left the reader to count for themselves.
   return singleFilterTitle
     ? (radiusLabel
-        ? `${overviewItemsForActiveFilter().length} ${singleFilterTitle} within ${radiusLabel}${radiusOrigin}`
+        ? `${overviewItemsForActiveFilter().filter(entry => !entry.outOfRadius).length} ${singleFilterTitle} within ${radiusLabel}${radiusOrigin}`
         : `Nearest ${singleFilterTitle} ${aroundOrigin}`)
     : state.overviewFilters.length > 0
       ? (radiusLabel ? `Nearest selected filters within ${radiusLabel}${radiusOrigin}` : `Nearest selected filters ${aroundOrigin}`)
