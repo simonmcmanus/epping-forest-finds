@@ -174,15 +174,23 @@ test.describe("Settings screen", () => {
   });
 
   test("a single update banner appears once an update is ready and one tap restarts", async ({ page }) => {
+    // Count the banner's transitions from page load, not from when this test starts listening. The
+    // service worker's own DATA_UPDATED broadcast can show the banner at any moment after load, and
+    // the banner's entrance transition may already have run by the time a listener is attached to it,
+    // which left the waits below to time out. A document-level listener installed before any page
+    // script runs cannot miss an entrance.
+    await page.addInitScript(() => {
+      window.__updateBannerTransitionRuns = 0;
+      document.addEventListener("transitionrun", (event) => {
+        if (event.target instanceof Element && event.target.closest("#updateBanner")) {
+          window.__updateBannerTransitionRuns += 1;
+        }
+      }, true);
+    });
+    await page.reload();
     await expect(page.locator("#updateBanner")).toHaveCount(0);
     await page.emulateMedia({ reducedMotion: "no-preference" });
-    await page.evaluate(() => {
-      window.__updateBannerTransitionRuns = 0;
-      _markDataUpdateAvailable();
-      document.getElementById("updateBanner").addEventListener("transitionrun", () => {
-        window.__updateBannerTransitionRuns += 1;
-      });
-    });
+    await page.evaluate(() => { _markDataUpdateAvailable(); });
     await expect(page.locator("#updateBanner")).toBeVisible();
     await expect(page.locator("#updateBanner")).toHaveClass(/is-visible/);
     await page.waitForFunction(() => window.__updateBannerTransitionRuns >= 1);
