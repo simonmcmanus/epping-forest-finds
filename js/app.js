@@ -4887,10 +4887,15 @@ function balancedNavigationAnchorY(focusRect, anchorFraction) {
 // A routed line (three or more points) is balanced by its ahead/behind extents, which for a route lying
 // behind the user puts them at the very top of the rect -- the same horizon-pinning the mirrored anchor
 // is floored against. Under tilt the same floor (HEADING_UP_MIRRORED_ANCHOR_FLOOR) therefore applies to
-// the balanced position; flat view keeps the balanced position untouched.
+// the balanced position, ramped in with the tilt (rotateX is exactly 0 at the tilt threshold
+// and continuous, and the ramp is normalised so the largest offered tilt gets the whole floor), so crossing the threshold never steps the user across the map; flat view keeps the
+// balanced position untouched.
 function floorTiltedFocusY(y, focusRect) {
-  if (!tiltActive()) return y;
-  return Math.max(y, focusRect.y + focusRect.height * HEADING_UP_MIRRORED_ANCHOR_FLOOR);
+  // Normalised by the largest rotateX this build offers (the gentle 64 of the 75 full-3D degrees while
+  // full 3D is off), so the app's real maximum tilt reaches the whole floor rather than 64/75 of it.
+  const offeredMax = state.map3dEnabled ? TILT_ROTATEX_MAX : TILT_GENTLE_ROTATEX_MAX;
+  const ramp = Math.min(1, tiltRotateXDeg() / offeredMax);
+  return Math.max(y, focusRect.y + focusRect.height * HEADING_UP_MIRRORED_ANCHOR_FLOOR * ramp);
 }
 
 function navigationFocusPoint(focusRect = bestVisibleCanvasRect()) {

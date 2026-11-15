@@ -4658,10 +4658,11 @@ test("headingUpAnchorFraction returns the plain ahead anchor when there is no be
   assert.equal(app.headingUpAnchorFraction(true), app.tiltRampedAnchor(true), "no user location -> the plain ahead anchor, unchanged");
 });
 
-test("navigationFocusPoint keeps a routed line behind the user off the top of the map under tilt", () => {
+test("navigationFocusPoint for a routed line behind the user moves smoothly as the phone tilts up, and stays off the top at the largest tilt", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 0, 0);
   app.state.compassHeading = 90; // facing east: everything below is behind
+  app.state.map3dEnabled = false; // the gentle tilt the app actually offers
   const behind = (m) => makePoint(app, 0, -m / 111195).point;
   app.state.selected = { type: "path", item: { id: "line", segments: [[behind(30), behind(120), behind(220)]] } };
   assert.ok(app.selectedNavigationTargetPoints().length >= 3, "fixture is a routed line");
@@ -4670,8 +4671,15 @@ test("navigationFocusPoint keeps a routed line behind the user off the top of th
     app.state.tiltBetaSmoothed = beta;
     return app.navigationFocusPoint(rect).y;
   };
-  const tilted = yAt(60);
-  assert.ok(tilted >= 800 * 0.38 - 1e-6, `tilted user stays below the floored top band, got ${tilted}`);
+  let previous = yAt(12 - 0.01); // just below TILT_BETA_THRESHOLD
+  let worstStep = 0;
+  for (let beta = 12; beta <= 60; beta += 0.5) { // up to TILT_GENTLE_BETA_MAX
+    const y = yAt(beta);
+    worstStep = Math.max(worstStep, Math.abs(y - previous));
+    previous = y;
+  }
+  assert.ok(worstStep < 800 * 0.02, `focus y jumped ${worstStep}px between half-degree tilt steps`);
+  assert.ok(previous >= 800 * 0.38 - 1e-6, `at the largest tilt the user sits at the full floor, got ${previous}`);
 });
 
 test("maxHeadingUpNavigationScale actually fits a destination that is behind the user during full 3D tilt, instead of leaving the stale current scale in place", () => {
