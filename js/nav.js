@@ -1480,7 +1480,7 @@ function refreshNearbyRadiusView(options = {}) {
   if (!secondaryScreenActive()) selectOverview();
   updateNearbyAnchorBar();
   // A caller that also just started a nearby-origin slide (focusNearbyOnClusterGroup) passes
-  // its own duration so the two tweens land on the same frame -- see nearbyRevealOpacity's
+  // its own duration so the two tweens land on the same frame -- see nearbyRevealInProgress's
   // concurrent-viewport-animation check, which otherwise has a gap to fall through if this one
   // finishes first.
   ensureOverviewTargetsVisible({
@@ -1799,7 +1799,9 @@ function focusNearbyOnClusterGroup(cluster) {
   }
   // Same slide restoreNearbyAnchorFromHistory/setNearbyAnchor use for any other anchor move --
   // started from wherever the ring is currently drawn so it continues smoothly even if this
-  // lands mid an earlier slide, rather than cutting straight to the new centre.
+  // lands mid an earlier slide, rather than cutting straight to the new centre. The tapped group
+  // grows into the ring, and like every programmatic move the old set fades out once and the fresh
+  // set reveals once after the last leg lands (markerGroupingPaused).
   startNearbyOriginTransition(nearbyRenderOriginPoint());
   state.nearbyAnchor = { latitude: center.latitude, longitude: center.longitude, point: centerPoint };
   state.walkingDistanceMinutes = targetMinutes;
@@ -1827,7 +1829,7 @@ function focusNearbyOnClusterGroup(cluster) {
   // anchor bar, and ensureOverviewTargetsVisible's own camera fit. Matches the nearby-origin
   // slide's own duration (started above, via startNearbyOriginTransition -- always
   // NEARBY_ORIGIN_TRANSITION_MS) so the camera's fly-to-cluster tween and the ring/pin reveal
-  // land on the same frame -- see nearbyRevealOpacity.
+  // land on the same frame -- see nearbyRevealInProgress.
   refreshNearbyRadiusView({ animate: true, durationMs: NEARBY_ORIGIN_TRANSITION_MS, stagePanThenZoom: true });
   pushNearbyAnchorHistory();
   return true;
@@ -1989,20 +1991,85 @@ function zoomGestureLive() {
   return _zoomGestureSources.size > 0;
 }
 
+// --- Marker grouping pause ----------------------------------------------------------------------
+//
+// A zoom gesture is one reason item pins and clusters stop being rebuilt and fade out together; a
+// programmatic transition is the other. While a camera tween that changes the scale (or sweeps a
+// deliberate zoom-out arc) or a browse-origin slide is in flight, the scale and/or the item set
+// changes frame to frame, so rebuilding each frame would visibly merge, split and re-form groups.
+// The two share one state, markerGroupingPaused(): the set that was on screen is frozen and leaves
+// in the shared fade, nothing is built or tappable, and one reveal brings the fresh set back when
+// the last reason ends. A pure pan with no scale change never pauses (it never regroups).
+//
+// Each reason names itself so overlapping ones count: "camera" (moveCamera, js/app.js) and
+// "originSlide" (startNearbyOriginTransition, js/app.js), plus the gesture sources above. A compound
+// transition (a cluster tap's slide with its staged pan then zoom, Back/forward mid-flight) holds the
+// pause across all of its legs: one hide at the start, one reveal after the last leg lands.
+const _markerPauseSources = new Set();
+
+function markerGroupingPaused() {
+  // Self-healing: a transition that has gone is dropped before the answer is given, so nothing that
+  // asks (a tap's hit test, the paint) can see a pause that nothing is holding open any more.
+  if (_markerPauseSources.size) reconcileMarkerPauses();
+  return _zoomGestureSources.size > 0 || _markerPauseSources.size > 0;
+}
+
+// True while a programmatic transition (not a live zoom gesture) is what pauses grouping.
+function programmaticMarkerPauseActive() {
+  return _zoomGestureSources.size === 0 && markerGroupingPaused();
+}
+
+function beginMarkerPause(source) {
+  if (_markerPauseSources.has(source)) return;
+  const wasHiding = _zoomGestureSources.size > 0 || _markerPauseSources.size > 0;
+  _markerPauseSources.add(source);
+  if (!wasHiding) hideMapPinsForZoom();
+}
+
+function endMarkerPause(source) {
+  if (!_markerPauseSources.delete(source) || markerGroupingPaused()) return;
+  revealMapPinsAfterZoom();
+}
+
+// A pause whose transition has gone (a tween replaced or cancelled by a path that never reached
+// endMarkerPause, a slide dropped by a selection) must not leave the pins hidden: checked once per
+// frame, before anything is painted. The selection transition owns the markers while it holds the
+// map, so a pause that was begun before it takes over ends here too.
+let _reconcilingMarkerPauses = false;
+function reconcileMarkerPauses() {
+  if (!_markerPauseSources.size || _reconcilingMarkerPauses) return;
+  _reconcilingMarkerPauses = true;
+  try {
+    reconcileMarkerPausesNow();
+  } finally {
+    _reconcilingMarkerPauses = false;
+  }
+}
+
+function reconcileMarkerPausesNow() {
+  const selectionOwns = state.selectionTransition.mapHeld && hasRealSelection();
+  if (_markerPauseSources.has("camera") && (state.viewportAnimationTo == null || selectionOwns)) endMarkerPause("camera");
+  // The slide's pause outlasts the slide itself while a camera tween it overlaps is still flying:
+  // the slide object is dropped as soon as a tween runs (prepareCanvasForDraw), so the slide is judged
+  // by its own end time (nearbyOriginSlideHoldsPause, js/app.js), not by whether the object survives.
+  if (_markerPauseSources.has("originSlide") && (!nearbyOriginSlideHoldsPause() || selectionOwns)) endMarkerPause("originSlide");
+}
+
 function beginZoomGesture(source) {
   if (_zoomGestureSources.has(source)) return;
   const wasLive = zoomGestureLive();
+  const wasHiding = wasLive || _markerPauseSources.size > 0;
   _zoomGestureSources.add(source);
   if (wasLive) return;
   _zoomGestureFloor = null;
-  hideMapPinsForZoom();
+  if (!wasHiding) hideMapPinsForZoom();
 }
 
 function endZoomGesture(source) {
   if (!_zoomGestureSources.delete(source) || zoomGestureLive()) return;
   _zoomGestureFloor = null;
   _zoomGestureFloorKey = null;
-  revealMapPinsAfterZoom();
+  if (!markerGroupingPaused()) revealMapPinsAfterZoom();
 }
 
 // Everything the floor is measured from: the origin and the active filters (and the live cow data

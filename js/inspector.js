@@ -18,6 +18,10 @@ function itemLonLatForTap(item, tapLonLat) {
 function handleMapClick(event) {
   const screen = canvasPoint(event);
 
+  // A marker still visibly fading out under a programmatic move is not open ground: swallow the tap
+  // rather than let it relocate the Nearby view out from under the move already in flight.
+  if (tapLandsOnFrozenPaintedMarker(screen)) return;
+
   // Tapping a multi-item group marker -- one category or several alike --
   // behaves like tapping open ground on that spot: the group becomes the Nearby browse anchor,
   // sized to cover it, and the Nearby list updates to show what's inside. See
