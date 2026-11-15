@@ -51,6 +51,32 @@ async function startTrace(page) {
   });
 }
 
+
+/** A lone dimmed sibling's pin, with the whole group framed above the sheet and clear of its tap margin. */
+async function findTappableSibling(page) {
+  return page.evaluate(() => {
+    const items = Object.values(clusterItemsByType(selectionClusterGroup())).flat();
+    fitToPoints(items.map((item) => item.point), false, { animate: false, focusVisibleArea: true, assumeInspectorOpen: true });
+    stopViewportAnimation();
+    requestDraw();
+    const size = MAP_PNG_ICON_SIZE * pixelRatio() * mapEmojiScale() * MAP_ICON_SCALE_UNSELECTED;
+    for (const marker of buildActiveMapMarkers(worldToScreen)) {
+      if (marker.items.length !== 1) continue;
+      const point = { x: marker.screenPt.x, y: marker.screenPt.y - size * 0.416 };
+      const hit = findHit(point, screenToWorld(point.x, point.y));
+      const stage = (els.mapStage || els.canvas).getBoundingClientRect();
+      const clientX = stage.left + (point.x - state.canvasInsetX) / pixelRatio();
+      const clientY = stage.top + (point.y - state.canvasInsetY) / pixelRatio();
+      const panel = els.inspector.getBoundingClientRect();
+      const m = PANEL_EDGE_TAP_MARGIN_PX;
+      const besidePanel = clientY > panel.top - m && clientY < panel.bottom + m && clientX > panel.left - m && clientX < panel.right + m;
+      if (!besidePanel && hit.item === marker.items[0] && hit.item !== state.selected.item) return { point, id: hit.item.id ?? hit.item.name };
+    }
+    return null;
+  });
+}
+const selectedId = () => state.selected?.item?.id ?? state.selected?.item?.name;
+
 test.describe("A place picked from an expanded group", () => {
   test("starts its camera move at once, where a place picked from outside a group still waits", async ({ page }) => {
     await setup(page);
@@ -195,6 +221,8 @@ test.describe("A place picked from an expanded group", () => {
     const lookupSize = () => page.evaluate(() => Object.values(activeIconLookup()).reduce((n, set) => n + set.size, 0));
     const before = await lookupSize();
     expect(before).toBeGreaterThan(0);
+    const expected = await page.evaluate(() => Object.values(clusterItemsByType(selectionClusterGroup())).flat()
+      .filter((item) => item !== state.selected.item).map((item) => item.id ?? item.name).sort());
     // The route a reader takes: Map setup, then apply a filter set that covers neither the picked place's nor the sibling's kind.
     const after = await page.evaluate(() => {
       openFiltersScreen();
@@ -206,6 +234,8 @@ test.describe("A place picked from an expanded group", () => {
     expect(after.selected, "opening Map setup and applying filters leaves the selection in place").not.toBeNull();
     expect(after.grouped, "so the group context stays with it").toBe(true);
     expect(await lookupSize(), "the siblings are the group's captured members, whatever the filter says").toBe(before);
+    expect(await page.evaluate(() => Object.values(activeIconLookup()).flatMap((set) => [...set]).map((item) => item.id ?? item.name).sort()))
+      .toEqual(expected);
     // Leaving the selection removes them, nothing stale remains.
     await page.evaluate(() => goToInitialView());
     await expect.poll(() => page.evaluate(() => state.selected)).toBeNull();
@@ -273,5 +303,92 @@ test.describe("A place picked from an expanded group", () => {
       expect(pin.overlay).toBe(true);
       expect(pin.alpha).toBeLessThanOrEqual(0.45);
     }
+  });
+
+  test("a real tap on a dimmed sibling pushes one plain history entry, keeps the group, and is one continuous move", async ({ page }) => {
+    await setup(page);
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    await expandSmallGroup(page);
+    await page.locator("#inspectorBody .nearest-item").first().click();
+    await expect.poll(() => page.evaluate(() => selectionClusterGroup() != null)).toBe(true);
+    await waitForUiToSettle(page);
+    const first = await page.evaluate(selectedId);
+    const pin = await findTappableSibling(page);
+    expect(pin, "a lone dimmed sibling is on screen and tappable").not.toBeNull();
+    const entries = await page.evaluate(() => history.length);
+    await startTrace(page);
+    await tapCanvasPoint(page, pin.point);
+    await expect.poll(() => page.evaluate(selectedId)).toBe(pin.id);
+    await waitForUiToSettle(page);
+    const after = await page.evaluate((firstId) => ({
+      entries: history.length,
+      clusterInEntry: Boolean(history.state?.[NEARBY_ANCHOR_KEY]?.cluster),
+      grouped: selectionClusterGroup() != null,
+      siblingIds: Object.values(activeIconLookup()).flatMap((set) => [...set]).map((item) => item.id ?? item.name),
+      firstId,
+      moves: window.__moves,
+    }), first);
+    expect(after.entries, "one entry for the tapped sibling").toBe(entries + 1);
+    expect(after.clusterInEntry, "a plain entry: the group is not recorded in it").toBe(false);
+    expect(after.grouped).toBe(true);
+    expect(after.siblingIds, "the previous place is now a dimmed sibling").toContain(first);
+    expect(after.moves, "one continuous move").toHaveLength(1);
+    expect(after.moves[0].restarting).toBe(false);
+  });
+
+  test("Back straight after a pick from the group redirects to the group in one move, with nothing held", async ({ page }) => {
+    await setup(page);
+    await page.emulateMedia({ reducedMotion: "no-preference" });
+    const count = await expandSmallGroup(page);
+    await startTrace(page);
+    await page.evaluate(() => {
+      document.querySelector("#inspectorBody .nearest-item").click();
+      const restore = window.restoreNearbyAnchorFromHistory;
+      window.restoreNearbyAnchorFromHistory = function () {
+        window.__moves = [];
+        window.restoreNearbyAnchorFromHistory = restore;
+        return restore.apply(this, arguments);
+      };
+      history.back();
+    });
+    await expect.poll(() => page.evaluate(() => state.selected)).toBeNull();
+    await waitForUiToSettle(page);
+    const end = await page.evaluate(() => ({
+      mapHeld: state.selectionTransition.mapHeld,
+      grouped: selectionClusterGroup() != null,
+      expanded: state.clusterExpanded?.items.length ?? null,
+      moves: window.__moves.length,
+    }));
+    expect(end.mapHeld).toBe(false);
+    expect(end.grouped).toBe(false);
+    expect(end.expanded, "the group is restored").toBe(count);
+    expect(end.moves, "one redirected move").toBe(1);
+  });
+
+  test("the inspector's back arrow, with the panel minimised first, removes the siblings and leaves nothing stale drawn", async ({ page }) => {
+    await setup(page);
+    await expandSmallGroup(page);
+    await page.locator("#inspectorBody .nearest-item").first().click();
+    await expect.poll(() => page.evaluate(() => selectionClusterGroup() != null)).toBe(true);
+    await waitForUiToSettle(page);
+    await page.evaluate(() => setInspectorMinimized(true));
+    await waitForUiToSettle(page);
+    expect(await page.evaluate(() => selectionClusterGroup() != null), "minimising the panel keeps the siblings").toBe(true);
+    await page.evaluate(() => { setInspectorMinimized(false); });
+    await waitForUiToSettle(page);
+    await page.locator("#inspectorBack").click();
+    await expect.poll(() => page.evaluate(() => state.selected)).toBeNull();
+    await waitForUiToSettle(page);
+    await startTrace(page);
+    await page.evaluate(() => { requestDraw(); });
+    await expect.poll(() => page.evaluate(() => window.__pins.length)).toBeGreaterThan(0);
+    const end = await page.evaluate(() => ({
+      grouped: selectionClusterGroup() != null,
+      plain: activeIconLookup() === buildNearbyIconLookup(),
+      alphas: window.__pins.map((pin) => pin.alpha),
+    }));
+    expect(end.grouped).toBe(false);
+    expect(end.plain, "the map is the restored group's own lookup").toBe(true);
+    for (const alpha of end.alphas) expect(alpha, "nothing dimmed is left drawn").toBeGreaterThan(0.45);
   });
 });
