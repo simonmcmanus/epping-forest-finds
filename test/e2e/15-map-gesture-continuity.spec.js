@@ -854,19 +854,38 @@ test.describe("Programmatic camera moves pause regrouping like a zoom gesture", 
       return null;
     });
     expect(point, "an open-ground spot is on the map").not.toBeNull();
-    await page.evaluate(() => { window.__pins.length = 0; window.__markerBuilds = 0; });
+    // Sample every frame from before the tap. The slide lasts 520 ms of wall clock, and under load
+    // a frame count read after the tap can run past its end, so "mid-slide" is judged per frame
+    // from the app's own state rather than by waiting a fixed number of frames.
+    await page.evaluate(() => {
+      window.__pins.length = 0;
+      window.__markerBuilds = 0;
+      window.__slideFrames = [];
+      const sample = () => {
+        window.__slideFrames.push({
+          flying: markerGroupingPaused() || nearbyOriginTransitionActive(),
+          fade: mapPinFadeOpacity(),
+          builds: window.__markerBuilds,
+          pins: window.__pins.splice(0),
+        });
+        requestAnimationFrame(sample);
+      };
+      requestAnimationFrame(sample);
+    });
     await page.mouse.click(point.x, point.y);
     await expect.poll(() => page.evaluate(() => state.nearbyAnchor != null)).toBe(true);
-    await expect.poll(() => page.evaluate(() => markerGroupingPaused() && mapPinFadeOpacity() === 0)).toBe(true);
-    await page.evaluate(() => { window.__during = window.__pins.slice(); window.__pins.length = 0; window.__markerBuilds = 0; });
-    await waitForFrames(page, 4);
-    expect(await page.evaluate(() => ({ painted: window.__pins.length, builds: window.__markerBuilds })), "nothing is regrouped mid-slide")
-      .toEqual({ painted: 0, builds: 0 });
-
     await expect.poll(() => page.evaluate(() => !state.nearbyOriginTransition && !markerGroupingPaused() && mapPinFadeOpacity() === 1)).toBe(true);
     await waitForUiToSettle(page);
-    const pins = await page.evaluate(() => ({ during: window.__during, after: window.__pins }));
-    expectOneHideOneReveal([...pins.during, ...pins.after]);
+    const frames = await page.evaluate(() => window.__slideFrames);
+
+    // Hidden and still sliding: the pins are fully faded out, and the slide has not yet landed.
+    const hiddenInFlight = frames.filter((frame) => frame.flying && frame.fade === 0);
+    expect(hiddenInFlight.length, "the slide was sampled while the pins were hidden").toBeGreaterThan(0);
+    // A pin painted while it is still fading out (opacity above 0) is the old set leaving, which is
+    // expected; only a pin painted at zero opacity would be a regrouped set showing mid-slide.
+    expect(hiddenInFlight.flatMap((frame) => frame.pins.filter((pin) => pin.fade === 0)), "nothing is painted mid-slide").toEqual([]);
+    expect(new Set(hiddenInFlight.map((frame) => frame.builds)).size, "nothing is regrouped mid-slide").toBe(1);
+    expectOneHideOneReveal(frames.flatMap((frame) => frame.pins));
   });
 
   test("with reduced motion a zooming camera move hides the pins during the move and shows them after, without fades", async ({ page }) => {
