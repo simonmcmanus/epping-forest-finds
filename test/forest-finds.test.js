@@ -749,6 +749,7 @@ globalThis.__forestFindsTest = {
   placeHashKey,
   findPlaceByHashKey,
   focusOverviewItem,
+  CLUSTER_HISTORY_MAX_MEMBERS,
   treeSpeciesIconHtml,
   placeTitle,
   ICON_PATHS,
@@ -826,6 +827,7 @@ globalThis.__forestFindsTest = {
   setHashFromSelection,
   currentScreenRoute,
   urlMatchesCurrentScreen,
+  historyEntryDescribesExpandedCluster,
   routerBootFinished,
   initRouter,
   navDepth,
@@ -1814,6 +1816,25 @@ test("a pan with almost no zoom is blended straight across", () => {
   const to = { scale: 13571, tx: -554, ty: 821680 };
   const mid = app.viewportAlongTween(from, to, 0.5);
   assert.ok(Math.abs(mid.tx - -556) < 0.01 && Math.abs(mid.ty - 822659.5) < 0.01, "offsets are the straight midpoint");
+});
+
+test("a small zoom does not carry a far-off point off-screen mid-move", () => {
+  // Real heading-up case: mercator-degree world coordinates, so the user's point is far from the
+  // origin and any mismatch between scale and offset blending is magnified enormously on screen.
+  const from = { scale: 481129.4, tx: -31310, ty: 29122957 };
+  const to = { scale: 465825.8, tx: -30297, ty: 28196442 };
+  const world = { x: 0.0662, y: -60.52914436679489 };
+  const screenY = (v) => world.y * v.scale + v.ty;
+  const startY = screenY(from);
+  const endY = screenY(to);
+  const lo = Math.min(startY, endY) - 1e-6;
+  const hi = Math.max(startY, endY) + 1e-6;
+  for (let i = 0; i <= 100; i++) {
+    const y = screenY(app.viewportAlongTween(from, to, i / 100));
+    assert.ok(y >= lo && y <= hi, `step ${i}: screen y ${y} left the range ${startY}..${endY}`);
+  }
+  assert.ok(Math.abs(screenY(app.viewportAlongTween(from, to, 0)) - startY) < 1e-6, "starts at the source view");
+  assert.ok(Math.abs(screenY(app.viewportAlongTween(from, to, 1)) - endY) < 1e-6, "lands on the target view");
 });
 
 test("clusterJoinAnimationState leaves a lone pin undisturbed", () => {
@@ -12158,6 +12179,155 @@ test("Back from a place onto its group abandons the place's pending camera hold"
   assert.equal(app.state.selectionTransition.mapHeld, false);
   assert.equal(app.state.selectionTransition.viewportPending, false);
   assert.equal(app.state.selectionMapTransitionToken, null, "a pending selection camera callback is stale");
+});
+
+// A stale, hand-edited or corrupted history entry must not drive the app out of its own limits.
+function groupEntryWithCluster() {
+  return app.history.entries.find((entry) => entry.state?.forestNearbyAnchor?.cluster);
+}
+
+// `realRadius` 5 is the default radius, which the address bar leaves out; any other radius is
+// carried in ?radius= and wins over the entry's stored pre-cluster radius, so the stored value
+// only matters when the URL is silent.
+function backOntoDamagedGroup(damage, { realRadius = 7 } = {}) {
+  const { trees, key } = expandedGroupFixture();
+  app.state.walkingDistanceMinutes = realRadius;
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  app.focusOverviewItem("tree", key(trees[0]));
+  damage(groupEntryWithCluster().state.forestNearbyAnchor.cluster);
+  app.history.back();
+}
+
+for (const [label, garbage, expected] of [["999", 999, 30], ["-5", -5, 0.25], ["0.1", 0.1, 0.25]]) {
+  test(`Back onto a group entry holding a radius of ${label} minutes frames it within the walking-radius limits`, () => {
+    backOntoDamagedGroup((cluster) => { cluster.radius = garbage; });
+    assert.equal(expandedIds(), "oak1,oak2,oak3", "the group is restored");
+    assert.equal(app.state.walkingDistanceMinutes, expected, "the radius is clamped into the 0.25-30 minute range");
+    app.exitClusterExpansion();
+    assert.equal(app.state.walkingDistanceMinutes, 7, "leaving gives back the real radius, never the garbage value");
+  });
+}
+
+test("Back onto a group entry holding an out-of-range pre-cluster radius never leaves that radius after exiting", () => {
+  backOntoDamagedGroup((cluster) => { cluster.preRadius = 500; }, { realRadius: 5 });
+  assert.equal(expandedIds(), "oak1,oak2,oak3");
+  app.exitClusterExpansion();
+  assert.equal(app.state.walkingDistanceMinutes, 30, "the pre-cluster radius is clamped to the maximum");
+});
+
+test("Back onto a group entry holding a below-range pre-cluster radius clamps it to the tightest radius on exit", () => {
+  backOntoDamagedGroup((cluster) => { cluster.preRadius = -40; }, { realRadius: 5 });
+  app.exitClusterExpansion();
+  assert.equal(app.state.walkingDistanceMinutes, 0.25);
+});
+
+for (const [label, garbage] of [["a word", "abc"], ["NaN", NaN], ["a numeric string", "12"], ["null", null]]) {
+  test(`Back onto a group entry whose pre-cluster radius is ${label} ignores it and keeps a usable radius`, () => {
+    backOntoDamagedGroup((cluster) => { cluster.preRadius = garbage; });
+    const inRange = (value) => typeof value === "number" && Number.isFinite(value) && value >= 0.25 && value <= 30;
+    assert.ok(inRange(app.state.walkingDistanceMinutes), "the framing radius is a usable number after Back");
+    assert.ok(app.state.preClusterWalkingDistanceMinutes == null || inRange(app.state.preClusterWalkingDistanceMinutes),
+      "no NaN or string is kept as the radius to give back");
+    app.exitClusterExpansion();
+    assert.ok(inRange(app.state.walkingDistanceMinutes), "the radius is still a usable number after leaving");
+  });
+}
+
+test("Back onto a group entry with a non-numeric radius falls back to the plain anchor view", () => {
+  backOntoDamagedGroup((cluster) => { cluster.radius = "12"; });
+  assert.equal(app.state.clusterExpanded, null);
+  assert.ok(app.state.nearbyAnchor);
+  assert.equal(app.state.walkingDistanceMinutes, 7);
+});
+
+test("a clamped group entry is recognised as the group on screen, so a later route pass does not re-restore it", () => {
+  backOntoDamagedGroup((cluster) => { cluster.radius = 999; });
+  assert.equal(app.historyEntryDescribesExpandedCluster(), true);
+  assert.equal(app.urlMatchesCurrentScreen(app.routeValueFromLocation()), true);
+  assert.equal(expandedIds(), "oak1,oak2,oak3");
+});
+
+function manyTrees(count) {
+  const trees = [];
+  for (let i = 0; i < count; i += 1) {
+    trees.push({
+      id: `bulk${i}`, recordNumber: 20000 + i, commonName: "Oak", location: { britishNationalGrid: {} },
+      ...makePoint(app, 51.6500 + (i % 20) * 0.000018, 0.0500 + Math.floor(i / 20) * 0.000029),
+    });
+  }
+  return trees;
+}
+
+for (const [label, delta, keepsGroup] of [["one over the cap", 1, false], ["exactly at the cap", 0, true], ["one under the cap", -1, true]]) {
+  test(`a group of ${label} members ${keepsGroup ? "is restored by Back with the same members" : "is stored as the plain anchor view and Back shows no group"}`, () => {
+    const cap = app.CLUSTER_HISTORY_MAX_MEMBERS;
+    assert.equal(typeof cap, "number", "the cap is defined");
+    expandedGroupFixture();
+    const bulk = manyTrees(cap + delta);
+    app.state.trees.push(...bulk);
+    app.focusNearbyOnClusterGroup({ itemType: "tree", items: bulk });
+    assert.equal(Boolean(app.state.clusterExpanded), true, "the tap expands the group");
+    const stored = app.history.state.forestNearbyAnchor;
+    assert.equal(Boolean(stored.cluster), keepsGroup, "the entry's cluster snapshot is present only within the cap");
+    assert.ok(stored.latitude !== undefined, "the entry still describes the anchor");
+    app.focusOverviewItem("tree", app.treeHashKey(bulk[0]));
+    app.history.back();
+    assert.equal(app.state.selected, null);
+    if (keepsGroup) {
+      assert.equal(expandedIds(), bulk.map((tree) => tree.id).sort().join(","));
+    } else {
+      assert.equal(app.state.clusterExpanded, null, "Back lands on the plain view");
+      assert.ok(app.state.nearbyAnchor);
+    }
+  });
+}
+
+function withThrowingHistoryWrites(run) {
+  const history = app.history;
+  const original = { push: history.pushState, replace: history.replaceState };
+  const calls = [];
+  history.pushState = function throwingPush(state, title, url) {
+    calls.push({ kind: "push", state, url });
+    throw new DOMException("too large", "DataCloneError");
+  };
+  history.replaceState = function throwingReplace(state, title, url) {
+    calls.push({ kind: "replace", state, url });
+    throw new DOMException("too large", "DataCloneError");
+  };
+  try { run(calls); } finally { history.pushState = original.push; history.replaceState = original.replace; }
+}
+
+test("tapping a cluster and opening a place still work when the browser refuses every history write", () => {
+  const { trees, key } = expandedGroupFixture();
+  withThrowingHistoryWrites(() => {
+    assert.doesNotThrow(() => app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees }));
+    assert.equal(expandedIds(), "oak1,oak2,oak3", "the group still expands");
+    assert.doesNotThrow(() => app.focusOverviewItem("tree", key(trees[1])));
+    assert.equal(app.state.selected?.item, trees[1], "the place still opens");
+  });
+});
+
+test("when the browser rejects a group entry as too large, the entry is retried as the plain anchor and the URL still updates", () => {
+  const { trees } = expandedGroupFixture();
+  const history = app.history;
+  const originalPush = history.pushState;
+  const attempts = [];
+  const lengthBefore = history.length;
+  history.pushState = function rejectingPush(state, title, url) {
+    attempts.push({ cluster: Boolean(state?.forestNearbyAnchor?.cluster), url });
+    if (state?.forestNearbyAnchor?.cluster) throw new DOMException("too large", "DataCloneError");
+    return originalPush.call(this, state, title, url);
+  };
+  try {
+    assert.doesNotThrow(() => app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees }));
+  } finally { history.pushState = originalPush; }
+  assert.equal(expandedIds(), "oak1,oak2,oak3");
+  assert.ok(attempts.some((attempt) => attempt.cluster), "the group entry was tried first");
+  const stored = app.history.state.forestNearbyAnchor;
+  assert.ok(stored && stored.latitude !== undefined, "the retried entry holds the plain anchor");
+  assert.equal(stored.cluster, undefined, "without the group snapshot");
+  assert.equal(app.history.entries[app.history.index].url, attempts[0].url, "the entry carries the URL that was being written");
+  assert.ok(app.history.length > lengthBefore, "the move still gets a back-button step");
 });
 
 test("tapping a cluster while already on Nearby actually refreshes the rendered list, not just the underlying data", () => {

@@ -1709,10 +1709,11 @@ function restoreNearbyAnchorFromHistory() {
       // route as applied -- the screen was cleared above, the one change left to make.
       state.selectionCluster = null;
       state.clusterExpanded = cluster;
-      state.walkingDistanceMinutes = snapshot.cluster.radius;
-      state.preClusterWalkingDistanceMinutes = Number.isFinite(snapshot.cluster.preRadius)
-        ? snapshot.cluster.preRadius
-        : state.preClusterWalkingDistanceMinutes;
+      // The stored radii are clamped into the range a radius can take; a pre-radius that is not a number
+      // is treated as absent, leaving whatever the app already holds.
+      state.walkingDistanceMinutes = clampedWalkingRadius(snapshot.cluster.radius);
+      state.preClusterWalkingDistanceMinutes = clampedWalkingRadius(snapshot.cluster.preRadius)
+        ?? state.preClusterWalkingDistanceMinutes;
       syncSettingsWalkSlider();
       updateCompassOverlay();
     }
