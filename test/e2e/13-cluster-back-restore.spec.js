@@ -229,10 +229,12 @@ test.describe("A group left in place stays left", () => {
       await setup(page);
       await tapGroupOnMap(page);
       await leaveBy(page, how);
-      const left = await page.evaluate(() => state.walkingDistanceMinutes);
       await page.locator("#inspectorBody .nearest-item").first().click();
       await expect.poll(() => page.evaluate(() => state.selected?.type ?? null)).not.toBeNull();
       await waitForUiToSettle(page);
+      // The radius in force when the reader left the view. Read after the pick has settled: a wheel
+      // gesture's own radius easing can still be landing when leaveBy returns.
+      const left = await page.evaluate(() => state.walkingDistanceMinutes);
       await page.goBack();
       await expect.poll(() => page.evaluate(() => state.selected)).toBeNull();
       await waitForUiToSettle(page);
