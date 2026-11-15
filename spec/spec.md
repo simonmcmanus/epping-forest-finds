@@ -412,7 +412,7 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
   plain data (member keys per category, the radius in effect and the pre-cluster radius — never
   live objects), so Back from a place opened out of the group rebuilds that same expanded group
   with the same framing; if a member is missing from the loaded data it falls back to the plain
-  anchor. The group is never written to the URL, so a fresh load of a `near=` link is plain Nearby
+  anchor. Leaving a group while staying on the same entry (drag, resize, re-tap) removes it from that entry's snapshot, and each distinct group gets its own entry. The group is never written to the URL, so a fresh load of a `near=` link is plain Nearby
   (see "Leaving an expanded group" in `spec-data-rendering.md`).
 - **A URL naming something the dataset does not have** (a stale share link) falls back to Nearby
   and corrects the entry in place with `replaceState`, rather than leaving the app on a screen

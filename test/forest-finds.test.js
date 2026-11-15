@@ -422,6 +422,7 @@ globalThis.__forestFindsTest = {
   draw,
   drawLayer,
   clusterFocusTarget,
+  nearbyRetap,
   focusNearbyOnClusterGroup,
   expandedClusterOverviewEntries,
   // The sandbox's own clock object, so a test can freeze what the app reads from
@@ -12003,6 +12004,103 @@ test("a fresh load of a near= link shows a plain Nearby view with no expanded gr
   assert.equal(app.applySelectionFromHash(false), true);
   assert.equal(app.state.clusterExpanded, null);
   assert.ok(app.state.nearbyAnchor);
+});
+
+test("Back from Search onto an expanded group restores the group with the search screen closed", () => {
+  const { trees } = expandedGroupFixture();
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  const groupRadius = app.state.walkingDistanceMinutes;
+  app.openSearchScreen();
+  assert.equal(app.state.searchScreenOpen, true);
+  app.history.back();
+  assert.equal(app.state.searchScreenOpen, false, "Search is closed");
+  assert.equal(expandedIds(), "oak1,oak2,oak3", "the group is back");
+  assert.equal(app.state.walkingDistanceMinutes, groupRadius);
+  assert.equal(app.urlMatchesCurrentScreen(app.routeValueFromLocation()), true, "the screen matches its URL, so no later route pass drops the group");
+});
+
+test("a group the reader left by resizing the ring is not re-expanded by a later Back, and their radius stays", () => {
+  const { trees, key } = expandedGroupFixture();
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  app.applyWalkingRadiusChange(12, { animate: false });
+  assert.equal(app.state.clusterExpanded, null, "resizing leaves the group");
+  app.focusOverviewItem("tree", key(trees[0]));
+  app.history.back();
+  assert.equal(app.state.clusterExpanded, null, "Back returns to the plain Nearby view they were last on");
+  assert.equal(app.state.walkingDistanceMinutes, 12, "with the radius they chose");
+  assert.ok(app.state.nearbyAnchor);
+});
+
+test("a group the reader left with a Nearby re-tap is not re-expanded by a later Back, and Forward onto that entry stays plain", () => {
+  const { trees, key } = expandedGroupFixture();
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  app.nearbyRetap();
+  assert.equal(app.state.clusterExpanded, null, "the re-tap leaves the group");
+  assert.equal(app.state.walkingDistanceMinutes, 7, "and gives back the real radius");
+  app.focusOverviewItem("tree", key(trees[0]));
+  app.history.back();
+  assert.equal(app.state.clusterExpanded, null, "Back returns to the plain view they were last on");
+  assert.equal(app.state.walkingDistanceMinutes, 7);
+  app.history.back();
+  app.history.forward();
+  assert.equal(app.state.clusterExpanded, null, "Forward onto the entry stays plain too");
+});
+
+test("Forward onto an entry whose group the reader had left does not bring the group back", () => {
+  const { trees, key } = expandedGroupFixture();
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  app.applyWalkingRadiusChange(12, { animate: false });
+  app.focusOverviewItem("tree", key(trees[0]));
+  app.history.back();
+  app.history.back();
+  app.history.forward();
+  assert.equal(app.state.clusterExpanded, null);
+  assert.equal(app.state.walkingDistanceMinutes, 12);
+});
+
+test("drilling into a same-centre sub-group pushes its own entry, so Back returns to the parent group", () => {
+  const { trees } = expandedGroupFixture();
+  const corners = [
+    { id: "c1", recordNumber: 9201, commonName: "Oak", location: { britishNationalGrid: {} }, ...makePoint(app, 51.6500, 0.0500) },
+    { id: "c2", recordNumber: 9202, commonName: "Oak", location: { britishNationalGrid: {} }, ...makePoint(app, 51.65002, 0.0500) },
+    { id: "c3", recordNumber: 9203, commonName: "Oak", location: { britishNationalGrid: {} }, ...makePoint(app, 51.6500, 0.05003) },
+    { id: "c4", recordNumber: 9204, commonName: "Oak", location: { britishNationalGrid: {} }, ...makePoint(app, 51.65002, 0.05003) },
+  ];
+  app.state.trees.push(...corners);
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: corners });
+  const entries = app.history.length;
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: [corners[0], corners[3]] });
+  assert.equal(app.history.length, entries + 1, "the sub-group got its own entry");
+  app.history.back();
+  assert.equal(expandedIds(), "c1,c2,c3,c4", "Back returns to the parent group");
+  void trees;
+});
+
+test("expanding a group centred exactly on the current browse anchor leaves that plain entry to go back to", () => {
+  expandedGroupFixture();
+  const a = { id: "m1", recordNumber: 9301, commonName: "Oak", location: { britishNationalGrid: {} }, ...makePoint(app, 51.6500, 0.0500) };
+  const b = { id: "m2", recordNumber: 9302, commonName: "Oak", location: { britishNationalGrid: {} }, ...makePoint(app, 51.65004, 0.0500) };
+  app.state.trees.push(a, b);
+  const group = { itemType: "tree", items: [a, b] };
+  const target = app.clusterFocusTarget(group.items).center;
+  app.setNearbyAnchor(target.latitude, target.longitude, app.projectLonLat(target.longitude, target.latitude));
+  assert.equal(app.state.clusterExpanded, null);
+  app.focusNearbyOnClusterGroup(group);
+  assert.ok(app.state.clusterExpanded);
+  app.history.back();
+  assert.equal(app.state.clusterExpanded, null, "Back reaches the plain anchor entry rather than skipping it");
+  assert.ok(app.state.nearbyAnchor);
+});
+
+test("Back from a place onto its group abandons the place's pending camera hold", () => {
+  const { trees, key } = expandedGroupFixture();
+  app.focusNearbyOnClusterGroup({ itemType: "tree", items: trees });
+  app.focusOverviewItem("tree", key(trees[0]));
+  assert.equal(app.state.selectionTransition.mapHeld, true, "sanity: the selection holds the map");
+  app.history.back();
+  assert.equal(app.state.selectionTransition.mapHeld, false);
+  assert.equal(app.state.selectionTransition.viewportPending, false);
+  assert.equal(app.state.selectionMapTransitionToken, null, "a pending selection camera callback is stale");
 });
 
 test("tapping a cluster while already on Nearby actually refreshes the rendered list, not just the underlying data", () => {

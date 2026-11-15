@@ -150,3 +150,125 @@ test.describe("Back returns to the expanded group", () => {
     expect(await page.evaluate(() => state.walkingDistanceMinutes)).toBe(realRadius);
   });
 });
+
+test.describe("Back onto an expanded group from other screens", () => {
+  for (const [name, open] of [
+    ["Search", () => openSearchScreen()],
+    ["Filters", () => openFiltersScreen()],
+  ]) {
+    test(`Back from ${name} restores the group with that screen closed, and nothing drops it afterwards`, async ({ page }) => {
+      await setup(page);
+      await tapGroupOnMap(page);
+      const before = await page.evaluate(GROUP_SUMMARY);
+      await page.evaluate(open);
+      await expect.poll(() => page.evaluate(() => state.searchScreenOpen || state.filterScreenOpen)).toBe(true);
+      await page.goBack();
+      await expect.poll(() => page.evaluate(() => state.clusterExpanded?.items.length)).toBe(before.keys.length);
+      await waitForUiToSettle(page);
+      expect(await page.evaluate(() => state.searchScreenOpen || state.filterScreenOpen)).toBe(false);
+      expect(await page.evaluate(GROUP_SUMMARY)).toEqual(before);
+    });
+  }
+
+  test("a group left by dragging the map is not re-expanded by Back from a place picked afterwards", async ({ page }) => {
+    await setup(page);
+    const realRadius = await page.evaluate(() => state.walkingDistanceMinutes);
+    await tapGroupOnMap(page);
+    const box = await page.locator("#mapCanvas").boundingBox();
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 4;
+    await page.mouse.move(cx, cy);
+    await page.mouse.down();
+    await page.mouse.move(cx + 60, cy + 20, { steps: 6 });
+    await page.mouse.up();
+    await expect.poll(() => page.evaluate(() => Boolean(state.clusterExpanded))).toBe(false);
+    await waitForUiToSettle(page);
+    const afterDrag = await page.evaluate(() => state.walkingDistanceMinutes);
+    expect(afterDrag, "the real radius is back").toBe(realRadius);
+
+    await page.locator("#inspectorBody .nearest-item").first().click();
+    await expect.poll(() => page.evaluate(() => state.selected?.type ?? null)).not.toBeNull();
+    await waitForUiToSettle(page);
+    await page.goBack();
+    await expect.poll(() => page.evaluate(() => state.selected)).toBeNull();
+    await waitForUiToSettle(page);
+    expect(await page.evaluate(() => Boolean(state.clusterExpanded))).toBe(false);
+    expect(await page.evaluate(() => state.walkingDistanceMinutes)).toBe(realRadius);
+  });
+});
+
+test.describe("Back before the place's exit fade has finished (motion enabled)", () => {
+  async function trace(page) {
+    await page.evaluate(() => {
+      window.__moves = [];
+      const orig = window.moveCamera;
+      window.moveCamera = function (target) {
+        window.__moves.push({ toScale: target.scale });
+        return orig.apply(this, arguments);
+      };
+    });
+  }
+
+  for (const headingUp of [false, true]) {
+    test(`makes one camera move and releases the selection hold${headingUp ? " with the phone held up" : ""}`, async ({ page }) => {
+      await setup(page);
+      await page.emulateMedia({ reducedMotion: "no-preference" });
+      if (headingUp) {
+        await page.evaluate(() => {
+          state.compassHeadingTarget = 40;
+          state.compassHeading = 40;
+          state.renderedNavigationHeading = 40;
+          window.__keepCompassFresh = setInterval(() => { state.compassLastEventAt = performance.now(); }, 50);
+          state.compassLastEventAt = performance.now();
+        });
+      }
+      await tapGroupOnMap(page);
+      const before = await page.evaluate(GROUP_SUMMARY);
+      await trace(page);
+      // Pick the place and press Back in the same task: the place's camera move is still waiting
+      // out the pins' exit fade, so the hold is pending whatever the runner's speed.
+      const pending = await page.evaluate(() => {
+        document.querySelector("#inspectorBody .nearest-item").click();
+        const held = state.selectionTransition.mapHeld;
+        // Moves made before the browser even delivers the Back (a slow runner can outlast the
+        // fade) belong to the place, not to Back: only count from the moment popstate fires.
+        const restore = window.restoreNearbyAnchorFromHistory;
+        window.restoreNearbyAnchorFromHistory = function () {
+          window.__moves = [];
+          window.restoreNearbyAnchorFromHistory = restore;
+          return restore.apply(this, arguments);
+        };
+        // Registered after the app's own handler, so it reads the state that handler left behind.
+        window.addEventListener("popstate", () => {
+          window.__afterBack = { mapHeld: state.selectionTransition.mapHeld, token: state.selectionMapTransitionToken };
+        }, { once: true });
+        history.back();
+        return held;
+      });
+      expect(pending, "the place's hold was pending when Back was pressed").toBe(true);
+      await expect.poll(() => page.evaluate(() => state.selected)).toBeNull();
+      await waitForUiToSettle(page);
+      // Let any stale selection timer that would still fire have its chance.
+      await page.evaluate(() => new Promise((resolve) => {
+        const until = performance.now() + SELECTION_MARKER_EXIT_MS + SELECTION_MARKER_EXIT_MAX_STAGGER_MS + 200;
+        const tick = () => (performance.now() >= until ? resolve() : requestAnimationFrame(tick));
+        requestAnimationFrame(tick);
+      }));
+      await waitForUiToSettle(page);
+      expect(await page.evaluate(() => window.__afterBack), "the hold is released by Back itself, not left to the settle loop")
+        .toEqual({ mapHeld: false, token: null });
+      const state2 = await page.evaluate(() => ({
+        mapHeld: state.selectionTransition.mapHeld,
+        viewportPending: state.selectionTransition.viewportPending,
+        token: state.selectionMapTransitionToken,
+        moves: window.__moves.length,
+      }));
+      expect(state2.mapHeld).toBe(false);
+      expect(state2.viewportPending).toBe(false);
+      expect(state2.token).toBeNull();
+      expect(state2.moves, "one ease to the group, none to the abandoned place").toBe(1);
+      expect(await page.evaluate(GROUP_SUMMARY)).toEqual(before);
+    });
+  }
+});
+

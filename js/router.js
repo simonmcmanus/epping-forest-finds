@@ -232,12 +232,22 @@ function setHashFromSelection(value, { force = false } = {}) {
 // forced push to get a back-button step at all.
 function pushNearbyAnchorHistory() {
   syncHashFromSelection();
-  // The URL of a drill-down into a group at the same centre is unchanged, so no entry was
-  // pushed; keep the current entry's snapshot describing the group now showing.
-  if (routeApplyDepth > 0 || routerBooting || !state.clusterExpanded || !history.state) return;
-  if (!historyEntryDescribesExpandedCluster()) {
-    history.replaceState({ ...history.state, [NEARBY_ANCHOR_KEY]: nearbyAnchorSnapshot() }, "");
+  // A group the current entry does not describe needs an entry of its own, even when its URL is
+  // identical (a sub-group with the same centre as its parent, or a group centred exactly on a
+  // plain browse anchor): replacing the snapshot instead would make Back skip the parent level
+  // or overwrite a plain entry. Not during a route/boot replay, which never writes history.
+  if (routeApplyDepth > 0 || routerBooting || !state.clusterExpanded) return;
+  if (clusterHistorySnapshot(state.clusterExpanded) && !historyEntryDescribesExpandedCluster()) {
+    setHashFromSelection(currentScreenRoute(), { force: true });
   }
+}
+
+// Rewrites the current entry's anchor snapshot to match state without adding an entry. For a
+// reader who has just left an expanded group while staying on the same entry (see
+// exitClusterExpansion's forgetInHistory): the entry must stop describing the group.
+function refreshHistoryEntryAnchorSnapshot() {
+  if (routeApplyDepth > 0 || routerBooting || !history.state) return;
+  history.replaceState({ ...history.state, [NEARBY_ANCHOR_KEY]: nearbyAnchorSnapshot() }, "");
 }
 
 // Corrects the current entry's URL without adding one, keeping the entry's depth.
