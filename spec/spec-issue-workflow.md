@@ -22,6 +22,13 @@
 - `claude_args` extends the action's default tool grant with `Bash(git fetch:*)`, `Bash(git pull:*)`, and `Bash(git rebase:*)` so the session can reconcile with commits that landed on the branch after its initial checkout (e.g. from a concurrent run or a human push) before pushing, plus `Bash(node --test:*)`, `Bash(npm test:*)`, and `Bash(npm run test:*)` so it can run the unit suite before reporting a change as done. E2E (`npm run test:e2e`) is intentionally left out — it needs a Playwright browser install and is already covered by `ci.yml` on every push.
 - Checkout uses `fetch-depth: 0` (full history) so `git rebase`/`git pull` against the branch's upstream has the commits it needs.
 
+## Automatic PR Review Workflow
+
+- `.github/workflows/claude-review.yml` runs on pull requests when they are opened, updated, reopened, or marked ready for review. It uses the same Claude action but a separate read-only review persona; it does not edit files, commit, push, approve, or merge.
+- The reviewer checks correctness, security, data integrity, test coverage, and required spec synchronisation. It reports only actionable P0/P1/P2 findings, preferably as inline comments, and explicitly reports `No actionable findings.` when the diff has no actionable defect.
+- `contents: read` prevents repository writes. `pull-requests: write` and `issues: write` are limited to publishing review feedback. A per-PR concurrency group cancels an older review when a newer commit arrives, so stale reviews do not race the current diff.
+- The workflow uses the normal `pull_request` event rather than `pull_request_target`; fork pull requests therefore do not receive the repository's OAuth secret. Reviewing fork PRs would need a separate, security-reviewed token handoff.
+
 ## Issue Agent Workflow
 
 - `.github/workflows/claude-issue-agent.yml` runs `anthropics/claude-code-action@v1` (same `CLAUDE_CODE_OAUTH_TOKEN` secret) on `issues: labeled`, gated to the `claude` label so applying any other label doesn't trigger it. This is a self-hosted alternative to GitHub's native "assign to agent" issue panel — that panel's Claude connection authenticates through whatever credential is configured in the org/repo's Copilot-agent settings, not this repo's `CLAUDE_CODE_OAUTH_TOKEN`, so which subscription it bills against isn't visible from the repo. Labelling an issue `claude` instead guarantees the run uses this repo's own token. The label can come from a person, or from `issue-clarify.yml` itself once it has confirmed a simple data correction against the actual data — either way this workflow treats it the same.

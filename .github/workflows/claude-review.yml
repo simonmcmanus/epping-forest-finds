@@ -1,0 +1,53 @@
+name: Claude PR review
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+
+jobs:
+  review:
+    name: Review pull request
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Review pull request
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          prompt: |
+            Review this pull request for actionable defects only.
+
+            Read CLAUDE.md, spec/agents.md, the relevant product spec files,
+            and the complete pull-request diff. Check for:
+
+            - correctness and regressions, including edge cases;
+            - security, privacy, and unsafe handling of untrusted input;
+            - data integrity and compatibility with existing interfaces;
+            - missing tests for changed behaviour;
+            - missing spec updates when behaviour changes.
+
+            Follow the repository's data rule: a correction to a place's
+            real-world facts is a data change and does not need a spec entry;
+            behaviour and architecture changes do.
+
+            Do not edit files, commit, push, approve, merge, or suggest purely
+            stylistic changes. Do not claim that tests passed because you did
+            not run them. For each finding, use severity P0/P1/P2, identify the
+            file and line, explain the concrete impact, and give a concise fix
+            direction. Use inline review comments where supported. If there
+            are no actionable findings, say exactly: No actionable findings.
+          claude_args: |
+            --allowedTools "Read,Grep,Glob,mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*)"
