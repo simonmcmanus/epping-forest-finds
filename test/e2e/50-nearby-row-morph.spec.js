@@ -93,15 +93,57 @@ test.describe("Nearby <-> place header slide", () => {
 });
 
 test.describe("Nearby <-> place header slide with reduced motion", () => {
-  test.use({ reducedMotion: "reduce" });
-
-  test("opening a place swaps the panel at once, with no slide", async ({ page }) => {
+  test("opening a place creates no ghost and no header animation", async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: "reduce" });
     await setup(page, "/nearby");
     await expect(listed(page).first()).toBeVisible();
-    await listed(page).first().click();
+    expect(await page.evaluate(() => matchMedia("(prefers-reduced-motion: reduce)").matches)).toBe(true);
+    // Any transition left over from boot must finish before the watch starts.
     await expect(page.locator(".inspector-screen-ghost")).toHaveCount(0);
-    await expect(page.locator("#inspectorTitle")).not.toHaveText("Nearby");
+
+    // Watch for the transition's outgoing copy and for any animation on a title section, from the click on.
+    const seen = await page.evaluate(() => new Promise((resolve) => {
+      const ghosts = [];
+      const observer = new MutationObserver(() => {
+        if (document.querySelector(".inspector-screen-ghost")) ghosts.push(true);
+      });
+      observer.observe(document.getElementById("inspector"), { childList: true, subtree: true });
+      document.querySelector("#inspectorBody .nearest-item").click();
+      const headerAnimations = () => document.getAnimations().filter((a) => a.effect && a.effect.target
+        && a.effect.target.classList && a.effect.target.classList.contains("inspector-title-section")).length;
+      const sampled = [headerAnimations()];
+      // Let the microtask queue and one frame run, then look again.
+      requestAnimationFrame(() => {
+        observer.disconnect();
+        sampled.push(headerAnimations());
+        resolve({ ghosts: ghosts.length, headerAnimations: sampled, title: document.getElementById("inspectorTitle").textContent });
+      });
+    }));
+    expect(seen.ghosts, "no outgoing copy is inserted").toBe(0);
+    expect(seen.headerAnimations, "no header animation is created").toEqual([0, 0]);
+    expect(seen.title).not.toBe("Nearby");
+    await expect(page.locator("#inspectorTitle")).toHaveText(seen.title);
+  });
+});
+
+test.describe("Header slide when a second tap lands mid-transition", () => {
+  test("tapping Settings during the header slide settles on Settings with nothing left animating", async ({ page }) => {
+    await setup(page, "/nearby");
+    await expect(listed(page).first()).toBeVisible();
+
+    await page.evaluate(() => {
+      document.querySelector("#inspectorBody .nearest-item").click();
+      // The header slide has just started; a second tap lands before it finishes.
+      document.getElementById("settingsToggle").click();
+    });
+    await expect(page.locator("#inspectorTitle")).toHaveText("Settings");
+    await expect(page.locator(".inspector-screen-ghost")).toHaveCount(0);
+    // Nothing from the cancelled slide is still animating or leaving the title hidden or moved.
+    await expect.poll(() => page.evaluate(() => document.getAnimations().filter((a) => a.effect
+      && a.effect.target && a.effect.target.classList
+      && (a.effect.target.classList.contains("inspector-title-section") || a.effect.target.classList.contains("inspector-screen-ghost"))).length)).toBe(0);
     await expect(page.locator(".inspector-screen:not(.inspector-screen-ghost) .inspector-title-section")).toHaveCSS("transform", "none");
+    await expect(page.locator(".inspector-screen:not(.inspector-screen-ghost) .inspector-title-section")).toHaveCSS("opacity", "1");
   });
 });
 
