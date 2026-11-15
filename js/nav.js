@@ -1707,6 +1707,7 @@ function restoreNearbyAnchorFromHistory() {
       // radius it had and the real radius it will give back on exit. The entry's URL is just
       // the anchor, which this already is, so urlMatchesCurrentScreen (js/router.js) treats the
       // route as applied -- the screen was cleared above, the one change left to make.
+      state.selectionCluster = null;
       state.clusterExpanded = cluster;
       state.walkingDistanceMinutes = snapshot.cluster.radius;
       state.preClusterWalkingDistanceMinutes = Number.isFinite(snapshot.cluster.preRadius)

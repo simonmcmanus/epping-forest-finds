@@ -1272,7 +1272,8 @@ function focusOverviewItem(type, key) {
     return;
   }
   state.clusterZoomed = false;
-  const pickGroup = state.clusterExpanded || selectionClusterGroup();
+  // The Nearby list only offers members of the expanded group, so a list pick is always one of them.
+  const pickGroup = state.clusterExpanded;
   exitClusterExpansion();
   state.selectionCluster = pickGroup;
   // A real selection replaces the Nearby view entirely, so any custom browse point -- and its
