@@ -56,6 +56,15 @@ const HEADING_UP_NAV_ANIMATION_MS = 500; // standard duration for heading-up ali
 const MIN_HEADING_UP_ANIMATION_MS = 200; // floor for animateToHeadingUpNavigationViewport's duration
 const DEFAULT_VIEWPORT_ANIMATION_MS = 480; // generic fallback duration for the low-level viewport animators when nothing else is specified
 const MIN_VIEWPORT_ANIMATION_MS = 180; // floor for moveCamera's duration
+// Widest a staged cluster tap in 3D tilt may pull the camera out, as a share of the scale it started
+// at (0.35 = about 1.5 doublings). The wide framing shows the old and new places together, but the
+// tilt compresses distance toward the horizon, so an unbounded zoom-out for a far group would climb
+// toward the sky and leave the user's position a speck. Past this the camera frames the group and
+// accepts that the old place is off the edge. See alignHeadingUpNavigationViewport().
+const STAGED_WIDE_FRAMING_MIN_SCALE_RATIO = 0.35;
+const STAGED_WIDE_FRAMING_LEG_SHARE = 0.4; // share of the move given to the pan out to the wide framing; the rest is the zoom in
+const STAGED_WIDE_FRAMING_STEP = 0.93; // geometric step while searching for the tightest framing that shows both places
+const STAGED_WIDE_FRAMING_EDGE_SHARE = 0.08; // margin kept clear of the visible rect's edge, as a share of its shorter side
 const STAGED_PAN_FULL_LEG_SHARE = 0.4; // share of a staged cluster-tap move given to its pan leg when the pan covers the reference distance -- see alignHeadingUpNavigationViewport()
 const STAGED_PAN_REFERENCE_SHORT_SIDE_SHARE = 0.25; // pan distance, as a share of the focus rect's shorter side, that earns the full pan-leg share
 const FIRST_LOAD_REVEAL_ANIMATION_MS = 700; // the first-time "reveal the map" animation, in all its variants (fit to user+items, centered-on-user)
@@ -5799,6 +5808,50 @@ function deferAnimatedNearbyRefit(options) {
   pendingNearbyRefitFrame = requestAnimationFrame(retry);
 }
 
+// The wide shot of a staged cluster tap in 3D tilt: the tightest scale (searching down from
+// startScale, never below minScale) at which both the place the camera is leaving (fromPoint) and
+// the one it is going to (toPoint) are drawn inside the visible rect, with the camera centred
+// between them. If even minScale cannot hold both, it centres on the group at minScale so the
+// group is always on screen. Visibility is judged through the real tilt projection, for the camera
+// origin midway between the places (the ring's slide, on the same clock, is half way across when
+// the shot is reached), and a point the tilt clips behind the camera never counts as visible.
+function wideFramingViewport(fromPoint, toPoint, focus, focusY, focusRect, startScale, minScale) {
+  const cam = tiltProjection();
+  const rotation = headingUpRotationFor(toPoint);
+  const margin = Math.min(focusRect.width, focusRect.height) * STAGED_WIDE_FRAMING_EDGE_SHARE;
+  const mid = { x: (fromPoint.x + toPoint.x) / 2, y: (fromPoint.y + toPoint.y) / 2 };
+  const viewportAbout = (pivot, scale) => ({
+    scale,
+    tx: focus.x - pivot.x * scale,
+    ty: focusY - pivot.y * scale,
+  });
+  const shows = (viewport, point, origin) => {
+    if (cam) {
+      const offset = headingUpOffsetFor(viewport, point, rotation, origin);
+      if (offset.y / cam.dpr > cam.dyMax) return false;
+    }
+    const at = headingUpScreenPointAt(viewport, point, rotation, origin);
+    return Number.isFinite(at.x) && Number.isFinite(at.y)
+      && at.x >= focusRect.x + margin && at.x <= focusRect.x + focusRect.width - margin
+      && at.y >= focusRect.y + margin && at.y <= focusRect.y + focusRect.height - margin;
+  };
+  const showsBoth = (viewport) => shows(viewport, fromPoint, mid) && shows(viewport, toPoint, mid);
+  const shares = [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8, 0.1, 0.9];
+  const floor = Math.min(minScale, startScale);
+  for (let scale = startScale; ; scale = Math.max(scale * STAGED_WIDE_FRAMING_STEP, floor)) {
+    for (const share of shares) {
+      const pivot = {
+        x: fromPoint.x + (toPoint.x - fromPoint.x) * share,
+        y: fromPoint.y + (toPoint.y - fromPoint.y) * share,
+      };
+      const viewport = viewportAbout(pivot, scale);
+      if (showsBoth(viewport)) return viewport;
+    }
+    if (scale <= floor) break;
+  }
+  return viewportAbout(toPoint, floor);
+}
+
 function alignHeadingUpNavigationViewport(options = {}) {
   // Before real map data loads, state.trees/state.landmarks/etc are still empty, so the
   // points fed into maxHeadingUpNavigationScale/maxNearbyHeadingUpScale don't yet reflect
@@ -5919,6 +5972,8 @@ function alignHeadingUpNavigationViewport(options = {}) {
   // zoom-out/pan/zoom-in tour existed for and was abandoned over (see focusNearbyOnClusterGroup's
   // own comment); staging still isn't the answer for it, so this falls back to the plain single
   // ease below instead, the same path a far jump already took before stagePanThenZoom existed.
+  // (In 3D tilt a pivot outside the tilted view is the one exception, handled below: it gets a
+  // pull-out and pan first, then the zoom-in.)
   const panDistancePx = Number.isFinite(previousScale) && previousScale > 0
     ? Math.hypot(
       (focus.x - userPoint.x * previousScale) - previousTx,
@@ -5927,7 +5982,36 @@ function alignHeadingUpNavigationViewport(options = {}) {
     : Infinity;
   const panIsAlreadyOnScreen = panDistancePx <= Math.hypot(focusRect.width, focusRect.height);
 
-  if (options.animate && options.stagePanThenZoom && panIsAlreadyOnScreen) {
+  // In 3D tilt the flat distance above says nothing about whether the new pivot is in view: a
+  // point behind the tilted camera (past its near plane) or outside the visible rect is not on
+  // screen however short its flat distance. A tap whose group is out of view, or too far to pan to
+  // at today's scale, takes the wide-framing move instead: pan and zoom out only as far as needed
+  // to show both the old place and the new one (never past STAGED_WIDE_FRAMING_MIN_SCALE_RATIO),
+  // then zoom in on the group. The ring's own slide (startNearbyOriginTransition) runs on the same
+  // clock, so the circle moves across during that wide shot -- there is no second timeline.
+  let wideFramingMove = false;
+  if (options.animate && options.stagePanThenZoom && tiltActive() && previousScale > 0) {
+    const shown = tiltProjectScreenPoint(worldToScreenFlat(userPoint));
+    const pivotOutOfTiltedView = shown.clipped
+      || !Number.isFinite(shown.x) || !Number.isFinite(shown.y)
+      || shown.x < focusRect.x || shown.x > focusRect.x + focusRect.width
+      || shown.y < focusRect.y || shown.y > focusRect.y + focusRect.height;
+    wideFramingMove = pivotOutOfTiltedView || !panIsAlreadyOnScreen;
+  }
+
+  if (wideFramingMove) {
+    const fromPoint = cameraOriginPoint(false) || userPoint;
+    const wideScale = Math.min(previousScale, targetScale);
+    const wide = wideFramingViewport(
+      fromPoint, userPoint, focus, focusY, focusRect,
+      Math.max(wideScale, previousScale * STAGED_WIDE_FRAMING_MIN_SCALE_RATIO),
+      previousScale * STAGED_WIDE_FRAMING_MIN_SCALE_RATIO,
+    );
+    const totalMs = options.durationMs || HEADING_UP_NAV_ANIMATION_MS;
+    const outMs = Math.max(MIN_VIEWPORT_ANIMATION_MS, Math.round(totalMs * STAGED_WIDE_FRAMING_LEG_SHARE));
+    const zoomMs = Math.max(MIN_VIEWPORT_ANIMATION_MS, totalMs - outMs);
+    moveCamera(wide, outMs, () => moveCamera(targetViewport, zoomMs));
+  } else if (options.animate && options.stagePanThenZoom && panIsAlreadyOnScreen) {
     const panViewport = {
       scale: previousScale,
       tx: focus.x - userPoint.x * previousScale,
