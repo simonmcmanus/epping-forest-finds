@@ -131,6 +131,29 @@ test.describe("Location and GPS — happy path", () => {
       await expect(page.locator("#adventureBanner")).toContainText("Take a");
     });
 
+    test("the veteran tree adventure still appears when the first features lookup fails on a poor connection", async ({ page }) => {
+      let featureRequests = 0;
+      await page.unroute("**/api/features**");
+      await page.route("**/api/features**", (route) => {
+        featureRequests += 1;
+        // The first answers never arrive (a weak signal); a later one does.
+        if (featureRequests < 3) return route.fulfill({ status: 503, body: "unavailable" });
+        return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ community: true }) });
+      });
+      // Start as a first-time visitor: nothing remembered about which features are on, and the
+      // notice not yet shown. Registered after the spec's own setup so it runs last.
+      await page.addInitScript(() => {
+        localStorage.removeItem("ff-features-v1");
+        localStorage.removeItem("ff-tree-adventure-seen-v1");
+      });
+      await page.reload();
+      // As in the snapshot case above, location has been shared and the consent card is gone.
+      await page.waitForFunction(() => typeof state !== "undefined" && state.dataLoaded && state.userLocation);
+      await page.evaluate(() => { els.consentBanner.hidden = true; });
+      await expect(page.locator("#adventureBanner")).toBeVisible({ timeout: 20_000 });
+      await expect(page.locator("#adventureBanner")).toContainText("Find the nearest veteran tree");
+    });
+
     test("on a train, the You marker keeps moving between GPS fixes rather than holding still and then jumping", async ({ page, context }) => {
       await page.waitForFunction((start) => state.rawUserLocation && state.rawUserLocation.latitude === start, FOREST_LOCATION.latitude);
       // A fix a second, 15m north each, at 15 m/s: the speed the phone's own GPS reports on a moving
