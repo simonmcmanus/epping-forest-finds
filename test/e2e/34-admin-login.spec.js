@@ -102,6 +102,37 @@ test.describe("Admin login", () => {
     await expect(page.locator("#adminStats")).toContainText("back to 2026-10-20, that day only in part");
   });
 
+  test("shows the navigation journey block when packed navigation events are present", async ({ page }) => {
+    await skipOnboarding(page);
+    const at = (iso) => Date.parse(iso);
+    // Fictional fixed coordinates and timestamps: one walker starts, arrives, then ends a navigation.
+    const packed = {
+      format: 2,
+      locations: { v: 2, type: "location", uids: [], targets: [], rows: [] },
+      clicks: { v: 2, type: "click", uids: [], rows: [] },
+      navigation: {
+        v: 2, type: "navigation", uids: ["walker-aaaa-1111"],
+        rows: [
+          [0, at("2026-10-20T10:00:00Z"), "nav-1", "Example Spot", "place", 51.5, 0.1, 51.49, 0.09, 1000, null, null, null, "start"],
+          [0, at("2026-10-20T10:12:00Z"), "nav-1", "Example Spot", "place", 51.5, 0.1, 51.5, 0.1, 1000, 1250, 0, null, "arrive"],
+          [0, at("2026-10-20T10:13:00Z"), "nav-1", "Example Spot", "place", 51.5, 0.1, 51.5, 0.1, 1000, 1250, 0, "arrived", "end"],
+        ],
+      },
+      meta: { ...TRACKS.meta },
+    };
+    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(packed) }));
+    await page.goto("/admin");
+    await page.getByLabel("Admin password").fill("secret");
+    await page.click("#loginBtn");
+
+    const stats = page.locator("#adminStats");
+    await expect(stats).toContainText("Navigation:");
+    await expect(stats).toContainText("1 started");
+    await expect(stats).toContainText("1 arrived (100%)");
+    await expect(stats).toContainText("Detour: walked 1.25x the shortest route");
+    await expect(stats).toHaveScreenshot("admin-navigation-stats.png");
+  });
+
   test("the Community panel says which snapshot its figures come from", async ({ page }) => {
     await skipOnboarding(page);
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) }));
