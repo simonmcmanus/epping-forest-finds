@@ -130,6 +130,16 @@ test.describe("Admin login", () => {
     await expect(stats).toContainText("1 started");
     await expect(stats).toContainText("1 arrived (100%)");
     await expect(stats).toContainText("Detour: walked 1.25x the shortest route");
+    // Navigation events carry no location pings or taps, so these are the final counts.
+    await expect(stats).toContainText("0 users");
+    await expect(stats).toContainText("0 location pings");
+    await expect(stats).toContainText("0 taps");
+    // Let the dashboard's entrance fade finish (an element state, not a sleep) before capturing.
+    await expect.poll(() => page.evaluate(() => {
+      const app = document.getElementById("adminApp");
+      const running = document.getAnimations().filter((a) => a.playState === "running" || a.pending).length;
+      return running === 0 && getComputedStyle(app).opacity === "1" && getComputedStyle(document.getElementById("adminStats")).opacity === "1";
+    })).toBe(true);
     await expect(stats).toHaveScreenshot("admin-navigation-stats.png");
   });
 
