@@ -26,6 +26,8 @@ in the main session. Only skip it for read-only questions.
 - Implementers commit locally. The lead pushes the coherent batch after the aggregate review/test
   gates, opens one PR and reconciles checks on its exact head. The steward is the single repair
   owner; fixes and conflict resolutions go through the same gates. Never approve, merge or force-push.
+- Open PRs ready for review, not as drafts, once the local review and test gates pass. Draft status
+  blocks the PR's CI review jobs and preview deploys, so do not use it as a default.
 - Do not report completion while required checks, findings or human approval remain outstanding.
   Compare failing tests CI-to-CI before calling them pre-existing. State a waiting/blocker condition
   plainly; do not busy-poll or treat a passing rerun as proof a defect is unrelated.
