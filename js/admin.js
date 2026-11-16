@@ -1313,6 +1313,7 @@ function updateEnvBadge(meta) {
 const PACKED_FIELDS = {
   location: ["lat", "lng", "heading"],
   click: ["userLat", "userLng", "targetLat", "targetLng", "itemType", "itemId", "itemName", "source"],
+  navigation: ["navId", "navName", "navType", "targetLat", "targetLng", "userLat", "userLng", "routeM", "walkedM", "remainingM", "reason"],
 };
 
 function unpackTrackingEvents(packed) {
@@ -1322,6 +1323,8 @@ function unpackTrackingEvents(packed) {
   return packed.rows.map((row) => {
     const event = { type: packed.type, uid: packed.uids[row[0]], ts: new Date(row[1]).toISOString() };
     fields.forEach((field, i) => { event[field] = row[i + 2]; });
+    // A navigation row ends with its kind (start, arrive or end); it becomes navigation_<kind>.
+    if (packed.type === "navigation") event.type = `navigation_${row[fields.length + 2]}`;
     if (packed.type === "location") {
       const target = row[fields.length + 2];
       event.navTarget = target >= 0 ? packed.targets[target] : null;
