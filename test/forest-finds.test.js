@@ -12972,57 +12972,36 @@ test("tapping a cluster far outside the current view skips staging -- one direct
   assert.notEqual(app.state.viewportAnimationTo.scale, 500000, "a single ease targets the group's own fit scale directly, not today's scale");
 });
 
-test("in 3D tilt, tapping a cluster behind the camera pans out first, then in on the group -- never a jump at today's scale", () => {
-  resetData(app);
-  app.state.userLocation = makePoint(app, 51.65, 0.05);
-  app.state.tiltBetaSmoothed = 60;
-  try {
-    assert.ok(app.tiltActive(), "sanity: 3D tilt is on");
-    // South of a north-facing user: behind the tilted camera, below the near edge of the view.
-    const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6455, 0.0500) };
-    const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.64551797, 0.0500) };
-    app.state.trees.push(oak1, oak2);
-    app.selectOverview();
-    app.ensureOverviewTargetsVisible({ animate: false, force: true });
-    const before = { ...app.state.viewport };
-
-    const frames = [];
-    const originalRaf = app.swapGlobalFunction("requestAnimationFrame", (fn) => { frames.push(fn); return frames.length; });
-    const scales = [];
-    try {
-      app.focusNearbyOnClusterGroup({ itemType: "tree", items: [oak1, oak2] });
-      let now = 1000;
-      for (let i = 0; i < 400 && (app.state.viewportAnimationTo || frames.length); i += 1) {
-        const frame = frames.shift();
-        if (!frame) break;
-        now += 16;
-        frame(now);
-        scales.push(app.state.viewport.scale);
-      }
-    } finally {
-      app.swapGlobalFunction("requestAnimationFrame", originalRaf);
-    }
-    const finalScale = scales[scales.length - 1];
-    const lowest = Math.min(...scales);
-    assert.ok(scales.length > 3, "the tap runs an animated camera move");
-    assert.ok(lowest < Math.min(before.scale, finalScale) * 0.95,
-      `the camera zooms out below both its start (${before.scale}) and its end (${finalScale}) scale to show the new area (lowest ${lowest})`);
-    const lowestAt = scales.indexOf(lowest);
-    for (let i = 0; i < lowestAt; i += 1) {
-      assert.ok(scales[i] <= before.scale, "the camera never zooms in toward the group before it has pulled out");
-    }
-    assert.ok(finalScale > lowest * 2, "after pulling out, it zooms in on the group");
-  } finally {
-    app.state.tiltBetaSmoothed = 0;
+test("in 3D tilt, tapping a cluster just behind the camera frames the user and the group first, then zooms in -- never a jump at today's scale", () => {
+  // South of a north-facing user: behind the tilted camera, below the near edge of the view. It is close
+  // enough that both places fit at today's scale once the camera is centred on the group, so the first
+  // leg is a pan that keeps both on screen, not a pull-out.
+  const { before, record, rect } = tiltClusterTapFrames(51.6455, 0.05);
+  const scales = record.map((frame) => frame.scale);
+  const finalScale = scales[scales.length - 1];
+  assert.ok(scales.length > 3, "the tap runs an animated camera move");
+  const lowest = Math.min(...scales);
+  // The first leg is 40% of the 520ms move: 208ms, the 13th 16ms frame.
+  const landed = 13;
+  for (let i = 0; i <= landed; i += 1) {
+    assert.ok(scales[i] <= before.scale * 1.0001, "the camera never zooms in toward the group before the first leg lands");
   }
+  assert.ok(pointInRect(record[landed].user, rect), "the user is on screen where the first leg lands");
+  assert.ok(pointInRect(record[landed].target, rect), "the group is on screen where the first leg lands");
+  assert.ok(finalScale > lowest * 2, "after the first leg, it zooms in on the group");
 });
 
 // Taps a two-tree group at (lat, lon) in full 3D tilt and walks the camera move frame by frame.
 // Each frame records the scale and where the user's own position and the group's centre are drawn.
-function tiltClusterTapFrames(lat, lon, interrupt = null) {
+function tiltClusterTapFrames(lat, lon, interrupt = null, heading = null) {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.65, 0.05);
   app.state.tiltBetaSmoothed = 60;
+  // Held there, as a phone held at that pitch would: with no sensor the smoothing would ease the tilt off.
+  app.state.tiltBetaTarget = 60;
+  // A compass heading puts the map heading-up: it is drawn rotated so the way the user faces is up.
+  app.state.compassHeading = heading;
+  app.state.renderedNavigationHeading = heading;
   try {
     assert.ok(app.tiltActive(), "sanity: 3D tilt is on");
     const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, lat, lon) };
@@ -13068,6 +13047,7 @@ function tiltClusterTapFrames(lat, lon, interrupt = null) {
         record.push({
           scale: app.state.viewport.scale,
           user: app.worldToScreen(userPoint),
+          ring: app.worldToScreen(app.nearbyRenderOriginPoint() || userPoint),
           target: app.worldToScreen((interrupt ? other1 : oak1).point),
         });
       }
@@ -13079,6 +13059,9 @@ function tiltClusterTapFrames(lat, lon, interrupt = null) {
     return { before, record, rect: app.bestVisibleCanvasRect(), target: oak1.point };
   } finally {
     app.state.tiltBetaSmoothed = 0;
+    app.state.tiltBetaTarget = 0;
+    app.state.compassHeading = null;
+    app.state.renderedNavigationHeading = null;
   }
 }
 
@@ -13100,6 +13083,35 @@ test("in 3D tilt, a cluster tap far across the ring never zooms out past the doc
   assert.ok(lowest < before.scale * 0.95, `but it does pull out to relate the two places (lowest ${lowest})`);
 });
 
+test("in 3D tilt, a cluster tap right at the zoom-out cap still frames both the user and the group", () => {
+  // About 1.7km south: the farthest the cap (a 0.35 share of the starting scale) can still hold beside the user.
+  const { before, record, rect } = tiltClusterTapFrames(51.635, 0.05);
+  const scales = record.map((frame) => frame.scale);
+  const lowest = Math.min(...scales);
+  const wide = record[scales.indexOf(lowest)];
+  assert.ok(Math.abs(lowest / before.scale - 0.35) < 0.005, `the wide shot sits on the cap (${(lowest / before.scale).toFixed(3)} of the start)`);
+  assert.ok(pointInRect(wide.user, rect), `the user is still on screen (${JSON.stringify(wide.user)})`);
+  assert.ok(pointInRect(wide.target, rect), `the group is on screen (${JSON.stringify(wide.target)})`);
+});
+
+test("in 3D tilt, a cluster tap just past the zoom-out cap holds the cap and keeps the group, not the user, on screen", () => {
+  // About 2.2km south: beyond what the cap can hold beside the user, so the group wins.
+  const { before, record, rect } = tiltClusterTapFrames(51.630, 0.05);
+  const scales = record.map((frame) => frame.scale);
+  const lowest = Math.min(...scales);
+  const wide = record[scales.indexOf(lowest)];
+  assert.ok(Math.abs(lowest / before.scale - 0.35) < 0.005, `the wide shot holds the cap (${(lowest / before.scale).toFixed(3)} of the start)`);
+  assert.ok(pointInRect(wide.target, rect), `the group is on screen (${JSON.stringify(wide.target)})`);
+  assert.ok(!pointInRect(wide.user, rect), "the user is allowed to leave the view once the cap cannot hold both");
+});
+
+test("in 3D tilt, a cluster tap far across the ring (11km) still has the group on screen at the wide frame", () => {
+  const { record, rect } = tiltClusterTapFrames(51.55, 0.05);
+  const scales = record.map((frame) => frame.scale);
+  const wide = record[scales.indexOf(Math.min(...scales))];
+  assert.ok(pointInRect(wide.target, rect), `the group is on screen at the wide frame (${JSON.stringify(wide.target)} in ${JSON.stringify(rect)})`);
+});
+
 test("in 3D tilt, a cluster tap beyond the view first frames both the user and the group, then zooms in", () => {
   // About 600m south: behind the tilted camera, but within what the cap can show beside the user.
   const { before, record, rect } = tiltClusterTapFrames(51.6445, 0.05);
@@ -13118,6 +13130,40 @@ test("in 3D tilt, a cluster tap beyond the view first frames both the user and t
     assert.ok(step < 1.35, `no frame jumps in scale (frame ${i} stepped ${step.toFixed(2)}x)`);
   }
 });
+
+// Heading-up and tilted: the user's marker and the group are both on screen at the moment the wide
+// shot lands, and the ring's centre only ever travels toward the group's side of the view.
+for (const heading of [0, 90, 180, 270]) {
+  for (const [name, lat] of [["south", 51.6445], ["far north", 51.6560]]) {
+    test(`in 3D tilt, heading ${heading}, a ${name} cluster tap frames both the user and the group where the wide shot lands`, () => {
+      const { before, record, rect } = tiltClusterTapFrames(lat, 0.05, null, heading);
+      const scales = record.map((frame) => frame.scale);
+      const lowest = Math.min(...scales);
+      assert.ok(record.length > 3, "the tap runs an animated camera move");
+      if (lowest < before.scale * 0.95) {
+        const wide = record[scales.indexOf(lowest)];
+        assert.ok(pointInRect(wide.user, rect), `the user is on screen where the wide shot lands (${JSON.stringify(wide.user)} in ${JSON.stringify(rect)})`);
+        assert.ok(pointInRect(wide.target, rect), `the group is on screen where the wide shot lands (${JSON.stringify(wide.target)} in ${JSON.stringify(rect)})`);
+      }
+      const last = record[record.length - 1];
+      assert.ok(pointInRect(last.target, rect), "the group is on screen when the camera settles");
+    });
+  }
+}
+
+for (const [heading, lat] of [[0, 51.6445], [90, 51.6560], [180, 51.6560]]) {
+  test(`in 3D tilt, heading ${heading}, the ring's drawn centre closes steadily on where it settles through the wide shot`, () => {
+    const { record } = tiltClusterTapFrames(lat, 0.05, null, heading);
+    const scales = record.map((frame) => frame.scale);
+    const landed = scales.indexOf(Math.min(...scales));
+    assert.ok(landed > 2, "sanity: the tap runs a wide shot");
+    const settled = record[record.length - 1].ring;
+    const gaps = record.slice(0, landed + 1).map((frame) => Math.hypot(frame.ring.x - settled.x, frame.ring.y - settled.y));
+    for (let i = 1; i < gaps.length; i += 1) {
+      assert.ok(gaps[i] <= gaps[i - 1] + 1, `the ring does not back away from where it settles (frame ${i}: ${gaps[i - 1].toFixed(1)} -> ${gaps[i].toFixed(1)})`);
+    }
+  });
+}
 
 test("in 3D tilt, a second cluster tap mid-move settles on the last group, framed and zoomed in", () => {
   const { record, rect } = tiltClusterTapFrames(51.6445, 0.05, { lat: 51.6527, lon: 0.0515, afterTicks: 8 });
