@@ -113,7 +113,7 @@ The stats bar summarises walks to a navigation target. They are derived in the b
 
 **Explicit wins over derived.** `combineNavJourneys()` uses every explicit journey, and keeps a journey derived from pings only when no explicit journey of the same user covers it. A derived journey is covered when its time span overlaps an explicit journey's start to end plus 3 minutes (the ping gap), so the same walk is never counted twice, while older data and users on older app versions still show their derived journeys.
 
-**Detour ratio.** For journeys with both `routeM` (shortest walking route from the start fix) and `walkedM`, ratio = `walkedM / routeM`. The summary reports the median ratio and how many journeys had one (`medianDetourRatio` is null and `detourCount` 0 when none, and the Detour line is hidden). Derived journeys never have a ratio. With no navigation events the block behaves exactly as derived-only.
+**Detour ratio.** For completed (arrived) journeys with both `routeM` (shortest walking route from the start fix) and `walkedM`, ratio = `walkedM / routeM`. The summary reports the median ratio and how many journeys had one (`medianDetourRatio` is null and `detourCount` 0 when none, and the Detour line is hidden). Derived journeys never have a ratio. With no navigation events the block behaves exactly as derived-only.
 
 ## Tap / Click Details
 

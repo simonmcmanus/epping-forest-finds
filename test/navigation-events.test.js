@@ -182,6 +182,17 @@ test("summariseNavJourneys reports the median detour ratio over journeys with ro
   assert.equal(M.summariseNavJourneys([]).medianDetourRatio, null);
 });
 
+test("detour ratio counts completed explicit journeys only, not abandoned ones", () => {
+  const events = [
+    start("u1", 0, { navId: "a", routeM: 1000 }), arrive("u1", 20, { navId: "a", walkedM: 1100 }), end("u1", 21, { navId: "a", walkedM: 1100 }),
+    start("u2", 0, { navId: "b", routeM: 1200 }), end("u2", 5, { navId: "b", reason: "cleared", remainingM: 800, walkedM: 300 }),
+  ].map(ev);
+  const s = M.summariseNavJourneys(M.buildExplicitJourneys(events));
+  assert.equal(s.started, 2);
+  assert.equal(s.detourCount, 1);
+  assert.equal(s.medianDetourRatio, 1.1);
+});
+
 test("an explicit end (changed) and the next start sharing a millisecond keep the old journey's data", async () => {
   const store = memoryStore();
   const now = Date.now();

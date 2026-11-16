@@ -173,8 +173,8 @@ function summariseNavJourneys(journeys) {
     return !values.length ? null : values.length % 2 ? values[mid] : (values[mid - 1] + values[mid]) / 2;
   };
   const medianRemainingM = median(remaining);
-  // Detour ratio: metres walked per metre of the shortest route at the start (explicit journeys only).
-  const ratios = list.filter((j) => Number.isFinite(j.routeM) && j.routeM > 0 && Number.isFinite(j.walkedM))
+  // Detour ratio: metres walked per metre of the shortest route at the start (completed explicit journeys only; an abandoned walk is not comparable to the full route).
+  const ratios = list.filter((j) => j.arrived === true && Number.isFinite(j.routeM) && j.routeM > 0 && Number.isFinite(j.walkedM))
     .map((j) => j.walkedM / j.routeM);
   return {
     started: list.length,
