@@ -8426,6 +8426,7 @@ test("an unrequested controller change shows the banner, and Restart then activa
     ]);
     bannerStub.querySelector = (selector) => bannerParts.get(selector) || null;
     listeners.controllerchange();
+    await new Promise((resolve) => setImmediate(resolve)); // the new controller is asked which release it is
     assert.equal(localApp.state.swActivatedElsewhere, true, "the page is told the release changed under it");
     assert.equal(localApp.state.swUpdateAvailable, true, "the banner is raised for the waiting worker");
 
@@ -8441,6 +8442,88 @@ test("an unrequested controller change shows the banner, and Restart then activa
     localApp.swapGlobalFunction("location", previousLocation);
     localApp.swapGlobalFunction("setTimeout", previousTimeout);
   }
+});
+
+// A waiting worker of the release already running is not an update (Safari report: "Update ready"
+// on every load while the active and waiting workers were both the same release).
+async function runWaitingWorkerScenario({ waitingVersion }) {
+  const runningVersion = vm.runInNewContext(fs.readFileSync(path.join(__dirname, "..", "js", "app-cache-version.js"), "utf8") + "\nAPP_CACHE_VERSION", {});
+  const localApp = loadAppForTests();
+  localApp.windowStub.__ENABLE_LOCAL_SERVICE_WORKER__ = true;
+  const listeners = {};
+  const messages = [];
+  const timers = [];
+  const reloads = [];
+  const fire = (type, event) => (listeners[type] || []).forEach((listener) => listener(event));
+  const waiting = {
+    postMessage: (message) => {
+      messages.push(message.type);
+      if (message.type === "VERSION" && waitingVersion !== undefined) {
+        const version = waitingVersion === "running" ? runningVersion : waitingVersion;
+        queueMicrotask(() => fire("message", { data: { type: "VERSION", requestId: message.requestId, version } }));
+      }
+      if (message.type === "SYNC_DATA") {
+        queueMicrotask(() => fire("message", { data: { type: "DATA_SYNC_COMPLETE", requestId: message.requestId, ok: true } }));
+      }
+    },
+  };
+  const nav = localApp.navigator;
+  const wasOnline = nav.onLine;
+  const previousLocation = localApp.swapGlobalFunction("location", { reload: () => reloads.push("reload") });
+  const previousTimeout = localApp.swapGlobalFunction("setTimeout", (callback, delay) => { timers.push({ callback, delay }); return timers.length; });
+  nav.onLine = false;
+  nav.serviceWorker = {
+    controller: { postMessage() { throw new Error("controller does not answer"); } },
+    ready: Promise.resolve(),
+    addEventListener: (type, listener) => { (listeners[type] ||= []).push(listener); },
+    removeEventListener: (type, listener) => { listeners[type] = (listeners[type] || []).filter((l) => l !== listener); },
+    getRegistration: async () => ({ waiting }),
+    register: async () => ({ waiting, installing: null, addEventListener() {} }),
+  };
+  const bannerTitle = createElementStub();
+  try {
+    localApp.setupPwa();
+    const bannerStub = localApp.documentStub.getElementById("updateBanner");
+    bannerStub.querySelector = (selector) => (selector === ".update-banner-text strong" ? bannerTitle : createElementStub());
+    for (let i = 0; i < 10; i += 1) await new Promise((resolve) => setImmediate(resolve));
+    return { localApp, messages, timers, reloads, bannerTitle, fire, listeners };
+  } finally {
+    nav.onLine = wasOnline;
+    localApp.swapGlobalFunction("location", previousLocation);
+    localApp.swapGlobalFunction("setTimeout", previousTimeout);
+  }
+}
+
+test("a waiting worker of the release already running is activated quietly and never shows Update ready", async () => {
+  const { localApp, messages, bannerTitle, fire, reloads } = await runWaitingWorkerScenario({ waitingVersion: "running" });
+  assert.notEqual(bannerTitle.textContent, "Update ready", "the page is already on the latest version");
+  assert.equal(localApp.state.swUpdateAvailable, false);
+  assert.ok(messages.includes("SKIP_WAITING"), "the stale waiting worker is cleared out of the way");
+  fire("controllerchange", undefined);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.notEqual(bannerTitle.textContent, "Update ready", "its takeover is not announced either");
+  assert.equal(localApp.state.swUpdateAvailable, false);
+  assert.equal(localApp.state.swActivatedElsewhere, false);
+  assert.deepEqual(reloads, [], "and does not reload the page");
+});
+
+test("a waiting worker of a different release still shows Update ready", async () => {
+  const { localApp, messages, bannerTitle } = await runWaitingWorkerScenario({ waitingVersion: "v999999" });
+  assert.equal(bannerTitle.textContent, "Update ready");
+  assert.equal(localApp.state.swUpdateAvailable, true);
+  assert.ok(!messages.includes("SKIP_WAITING"), "a real update waits for the visitor to tap Restart");
+});
+
+test("a waiting worker that cannot say which release it is still shows Update ready once the wait runs out", async () => {
+  const { localApp, messages, timers, bannerTitle } = await runWaitingWorkerScenario({ waitingVersion: undefined });
+  assert.notEqual(bannerTitle.textContent, "Update ready", "still waiting for an answer");
+  const timeout = timers.find((timer) => timer.delay === 3000);
+  assert.ok(timeout, "the question gives up after about three seconds");
+  timeout.callback();
+  for (let i = 0; i < 10; i += 1) await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(bannerTitle.textContent, "Update ready");
+  assert.equal(localApp.state.swUpdateAvailable, true);
+  assert.ok(!messages.includes("SKIP_WAITING"));
 });
 
 test("the update banner names the old and new release in a small line", async () => {
