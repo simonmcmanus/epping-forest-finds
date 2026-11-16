@@ -102,7 +102,7 @@ test.describe("Admin login", () => {
     await expect(page.locator("#adminStats")).toContainText("back to 2026-10-20, that day only in part");
   });
 
-  test("shows the navigation journey block when packed navigation events are present", async ({ page }) => {
+  test("snapshot: admin navigation journey block when packed navigation events are present", async ({ page }) => {
     await skipOnboarding(page);
     const at = (iso) => Date.parse(iso);
     // Fictional fixed coordinates and timestamps: one walker starts, arrives, then ends a navigation.
