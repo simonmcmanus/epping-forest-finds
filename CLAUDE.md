@@ -15,8 +15,8 @@ in the main session. Only skip it for read-only questions.
 - Tests assert user-visible behaviour, never source text. Prove a regression test fails before the fix.
 - Never report completion while required checks, findings or human approval remain outstanding.
 - Preserve the PR's preview-links block when rewriting a PR description.
-- Open PRs ready for review, not as drafts, once local review and test gates pass. Draft status
-  blocks CI review jobs and preview deploys.
+- Open PRs ready for review straight away, not as drafts. Do not wait for local review, E2E, visual
+  or transition gates before marking a PR ready. Draft status blocks CI review jobs and preview deploys.
 - Open a PR as soon as code is ready to try, so the preview deploys and the change can be tested.
   Do not hold it until a larger batch is finished.
 
