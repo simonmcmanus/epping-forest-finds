@@ -1763,6 +1763,36 @@ function headingUpTranslationFor(point, rotation, scale, origin, screen) {
   return { x: originScreen.x - o.x * scale, y: originScreen.y - o.y * scale };
 }
 
+// The largest scale, up to `upper`, at which `point` is still drawn on the canvas while the pivot sits at
+// `pivotScreen` (see headingUpTranslationFor). Under tilt the ground nearer the bottom of the screen is drawn
+// larger, so a point below the pivot can swing off the bottom edge even though the same zoom keeps it on
+// screen when flat. Zooming out (never in) until it is back on the canvas keeps it there. Does nothing while
+// the pivot itself is off the canvas, or when no zoom out in range would bring the point back on it.
+const KEEP_IN_VIEW_MIN_SCALE_SHARE = 0.2;
+const KEEP_IN_VIEW_MARGIN_SHARE = 0.05; // of the shorter canvas side
+function largestScaleKeepingInView(upper, point, pivot, rotation, pivotScreen) {
+  const canvasW = els.canvas ? els.canvas.width : 0;
+  const canvasH = els.canvas ? els.canvas.height : 0;
+  const onCanvas = (p) => p.x >= 0 && p.y >= 0 && p.x <= canvasW && p.y <= canvasH;
+  // Kept a margin in from the edges, so the point is comfortably on screen rather than resting on the edge.
+  const margin = KEEP_IN_VIEW_MARGIN_SHARE * Math.min(canvasW, canvasH);
+  const keptInView = (p) => p.x >= margin && p.y >= margin && p.x <= canvasW - margin && p.y <= canvasH - margin;
+  if (!(canvasW > 0 && canvasH > 0) || !onCanvas(pivotScreen)) return upper;
+  const drawnAt = (scale) => {
+    const translation = headingUpTranslationFor(pivot, rotation, scale, cameraOriginPoint(), pivotScreen);
+    return headingUpScreenPointAt({ scale, tx: translation.x, ty: translation.y }, point, rotation, cameraOriginPoint());
+  };
+  if (keptInView(drawnAt(upper))) return upper;
+  let lo = upper * KEEP_IN_VIEW_MIN_SCALE_SHARE;
+  if (!keptInView(drawnAt(lo))) return upper;
+  let hi = upper;
+  for (let i = 0; i < 24; i++) {
+    const mid = Math.sqrt(lo * hi);
+    if (keptInView(drawnAt(mid))) lo = mid; else hi = mid;
+  }
+  return lo;
+}
+
 // The single owner of an in-flight camera move. Every tween goes through here: it decides whether the
 // request is a repeat of the move already running (ignored), and otherwise replaces that move.
 // The queueing of animated Nearby refits that arrive mid-move stays with the refit path
@@ -1833,6 +1863,11 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
   const pivot = deliberateArc && options.pivotWorldPoint
     && Number.isFinite(options.pivotWorldPoint.x) && Number.isFinite(options.pivotWorldPoint.y)
     ? options.pivotWorldPoint : null;
+  // options.keepInViewPoint (with a pivot): a world point that must stay on the canvas for the whole move,
+  // the selected place. The move zooms out as far as needed to keep it there (largestScaleKeepingInView).
+  const keepInViewPoint = pivot && options.keepInViewPoint
+    && Number.isFinite(options.keepInViewPoint.x) && Number.isFinite(options.keepInViewPoint.y)
+    ? options.keepInViewPoint : null;
   // The pivot is eased where the user actually sees it (heading-up and tilted), in drawn screen space,
   // never in raw un-rotated screen space. The camera origin itself slides during a browse -> selection
   // move (cameraOriginPoint eases from the browse point to the user), and the heading-up rotation pivots
@@ -1907,12 +1942,22 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
       : 1 - Math.pow(-2 * progress + 2, 3) / 2;
 
     if (arc && fromCenter && targetCenter) {
-      const baseScale = zoomAlongTween(from.scale, targetViewport.scale, eased);
-      const zoomArc = Math.sin(Math.PI * eased) * zoomOutRatio;
+      // A heading-up move pivots on the user, who may start far off the canvas. The cubic in-out used
+      // elsewhere spends the first half of the move barely moving, so the user only came on screen in
+      // the second half of a zoom out from a tight group view. A pivot move therefore eases out: the
+      // zoom and the pivot both move early, so the user is on screen before the move is halfway done.
+      const shaped = pivot ? 1 - Math.pow(1 - progress, 3) : eased;
+      const baseScale = zoomAlongTween(from.scale, targetViewport.scale, shaped);
+      const zoomArc = Math.sin(Math.PI * shaped) * zoomOutRatio;
       state.viewport.scale = Math.max(cinematicScaleFloor, baseScale * (1 - zoomArc));
       if (pivot) {
-        const screenX = pivotFromScreen.x + (pivotToScreen.x - pivotFromScreen.x) * eased;
-        const screenY = pivotFromScreen.y + (pivotToScreen.y - pivotFromScreen.y) * eased;
+        const screenX = pivotFromScreen.x + (pivotToScreen.x - pivotFromScreen.x) * shaped;
+        const screenY = pivotFromScreen.y + (pivotToScreen.y - pivotFromScreen.y) * shaped;
+        if (keepInViewPoint) {
+          state.viewport.scale = largestScaleKeepingInView(
+            state.viewport.scale, keepInViewPoint, pivot, pivotRotation, { x: screenX, y: screenY },
+          );
+        }
         const translation = headingUpTranslationFor(
           pivot, pivotRotation, state.viewport.scale, cameraOriginPoint(),
           { x: screenX, y: screenY },
@@ -6024,7 +6069,11 @@ function animateToHeadingUpNavigationViewport(durationMs = HEADING_UP_NAV_ANIMAT
     scale: targetScale,
     tx: focus.x - userPoint.x * targetScale,
     ty: focusY - userPoint.y * targetScale,
-  }, safeDuration, undefined, { deliberate: Boolean(options.deliberate), pivotWorldPoint: userPoint });
+  }, safeDuration, undefined, {
+    deliberate: Boolean(options.deliberate),
+    pivotWorldPoint: userPoint,
+    keepInViewPoint: selectedCompassTarget()?.point ?? null,
+  });
 }
 
 function prepareCanvasForDraw() {

@@ -41,6 +41,10 @@ function dipBelowEndpoints(scales) {
   return 1 - Math.min(...scales) / Math.min(start, end);
 }
 
+// Note on stretched moves: the tests that sample a move at fixed points lengthen it (x6) right after the pick.
+// A headless frame under load can take longer than a move of its natural length, which would carry the move
+// past the point being checked. The path the camera takes is unchanged, only its speed.
+
 const FIND_LARGEST_GROUP = `(() => {
   const dpr = pixelRatio();
   const markers = buildMapMarkers(activeIconLookup(), worldToScreen).sort((a, b) => b.items.length - a.items.length);
@@ -82,6 +86,30 @@ async function stopFrameTrace(page) {
   return page.evaluate(() => {
     cancelAnimationFrame(window.__frameTraceRaf);
     return window.__frames;
+  });
+}
+
+// Draws the running move at a chosen point of its duration and reads back where the user and the selected
+// place are drawn there. The move clock is started from the next frame's timestamp, so the frame the camera
+// draws is at that point, however long a headless frame takes to arrive.
+async function drawnAtProgress(page, progress) {
+  await page.evaluate((target) => new Promise((resolve) => {
+    requestAnimationFrame((timestamp) => {
+      state.viewportAnimationStartTime = timestamp - target * state.viewportAnimationDuration;
+      resolve();
+    });
+  }), progress);
+  await waitForFrames(page, 1);
+  return page.evaluate(() => {
+    const target = state.selected ? selectedCompassTarget() : null;
+    return {
+      progress: (state.viewportAnimationFrameRequestedAt - state.viewportAnimationStartTime) / state.viewportAnimationDuration,
+      moving: state.viewportAnimationTo != null,
+      user: worldToScreen(state.userLocation.point),
+      place: target && target.point ? worldToScreen(target.point) : null,
+      width: els.canvas.width,
+      height: els.canvas.height,
+    };
   });
 }
 
@@ -203,5 +231,104 @@ test.describe("A far selection from an expanded group, held up (heading-up)", ()
     const offScreen = placeFrames.filter(({ place, width, height }) => (
       place.x < 0 || place.y < 0 || place.x > width || place.y > height));
     expect(offScreen, "the selected place never leaves the canvas during the move").toEqual([]);
+
+  });
+
+  test("the user's own marker is on screen halfway through the same move, not only at its end", async ({ page }) => {
+    await setup(page, "/nearby");
+    await page.evaluate(() => navigateInApp("/nearby/pubs/#near=51.655204,0.065731&label=Far"));
+    await page.waitForFunction(() => state.nearbyAnchor != null);
+    await waitForUiToSettle(page);
+    await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+    const group = await page.evaluate(`(() => { stopViewportAnimation(); return ${FIND_LARGEST_GROUP}; })()`);
+    expect(group, "a group badge is on screen from the far browse point").not.toBeNull();
+    await tapCanvasPoint(page, group.point);
+    await expect.poll(() => page.evaluate(() => state.clusterExpanded?.items.length)).toBe(group.count);
+    await waitForUiToSettle(page);
+    await page.evaluate(() => {
+      const heading = 40;
+      state.compassHeadingTarget = heading;
+      state.compassHeading = heading;
+      state.renderedNavigationHeading = heading;
+      const keepFresh = () => { state.compassLastEventAt = performance.now(); };
+      window.__keepCompassFresh = setInterval(keepFresh, 50);
+      keepFresh();
+    });
+    await waitForUiToSettle(page);
+
+    // Pick, then move the app's own clocks to halfway through the move. The browse-origin slide is finished
+    // here, so this checks the move's own ease rather than where the slide happens to have got to; the
+    // sampled test above keeps the slide running. The camera then draws its state at that point, instead of
+    // whatever a slow headless frame happened to reach.
+    const started = await page.evaluate(() => {
+      document.querySelector("#inspectorBody .nearest-item").click();
+      const slide = state.cameraOriginTransition;
+      if (slide) slide.startedAt = performance.now() - slide.durationMs - 1;
+      if (state.viewportAnimationTo == null) return false;
+      state.viewportAnimationDuration *= 6; // see the note on stretched moves above
+      return true;
+    });
+    expect(started, "picking the place starts a camera move").toBe(true);
+    await page.evaluate(() => clearInterval(window.__keepCompassFresh));
+    const drawn = await drawnAtProgress(page, 0.5);
+    expect(drawn.moving, "the move is still running halfway through").toBe(true);
+    // Around halfway: a frame's arrival can push the drawn point a little either side of exactly half.
+    expect(drawn.progress, "the drawn frame is around halfway through the move").toBeGreaterThan(0.4);
+    expect(drawn.progress).toBeLessThan(0.8);
+    // Well on screen, not just clipping an edge: at least a tenth of the canvas in from every side.
+    const margin = 0.1 * Math.min(drawn.width, drawn.height);
+    const wellOnCanvas = drawn.user.x >= margin && drawn.user.y >= margin
+      && drawn.user.x <= drawn.width - margin && drawn.user.y <= drawn.height - margin;
+    expect(wellOnCanvas, `the user is well on screen halfway through the move, at ${JSON.stringify(drawn.user)}`).toBe(true);
+  });
+
+  test("with the phone tilted, the selected place stays on the canvas through the move", async ({ page }) => {
+    await setup(page, "/nearby");
+    await page.evaluate(() => navigateInApp("/nearby/pubs/#near=51.655204,0.065731&label=Far"));
+    await page.waitForFunction(() => state.nearbyAnchor != null);
+    await waitForUiToSettle(page);
+    await expect(page.locator("#inspectorBody .nearest-item").first()).toBeVisible();
+    const group = await page.evaluate(`(() => { stopViewportAnimation(); return ${FIND_LARGEST_GROUP}; })()`);
+    expect(group, "a group badge is on screen from the far browse point").not.toBeNull();
+    await tapCanvasPoint(page, group.point);
+    await expect.poll(() => page.evaluate(() => state.clusterExpanded?.items.length)).toBe(group.count);
+    await waitForUiToSettle(page);
+
+    // Hold the phone up and tilt it, the way the orientation handlers write it.
+    await page.evaluate(() => {
+      state.compassHeadingTarget = 0;
+      state.compassHeading = 0;
+      state.renderedNavigationHeading = 0;
+      state.compassLastEventAt = performance.now();
+      state.tiltBetaTarget = 55;
+      state.tiltBetaSmoothed = 55;
+      window.__keepCompassFresh = setInterval(() => { state.compassLastEventAt = performance.now(); }, 50);
+      alignHeadingUpNavigationViewport();
+      draw();
+    });
+    await waitForUiToSettle(page);
+    expect(await page.evaluate(() => tiltActive()), "tilt is active before the pick").toBe(true);
+
+    const started = await page.evaluate(() => {
+      document.querySelector("#inspectorBody .nearest-item").click();
+      const slide = state.cameraOriginTransition;
+      if (slide) slide.startedAt = performance.now() - slide.durationMs - 1;
+      if (state.viewportAnimationTo == null) return false;
+      state.viewportAnimationDuration *= 6; // see the note on stretched moves above
+      return true;
+    });
+    expect(started, "picking the place starts a camera move").toBe(true);
+    await page.evaluate(() => clearInterval(window.__keepCompassFresh));
+
+    // Two points through the move. At each, the selected place should be on the canvas. (A later point is
+    // not sampled: a slow frame can carry the move past it, and the move would then have landed.)
+    for (const progress of [0.2, 0.4]) {
+      const drawn = await drawnAtProgress(page, progress);
+      expect(drawn.moving, `the move is still running ${progress} of the way through`).toBe(true);
+      expect(drawn.place, "a place is selected").not.toBeNull();
+      const onCanvas = drawn.place.x >= 0 && drawn.place.y >= 0
+        && drawn.place.x <= drawn.width && drawn.place.y <= drawn.height;
+      expect(onCanvas, `the selected place is on the canvas ${progress} of the way through the tilted move, at ${JSON.stringify(drawn.place)}`).toBe(true);
+    }
   });
 });
