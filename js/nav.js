@@ -448,14 +448,23 @@ async function isSameReleaseWorker(worker) {
 
 // The resulting controllerchange is the same release taking over, not news: the handler in
 // setupPwa consumes this marker and shows nothing and reloads nothing.
+let sameReleaseActivationTimer = null;
+
+function clearSameReleaseActivation() {
+  clearTimeout(sameReleaseActivationTimer);
+  sameReleaseActivationTimer = null;
+  state.swSameReleaseActivation = false;
+}
+
 function activateSameReleaseSilently(waiting) {
   if (state.swWaiting === waiting) state.swWaiting = null;
+  clearSameReleaseActivation();
   state.swSameReleaseActivation = true;
-  setTimeout(() => { state.swSameReleaseActivation = false; }, 15000);
+  sameReleaseActivationTimer = setTimeout(clearSameReleaseActivation, 15000);
   try {
     waiting.postMessage({ type: "SKIP_WAITING" });
   } catch {
-    state.swSameReleaseActivation = false;
+    clearSameReleaseActivation();
   }
   if (["checking", "downloading"].includes(state.appUpdateStatus)) setAppUpdateStatus("current");
 }
@@ -910,10 +919,12 @@ function setupPwa() {
     navigator.serviceWorker.addEventListener("controllerchange", () => {
       if (_firstChange) { _firstChange = false; return; }
       if (state.swPendingReload) { location.reload(); return; }
-      if (state.swSameReleaseActivation) { state.swSameReleaseActivation = false; return; }
-      // Another tab may have activated a worker of the release this page already runs.
-      isSameReleaseWorker(navigator.serviceWorker.controller).then((same) => {
-        if (same) return;
+      // Our own quiet activation is expected; consume the marker. A controller that reports a
+      // different release is still news (another tab can activate one inside the window).
+      const expected = state.swSameReleaseActivation;
+      clearSameReleaseActivation();
+      askWorkerVersion(navigator.serviceWorker.controller).then((version) => {
+        if (version === APP_CACHE_VERSION || (expected && version === null)) return;
         state.swActivatedElsewhere = true;
         _markSwUpdateAvailable(null);
       });
