@@ -56,6 +56,8 @@ const HEADING_UP_NAV_ANIMATION_MS = 500; // standard duration for heading-up ali
 const MIN_HEADING_UP_ANIMATION_MS = 200; // floor for animateToHeadingUpNavigationViewport's duration
 const DEFAULT_VIEWPORT_ANIMATION_MS = 480; // generic fallback duration for the low-level viewport animators when nothing else is specified
 const MIN_VIEWPORT_ANIMATION_MS = 180; // floor for moveCamera's duration
+const STAGED_BEHIND_ZOOM_OUT_RATIO = 0.5; // scale a cluster tap behind the tilted camera pulls out to first, as a share of today's scale -- see alignHeadingUpNavigationViewport()
+const STAGED_BEHIND_ZOOM_OUT_LEG_SHARE = 0.45; // share of that move's duration given to the pull-out and pan to the new area
 const STAGED_PAN_FULL_LEG_SHARE = 0.4; // share of a staged cluster-tap move given to its pan leg when the pan covers the reference distance -- see alignHeadingUpNavigationViewport()
 const STAGED_PAN_REFERENCE_SHORT_SIDE_SHARE = 0.25; // pan distance, as a share of the focus rect's shorter side, that earns the full pan-leg share
 const FIRST_LOAD_REVEAL_ANIMATION_MS = 700; // the first-time "reveal the map" animation, in all its variants (fit to user+items, centered-on-user)
@@ -5919,6 +5921,8 @@ function alignHeadingUpNavigationViewport(options = {}) {
   // zoom-out/pan/zoom-in tour existed for and was abandoned over (see focusNearbyOnClusterGroup's
   // own comment); staging still isn't the answer for it, so this falls back to the plain single
   // ease below instead, the same path a far jump already took before stagePanThenZoom existed.
+  // (In 3D tilt a pivot outside the tilted view is the one exception, handled below: it gets a
+  // pull-out and pan first, then the zoom-in.)
   const panDistancePx = Number.isFinite(previousScale) && previousScale > 0
     ? Math.hypot(
       (focus.x - userPoint.x * previousScale) - previousTx,
@@ -5927,7 +5931,32 @@ function alignHeadingUpNavigationViewport(options = {}) {
     : Infinity;
   const panIsAlreadyOnScreen = panDistancePx <= Math.hypot(focusRect.width, focusRect.height);
 
-  if (options.animate && options.stagePanThenZoom && panIsAlreadyOnScreen) {
+  // In 3D tilt the flat distance above says nothing about whether the new pivot is in view: a
+  // point behind the tilted camera (past its near plane) or outside the visible rect is not on
+  // screen however short its flat distance. Such a tap pulls out and pans to the new area first,
+  // then zooms in on it -- one continuous pull-out-and-pan, then the zoom-in -- instead of
+  // easing pan and zoom together, which resets the zoom and comes in from the side.
+  let pivotOutOfTiltedView = false;
+  if (options.animate && options.stagePanThenZoom && tiltActive() && previousScale > 0) {
+    const shown = tiltProjectScreenPoint(worldToScreenFlat(userPoint));
+    pivotOutOfTiltedView = shown.clipped
+      || !Number.isFinite(shown.x) || !Number.isFinite(shown.y)
+      || shown.x < focusRect.x || shown.x > focusRect.x + focusRect.width
+      || shown.y < focusRect.y || shown.y > focusRect.y + focusRect.height;
+  }
+
+  if (options.animate && options.stagePanThenZoom && pivotOutOfTiltedView) {
+    const outScale = Math.min(previousScale * STAGED_BEHIND_ZOOM_OUT_RATIO, targetScale);
+    const outViewport = {
+      scale: outScale,
+      tx: focus.x - userPoint.x * outScale,
+      ty: focusY - userPoint.y * outScale,
+    };
+    const totalMs = options.durationMs || HEADING_UP_NAV_ANIMATION_MS;
+    const outMs = Math.max(MIN_VIEWPORT_ANIMATION_MS, Math.round(totalMs * STAGED_BEHIND_ZOOM_OUT_LEG_SHARE));
+    const zoomMs = Math.max(MIN_VIEWPORT_ANIMATION_MS, totalMs - outMs);
+    moveCamera(outViewport, outMs, () => moveCamera(targetViewport, zoomMs));
+  } else if (options.animate && options.stagePanThenZoom && panIsAlreadyOnScreen) {
     const panViewport = {
       scale: previousScale,
       tx: focus.x - userPoint.x * previousScale,

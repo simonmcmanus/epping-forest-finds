@@ -12837,6 +12837,51 @@ test("tapping a cluster far outside the current view skips staging -- one direct
   assert.notEqual(app.state.viewportAnimationTo.scale, 500000, "a single ease targets the group's own fit scale directly, not today's scale");
 });
 
+test("in 3D tilt, tapping a cluster behind the camera pans out first, then in on the group -- never a jump at today's scale", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  app.state.tiltBetaSmoothed = 60;
+  try {
+    assert.ok(app.tiltActive(), "sanity: 3D tilt is on");
+    // South of a north-facing user: behind the tilted camera, below the near edge of the view.
+    const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.6455, 0.0500) };
+    const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.64551797, 0.0500) };
+    app.state.trees.push(oak1, oak2);
+    app.selectOverview();
+    app.ensureOverviewTargetsVisible({ animate: false, force: true });
+    const before = { ...app.state.viewport };
+
+    const frames = [];
+    const originalRaf = app.swapGlobalFunction("requestAnimationFrame", (fn) => { frames.push(fn); return frames.length; });
+    const scales = [];
+    try {
+      app.focusNearbyOnClusterGroup({ itemType: "tree", items: [oak1, oak2] });
+      let now = 1000;
+      for (let i = 0; i < 400 && (app.state.viewportAnimationTo || frames.length); i += 1) {
+        const frame = frames.shift();
+        if (!frame) break;
+        now += 16;
+        frame(now);
+        scales.push(app.state.viewport.scale);
+      }
+    } finally {
+      app.swapGlobalFunction("requestAnimationFrame", originalRaf);
+    }
+    const finalScale = scales[scales.length - 1];
+    const lowest = Math.min(...scales);
+    assert.ok(scales.length > 3, "the tap runs an animated camera move");
+    assert.ok(lowest < Math.min(before.scale, finalScale) * 0.95,
+      `the camera zooms out below both its start (${before.scale}) and its end (${finalScale}) scale to show the new area (lowest ${lowest})`);
+    const lowestAt = scales.indexOf(lowest);
+    for (let i = 0; i < lowestAt; i += 1) {
+      assert.ok(scales[i] <= before.scale, "the camera never zooms in toward the group before it has pulled out");
+    }
+    assert.ok(finalScale > lowest * 2, "after pulling out, it zooms in on the group");
+  } finally {
+    app.state.tiltBetaSmoothed = 0;
+  }
+});
+
 test("dismissing the anchor bar drops an expanded cluster", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.65, 0.05);
