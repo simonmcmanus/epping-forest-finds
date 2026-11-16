@@ -15,10 +15,10 @@ in the main session. Only skip it for read-only questions.
 - Tests assert user-visible behaviour, never source text. Prove a regression test fails before the fix.
 - Never report completion while required checks, findings or human approval remain outstanding.
 - Preserve the PR's preview-links block when rewriting a PR description.
-- Open PRs ready for review straight away, not as drafts. Do not wait for local review, E2E, visual
-  or transition gates before marking a PR ready. Draft status blocks CI review jobs and preview deploys.
-- Open a PR as soon as code is ready to try, so the preview deploys and the change can be tested.
-  Do not hold it until a larger batch is finished.
+- Push the PR as a draft as soon as the batch is implemented and committed, so the Netlify preview
+  deploys and can be tried. Draft status holds back CI review jobs; that wait is expected. Keep the
+  draft through repair rounds. The lead marks it ready for review only once the /team gate is
+  satisfied. Never open or leave a PR ready while that gate is open.
 
 Load references on demand:
 

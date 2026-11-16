@@ -75,7 +75,7 @@ and report the remaining issues. Never push to use CI as a substitute for the lo
 ## PR status and one repair owner
 
 The lead collects status deterministically: head SHA, checks with run URLs, unresolved thread IDs,
-review state, visual decision and preview state. Compare this tuple with the previous snapshot.
+review state, draft/ready state, visual decision and preview state. A draft PR waits for the CI review jobs; that is expected, not a failure. Compare this tuple with the previous snapshot.
 Dispatch the steward only on an actionable change (new finding, completed failure, conflict, or a
 new head requiring reconciliation), not for unchanged running/pending states or waiting human
 approval. Fetch detailed logs only for failing jobs. Keep a bounded safety check for missed events;

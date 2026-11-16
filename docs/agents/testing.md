@@ -81,7 +81,7 @@ the full sweep is not.
 
 So, before a PR is done — every time, no exceptions:
 
-1. **After the review and test gates pass, the lead session pushes and opens the PR, then reads the CI run for the head SHA.** `actions_list` →
+1. **After the first implementation push (opened as a draft PR; marked ready once the review and test gates pass), the lead session reads the CI run for the head SHA.** `actions_list` →
    `list_workflow_runs` filtered to your branch, then `list_workflow_jobs`, then `get_job_logs`
    on each `E2E tests (<project>, shard <n>)` job and on `Visual snapshots (desktop + mobile)`. Read the
    `N failed / N passed` line and the failure list under it.
@@ -172,7 +172,7 @@ If you do edit a shared one, re-run every spec that uses it, on **every** Playwr
    reproduces the runner's 2 vCPUs.
 3. Relevant `spec/` file is updated, or reason documented.
 4. Create a commit with a good concise description summarising the change.
-5. After the review and test gates pass, the lead session pushes and opens the PR with screenshots of the change in its description (see "Screenshots in
+5. After implementation, the lead session pushes and opens a draft PR (marking it ready once the review and test gates pass) with screenshots of the change in its description (see "Screenshots in
    every PR" above), then confirm every `E2E tests (<project>, shard <n>)` job is **green on
    your branch**, and review warnings from `Visual snapshots (desktop + mobile)` — per "CI is the verdict"
    above. That PR run is the full sweep; do not also run the suite locally or dispatch CI by

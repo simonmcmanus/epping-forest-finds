@@ -91,7 +91,7 @@ Use one task branch/worktree from `origin/main` per batch. Sequential scoped age
 batch worktree with exclusive ownership; concurrent agents must own disjoint files and use separate
 worktrees when isolation is needed. Never edit the same hot file concurrently (`app.html`,
 `js/app.js`, `sw.js`, `spec/*.md`, `test/forest-finds.test.js`). Do not stack on an open PR.
-The lead alone assembles/reviews the aggregate delta, pushes once gates pass and opens one batch PR.
+The lead alone assembles/reviews the aggregate delta, pushes the batch as a draft PR once implemented and checked, and marks it ready once gates pass.
 
 The lead supplies immutable base/head SHAs, branch/worktree, requirements, file ownership, relevant
 spec headings, risk triggers and test/artifact paths. Reports name findings, reviewed SHA and evidence;
@@ -198,4 +198,5 @@ Every pull request, whichever agent opens it, follows `.github/pull_request_temp
 - **Visual changes:** when a PR changes any `toHaveScreenshot()` baseline, list each changed snapshot by name in the PR body and embed its before and after images as Markdown images (`![before](...)`, `![after](...)`). Link each image to the file at the commit it came from, for example `https://raw.githubusercontent.com/<owner>/<repo>/<sha>/test/e2e/__screenshots__/<name>.png`, so the images need no separate hosting. Take them from the CI `Visual snapshots (desktop + mobile)` artifact or from the committed baselines before and after the change.
 - **Baselines:** every PR run publishes each changed snapshot's committed baseline, actual render and diff to the `visual-diffs` branch and writes them into a `Failing visual snapshots` table in the PR description. Snapshot publication never commits into the PR branch, so binary baselines cannot conflict between feature branches. After a source change reaches `main`, the `Update Snapshots` workflow regenerates the canonical files and commits them directly to `main` through the protected-branch GitHub App path, which triggers CI against the updated baselines.
 - **Preview link:** keep the Netlify block between `<!-- preview-links:start -->` and `<!-- preview-links:end -->` in the PR body. When you rewrite a description, copy that block back verbatim. Netlify fills it in once the deploy preview is ready.
+- **Lifecycle:** push the PR as a draft as soon as the batch is implemented and committed, so the Netlify preview deploys; draft status holds back the CI review jobs, which is expected. Keep the draft through repair rounds. The lead marks it ready for review (`gh pr ready` or `update_pull_request` with `draft: false`) only once the `/team` gate is satisfied: no open blockers/majors on the aggregate head, required verification complete. Never open or leave a PR ready while that gate is open.
 - **Spec and tests:** follow the Spec Synchronisation and Testing sections above.
