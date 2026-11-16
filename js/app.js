@@ -70,6 +70,11 @@ const TILT_PERSPECTIVE_MAX_PX = 2600;   // ceiling so very tall viewports (table
 const TILT_ROTATEX_MAX = 75;       // max rotateX deg — the angle the horizon and tilt fit are calibrated to (see tiltPerspectivePx)
 const TILT_GENTLE_ROTATEX_MAX = 64; // visible depth while keeping the surrounding map in view
 const TILT_GENTLE_BETA_MAX = 60;    // reach the default tilt at a normal viewing angle
+const TILT_LIMIT_EASE_START = 0.6;  // share of the pitch range where the tilt starts easing into its cap -- see tiltEaseIntoLimit()
+const TILT_LIMIT_BOUNCE_DEG = 4;    // peak amplitude of the bounce past the cap; it peaks at roughly 1.5 degrees -- see tiltLimitBounceDeg()
+const TILT_LIMIT_BOUNCE_RATE = 7;   // decay of that bounce (1/s)
+const TILT_LIMIT_BOUNCE_OMEGA = 2 * Math.PI * 1.4; // bounce frequency (rad/s)
+const TILT_LIMIT_BOUNCE_SECONDS = 0.9; // the bounce is over (and the plane rests on the cap) after this long
 // Precomputed once: calibrating tiltPerspectivePx() against this fixed reference
 // angle (rather than the live, ever-changing tiltRotateXDeg()) keeps the camera
 // distance from collapsing at low/mid tilt angles -- see tiltPerspectivePx().
@@ -387,6 +392,7 @@ const state = {
   backgroundedUserLocation: null,
   tiltBetaTarget: 0,
   tiltBetaSmoothed: 0,
+  tiltLimitBounceSeconds: null, // seconds since the tilt last reached its cap; null when no bounce is running
   // Full 3D is fixed off (see FULL_3D_ENABLED): gentle tilt is the only tilt.
   map3dEnabled: FULL_3D_ENABLED,
   // rotateX angle baked into the main canvas by the last draw() -- see tiltRenderStale().
@@ -1713,12 +1719,6 @@ function headingUpRotationFor(point) {
   return { rotating, cos: Math.cos(radians), sin: Math.sin(radians) };
 }
 
-// Whether a screen point is within the canvas's height (a vertical band; x is not a limit for a pivot).
-function onCanvasHeight(point) {
-  const height = els.canvas ? els.canvas.height : Infinity;
-  return Boolean(point) && point.y >= 0 && point.y <= height;
-}
-
 function rotateHeadingUp(x, y, rotation) {
   return { x: x * rotation.cos - y * rotation.sin, y: x * rotation.sin + y * rotation.cos };
 }
@@ -1833,23 +1833,19 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
   const pivot = deliberateArc && options.pivotWorldPoint
     && Number.isFinite(options.pivotWorldPoint.x) && Number.isFinite(options.pivotWorldPoint.y)
     ? options.pivotWorldPoint : null;
-  // The pivot is eased where the user actually sees it (heading-up and tilted), not in raw un-rotated
-  // screen space: the camera origin itself moves during a browse -> selection move, so a raw line bends
-  // on screen. Start is where the pivot is drawn now; end is where the target draws it once the origin
-  // has landed on its final point.
-  // Only when both ends are on the canvas. From far off screen the drawn position is compressed by the
-  // tilt, so easing it drags the camera origin (and the horizon with it) down the screen; those moves
-  // keep the raw screen-space ease they always had.
-  const pivotDrawnRotation = pivot ? headingUpRotationFor(pivot) : null;
-  const pivotDrawnFrom = pivot ? worldToScreen(pivot) : null;
-  const pivotDrawnTo = pivot
-    ? headingUpScreenPointAt(targetViewport, pivot, pivotDrawnRotation, cameraOriginPoint(true)) : null;
-  const pivotDrawn = Boolean(pivot) && onCanvasHeight(pivotDrawnFrom) && onCanvasHeight(pivotDrawnTo);
-  const pivotRotation = pivotDrawn ? pivotDrawnRotation : { rotating: false, cos: 1, sin: 0 };
-  const pivotFromScreen = pivotDrawn ? pivotDrawnFrom
-    : pivot ? { x: from.tx + pivot.x * from.scale, y: from.ty + pivot.y * from.scale } : null;
-  const pivotToScreen = pivotDrawn ? pivotDrawnTo
-    : pivot ? { x: targetViewport.tx + pivot.x * targetViewport.scale, y: targetViewport.ty + pivot.y * targetViewport.scale } : null;
+  // The pivot is eased where the user actually sees it (heading-up and tilted), in drawn screen space,
+  // never in raw un-rotated screen space. The camera origin itself slides during a browse -> selection
+  // move (cameraOriginPoint eases from the browse point to the user), and the heading-up rotation pivots
+  // on that origin, so where a point is drawn depends on the origin of the frame. Both ends are therefore
+  // read as drawn: start is where the pivot is drawn now, end is where the target draws it once the
+  // origin has landed. Each frame then solves the translation against the live origin, so the pivot
+  // follows its eased path while the origin slides under it. Easing a pivot that starts off the canvas
+  // in raw space (assuming origin = pivot and no rotation) swung the whole map during that slide: the
+  // selected place flew off the top of the screen and back.
+  const pivotRotation = pivot ? headingUpRotationFor(pivot) : null;
+  const pivotFromScreen = pivot ? worldToScreen(pivot) : null;
+  const pivotToScreen = pivot
+    ? headingUpScreenPointAt(targetViewport, pivot, pivotRotation, cameraOriginPoint(true)) : null;
   const cinematicScaleFloor = cinematic && state.baseFitScale > 0
     ? state.baseFitScale * 0.92
     : deliberateArc ? Math.min(from.scale, targetViewport.scale) * 0.8 : 0;
@@ -1918,7 +1914,7 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
         const screenX = pivotFromScreen.x + (pivotToScreen.x - pivotFromScreen.x) * eased;
         const screenY = pivotFromScreen.y + (pivotToScreen.y - pivotFromScreen.y) * eased;
         const translation = headingUpTranslationFor(
-          pivot, pivotRotation, state.viewport.scale, pivotDrawn ? cameraOriginPoint() : null,
+          pivot, pivotRotation, state.viewport.scale, cameraOriginPoint(),
           { x: screenX, y: screenY },
         );
         state.viewport.tx = translation.x;
@@ -4012,7 +4008,8 @@ function startCompassSmoothing() {
     _tiltProjectionCache = undefined;
     _nearbyRenderOriginCache = undefined;
     const hasHeading = Number.isFinite(state.compassHeadingTarget) && Number.isFinite(state.compassHeading);
-    const hasBetaWork = Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) >= 0.05;
+    const hasBetaWork = Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) >= 0.05
+      || state.tiltLimitBounceSeconds != null;
     if (!hasHeading && !hasBetaWork) {
       state.compassAnimationFrame = null;
       state.compassAnimationFrameRequestedAt = null;
@@ -4041,7 +4038,9 @@ function startCompassSmoothing() {
     // through the whole 0-12deg dead zone quickly, so a fast filter here reads as the
     // collapsing map pins snapping to size rather than easing in.
     const betaDiff = state.tiltBetaTarget - state.tiltBetaSmoothed;
+    const previousBeta = state.tiltBetaSmoothed;
     state.tiltBetaSmoothed += betaDiff * (1 - Math.exp(-4 * dt));
+    tiltAdvanceLimitBounce(previousBeta, state.tiltBetaSmoothed, dt);
 
     const tiltNeedsFullRedraw = tiltRenderStale();
     // Beta-only tilt is supported before the compass has a usable heading. The map overlay
@@ -4082,7 +4081,8 @@ function startCompassSmoothing() {
       : 0;
     const lastEventAge = state.compassLastEventAt == null ? Infinity : (timestamp - state.compassLastEventAt);
     const sensorIsActive = lastEventAge < HEADING_UP_SENSOR_ACTIVE_MS;
-    const betaSettled = Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) < 0.1;
+    const betaSettled = Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) < 0.1
+      && state.tiltLimitBounceSeconds == null;
     if (!hasHeading && betaSettled) {
       if (tiltActive()) requestDraw();
       state.compassAnimationFrame = null;

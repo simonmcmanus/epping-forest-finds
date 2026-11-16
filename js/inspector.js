@@ -1706,6 +1706,10 @@ function nearbySectionsHtml({ latitude, longitude, name = null, subfilterKey = n
   // neighbourhood it is showing. Otherwise landing there re-anchors to the reader's own GPS fix,
   // which strands the reader's actual reason for coming here (how far from *this place*).
   const anchorHash = nearbyAnchorRouteValue({ latitude, longitude, label: name });
+  // The reader's own walking radius travels with each category link as ?radius=. Without it the
+  // category page's arrival applies the 30-minute /nearby/<slug> landing default (applyRadiusFromQuery,
+  // js/router.js), so a 5-minute reader would land on a wider ring than the counts on this card describe.
+  const radiusQuery = `?radius=${state.walkingDistanceMinutes}`;
   // One card per category the reader has chosen (state.overviewFilters, or the defaults when none
   // are set or on an SEO page), each saying how many sit within the walking radius of this point.
   const nearestCardKeys = nearbyCardFilterKeys();
@@ -1718,7 +1722,7 @@ function nearbySectionsHtml({ latitude, longitude, name = null, subfilterKey = n
       if (!sub || (key === "cows" && !state.cows.length)) return "";
       const counts = countNearbyEntries([key], latitude, longitude);
       if (counts.within === 0) return "";
-      return cardHtml(`/nearby/${key.replace(/_/g, "-")}/#${anchorHash}`, sub.icon, sub.label, nearbyCountCopy(sub.label.toLowerCase(), counts, placeName));
+      return cardHtml(`/nearby/${key.replace(/_/g, "-")}/${radiusQuery}#${anchorHash}`, sub.icon, sub.label, nearbyCountCopy(sub.label.toLowerCase(), counts, placeName));
     })
     .join("");
   // The "Everything" card (nearbyWithinWalkHtml) joins the same list when at least one location
@@ -1736,7 +1740,7 @@ function nearbySectionsHtml({ latitude, longitude, name = null, subfilterKey = n
     const subfilterCounts = countNearbyEntries([subfilter.key], latitude, longitude);
     if (subfilterCounts.within > 0 && !nearestCardKeySet.has(subfilter.key)) {
       relatedCards.push(cardHtml(
-        `/nearby/${subfilter.key.replace(/_/g, "-")}/#${anchorHash}`,
+        `/nearby/${subfilter.key.replace(/_/g, "-")}/${radiusQuery}#${anchorHash}`,
         subfilter.icon,
         subfilter.label,
         nearbyCountCopy(subfilter.label.toLowerCase(), subfilterCounts, placeName)
@@ -1745,7 +1749,7 @@ function nearbySectionsHtml({ latitude, longitude, name = null, subfilterKey = n
     const groupCounts = countNearbyEntries(group.subfilters.map((s) => s.key), latitude, longitude);
     if (groupCounts.within > 0 && !nearestCardKeySet.has(subfilter.groupKey)) {
       relatedCards.push(cardHtml(
-        `/nearby/${subfilter.groupKey.replace(/_/g, "-")}/#${anchorHash}`,
+        `/nearby/${subfilter.groupKey.replace(/_/g, "-")}/${radiusQuery}#${anchorHash}`,
         group.icon,
         group.label,
         nearbyCountCopy(group.label.toLowerCase(), groupCounts, placeName)

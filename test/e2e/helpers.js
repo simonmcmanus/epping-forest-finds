@@ -168,6 +168,10 @@ async function gotoAndWaitForMap(page, path = "/nearby", { timeout = 30_000 } = 
   if (/[#&]tree=/.test(path)) {
     await page.waitForFunction(() => state.selected?.type === "tree", { timeout });
   }
+  // boot() is still running until its finally block clears routerBooting. Until then it can
+  // re-apply the launch URL's selection (its own timed reveal, js/app.js) and overwrite whatever a
+  // test has just rendered into the inspector. Wait for that, not for the first selection to appear.
+  await page.waitForFunction(() => routerBooting === false, null, { timeout });
 }
 
 /**

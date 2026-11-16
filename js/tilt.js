@@ -19,11 +19,49 @@ function tiltActive() {
   return Boolean(hasRealLocation()) && state.tiltBetaSmoothed > TILT_BETA_THRESHOLD;
 }
 
+function tiltBetaMaxDeg() {
+  return state.map3dEnabled ? TILT_BETA_MAX : TILT_GENTLE_BETA_MAX;
+}
+
+// The phone pitch (0-1 across the active range) mapped to a 0-1 share of the cap. Linear up to
+// TILT_LIMIT_EASE_START, then a cubic that meets the linear part with the same slope and
+// arrives at the cap with zero slope: the plane decelerates into its limit rather than being
+// clamped flat at it, which read as the tilt suddenly stopping.
+function tiltEaseIntoLimit(t) {
+  if (t <= TILT_LIMIT_EASE_START) return t;
+  const s = (t - TILT_LIMIT_EASE_START) / (1 - TILT_LIMIT_EASE_START);
+  const eased = s + s * s - s * s * s; // slope 1 at s=0, slope 0 at s=1
+  return TILT_LIMIT_EASE_START + (1 - TILT_LIMIT_EASE_START) * eased;
+}
+
+// The bounce after the phone reaches its limit: a damped sine that starts moving on past the cap,
+// dips a touch back under it and settles. Zero when no bounce is running.
+function tiltLimitBounceDeg() {
+  const elapsed = state.tiltLimitBounceSeconds;
+  if (elapsed == null) return 0;
+  return TILT_LIMIT_BOUNCE_DEG
+    * Math.exp(-TILT_LIMIT_BOUNCE_RATE * elapsed)
+    * Math.sin(TILT_LIMIT_BOUNCE_OMEGA * elapsed);
+}
+
+// Called once per smoothing frame with beta before and after that frame's easing step. The
+// bounce starts only when the smoothed pitch crosses the limit from below, and runs to its end
+// even if the phone is lowered meanwhile, so the plane never jumps mid-bounce.
+function tiltAdvanceLimitBounce(previousBeta, nextBeta, dt) {
+  if (state.tiltLimitBounceSeconds != null) {
+    state.tiltLimitBounceSeconds += dt;
+    if (state.tiltLimitBounceSeconds >= TILT_LIMIT_BOUNCE_SECONDS) state.tiltLimitBounceSeconds = null;
+  } else if (previousBeta < tiltBetaMaxDeg() && nextBeta >= tiltBetaMaxDeg()) {
+    state.tiltLimitBounceSeconds = 0;
+  }
+}
+
 function tiltRotateXDeg() {
   if (!tiltActive()) return 0;
-  const betaMax = state.map3dEnabled ? TILT_BETA_MAX : TILT_GENTLE_BETA_MAX;
+  const betaMax = tiltBetaMaxDeg();
   const t = Math.min(1, (state.tiltBetaSmoothed - TILT_BETA_THRESHOLD) / (betaMax - TILT_BETA_THRESHOLD));
-  return (state.map3dEnabled ? TILT_ROTATEX_MAX : TILT_GENTLE_ROTATEX_MAX) * t;
+  return (state.map3dEnabled ? TILT_ROTATEX_MAX : TILT_GENTLE_ROTATEX_MAX) * tiltEaseIntoLimit(t)
+    + tiltLimitBounceDeg();
 }
 
 // True when the tilt angle the main canvas was last drawn at no longer matches the current
