@@ -14117,35 +14117,58 @@ test("a rebuild stores each person's score in a small shard that one lookup can 
   assert.match(communityComputed.scoreShard("device-aaaa"), /^[0-9a-f]{2}$/);
 });
 
-test("a failed register fetch aborts a rebuild instead of publishing stripped adventure scores", async () => {
-  const store = memoryStore({ computed: { generatedAt: 10, overlay: {}, conflicts: [] } });
-  await assert.rejects(
-    communityComputed.rebuildComputed(store, { fetchJson: async () => { throw new Error("offline"); } }),
-    /register unavailable/,
-  );
-  assert.equal((await store.get("computed")).generatedAt, 10);
-});
-
-test("a rebuild without a register fetcher refuses new adventure claims", async () => {
+test("a rebuild without a register map never awards the adventure bonus to a forged claim", async () => {
   const store = memoryStore();
-  await store.put("reports/1", communityReport({ id: "report-adventure-no-fetch", adventure: true }));
-  await assert.rejects(
-    communityComputed.rebuildComputed(store),
-    /register fetcher required/,
-  );
-  assert.equal(await store.get("computed"), null);
+  await store.put("reports/1", communityReport({ id: "report-adventure-forged", adventure: true, targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01 }));
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const computed = await communityComputed.rebuildComputed(store);
+    assert.deepEqual(computed.adventureReports, []);
+  } finally { console.warn = warn; }
+  const points = (await communityComputed.loadScore(store, "device-aaaa")).points;
+  assert.ok(points < communityPointsConfig.POINTS.adventure, "only the normal points, no +10");
 });
 
-test("a deletion rebuild preserves known adventure awards during a register outage", async () => {
+test("a register outage with no adventure claims still publishes the rest of the snapshot and skips the register", async () => {
+  const store = memoryStore({ computed: { generatedAt: 10, overlay: {}, conflicts: [] } });
+  await store.put("reports/1", communityReport({ id: "report-plain-1" }));
+  let fetches = 0;
+  const computed = await communityComputed.rebuildComputed(store, { fetchJson: async () => { fetches += 1; throw new Error("offline"); } });
+  assert.equal(fetches, 0, "no register download without adventure claims");
+  assert.equal(computed.reportCount, 1);
+  assert.ok((await store.get("computed")).generatedAt > 10);
+});
+
+test("a register outage with an adventure claim keeps earned awards, withholds new ones and does not throw", async () => {
+  const earned = communityReport({ id: "report-adventure-earned", deviceId: "device-aaaa", adventure: true });
+  const fresh = communityReport({ id: "report-adventure-fresh", deviceId: "device-bbbb", adventure: true });
+  const store = memoryStore({ computed: { generatedAt: 10, overlay: {}, conflicts: [], adventureReports: [earned.id] } });
+  await store.put("reports/1", earned);
+  await store.put("reports/2", fresh);
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const computed = await communityComputed.rebuildComputed(store, { fetchJson: async () => { throw new Error("offline"); } });
+    assert.deepEqual(computed.adventureReports, [earned.id]);
+  } finally { console.warn = warn; }
+  assert.ok((await communityComputed.loadScore(store, "device-aaaa")).points >= communityPointsConfig.POINTS.adventure);
+  assert.ok((await communityComputed.loadScore(store, "device-bbbb")).points < communityPointsConfig.POINTS.adventure);
+});
+
+test("a deletion rebuild succeeds and preserves known adventure awards during a register outage", async () => {
   const report = communityReport({ id: "report-adventure-preserve", adventure: true });
   const store = memoryStore({ computed: { generatedAt: 10, overlay: {}, conflicts: [], adventureReports: [report.id] } });
   await store.put("reports/1", report);
-  const computed = await communityComputed.rebuildComputed(store, {
-    strict: true,
-    fetchJson: async () => { throw new Error("offline"); },
-    allowRegisterFailure: true,
-  });
-  assert.deepEqual(computed.adventureReports, [report.id]);
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const computed = await communityComputed.rebuildComputed(store, {
+      strict: true,
+      fetchJson: async () => { throw new Error("offline"); },
+    });
+    assert.deepEqual(computed.adventureReports, [report.id]);
+  } finally { console.warn = warn; }
   assert.equal((await communityComputed.loadScore(store, report.deviceId)).points, communityPointsConfig.POINTS.adventure);
 });
 

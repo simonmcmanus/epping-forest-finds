@@ -59,9 +59,10 @@ async function loadAdventureTargets(fetchJson) {
 
 // `strict` (used when rebuilding after a data deletion) makes a failed read abort the rebuild, so a snapshot is
 // never published from a partial ledger. The routine hourly rebuild keeps skipping records it cannot read.
-// If the register is temporarily unavailable, previously awarded adventure report ids are retained so a rebuild
-// can still publish the rest of the snapshot without silently removing earned points.
-async function rebuildComputed(store, { strict = false, fetchJson = null, allowRegisterFailure = false } = {}) {
+// The register is fetched only when the ledger holds adventure claims. If it is missing or unavailable, the rebuild
+// does not fail: adventure report ids already awarded in the stored snapshot are kept, new claims earn only the
+// normal point until a rebuild can reach the register, and the rest of the snapshot is still published.
+async function rebuildComputed(store, { strict = false, fetchJson = null } = {}) {
   const get = strict && store.getStrict ? (k) => store.getStrict(k) : (k) => store.get(k);
   const previous = await get("computed");
   const reports = await loadLedger(store, { strict });
@@ -70,15 +71,12 @@ async function rebuildComputed(store, { strict = false, fetchJson = null, allowR
   const adventureClaims = reports.some((report) => report && report.adventure === true);
   let adventureTargets = null;
   let adventureReportIds = null;
-  if (typeof fetchJson === "function") {
+  if (adventureClaims) {
     adventureTargets = await loadAdventureTargets(fetchJson);
     if (adventureTargets === null) {
-      if (!allowRegisterFailure) throw new Error("veteran tree register unavailable; refusing to publish community scores");
+      console.warn("[community] veteran tree register unavailable; keeping previously awarded adventure rewards only");
       adventureReportIds = new Set(Array.isArray(previous?.adventureReports) ? previous.adventureReports : []);
     }
-  } else if (adventureClaims) {
-    // A caller without a register fetcher may not publish a snapshot that changes adventure scoring.
-    throw new Error("veteran tree register fetcher required for adventure scores");
   }
   const state = computeCommunityState(reports, validations, owners, { adventureTargets, adventureReportIds });
   const { overlay, conflicts, conflictDetails, scores, rewards, adventureReports } = state;
