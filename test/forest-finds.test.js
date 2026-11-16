@@ -12882,44 +12882,123 @@ test("in 3D tilt, tapping a cluster behind the camera pans out first, then in on
   }
 });
 
-test("in 3D tilt, tapping a cluster far across the ring keeps the single ease -- no half-scale pull-out slide", () => {
+// Taps a two-tree group at (lat, lon) in full 3D tilt and walks the camera move frame by frame.
+// Each frame records the scale and where the user's own position and the group's centre are drawn.
+function tiltClusterTapFrames(lat, lon, interrupt = null) {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.65, 0.05);
   app.state.tiltBetaSmoothed = 60;
   try {
     assert.ok(app.tiltActive(), "sanity: 3D tilt is on");
-    // Roughly 11km south: far beyond a screen diagonal of flat pan at today's scale, and out of view.
-    const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.55, 0.0500) };
-    const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.55001797, 0.0500) };
+    const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, lat, lon) };
+    const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, lat + 0.00001797, lon) };
     app.state.trees.push(oak1, oak2);
+    const other1 = interrupt && { id: "oak3", commonName: "Oak", ...makePoint(app, interrupt.lat, interrupt.lon) };
+    const other2 = interrupt && { id: "oak4", commonName: "Oak", ...makePoint(app, interrupt.lat + 0.00001797, interrupt.lon) };
+    if (interrupt) app.state.trees.push(other1, other2);
     app.selectOverview();
     app.ensureOverviewTargetsVisible({ animate: false, force: true });
     const before = { ...app.state.viewport };
-
+    const userPoint = app.state.userLocation.point;
     const frames = [];
-    const originalRaf = app.swapGlobalFunction("requestAnimationFrame", (fn) => { frames.push(fn); return frames.length; });
-    const scales = [];
+    let nextFrameId = 0;
+    const originalRaf = app.swapGlobalFunction("requestAnimationFrame", (fn) => { nextFrameId += 1; frames.push({ id: nextFrameId, fn }); return nextFrameId; });
+    const originalCaf = app.swapGlobalFunction("cancelAnimationFrame", (id) => {
+      const at = frames.findIndex((queued) => queued.id === id);
+      if (at >= 0) frames.splice(at, 1);
+    });
+    const record = [];
+    // The app's own clock follows the frame times, so the ring's slide (which the camera move runs
+    // alongside, on the same clock) is where it would be at each frame on a device.
+    const clock = app.performance;
+    const realNow = clock.now;
+    const clockStart = realNow.call(clock);
+    let now = 1000;
+    clock.now = () => clockStart + (now - 1000);
     try {
       app.focusNearbyOnClusterGroup({ itemType: "tree", items: [oak1, oak2] });
-      let now = 1000;
       for (let i = 0; i < 400 && (app.state.viewportAnimationTo || frames.length); i += 1) {
         const frame = frames.shift();
         if (!frame) break;
-        now += 16;
-        frame(now);
-        scales.push(app.state.viewport.scale);
+        // Time advances one 60fps frame per camera tick; the draw callbacks queued beside it run at
+        // the same instant.
+        const isCameraTick = frame.id === app.state.viewportAnimationFrame;
+        if (isCameraTick) now += 16;
+        frame.fn(now);
+        if (!isCameraTick) continue;
+        if (interrupt && record.length === interrupt.afterTicks) {
+          app.focusNearbyOnClusterGroup({ itemType: "tree", items: [other1, other2] });
+        }
+        app.prepareCanvasForDraw();
+        record.push({
+          scale: app.state.viewport.scale,
+          user: app.worldToScreen(userPoint),
+          target: app.worldToScreen((interrupt ? other1 : oak1).point),
+        });
       }
     } finally {
+      clock.now = realNow;
+      app.swapGlobalFunction("cancelAnimationFrame", originalCaf);
       app.swapGlobalFunction("requestAnimationFrame", originalRaf);
     }
-    const finalScale = scales[scales.length - 1];
-    const lowest = Math.min(...scales);
-    assert.ok(scales.length > 3, "the tap runs an animated camera move");
-    assert.ok(lowest >= Math.min(before.scale, finalScale) * 0.95,
-      `a far jump never dips to a pull-out scale below its start (${before.scale}) and end (${finalScale}) (lowest ${lowest})`);
+    return { before, record, rect: app.bestVisibleCanvasRect(), target: oak1.point };
   } finally {
     app.state.tiltBetaSmoothed = 0;
   }
+}
+
+function pointInRect(point, rect) {
+  return Number.isFinite(point.x) && Number.isFinite(point.y)
+    && point.x >= rect.x && point.x <= rect.x + rect.width
+    && point.y >= rect.y && point.y <= rect.y + rect.height;
+}
+
+test("in 3D tilt, a cluster tap far across the ring never zooms out past the documented cap", () => {
+  // Roughly 11km south: far beyond anything the cap lets the camera show alongside the user.
+  const { before, record } = tiltClusterTapFrames(51.55, 0.05);
+  const scales = record.map((frame) => frame.scale);
+  const lowest = Math.min(...scales);
+  assert.ok(scales.length > 3, "the tap runs an animated camera move");
+  // The product rule: never further out than a third of where the camera started (generous slack
+  // under the app's own cap), so a far jump cannot climb toward the sky.
+  assert.ok(lowest >= before.scale * 0.3, `the camera never zooms out past a third of its starting scale ${before.scale} (lowest ${lowest})`);
+  assert.ok(lowest < before.scale * 0.95, `but it does pull out to relate the two places (lowest ${lowest})`);
+});
+
+test("in 3D tilt, a cluster tap beyond the view first frames both the user and the group, then zooms in", () => {
+  // About 600m south: behind the tilted camera, but within what the cap can show beside the user.
+  const { before, record, rect } = tiltClusterTapFrames(51.6445, 0.05);
+  const scales = record.map((frame) => frame.scale);
+  const lowest = Math.min(...scales);
+  const wide = record[scales.indexOf(lowest)];
+  assert.ok(lowest < before.scale * 0.95, `the camera zooms out to relate the two places (start ${before.scale}, lowest ${lowest})`);
+  assert.ok(pointInRect(wide.user, rect), `the user is on screen at the wide framing (${JSON.stringify(wide.user)})`);
+  assert.ok(pointInRect(wide.target, rect), `the group is on screen at the wide framing (${JSON.stringify(wide.target)})`);
+  const last = record[record.length - 1];
+  assert.ok(last.scale > lowest * 1.3, `it then zooms in on the group (wide ${lowest}, final ${last.scale})`);
+  assert.ok(pointInRect(last.target, rect), "the final framing has the group on screen");
+  assert.ok(Math.abs(app.state.viewport.scale - last.scale) < 1e-9, "sanity: the move has settled");
+  for (let i = 1; i < record.length; i += 1) {
+    const step = Math.max(record[i].scale / record[i - 1].scale, record[i - 1].scale / record[i].scale);
+    assert.ok(step < 1.35, `no frame jumps in scale (frame ${i} stepped ${step.toFixed(2)}x)`);
+  }
+});
+
+test("in 3D tilt, a second cluster tap mid-move settles on the last group, framed and zoomed in", () => {
+  const { record, rect } = tiltClusterTapFrames(51.6445, 0.05, { lat: 51.6527, lon: 0.0515, afterTicks: 8 });
+  const last = record[record.length - 1];
+  assert.ok(pointInRect(last.target, rect), "the last group's centre is on screen when the camera settles");
+  assert.ok(app.state.clusterExpanded && app.state.clusterExpanded.items.some((item) => item.id === "oak3"), "the last tap's group is the expanded one");
+  assert.ok(!app.state.viewportAnimationTo, "no camera move is still pending");
+});
+
+test("in 3D tilt, a cluster tap already on screen pans at today's scale first, with no pull-out", () => {
+  // About 300m north: ahead of the user and in view.
+  const { before, record } = tiltClusterTapFrames(51.6527, 0.05);
+  const scales = record.map((frame) => frame.scale);
+  assert.ok(scales.length > 3, "the tap runs an animated camera move");
+  assert.ok(Math.min(...scales) >= Math.min(before.scale, scales[scales.length - 1]) * 0.99,
+    `an in-view group does not pull the camera out (lowest ${Math.min(...scales)}, start ${before.scale})`);
 });
 
 test("dismissing the anchor bar drops an expanded cluster", () => {
