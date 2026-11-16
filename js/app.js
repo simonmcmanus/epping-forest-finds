@@ -5935,7 +5935,9 @@ function alignHeadingUpNavigationViewport(options = {}) {
   // point behind the tilted camera (past its near plane) or outside the visible rect is not on
   // screen however short its flat distance. Such a tap pulls out and pans to the new area first,
   // then zooms in on it -- one continuous pull-out-and-pan, then the zoom-in -- instead of
-  // easing pan and zoom together, which resets the zoom and comes in from the side.
+  // easing pan and zoom together, which resets the zoom and comes in from the side. The pull-out
+  // is limited to pivots within the on-screen pan range; a far jump keeps the single ease below,
+  // since panning that whole distance in the short leg would be a fast, disorienting slide.
   let pivotOutOfTiltedView = false;
   if (options.animate && options.stagePanThenZoom && tiltActive() && previousScale > 0) {
     const shown = tiltProjectScreenPoint(worldToScreenFlat(userPoint));
@@ -5945,7 +5947,7 @@ function alignHeadingUpNavigationViewport(options = {}) {
       || shown.y < focusRect.y || shown.y > focusRect.y + focusRect.height;
   }
 
-  if (options.animate && options.stagePanThenZoom && pivotOutOfTiltedView) {
+  if (options.animate && options.stagePanThenZoom && pivotOutOfTiltedView && panIsAlreadyOnScreen) {
     const outScale = Math.min(previousScale * STAGED_BEHIND_ZOOM_OUT_RATIO, targetScale);
     const outViewport = {
       scale: outScale,

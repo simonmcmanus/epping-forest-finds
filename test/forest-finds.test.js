@@ -12882,6 +12882,46 @@ test("in 3D tilt, tapping a cluster behind the camera pans out first, then in on
   }
 });
 
+test("in 3D tilt, tapping a cluster far across the ring keeps the single ease -- no half-scale pull-out slide", () => {
+  resetData(app);
+  app.state.userLocation = makePoint(app, 51.65, 0.05);
+  app.state.tiltBetaSmoothed = 60;
+  try {
+    assert.ok(app.tiltActive(), "sanity: 3D tilt is on");
+    // Roughly 11km south: far beyond a screen diagonal of flat pan at today's scale, and out of view.
+    const oak1 = { id: "oak1", commonName: "Oak", ...makePoint(app, 51.55, 0.0500) };
+    const oak2 = { id: "oak2", commonName: "Oak", ...makePoint(app, 51.55001797, 0.0500) };
+    app.state.trees.push(oak1, oak2);
+    app.selectOverview();
+    app.ensureOverviewTargetsVisible({ animate: false, force: true });
+    const before = { ...app.state.viewport };
+
+    const frames = [];
+    const originalRaf = app.swapGlobalFunction("requestAnimationFrame", (fn) => { frames.push(fn); return frames.length; });
+    const scales = [];
+    try {
+      app.focusNearbyOnClusterGroup({ itemType: "tree", items: [oak1, oak2] });
+      let now = 1000;
+      for (let i = 0; i < 400 && (app.state.viewportAnimationTo || frames.length); i += 1) {
+        const frame = frames.shift();
+        if (!frame) break;
+        now += 16;
+        frame(now);
+        scales.push(app.state.viewport.scale);
+      }
+    } finally {
+      app.swapGlobalFunction("requestAnimationFrame", originalRaf);
+    }
+    const finalScale = scales[scales.length - 1];
+    const lowest = Math.min(...scales);
+    assert.ok(scales.length > 3, "the tap runs an animated camera move");
+    assert.ok(lowest >= Math.min(before.scale, finalScale) * 0.95,
+      `a far jump never dips to a pull-out scale below its start (${before.scale}) and end (${finalScale}) (lowest ${lowest})`);
+  } finally {
+    app.state.tiltBetaSmoothed = 0;
+  }
+});
+
 test("dismissing the anchor bar drops an expanded cluster", () => {
   resetData(app);
   app.state.userLocation = makePoint(app, 51.65, 0.05);
