@@ -530,6 +530,15 @@ async function notifyCommunityUpdated(data) {
 }
 
 self.addEventListener("message", (event) => {
+  // The page asks which release a waiting worker carries, because browsers only compare sw.js
+  // bytes and so can leave a worker of the already-running release waiting.
+  if (event.data?.type === "VERSION") {
+    const reply = { type: "VERSION", requestId: event.data.requestId || null, version: APP_CACHE_VERSION };
+    const target = event.ports?.[0] || event.source;
+    if (target) target.postMessage(reply);
+    return;
+  }
+
   if (event.data?.type === "SKIP_WAITING") {
     self.skipWaiting();
     return;

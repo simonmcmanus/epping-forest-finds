@@ -404,9 +404,69 @@ async function prepareWaitingUpdate(waiting) {
   // Recorded up front: the worker's own sync broadcasts DATA_UPDATED, which must not show the
   // banner (or send a tap down the plain-reload path) until this worker is ready to activate.
   state.swWaiting = waiting;
+  // Browsers only compare sw.js bytes, so a worker of the release already running can be installed
+  // and wait. That is not an update: activate it quietly and never announce it.
+  if (await isSameReleaseWorker(waiting)) {
+    activateSameReleaseSilently(waiting);
+    return;
+  }
   setAppUpdateStatus("downloading");
   await requestDataRefresh({ target: waiting, force: false });
   _markSwUpdateAvailable(waiting);
+}
+
+// Asks a worker which app release it carries. Resolves null when it cannot say (an older worker
+// that ignores the question, a failed post, or no reply within the timeout).
+function askWorkerVersion(worker, timeoutMs = 3000) {
+  return new Promise((resolve) => {
+    const requestId = `version-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const container = navigator.serviceWorker;
+    let timer;
+    const finish = (version) => {
+      clearTimeout(timer);
+      try { container.removeEventListener?.("message", onMessage); } catch {}
+      resolve(version);
+    };
+    const onMessage = (event) => {
+      if (event.data?.type !== "VERSION" || event.data.requestId !== requestId) return;
+      finish(typeof event.data.version === "string" ? event.data.version : null);
+    };
+    try {
+      container.addEventListener("message", onMessage);
+      timer = setTimeout(() => finish(null), timeoutMs);
+      worker.postMessage({ type: "VERSION", requestId });
+    } catch {
+      finish(null);
+    }
+  });
+}
+
+async function isSameReleaseWorker(worker) {
+  if (typeof APP_CACHE_VERSION !== "string" || !APP_CACHE_VERSION) return false;
+  return (await askWorkerVersion(worker)) === APP_CACHE_VERSION;
+}
+
+// The resulting controllerchange is the same release taking over, not news: the handler in
+// setupPwa consumes this marker and shows nothing and reloads nothing.
+let sameReleaseActivationTimer = null;
+
+function clearSameReleaseActivation() {
+  clearTimeout(sameReleaseActivationTimer);
+  sameReleaseActivationTimer = null;
+  state.swSameReleaseActivation = false;
+}
+
+function activateSameReleaseSilently(waiting) {
+  if (state.swWaiting === waiting) state.swWaiting = null;
+  clearSameReleaseActivation();
+  state.swSameReleaseActivation = true;
+  sameReleaseActivationTimer = setTimeout(clearSameReleaseActivation, 15000);
+  try {
+    waiting.postMessage({ type: "SKIP_WAITING" });
+  } catch {
+    clearSameReleaseActivation();
+  }
+  if (["checking", "downloading"].includes(state.appUpdateStatus)) setAppUpdateStatus("current");
 }
 
 // A newer worker that is already installing: show it downloading, then hand it to
@@ -859,8 +919,15 @@ function setupPwa() {
     navigator.serviceWorker.addEventListener("controllerchange", () => {
       if (_firstChange) { _firstChange = false; return; }
       if (state.swPendingReload) { location.reload(); return; }
-      state.swActivatedElsewhere = true;
-      _markSwUpdateAvailable(null);
+      // Our own quiet activation is expected; consume the marker. A controller that reports a
+      // different release is still news (another tab can activate one inside the window).
+      const expected = state.swSameReleaseActivation;
+      clearSameReleaseActivation();
+      askWorkerVersion(navigator.serviceWorker.controller).then((version) => {
+        if (version === APP_CACHE_VERSION || (expected && version === null)) return;
+        state.swActivatedElsewhere = true;
+        _markSwUpdateAvailable(null);
+      });
     });
 
     navigator.serviceWorker.register("sw.js", { updateViaCache: "none" })

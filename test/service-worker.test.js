@@ -240,6 +240,16 @@ test.describe("installing", () => {
     assert.equal(sw.skipWaiting(), 1, "an explicit request activates it");
   });
 
+  test("a worker tells the page which app release it carries, and still activates on request", async () => {
+    const sw = loadServiceWorker();
+    const version = vm.runInNewContext(`${fs.readFileSync(path.join(root, "js/app-cache-version.js"), "utf8")}\nAPP_CACHE_VERSION`, {});
+    const replies = await sw.message({ type: "VERSION", requestId: "r1" });
+    assert.deepEqual(JSON.parse(JSON.stringify(replies)), [{ type: "VERSION", requestId: "r1", version }]);
+    assert.equal(sw.skipWaiting(), 0, "asking the version does not activate the worker");
+    await sw.message({ type: "SKIP_WAITING" });
+    assert.equal(sw.skipWaiting(), 1);
+  });
+
   test("activating removes caches from older versions but keeps the current ones", async () => {
     const sw = loadServiceWorker();
     for (const name of ["forest-finds-app-0", "forest-finds-data-0", sw.constant("APP_CACHE_NAME"), sw.constant("DATA_CACHE_NAME"), sw.constant("COMMUNITY_CACHE_NAME")]) {
