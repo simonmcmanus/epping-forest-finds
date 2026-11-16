@@ -5808,36 +5808,48 @@ function deferAnimatedNearbyRefit(options) {
   pendingNearbyRefitFrame = requestAnimationFrame(retry);
 }
 
-// The wide shot of a staged cluster tap in 3D tilt: the tightest scale (searching down from
-// startScale, never below minScale) at which both the place the camera is leaving (fromPoint) and
-// the one it is going to (toPoint) are drawn inside the visible rect, with the camera centred
-// between them. If even minScale cannot hold both, it centres on the group at minScale (the user may
-// then be off screen; the group is not). Visibility is judged through the real tilt
-// projection and the heading-up rotation, for the camera origin on the group (where the tween holds it
-// from its first frame), and a point the tilt clips behind the camera never counts as visible.
-function wideFramingViewport(fromPoint, toPoint, focus, focusY, focusRect, startScale, minScale) {
-  const cam = tiltProjection();
+function wideFramingVisibility(fromPoint, toPoint, focusRect) {
+  // The draw uses the final browse-state camera from its first frame (the slide is dropped), so both the
+  // near-plane clip and the projected positions are solved against that camera, not the live one.
+  const live = tiltProjection();
+  const perspectivePx = live ? tiltPerspectivePx(true) : 0;
+  const sin = live ? live.sin : 0;
+  const cos = live ? live.cos : 1;
+  const dpr = live ? live.dpr : 1;
+  const dyMax = live ? (perspectivePx * TILT_NEAR_PLANE_RATIO) / sin : Infinity;
+  const tilted = (w) => {
+    if (!live) return w;
+    const dyCss = w.y / dpr;
+    if (dyCss > dyMax) return null;
+    const scale = perspectivePx / (perspectivePx - dyCss * sin);
+    return { x: (w.x / dpr) * scale * dpr, y: dyCss * cos * scale * dpr };
+  };
   const rotation = headingUpRotationFor(toPoint);
   const margin = Math.min(focusRect.width, focusRect.height) * STAGED_WIDE_FRAMING_EDGE_SHARE;
   // The camera origin is the group from the first frame of the move: the first draw after a tween starts
   // drops the ring's slide (prepareCanvasForDraw), so the ring is never half way across.
   const origin = toPoint;
+  const shows = (viewport, point) => {
+    const drawn = tilted(headingUpOffsetFor(viewport, point, rotation, origin));
+    if (!drawn) return false;
+    const at = {
+      x: origin.x * viewport.scale + viewport.tx + drawn.x,
+      y: origin.y * viewport.scale + viewport.ty + drawn.y,
+    };
+    return Number.isFinite(at.x) && Number.isFinite(at.y)
+      && at.x >= focusRect.x + margin && at.x <= focusRect.x + focusRect.width - margin
+      && at.y >= focusRect.y + margin && at.y <= focusRect.y + focusRect.height - margin;
+  };
+  return (viewport) => shows(viewport, fromPoint) && shows(viewport, toPoint);
+}
+
+function wideFramingViewport(fromPoint, toPoint, focus, focusY, focusRect, startScale, minScale) {
+  const showsBoth = wideFramingVisibility(fromPoint, toPoint, focusRect);
   const viewportAbout = (pivot, scale) => ({
     scale,
     tx: focus.x - pivot.x * scale,
     ty: focusY - pivot.y * scale,
   });
-  const shows = (viewport, point, origin) => {
-    if (cam) {
-      const offset = headingUpOffsetFor(viewport, point, rotation, origin);
-      if (offset.y / cam.dpr > cam.dyMax) return false;
-    }
-    const at = headingUpScreenPointAt(viewport, point, rotation, origin);
-    return Number.isFinite(at.x) && Number.isFinite(at.y)
-      && at.x >= focusRect.x + margin && at.x <= focusRect.x + focusRect.width - margin
-      && at.y >= focusRect.y + margin && at.y <= focusRect.y + focusRect.height - margin;
-  };
-  const showsBoth = (viewport) => shows(viewport, fromPoint, origin) && shows(viewport, toPoint, origin);
   const shares = [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8, 0.1, 0.9];
   const floor = Math.min(minScale, startScale);
   for (let scale = startScale; ; scale = Math.max(scale * STAGED_WIDE_FRAMING_STEP, floor)) {
@@ -5999,6 +6011,18 @@ function alignHeadingUpNavigationViewport(options = {}) {
       || shown.x < focusRect.x || shown.x > focusRect.x + focusRect.width
       || shown.y < focusRect.y || shown.y > focusRect.y + focusRect.height;
     wideFramingMove = pivotOutOfTiltedView || !panIsAlreadyOnScreen;
+    // The pan leg keeps today's scale with the camera origin on the group; if that leaves the place the
+    // camera is leaving behind the near plane or off the rect (a user behind a group ahead of them), it is
+    // not a plain pan but a wide shot.
+    if (!wideFramingMove) {
+      const fromPoint = cameraOriginPoint(false) || userPoint;
+      const panViewport = {
+        scale: previousScale,
+        tx: focus.x - userPoint.x * previousScale,
+        ty: focusY - userPoint.y * previousScale,
+      };
+      wideFramingMove = !wideFramingVisibility(fromPoint, userPoint, focusRect)(panViewport);
+    }
   }
 
   if (wideFramingMove) {
