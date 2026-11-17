@@ -125,7 +125,10 @@ test.describe("A place picked from an expanded group", () => {
       const count = await expandSmallGroup(page);
       await page.locator("#inspectorBody .nearest-item").first().click();
       await expect.poll(() => page.evaluate(() => state.selected?.type ?? null)).not.toBeNull();
-      await waitForUiToSettle(page);
+      // The first selection's lazy routing-graph build refits the camera when it lands; wait for it and for
+      // the selection's own map hold to end, so the sampled frames are drawn from the settled selection.
+      await waitForRoutingGraph(page);
+      await expect.poll(() => page.evaluate(() => state.selectionTransition.mapHeld)).toBe(false);
       await startTrace(page);
       await page.evaluate(() => requestDraw());
       await expect.poll(() => page.evaluate(() => window.__pins.length)).toBeGreaterThan(0);
