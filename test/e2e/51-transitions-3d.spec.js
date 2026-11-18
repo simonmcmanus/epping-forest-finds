@@ -109,6 +109,10 @@ async function stopFrameTrace(page) {
 /** Where the camera ended and whether the place sits in the visible map area above the open inspector. */
 async function endState(page) {
   await waitForUiToSettle(page);
+  // A browse-point slide has landed only on the frame that drops it (its final fit runs on that draw), so
+  // read the camera after that frame, not merely after the slide's time is up. Waiting on the same
+  // condition on both sides of a comparison keeps a slow runner from reading one of them a few pixels short.
+  await page.waitForFunction(() => !state.nearbyOriginTransition, null, { polling: "raf", timeout: 10000 });
   await waitForFrames(page, 3);
   return page.evaluate(() => {
     const rect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
@@ -319,6 +323,7 @@ for (const behind of [true, false]) {
 
 test("leaving a place back to a browsed spot in 3D is one move that matches the browse view", async ({ page }) => {
   await setup(page, "/nearby");
+
   await hold3d(page);
   await startFrameTrace(page);
   await page.evaluate(() => navigateInApp("/nearby/pubs/#near=51.655204,0.065731&label=Far"));
