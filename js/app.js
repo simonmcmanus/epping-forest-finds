@@ -568,6 +568,11 @@ const SELECTION_ROUTES = [
 // they must not write a history entry: routeApplyDepth covers applyRoute(), routerBooting
 // covers the boot sequence, which puts the app on the screen the launch URL asked for.
 let routeApplyDepth = 0;
+// applyRouteFromUrl applies ?show= / category paths before it resolves the route itself. While it does,
+// the filter change's own camera refit is held (routeDefersFilterRefit) and only run afterwards if the
+// route turned out to be the screen already showing (filterRefitDeferred), so one navigation is one move.
+let routeDefersFilterRefit = false;
+let filterRefitDeferred = false;
 let routerBooting = true;
 // /find/<slug>/ landings start with a server-rendered place panel, but unlike /nearby/<slug>/
 // landings they do not use _serverRenderedNearbyList. Keep their initial selection pending so
@@ -2228,7 +2233,13 @@ function setOverviewFilters(nextFilters, { persist = true, render = true, railTa
   }
   if (isOverviewScreenActive() && (!state.filterScreenOpen || mapSetupModalActive())) {
     selectOverview();
-    ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS, deliberate: true });
+    if (routeDefersFilterRefit) {
+      // The route being applied (applyRouteFromUrl) frames its own destination under these filters;
+      // fitting the old screen here first left a tween running that the route's fit then fought.
+      filterRefitDeferred = true;
+    } else {
+      ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS, deliberate: true });
+    }
   }
   requestDraw();
 }

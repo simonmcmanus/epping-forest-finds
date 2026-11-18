@@ -314,18 +314,32 @@ function applyRouteFromUrl() {
   // source of truth while the route is being resolved.
   routeApplyDepth += 1;
   let raw;
+  filterRefitDeferred = false;
   try {
     // A real route change should derive the rail level from its new path. A rail tap uses
     // replaceState only, so it never comes through here and can retain its displayed level.
     state.nearbyRailGroupKey = undefined;
-    applyShowFilterFromQuery();
+    routeDefersFilterRefit = true;
+    try {
+      applyShowFilterFromQuery();
+    } finally {
+      routeDefersFilterRefit = false;
+    }
     applySearchQueryFromQuery();
     applyRadiusFromQuery();
     raw = routeValueFromLocation();
-    if (urlMatchesCurrentScreen(raw)) return true;
+    if (urlMatchesCurrentScreen(raw)) {
+      // Only the filters changed: no route will move the camera, so frame them now.
+      if (filterRefitDeferred) {
+        filterRefitDeferred = false;
+        ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS, deliberate: true });
+      }
+      return true;
+    }
   } finally {
     routeApplyDepth -= 1;
   }
+  filterRefitDeferred = false;
   return applyRoute(raw, false);
 }
 
