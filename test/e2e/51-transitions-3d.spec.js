@@ -106,20 +106,6 @@ async function stopFrameTrace(page) {
   });
 }
 
-// Largest single-frame step as a share of the whole path the camera travelled (scale in log terms, then
-// pan), so a mid-move snap to a different framing stands out from an eased move however many frames ran.
-function stepShare(frames) {
-  const path = (a, b) => Math.abs(Math.log(b.scale / a.scale)) * 400 + Math.hypot(b.tx - a.tx, b.ty - a.ty) / Math.max(1, b.scale) * 0;
-  let total = 0;
-  let biggest = 0;
-  for (let i = 1; i < frames.length; i += 1) {
-    const d = path(frames[i - 1], frames[i]);
-    total += d;
-    biggest = Math.max(biggest, d);
-  }
-  return total > 0 ? biggest / total : 0;
-}
-
 /** Where the camera ended and whether the place sits in the visible map area above the open inspector. */
 async function endState(page) {
   await waitForUiToSettle(page);
@@ -147,6 +133,7 @@ function expectSameViewport(a, b, label) {
 }
 
 function expectNoLeaveAndReturn(frames, label, moves) {
+  expect(moves, `${label}: one camera move for one state change`).toBe(1);
   const views = frames.filter((f) => f.inView !== null).map((f) => f.inView);
   expect(frames.filter((f) => !f.tilted).length, `${label}: 3D stays on for the whole move (no flat fit mid-move)`).toBe(0);
   expect(views.length, `${label}: sampled`).toBeGreaterThan(5);
@@ -333,9 +320,12 @@ for (const behind of [true, false]) {
 test("leaving a place back to a browsed spot in 3D is one move that matches the browse view", async ({ page }) => {
   await setup(page, "/nearby");
   await hold3d(page);
+  await startFrameTrace(page);
   await page.evaluate(() => navigateInApp("/nearby/pubs/#near=51.655204,0.065731&label=Far"));
   await page.waitForFunction(() => state.nearbyAnchor != null);
   await waitForUiToSettle(page);
+  // A filter-plus-browse-point link is the browse-point slide alone: no second tween for the filter.
+  expect((await stopFrameTrace(page)).moves, "no separate filter tween").toBe(0);
   const browse = await endState(page);
   await page.evaluate(() => navigateInApp("/find/onest/"));
   await page.waitForFunction(() => state.selected?.type === "landmark");
@@ -350,4 +340,25 @@ test("leaving a place back to a browsed spot in 3D is one move that matches the 
   expect(frames.filter((f) => !f.tilted).length, "3D stays on for the whole move").toBe(0);
   expect(moves, "one camera move").toBeLessThanOrEqual(1);
   expectSameViewport(back, browse, "Back vs the browse view it left");
+});
+
+test("a link that only changes the category filter refits the Nearby view to the new filter", async ({ page }) => {
+  await setup(page, "/nearby");
+  await waitForUiToSettle(page);
+  const before = await page.evaluate(() => ({ scale: state.viewport.scale, filters: state.overviewFilters.join(",") }));
+  await startFrameTrace(page);
+  await page.evaluate(() => navigateInApp("/nearby/pubs/"));
+  await page.waitForFunction(() => state.overviewFilters.join(",") === "pubs");
+  await waitForUiToSettle(page);
+  const { moves } = await stopFrameTrace(page);
+  const result = await page.evaluate(() => {
+    const landed = { scale: state.viewport.scale, tx: state.viewport.tx, ty: state.viewport.ty };
+    alignHeadingUpNavigationViewport({ force: true, animate: false });
+    const fit = { scale: state.viewport.scale, tx: state.viewport.tx, ty: state.viewport.ty };
+    return { landed, fit };
+  });
+  expect(before.filters, "starts on the saved filters").not.toBe("pubs");
+  expect(moves, "the refit is one camera move").toBe(1);
+  expect(Math.abs(result.landed.scale - result.fit.scale) / result.fit.scale, "lands on the framing of the pubs set").toBeLessThan(0.02);
+  expect(Math.abs(result.landed.scale - before.scale) / before.scale, "and that is a different framing from before").toBeGreaterThan(0.02);
 });
