@@ -103,10 +103,15 @@ check. It does not repeat local specialist fan-out or replace human approval.
 
 ## 6. Coordinate the PR without no-op model turns
 
-Use `node scripts/pr-status.js <PR> --state /tmp/<batch>-pr-state.json` to collect compact status
-and detect deltas. Subscribe to events where supported; otherwise use bounded platform waits and
-state that limitation. Dispatch `pr-steward` only for actionable changes. Fetch full logs only for
-failures; unchanged pending CI or waiting human approval does not need a new LLM review.
+Collect compact status with `node scripts/pr-status.js <PR> --state <scratch>/<batch>-pr-state.json`
+where the `gh` CLI is available for this purpose. In cloud sessions, where GitHub GraphQL and `gh` are
+refused, build the same snapshot from GitHub MCP reads: `pull_request_read` `get` (state, draft, head
+and base SHA, `mergeable_state`), `get_check_runs` on the head SHA, `get_reviews`, `get_comments`, and
+`get_review_comments` for unresolved threads. Compare it with the previous head and results to detect
+deltas. Subscribe to events with `subscribe_pr_activity` and record that the subscription is in place;
+otherwise use bounded platform waits and state that limitation. Dispatch `pr-steward` only for
+actionable changes. Fetch full logs only for failures; unchanged pending CI or waiting human approval
+does not need a new LLM review.
 
 The steward is the single post-push repair coordinator. It batches validated findings and routes
 fixes, including conflicts and small human asks, back through local review/test gates. Resolve bot

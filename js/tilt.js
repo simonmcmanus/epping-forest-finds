@@ -305,21 +305,48 @@ function tiltPinScale(worldPoint) {
 // and cannot be closed by any amount of overscan. Projecting per point instead lets the
 // ground be drawn all the way to the horizon.
 //
-// Behind the pivot (dy > 0) z grows towards P, where the perspective divide is singular
-// and past which points sit behind the camera — scale flips negative and coordinates
-// mirror to nonsense (which is what used to make the radar cone, the destination
-// pointer and pins vanish, and what made CSS clip the rotated canvas outright).
-// TILT_NEAR_PLANE_RATIO clips just short of that. Nothing visible is lost: a point at
-// the near plane already projects ~50x out, far below the bottom of the viewport.
+// Behind the pivot (dy > 0) z grows towards P, where the perspective divide is singular and
+// past which points sit behind the camera (scale flips negative and coordinates mirror to
+// nonsense). Rather than clamp at a near plane -- which stacked every far-behind point onto
+// one row and flung it ~50x sideways -- tiltDepthScale eases the depth onto a ceiling so the
+// magnification stays bounded (TILT_BEHIND_MAX_SCALE) and order down the screen is kept.
 function tiltProjectOffsets(dxCss, dyCss, tiltDeg, perspectivePx) {
   const rad = toRadians(tiltDeg);
   const sin = Math.sin(rad);
   const cos = Math.cos(rad);
-  const dyMax = sin > 0 ? (perspectivePx * TILT_NEAR_PLANE_RATIO) / sin : Infinity;
-  const clipped = dyCss > dyMax;
-  const dy = clipped ? dyMax : dyCss;
-  const scale = perspectivePx / (perspectivePx - dy * sin);
-  return { dx: dxCss * scale, dy: dy * cos * scale, scale, clipped };
+  const scale = tiltDepthScale(dyCss, sin, perspectivePx);
+  return { dx: dxCss * scale, dy: dyCss * cos * scale, scale, clipped: false };
+}
+
+// The perspective scale for a point dyCss px from the pivot (positive is behind it). Ahead of
+// the pivot and up to a modest distance behind it this is exactly P / (P - dy * sin). Further
+// behind, the camera depth z = dy * sin is eased onto a ceiling (TILT_BEHIND_MAX_SCALE) with a
+// tanh shoulder that joins the true curve smoothly, so the scale rises monotonically and never
+// exceeds the ceiling. One rule for every caller: things behind the camera keep their order down
+// the screen and a bounded sideways spread, instead of being clamped onto one near-plane row
+// and magnified ~50x sideways (which flung them to the screen edges).
+function tiltDepthScale(dyCss, sin, perspectivePx) {
+  const z = dyCss * sin;
+  if (!(z > 0)) return perspectivePx / (perspectivePx - z);
+  const zMax = perspectivePx * (1 - 1 / TILT_BEHIND_MAX_SCALE);
+  const zKnee = zMax * TILT_BEHIND_KNEE_RATIO;
+  const eased = z <= zKnee ? z : zKnee + (zMax - zKnee) * Math.tanh((z - zKnee) / (zMax - zKnee));
+  return perspectivePx / (perspectivePx - eased);
+}
+
+// Inverse of the forward projection's vertical axis: the flat dy (CSS px) whose projected row is
+// yRel (CSS px from the pivot). Closed form ahead of the pivot; behind it the eased scale has no
+// closed form, so it bisects on the monotone forward map (scale >= 1 there, so dy <= yRel / cos).
+function tiltUnprojectDy(yRel, sin, cos, perspectivePx) {
+  if (yRel <= 0) return yRel * perspectivePx / (cos * perspectivePx + yRel * sin);
+  let lo = 0;
+  let hi = yRel / cos;
+  for (let i = 0; i < 48; i += 1) {
+    const mid = (lo + hi) / 2;
+    const row = mid * cos * tiltDepthScale(mid, sin, perspectivePx);
+    if (row < yRel) lo = mid; else hi = mid;
+  }
+  return (lo + hi) / 2;
 }
 
 // Per-frame snapshot of everything the tilt projection needs. This must be cached:
@@ -347,7 +374,6 @@ function tiltProjection() {
     sin,
     cos: Math.cos(rad),
     perspectivePx,
-    dyMax: sin > 0 ? (perspectivePx * TILT_NEAR_PLANE_RATIO) / sin : Infinity,
     originX: origin.x,
     originY: origin.y,
     dpr: pixelRatio(),
@@ -364,14 +390,12 @@ function tiltProjectScreenPoint(flat) {
   if (!cam) return { x: flat.x, y: flat.y, scale: 1, clipped: false };
   const dxCss = (flat.x - cam.originX) / cam.dpr;
   const dyCss = (flat.y - cam.originY) / cam.dpr;
-  const clipped = dyCss > cam.dyMax;
-  const dy = clipped ? cam.dyMax : dyCss;
-  const scale = cam.perspectivePx / (cam.perspectivePx - dy * cam.sin);
+  const scale = tiltDepthScale(dyCss, cam.sin, cam.perspectivePx);
   return {
     x: cam.originX + dxCss * scale * cam.dpr,
-    y: cam.originY + dy * cam.cos * scale * cam.dpr,
+    y: cam.originY + dyCss * cam.cos * scale * cam.dpr,
     scale,
-    clipped,
+    clipped: false,
   };
 }
 

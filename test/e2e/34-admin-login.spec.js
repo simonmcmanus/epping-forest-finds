@@ -102,6 +102,94 @@ test.describe("Admin login", () => {
     await expect(page.locator("#adminStats")).toContainText("back to 2026-10-20, that day only in part");
   });
 
+  test("snapshot: admin navigation journey block when packed navigation events are present", async ({ page }) => {
+    await skipOnboarding(page);
+    const at = (iso) => Date.parse(iso);
+    // Fictional fixed coordinates and timestamps: one walker starts, arrives, then ends a navigation.
+    const packed = {
+      format: 2,
+      locations: { v: 2, type: "location", uids: [], targets: [], rows: [] },
+      clicks: { v: 2, type: "click", uids: [], rows: [] },
+      navigation: {
+        v: 2, type: "navigation", uids: ["walker-aaaa-1111"],
+        rows: [
+          [0, at("2026-10-20T10:00:00Z"), "nav-1", "Example Spot", "place", 51.5, 0.1, 51.49, 0.09, 1000, null, null, null, "start"],
+          [0, at("2026-10-20T10:12:00Z"), "nav-1", "Example Spot", "place", 51.5, 0.1, 51.5, 0.1, 1000, 1250, 0, null, "arrive"],
+          [0, at("2026-10-20T10:13:00Z"), "nav-1", "Example Spot", "place", 51.5, 0.1, 51.5, 0.1, 1000, 1250, 0, "arrived", "end"],
+        ],
+      },
+      meta: { ...TRACKS.meta },
+    };
+    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(packed) }));
+    await page.goto("/admin");
+    await page.getByLabel("Admin password").fill("secret");
+    await page.click("#loginBtn");
+
+    const stats = page.locator("#adminStats");
+    await expect(stats).toContainText("Navigation:");
+    await expect(stats).toContainText("1 started");
+    await expect(stats).toContainText("1 arrived (100%)");
+    await expect(stats).toContainText("Detour: walked 1.25x the shortest route");
+    // Navigation events carry no location pings or taps, so these are the final counts.
+    await expect(stats).toContainText("0 users");
+    await expect(stats).toContainText("0 location pings");
+    await expect(stats).toContainText("0 taps");
+    // Let the dashboard's entrance fade finish (an element state, not a sleep) before capturing.
+    await expect.poll(() => page.evaluate(() => {
+      const app = document.getElementById("adminApp");
+      const running = document.getAnimations().filter((a) => a.playState === "running" || a.pending).length;
+      return running === 0 && getComputedStyle(app).opacity === "1" && getComputedStyle(document.getElementById("adminStats")).opacity === "1";
+    })).toBe(true);
+    await expect(stats).toHaveScreenshot("admin-navigation-stats.png");
+  });
+
+  test("the Navigation view shows summary cards, a daily table and chart labels", async ({ page }) => {
+    await skipOnboarding(page);
+    const at = (iso) => Date.parse(iso);
+    // Same fictional single journey as the navigation block test: 12 minutes to arrive, walked 1.25x the route.
+    const packed = {
+      format: 2,
+      locations: { v: 2, type: "location", uids: [], targets: [], rows: [] },
+      clicks: { v: 2, type: "click", uids: [], rows: [] },
+      navigation: {
+        v: 2, type: "navigation", uids: ["walker-aaaa-1111"],
+        rows: [
+          [0, at("2026-10-20T10:00:00Z"), "nav-1", "Example Spot", "place", 51.5, 0.1, 51.49, 0.09, 1000, null, null, null, "start"],
+          [0, at("2026-10-20T10:12:00Z"), "nav-1", "Example Spot", "place", 51.5, 0.1, 51.5, 0.1, 1000, 1250, 0, null, "arrive"],
+          [0, at("2026-10-20T10:13:00Z"), "nav-1", "Example Spot", "place", 51.5, 0.1, 51.5, 0.1, 1000, 1250, 0, "arrived", "end"],
+        ],
+      },
+      meta: { ...TRACKS.meta },
+    };
+    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(packed) }));
+    await page.goto("/admin");
+    await page.getByLabel("Admin password").fill("secret");
+    await page.click("#loginBtn");
+
+    await page.getByRole("button", { name: "Navigation", exact: true }).click();
+    const view = page.locator("#adminNavigation");
+    await expect(view).toBeVisible();
+    const card = (label) => view.locator(".nav-card", { hasText: label });
+    await expect(card("Started")).toContainText("1");
+    await expect(card("Completed")).toContainText("1");
+    await expect(card("Completion rate")).toContainText("100%");
+    await expect(card("Median time to arrive")).toContainText("12 min");
+    await expect(card("Distance walked")).toContainText("1.25 km");
+    await expect(card("Median detour")).toContainText("1.25x");
+    await expect(card("Journeys with a detour")).toContainText("1");
+
+    const row = view.locator("table.nav-trend-table").first().locator("tbody tr");
+    await expect(row).toHaveCount(1);
+    await expect(row.first()).toContainText("2026-10-20");
+    await expect(row.first()).toContainText("100%");
+    const charts = view.locator("svg[role='img']");
+    await expect(charts).toHaveCount(3);
+    for (let i = 0; i < 3; i++) await expect(charts.nth(i)).toHaveAttribute("aria-label", /.+/);
+    await expect(charts.first()).toHaveAttribute("aria-label", /1 started.*1 completed/);
+    // No horizontal page scroll at the default viewport.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+
   test("the Community panel says which snapshot its figures come from", async ({ page }) => {
     await skipOnboarding(page);
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) }));

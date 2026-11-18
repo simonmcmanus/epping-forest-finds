@@ -98,7 +98,8 @@ const TILT_HORIZON_REFERENCE_TAN = Math.tan(TILT_ROTATEX_MAX * Math.PI / 180);
 // redraw for (see tiltRenderStale). Small enough that no drift is visible, large enough that
 // sensor noise on a phone held still doesn't repaint the map every frame.
 const TILT_RENDER_STALE_DEG = 0.05;
-const TILT_NEAR_PLANE_RATIO = 0.98; // fraction of the camera distance the near clip sits at — see tiltProjectOffsets
+const TILT_BEHIND_MAX_SCALE = 3;   // ceiling on the perspective magnification of anything behind the camera -- see tiltDepthScale
+const TILT_BEHIND_KNEE_RATIO = 0.5; // share of that ceiling's depth where the true curve starts easing onto it
 // Perspective scale below which ground is deep enough into the horizon haze to be
 // invisible, and so not worth drawing. Bounds how much world the draw loop walks in 3D
 // ("to the horizon" must not mean "every road in the dataset"). The clip lands this
@@ -1740,9 +1741,8 @@ function headingUpTiltedOffset(w) {
   if (!cam) return w;
   const dxCss = w.x / cam.dpr;
   const dyCss = w.y / cam.dpr;
-  const dy = dyCss > cam.dyMax ? cam.dyMax : dyCss;
-  const scale = cam.perspectivePx / (cam.perspectivePx - dy * cam.sin);
-  return { x: dxCss * scale * cam.dpr, y: dy * cam.cos * scale * cam.dpr };
+  const scale = tiltDepthScale(dyCss, cam.sin, cam.perspectivePx);
+  return { x: dxCss * scale * cam.dpr, y: dyCss * cam.cos * scale * cam.dpr };
 }
 
 // The offset, in canvas px, from the camera origin to a world point under `viewport`, after the heading-up
@@ -5412,7 +5412,7 @@ function maxScaleForHeadingUpPoints(points, focus, focusRect, options = {}) {
       // Behind the pivot the projection magnifies rather than compresses (the point is
       // closer to the camera), so this is the same bottom-edge inequality with a
       // denominator that grows with depth -- always bounded, and never anywhere near the
-      // near-plane singularity tiltProjectOffsets clips at.
+      // magnification ceiling tiltDepthScale eases onto.
       const availableBelow = bottom - focus.y - behindBuffer;
       maxScale = Math.min(maxScale, availableBelow / (rotatedY * (tiltCos + availableBelow * k)));
       // Deliberately falls through to the horizontal constraint below rather than
@@ -5811,15 +5811,17 @@ function deferAnimatedNearbyRefit(options) {
 // The wide shot of a staged cluster tap in 3D tilt: the tightest scale (searching down from
 // startScale, never below minScale) at which both the place the camera is leaving (fromPoint) and
 // the one it is going to (toPoint) are drawn inside the visible rect, with the camera centred
-// between them. If even minScale cannot hold both, it centres on the group at minScale so the
-// group is always on screen. Visibility is judged through the real tilt projection, for the camera
-// origin midway between the places (the ring's slide, on the same clock, is half way across when
-// the shot is reached), and a point the tilt clips behind the camera never counts as visible.
+// between them. If even minScale cannot hold both, it centres on the group at minScale (the user may
+// then be off screen; the group is not). Visibility is judged through the real tilt
+// projection and the heading-up rotation, for the camera origin on the group (where the tween holds it
+// from its first frame), and a point the tilt clips behind the camera never counts as visible.
 function wideFramingViewport(fromPoint, toPoint, focus, focusY, focusRect, startScale, minScale) {
   const cam = tiltProjection();
   const rotation = headingUpRotationFor(toPoint);
   const margin = Math.min(focusRect.width, focusRect.height) * STAGED_WIDE_FRAMING_EDGE_SHARE;
-  const mid = { x: (fromPoint.x + toPoint.x) / 2, y: (fromPoint.y + toPoint.y) / 2 };
+  // The camera origin is the group from the first frame of the move: the first draw after a tween starts
+  // drops the ring's slide (prepareCanvasForDraw), so the ring is never half way across.
+  const origin = toPoint;
   const viewportAbout = (pivot, scale) => ({
     scale,
     tx: focus.x - pivot.x * scale,
@@ -5835,7 +5837,7 @@ function wideFramingViewport(fromPoint, toPoint, focus, focusY, focusRect, start
       && at.x >= focusRect.x + margin && at.x <= focusRect.x + focusRect.width - margin
       && at.y >= focusRect.y + margin && at.y <= focusRect.y + focusRect.height - margin;
   };
-  const showsBoth = (viewport) => shows(viewport, fromPoint, mid) && shows(viewport, toPoint, mid);
+  const showsBoth = (viewport) => shows(viewport, fromPoint, origin) && shows(viewport, toPoint, origin);
   const shares = [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8, 0.1, 0.9];
   const floor = Math.min(minScale, startScale);
   for (let scale = startScale; ; scale = Math.max(scale * STAGED_WIDE_FRAMING_STEP, floor)) {
@@ -5987,8 +5989,8 @@ function alignHeadingUpNavigationViewport(options = {}) {
   // screen however short its flat distance. A tap whose group is out of view, or too far to pan to
   // at today's scale, takes the wide-framing move instead: pan and zoom out only as far as needed
   // to show both the old place and the new one (never past STAGED_WIDE_FRAMING_MIN_SCALE_RATIO),
-  // then zoom in on the group. The ring's own slide (startNearbyOriginTransition) runs on the same
-  // clock, so the circle moves across during that wide shot -- there is no second timeline.
+  // then zoom in on the group. The ring's own slide is dropped by the first draw of the tween, so the
+  // camera origin is on the group throughout; wideFramingViewport solves for exactly that.
   let wideFramingMove = false;
   if (options.animate && options.stagePanThenZoom && tiltActive() && previousScale > 0) {
     const shown = tiltProjectScreenPoint(worldToScreenFlat(userPoint));
@@ -7684,9 +7686,8 @@ function screenToWorld(x, y) {
         ? -farClip * c * (perspective / (perspective + farClip * s))
         : -Infinity;
       const y_clamped = Math.max(y_rel, yRelMin);
-      const dy = y_clamped * perspective / (c * perspective + y_clamped * s);
-      const dz = dy * s;
-      const scale = perspective / (perspective - dz);
+      const dy = tiltUnprojectDy(y_clamped, s, c, perspective);
+      const scale = tiltDepthScale(dy, s, perspective);
       const dx = x_rel / scale;
 
       // Convert back to screen pixels, accounting for the un-projected values
