@@ -13027,9 +13027,7 @@ function tiltClusterTapFrames(lat, lon, interrupt = null, heading = null) {
       if (at >= 0) frames.splice(at, 1);
     });
     const record = [];
-    // The app's own clock follows the frame times. The ring's slide starts with the tap, but the first
-    // draw after the camera tween starts drops it (prepareCanvasForDraw), so only the tween's own
-    // time matters from there on.
+    // The app's own clock follows the frame times.
     const clock = app.performance;
     const realNow = clock.now;
     const clockStart = realNow.call(clock);
@@ -13157,44 +13155,80 @@ for (const heading of [0, 45, 90, 180, 270]) {
   }
 }
 
+// The origin the camera draws about eases from the user's ring to the group with the wide shot's first leg
+// (it used to cut to the group on the first frame, so the ring closed on its settled place from frame 0).
+// The ring's drawn centre now travels from where it was to the wide shot's framing in small steps, then
+// closes on where it settles.
 for (const [heading, lat] of [[0, 51.636], [90, 51.6560], [180, 51.6560]]) {
-  test(`in 3D tilt, heading ${heading}, the ring's drawn centre closes steadily on where it settles through the wide shot`, () => {
-    const { record } = tiltClusterTapFrames(lat, 0.05, null, heading);
+  test(`in 3D tilt, heading ${heading}, the ring's drawn centre travels to the wide shot in small steps, then closes steadily on where it settles`, () => {
+    const { beforeTap, record, rect } = tiltClusterTapFrames(lat, 0.05, null, heading);
     const scales = record.map((frame) => frame.scale);
     const landed = scales.indexOf(Math.min(...scales));
     assert.ok(landed > 2, "sanity: the tap runs a wide shot");
+    const short = Math.min(rect.width, rect.height);
+    const stepTo = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    let prev = beforeTap.user;
+    for (let i = 0; i <= landed; i += 1) {
+      assert.ok(stepTo(prev, record[i].ring) < short * 0.4, `the ring does not jump on the way to the wide shot (frame ${i})`);
+      prev = record[i].ring;
+    }
     const settled = record[record.length - 1].ring;
-    const gaps = record.slice(0, landed + 1).map((frame) => Math.hypot(frame.ring.x - settled.x, frame.ring.y - settled.y));
+    const gaps = record.slice(landed).map((frame) => Math.hypot(frame.ring.x - settled.x, frame.ring.y - settled.y));
     for (let i = 1; i < gaps.length; i += 1) {
-      assert.ok(gaps[i] <= gaps[i - 1] + 1, `the ring does not back away from where it settles (frame ${i}: ${gaps[i - 1].toFixed(1)} -> ${gaps[i].toFixed(1)})`);
+      assert.ok(gaps[i] <= gaps[i - 1] + 1, `the ring does not back away from where it settles (frame ${landed + i}: ${gaps[i - 1].toFixed(1)} -> ${gaps[i].toFixed(1)})`);
     }
   });
 }
 
-// The tap drops the ring's slide on the first draw, so the camera origin jumps from the user to the group
-// between the frame before the tap and the first frame after it. The step is the distance the user's
-// marker (and the group) moves on screen across that one frame, measured against the focus rect's shorter
-// side. The aim is under 40% of it. KNOWN SNAP: the move does not meet that yet. Measured (390x416 rect
-// at 3x, 3D tilt, heading 0): the user behind a group 220m ahead steps 124px (30%) and the group 172px
-// (41%); a group 600m behind a user who faces away steps the user 672px (162%) -- the origin switch
-// is a hard cut of that size on frame 1. The bounds below pin those measurements so the snap cannot get
-// worse unnoticed; they are not a statement that it is acceptable.
-for (const [name, lat, userShare, targetShare] of [
-  ["a group 600m behind the user's facing (user ahead of it)", 51.6445, 1.7, null],
-  ["a group 220m ahead of the user (user behind it)", 51.6520, 0.4, 0.45],
+// The user's marker and the group are measured across the frame before the tap and the first frame after
+// it, as a share of the focus rect's shorter side. The camera origin eases from the user's ring to the
+// group (the same slide the ring uses) instead of cutting on the first frame, so neither steps more than
+// 40% of it. A group behind the camera before the tap is clipped to the near plane, so its step is not a
+// distance a viewer sees; only a group that was drawn is measured.
+const FIRST_FRAME_STEP_SHARE = 0.4;
+for (const [name, lat, measureTarget] of [
+  ["a group 600m behind the user's facing (user ahead of it)", 51.6445, false],
+  ["a group 220m ahead of the user (user behind it)", 51.6520, true],
 ]) {
-  test(`in 3D tilt, tapping ${name} steps the user and the group on the first frame only within the known snap bound`, () => {
+  test(`in 3D tilt, tapping ${name} does not cut the user and the group on the first frame`, () => {
     const { beforeTap, record, rect } = tiltClusterTapFrames(lat, 0.05, null, 0);
     const short = Math.min(rect.width, rect.height);
     const step = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    const bound = short * FIRST_FRAME_STEP_SHARE;
     const userStep = step(beforeTap.user, record[0].user);
-    assert.ok(userStep < short * userShare, `the user's marker steps ${userStep.toFixed(1)}px on the first frame (bound ${(short * userShare).toFixed(1)}px)`);
-    // A group behind the camera before the tap is clipped to the near plane, so its step is not a
-    // distance a viewer sees; only a group that was drawn is measured.
-    if (targetShare != null) {
+    assert.ok(userStep < bound, `the user's marker steps ${userStep.toFixed(1)}px (${(userStep / short).toFixed(2)} of ${short}) on the first frame (bound ${bound.toFixed(1)}px)`);
+    if (measureTarget) {
       const targetStep = step(beforeTap.target, record[0].target);
-      assert.ok(targetStep < short * targetShare, `the group steps ${targetStep.toFixed(1)}px on the first frame (bound ${(short * targetShare).toFixed(1)}px)`);
+      assert.ok(targetStep < bound, `the group steps ${targetStep.toFixed(1)}px (${(targetStep / short).toFixed(2)} of ${short}) on the first frame (bound ${bound.toFixed(1)}px)`);
     }
+  });
+}
+
+// The first frame is bounded outright above. After it the camera is really flying (a group ~600m away
+// crosses the view in a dozen frames, and the tilt stretches what lies behind or beyond the edges), so a
+// frame-to-frame bound would only measure the speed of the tween. What a cut looks like is a step far
+// larger than the steps on either side of it, so every frame's step is held to a smooth ease: no more than
+// 1.8x the larger neighbouring step (or a tenth of the focus rect's short side, for the slow ends).
+for (const heading of [0, 90, 180, 45]) {
+  test(`in 3D tilt, heading ${heading}, a far cluster tap moves the user and the group smoothly, with no cut on any frame`, () => {
+    const { beforeTap, record, rect } = tiltClusterTapFrames(51.636, 0.05, null, heading);
+    const short = Math.min(rect.width, rect.height);
+    const step = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+    const frames = [beforeTap, ...record];
+    let worstFirst = 0;
+    for (const key of ["user", "target"]) {
+      const finite = (point) => Number.isFinite(point.x) && Number.isFinite(point.y) && !point.clipped;
+      const steps = frames.slice(1).map((frame, i) => (finite(frames[i][key]) && finite(frame[key]) ? step(frames[i][key], frame[key]) : null));
+      if (steps[0] != null && pointInRect(frames[0][key], rect)) worstFirst = Math.max(worstFirst, steps[0] / short);
+      for (let i = 0; i < steps.length; i += 1) {
+        if (steps[i] == null) continue;
+        const neighbours = [steps[i - 1], steps[i + 1]].filter((value) => value != null);
+        const allowed = Math.max(short * 0.1, 1.8 * Math.max(0, ...neighbours));
+        assert.ok(steps[i] <= allowed, `heading ${heading} frame ${i}: the ${key} steps ${steps[i].toFixed(1)}px, against ${neighbours.map((value) => value.toFixed(1)).join(" and ")}px either side`);
+      }
+    }
+    assert.ok(worstFirst < FIRST_FRAME_STEP_SHARE, `the first frame steps ${worstFirst.toFixed(2)} of the short side`);
+    if (process.env.EFF_REPORT_STEPS) console.log(`heading ${heading} first-frame step share ${worstFirst.toFixed(3)}`);
   });
 }
 
