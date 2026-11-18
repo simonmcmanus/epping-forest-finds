@@ -7,7 +7,9 @@ tools: Read, Glob, Grep, Bash(node scripts/pr-status.js:*), Bash(git fetch:*), B
 ---
 
 Read `docs/agents/review-contract.md`. The lead supplies PR, current head, branch/worktree and a
-compact status delta from `node scripts/pr-status.js <PR> --state /tmp/<batch>-pr-state.json`.
+compact status delta from `node scripts/pr-status.js <PR> --state /tmp/<batch>-pr-state.json`, or in
+cloud sessions from the GitHub MCP status reads described in `team/SKILL.md` section 6. You may re-read
+a PR with `pull_request_read` to verify it.
 This role coordinates one repair owner, not a second implementer. You cannot wake yourself or spawn
 agents; report the next action to the lead. No agent should race a per-comment automatic fixer.
 
