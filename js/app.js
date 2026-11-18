@@ -5816,12 +5816,12 @@ function wideFramingVisibility(fromPoint, toPoint, focusRect) {
   const sin = live ? live.sin : 0;
   const cos = live ? live.cos : 1;
   const dpr = live ? live.dpr : 1;
-  const dyMax = live ? (perspectivePx * TILT_NEAR_PLANE_RATIO) / sin : Infinity;
+  // Same projection the draw uses (tiltDepthScale): points behind the camera are magnified up to a
+  // ceiling rather than clipped, so there is no near-plane cut-off to test here.
   const tilted = (w) => {
     if (!live) return w;
     const dyCss = w.y / dpr;
-    if (dyCss > dyMax) return null;
-    const scale = perspectivePx / (perspectivePx - dyCss * sin);
+    const scale = tiltDepthScale(dyCss, sin, perspectivePx);
     return { x: (w.x / dpr) * scale * dpr, y: dyCss * cos * scale * dpr };
   };
   const rotation = headingUpRotationFor(toPoint);
