@@ -143,6 +143,18 @@ Click detail records can come from two sources:
 
 Admin suppresses duplicate derived navigation-click events when a matching explicit click exists for the same user/target near the same time.
 
+## Navigation view
+
+A **Navigation** tab in the top bar opens a dedicated view (`#adminNavigation`) that shows how navigation journeys trend over time. It uses the same loaded tracking data, the same user and time-window filters as the stats bar, and the same explicit-over-derived journey rule as the navigation block (see "Navigation journeys").
+
+- **Summary cards:** started, completed, completion rate, median time to arrive, total distance walked, median detour ratio, and the number of journeys that have a detour ratio.
+- **Started, completed and completion rate by day:** bars for started and completed journeys and a line for the completion rate on a 0–100% axis.
+- **Time to arrive by day:** stacked bars for the four buckets (under 5, 5–15, 15–30 and over 30 minutes), with a legend.
+- **Median detour by day:** a line per day with a dashed reference at 1.0, labelled "shortest route".
+- **Daily table:** the same figures as the charts as real HTML, so every chart has a text alternative. Each chart is an SVG with `role="img"` and an `aria-label` that summarises the trend.
+
+Days are grouped by the local calendar day on which each journey started, oldest first. A day with only abandoned journeys shows a completion rate of 0% and no median. Days without journeys are not drawn, and an empty window shows a plain sentence instead of empty axes. The charts draw on a 420-unit canvas capped at 520 px wide, so their labels keep a readable size on desktop; the dashboard is a desk tool, so the view is laid out for a desktop-width window.
+
 ## Data API
 
 ### `POST /api/track`

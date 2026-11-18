@@ -158,11 +158,14 @@ function summariseNavJourneys(journeys) {
   let completed = 0;
   let totalDistanceWalkedM = 0;
   const remaining = [];
+  const arriveMinutes = [];
   for (const j of list) {
     totalDistanceWalkedM += j.distanceWalkedM || 0;
     if (j.arrived) {
       completed++;
-      timeBuckets[navTimeBucket((Date.parse(j.arrivedAt) - Date.parse(j.startedAt)) / 60000)]++;
+      const minutes = (Date.parse(j.arrivedAt) - Date.parse(j.startedAt)) / 60000;
+      timeBuckets[navTimeBucket(minutes)]++;
+      if (Number.isFinite(minutes)) arriveMinutes.push(minutes);
     } else if (Number.isFinite(j.remainingM)) {
       remaining.push(j.remainingM);
     }
@@ -184,13 +187,35 @@ function summariseNavJourneys(journeys) {
     totalDistanceWalkedM,
     abandoned: list.length - completed,
     medianRemainingM,
+    medianArriveMinutes: median(arriveMinutes),
     medianDetourRatio: median(ratios),
     detourCount: ratios.length,
   };
 }
 
+// Daily trend rows: journeys grouped by the local calendar day of their start, oldest day first.
+// Only days that have journeys appear. Each row reuses summariseNavJourneys for its figures.
+function groupJourneysByDay(journeys) {
+  const byDay = new Map();
+  for (const j of journeys || []) {
+    const t = Date.parse(j && j.startedAt);
+    if (!Number.isFinite(t)) continue;
+    const d = new Date(t);
+    const day = `${String(d.getFullYear()).padStart(4, "0")}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    if (!byDay.has(day)) byDay.set(day, []);
+    byDay.get(day).push(j);
+  }
+  return [...byDay.keys()].sort().map((day) => {
+    const s = summariseNavJourneys(byDay.get(day));
+    return {
+      day, started: s.started, completed: s.completed, completionRate: s.completionRate,
+      timeBuckets: s.timeBuckets, medianDetourRatio: s.medianDetourRatio, detourCount: s.detourCount,
+    };
+  });
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
-    NAV_ARRIVAL_RADIUS_M, NAV_GAP_MS, haversineMetres, deriveNavJourneys, buildExplicitJourneys, combineNavJourneys, summariseNavJourneys, navTimeBucket,
+    NAV_ARRIVAL_RADIUS_M, NAV_GAP_MS, haversineMetres, deriveNavJourneys, buildExplicitJourneys, combineNavJourneys, summariseNavJourneys, navTimeBucket, groupJourneysByDay,
   };
 }

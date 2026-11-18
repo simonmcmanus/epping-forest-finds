@@ -192,7 +192,7 @@ let allData = { locations: [], clicks: [], navigation: [] };
 let lastMeta = null;
 let selectedUid = null; // null = show all users
 let selectedClickKey = null;
-let viewMode = "tracks"; // "tracks" | "heatmap"
+let viewMode = "tracks"; // "tracks" | "heatmap" (the Navigation view is a panel over the map, not a map mode)
 
 let adminMap = {
   loaded: false,
@@ -1167,6 +1167,7 @@ function buildUserList() {
   makeActivatable(allRow, () => { selectedUid = null; buildUserList(); render(); });
   list.appendChild(allRow);
   items.forEach((el) => list.appendChild(el));
+  refreshNavigationView();
 }
 
 function updateStats() {
@@ -1400,6 +1401,144 @@ function clearLegacyStoredPassword() {
   }
 }
 
+// ---- Navigation view (daily trend charts) ----
+
+// Journeys for the Navigation view: the same user filter and loaded (time-windowed) data as the stats block.
+function navigationJourneysForView() {
+  if (typeof deriveNavJourneys !== "function") return [];
+  const navEvents = (allData.navigation || []).filter((e) => !selectedUid || e.uid === selectedUid);
+  return combineNavJourneys(buildExplicitJourneys(navEvents), deriveNavJourneys(filteredLocations()));
+}
+
+const NAV_SVG_W = 420;
+const NAV_SVG_H = 200;
+const NAV_PLOT = { l: 34, r: 34, t: 10, b: 24 };
+
+function navChartFrame(rows) {
+  const p = NAV_PLOT;
+  const pw = NAV_SVG_W - p.l - p.r;
+  const ph = NAV_SVG_H - p.t - p.b;
+  const band = pw / rows.length;
+  const step = Math.ceil(rows.length / 6);
+  const xLabels = rows.map((r, i) => (i % step === 0
+    ? `<text x="${(p.l + band * (i + 0.5)).toFixed(1)}" y="${NAV_SVG_H - 8}" text-anchor="middle">${escapeHtml(r.day.slice(5))}</text>` : "")).join("");
+  return { p, pw, ph, band, xLabels, cx: (i) => p.l + band * (i + 0.5) };
+}
+
+function navLinePath(points) {
+  // points: [x, y] or null for a gap; returns one path per run plus dots.
+  let d = "";
+  let pen = false;
+  for (const pt of points) {
+    if (!pt) { pen = false; continue; }
+    d += `${pen ? "L" : "M"}${pt[0].toFixed(1)} ${pt[1].toFixed(1)}`;
+    pen = true;
+  }
+  return d;
+}
+
+function navTrendChartSvg(rows) {
+  const { p, ph, band, xLabels, cx } = navChartFrame(rows);
+  const max = Math.max(1, ...rows.map((r) => r.started));
+  const yCount = (v) => p.t + ph - (v / max) * ph;
+  const yRate = (v) => p.t + ph - v * ph;
+  const bw = Math.min(14, band * 0.35);
+  const bars = rows.map((r, i) => `<rect class="nav-bar-started" x="${(cx(i) - bw).toFixed(1)}" y="${yCount(r.started).toFixed(1)}" width="${bw.toFixed(1)}" height="${(p.t + ph - yCount(r.started)).toFixed(1)}"/>`
+    + `<rect class="nav-bar-completed" x="${cx(i).toFixed(1)}" y="${yCount(r.completed).toFixed(1)}" width="${bw.toFixed(1)}" height="${(p.t + ph - yCount(r.completed)).toFixed(1)}"/>`).join("");
+  const pts = rows.map((r, i) => (r.completionRate === null ? null : [cx(i), yRate(r.completionRate)]));
+  const dots = pts.filter(Boolean).map((pt) => `<circle class="nav-dot" cx="${pt[0].toFixed(1)}" cy="${pt[1].toFixed(1)}" r="2.5"/>`).join("");
+  const rightTicks = [0, 0.5, 1].map((v) => `<text x="${NAV_SVG_W - p.r + 4}" y="${(yRate(v) + 3).toFixed(1)}">${v * 100}%</text>`).join("");
+  const totalStarted = rows.reduce((a, r) => a + r.started, 0);
+  const totalCompleted = rows.reduce((a, r) => a + r.completed, 0);
+  const label = `Journeys started and completed per day, with completion rate, over ${rows.length} day${rows.length === 1 ? "" : "s"} from ${rows[0].day} to ${rows[rows.length - 1].day}: ${totalStarted} started, ${totalCompleted} completed.`;
+  return `<svg class="nav-chart" viewBox="0 0 ${NAV_SVG_W} ${NAV_SVG_H}" role="img" aria-label="${escapeHtml(label)}">`
+    + `<line class="nav-axis" x1="${p.l}" y1="${p.t + ph}" x2="${NAV_SVG_W - p.r}" y2="${p.t + ph}"/>`
+    + `<text x="${p.l - 4}" y="${p.t + 3}" text-anchor="end">${max}</text><text x="${p.l - 4}" y="${p.t + ph + 3}" text-anchor="end">0</text>`
+    + `${rightTicks}${bars}<path class="nav-line" d="${navLinePath(pts)}"/>${dots}${xLabels}</svg>`;
+}
+
+function navBucketChartSvg(rows) {
+  const { p, ph, band, xLabels, cx } = navChartFrame(rows);
+  const keys = ["lt5", "b5to15", "b15to30", "gt30"];
+  const total = (r) => keys.reduce((a, k) => a + r.timeBuckets[k], 0);
+  const max = Math.max(1, ...rows.map(total));
+  const bw = Math.min(28, band * 0.6);
+  const bars = rows.map((r, i) => {
+    let y = p.t + ph;
+    return keys.map((k) => {
+      const h = (r.timeBuckets[k] / max) * ph;
+      y -= h;
+      return h > 0 ? `<rect class="nav-bar-${k}" x="${(cx(i) - bw / 2).toFixed(1)}" y="${y.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}"/>` : "";
+    }).join("");
+  }).join("");
+  const sum = (k) => rows.reduce((a, r) => a + r.timeBuckets[k], 0);
+  const label = `Completed journeys per day by time to arrive, from ${rows[0].day} to ${rows[rows.length - 1].day}: under 5 minutes ${sum("lt5")}, 5 to 15 minutes ${sum("b5to15")}, 15 to 30 minutes ${sum("b15to30")}, over 30 minutes ${sum("gt30")}.`;
+  return `<svg class="nav-chart" viewBox="0 0 ${NAV_SVG_W} ${NAV_SVG_H}" role="img" aria-label="${escapeHtml(label)}">`
+    + `<line class="nav-axis" x1="${p.l}" y1="${p.t + ph}" x2="${NAV_SVG_W - p.r}" y2="${p.t + ph}"/>`
+    + `<text x="${p.l - 4}" y="${p.t + 3}" text-anchor="end">${max}</text><text x="${p.l - 4}" y="${p.t + ph + 3}" text-anchor="end">0</text>`
+    + `${bars}${xLabels}</svg>`;
+}
+
+function navDetourChartSvg(rows) {
+  const { p, ph, xLabels, cx } = navChartFrame(rows);
+  const vals = rows.map((r) => r.medianDetourRatio).filter((v) => v !== null);
+  const lo = Math.floor((Math.min(1, ...vals) - 0.1) * 10) / 10;
+  const hi = Math.ceil((Math.max(1, ...vals) + 0.1) * 10) / 10;
+  const y = (v) => p.t + ph - ((v - lo) / (hi - lo)) * ph;
+  const pts = rows.map((r, i) => (r.medianDetourRatio === null ? null : [cx(i), y(r.medianDetourRatio)]));
+  const dots = pts.filter(Boolean).map((pt) => `<circle class="nav-dot nav-dot-detour" cx="${pt[0].toFixed(1)}" cy="${pt[1].toFixed(1)}" r="2.5"/>`).join("");
+  const label = vals.length
+    ? `Median detour ratio per day, from ${rows[0].day} to ${rows[rows.length - 1].day}: lowest ${Math.min(...vals).toFixed(2)}, highest ${Math.max(...vals).toFixed(2)}, where 1.0 is the shortest route.`
+    : "Median detour ratio per day: no completed journeys with a detour ratio in this window.";
+  return `<svg class="nav-chart" viewBox="0 0 ${NAV_SVG_W} ${NAV_SVG_H}" role="img" aria-label="${escapeHtml(label)}">`
+    + `<line class="nav-axis" x1="${p.l}" y1="${p.t + ph}" x2="${NAV_SVG_W - p.r}" y2="${p.t + ph}"/>`
+    + `<text x="${p.l - 4}" y="${(y(hi) + 3).toFixed(1)}" text-anchor="end">${hi.toFixed(1)}</text><text x="${p.l - 4}" y="${(y(lo) + 3).toFixed(1)}" text-anchor="end">${lo.toFixed(1)}</text>`
+    + `<line class="nav-ref" x1="${p.l}" y1="${y(1).toFixed(1)}" x2="${NAV_SVG_W - p.r}" y2="${y(1).toFixed(1)}"/>`
+    + `<text x="${NAV_SVG_W - p.r}" y="${(y(1) - 3).toFixed(1)}" text-anchor="end">1.0 shortest route</text>`
+    + `<path class="nav-line nav-line-detour" d="${navLinePath(pts)}"/>${dots}${xLabels}</svg>`;
+}
+
+function navTable(caption, headers, bodyRows) {
+  return `<div class="nav-table-wrap"><table class="nav-trend-table"><caption class="sr-only">${escapeHtml(caption)}</caption>`
+    + `<thead><tr>${headers.map((h) => `<th scope="col">${escapeHtml(h)}</th>`).join("")}</tr></thead>`
+    + `<tbody>${bodyRows.map((r) => `<tr>${r.map((c, i) => (i === 0 ? `<th scope="row">${escapeHtml(c)}</th>` : `<td>${escapeHtml(c)}</td>`)).join("")}</tr>`).join("")}</tbody></table></div>`;
+}
+
+function navigationViewHtml() {
+  const journeys = navigationJourneysForView();
+  const head = `<h2>Navigation${selectedUid ? " (selected user)" : ""}</h2>`;
+  if (!journeys.length) return `${head}<p class="nav-empty">No navigation journeys in this window.</p>`;
+  const s = summariseNavJourneys(journeys);
+  const rows = groupJourneysByDay(journeys);
+  const pct = (v) => (v === null ? "n/a" : `${Math.round(v * 100)}%`);
+  const card = (label, value) => `<li class="nav-card"><span class="nav-card-label">${escapeHtml(label)}</span><span class="nav-card-value">${escapeHtml(value)}</span></li>`;
+  const cards = [
+    card("Started", String(s.started)),
+    card("Completed", String(s.completed)),
+    card("Completion rate", pct(s.completionRate)),
+    card("Median time to arrive", s.medianArriveMinutes === null ? "n/a" : `${s.medianArriveMinutes.toFixed(s.medianArriveMinutes % 1 ? 1 : 0)} min`),
+    card("Distance walked", `${(s.totalDistanceWalkedM / 1000).toFixed(2)} km`),
+    card("Median detour", s.medianDetourRatio === null ? "n/a" : `${s.medianDetourRatio.toFixed(2)}x`),
+    card("Journeys with a detour ratio", String(s.detourCount)),
+  ].join("");
+  const swatch = (cls, text, line) => `<li><span class="nav-swatch${line ? " nav-swatch-line" : ""} nav-bar-${cls}"></span>${text}</li>`;
+  const ratio = (v) => (v === null ? "n/a" : `${v.toFixed(2)}x`);
+  return `${head}<ul class="nav-cards">${cards}</ul>`
+    + `<h3>Started, completed and completion rate by day</h3>${navTrendChartSvg(rows)}`
+    + `<ul class="nav-legend">${swatch("started", "Started")}${swatch("completed", "Completed")}<li><span class="nav-swatch nav-swatch-line" style="background:var(--nav-rate)"></span>Completion rate (right axis, 0-100%)</li></ul>`
+    + navTable("Journeys by day", ["Day", "Started", "Completed", "Completion rate"], rows.map((r) => [r.day, String(r.started), String(r.completed), pct(r.completionRate)]))
+    + `<h3>Time to arrive by day</h3>${navBucketChartSvg(rows)}`
+    + `<ul class="nav-legend">${swatch("lt5", "Under 5 min")}${swatch("b5to15", "5-15 min")}${swatch("b15to30", "15-30 min")}${swatch("gt30", "Over 30 min")}</ul>`
+    + navTable("Completed journeys by time to arrive per day", ["Day", "Under 5 min", "5-15 min", "15-30 min", "Over 30 min"], rows.map((r) => [r.day, ...["lt5", "b5to15", "b15to30", "gt30"].map((k) => String(r.timeBuckets[k]))]))
+    + `<h3>Median detour ratio by day</h3>${navDetourChartSvg(rows)}`
+    + navTable("Median detour ratio per day", ["Day", "Median detour", "Journeys with a ratio"], rows.map((r) => [r.day, ratio(r.medianDetourRatio), String(r.detourCount)]));
+}
+
+function refreshNavigationView() {
+  const el = document.getElementById("adminNavigation");
+  if (el && !el.hidden) el.innerHTML = navigationViewHtml();
+}
+
 // ---- Boot ----
 
 async function adminBoot() {
@@ -1481,11 +1620,23 @@ async function adminBoot() {
   if (loginForm) loginForm.addEventListener("submit", (e) => { e.preventDefault(); doLogin(); });
   else loginBtn.addEventListener("click", doLogin);
 
-  heatmapBtn.addEventListener("click", () => {
-    viewMode = "heatmap";
-    heatmapBtn.classList.add("active");
-    tracksBtn.classList.remove("active");
+  const navigationBtn = document.getElementById("navigationBtn");
+  const navigationPanel = document.getElementById("adminNavigation");
+  function showMapView(mode) {
+    viewMode = mode;
+    navigationPanel.hidden = true;
+    navigationBtn.classList.remove("active");
+    heatmapBtn.classList.toggle("active", mode === "heatmap");
+    tracksBtn.classList.toggle("active", mode === "tracks");
     render();
+  }
+  heatmapBtn.addEventListener("click", () => showMapView("heatmap"));
+  navigationBtn.addEventListener("click", () => {
+    navigationPanel.hidden = false;
+    navigationBtn.classList.add("active");
+    heatmapBtn.classList.remove("active");
+    tracksBtn.classList.remove("active");
+    refreshNavigationView();
   });
 
   communityBtn.addEventListener("click", async () => {
@@ -1566,12 +1717,7 @@ async function adminBoot() {
   });
   document.getElementById("adminAccessClose").addEventListener("click", () => { accessPanel.hidden = true; });
 
-  tracksBtn.addEventListener("click", () => {
-    viewMode = "tracks";
-    tracksBtn.classList.add("active");
-    heatmapBtn.classList.remove("active");
-    render();
-  });
+  tracksBtn.addEventListener("click", () => showMapView("tracks"));
 
   refreshBtn.addEventListener("click", async () => {
     refreshBtn.disabled = true;

@@ -143,6 +143,53 @@ test.describe("Admin login", () => {
     await expect(stats).toHaveScreenshot("admin-navigation-stats.png");
   });
 
+  test("the Navigation view shows summary cards, a daily table and chart labels", async ({ page }) => {
+    await skipOnboarding(page);
+    const at = (iso) => Date.parse(iso);
+    // Same fictional single journey as the navigation block test: 12 minutes to arrive, walked 1.25x the route.
+    const packed = {
+      format: 2,
+      locations: { v: 2, type: "location", uids: [], targets: [], rows: [] },
+      clicks: { v: 2, type: "click", uids: [], rows: [] },
+      navigation: {
+        v: 2, type: "navigation", uids: ["walker-aaaa-1111"],
+        rows: [
+          [0, at("2026-10-20T10:00:00Z"), "nav-1", "Example Spot", "place", 51.5, 0.1, 51.49, 0.09, 1000, null, null, null, "start"],
+          [0, at("2026-10-20T10:12:00Z"), "nav-1", "Example Spot", "place", 51.5, 0.1, 51.5, 0.1, 1000, 1250, 0, null, "arrive"],
+          [0, at("2026-10-20T10:13:00Z"), "nav-1", "Example Spot", "place", 51.5, 0.1, 51.5, 0.1, 1000, 1250, 0, "arrived", "end"],
+        ],
+      },
+      meta: { ...TRACKS.meta },
+    };
+    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(packed) }));
+    await page.goto("/admin");
+    await page.getByLabel("Admin password").fill("secret");
+    await page.click("#loginBtn");
+
+    await page.getByRole("button", { name: "Navigation", exact: true }).click();
+    const view = page.locator("#adminNavigation");
+    await expect(view).toBeVisible();
+    const card = (label) => view.locator(".nav-card", { hasText: label });
+    await expect(card("Started")).toContainText("1");
+    await expect(card("Completed")).toContainText("1");
+    await expect(card("Completion rate")).toContainText("100%");
+    await expect(card("Median time to arrive")).toContainText("12 min");
+    await expect(card("Distance walked")).toContainText("1.25 km");
+    await expect(card("Median detour")).toContainText("1.25x");
+    await expect(card("Journeys with a detour")).toContainText("1");
+
+    const row = view.locator("table.nav-trend-table").first().locator("tbody tr");
+    await expect(row).toHaveCount(1);
+    await expect(row.first()).toContainText("2026-10-20");
+    await expect(row.first()).toContainText("100%");
+    const charts = view.locator("svg[role='img']");
+    await expect(charts).toHaveCount(3);
+    for (let i = 0; i < 3; i++) await expect(charts.nth(i)).toHaveAttribute("aria-label", /.+/);
+    await expect(charts.first()).toHaveAttribute("aria-label", /1 started.*1 completed/);
+    // No horizontal page scroll at the default viewport.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+
   test("the Community panel says which snapshot its figures come from", async ({ page }) => {
     await skipOnboarding(page);
     await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) }));
