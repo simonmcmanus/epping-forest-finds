@@ -1981,7 +1981,9 @@ function focusNearbyOnClusterGroup(cluster) {
   // moved in on it" instead of a single rushed zoom that happens to also be panning. See
   // alignHeadingUpNavigationViewport's stagePanThenZoom branch (js/app.js). Not the old
   // zoom-out/pan/zoom-in tour (three tweens, abandoned for reading as a yank away and back) --
-  // this is two. refreshNearbyRadiusView handles the nearest-tree rescan, the Nearby list, the
+  // this is two. In 3D tilt a group outside the tilted view, or too far to pan to, is not "already
+  // on screen": the first leg then pans out only as far as needed to show the old and new places
+  // together (capped, STAGED_WIDE_FRAMING_MIN_SCALE_RATIO), and the second zooms in on the group. refreshNearbyRadiusView handles the nearest-tree rescan, the Nearby list, the
   // anchor bar, and ensureOverviewTargetsVisible's own camera fit. Matches the nearby-origin
   // slide's own duration (started above, via startNearbyOriginTransition -- always
   // NEARBY_ORIGIN_TRANSITION_MS) so the camera's fly-to-cluster tween and the ring/pin reveal
