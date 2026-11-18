@@ -469,3 +469,54 @@ html, body {
   margin-right: 5px;
   vertical-align: middle;
 }
+
+/* --- Navigation view (trend charts) --- */
+
+.admin-nav-view {
+  --nav-started: #5b8de8;
+  --nav-completed: #2f6f4e;
+  --nav-rate: #e8a93c;
+  --nav-lt5: #4fc97e;
+  --nav-b5to15: #5b8de8;
+  --nav-b15to30: #e8a93c;
+  --nav-gt30: #e05f4f;
+  position: absolute;
+  inset: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 16px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+
+.admin-nav-view[hidden] { display: none; }
+.admin-nav-view h2 { margin: 0 0 12px; font-size: 1.1rem; }
+.admin-nav-view h3 { margin: 20px 0 6px; font-size: 0.95rem; }
+.nav-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
+.nav-card { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+.nav-card-label { display: block; color: var(--muted); font-size: 0.72rem; }
+.nav-card-value { display: block; font-size: 1.15rem; font-weight: 800; }
+.nav-chart { display: block; width: 100%; max-width: 520px; height: auto; background: #fff; border: 1px solid var(--line); border-radius: 8px; }
+.nav-chart text { font-size: 12px; fill: var(--muted); }
+.nav-chart .nav-axis { stroke: var(--line); stroke-width: 1; }
+.nav-chart .nav-ref { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 4 3; }
+.nav-bar-started { fill: var(--nav-started); }
+.nav-bar-completed { fill: var(--nav-completed); }
+.nav-bar-lt5 { fill: var(--nav-lt5); }
+.nav-bar-b5to15 { fill: var(--nav-b5to15); }
+.nav-bar-b15to30 { fill: var(--nav-b15to30); }
+.nav-bar-gt30 { fill: var(--nav-gt30); }
+.nav-line { fill: none; stroke: var(--nav-rate); stroke-width: 2; }
+.nav-dot { fill: var(--nav-rate); }
+.nav-line-detour { stroke: var(--nav-completed); }
+.nav-dot-detour { fill: var(--nav-completed); }
+.nav-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 6px 0 0; padding: 0; list-style: none; font-size: 0.75rem; }
+.nav-swatch { display: inline-block; width: 10px; height: 10px; margin-right: 4px; border-radius: 2px; }
+.nav-swatch-line { height: 3px; vertical-align: middle; }
+.nav-table-wrap { overflow-x: auto; margin-top: 8px; }
+.nav-trend-table { border-collapse: collapse; width: 100%; font-size: 0.75rem; }
+.nav-trend-table th, .nav-trend-table td { padding: 3px 6px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+.nav-trend-table th:first-child, .nav-trend-table td:first-child { text-align: left; }
+.nav-empty { margin: 0; }

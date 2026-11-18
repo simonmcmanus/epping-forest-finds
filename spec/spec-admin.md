@@ -94,6 +94,26 @@ Fixed to bottom-right of the canvas. Shows:
 - Total location pings
 - Total tap events
 - The active time window (e.g. "last 30 days"), omitted when the API returned the full history
+- A Navigation block (see Navigation journeys), shown only when at least one journey was derived
+
+## Navigation journeys
+
+The stats bar summarises walks to a navigation target. They are derived in the browser by `js/navigation-metrics.js` (pure functions, no DOM) from the same filtered location pings the rest of the bar uses, so selecting a user narrows them too. Nothing new is sent or stored.
+
+- Pings with non-finite coordinates are ignored. Pings are grouped by user and read in time order.
+- A journey starts at the first ping whose `navTarget` has finite target coordinates. It continues while later pings carry the same target (matched by id when present, otherwise by coordinates).
+- A journey ends when the target is cleared or changes, when the next ping is more than 3 minutes after the previous one (a later ping with a target then starts a new journey), on arrival, or when the data runs out.
+- Every location ping is a fresh fix, so arrival is the first journey ping, including the start ping, within 30 m of the target. The walk ends there.
+- After a journey arrives, further pings with the same target (same id, else same coordinates) do not start another journey: the walker lingering at the place is one journey. A new journey for that target needs the target to change or clear, or a gap of more than 3 minutes between pings.
+- Distance walked is the sum of straight-line distances between consecutive pings in the journey, skipping any pair more than 3 minutes apart. For a journey that did not arrive, the remaining distance is the distance from its last ping to the target.
+- Time to arrive is arrival time minus start time, bucketed as under 5 minutes, 5 up to (not including) 15, 15 to 30 inclusive, and over 30.
+- The block shows journeys started, arrived and the completion rate, the time buckets, total distance walked, and the abandoned count with the median remaining distance (n/a when none).
+
+**Explicit journeys.** The app also sends `navigation_start`, `navigation_arrive` and `navigation_end` events (see `POST /api/track`). `buildExplicitJourneys()` pairs them per user and `navId`: a start opens a journey; an arrive marks arrival; an end closes it (an end with `reason: "arrived"` also counts as arrival) and supplies the remaining distance; a newer start by the same user closes the previous journey as abandoned; arrive or end events with no open journey are ignored. Distance walked is the client's `walkedM`, taken from the arrive or end event.
+
+**Explicit wins over derived.** `combineNavJourneys()` uses every explicit journey, and keeps a journey derived from pings only when no explicit journey of the same user covers it. A derived journey is covered when its time span overlaps an explicit journey's start to end plus 3 minutes (the ping gap), so the same walk is never counted twice, while older data and users on older app versions still show their derived journeys.
+
+**Detour ratio.** For completed (arrived) journeys with both `routeM` (shortest walking route from the start fix) and `walkedM`, ratio = `walkedM / routeM`. The summary reports the median ratio and how many journeys had one (`medianDetourRatio` is null and `detourCount` 0 when none, and the Detour line is hidden). Derived journeys never have a ratio. With no navigation events the block behaves exactly as derived-only.
 
 ## Tap / Click Details
 
@@ -123,6 +143,18 @@ Click detail records can come from two sources:
 
 Admin suppresses duplicate derived navigation-click events when a matching explicit click exists for the same user/target near the same time.
 
+## Navigation view
+
+A **Navigation** tab in the top bar opens a dedicated view (`#adminNavigation`) that shows how navigation journeys trend over time. It uses the same loaded tracking data, the same user and time-window filters as the stats bar, and the same explicit-over-derived journey rule as the navigation block (see "Navigation journeys").
+
+- **Summary cards:** started, completed, completion rate, median time to arrive, total distance walked, median detour ratio, and the number of journeys that have a detour ratio.
+- **Started, completed and completion rate by day:** bars for started and completed journeys and a line for the completion rate on a 0–100% axis.
+- **Time to arrive by day:** stacked bars for the four buckets (under 5, 5–15, 15–30 and over 30 minutes), with a legend.
+- **Median detour by day:** a line per day with a dashed reference at 1.0, labelled "shortest route".
+- **Daily table:** the same figures as the charts as real HTML, so every chart has a text alternative. Each chart is an SVG with `role="img"` and an `aria-label` that summarises the trend.
+
+Days are grouped by the local calendar day on which each journey started, oldest first. A day with only abandoned journeys shows a completion rate of 0% and no median. Days without journeys are not drawn, and an empty window shows a plain sentence instead of empty axes. The charts draw on a 420-unit canvas capped at 520 px wide, so their labels keep a readable size on desktop; the dashboard is a desk tool, so the view is laid out for a desktop-width window.
+
 ## Data API
 
 ### `POST /api/track`
@@ -135,10 +167,15 @@ Location pings report the **raw GPS fix** (`state.rawUserLocation`), not `state.
 {
   "events": [
     { "type": "location", "uid": "...", "ts": "ISO8601", "lat": 51.65, "lng": 0.04, "heading": 180, "navTarget": { "id": "T123", "name": "Oak", "type": "tree", "targetLat": 51.66, "targetLng": 0.05 } },
-    { "type": "click",    "uid": "...", "ts": "ISO8601", "userLat": 51.65, "userLng": 0.04, "targetLat": 51.66, "targetLng": 0.05, "itemType": "tree", "itemId": "T123", "itemName": "Oak", "source": "map" }
+    { "type": "click",    "uid": "...", "ts": "ISO8601", "userLat": 51.65, "userLng": 0.04, "targetLat": 51.66, "targetLng": 0.05, "itemType": "tree", "itemId": "T123", "itemName": "Oak", "source": "map" },
+    { "type": "navigation_start", "uid": "...", "ts": "ISO8601", "navId": "T123", "navName": "Oak", "navType": "tree", "targetLat": 51.66, "targetLng": 0.05, "userLat": 51.65, "userLng": 0.04, "routeM": 1200 },
+    { "type": "navigation_arrive", "uid": "...", "ts": "ISO8601", "navId": "T123", "targetLat": 51.66, "targetLng": 0.05, "userLat": 51.66, "userLng": 0.05, "walkedM": 1500 },
+    { "type": "navigation_end", "uid": "...", "ts": "ISO8601", "navId": "T123", "reason": "arrived", "userLat": 51.66, "userLng": 0.05, "remainingM": 10, "walkedM": 1500 }
   ]
 }
 ```
+
+**Navigation events.** `navigation_start` (a route begins), `navigation_arrive` (the user reaches the target) and `navigation_end` (the route is over, `reason` being `arrived`, `cleared`, `changed` or another short string, at most 30 characters). `routeM` is the shortest walking route from the start fix to the target, `walkedM` the metres walked so far (summed by the client), `remainingM` the metres from the last fix to the target; each is a number of metres or `null` when unknown. A start or arrive without valid target coordinates, and any navigation event without a valid `uid` or `ts`, is dropped; a distance that is negative, not finite or over 1,000,000 m becomes `null`. Events with the same timestamp are read in a fixed order, arrive then end then start, so an end that replaces a journey is never read after the next journey's start. Other fields follow the same rules as the other events.
 
 **Response:** `{ "ok": true, "received": <count>, "stored": <count> }`
 
@@ -152,7 +189,7 @@ Returns stored events from a recent time window. Requires the Bearer header (see
 **Query params:**
 - `days` — size of the window in days. Defaults to **30**. `days=all` reads back to the retention period (a year by default). With `TRACKING_RETENTION_DAYS=0` nothing is deleted, but `days=all` still reads back only a year, so one dashboard request stays bounded.
 
-**Response:** events are packed to fit about six times as many into the response — one table of uids (and of navigation targets) and one short array per event. `js/admin.js` `unpackTrackingEvents()` turns them back into the event objects above; a plain array of events (an older server, a test fixture) is used as it is.
+**Response:** events are packed to fit about six times as many into the response — one table of uids (and of navigation targets) and one short array per event. `js/admin.js` `unpackTrackingEvents()` turns them back into the event objects above (the `navigation` table too); a plain array of events (an older server, a test fixture) is used as it is.
 ```json
 {
   "format": 2,
@@ -160,10 +197,12 @@ Returns stored events from a recent time window. Requires the Bearer header (see
                  "rows": [[0, 1761562800000, 51.65, 0.04, 180, 0]] },
   "clicks":    { "v": 2, "type": "click", "uids": ["..."],
                  "rows": [[0, 1761562800000, 51.65, 0.04, 51.66, 0.05, "tree", "T123", "Oak", "map"]] },
+  "navigation": { "v": 2, "type": "navigation", "uids": ["..."],
+                  "rows": [[0, 1761562800000, "T123", "Oak", "tree", 51.66, 0.05, 51.65, 0.04, 1200, null, null, null, "start"]] },
   "meta": { "storeName": "...", "context": "...", "windowDays": 30 }
 }
 ```
-A location row is `[uid index, time ms, lat, lng, heading, target index or -1]`; a click row is `[uid index, time ms, userLat, userLng, targetLat, targetLng, itemType, itemId, itemName, source]`.
+A navigation row is `[uid index, time ms, navId, navName, navType, targetLat, targetLng, userLat, userLng, routeM, walkedM, remainingM, reason, kind]`, where `kind` is `start`, `arrive` or `end` (the event type is `navigation_<kind>`). A location row is `[uid index, time ms, lat, lng, heading, target index or -1]`; a click row is `[uid index, time ms, userLat, userLng, targetLat, targetLng, itemType, itemId, itemName, source]`.
 
 The read goes newest day first, three days at a time, and stops when the window ends, after about 7 seconds, or at about 4.5 MB of packed events (Netlify refuses a function response over 6 MB). When it stops early it returns what it has, newest first, with `meta.partial: true`, `meta.oldestDay` (the earliest day it reached) and `meta.oldestDayIncomplete` (true when it stopped inside that day, by time or size, so only that day's newest events are included); the stats bar then says "partial … (back to <day>)", adding ", that day only in part" when it is incomplete. On a busy deployment a 30-day request can therefore show fewer than 30 days. If the full-window request still fails with a 5xx, the dashboard retries with `days=7`, then `days=1`, and shows the window it ended up with; if every attempt fails the login error includes the server's status and message. `meta.windowDays` is `null` when `days=all` was requested. The admin stats bar shows the active window (e.g. "last 30 days") next to the event counts.
 
@@ -198,6 +237,7 @@ Users cannot switch environments: the store used is determined entirely by the N
 Path: `data/tracking/` (gitignored), or `TRACKING_DIR` when set (the local-server test points it at a scratch directory)
 - `location.ndjson` — one location event per line
 - `click.ndjson` — one click event per line
+- `navigation.ndjson` — one navigation event (start, arrive or end) per line
 
 Created automatically on first write.
 
@@ -206,8 +246,8 @@ The store is laid out by day (`netlify/functions/lib/tracking-store.js`), so a r
 
 | Key | Holds |
 |---|---|
-| `raw/<location\|click>/<YYYY-MM-DD>/<ms>_<random>.json` | One POSTed batch, filed under its events' own UTC day (a batch that spans midnight, or an offline queue sent days later, becomes one blob per day). Separate blobs, so concurrent writes never conflict. |
-| `daily/<location\|click>/<YYYY-MM-DD>.json` | That day's events, packed (same format as the admin response). |
+| `raw/<location\|click\|navigation>/<YYYY-MM-DD>/<ms>_<random>.json` | One POSTed batch, filed under its events' own UTC day (a batch that spans midnight, or an offline queue sent days later, becomes one blob per day). Separate blobs, so concurrent writes never conflict. |
+| `daily/<location\|click\|navigation>/<YYYY-MM-DD>.json` | That day's events, packed (same format as the admin response). The `navigation` type holds all three navigation event kinds; events are de-duplicated on merge by type, user, time and `navId`, so a start, arrive and end at the same instant stay separate. |
 | `track-rate/<0–63>` | Per-IP request counters for the current hour. |
 | `location/<ms>_<random>.json`, `click/…` | The old flat layout (one blob per POST, forever). No longer written; migrated (below). |
 

@@ -220,6 +220,7 @@ function _getNavTarget() {
 // --- Location tracking ---
 
 let _trackerInterval = null;
+let _trackerNavInterval = null;
 const TRACKER_LOCATION_INTERVAL_MS = 60_000;
 // A ping repeats the last GPS fix, so a fix that has stopped arriving (the watch was cleared, or the
 // device stopped reporting) must not be repeated as though the walker were still there. A fix older
@@ -251,8 +252,164 @@ function trackedLocation() {
   return fix;
 }
 
+// --- Navigation journeys ---
+//
+// A journey is the time the selected place (state.selected, via _getNavTarget) stays the same.
+// navigation_start fires when a place with coordinates is chosen, navigation_arrive once when a
+// fresh fix first lands within TRACKER_ARRIVE_METRES of it, and navigation_end when the place is
+// cleared or replaced. Arriving does not close the journey. Everything goes through
+// trackerSendEvent, so nothing is queued without consent. The check is a no-op while no place is
+// selected and no journey is open.
+
+const TRACKER_NAV_INTERVAL_MS = 5_000;
+const TRACKER_ARRIVE_METRES = 30;
+// Steps between two fixes more than this far apart in time are not counted as walked (the app was
+// closed or the signal lost, and the straight line between them is not a walk).
+const TRACKER_WALK_MAX_GAP_MS = 3 * 60 * 1000;
+
+let _trackerJourney = null;
+
+function trackerHaversineMetres(lat1, lng1, lat2, lng2) {
+  const toRad = Math.PI / 180;
+  const dLat = (lat2 - lat1) * toRad;
+  const dLng = (lng2 - lng1) * toRad;
+  const a = Math.sin(dLat / 2) ** 2
+    + Math.cos(lat1 * toRad) * Math.cos(lat2 * toRad) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
+function trackerRoundedMetres(value) {
+  return Number.isFinite(value) ? Math.round(value) : null;
+}
+
+// Every event of a journey carries the same non-null id: the place's own id, else its coordinates.
+function trackerNavId(target) {
+  if (target.id !== null && target.id !== undefined && target.id !== "") return String(target.id);
+  return `ll:${target.targetLat.toFixed(5)},${target.targetLng.toFixed(5)}`;
+}
+
+function trackerCurrentNavTarget() {
+  const target = _getNavTarget();
+  if (!target || target.targetLat == null || target.targetLng == null) return null;
+  return target;
+}
+
+// Length of the routed walk from the fix to the target when the routing graph is ready, else null.
+// Called once per journey, at the start; any failure is null rather than an error.
+function trackerRoutedMetres(fix, target) {
+  try {
+    if (!fix || typeof state === "undefined" || !state.routingGraphReady || !state.routingGraph) return null;
+    if (typeof findRoutePoints !== "function" || typeof projectLonLat !== "function"
+      || typeof unprojectPoint !== "function" || typeof distanceMetres !== "function") return null;
+    const points = findRoutePoints(
+      state.routingGraph,
+      projectLonLat(fix.longitude, fix.latitude),
+      projectLonLat(target.targetLng, target.targetLat),
+      { toLatLon: unprojectPoint, distanceMetresFn: distanceMetres },
+    );
+    if (!Array.isArray(points) || points.length < 2) return null;
+    let total = 0;
+    for (let i = 1; i < points.length; i += 1) {
+      const a = unprojectPoint(points[i - 1]);
+      const b = unprojectPoint(points[i]);
+      total += distanceMetres(a.latitude, a.longitude, b.latitude, b.longitude);
+    }
+    return Number.isFinite(total) ? trackerRoundedMetres(total) : null;
+  } catch {
+    return null;
+  }
+}
+
+function trackerEndJourney(reason) {
+  const journey = _trackerJourney;
+  _trackerJourney = null;
+  if (!journey) return;
+  const fix = journey.lastFix;
+  trackerSendEvent({
+    type: "navigation_end",
+    ts: new Date().toISOString(),
+    navId: journey.navId,
+    reason: journey.arrived && reason !== "arrived" ? "arrived" : reason,
+    userLat: fix ? fix.latitude : null,
+    userLng: fix ? fix.longitude : null,
+    remainingM: fix ? trackerRoundedMetres(trackerHaversineMetres(
+      fix.latitude, fix.longitude, journey.targetLat, journey.targetLng)) : null,
+    walkedM: trackerRoundedMetres(journey.walkedM),
+  });
+}
+
+function trackerStartJourney(target, fix) {
+  const navId = trackerNavId(target);
+  _trackerJourney = {
+    navId,
+    key: `${navId}|${target.targetLat}|${target.targetLng}`,
+    targetLat: target.targetLat,
+    targetLng: target.targetLng,
+    walkedM: 0,
+    arrived: false,
+    lastFix: fix,
+  };
+  trackerSendEvent({
+    type: "navigation_start",
+    ts: new Date().toISOString(),
+    navId,
+    navName: target.name,
+    navType: target.type,
+    targetLat: target.targetLat,
+    targetLng: target.targetLng,
+    userLat: fix ? fix.latitude : null,
+    userLng: fix ? fix.longitude : null,
+    routeM: trackerRoutedMetres(fix, target),
+  });
+}
+
+function trackerNavigationTick() {
+  // No consent, no journey state: a later consent must not produce an arrive or end without a start.
+  if (!hasTrackingConsent()) return;
+  const target = trackerCurrentNavTarget();
+  if (!target && !_trackerJourney) return;
+  const fix = trackedLocation();
+
+  if (_trackerJourney && (!target || _trackerJourney.key !== `${trackerNavId(target)}|${target.targetLat}|${target.targetLng}`)) {
+    trackerEndJourney(target ? "changed" : "cleared");
+  }
+  if (target && !_trackerJourney) {
+    trackerStartJourney(target, fix);
+    return;
+  }
+  const journey = _trackerJourney;
+  if (!journey || !fix) return;
+
+  const previous = journey.lastFix;
+  // The walk ends at arrival: jitter while standing at the place adds nothing.
+  if (!journey.arrived && previous && fix.receivedAt !== previous.receivedAt) {
+    if (fix.receivedAt - previous.receivedAt <= TRACKER_WALK_MAX_GAP_MS) {
+      journey.walkedM += trackerHaversineMetres(
+        previous.latitude, previous.longitude, fix.latitude, fix.longitude);
+    }
+  }
+  journey.lastFix = fix;
+
+  if (!journey.arrived
+    && trackerHaversineMetres(fix.latitude, fix.longitude, journey.targetLat, journey.targetLng)
+      <= TRACKER_ARRIVE_METRES) {
+    journey.arrived = true;
+    trackerSendEvent({
+      type: "navigation_arrive",
+      ts: new Date().toISOString(),
+      navId: journey.navId,
+      targetLat: journey.targetLat,
+      targetLng: journey.targetLng,
+      userLat: fix.latitude,
+      userLng: fix.longitude,
+      walkedM: trackerRoundedMetres(journey.walkedM),
+    });
+  }
+}
+
 function startLocationTracking() {
   if (_trackerInterval) return;
+  _trackerNavInterval = setInterval(trackerNavigationTick, TRACKER_NAV_INTERVAL_MS);
   const initial = trackedLocation();
   if (initial) {
     trackLocation(initial.latitude, initial.longitude,
@@ -267,8 +424,11 @@ function startLocationTracking() {
 }
 
 function stopLocationTracking() {
+  // The open journey is kept: the app backgrounding must not split one walk into two journeys.
   clearInterval(_trackerInterval);
+  clearInterval(_trackerNavInterval);
   _trackerInterval = null;
+  _trackerNavInterval = null;
 }
 
 // --- Click / selection tracking ---

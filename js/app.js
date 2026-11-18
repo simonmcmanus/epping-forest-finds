@@ -98,7 +98,8 @@ const TILT_HORIZON_REFERENCE_TAN = Math.tan(TILT_ROTATEX_MAX * Math.PI / 180);
 // redraw for (see tiltRenderStale). Small enough that no drift is visible, large enough that
 // sensor noise on a phone held still doesn't repaint the map every frame.
 const TILT_RENDER_STALE_DEG = 0.05;
-const TILT_NEAR_PLANE_RATIO = 0.98; // fraction of the camera distance the near clip sits at — see tiltProjectOffsets
+const TILT_BEHIND_MAX_SCALE = 3;   // ceiling on the perspective magnification of anything behind the camera -- see tiltDepthScale
+const TILT_BEHIND_KNEE_RATIO = 0.5; // share of that ceiling's depth where the true curve starts easing onto it
 // Perspective scale below which ground is deep enough into the horizon haze to be
 // invisible, and so not worth drawing. Bounds how much world the draw loop walks in 3D
 // ("to the horizon" must not mean "every road in the dataset"). The clip lands this
@@ -1740,9 +1741,8 @@ function headingUpTiltedOffset(w) {
   if (!cam) return w;
   const dxCss = w.x / cam.dpr;
   const dyCss = w.y / cam.dpr;
-  const dy = dyCss > cam.dyMax ? cam.dyMax : dyCss;
-  const scale = cam.perspectivePx / (cam.perspectivePx - dy * cam.sin);
-  return { x: dxCss * scale * cam.dpr, y: dy * cam.cos * scale * cam.dpr };
+  const scale = tiltDepthScale(dyCss, cam.sin, cam.perspectivePx);
+  return { x: dxCss * scale * cam.dpr, y: dyCss * cam.cos * scale * cam.dpr };
 }
 
 // The offset, in canvas px, from the camera origin to a world point under `viewport`, after the heading-up
@@ -5412,7 +5412,7 @@ function maxScaleForHeadingUpPoints(points, focus, focusRect, options = {}) {
       // Behind the pivot the projection magnifies rather than compresses (the point is
       // closer to the camera), so this is the same bottom-edge inequality with a
       // denominator that grows with depth -- always bounded, and never anywhere near the
-      // near-plane singularity tiltProjectOffsets clips at.
+      // magnification ceiling tiltDepthScale eases onto.
       const availableBelow = bottom - focus.y - behindBuffer;
       maxScale = Math.min(maxScale, availableBelow / (rotatedY * (tiltCos + availableBelow * k)));
       // Deliberately falls through to the horizontal constraint below rather than
@@ -7686,9 +7686,8 @@ function screenToWorld(x, y) {
         ? -farClip * c * (perspective / (perspective + farClip * s))
         : -Infinity;
       const y_clamped = Math.max(y_rel, yRelMin);
-      const dy = y_clamped * perspective / (c * perspective + y_clamped * s);
-      const dz = dy * s;
-      const scale = perspective / (perspective - dz);
+      const dy = tiltUnprojectDy(y_clamped, s, c, perspective);
+      const scale = tiltDepthScale(dy, s, perspective);
       const dx = x_rel / scale;
 
       // Convert back to screen pixels, accounting for the un-projected values
