@@ -238,8 +238,9 @@ test("a GPS fix mid-move then Settings opening before the move lands leaves the 
     ensureOverviewTargetsVisible({ animate: true, durationMs: 1200, force: true });
   }, target);
   await waitForFrames(page, 8);
+  const fixBefore = await page.evaluate(() => state.userLocation.latitude);
   await context.setGeolocation({ latitude: FOREST_LOCATION.latitude + 0.0004, longitude: FOREST_LOCATION.longitude, accuracy: 10 });
-  await waitForFrames(page, 3);
+  await page.waitForFunction((was) => state.userLocation.latitude !== was, fixBefore, { polling: "raf" });
   await page.evaluate(() => { state.selected = { type: "settings" }; });
   await waitForCameraStill(page);
   const landed = await view(page);
