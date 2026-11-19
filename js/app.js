@@ -2431,6 +2431,7 @@ function applyFeatureGates() {
 
 function openCommunity() {
   if (typeof trackGaScreenView === "function") trackGaScreenView("Community");
+  const secondaryScreenEntry = captureSecondaryScreenEntry();
   exitClusterExpansion();
   state.selected = { type: "community", item: null };
   setInspectorSelectionChrome({ emoji: appIconHtml("tree", "app-icon title-icon"), showBack: true, preserveNavHighlight: true });
@@ -2441,6 +2442,7 @@ function openCommunity() {
   transitionInspectorBody(communityScreenHtml(), "forward");
   communityOpenContributions();
   setInspectorMinimized(false);
+  refitSecondaryScreenAfterSelection(secondaryScreenEntry);
   updateCompassOverlay();
   syncHashFromSelection();
   requestDraw();

@@ -3013,6 +3013,44 @@ function nearbyRetap() {
   refitNearbyRingView();
 }
 
+// Secondary screens keep the current map context when entered from Nearby, but a utility screen
+// opened from a real place selection should not inherit that destination's tight camera. Capture the
+// basis before the opener replaces state.selected, then refit once after the new screen is in place.
+// The single refit is deliberately separate from transitionInspectorBody: replacing the panel is a
+// DOM transition, while this is the one camera transition the user should see.
+function captureSecondaryScreenEntry() {
+  const entry = {
+    fromRealSelection: hasRealSelection(),
+    wasMinimized: els.inspector.classList.contains("minimized"),
+  };
+  if (entry.fromRealSelection && typeof startCameraOriginTransition === "function") {
+    startCameraOriginTransition();
+  }
+  return entry;
+}
+
+function refitSecondaryScreenAfterSelection(entry) {
+  if (!entry?.fromRealSelection) return;
+  const refit = () => {
+    if (state.userLocation) {
+      ensureOverviewTargetsVisible({
+        animate: true,
+        force: true,
+        deliberate: true,
+        durationMs: OVERVIEW_REFIT_ANIMATION_MS,
+      });
+    } else {
+      fitToBounds(false, {
+        animate: true,
+        deliberate: true,
+        durationMs: OVERVIEW_REFIT_ANIMATION_MS,
+      });
+    }
+  };
+  if (entry.wasMinimized) onInspectorHeightTransitionEnd(refit);
+  else refit();
+}
+
 // Leaves whatever is selected for the Nearby view: captures the camera pivot before the basis
 // flips (startCameraOriginTransition, js/app.js), abandons the selection handoff immediately so
 // its stale camera-settle callback (zoomToSelection's pending timer) cannot start a second move

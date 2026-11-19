@@ -1,6 +1,6 @@
 // @ts-check
 const { test, expect } = require("@playwright/test");
-const { skipOnboarding, mockCowApi, gotoAndWaitForMap, waitForUiToSettle } = require("./helpers");
+const { skipOnboarding, mockCowApi, gotoAndWaitForMap, waitForUiToSettle, FIXTURE_TREE } = require("./helpers");
 
 const FOREST_LOCATION = { latitude: 51.6650, longitude: 0.0450, accuracy: 10 };
 
@@ -58,6 +58,25 @@ test.describe("Secondary screens preserve a consistent map view", () => {
     expect(Math.abs(during.scale - before.scale)).toBeLessThan(0.5);
     expect(Math.abs(during.tx - before.tx)).toBeLessThan(0.5);
     expect(Math.abs(during.ty - before.ty)).toBeLessThan(0.5);
+  });
+
+  test("leaving a selected place for Settings fits the secondary-screen overview targets", async ({ page }) => {
+    await gotoAndWaitForMap(page, `/nearby#tree=${FIXTURE_TREE.hashKey}`);
+    await page.waitForFunction(() => state.selected?.type === "tree");
+    await waitForUiToSettle(page);
+
+    await page.click("#settingsToggle");
+    await expect(page.locator("#settingsWalkMins")).toBeVisible();
+    await waitForUiToSettle(page);
+    const settingsFit = await page.evaluate(() => {
+      const rect = bestVisibleCanvasRect();
+      return nearbyCameraFitPoints().every((point) => {
+        const screen = worldToScreen(point);
+        return screen.x >= rect.x && screen.x <= rect.x + rect.width
+          && screen.y >= rect.y && screen.y <= rect.y + rect.height;
+      });
+    });
+    expect(settingsFit, "the secondary-screen overview targets fit in the visible map").toBe(true);
   });
 
   test("resizing the walking radius from Settings re-derives highlighted locations", async ({ page }) => {

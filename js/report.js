@@ -7,6 +7,7 @@
 function openReportModal() {
   if (typeof dismissOnboarding === "function") dismissOnboarding();
   if (typeof trackGaScreenView === "function") trackGaScreenView("Report");
+  const secondaryScreenEntry = captureSecondaryScreenEntry();
   // See the matching comment in openFiltersScreen.
   exitClusterExpansion();
   state.selected = { type: "report", item: null };
@@ -27,6 +28,7 @@ function openReportModal() {
   setReportStatus("");
   updateReportLocationLabel();
   setInspectorMinimized(false);
+  refitSecondaryScreenAfterSelection(secondaryScreenEntry);
   updateCompassOverlay();
   syncHashFromSelection();
   requestDraw();

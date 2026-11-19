@@ -7,6 +7,7 @@
 function openSettings() {
   if (typeof dismissOnboarding === "function") dismissOnboarding();
   if (typeof trackGaScreenView === "function") trackGaScreenView("Settings");
+  const secondaryScreenEntry = captureSecondaryScreenEntry();
   // Without this the walk-radius slider here showed the tapped group's borrowed radius as if it
   // were the user's own setting.
   exitClusterExpansion();
@@ -21,6 +22,7 @@ function openSettings() {
   fillTesterId();
   fillSettingsAccount();
   setInspectorMinimized(false);
+  refitSecondaryScreenAfterSelection(secondaryScreenEntry);
   updateCompassOverlay();
   syncHashFromSelection();
   requestDraw();
