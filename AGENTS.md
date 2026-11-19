@@ -2,9 +2,10 @@ spec/agents.md
 
 ## Pull request workflow
 
-Every implementation change must be committed to a dedicated branch, pushed, and opened as a pull
-request (or added to the existing pull request for that branch) before the work is reported as
-complete. The pull request is the review and preview handoff.
+Every implementation change must be committed to a dedicated branch, pushed, and opened as a draft pull
+request early (or added to the existing pull request for that branch) before the work is reported as
+complete. The pull request is the review and preview handoff. It is marked ready for review only after the
+/team gate is satisfied.
 
 After every push to a pull-request branch:
 

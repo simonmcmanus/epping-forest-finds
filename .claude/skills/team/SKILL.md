@@ -1,6 +1,6 @@
 ---
 name: team
-description: "REQUIRED first step for ANY change to the Epping Forest Finds app or website: app code (js/, css/, app.html, sw.js), marketing pages (index.html, assets/home/), icons, tests, specs or place data. Use before editing any file for such a change, including small fixes and copy tweaks. Runs the lead playbook: plans the batch, dispatches scoped implementer/data-curator agents, selects risk reviewers, verifies, and opens one PR. Skip only for questions with no file edits."
+description: "REQUIRED first step for ANY change to the Epping Forest Finds app or website: app code (js/, css/, app.html, sw.js), marketing pages (index.html, assets/home/), icons, tests, specs or place data. Use before editing any file for such a change, including small fixes and copy tweaks. Runs the lead playbook: plans the batch, dispatches scoped implementer/data-curator agents, selects risk reviewers, verifies, and opens one draft PR, marked ready once the /team gate passes. Skip only for questions with no file edits."
 ---
 
 The lead dispatches; subagents do not spawn agents. Read `docs/agents/review-contract.md` for the
@@ -91,11 +91,12 @@ failures pre-existing; a passing retry proves only intermittency. Preserve first
 
 ## 5. One push and PR per reviewed batch
 
-Only after the aggregate clean head has no open blockers/majors, required verification is complete
-and applicable local checks pass, push from the lead and open one PR by default. Do not push partial
-items just to get CI. Include one consolidated verification report and representative preview flow.
-Every later repair round follows the same gates and is batched into one push; CI must still finish
-on its exact current head. Never rebase, amend, force-push, approve or merge the PR.
+Once the batch is implemented and applicable local checks pass, push from the lead and open one
+draft PR by default so the preview deploys. Do not push partial items just to get CI. Keep pushing
+repairs to that draft (each round batched into one push). Mark it ready for review only after the
+aggregate clean head has no open blockers/majors and required verification is complete; never
+leave it ready while the gate is open. Include one consolidated verification report and
+representative preview flow. CI must still finish on its exact current head. Never rebase, amend, force-push, approve or merge the PR.
 
 Keep the lightweight GitHub PR reviewer as an independent final-head correctness/security/evidence
 check. It does not repeat local specialist fan-out or replace human approval.
