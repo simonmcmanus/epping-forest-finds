@@ -5840,6 +5840,8 @@ function deferAnimatedNearbyRefit(options) {
     }
     const next = pendingNearbyRefitOptions;
     pendingNearbyRefitOptions = null;
+    // A queued GPS follow holds still under a secondary screen, as a plain fix does.
+    if (next.queuedGpsFollow && (secondaryScreenActive() || state.searchScreenOpen)) return;
     alignHeadingUpNavigationViewport(next);
   };
   pendingNearbyRefitFrame = requestAnimationFrame(retry);
@@ -5921,7 +5923,7 @@ function alignHeadingUpNavigationViewport(options = {}) {
     if (options.animate) deferAnimatedNearbyRefit(options);
     // A GPS fix landing mid-move must not restart or snap the move, but the framing it asks for is
     // not dropped either: once the move has landed, one short ease carries the camera onto the fix.
-    else if (options.gpsFollow && !pendingNearbyRefitOptions) deferAnimatedNearbyRefit({ animate: true, durationMs: 300 });
+    else if (options.gpsFollow && !pendingNearbyRefitOptions) deferAnimatedNearbyRefit({ animate: true, durationMs: 300, queuedGpsFollow: true });
     return false;
   }
   if (state.clusterZoomed) return false;

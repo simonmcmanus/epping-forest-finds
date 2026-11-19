@@ -224,3 +224,44 @@ test("a GPS fix arriving mid-move neither restarts nor snaps the move, and the c
   }
   expectSame(await view(page), await directFraming(page), "lands on the framing reached without the interruption");
 });
+
+test("a GPS fix mid-move then Settings opening before the move lands leaves the map still under Settings", async ({ page, context }) => {
+  await setup(page, "/nearby");
+  await enter3d(page, { heading: 20 });
+  await page.evaluate(() => { state.headingUpEverEntered = true; });
+  await waitForUiToSettle(page);
+  const target = await directFraming(page);
+  await page.evaluate((t) => {
+    state.viewport.scale = t.scale * 0.6;
+    state.viewport.tx = t.tx + 120;
+    state.viewport.ty = t.ty + 90;
+    ensureOverviewTargetsVisible({ animate: true, durationMs: 1200, force: true });
+  }, target);
+  await waitForFrames(page, 8);
+  await context.setGeolocation({ latitude: FOREST_LOCATION.latitude + 0.0004, longitude: FOREST_LOCATION.longitude, accuracy: 10 });
+  await waitForFrames(page, 3);
+  await page.evaluate(() => { state.selected = { type: "settings" }; });
+  await waitForCameraStill(page);
+  const landed = await view(page);
+  await startTrace(page);
+  await waitForFrames(page, 40);
+  const { moves } = await stopTrace(page);
+  expect(moves, "no follow-up move under Settings").toBe(0);
+  expectSame(await view(page), landed, "map holds under Settings");
+  expectSame(landed, target, "the first move still landed on its own target");
+});
+
+test("resizing while Report is open leaves the camera still", async ({ page }) => {
+  await setup(page, "/nearby");
+  await enter3d(page, { heading: 20 });
+  await page.click("#reportToggle");
+  await waitForUiToSettle(page);
+  await waitForCameraStill(page);
+  const before = await view(page);
+  await startTrace(page);
+  await page.setViewportSize({ width: 1000, height: 640 });
+  await waitForFrames(page, 20);
+  const { moves } = await stopTrace(page);
+  expect(moves, "no move").toBe(0);
+  expectSame(await view(page), before, "camera holds under Report");
+});

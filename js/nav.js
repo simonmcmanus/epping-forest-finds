@@ -1140,7 +1140,8 @@ function setupResizeHandler() {
       if (typeof headingUpActive === "function" && headingUpActive()) {
         // A resize changes the room the fit solves against, so it refits outright: the compass
         // follow's hold band would keep the old scale, and the fit is never animated.
-        alignHeadingUpNavigationViewport({ force: true, animate: false });
+        // A secondary screen holds the camera, so there it keeps the plain (guarded) call.
+        alignHeadingUpNavigationViewport(secondaryScreenActive() ? {} : { force: true, animate: false });
       } else if (state.userLocation && selectedCompassTarget()) {
         ensureUserAndSelectionVisible({ animate: true, durationMs: 360 });
       } else if (state.userLocation && (isOverviewScreenActive() || secondaryScreenActive())) {
