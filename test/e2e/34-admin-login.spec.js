@@ -173,10 +173,10 @@ test.describe("Admin login", () => {
     await expect(card("Started")).toContainText("1");
     await expect(card("Completed")).toContainText("1");
     await expect(card("Completion rate")).toContainText("100%");
-    await expect(card("Median time to arrive")).toContainText("12 min");
+    await expect(card("Median time")).toContainText("12 min");
     await expect(card("Distance walked")).toContainText("1.25 km");
     await expect(card("Median detour")).toContainText("1.25x");
-    await expect(card("Journeys with a detour")).toContainText("1");
+    await expect(card("With detour")).toContainText("1");
 
     const row = view.locator("table.nav-trend-table").first().locator("tbody tr");
     await expect(row).toHaveCount(1);
@@ -187,6 +187,76 @@ test.describe("Admin login", () => {
     for (let i = 0; i < 3; i++) await expect(charts.nth(i)).toHaveAttribute("aria-label", /.+/);
     await expect(charts.first()).toHaveAttribute("aria-label", /1 started.*1 completed/);
     // No horizontal page scroll at the default viewport.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+
+  // Fictional fixture: nine days of journeys, each day with a start, then an arrival on most days.
+  async function openNavigationWithNineDays(page) {
+    await skipOnboarding(page);
+    const rows = [];
+    for (let d = 0; d < 9; d++) {
+      const day = String(10 + d).padStart(2, "0");
+      for (let j = 0; j <= d % 4; j++) {
+        const id = `nav-${d}-${j}`;
+        const t0 = Date.parse(`2026-10-${day}T10:${String(j * 10).padStart(2, "0")}:00Z`);
+        rows.push([0, t0, id, "Example Spot", "place", 51.5, 0.1, 51.49, 0.09, 1000, null, null, null, "start"]);
+        if (j !== 0 || d % 3 !== 2) {
+          rows.push([0, t0 + (3 + d * 3) * 60000, id, "Example Spot", "place", 51.5, 0.1, 51.5, 0.1, 1000, 1000 + d * 40, 0, null, "arrive"]);
+          rows.push([0, t0 + (4 + d * 3) * 60000, id, "Example Spot", "place", 51.5, 0.1, 51.5, 0.1, 1000, 1000 + d * 40, 0, "arrived", "end"]);
+        }
+      }
+    }
+    const packed = {
+      format: 2,
+      locations: { v: 2, type: "location", uids: [], targets: [], rows: [] },
+      clicks: { v: 2, type: "click", uids: [], rows: [] },
+      navigation: { v: 2, type: "navigation", uids: ["walker-aaaa-1111"], rows },
+      meta: { ...TRACKS.meta },
+    };
+    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(packed) }));
+    await page.goto("/admin");
+    await page.getByLabel("Admin password").fill("secret");
+    await page.click("#loginBtn");
+    await page.getByRole("button", { name: "Navigation", exact: true }).click();
+    const view = page.locator("#adminNavigation");
+    await expect(view).toBeVisible();
+    return view;
+  }
+
+  test("every bar and completion point in the Navigation trend chart carries its day and values as text", async ({ page }) => {
+    const view = await openNavigationWithNineDays(page);
+    const chart = view.locator("svg[role='img']").first();
+    const titles = async (sel) => chart.locator(sel).evaluateAll((els) => els.map((e) => (e.querySelector("title") || {}).textContent || ""));
+    const started = await titles("rect.nav-bar-started");
+    const completed = await titles("rect.nav-bar-completed");
+    const points = await titles("circle.nav-dot");
+    expect(started).toHaveLength(9);
+    expect(completed).toHaveLength(9);
+    expect(points.length).toBeGreaterThan(0);
+    for (const t of [...started, ...completed, ...points]) expect(t).toMatch(/^2026-10-\d\d: \d+ started, \d+ completed(, \d+%)?/);
+    expect(started[0]).toMatch(/^2026-10-1\d: 1 started, 1 completed, 100%$/);
+    // The table keeps the same figures as text for touch devices.
+    await expect(view.locator("table.nav-trend-table").first().locator("tbody tr")).toHaveCount(9);
+  });
+
+  test("Navigation summary labels stay on one line on desktop and the charts fill the page in two columns", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    const view = await openNavigationWithNineDays(page);
+    const labels = view.locator(".nav-card-label");
+    const n = await labels.count();
+    expect(n).toBeGreaterThanOrEqual(6);
+    const oneLine = await labels.evaluateAll((els) => els.map((e) => {
+      const lh = parseFloat(getComputedStyle(e).lineHeight);
+      return e.getBoundingClientRect().height <= lh * 1.2;
+    }));
+    expect(oneLine.every(Boolean)).toBe(true);
+    const cardHeights = await view.locator(".nav-card").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+    expect(new Set(cardHeights).size).toBe(1);
+    const boxes = await view.locator("svg[role='img']").evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ x: r.x, y: r.y, w: r.width })));
+    const content = await view.evaluate((v) => v.clientWidth);
+    expect(boxes[0].w).toBeGreaterThan(content * 0.8);
+    expect(boxes[2].y).toBeCloseTo(boxes[1].y, 0);
+    expect(boxes[2].x).toBeGreaterThan(boxes[1].x + boxes[1].w * 0.9);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   });
 

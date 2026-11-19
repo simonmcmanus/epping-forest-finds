@@ -147,13 +147,15 @@ Admin suppresses duplicate derived navigation-click events when a matching expli
 
 A **Navigation** tab in the top bar opens a dedicated view (`#adminNavigation`) that shows how navigation journeys trend over time. It uses the same loaded tracking data, the same user and time-window filters as the stats bar, and the same explicit-over-derived journey rule as the navigation block (see "Navigation journeys").
 
-- **Summary cards:** started, completed, completion rate, median time to arrive, total distance walked, median detour ratio, and the number of journeys that have a detour ratio.
-- **Started, completed and completion rate by day:** bars for started and completed journeys and a line for the completion rate on a 0–100% axis.
-- **Time to arrive by day:** stacked bars for the four buckets (under 5, 5–15, 15–30 and over 30 minutes), with a legend.
-- **Median detour by day:** a line per day with a dashed reference at 1.0, labelled "shortest route".
-- **Daily table:** the same figures as the charts as real HTML, so every chart has a text alternative. Each chart is an SVG with `role="img"` and an `aria-label` that summarises the trend.
+- **Summary cards:** a row of equal-height cards, each with the figure large and a short one-line label beneath: Started, Completed, Completion rate, Median time (to arrive), Distance walked, Median detour (ratio) and With detour (journeys that have a detour ratio). Where the short label drops meaning, the card's `title` attribute carries the full wording.
+- **Layout:** each chart sits in its own panel with a heading, a left-aligned legend above the chart, the chart and its daily table. On windows at least 1100 px wide the first panel (started, completed and completion rate) spans the full width and the other two sit side by side; below 900 px the panels stack in one column. The content is centred and capped at 1400 px wide so chart text stays readable.
+- **Started, completed and completion rate by day:** bars for started and completed journeys and a line with a point per day for the completion rate on a 0-100% right axis.
+- **Time to arrive by day:** stacked bars for the four buckets (under 5, 5-15, 15-30 and over 30 minutes), with a legend.
+- **Median detour by day:** a line with a point per day and a dashed reference at 1.0, labelled "shortest route".
+- **Marks carry text:** every bar and point has an SVG `<title>` with its day and values (for example "2026-10-22: 4 started, 3 completed, 75%"), so a value can be read on hover without reading the table.
+- **Daily tables:** the same figures as each chart as real HTML (right-aligned tabular numbers, light rules, first column sticky when the table scrolls), so every chart has a text alternative. Each chart is an SVG with `role="img"` and an `aria-label` that summarises the trend. Charts use light gridlines, 12 px axis labels in canvas units, and no animation.
 
-Days are grouped by the local calendar day on which each journey started, oldest first. A day with only abandoned journeys shows a completion rate of 0% and no median. Days without journeys are not drawn, and an empty window shows a plain sentence instead of empty axes. The charts draw on a 420-unit canvas capped at 520 px wide, so their labels keep a readable size on desktop; the dashboard is a desk tool, so the view is laid out for a desktop-width window.
+Days are grouped by the local calendar day on which each journey started, oldest first. A day with only abandoned journeys shows a completion rate of 0% and no median. Days without journeys are not drawn, and an empty window shows a plain sentence instead of empty axes. The trend chart draws on an 840-unit canvas and the other two on a 420-unit canvas, each filling its panel, so labels keep a readable size on desktop; the dashboard is a desk tool, so a phone only needs to show the view without horizontal page scroll.
 
 ## Data API
 
