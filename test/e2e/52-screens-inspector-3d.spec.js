@@ -146,10 +146,18 @@ test("with reduced motion, expanding the inspector settles at once", async ({ pa
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.evaluate(() => setInspectorMinimized(true));
   await waitForUiToSettle(page);
+  await countMoves(page);
   await page.evaluate(() => setInspectorMinimized(false));
   await waitForFrames(page, 4);
   expect(await page.evaluate(() => state.viewportAnimationTo != null), "no tween left running").toBe(false);
   const settled = await view(page);
   await waitForFrames(page, 10);
   expectSame(await view(page), settled, "camera has already settled");
+  expect(await moves(page), "exactly one camera move").toBe(1);
+  const inRect = await page.evaluate(() => {
+    const rect = bestVisibleCanvasRect({ assumeInspectorOpen: true });
+    const p = worldToScreen(selectedCompassTarget().point);
+    return p.x >= rect.x && p.x <= rect.x + rect.width && p.y >= rect.y && p.y <= rect.y + rect.height;
+  });
+  expect(inRect, "place is above the inspector").toBe(true);
 });
