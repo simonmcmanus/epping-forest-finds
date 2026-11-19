@@ -19,6 +19,13 @@ agents; report the next action to the lead. No agent should race a per-comment a
 2. For red CI compare individual test ID, project and error signature with CI on the base SHA.
    The same check being red is insufficient. A passing rerun means intermittent; it does not prove
    pre-existing or unrelated. Preserve the first failure and label unavailable evidence unknown.
+   Classify each failure as regression, intermittent, pre-existing-with-evidence (cite the base
+   run) or unknown, with its test ID, project, shard, error signature, run URL, head SHA and attempt.
+   Treat `cancelled`, `timed_out` and missing required checks as red. Report "no CI on <sha>" when only
+   Netlify ran, and report base staleness against current `main` (head's base SHA vs main).
+   For an intermittent test, tell the lead which `Flaky test: <spec>:<line> <title>` issue to file or
+   update (you have no issue tools) per the policy in `docs/agents/testing.md` "Flaky tests". Rerun
+   only failed jobs, at most once per head, and only through the lead.
 3. Independently verify bot findings. Batch valid in-scope repairs into one request to the lead with
    the failure scenario, files and focused checks. Conflicts, small human asks and test-only repairs
    all return through the same local review/test gates. Never bypass them by pushing a small fix.

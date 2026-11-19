@@ -89,6 +89,11 @@ Run reviews and tests concurrently on a frozen head only when CPU capacity allow
 invalidate affected evidence. CI-to-CI test ID/project/error comparison is required before declaring
 failures pre-existing; a passing retry proves only intermittency. Preserve first-run failures.
 
+Follow the flaky-test policy in `docs/agents/testing.md` ("Flaky tests"): record the first failure,
+compare CI-to-CI, rerun only the failed jobs at most once per head, file or update one deduplicated
+`Flaky test: <spec>:<line> <title>` issue, and repair repeat or PR-blocking flakes in a repair batch
+(never skip, quarantine, loosen, raise timeouts or add retries).
+
 ## 5. One push and PR per reviewed batch
 
 Once the batch is implemented and applicable local checks pass, push from the lead and open one
@@ -101,13 +106,31 @@ Every batch turn ends with the lead evaluating the ready gate and recording exac
 (a) gate satisfied: mark the PR ready (`update_pull_request` with `draft: false`); or (b) gate open:
 post or update a short PR comment (or description line) naming the blocker or waiting state (for
 example "open finding X", "CI pending on <sha>", "CI failed <job>") and leave the PR draft. Never
-leave a PR draft with no stated reason.
+leave a PR draft with no stated reason. A waiting state must also name the next action and its owner.
+The lead may not end its session on "CI pending" unless it stays subscribed and handles the
+completion event, or records on the PR that it is handed to the section 7 sweep. An all-green draft
+with no recorded outcome is not a valid end state.
 
 The ready gate is the local gate plus draft-run CI: no open blockers/majors from local reviewers on
 the aggregate head, required local verification complete, and every CI job that runs on drafts (unit,
 E2E, visual, builds, Netlify) green on the exact head. `Claude PR review` and `Inspect final PR head`
 skip on drafts, so they are not required before marking ready; marking ready triggers them. Never
 mark ready while local reviews, local verification or draft-run CI are open.
+
+Green means every required draft-run job on the exact current head SHA is `success`. `cancelled`,
+`timed_out`, `skipped` (other than the two final-head jobs on a draft), `neutral` where a result is
+required, or a MISSING job all count as open. A head SHA with no CI run at all (only Netlify) is
+open: record "no CI on <sha>" and re-trigger CI by rerunning the latest workflow run (never an empty
+commit); if no workflow run exists for the head, name that as the blocker. A visual-snapshot warning
+is a separate decision (see `docs/agents/testing.md`), not a red job.
+
+Before marking ready, reconcile the PR description with the CI "Visual review" block: if the
+description says no baselines or visuals changed but the block lists changed screenshots, fix the
+description or name the unexplained diff as a blocker.
+
+Before marking ready, compare the head's base SHA with current `main`. If behind, record it and
+decide explicitly: update the branch (`update_pull_request_branch`, which re-runs CI and invalidates
+evidence on the old head) or state why the existing CI evidence still applies. Never skip silently.
 
 After marking ready, enter the named state "awaiting final-head PR review" and treat that review as
 the independent check. If it reports blockers/majors, run a repair round and keep pushing repairs.
@@ -126,9 +149,18 @@ refused, build the same snapshot from GitHub MCP reads: `pull_request_read` `get
 and base SHA, `mergeable_state`), `get_check_runs` on the head SHA, `get_reviews`, `get_comments`, and
 `get_review_comments` for unresolved threads. Compare it with the previous head and results to detect
 deltas. Subscribe to events with `subscribe_pr_activity` and record that the subscription is in place;
-otherwise use bounded platform waits and state that limitation. Dispatch `pr-steward` only for
-actionable changes. Fetch full logs only for failures; unchanged pending CI or waiting human approval
-does not need a new LLM review.
+otherwise use bounded platform waits and state that limitation. Dispatch `pr-steward` only for an
+actionable change:
+
+- a failed, cancelled, timed-out or missing required check on the current head;
+- a head with no CI (only Netlify ran);
+- new unresolved review threads or human comments;
+- a conflict, or `mergeable_state` dirty, behind or unstable;
+- a draft that is all-green with no recorded outcome;
+- a ready PR whose final-head review has not run.
+
+Unchanged pending CI or waiting human approval stays non-actionable. Fetch full logs only for
+failures; unchanged states do not need a new LLM review.
 
 The steward is the single post-push repair coordinator. It batches validated findings and routes
 fixes, including conflicts and small human asks, back through local review/test gates. Resolve bot
@@ -140,3 +172,17 @@ acceptance and preview link with `nuke=true`. Separate CI, unresolved findings a
 Do not claim completion while any required gate remains open (including "awaiting final-head PR
 review" or open final-head findings); give a named waiting/blocker state and record it on the PR.
 Never edit cache markers, screenshot baselines, disable tests or put place facts into specs.
+
+## 7. Open-PR sweep
+
+A periodic pass (scheduled task or `/loop`) over every open PR, so a PR whose lead session ended is
+still followed up. Per PR collect: head SHA, draft state, check runs on that SHA, the last PR comment
+recording an outcome, and base staleness against current `main`. Classify:
+
+- satisfied: gate met, mark ready (section 5);
+- waiting: a valid named waiting state with next action/owner, no action;
+- actionable (any section 6 trigger, a stale base with no recorded decision, or no recorded outcome):
+  dispatch `pr-steward`. Repairs still go through the lead's review/test gates.
+
+The sweep never pushes, approves or merges. It uses the same MCP reads as section 6, fetches logs only
+for failures, and spends no LLM turn on a PR whose snapshot is unchanged since the last sweep.

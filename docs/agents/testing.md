@@ -179,6 +179,33 @@ If you do edit a shared one, re-run every spec that uses it, on **every** Playwr
    hand. The task is not finished until `E2E tests` is green, and the report says what CI said.
 
 
+### Flaky tests
+
+A failure that passes on rerun is a flake to repair, not noise to tolerate. Precedents, not repeated
+here: the canvas screenshot flake and `settleMapIconsAndDraw` (above), the 2-worker CI starvation
+(above), and the time-based pin fade race fixed on PR #496's branch.
+
+- **Record the first failure and keep it:** test ID, project, shard, error signature, run URL, head
+  SHA and attempt. A rerun never replaces it.
+- **Compare CI-to-CI** against `main` and recent runs by test ID, project and error signature.
+- **Rerun only the failed/cancelled jobs, at most once per head** (`actions_run_trigger`
+  rerun-failed-jobs where available). A passing rerun means "intermittent", never "fixed" or
+  "unrelated". It satisfies the gate for that job only if the lead records the first failure and a
+  dependency reason that the failing test does not cover the changed behaviour; otherwise the job stays
+  open. A second failure on the head is a regression until proven otherwise.
+- **One deduplicated issue per intermittent test**, titled `Flaky test: <spec>:<line> <title>`, holding
+  the signatures, run URLs and occurrence count. Search first and comment on the existing issue on
+  repeats; never file one per PR.
+- **Repair flakes.** On a second occurrence, or when a flake blocks a PR, the lead batches flake issues
+  by subsystem into a repair batch through the normal `/team` playbook. Fix the cause: wait on
+  observable state instead of fixed frame counts, sleeps or timeouts; settle async loads; remove
+  shared-state or CPU-starvation assumptions. Never skip, quarantine, loosen assertions, raise timeouts
+  blindly or add blanket retries.
+- **Regression proof:** reproduce under constrained CPU with repeated runs (for example
+  `CI=1 taskset -c 0,1 npx playwright test <spec> --project=<name> --repeat-each=20`), failing before
+  the fix and passing after, with both counts recorded. If it cannot be reproduced, say so and rely on
+  the code-level race analysis, labelled unproven.
+
 ### Lightweight failure diagnostics
 
 CI retains the first failed attempt’s action/network trace and a final screenshot. Continuous DOM
