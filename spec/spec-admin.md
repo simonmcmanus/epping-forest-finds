@@ -72,7 +72,7 @@ Lists every user who has at least one location ping or tap event, sorted by most
 
 Clicking a row filters the map to that user only. Clicking again (or the "All users" row) clears the filter.
 
-Rows are real `<button>` elements (class `.admin-user-item`, `.selected` for the current filter) with
+After a row is activated the list is redrawn and focus returns to the same row (the "All users" row included). Rows are real `<button>` elements (class `.admin-user-item`, `.selected` for the current filter) with
 `aria-pressed` reflecting whether it is the current filter, so Tab, Enter and Space work natively. The selected row has an accent edge.
 
 On phones (720 px wide and under) the sidebar becomes a horizontally scrolling strip of user chips above the map, so the map and Navigation view get the full width; the "Users" heading is then visually hidden.
@@ -89,17 +89,17 @@ On phones (720 px wide and under) the sidebar becomes a horizontally scrolling s
 | **Refresh** | Re-fetch all data from the server |
 | **Log out** | Forget the password and return to the login screen |
 
-The bar has three groups: the view tabs (Tracks, Heatmap, Navigation) are a segmented control whose active tab is filled with the accent colour; Community and Access are panel buttons with a bordered style; Refresh and Log out are quiet, borderless utility actions on the right. A small app icon and the title "Epping Forest Finds — User Analytics" sit on the left with the environment badge next to them. On phones the bar is two rows (brand and utility actions, then a horizontally scrollable row of tabs and panel buttons) and every top-bar button and map control is at least 44 px (never under 40 px) to tap.
+The bar has three groups: the view tabs (Tracks, Heatmap, Navigation) are a segmented control whose active tab is filled with the accent colour; Community and Access are panel buttons with a bordered style; Refresh and Log out are quiet, borderless utility actions on the right. A small app icon and the title "Epping Forest Finds — User Analytics" sit on the left with the environment badge next to them. The three view tabs carry `aria-pressed` (true on the active view), updated whenever the view changes. On phones the bar is two rows: the icon, environment badge and utility actions, then one row holding all five view and panel buttons, which fit at 390 px wide without scrolling (the row still scrolls on narrower screens, and its focus ring is drawn inside the buttons so scrolling never clips it). The title is visually hidden on phones, because it would truncate, but is still read out. Every top-bar button and map control is at least 44 px to tap, as are the user chips.
 
 The dashboard's colours, radii, spacing, type sizes and shadows are tokens in `:root` of `css/admin.css`; muted text on the dark shell is at least 4.5:1.
 
-**Overlay panels.** Community, Access and the tap details share one sheet style (`.admin-click-details`): right-aligned over the map (full width on phones) with a close button, readable over both the dark map and the light Navigation view. Only one is open at a time: opening one closes the others.
+**Overlay panels.** Community, Access and the tap details share one sheet style (`.admin-click-details`): a bottom-left sheet over the map (full width on phones) with a close button, readable over both the dark map and the light Navigation view. It sits above the stats bar (the stats bar's height is passed to the CSS as `--stats-clear`) and its height is capped so the map controls and the legend stay uncovered. Only one is open at a time: the user opening one closes the others, but a data refresh never closes an open panel or discards what is typed in it. Each panel is a labelled `role="region"` (not a live region; the Access and Community status lines are the `role="status"` elements). Opening a panel moves focus to its close button; Escape or the close button hides it and returns focus to the button that opened it (Community, Access) or to the map (tap details). Focus is also returned when another panel replaces the one that held it.
 
 Auto-refresh runs every 5 minutes.
 
 ## Stats bar
 
-Fixed to bottom-right of the canvas (the full width at the bottom on phones), in the same dark frosted glass as the legend box and map controls (a near-opaque dark background with a light blur), laid out as chips (one per figure) so the numbers scan rather than read as one sentence so it reads over any map colour. Text is at least 14 px, light on dark with a contrast of at least 4.5:1 for labels and values (checked against a white map as the worst case), and the numbers are bolder than the labels. The panel stays inside the viewport at 1024 and 1280 px wide. Shows:
+Fixed to bottom-right of the canvas (the full width at the bottom on phones), in the same dark frosted glass as the legend box and map controls (a near-opaque dark background with a light blur), laid out as chips (one per figure) so the numbers scan rather than read as one sentence, and it reads over any map colour. Each chip carries a visually hidden comma so a screen reader pauses between figures. Text is at least 14 px, light on dark with a contrast of at least 4.5:1 for labels and values (checked against a white map as the worst case), and the numbers are bolder than the labels. The panel stays inside the viewport at 1024 and 1280 px wide. Shows:
 - Number of distinct users in current view
 - Total location pings
 - Total tap events

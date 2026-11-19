@@ -493,11 +493,11 @@ test.describe("Admin login", () => {
     expect(nav.width).toBeGreaterThanOrEqual(390 * 0.9);
   });
 
-  test("on a phone the top bar buttons and map controls are at least 40px to tap", async ({ page }) => {
+  test("on a phone the top bar buttons and map controls are at least 44px to tap", async ({ page }) => {
     await signInOnPhone(page);
     const small = await page.evaluate(() => [...document.querySelectorAll(".admin-topbar button, .admin-map-control")]
       .map((el) => ({ id: el.id, r: el.getBoundingClientRect() }))
-      .filter(({ r }) => r.width > 0 && (r.height < 39.5 || r.width < 39.5))
+      .filter(({ r }) => r.width > 0 && (r.height < 43.95 || r.width < 43.95))
       .map(({ id, r }) => `${id} ${Math.round(r.width)}x${Math.round(r.height)}`));
     expect(small).toEqual([]);
   });
@@ -526,5 +526,123 @@ test.describe("Admin login", () => {
     await page.keyboard.press("Space");
     await expect(page.locator(".admin-user-item").nth(0)).toHaveAttribute("aria-pressed", "true");
     await expect(page.locator(".admin-user-item").nth(1)).toHaveAttribute("aria-pressed", "false");
+  });
+
+  async function boxesOf(page, selector) {
+    return page.evaluate((sel) => [...document.querySelectorAll(sel)].map((el) => { const r = el.getBoundingClientRect(); return { id: el.id, left: r.left, right: r.right, top: r.top, bottom: r.bottom, w: r.width }; }), selector);
+  }
+  const intersects = (a, b) => a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+
+  test("on a phone all five view and panel buttons are fully on screen without scrolling", async ({ page }) => {
+    await signInOnPhone(page);
+    const boxes = await boxesOf(page, "#tracksBtn, #heatmapBtn, #navigationBtn, #communityBtn, #accessBtn");
+    expect(boxes).toHaveLength(5);
+    for (const b of boxes) {
+      expect(b.left, `${b.id} left`).toBeGreaterThanOrEqual(0);
+      expect(b.right, `${b.id} right`).toBeLessThanOrEqual(390);
+    }
+    // The title is read out but not drawn truncated.
+    await expect(page.locator(".admin-topbar-title")).toHaveText("Epping Forest Finds — User Analytics");
+    expect((await boxesOf(page, ".admin-topbar-title"))[0].w).toBeLessThanOrEqual(1);
+  });
+
+  for (const [name, size] of [["desktop", { width: 1440, height: 900 }], ["phone", { width: 390, height: 844 }]]) {
+    test(`the open ${name} overlay sheet leaves the legend and stats strip uncovered`, async ({ page }) => {
+      await signInOnPhone(page);
+      await page.setViewportSize(size);
+      for (const name of ["Community", "Access"]) {
+        await page.getByRole("button", { name, exact: true }).click();
+        const sheet = page.locator(name === "Community" ? "#adminCommunity" : "#adminAccess");
+        await expect(sheet).toBeVisible();
+        const [s] = await boxesOf(page, name === "Community" ? "#adminCommunity" : "#adminAccess");
+        for (const sel of [".admin-legend", "#adminStats", ".admin-map-controls"]) {
+          const [other] = await boxesOf(page, sel);
+          expect(intersects(s, other), `${name} sheet covers ${sel}`).toBe(false);
+        }
+      }
+    });
+  }
+
+  test("the active view tab is exposed with aria-pressed", async ({ page }) => {
+    await signInOnPhone(page);
+    const state = () => page.evaluate(() => ["tracksBtn", "heatmapBtn", "navigationBtn"].map((id) => document.getElementById(id).getAttribute("aria-pressed")));
+    expect(await state()).toEqual(["true", "false", "false"]);
+    await page.click("#heatmapBtn");
+    expect(await state()).toEqual(["false", "true", "false"]);
+    await page.click("#navigationBtn");
+    expect(await state()).toEqual(["false", "false", "true"]);
+    await page.click("#tracksBtn");
+    expect(await state()).toEqual(["true", "false", "false"]);
+  });
+
+  test("overlay panels take focus, close on Escape and give focus back to their button", async ({ page }) => {
+    await signInOnPhone(page);
+    for (const [btn, panel] of [["#communityBtn", "#adminCommunity"], ["#accessBtn", "#adminAccess"]]) {
+      await page.click(btn);
+      await expect(page.locator(panel)).toBeVisible();
+      expect(await page.evaluate((sel) => document.querySelector(sel).contains(document.activeElement), panel)).toBe(true);
+      await page.keyboard.press("Escape");
+      await expect(page.locator(panel)).toBeHidden();
+      await expect(page.locator(btn)).toBeFocused();
+    }
+    await page.click("#communityBtn");
+    await page.click("#adminCommunityClose");
+    await expect(page.locator("#communityBtn")).toBeFocused();
+  });
+
+  test("overlay panels are labelled regions and are not live regions themselves", async ({ page }) => {
+    await signInOnPhone(page);
+    for (const id of ["adminCommunity", "adminAccess", "adminClickDetails"]) {
+      const el = page.locator(`#${id}`);
+      await expect(el).toHaveAttribute("role", "region");
+      await expect(el).not.toHaveAttribute("aria-live", /.+/);
+    }
+    await page.click("#accessBtn");
+    await expect(page.getByRole("region", { name: "Early access: Community" })).toBeVisible();
+    await expect(page.locator("#adminAccessStatus")).toHaveAttribute("role", "status");
+  });
+
+  test("a user row keeps keyboard focus after it is activated and the list redraws", async ({ page }) => {
+    await signInOnPhone(page);
+    const row = page.locator(".admin-user-item").nth(1);
+    const uid = await row.getAttribute("data-uid");
+    await row.focus();
+    await page.keyboard.press("Enter");
+    expect(await page.evaluate(() => document.activeElement.dataset.uid)).toBe(uid);
+    await page.locator(".admin-user-item").first().focus();
+    await page.keyboard.press("Enter");
+    expect(await page.evaluate(() => document.activeElement.classList.contains("admin-user-item") && document.activeElement.dataset.uid)).toBe("");
+  });
+
+  test("Refresh keeps an open Access panel and the text typed into it", async ({ page }) => {
+    await signInOnPhone(page);
+    await page.click("#accessBtn");
+    await expect(page.locator("#adminAccessList")).toHaveValue("a1b2c3d4e5 Sam");
+    await page.fill("#adminAccessList", "a1b2c3d4e5 Sam\nnot saved yet");
+    await page.click("#refreshBtn");
+    await expect(page.locator("#refreshBtn")).toBeEnabled();
+    await expect(page.locator("#adminAccess")).toBeVisible();
+    await expect(page.locator("#adminAccessList")).toHaveValue("a1b2c3d4e5 Sam\nnot saved yet");
+  });
+
+  test("the focus ring on the sign-in card is dark enough for a light surface", async ({ page }) => {
+    await page.goto("/admin");
+    await page.getByLabel("Admin password").focus();
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Tab");
+    const ring = await page.evaluate(() => getComputedStyle(document.activeElement).outlineColor);
+    const [r, g, b] = ring.match(/[\d.]+/g).map(Number);
+    const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+    const lum = 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+    expect(1.05 / (lum + 0.05)).toBeGreaterThanOrEqual(3);
+  });
+
+  test("the selected phone user chip keeps its detail text readable", async ({ page }) => {
+    await signInOnPhone(page);
+    await page.locator(".admin-user-item").nth(1).click();
+    const meta = page.locator(".admin-user-item.selected .admin-user-meta");
+    const m = await meta.evaluate((el) => getComputedStyle(el).color);
+    const [r, g, b, a = 1] = m.match(/[\d.]+/g).map(Number);
+    expect(a).toBeGreaterThanOrEqual(0.8);
   });
 });

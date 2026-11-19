@@ -27,8 +27,20 @@
   --accent: #4fc97e;
   --accent-ink: #0b1a12;
   --danger: #b3261e;
-  --danger-on-dark: #ff9a8c;
   --focus-ring: rgba(79, 201, 126, 0.75);
+  --focus-ring-light: #1f5a3c;
+  --tree-dark: #265b40;
+  --line-strong: #aab5ad;
+  --accent-hover: #75d99a;
+  --accent-press: #3fb36a;
+  --link: #8fe3b0;
+  --link-hover: #b4f3cd;
+  --warn-text: #f8dc9a;
+  --env-prod-bg: rgba(79, 201, 126, 0.22);
+  --env-prod-border: rgba(79, 201, 126, 0.55);
+  --env-preview-bg: rgba(232, 169, 60, 0.22);
+  --env-preview-border: rgba(232, 169, 60, 0.55);
+  --glass-blur: 8px;
   /* Shape, spacing, type, depth */
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -73,6 +85,15 @@ textarea:focus-visible,
   outline: 3px solid var(--focus-ring);
   outline-offset: 2px;
 }
+
+/* Light surfaces need a darker ring to keep 3:1 against the paper and card colours. */
+.login-screen button:focus-visible,
+.login-screen input:focus-visible,
+.admin-nav-view :focus-visible {
+  outline-color: var(--focus-ring-light);
+}
+
+#adminCanvas:focus { outline: none; }
 
 html, body {
   height: 100%;
@@ -141,18 +162,19 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   border-radius: var(--radius-md);
   font: inherit;
   font-size: var(--fs-md);
+  text-align: center;
   color: var(--ink);
   background: var(--paper);
   margin-bottom: var(--sp-3);
   transition: border-color var(--ease), background var(--ease);
 }
 
-.login-input:hover { border-color: #aab5ad; }
+.login-input:hover { border-color: var(--line-strong); }
 
 .login-input:focus-visible {
   border-color: var(--tree);
   background: var(--card);
-  outline: 3px solid var(--focus-ring);
+  outline: 3px solid var(--focus-ring-light);
   outline-offset: 2px;
 }
 
@@ -171,7 +193,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   transition: background var(--ease), transform var(--ease);
 }
 
-.login-btn:hover { background: #265b40; }
+.login-btn:hover { background: var(--tree-dark); }
 .login-btn:active { transform: translateY(1px); }
 
 .login-error {
@@ -238,8 +260,8 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 }
 
 .admin-env-badge[hidden] { display: none; }
-.admin-env-badge.env-prod { background: rgba(79,201,126,0.22); border-color: rgba(79,201,126,0.55); color: #b4f3cd; }
-.admin-env-badge.env-preview { background: rgba(232,169,60,0.22); border-color: rgba(232,169,60,0.55); color: #f8dc9a; }
+.admin-env-badge.env-prod { background: var(--env-prod-bg); border-color: var(--env-prod-border); color: var(--link-hover); }
+.admin-env-badge.env-preview { background: var(--env-preview-bg); border-color: var(--env-preview-border); color: var(--warn-text); }
 
 .admin-nav {
   display: flex;
@@ -309,8 +331,8 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   font-weight: 700;
 }
 
-.admin-btn-primary:hover { background: #75d99a; }
-.admin-btn-primary:active { background: #3fb36a; }
+.admin-btn-primary:hover { background: var(--accent-hover); }
+.admin-btn-primary:active { background: var(--accent-press); }
 
 .admin-body {
   flex: 1;
@@ -366,6 +388,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .admin-user-item:hover { background: var(--surface-raised); }
 .admin-user-item:active { background: rgba(255, 255, 255, 0.14); }
 .admin-user-item.selected { background: rgba(255, 255, 255, 0.13); border-left-color: var(--accent); }
+.admin-user-item.selected .admin-user-meta { color: var(--text-mid); }
 .admin-user-item:focus-visible { outline-offset: -3px; }
 
 .admin-user-dot {
@@ -421,8 +444,8 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   border: 1px solid var(--border-dark);
   border-radius: var(--radius-md);
   padding: 6px;
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
 }
 
 .admin-map-control {
@@ -448,10 +471,10 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .admin-legend {
   position: absolute;
   background: var(--surface-glass);
-  border: 1px solid var(--border-dark-soft);
+  border: 1px solid var(--border-dark);
   border-radius: var(--radius-md);
-  -webkit-backdrop-filter: blur(6px);
-  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
   color: var(--text-mid);
 }
 
@@ -469,7 +492,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .admin-stats:empty { display: none; }
 .admin-stats strong { color: var(--text-hi); font-weight: 800; }
-.admin-stats em { font-style: normal; color: #f8dc9a; }
+.admin-stats em { font-style: normal; color: var(--warn-text); }
 
 .admin-stats-row {
   display: flex;
@@ -516,10 +539,11 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .admin-click-details {
   position: absolute;
   z-index: 5;
-  top: var(--sp-3);
-  right: var(--sp-3);
+  /* A bottom-left sheet: the controls and legend stay clear at the top, and --stats-clear (set from the stats bar's height) keeps it above the stats. */
+  left: var(--sp-3);
+  bottom: var(--stats-clear, var(--sp-3));
   width: min(400px, calc(100% - 24px));
-  max-height: calc(100% - 24px);
+  max-height: max(160px, calc(100% - 112px - var(--stats-clear, var(--sp-3))));
   overflow-y: auto;
   overscroll-behavior: contain;
   background: var(--surface-panel);
@@ -530,8 +554,8 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   padding: var(--sp-4);
   font-size: var(--fs-sm);
   line-height: 1.45;
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
 }
 
 .admin-click-details[hidden] { display: none; }
@@ -554,8 +578,8 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 }
 
 .admin-click-details p { margin: 0 0 var(--sp-3); }
-.admin-click-details a { color: #8fe3b0; text-underline-offset: 2px; }
-.admin-click-details a:hover { color: #b4f3cd; }
+.admin-click-details a { color: var(--link); text-underline-offset: 2px; }
+.admin-click-details a:hover { color: var(--link-hover); }
 
 .admin-click-details-close {
   position: absolute;
@@ -716,25 +740,40 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   .admin-topbar {
     flex-wrap: wrap;
     gap: var(--sp-1) var(--sp-2);
-    padding: 6px var(--sp-2);
+    padding: 4px var(--sp-2);
   }
 
   .admin-brand { order: 1; flex: 1 1 0; }
+  /* The title would truncate to "Epping F…", so it is read out but not drawn; the icon and environment badge identify the page. */
+  .admin-topbar-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
   .admin-actions { order: 2; }
+  /* All five view and panel controls fit on one row at 390px, so nothing is hidden off to the side. */
   .admin-nav {
     order: 3;
     flex: 1 0 100%;
-    gap: var(--sp-3);
+    gap: var(--sp-1);
     margin-right: 0;
+    padding: 2px;
     overflow-x: auto;
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
   }
   .admin-nav::-webkit-scrollbar { display: none; }
   .admin-tabs, .admin-panel-btns { flex-shrink: 0; }
+  .admin-panel-btns { gap: var(--sp-1); }
+  /* The row scrolls, which would clip an outside ring, so the ring is drawn inside the button here. */
+  .admin-nav .admin-btn:focus-visible { outline-offset: -3px; }
 
-  .admin-btn { min-height: var(--tap); min-width: var(--tap); padding: 6px 12px; font-size: var(--fs-base); }
-  .admin-tabs .admin-btn { padding: 6px 14px; }
+  .admin-btn { min-height: var(--tap); min-width: var(--tap); padding: 6px 8px; font-size: var(--fs-sm); }
+  .admin-nav .admin-btn { font-size: var(--fs-xs); }
+  .admin-tabs .admin-btn { padding: 6px 7px; }
 
   .admin-body { flex-direction: column; }
 
@@ -769,7 +808,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   .admin-user-item {
     width: auto;
     flex-shrink: 0;
-    min-height: 40px;
+    min-height: var(--tap);
     padding: 6px 12px;
     border: 1px solid var(--border-dark);
     border-radius: 999px;
@@ -796,11 +835,11 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   }
 
   .admin-click-details {
-    top: var(--sp-2);
-    right: var(--sp-2);
     left: var(--sp-2);
+    right: var(--sp-2);
+    bottom: var(--stats-clear, var(--sp-2));
     width: auto;
-    max-height: calc(100% - 16px);
+    max-height: max(160px, calc(100% - 136px - var(--stats-clear, var(--sp-2))));
   }
 
   .admin-click-details-close { width: var(--tap); height: var(--tap); top: 4px; right: 4px; }

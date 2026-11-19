@@ -751,9 +751,12 @@ function setupMapViewportHandlers(canvas, zoomInBtn, zoomOutBtn, resetMapBtn) {
     const point = eventCanvasPoint(canvas, event);
     const click = findClickMarkerAt(canvas, point.x, point.y);
     if (!click) return;
+    closeOverlayPanels("details");
     selectedClickKey = clickTargetKey(click);
     renderClickDetails(selectedClickKey);
     render();
+    const detailsClose = document.getElementById("adminClickDetailsClose");
+    if (!document.getElementById("adminClickDetails")?.hidden) detailsClose?.focus();
   });
 }
 
@@ -1145,16 +1148,24 @@ function buildUserList() {
     return div;
   });
 
+  // A re-render replaces the buttons, so remember which row had focus and give it back.
+  const focused = list.contains(document.activeElement) ? document.activeElement : null;
+  const focusedUid = focused ? (focused.dataset.uid || "") : null;
   list.innerHTML = "";
   // "All users" row
   const allRow = document.createElement("button");
   allRow.type = "button";
   allRow.className = "admin-user-item" + (!selectedUid ? " selected" : "");
+  allRow.dataset.uid = "";
   allRow.setAttribute("aria-pressed", !selectedUid ? "true" : "false");
   allRow.innerHTML = `<span class="admin-user-dot" style="background:#aaa"></span><span class="admin-user-label">All users</span><span class="admin-user-meta">${users.length}</span>`;
   allRow.addEventListener("click", () => { selectedUid = null; buildUserList(); render(); });
   list.appendChild(allRow);
   items.forEach((el) => list.appendChild(el));
+  if (focusedUid !== null) {
+    const row = [...list.children].find((el) => (el.dataset.uid || "") === focusedUid);
+    if (row) row.focus();
+  }
   refreshNavigationView();
 }
 
@@ -1164,7 +1175,7 @@ function updateStats() {
   const locs = filteredLocations();
   const clicks = filteredClicks();
   const uids = new Set([...locs, ...clicks].map((e) => e.uid));
-  const chip = (html, cls = "") => `<span class="admin-stat-chip${cls ? ` ${cls}` : ""}">${html}</span>`;
+  const chip = (html, cls = "") => `<span class="admin-stat-chip${cls ? ` ${cls}` : ""}">${html}<span class="sr-only">, </span></span>`;
   const windowChip = Number.isFinite(lastMeta?.windowDays) ? chip(`last ${lastMeta.windowDays} days`) : "";
   const partialChip = lastMeta?.partial
     ? chip(`<em>partial: too much data for one read, newest shown${lastMeta.oldestDay
@@ -1172,6 +1183,18 @@ function updateStats() {
       : ""}</em>`, "wrap")
     : "";
   el.innerHTML = `<div class="admin-stats-row">${[chip(`<strong>${uids.size}</strong> user${uids.size !== 1 ? "s" : ""}`), chip(`<strong>${locs.length}</strong> location pings`), chip(`<strong>${clicks.length}</strong> taps`), windowChip, partialChip].join(" ")}</div>${navigationStatsHtml(locs)}`;
+  syncSheetInset();
+}
+
+// Overlay sheets sit above the stats bar: tell the CSS how tall it is.
+function syncSheetInset() {
+  const area = document.querySelector(".admin-map-area");
+  const stats = document.getElementById("adminStats");
+  if (!area || !stats) return;
+  const areaBox = area.getBoundingClientRect();
+  const statsBox = stats.getBoundingClientRect();
+  if (!statsBox.height) { area.style.removeProperty("--stats-clear"); return; }
+  area.style.setProperty("--stats-clear", `${Math.ceil(areaBox.bottom - statsBox.top + 8)}px`);
 }
 
 // Navigation journey block under the stats bar: derived from the same filtered pings.
@@ -1184,7 +1207,7 @@ function navigationStatsHtml(locs) {
   const rate = Math.round(s.completionRate * 100);
   const b = s.timeBuckets;
   const median = s.medianRemainingM === null ? "n/a" : `${Math.round(s.medianRemainingM)} m`;
-  const chip = (html) => `<span class="admin-stat-chip">${html}</span>`;
+  const chip = (html) => `<span class="admin-stat-chip">${html}<span class="sr-only">, </span></span>`;
   const row = (...chips) => `<div class="admin-stats-row">${chips.join(" ")}</div>`;
   return row(`<strong class="admin-stats-label">Navigation:</strong>`, chip(`<strong>${s.started}</strong> started`), chip(`<strong>${s.completed}</strong> arrived (${rate}%)`))
     + row(chip(`Time to arrive: &lt;5 min <strong>${b.lt5}</strong>`), chip(`5-15 <strong>${b.b5to15}</strong>`), chip(`15-30 <strong>${b.b15to30}</strong>`), chip(`&gt;30 <strong>${b.gt30}</strong>`))
@@ -1208,7 +1231,10 @@ function sourceLabel(event) {
 function hideClickDetails() {
   selectedClickKey = null;
   const panel = document.getElementById("adminClickDetails");
-  if (panel) panel.hidden = true;
+  if (panel) {
+    if (panel.contains(document.activeElement)) document.getElementById("adminCanvas")?.focus();
+    panel.hidden = true;
+  }
   render();
 }
 
@@ -1273,15 +1299,30 @@ function renderClickDetails(key) {
     <h3 class="admin-click-recent-title">Recent taps</h3>
     <ul class="admin-click-recent-list">${recent}</ul>
   `;
-  closeOverlayPanels("details");
   panel.hidden = false;
 }
 
-// Only one overlay panel (Community, Access, tap details) is open at a time.
+// Overlay panels (Community, Access, tap details): one is open at a time. Closing one hands focus
+// back to what opened it when focus was inside, so keyboard users never lose their place.
+const OVERLAY_PANELS = {
+  community: { id: "adminCommunity", opener: "communityBtn" },
+  access: { id: "adminAccess", opener: "accessBtn" },
+};
+
+function closeOverlay(key) {
+  if (key === "details") {
+    if (selectedClickKey || !document.getElementById("adminClickDetails")?.hidden) hideClickDetails();
+    return;
+  }
+  const cfg = OVERLAY_PANELS[key];
+  const panel = document.getElementById(cfg.id);
+  if (!panel || panel.hidden) return;
+  if (panel.contains(document.activeElement)) document.getElementById(cfg.opener)?.focus();
+  panel.hidden = true;
+}
+
 function closeOverlayPanels(except) {
-  if (except !== "community") document.getElementById("adminCommunity")?.setAttribute("hidden", "");
-  if (except !== "access") document.getElementById("adminAccess")?.setAttribute("hidden", "");
-  if (except !== "details" && selectedClickKey) hideClickDetails();
+  for (const key of ["community", "access", "details"]) if (key !== except) closeOverlay(key);
 }
 
 // ---- Data loading ----
@@ -1663,23 +1704,26 @@ async function adminBoot() {
   function showMapView(mode) {
     viewMode = mode;
     navigationPanel.hidden = true;
-    navigationBtn.classList.remove("active");
-    heatmapBtn.classList.toggle("active", mode === "heatmap");
-    tracksBtn.classList.toggle("active", mode === "tracks");
+    setActiveView(mode);
     render();
+  }
+  function setActiveView(name) {
+    for (const [key, btn] of [["tracks", tracksBtn], ["heatmap", heatmapBtn], ["navigation", navigationBtn]]) {
+      btn.classList.toggle("active", key === name);
+      btn.setAttribute("aria-pressed", key === name ? "true" : "false");
+    }
   }
   heatmapBtn.addEventListener("click", () => showMapView("heatmap"));
   navigationBtn.addEventListener("click", () => {
     navigationPanel.hidden = false;
-    navigationBtn.classList.add("active");
-    heatmapBtn.classList.remove("active");
-    tracksBtn.classList.remove("active");
+    setActiveView("navigation");
     refreshNavigationView();
   });
 
   communityBtn.addEventListener("click", async () => {
     closeOverlayPanels("community");
     communityPanel.hidden = false;
+    document.getElementById("adminCommunityClose").focus();
     communityBody.textContent = "Loading…";
     try {
       communityBody.innerHTML = renderCommunityStats(await loadCommunityStats(password));
@@ -1719,7 +1763,7 @@ async function adminBoot() {
       communityBody.textContent = `Could not load community stats (${error.message}).`;
     }
   });
-  document.getElementById("adminCommunityClose").addEventListener("click", () => { communityPanel.hidden = true; });
+  document.getElementById("adminCommunityClose").addEventListener("click", () => closeOverlay("community"));
 
   // Early-access list: who sees the gated Community features. Stored server-side, so no deploy to change it.
   const accessPanel = document.getElementById("adminAccess");
@@ -1728,6 +1772,7 @@ async function adminBoot() {
   document.getElementById("accessBtn").addEventListener("click", async () => {
     closeOverlayPanels("access");
     accessPanel.hidden = false;
+    document.getElementById("adminAccessClose").focus();
     accessStatus.textContent = "Loading…";
     try {
       const resp = await fetch("/api/features?admin=1", { headers: { Authorization: `Bearer ${password}` } });
@@ -1755,7 +1800,10 @@ async function adminBoot() {
       accessStatus.textContent = `Could not save (${error.message}).`;
     }
   });
-  document.getElementById("adminAccessClose").addEventListener("click", () => { accessPanel.hidden = true; });
+  document.getElementById("adminAccessClose").addEventListener("click", () => closeOverlay("access"));
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !adminApp.hidden) closeOverlayPanels();
+  });
 
   tracksBtn.addEventListener("click", () => showMapView("tracks"));
 
@@ -1784,7 +1832,7 @@ async function adminBoot() {
     clickDetailsClose.addEventListener("click", hideClickDetails);
   }
 
-  window.addEventListener("resize", () => { invalidateMapFit(); render(); });
+  window.addEventListener("resize", () => { invalidateMapFit(); syncSheetInset(); render(); });
 
   // Auto-refresh every 5 minutes
   setInterval(async () => {
