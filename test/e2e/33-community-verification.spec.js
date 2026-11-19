@@ -496,6 +496,27 @@ test.describe("Community place checks", () => {
     expect(issues).toHaveLength(0);
   });
 
+  test("a refreshed community overlay does not wipe the rename prompt or the words already typed", async ({ page }) => {
+    let release;
+    const held = new Promise((resolve) => { release = resolve; });
+    await page.unroute(OVERLAY_URL);
+    await page.route(OVERLAY_URL, async (route) => {
+      await held;
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: 2, entries: {} }) });
+    });
+    await openCheck(page);
+    await page.click(".community-check-place .community-or");
+    await openCheck(page);
+    await page.click("[data-action='community-place-choose'][data-status='RENAMED']");
+    await page.click("[data-action='community-send-place']");
+    await expect(page.locator(".community-status")).toContainText("Please add a few words");
+    // The app asks for a fresh overlay (as it does whenever it becomes visible again) and it lands late.
+    await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+    release();
+    await waitForFrames(page, 30);
+    await expect(page.locator(".community-status")).toContainText("Please add a few words");
+  });
+
   test("confirming a place earns nothing, sends nothing and hides its check card", async ({ page }) => {
     const sent = [];
     await page.route(ISSUE_URL, (route) => { sent.push("issue"); route.fulfill({ status: 200, body: "{}" }); });
