@@ -2175,6 +2175,17 @@ test("tiltActive can respond to pitch before heading-up is active when a real lo
   assert.equal(app.tiltActive(), true, "pitch should not wait for a compass heading");
 });
 
+test("later real GPS fixes preserve an already tilted camera", () => {
+  resetData(app);
+  const coords = { latitude: 51.6538, longitude: 0.04, accuracy: 10 };
+  app.applyLocationFix({ coords });
+  app.state.tiltBetaTarget = 60;
+  app.state.tiltBetaSmoothed = 45;
+  const before = app.tiltRotateXDeg();
+  app.applyLocationFix({ coords });
+  assert.equal(app.tiltRotateXDeg(), before, "a repeated fix must not flatten the camera");
+});
+
 test("full 3D is off by default, so pitching the phone gives a gentle tilt", () => {
   const freshApp = loadAppForTests();
   freshApp.state.userLocation = makePoint(freshApp, 0, 0);
