@@ -80,11 +80,16 @@ jobs:
           fi
 
           reviews=$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/reviews" | jq -s 'add // []')
-          human=$(jq --arg sha "$HEAD_SHA" \
-            '[.[] | select(.commit_id == $sha and .state == "APPROVED" and .user.type == "User")] | length' <<<"$reviews")
+          # Each reviewer's latest decision on this head, ignoring plain comments.
+          # A later CHANGES_REQUESTED or DISMISSED supersedes an earlier approval.
+          latest=$(jq --arg sha "$HEAD_SHA" '
+            [.[] | select(.commit_id == $sha and .state != "COMMENTED")]
+            | group_by(.user.login)
+            | map(sort_by(.id) | last)' <<<"$reviews")
+          human=$(jq '[.[] | select(.user.type == "User" and .state == "APPROVED")] | length' <<<"$latest")
           agent=$(jq --arg sha "$HEAD_SHA" \
-            '[.[] | select(.commit_id == $sha and .state == "APPROVED" and .user.login == "github-actions[bot]"
-               and ((.body // "") | contains("CLAUDE_FINAL_REVIEW:" + $sha)))] | length' <<<"$reviews")
+            '[.[] | select(.user.login == "github-actions[bot]" and .state == "APPROVED"
+               and ((.body // "") | contains("CLAUDE_FINAL_REVIEW:" + $sha)))] | length' <<<"$latest")
           if [ "$human" -lt 1 ] || [ "$agent" -lt 1 ]; then
             echo "Waiting on approvals for $HEAD_SHA: human=$human agent=$agent. Not arming."
             exit 0
