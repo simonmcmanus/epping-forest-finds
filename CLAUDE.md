@@ -18,7 +18,8 @@ in the main session. Only skip it for read-only questions.
 - Never report completion while required checks, findings or human approval remain outstanding.
 - Preserve the PR's preview-links block when rewriting a PR description.
 - Push the PR as a draft as soon as the batch is implemented and committed, so the Netlify preview
-  deploys and can be tried. Draft status holds back CI review jobs; that wait is expected. Keep the
+  deploys and can be tried. The CI Claude review gate runs automatically on every push, drafts included,
+  so it needs no manual step. Keep the
   draft through repair rounds. The lead marks it ready for review only once the /team gate is
   satisfied. Never open or leave a PR ready while that gate is open.
 
