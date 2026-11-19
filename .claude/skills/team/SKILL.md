@@ -108,8 +108,9 @@ post or update a short PR comment (or description line) naming the blocker or wa
 example "open finding X", "CI pending on <sha>", "CI failed <job>") and leave the PR draft. Never
 leave a PR draft with no stated reason. A waiting state must also name the next action and its owner.
 The lead may not end its session on "CI pending" unless it stays subscribed and handles the
-completion event, or records on the PR that it is handed to the section 7 sweep. An all-green draft
-with no recorded outcome is not a valid end state.
+completion event, or records a hand-off to the section 7 sweep that is actually scheduled, naming where
+(scheduled task id or loop). If no sweep is scheduled, stay in the session or comment "no sweep
+scheduled; needs human follow-up". An all-green draft with no recorded outcome is not a valid end state.
 
 The ready gate is the local gate plus draft-run CI: no open blockers/majors from local reviewers on
 the aggregate head, required local verification complete, and every CI job that runs on drafts (unit,
@@ -117,20 +118,31 @@ E2E, visual, builds, Netlify) green on the exact head. `Claude PR review` and `I
 skip on drafts, so they are not required before marking ready; marking ready triggers them. Never
 mark ready while local reviews, local verification or draft-run CI are open.
 
-Green means every required draft-run job on the exact current head SHA is `success`. `cancelled`,
-`timed_out`, `skipped` (other than the two final-head jobs on a draft), `neutral` where a result is
-required, or a MISSING job all count as open. A head SHA with no CI run at all (only Netlify) is
-open: record "no CI on <sha>" and re-trigger CI by rerunning the latest workflow run (never an empty
-commit); if no workflow run exists for the head, name that as the blocker. A visual-snapshot warning
-is a separate decision (see `docs/agents/testing.md`), not a red job.
+**Green** (defined here once) means the latest attempt of every required draft-run job on the exact
+current head SHA is `success`, and, if an earlier attempt of that job failed or was cancelled, the PR
+carries a flake record: first-failure signature and run URL, the `Flaky test:` issue link, and the
+lead's dependency reason why the failing test cannot be affected by this change. Without that record
+the job stays open even if the rerun passed; no human waiver is needed. A second failure on the head
+is a regression until proven otherwise. `cancelled`, `timed_out`, `skipped` (other than the two
+final-head jobs on a draft), `neutral` where a result is required, or a MISSING job all count as open.
+A visual-snapshot warning is a separate decision (see `docs/agents/testing.md`), not a red job.
+
+No CI on the head (only Netlify ran): use `actions_list` for runs on that head SHA. If a run is
+queued, waiting or action_required, name that as the blocker. If a run on that SHA is cancelled or
+failed, rerun it with `actions_run_trigger` (rerun or rerun-failed-jobs). If no run exists, record
+"no CI on <sha>", name the trigger as the blocker and ask a human. Never push an empty commit and
+never rerun a run for a different SHA.
 
 Before marking ready, reconcile the PR description with the CI "Visual review" block: if the
 description says no baselines or visuals changed but the block lists changed screenshots, fix the
 description or name the unexplained diff as a blocker.
 
 Before marking ready, compare the head's base SHA with current `main`. If behind, record it and
-decide explicitly: update the branch (`update_pull_request_branch`, which re-runs CI and invalidates
-evidence on the old head) or state why the existing CI evidence still applies. Never skip silently.
+decide explicitly: update the branch or state why the existing CI evidence still applies. Never skip
+silently. `update_pull_request_branch` is merge-based only (never rebase or force-push), counts as the
+batch's repair push and moves the head, so rerun affected local review/verification on the new head
+before marking ready, or state why existing evidence still applies. A merge conflict goes to the lead
+as a repair batch. Only the lead calls it; the sweep and steward never do.
 
 After marking ready, enter the named state "awaiting final-head PR review" and treat that review as
 the independent check. If it reports blockers/majors, run a repair round and keep pushing repairs.
@@ -179,10 +191,15 @@ A periodic pass (scheduled task or `/loop`) over every open PR, so a PR whose le
 still followed up. Per PR collect: head SHA, draft state, check runs on that SHA, the last PR comment
 recording an outcome, and base staleness against current `main`. Classify:
 
-- satisfied: gate met, mark ready (section 5);
+- satisfied: the PR carries a recorded lead outcome that the local-review/verification gate was met,
+  and draft-run CI is green (section 5) on the head. The sweep may mark ready
+  (`update_pull_request` `draft: false`) and records it;
 - waiting: a valid named waiting state with next action/owner, no action;
-- actionable (any section 6 trigger, a stale base with no recorded decision, or no recorded outcome):
-  dispatch `pr-steward`. Repairs still go through the lead's review/test gates.
+- actionable (any section 6 trigger, a stale base with no recorded decision, or no recorded lead
+  outcome): dispatch `pr-steward` and comment naming the owner and next action (for a missing
+  outcome, "needs a lead session to resume"). Repairs still go through the lead's gates.
 
-The sweep never pushes, approves or merges. It uses the same MCP reads as section 6, fetches logs only
-for failures, and spends no LLM turn on a PR whose snapshot is unchanged since the last sweep.
+The sweep may only read, comment and mark ready as above. It never pushes, approves, merges, rebases,
+force-pushes, calls `update_pull_request_branch`, resolves human threads or changes the branch.
+It uses the same MCP reads as section 6, fetches logs only for failures, and spends no LLM turn on a
+PR whose snapshot is unchanged since the last sweep.

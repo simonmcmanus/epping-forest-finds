@@ -25,8 +25,8 @@ Capture SHA, clean-tree status before/after, exact command, dependency/browser/e
 counts, first failures and log/artifact path as a receipt. Name unrun checks and unknown counts.
 Do not attribute a failure as pre-existing from a local run. The lead compares base/head CI by test
 ID/project/error signature. Preserve first failure, and rerun at most once, only when the lead asks
-to check intermittency and only the failed tests/jobs; report both results. A CI rerun is triggered
-by the lead per failed job. A passing retry does not erase a failure and means "intermittent" only.
+to check intermittency and only the failed tests/jobs; report both results. The lead reruns failed
+jobs (`actions_run_trigger` rerun-failed-jobs). A passing retry does not erase a failure and means "intermittent" only.
 
 For a flake reproduction (see `docs/agents/testing.md` "Flaky tests") add to the receipt: the
 `--repeat-each` count, the CPU constraint (`taskset` cores, `CI=1`), and passed/failed counts for

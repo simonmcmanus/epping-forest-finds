@@ -93,10 +93,11 @@ affected review is complete. Never resolve another person's thread without their
 Compare base/head CI failures by test ID, project and error signature. A red check on both commits
 can contain different failures. One passing rerun proves intermittency, not that the change is
 unrelated. Unknown base evidence remains unknown; record a blocker rather than dismissing it.
-Flaky-test handling (first-failure record, one rerun of failed jobs per head, deduplicated issue,
-repair batch) is in `docs/agents/testing.md` "Flaky tests". Classify each failure as regression,
-intermittent, pre-existing-with-evidence or unknown. A `cancelled`, `timed_out` or missing required
-check, or a head with no CI, is open, not green (`team/SKILL.md` section 5).
+Flaky-test handling is in `docs/agents/testing.md` "Flaky tests". Classify each failure as
+regression, intermittent, pre-existing-with-evidence or unknown.
+"Green", including the flake-record condition and the no-CI rule, is defined once in
+`team/SKILL.md` section 5.
+
 Human approval, CI success, local review findings and visual acceptance are separate fields. A
 waiting state is not completion; avoid repeated LLM wakeups while waiting on a person.
 

@@ -169,12 +169,10 @@ so. Never claim completion while required checks, actionable findings or human a
   remains a failure; a visual mismatch requires a current-head decision. Compare failing test IDs,
   project and error signatures CI-to-CI before calling any failure pre-existing. A passing rerun
   establishes intermittency, not that the PR is innocent.
-- CI is green only when every required draft-run job on the exact head is `success`; cancelled,
-  timed-out, skipped-required or missing jobs, and a head with no CI, are open. A waiting state names
-  its next action and owner. Before ready, reconcile the description with the Visual review block and
-  record base staleness. See `.claude/skills/team/SKILL.md` section 5.
-- A periodic open-PR sweep follows up PRs whose lead session ended; it never pushes, approves or
-  merges. See `.claude/skills/team/SKILL.md` section 7.
+- "Green" CI, waiting-state ownership, the no-CI rule, description/visual reconciliation and base
+  staleness are defined once in `.claude/skills/team/SKILL.md` section 5.
+- A periodic open-PR sweep follows up PRs whose lead session ended; it only reads, comments and marks
+  ready, never pushes, approves or merges. See `.claude/skills/team/SKILL.md` section 7.
 - Flaky tests: preserve the first failure, rerun failed jobs once per head, file one deduplicated
   issue per test and repair flakes; never skip, quarantine or loosen. See `docs/agents/testing.md`
   "Flaky tests".

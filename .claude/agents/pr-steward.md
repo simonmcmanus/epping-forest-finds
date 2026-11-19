@@ -21,8 +21,10 @@ agents; report the next action to the lead. No agent should race a per-comment a
    pre-existing or unrelated. Preserve the first failure and label unavailable evidence unknown.
    Classify each failure as regression, intermittent, pre-existing-with-evidence (cite the base
    run) or unknown, with its test ID, project, shard, error signature, run URL, head SHA and attempt.
-   Treat `cancelled`, `timed_out` and missing required checks as red. Report "no CI on <sha>" when only
-   Netlify ran, and report base staleness against current `main` (head's base SHA vs main).
+   Treat `cancelled`, `timed_out` and missing required checks as red; "green" and the flake-record
+   condition are defined in `team/SKILL.md` section 5, and a rerun pass alone never makes a job green.
+   Report "no CI on <sha>" when only Netlify ran, and report base staleness against current `main`.
+   Never call `update_pull_request_branch` (lead only).
    For an intermittent test, tell the lead which `Flaky test: <spec>:<line> <title>` issue to file or
    update (you have no issue tools) per the policy in `docs/agents/testing.md` "Flaky tests". Rerun
    only failed jobs, at most once per head, and only through the lead.
@@ -32,7 +34,8 @@ agents; report the next action to the lead. No agent should race a per-comment a
    Larger design/schema questions get a proposal and explicit unresolved decision.
 4. After the lead's gated push, verify that the specific issue is fixed on the current head, affected
    reviews are complete and required CI is green before resolving the bot thread. A push alone is not
-   evidence. Do not resolve human/other-bot threads without authorization. Reply once to a declined
+   evidence. Never resolve human threads (you have `resolve_review_thread`; it is for verified bot findings only)
+   and do not resolve other-bot threads without authorization. Reply once to a declined
    finding with the reason; avoid repeated status commentary.
 5. Report current head, CI result/run URL/counts, new actions, named blockers and whether human
    approval is still required. If no action is possible, return one concise waiting state; the lead

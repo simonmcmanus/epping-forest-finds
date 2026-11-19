@@ -183,16 +183,17 @@ If you do edit a shared one, re-run every spec that uses it, on **every** Playwr
 
 A failure that passes on rerun is a flake to repair, not noise to tolerate. Precedents, not repeated
 here: the canvas screenshot flake and `settleMapIconsAndDraw` (above), the 2-worker CI starvation
-(above), and the time-based pin fade race fixed on PR #496's branch.
+(above), and the pin-fade test that pressed Back after a fixed number of frames (fixed by waiting
+for the fade to reach zero).
 
 - **Record the first failure and keep it:** test ID, project, shard, error signature, run URL, head
   SHA and attempt. A rerun never replaces it.
 - **Compare CI-to-CI** against `main` and recent runs by test ID, project and error signature.
-- **Rerun only the failed/cancelled jobs, at most once per head** (`actions_run_trigger`
-  rerun-failed-jobs where available). A passing rerun means "intermittent", never "fixed" or
-  "unrelated". It satisfies the gate for that job only if the lead records the first failure and a
-  dependency reason that the failing test does not cover the changed behaviour; otherwise the job stays
-  open. A second failure on the head is a regression until proven otherwise.
+- **Rerun only the failed/cancelled jobs, at most once per head** (the lead reruns failed jobs with
+  `actions_run_trigger` rerun-failed-jobs). A passing rerun means "intermittent", never "fixed" or
+  "unrelated". The job stays open until the PR carries the flake record defined under "Green" in
+  `.claude/skills/team/SKILL.md` section 5 (first failure and run URL, issue link, dependency reason).
+  A second failure on the head is a regression until proven otherwise.
 - **One deduplicated issue per intermittent test**, titled `Flaky test: <spec>:<line> <title>`, holding
   the signatures, run URLs and occurrence count. Search first and comment on the existing issue on
   repeats; never file one per PR.
