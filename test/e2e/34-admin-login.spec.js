@@ -554,6 +554,10 @@ test.describe("Admin login", () => {
         await page.getByRole("button", { name, exact: true }).click();
         const sheet = page.locator(name === "Community" ? "#adminCommunity" : "#adminAccess");
         await expect(sheet).toBeVisible();
+        if (name === "Community") await expect(page.locator("#adminCommunityBody")).not.toContainText("Loading");
+        const stats = (await boxesOf(page, "#adminStats"))[0];
+        expect(stats.right - stats.left, "stats strip has width").toBeGreaterThan(0);
+        expect(stats.bottom - stats.top, "stats strip has height").toBeGreaterThan(0);
         const [s] = await boxesOf(page, name === "Community" ? "#adminCommunity" : "#adminAccess");
         for (const sel of [".admin-legend", "#adminStats", ".admin-map-controls"]) {
           const [other] = await boxesOf(page, sel);
@@ -627,9 +631,10 @@ test.describe("Admin login", () => {
 
   test("the focus ring on the sign-in card is dark enough for a light surface", async ({ page }) => {
     await page.goto("/admin");
-    await page.getByLabel("Admin password").focus();
+    await page.locator("#loginBtn").focus();
     await page.keyboard.press("Shift+Tab");
     await page.keyboard.press("Tab");
+    await expect(page.locator("#loginBtn")).toBeFocused();
     const ring = await page.evaluate(() => getComputedStyle(document.activeElement).outlineColor);
     const [r, g, b] = ring.match(/[\d.]+/g).map(Number);
     const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
@@ -640,9 +645,107 @@ test.describe("Admin login", () => {
   test("the selected phone user chip keeps its detail text readable", async ({ page }) => {
     await signInOnPhone(page);
     await page.locator(".admin-user-item").nth(1).click();
-    const meta = page.locator(".admin-user-item.selected .admin-user-meta");
-    const m = await meta.evaluate((el) => getComputedStyle(el).color);
-    const [r, g, b, a = 1] = m.match(/[\d.]+/g).map(Number);
-    expect(a).toBeGreaterThanOrEqual(0.8);
+    // The chip background is translucent, so measure against what actually shows through: every ancestor background blended in turn.
+    const colours = await page.evaluate(() => {
+      const chip = document.querySelector(".admin-user-item.selected");
+      const meta = chip.querySelector(".admin-user-meta");
+      const layers = [];
+      for (let el = chip; el; el = el.parentElement) layers.push(getComputedStyle(el).backgroundColor);
+      return { text: getComputedStyle(meta).color, layers: layers.reverse() };
+    });
+    const parse = (c) => { const [r, g, b, a = 1] = c.match(/[\d.]+/g).map(Number); return { r, g, b, a }; };
+    const lin = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+    const lum = ({ r, g, b }) => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b);
+    const over = (top, under) => ({ r: top.r * top.a + under.r * (1 - top.a), g: top.g * top.a + under.g * (1 - top.a), b: top.b * top.a + under.b * (1 - top.a), a: 1 });
+    const bg = colours.layers.map(parse).reduce((under, top) => over(top, under), { r: 255, g: 255, b: 255, a: 1 });
+    const mixed = over(parse(colours.text), bg);
+    const [hi, lo] = [lum(mixed), lum(bg)].sort((x, y) => y - x);
+    expect((hi + 0.05) / (lo + 0.05)).toBeGreaterThanOrEqual(4.5);
+  });
+
+  for (const width of [768, 844, 1024, 1280, 360, 320]) {
+    test(`at ${width}px wide no top-bar button overlaps another or runs off screen`, async ({ page }) => {
+      await signInOnPhone(page);
+      await page.setViewportSize({ width, height: width >= 768 ? 800 : 700 });
+      const ids = "#tracksBtn, #heatmapBtn, #navigationBtn, #communityBtn, #accessBtn, #refreshBtn, #logoutBtn";
+      const boxes = await boxesOf(page, ids);
+      expect(boxes).toHaveLength(7);
+      for (let i = 0; i < boxes.length; i++) {
+        for (let j = i + 1; j < boxes.length; j++) {
+          expect(intersects(boxes[i], boxes[j]), `${boxes[i].id} overlaps ${boxes[j].id} at ${width}px`).toBe(false);
+        }
+      }
+      // Phones may scroll the views row sideways; wider screens show every button.
+      if (width >= 768) {
+        for (const b of boxes) {
+          expect(b.left, `${b.id} left at ${width}px`).toBeGreaterThanOrEqual(0);
+          expect(b.right, `${b.id} right at ${width}px`).toBeLessThanOrEqual(width);
+        }
+      }
+    });
+  }
+
+  async function tapFirstMarker(page) {
+    const at = await page.evaluate(() => {
+      const canvas = document.getElementById("adminCanvas");
+      const { width, height } = canvasCssSize(canvas);
+      const click = filteredClicks()[0];
+      const ll = clickLatLng(click);
+      const p = latLngToCanvas(ll.lat, ll.lng, width, height);
+      const r = canvas.getBoundingClientRect();
+      return { x: r.left + p.x, y: r.top + p.y };
+    });
+    await page.mouse.click(at.x, at.y);
+  }
+
+  test("tapping a map marker opens its details with focus, Escape returns focus to the map, and Community closes it", async ({ page }) => {
+    await skipOnboarding(page);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const withClick = { ...PHONE_TRACKS, clicks: [{ uid: "user-aaaa-1111", ts: "2026-10-20T10:01:00Z", itemType: "pub", itemId: "the-owl", itemName: "The Owl", targetLat: 51.655, targetLng: 0.045 }] };
+    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(withClick) }));
+    await page.route(/\/api\/community\/overlay\?admin=1/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ reports: 1, devices: 1 }) }));
+    await page.goto("/admin");
+    await page.getByLabel("Admin password").fill("secret");
+    await page.click("#loginBtn");
+    await expect(page.locator("#adminApp")).toBeVisible();
+
+    await tapFirstMarker(page);
+    await expect(page.locator("#adminClickDetails")).toBeVisible();
+    await expect(page.locator("#adminClickDetailsClose")).toBeFocused();
+    await expect(page.locator("#adminClickDetails")).toContainText("The Owl");
+
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#adminClickDetails")).toBeHidden();
+    await expect(page.locator("#adminCanvas")).toBeFocused();
+
+    await tapFirstMarker(page);
+    await expect(page.locator("#adminClickDetails")).toBeVisible();
+    await page.click("#communityBtn");
+    await expect(page.locator("#adminCommunity")).toBeVisible();
+    await expect(page.locator("#adminClickDetails")).toBeHidden();
+  });
+
+  test("when a refresh removes the tapped marker the details close and focus returns to the map", async ({ page }) => {
+    await skipOnboarding(page);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const withClick = { ...PHONE_TRACKS, clicks: [{ uid: "user-aaaa-1111", ts: "2026-10-20T10:01:00Z", itemType: "pub", itemId: "the-owl", itemName: "The Owl", targetLat: 51.655, targetLng: 0.045 }] };
+    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(withClick) }));
+    await page.goto("/admin");
+    await page.getByLabel("Admin password").fill("secret");
+    await page.click("#loginBtn");
+    await expect(page.locator("#adminApp")).toBeVisible();
+    await tapFirstMarker(page);
+    await expect(page.locator("#adminClickDetailsClose")).toBeFocused();
+    // Simulate the auto-refresh bringing data in which the tapped target no longer exists.
+    await page.evaluate(() => { allData = { ...allData, clicks: [] }; refreshClickDetails(); });
+    await expect(page.locator("#adminClickDetails")).toBeHidden();
+    await expect(page.locator("#adminCanvas")).toBeFocused();
+  });
+
+  test("the Community panel body announces its loading and result text as a status", async ({ page }) => {
+    await signInOnPhone(page);
+    await expect(page.getByRole("status").filter({ has: page.locator("#adminCommunityBody") })).toHaveCount(0);
+    await expect(page.locator("#adminCommunityBody")).toHaveAttribute("role", "status");
+    await expect(page.locator("#adminCommunity")).not.toHaveAttribute("aria-live", /.+/);
   });
 });

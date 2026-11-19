@@ -734,16 +734,28 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   font-size: var(--fs-xs);
 }
 
-/* --- Phone: compact top bar, user chips on top, map and views at full width --- */
+/* --- Narrow laptops, tablets, landscape phones: two-row top bar (brand and utility actions, then the views and panels) so nothing overlaps --- */
 
-@media (max-width: 720px) {
+@media (max-width: 1099px) {
   .admin-topbar {
     flex-wrap: wrap;
     gap: var(--sp-1) var(--sp-2);
-    padding: 4px var(--sp-2);
   }
 
   .admin-brand { order: 1; flex: 1 1 0; }
+  .admin-actions { order: 2; }
+  .admin-nav {
+    order: 3;
+    flex: 1 0 100%;
+    margin-right: 0;
+  }
+}
+
+/* --- Phone: compact top bar, user chips on top, map and views at full width --- */
+
+@media (max-width: 720px) {
+  .admin-topbar { padding: 4px var(--sp-2); }
+
   /* The title would truncate to "Epping F…", so it is read out but not drawn; the icon and environment badge identify the page. */
   .admin-topbar-title {
     position: absolute;
@@ -753,13 +765,9 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
     overflow: hidden;
     clip: rect(0, 0, 0, 0);
   }
-  .admin-actions { order: 2; }
   /* All five view and panel controls fit on one row at 390px, so nothing is hidden off to the side. */
   .admin-nav {
-    order: 3;
-    flex: 1 0 100%;
     gap: var(--sp-1);
-    margin-right: 0;
     padding: 2px;
     overflow-x: auto;
     scrollbar-width: none;

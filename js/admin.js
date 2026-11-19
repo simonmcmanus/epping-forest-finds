@@ -1250,6 +1250,7 @@ function renderClickDetails(key) {
 
   const summary = clickTargetSummary(key);
   if (!summary.first || !summary.totalClicks) {
+    if (panel.contains(document.activeElement)) document.getElementById("adminCanvas")?.focus();
     panel.hidden = true;
     selectedClickKey = null;
     return;
