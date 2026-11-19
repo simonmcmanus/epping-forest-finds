@@ -5991,7 +5991,7 @@ function alignHeadingUpNavigationViewport(options = {}) {
   // Use maxScale directly: heading-up mode always fits all targets in the
   // rotated focus rect. Math.min would leave scale too low when the map
   // was previously at a wider zoom (e.g. walking-radius level on first load).
-  let targetScale = resolveHeadingUpTargetScale(maxScale, previousScale, Boolean(options.force));
+  let targetScale = resolveHeadingUpTargetScale(maxScale, options.landSlide && maxScale > 0 ? 0 : previousScale, Boolean(options.force));
   // A browse-origin slide that started from a different zoom carries the zoom change with it, on the
   // slide's own curve, so the map zooms and pans as one move instead of snapping to the final scale and
   // then sliding. Un-animated per-frame calls only: an animated call already hands the whole move to a tween.
@@ -6214,7 +6214,10 @@ function prepareCanvasForDraw() {
     } else {
       const fading = nearbyRevealInProgress();
       if (!fading) state.nearbyOriginTransition = null;
-      alignHeadingUpNavigationViewport({ animate: false, force: true });
+      // The landing frame fits exactly: a scale already within the settle band of the fit would otherwise be
+      // kept, leaving the camera wherever the slide's last drawn frame happened to be (a slow frame stops
+      // short), so the same browse point framed a percent differently from one run to the next.
+      alignHeadingUpNavigationViewport({ animate: false, force: true, landSlide: !fading });
       if (fading) requestDraw();
     }
   }
