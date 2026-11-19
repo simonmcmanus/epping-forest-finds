@@ -97,12 +97,12 @@ class ClaudeReviewPublicationTests(unittest.TestCase):
         self.assertIsNotNone(output["error"])
         self.assertEqual(output["reviews"], [])
 
-    def test_clean_complete_review_comments_on_the_pinned_head_and_never_approves(self):
+    def test_clean_complete_review_approves_only_the_pinned_head(self):
         output = self.run_publisher()
         self.assertIsNone(output["error"])
         self.assertEqual(len(output["reviews"]), 1)
         review = output["reviews"][0]
-        self.assertEqual((review["commit_id"], review["event"], review["comments"]), (HEAD, "COMMENT", []))
+        self.assertEqual((review["commit_id"], review["event"], review["comments"]), (HEAD, "APPROVE", []))
         self.assertEqual((review["owner"], review["repo"], review["pull_number"]), ("owner", "repo", 12))
 
     def test_verified_finding_requests_changes_at_its_added_right_line(self):
@@ -220,7 +220,7 @@ class ClaudeReviewPublicationTests(unittest.TestCase):
     def test_previous_publisher_retry_on_later_review_page_is_idempotent(self):
         reviews = [{"user": {"login": "human"}, "body": "review"} for _ in range(101)]
         reviews.append({"user": {"login": "github-actions[bot]"}, "commit_id": HEAD,
-                        "state": "COMMENTED", "body": f"<!-- CLAUDE_FINAL_REVIEW:{HEAD}:{BASE} -->"})
+                        "state": "APPROVED", "body": f"<!-- CLAUDE_FINAL_REVIEW:{HEAD}:{BASE} -->"})
         output = self.run_publisher(reviews=reviews)
         self.assertIsNone(output["error"])
         self.assertEqual(output["reviews"], [])
