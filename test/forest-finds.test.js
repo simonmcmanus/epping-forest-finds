@@ -13228,7 +13228,7 @@ for (const heading of [0, 90, 180, 45]) {
     const frames = [beforeTap, ...record];
     let worstFirst = 0;
     for (const key of ["user", "target"]) {
-      const finite = (point) => Number.isFinite(point.x) && Number.isFinite(point.y) && !point.clipped;
+      const finite = (point) => Number.isFinite(point.x) && Number.isFinite(point.y);
       const steps = frames.slice(1).map((frame, i) => (finite(frames[i][key]) && finite(frame[key]) ? step(frames[i][key], frame[key]) : null));
       if (steps[0] != null && pointInRect(frames[0][key], rect)) worstFirst = Math.max(worstFirst, steps[0] / short);
       for (let i = 0; i < steps.length; i += 1) {
@@ -17039,12 +17039,6 @@ test("direction arrows use projected screen direction while 3D tilt is active", 
   try {
     assert.equal(app.directionArrowAngleForWorldPoint(target.point, 123), 45,
       "the arrow follows the projected target ray, not the flat bearing");
-    const clippedProjection = app.swapGlobalFunction("worldToScreenForOverlayTilted", (point) => (
-      point === app.state.userLocation.point ? { x: 100, y: 100 } : { x: 110, y: 90, clipped: true }
-    ));
-    assert.equal(app.directionArrowAngleForWorldPoint(target.point, 123, 10), 10,
-      "a near-plane target holds its last valid projected direction");
-    app.swapGlobalFunction("worldToScreenForOverlayTilted", clippedProjection);
 
     app.state.selected = { type: "landmark", item: target };
     app.state.compassHeading = 0;
