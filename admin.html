@@ -22,6 +22,7 @@
   <!-- Login screen -->
   <div id="loginScreen" class="login-screen">
     <div class="login-card">
+      <img class="login-logo" src="data/icons/icon-192.png" alt="" width="64" height="64">
       <h1 class="login-title">Admin Access</h1>
       <p class="login-sub">Epping Forest Finds — usage analytics</p>
       <form id="loginForm">
@@ -29,7 +30,7 @@
         <input id="loginPassword" class="login-input" type="password" placeholder="Admin password" autocomplete="current-password">
         <button id="loginBtn" class="login-btn" type="submit">Sign in</button>
       </form>
-      <p id="loginError" class="login-error"></p>
+      <p id="loginError" class="login-error" role="alert"></p>
     </div>
   </div>
 
@@ -37,15 +38,26 @@
   <div id="adminApp" class="admin-app" hidden>
 
     <header class="admin-topbar">
-      <span class="admin-topbar-title">Epping Forest Finds — User Analytics</span>
-      <span id="adminEnvBadge" class="admin-env-badge" hidden></span>
-      <button id="tracksBtn" class="admin-btn active" type="button">Tracks</button>
-      <button id="heatmapBtn" class="admin-btn" type="button">Heatmap</button>
-      <button id="navigationBtn" class="admin-btn" type="button">Navigation</button>
-      <button id="communityBtn" class="admin-btn" type="button">Community</button>
-      <button id="accessBtn" class="admin-btn" type="button">Access</button>
-      <button id="refreshBtn" class="admin-btn" type="button">Refresh</button>
-      <button id="logoutBtn" class="admin-btn" type="button">Log out</button>
+      <div class="admin-brand">
+        <img class="admin-brand-mark" src="data/icons/favicon.png" alt="" width="28" height="28">
+        <span class="admin-topbar-title">Epping Forest Finds — User Analytics</span>
+        <span id="adminEnvBadge" class="admin-env-badge" hidden></span>
+      </div>
+      <div class="admin-nav">
+        <div class="admin-tabs" role="group" aria-label="View">
+          <button id="tracksBtn" class="admin-btn active" type="button">Tracks</button>
+          <button id="heatmapBtn" class="admin-btn" type="button">Heatmap</button>
+          <button id="navigationBtn" class="admin-btn" type="button">Navigation</button>
+        </div>
+        <div class="admin-panel-btns" role="group" aria-label="Panels">
+          <button id="communityBtn" class="admin-btn" type="button">Community</button>
+          <button id="accessBtn" class="admin-btn" type="button">Access</button>
+        </div>
+      </div>
+      <div class="admin-actions">
+        <button id="refreshBtn" class="admin-btn" type="button">Refresh</button>
+        <button id="logoutBtn" class="admin-btn" type="button">Log out</button>
+      </div>
     </header>
 
     <div class="admin-body">
@@ -77,10 +89,10 @@
         </section>
         <section id="adminAccess" class="admin-click-details" aria-live="polite" hidden>
           <button id="adminAccessClose" class="admin-click-details-close" type="button" aria-label="Close access list">×</button>
-          <h3>Early access: Community</h3>
-          <p>One tester per line: the Tester ID from their Settings screen, then an optional note. While the list is empty everyone has Community; once it has anyone in it, only they do. Changes apply the next time an app starts; no deploy needed.</p>
+          <h3 class="admin-panel-title">Early access: Community</h3>
+          <p class="admin-panel-help">One tester per line: the Tester ID from their Settings screen, then an optional note. While the list is empty everyone has Community; once it has anyone in it, only they do. Changes apply the next time an app starts; no deploy needed.</p>
           <textarea id="adminAccessList" rows="10" spellcheck="false" placeholder="a1b2c3d4e5 Simon"></textarea>
-          <p><button id="adminAccessSave" class="admin-btn" type="button">Save</button> <span id="adminAccessStatus" role="status"></span></p>
+          <p class="admin-access-actions"><button id="adminAccessSave" class="admin-btn admin-btn-primary" type="button">Save</button> <span id="adminAccessStatus" role="status"></span></p>
         </section>
         <section id="adminClickDetails" class="admin-click-details" aria-live="polite" hidden>
           <button id="adminClickDetailsClose" class="admin-click-details-close" type="button" aria-label="Close click details">×</button>

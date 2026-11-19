@@ -1123,24 +1123,11 @@ function buildUserList() {
   // Sort by last seen desc
   const users = [...byUser.entries()].sort((a, b) => b[1].last < a[1].last ? -1 : 1);
 
-  // Makes a clickable "row" div operable from the keyboard too (WCAG 2.1.1/4.1.2): a plain
-  // div with only a click handler is invisible to Tab and to assistive tech's button semantics.
-  function makeActivatable(el, onActivate) {
-    el.setAttribute("role", "button");
-    el.setAttribute("tabindex", "0");
-    el.addEventListener("click", onActivate);
-    el.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        onActivate();
-      }
-    });
-  }
-
   const items = users.map(([uid, info]) => {
     const colour = userColour(uid);
     const lastSeen = new Date(info.last).toLocaleString();
-    const div = document.createElement("div");
+    const div = document.createElement("button");
+    div.type = "button";
     div.className = "admin-user-item" + (uid === selectedUid ? " selected" : "");
     div.dataset.uid = uid;
     div.setAttribute("aria-pressed", uid === selectedUid ? "true" : "false");
@@ -1150,7 +1137,7 @@ function buildUserList() {
       <span class="admin-user-meta">${info.count} pts · ${info.clicks} taps</span>
     `;
     div.title = `Last seen: ${lastSeen}`;
-    makeActivatable(div, () => {
+    div.addEventListener("click", () => {
       selectedUid = selectedUid === uid ? null : uid;
       buildUserList();
       render();
@@ -1160,11 +1147,12 @@ function buildUserList() {
 
   list.innerHTML = "";
   // "All users" row
-  const allRow = document.createElement("div");
+  const allRow = document.createElement("button");
+  allRow.type = "button";
   allRow.className = "admin-user-item" + (!selectedUid ? " selected" : "");
   allRow.setAttribute("aria-pressed", !selectedUid ? "true" : "false");
   allRow.innerHTML = `<span class="admin-user-dot" style="background:#aaa"></span><span class="admin-user-label">All users</span><span class="admin-user-meta">${users.length}</span>`;
-  makeActivatable(allRow, () => { selectedUid = null; buildUserList(); render(); });
+  allRow.addEventListener("click", () => { selectedUid = null; buildUserList(); render(); });
   list.appendChild(allRow);
   items.forEach((el) => list.appendChild(el));
   refreshNavigationView();
@@ -1176,13 +1164,14 @@ function updateStats() {
   const locs = filteredLocations();
   const clicks = filteredClicks();
   const uids = new Set([...locs, ...clicks].map((e) => e.uid));
-  const windowLabel = (Number.isFinite(lastMeta?.windowDays) ? ` &nbsp;·&nbsp; last ${lastMeta.windowDays} days` : "")
-    + (lastMeta?.partial
-      ? ` &nbsp;·&nbsp; <em>partial: too much data for one read, newest shown${lastMeta.oldestDay
-        ? ` (back to ${escapeHtml(lastMeta.oldestDay)}${lastMeta.oldestDayIncomplete ? ", that day only in part" : ""})`
-        : ""}</em>`
-      : "");
-  el.innerHTML = `<strong>${uids.size}</strong> user${uids.size !== 1 ? "s" : ""} &nbsp;·&nbsp; <strong>${locs.length}</strong> location pings &nbsp;·&nbsp; <strong>${clicks.length}</strong> taps${windowLabel}${navigationStatsHtml(locs)}`;
+  const chip = (html, cls = "") => `<span class="admin-stat-chip${cls ? ` ${cls}` : ""}">${html}</span>`;
+  const windowChip = Number.isFinite(lastMeta?.windowDays) ? chip(`last ${lastMeta.windowDays} days`) : "";
+  const partialChip = lastMeta?.partial
+    ? chip(`<em>partial: too much data for one read, newest shown${lastMeta.oldestDay
+      ? ` (back to ${escapeHtml(lastMeta.oldestDay)}${lastMeta.oldestDayIncomplete ? ", that day only in part" : ""})`
+      : ""}</em>`, "wrap")
+    : "";
+  el.innerHTML = `<div class="admin-stats-row">${[chip(`<strong>${uids.size}</strong> user${uids.size !== 1 ? "s" : ""}`), chip(`<strong>${locs.length}</strong> location pings`), chip(`<strong>${clicks.length}</strong> taps`), windowChip, partialChip].join(" ")}</div>${navigationStatsHtml(locs)}`;
 }
 
 // Navigation journey block under the stats bar: derived from the same filtered pings.
@@ -1195,10 +1184,12 @@ function navigationStatsHtml(locs) {
   const rate = Math.round(s.completionRate * 100);
   const b = s.timeBuckets;
   const median = s.medianRemainingM === null ? "n/a" : `${Math.round(s.medianRemainingM)} m`;
-  return `<br><strong>Navigation:</strong> <strong>${s.started}</strong> started &nbsp;·&nbsp; <strong>${s.completed}</strong> arrived (${rate}%)`
-    + `<br>Time to arrive: &lt;5 min <strong>${b.lt5}</strong> &nbsp;·&nbsp; 5-15 <strong>${b.b5to15}</strong> &nbsp;·&nbsp; 15-30 <strong>${b.b15to30}</strong> &nbsp;·&nbsp; &gt;30 <strong>${b.gt30}</strong>`
-    + `<br>Walked <strong>${km(s.totalDistanceWalkedM)}</strong> km &nbsp;·&nbsp; <strong>${s.abandoned}</strong> abandoned (median <strong>${median}</strong> short)`
-    + (s.detourCount ? `<br>Detour: walked <strong>${s.medianDetourRatio.toFixed(2)}</strong>x the shortest route (median of ${s.detourCount})` : "");
+  const chip = (html) => `<span class="admin-stat-chip">${html}</span>`;
+  const row = (...chips) => `<div class="admin-stats-row">${chips.join(" ")}</div>`;
+  return row(`<strong class="admin-stats-label">Navigation:</strong>`, chip(`<strong>${s.started}</strong> started`), chip(`<strong>${s.completed}</strong> arrived (${rate}%)`))
+    + row(chip(`Time to arrive: &lt;5 min <strong>${b.lt5}</strong>`), chip(`5-15 <strong>${b.b5to15}</strong>`), chip(`15-30 <strong>${b.b15to30}</strong>`), chip(`&gt;30 <strong>${b.gt30}</strong>`))
+    + row(chip(`Walked <strong>${km(s.totalDistanceWalkedM)}</strong> km`), chip(`<strong>${s.abandoned}</strong> abandoned (median <strong>${median}</strong> short)`))
+    + (s.detourCount ? row(chip(`Detour: walked <strong>${s.medianDetourRatio.toFixed(2)}</strong>x the shortest route (median of ${s.detourCount})`)) : "");
 }
 
 function formatEventTime(value) {
@@ -1282,7 +1273,15 @@ function renderClickDetails(key) {
     <h3 class="admin-click-recent-title">Recent taps</h3>
     <ul class="admin-click-recent-list">${recent}</ul>
   `;
+  closeOverlayPanels("details");
   panel.hidden = false;
+}
+
+// Only one overlay panel (Community, Access, tap details) is open at a time.
+function closeOverlayPanels(except) {
+  if (except !== "community") document.getElementById("adminCommunity")?.setAttribute("hidden", "");
+  if (except !== "access") document.getElementById("adminAccess")?.setAttribute("hidden", "");
+  if (except !== "details" && selectedClickKey) hideClickDetails();
 }
 
 // ---- Data loading ----
@@ -1369,24 +1368,26 @@ async function loadCommunityStats(password) {
 
 function renderCommunityStats(stats) {
   const row = (label, value) => `<tr><th scope="row">${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`;
+  const card = (label, value) => `<li class="admin-stat-card"><span class="admin-stat-value">${escapeHtml(value)}</span><span class="admin-stat-label">${escapeHtml(label)}</span></li>`;
   const statusRows = Object.entries(stats.byStatus || {}).sort((a, b) => b[1] - a[1])
     .map(([status, n]) => row(status, n)).join("");
   const days = Object.entries(stats.perDay || {}).sort().slice(-7)
     .map(([day, n]) => row(day, n)).join("");
-  return `<h3>Community verification</h3>
-    <p><button type="button" class="admin-btn" id="communityRebuildBtn">Rebuild snapshot now</button> <button type="button" class="admin-btn" id="communityValidateBtn">Run reward check now</button> <span id="communityValidateResult"></span></p>
-    <p><a href="/reports/tree-report" target="_blank" rel="noopener">City of London discrepancy report</a> · <a href="/reports/tree-report?format=csv">CSV</a></p>
+  return `<h3 class="admin-panel-title">Community verification</h3>
+    <div class="admin-panel-actions"><button type="button" class="admin-btn" id="communityRebuildBtn">Rebuild snapshot now</button> <button type="button" class="admin-btn" id="communityValidateBtn">Run reward check now</button></div>
+    <span id="communityValidateResult" class="admin-panel-status" role="status"></span>
+    <p class="admin-panel-links"><a href="/reports/tree-report" target="_blank" rel="noopener">City of London discrepancy report</a> · <a href="/reports/tree-report?format=csv">CSV</a></p>
     ${stats.generatedAt ? `<p class="admin-community-asof">As of the last snapshot, ${escapeHtml(formatEventTime(new Date(stats.generatedAt).toISOString()))}</p>` : ""}
-    <table>
-      ${row("People reporting (all time)", stats.devices)}
-      ${row("Active, last 24 h / 7 days", `${stats.activeDevices1d} / ${stats.activeDevices7d}`)}
-      ${row("Reports", stats.reports)}
-      ${row("Trees questioned", stats.questioned)}
-      ${row("Trees verified", stats.verified)}
-      ${row("New trees (unconfirmed / confirmed)", `${stats.newTreesUnconfirmed} / ${stats.newTreesConfirmed}`)}
-      ${row("Conflicts awaiting review", stats.conflicts)}
-      ${row("Points awarded", stats.totalPoints)}
-    </table>
+    <ul class="admin-stat-grid">
+      ${card("People reporting (all time)", stats.devices)}
+      ${card("Active, last 24 h / 7 days", `${stats.activeDevices1d} / ${stats.activeDevices7d}`)}
+      ${card("Reports", stats.reports)}
+      ${card("Trees questioned", stats.questioned)}
+      ${card("Trees verified", stats.verified)}
+      ${card("New trees (unconfirmed / confirmed)", `${stats.newTreesUnconfirmed} / ${stats.newTreesConfirmed}`)}
+      ${card("Conflicts awaiting review", stats.conflicts)}
+      ${card("Points awarded", stats.totalPoints)}
+    </ul>
     <h4>By report type</h4><table>${statusRows || row("None yet", "")}</table>
     <h4>Last 7 days with reports</h4><table>${days || row("None yet", "")}</table>`;
 }
@@ -1677,6 +1678,7 @@ async function adminBoot() {
   });
 
   communityBtn.addEventListener("click", async () => {
+    closeOverlayPanels("community");
     communityPanel.hidden = false;
     communityBody.textContent = "Loading…";
     try {
@@ -1724,6 +1726,7 @@ async function adminBoot() {
   const accessList = document.getElementById("adminAccessList");
   const accessStatus = document.getElementById("adminAccessStatus");
   document.getElementById("accessBtn").addEventListener("click", async () => {
+    closeOverlayPanels("access");
     accessPanel.hidden = false;
     accessStatus.textContent = "Loading…";
     try {

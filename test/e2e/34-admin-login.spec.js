@@ -451,4 +451,80 @@ test.describe("Admin login", () => {
     await page.keyboard.press("Enter");
     await expect(page.getByRole("button", { name: /pts/ }).first()).toHaveAttribute("aria-pressed", "true");
   });
+
+  // ---- Phone layout and panel coordination ----
+
+  const PHONE_TRACKS = {
+    ...TRACKS,
+    locations: [
+      { uid: "user-aaaa-1111", ts: "2026-10-20T10:00:00Z", lat: 51.65, lon: 0.04 },
+      { uid: "user-bbbb-2222", ts: "2026-10-21T10:00:00Z", lat: 51.66, lon: 0.05 },
+    ],
+  };
+
+  async function signInOnPhone(page) {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await skipOnboarding(page);
+    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(PHONE_TRACKS) }));
+    await page.route(/\/api\/community\/overlay\?admin=1/, (route) => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ generatedAt: Date.parse("2026-10-27T09:35:00Z"), reports: 4, devices: 2, activeDevices1d: 1, activeDevices7d: 2, byStatus: { verified: 3 }, perDay: { "2026-10-26": 4 }, questioned: 1, verified: 3, newTreesUnconfirmed: 0, newTreesConfirmed: 0, conflicts: 0, totalPoints: 9 }),
+    }));
+    await page.route(/\/api\/features\?admin=1/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ community: [{ id: "a1b2c3d4e5", note: "Sam" }] }) }));
+    await page.goto("/admin");
+    await page.getByLabel("Admin password").fill("secret");
+    await page.click("#loginBtn");
+    await expect(page.locator("#adminApp")).toBeVisible();
+  }
+
+  test("on a phone the map and the Navigation view get the full width and the top bar stays compact", async ({ page }) => {
+    await signInOnPhone(page);
+    const m = await page.evaluate(() => ({
+      map: document.querySelector(".admin-map-area").getBoundingClientRect().width,
+      top: document.querySelector(".admin-topbar").getBoundingClientRect().height,
+      scrollW: document.documentElement.scrollWidth,
+    }));
+    expect(m.map).toBeGreaterThanOrEqual(390 * 0.9);
+    expect(m.top).toBeLessThanOrEqual(112);
+    expect(m.scrollW).toBeLessThanOrEqual(390);
+    await page.click("#navigationBtn");
+    const nav = await page.locator("#adminNavigation").boundingBox();
+    expect(nav.width).toBeGreaterThanOrEqual(390 * 0.9);
+  });
+
+  test("on a phone the top bar buttons and map controls are at least 40px to tap", async ({ page }) => {
+    await signInOnPhone(page);
+    const small = await page.evaluate(() => [...document.querySelectorAll(".admin-topbar button, .admin-map-control")]
+      .map((el) => ({ id: el.id, r: el.getBoundingClientRect() }))
+      .filter(({ r }) => r.width > 0 && (r.height < 39.5 || r.width < 39.5))
+      .map(({ id, r }) => `${id} ${Math.round(r.width)}x${Math.round(r.height)}`));
+    expect(small).toEqual([]);
+  });
+
+  test("opening the Access panel closes the Community panel so only one overlay shows", async ({ page }) => {
+    await signInOnPhone(page);
+    await page.getByRole("button", { name: "Community" }).click();
+    await expect(page.locator("#adminCommunity")).toBeVisible();
+    await page.getByRole("button", { name: "Access" }).click();
+    await expect(page.locator("#adminAccess")).toBeVisible();
+    await expect(page.locator("#adminCommunity")).toBeHidden();
+    await page.getByRole("button", { name: "Community" }).click();
+    await expect(page.locator("#adminCommunity")).toBeVisible();
+    await expect(page.locator("#adminAccess")).toBeHidden();
+  });
+
+  test("user rows can be picked from the keyboard with Enter and Space", async ({ page }) => {
+    await signInOnPhone(page);
+    const rows = page.locator(".admin-user-item");
+    await expect(rows).toHaveCount(3);
+    const user = rows.nth(1);
+    await user.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".admin-user-item").nth(1)).toHaveAttribute("aria-pressed", "true");
+    await page.locator(".admin-user-item").nth(0).focus();
+    await page.keyboard.press("Space");
+    await expect(page.locator(".admin-user-item").nth(0)).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(".admin-user-item").nth(1)).toHaveAttribute("aria-pressed", "false");
+  });
 });

@@ -21,11 +21,11 @@ The admin UI keeps the password in page memory only, for the lifetime of the pag
 ## Pages / Views
 
 ### Login screen
-- Full-page password form, with a visually-hidden (`.sr-only`) `<label>` for the password field so it has a programmatic name beyond its placeholder text
+- Full-page password form on a white card (local app icon as a brand mark, title, subtitle), with a visually-hidden (`.sr-only`) `<label>` for the password field so it has a programmatic name beyond its placeholder text
 - On success: loads tracking data for the current window (see Data API), transitions to the map view
 - On a reload or new tab: shows the login screen again; the password is not remembered (see Access)
 - **Log out** forgets the password and returns to the login screen
-- On failure: shows inline error message
+- On failure: shows an inline error message in `#loginError`, styled in the danger colour and marked `role="alert"` so it is announced
 
 ### Map view (canvas)
 
@@ -72,9 +72,10 @@ Lists every user who has at least one location ping or tap event, sorted by most
 
 Clicking a row filters the map to that user only. Clicking again (or the "All users" row) clears the filter.
 
-Rows are keyboard-operable, not click-only: each row carries `role="button"`, `tabindex="0"` and
-`aria-pressed` reflecting whether it is the current filter, and responds to Enter/Space the same
-as a click (`makeActivatable()` in `js/admin.js`).
+Rows are real `<button>` elements (class `.admin-user-item`, `.selected` for the current filter) with
+`aria-pressed` reflecting whether it is the current filter, so Tab, Enter and Space work natively. The selected row has an accent edge.
+
+On phones (720 px wide and under) the sidebar becomes a horizontally scrolling strip of user chips above the map, so the map and Navigation view get the full width; the "Users" heading is then visually hidden.
 
 ## Top bar controls
 
@@ -82,19 +83,28 @@ as a click (`makeActivatable()` in `js/admin.js`).
 |---|---|
 | **Tracks** | Switch to route-line view (default) |
 | **Heatmap** | Switch to density grid view |
+| **Navigation** | Open the Navigation view |
+| **Community** | Open the Community panel |
+| **Access** | Open the Access panel |
 | **Refresh** | Re-fetch all data from the server |
 | **Log out** | Forget the password and return to the login screen |
+
+The bar has three groups: the view tabs (Tracks, Heatmap, Navigation) are a segmented control whose active tab is filled with the accent colour; Community and Access are panel buttons with a bordered style; Refresh and Log out are quiet, borderless utility actions on the right. A small app icon and the title "Epping Forest Finds — User Analytics" sit on the left with the environment badge next to them. On phones the bar is two rows (brand and utility actions, then a horizontally scrollable row of tabs and panel buttons) and every top-bar button and map control is at least 44 px (never under 40 px) to tap.
+
+The dashboard's colours, radii, spacing, type sizes and shadows are tokens in `:root` of `css/admin.css`; muted text on the dark shell is at least 4.5:1.
+
+**Overlay panels.** Community, Access and the tap details share one sheet style (`.admin-click-details`): right-aligned over the map (full width on phones) with a close button, readable over both the dark map and the light Navigation view. Only one is open at a time: opening one closes the others.
 
 Auto-refresh runs every 5 minutes.
 
 ## Stats bar
 
-Fixed to bottom-right of the canvas, in a dark frosted panel of the same family as the legend box (a near-opaque black background with a light blur) so it reads over any map colour. Text is at least 14 px, light on dark with a contrast of at least 4.5:1 for labels and values (checked against a white map as the worst case), and the numbers are bolder than the labels. The panel stays inside the viewport at 1024 and 1280 px wide. Shows:
+Fixed to bottom-right of the canvas (the full width at the bottom on phones), in the same dark frosted glass as the legend box and map controls (a near-opaque dark background with a light blur), laid out as chips (one per figure) so the numbers scan rather than read as one sentence so it reads over any map colour. Text is at least 14 px, light on dark with a contrast of at least 4.5:1 for labels and values (checked against a white map as the worst case), and the numbers are bolder than the labels. The panel stays inside the viewport at 1024 and 1280 px wide. Shows:
 - Number of distinct users in current view
 - Total location pings
 - Total tap events
 - The active time window (e.g. "last 30 days"), omitted when the API returned the full history
-- A Navigation block (see Navigation journeys), shown only when at least one journey was derived
+- A Navigation block (see Navigation journeys), shown only when at least one journey was derived, as extra chip rows under the main figures
 
 ## Navigation journeys
 
@@ -156,7 +166,7 @@ A **Navigation** tab in the top bar opens a dedicated view (`#adminNavigation`) 
 - **Marks carry text:** every bar and point has an SVG `<title>` with its day and values (for example "2026-10-22: 4 started, 3 completed, 75%"), so a value can be read on hover without reading the table.
 - **Daily tables:** the same figures as each chart as real HTML (right-aligned tabular numbers, light rules in the `--line` colour, first column sticky when the table scrolls; each scrollable wrapper is a keyboard-focusable `role="region"` with an `aria-label` such as "Daily figures, scrollable"), so every chart has a text alternative. Each chart is an SVG with `role="img"` and an `aria-label` that summarises the trend. Charts use light gridlines, 12 px axis labels in canvas units, and no animation. Chart marks (rate line and dots, bars) are at least 3:1 against white, and the four time buckets and three trend marks are each distinct.
 
-Days are grouped by the local calendar day on which each journey started, oldest first. A day with only abandoned journeys shows a completion rate of 0% and no median. Days without journeys are not drawn, and an empty window shows a plain sentence instead of empty axes. The trend chart draws on an 840-unit canvas and the other two on a 420-unit canvas, each filling its panel, so labels keep a readable size on desktop; the dashboard is a desk tool, so a phone only needs to show the view without horizontal page scroll.
+Days are grouped by the local calendar day on which each journey started, oldest first. A day with only abandoned journeys shows a completion rate of 0% and no median. Days without journeys are not drawn, and an empty window shows a plain sentence instead of empty axes. The trend chart draws on an 840-unit canvas and the other two on a 420-unit canvas, each filling its panel, so labels keep a readable size on desktop; the dashboard is a desk tool, but on a phone the view takes the full width without horizontal page scroll. Cards have a soft shadow and the view keeps bottom padding so the last panel clears the screen edge.
 
 ## Data API
 
@@ -295,7 +305,7 @@ Colours are assigned from a fixed 15-colour palette in the order users are first
 - The admin UI keeps the password in page memory only; it is not written to any browser storage, and a reload asks for it again
 
 ## Early access (feature gate)
-The **Access** top-bar button opens a panel with one tester per line (Tester ID from the person's Settings screen, then an optional note). Save posts the list to `POST /api/features`; no deploy is needed. An empty list means the gate is off and everyone has Community. See `spec/spec-community.md` (Feature gate). `/api/features` is routed in `netlify.toml`.
+The **Access** top-bar button opens a panel with one tester per line (Tester ID from the person's Settings screen, then an optional note). Save posts the list to `POST /api/features`; no deploy is needed. The panel has a monospace textarea, a primary **Save** button and a `role="status"` message beside it; the helper text is quieter than the field. An empty list means the gate is off and everyone has Community. See `spec/spec-community.md` (Feature gate). `/api/features` is routed in `netlify.toml`.
 
 ## Planned future features
 
@@ -306,7 +316,7 @@ The **Access** top-bar button opens a panel with one tester per line (Tester ID 
 
 ## Community verification usage
 
-A **Community** button in the admin top bar opens a panel (`#adminCommunity`) of usage numbers for community reports: people reporting (all time, active in the last 24 h / 7 days), report count, trees questioned / verified, new trees (unconfirmed / confirmed), conflicts awaiting review, points awarded, reports by type and per day for the last 7 days. Data comes from `GET /api/community/overlay?admin=1` with `Authorization: Bearer <ADMIN_PASSWORD>` (401 otherwise). The figures are worked out by `communityAdminStats` (`netlify/functions/lib/community-consensus.js`) during each snapshot rebuild and stored as `admin-stats`, so opening the panel never reads the whole ledger; the panel says which snapshot it shows ("As of the last snapshot, …"), normally under an hour old, and **Rebuild snapshot now** refreshes it. Individual device ids and scores are not shown. See `spec-community.md`.
+A **Community** button in the admin top bar opens a panel (`#adminCommunity`) of usage numbers for community reports: shown as a grid of stat cards (people reporting (all time, active in the last 24 h / 7 days), report count, trees questioned / verified, new trees (unconfirmed / confirmed), conflicts awaiting review, points awarded) followed by label/value tables for reports by type and per day for the last 7 days. The rebuild and reward-check buttons sit at the top with their result in a `role="status"` line, and the report links are styled for the dark panel. Data comes from `GET /api/community/overlay?admin=1` with `Authorization: Bearer <ADMIN_PASSWORD>` (401 otherwise). The figures are worked out by `communityAdminStats` (`netlify/functions/lib/community-consensus.js`) during each snapshot rebuild and stored as `admin-stats`, so opening the panel never reads the whole ledger; the panel says which snapshot it shows ("As of the last snapshot, …"), normally under an hour old, and **Rebuild snapshot now** refreshes it. Individual device ids and scores are not shown. See `spec-community.md`.
 
 ## Community data deletion
 `POST /api/community/delete` (`Authorization: Bearer <ADMIN_PASSWORD>`, routed in `netlify.toml` and `server.js`) deletes one person's Community data on request; it has no button in the dashboard. See `spec-community.md` (Data deletion) and `docs/community-data-deletion.md`.
