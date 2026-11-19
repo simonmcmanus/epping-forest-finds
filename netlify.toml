@@ -216,12 +216,6 @@
   force = true
 
 [[redirects]]
-  from = "/api/community/reset"
-  to = "/.netlify/functions/community-reset"
-  status = 200
-  force = true
-
-[[redirects]]
   from = "/api/community/validate"
   to = "/.netlify/functions/community-validate"
   status = 200

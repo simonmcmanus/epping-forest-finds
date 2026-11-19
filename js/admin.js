@@ -1353,8 +1353,7 @@ function renderCommunityStats(stats) {
   const days = Object.entries(stats.perDay || {}).sort().slice(-7)
     .map(([day, n]) => row(day, n)).join("");
   return `<h3>Community verification</h3>
-    <p><button type="button" class="admin-btn" id="communityRebuildBtn">Rebuild snapshot now</button> <button type="button" class="admin-btn" id="communityValidateBtn">Run reward check now</button> <button type="button" class="admin-btn" id="communityResetBtn">Reset all community data</button> <span id="communityValidateResult"></span></p>
-    <p class="admin-community-warning">Reset deletes this deploy context's reports, scores, accounts, feature-gate list, rate limits, caches and uploaded report photos. It does not delete GitHub issues.</p>
+    <p><button type="button" class="admin-btn" id="communityRebuildBtn">Rebuild snapshot now</button> <button type="button" class="admin-btn" id="communityValidateBtn">Run reward check now</button> <span id="communityValidateResult"></span></p>
     <p><a href="/reports/tree-report" target="_blank" rel="noopener">City of London discrepancy report</a> · <a href="/reports/tree-report?format=csv">CSV</a></p>
     ${stats.generatedAt ? `<p class="admin-community-asof">As of the last snapshot, ${escapeHtml(formatEventTime(new Date(stats.generatedAt).toISOString()))}</p>` : ""}
     <table>
@@ -1504,29 +1503,6 @@ async function adminBoot() {
             result.textContent = "Could not run the check.";
           }
           validateBtn.disabled = false;
-        });
-      }
-      const resetBtn = document.getElementById("communityResetBtn");
-      if (resetBtn) {
-        resetBtn.addEventListener("click", async () => {
-          if (!window.confirm("Delete every Community record and uploaded report photo in this environment? This cannot be undone.")) return;
-          if (window.prompt('Type RESET ALL COMMUNITY DATA to continue.') !== "RESET ALL COMMUNITY DATA") return;
-          resetBtn.disabled = true;
-          const result = document.getElementById("communityValidateResult");
-          try {
-            const resp = await fetch("/api/community/reset", {
-              method: "POST",
-              headers: { Authorization: `Bearer ${password}`, "Content-Type": "application/json" },
-              body: JSON.stringify({ confirm: "RESET ALL COMMUNITY DATA" }),
-            });
-            const data = await resp.json();
-            result.textContent = resp.ok
-              ? `Reset complete: ${data.records} records and ${data.photos} photos deleted. Refresh the panel to see empty stats.`
-              : `Reset failed (${resp.status}). Try again only after checking the storage status.`;
-          } catch (error) {
-            result.textContent = "Could not reset community data.";
-          }
-          resetBtn.disabled = false;
         });
       }
     } catch (error) {

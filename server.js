@@ -273,7 +273,6 @@ const server = http.createServer((req, res) => {
     "/api/community/validate": "community-validate",
     "/api/community/rebuild": "community-rebuild",
     "/api/community/delete": "community-delete",
-    "/api/community/reset": "community-reset",
     "/reports/tree-report": "tree-report",
     "/reports/tree-report/": "tree-report",
     "/api/auth/login": "auth-login",

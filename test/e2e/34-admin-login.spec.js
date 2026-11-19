@@ -122,34 +122,6 @@ test.describe("Admin login", () => {
     await expect(panel).toContainText("42");
   });
 
-  test("the Community panel protects and reports a full data reset", async ({ page }) => {
-    await skipOnboarding(page);
-    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) }));
-    await page.route(/\/api\/community\/overlay\?admin=1/, (route) => route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ generatedAt: 0, reports: 2, devices: 1, byStatus: {}, perDay: {}, questioned: 0, verified: 0, newTreesUnconfirmed: 0, newTreesConfirmed: 0, conflicts: 0, totalPoints: 0 }),
-    }));
-    let resetBody;
-    await page.route("**/api/community/reset", async (route) => {
-      resetBody = route.request().postDataJSON();
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ reset: true, records: 2, photos: 1 }) });
-    });
-    page.on("dialog", async (dialog) => {
-      if (dialog.type() === "prompt") await dialog.accept("RESET ALL COMMUNITY DATA");
-      else await dialog.accept();
-    });
-
-    await page.goto("/admin");
-    await page.getByLabel("Admin password").fill("secret");
-    await page.click("#loginBtn");
-    await page.getByRole("button", { name: "Community" }).click();
-    await expect(page.getByRole("button", { name: "Reset all community data" })).toBeVisible();
-    await page.getByRole("button", { name: "Reset all community data" }).click();
-    await expect(page.locator("#communityValidateResult")).toContainText("2 records and 1 photos deleted");
-    expect(resetBody).toEqual({ confirm: "RESET ALL COMMUNITY DATA" });
-  });
-
   test("the password field is labelled, and a user row can be opened from the keyboard", async ({ page }) => {
     await skipOnboarding(page);
     const tracks = {
