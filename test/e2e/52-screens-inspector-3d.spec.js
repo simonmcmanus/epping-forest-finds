@@ -92,17 +92,24 @@ test("closing Search in 3D is one move back to the Nearby framing", async ({ pag
 });
 
 for (const screen of [{ id: "#settingsToggle", name: "Settings" }, { id: "#reportToggle", name: "Community" }]) {
-  test(`${screen.name} in 3D opens with at most one camera move and closes with at most one`, async ({ page }) => {
+  test(`${screen.name} in 3D opens with the camera held and closes with at most one move onto the Nearby framing`, async ({ page }) => {
     await setup(page, "/nearby");
     await hold3d(page);
     await countMoves(page);
+    const before = await view(page);
     await page.click(screen.id);
     await waitForUiToSettle(page);
-    expect(await moves(page), "opening: one move").toBeLessThanOrEqual(1);
+    expect(await moves(page), "opening: no move").toBe(0);
+    expectSame(await view(page), before, "opening: the camera holds");
     await page.evaluate(() => { window.__moveCount = 0; });
     await page.click("#nearbyToggle");
     await waitForUiToSettle(page);
     expect(await moves(page), "closing: one move").toBeLessThanOrEqual(1);
+    const wanted = await page.evaluate(() => {
+      alignHeadingUpNavigationViewport({ force: true, animate: false });
+      return { scale: state.viewport.scale, tx: state.viewport.tx, ty: state.viewport.ty };
+    });
+    expectSame(await view(page), wanted, "closing: lands on the Nearby framing");
     expect(await page.evaluate(() => tiltActive()), "3D stays on").toBe(true);
   });
 }
