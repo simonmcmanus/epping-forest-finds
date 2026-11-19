@@ -50,8 +50,8 @@
           <button id="navigationBtn" class="admin-btn" type="button" aria-pressed="false">Navigation</button>
         </div>
         <div class="admin-panel-btns" role="group" aria-label="Panels">
-          <button id="communityBtn" class="admin-btn" type="button">Community</button>
-          <button id="accessBtn" class="admin-btn" type="button">Access</button>
+          <button id="communityBtn" class="admin-btn" type="button" aria-expanded="false">Community</button>
+          <button id="accessBtn" class="admin-btn" type="button" aria-expanded="false">Access</button>
         </div>
       </div>
       <div class="admin-actions">
@@ -59,6 +59,9 @@
         <button id="logoutBtn" class="admin-btn" type="button">Log out</button>
       </div>
     </header>
+
+    <!-- Non-blocking notice when a refresh fails; collapsed (but still rendered) while empty so the first message is announced. -->
+    <div id="adminRefreshStatus" class="admin-refresh-status" role="status"></div>
 
     <div class="admin-body">
       <aside class="admin-sidebar">
@@ -84,19 +87,20 @@
         <div id="adminStats" class="admin-stats"></div>
         <section id="adminNavigation" class="admin-nav-view" aria-label="Navigation trends" hidden></section>
         <section id="adminCommunity" class="admin-click-details" role="region" aria-label="Community stats" hidden>
-          <button id="adminCommunityClose" class="admin-click-details-close" type="button" aria-label="Close community stats">×</button>
+          <button id="adminCommunityClose" class="admin-click-details-close" type="button" aria-label="Close community stats" title="Close (Esc)" aria-keyshortcuts="Escape">×</button>
           <p id="adminCommunityStatus" class="admin-community-status" role="status"></p>
+          <div><button id="adminCommunityRetry" class="admin-btn admin-retry-btn" type="button" hidden>Retry</button></div>
           <div id="adminCommunityBody"></div>
         </section>
         <section id="adminAccess" class="admin-click-details" role="region" aria-labelledby="adminAccessTitle" hidden>
-          <button id="adminAccessClose" class="admin-click-details-close" type="button" aria-label="Close access list">×</button>
+          <button id="adminAccessClose" class="admin-click-details-close" type="button" aria-label="Close access list" title="Close (Esc)" aria-keyshortcuts="Escape">×</button>
           <h3 id="adminAccessTitle" class="admin-panel-title">Early access: Community</h3>
           <p class="admin-panel-help">One tester per line: the Tester ID from their Settings screen, then an optional note. While the list is empty everyone has Community; once it has anyone in it, only they do. Changes apply the next time an app starts; no deploy needed.</p>
-          <textarea id="adminAccessList" rows="10" spellcheck="false" placeholder="a1b2c3d4e5 Simon"></textarea>
-          <p class="admin-access-actions"><button id="adminAccessSave" class="admin-btn admin-btn-primary" type="button">Save</button> <span id="adminAccessStatus" role="status"></span></p>
+          <textarea id="adminAccessList" rows="10" spellcheck="false" placeholder="a1b2c3d4e5 Simon" disabled></textarea>
+          <p class="admin-access-actions"><button id="adminAccessSave" class="admin-btn admin-btn-primary" type="button" disabled>Save</button> <button id="adminAccessRetry" class="admin-btn" type="button" hidden>Retry</button> <span id="adminAccessStatus" role="status"></span></p>
         </section>
         <section id="adminClickDetails" class="admin-click-details" role="region" aria-label="Tap details" hidden>
-          <button id="adminClickDetailsClose" class="admin-click-details-close" type="button" aria-label="Close click details">×</button>
+          <button id="adminClickDetailsClose" class="admin-click-details-close" type="button" aria-label="Close click details" title="Close (Esc)" aria-keyshortcuts="Escape">×</button>
           <div id="adminClickDetailsBody"></div>
         </section>
       </div>

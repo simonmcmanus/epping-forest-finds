@@ -1105,7 +1105,7 @@ function drawCurrentPositions(ctx, w, h) {
 
 // ---- User list sidebar ----
 
-function buildUserList() {
+function buildUserList({ reveal = false } = {}) {
   const list = document.getElementById("adminUserList");
   if (!list) return;
 
@@ -1142,7 +1142,7 @@ function buildUserList() {
     div.title = `Last seen: ${lastSeen}`;
     div.addEventListener("click", () => {
       selectedUid = selectedUid === uid ? null : uid;
-      buildUserList();
+      buildUserList({ reveal: true });
       render();
     });
     return div;
@@ -1151,6 +1151,9 @@ function buildUserList() {
   // A re-render replaces the buttons, so remember which row had focus and give it back.
   const focused = list.contains(document.activeElement) ? document.activeElement : null;
   const focusedUid = focused ? (focused.dataset.uid || "") : null;
+  // Emptying the list collapses it and would reset the strip to its start, so remember where it was scrolled.
+  const scrollLeft = list.scrollLeft;
+  const scrollTop = list.scrollTop;
   list.innerHTML = "";
   // "All users" row
   const allRow = document.createElement("button");
@@ -1158,15 +1161,37 @@ function buildUserList() {
   allRow.className = "admin-user-item" + (!selectedUid ? " selected" : "");
   allRow.dataset.uid = "";
   allRow.setAttribute("aria-pressed", !selectedUid ? "true" : "false");
-  allRow.innerHTML = `<span class="admin-user-dot" style="background:#aaa"></span><span class="admin-user-label">All users</span><span class="admin-user-meta">${users.length}</span>`;
-  allRow.addEventListener("click", () => { selectedUid = null; buildUserList(); render(); });
+  allRow.innerHTML = `<span class="admin-user-dot" style="background:#aaa"></span><span class="admin-user-label">All users</span><span class="admin-user-meta">${users.length} user${users.length === 1 ? "" : "s"}</span>`;
+  allRow.addEventListener("click", () => { selectedUid = null; buildUserList({ reveal: true }); render(); });
   list.appendChild(allRow);
   items.forEach((el) => list.appendChild(el));
+  list.scrollLeft = scrollLeft;
+  list.scrollTop = scrollTop;
   if (focusedUid !== null) {
     const row = [...list.children].find((el) => (el.dataset.uid || "") === focusedUid);
     if (row) row.focus();
   }
+  // Choosing a chip scrolls it fully into the strip; an already visible chip does not move.
+  if (reveal) {
+    const chosen = list.querySelector(".admin-user-item.selected");
+    const calm = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (chosen) chosen.scrollIntoView({ inline: "nearest", block: "nearest", behavior: calm ? "auto" : "smooth" });
+  }
+  refreshScrollCues();
   refreshNavigationView();
+}
+
+// Fade cue: mark the nav row and user strip with cue-start / cue-end while more of them is scrolled out of view at that edge.
+function refreshScrollCues() {
+  for (const el of document.querySelectorAll(".admin-user-list, .admin-nav")) {
+    if (!el.dataset.cueBound) {
+      el.dataset.cueBound = "1";
+      el.addEventListener("scroll", refreshScrollCues, { passive: true });
+    }
+    const max = el.scrollWidth - el.clientWidth;
+    el.classList.toggle("cue-start", max > 1 && el.scrollLeft > 1);
+    el.classList.toggle("cue-end", max > 1 && el.scrollLeft < max - 1);
+  }
 }
 
 function updateStats() {
@@ -1320,6 +1345,15 @@ function closeOverlay(key) {
   if (!panel || panel.hidden) return;
   if (panel.contains(document.activeElement)) document.getElementById(cfg.opener)?.focus();
   panel.hidden = true;
+  syncPanelButtons();
+}
+
+// The Community and Access buttons say whether their panel is open (aria-expanded, plus a lit style in the CSS).
+function syncPanelButtons() {
+  for (const cfg of Object.values(OVERLAY_PANELS)) {
+    const panel = document.getElementById(cfg.id);
+    document.getElementById(cfg.opener)?.setAttribute("aria-expanded", panel && !panel.hidden ? "true" : "false");
+  }
 }
 
 function closeOverlayPanels(except) {
@@ -1384,7 +1418,13 @@ async function loadData(password) {
   let url;
   for (const days of ADMIN_WINDOW_FALLBACKS) {
     url = days ? `/api/admin/tracks?days=${days}` : "/api/admin/tracks";
-    resp = await fetch(url, { headers: { "Authorization": `Bearer ${password}` } });
+    try {
+      resp = await fetch(url, { headers: { "Authorization": `Bearer ${password}` } });
+    } catch (cause) {
+      const failure = new Error("network");
+      failure.network = true;
+      throw failure;
+    }
     if (resp.status === 401) throw new Error("wrong-password");
     if (resp.ok || resp.status < 500) break;
   }
@@ -1404,22 +1444,27 @@ async function loadData(password) {
 // Community verification usage (netlify/functions/community-overlay.js ?admin=1).
 async function loadCommunityStats(password) {
   const resp = await fetch("/api/community/overlay?admin=1", { headers: { Authorization: `Bearer ${password}` } });
-  if (!resp.ok) throw new Error(`Server error ${resp.status}`);
+  if (!resp.ok) {
+    const failure = new Error(`Server error ${resp.status}`);
+    failure.status = resp.status;
+    throw failure;
+  }
   return resp.json();
 }
 
-function renderCommunityStats(stats) {
-  const row = (label, value) => `<tr><th scope="row">${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`;
+function communityRow(label, value) {
+  return `<tr><th scope="row">${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`;
+}
+
+// The figures part of the Community panel: replaced after a rebuild without touching the buttons or the result line.
+function renderCommunityFigures(stats) {
+  const row = communityRow;
   const card = (label, value) => `<li class="admin-stat-card"><span class="admin-stat-value">${escapeHtml(value)}</span><span class="admin-stat-label">${escapeHtml(label)}</span></li>`;
   const statusRows = Object.entries(stats.byStatus || {}).sort((a, b) => b[1] - a[1])
     .map(([status, n]) => row(status, n)).join("");
   const days = Object.entries(stats.perDay || {}).sort().slice(-7)
     .map(([day, n]) => row(day, n)).join("");
-  return `<h3 class="admin-panel-title">Community verification</h3>
-    <div class="admin-panel-actions"><button type="button" class="admin-btn" id="communityRebuildBtn">Rebuild snapshot now</button> <button type="button" class="admin-btn" id="communityValidateBtn">Run reward check now</button></div>
-    <span id="communityValidateResult" class="admin-panel-status" role="status"></span>
-    <p class="admin-panel-links"><a href="/reports/tree-report" target="_blank" rel="noopener">City of London discrepancy report</a> · <a href="/reports/tree-report?format=csv">CSV</a></p>
-    ${stats.generatedAt ? `<p class="admin-community-asof">As of the last snapshot, ${escapeHtml(formatEventTime(new Date(stats.generatedAt).toISOString()))}</p>` : ""}
+  return `${stats.generatedAt ? `<p class="admin-community-asof">As of the last snapshot, ${escapeHtml(formatEventTime(new Date(stats.generatedAt).toISOString()))}</p>` : ""}
     <ul class="admin-stat-grid">
       ${card("People reporting (all time)", stats.devices)}
       ${card("Active, last 24 h / 7 days", `${stats.activeDevices1d} / ${stats.activeDevices7d}`)}
@@ -1432,6 +1477,14 @@ function renderCommunityStats(stats) {
     </ul>
     <h4>By report type</h4><table>${statusRows || row("None yet", "")}</table>
     <h4>Last 7 days with reports</h4><table>${days || row("None yet", "")}</table>`;
+}
+
+function renderCommunityStats(stats) {
+  return `<h3 class="admin-panel-title">Community verification</h3>
+    <div class="admin-panel-actions"><button type="button" class="admin-btn" id="communityRebuildBtn">Rebuild snapshot now</button> <button type="button" class="admin-btn" id="communityValidateBtn">Run reward check now</button></div>
+    <span id="communityValidateResult" class="admin-panel-status" role="status"></span>
+    <p class="admin-panel-links"><a href="/reports/tree-report" target="_blank" rel="noopener">City of London discrepancy report</a> · <a href="/reports/tree-report?format=csv">CSV</a></p>
+    <div id="communityFigures">${renderCommunityFigures(stats)}</div>`;
 }
 
 // The password lives only in the page's memory (the `password` variable in adminBoot), so a reload
@@ -1647,12 +1700,46 @@ async function adminBoot() {
   loadAdminBaseMap();
   setupMapViewportHandlers(canvas, zoomInBtn, zoomOutBtn, resetMapBtn);
 
+  const refreshStatus = document.getElementById("adminRefreshStatus");
+  const communityRetry = document.getElementById("adminCommunityRetry");
+  const accessPanel = document.getElementById("adminAccess");
+  const accessList = document.getElementById("adminAccessList");
+  const accessStatus = document.getElementById("adminAccessStatus");
+  const accessSave = document.getElementById("adminAccessSave");
+  const accessRetry = document.getElementById("adminAccessRetry");
+  const communityClose = document.getElementById("adminCommunityClose");
+  const accessClose = document.getElementById("adminAccessClose");
+
+  let sessionId = 0; // bumped on sign-out so a late response cannot bring old data back
+  let lastLoadedAt = null;
+
+  function clockText(date) {
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  // The refresh note changes the map's height, so lay the map out again.
+  function relayout() {
+    invalidateMapFit();
+    syncSheetInset();
+    render();
+  }
+
+  function setRefreshNote(text) {
+    if (refreshStatus.textContent === text) return;
+    refreshStatus.textContent = text;
+    relayout();
+  }
+
   function showAdminApp() {
     loginScreen.hidden = true;
     adminApp.hidden = false;
+    lastLoadedAt = new Date();
+    setRefreshNote("");
     buildUserList();
     updateStats();
     refreshClickDetails();
+    refreshScrollCues();
     requestAnimationFrame(render);
   }
 
@@ -1665,17 +1752,29 @@ async function adminBoot() {
   }
 
   function forgetSession(message = "") {
+    sessionId++;
     password = "";
     allData = { locations: [], clicks: [], navigation: [] };
     selectedUid = null;
     selectedClickKey = null;
+    // Nothing from this session may reappear at the next sign-in: close every panel and empty what they held.
+    closeOverlayPanels();
+    resetAccessPanel();
+    communityToken++;
+    communityBody.textContent = "";
+    communityStatus.textContent = "";
+    communityRetry.hidden = true;
+    document.getElementById("adminClickDetailsBody").textContent = "";
+    setRefreshNote("");
     showLogin(message);
+    loginInput.focus();
   }
 
   async function doLogin() {
     const pw = loginInput.value.trim();
     if (!pw) {
       loginError.textContent = "Enter the admin password.";
+      loginInput.focus();
       return;
     }
     loginBtn.disabled = true;
@@ -1688,12 +1787,16 @@ async function adminBoot() {
     } catch (err) {
       console.error("[admin] login failed:", err);
       if (err.message === "wrong-password") {
-        loginError.textContent = "Incorrect password — check ADMIN_PASSWORD in your .env file.";
+        loginError.textContent = "Incorrect password. Try again.";
+      } else if (err.network) {
+        loginError.textContent = "Cannot reach the server. Check your connection and try again.";
       } else {
-        loginError.textContent = `Cannot reach server: ${err.message}`;
+        loginError.textContent = err.message;
       }
       loginBtn.disabled = false;
       loginBtn.textContent = "Sign in";
+      loginInput.focus();
+      loginInput.select();
     }
   }
 
@@ -1722,110 +1825,276 @@ async function adminBoot() {
     refreshNavigationView();
   });
 
-  communityBtn.addEventListener("click", async () => {
-    closeOverlayPanels("community");
-    communityPanel.hidden = false;
-    document.getElementById("adminCommunityClose").focus();
+  // ---- Community panel ----
+  let communityToken = 0;
+
+  async function loadCommunity() {
+    const token = ++communityToken;
+    communityRetry.hidden = true;
     communityBody.textContent = "";
     communityStatus.textContent = "Loading…";
+    const sid = sessionId;
     try {
       const html = renderCommunityStats(await loadCommunityStats(password));
+      if (token !== communityToken || sid !== sessionId) return;
       communityStatus.textContent = "";
       communityBody.innerHTML = html;
-      const rebuildBtn = document.getElementById("communityRebuildBtn");
-      if (rebuildBtn) {
-        rebuildBtn.addEventListener("click", async () => {
-          rebuildBtn.disabled = true;
-          const result = document.getElementById("communityValidateResult");
-          try {
-            const resp = await fetch("/api/community/rebuild", { headers: { Authorization: `Bearer ${password}` } });
-            const data = await resp.json();
-            result.textContent = resp.ok ? `Rebuilt from ${data.reports} reports (${data.targets} trees on the overlay).` : `Failed (${resp.status})`;
-          } catch (error) {
-            result.textContent = "Could not rebuild.";
-          }
-          rebuildBtn.disabled = false;
-        });
+      document.getElementById("communityRebuildBtn").addEventListener("click", () => runCommunityAction({
+        button: document.getElementById("communityRebuildBtn"),
+        name: "Rebuild",
+        progress: "Rebuilding…",
+        url: "/api/community/rebuild",
+        failure: "Could not rebuild the snapshot",
+        success: (data) => `Rebuilt from ${data.reports} reports (${data.targets} trees on the overlay).`,
+        refreshFigures: true,
+      }));
+      document.getElementById("communityValidateBtn").addEventListener("click", () => runCommunityAction({
+        button: document.getElementById("communityValidateBtn"),
+        name: "Reward check",
+        progress: "Checking rewards…",
+        url: "/api/community/validate",
+        failure: "Could not run the reward check",
+        success: (data) => {
+          const plural = (n, word) => `${n} ${word}${Number(n) === 1 ? "" : "s"}`;
+          return `${data.registerChecked ? "Register checked" : "Register not checked"}${data.baseline ? " (baseline recorded)" : ""}. ${plural(data.newRegisterRewards, "new register reward")}, ${plural(data.issueRewards, "issue reward")}.${data.issueError ? ` GitHub: ${data.issueError}` : ""}`;
+        },
+      }));
+    } catch (error) {
+      if (token !== communityToken || sid !== sessionId) return;
+      if (error.status === 401) {
+        forgetSession("Admin session expired. Sign in again.");
+        return;
       }
-      const validateBtn = document.getElementById("communityValidateBtn");
-      if (validateBtn) {
-        validateBtn.addEventListener("click", async () => {
-          validateBtn.disabled = true;
-          const result = document.getElementById("communityValidateResult");
-          try {
-            const resp = await fetch("/api/community/validate", { headers: { Authorization: `Bearer ${password}` } });
-            const data = await resp.json();
-            result.textContent = resp.ok
-              ? `Register checked: ${data.registerChecked ? "yes" : "no"}${data.baseline ? " (baseline recorded)" : ""}. New register rewards: ${data.newRegisterRewards}. Issue rewards: ${data.issueRewards}.${data.issueError ? " GitHub: " + data.issueError : ""}`
-              : `Failed (${resp.status})`;
-          } catch (error) {
-            result.textContent = "Could not run the check.";
-          }
-          validateBtn.disabled = false;
-        });
+      communityBody.textContent = "";
+      communityStatus.textContent = error.status ? `Could not load community stats (${error.status}).` : "Could not load community stats. Check your connection.";
+      communityRetry.hidden = false;
+    }
+  }
+
+  // Rebuild and the reward check: say what is running, keep both buttons off meanwhile, prefix the result with the action,
+  // and after a rebuild refresh the figures in place (the buttons and the result line are not replaced, so focus stays put).
+  async function runCommunityAction({ button, name, progress, url, failure, success, refreshFigures }) {
+    const rebuildBtn = document.getElementById("communityRebuildBtn");
+    const validateBtn = document.getElementById("communityValidateBtn");
+    const result = document.getElementById("communityValidateResult");
+    const sid = sessionId;
+    rebuildBtn.disabled = true;
+    validateBtn.disabled = true;
+    result.textContent = progress;
+    let ok = false;
+    let text;
+    try {
+      const resp = await fetch(url, { headers: { Authorization: `Bearer ${password}` } });
+      if (sid !== sessionId) return;
+      if (resp.status === 401) {
+        forgetSession("Admin session expired. Sign in again.");
+        return;
+      }
+      if (resp.ok) {
+        text = `${name}: ${success(await resp.json())}`;
+        ok = true;
+      } else {
+        text = `${name}: ${failure} (${resp.status}). Try again.`;
       }
     } catch (error) {
-      communityBody.textContent = "";
-      communityStatus.textContent = `Could not load community stats (${error.message}).`;
+      if (sid !== sessionId) return;
+      text = `${name}: ${failure}. Check your connection and try again.`;
     }
-  });
-  document.getElementById("adminCommunityClose").addEventListener("click", () => closeOverlay("community"));
+    result.textContent = text;
+    if (ok && refreshFigures) {
+      try {
+        const stats = await loadCommunityStats(password);
+        if (sid !== sessionId) return;
+        const figures = document.getElementById("communityFigures");
+        if (figures) figures.innerHTML = renderCommunityFigures(stats);
+      } catch (error) {
+        if (sid !== sessionId) return;
+        if (error.status === 401) {
+          forgetSession("Admin session expired. Sign in again.");
+          return;
+        }
+        result.textContent = `${text} The figures below could not be refreshed.`;
+      }
+    }
+    rebuildBtn.disabled = false;
+    validateBtn.disabled = false;
+    const active = document.activeElement;
+    if (!active || active === document.body || active === button) button.focus();
+  }
 
-  // Early-access list: who sees the gated Community features. Stored server-side, so no deploy to change it.
-  const accessPanel = document.getElementById("adminAccess");
-  const accessList = document.getElementById("adminAccessList");
-  const accessStatus = document.getElementById("adminAccessStatus");
-  document.getElementById("accessBtn").addEventListener("click", async () => {
-    closeOverlayPanels("access");
-    accessPanel.hidden = false;
-    document.getElementById("adminAccessClose").focus();
+  communityBtn.addEventListener("click", () => {
+    closeOverlayPanels("community");
+    communityPanel.hidden = false;
+    syncPanelButtons();
+    communityClose.focus();
+    loadCommunity();
+  });
+  communityRetry.addEventListener("click", () => {
+    communityClose.focus();
+    loadCommunity();
+  });
+  communityClose.addEventListener("click", () => closeOverlay("community"));
+
+  // ---- Early-access list: who sees the gated Community features. Stored server-side, so no deploy to change it. ----
+  // The list is only editable once it has loaded: saving after a failed load would send an empty list and switch the gate off for everyone.
+  let accessLoaded = false;
+  let accessBaseline = "";
+  let accessEscArmed = false;
+  let accessSaving = false;
+  let accessToken = 0;
+  const accessText = (entries) => entries.map((e) => `${e.id}${e.note ? ` ${e.note}` : ""}`).join("\n");
+  const accessDirty = () => accessLoaded && accessList.value !== accessBaseline;
+
+  function setAccessEditable(editable) {
+    accessList.disabled = !editable;
+    accessSave.disabled = !editable;
+  }
+
+  function resetAccessPanel() {
+    accessToken++;
+    accessLoaded = false;
+    accessSaving = false;
+    accessEscArmed = false;
+    accessBaseline = "";
+    accessList.value = "";
+    accessStatus.textContent = "";
+    accessRetry.hidden = true;
+    setAccessEditable(false);
+  }
+
+  async function loadAccess() {
+    const token = ++accessToken;
+    const sid = sessionId;
+    accessLoaded = false;
+    accessEscArmed = false;
+    accessRetry.hidden = true;
+    setAccessEditable(false);
     accessStatus.textContent = "Loading…";
     try {
       const resp = await fetch("/api/features?admin=1", { headers: { Authorization: `Bearer ${password}` } });
+      if (token !== accessToken || sid !== sessionId) return;
+      if (resp.status === 401) {
+        forgetSession("Admin session expired. Sign in again.");
+        return;
+      }
       if (!resp.ok) throw new Error(resp.status);
       const data = await resp.json();
-      accessList.value = (data.community || []).map((e) => `${e.id}${e.note ? ` ${e.note}` : ""}`).join("\n");
+      if (token !== accessToken || sid !== sessionId) return;
+      accessList.value = accessText(data.community || []);
+      accessBaseline = accessList.value;
+      accessLoaded = true;
+      setAccessEditable(true);
       accessStatus.textContent = "";
     } catch (error) {
+      if (token !== accessToken || sid !== sessionId) return;
+      accessList.value = "";
       accessStatus.textContent = `Could not load (${error.message}).`;
+      accessRetry.hidden = false;
+    }
+  }
+
+  document.getElementById("accessBtn").addEventListener("click", () => {
+    const wasOpen = !accessPanel.hidden;
+    closeOverlayPanels("access");
+    accessPanel.hidden = false;
+    syncPanelButtons();
+    if (accessDirty() || accessSaving) {
+      // Never overwrite what is typed: just bring the panel (and the cursor) back.
+      if (!wasOpen) accessStatus.textContent = "Unsaved changes kept — Save, or press Esc twice to discard.";
+      (wasOpen ? accessList : accessClose).focus();
+      return;
+    }
+    accessClose.focus();
+    loadAccess();
+  });
+  accessRetry.addEventListener("click", () => {
+    accessClose.focus();
+    loadAccess();
+  });
+  accessList.addEventListener("input", () => {
+    if (accessEscArmed) {
+      accessEscArmed = false;
+      accessStatus.textContent = "";
     }
   });
-  document.getElementById("adminAccessSave").addEventListener("click", async () => {
-    const community = accessList.value.split("\n").map((line) => line.trim()).filter(Boolean).map((line) => {
+  accessSave.addEventListener("click", async () => {
+    if (!accessLoaded || accessSaving) return;
+    const lines = accessList.value.split("\n").map((line) => line.trim()).filter(Boolean);
+    const community = lines.map((line) => {
       const [id, ...rest] = line.split(/\s+/);
       return { id, note: rest.join(" ") };
     });
+    const sid = sessionId;
+    accessSaving = true;
+    accessEscArmed = false;
+    setAccessEditable(false);
     accessStatus.textContent = "Saving…";
     try {
       const resp = await fetch("/api/features", { method: "POST", headers: { Authorization: `Bearer ${password}`, "Content-Type": "application/json" }, body: JSON.stringify({ community }) });
+      if (sid !== sessionId) return;
+      if (resp.status === 401) {
+        forgetSession("Admin session expired. Sign in again.");
+        return;
+      }
       if (!resp.ok) throw new Error(resp.status);
       const saved = await resp.json();
-      accessList.value = saved.community.map((e) => `${e.id}${e.note ? ` ${e.note}` : ""}`).join("\n");
-      accessStatus.textContent = `Saved ${saved.community.length} tester${saved.community.length === 1 ? "" : "s"}. Lines that are not a 10-character ID were dropped.`;
+      if (sid !== sessionId) return;
+      accessList.value = accessText(saved.community);
+      accessBaseline = accessList.value;
+      const dropped = lines.length - saved.community.length;
+      accessStatus.textContent = `Saved ${saved.community.length} tester${saved.community.length === 1 ? "" : "s"}.${dropped > 0 ? ` ${dropped} line${dropped === 1 ? " was" : "s were"} not a 10-character ID and ${dropped === 1 ? "was" : "were"} dropped.` : ""}`;
     } catch (error) {
+      if (sid !== sessionId) return;
       accessStatus.textContent = `Could not save (${error.message}).`;
     }
+    accessSaving = false;
+    setAccessEditable(true);
+    if (!document.activeElement || document.activeElement === document.body) accessSave.focus();
   });
-  document.getElementById("adminAccessClose").addEventListener("click", () => closeOverlay("access"));
+  accessClose.addEventListener("click", () => {
+    // The cross keeps any unsaved text (reopening restores it); only a second Escape discards.
+    accessEscArmed = false;
+    closeOverlay("access");
+  });
   document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && !adminApp.hidden) closeOverlayPanels();
+    if (event.key !== "Escape" || adminApp.hidden) return;
+    if (!accessPanel.hidden && accessDirty()) {
+      if (!accessEscArmed) {
+        accessEscArmed = true;
+        accessStatus.textContent = "Unsaved changes — Save or press Esc again to discard.";
+        return;
+      }
+      accessList.value = accessBaseline;
+      accessEscArmed = false;
+      accessStatus.textContent = "";
+    }
+    closeOverlayPanels();
   });
 
   tracksBtn.addEventListener("click", () => showMapView("tracks"));
 
-  refreshBtn.addEventListener("click", async () => {
+  // Refresh and the 5-minute auto-refresh share this: a failure leaves the data on screen and says so (a 401 still signs out).
+  async function refreshData() {
+    const sid = sessionId;
     refreshBtn.disabled = true;
     try {
-      allData = await loadData(password);
+      const data = await loadData(password);
+      if (sid !== sessionId) return;
+      allData = data;
+      lastLoadedAt = new Date();
+      setRefreshNote("");
       buildUserList();
       updateStats();
       refreshClickDetails();
       render();
     } catch (err) {
+      if (sid !== sessionId) return;
       if (err.message === "wrong-password") forgetSession("Admin session expired. Sign in again.");
+      else setRefreshNote(`Could not refresh — showing data from ${clockText(lastLoadedAt || new Date())}.`);
     }
     refreshBtn.disabled = false;
-  });
+  }
+  refreshBtn.addEventListener("click", refreshData);
 
   if (logoutBtn) {
     logoutBtn.addEventListener("click", () => {
@@ -1838,15 +2107,10 @@ async function adminBoot() {
     clickDetailsClose.addEventListener("click", hideClickDetails);
   }
 
-  window.addEventListener("resize", () => { invalidateMapFit(); syncSheetInset(); render(); });
+  window.addEventListener("resize", () => { invalidateMapFit(); syncSheetInset(); refreshScrollCues(); render(); });
 
   // Auto-refresh every 5 minutes
-  setInterval(async () => {
-    if (!password) return;
-    try { allData = await loadData(password); buildUserList(); updateStats(); refreshClickDetails(); render(); } catch (err) {
-      if (err.message === "wrong-password") forgetSession("Admin session expired. Sign in again.");
-    }
-  }, 5 * 60 * 1000);
+  setInterval(() => { if (password) refreshData(); }, 5 * 60 * 1000);
 }
 
 document.addEventListener("DOMContentLoaded", adminBoot);
