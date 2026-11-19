@@ -4264,7 +4264,7 @@ function ensureLocationWatch() {
       updateOverviewDirectionArrows();
       updateSelectedDetailFields();
       if (navigationAnchorActive()) {
-        const vpChanged = alignHeadingUpNavigationViewport();
+        const vpChanged = alignHeadingUpNavigationViewport({ gpsFollow: true });
         keepOverviewCenteredOnUser(previousPoint);
         updateCompassOverlay();
         updateHeadingUpCanvasRotationTransform();
@@ -5919,6 +5919,9 @@ function alignHeadingUpNavigationViewport(options = {}) {
     // stopped on the earlier tween's framing until some later un-animated tick snapped it right.
     // Queue it instead and run it once the in-flight move has landed.
     if (options.animate) deferAnimatedNearbyRefit(options);
+    // A GPS fix landing mid-move must not restart or snap the move, but the framing it asks for is
+    // not dropped either: once the move has landed, one short ease carries the camera onto the fix.
+    else if (options.gpsFollow && !pendingNearbyRefitOptions) deferAnimatedNearbyRefit({ animate: true, durationMs: 300 });
     return false;
   }
   if (state.clusterZoomed) return false;
@@ -6166,9 +6169,10 @@ function animateToHeadingUpNavigationViewport(durationMs = HEADING_UP_NAV_ANIMAT
   const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: Boolean(options.assumeInspectorOpen) });
   const focus = navigationFocusPoint(focusRect);
   const maxScale = maxHeadingUpNavigationScale(focus, focusRect);
-  // Use maxScale directly so the viewport always zooms to fit the selected
-  // target, even when coming from a wider zoom (e.g. walking-radius overview).
-  const targetScale = maxScale;
+  // Fit the selected target even when coming from a wider zoom (e.g. walking-radius overview), at the
+  // same buffered scale every other route to this state lands on (alignHeadingUpNavigationViewport with
+  // force), so the compass follow that comes next finds nothing left to correct.
+  const targetScale = resolveHeadingUpTargetScale(maxScale, state.viewport.scale, true);
   // force: true, matching maxScale being used directly above rather than through
   // resolveHeadingUpTargetScale -- this is a fresh selection, not the compass follow, so
   // the camera's own placement should not ease from wherever a previous selection last

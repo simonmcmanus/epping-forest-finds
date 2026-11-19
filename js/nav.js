@@ -1138,7 +1138,9 @@ function setupResizeHandler() {
     resizeCanvas();
     if (state.bounds) {
       if (typeof headingUpActive === "function" && headingUpActive()) {
-        alignHeadingUpNavigationViewport();
+        // A resize changes the room the fit solves against, so it refits outright: the compass
+        // follow's hold band would keep the old scale, and the fit is never animated.
+        alignHeadingUpNavigationViewport({ force: true, animate: false });
       } else if (state.userLocation && selectedCompassTarget()) {
         ensureUserAndSelectionVisible({ animate: true, durationMs: 360 });
       } else if (state.userLocation && (isOverviewScreenActive() || secondaryScreenActive())) {
