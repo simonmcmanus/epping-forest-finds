@@ -1782,6 +1782,11 @@ function headingUpTranslationFor(point, rotation, scale, origin, screen) {
 // The queueing of animated Nearby refits that arrive mid-move stays with the refit path
 // (alignHeadingUpNavigationViewport -> deferAnimatedNearbyRefit) until its callers migrate.
 // `options.reason` is a diagnostic label only; it changes nothing about the move.
+// Eased progress of the camera tween in flight, written by its tick before each draw. A wide-shot first
+// leg drives the browse-origin slide with it (nearbyOriginSlideProgress), so the origin and the camera
+// move as one.
+let _viewportTweenEased = 0;
+
 function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
   let safeDuration = Math.max(MIN_VIEWPORT_ANIMATION_MS, Number(durationMs) || DEFAULT_VIEWPORT_ANIMATION_MS);
   const cinematic = Boolean(options.cinematic);
@@ -1900,6 +1905,7 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
   state.locationRevealFocusPoint = cinematic ? { x: focusPoint.x, y: focusPoint.y } : null;
   state.viewportAnimationDuration = safeDuration;
   _tweenOwnedBySlide = ownedBySlide;
+  _viewportTweenEased = 0;
 
   const tick = (timestamp) => {
     // Keep the timestamp through rendering so a thrown frame cannot hide a stranded camera.
@@ -1945,6 +1951,7 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
       state.viewport.tx = frame.tx;
       state.viewport.ty = frame.ty;
     }
+    _viewportTweenEased = eased;
     requestDraw();
 
     if (progress >= 1) {
@@ -4694,13 +4701,10 @@ function computeNearbyRenderOriginPoint() {
   if (!origin || !origin.point) return null;
   const transition = state.nearbyOriginTransition;
   if (!transition) return origin.point;
-  const progress = clamp((performance.now() - transition.startedAt) / transition.durationMs, 0, 1);
-  if (progress >= 1) return origin.point;
   // Same cubic ease-in-out moveCamera uses, so a slide feels like every other camera
   // move in the app rather than like a second, differently-tuned animation system.
-  const eased = progress < 0.5
-    ? 4 * progress * progress * progress
-    : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+  const eased = nearbyOriginSlideProgress(transition);
+  if (eased == null || eased >= 1) return origin.point;
   return {
     x: transition.fromX + (origin.point.x - transition.fromX) * eased,
     y: transition.fromY + (origin.point.y - transition.fromY) * eased,
@@ -4768,6 +4772,18 @@ function nearbyOriginSlideHoldsPause() {
 function nearbyOriginTransitionEasedProgress() {
   const transition = state.nearbyOriginTransition;
   if (!transition) return null;
+  return nearbyOriginSlideProgress(transition);
+}
+
+// A slide whose wide-shot first leg is flying (transition.wideLegTween) is paced by that tween, so the
+// camera origin crosses from the old place to the group exactly as the camera pulls out; otherwise by
+// its own clock. Null once it has run out.
+function wideLegSlideFlying(transition) {
+  return Boolean(transition.wideLegTween) && state.viewportAnimationTo === transition.wideLegTween;
+}
+
+function nearbyOriginSlideProgress(transition) {
+  if (transition.wideLegTween) return wideLegSlideFlying(transition) ? _viewportTweenEased : null;
   const progress = clamp((performance.now() - transition.startedAt) / transition.durationMs, 0, 1);
   if (progress >= 1) return null;
   return progress < 0.5
@@ -5819,36 +5835,47 @@ function deferAnimatedNearbyRefit(options) {
   pendingNearbyRefitFrame = requestAnimationFrame(retry);
 }
 
-// The wide shot of a staged cluster tap in 3D tilt: the tightest scale (searching down from
-// startScale, never below minScale) at which both the place the camera is leaving (fromPoint) and
-// the one it is going to (toPoint) are drawn inside the visible rect, with the camera centred
-// between them. If even minScale cannot hold both, it centres on the group at minScale (the user may
-// then be off screen; the group is not). Visibility is judged through the real tilt
-// projection and the heading-up rotation, for the camera origin on the group (where the tween holds it
-// from its first frame), and a point the tilt clips behind the camera never counts as visible.
-function wideFramingViewport(fromPoint, toPoint, focus, focusY, focusRect, startScale, minScale) {
-  const cam = tiltProjection();
+function wideFramingVisibility(fromPoint, toPoint, focusRect) {
+  // Judged where the first leg lands, with the origin on the group (the slide eases the origin there over
+  // that leg), so the clip and the projected positions are solved against the final browse-state camera.
+  const live = tiltProjection();
+  const perspectivePx = live ? tiltPerspectivePx(true) : 0;
+  const sin = live ? live.sin : 0;
+  const cos = live ? live.cos : 1;
+  const dpr = live ? live.dpr : 1;
+  // Same projection the draw uses (tiltDepthScale): points behind the camera are magnified up to a
+  // ceiling rather than clipped, so there is no near-plane cut-off to test here.
+  const tilted = (w) => {
+    if (!live) return w;
+    const dyCss = w.y / dpr;
+    const scale = tiltDepthScale(dyCss, sin, perspectivePx);
+    return { x: (w.x / dpr) * scale * dpr, y: dyCss * cos * scale * dpr };
+  };
   const rotation = headingUpRotationFor(toPoint);
   const margin = Math.min(focusRect.width, focusRect.height) * STAGED_WIDE_FRAMING_EDGE_SHARE;
-  // The camera origin is the group from the first frame of the move: the first draw after a tween starts
-  // drops the ring's slide (prepareCanvasForDraw), so the ring is never half way across.
+  // The camera origin has reached the group by the time the first leg lands (nearbyOriginSlideProgress).
   const origin = toPoint;
+  const shows = (viewport, point) => {
+    const drawn = tilted(headingUpOffsetFor(viewport, point, rotation, origin));
+    if (!drawn) return false;
+    const at = {
+      x: origin.x * viewport.scale + viewport.tx + drawn.x,
+      y: origin.y * viewport.scale + viewport.ty + drawn.y,
+    };
+    return Number.isFinite(at.x) && Number.isFinite(at.y)
+      && at.x >= focusRect.x + margin && at.x <= focusRect.x + focusRect.width - margin
+      && at.y >= focusRect.y + margin && at.y <= focusRect.y + focusRect.height - margin;
+  };
+  return (viewport) => shows(viewport, fromPoint) && shows(viewport, toPoint);
+}
+
+function wideFramingViewport(fromPoint, toPoint, focus, focusY, focusRect, startScale, minScale) {
+  const showsBoth = wideFramingVisibility(fromPoint, toPoint, focusRect);
   const viewportAbout = (pivot, scale) => ({
     scale,
     tx: focus.x - pivot.x * scale,
     ty: focusY - pivot.y * scale,
   });
-  const shows = (viewport, point, origin) => {
-    if (cam) {
-      const offset = headingUpOffsetFor(viewport, point, rotation, origin);
-      if (offset.y / cam.dpr > cam.dyMax) return false;
-    }
-    const at = headingUpScreenPointAt(viewport, point, rotation, origin);
-    return Number.isFinite(at.x) && Number.isFinite(at.y)
-      && at.x >= focusRect.x + margin && at.x <= focusRect.x + focusRect.width - margin
-      && at.y >= focusRect.y + margin && at.y <= focusRect.y + focusRect.height - margin;
-  };
-  const showsBoth = (viewport) => shows(viewport, fromPoint, origin) && shows(viewport, toPoint, origin);
   const shares = [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8, 0.1, 0.9];
   const floor = Math.min(minScale, startScale);
   for (let scale = startScale; ; scale = Math.max(scale * STAGED_WIDE_FRAMING_STEP, floor)) {
@@ -6000,8 +6027,8 @@ function alignHeadingUpNavigationViewport(options = {}) {
   // screen however short its flat distance. A tap whose group is out of view, or too far to pan to
   // at today's scale, takes the wide-framing move instead: pan and zoom out only as far as needed
   // to show both the old place and the new one (never past STAGED_WIDE_FRAMING_MIN_SCALE_RATIO),
-  // then zoom in on the group. The ring's own slide is dropped by the first draw of the tween, so the
-  // camera origin is on the group throughout; wideFramingViewport solves for exactly that.
+  // then zoom in on the group. The ring's slide is paced by that first leg, so the camera origin
+  // eases to the group and is on it where the leg lands; wideFramingViewport solves for that landing.
   let wideFramingMove = false;
   if (options.animate && options.stagePanThenZoom && tiltActive() && previousScale > 0) {
     const shown = tiltProjectScreenPoint(worldToScreenFlat(userPoint));
@@ -6010,6 +6037,18 @@ function alignHeadingUpNavigationViewport(options = {}) {
       || shown.x < focusRect.x || shown.x > focusRect.x + focusRect.width
       || shown.y < focusRect.y || shown.y > focusRect.y + focusRect.height;
     wideFramingMove = pivotOutOfTiltedView || !panIsAlreadyOnScreen;
+    // The pan leg keeps today's scale with the camera origin on the group; if that leaves the place the
+    // camera is leaving behind the near plane or off the rect (a user behind a group ahead of them), it is
+    // not a plain pan but a wide shot.
+    if (!wideFramingMove) {
+      const fromPoint = cameraOriginPoint(false) || userPoint;
+      const panViewport = {
+        scale: previousScale,
+        tx: focus.x - userPoint.x * previousScale,
+        ty: focusY - userPoint.y * previousScale,
+      };
+      wideFramingMove = !wideFramingVisibility(fromPoint, userPoint, focusRect)(panViewport);
+    }
   }
 
   if (wideFramingMove) {
@@ -6023,7 +6062,16 @@ function alignHeadingUpNavigationViewport(options = {}) {
     const totalMs = options.durationMs || HEADING_UP_NAV_ANIMATION_MS;
     const outMs = Math.max(MIN_VIEWPORT_ANIMATION_MS, Math.round(totalMs * STAGED_WIDE_FRAMING_LEG_SHARE));
     const zoomMs = Math.max(MIN_VIEWPORT_ANIMATION_MS, totalMs - outMs);
-    moveCamera(wide, outMs, () => moveCamera(targetViewport, zoomMs));
+    const slide = state.nearbyOriginTransition;
+    const started = moveCamera(wide, outMs, () => {
+      // The origin has landed on the group with the first leg; the zoom-in leg is timed as if no slide ran.
+      if (slide && state.nearbyOriginTransition === slide) {
+        state.nearbyOriginTransition = null;
+        _nearbyRenderOriginCache = undefined;
+      }
+      moveCamera(targetViewport, zoomMs);
+    });
+    if (started === "started" && slide && state.nearbyOriginTransition === slide) slide.wideLegTween = wide;
   } else if (options.animate && options.stagePanThenZoom && panIsAlreadyOnScreen) {
     const panViewport = {
       scale: previousScale,
@@ -6143,10 +6191,16 @@ function prepareCanvasForDraw() {
     // origin to the final one, and this one forced fit puts the camera on it, so the walking-radius
     // circle (which the slide exists to hold still) does not twitch as it lands. No later frames are
     // needed: the pins' own fade (markerGroupingPaused) carries the reveal.
-    const fading = nearbyRevealInProgress();
-    if (!fading) state.nearbyOriginTransition = null;
-    alignHeadingUpNavigationViewport({ animate: false, force: true });
-    if (fading) requestDraw();
+    if (wideLegSlideFlying(state.nearbyOriginTransition)) {
+      // The wide shot's first leg carries the origin across with the camera (nearbyOriginSlideProgress),
+      // and the tween owns the camera, so there is nothing to align or drop until it lands.
+      requestDraw();
+    } else {
+      const fading = nearbyRevealInProgress();
+      if (!fading) state.nearbyOriginTransition = null;
+      alignHeadingUpNavigationViewport({ animate: false, force: true });
+      if (fading) requestDraw();
+    }
   }
   // The canvas size no longer depends on heading-up or tilt (see resizeCanvas), so nothing here
   // resizes it.
