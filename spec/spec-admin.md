@@ -14,17 +14,17 @@ A password-protected analytics dashboard at `/admin` that shows where users are 
 
 Password is set via env var `ADMIN_PASSWORD`. If unset, all admin endpoints return 401.
 
-Authentication: password passed as `Authorization: Bearer <password>` header, and only there. A `?pw=` query parameter is refused: a password in a URL is written into browser history and server access logs. Every admin endpoint uses the same check (`lib/admin-auth.js`), which compares in constant time.
+Authentication: the password, or a session token (below), is passed as an `Authorization: Bearer <value>` header, and only there. A `?pw=` query parameter is refused: a password in a URL is written into browser history and server access logs. Every admin endpoint uses the same check (`lib/admin-auth.js`), which compares in constant time.
 
-The admin UI keeps the password in page memory only, for the lifetime of the page. It is never written to `sessionStorage`, `localStorage`, cookies or the URL, so no script on the origin can read it back from storage. A reload (or a new tab) therefore shows the login screen and asks for the password again. The **Log out** button forgets it and returns to the login screen. A 401 response during refresh or auto-refresh forgets it the same way and shows the login screen with "Admin session expired. Sign in again." On load, the page removes any copy an earlier version left in browser storage.
+Signing in exchanges the password for a session token (`POST /api/admin/session`). The page keeps that token in `sessionStorage` (so it belongs to one tab) and sends it as the Bearer value; the token expires after 8 hours and is an HMAC keyed by `ADMIN_PASSWORD`, so changing the password revokes every token. The password itself is never written to `sessionStorage`, `localStorage`, cookies or the URL; it is held only while the sign-in request is made. A reload or **Refresh** in the same tab therefore stays signed in. A new tab, closing the tab, **Log out**, a 401 response or an expired token shows the login screen and asks for the password again (a 401 shows "Admin session expired. Sign in again."). The password still works as a Bearer value, so scripts and the CLI need no session. On load, the page removes any password copy an earlier version left in browser storage. If browser storage is blocked, the page works but asks for the password on every load.
 
 ## Pages / Views
 
 ### Login screen
 - Full-page password form, with a visually-hidden (`.sr-only`) `<label>` for the password field so it has a programmatic name beyond its placeholder text
-- On success: loads tracking data for the current window (see Data API), transitions to the map view
-- On a reload or new tab: shows the login screen again; the password is not remembered (see Access)
-- **Log out** forgets the password and returns to the login screen
+- On success: gets a session token, loads tracking data for the current window (see Data API), transitions to the map view
+- On a reload or Refresh in the same tab: opens the dashboard directly with the stored session token; a new tab, or an expired or refused token, shows the login screen (see Access)
+- **Log out** clears the stored session token and returns to the login screen
 - On failure: shows inline error message
 
 ### Map view (canvas)
@@ -83,7 +83,7 @@ as a click (`makeActivatable()` in `js/admin.js`).
 | **Tracks** | Switch to route-line view (default) |
 | **Heatmap** | Switch to density grid view |
 | **Refresh** | Re-fetch all data from the server |
-| **Log out** | Forget the password and return to the login screen |
+| **Log out** | Clear the stored session token and return to the login screen |
 
 Auto-refresh runs every 5 minutes.
 
@@ -186,6 +186,13 @@ Location pings report the **raw GPS fix** (`state.rawUserLocation`), not `state.
 
 **Limits.** The function refuses a body over 256 KB or more than 500 events (413; 500 is what an older client's whole offline queue could hold). Each event is reduced to the fields above — strings truncated, coordinates range-checked and rounded to 5 decimal places (~1 m), anything else dropped — and events dated more than a day ahead or more than 90 days old are discarded. Each client IP may send 600 requests an hour (`TRACK_LIMIT_PER_IP`); beyond that it gets 429 with `Retry-After`. The counters live in 64 small documents (`track-rate/<shard>`, chosen by a hash of the address) so no one document grows with the number of visitors. A phone on the current app sends about 12 requests an hour, so many people can share one carrier or Wi-Fi address before it applies; a refused batch stays in the phone's queue. The cost: every accepted POST also reads and rewrites one small counter document. At launch scale (about 500 phones at once) that is under two POSTs a second spread over 64 documents, so each document is touched about every 30 seconds. Updates are read-modify-write, not atomic, so two simultaneous requests can overwrite each other's increment and the limit undercounts slightly. It is a brake on a script hammering the endpoint, not an exact meter. Even with these counter writes, the store does far fewer writes per walker than the old one-request-per-event client, which batching replaced.
 
+### `POST /api/admin/session`
+Trades the admin password for a session token. Request: `Authorization: Bearer <ADMIN_PASSWORD>`, no body. Compared in constant time, like every admin check.
+
+**Response (200):** `{ "token": "<expiresMs>.<hex HMAC-SHA256>", "expiresAt": <ms epoch, 8 hours ahead> }`. The token is stateless: the HMAC is keyed by `ADMIN_PASSWORD` over `admin-session:<expiresMs>`, so any function instance can verify it and changing the password invalidates all tokens. Every admin endpoint accepts it, or the password, as the Bearer value. A malformed, tampered, expired or differently keyed token is refused.
+
+**Errors:** 401 `{ "error": "Unauthorized" }` for a wrong or missing password, or when `ADMIN_PASSWORD` is unset. Other methods get 405.
+
 ### `GET /api/admin/tracks`
 Returns stored events from a recent time window. Requires the Bearer header (see Authentication above).
 
@@ -273,6 +280,12 @@ The local NDJSON fallback has no day layout, so it reads the whole file and filt
   force  = true
 
 [[redirects]]
+  from = "/api/admin/session"
+  to   = "/.netlify/functions/admin-session"
+  status = 200
+  force  = true
+
+[[redirects]]
   from = "/api/admin/tracks"
   to   = "/.netlify/functions/track"
   status = 200
@@ -292,7 +305,7 @@ Colours are assigned from a fixed 15-colour palette in the order users are first
 - The admin password must be set as an environment variable — there is no default
 - Raw tracking data is never exposed to end users; the admin endpoint requires authentication
 - All events contain only anonymous IDs — no PII is stored or returned
-- The admin UI keeps the password in page memory only; it is not written to any browser storage, and a reload asks for it again
+- The admin UI never stores the password. It keeps a signed session token (8-hour expiry) in `sessionStorage`; the token is per tab, dies with the tab, and stops working when `ADMIN_PASSWORD` changes
 
 ## Early access (feature gate)
 The **Access** top-bar button opens a panel with one tester per line (Tester ID from the person's Settings screen, then an optional note). Save posts the list to `POST /api/features`; no deploy is needed. An empty list means the gate is off and everyone has Community. See `spec/spec-community.md` (Feature gate). `/api/features` is routed in `netlify.toml`.

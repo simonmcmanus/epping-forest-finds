@@ -3,7 +3,21 @@ const { skipOnboarding } = require("./helpers");
 
 const TRACKS = { locations: [], clicks: [], meta: { storeName: "tracking-test", context: "test", windowDays: 30 } };
 
+const SESSION_TOKEN = "test-session-token";
+
+// The sign-in exchanges the typed password for a session token (POST /api/admin/session). Answer it like the
+// server does: the token for any password but "nope", which is refused.
+async function mockAdminSession(page) {
+  await page.route(/\/api\/admin\/session/, (route) => {
+    const auth = route.request().headers()["authorization"] || "";
+    if (auth === "Bearer nope") return route.fulfill({ status: 401, contentType: "application/json", body: JSON.stringify({ error: "Unauthorized" }) });
+    return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ token: SESSION_TOKEN, expiresAt: Date.now() + 8 * 3600000 }) });
+  });
+}
+
 test.describe("Admin login", () => {
+  test.beforeEach(async ({ page }) => { await mockAdminSession(page); });
+
   // Desktop only: this file is outside the mobile project's testMatch, and the dashboard is a desk tool.
   test("snapshot: admin sign-in screen", async ({ page }) => {
     await page.goto("/admin");
@@ -13,12 +27,8 @@ test.describe("Admin login", () => {
 
   test("Admin keeps the password out of browser storage", async ({ page }) => {
     const password = "correct-horse-battery-staple-7731";
-    const authHeaders = [];
     await skipOnboarding(page);
-    await page.route(/\/api\/admin\/tracks/, (route) => {
-      authHeaders.push(route.request().headers()["authorization"]);
-      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) });
-    });
+    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) }));
     await page.goto("/admin");
     await page.getByLabel("Admin password").fill(password);
     await page.click("#loginBtn");
@@ -29,11 +39,69 @@ test.describe("Admin login", () => {
       local: Object.entries(localStorage),
     }));
     expect(storage).not.toContain(password);
+  });
 
+  async function signIn(page, password = "secret") {
+    await skipOnboarding(page);
+    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) }));
+    await page.goto("/admin");
+    await page.getByLabel("Admin password").fill(password);
+    await page.click("#loginBtn");
+    await expect(page.locator("#adminApp")).toBeVisible();
+  }
+
+  test("a reload keeps the admin signed in without asking for the password", async ({ page }) => {
+    const tracksAuth = [];
+    await signIn(page);
+    await page.unroute(/\/api\/admin\/tracks/);
+    await page.route(/\/api\/admin\/tracks/, (route) => {
+      tracksAuth.push(route.request().headers()["authorization"]);
+      return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) });
+    });
     await page.reload();
-    await expect(page.locator("#loginScreen")).toBeVisible();
-    // Nothing fetched the data on the reload: the page waited for the password to be typed again.
-    expect(authHeaders).toEqual([`Bearer ${password}`]);
+    await expect(page.locator("#adminApp")).toBeVisible();
+    await expect(page.locator("#loginScreen")).toBeHidden();
+    await expect(page.locator("#adminStats")).toContainText("location pings");
+    expect(tracksAuth[0]).toBe(`Bearer ${SESSION_TOKEN}`);
+  });
+
+  test("a new tab asks for the password again", async ({ page, context }) => {
+    await signIn(page);
+    const other = await context.newPage();
+    await other.goto("/admin");
+    await expect(other.getByLabel("Admin password")).toBeVisible();
+  });
+
+  test("Log out returns to the sign-in screen and a reload then asks again", async ({ page }) => {
+    await signIn(page);
+    await page.click("#logoutBtn");
+    await expect(page.getByLabel("Admin password")).toBeVisible();
+    await page.reload();
+    await expect(page.getByLabel("Admin password")).toBeVisible();
+  });
+
+  test("an expired stored session shows the sign-in screen", async ({ page }) => {
+    await signIn(page);
+    await page.evaluate(() => {
+      for (const key of Object.keys(sessionStorage)) sessionStorage.setItem(key, JSON.stringify({ token: "old", expiresAt: Date.now() - 1000 }));
+    });
+    await page.reload();
+    await expect(page.getByLabel("Admin password")).toBeVisible();
+  });
+
+  test("a stored session the server no longer accepts shows the sign-in screen", async ({ page }) => {
+    await signIn(page);
+    await page.unroute(/\/api\/admin\/tracks/);
+    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 401, contentType: "application/json", body: "{}" }));
+    await page.reload();
+    await expect(page.getByLabel("Admin password")).toBeVisible();
+  });
+
+  test("the typed password is in no browser storage after signing in", async ({ page }) => {
+    const password = "another-long-password-4410";
+    await signIn(page, password);
+    const all = await page.evaluate(() => JSON.stringify({ s: Object.entries(sessionStorage), l: Object.entries(localStorage) }));
+    expect(all).not.toContain(password);
   });
 
   test("Admin clears a password that an earlier version left in session storage", async ({ page }) => {
@@ -74,7 +142,7 @@ test.describe("Admin login", () => {
 
   test("a wrong password is still reported as one", async ({ page }) => {
     await skipOnboarding(page);
-    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 401, contentType: "application/json", body: "{}" }));
+    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) }));
     await page.goto("/admin");
     await page.fill("#loginPassword", "nope");
     await page.click("#loginBtn");

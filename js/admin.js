@@ -12,6 +12,9 @@ const ADMIN_MAP_URLS = {
 };
 // Earlier versions kept the password under this key. It is only ever removed now, never written.
 const LEGACY_SESSION_PASSWORD_KEY = "ff-admin-session-password";
+// The session token from POST /api/admin/session ({ token, expiresAt }), kept in sessionStorage so a reload of this
+// tab stays signed in. It is not the password; the password is never stored anywhere.
+const ADMIN_SESSION_KEY = "ff-admin-session";
 const ADMIN_VIEWPORT_KEY = "ff-admin-map-viewport";
 const BASE_MAP_OPACITY = 0.42;
 const MIN_MAP_ZOOM = 0.85;
@@ -1338,12 +1341,12 @@ function unpackTrackingEvents(packed) {
 // say which window it ended up with (the stats bar shows it).
 const ADMIN_WINDOW_FALLBACKS = [null, 7, 1];
 
-async function loadData(password) {
+async function loadData(token) {
   let resp;
   let url;
   for (const days of ADMIN_WINDOW_FALLBACKS) {
     url = days ? `/api/admin/tracks?days=${days}` : "/api/admin/tracks";
-    resp = await fetch(url, { headers: { "Authorization": `Bearer ${password}` } });
+    resp = await fetch(url, { headers: { "Authorization": `Bearer ${token}` } });
     if (resp.status === 401) throw new Error("wrong-password");
     if (resp.ok || resp.status < 500) break;
   }
@@ -1361,8 +1364,8 @@ async function loadData(password) {
 }
 
 // Community verification usage (netlify/functions/community-overlay.js ?admin=1).
-async function loadCommunityStats(password) {
-  const resp = await fetch("/api/community/overlay?admin=1", { headers: { Authorization: `Bearer ${password}` } });
+async function loadCommunityStats(token) {
+  const resp = await fetch("/api/community/overlay?admin=1", { headers: { Authorization: `Bearer ${token}` } });
   if (!resp.ok) throw new Error(`Server error ${resp.status}`);
   return resp.json();
 }
@@ -1391,8 +1394,35 @@ function renderCommunityStats(stats) {
     <h4>Last 7 days with reports</h4><table>${days || row("None yet", "")}</table>`;
 }
 
-// The password lives only in the page's memory (the `password` variable in adminBoot), so a reload
-// asks for it again. A copy left in browser storage by an earlier version is removed on load.
+// The typed password is used once, to get a session token, and is never stored. Only the token (with its expiry) is
+// kept, in this tab's sessionStorage, so a reload stays signed in while a new tab, Log out or expiry asks again.
+// A password copy left in browser storage by an earlier version is removed on load.
+function readStoredSession() {
+  try {
+    const saved = JSON.parse(sessionStorage.getItem(ADMIN_SESSION_KEY) || "null");
+    if (saved && typeof saved.token === "string" && saved.token && Number(saved.expiresAt) > Date.now()) return saved;
+  } catch {}
+  return null;
+}
+function storeSession(session) {
+  try { sessionStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ token: session.token, expiresAt: session.expiresAt })); } catch {}
+}
+function clearStoredSession() {
+  try { sessionStorage.removeItem(ADMIN_SESSION_KEY); } catch {}
+}
+async function requestSession(password) {
+  let resp;
+  try {
+    resp = await fetch("/api/admin/session", { method: "POST", headers: { Authorization: `Bearer ${password}` } });
+  } catch (err) {
+    throw new Error(err && err.message ? err.message : "network error");
+  }
+  if (resp.status === 401) throw new Error("wrong-password");
+  if (!resp.ok) throw new Error(`Server error ${resp.status}`);
+  const session = await resp.json();
+  if (!session || !session.token) throw new Error("Server error: no session token");
+  return session;
+}
 function clearLegacyStoredPassword() {
   for (const store of [sessionStorage, localStorage]) {
     try {
@@ -1597,7 +1627,7 @@ async function adminBoot() {
   const communityPanel = document.getElementById("adminCommunity");
   const communityBody = document.getElementById("adminCommunityBody");
 
-  let password = "";
+  let sessionToken = "";
   clearLegacyStoredPassword();
   readSavedViewport();
   loadAdminBaseMap();
@@ -1621,7 +1651,8 @@ async function adminBoot() {
   }
 
   function forgetSession(message = "") {
-    password = "";
+    sessionToken = "";
+    clearStoredSession();
     allData = { locations: [], clicks: [], navigation: [] };
     selectedUid = null;
     selectedClickKey = null;
@@ -1638,8 +1669,10 @@ async function adminBoot() {
     loginBtn.textContent = "Signing in…";
     loginError.textContent = "";
     try {
-      allData = await loadData(pw);
-      password = pw;
+      const session = await requestSession(pw);
+      allData = await loadData(session.token);
+      sessionToken = session.token;
+      storeSession(session);
       showAdminApp();
     } catch (err) {
       console.error("[admin] login failed:", err);
@@ -1651,6 +1684,24 @@ async function adminBoot() {
       loginBtn.disabled = false;
       loginBtn.textContent = "Sign in";
     }
+  }
+
+  // A session kept by this tab survives a reload: go straight to the data. If the server no longer accepts it, ask again.
+  const restored = readStoredSession();
+  if (restored) {
+    loginBtn.disabled = true;
+    loginBtn.textContent = "Signing in…";
+    loadData(restored.token).then((data) => {
+      allData = data;
+      sessionToken = restored.token;
+      showAdminApp();
+    }).catch((err) => {
+      console.error("[admin] stored session not usable:", err);
+      clearStoredSession();
+      showLogin(err.message === "wrong-password" ? "Admin session expired. Sign in again." : `Cannot reach server: ${err.message}`);
+    });
+  } else {
+    clearStoredSession();
   }
 
   const loginForm = document.getElementById("loginForm");
@@ -1680,14 +1731,14 @@ async function adminBoot() {
     communityPanel.hidden = false;
     communityBody.textContent = "Loading…";
     try {
-      communityBody.innerHTML = renderCommunityStats(await loadCommunityStats(password));
+      communityBody.innerHTML = renderCommunityStats(await loadCommunityStats(sessionToken));
       const rebuildBtn = document.getElementById("communityRebuildBtn");
       if (rebuildBtn) {
         rebuildBtn.addEventListener("click", async () => {
           rebuildBtn.disabled = true;
           const result = document.getElementById("communityValidateResult");
           try {
-            const resp = await fetch("/api/community/rebuild", { headers: { Authorization: `Bearer ${password}` } });
+            const resp = await fetch("/api/community/rebuild", { headers: { Authorization: `Bearer ${sessionToken}` } });
             const data = await resp.json();
             result.textContent = resp.ok ? `Rebuilt from ${data.reports} reports (${data.targets} trees on the overlay).` : `Failed (${resp.status})`;
           } catch (error) {
@@ -1702,7 +1753,7 @@ async function adminBoot() {
           validateBtn.disabled = true;
           const result = document.getElementById("communityValidateResult");
           try {
-            const resp = await fetch("/api/community/validate", { headers: { Authorization: `Bearer ${password}` } });
+            const resp = await fetch("/api/community/validate", { headers: { Authorization: `Bearer ${sessionToken}` } });
             const data = await resp.json();
             result.textContent = resp.ok
               ? `Register checked: ${data.registerChecked ? "yes" : "no"}${data.baseline ? " (baseline recorded)" : ""}. New register rewards: ${data.newRegisterRewards}. Issue rewards: ${data.issueRewards}.${data.issueError ? " GitHub: " + data.issueError : ""}`
@@ -1727,7 +1778,7 @@ async function adminBoot() {
     accessPanel.hidden = false;
     accessStatus.textContent = "Loading…";
     try {
-      const resp = await fetch("/api/features?admin=1", { headers: { Authorization: `Bearer ${password}` } });
+      const resp = await fetch("/api/features?admin=1", { headers: { Authorization: `Bearer ${sessionToken}` } });
       if (!resp.ok) throw new Error(resp.status);
       const data = await resp.json();
       accessList.value = (data.community || []).map((e) => `${e.id}${e.note ? ` ${e.note}` : ""}`).join("\n");
@@ -1743,7 +1794,7 @@ async function adminBoot() {
     });
     accessStatus.textContent = "Saving…";
     try {
-      const resp = await fetch("/api/features", { method: "POST", headers: { Authorization: `Bearer ${password}`, "Content-Type": "application/json" }, body: JSON.stringify({ community }) });
+      const resp = await fetch("/api/features", { method: "POST", headers: { Authorization: `Bearer ${sessionToken}`, "Content-Type": "application/json" }, body: JSON.stringify({ community }) });
       if (!resp.ok) throw new Error(resp.status);
       const saved = await resp.json();
       accessList.value = saved.community.map((e) => `${e.id}${e.note ? ` ${e.note}` : ""}`).join("\n");
@@ -1759,7 +1810,7 @@ async function adminBoot() {
   refreshBtn.addEventListener("click", async () => {
     refreshBtn.disabled = true;
     try {
-      allData = await loadData(password);
+      allData = await loadData(sessionToken);
       buildUserList();
       updateStats();
       refreshClickDetails();
@@ -1785,8 +1836,8 @@ async function adminBoot() {
 
   // Auto-refresh every 5 minutes
   setInterval(async () => {
-    if (!password) return;
-    try { allData = await loadData(password); buildUserList(); updateStats(); refreshClickDetails(); render(); } catch (err) {
+    if (!sessionToken) return;
+    try { allData = await loadData(sessionToken); buildUserList(); updateStats(); refreshClickDetails(); render(); } catch (err) {
       if (err.message === "wrong-password") forgetSession("Admin session expired. Sign in again.");
     }
   }, 5 * 60 * 1000);

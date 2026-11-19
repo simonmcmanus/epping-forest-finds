@@ -284,6 +284,7 @@ const server = http.createServer((req, res) => {
     // Tracking runs the real function too; with no Blobs context it falls back to data/tracking/*.ndjson.
     "/api/track": "track",
     "/api/admin/tracks": "track",
+    "/api/admin/session": "admin-session",
   };
   if (COMMUNITY_FUNCTION_ROUTES[url.pathname]) {
     const fnName = COMMUNITY_FUNCTION_ROUTES[url.pathname];
