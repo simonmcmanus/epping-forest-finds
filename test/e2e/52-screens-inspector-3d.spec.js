@@ -105,11 +105,12 @@ for (const screen of [{ id: "#settingsToggle", name: "Settings" }, { id: "#repor
     await page.click("#nearbyToggle");
     await waitForUiToSettle(page);
     expect(await moves(page), "closing: one move").toBeLessThanOrEqual(1);
+    const landed = await view(page);
     const wanted = await page.evaluate(() => {
       alignHeadingUpNavigationViewport({ force: true, animate: false });
       return { scale: state.viewport.scale, tx: state.viewport.tx, ty: state.viewport.ty };
     });
-    expectSame(await view(page), wanted, "closing: lands on the Nearby framing");
+    expectSame(landed, wanted, "closing: lands on the Nearby framing");
     expect(await page.evaluate(() => tiltActive()), "3D stays on").toBe(true);
   });
 }
