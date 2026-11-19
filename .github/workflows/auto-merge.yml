@@ -1,0 +1,51 @@
+name: Arm auto-merge after human approval
+
+# A human approving review is the only trigger. The CI reviewer never approves
+# (ci.yml posts COMMENT or REQUEST_CHANGES), and agents must not arm auto-merge.
+# Arming uses native GitHub auto-merge, so the PR merges only once branch
+# protection's required checks and required human approval are satisfied.
+#
+# Repository setup required (not enforced by this file):
+# - Settings > General > Allow auto-merge: on.
+# - Branch ruleset on main: require 1 approving review, require status checks,
+#   dismiss stale approvals on new pushes, and do not let bots satisfy approval.
+#
+# Uses the dedicated GitHub App token, not GITHUB_TOKEN, so the merge still
+# fires push-triggered workflows on main (for example cache-version-bump).
+on:
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+
+jobs:
+  arm:
+    name: Enable auto-merge for approved PR
+    if: >-
+      github.event.review.state == 'approved' &&
+      github.event.review.user.type == 'User' &&
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.CACHE_VERSION_APP_ID }}
+          private-key: ${{ secrets.CACHE_VERSION_APP_PRIVATE_KEY }}
+
+      - name: Enable squash auto-merge
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          PR_NODE_ID: ${{ github.event.pull_request.node_id }}
+        run: |
+          set -euo pipefail
+          gh api graphql -f query='
+            mutation($id: ID!) {
+              enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: SQUASH}) {
+                pullRequest { number autoMergeRequest { enabledAt } }
+              }
+            }' -f id="$PR_NODE_ID"

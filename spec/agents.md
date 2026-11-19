@@ -81,7 +81,9 @@ agent frontmatter sets the normal model and turn budget. Escalate for a concrete
 - `pr-steward`: single post-push repair coordinator. It returns every edit/conflict resolution through
   the lead's review/test gates and resolves only verified bot findings after current-head checks.
   Human approval remains separate. The lightweight GitHub reviewer independently checks the final
-  pushed commit; it does not replace local review or human approval.
+  pushed commit; it does not replace local review or human approval. It posts COMMENT or
+  REQUEST_CHANGES, never APPROVE. A human approval arms GitHub auto-merge
+  (`.github/workflows/auto-merge.yml`); required checks and branch protection still gate the merge.
 
 The lead dispatches; subagents report back without spawning. Default implementation goes through
 these roles when available. If the agents are unavailable, say so and perform the authorized work

@@ -9,7 +9,9 @@ independent surface: never import app CSS/JS or reference app icons there at run
 in the main session. Only skip it for read-only questions.
 
 - Delegate implementation to scoped `implementer` agents; place-fact corrections go to `data-curator`.
-  The lead dispatches, reviews, pushes once and opens one PR. Never approve, merge or force-push.
+  The lead dispatches, reviews, pushes once and opens one PR. Agents never approve, merge, arm
+  auto-merge or force-push. The CI reviewer posts only COMMENT or REQUEST_CHANGES. A human approval
+  arms native auto-merge via `.github/workflows/auto-merge.yml`; merge happens once checks pass.
 - Place facts are corrected in `data/**`, never documented in a spec.
 - CI owns `js/app-cache-version.js`, `js/data-cache-version.js` and screenshot baselines. Never edit them.
 - Tests assert user-visible behaviour, never source text. Prove a regression test fails before the fix.

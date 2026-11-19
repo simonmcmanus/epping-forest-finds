@@ -272,7 +272,7 @@ jobs:
             const marker = `<!-- CLAUDE_FINAL_REVIEW:${expected}:${base} -->`;
             const reviews = await github.paginate(github.rest.pulls.listReviews, {...request, per_page: 100});
             if (reviews.some(r => r.user?.login === 'github-actions[bot]' &&
-                r.commit_id === expected && ['APPROVED', 'CHANGES_REQUESTED'].includes(r.state) &&
+                r.commit_id === expected && ['COMMENTED', 'CHANGES_REQUESTED'].includes(r.state) &&
                 r.body?.includes(marker))) {
               core.notice('This head already has a validated Claude review.');
               return;
@@ -282,8 +282,10 @@ jobs:
               return `${axis}: ${findings.length}` + (findings.length ? ` (${findings.map(f => `P${f.priority}`).join(', ')})` : '');
             }).join('\n');
             if (!applicable(await current())) { core.notice('Head changed before publication.'); return; }
+            // Never APPROVE here: only a human approval may satisfy the merge gate
+            // (see .github/workflows/auto-merge.yml). A clean result is a COMMENT.
             await github.rest.pulls.createReview({...request, commit_id: expected,
-              event: comments.length ? 'REQUEST_CHANGES' : 'APPROVE',
+              event: comments.length ? 'REQUEST_CHANGES' : 'COMMENT',
               body: marker + (comments.length ? `\n${index}\nSee inline comments for details.` : ''), comments});
             const session = /^[a-zA-Z0-9_-]{1,100}$/.test(process.env.REVIEW_SESSION || '')
               ? process.env.REVIEW_SESSION : 'unavailable';
