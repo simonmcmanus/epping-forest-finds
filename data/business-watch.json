@@ -692,20 +692,20 @@
         "fhrsId": 1941605,
         "lat": 51.6150043,
         "lon": 0.0242832,
-        "name": "n/a \u2013 Scout leaders will run",
+        "name": "n/a – Scout leaders will run",
         "ratingDate": "1901-01-01T00:00:00"
       },
       "dismissed": true,
       "dismissedReason": "Register entry is a placeholder (\"n/a - Scout leaders will run\"), not a public food business.",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-11",
-      "name": "n/a \u2013 Scout leaders will run",
+      "name": "n/a – Scout leaders will run",
       "runs": 10,
       "signal": "new",
       "source": "fsa"
     },
     "fsa/2013726": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "664 High Road Leyton, Leyton, London, E10 6JP",
         "authority": "Waltham Forest",
@@ -725,6 +725,28 @@
       "runs": 2,
       "signal": "new",
       "source": "fsa"
+    },
+    "fsa/2015161": {
+      "confident": true,
+      "detail": {
+        "address": "Pine Lodge Riding Centre, Lippitts Hill, Loughton, Essex, IG10 4AL",
+        "authority": "Epping Forest",
+        "businessType": "Pub/bar/nightclub",
+        "category": "pub",
+        "fhrsId": 2015161,
+        "lat": 51.6531654,
+        "lon": 0.0194569,
+        "name": "CDZ INNS LTD TA THE OWL",
+        "ratingDate": "1901-01-01T00:00:00"
+      },
+      "firstSeen": "2026-11-19",
+      "lastSeen": "2026-11-19",
+      "name": "CDZ INNS LTD TA THE OWL",
+      "runs": 1,
+      "signal": "new",
+      "source": "fsa",
+      "dismissed": true,
+      "dismissedReason": "Same pub as the existing 'The Owl' pin at Lippitts Hill (legal trading name from the register); adding it would duplicate the place."
     },
     "fsa/442972": {
       "confident": false,
@@ -1528,14 +1550,14 @@
         "fhrsId": 918676,
         "lat": 51.576711,
         "lon": 0.027673,
-        "name": "Cafe Chicchi Trading as Sensei burgers/N\u2019Zalad/Maki Kazzo",
+        "name": "Cafe Chicchi Trading as Sensei burgers/N’Zalad/Maki Kazzo",
         "ratingDate": "2026-01-06T00:00:00"
       },
       "dismissed": true,
       "dismissedReason": "Already represented on the map by the canonical place; do not re-add a merged duplicate.",
       "firstSeen": "2026-11-14",
       "lastSeen": "2026-11-14",
-      "name": "Cafe Chicchi Trading as Sensei burgers/N\u2019Zalad/Maki Kazzo",
+      "name": "Cafe Chicchi Trading as Sensei burgers/N’Zalad/Maki Kazzo",
       "runs": 1,
       "signal": "new",
       "source": "fsa"
@@ -1663,9 +1685,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "Baden-Powell Bust",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -1677,14 +1699,14 @@
         "id": "node/10005216811",
         "lat": 51.6501691,
         "lon": 0.0014846,
-        "name": "The Chief\u2019s Drum",
+        "name": "The Chief’s Drum",
         "osmId": 10005216811,
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
-      "name": "The Chief\u2019s Drum",
-      "runs": 21,
+      "lastSeen": "2026-11-19",
+      "name": "The Chief’s Drum",
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -1701,9 +1723,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "Baden-Powell Statue",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -1720,9 +1742,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -1739,9 +1761,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-10-16",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "Shake a Shake",
-      "runs": 12,
+      "runs": 13,
       "signal": "missing",
       "source": "osm"
     },
@@ -1758,14 +1780,14 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
     "node/12232978047": {
-      "confident": true,
+      "confident": false,
       "detail": {
         "address": "13 Church Lane London E11 1HG",
         "category": "restaurant",
@@ -1805,9 +1827,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-10-31",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "Gjana Bakery",
-      "runs": 4,
+      "runs": 5,
       "signal": "missing",
       "source": "osm"
     },
@@ -1852,14 +1874,14 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
     "node/13717333242": {
-      "confident": false,
+      "confident": true,
       "detail": {
         "address": "500 Hoe Street, London",
         "category": "greengrocer",
@@ -1871,9 +1893,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-11-14",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "Capital Fruit Market",
-      "runs": 2,
+      "runs": 3,
       "signal": "missing",
       "source": "osm"
     },
@@ -1938,9 +1960,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2000,26 +2022,30 @@
       "signal": "changed",
       "source": "osm"
     },
-    "node/3163720403": {
-      "confident": true,
+    "node/318696718": {
+      "confident": false,
       "detail": {
-        "address": null,
-        "category": "community_centre",
-        "lat": 51.6176518,
-        "lon": 0.0006652,
-        "name": "St Anne's Parish Centre",
+        "address": "104 Cann Hall Road London E11 3NH",
+        "category": "cafe",
+        "id": "node/318696718",
+        "lat": 51.5550326,
+        "lon": 0.009934,
+        "name": "The Gilded Lounge",
         "openingHours": null,
-        "osmId": 3163720403,
+        "osmId": 318696718,
         "osmType": "node",
         "phone": null,
+        "previousCategory": "cafe",
+        "previousName": "Tres Marias",
+        "reason": "now trading as The Gilded Lounge",
         "status": "open",
         "website": null
       },
-      "firstSeen": "2026-11-14",
-      "lastSeen": "2026-11-15",
-      "name": "St Anne's Parish Centre",
-      "runs": 2,
-      "signal": "new",
+      "firstSeen": "2026-11-19",
+      "lastSeen": "2026-11-19",
+      "name": "The Gilded Lounge",
+      "runs": 1,
+      "signal": "changed",
       "source": "osm"
     },
     "node/4313670399": {
@@ -2035,9 +2061,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2054,9 +2080,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2097,9 +2123,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2116,9 +2142,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "Tesco Express",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2163,9 +2189,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-10-08",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "Mr Bakery",
-      "runs": 15,
+      "runs": 16,
       "signal": "missing",
       "source": "osm"
     },
@@ -2182,9 +2208,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "Loughton BBQ",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2229,22 +2255,22 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "Bishops",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
     "node/7168896391": {
       "confident": false,
       "detail": {
-        "name": "Green\u2019s Steakhouse"
+        "name": "Green’s Steakhouse"
       },
       "dismissed": true,
       "dismissedReason": "Closed. Checked on the ground in Loughton, September 2026. Removed from the map by hand; parked so an automatic check cannot put it back.",
       "firstSeen": "2026-09-20",
       "lastSeen": "2026-09-20",
-      "name": "Green\u2019s Steakhouse",
+      "name": "Green’s Steakhouse",
       "runs": 1,
       "signal": "closed",
       "source": "manual"
@@ -2276,32 +2302,10 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "El Cafecito/Belle Juin",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
-      "source": "osm"
-    },
-    "node/8609999353": {
-      "confident": true,
-      "detail": {
-        "address": "Station Road London E4 6AL",
-        "category": "community_centre",
-        "lat": 51.6332279,
-        "lon": 0.0099632,
-        "name": "Chingford Community Hub",
-        "openingHours": null,
-        "osmId": 8609999353,
-        "osmType": "node",
-        "phone": null,
-        "status": "open",
-        "website": null
-      },
-      "firstSeen": "2026-11-14",
-      "lastSeen": "2026-11-15",
-      "name": "Chingford Community Hub",
-      "runs": 2,
-      "signal": "new",
       "source": "osm"
     },
     "node/8937962759": {
@@ -2317,9 +2321,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2336,9 +2340,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2355,9 +2359,9 @@
         "osmType": "node"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "High Beech Kiosk",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2402,9 +2406,9 @@
         "osmType": "relation"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2421,9 +2425,9 @@
         "osmType": "relation"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "Ripley Grange",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2440,9 +2444,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2473,9 +2477,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2492,9 +2496,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2511,9 +2515,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "Drinking Fountain",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2530,9 +2534,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "The Pigsty",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2544,14 +2548,14 @@
         "id": "way/1092472354",
         "lat": 51.650621,
         "lon": 0.0018897,
-        "name": "Eccles (Baden-Powell\u2019s Caravan)",
+        "name": "Eccles (Baden-Powell’s Caravan)",
         "osmId": 1092472354,
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
-      "name": "Eccles (Baden-Powell\u2019s Caravan)",
-      "runs": 21,
+      "lastSeen": "2026-11-19",
+      "name": "Eccles (Baden-Powell’s Caravan)",
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2568,9 +2572,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "Columbarium",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2587,9 +2591,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "Promise Path",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2634,9 +2638,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2653,9 +2657,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2672,9 +2676,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2715,9 +2719,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "The Larder at the Butler's Retreat",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2734,9 +2738,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "Manor House",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2753,9 +2757,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "Dower House",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2772,9 +2776,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "Arabin House",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2847,9 +2851,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "The Black Cottage",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2866,9 +2870,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "City of London Cemetery and Crematorium",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2913,9 +2917,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2932,9 +2936,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2979,9 +2983,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "St Nicholas' Chapel",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -2998,9 +3002,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "Copped Hall Temple",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -3017,9 +3021,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "Double Bubble",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -3064,9 +3068,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -3111,9 +3115,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -3130,9 +3134,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "The Warren",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -3149,9 +3153,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -3168,9 +3172,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "The Farm",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -3283,9 +3287,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -3302,9 +3306,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "The Royal Regency",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -3321,9 +3325,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -3340,9 +3344,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "Ladderstile Farmhouse",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -3359,9 +3363,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -3378,9 +3382,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "Park Cottage",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -3397,9 +3401,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -3416,9 +3420,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -3435,9 +3439,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "Pakes Farmhouse",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -3454,9 +3458,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "The Cottage",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -3473,9 +3477,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "Heathfield Cottage",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -3492,9 +3496,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": "Baldocks",
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     },
@@ -3506,13 +3510,13 @@
         "id": "way/913318929",
         "lat": 51.6077611,
         "lon": -0.0016624,
-        "name": "Ziggy\u2019s Gift Shop",
+        "name": "Ziggy’s Gift Shop",
         "openingHours": null,
         "osmId": 913318929,
         "osmType": "way",
         "phone": null,
         "previousCategory": "chemist",
-        "previousName": "Ziggy\u2019s Gift Shop",
+        "previousName": "Ziggy’s Gift Shop",
         "reason": "listed under a different type now",
         "status": "open",
         "website": null
@@ -3521,7 +3525,7 @@
       "dismissedReason": "Proposed addition was skipped as a duplicate: this place is already on the map (name spelled slightly differently, or the same record).",
       "firstSeen": "2026-09-21",
       "lastSeen": "2026-10-15",
-      "name": "Ziggy\u2019s Gift Shop",
+      "name": "Ziggy’s Gift Shop",
       "runs": 9,
       "signal": "changed",
       "source": "osm"
@@ -3539,9 +3543,9 @@
         "osmType": "way"
       },
       "firstSeen": "2026-09-21",
-      "lastSeen": "2026-11-15",
+      "lastSeen": "2026-11-19",
       "name": null,
-      "runs": 21,
+      "runs": 22,
       "signal": "missing",
       "source": "osm"
     }
@@ -3561,7 +3565,7 @@
     {
       "issue": 157,
       "name": "Location issue: Hangman's Hill Haunted Road Cluster: this is not where hangman's hill is",
-      "note": "**Describe the bug**\nThe \"Hangman's Hill Haunted Road Cluster\" folklore legend is pinned at 51.6545, 0.0565, which is not where Hangman's Hill is.\n\n**To Reproduce**\n1. Open https://www.eppingforestfinds.uk/app#filters and enable the Folklore \u00b7 Legend places.\n2. Find \"Hangman's Hill Haunted Road Cluster\".\n3. Compare its pin with the real Hangman's Hill (https://maps.google.com/?q=51.6545,0.0565 is the reported, wrong, location).\n\n**Expected behavior**\n- A single pin at **51.666227, 0.025257**, per https://www.atlasobscura.com/places/hangmans-hill-essex.\n- The legend text, name and description stay the same; only the position changes.\n- The correction must survive data regeneration and the weekly ledger (cite the Atlas Obscura source wherever the data is produced, so it isn't overwritten).\n- Also audit the other folklore/legend pins for wrong positions and report or fix any found.\n\n**Screenshots**\nn/a\n\n**Desktop / Smartphone**\n - Safari 26.6.2 on macOS (Macintosh; Intel Mac OS X 10_15_7)\n - App version: app v62, data v15\n\n**Additional context**\n- Reported item: Folklore \u00b7 Legend \u2014 Hangman's Hill Haunted Road Cluster\n- Request ID: request-id:adf61353-fb95-4c28-9629-946bc95f65de\n- Source for the correct position: https://www.atlasobscura.com/places/hangmans-hill-essex\n- This is a data-only fix: it touches `data/**`, so CI bumps `DATA_CACHE_NAME`. The homepage dataset count is unchanged (no pins added or removed).",
+      "note": "**Describe the bug**\nThe \"Hangman's Hill Haunted Road Cluster\" folklore legend is pinned at 51.6545, 0.0565, which is not where Hangman's Hill is.\n\n**To Reproduce**\n1. Open https://www.eppingforestfinds.uk/app#filters and enable the Folklore · Legend places.\n2. Find \"Hangman's Hill Haunted Road Cluster\".\n3. Compare its pin with the real Hangman's Hill (https://maps.google.com/?q=51.6545,0.0565 is the reported, wrong, location).\n\n**Expected behavior**\n- A single pin at **51.666227, 0.025257**, per https://www.atlasobscura.com/places/hangmans-hill-essex.\n- The legend text, name and description stay the same; only the position changes.\n- The correction must survive data regeneration and the weekly ledger (cite the Atlas Obscura source wherever the data is produced, so it isn't overwritten).\n- Also audit the other folklore/legend pins for wrong positions and report or fix any found.\n\n**Screenshots**\nn/a\n\n**Desktop / Smartphone**\n - Safari 26.6.2 on macOS (Macintosh; Intel Mac OS X 10_15_7)\n - App version: app v62, data v15\n\n**Additional context**\n- Reported item: Folklore · Legend — Hangman's Hill Haunted Road Cluster\n- Request ID: request-id:adf61353-fb95-4c28-9629-946bc95f65de\n- Source for the correct position: https://www.atlasobscura.com/places/hangmans-hill-essex\n- This is a data-only fix: it touches `data/**`, so CI bumps `DATA_CACHE_NAME`. The homepage dataset count is unchanged (no pins added or removed).",
       "reportedOn": "2026-10-01",
       "source": "report",
       "url": "https://github.com/simonmcmanus/epping-forest-finds/issues/157"
@@ -3669,14 +3673,14 @@
   ],
   "sources": {
     "fsa": {
-      "checkedAt": "2026-11-15",
-      "population": 933
+      "checkedAt": "2026-11-19",
+      "population": 932
     },
     "osm": {
-      "checkedAt": "2026-11-15",
-      "population": 2575
+      "checkedAt": "2026-11-19",
+      "population": 2577
     }
   },
-  "updatedAt": "2026-11-15",
+  "updatedAt": "2026-11-19",
   "version": 1
 }
