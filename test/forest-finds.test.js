@@ -13251,6 +13251,31 @@ test("in 3D tilt, a second cluster tap mid-move settles on the last group, frame
   assert.ok(!app.state.viewportAnimationTo, "no camera move is still pending");
 });
 
+// A second tap made after the first move's first leg has started redirects the camera from where it
+// is. Neither the user's marker nor the second group may be cut across the view on any frame (the same
+// 0.4-of-the-short-side bound as the first frame), and the camera settles framed on the second group.
+test("in 3D tilt, a second cluster tap mid-move never cuts the user or the group on any frame and settles framed on the second group", () => {
+  const { beforeTap, record, rect } = tiltClusterTapFrames(51.636, 0.05, { lat: 51.6527, lon: 0.0515, afterTicks: 8 }, 0);
+  assert.ok(record.length > 10, "the taps run an animated camera move");
+  const short = Math.min(rect.width, rect.height);
+  const bound = short * FIRST_FRAME_STEP_SHARE;
+  const step = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const finite = (point) => Number.isFinite(point.x) && Number.isFinite(point.y) && !point.clipped;
+  for (const key of ["user", "target"]) {
+    let prev = beforeTap[key];
+    record.forEach((frame, i) => {
+      if (finite(prev) && finite(frame[key])) {
+        assert.ok(step(prev, frame[key]) < bound, `frame ${i}: the ${key} steps ${step(prev, frame[key]).toFixed(1)}px (bound ${bound.toFixed(1)}px)`);
+      }
+      prev = frame[key];
+    });
+  }
+  const last = record[record.length - 1];
+  assert.ok(pointInRect(last.target, rect), "the second group is on screen when the camera settles");
+  assert.ok(app.state.clusterExpanded && app.state.clusterExpanded.items.some((item) => item.id === "oak3"), "the second group is the expanded one");
+  assert.ok(!app.state.viewportAnimationTo, "no camera move is still pending");
+});
+
 test("in 3D tilt, a cluster tap already on screen pans at today's scale first, with no pull-out", () => {
   // About 300m east: beside the user, so both places stay in view at today's scale.
   const { before, record } = tiltClusterTapFrames(51.65, 0.0545);
