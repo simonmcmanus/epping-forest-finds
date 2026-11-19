@@ -173,10 +173,10 @@ test.describe("Admin login", () => {
     await expect(card("Started")).toContainText("1");
     await expect(card("Completed")).toContainText("1");
     await expect(card("Completion rate")).toContainText("100%");
-    await expect(card("Median time")).toContainText("12 min");
+    await expect(card("Median arrival")).toContainText("12 min");
     await expect(card("Distance walked")).toContainText("1.25 km");
     await expect(card("Median detour")).toContainText("1.25x");
-    await expect(card("With detour")).toContainText("1");
+    await expect(card("Detour sample")).toContainText("1");
 
     const row = view.locator("table.nav-trend-table").first().locator("tbody tr");
     await expect(row).toHaveCount(1);
@@ -274,7 +274,7 @@ test.describe("Admin login", () => {
     // Three journeys to one place inside the week (one abandoned), one 9 days ago that must not count.
     const view = await openNavigationAt(page, [2 * HOUR, 5 * HOUR, 30 * HOUR, 9 * 24 * HOUR]);
     const panel = view.locator(".nav-destinations");
-    await expect(panel.getByRole("heading", { name: "Top destinations this week" })).toBeVisible();
+    await expect(panel.getByRole("heading", { name: "Top destinations, last 7 days" })).toBeVisible();
     const row = panel.locator("tbody tr");
     await expect(row).toHaveCount(1);
     await expect(row.first()).toContainText("Example Spot");
@@ -283,6 +283,62 @@ test.describe("Admin login", () => {
     await expect(row.first().locator("td").nth(2)).toHaveText("67%");
     await expect(row.first().locator("td").nth(3)).toHaveText("6 min");
     await expect(panel.locator(".nav-dest-bar").first()).toHaveAttribute("aria-hidden", "true");
+  });
+
+  test("Navigation cards use unambiguous visible labels with the full meaning for screen readers", async ({ page }) => {
+    const view = await openNavigationWithNineDays(page);
+    const detour = view.locator(".nav-card", { hasText: "Detour sample" });
+    await expect(detour.locator(".nav-card-label")).toHaveText("Detour sample");
+    await expect(detour.locator(".sr-only")).toContainText("journeys with a detour ratio");
+    await expect(detour).toHaveAttribute("title", /journeys with a detour ratio/i);
+    const arrival = view.locator(".nav-card", { hasText: "Median arrival" });
+    await expect(arrival.locator(".nav-card-label")).toHaveText("Median arrival");
+    await expect(arrival.locator(".sr-only")).toContainText("median time to arrive");
+    await expect(view.locator(".nav-card", { hasText: "With detour" })).toHaveCount(0);
+  });
+
+  test("Navigation view explains the detour number, the counting basis and the destinations window in visible text", async ({ page }) => {
+    const view = await openNavigationWithNineDays(page);
+    const detourPanel = view.locator(".nav-panel", { has: page.getByRole("heading", { name: "Median detour by day" }) });
+    await expect(detourPanel.locator(".nav-note").first()).toContainText(/1\.\d\dx means the walk was \d+% longer than the shortest route\./);
+    await expect(view.locator(".nav-cards ~ .nav-note").first()).toContainText("Started and completed count journeys, not people. Distance includes abandoned walks.");
+    await expect(view.locator(".nav-cards ~ .nav-note").first()).toBeVisible();
+    await expect(view.locator(".nav-destinations .nav-note")).toHaveText("Counted back from now, within the loaded data and selected user.");
+  });
+
+  test("Navigation detour sentence quotes the current median", async ({ page }) => {
+    const view = await openNavigationAt(page, [3600000]);
+    await expect(view.locator(".nav-panel", { has: page.getByRole("heading", { name: "Median detour by day" }) }).locator(".nav-note")).toContainText("1.10x means the walk was 10% longer");
+  });
+
+  test("Navigation chart marks and scrollable tables meet non-text contrast and keyboard access", async ({ page }) => {
+    const view = await openNavigationWithNineDays(page);
+    const colours = await view.evaluate((v) => {
+      const get = (sel, prop) => getComputedStyle(v.querySelector(sel))[prop];
+      return {
+        rate: get("path.nav-line:not(.nav-line-detour)", "stroke"),
+        dot: get("circle.nav-dot:not(.nav-dot-detour)", "fill"),
+        started: get("rect.nav-bar-started", "fill"),
+        completed: get("rect.nav-bar-completed", "fill"),
+        lt5: get(".nav-swatch.nav-bar-lt5", "backgroundColor"),
+        b5to15: get(".nav-swatch.nav-bar-b5to15", "backgroundColor"),
+        b15to30: get(".nav-swatch.nav-bar-b15to30", "backgroundColor"),
+        gt30: get(".nav-swatch.nav-bar-gt30", "backgroundColor"),
+      };
+    });
+    const rgb = (c) => c.match(/[\d.]+/g).slice(0, 3).map(Number);
+    const lum = (c) => { const [r, g, b] = rgb(c).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+    for (const [name, c] of Object.entries(colours)) expect(1.05 / (lum(c) + 0.05), `${name} ${c} on white`).toBeGreaterThanOrEqual(3);
+    expect(new Set([colours.rate, colours.started, colours.completed]).size).toBe(3);
+    expect(new Set([colours.lt5, colours.b5to15, colours.b15to30, colours.gt30]).size).toBe(4);
+
+    const wraps = view.locator(".nav-table-wrap");
+    expect(await wraps.count()).toBeGreaterThanOrEqual(3);
+    for (let i = 0; i < await wraps.count(); i++) {
+      await expect(wraps.nth(i)).toHaveAttribute("tabindex", "0");
+      await expect(wraps.nth(i)).toHaveAttribute("role", "region");
+      await expect(wraps.nth(i)).toHaveAttribute("aria-label", /scrollable/);
+    }
   });
 
   test("the Navigation view says so when no journey started in the last 7 days", async ({ page }) => {
@@ -344,6 +400,13 @@ test.describe("Admin login", () => {
     expect(boxes[2].y).toBeCloseTo(boxes[1].y, 0);
     expect(boxes[2].x).toBeGreaterThan(boxes[1].x + boxes[1].w * 0.9);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  });
+
+  test("Navigation summary labels are not clipped at the narrowest two-column width", async ({ page }) => {
+    await page.setViewportSize({ width: 1100, height: 900 });
+    const view = await openNavigationWithNineDays(page);
+    const clipped = await view.locator(".nav-card-label").evaluateAll((els) => els.filter((e) => e.scrollWidth > e.clientWidth).map((e) => e.textContent));
+    expect(clipped).toEqual([]);
   });
 
   test("the Community panel says which snapshot its figures come from", async ({ page }) => {

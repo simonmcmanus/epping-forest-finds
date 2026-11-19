@@ -1510,22 +1510,22 @@ function navDetourChartSvg(rows) {
     + `<path class="nav-line nav-line-detour" d="${navLinePath(pts)}"/>${dots}${xLabels}</svg>`;
 }
 
-function navTable(caption, headers, bodyRows) {
-  return `<div class="nav-table-wrap"><table class="nav-trend-table"><caption class="sr-only">${escapeHtml(caption)}</caption>`
+function navTable(caption, label, headers, bodyRows) {
+  return `<div class="nav-table-wrap" tabindex="0" role="region" aria-label="${escapeHtml(label)}"><table class="nav-trend-table"><caption class="sr-only">${escapeHtml(caption)}</caption>`
     + `<thead><tr>${headers.map((h) => `<th scope="col">${escapeHtml(h)}</th>`).join("")}</tr></thead>`
     + `<tbody>${bodyRows.map((r) => `<tr>${r.map((c, i) => (i === 0 ? `<th scope="row">${escapeHtml(c)}</th>` : `<td>${escapeHtml(c)}</td>`)).join("")}</tr>`).join("")}</tbody></table></div>`;
 }
 
 // "Top destinations this week": journeys started in the last 7 days, grouped by destination.
 function navigationDestinationsHtml(journeys) {
-  const head = `<h3>Top destinations this week</h3>`;
+  const head = `<h3>Top destinations, last 7 days</h3><p class="nav-note">Counted back from now, within the loaded data and selected user.</p>`;
   const rows = typeof topDestinationsThisWeek === "function" ? topDestinationsThisWeek(journeys, { now: Date.now() }) : [];
   if (!rows.length) return `<section class="nav-panel nav-panel-wide nav-destinations">${head}<p class="nav-empty">No navigation journeys in the last 7 days.</p></section>`;
   const min = (v) => (v === null ? "n/a" : `${v.toFixed(v % 1 ? 1 : 0)} min`);
   const body = rows.map((r) => `<tr><th scope="row"><span class="nav-dest-name">${escapeHtml(r.name)}</span>`
     + `<span class="nav-dest-bar" aria-hidden="true"><span style="width:${Math.max(2, Math.round(r.share * 100))}%"></span></span></th>`
     + `<td>${r.started}</td><td>${r.completed}</td><td>${r.completionRate === null ? "n/a" : `${Math.round(r.completionRate * 100)}%`}</td><td>${min(r.medianMinutesToArrive)}</td></tr>`).join("");
-  return `<section class="nav-panel nav-panel-wide nav-destinations">${head}<div class="nav-table-wrap"><table class="nav-trend-table nav-dest-table">`
+  return `<section class="nav-panel nav-panel-wide nav-destinations">${head}<div class="nav-table-wrap" tabindex="0" role="region" aria-label="Top destinations, scrollable"><table class="nav-trend-table nav-dest-table">`
     + `<caption class="sr-only">Top destinations by journeys started in the last 7 days</caption>`
     + `<thead><tr><th scope="col">Destination</th><th scope="col">Started</th><th scope="col">Completed</th><th scope="col">Completion rate</th><th scope="col">Median time</th></tr></thead>`
     + `<tbody>${body}</tbody></table></div></section>`;
@@ -1538,33 +1538,36 @@ function navigationViewHtml() {
   const s = summariseNavJourneys(journeys);
   const rows = groupJourneysByDay(journeys);
   const pct = (v) => (v === null ? "n/a" : `${Math.round(v * 100)}%`);
-  const card = (label, value, title) => `<li class="nav-card"${title ? ` title="${escapeHtml(title)}"` : ""}><span class="nav-card-value">${escapeHtml(value)}</span><span class="nav-card-label">${escapeHtml(label)}</span></li>`;
+  const card = (label, value, title, full) => `<li class="nav-card"${title ? ` title="${escapeHtml(title)}"` : ""}><span class="nav-card-value">${escapeHtml(value)}</span><span class="nav-card-label">${escapeHtml(label)}</span>${full ? `<span class="sr-only">${escapeHtml(full)}</span>` : ""}</li>`;
   const cards = [
     card("Started", String(s.started)),
     card("Completed", String(s.completed)),
     card("Completion rate", pct(s.completionRate)),
-    card("Median time", s.medianArriveMinutes === null ? "n/a" : `${s.medianArriveMinutes.toFixed(s.medianArriveMinutes % 1 ? 1 : 0)} min`, "Median time to arrive"),
+    card("Median arrival", s.medianArriveMinutes === null ? "n/a" : `${s.medianArriveMinutes.toFixed(s.medianArriveMinutes % 1 ? 1 : 0)} min`, "Median time to arrive", "median time to arrive"),
     card("Distance walked", `${(s.totalDistanceWalkedM / 1000).toFixed(2)} km`),
     card("Median detour", s.medianDetourRatio === null ? "n/a" : `${s.medianDetourRatio.toFixed(2)}x`, "Median detour ratio: distance walked divided by the shortest route"),
-    card("With detour", String(s.detourCount), "Journeys with a detour ratio"),
+    card("Detour sample", String(s.detourCount), "Number of journeys with a detour ratio", "number of journeys with a detour ratio"),
   ].join("");
   const swatch = (cls, text, line) => `<li><span class="nav-swatch${line ? " nav-swatch-line" : ""} nav-bar-${cls}"></span>${text}</li>`;
+  const md = s.medianDetourRatio;
+  const detourNote = md === null ? "No completed walks with a route yet."
+    : `${md.toFixed(2)}x means the walk was ${Math.round(Math.abs(md - 1) * 100)}% ${md < 1 ? "shorter" : "longer"} than the shortest route.`;
   const ratio = (v) => (v === null ? "n/a" : `${v.toFixed(2)}x`);
-  const panel = (cls, title, legend, svg, table) => `<section class="nav-panel ${cls}"><h3>${title}</h3><ul class="nav-legend">${legend}</ul>${svg}${table}</section>`;
-  return `${head}<ul class="nav-cards">${cards}</ul><div class="nav-grid">`
+  const panel = (cls, title, legend, svg, table, note) => `<section class="nav-panel ${cls}"><h3>${title}</h3>${note ? `<p class="nav-note">${escapeHtml(note)}</p>` : ""}<ul class="nav-legend">${legend}</ul>${svg}${table}</section>`;
+  return `${head}<ul class="nav-cards">${cards}</ul><p class="nav-note">Started and completed count journeys, not people. Distance includes abandoned walks.</p><div class="nav-grid">`
     + navigationDestinationsHtml(journeys)
     + panel("nav-panel-wide", "Started, completed and completion rate by day",
       `${swatch("started", "Started")}${swatch("completed", "Completed")}<li><span class="nav-swatch nav-swatch-line" style="background:var(--nav-rate)"></span>Completion rate (right axis, 0-100%)</li>`,
       navTrendChartSvg(rows),
-      navTable("Journeys by day", ["Day", "Started", "Completed", "Completion rate"], rows.map((r) => [r.day, String(r.started), String(r.completed), pct(r.completionRate)])))
+      navTable("Journeys by day", "Daily figures, scrollable", ["Day", "Started", "Completed", "Completion rate"], rows.map((r) => [r.day, String(r.started), String(r.completed), pct(r.completionRate)])))
     + panel("", "Time to arrive by day",
       `${swatch("lt5", "Under 5 min")}${swatch("b5to15", "5-15 min")}${swatch("b15to30", "15-30 min")}${swatch("gt30", "Over 30 min")}`,
       navBucketChartSvg(rows),
-      navTable("Completed journeys by time to arrive per day", ["Day", "Under 5 min", "5-15 min", "15-30 min", "Over 30 min"], rows.map((r) => [r.day, ...["lt5", "b5to15", "b15to30", "gt30"].map((k) => String(r.timeBuckets[k]))])))
+      navTable("Completed journeys by time to arrive per day", "Daily time to arrive figures, scrollable", ["Day", "Under 5 min", "5-15 min", "15-30 min", "Over 30 min"], rows.map((r) => [r.day, ...["lt5", "b5to15", "b15to30", "gt30"].map((k) => String(r.timeBuckets[k]))])), "Completed journeys only.")
     + panel("", "Median detour by day",
       `<li><span class="nav-swatch nav-swatch-line" style="background:var(--nav-completed)"></span>Median detour ratio</li>`,
       navDetourChartSvg(rows),
-      navTable("Median detour ratio per day", ["Day", "Median detour", "Journeys with a ratio"], rows.map((r) => [r.day, ratio(r.medianDetourRatio), String(r.detourCount)])))
+      navTable("Median detour ratio per day", "Daily detour figures, scrollable", ["Day", "Median detour", "Journeys with a ratio"], rows.map((r) => [r.day, ratio(r.medianDetourRatio), String(r.detourCount)])), detourNote)
     + `</div>`;
 }
 
