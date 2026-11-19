@@ -1876,10 +1876,13 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
     ? state.baseFitScale * 0.92
     : deliberateArc ? Math.min(from.scale, targetViewport.scale) * 0.8 : 0;
 
+  // Reduced motion: a deliberate (user-triggered) move lands on the target at once, as one move,
+  // with no tween to wait for.
   if (
-    Math.abs(from.scale - targetViewport.scale) < 0.000001
+    (options.deliberate && !cinematic && prefersReducedMotion())
+    || (Math.abs(from.scale - targetViewport.scale) < 0.000001
     && Math.abs(from.tx - targetViewport.tx) < 0.5
-    && Math.abs(from.ty - targetViewport.ty) < 0.5
+    && Math.abs(from.ty - targetViewport.ty) < 0.5)
   ) {
     state.viewport.scale = targetViewport.scale;
     state.viewport.tx = targetViewport.tx;
@@ -4261,7 +4264,7 @@ function ensureLocationWatch() {
       updateOverviewDirectionArrows();
       updateSelectedDetailFields();
       if (navigationAnchorActive()) {
-        const vpChanged = alignHeadingUpNavigationViewport();
+        const vpChanged = alignHeadingUpNavigationViewport({ gpsFollow: true });
         keepOverviewCenteredOnUser(previousPoint);
         updateCompassOverlay();
         updateHeadingUpCanvasRotationTransform();
@@ -5837,6 +5840,8 @@ function deferAnimatedNearbyRefit(options) {
     }
     const next = pendingNearbyRefitOptions;
     pendingNearbyRefitOptions = null;
+    // A queued GPS follow holds still under a secondary screen, as a plain fix does.
+    if (next.queuedGpsFollow && (secondaryScreenActive() || state.searchScreenOpen)) return;
     alignHeadingUpNavigationViewport(next);
   };
   pendingNearbyRefitFrame = requestAnimationFrame(retry);
@@ -5916,6 +5921,9 @@ function alignHeadingUpNavigationViewport(options = {}) {
     // stopped on the earlier tween's framing until some later un-animated tick snapped it right.
     // Queue it instead and run it once the in-flight move has landed.
     if (options.animate) deferAnimatedNearbyRefit(options);
+    // A GPS fix landing mid-move must not restart or snap the move, but the framing it asks for is
+    // not dropped either: once the move has landed, one short ease carries the camera onto the fix.
+    else if (options.gpsFollow && !pendingNearbyRefitOptions) deferAnimatedNearbyRefit({ animate: true, durationMs: 300, queuedGpsFollow: true });
     return false;
   }
   if (state.clusterZoomed) return false;
@@ -5983,7 +5991,7 @@ function alignHeadingUpNavigationViewport(options = {}) {
   // Use maxScale directly: heading-up mode always fits all targets in the
   // rotated focus rect. Math.min would leave scale too low when the map
   // was previously at a wider zoom (e.g. walking-radius level on first load).
-  let targetScale = resolveHeadingUpTargetScale(maxScale, previousScale, Boolean(options.force));
+  let targetScale = resolveHeadingUpTargetScale(maxScale, options.landSlide && maxScale > 0 ? 0 : previousScale, Boolean(options.force));
   // A browse-origin slide that started from a different zoom carries the zoom change with it, on the
   // slide's own curve, so the map zooms and pans as one move instead of snapping to the final scale and
   // then sliding. Un-animated per-frame calls only: an animated call already hands the whole move to a tween.
@@ -6163,9 +6171,10 @@ function animateToHeadingUpNavigationViewport(durationMs = HEADING_UP_NAV_ANIMAT
   const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: Boolean(options.assumeInspectorOpen) });
   const focus = navigationFocusPoint(focusRect);
   const maxScale = maxHeadingUpNavigationScale(focus, focusRect);
-  // Use maxScale directly so the viewport always zooms to fit the selected
-  // target, even when coming from a wider zoom (e.g. walking-radius overview).
-  const targetScale = maxScale;
+  // Fit the selected target even when coming from a wider zoom (e.g. walking-radius overview), at the
+  // same buffered scale every other route to this state lands on (alignHeadingUpNavigationViewport with
+  // force), so the compass follow that comes next finds nothing left to correct.
+  const targetScale = resolveHeadingUpTargetScale(maxScale, state.viewport.scale, true);
   // force: true, matching maxScale being used directly above rather than through
   // resolveHeadingUpTargetScale -- this is a fresh selection, not the compass follow, so
   // the camera's own placement should not ease from wherever a previous selection last
@@ -6205,7 +6214,10 @@ function prepareCanvasForDraw() {
     } else {
       const fading = nearbyRevealInProgress();
       if (!fading) state.nearbyOriginTransition = null;
-      alignHeadingUpNavigationViewport({ animate: false, force: true });
+      // The landing frame fits exactly: a scale already within the settle band of the fit would otherwise be
+      // kept, leaving the camera wherever the slide's last drawn frame happened to be (a slow frame stops
+      // short), so the same browse point framed a percent differently from one run to the next.
+      alignHeadingUpNavigationViewport({ animate: false, force: true, landSlide: !fading });
       if (fading) requestDraw();
     }
   }

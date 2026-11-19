@@ -214,8 +214,38 @@ function groupJourneysByDay(journeys) {
   });
 }
 
+// Top destinations over the last `days` days counted back from `now` (ms): journeys are grouped by
+// destination (navId, else the target coordinates rounded to 5 dp). Sorted by started, then completed,
+// then name; `share` is started relative to the top destination (for a bar). The name comes from the
+// journey's target (explicit navName, or the ping's navTarget name).
+function topDestinationsThisWeek(journeys, { now, days = 7, limit = 5 } = {}) {
+  const since = now - days * 24 * 60 * 60 * 1000;
+  const groups = new Map();
+  for (const j of journeys || []) {
+    const t = Date.parse(j && j.startedAt);
+    if (!Number.isFinite(t) || t < since || !j.target) continue;
+    const tg = j.target;
+    const key = tg.id != null ? `id:${tg.id}` : `at:${Number(tg.targetLat).toFixed(5)},${Number(tg.targetLng).toFixed(5)}`;
+    if (!groups.has(key)) groups.set(key, { key, name: null, list: [] });
+    const g = groups.get(key);
+    if (!g.name && tg.name) g.name = String(tg.name);
+    g.list.push(j);
+  }
+  const rows = [...groups.values()].map((g) => {
+    const s = summariseNavJourneys(g.list);
+    return {
+      key: g.key, name: g.name || "Unnamed place", started: s.started, completed: s.completed,
+      completionRate: s.completionRate, medianMinutesToArrive: s.medianArriveMinutes, share: 0,
+    };
+  });
+  rows.sort((a, b) => b.started - a.started || b.completed - a.completed || a.name.localeCompare(b.name));
+  const top = rows.slice(0, limit);
+  for (const r of top) r.share = r.started / top[0].started;
+  return top;
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
-    NAV_ARRIVAL_RADIUS_M, NAV_GAP_MS, haversineMetres, deriveNavJourneys, buildExplicitJourneys, combineNavJourneys, summariseNavJourneys, navTimeBucket, groupJourneysByDay,
+    NAV_ARRIVAL_RADIUS_M, NAV_GAP_MS, haversineMetres, deriveNavJourneys, buildExplicitJourneys, combineNavJourneys, summariseNavJourneys, navTimeBucket, groupJourneysByDay, topDestinationsThisWeek,
   };
 }

@@ -428,6 +428,17 @@ jobs:
                     https://www.yourdreamfactory.org/ (public events section)
                   - https://www.41steppingforestscouts.org.uk/events
                     (public school/community fairs, not member-only events).
+                  - https://www.eventbrite.co.uk/o/9768889881 (Eventbrite
+                    organiser page, 'Epping Forest' organiser, including the
+                    collections Festive Forest, Top Picks and Leaky Dam
+                    Building). Fetch the organiser page and each upcoming
+                    event's detail page for the current-year date, time,
+                    venue and ticket URL; check pagination or 'show more'.
+                    De-dupe by title+date+venue against other sources and
+                    existing data/forest-events.json entries. If the fetch
+                    is blocked, treat it as an access limitation (use
+                    indexed listings or search, mark needsReverification),
+                    never as proof of no events.
                   Waltham Abbey Town Council's current events index,
                   https://www.walthamabbey-tc.gov.uk/events/,
                   has dated listings but still returned HTTP 403 to direct
