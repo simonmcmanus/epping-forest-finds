@@ -88,6 +88,9 @@ const BROWSE_HASH = "#near=51.655204,0.065731&label=Far";
 test("selecting a place while browsing a spot in 3D is one move that ends where the same selection from Nearby does", async ({ page }) => {
   await setup(page, "/nearby");
   await hold3d(page);
+  // The real route is known before the selection, as it is for any later selection in a session.
+  await page.evaluate(() => ensureRoutingGraph());
+  await page.waitForFunction(() => state.routingGraphReady === true, null, { timeout: 30000 });
   await page.evaluate((h) => navigateInApp(`/nearby/${h}`), BROWSE_HASH);
   await page.waitForFunction(() => state.nearbyAnchor != null);
   await waitForUiToSettle(page);
