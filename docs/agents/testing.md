@@ -191,8 +191,9 @@ for the fade to reach zero).
 - **Compare CI-to-CI** against `main` and recent runs by test ID, project and error signature.
 - **Rerun only the failed/cancelled jobs, at most once per head** (the lead reruns failed jobs with
   `actions_run_trigger` rerun-failed-jobs). A passing rerun means "intermittent", never "fixed" or
-  "unrelated". The job stays open until the PR carries the flake record defined under "Green" in
-  `.claude/skills/team/SKILL.md` section 5 (first failure and run URL, issue link, dependency reason).
+  "unrelated". The job stays open until the PR carries the record defined under "Green" in
+  `.claude/skills/team/SKILL.md` section 5 (a cancellation needs only the earlier run URL and the
+  rerun result; a test failure also needs the first-failure signature, issue link and dependency reason).
   A second failure on the head is a regression until proven otherwise.
 - **One deduplicated issue per intermittent test**, titled `Flaky test: <spec>:<line> <title>`, holding
   the signatures, run URLs and occurrence count. Search first and comment on the existing issue on

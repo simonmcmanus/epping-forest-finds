@@ -120,10 +120,13 @@ mark ready while local reviews, local verification or draft-run CI are open.
 
 **Green** (defined here once) means the latest attempt of every required draft-run job on the exact
 current head SHA is `success`, and, if an earlier attempt of that job failed or was cancelled, the PR
-carries a flake record: first-failure signature and run URL, the `Flaky test:` issue link, and the
-lead's dependency reason why the failing test cannot be affected by this change. Without that record
-the job stays open even if the rerun passed; no human waiver is needed. A second failure on the head
-is a regression until proven otherwise. `cancelled`, `timed_out`, `skipped` (other than the two
+records the earlier run URL and the rerun result. If a test failed, the record must also carry the
+first-failure signature, the `Flaky test:` issue link and the lead's dependency reason why the failing
+test cannot be affected by this change. For a cancellation with no failing test the run URL and rerun
+result suffice and no flake issue is filed. Without the record the job stays open even if the rerun
+passed; no human waiver is needed. A second failure on the head is a regression until proven
+otherwise; a repeated cancellation is a named blocker (suspected infrastructure) for the lead to
+investigate. A job whose latest attempt is `cancelled`, `timed_out`, `skipped` (other than the two
 final-head jobs on a draft), `neutral` where a result is required, or a MISSING job all count as open.
 A visual-snapshot warning is a separate decision (see `docs/agents/testing.md`), not a red job.
 
@@ -191,9 +194,10 @@ A periodic pass (scheduled task or `/loop`) over every open PR, so a PR whose le
 still followed up. Per PR collect: head SHA, draft state, check runs on that SHA, the last PR comment
 recording an outcome, and base staleness against current `main`. Classify:
 
-- satisfied: the PR carries a recorded lead outcome that the local-review/verification gate was met,
-  and draft-run CI is green (section 5) on the head. The sweep may mark ready
-  (`update_pull_request` `draft: false`) and records it;
+- satisfied: the PR carries a lead outcome comment naming the CURRENT head SHA that records local
+  review and verification complete with no open findings and the PR description reconciled with the
+  Visual review block, and draft-run CI is green (section 5) on that head. An outcome naming an older
+  SHA does not count. The sweep may mark ready (`update_pull_request` `draft: false`) and records it;
 - waiting: a valid named waiting state with next action/owner, no action;
 - actionable (any section 6 trigger, a stale base with no recorded decision, or no recorded lead
   outcome): dispatch `pr-steward` and comment naming the owner and next action (for a missing
