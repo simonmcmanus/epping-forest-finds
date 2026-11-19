@@ -1516,6 +1516,21 @@ function navTable(caption, headers, bodyRows) {
     + `<tbody>${bodyRows.map((r) => `<tr>${r.map((c, i) => (i === 0 ? `<th scope="row">${escapeHtml(c)}</th>` : `<td>${escapeHtml(c)}</td>`)).join("")}</tr>`).join("")}</tbody></table></div>`;
 }
 
+// "Top destinations this week": journeys started in the last 7 days, grouped by destination.
+function navigationDestinationsHtml(journeys) {
+  const head = `<h3>Top destinations this week</h3>`;
+  const rows = typeof topDestinationsThisWeek === "function" ? topDestinationsThisWeek(journeys, { now: Date.now() }) : [];
+  if (!rows.length) return `<section class="nav-panel nav-panel-wide nav-destinations">${head}<p class="nav-empty">No navigation journeys in the last 7 days.</p></section>`;
+  const min = (v) => (v === null ? "n/a" : `${v.toFixed(v % 1 ? 1 : 0)} min`);
+  const body = rows.map((r) => `<tr><th scope="row"><span class="nav-dest-name">${escapeHtml(r.name)}</span>`
+    + `<span class="nav-dest-bar" aria-hidden="true"><span style="width:${Math.max(2, Math.round(r.share * 100))}%"></span></span></th>`
+    + `<td>${r.started}</td><td>${r.completed}</td><td>${r.completionRate === null ? "n/a" : `${Math.round(r.completionRate * 100)}%`}</td><td>${min(r.medianMinutesToArrive)}</td></tr>`).join("");
+  return `<section class="nav-panel nav-panel-wide nav-destinations">${head}<div class="nav-table-wrap"><table class="nav-trend-table nav-dest-table">`
+    + `<caption class="sr-only">Top destinations by journeys started in the last 7 days</caption>`
+    + `<thead><tr><th scope="col">Destination</th><th scope="col">Started</th><th scope="col">Completed</th><th scope="col">Completion rate</th><th scope="col">Median time</th></tr></thead>`
+    + `<tbody>${body}</tbody></table></div></section>`;
+}
+
 function navigationViewHtml() {
   const journeys = navigationJourneysForView();
   const head = `<h2>Navigation${selectedUid ? " (selected user)" : ""}</h2>`;
@@ -1537,6 +1552,7 @@ function navigationViewHtml() {
   const ratio = (v) => (v === null ? "n/a" : `${v.toFixed(2)}x`);
   const panel = (cls, title, legend, svg, table) => `<section class="nav-panel ${cls}"><h3>${title}</h3><ul class="nav-legend">${legend}</ul>${svg}${table}</section>`;
   return `${head}<ul class="nav-cards">${cards}</ul><div class="nav-grid">`
+    + navigationDestinationsHtml(journeys)
     + panel("nav-panel-wide", "Started, completed and completion rate by day",
       `${swatch("started", "Started")}${swatch("completed", "Completed")}<li><span class="nav-swatch nav-swatch-line" style="background:var(--nav-rate)"></span>Completion rate (right axis, 0-100%)</li>`,
       navTrendChartSvg(rows),

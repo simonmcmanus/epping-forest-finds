@@ -89,7 +89,7 @@ Auto-refresh runs every 5 minutes.
 
 ## Stats bar
 
-Fixed to bottom-right of the canvas. Shows:
+Fixed to bottom-right of the canvas, in a dark frosted panel of the same family as the legend box (a near-opaque black background with a light blur) so it reads over any map colour. Text is at least 14 px, light on dark with a contrast of at least 4.5:1 for labels and values (checked against a white map as the worst case), and the numbers are bolder than the labels. The panel stays inside the viewport at 1024 and 1280 px wide. Shows:
 - Number of distinct users in current view
 - Total location pings
 - Total tap events
@@ -149,6 +149,7 @@ A **Navigation** tab in the top bar opens a dedicated view (`#adminNavigation`) 
 
 - **Summary cards:** a row of equal-height cards, each with the figure large and a short one-line label beneath: Started, Completed, Completion rate, Median time (to arrive), Distance walked, Median detour (ratio) and With detour (journeys that have a detour ratio). Where the short label drops meaning, the card's `title` attribute carries the full wording.
 - **Layout:** each chart sits in its own panel with a heading, a left-aligned legend above the chart, the chart and its daily table. On windows at least 1100 px wide the first panel (started, completed and completion rate) spans the full width and the other two sit side by side; below 900 px the panels stack in one column. The content is centred and capped at 1400 px wide so chart text stays readable.
+- **Top destinations this week:** the first panel, full width. Destinations are the navigation targets of journeys that started in the last 7 days, counted back from the current time (not from the loaded window). Journeys are grouped by destination (the navigation id when present, otherwise the target coordinates rounded to 5 decimal places); up to 5 are shown, ordered by journeys started (most first), ties broken by completed, then name. Each row shows the destination name (taken from the journey's target name; "Unnamed place" when it has none), started, completed, completion rate, and the median time to arrive over completed journeys only ("n/a" when none). A small horizontal bar under the name is scaled to the top destination's started count; it is decorative (`aria-hidden`) and the numbers are the text. With no journeys in that 7-day period the panel shows "No navigation journeys in the last 7 days." The pure function is `topDestinationsThisWeek(journeys, { now, days = 7, limit = 5 })` in `js/navigation-metrics.js`.
 - **Started, completed and completion rate by day:** bars for started and completed journeys and a line with a point per day for the completion rate on a 0-100% right axis.
 - **Time to arrive by day:** stacked bars for the four buckets (under 5, 5-15, 15-30 and over 30 minutes), with a legend.
 - **Median detour by day:** a line with a point per day and a dashed reference at 1.0, labelled "shortest route".

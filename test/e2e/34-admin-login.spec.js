@@ -239,6 +239,92 @@ test.describe("Admin login", () => {
     await expect(view.locator("table.nav-trend-table").first().locator("tbody tr")).toHaveCount(9);
   });
 
+  // Fictional fixture with times relative to the run, so it stays inside (or outside) the 7-day window.
+  async function openNavigationAt(page, startsMsAgo) {
+    await skipOnboarding(page);
+    const rows = [];
+    startsMsAgo.forEach((ago, i) => {
+      const t0 = Date.now() - ago;
+      const id = "nav-top";
+      rows.push([0, t0, id, "Example Spot", "place", 51.5, 0.1, 51.49, 0.09, 1000, null, null, null, "start"]);
+      if (i !== 1) {
+        rows.push([0, t0 + 6 * 60000, id, "Example Spot", "place", 51.5, 0.1, 51.5, 0.1, 1000, 1100, 0, null, "arrive"]);
+        rows.push([0, t0 + 7 * 60000, id, "Example Spot", "place", 51.5, 0.1, 51.5, 0.1, 1000, 1100, 0, "arrived", "end"]);
+      }
+    });
+    const packed = {
+      format: 2,
+      locations: { v: 2, type: "location", uids: [], targets: [], rows: [] },
+      clicks: { v: 2, type: "click", uids: [], rows: [] },
+      navigation: { v: 2, type: "navigation", uids: ["walker-aaaa-1111"], rows },
+      meta: { ...TRACKS.meta },
+    };
+    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(packed) }));
+    await page.goto("/admin");
+    await page.getByLabel("Admin password").fill("secret");
+    await page.click("#loginBtn");
+    await page.getByRole("button", { name: "Navigation", exact: true }).click();
+    const view = page.locator("#adminNavigation");
+    await expect(view).toBeVisible();
+    return view;
+  }
+
+  test("the Navigation view lists the top destinations of the last 7 days with their started count", async ({ page }) => {
+    const HOUR = 3600000;
+    // Three journeys to one place inside the week (one abandoned), one 9 days ago that must not count.
+    const view = await openNavigationAt(page, [2 * HOUR, 5 * HOUR, 30 * HOUR, 9 * 24 * HOUR]);
+    const panel = view.locator(".nav-destinations");
+    await expect(panel.getByRole("heading", { name: "Top destinations this week" })).toBeVisible();
+    const row = panel.locator("tbody tr");
+    await expect(row).toHaveCount(1);
+    await expect(row.first()).toContainText("Example Spot");
+    await expect(row.first().locator("td").nth(0)).toHaveText("3");
+    await expect(row.first().locator("td").nth(1)).toHaveText("2");
+    await expect(row.first().locator("td").nth(2)).toHaveText("67%");
+    await expect(row.first().locator("td").nth(3)).toHaveText("6 min");
+    await expect(panel.locator(".nav-dest-bar").first()).toHaveAttribute("aria-hidden", "true");
+  });
+
+  test("the Navigation view says so when no journey started in the last 7 days", async ({ page }) => {
+    const view = await openNavigationAt(page, [8 * 24 * 3600000, 10 * 24 * 3600000]);
+    await expect(view.locator(".nav-destinations")).toContainText("No navigation journeys in the last 7 days.");
+    await expect(view.locator(".nav-destinations tbody tr")).toHaveCount(0);
+  });
+
+  test("the stats bar is a readable panel over the map", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await skipOnboarding(page);
+    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) }));
+    await page.goto("/admin");
+    await page.getByLabel("Admin password").fill("secret");
+    await page.click("#loginBtn");
+    await expect(page.locator("#adminStats")).toContainText("location pings");
+    const m = await page.evaluate(() => {
+      const el = document.getElementById("adminStats");
+      const cs = getComputedStyle(el);
+      const rect = el.getBoundingClientRect();
+      return {
+        bg: cs.backgroundColor, color: cs.color, size: parseFloat(cs.fontSize),
+        strongColor: getComputedStyle(el.querySelector("strong")).color,
+        strongWeight: parseInt(getComputedStyle(el.querySelector("strong")).fontWeight, 10),
+        weight: parseInt(cs.fontWeight, 10),
+        inView: rect.right <= window.innerWidth && rect.bottom <= window.innerHeight && rect.left >= 0,
+      };
+    });
+    const rgba = (c) => { const n = c.match(/[\d.]+/g).map(Number); return { r: n[0], g: n[1], b: n[2], a: n.length > 3 ? n[3] : 1 }; };
+    const lum = ({ r, g, b }) => { const f = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b); };
+    const bg = rgba(m.bg);
+    expect(bg.a).toBeGreaterThan(0);
+    // Worst case: the panel sits over a white map. Composite the background over white first.
+    const flat = { r: bg.r * bg.a + 255 * (1 - bg.a), g: bg.g * bg.a + 255 * (1 - bg.a), b: bg.b * bg.a + 255 * (1 - bg.a) };
+    const contrast = (fg) => { const f = rgba(fg); const [hi, lo] = [lum(f), lum(flat)].sort((a, b) => b - a); return (hi + 0.05) / (lo + 0.05); };
+    expect(m.size).toBeGreaterThanOrEqual(14);
+    expect(contrast(m.color)).toBeGreaterThanOrEqual(4.5);
+    expect(contrast(m.strongColor)).toBeGreaterThanOrEqual(4.5);
+    expect(m.strongWeight).toBeGreaterThan(m.weight);
+    expect(m.inView).toBe(true);
+  });
+
   test("Navigation summary labels stay on one line on desktop and the charts fill the page in two columns", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 });
     const view = await openNavigationWithNineDays(page);

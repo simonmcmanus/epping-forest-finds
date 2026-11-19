@@ -296,16 +296,20 @@ html, body {
   position: absolute;
   bottom: 12px;
   right: 12px;
-  background: rgba(255,255,255,0.12);
+  max-width: calc(100% - 24px);
+  background: rgba(0,0,0,0.78);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
   border-radius: 8px;
   padding: 8px 12px;
-  font-size: 0.72rem;
-  color: rgba(255,255,255,0.7);
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: rgba(255,255,255,0.92);
   line-height: 1.6;
   pointer-events: none;
 }
 
-.admin-stats strong { color: #fff; }
+.admin-stats strong { color: #fff; font-weight: 800; }
 
 .admin-click-details {
   position: absolute;
@@ -536,3 +540,7 @@ html, body {
 .nav-trend-table thead th { color: var(--muted); font-weight: 600; }
 .nav-trend-table th:first-child, .nav-trend-table td:first-child { position: sticky; left: 0; background: #fff; text-align: left; }
 .nav-empty { margin: 0; }
+.nav-dest-table th:first-child { min-width: 180px; }
+.nav-dest-name { display: block; }
+.nav-dest-bar { display: block; height: 6px; margin-top: 3px; background: #eceae4; border-radius: 3px; }
+.nav-dest-bar > span { display: block; height: 100%; background: var(--nav-started); border-radius: 3px; }
