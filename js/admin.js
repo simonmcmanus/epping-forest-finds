@@ -1659,12 +1659,15 @@ async function adminBoot() {
     showLogin(message);
   }
 
+  let signingIn = false; // true while a sign-in or a stored-session restore is in flight, so Enter cannot start a second one
   async function doLogin() {
+    if (signingIn) return;
     const pw = loginInput.value.trim();
     if (!pw) {
       loginError.textContent = "Enter the admin password.";
       return;
     }
+    signingIn = true;
     loginBtn.disabled = true;
     loginBtn.textContent = "Signing in…";
     loginError.textContent = "";
@@ -1683,12 +1686,15 @@ async function adminBoot() {
       }
       loginBtn.disabled = false;
       loginBtn.textContent = "Sign in";
+    } finally {
+      signingIn = false;
     }
   }
 
   // A session kept by this tab survives a reload: go straight to the data. If the server no longer accepts it, ask again.
   const restored = readStoredSession();
   if (restored) {
+    signingIn = true;
     loginBtn.disabled = true;
     loginBtn.textContent = "Signing in…";
     loadData(restored.token).then((data) => {
@@ -1697,9 +1703,10 @@ async function adminBoot() {
       showAdminApp();
     }).catch((err) => {
       console.error("[admin] stored session not usable:", err);
-      clearStoredSession();
+      // Only a refusal ends the session; a network or server error keeps the token for the next reload.
+      if (err.message === "wrong-password") clearStoredSession();
       showLogin(err.message === "wrong-password" ? "Admin session expired. Sign in again." : `Cannot reach server: ${err.message}`);
-    });
+    }).finally(() => { signingIn = false; });
   } else {
     clearStoredSession();
   }

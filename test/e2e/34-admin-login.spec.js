@@ -97,6 +97,19 @@ test.describe("Admin login", () => {
     await expect(page.getByLabel("Admin password")).toBeVisible();
   });
 
+  test("a server error while restoring the session keeps it, so the next reload signs in without the password", async ({ page }) => {
+    await signIn(page);
+    await page.unroute(/\/api\/admin\/tracks/);
+    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 502, contentType: "text/plain", body: "Bad Gateway" }));
+    await page.reload();
+    await expect(page.locator("#loginError")).toContainText("Cannot reach server");
+    await page.unroute(/\/api\/admin\/tracks/);
+    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(TRACKS) }));
+    await page.reload();
+    await expect(page.locator("#loginScreen")).toBeHidden();
+    await expect(page.locator("#adminStats")).toContainText("location pings");
+  });
+
   test("the typed password is in no browser storage after signing in", async ({ page }) => {
     const password = "another-long-password-4410";
     await signIn(page, password);
