@@ -1138,7 +1138,10 @@ function setupResizeHandler() {
     resizeCanvas();
     if (state.bounds) {
       if (typeof headingUpActive === "function" && headingUpActive()) {
-        alignHeadingUpNavigationViewport();
+        // A resize changes the room the fit solves against, so it refits outright: the compass
+        // follow's hold band would keep the old scale, and the fit is never animated.
+        // A secondary screen holds the camera, so there it keeps the plain (guarded) call.
+        alignHeadingUpNavigationViewport(secondaryScreenActive() ? {} : { force: true, animate: false });
       } else if (state.userLocation && selectedCompassTarget()) {
         ensureUserAndSelectionVisible({ animate: true, durationMs: 360 });
       } else if (state.userLocation && (isOverviewScreenActive() || secondaryScreenActive())) {
@@ -3081,12 +3084,13 @@ function setInspectorMinimized(minimized) {
           durationMs: DEFAULT_VIEWPORT_ANIMATION_MS,
           force: true,
           assumeInspectorOpen: true,
+          deliberate: true,
         });
       }
     } else {
       centerViewportOnPointsKeepScale(
         [state.userLocation.point, selectedCompassTarget().point],
-        { animate: true, durationMs: DEFAULT_VIEWPORT_ANIMATION_MS, focusVisibleArea: true, assumeInspectorOpen: true }
+        { animate: true, durationMs: DEFAULT_VIEWPORT_ANIMATION_MS, focusVisibleArea: true, assumeInspectorOpen: true, deliberate: true }
       );
     }
   } else if (!wasMinimized && minimized) {
