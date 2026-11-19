@@ -4755,10 +4755,11 @@ function startNearbyOriginTransition(fromPoint) {
 }
 
 // The slide's pause is judged by the slide itself while its object is alive and running, and after
-// that by any camera tween still flying: prepareCanvasForDraw drops state.nearbyOriginTransition as
-// soon as a tween runs, so a slide overlapping a tween would otherwise end its pause on about the
-// second frame, and a pure-pan tween would then swap the fresh set in mid-flight. The pause ends when
-// the last leg lands. A slide replaced or cleared by anything else (a selection) no longer holds it.
+// that by any camera tween still flying: prepareCanvasForDraw drops state.nearbyOriginTransition once a
+// tween runs, except while the wide shot's first leg is flying (wideLegSlideFlying), which keeps it so
+// the origin travels with the camera. Any other tween overlapping a slide would otherwise end its pause
+// on about the second frame, and a pure-pan tween would then swap the fresh set in mid-flight. The pause
+// ends when the last leg lands. A slide replaced or cleared by anything else (a selection) no longer holds it.
 //
 // Intentionally not cleared when a pause ends: it only identifies which slide the pause belongs to, and
 // every check is guarded by the pause source being live. A stale value is harmless and is replaced by
