@@ -742,10 +742,81 @@ test.describe("Admin login", () => {
     await expect(page.locator("#adminCanvas")).toBeFocused();
   });
 
-  test("the Community panel body announces its loading and result text as a status", async ({ page }) => {
+  test("Community announces loading in a status line, keeps its stats out of live regions, and reports a reward check in exactly one", async ({ page }) => {
     await signInOnPhone(page);
-    await expect(page.getByRole("status").filter({ has: page.locator("#adminCommunityBody") })).toHaveCount(0);
-    await expect(page.locator("#adminCommunityBody")).toHaveAttribute("role", "status");
-    await expect(page.locator("#adminCommunity")).not.toHaveAttribute("aria-live", /.+/);
+    let release;
+    const gate = new Promise((resolve) => { release = resolve; });
+    await page.route(/\/api\/community\/overlay\?admin=1/, async (route) => {
+      await gate;
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ generatedAt: Date.parse("2026-10-27T09:35:00Z"), reports: 4, devices: 2, activeDevices1d: 1, activeDevices7d: 2, byStatus: { verified: 3 }, perDay: { "2026-10-26": 4 }, questioned: 1, verified: 3, newTreesUnconfirmed: 0, newTreesConfirmed: 0, conflicts: 0, totalPoints: 9 }) });
+    });
+    await page.route(/\/api\/community\/validate/, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ registerChecked: true, newRegisterRewards: 2, issueRewards: 1 }) }));
+    await page.click("#communityBtn");
+    await expect(page.getByRole("status").filter({ hasText: "Loading" })).toHaveCount(1);
+    release();
+    await expect(page.getByRole("button", { name: "Run reward check now" })).toBeVisible();
+    // Loading text is cleared, and the replaced stats body sits in no live region.
+    await expect(page.getByRole("status").filter({ hasText: "Loading" })).toHaveCount(0);
+    const live = await page.evaluate(() => {
+      const body = document.getElementById("adminCommunityBody");
+      const liveAncestor = body.closest('[role="status"], [role="alert"], [aria-live]');
+      const regions = [...document.querySelectorAll('[role="status"], [aria-live]')].filter((el) => el.closest("#adminCommunity"));
+      return { liveAncestor: !!liveAncestor, textInRegions: regions.map((el) => el.textContent.trim()) };
+    });
+    expect(live.liveAncestor).toBe(false);
+    expect(live.textInRegions.join("")).toBe("");
+    await page.click("#communityValidateBtn");
+    const withText = page.getByRole("status").filter({ hasText: "Register checked: yes" });
+    await expect(withText).toHaveCount(1);
+    await expect(page.locator('#adminCommunity [role="status"]').filter({ hasText: /\S/ })).toHaveCount(1);
+  });
+
+  test("Escape discards unsaved edits in the Access panel and reopening shows the server list", async ({ page }) => {
+    await signInOnPhone(page);
+    await page.click("#accessBtn");
+    await expect(page.locator("#adminAccessList")).toHaveValue("a1b2c3d4e5 Sam");
+    await page.fill("#adminAccessList", "typed but never saved");
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#adminAccess")).toBeHidden();
+    await page.click("#accessBtn");
+    await expect(page.locator("#adminAccessList")).toHaveValue("a1b2c3d4e5 Sam");
+  });
+
+  test("the top bar is two rows at 1099px and one row at 1100px, with no overlaps either way", async ({ page }) => {
+    await signInOnPhone(page);
+    const ids = "#tracksBtn, #heatmapBtn, #navigationBtn, #communityBtn, #accessBtn, #refreshBtn, #logoutBtn";
+    for (const [width, rows] of [[1099, 2], [1100, 1]]) {
+      await page.setViewportSize({ width, height: 800 });
+      const boxes = await boxesOf(page, ids);
+      expect(boxes).toHaveLength(7);
+      for (let i = 0; i < boxes.length; i++) {
+        for (let j = i + 1; j < boxes.length; j++) {
+          expect(intersects(boxes[i], boxes[j]), `${boxes[i].id} overlaps ${boxes[j].id} at ${width}px`).toBe(false);
+        }
+      }
+      const [brand] = await boxesOf(page, ".admin-brand");
+      const [nav] = await boxesOf(page, ".admin-nav");
+      if (rows === 2) expect(nav.top, `nav sits below the brand at ${width}px`).toBeGreaterThanOrEqual(brand.bottom - 1);
+      else expect(nav.top, `nav shares the brand row at ${width}px`).toBeLessThan(brand.bottom);
+    }
+  });
+
+  test.describe("on a touch tablet", () => {
+    test.use({ hasTouch: true, viewport: { width: 768, height: 900 } });
+
+    test("every top-bar button is at least 44px tall and none overlap", async ({ page }) => {
+      await signInOnPhone(page);
+      await page.setViewportSize({ width: 768, height: 900 });
+      expect(await page.evaluate(() => matchMedia("(pointer: coarse)").matches)).toBe(true);
+      const ids = "#tracksBtn, #heatmapBtn, #navigationBtn, #communityBtn, #accessBtn, #refreshBtn, #logoutBtn";
+      const boxes = await page.evaluate((sel) => [...document.querySelectorAll(sel)].map((el) => { const r = el.getBoundingClientRect(); return { id: el.id, left: r.left, right: r.right, top: r.top, bottom: r.bottom, h: r.height }; }), ids);
+      expect(boxes).toHaveLength(7);
+      for (const b of boxes) expect(b.h, `${b.id} height`).toBeGreaterThanOrEqual(43.95);
+      for (let i = 0; i < boxes.length; i++) {
+        for (let j = i + 1; j < boxes.length; j++) {
+          expect(intersects(boxes[i], boxes[j]), `${boxes[i].id} overlaps ${boxes[j].id}`).toBe(false);
+        }
+      }
+    });
   });
 });

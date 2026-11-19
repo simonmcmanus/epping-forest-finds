@@ -620,6 +620,14 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .admin-panel-status:empty { display: none; }
 
+/* The loading/error live region stays rendered (an empty paragraph takes no space) so screen readers reliably announce text written to it. */
+.admin-community-status {
+  margin: 0;
+  color: var(--text-hi);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
 .admin-panel-links { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-3); }
 
 .admin-community-asof { color: var(--text-low); font-size: var(--fs-xs); }
@@ -752,6 +760,11 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 }
 
 /* --- Phone: compact top bar, user chips on top, map and views at full width --- */
+
+/* Touch devices up to 1099px wide (tablets, landscape phones) get 44px tap targets in the top bar; fine-pointer desktops keep 34px. */
+@media (max-width: 1099px) and (pointer: coarse) {
+  .admin-topbar .admin-btn { min-height: var(--tap); }
+}
 
 @media (max-width: 720px) {
   .admin-topbar { padding: 4px var(--sp-2); }

@@ -1639,6 +1639,7 @@ async function adminBoot() {
   const communityBtn = document.getElementById("communityBtn");
   const communityPanel = document.getElementById("adminCommunity");
   const communityBody = document.getElementById("adminCommunityBody");
+  const communityStatus = document.getElementById("adminCommunityStatus");
 
   let password = "";
   clearLegacyStoredPassword();
@@ -1725,9 +1726,12 @@ async function adminBoot() {
     closeOverlayPanels("community");
     communityPanel.hidden = false;
     document.getElementById("adminCommunityClose").focus();
-    communityBody.textContent = "Loading…";
+    communityBody.textContent = "";
+    communityStatus.textContent = "Loading…";
     try {
-      communityBody.innerHTML = renderCommunityStats(await loadCommunityStats(password));
+      const html = renderCommunityStats(await loadCommunityStats(password));
+      communityStatus.textContent = "";
+      communityBody.innerHTML = html;
       const rebuildBtn = document.getElementById("communityRebuildBtn");
       if (rebuildBtn) {
         rebuildBtn.addEventListener("click", async () => {
@@ -1761,7 +1765,8 @@ async function adminBoot() {
         });
       }
     } catch (error) {
-      communityBody.textContent = `Could not load community stats (${error.message}).`;
+      communityBody.textContent = "";
+      communityStatus.textContent = `Could not load community stats (${error.message}).`;
     }
   });
   document.getElementById("adminCommunityClose").addEventListener("click", () => closeOverlay("community"));
