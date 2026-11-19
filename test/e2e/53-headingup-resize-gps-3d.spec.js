@@ -216,7 +216,7 @@ test("a GPS fix arriving mid-move neither restarts nor snaps the move, and the c
   await waitForUiToSettle(page);
   await waitForCameraStill(page);
   const { frames, moves } = await stopTrace(page);
-  expect(moves, "at most one follow-up move once the first has landed").toBeLessThanOrEqual(1);
+  expect(moves, "exactly one follow-up ease once the first has landed").toBe(1);
   // No snap: the scale never steps by more than a fifth of the whole travel in one frame.
   const travel = Math.abs(target.scale - target.scale * 0.6);
   for (let i = 1; i < frames.length; i += 1) {
