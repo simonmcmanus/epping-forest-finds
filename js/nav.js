@@ -3081,12 +3081,13 @@ function setInspectorMinimized(minimized) {
           durationMs: DEFAULT_VIEWPORT_ANIMATION_MS,
           force: true,
           assumeInspectorOpen: true,
+          deliberate: true,
         });
       }
     } else {
       centerViewportOnPointsKeepScale(
         [state.userLocation.point, selectedCompassTarget().point],
-        { animate: true, durationMs: DEFAULT_VIEWPORT_ANIMATION_MS, focusVisibleArea: true, assumeInspectorOpen: true }
+        { animate: true, durationMs: DEFAULT_VIEWPORT_ANIMATION_MS, focusVisibleArea: true, assumeInspectorOpen: true, deliberate: true }
       );
     }
   } else if (!wasMinimized && minimized) {

@@ -1876,10 +1876,13 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
     ? state.baseFitScale * 0.92
     : deliberateArc ? Math.min(from.scale, targetViewport.scale) * 0.8 : 0;
 
+  // Reduced motion: a deliberate (user-triggered) move lands on the target at once, as one move,
+  // with no tween to wait for.
   if (
-    Math.abs(from.scale - targetViewport.scale) < 0.000001
+    (options.deliberate && !cinematic && prefersReducedMotion())
+    || (Math.abs(from.scale - targetViewport.scale) < 0.000001
     && Math.abs(from.tx - targetViewport.tx) < 0.5
-    && Math.abs(from.ty - targetViewport.ty) < 0.5
+    && Math.abs(from.ty - targetViewport.ty) < 0.5)
   ) {
     state.viewport.scale = targetViewport.scale;
     state.viewport.tx = targetViewport.tx;
