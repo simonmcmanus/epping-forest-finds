@@ -13,6 +13,10 @@ in the main session. Only skip it for read-only questions.
 - Place facts are corrected in `data/**`, never documented in a spec.
 - CI owns `js/app-cache-version.js`, `js/data-cache-version.js` and screenshot baselines. Never edit them.
 - Tests assert user-visible behaviour, never source text. Prove a regression test fails before the fix.
+- Finish all in-scope work on a PR (every valid finding including minors, CI, checklist and review
+  threads) without being prompted. Work not specific to the PR's request becomes a deduplicated
+  GitHub issue linked from the PR, never silent scope growth or an unrecorded "later". See
+  `/team` section 5a.
 - Never report completion while required checks, findings or human approval remain outstanding.
 - Preserve the PR's preview-links block when rewriting a PR description.
 - Push the PR as a draft as soon as the batch is implemented and committed, so the Netlify preview
