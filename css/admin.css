@@ -33,6 +33,9 @@
   --line-strong: #aab5ad;
   --accent-hover: #75d99a;
   --accent-press: #3fb36a;
+  --accent-soft: rgba(79, 201, 126, 0.2);
+  --accent-soft-hover: rgba(79, 201, 126, 0.3);
+  --accent-soft-press: rgba(79, 201, 126, 0.4);
   --link: #8fe3b0;
   --link-hover: #b4f3cd;
   --warn-text: #f8dc9a;
@@ -170,6 +173,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 }
 
 .login-input:hover { border-color: var(--line-strong); }
+.login-input[aria-invalid="true"] { border-color: var(--danger); }
 
 .login-input:focus-visible {
   border-color: var(--tree);
@@ -296,11 +300,24 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .admin-panel-btns { display: flex; gap: var(--sp-2); }
 
-/* A panel button stays lit while its panel is open. */
+/* A panel button stays lit while its panel is open, with a bar under its label so colour is not the only cue; hover and press still show. */
 .admin-panel-btns .admin-btn[aria-expanded="true"] {
-  background: rgba(79, 201, 126, 0.2);
+  position: relative;
+  background: var(--accent-soft);
   border-color: var(--accent);
 }
+.admin-panel-btns .admin-btn[aria-expanded="true"]::after {
+  content: "";
+  position: absolute;
+  left: 25%;
+  right: 25%;
+  bottom: 3px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.admin-panel-btns .admin-btn[aria-expanded="true"]:hover { background: var(--accent-soft-hover); }
+.admin-panel-btns .admin-btn[aria-expanded="true"]:active { background: var(--accent-soft-press); }
 .admin-actions { display: flex; gap: var(--sp-1); flex-shrink: 0; }
 
 .admin-btn {
@@ -340,6 +357,11 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 .admin-btn-primary:hover { background: var(--accent-hover); }
 .admin-btn-primary:active { background: var(--accent-press); }
 
+/* A disabled control does not react to hover or press. */
+.admin-btn:disabled:hover, .admin-btn:disabled:active { background: var(--surface-raised); }
+.admin-actions .admin-btn:disabled:hover, .admin-actions .admin-btn:disabled:active { background: transparent; }
+.admin-btn-primary:disabled:hover, .admin-btn-primary:disabled:active { background: var(--accent); }
+
 /* Refresh failure notice: a thin warning strip under the top bar, zero height while empty. */
 .admin-refresh-status {
   flex-shrink: 0;
@@ -351,7 +373,9 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   font-weight: 600;
   overflow-wrap: anywhere;
 }
-.admin-refresh-status:not(:empty) { padding-top: 4px; padding-bottom: 6px; border-bottom: 1px solid var(--border-dark-soft); }
+.admin-refresh-status:not(:empty) { padding-top: var(--sp-1); padding-bottom: var(--sp-2); border-bottom: 1px solid var(--border-dark-soft); }
+/* One hairline under the bar and strip together, not two. */
+.admin-topbar:has(+ .admin-refresh-status:not(:empty)) { border-bottom-color: transparent; }
 
 .admin-body {
   flex: 1;
@@ -655,6 +679,10 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 }
 
 .admin-click-details .admin-community-status:not(:empty) { margin-bottom: var(--sp-2); }
+/* Keep status and help text clear of the close button (wider with its Esc cue on fine pointers, a 44px target on phones). */
+@media (hover: hover) and (pointer: fine) and (min-width: 721px) {
+  .admin-click-details .admin-community-status, .admin-click-details .admin-panel-help { margin-right: 84px; }
+}
 .admin-retry-btn { margin: 0 0 var(--sp-3); }
 .admin-retry-btn[hidden] { display: none; }
 
@@ -709,6 +737,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 
 #adminAccessList:disabled { opacity: 0.55; cursor: not-allowed; }
 #adminAccessList:hover { border-color: rgba(255, 255, 255, 0.3); }
+#adminAccessList:disabled:hover { border-color: var(--border-dark); }
 #adminAccessList:focus-visible { border-color: var(--accent); }
 #adminAccessList::placeholder { color: var(--text-low); }
 
@@ -814,6 +843,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
     gap: var(--sp-1);
     padding: 2px;
     overflow-x: auto;
+    scroll-padding-inline: 28px; /* focus and scrollIntoView stop clear of the 28px fade */
     scrollbar-width: none;
     -webkit-overflow-scrolling: touch;
   }
@@ -853,6 +883,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
     padding: 6px var(--sp-2);
     overflow-x: auto;
     overflow-y: hidden;
+    scroll-padding-inline: 28px;
     scrollbar-width: none;
   }
   .admin-user-list::-webkit-scrollbar { display: none; }
@@ -867,7 +898,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
     background: var(--surface-raised);
   }
 
-  .admin-user-item.selected { border-color: var(--accent); background: rgba(79, 201, 126, 0.2); }
+  .admin-user-item.selected { border-color: var(--accent); background: var(--accent-soft); }
   .admin-user-meta { margin-left: 0; }
 
   .admin-map-control { min-width: var(--tap); height: var(--tap); }
@@ -896,6 +927,7 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
 
   .admin-click-details-close { width: var(--tap); height: var(--tap); top: 4px; right: 4px; }
   .admin-panel-title, .admin-click-title { margin-right: 52px; }
+  .admin-click-details .admin-community-status, .admin-click-details .admin-panel-help { margin-right: 52px; }
 }
 
 /* Scroll cues: a soft fade at an edge of the nav row and user strip while more is hidden there (classes set from js/admin.js). Masks never intercept taps. */

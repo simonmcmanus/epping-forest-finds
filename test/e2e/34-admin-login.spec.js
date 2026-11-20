@@ -65,11 +65,13 @@ test.describe("Admin login", () => {
 
   test("says what the server answered when every window fails", async ({ page }) => {
     await skipOnboarding(page);
-    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 502, contentType: "text/plain", body: "Bad Gateway" }));
+    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 502, contentType: "text/plain", body: "<html><body><h1>internal-proxy-detail</h1></body></html>" }));
     await page.goto("/admin");
     await page.fill("#loginPassword", "secret");
     await page.click("#loginBtn");
-    await expect(page.locator("#loginError")).toContainText("Server error 502: Bad Gateway");
+    // The status code and its plain name, never the raw body (which may be a page of HTML).
+    await expect(page.locator("#loginError")).toHaveText("Server error 502: Bad Gateway");
+    await expect(page.locator("body")).not.toContainText("internal-proxy-detail");
   });
 
   test("a wrong password is still reported as one", async ({ page }) => {
@@ -770,7 +772,7 @@ test.describe("Admin login", () => {
     expect(live.liveAncestor).toBe(false);
     expect(live.textInRegions.join("")).toBe("");
     await page.click("#communityValidateBtn");
-    const withText = page.getByRole("status").filter({ hasText: "Reward check: Register checked. 2 new register rewards, 1 issue reward." });
+    const withText = page.getByRole("status").filter({ hasText: "Reward check: 2 register rewards and 1 issue reward given." });
     await expect(withText).toHaveCount(1);
     await expect(page.locator('#adminCommunity [role="status"]').filter({ hasText: /\S/ })).toHaveCount(1);
   });
@@ -887,7 +889,7 @@ test.describe("Admin login", () => {
     await page.getByRole("button", { name: "Rebuild snapshot now" }).click();
     await expect(page.locator("#communityValidateResult")).toHaveText("Rebuild: Could not rebuild the snapshot (500). Try again.");
     await page.getByRole("button", { name: "Run reward check now" }).click();
-    await expect(page.locator("#communityValidateResult")).toHaveText("Reward check: Register checked (baseline recorded). 0 new register rewards, 0 issue rewards. GitHub: rate limited");
+    await expect(page.locator("#communityValidateResult")).toHaveText("Reward check: first check done — today's register is now the baseline. No rewards given yet. Issue rewards could not be checked (rate limited).");
     await page.route(/\/api\/community\/validate/, (route) => route.fulfill({ status: 500, body: "{}" }));
     await page.getByRole("button", { name: "Run reward check now" }).click();
     await expect(page.locator("#communityValidateResult")).toHaveText("Reward check: Could not run the reward check (500). Try again.");
@@ -966,10 +968,9 @@ test.describe("Admin login", () => {
       return route.fulfill(json({ community: [{ id: "a1b2c3d4e5", note: "Sam" }] }));
     });
     await page.click("#accessBtn");
-    await expect(page.locator("#adminAccessStatus")).toHaveText("Could not load (500).");
+    await expect(page.locator("#adminAccessStatus")).toHaveText("Could not load the list (500). Try again.");
     await expect(page.locator("#adminAccessList")).toBeDisabled();
     await expect(page.locator("#adminAccessSave")).toBeDisabled();
-    await page.evaluate(() => document.getElementById("adminAccessSave").click());
     mode = "slow";
     await page.locator("#adminAccess").getByRole("button", { name: "Retry" }).click();
     await expect(page.locator("#adminAccessStatus")).toHaveText("Loading…");
@@ -1002,7 +1003,7 @@ test.describe("Admin login", () => {
     await expect(page.locator("#adminAccessStatus")).toHaveText("Saving…");
     await expect(page.locator("#adminAccessSave")).toBeDisabled();
     release();
-    await expect(page.locator("#adminAccessStatus")).toHaveText("Saved 1 tester. 2 lines were not a 10-character ID and were dropped.");
+    await expect(page.locator("#adminAccessStatus")).toHaveText("Saved 1 tester. 2 lines were not valid tester IDs (10 characters, 0-9 and a-f) or were repeated, and were dropped.");
     await expect(page.locator("#adminAccessSave")).toBeEnabled();
     expect(posts).toHaveLength(1);
     await expect(page.locator("#adminAccessList")).toHaveValue("a1b2c3d4e5 Sam");
@@ -1038,7 +1039,8 @@ test.describe("Admin login", () => {
     await logIn(page);
     expect(await expanded()).toEqual(["false", "false"]);
     for (const id of ["adminCommunityClose", "adminAccessClose", "adminClickDetailsClose"]) {
-      await expect(page.locator(`#${id}`)).toHaveAttribute("title", "Close (Esc)");
+      await expect(page.locator(`#${id}`)).toHaveAttribute("aria-label", /^Close .+ \(Esc\)$/);
+      await expect(page.locator(`#${id}`)).toHaveAttribute("title", "Esc closes");
       await expect(page.locator(`#${id}`)).toHaveAttribute("aria-keyshortcuts", "Escape");
     }
   });
@@ -1146,6 +1148,483 @@ test.describe("Admin login", () => {
     await expect(page.locator("#adminCommunity")).toBeHidden();
     await expect(page.locator("#adminCommunityBody")).toHaveText("");
   });
+
+  // ---- Round 5: sessions, Escape, plain errors, hover states and cues ----
+
+  const settle = (page, ms = 350) => page.evaluate((t) => new Promise((resolve) => setTimeout(resolve, t)), ms);
+  const gateOf = () => { let release; const gate = new Promise((resolve) => { release = resolve; }); return { gate, release }; };
+
+  async function expectNothingLeftFromTheOldSession(page) {
+    await settle(page);
+    await expect(page.locator("#adminAccess")).toBeHidden();
+    await expect(page.locator("#adminCommunity")).toBeHidden();
+    await expect(page.locator("#adminAccessList")).toHaveValue("");
+    await expect(page.locator("#adminAccessStatus")).toHaveText("");
+    await expect(page.locator("#adminCommunityStatus")).toHaveText("");
+    await expect(page.locator("#adminCommunityBody")).toHaveText("");
+    await expect(page.locator("#adminRefreshStatus")).toHaveText("");
+    await expect(page.locator("#refreshBtn")).toBeEnabled();
+  }
+
+  test("logging out during a refresh and signing in again leaves Refresh enabled and working", async ({ page }) => {
+    await signInOnPhone(page);
+    const { gate, release } = gateOf();
+    let calls = 0;
+    await page.route(/\/api\/admin\/tracks/, async (route) => { calls++; if (calls === 1) await gate; await route.fulfill(json(PHONE_TRACKS)); });
+    await page.click("#refreshBtn");
+    await expect(page.locator("#refreshBtn")).toBeDisabled();
+    await page.click("#logoutBtn");
+    await logIn(page);
+    await expect(page.locator("#refreshBtn")).toBeEnabled();
+    release();
+    await settle(page);
+    await expect(page.locator("#refreshBtn")).toBeEnabled();
+    await page.click("#refreshBtn");
+    await expect.poll(() => calls).toBe(3);
+    await expect(page.locator("#refreshBtn")).toBeEnabled();
+    await expect(page.locator("#adminRefreshStatus")).toHaveText("");
+  });
+
+  test("logging out while the Access list loads leaves nothing from the old session at the next sign-in", async ({ page }) => {
+    await signInOnPhone(page);
+    const { gate, release } = gateOf();
+    let calls = 0;
+    await page.route(/\/api\/features/, async (route) => { calls++; if (calls === 1) await gate; await route.fulfill(json({ community: [{ id: "ffffffffff", note: "Late" }] })); });
+    await page.click("#accessBtn");
+    await expect(page.locator("#adminAccessStatus")).toHaveText("Loading…");
+    await page.click("#logoutBtn");
+    await logIn(page);
+    release();
+    await expectNothingLeftFromTheOldSession(page);
+    await page.click("#accessBtn");
+    await expect(page.locator("#adminAccessList")).toHaveValue("ffffffffff Late");
+    await expect(page.locator("#adminAccessSave")).toBeEnabled();
+  });
+
+  test("logging out while the Access list saves leaves nothing from the old session at the next sign-in", async ({ page }) => {
+    await signInOnPhone(page);
+    const { gate, release } = gateOf();
+    await page.route(/\/api\/features/, async (route) => {
+      if (route.request().method() === "POST") { await gate; return route.fulfill(json({ community: [{ id: "eeeeeeeeee", note: "Late save" }] })); }
+      return route.fulfill(json({ community: [{ id: "a1b2c3d4e5", note: "Sam" }] }));
+    });
+    await page.click("#accessBtn");
+    await expect(page.locator("#adminAccessSave")).toBeEnabled();
+    await page.fill("#adminAccessList", "eeeeeeeeee Late save");
+    await page.click("#adminAccessSave");
+    await expect(page.locator("#adminAccessStatus")).toHaveText("Saving…");
+    await page.click("#logoutBtn");
+    await logIn(page);
+    release();
+    await expectNothingLeftFromTheOldSession(page);
+    await page.click("#accessBtn");
+    await expect(page.locator("#adminAccessList")).toHaveValue("a1b2c3d4e5 Sam");
+    await expect(page.locator("#adminAccessSave")).toBeEnabled();
+  });
+
+  test("logging out while Community loads leaves nothing from the old session at the next sign-in", async ({ page }) => {
+    await signInOnPhone(page);
+    const { gate, release } = gateOf();
+    let calls = 0;
+    await page.route(/\/api\/community\/overlay\?admin=1/, async (route) => { calls++; if (calls === 1) await gate; await route.fulfill(json(COMMUNITY_STATS)); });
+    await page.click("#communityBtn");
+    await expect(page.locator("#adminCommunityStatus")).toHaveText("Loading…");
+    await page.click("#logoutBtn");
+    await logIn(page);
+    release();
+    await expectNothingLeftFromTheOldSession(page);
+    await page.click("#communityBtn");
+    await expect(page.locator("#communityRebuildBtn")).toBeEnabled();
+    await expect(page.locator("#communityValidateBtn")).toBeEnabled();
+  });
+
+  test("logging out during a rebuild leaves nothing from the old session and fresh Community buttons enabled", async ({ page }) => {
+    await signInOnPhone(page);
+    const { gate, release } = gateOf();
+    await page.route(/\/api\/community\/rebuild/, async (route) => { await gate; await route.fulfill(json({ reports: 5, targets: 2 })); });
+    await page.click("#communityBtn");
+    await page.click("#communityRebuildBtn");
+    await expect(page.locator("#communityValidateResult")).toHaveText("Rebuilding…");
+    await page.click("#logoutBtn");
+    await logIn(page);
+    release();
+    await expectNothingLeftFromTheOldSession(page);
+    await page.click("#communityBtn");
+    await expect(page.locator("#communityRebuildBtn")).toBeEnabled();
+    await expect(page.locator("#communityValidateBtn")).toBeEnabled();
+    await expect(page.locator("#communityValidateResult")).toHaveText("");
+  });
+
+  test("a Community action cannot be started twice by closing and reopening the panel while it runs", async ({ page }) => {
+    await signInOnPhone(page);
+    const { gate, release } = gateOf();
+    let rebuilds = 0;
+    await page.route(/\/api\/community\/rebuild/, async (route) => { rebuilds++; await gate; await route.fulfill(json({ reports: 5, targets: 2 })); });
+    await page.click("#communityBtn");
+    await page.click("#communityRebuildBtn");
+    await expect(page.locator("#communityValidateResult")).toHaveText("Rebuilding…");
+    await page.click("#adminCommunityClose");
+    await page.click("#communityBtn");
+    await expect(page.locator("#communityRebuildBtn")).toBeVisible();
+    await expect(page.locator("#communityRebuildBtn")).toBeDisabled();
+    await expect(page.locator("#communityValidateBtn")).toBeDisabled();
+    await expect(page.locator("#communityValidateResult")).toHaveText("Rebuilding…");
+    release();
+    await expect(page.locator("#communityValidateResult")).toHaveText("Rebuild: Rebuilt from 5 reports (2 trees on the overlay).");
+    await expect(page.locator("#communityRebuildBtn")).toBeEnabled();
+    await expect(page.locator("#communityValidateBtn")).toBeEnabled();
+    expect(rebuilds).toBe(1);
+  });
+
+  test("a rebuild whose figures then fail to refresh announces one final message, not the success and then a replacement", async ({ page }) => {
+    await signInOnPhone(page);
+    let overlayCalls = 0;
+    await page.route(/\/api\/community\/overlay\?admin=1/, (route) => { overlayCalls++; return overlayCalls === 1 ? route.fulfill(json(COMMUNITY_STATS)) : route.fulfill({ status: 500, body: "x" }); });
+    await page.route(/\/api\/community\/rebuild/, (route) => route.fulfill(json({ reports: 5, targets: 2 })));
+    await page.click("#communityBtn");
+    await expect(page.locator("#communityRebuildBtn")).toBeVisible();
+    await page.evaluate(() => {
+      const el = document.getElementById("communityValidateResult");
+      window.__written = [];
+      new MutationObserver(() => window.__written.push(el.textContent)).observe(el, { childList: true, characterData: true, subtree: true });
+    });
+    await page.click("#communityRebuildBtn");
+    const final = "Rebuild: Rebuilt from 5 reports (2 trees on the overlay). The figures below could not be refreshed.";
+    await expect(page.locator("#communityValidateResult")).toHaveText(final);
+    await settle(page, 150);
+    const written = await page.evaluate(() => window.__written);
+    expect(written.filter((t) => t.startsWith("Rebuild:"))).toEqual([final]);
+  });
+
+  test("Escape stays armed only for the open Access panel: leaving and coming back needs two presses again", async ({ page }) => {
+    await signInOnPhone(page);
+    await page.click("#accessBtn");
+    await expect(page.locator("#adminAccessList")).toHaveValue("a1b2c3d4e5 Sam");
+    await page.fill("#adminAccessList", "typed but never saved");
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#adminAccessStatus")).toHaveText("Unsaved changes — Save or press Esc again to discard.");
+    await page.click("#communityBtn");
+    await expect(page.locator("#adminAccess")).toBeHidden();
+    await page.click("#accessBtn");
+    await expect(page.locator("#adminAccessStatus")).toContainText("Unsaved changes kept");
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#adminAccess")).toBeVisible();
+    await expect(page.locator("#adminAccessList")).toHaveValue("typed but never saved");
+    await expect(page.locator("#adminAccessStatus")).toHaveText("Unsaved changes — Save or press Esc again to discard.");
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#adminAccess")).toBeHidden();
+    await page.click("#accessBtn");
+    await expect(page.locator("#adminAccessList")).toHaveValue("a1b2c3d4e5 Sam");
+  });
+
+  test("the Escape warning stays until the admin types or closes, with no timeout", async ({ page }) => {
+    await signInOnPhone(page);
+    await page.click("#accessBtn");
+    await expect(page.locator("#adminAccessList")).toBeEnabled();
+    await page.fill("#adminAccessList", "x");
+    await page.keyboard.press("Escape");
+    await settle(page, 1500);
+    await expect(page.locator("#adminAccessStatus")).toHaveText("Unsaved changes — Save or press Esc again to discard.");
+    await page.keyboard.press("Escape");
+    await expect(page.locator("#adminAccess")).toBeHidden();
+  });
+
+  test("typing clears the 'Unsaved changes kept' note shown when Access is reopened", async ({ page }) => {
+    await signInOnPhone(page);
+    await page.click("#accessBtn");
+    await expect(page.locator("#adminAccessList")).toBeEnabled();
+    await page.fill("#adminAccessList", "draft");
+    await page.click("#communityBtn");
+    await page.click("#accessBtn");
+    await expect(page.locator("#adminAccessStatus")).toContainText("Unsaved changes kept");
+    await page.locator("#adminAccessList").pressSequentially("!");
+    await expect(page.locator("#adminAccessStatus")).toHaveText("");
+    await expect(page.locator("#adminAccessList")).toHaveValue("draft!");
+  });
+
+  test("Access load problems are plain, tell network from server errors, and an expired session signs out", async ({ page }) => {
+    await signInOnPhone(page);
+    let mode = "abort";
+    await page.route(/\/api\/features/, (route) => {
+      if (mode === "abort") return route.abort("failed");
+      if (mode === "500") return route.fulfill({ status: 500, body: "x" });
+      if (mode === "401") return route.fulfill({ status: 401, body: "{}" });
+      return route.fulfill(json({ community: [] }));
+    });
+    await page.click("#accessBtn");
+    await expect(page.locator("#adminAccessStatus")).toHaveText("Could not load the list. Check your connection and try again.");
+    await expect(page.locator("#adminApp")).not.toContainText("Failed to fetch");
+    mode = "500";
+    await page.locator("#adminAccess").getByRole("button", { name: "Retry" }).click();
+    await expect(page.locator("#adminAccessStatus")).toHaveText("Could not load the list (500). Try again.");
+    mode = "401";
+    await page.locator("#adminAccess").getByRole("button", { name: "Retry" }).click();
+    await expect(page.locator("#loginScreen")).toBeVisible();
+    await expect(page.locator("#loginError")).toHaveText("Admin session expired. Sign in again.");
+  });
+
+  test("Access save problems are plain, keep what was typed, and an expired session signs out", async ({ page }) => {
+    await signInOnPhone(page);
+    let mode = "abort";
+    await page.route(/\/api\/features/, (route) => {
+      if (route.request().method() !== "POST") return route.fulfill(json({ community: [{ id: "a1b2c3d4e5", note: "Sam" }] }));
+      if (mode === "abort") return route.abort("failed");
+      if (mode === "500") return route.fulfill({ status: 500, body: "x" });
+      return route.fulfill({ status: 401, body: "{}" });
+    });
+    await page.click("#accessBtn");
+    await expect(page.locator("#adminAccessSave")).toBeEnabled();
+    await page.fill("#adminAccessList", "a1b2c3d4e5 Sam\nb2c3d4e5f6 Kim");
+    await page.click("#adminAccessSave");
+    await expect(page.locator("#adminAccessStatus")).toHaveText("Could not save. Check your connection and try again.");
+    await expect(page.locator("#adminApp")).not.toContainText("Failed to fetch");
+    await expect(page.locator("#adminAccessList")).toHaveValue("a1b2c3d4e5 Sam\nb2c3d4e5f6 Kim");
+    await expect(page.locator("#adminAccessSave")).toBeEnabled();
+    mode = "500";
+    await page.click("#adminAccessSave");
+    await expect(page.locator("#adminAccessStatus")).toHaveText("Could not save (500). Try again.");
+    mode = "401";
+    await page.click("#adminAccessSave");
+    await expect(page.locator("#loginScreen")).toBeVisible();
+    await expect(page.locator("#loginError")).toHaveText("Admin session expired. Sign in again.");
+  });
+
+  test("Save does nothing after a failed Access load even if the disabled button is forced to fire", async ({ page }) => {
+    await signInOnPhone(page);
+    const posts = [];
+    await page.route(/\/api\/features/, (route) => {
+      if (route.request().method() === "POST") { posts.push(route.request().postData()); return route.fulfill(json({ community: [] })); }
+      return route.fulfill({ status: 500, body: "x" });
+    });
+    await page.click("#accessBtn");
+    await expect(page.locator("#adminAccessStatus")).toHaveText("Could not load the list (500). Try again.");
+    await page.evaluate(() => { const save = document.getElementById("adminAccessSave"); save.disabled = false; save.click(); });
+    await settle(page);
+    expect(posts).toEqual([]);
+    await expect(page.locator("#adminAccessStatus")).toHaveText("Could not load the list (500). Try again.");
+  });
+
+  test("dropped Access lines are explained as invalid or repeated IDs, in the singular too", async ({ page }) => {
+    await signInOnPhone(page);
+    await page.route(/\/api\/features/, (route) => route.fulfill(json({ community: [{ id: "a1b2c3d4e5", note: "Sam" }] })));
+    await page.click("#accessBtn");
+    await expect(page.locator("#adminAccessSave")).toBeEnabled();
+    await page.fill("#adminAccessList", "a1b2c3d4e5 Sam\na1b2c3d4e5 again");
+    await page.click("#adminAccessSave");
+    await expect(page.locator("#adminAccessStatus")).toHaveText("Saved 1 tester. 1 line was not a valid tester ID (10 characters, 0-9 and a-f) or was repeated, and was dropped.");
+  });
+
+  test("the reward check result is plain language and never passes a long raw error through", async ({ page }) => {
+    await signInOnPhone(page);
+    let body;
+    await page.route(/\/api\/community\/validate/, (route) => route.fulfill(json(body)));
+    await page.click("#communityBtn");
+    const cases = [
+      [{ registerChecked: true, baseline: true, newRegisterRewards: 0, issueRewards: 0 }, "Reward check: first check done — today's register is now the baseline. No rewards given yet."],
+      [{ registerChecked: true, newRegisterRewards: 2, issueRewards: 1 }, "Reward check: 2 register rewards and 1 issue reward given."],
+      [{ registerChecked: true, newRegisterRewards: 1, issueRewards: 0 }, "Reward check: 1 register reward given."],
+      [{ registerChecked: true, newRegisterRewards: 0, issueRewards: 0 }, "Reward check: nothing new to reward."],
+      [{ registerChecked: true, newRegisterRewards: 0, issueRewards: 0, issueError: "rate limited" }, "Reward check: issue rewards could not be checked (rate limited)."],
+      [{ registerChecked: false, newRegisterRewards: 0, issueRewards: 0 }, "Reward check: the register was not checked. No rewards given yet."],
+    ];
+    for (const [fixture, expected] of cases) {
+      body = fixture;
+      await page.click("#communityValidateBtn");
+      await expect(page.locator("#communityValidateResult")).toHaveText(expected);
+    }
+    body = { registerChecked: true, newRegisterRewards: 0, issueRewards: 0, issueError: `GitHub said:\n${"x".repeat(300)}` };
+    await page.click("#communityValidateBtn");
+    const text = await page.locator("#communityValidateResult").textContent();
+    expect(text).toMatch(/^Reward check: issue rewards could not be checked \(GitHub said: x+…\)\.$/);
+    expect(text.length).toBeLessThan(140);
+  });
+
+  test("a failing refresh shows Refreshing on the button, then notes each repeated attempt", async ({ page }) => {
+    await signInOnPhone(page);
+    let failing = true;
+    let gated = null;
+    await page.route(/\/api\/admin\/tracks/, async (route) => {
+      if (gated) await gated;
+      return failing ? route.fulfill({ status: 500, contentType: "text/plain", body: "boom" }) : route.fulfill(json(PHONE_TRACKS));
+    });
+    const gate = gateOf();
+    gated = gate.gate;
+    const btn = page.locator("#refreshBtn");
+    const note = page.locator("#adminRefreshStatus");
+    await expect(btn).toHaveText("Refresh");
+    await btn.click();
+    await expect(btn).toHaveText("Refreshing…");
+    await expect(btn).toHaveAttribute("aria-busy", "true");
+    await expect(btn).toBeDisabled();
+    gate.release();
+    gated = null;
+    await expect(note).toHaveText(/^Could not refresh — showing data from \d\d:\d\d\.$/);
+    await expect(btn).toHaveText("Refresh");
+    await expect(btn).not.toHaveAttribute("aria-busy", "true");
+    await btn.click();
+    await expect(note).toHaveText(/^Could not refresh — showing data from \d\d:\d\d\. Tried again at \d\d:\d\d\.$/);
+    // A third failure in the same minute reads the same, but the live region is written again so it is announced again.
+    await page.evaluate(() => {
+      const el = document.getElementById("adminRefreshStatus");
+      window.__noteWrites = 0;
+      new MutationObserver((records) => { window.__noteWrites += records.length; }).observe(el, { childList: true, characterData: true, subtree: true });
+    });
+    await btn.click();
+    await expect.poll(() => page.evaluate(() => window.__noteWrites)).toBeGreaterThan(0);
+    await expect(note).toHaveText(/Tried again at \d\d:\d\d\.$/);
+    failing = false;
+    await btn.click();
+    await expect(note).toHaveText("");
+  });
+
+  test("the Refreshing label does not push the top bar buttons off a narrow phone", async ({ page }) => {
+    await signInOnPhone(page);
+    await page.setViewportSize({ width: 320, height: 700 });
+    const { gate, release } = gateOf();
+    await page.route(/\/api\/admin\/tracks/, async (route) => { await gate; await route.fulfill(json(PHONE_TRACKS)); });
+    await page.click("#refreshBtn");
+    await expect(page.locator("#refreshBtn")).toHaveText("Refreshing…");
+    const boxes = await boxesOf(page, "#refreshBtn, #logoutBtn");
+    for (const b of boxes) expect(b.right, `${b.id} right`).toBeLessThanOrEqual(320);
+    expect(intersects(boxes[0], boxes[1])).toBe(false);
+    release();
+  });
+
+  test("a server error at sign-in shows the status and its name but not the raw response body", async ({ page }) => {
+    await skipOnboarding(page);
+    const consoleErrors = [];
+    page.on("console", (msg) => { if (msg.type() === "error") consoleErrors.push(msg.text()); });
+    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 503, contentType: "text/html", body: "<!doctype html><title>secret-upstream-page</title>" }));
+    await page.goto("/admin");
+    await page.fill("#loginPassword", "secret");
+    await page.click("#loginBtn");
+    await expect(page.locator("#loginError")).toHaveText("Server error 503: Service Unavailable");
+    await expect(page.locator("body")).not.toContainText("secret-upstream-page");
+  });
+
+  test("the sign-in field is described by its error and marked invalid only after a failed attempt", async ({ page }) => {
+    await skipOnboarding(page);
+    await page.route(/\/api\/admin\/tracks/, (route) => route.fulfill({ status: 401, contentType: "application/json", body: "{}" }));
+    await page.goto("/admin");
+    const input = page.locator("#loginPassword");
+    await expect(input).toHaveAttribute("aria-describedby", "loginError");
+    await expect(input).not.toHaveAttribute("aria-invalid", "true");
+    await input.fill("nope");
+    await page.click("#loginBtn");
+    await expect(page.locator("#loginError")).toHaveText("Incorrect password. Try again.");
+    await expect(input).toHaveAttribute("aria-invalid", "true");
+    await input.pressSequentially("x");
+    await expect(input).not.toHaveAttribute("aria-invalid", "true");
+    await page.click("#loginBtn");
+    await expect(input).toHaveAttribute("aria-invalid", "true");
+    await input.fill("");
+    await page.click("#loginBtn");
+    await expect(page.locator("#loginError")).toHaveText("Enter the admin password.");
+    await expect(input).toHaveAttribute("aria-invalid", "true");
+  });
+
+  test("the close buttons' accessible names contain their visible Esc cue", async ({ page }) => {
+    await signInOnPhone(page);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.click("#communityBtn");
+    await expect(page.getByRole("button", { name: "Close Community stats (Esc)" })).toBeVisible();
+    await page.click("#accessBtn");
+    await expect(page.getByRole("button", { name: "Close Access list (Esc)" })).toBeVisible();
+    const cue = await page.evaluate(() => getComputedStyle(document.getElementById("adminAccessClose"), "::before").content);
+    expect(cue).toContain("Esc");
+  });
+
+  test("an open panel button has a non-colour cue, and hover and press still show on it", async ({ page }) => {
+    await signInOnPhone(page);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    const cue = (id) => page.evaluate((i) => { const cs = getComputedStyle(document.getElementById(i), "::after"); return cs.content !== "none" && cs.content !== "normal" && parseFloat(cs.height) > 0; }, id);
+    expect(await cue("communityBtn")).toBe(false);
+    await page.click("#communityBtn");
+    expect(await cue("communityBtn")).toBe(true);
+    expect(await cue("accessBtn")).toBe(false);
+    const bg = () => page.evaluate(() => getComputedStyle(document.getElementById("communityBtn")).backgroundColor);
+    await page.mouse.move(5, 400);
+    await settle(page);
+    const resting = await bg();
+    await page.hover("#communityBtn");
+    await settle(page);
+    const hovered = await bg();
+    expect(hovered).not.toBe(resting);
+    await page.mouse.down();
+    await settle(page);
+    const pressed = await bg();
+    expect(pressed).not.toBe(hovered);
+    await page.mouse.up();
+  });
+
+  test("disabled Access controls ignore hover", async ({ page }) => {
+    await signInOnPhone(page);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.route(/\/api\/features/, (route) => route.fulfill({ status: 500, body: "x" }));
+    await page.click("#accessBtn");
+    await expect(page.locator("#adminAccessStatus")).toHaveText("Could not load the list (500). Try again.");
+    const look = (sel) => page.evaluate((s) => { const cs = getComputedStyle(document.querySelector(s)); return [cs.backgroundColor, cs.borderColor, cs.cursor]; }, sel);
+    for (const sel of ["#adminAccessSave", "#adminAccessList"]) {
+      await page.mouse.move(5, 400);
+      await settle(page);
+      const resting = await look(sel);
+      await page.hover(sel, { force: true });
+      await settle(page);
+      expect(await look(sel), sel).toEqual(resting);
+      expect(resting[2]).toBe("not-allowed");
+    }
+  });
+
+  for (const width of [1280, 390]) {
+    test(`Community's status text and the Access help keep clear of the close button at ${width}px`, async ({ page }) => {
+      await signInOnPhone(page);
+      await page.setViewportSize({ width, height: 800 });
+      await page.route(/\/api\/community\/overlay\?admin=1/, (route) => route.fulfill({ status: 500, body: "x" }));
+      await page.click("#communityBtn");
+      await expect(page.locator("#adminCommunityStatus")).toHaveText("Could not load community stats (500).");
+      let [status, close] = await boxesOf(page, "#adminCommunityStatus, #adminCommunityClose");
+      expect(intersects(status, close), "status vs close").toBe(false);
+      await page.click("#accessBtn");
+      [close] = await boxesOf(page, "#adminAccessClose");
+      const [help] = await boxesOf(page, "#adminAccess .admin-panel-help");
+      expect(intersects(help, close), "help vs close").toBe(false);
+    });
+  }
+
+  for (const width of [390, 360, 320]) {
+    test(`focus and a selected chip stay clear of the scroll fade at ${width}px`, async ({ page }) => {
+      await signInOnPhone(page, MANY_USERS);
+      await page.setViewportSize({ width, height: 800 });
+      const clear = (containerSel, itemSel) => page.evaluate(([cSel, iSel]) => {
+        const c = document.querySelector(cSel);
+        const el = iSel ? document.querySelector(iSel) : document.activeElement;
+        const cr = c.getBoundingClientRect();
+        const r = el.getBoundingClientRect();
+        const max = c.scrollWidth - c.clientWidth;
+        return (r.left - cr.left >= 27.5 || c.scrollLeft <= 0.5) && (cr.right - r.right >= 27.5 || c.scrollLeft >= max - 0.5);
+      }, [containerSel, itemSel]);
+      await page.focus("#tracksBtn");
+      for (let i = 0; i < 4; i++) {
+        await page.keyboard.press("Tab");
+        await settle(page, 120);
+        expect(await clear(".admin-nav"), `nav focus step ${i + 1}`).toBe(true);
+      }
+      // A chip cut off at the left, and one cut off at the right, are both brought in clear of the fade.
+      for (const side of ["left", "right"]) {
+        const uid = await page.evaluate((s) => {
+          const list = document.getElementById("adminUserList");
+          const chips = [...list.querySelectorAll(".admin-user-item")];
+          const chip = s === "left" ? chips[5] : chips[2];
+          const lr = list.getBoundingClientRect();
+          const cr = chip.getBoundingClientRect();
+          list.scrollLeft += s === "left" ? cr.left - lr.left + 40 : cr.right - lr.right - 40;
+          chip.click();
+          return chip.dataset.uid;
+        }, side);
+        await expect.poll(() => clear("#adminUserList", `[data-uid="${uid}"]`), { timeout: 4000 }).toBe(true);
+      }
+    });
+  }
 
   test.describe("on a touch tablet", () => {
     test.use({ hasTouch: true, viewport: { width: 768, height: 900 } });

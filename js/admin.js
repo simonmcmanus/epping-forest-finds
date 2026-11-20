@@ -1187,6 +1187,10 @@ function refreshScrollCues() {
     if (!el.dataset.cueBound) {
       el.dataset.cueBound = "1";
       el.addEventListener("scroll", refreshScrollCues, { passive: true });
+      // Keyboard focus brings its control into view clear of the fade (scroll-padding in the CSS), even where the browser would leave it half cut off.
+      el.addEventListener("focusin", (event) => {
+        if (event.target !== el) event.target.scrollIntoView({ inline: "nearest", block: "nearest" });
+      });
     }
     const max = el.scrollWidth - el.clientWidth;
     el.classList.toggle("cue-start", max > 1 && el.scrollLeft > 1);
@@ -1332,7 +1336,7 @@ function renderClickDetails(key) {
 // back to what opened it when focus was inside, so keyboard users never lose their place.
 const OVERLAY_PANELS = {
   community: { id: "adminCommunity", opener: "communityBtn" },
-  access: { id: "adminAccess", opener: "accessBtn" },
+  access: { id: "adminAccess", opener: "accessBtn", onClose: null },
 };
 
 function closeOverlay(key) {
@@ -1345,6 +1349,7 @@ function closeOverlay(key) {
   if (!panel || panel.hidden) return;
   if (panel.contains(document.activeElement)) document.getElementById(cfg.opener)?.focus();
   panel.hidden = true;
+  if (cfg.onClose) cfg.onClose();
   syncPanelButtons();
 }
 
@@ -1413,6 +1418,8 @@ function unpackTrackingEvents(packed) {
 // say which window it ended up with (the stats bar shows it).
 const ADMIN_WINDOW_FALLBACKS = [null, 7, 1];
 
+const HTTP_STATUS_NAMES = { 400: "Bad Request", 403: "Forbidden", 404: "Not Found", 500: "Internal Server Error", 502: "Bad Gateway", 503: "Service Unavailable", 504: "Gateway Timeout" };
+
 async function loadData(password) {
   let resp;
   let url;
@@ -1429,8 +1436,12 @@ async function loadData(password) {
     if (resp.ok || resp.status < 500) break;
   }
   if (!resp.ok) {
+    // The raw body (possibly a page of HTML) goes to the console only; the screen gets the status and its plain name.
     const detail = await resp.text().catch(() => "");
-    throw new Error(`Server error ${resp.status}${detail ? `: ${detail.slice(0, 160)}` : ""}`);
+    const name = resp.statusText || HTTP_STATUS_NAMES[resp.status] || "";
+    const failure = new Error(`Server error ${resp.status}${name ? `: ${name}` : ""}`);
+    failure.detail = detail.slice(0, 160);
+    throw failure;
   }
   const data = await resp.json();
   data.locations = unpackTrackingEvents(data.locations);
@@ -1485,6 +1496,26 @@ function renderCommunityStats(stats) {
     <span id="communityValidateResult" class="admin-panel-status" role="status"></span>
     <p class="admin-panel-links"><a href="/reports/tree-report" target="_blank" rel="noopener">City of London discrepancy report</a> · <a href="/reports/tree-report?format=csv">CSV</a></p>
     <div id="communityFigures">${renderCommunityFigures(stats)}</div>`;
+}
+
+// Plain-language result of the reward check; a GitHub error is cut down to a short single-line reason.
+function rewardCheckText(data) {
+  const plural = (n, word) => `${n} ${word}${Number(n) === 1 ? "" : "s"}`;
+  const register = Number(data.newRegisterRewards) || 0;
+  const issues = Number(data.issueRewards) || 0;
+  const parts = [];
+  if (data.baseline) parts.push("first check done — today's register is now the baseline.");
+  else if (!data.registerChecked) parts.push("the register was not checked.");
+  const given = [register && plural(register, "register reward"), issues && plural(issues, "issue reward")].filter(Boolean);
+  if (given.length) parts.push(`${given.join(" and ")} given.`);
+  else if (data.baseline || !data.registerChecked) parts.push("No rewards given yet.");
+  else if (!data.issueError) parts.push("nothing new to reward.");
+  if (data.issueError) {
+    const flat = String(data.issueError).replace(/\s+/g, " ").trim();
+    const reason = flat.length > 40 ? `${flat.slice(0, 40).trimEnd()}…` : flat;
+    parts.push(`${parts.length ? "Issue" : "issue"} rewards could not be checked${reason ? ` (${reason})` : ""}.`);
+  }
+  return parts.join(" ");
 }
 
 // The password lives only in the page's memory (the `password` variable in adminBoot), so a reload
@@ -1725,10 +1756,21 @@ async function adminBoot() {
     render();
   }
 
-  function setRefreshNote(text) {
-    if (refreshStatus.textContent === text) return;
+  function setRefreshNote(text, announceAgain = false) {
+    if (refreshStatus.textContent === text) {
+      // Same words again: write the live region afresh (no layout change) so it is announced once more.
+      if (announceAgain && text) refreshStatus.replaceChildren(document.createTextNode(text));
+      return;
+    }
     refreshStatus.textContent = text;
     relayout();
+  }
+
+  function setRefreshing(busy) {
+    refreshBtn.disabled = busy;
+    refreshBtn.textContent = busy ? "Refreshing…" : "Refresh";
+    if (busy) refreshBtn.setAttribute("aria-busy", "true");
+    else refreshBtn.removeAttribute("aria-busy");
   }
 
   function showAdminApp() {
@@ -1754,6 +1796,9 @@ async function adminBoot() {
   function forgetSession(message = "") {
     sessionId++;
     password = "";
+    setRefreshing(false); // an answer still on its way is ignored, so it can no longer re-enable the button
+    communityAction = null;
+    communityResultStash = "";
     allData = { locations: [], clicks: [], navigation: [] };
     selectedUid = null;
     selectedClickKey = null;
@@ -1774,18 +1819,21 @@ async function adminBoot() {
     const pw = loginInput.value.trim();
     if (!pw) {
       loginError.textContent = "Enter the admin password.";
+      loginInput.setAttribute("aria-invalid", "true");
       loginInput.focus();
       return;
     }
     loginBtn.disabled = true;
     loginBtn.textContent = "Signing in…";
     loginError.textContent = "";
+    loginInput.removeAttribute("aria-invalid");
     try {
       allData = await loadData(pw);
       password = pw;
       showAdminApp();
     } catch (err) {
-      console.error("[admin] login failed:", err);
+      console.error("[admin] login failed:", err, err.detail || "");
+      loginInput.setAttribute("aria-invalid", "true");
       if (err.message === "wrong-password") {
         loginError.textContent = "Incorrect password. Try again.";
       } else if (err.network) {
@@ -1800,6 +1848,7 @@ async function adminBoot() {
     }
   }
 
+  loginInput.addEventListener("input", () => loginInput.removeAttribute("aria-invalid"));
   const loginForm = document.getElementById("loginForm");
   if (loginForm) loginForm.addEventListener("submit", (e) => { e.preventDefault(); doLogin(); });
   else loginBtn.addEventListener("click", doLogin);
@@ -1827,6 +1876,21 @@ async function adminBoot() {
 
   // ---- Community panel ----
   let communityToken = 0;
+  // One rebuild / reward check at a time, even if the panel is closed and reopened meanwhile: the fresh buttons come up
+  // disabled with the progress text. A result that finds no result line is kept for the next render.
+  let communityAction = null;
+  let communityResultStash = "";
+
+  function setCommunityBusy(busy, text) {
+    const rebuildBtn = document.getElementById("communityRebuildBtn");
+    const validateBtn = document.getElementById("communityValidateBtn");
+    const result = document.getElementById("communityValidateResult");
+    if (!rebuildBtn || !validateBtn || !result) return false;
+    rebuildBtn.disabled = busy;
+    validateBtn.disabled = busy;
+    result.textContent = text;
+    return true;
+  }
 
   async function loadCommunity() {
     const token = ++communityToken;
@@ -1840,7 +1904,7 @@ async function adminBoot() {
       communityStatus.textContent = "";
       communityBody.innerHTML = html;
       document.getElementById("communityRebuildBtn").addEventListener("click", () => runCommunityAction({
-        button: document.getElementById("communityRebuildBtn"),
+        buttonId: "communityRebuildBtn",
         name: "Rebuild",
         progress: "Rebuilding…",
         url: "/api/community/rebuild",
@@ -1849,16 +1913,18 @@ async function adminBoot() {
         refreshFigures: true,
       }));
       document.getElementById("communityValidateBtn").addEventListener("click", () => runCommunityAction({
-        button: document.getElementById("communityValidateBtn"),
+        buttonId: "communityValidateBtn",
         name: "Reward check",
         progress: "Checking rewards…",
         url: "/api/community/validate",
         failure: "Could not run the reward check",
-        success: (data) => {
-          const plural = (n, word) => `${n} ${word}${Number(n) === 1 ? "" : "s"}`;
-          return `${data.registerChecked ? "Register checked" : "Register not checked"}${data.baseline ? " (baseline recorded)" : ""}. ${plural(data.newRegisterRewards, "new register reward")}, ${plural(data.issueRewards, "issue reward")}.${data.issueError ? ` GitHub: ${data.issueError}` : ""}`;
-        },
+        success: rewardCheckText,
       }));
+      if (communityAction) setCommunityBusy(true, communityAction.progress);
+      else if (communityResultStash) {
+        document.getElementById("communityValidateResult").textContent = communityResultStash;
+        communityResultStash = "";
+      }
     } catch (error) {
       if (token !== communityToken || sid !== sessionId) return;
       if (error.status === 401) {
@@ -1873,14 +1939,13 @@ async function adminBoot() {
 
   // Rebuild and the reward check: say what is running, keep both buttons off meanwhile, prefix the result with the action,
   // and after a rebuild refresh the figures in place (the buttons and the result line are not replaced, so focus stays put).
-  async function runCommunityAction({ button, name, progress, url, failure, success, refreshFigures }) {
-    const rebuildBtn = document.getElementById("communityRebuildBtn");
-    const validateBtn = document.getElementById("communityValidateBtn");
-    const result = document.getElementById("communityValidateResult");
+  // The result line is written once, when everything is done, so a screen reader reads it once.
+  async function runCommunityAction({ buttonId, name, progress, url, failure, success, refreshFigures }) {
+    if (communityAction) return;
     const sid = sessionId;
-    rebuildBtn.disabled = true;
-    validateBtn.disabled = true;
-    result.textContent = progress;
+    const action = { progress };
+    communityAction = action;
+    setCommunityBusy(true, progress);
     let ok = false;
     let text;
     try {
@@ -1900,7 +1965,6 @@ async function adminBoot() {
       if (sid !== sessionId) return;
       text = `${name}: ${failure}. Check your connection and try again.`;
     }
-    result.textContent = text;
     if (ok && refreshFigures) {
       try {
         const stats = await loadCommunityStats(password);
@@ -1913,13 +1977,14 @@ async function adminBoot() {
           forgetSession("Admin session expired. Sign in again.");
           return;
         }
-        result.textContent = `${text} The figures below could not be refreshed.`;
+        text += " The figures below could not be refreshed.";
       }
     }
-    rebuildBtn.disabled = false;
-    validateBtn.disabled = false;
+    if (communityAction === action) communityAction = null;
+    if (!setCommunityBusy(false, text)) communityResultStash = text;
+    const button = document.getElementById(buttonId);
     const active = document.activeElement;
-    if (!active || active === document.body || active === button) button.focus();
+    if (button && (!active || active === document.body || active === button)) button.focus();
   }
 
   communityBtn.addEventListener("click", () => {
@@ -1937,13 +2002,21 @@ async function adminBoot() {
 
   // ---- Early-access list: who sees the gated Community features. Stored server-side, so no deploy to change it. ----
   // The list is only editable once it has loaded: saving after a failed load would send an empty list and switch the gate off for everyone.
+  // Escape on unsaved text is a two-step: the first press only warns. The warning stays armed (no timeout) until the admin types or the panel is hidden.
   let accessLoaded = false;
   let accessBaseline = "";
   let accessEscArmed = false;
+  let accessNotice = false; // the status line shows an "unsaved changes" note, which typing clears
   let accessSaving = false;
   let accessToken = 0;
   const accessText = (entries) => entries.map((e) => `${e.id}${e.note ? ` ${e.note}` : ""}`).join("\n");
   const accessDirty = () => accessLoaded && accessList.value !== accessBaseline;
+  OVERLAY_PANELS.access.onClose = () => { accessEscArmed = false; };
+
+  function sayAccess(text, notice = false) {
+    accessStatus.textContent = text;
+    accessNotice = notice;
+  }
 
   function setAccessEditable(editable) {
     accessList.disabled = !editable;
@@ -1957,9 +2030,16 @@ async function adminBoot() {
     accessEscArmed = false;
     accessBaseline = "";
     accessList.value = "";
-    accessStatus.textContent = "";
+    sayAccess("");
     accessRetry.hidden = true;
     setAccessEditable(false);
+  }
+
+  // A failed request is told in plain words: no connection, or the server's status. Never the browser's own text.
+  function accessProblem(error, what, retryAdvice) {
+    return error.status
+      ? `Could not ${what} (${error.status}). Try again.`
+      : `Could not ${retryAdvice}. Check your connection and try again.`;
   }
 
   async function loadAccess() {
@@ -1969,7 +2049,7 @@ async function adminBoot() {
     accessEscArmed = false;
     accessRetry.hidden = true;
     setAccessEditable(false);
-    accessStatus.textContent = "Loading…";
+    sayAccess("Loading…");
     try {
       const resp = await fetch("/api/features?admin=1", { headers: { Authorization: `Bearer ${password}` } });
       if (token !== accessToken || sid !== sessionId) return;
@@ -1977,18 +2057,18 @@ async function adminBoot() {
         forgetSession("Admin session expired. Sign in again.");
         return;
       }
-      if (!resp.ok) throw new Error(resp.status);
+      if (!resp.ok) throw Object.assign(new Error("http"), { status: resp.status });
       const data = await resp.json();
       if (token !== accessToken || sid !== sessionId) return;
       accessList.value = accessText(data.community || []);
       accessBaseline = accessList.value;
       accessLoaded = true;
       setAccessEditable(true);
-      accessStatus.textContent = "";
+      sayAccess("");
     } catch (error) {
       if (token !== accessToken || sid !== sessionId) return;
       accessList.value = "";
-      accessStatus.textContent = `Could not load (${error.message}).`;
+      sayAccess(accessProblem(error, "load the list", "load the list"));
       accessRetry.hidden = false;
     }
   }
@@ -2000,7 +2080,10 @@ async function adminBoot() {
     syncPanelButtons();
     if (accessDirty() || accessSaving) {
       // Never overwrite what is typed: just bring the panel (and the cursor) back.
-      if (!wasOpen) accessStatus.textContent = "Unsaved changes kept — Save, or press Esc twice to discard.";
+      if (!wasOpen) {
+        accessEscArmed = false;
+        if (accessDirty()) sayAccess("Unsaved changes kept — Save, or press Esc twice to discard.", true);
+      }
       (wasOpen ? accessList : accessClose).focus();
       return;
     }
@@ -2012,10 +2095,8 @@ async function adminBoot() {
     loadAccess();
   });
   accessList.addEventListener("input", () => {
-    if (accessEscArmed) {
-      accessEscArmed = false;
-      accessStatus.textContent = "";
-    }
+    accessEscArmed = false;
+    if (accessNotice) sayAccess("");
   });
   accessSave.addEventListener("click", async () => {
     if (!accessLoaded || accessSaving) return;
@@ -2028,7 +2109,7 @@ async function adminBoot() {
     accessSaving = true;
     accessEscArmed = false;
     setAccessEditable(false);
-    accessStatus.textContent = "Saving…";
+    sayAccess("Saving…");
     try {
       const resp = await fetch("/api/features", { method: "POST", headers: { Authorization: `Bearer ${password}`, "Content-Type": "application/json" }, body: JSON.stringify({ community }) });
       if (sid !== sessionId) return;
@@ -2036,16 +2117,19 @@ async function adminBoot() {
         forgetSession("Admin session expired. Sign in again.");
         return;
       }
-      if (!resp.ok) throw new Error(resp.status);
+      if (!resp.ok) throw Object.assign(new Error("http"), { status: resp.status });
       const saved = await resp.json();
       if (sid !== sessionId) return;
       accessList.value = accessText(saved.community);
       accessBaseline = accessList.value;
       const dropped = lines.length - saved.community.length;
-      accessStatus.textContent = `Saved ${saved.community.length} tester${saved.community.length === 1 ? "" : "s"}.${dropped > 0 ? ` ${dropped} line${dropped === 1 ? " was" : "s were"} not a 10-character ID and ${dropped === 1 ? "was" : "were"} dropped.` : ""}`;
+      const droppedText = dropped > 0
+        ? ` ${dropped} line${dropped === 1 ? " was not a valid tester ID" : "s were not valid tester IDs"} (10 characters, 0-9 and a-f) or ${dropped === 1 ? "was" : "were"} repeated, and ${dropped === 1 ? "was" : "were"} dropped.`
+        : "";
+      sayAccess(`Saved ${saved.community.length} tester${saved.community.length === 1 ? "" : "s"}.${droppedText}`);
     } catch (error) {
       if (sid !== sessionId) return;
-      accessStatus.textContent = `Could not save (${error.message}).`;
+      sayAccess(accessProblem(error, "save", "save"));
     }
     accessSaving = false;
     setAccessEditable(true);
@@ -2053,7 +2137,6 @@ async function adminBoot() {
   });
   accessClose.addEventListener("click", () => {
     // The cross keeps any unsaved text (reopening restores it); only a second Escape discards.
-    accessEscArmed = false;
     closeOverlay("access");
   });
   document.addEventListener("keydown", (event) => {
@@ -2061,12 +2144,12 @@ async function adminBoot() {
     if (!accessPanel.hidden && accessDirty()) {
       if (!accessEscArmed) {
         accessEscArmed = true;
-        accessStatus.textContent = "Unsaved changes — Save or press Esc again to discard.";
+        sayAccess("Unsaved changes — Save or press Esc again to discard.", true);
         return;
       }
       accessList.value = accessBaseline;
       accessEscArmed = false;
-      accessStatus.textContent = "";
+      sayAccess("");
     }
     closeOverlayPanels();
   });
@@ -2074,9 +2157,10 @@ async function adminBoot() {
   tracksBtn.addEventListener("click", () => showMapView("tracks"));
 
   // Refresh and the 5-minute auto-refresh share this: a failure leaves the data on screen and says so (a 401 still signs out).
+  // A repeated failure adds the time of the latest attempt and is announced again.
   async function refreshData() {
     const sid = sessionId;
-    refreshBtn.disabled = true;
+    setRefreshing(true);
     try {
       const data = await loadData(password);
       if (sid !== sessionId) return;
@@ -2089,10 +2173,17 @@ async function adminBoot() {
       render();
     } catch (err) {
       if (sid !== sessionId) return;
-      if (err.message === "wrong-password") forgetSession("Admin session expired. Sign in again.");
-      else setRefreshNote(`Could not refresh — showing data from ${clockText(lastLoadedAt || new Date())}.`);
+      if (err.message === "wrong-password") {
+        forgetSession("Admin session expired. Sign in again.");
+      } else {
+        const again = refreshStatus.textContent.startsWith("Could not refresh");
+        const base = `Could not refresh — showing data from ${clockText(lastLoadedAt || new Date())}.`;
+        setRefreshNote(again ? `${base} Tried again at ${clockText(new Date())}.` : base, again);
+      }
+    } finally {
+      // A late answer from a signed-out session must not touch the new session's button (forgetSession already reset it).
+      if (sid === sessionId) setRefreshing(false);
     }
-    refreshBtn.disabled = false;
   }
   refreshBtn.addEventListener("click", refreshData);
 

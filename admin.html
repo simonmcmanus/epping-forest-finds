@@ -27,7 +27,7 @@
       <p class="login-sub">Epping Forest Finds — usage analytics</p>
       <form id="loginForm">
         <label for="loginPassword" class="sr-only">Admin password</label>
-        <input id="loginPassword" class="login-input" type="password" placeholder="Admin password" autocomplete="current-password">
+        <input id="loginPassword" class="login-input" type="password" placeholder="Admin password" autocomplete="current-password" aria-describedby="loginError">
         <button id="loginBtn" class="login-btn" type="submit">Sign in</button>
       </form>
       <p id="loginError" class="login-error" role="alert"></p>
@@ -87,20 +87,20 @@
         <div id="adminStats" class="admin-stats"></div>
         <section id="adminNavigation" class="admin-nav-view" aria-label="Navigation trends" hidden></section>
         <section id="adminCommunity" class="admin-click-details" role="region" aria-label="Community stats" hidden>
-          <button id="adminCommunityClose" class="admin-click-details-close" type="button" aria-label="Close community stats" title="Close (Esc)" aria-keyshortcuts="Escape">×</button>
+          <button id="adminCommunityClose" class="admin-click-details-close" type="button" aria-label="Close Community stats (Esc)" title="Esc closes" aria-keyshortcuts="Escape">×</button>
           <p id="adminCommunityStatus" class="admin-community-status" role="status"></p>
           <div><button id="adminCommunityRetry" class="admin-btn admin-retry-btn" type="button" hidden>Retry</button></div>
           <div id="adminCommunityBody"></div>
         </section>
         <section id="adminAccess" class="admin-click-details" role="region" aria-labelledby="adminAccessTitle" hidden>
-          <button id="adminAccessClose" class="admin-click-details-close" type="button" aria-label="Close access list" title="Close (Esc)" aria-keyshortcuts="Escape">×</button>
+          <button id="adminAccessClose" class="admin-click-details-close" type="button" aria-label="Close Access list (Esc)" title="Esc closes" aria-keyshortcuts="Escape">×</button>
           <h3 id="adminAccessTitle" class="admin-panel-title">Early access: Community</h3>
           <p class="admin-panel-help">One tester per line: the Tester ID from their Settings screen, then an optional note. While the list is empty everyone has Community; once it has anyone in it, only they do. Changes apply the next time an app starts; no deploy needed.</p>
           <textarea id="adminAccessList" rows="10" spellcheck="false" placeholder="a1b2c3d4e5 Simon" disabled></textarea>
           <p class="admin-access-actions"><button id="adminAccessSave" class="admin-btn admin-btn-primary" type="button" disabled>Save</button> <button id="adminAccessRetry" class="admin-btn" type="button" hidden>Retry</button> <span id="adminAccessStatus" role="status"></span></p>
         </section>
         <section id="adminClickDetails" class="admin-click-details" role="region" aria-label="Tap details" hidden>
-          <button id="adminClickDetailsClose" class="admin-click-details-close" type="button" aria-label="Close click details" title="Close (Esc)" aria-keyshortcuts="Escape">×</button>
+          <button id="adminClickDetailsClose" class="admin-click-details-close" type="button" aria-label="Close tap details (Esc)" title="Esc closes" aria-keyshortcuts="Escape">×</button>
           <div id="adminClickDetailsBody"></div>
         </section>
       </div>
