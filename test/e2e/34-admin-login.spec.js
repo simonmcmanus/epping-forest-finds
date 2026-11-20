@@ -635,6 +635,7 @@ test.describe("Admin login", () => {
   test("logging out from the Navigation page returns to the map view with no hash at the next sign-in", async ({ page }) => {
     await signInOnPhone(page);
     await page.click("#navigationBtn");
+    await expect(page).toHaveURL(/#navigation$/);
     await page.click("#logoutBtn");
     await expect(page.locator("#loginScreen")).toBeVisible();
     expect(new URL(page.url()).hash).toBe("");
@@ -642,6 +643,7 @@ test.describe("Admin login", () => {
     await page.click("#loginBtn");
     await expect(page.locator("#adminNavigation")).toBeHidden();
     await expect(page.locator("#tracksBtn")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(".admin-map-controls")).toBeVisible();
   });
 
   test("opening Community from the Navigation page returns to the map and shows the panel", async ({ page }) => {
@@ -652,6 +654,89 @@ test.describe("Admin login", () => {
     await expect(page.locator("#adminCommunity")).toBeVisible();
     const canvas = await page.locator("#adminCanvas").boundingBox();
     expect(canvas.width).toBeGreaterThan(300);
+  });
+
+  test("leaving the Navigation page with Back puts focus on the active view button, not the body", async ({ page }) => {
+    await signInOnPhone(page);
+    await page.click("#heatmapBtn");
+    await page.click("#navigationBtn");
+    await expect(page.getByRole("heading", { name: "Navigation", level: 2 })).toBeFocused();
+    await page.goBack();
+    await expect(page.locator("#heatmapBtn")).toBeFocused();
+  });
+
+  test("Refresh keeps keyboard focus on its button when it finishes, on the map and on the Navigation page", async ({ page }) => {
+    await signInOnPhone(page);
+    for (const view of ["#tracksBtn", "#navigationBtn"]) {
+      await page.click(view);
+      await page.focus("#refreshBtn");
+      await page.keyboard.press("Enter");
+      await expect(page.locator("#refreshBtn")).toHaveText("Refresh");
+      await expect(page.locator("#refreshBtn")).toBeFocused();
+    }
+  });
+
+  test("the Navigation subtitle names the selected user like the sidebar and drops the filter hint", async ({ page }) => {
+    await signInOnPhone(page);
+    await expect(page.locator("#adminNavigationSub")).toHaveCount(1);
+    await page.click("#navigationBtn");
+    await expect(page.locator("#adminNavigationSub")).toContainText("Choose a user");
+    await page.getByRole("button", { name: /pts/ }).first().click();
+    const sub = page.locator("#adminNavigationSub");
+    await expect(sub).toContainText("user ");
+    await expect(sub).not.toContainText("Choose a user");
+  });
+
+  test("Navigation summary cards and labels do not clip horizontally at 320 and 390 wide", async ({ page }) => {
+    for (const width of [320, 390]) {
+      await page.setViewportSize({ width, height: 800 });
+      const view = await openNavigationWithNineDays(page);
+      const clipped = await view.evaluate((v) => [...v.querySelectorAll(".nav-card, .nav-card-label")].filter((e) => e.scrollWidth > e.clientWidth + 1).length);
+      expect(clipped).toBe(0);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    }
+  });
+
+  test("map pan and zoom survive a trip to the Navigation page and back", async ({ page }) => {
+    await signInOnPhone(page);
+    await page.click("#zoomInBtn");
+    await page.click("#zoomInBtn");
+    const vp = () => page.evaluate(() => localStorage.getItem("ff-admin-map-viewport"));
+    const before = await vp();
+    expect(before).toBeTruthy();
+    await page.click("#navigationBtn");
+    await page.click("#tracksBtn");
+    expect(await vp()).toBe(before);
+    expect(JSON.parse(before).zoom).toBeGreaterThan(1);
+  });
+
+  test("the Navigation page keeps its scroll position through Refresh", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 500 });
+    const view = await openNavigationWithNineDays(page);
+    await view.evaluate((v) => { v.scrollTop = 300; });
+    const before = await view.evaluate((v) => v.scrollTop);
+    expect(before).toBeGreaterThan(100);
+    await page.click("#refreshBtn");
+    await expect(page.locator("#refreshBtn")).toHaveText("Refresh");
+    expect(await view.evaluate((v) => v.scrollTop)).toBe(before);
+  });
+
+  test("signing in with #heatmap in the address lands on the Heatmap view", async ({ page }) => {
+    await signInOnPhone(page);
+    await page.goto("about:blank");
+    await page.goto("/admin#heatmap");
+    await page.getByLabel("Admin password").fill("secret");
+    await page.click("#loginBtn");
+    await expect(page.locator("#heatmapBtn")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(".admin-map-controls")).toBeVisible();
+  });
+
+  test("clicking the already-active Tracks tab adds no history entry", async ({ page }) => {
+    await signInOnPhone(page);
+    const len = () => page.evaluate(() => history.length);
+    const before = await len();
+    await page.click("#tracksBtn");
+    expect(await len()).toBe(before);
   });
 
   test("overlay panels take focus, close on Escape and give focus back to their button", async ({ page }) => {

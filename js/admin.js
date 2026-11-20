@@ -1705,7 +1705,7 @@ function refreshNavigationView() {
   body.innerHTML = navigationViewHtml();
   const sub = document.getElementById("adminNavigationSub");
   const windowText = Number.isFinite(lastMeta?.windowDays) ? `the last ${lastMeta.windowDays} days` : "all loaded history";
-  if (sub) sub.textContent = `Navigation journeys over ${windowText}, for ${selectedUid ? `user ${selectedUid.slice(0, 8)}` : "all users"}. Choose a user in the Users list to filter these figures.`;
+  if (sub) sub.textContent = `Navigation journeys over ${windowText}, for ${selectedUid ? `user ${shortUid(selectedUid)}` : "all users"}.${selectedUid ? "" : " Choose a user in the Users list to filter these figures."}`;
 }
 
 // ---- Boot ----
@@ -1771,8 +1771,13 @@ async function adminBoot() {
     relayout();
   }
 
+  let refreshHadFocus = false;
   function setRefreshing(busy) {
+    // A disabled button drops focus to the body: give it back when the refresh is over.
+    if (busy) refreshHadFocus = document.activeElement === refreshBtn;
     refreshBtn.disabled = busy;
+    if (!busy && refreshHadFocus && (!document.activeElement || document.activeElement === document.body)) refreshBtn.focus();
+    if (!busy) refreshHadFocus = false;
     refreshBtn.textContent = busy ? "Refreshing…" : "Refresh";
     if (busy) refreshBtn.setAttribute("aria-busy", "true");
     else refreshBtn.removeAttribute("aria-busy");
@@ -1887,14 +1892,17 @@ async function adminBoot() {
     viewMode = name;
     navigationPanel.hidden = true;
     mapArea.hidden = false;
+    // Leaving the page hides the focused heading: hand focus to the matching view button instead of dropping it to the body.
+    const lostFocus = wasNavigation && navigationPanel.contains(document.activeElement);
     setActiveView(name);
+    if (lostFocus) (name === "heatmap" ? heatmapBtn : tracksBtn).focus();
     if (wasNavigation) { invalidateMapFit(); syncSheetInset(); }
     render();
   }
   // Clicks go through the hash so the browser's Back and Forward restore the view.
   function goToView(name, opts) {
     applyView(name, opts);
-    if (location.hash !== `#${name}`) location.hash = name;
+    if (location.hash !== `#${name}` && !(name === "tracks" && !location.hash)) location.hash = name;
   }
   function resetView() {
     applyView("tracks");
