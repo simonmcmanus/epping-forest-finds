@@ -16792,11 +16792,6 @@ test("a pin outside the group is not tappable while a group place is selected, a
   assert.equal(app.activeIconLookup(), app.buildNearbyIconLookup(), "the map is the ordinary Nearby view again, no dimmed members");
 });
 
-runRegisteredTests().catch((error) => {
-  console.error(error);
-  process.exitCode = 1;
-});
-
 // Cross-file invariant: the cow proxy refuses any centre but the app's own (netlify/functions/cows.js).
 test("the cow request the app builds is one the proxy accepts", async () => {
   const cows = require("../netlify/functions/cows");
@@ -17213,7 +17208,7 @@ test("a stop's departures show a hostile minutes value from the server as text",
   }
 });
 
-// Group footprints: a very faint patch of ground under a group, only where groups sit close together.
+// Group footprints: a very faint patch of ground under every group.
 const footprintBoxW = () => markerBox().w;
 const footprintLayout = (neighbourX) => {
   const items = [
@@ -17246,17 +17241,32 @@ test("two group markers close together each get a footprint around their own mem
   assert.equal(items.length, 6);
 });
 
-test("an isolated group and individual pins draw no footprint", () => {
-  assert.equal(footprintsFor(footprintLayout(footprintBoxW() * 6).markers).length, 0, "far-apart groups are isolated");
+test("an isolated group still draws its footprint, and individual pins draw none", () => {
+  const far = footprintLayout(footprintBoxW() * 6);
+  assert.equal(far.markers.length, 2);
+  const farFootprints = footprintsFor(far.markers);
+  assert.equal(farFootprints.length, 2, "far-apart groups each draw a footprint");
+  for (const { marker, points } of farFootprints) {
+    for (const item of marker.items) assert.ok(footprintContains(points, item.point), `${item.id} inside its own footprint`);
+  }
+  const single = [markerItem("tree", "a1", 0, 0), markerItem("tree", "a2", 6, 0), markerItem("tree", "a3", 0, 9)];
+  app.resetMarkerGroupMemory();
+  const alone = app.buildMapMarkers(markerLookup(single), markerScreen);
+  assert.equal(alone.length, 1);
+  const aloneFootprints = footprintsFor(alone);
+  assert.equal(aloneFootprints.length, 1, "a lone group draws exactly one footprint");
+  for (const item of aloneFootprints[0].marker.items) assert.ok(footprintContains(aloneFootprints[0].points, item.point));
   const lone = [markerItem("tree", "p", 0, 0), markerItem("tree", "q", footprintBoxW() * 1.8, 0)];
   app.resetMarkerGroupMemory();
   const markers = app.buildMapMarkers(markerLookup(lone), markerScreen);
   assert.equal(markers.every(m => m.items.length === 1), true);
   assert.equal(footprintsFor(markers).length, 0);
-  // a group beside only a lone pin has no group neighbour
+  // a group beside only a lone pin draws its own footprint, and the pin none
   const mixed = [markerItem("tree", "a1", 0, 0), markerItem("tree", "a2", 6, 0), markerItem("tree", "q", footprintBoxW() * 1.8, 0)];
   app.resetMarkerGroupMemory();
-  assert.equal(footprintsFor(app.buildMapMarkers(markerLookup(mixed), markerScreen)).length, 0);
+  const mixedFootprints = footprintsFor(app.buildMapMarkers(markerLookup(mixed), markerScreen));
+  assert.equal(mixedFootprints.length, 1);
+  assert.equal(mixedFootprints[0].marker.items.length, 2);
 });
 
 test("a footprint of coincident members is a small finite shape, and a duplicated member does not enlarge it", () => {
@@ -17345,4 +17355,9 @@ test("without a pivot the same big deliberate zoom still eases the camera centre
   // The documented unpivoted behaviour: the marker leaves the start/end band during the arc.
   assert.ok(Math.min(...ys) < 152 - 20 || Math.max(...ys) > 233 + 20,
     `the centre-eased arc throws an off-centre marker out of its band: ${Math.min(...ys)}..${Math.max(...ys)}`);
+});
+
+runRegisteredTests().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
 });
