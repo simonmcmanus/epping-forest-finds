@@ -841,8 +841,11 @@ function communitySlideActive() {
   return document.querySelectorAll(".inspector-screen-ghost").length > 0;
 }
 
-function communityRefreshSections() {
+function communityRefreshSections({ keepOpenForms = false } = {}) {
   communityLiveAll(".community-check").forEach((section) => {
+    // A background refresh (the overlay arriving) must not rebuild a note form someone is filling in:
+    // that would wipe their words and any message such as "Please add a few words".
+    if (keepOpenForms && section.dataset.pending) return;
     const body = section.querySelector(".community-body");
     if (!body) return;
     const target = section.dataset.communityTarget;
@@ -1450,7 +1453,7 @@ let communityOverlayRefreshBound = false;
 function communityApplyOverlay(data) {
   if (!data || typeof data.entries !== "object") return;
   communityOverlay = { generatedAt: data.generatedAt || 0, entries: data.entries };
-  communityRefreshSections();
+  communityRefreshSections({ keepOpenForms: true });
   communityRefreshVerifiedSlots();
   if (typeof requestDraw === "function") requestDraw();
 }

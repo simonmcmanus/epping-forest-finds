@@ -296,7 +296,9 @@ this gap (the Wanstead Beer Festival); the two feeds share some of the
 same Wanstead-area events, so a run checking both de-dupes by title and
 date rather than adding each twice. Visit Epping Forest's district-wide
 calendar and Epping Town Council's events diary are each checked as a
-page, the same way Copped Hall's site is. Facebook and X/Twitter accounts
+page, the same way Copped Hall's site is. The Eventbrite organiser page for 'Epping Forest'
+(https://www.eventbrite.co.uk/o/9768889881) is among the organiser pages checked
+each run; a blocked fetch is an access limitation, not proof of no events. Facebook and X/Twitter accounts
 of forest-adjacent organisations were
 evaluated and excluded: both gate programmatic read access behind paid
 tiers or app review that a page's own website doesn't need, so the run
