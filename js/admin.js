@@ -1774,7 +1774,7 @@ async function adminBoot() {
   let refreshHadFocus = false;
   function setRefreshing(busy) {
     // A disabled button drops focus to the body: give it back when the refresh is over.
-    if (busy) refreshHadFocus = document.activeElement === refreshBtn;
+    if (busy && !refreshBtn.disabled) refreshHadFocus = document.activeElement === refreshBtn;
     refreshBtn.disabled = busy;
     if (!busy && refreshHadFocus && (!document.activeElement || document.activeElement === document.body)) refreshBtn.focus();
     if (!busy) refreshHadFocus = false;
@@ -1888,12 +1888,12 @@ async function adminBoot() {
       return;
     }
     const wasNavigation = navigationOpen;
+    // Leaving the page hides the focused heading: decide before hiding (browsers fix focus up at different times), then hand it to the matching view button.
+    const lostFocus = wasNavigation && navigationPanel.contains(document.activeElement);
     navigationOpen = false;
     viewMode = name;
     navigationPanel.hidden = true;
     mapArea.hidden = false;
-    // Leaving the page hides the focused heading: hand focus to the matching view button instead of dropping it to the body.
-    const lostFocus = wasNavigation && navigationPanel.contains(document.activeElement);
     setActiveView(name);
     if (lostFocus) (name === "heatmap" ? heatmapBtn : tracksBtn).focus();
     if (wasNavigation) { invalidateMapFit(); syncSheetInset(); }
