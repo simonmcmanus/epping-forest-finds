@@ -81,7 +81,7 @@ the full sweep is not.
 
 So, before a PR is done — every time, no exceptions:
 
-1. **After the first implementation push (opened as a draft PR; marked ready once the review and test gates pass), the lead session reads the CI run for the head SHA.** `actions_list` →
+1. **After the first implementation push (opened as a draft PR; marked ready once the review and test gates pass, including the final-head review jobs, which run on drafts), the lead session reads the CI run for the head SHA.** `actions_list` →
    `list_workflow_runs` filtered to your branch, then `list_workflow_jobs`, then `get_job_logs`
    on each `E2E tests (<project>, shard <n>)` job and on `Visual snapshots (desktop + mobile)`. Read the
    `N failed / N passed` line and the failure list under it.

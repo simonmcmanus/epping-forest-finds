@@ -31,6 +31,10 @@ Use this template for writing the PR body. It adds to `.github/pull_request_temp
 
 <optional: potential ramifications of merge>
 
+## Follow-ups
+
+<GitHub issue links for out-of-scope work (team skill section 5a), or "none">
+
 ## Specialist review
 
 | Specialist | Status | Reviewed SHA | Verdict / link |

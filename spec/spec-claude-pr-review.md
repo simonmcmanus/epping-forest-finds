@@ -1,7 +1,7 @@
 # Claude Pull Request Review
 
 The local team reviews a frozen branch before its batched push. CI retains one
-independent final-head review for same-repository, non-draft pull requests. Its
+independent final-head review for same-repository pull requests, drafts included. Its
 remit is actionable correctness/security regressions and gaps in the regression
 test contract, including changes introduced while resolving conflicts. It does
 not dispatch the local specialist roster again or repeat formatting/style checks.
@@ -43,7 +43,7 @@ affected findings and dependencies. Uncertain impact still requires the full app
   checkout and never executes repository scripts with its write token. It
   rejects malformed/incomplete results, invalid priorities, off-diff lines and
   incomplete changed-file lists. Files and reviews are read with pagination.
-- Publication rechecks the current open, non-draft PR and its head SHA immediately
+- Publication rechecks the current open PR (draft or ready) and its head SHA immediately
   and target base before creating one formal review pinned with `commit_id`. Superseded-head output
   is discarded. Base-only drift on a still-current head fails the required check;
   merge the updated base and push for a new inspection rather than rerunning
@@ -99,7 +99,7 @@ earlier rows stale: rerun the affected specialists, then update the SHA.
 
 `.github/workflows/claude-specialist.yml` runs one read-only specialist on demand.
 A repository writer (OWNER, MEMBER or COLLABORATOR) comments
-`@claude review <specialist-name>` on an open, non-draft PR. The name must be one
+`@claude review <specialist-name>` on an open, non-draft PR (unlike the final-head review, which also runs on drafts). The name must be one
 of the eight read-only reviewers in `.claude/agents/`; anything else is ignored.
 
 - The reviewer definition is read from the default branch checkout, and the

@@ -114,9 +114,16 @@ scheduled; needs human follow-up" in the sticky comment. An all-green draft with
 
 The ready gate is the local gate plus draft-run CI: no open blockers/majors from local reviewers on
 the aggregate head, required local verification complete, and every CI job that runs on drafts (unit,
-E2E, visual, builds, Netlify) green on the exact head. `Claude PR review` and `Inspect final PR head`
-skip on drafts, so they are not required before marking ready; marking ready triggers them. Never
-mark ready while local reviews, local verification or draft-run CI are open.
+E2E, visual, builds, Netlify, `Inspect final PR head` and `Claude PR review`) green on the exact
+head. The two review jobs run on drafts on every push, so the final-head review is part of the gate,
+not a post-ready step. Never mark ready while local reviews, local verification or draft-run CI are open.
+
+"Ready" therefore means the local gate plus all draft-run CI green on the exact head; human approval
+is separate and is what arms auto-merge (`.github/workflows/auto-merge.yml`, which also needs the
+agent's APPROVE on that head). Agents (lead, steward, sweep, implementers) never approve, merge or arm
+auto-merge. The sweep marking a PR ready can lead to auto-merge only after a human has approved.
+Caveat: PRs opened through the owner's account cannot be approved by that same account (GitHub forbids
+self-approval), so a human approval may be impossible on them.
 
 **Ready gate comment.** The lead keeps one sticky PR comment starting with `<!-- ready-gate -->`.
 Create it once; every later turn find it by that marker (`pull_request_read` method `get_comments`; create it with
@@ -125,11 +132,12 @@ updated when the gate is satisfied. Content:
 
 - head SHA it describes;
 - checklist: each selected specialist with reviewed SHA vs current head; local verification; each
-  draft-run CI job on the exact head (green as defined below); unresolved threads; base staleness
-  decision; visual-review reconciliation;
-- the single named blocker with next action and owner (or "gate satisfied, marked ready");
-- note that `Claude PR review` and `Inspect final PR head` skip on drafts and run after ready
-  ("awaiting final-head PR review").
+  CI job on the exact head including `Inspect final PR head` and `Claude PR review` (green as
+  defined below); unresolved threads; base staleness decision; visual-review reconciliation;
+- the section 5a statement: in-scope items closed, follow-up issues filed (numbers, or none), nothing
+  outstanding;
+- the single named blocker with next action and owner (or "gate satisfied, marked ready"; if the
+  final-head review is still running, the blocker is "final-head review pending on <sha>").
 
 The lead updates it at the end of every batch turn; the section 7 sweep reads it.
 
@@ -144,8 +152,7 @@ test cannot be affected by this change. For a cancellation with no failing test 
 result suffice and no flake issue is filed. Without the record the job stays open even if the rerun
 passed; no human waiver is needed. A second failure on the head is a regression until proven
 otherwise; a repeated cancellation is a named blocker (suspected infrastructure) for the lead to
-investigate. A job whose latest attempt is `cancelled`, `timed_out`, `skipped` (other than the two
-final-head jobs on a draft), `neutral` where a result is required, or a MISSING job all count as open.
+investigate. A job whose latest attempt is `cancelled`, `timed_out`, `skipped`, `neutral` where a result is required, or a MISSING job all count as open.
 A visual-snapshot warning is a separate decision (see `docs/agents/testing.md`), not a red job.
 
 No CI on the head (only Netlify ran): use `actions_list` for runs on that head SHA. If a run is
@@ -165,11 +172,12 @@ batch's repair push and moves the head, so rerun affected local review/verificat
 before marking ready, or state why existing evidence still applies. A merge conflict goes to the lead
 as a repair batch. Only the lead calls it; the sweep and steward never do.
 
-After marking ready, enter the named state "awaiting final-head PR review" and treat that review as
-the independent check. If it reports blockers/majors, run a repair round and keep pushing repairs.
-Re-draft is not available through the GitHub MCP tools in cloud sessions, so a PR that is already
-ready stays ready during repair rounds; report the open findings as the named blocker. Do not claim
-completion until the final-head review is green on the current head; human approval is separate.
+The final-head review (`Inspect final PR head` / `Claude PR review`) runs on the draft and is the
+independent check before ready. If it reports blockers/majors, run a repair round and keep pushing
+repairs. Each new head re-runs it, so a ready PR that is repaired is again pending until it is green on
+the new head. Re-draft is not available through the GitHub MCP tools in cloud sessions, so a PR that
+is already ready stays ready during repair rounds; report the open findings as the named blocker. Do
+not claim completion until the final-head review is green on the current head; human approval is separate.
 
 Keep the lightweight GitHub PR reviewer as an independent final-head correctness/security/evidence
 check. It does not repeat local specialist fan-out or replace human approval.
@@ -223,7 +231,7 @@ actionable change:
 - a conflict (`mergeable_state` dirty), or `behind` with no base-staleness decision recorded on the
   PR (`unstable` alone is ordinary pending CI; a completed failing check is the first bullet);
 - a draft that is all-green with no recorded outcome;
-- a ready PR whose final-head review has not run;
+- a final-head review that failed or reported blockers/majors on the current head;
 - outstanding in-scope work (section 5a) or a follow-up not yet filed as an issue.
 
 Unchanged pending CI or waiting human approval stays non-actionable. Fetch full logs only for
@@ -236,8 +244,8 @@ complete and required CI is green. Do not resolve a human thread without their a
 
 Report batch branch/worktree, current head, selected verdicts, verification counts/run URLs, visual
 acceptance and preview link with `nuke=true`. Separate CI, unresolved findings and human approval.
-Do not claim completion while any required gate remains open (including "awaiting final-head PR
-review" or open final-head findings); give a named waiting/blocker state and record it in the sticky ready-gate comment.
+Do not claim completion while any required gate remains open (including a pending final-head review
+or open final-head findings); give a named waiting/blocker state and record it in the sticky ready-gate comment.
 Never edit cache markers, screenshot baselines, disable tests or put place facts into specs.
 
 ## 7. Open-PR sweep

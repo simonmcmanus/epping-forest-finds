@@ -83,7 +83,10 @@ agent frontmatter sets the normal model and turn budget. Escalate for a concrete
   Human approval remains separate. The lightweight GitHub reviewer independently checks the final
   pushed commit; it does not replace local review or human approval. It APPROVEs a clean head and
   otherwise REQUEST_CHANGES. GitHub auto-merge is armed only when that same head also has a human
-  approval (`.github/workflows/auto-merge.yml`); required checks and branch protection still gate the merge.
+  approval (`.github/workflows/auto-merge.yml`, which re-evaluates when a PR is marked ready); required checks and branch protection still gate the merge.
+  Agents never approve, merge or arm auto-merge; marking ready can lead to auto-merge only after a human approves.
+  Caveat: PRs opened through the owner's account cannot be approved by that account (GitHub forbids
+  self-approval), so human approval may be impossible on agent-opened PRs; this is a known limitation.
 
 The lead dispatches; subagents report back without spawning. Default implementation goes through
 these roles when available. If the agents are unavailable, say so and perform the authorized work
