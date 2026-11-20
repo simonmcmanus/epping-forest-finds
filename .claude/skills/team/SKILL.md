@@ -156,6 +156,38 @@ completion until the final-head review is green on the current head; human appro
 Keep the lightweight GitHub PR reviewer as an independent final-head correctness/security/evidence
 check. It does not repeat local specialist fan-out or replace human approval.
 
+## 5a. Finish the PR's scope without being prompted
+
+A PR is not done while any in-scope work is outstanding. The lead (and the sweep's resume path)
+drives every open item to a resolved state on its own; a human should never have to ask "did you
+finish X?". In-scope work is anything needed for the PR's stated request, its linked issues or its
+acceptance criteria, plus everything raised against it:
+
+- every blocker, major, minor and nit finding from local reviewers, the final-head review and bot
+  or human review threads that is valid and touches this change;
+- failing, cancelled or missing CI, visual decisions, preview verification and base staleness;
+- unmet items in the PR description's checklist or test plan, missing specs/tests/BDD journeys, and
+  spec or description drift;
+- human comments and small asks on the PR.
+
+Work this list down in repair rounds (section 3 limits still apply) without waiting for a prompt.
+Do not end a turn with a list of "remaining items" or ask whether to continue; either do them or
+record a named blocker (section 5) and its owner.
+
+Work that is NOT specific to the PR's request (pre-existing bugs found on the way, adjacent
+refactors, broader improvements, optional enhancements, scope-expanding ideas, a finding that
+predates the change and does not interact with it) is follow-up. Do not grow the PR for it and do
+not leave it only in a comment. Create one GitHub issue per follow-up (`gh issue create`, or `issue_write` in cloud sessions; search open issues first to
+dedupe; update the existing issue instead of duplicating), with: what and why, the evidence or
+file/line, the originating PR link, and a suggested scope. Then link the issue(s) in the PR
+description under "Follow-ups" and in the outcome comment. When unsure whether an item is in scope,
+it is in scope if the PR's request would be incorrect, incomplete or unsafe without it; otherwise
+it is follow-up. A material scope ambiguity is the only reason to ask the user.
+
+Before the lead records its outcome (section 5) it states: in-scope items closed, follow-up issues
+filed (numbers), and nothing outstanding. Never mark ready, or claim a PR satisfied, with an unfiled
+follow-up or an unaddressed in-scope item.
+
 ## 6. Coordinate the PR without no-op model turns
 
 Collect compact status with `node scripts/pr-status.js <PR> --state <scratch>/<batch>-pr-state.json`
@@ -173,7 +205,8 @@ actionable change:
 - a conflict (`mergeable_state` dirty), or `behind` with no base-staleness decision recorded on the
   PR (`unstable` alone is ordinary pending CI; a completed failing check is the first bullet);
 - a draft that is all-green with no recorded outcome;
-- a ready PR whose final-head review has not run.
+- a ready PR whose final-head review has not run;
+- outstanding in-scope work (section 5a) or a follow-up not yet filed as an issue.
 
 Unchanged pending CI or waiting human approval stays non-actionable. Fetch full logs only for
 failures; unchanged states do not need a new LLM review.
@@ -191,7 +224,7 @@ Never edit cache markers, screenshot baselines, disable tests or put place facts
 
 ## 7. Open-PR sweep
 
-A periodic pass (scheduled task or `/loop`) over every open PR, so a PR whose lead session ended is
+A periodic pass (scheduled task or `/loop`; the lead schedules it before ending any session that leaves a PR open) over every open PR, so a PR whose lead session ended is
 still followed up. Per PR collect: head SHA, draft state, check runs on that SHA, the last PR comment
 recording an outcome, and base staleness against current `main`. Classify:
 
@@ -202,11 +235,17 @@ recording an outcome, and base staleness against current `main`. Classify:
   takes precedence if both classes match. The sweep may mark ready (`update_pull_request`
   `draft: false`) and records it;
 - waiting: a valid named waiting state with next action/owner, no action;
-- actionable (any section 6 trigger, a stale base with no recorded decision, or no recorded lead
-  outcome): dispatch `pr-steward` and comment naming the owner and next action (for a missing
+- actionable (any section 6 trigger, a stale base with no recorded decision, no recorded lead
+  outcome, or outstanding in-scope work per section 5a: open review threads or findings, unchecked
+  description/test-plan items, or unfiled follow-ups): dispatch `pr-steward` and comment naming the owner and next action (for a missing
   outcome, "needs a lead session to resume"). Repairs still go through the lead's gates.
 
-The sweep may only read, comment and mark ready as above. It never pushes, approves, merges, rebases,
+The sweep does not leave outstanding in-scope work for a human to notice: an actionable PR gets
+a steward report listing each open in-scope item and a lead session is resumed (or "needs a lead
+session to resume" is commented) so section 5a is carried out. The sweep may also file deduplicated
+follow-up issues for items the steward classifies as out of scope.
+
+The sweep may only read, comment, file follow-up issues and mark ready as above. It never pushes, approves, merges, rebases,
 force-pushes, calls `update_pull_request_branch`, resolves human threads or changes the branch.
 It uses the same MCP reads as section 6, fetches logs only for failures, and spends no LLM turn on a
 PR whose snapshot is unchanged since the last sweep.

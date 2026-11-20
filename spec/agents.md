@@ -175,6 +175,9 @@ so. Never claim completion while required checks, actionable findings or human a
   staleness are defined once in `.claude/skills/team/SKILL.md` section 5.
 - A periodic open-PR sweep follows up PRs whose lead session ended; it only reads, comments and marks
   ready, never pushes, approves or merges. See `.claude/skills/team/SKILL.md` section 7.
+- A PR's in-scope work is finished without prompting; follow-up work not specific to the request is
+  filed as a deduplicated GitHub issue and linked from the PR. See `.claude/skills/team/SKILL.md`
+  section 5a.
 - Flaky tests: preserve the first failure, rerun failed jobs once per head, file one deduplicated
   issue per test and repair flakes; never skip, quarantine or loosen. See `docs/agents/testing.md`
   "Flaky tests".

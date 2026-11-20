@@ -37,7 +37,12 @@ agents; report the next action to the lead. No agent should race a per-comment a
    evidence. Never resolve human threads (you have `resolve_review_thread`; it is for verified bot findings only)
    and do not resolve other-bot threads without authorization. Reply once to a declined
    finding with the reason; avoid repeated status commentary.
-5. Report current head, CI result/run URL/counts, new actions, named blockers and whether human
+5. Scope triage (`team/SKILL.md` section 5a): list every open in-scope item (valid findings of any
+   severity, unchecked description or test-plan items, human asks) and separately every follow-up
+   not specific to the PR's request, each with evidence and a suggested issue title. Never leave an
+   in-scope item as "optional"; the lead repairs it. The lead files issues for follow-ups (you have
+   no issue tools).
+6. Report current head, CI result/run URL/counts, new actions, named blockers and whether human
    approval is still required. If no action is possible, return one concise waiting state; the lead
    uses deterministic polling/waits until status changes instead of redispatching you repeatedly.
 
