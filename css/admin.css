@@ -217,6 +217,8 @@ button:disabled { opacity: 0.55; cursor: not-allowed; }
   flex-direction: column;
 }
 
+.admin-app[hidden] { display: none; }
+
 .admin-topbar {
   display: flex;
   align-items: center;

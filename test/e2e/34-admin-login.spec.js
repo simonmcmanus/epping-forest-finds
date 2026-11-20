@@ -11,6 +11,14 @@ test.describe("Admin login", () => {
     await expect(page).toHaveScreenshot("admin-login.png", { fullPage: false });
   });
 
+  test("the dashboard is not on screen, or reachable by keyboard, behind the sign-in screen", async ({ page }) => {
+    await page.goto("/admin");
+    await expect(page.getByLabel("Admin password")).toBeVisible();
+    await expect(page.locator("#adminApp")).toBeHidden();
+    await expect(page.locator("#refreshBtn")).toBeHidden();
+    await expect(page.locator("#logoutBtn")).toBeHidden();
+  });
+
   test("Admin keeps the password out of browser storage", async ({ page }) => {
     const password = "correct-horse-battery-staple-7731";
     const authHeaders = [];
@@ -692,6 +700,13 @@ test.describe("Admin login", () => {
   }
 
   async function tapFirstMarker(page) {
+    // Wait until the dashboard has the click and can place it on the canvas.
+    await page.waitForFunction(() => {
+      const canvas = document.getElementById("adminCanvas");
+      const { width, height } = canvasCssSize(canvas);
+      const click = filteredClicks()[0];
+      return !!(click && width && height && clickLatLng(click));
+    });
     const at = await page.evaluate(() => {
       const canvas = document.getElementById("adminCanvas");
       const { width, height } = canvasCssSize(canvas);
@@ -1434,9 +1449,10 @@ test.describe("Admin login", () => {
     }
     body = { registerChecked: true, newRegisterRewards: 0, issueRewards: 0, issueError: `GitHub said:\n${"x".repeat(300)}` };
     await page.click("#communityValidateBtn");
-    const text = await page.locator("#communityValidateResult").textContent();
-    expect(text).toMatch(/^Reward check: issue rewards could not be checked \(GitHub said: x+…\)\.$/);
-    expect(text.length).toBeLessThan(140);
+    // Wait for the result itself (the line first reads "Checking rewards…"), then check its shape.
+    const result = page.locator("#communityValidateResult");
+    await expect(result).toHaveText(/^Reward check: issue rewards could not be checked \(GitHub said: x+…\)\.$/);
+    expect((await result.textContent()).length).toBeLessThan(140);
   });
 
   test("a failing refresh shows Refreshing on the button, then notes each repeated attempt", async ({ page }) => {
@@ -1590,6 +1606,15 @@ test.describe("Admin login", () => {
       expect(intersects(help, close), "help vs close").toBe(false);
     });
   }
+
+  test("tabbing through the desktop sidebar does not scroll the page or the map area", async ({ page }) => {
+    await signInOnPhone(page, MANY_USERS);
+    await page.setViewportSize({ width: 1280, height: 600 });
+    await page.focus("#adminUserList .admin-user-item");
+    for (let i = 0; i < 6; i++) await page.keyboard.press("Tab");
+    const scrolled = await page.evaluate(() => ({ page: document.scrollingElement.scrollTop + document.scrollingElement.scrollLeft, nav: document.querySelector(".admin-nav").scrollLeft, body: document.querySelector(".admin-body").scrollTop + document.querySelector(".admin-body").scrollLeft }));
+    expect(scrolled).toEqual({ page: 0, nav: 0, body: 0 });
+  });
 
   for (const width of [390, 360, 320]) {
     test(`focus and a selected chip stay clear of the scroll fade at ${width}px`, async ({ page }) => {

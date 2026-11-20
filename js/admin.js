@@ -1187,9 +1187,9 @@ function refreshScrollCues() {
     if (!el.dataset.cueBound) {
       el.dataset.cueBound = "1";
       el.addEventListener("scroll", refreshScrollCues, { passive: true });
-      // Keyboard focus brings its control into view clear of the fade (scroll-padding in the CSS), even where the browser would leave it half cut off.
+      // On phones, keyboard focus brings its control into view clear of the fade (scroll-padding in the CSS); the browser alone left it half cut off at 360px and 320px.
       el.addEventListener("focusin", (event) => {
-        if (event.target !== el) event.target.scrollIntoView({ inline: "nearest", block: "nearest" });
+        if (event.target !== el && window.matchMedia("(max-width: 720px)").matches) event.target.scrollIntoView({ inline: "nearest", block: "nearest" });
       });
     }
     const max = el.scrollWidth - el.clientWidth;
