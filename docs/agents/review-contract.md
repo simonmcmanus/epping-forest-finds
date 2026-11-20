@@ -76,6 +76,7 @@ and report the remaining issues. Never push to use CI as a substitute for the lo
 
 The lead collects status deterministically: head SHA, checks with run URLs, unresolved thread IDs,
 review state, draft/ready state, visual decision and preview state. `Claude PR review` and `Inspect final PR head` run on drafts too, on every push; a pending review is in progress, not a failure. A draft PR must carry a stated blocker or waiting reason; a ready PR with open final-head findings stays ready and reports them as the named blocker. Compare this tuple with the previous snapshot.
+The lead records the outcome in one sticky `<!-- ready-gate -->` PR comment, edited in place each batch turn (content in `team/SKILL.md` section 5). Any PR description rewrite must keep the template's `Specialist review` table (updated status, reviewed SHA, verdict) and the preview-links block verbatim.
 Dispatch the steward only on an actionable change (the list in `team/SKILL.md` section 6), not for
 unchanged running/pending states or waiting human approval. The periodic open-PR sweep
 (`team/SKILL.md` section 7) applies the same rule to PRs whose lead session has ended. Fetch detailed logs only for failing jobs. Keep a bounded safety check for missed events;

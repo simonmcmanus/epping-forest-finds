@@ -21,11 +21,14 @@ in the main session. Only skip it for read-only questions.
   GitHub issue linked from the PR, never silent scope growth or an unrecorded "later". See
   `/team` section 5a.
 - Never report completion while required checks, findings or human approval remain outstanding.
-- Preserve the PR's preview-links block when rewriting a PR description.
+- Preserve the PR's preview-links block and the template's `Specialist review` table when rewriting a PR description.
+- Keep one sticky `<!-- ready-gate -->` PR comment, edited in place, naming the outstanding blocker (see `/team` section 5).
 - Push the PR as a draft as soon as the batch is implemented and committed, so the Netlify preview
   deploys and can be tried. The CI Claude review jobs run on every push, drafts included, so no manual
-  step starts them. Batch turns still end with one recorded outcome: gate satisfied, so mark ready; or gate
-  open, so comment the named blocker and leave it draft. Never mark ready while that gate is open.
+  step starts them. Every batch turn ends by evaluating the /team gate: satisfied, mark ready; open,
+  update the sticky ready-gate comment with the named blocker and leave it draft (never draft without a
+  stated reason). The gate is local reviews and verification plus draft-run CI green on the exact head,
+  including the final-head review jobs. Never mark ready while that gate is open.
 
 Load references on demand:
 
