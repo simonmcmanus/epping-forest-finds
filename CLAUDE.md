@@ -9,18 +9,19 @@ independent surface: never import app CSS/JS or reference app icons there at run
 in the main session. Only skip it for read-only questions.
 
 - Delegate implementation to scoped `implementer` agents; place-fact corrections go to `data-curator`.
-  The lead dispatches, reviews, pushes once and opens one PR. Never approve, merge or force-push.
+  The lead dispatches, reviews, pushes once and opens one PR. Agents never approve, merge, arm
+  auto-merge or force-push. The CI reviewer APPROVEs a clean head and otherwise REQUEST_CHANGES. Auto-merge
+  is armed only when the same head has both a human approval and the agent approval
+  (`.github/workflows/auto-merge.yml`); merge happens once checks pass.
 - Place facts are corrected in `data/**`, never documented in a spec.
 - CI owns `js/app-cache-version.js`, `js/data-cache-version.js` and screenshot baselines. Never edit them.
 - Tests assert user-visible behaviour, never source text. Prove a regression test fails before the fix.
 - Never report completion while required checks, findings or human approval remain outstanding.
 - Preserve the PR's preview-links block when rewriting a PR description.
 - Push the PR as a draft as soon as the batch is implemented and committed, so the Netlify preview
-  deploys and can be tried. Draft status skips the final-head CI review jobs; that is expected. Every
-  batch turn ends by evaluating the /team gate: satisfied, mark ready; open, comment the named blocker
-  on the PR and leave it draft (never draft without a stated reason). The gate is local reviews and
-  verification plus draft-run CI green on the exact head; the final-head jobs run after ready and are
-  the independent check ("awaiting final-head PR review"). Never mark ready while that gate is open.
+  deploys and can be tried. The CI Claude review jobs run on every push, drafts included, so no manual
+  step starts them. Batch turns still end with one recorded outcome: gate satisfied, so mark ready; or gate
+  open, so comment the named blocker and leave it draft. Never mark ready while that gate is open.
 
 Load references on demand:
 

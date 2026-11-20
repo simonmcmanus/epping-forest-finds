@@ -1,0 +1,105 @@
+name: Arm auto-merge after human and agent approval
+
+# Auto-merge is armed only when the CURRENT head has BOTH:
+#   1. an approving review from a person (not a bot), and
+#   2. an approving review from the CI Claude reviewer (github-actions[bot])
+#      carrying its CLAUDE_FINAL_REVIEW marker for that head.
+# Either approval can arrive last, so this runs on each approving review and
+# again when the CI run that publishes the agent review completes.
+# Agents never arm auto-merge themselves.
+#
+# Arming uses native GitHub auto-merge: the PR still merges only once branch
+# protection's required checks and required approvals are satisfied.
+#
+# Repository setup required (not enforced by this file):
+# - Settings > General > Allow auto-merge: on.
+# - Branch ruleset on main: require 2 approving reviews (one person and the
+#   agent), require status checks, dismiss stale approvals on new pushes.
+#   Verify GitHub counts the github-actions[bot] APPROVE toward required
+#   approvals; if it does not, this workflow still gates arming on it.
+#
+# Uses the dedicated GitHub App token, not GITHUB_TOKEN, so the merge still
+# fires push-triggered workflows on main (for example cache-version-bump).
+# Note: workflow changes here take effect for pull_request_review and
+# workflow_run events only once this file is on main.
+on:
+  pull_request_review:
+    types: [submitted]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  contents: read
+
+jobs:
+  arm:
+    name: Arm auto-merge when both approvals are present
+    if: >-
+      (github.event_name == 'pull_request_review' &&
+        github.event.review.state == 'approved' &&
+        github.event.review.user.type == 'User' &&
+        github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'workflow_run' &&
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'pull_request' &&
+        github.event.workflow_run.head_repository.full_name == github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Create GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.CACHE_VERSION_APP_ID }}
+          private-key: ${{ secrets.CACHE_VERSION_APP_PRIVATE_KEY }}
+
+      - name: Arm squash auto-merge if both approvals are on the head
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event_name == 'pull_request_review' && github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number }}
+          HEAD_SHA: ${{ github.event_name == 'pull_request_review' && github.event.review.commit_id || github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          if [ -z "$PR_NUMBER" ] || [ "$PR_NUMBER" = "null" ]; then
+            echo "No pull request for this run; nothing to arm."
+            exit 0
+          fi
+
+          pr=$(gh api "repos/$REPO/pulls/$PR_NUMBER")
+          if [ "$(jq -r .state <<<"$pr")" != "open" ] ||
+             [ "$(jq -r .draft <<<"$pr")" != "false" ] ||
+             [ "$(jq -r .head.sha <<<"$pr")" != "$HEAD_SHA" ]; then
+            echo "PR is closed, a draft, or on a newer head; not arming for $HEAD_SHA."
+            exit 0
+          fi
+          if [ "$(jq -r '.auto_merge != null' <<<"$pr")" = "true" ]; then
+            echo "Auto-merge is already enabled on this PR."
+            exit 0
+          fi
+
+          reviews=$(gh api --paginate "repos/$REPO/pulls/$PR_NUMBER/reviews" | jq -s 'add // []')
+          # Each reviewer's latest decision on this head, ignoring plain comments.
+          # A later CHANGES_REQUESTED or DISMISSED supersedes an earlier approval.
+          latest=$(jq --arg sha "$HEAD_SHA" '
+            [.[] | select(.commit_id == $sha and .state != "COMMENTED")]
+            | group_by(.user.login)
+            | map(sort_by(.id) | last)' <<<"$reviews")
+          human=$(jq '[.[] | select(.user.type == "User" and .state == "APPROVED")] | length' <<<"$latest")
+          agent=$(jq --arg sha "$HEAD_SHA" \
+            '[.[] | select(.user.login == "github-actions[bot]" and .state == "APPROVED"
+               and ((.body // "") | contains("CLAUDE_FINAL_REVIEW:" + $sha)))] | length' <<<"$latest")
+          if [ "$human" -lt 1 ] || [ "$agent" -lt 1 ]; then
+            echo "Waiting on approvals for $HEAD_SHA: human=$human agent=$agent. Not arming."
+            exit 0
+          fi
+
+          node_id=$(jq -r .node_id <<<"$pr")
+          gh api graphql -f query='
+            mutation($id: ID!) {
+              enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: SQUASH}) {
+                pullRequest { number autoMergeRequest { enabledAt } }
+              }
+            }' -f id="$node_id"
+          echo "Auto-merge armed for PR #$PR_NUMBER on $HEAD_SHA (human=$human agent=$agent)."

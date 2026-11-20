@@ -19,10 +19,11 @@ concurrency:
 
 jobs:
   claude-review-model:
+    # Runs automatically on every push, including drafts, so no manual step is
+    # needed to start the review gate.
     name: Inspect final PR head
     if: >-
       github.event_name == 'pull_request' &&
-      github.event.pull_request.draft == false &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -54,7 +55,7 @@ jobs:
             const fs = require('node:fs');
             const pr = context.payload.pull_request;
             const live = (await github.rest.pulls.get({...context.repo, pull_number: pr.number})).data;
-            if (live.state !== 'open' || live.draft || live.head.sha !== pr.head.sha ||
+            if (live.state !== 'open' || live.head.sha !== pr.head.sha ||
                 live.base.sha !== pr.base.sha) {
               throw new Error('PR head/base changed before inspection; do not spend a model run on obsolete context.');
             }
@@ -186,7 +187,6 @@ jobs:
     needs: claude-review-model
     if: >-
       always() && github.event_name == 'pull_request' &&
-      github.event.pull_request.draft == false &&
       github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -213,7 +213,7 @@ jobs:
             const request = {...context.repo, pull_number};
             const current = async () => (await github.rest.pulls.get(request)).data;
             const applicable = pr => {
-              if (pr.state !== 'open' || pr.draft || pr.head.sha !== expected ||
+              if (pr.state !== 'open' || pr.head.sha !== expected ||
                   pr.head.repo?.full_name !== context.payload.repository.full_name) return false;
               if (pr.base.sha !== base) {
                 throw new Error('Target base changed on the current head; merge the updated base and push to obtain a fresh review.');
@@ -282,6 +282,8 @@ jobs:
               return `${axis}: ${findings.length}` + (findings.length ? ` (${findings.map(f => `P${f.priority}`).join(', ')})` : '');
             }).join('\n');
             if (!applicable(await current())) { core.notice('Head changed before publication.'); return; }
+            // A clean result is an agent APPROVE on this head. Auto-merge is armed only
+            // when a human has also approved this head (see .github/workflows/auto-merge.yml).
             await github.rest.pulls.createReview({...request, commit_id: expected,
               event: comments.length ? 'REQUEST_CHANGES' : 'APPROVE',
               body: marker + (comments.length ? `\n${index}\nSee inline comments for details.` : ''), comments});
