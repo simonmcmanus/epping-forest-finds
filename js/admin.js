@@ -195,7 +195,8 @@ let allData = { locations: [], clicks: [], navigation: [] };
 let lastMeta = null;
 let selectedUid = null; // null = show all users
 let selectedClickKey = null;
-let viewMode = "tracks"; // "tracks" | "heatmap" (the Navigation view is a panel over the map, not a map mode)
+let viewMode = "tracks"; // "tracks" | "heatmap" (the last map view; the Navigation page is a separate page-level view, not a map mode)
+let navigationOpen = false; // true while the Navigation page is shown instead of the map
 
 let adminMap = {
   loaded: false,
@@ -754,9 +755,12 @@ function setupMapViewportHandlers(canvas, zoomInBtn, zoomOutBtn, resetMapBtn) {
     const point = eventCanvasPoint(canvas, event);
     const click = findClickMarkerAt(canvas, point.x, point.y);
     if (!click) return;
+    closeOverlayPanels("details");
     selectedClickKey = clickTargetKey(click);
     renderClickDetails(selectedClickKey);
     render();
+    const detailsClose = document.getElementById("adminClickDetailsClose");
+    if (!document.getElementById("adminClickDetails")?.hidden) detailsClose?.focus();
   });
 }
 
@@ -1105,7 +1109,7 @@ function drawCurrentPositions(ctx, w, h) {
 
 // ---- User list sidebar ----
 
-function buildUserList() {
+function buildUserList({ reveal = false } = {}) {
   const list = document.getElementById("adminUserList");
   if (!list) return;
 
@@ -1126,24 +1130,11 @@ function buildUserList() {
   // Sort by last seen desc
   const users = [...byUser.entries()].sort((a, b) => b[1].last < a[1].last ? -1 : 1);
 
-  // Makes a clickable "row" div operable from the keyboard too (WCAG 2.1.1/4.1.2): a plain
-  // div with only a click handler is invisible to Tab and to assistive tech's button semantics.
-  function makeActivatable(el, onActivate) {
-    el.setAttribute("role", "button");
-    el.setAttribute("tabindex", "0");
-    el.addEventListener("click", onActivate);
-    el.addEventListener("keydown", (event) => {
-      if (event.key === "Enter" || event.key === " ") {
-        event.preventDefault();
-        onActivate();
-      }
-    });
-  }
-
   const items = users.map(([uid, info]) => {
     const colour = userColour(uid);
     const lastSeen = new Date(info.last).toLocaleString();
-    const div = document.createElement("div");
+    const div = document.createElement("button");
+    div.type = "button";
     div.className = "admin-user-item" + (uid === selectedUid ? " selected" : "");
     div.dataset.uid = uid;
     div.setAttribute("aria-pressed", uid === selectedUid ? "true" : "false");
@@ -1153,24 +1144,62 @@ function buildUserList() {
       <span class="admin-user-meta">${info.count} pts · ${info.clicks} taps</span>
     `;
     div.title = `Last seen: ${lastSeen}`;
-    makeActivatable(div, () => {
+    div.addEventListener("click", () => {
       selectedUid = selectedUid === uid ? null : uid;
-      buildUserList();
+      buildUserList({ reveal: true });
       render();
     });
     return div;
   });
 
+  // A re-render replaces the buttons, so remember which row had focus and give it back.
+  const focused = list.contains(document.activeElement) ? document.activeElement : null;
+  const focusedUid = focused ? (focused.dataset.uid || "") : null;
+  // Emptying the list collapses it and would reset the strip to its start, so remember where it was scrolled.
+  const scrollLeft = list.scrollLeft;
+  const scrollTop = list.scrollTop;
   list.innerHTML = "";
   // "All users" row
-  const allRow = document.createElement("div");
+  const allRow = document.createElement("button");
+  allRow.type = "button";
   allRow.className = "admin-user-item" + (!selectedUid ? " selected" : "");
+  allRow.dataset.uid = "";
   allRow.setAttribute("aria-pressed", !selectedUid ? "true" : "false");
-  allRow.innerHTML = `<span class="admin-user-dot" style="background:#aaa"></span><span class="admin-user-label">All users</span><span class="admin-user-meta">${users.length}</span>`;
-  makeActivatable(allRow, () => { selectedUid = null; buildUserList(); render(); });
+  allRow.innerHTML = `<span class="admin-user-dot" style="background:#aaa"></span><span class="admin-user-label">All users</span><span class="admin-user-meta">${users.length} user${users.length === 1 ? "" : "s"}</span>`;
+  allRow.addEventListener("click", () => { selectedUid = null; buildUserList({ reveal: true }); render(); });
   list.appendChild(allRow);
   items.forEach((el) => list.appendChild(el));
+  list.scrollLeft = scrollLeft;
+  list.scrollTop = scrollTop;
+  if (focusedUid !== null) {
+    const row = [...list.children].find((el) => (el.dataset.uid || "") === focusedUid);
+    if (row) row.focus();
+  }
+  // Choosing a chip scrolls it fully into the strip; an already visible chip does not move.
+  if (reveal) {
+    const chosen = list.querySelector(".admin-user-item.selected");
+    const calm = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (chosen) chosen.scrollIntoView({ inline: "nearest", block: "nearest", behavior: calm ? "auto" : "smooth" });
+  }
+  refreshScrollCues();
   refreshNavigationView();
+}
+
+// Fade cue: mark the nav row and user strip with cue-start / cue-end while more of them is scrolled out of view at that edge.
+function refreshScrollCues() {
+  for (const el of document.querySelectorAll(".admin-user-list, .admin-nav")) {
+    if (!el.dataset.cueBound) {
+      el.dataset.cueBound = "1";
+      el.addEventListener("scroll", refreshScrollCues, { passive: true });
+      // On phones, keyboard focus brings its control into view clear of the fade (scroll-padding in the CSS); the browser alone left it half cut off at 360px and 320px.
+      el.addEventListener("focusin", (event) => {
+        if (event.target !== el && window.matchMedia("(max-width: 720px)").matches) event.target.scrollIntoView({ inline: "nearest", block: "nearest" });
+      });
+    }
+    const max = el.scrollWidth - el.clientWidth;
+    el.classList.toggle("cue-start", max > 1 && el.scrollLeft > 1);
+    el.classList.toggle("cue-end", max > 1 && el.scrollLeft < max - 1);
+  }
 }
 
 function updateStats() {
@@ -1179,13 +1208,26 @@ function updateStats() {
   const locs = filteredLocations();
   const clicks = filteredClicks();
   const uids = new Set([...locs, ...clicks].map((e) => e.uid));
-  const windowLabel = (Number.isFinite(lastMeta?.windowDays) ? ` &nbsp;·&nbsp; last ${lastMeta.windowDays} days` : "")
-    + (lastMeta?.partial
-      ? ` &nbsp;·&nbsp; <em>partial: too much data for one read, newest shown${lastMeta.oldestDay
-        ? ` (back to ${escapeHtml(lastMeta.oldestDay)}${lastMeta.oldestDayIncomplete ? ", that day only in part" : ""})`
-        : ""}</em>`
-      : "");
-  el.innerHTML = `<strong>${uids.size}</strong> user${uids.size !== 1 ? "s" : ""} &nbsp;·&nbsp; <strong>${locs.length}</strong> location pings &nbsp;·&nbsp; <strong>${clicks.length}</strong> taps${windowLabel}${navigationStatsHtml(locs)}`;
+  const chip = (html, cls = "") => `<span class="admin-stat-chip${cls ? ` ${cls}` : ""}">${html}<span class="sr-only">, </span></span>`;
+  const windowChip = Number.isFinite(lastMeta?.windowDays) ? chip(`last ${lastMeta.windowDays} days`) : "";
+  const partialChip = lastMeta?.partial
+    ? chip(`<em>partial: too much data for one read, newest shown${lastMeta.oldestDay
+      ? ` (back to ${escapeHtml(lastMeta.oldestDay)}${lastMeta.oldestDayIncomplete ? ", that day only in part" : ""})`
+      : ""}</em>`, "wrap")
+    : "";
+  el.innerHTML = `<div class="admin-stats-row">${[chip(`<strong>${uids.size}</strong> user${uids.size !== 1 ? "s" : ""}`), chip(`<strong>${locs.length}</strong> location pings`), chip(`<strong>${clicks.length}</strong> taps`), windowChip, partialChip].join(" ")}</div>${navigationStatsHtml(locs)}`;
+  syncSheetInset();
+}
+
+// Overlay sheets sit above the stats bar: tell the CSS how tall it is.
+function syncSheetInset() {
+  const area = document.querySelector(".admin-map-area");
+  const stats = document.getElementById("adminStats");
+  if (!area || !stats) return;
+  const areaBox = area.getBoundingClientRect();
+  const statsBox = stats.getBoundingClientRect();
+  if (!statsBox.height) { area.style.removeProperty("--stats-clear"); return; }
+  area.style.setProperty("--stats-clear", `${Math.ceil(areaBox.bottom - statsBox.top + 8)}px`);
 }
 
 // Navigation journey block under the stats bar: derived from the same filtered pings.
@@ -1198,10 +1240,12 @@ function navigationStatsHtml(locs) {
   const rate = Math.round(s.completionRate * 100);
   const b = s.timeBuckets;
   const median = s.medianRemainingM === null ? "n/a" : `${Math.round(s.medianRemainingM)} m`;
-  return `<br><strong>Navigation:</strong> <strong>${s.started}</strong> started &nbsp;·&nbsp; <strong>${s.completed}</strong> arrived (${rate}%)`
-    + `<br>Time to arrive: &lt;5 min <strong>${b.lt5}</strong> &nbsp;·&nbsp; 5-15 <strong>${b.b5to15}</strong> &nbsp;·&nbsp; 15-30 <strong>${b.b15to30}</strong> &nbsp;·&nbsp; &gt;30 <strong>${b.gt30}</strong>`
-    + `<br>Walked <strong>${km(s.totalDistanceWalkedM)}</strong> km &nbsp;·&nbsp; <strong>${s.abandoned}</strong> abandoned (median <strong>${median}</strong> short)`
-    + (s.detourCount ? `<br>Detour: walked <strong>${s.medianDetourRatio.toFixed(2)}</strong>x the shortest route (median of ${s.detourCount})` : "");
+  const chip = (html) => `<span class="admin-stat-chip">${html}<span class="sr-only">, </span></span>`;
+  const row = (...chips) => `<div class="admin-stats-row">${chips.join(" ")}</div>`;
+  return row(`<strong class="admin-stats-label">Navigation:</strong>`, chip(`<strong>${s.started}</strong> started`), chip(`<strong>${s.completed}</strong> arrived (${rate}%)`))
+    + row(chip(`Time to arrive: &lt;5 min <strong>${b.lt5}</strong>`), chip(`5-15 <strong>${b.b5to15}</strong>`), chip(`15-30 <strong>${b.b15to30}</strong>`), chip(`&gt;30 <strong>${b.gt30}</strong>`))
+    + row(chip(`Walked <strong>${km(s.totalDistanceWalkedM)}</strong> km`), chip(`<strong>${s.abandoned}</strong> abandoned (median <strong>${median}</strong> short)`))
+    + (s.detourCount ? row(chip(`Detour: walked <strong>${s.medianDetourRatio.toFixed(2)}</strong>x the shortest route (median of ${s.detourCount})`)) : "");
 }
 
 function formatEventTime(value) {
@@ -1220,7 +1264,10 @@ function sourceLabel(event) {
 function hideClickDetails() {
   selectedClickKey = null;
   const panel = document.getElementById("adminClickDetails");
-  if (panel) panel.hidden = true;
+  if (panel) {
+    if (panel.contains(document.activeElement)) document.getElementById("adminCanvas")?.focus();
+    panel.hidden = true;
+  }
   render();
 }
 
@@ -1236,6 +1283,7 @@ function renderClickDetails(key) {
 
   const summary = clickTargetSummary(key);
   if (!summary.first || !summary.totalClicks) {
+    if (panel.contains(document.activeElement)) document.getElementById("adminCanvas")?.focus();
     panel.hidden = true;
     selectedClickKey = null;
     return;
@@ -1286,6 +1334,39 @@ function renderClickDetails(key) {
     <ul class="admin-click-recent-list">${recent}</ul>
   `;
   panel.hidden = false;
+}
+
+// Overlay panels (Community, Access, tap details): one is open at a time. Closing one hands focus
+// back to what opened it when focus was inside, so keyboard users never lose their place.
+const OVERLAY_PANELS = {
+  community: { id: "adminCommunity", opener: "communityBtn" },
+  access: { id: "adminAccess", opener: "accessBtn", onClose: null },
+};
+
+function closeOverlay(key) {
+  if (key === "details") {
+    if (selectedClickKey || !document.getElementById("adminClickDetails")?.hidden) hideClickDetails();
+    return;
+  }
+  const cfg = OVERLAY_PANELS[key];
+  const panel = document.getElementById(cfg.id);
+  if (!panel || panel.hidden) return;
+  if (panel.contains(document.activeElement)) document.getElementById(cfg.opener)?.focus();
+  panel.hidden = true;
+  if (cfg.onClose) cfg.onClose();
+  syncPanelButtons();
+}
+
+// The Community and Access buttons say whether their panel is open (aria-expanded, plus a lit style in the CSS).
+function syncPanelButtons() {
+  for (const cfg of Object.values(OVERLAY_PANELS)) {
+    const panel = document.getElementById(cfg.id);
+    document.getElementById(cfg.opener)?.setAttribute("aria-expanded", panel && !panel.hidden ? "true" : "false");
+  }
+}
+
+function closeOverlayPanels(except) {
+  for (const key of ["community", "access", "details"]) if (key !== except) closeOverlay(key);
 }
 
 // ---- Data loading ----
@@ -1341,18 +1422,30 @@ function unpackTrackingEvents(packed) {
 // say which window it ended up with (the stats bar shows it).
 const ADMIN_WINDOW_FALLBACKS = [null, 7, 1];
 
+const HTTP_STATUS_NAMES = { 400: "Bad Request", 403: "Forbidden", 404: "Not Found", 500: "Internal Server Error", 502: "Bad Gateway", 503: "Service Unavailable", 504: "Gateway Timeout" };
+
 async function loadData(token) {
   let resp;
   let url;
   for (const days of ADMIN_WINDOW_FALLBACKS) {
     url = days ? `/api/admin/tracks?days=${days}` : "/api/admin/tracks";
-    resp = await fetch(url, { headers: { "Authorization": `Bearer ${token}` } });
+    try {
+      resp = await fetch(url, { headers: { "Authorization": `Bearer ${token}` } });
+    } catch (cause) {
+      const failure = new Error("network");
+      failure.network = true;
+      throw failure;
+    }
     if (resp.status === 401) throw new Error("wrong-password");
     if (resp.ok || resp.status < 500) break;
   }
   if (!resp.ok) {
+    // The raw body (possibly a page of HTML) goes to the console only; the screen gets the status and its plain name.
     const detail = await resp.text().catch(() => "");
-    throw new Error(`Server error ${resp.status}${detail ? `: ${detail.slice(0, 160)}` : ""}`);
+    const name = resp.statusText || HTTP_STATUS_NAMES[resp.status] || "";
+    const failure = new Error(`Server error ${resp.status}${name ? `: ${name}` : ""}`);
+    failure.detail = detail.slice(0, 160);
+    throw failure;
   }
   const data = await resp.json();
   data.locations = unpackTrackingEvents(data.locations);
@@ -1366,32 +1459,67 @@ async function loadData(token) {
 // Community verification usage (netlify/functions/community-overlay.js ?admin=1).
 async function loadCommunityStats(token) {
   const resp = await fetch("/api/community/overlay?admin=1", { headers: { Authorization: `Bearer ${token}` } });
-  if (!resp.ok) throw new Error(`Server error ${resp.status}`);
+  if (!resp.ok) {
+    const failure = new Error(`Server error ${resp.status}`);
+    failure.status = resp.status;
+    throw failure;
+  }
   return resp.json();
 }
 
-function renderCommunityStats(stats) {
-  const row = (label, value) => `<tr><th scope="row">${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`;
+function communityRow(label, value) {
+  return `<tr><th scope="row">${escapeHtml(label)}</th><td>${escapeHtml(value)}</td></tr>`;
+}
+
+// The figures part of the Community panel: replaced after a rebuild without touching the buttons or the result line.
+function renderCommunityFigures(stats) {
+  const row = communityRow;
+  const card = (label, value) => `<li class="admin-stat-card"><span class="admin-stat-value">${escapeHtml(value)}</span><span class="admin-stat-label">${escapeHtml(label)}</span></li>`;
   const statusRows = Object.entries(stats.byStatus || {}).sort((a, b) => b[1] - a[1])
     .map(([status, n]) => row(status, n)).join("");
   const days = Object.entries(stats.perDay || {}).sort().slice(-7)
     .map(([day, n]) => row(day, n)).join("");
-  return `<h3>Community verification</h3>
-    <p><button type="button" class="admin-btn" id="communityRebuildBtn">Rebuild snapshot now</button> <button type="button" class="admin-btn" id="communityValidateBtn">Run reward check now</button> <span id="communityValidateResult"></span></p>
-    <p><a href="/reports/tree-report" target="_blank" rel="noopener">City of London discrepancy report</a> · <a href="/reports/tree-report?format=csv">CSV</a></p>
-    ${stats.generatedAt ? `<p class="admin-community-asof">As of the last snapshot, ${escapeHtml(formatEventTime(new Date(stats.generatedAt).toISOString()))}</p>` : ""}
-    <table>
-      ${row("People reporting (all time)", stats.devices)}
-      ${row("Active, last 24 h / 7 days", `${stats.activeDevices1d} / ${stats.activeDevices7d}`)}
-      ${row("Reports", stats.reports)}
-      ${row("Trees questioned", stats.questioned)}
-      ${row("Trees verified", stats.verified)}
-      ${row("New trees (unconfirmed / confirmed)", `${stats.newTreesUnconfirmed} / ${stats.newTreesConfirmed}`)}
-      ${row("Conflicts awaiting review", stats.conflicts)}
-      ${row("Points awarded", stats.totalPoints)}
-    </table>
+  return `${stats.generatedAt ? `<p class="admin-community-asof">As of the last snapshot, ${escapeHtml(formatEventTime(new Date(stats.generatedAt).toISOString()))}</p>` : ""}
+    <ul class="admin-stat-grid">
+      ${card("People reporting (all time)", stats.devices)}
+      ${card("Active, last 24 h / 7 days", `${stats.activeDevices1d} / ${stats.activeDevices7d}`)}
+      ${card("Reports", stats.reports)}
+      ${card("Trees questioned", stats.questioned)}
+      ${card("Trees verified", stats.verified)}
+      ${card("New trees (unconfirmed / confirmed)", `${stats.newTreesUnconfirmed} / ${stats.newTreesConfirmed}`)}
+      ${card("Conflicts awaiting review", stats.conflicts)}
+      ${card("Points awarded", stats.totalPoints)}
+    </ul>
     <h4>By report type</h4><table>${statusRows || row("None yet", "")}</table>
     <h4>Last 7 days with reports</h4><table>${days || row("None yet", "")}</table>`;
+}
+
+function renderCommunityStats(stats) {
+  return `<h3 class="admin-panel-title">Community verification</h3>
+    <div class="admin-panel-actions"><button type="button" class="admin-btn" id="communityRebuildBtn">Rebuild snapshot now</button> <button type="button" class="admin-btn" id="communityValidateBtn">Run reward check now</button></div>
+    <span id="communityValidateResult" class="admin-panel-status" role="status"></span>
+    <p class="admin-panel-links"><a href="/reports/tree-report" target="_blank" rel="noopener">City of London discrepancy report</a> · <a href="/reports/tree-report?format=csv">CSV</a></p>
+    <div id="communityFigures">${renderCommunityFigures(stats)}</div>`;
+}
+
+// Plain-language result of the reward check; a GitHub error is cut down to a short single-line reason.
+function rewardCheckText(data) {
+  const plural = (n, word) => `${n} ${word}${Number(n) === 1 ? "" : "s"}`;
+  const register = Number(data.newRegisterRewards) || 0;
+  const issues = Number(data.issueRewards) || 0;
+  const parts = [];
+  if (data.baseline) parts.push("first check done — today's register is now the baseline.");
+  else if (!data.registerChecked) parts.push("the register was not checked.");
+  const given = [register && plural(register, "register reward"), issues && plural(issues, "issue reward")].filter(Boolean);
+  if (given.length) parts.push(`${given.join(" and ")} given.`);
+  else if (data.baseline || !data.registerChecked) parts.push("No rewards given yet.");
+  else if (!data.issueError) parts.push("nothing new to reward.");
+  if (data.issueError) {
+    const flat = String(data.issueError).replace(/\s+/g, " ").trim();
+    const reason = flat.length > 40 ? `${flat.slice(0, 40).trimEnd()}…` : flat;
+    parts.push(`${parts.length ? "Issue" : "issue"} rewards could not be checked${reason ? ` (${reason})` : ""}.`);
+  }
+  return parts.join(" ");
 }
 
 // The typed password is used once, to get a session token, and is never stored. Only the token (with its expiry) is
@@ -1410,16 +1538,23 @@ function storeSession(session) {
 function clearStoredSession() {
   try { sessionStorage.removeItem(ADMIN_SESSION_KEY); } catch {}
 }
+// Trade the typed password for a session token. Failures look like loadData's: "wrong-password" for a 401,
+// `network` when the server cannot be reached, otherwise a "Server error <status>" message.
 async function requestSession(password) {
   let resp;
   try {
     resp = await fetch("/api/admin/session", { method: "POST", headers: { Authorization: `Bearer ${password}` } });
-  } catch (err) {
-    throw new Error(err && err.message ? err.message : "network error");
+  } catch (cause) {
+    const failure = new Error("network");
+    failure.network = true;
+    throw failure;
   }
   if (resp.status === 401) throw new Error("wrong-password");
-  if (!resp.ok) throw new Error(`Server error ${resp.status}`);
-  const session = await resp.json();
+  if (!resp.ok) {
+    const name = resp.statusText || HTTP_STATUS_NAMES[resp.status] || "";
+    throw new Error(`Server error ${resp.status}${name ? `: ${name}` : ""}`);
+  }
+  const session = await resp.json().catch(() => null);
   if (!session || !session.token) throw new Error("Server error: no session token");
   return session;
 }
@@ -1563,8 +1698,7 @@ function navigationDestinationsHtml(journeys) {
 
 function navigationViewHtml() {
   const journeys = navigationJourneysForView();
-  const head = `<h2>Navigation${selectedUid ? " (selected user)" : ""}</h2>`;
-  if (!journeys.length) return `${head}<p class="nav-empty">No navigation journeys in this window.</p>`;
+  if (!journeys.length) return `<p class="nav-empty nav-empty-state">No navigation journeys in this window${selectedUid ? " for the selected user" : ""}.</p>`;
   const s = summariseNavJourneys(journeys);
   const rows = groupJourneysByDay(journeys);
   const pct = (v) => (v === null ? "n/a" : `${Math.round(v * 100)}%`);
@@ -1584,7 +1718,7 @@ function navigationViewHtml() {
     : `${md.toFixed(2)}x means the walk was ${Math.round(Math.abs(md - 1) * 100)}% ${md < 1 ? "shorter" : "longer"} than the shortest route.`;
   const ratio = (v) => (v === null ? "n/a" : `${v.toFixed(2)}x`);
   const panel = (cls, title, legend, svg, table, note) => `<section class="nav-panel ${cls}"><h3>${title}</h3>${note ? `<p class="nav-note">${escapeHtml(note)}</p>` : ""}<ul class="nav-legend">${legend}</ul>${svg}${table}</section>`;
-  return `${head}<ul class="nav-cards">${cards}</ul><p class="nav-note">Started and completed count journeys, not people. Distance includes abandoned walks.</p><div class="nav-grid">`
+  return `<ul class="nav-cards">${cards}</ul><p class="nav-note">Started and completed count journeys, not people. Distance includes abandoned walks.</p><div class="nav-grid">`
     + navigationDestinationsHtml(journeys)
     + panel("nav-panel-wide", "Started, completed and completion rate by day",
       `${swatch("started", "Started")}${swatch("completed", "Completed")}<li><span class="nav-swatch nav-swatch-line" style="background:var(--nav-rate)"></span>Completion rate (right axis, 0-100%)</li>`,
@@ -1603,7 +1737,12 @@ function navigationViewHtml() {
 
 function refreshNavigationView() {
   const el = document.getElementById("adminNavigation");
-  if (el && !el.hidden) el.innerHTML = navigationViewHtml();
+  const body = document.getElementById("adminNavigationBody");
+  if (!el || !body || el.hidden) return;
+  body.innerHTML = navigationViewHtml();
+  const sub = document.getElementById("adminNavigationSub");
+  const windowText = Number.isFinite(lastMeta?.windowDays) ? `the last ${lastMeta.windowDays} days` : "all loaded history";
+  if (sub) sub.textContent = `Navigation journeys over ${windowText}, for ${selectedUid ? `user ${shortUid(selectedUid)}` : "all users"}.${selectedUid ? "" : " Choose a user in the Users list to filter these figures."}`;
 }
 
 // ---- Boot ----
@@ -1626,6 +1765,7 @@ async function adminBoot() {
   const communityBtn = document.getElementById("communityBtn");
   const communityPanel = document.getElementById("adminCommunity");
   const communityBody = document.getElementById("adminCommunityBody");
+  const communityStatus = document.getElementById("adminCommunityStatus");
 
   let sessionToken = "";
   clearLegacyStoredPassword();
@@ -1633,12 +1773,63 @@ async function adminBoot() {
   loadAdminBaseMap();
   setupMapViewportHandlers(canvas, zoomInBtn, zoomOutBtn, resetMapBtn);
 
+  const refreshStatus = document.getElementById("adminRefreshStatus");
+  const communityRetry = document.getElementById("adminCommunityRetry");
+  const accessPanel = document.getElementById("adminAccess");
+  const accessList = document.getElementById("adminAccessList");
+  const accessStatus = document.getElementById("adminAccessStatus");
+  const accessSave = document.getElementById("adminAccessSave");
+  const accessRetry = document.getElementById("adminAccessRetry");
+  const communityClose = document.getElementById("adminCommunityClose");
+  const accessClose = document.getElementById("adminAccessClose");
+
+  let sessionId = 0; // bumped on sign-out so a late response cannot bring old data back
+  let lastLoadedAt = null;
+
+  function clockText(date) {
+    const pad = (n) => String(n).padStart(2, "0");
+    return `${pad(date.getHours())}:${pad(date.getMinutes())}`;
+  }
+
+  // The refresh note changes the map's height, so lay the map out again.
+  function relayout() {
+    invalidateMapFit();
+    syncSheetInset();
+    render();
+  }
+
+  function setRefreshNote(text, announceAgain = false) {
+    if (refreshStatus.textContent === text) {
+      // Same words again: write the live region afresh (no layout change) so it is announced once more.
+      if (announceAgain && text) refreshStatus.replaceChildren(document.createTextNode(text));
+      return;
+    }
+    refreshStatus.textContent = text;
+    relayout();
+  }
+
+  let refreshHadFocus = false;
+  function setRefreshing(busy) {
+    // A disabled button drops focus to the body: give it back when the refresh is over.
+    if (busy && !refreshBtn.disabled) refreshHadFocus = document.activeElement === refreshBtn;
+    refreshBtn.disabled = busy;
+    if (!busy && refreshHadFocus && (!document.activeElement || document.activeElement === document.body)) refreshBtn.focus();
+    if (!busy) refreshHadFocus = false;
+    refreshBtn.textContent = busy ? "Refreshing…" : "Refresh";
+    if (busy) refreshBtn.setAttribute("aria-busy", "true");
+    else refreshBtn.removeAttribute("aria-busy");
+  }
+
   function showAdminApp() {
     loginScreen.hidden = true;
     adminApp.hidden = false;
+    lastLoadedAt = new Date();
+    setRefreshNote("");
     buildUserList();
     updateStats();
     refreshClickDetails();
+    refreshScrollCues();
+    applyView(hashView(), { focusHeading: hashView() === "navigation" });
     requestAnimationFrame(render);
   }
 
@@ -1651,12 +1842,27 @@ async function adminBoot() {
   }
 
   function forgetSession(message = "") {
+    sessionId++;
     sessionToken = "";
     clearStoredSession();
+    setRefreshing(false); // an answer still on its way is ignored, so it can no longer re-enable the button
+    communityAction = null;
+    communityResultStash = "";
     allData = { locations: [], clicks: [], navigation: [] };
     selectedUid = null;
     selectedClickKey = null;
+    // Nothing from this session may reappear at the next sign-in: close every panel and empty what they held.
+    closeOverlayPanels();
+    resetView();
+    resetAccessPanel();
+    communityToken++;
+    communityBody.textContent = "";
+    communityStatus.textContent = "";
+    communityRetry.hidden = true;
+    document.getElementById("adminClickDetailsBody").textContent = "";
+    setRefreshNote("");
     showLogin(message);
+    loginInput.focus();
   }
 
   let signingIn = false; // true while a sign-in or a stored-session restore is in flight, so Enter cannot start a second one
@@ -1665,12 +1871,15 @@ async function adminBoot() {
     const pw = loginInput.value.trim();
     if (!pw) {
       loginError.textContent = "Enter the admin password.";
+      loginInput.setAttribute("aria-invalid", "true");
+      loginInput.focus();
       return;
     }
     signingIn = true;
     loginBtn.disabled = true;
     loginBtn.textContent = "Signing in…";
     loginError.textContent = "";
+    loginInput.removeAttribute("aria-invalid");
     try {
       const session = await requestSession(pw);
       allData = await loadData(session.token);
@@ -1678,20 +1887,26 @@ async function adminBoot() {
       storeSession(session);
       showAdminApp();
     } catch (err) {
-      console.error("[admin] login failed:", err);
+      console.error("[admin] login failed:", err, err.detail || "");
+      loginInput.setAttribute("aria-invalid", "true");
       if (err.message === "wrong-password") {
-        loginError.textContent = "Incorrect password — check ADMIN_PASSWORD in your .env file.";
+        loginError.textContent = "Incorrect password. Try again.";
+      } else if (err.network) {
+        loginError.textContent = "Cannot reach the server. Check your connection and try again.";
       } else {
-        loginError.textContent = `Cannot reach server: ${err.message}`;
+        loginError.textContent = err.message;
       }
       loginBtn.disabled = false;
       loginBtn.textContent = "Sign in";
+      loginInput.focus();
+      loginInput.select();
     } finally {
       signingIn = false;
     }
   }
 
   // A session kept by this tab survives a reload: go straight to the data. If the server no longer accepts it, ask again.
+  // Only a refusal (401) ends the session; a network or server error keeps the token for the next reload.
   const restored = readStoredSession();
   if (restored) {
     signingIn = true;
@@ -1702,131 +1917,397 @@ async function adminBoot() {
       sessionToken = restored.token;
       showAdminApp();
     }).catch((err) => {
-      console.error("[admin] stored session not usable:", err);
-      // Only a refusal ends the session; a network or server error keeps the token for the next reload.
-      if (err.message === "wrong-password") clearStoredSession();
-      showLogin(err.message === "wrong-password" ? "Admin session expired. Sign in again." : `Cannot reach server: ${err.message}`);
+      console.error("[admin] stored session not usable:", err, err.detail || "");
+      if (err.message === "wrong-password") {
+        clearStoredSession();
+        showLogin("Admin session expired. Sign in again.");
+      } else {
+        showLogin(err.network ? "Cannot reach the server. Check your connection and try again." : err.message);
+      }
     }).finally(() => { signingIn = false; });
   } else {
     clearStoredSession();
   }
 
+  loginInput.addEventListener("input", () => loginInput.removeAttribute("aria-invalid"));
   const loginForm = document.getElementById("loginForm");
   if (loginForm) loginForm.addEventListener("submit", (e) => { e.preventDefault(); doLogin(); });
   else loginBtn.addEventListener("click", doLogin);
 
   const navigationBtn = document.getElementById("navigationBtn");
   const navigationPanel = document.getElementById("adminNavigation");
-  function showMapView(mode) {
-    viewMode = mode;
+  const mapArea = document.querySelector(".admin-map-area");
+  const VIEW_HASHES = ["tracks", "heatmap", "navigation"];
+  const hashView = () => {
+    const name = location.hash.replace(/^#/, "");
+    return VIEW_HASHES.includes(name) ? name : "tracks";
+  };
+  const currentView = () => (navigationOpen ? "navigation" : viewMode);
+
+  // Show one view: the Navigation page (map UI and every overlay panel hidden or closed) or a map view.
+  function applyView(name, { focusHeading = false } = {}) {
+    if (name === "navigation") {
+      closeOverlayPanels();
+      navigationOpen = true;
+      mapArea.hidden = true;
+      navigationPanel.hidden = false;
+      setActiveView("navigation");
+      refreshNavigationView();
+      if (focusHeading) document.getElementById("adminNavigationTitle").focus({ preventScroll: true });
+      return;
+    }
+    const wasNavigation = navigationOpen;
+    // Leaving the page hides the focused heading: decide before hiding (browsers fix focus up at different times), then hand it to the matching view button.
+    const lostFocus = wasNavigation && navigationPanel.contains(document.activeElement);
+    navigationOpen = false;
+    viewMode = name;
     navigationPanel.hidden = true;
-    navigationBtn.classList.remove("active");
-    heatmapBtn.classList.toggle("active", mode === "heatmap");
-    tracksBtn.classList.toggle("active", mode === "tracks");
+    mapArea.hidden = false;
+    setActiveView(name);
+    if (lostFocus) (name === "heatmap" ? heatmapBtn : tracksBtn).focus();
+    if (wasNavigation) { invalidateMapFit(); syncSheetInset(); }
     render();
   }
+  // Clicks go through the hash so the browser's Back and Forward restore the view.
+  function goToView(name, opts) {
+    applyView(name, opts);
+    if (location.hash !== `#${name}` && !(name === "tracks" && !location.hash)) location.hash = name;
+  }
+  function resetView() {
+    applyView("tracks");
+    if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+  }
+  function showMapView(mode) { goToView(mode); }
+  function setActiveView(name) {
+    for (const [key, btn] of [["tracks", tracksBtn], ["heatmap", heatmapBtn], ["navigation", navigationBtn]]) {
+      btn.classList.toggle("active", key === name);
+      btn.setAttribute("aria-pressed", key === name ? "true" : "false");
+    }
+  }
   heatmapBtn.addEventListener("click", () => showMapView("heatmap"));
-  navigationBtn.addEventListener("click", () => {
-    navigationPanel.hidden = false;
-    navigationBtn.classList.add("active");
-    heatmapBtn.classList.remove("active");
-    tracksBtn.classList.remove("active");
-    refreshNavigationView();
+  navigationBtn.addEventListener("click", () => goToView("navigation", { focusHeading: true }));
+  window.addEventListener("hashchange", () => {
+    if (adminApp.hidden) return;
+    const name = hashView();
+    if (name !== currentView()) applyView(name, { focusHeading: name === "navigation" });
   });
+  // Panels live on the map, so opening one from the Navigation page returns to the last map view first.
+  function leaveNavigationForMap() { if (navigationOpen) goToView(viewMode); }
 
-  communityBtn.addEventListener("click", async () => {
-    communityPanel.hidden = false;
-    communityBody.textContent = "Loading…";
+  // ---- Community panel ----
+  let communityToken = 0;
+  // One rebuild / reward check at a time, even if the panel is closed and reopened meanwhile: the fresh buttons come up
+  // disabled with the progress text. A result that finds no result line is kept for the next render.
+  let communityAction = null;
+  let communityResultStash = "";
+
+  function setCommunityBusy(busy, text) {
+    const rebuildBtn = document.getElementById("communityRebuildBtn");
+    const validateBtn = document.getElementById("communityValidateBtn");
+    const result = document.getElementById("communityValidateResult");
+    if (!rebuildBtn || !validateBtn || !result) return false;
+    rebuildBtn.disabled = busy;
+    validateBtn.disabled = busy;
+    result.textContent = text;
+    return true;
+  }
+
+  async function loadCommunity() {
+    const token = ++communityToken;
+    communityRetry.hidden = true;
+    communityBody.textContent = "";
+    communityStatus.textContent = "Loading…";
+    const sid = sessionId;
     try {
-      communityBody.innerHTML = renderCommunityStats(await loadCommunityStats(sessionToken));
-      const rebuildBtn = document.getElementById("communityRebuildBtn");
-      if (rebuildBtn) {
-        rebuildBtn.addEventListener("click", async () => {
-          rebuildBtn.disabled = true;
-          const result = document.getElementById("communityValidateResult");
-          try {
-            const resp = await fetch("/api/community/rebuild", { headers: { Authorization: `Bearer ${sessionToken}` } });
-            const data = await resp.json();
-            result.textContent = resp.ok ? `Rebuilt from ${data.reports} reports (${data.targets} trees on the overlay).` : `Failed (${resp.status})`;
-          } catch (error) {
-            result.textContent = "Could not rebuild.";
-          }
-          rebuildBtn.disabled = false;
-        });
-      }
-      const validateBtn = document.getElementById("communityValidateBtn");
-      if (validateBtn) {
-        validateBtn.addEventListener("click", async () => {
-          validateBtn.disabled = true;
-          const result = document.getElementById("communityValidateResult");
-          try {
-            const resp = await fetch("/api/community/validate", { headers: { Authorization: `Bearer ${sessionToken}` } });
-            const data = await resp.json();
-            result.textContent = resp.ok
-              ? `Register checked: ${data.registerChecked ? "yes" : "no"}${data.baseline ? " (baseline recorded)" : ""}. New register rewards: ${data.newRegisterRewards}. Issue rewards: ${data.issueRewards}.${data.issueError ? " GitHub: " + data.issueError : ""}`
-              : `Failed (${resp.status})`;
-          } catch (error) {
-            result.textContent = "Could not run the check.";
-          }
-          validateBtn.disabled = false;
-        });
+      const html = renderCommunityStats(await loadCommunityStats(sessionToken));
+      if (token !== communityToken || sid !== sessionId) return;
+      communityStatus.textContent = "";
+      communityBody.innerHTML = html;
+      document.getElementById("communityRebuildBtn").addEventListener("click", () => runCommunityAction({
+        buttonId: "communityRebuildBtn",
+        name: "Rebuild",
+        progress: "Rebuilding…",
+        url: "/api/community/rebuild",
+        failure: "Could not rebuild the snapshot",
+        success: (data) => `Rebuilt from ${data.reports} reports (${data.targets} trees on the overlay).`,
+        refreshFigures: true,
+      }));
+      document.getElementById("communityValidateBtn").addEventListener("click", () => runCommunityAction({
+        buttonId: "communityValidateBtn",
+        name: "Reward check",
+        progress: "Checking rewards…",
+        url: "/api/community/validate",
+        failure: "Could not run the reward check",
+        success: rewardCheckText,
+      }));
+      if (communityAction) setCommunityBusy(true, communityAction.progress);
+      else if (communityResultStash) {
+        document.getElementById("communityValidateResult").textContent = communityResultStash;
+        communityResultStash = "";
       }
     } catch (error) {
-      communityBody.textContent = `Could not load community stats (${error.message}).`;
+      if (token !== communityToken || sid !== sessionId) return;
+      if (error.status === 401) {
+        forgetSession("Admin session expired. Sign in again.");
+        return;
+      }
+      communityBody.textContent = "";
+      communityStatus.textContent = error.status ? `Could not load community stats (${error.status}).` : "Could not load community stats. Check your connection.";
+      communityRetry.hidden = false;
     }
-  });
-  document.getElementById("adminCommunityClose").addEventListener("click", () => { communityPanel.hidden = true; });
+  }
 
-  // Early-access list: who sees the gated Community features. Stored server-side, so no deploy to change it.
-  const accessPanel = document.getElementById("adminAccess");
-  const accessList = document.getElementById("adminAccessList");
-  const accessStatus = document.getElementById("adminAccessStatus");
-  document.getElementById("accessBtn").addEventListener("click", async () => {
-    accessPanel.hidden = false;
-    accessStatus.textContent = "Loading…";
+  // Rebuild and the reward check: say what is running, keep both buttons off meanwhile, prefix the result with the action,
+  // and after a rebuild refresh the figures in place (the buttons and the result line are not replaced, so focus stays put).
+  // The result line is written once, when everything is done, so a screen reader reads it once.
+  async function runCommunityAction({ buttonId, name, progress, url, failure, success, refreshFigures }) {
+    if (communityAction) return;
+    const sid = sessionId;
+    const action = { progress };
+    communityAction = action;
+    setCommunityBusy(true, progress);
+    let ok = false;
+    let text;
+    try {
+      const resp = await fetch(url, { headers: { Authorization: `Bearer ${sessionToken}` } });
+      if (sid !== sessionId) return;
+      if (resp.status === 401) {
+        forgetSession("Admin session expired. Sign in again.");
+        return;
+      }
+      if (resp.ok) {
+        text = `${name}: ${success(await resp.json())}`;
+        ok = true;
+      } else {
+        text = `${name}: ${failure} (${resp.status}). Try again.`;
+      }
+    } catch (error) {
+      if (sid !== sessionId) return;
+      text = `${name}: ${failure}. Check your connection and try again.`;
+    }
+    if (ok && refreshFigures) {
+      try {
+        const stats = await loadCommunityStats(sessionToken);
+        if (sid !== sessionId) return;
+        const figures = document.getElementById("communityFigures");
+        if (figures) figures.innerHTML = renderCommunityFigures(stats);
+      } catch (error) {
+        if (sid !== sessionId) return;
+        if (error.status === 401) {
+          forgetSession("Admin session expired. Sign in again.");
+          return;
+        }
+        text += " The figures below could not be refreshed.";
+      }
+    }
+    if (communityAction === action) communityAction = null;
+    if (!setCommunityBusy(false, text)) communityResultStash = text;
+    const button = document.getElementById(buttonId);
+    const active = document.activeElement;
+    if (button && (!active || active === document.body || active === button)) button.focus();
+  }
+
+  communityBtn.addEventListener("click", () => {
+    leaveNavigationForMap();
+    closeOverlayPanels("community");
+    communityPanel.hidden = false;
+    syncPanelButtons();
+    communityClose.focus();
+    loadCommunity();
+  });
+  communityRetry.addEventListener("click", () => {
+    communityClose.focus();
+    loadCommunity();
+  });
+  communityClose.addEventListener("click", () => closeOverlay("community"));
+
+  // ---- Early-access list: who sees the gated Community features. Stored server-side, so no deploy to change it. ----
+  // The list is only editable once it has loaded: saving after a failed load would send an empty list and switch the gate off for everyone.
+  // Escape on unsaved text is a two-step: the first press only warns. The warning stays armed (no timeout) until the admin types or the panel is hidden.
+  let accessLoaded = false;
+  let accessBaseline = "";
+  let accessEscArmed = false;
+  let accessNotice = false; // the status line shows an "unsaved changes" note, which typing clears
+  let accessSaving = false;
+  let accessToken = 0;
+  const accessText = (entries) => entries.map((e) => `${e.id}${e.note ? ` ${e.note}` : ""}`).join("\n");
+  const accessDirty = () => accessLoaded && accessList.value !== accessBaseline;
+  OVERLAY_PANELS.access.onClose = () => { accessEscArmed = false; };
+
+  function sayAccess(text, notice = false) {
+    accessStatus.textContent = text;
+    accessNotice = notice;
+  }
+
+  function setAccessEditable(editable) {
+    accessList.disabled = !editable;
+    accessSave.disabled = !editable;
+  }
+
+  function resetAccessPanel() {
+    accessToken++;
+    accessLoaded = false;
+    accessSaving = false;
+    accessEscArmed = false;
+    accessBaseline = "";
+    accessList.value = "";
+    sayAccess("");
+    accessRetry.hidden = true;
+    setAccessEditable(false);
+  }
+
+  // A failed request is told in plain words: no connection, or the server's status. Never the browser's own text.
+  function accessProblem(error, what, retryAdvice) {
+    return error.status
+      ? `Could not ${what} (${error.status}). Try again.`
+      : `Could not ${retryAdvice}. Check your connection and try again.`;
+  }
+
+  async function loadAccess() {
+    const token = ++accessToken;
+    const sid = sessionId;
+    accessLoaded = false;
+    accessEscArmed = false;
+    accessRetry.hidden = true;
+    setAccessEditable(false);
+    sayAccess("Loading…");
     try {
       const resp = await fetch("/api/features?admin=1", { headers: { Authorization: `Bearer ${sessionToken}` } });
-      if (!resp.ok) throw new Error(resp.status);
+      if (token !== accessToken || sid !== sessionId) return;
+      if (resp.status === 401) {
+        forgetSession("Admin session expired. Sign in again.");
+        return;
+      }
+      if (!resp.ok) throw Object.assign(new Error("http"), { status: resp.status });
       const data = await resp.json();
-      accessList.value = (data.community || []).map((e) => `${e.id}${e.note ? ` ${e.note}` : ""}`).join("\n");
-      accessStatus.textContent = "";
+      if (token !== accessToken || sid !== sessionId) return;
+      accessList.value = accessText(data.community || []);
+      accessBaseline = accessList.value;
+      accessLoaded = true;
+      setAccessEditable(true);
+      sayAccess("");
     } catch (error) {
-      accessStatus.textContent = `Could not load (${error.message}).`;
+      if (token !== accessToken || sid !== sessionId) return;
+      accessList.value = "";
+      sayAccess(accessProblem(error, "load the list", "load the list"));
+      accessRetry.hidden = false;
     }
+  }
+
+  document.getElementById("accessBtn").addEventListener("click", () => {
+    leaveNavigationForMap();
+    const wasOpen = !accessPanel.hidden;
+    closeOverlayPanels("access");
+    accessPanel.hidden = false;
+    syncPanelButtons();
+    if (accessDirty() || accessSaving) {
+      // Never overwrite what is typed: just bring the panel (and the cursor) back.
+      if (!wasOpen) {
+        accessEscArmed = false;
+        if (accessDirty()) sayAccess("Unsaved changes kept — Save, or press Esc twice to discard.", true);
+      }
+      (wasOpen ? accessList : accessClose).focus();
+      return;
+    }
+    accessClose.focus();
+    loadAccess();
   });
-  document.getElementById("adminAccessSave").addEventListener("click", async () => {
-    const community = accessList.value.split("\n").map((line) => line.trim()).filter(Boolean).map((line) => {
+  accessRetry.addEventListener("click", () => {
+    accessClose.focus();
+    loadAccess();
+  });
+  accessList.addEventListener("input", () => {
+    accessEscArmed = false;
+    if (accessNotice) sayAccess("");
+  });
+  accessSave.addEventListener("click", async () => {
+    if (!accessLoaded || accessSaving) return;
+    const lines = accessList.value.split("\n").map((line) => line.trim()).filter(Boolean);
+    const community = lines.map((line) => {
       const [id, ...rest] = line.split(/\s+/);
       return { id, note: rest.join(" ") };
     });
-    accessStatus.textContent = "Saving…";
+    const sid = sessionId;
+    accessSaving = true;
+    accessEscArmed = false;
+    setAccessEditable(false);
+    sayAccess("Saving…");
     try {
       const resp = await fetch("/api/features", { method: "POST", headers: { Authorization: `Bearer ${sessionToken}`, "Content-Type": "application/json" }, body: JSON.stringify({ community }) });
-      if (!resp.ok) throw new Error(resp.status);
+      if (sid !== sessionId) return;
+      if (resp.status === 401) {
+        forgetSession("Admin session expired. Sign in again.");
+        return;
+      }
+      if (!resp.ok) throw Object.assign(new Error("http"), { status: resp.status });
       const saved = await resp.json();
-      accessList.value = saved.community.map((e) => `${e.id}${e.note ? ` ${e.note}` : ""}`).join("\n");
-      accessStatus.textContent = `Saved ${saved.community.length} tester${saved.community.length === 1 ? "" : "s"}. Lines that are not a 10-character ID were dropped.`;
+      if (sid !== sessionId) return;
+      accessList.value = accessText(saved.community);
+      accessBaseline = accessList.value;
+      const dropped = lines.length - saved.community.length;
+      const droppedText = dropped > 0
+        ? ` ${dropped} line${dropped === 1 ? " was not a valid tester ID" : "s were not valid tester IDs"} (10 characters, 0-9 and a-f) or ${dropped === 1 ? "was" : "were"} repeated, and ${dropped === 1 ? "was" : "were"} dropped.`
+        : "";
+      sayAccess(`Saved ${saved.community.length} tester${saved.community.length === 1 ? "" : "s"}.${droppedText}`);
     } catch (error) {
-      accessStatus.textContent = `Could not save (${error.message}).`;
+      if (sid !== sessionId) return;
+      sayAccess(accessProblem(error, "save", "save"));
     }
+    accessSaving = false;
+    setAccessEditable(true);
+    if (!document.activeElement || document.activeElement === document.body) accessSave.focus();
   });
-  document.getElementById("adminAccessClose").addEventListener("click", () => { accessPanel.hidden = true; });
+  accessClose.addEventListener("click", () => {
+    // The cross keeps any unsaved text (reopening restores it); only a second Escape discards.
+    closeOverlay("access");
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || adminApp.hidden) return;
+    if (!accessPanel.hidden && accessDirty()) {
+      if (!accessEscArmed) {
+        accessEscArmed = true;
+        sayAccess("Unsaved changes — Save or press Esc again to discard.", true);
+        return;
+      }
+      accessList.value = accessBaseline;
+      accessEscArmed = false;
+      sayAccess("");
+    }
+    closeOverlayPanels();
+  });
 
   tracksBtn.addEventListener("click", () => showMapView("tracks"));
 
-  refreshBtn.addEventListener("click", async () => {
-    refreshBtn.disabled = true;
+  // Refresh and the 5-minute auto-refresh share this: a failure leaves the data on screen and says so (a 401 still signs out).
+  // A repeated failure adds the time of the latest attempt and is announced again.
+  async function refreshData() {
+    const sid = sessionId;
+    setRefreshing(true);
     try {
-      allData = await loadData(sessionToken);
+      const data = await loadData(sessionToken);
+      if (sid !== sessionId) return;
+      allData = data;
+      lastLoadedAt = new Date();
+      setRefreshNote("");
       buildUserList();
       updateStats();
       refreshClickDetails();
       render();
     } catch (err) {
-      if (err.message === "wrong-password") forgetSession("Admin session expired. Sign in again.");
+      if (sid !== sessionId) return;
+      if (err.message === "wrong-password") {
+        forgetSession("Admin session expired. Sign in again.");
+      } else {
+        const again = refreshStatus.textContent.startsWith("Could not refresh");
+        const base = `Could not refresh — showing data from ${clockText(lastLoadedAt || new Date())}.`;
+        setRefreshNote(again ? `${base} Tried again at ${clockText(new Date())}.` : base, again);
+      }
+    } finally {
+      // A late answer from a signed-out session must not touch the new session's button (forgetSession already reset it).
+      if (sid === sessionId) setRefreshing(false);
     }
-    refreshBtn.disabled = false;
-  });
+  }
+  refreshBtn.addEventListener("click", refreshData);
 
   if (logoutBtn) {
     logoutBtn.addEventListener("click", () => {
@@ -1839,15 +2320,10 @@ async function adminBoot() {
     clickDetailsClose.addEventListener("click", hideClickDetails);
   }
 
-  window.addEventListener("resize", () => { invalidateMapFit(); render(); });
+  window.addEventListener("resize", () => { invalidateMapFit(); syncSheetInset(); refreshScrollCues(); render(); });
 
   // Auto-refresh every 5 minutes
-  setInterval(async () => {
-    if (!sessionToken) return;
-    try { allData = await loadData(sessionToken); buildUserList(); updateStats(); refreshClickDetails(); render(); } catch (err) {
-      if (err.message === "wrong-password") forgetSession("Admin session expired. Sign in again.");
-    }
-  }, 5 * 60 * 1000);
+  setInterval(() => { if (sessionToken) refreshData(); }, 5 * 60 * 1000);
 }
 
 document.addEventListener("DOMContentLoaded", adminBoot);

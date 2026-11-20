@@ -89,6 +89,11 @@ Run reviews and tests concurrently on a frozen head only when CPU capacity allow
 invalidate affected evidence. CI-to-CI test ID/project/error comparison is required before declaring
 failures pre-existing; a passing retry proves only intermittency. Preserve first-run failures.
 
+Follow the flaky-test policy in `docs/agents/testing.md` ("Flaky tests"): record the first failure,
+compare CI-to-CI, rerun only the failed jobs at most once per head, file or update one deduplicated
+`Flaky test: <spec>:<line> <title>` issue, and repair repeat or PR-blocking flakes in a repair batch
+(never skip, quarantine, loosen, raise timeouts or add retries).
+
 ## 5. One push and PR per reviewed batch
 
 Once the batch is implemented and applicable local checks pass, push from the lead and open one
@@ -101,13 +106,46 @@ Every batch turn ends with the lead evaluating the ready gate and recording exac
 (a) gate satisfied: mark the PR ready (`update_pull_request` with `draft: false`); or (b) gate open:
 post or update a short PR comment (or description line) naming the blocker or waiting state (for
 example "open finding X", "CI pending on <sha>", "CI failed <job>") and leave the PR draft. Never
-leave a PR draft with no stated reason.
+leave a PR draft with no stated reason. A waiting state must also name the next action and its owner.
+The lead may not end its session on "CI pending" unless it stays subscribed and handles the
+completion event, or records a hand-off to the section 7 sweep that is actually scheduled, naming where
+(scheduled task id or loop). If no sweep is scheduled, stay in the session or comment "no sweep
+scheduled; needs human follow-up". An all-green draft with no recorded outcome is not a valid end state.
 
 The ready gate is the local gate plus draft-run CI: no open blockers/majors from local reviewers on
 the aggregate head, required local verification complete, and every CI job that runs on drafts (unit,
 E2E, visual, builds, Netlify) green on the exact head. `Claude PR review` and `Inspect final PR head`
 skip on drafts, so they are not required before marking ready; marking ready triggers them. Never
 mark ready while local reviews, local verification or draft-run CI are open.
+
+**Green** (defined here once) means the latest attempt of every required draft-run job on the exact
+current head SHA is `success`, and, if an earlier attempt of that job failed or was cancelled, the PR
+records the earlier run URL and the rerun result. If a test failed, the record must also carry the
+first-failure signature, the `Flaky test:` issue link and the lead's dependency reason why the failing
+test cannot be affected by this change. For a cancellation with no failing test the run URL and rerun
+result suffice and no flake issue is filed. Without the record the job stays open even if the rerun
+passed; no human waiver is needed. A second failure on the head is a regression until proven
+otherwise; a repeated cancellation is a named blocker (suspected infrastructure) for the lead to
+investigate. A job whose latest attempt is `cancelled`, `timed_out`, `skipped` (other than the two
+final-head jobs on a draft), `neutral` where a result is required, or a MISSING job all count as open.
+A visual-snapshot warning is a separate decision (see `docs/agents/testing.md`), not a red job.
+
+No CI on the head (only Netlify ran): use `actions_list` for runs on that head SHA. If a run is
+queued, waiting or action_required, name that as the blocker. If a run on that SHA is cancelled or
+failed, rerun it with `actions_run_trigger` (rerun or rerun-failed-jobs). If no run exists, record
+"no CI on <sha>", name the trigger as the blocker and ask a human. Never push an empty commit and
+never rerun a run for a different SHA.
+
+Before marking ready, reconcile the PR description with the CI "Visual review" block: if the
+description says no baselines or visuals changed but the block lists changed screenshots, fix the
+description or name the unexplained diff as a blocker.
+
+Before marking ready, compare the head's base SHA with current `main`. If behind, record it and
+decide explicitly: update the branch or state why the existing CI evidence still applies. Never skip
+silently. `update_pull_request_branch` is merge-based only (never rebase or force-push), counts as the
+batch's repair push and moves the head, so rerun affected local review/verification on the new head
+before marking ready, or state why existing evidence still applies. A merge conflict goes to the lead
+as a repair batch. Only the lead calls it; the sweep and steward never do.
 
 After marking ready, enter the named state "awaiting final-head PR review" and treat that review as
 the independent check. If it reports blockers/majors, run a repair round and keep pushing repairs.
@@ -126,9 +164,19 @@ refused, build the same snapshot from GitHub MCP reads: `pull_request_read` `get
 and base SHA, `mergeable_state`), `get_check_runs` on the head SHA, `get_reviews`, `get_comments`, and
 `get_review_comments` for unresolved threads. Compare it with the previous head and results to detect
 deltas. Subscribe to events with `subscribe_pr_activity` and record that the subscription is in place;
-otherwise use bounded platform waits and state that limitation. Dispatch `pr-steward` only for
-actionable changes. Fetch full logs only for failures; unchanged pending CI or waiting human approval
-does not need a new LLM review.
+otherwise use bounded platform waits and state that limitation. Dispatch `pr-steward` only for an
+actionable change:
+
+- a failed, cancelled, timed-out or missing required check on the current head;
+- a head with no CI (only Netlify ran);
+- new unresolved review threads or human comments;
+- a conflict (`mergeable_state` dirty), or `behind` with no base-staleness decision recorded on the
+  PR (`unstable` alone is ordinary pending CI; a completed failing check is the first bullet);
+- a draft that is all-green with no recorded outcome;
+- a ready PR whose final-head review has not run.
+
+Unchanged pending CI or waiting human approval stays non-actionable. Fetch full logs only for
+failures; unchanged states do not need a new LLM review.
 
 The steward is the single post-push repair coordinator. It batches validated findings and routes
 fixes, including conflicts and small human asks, back through local review/test gates. Resolve bot
@@ -140,3 +188,25 @@ acceptance and preview link with `nuke=true`. Separate CI, unresolved findings a
 Do not claim completion while any required gate remains open (including "awaiting final-head PR
 review" or open final-head findings); give a named waiting/blocker state and record it on the PR.
 Never edit cache markers, screenshot baselines, disable tests or put place facts into specs.
+
+## 7. Open-PR sweep
+
+A periodic pass (scheduled task or `/loop`) over every open PR, so a PR whose lead session ended is
+still followed up. Per PR collect: head SHA, draft state, check runs on that SHA, the last PR comment
+recording an outcome, and base staleness against current `main`. Classify:
+
+- satisfied: the PR carries a lead outcome comment naming the CURRENT head SHA that records local
+  review and verification complete with no open findings and the PR description reconciled with the
+  Visual review block, draft-run CI is green (section 5) on that head, and base staleness is recorded
+  and decided (or the base is current). An outcome naming an older SHA does not count. `actionable`
+  takes precedence if both classes match. The sweep may mark ready (`update_pull_request`
+  `draft: false`) and records it;
+- waiting: a valid named waiting state with next action/owner, no action;
+- actionable (any section 6 trigger, a stale base with no recorded decision, or no recorded lead
+  outcome): dispatch `pr-steward` and comment naming the owner and next action (for a missing
+  outcome, "needs a lead session to resume"). Repairs still go through the lead's gates.
+
+The sweep may only read, comment and mark ready as above. It never pushes, approves, merges, rebases,
+force-pushes, calls `update_pull_request_branch`, resolves human threads or changes the branch.
+It uses the same MCP reads as section 6, fetches logs only for failures, and spends no LLM turn on a
+PR whose snapshot is unchanged since the last sweep.

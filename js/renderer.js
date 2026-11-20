@@ -2251,7 +2251,7 @@ function groupFootprintPoints(items, toFlat, project, padding) {
     }
   }
   const projected = footprintConvexHull(padded).map(project);
-  if (projected.length < 3 || projected.some(p => !p || p.clipped)) return null;
+  if (projected.length < 3 || projected.some(p => !p)) return null;
   return projected;
 }
 
