@@ -170,7 +170,8 @@ actionable change:
 - a failed, cancelled, timed-out or missing required check on the current head;
 - a head with no CI (only Netlify ran);
 - new unresolved review threads or human comments;
-- a conflict, or `mergeable_state` dirty, behind or unstable;
+- a conflict (`mergeable_state` dirty), or `behind` with no base-staleness decision recorded on the
+  PR (`unstable` alone is ordinary pending CI; a completed failing check is the first bullet);
 - a draft that is all-green with no recorded outcome;
 - a ready PR whose final-head review has not run.
 
@@ -196,8 +197,10 @@ recording an outcome, and base staleness against current `main`. Classify:
 
 - satisfied: the PR carries a lead outcome comment naming the CURRENT head SHA that records local
   review and verification complete with no open findings and the PR description reconciled with the
-  Visual review block, and draft-run CI is green (section 5) on that head. An outcome naming an older
-  SHA does not count. The sweep may mark ready (`update_pull_request` `draft: false`) and records it;
+  Visual review block, draft-run CI is green (section 5) on that head, and base staleness is recorded
+  and decided (or the base is current). An outcome naming an older SHA does not count. `actionable`
+  takes precedence if both classes match. The sweep may mark ready (`update_pull_request`
+  `draft: false`) and records it;
 - waiting: a valid named waiting state with next action/owner, no action;
 - actionable (any section 6 trigger, a stale base with no recorded decision, or no recorded lead
   outcome): dispatch `pr-steward` and comment naming the owner and next action (for a missing
