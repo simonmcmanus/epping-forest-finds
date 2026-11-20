@@ -24,6 +24,31 @@ test.describe("Loading experience", () => {
     releasePlaces();
   });
 
+  test("inline loading overlay never paints the version badge over the Nearby panel", async ({ page }) => {
+    let releasePlaces;
+    const placesReleased = new Promise((resolve) => { releasePlaces = resolve; });
+    await page.route("**/data/local-landmarks-food.geojson", async (route) => {
+      await placesReleased;
+      await route.continue();
+    });
+    await page.goto("/nearby");
+    await expect(page.locator("#loadingOverlay")).toHaveClass(/inline/);
+    await expect(page.locator("#loadingOverlay")).toBeVisible();
+    // Give the badge a value as the service worker would, so it cannot hide by being empty.
+    await page.evaluate(() => { document.getElementById("sw-version").textContent = "v120"; });
+    await expect(page.locator("#inspector")).toBeVisible();
+    // Off-screen counts as not shown: the badge must not overlap anything in the viewport.
+    const overlap = await page.evaluate(() => {
+      const badge = document.getElementById("sw-version").getBoundingClientRect();
+      const inspector = document.getElementById("inspector").getBoundingClientRect();
+      return badge.right > inspector.left && badge.left < inspector.right
+        && badge.bottom > inspector.top && badge.top < inspector.bottom
+        && badge.right > 0 && badge.bottom > 0;
+    });
+    expect(overlap).toBe(false);
+    releasePlaces();
+  });
+
   test("allows browser zoom: the viewport does not disable pinch-zoom, and the map keeps its own touch gestures", async ({ page }) => {
     await page.goto("/nearby");
     const viewport = page.locator('meta[name="viewport"]');

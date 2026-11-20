@@ -54,10 +54,13 @@
 
 .loading-overlay.inline .loading-brand,
 .loading-overlay.inline .loading-intro,
-.loading-overlay.inline .loading-steps {
+.loading-overlay.inline .loading-steps,
+.loading-overlay.inline .version {
   position: absolute;
   left: -9999px;
   top: -9999px;
+  right: auto;
+  bottom: auto;
 }
 
 .loading-overlay.inline .loading-progress {
