@@ -12,7 +12,8 @@ in the main session. Only skip it for read-only questions.
   The lead dispatches, reviews, pushes once and opens one PR. Agents never approve, merge, arm
   auto-merge or force-push. The CI reviewer APPROVEs a clean head and otherwise REQUEST_CHANGES. Auto-merge
   is armed only when the same head has both a human approval and the agent approval
-  (`.github/workflows/auto-merge.yml`); merge happens once checks pass.
+  (`.github/workflows/auto-merge.yml`); merge happens once checks pass. If the PR is already mergeable,
+  the workflow merges it directly under the same both-approval conditions.
 - Place facts are corrected in `data/**`, never documented in a spec.
 - CI owns `js/app-cache-version.js`, `js/data-cache-version.js` and screenshot baselines. Never edit them.
 - Tests assert user-visible behaviour, never source text. Prove a regression test fails before the fix.
