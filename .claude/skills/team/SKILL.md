@@ -93,10 +93,27 @@ failures pre-existing; a passing retry proves only intermittency. Preserve first
 
 Once the batch is implemented and applicable local checks pass, push from the lead and open one
 draft PR by default so the preview deploys. Do not push partial items just to get CI. Keep pushing
-repairs to that draft (each round batched into one push). Mark it ready for review only after the
-aggregate clean head has no open blockers/majors and required verification is complete; never
-leave it ready while the gate is open. Include one consolidated verification report and
-representative preview flow. CI must still finish on its exact current head. Never rebase, amend, force-push, approve or merge the PR.
+repairs to that draft (each round batched into one push). Include one consolidated verification
+report and representative preview flow. CI must still finish on its exact current head. Never
+rebase, amend, force-push, approve or merge the PR.
+
+Every batch turn ends with the lead evaluating the ready gate and recording exactly one outcome:
+(a) gate satisfied: mark the PR ready (`update_pull_request` with `draft: false`); or (b) gate open:
+post or update a short PR comment (or description line) naming the blocker or waiting state (for
+example "open finding X", "CI pending on <sha>", "CI failed <job>") and leave the PR draft. Never
+leave a PR draft with no stated reason.
+
+The ready gate is the local gate plus draft-run CI: no open blockers/majors from local reviewers on
+the aggregate head, required local verification complete, and every CI job that runs on drafts (unit,
+E2E, visual, builds, Netlify) green on the exact head. `Claude PR review` and `Inspect final PR head`
+skip on drafts, so they are not required before marking ready; marking ready triggers them. Never
+mark ready while local reviews, local verification or draft-run CI are open.
+
+After marking ready, enter the named state "awaiting final-head PR review" and treat that review as
+the independent check. If it reports blockers/majors, run a repair round and keep pushing repairs.
+Re-draft is not available through the GitHub MCP tools in cloud sessions, so a PR that is already
+ready stays ready during repair rounds; report the open findings as the named blocker. Do not claim
+completion until the final-head review is green on the current head; human approval is separate.
 
 Keep the lightweight GitHub PR reviewer as an independent final-head correctness/security/evidence
 check. It does not repeat local specialist fan-out or replace human approval.
@@ -120,5 +137,6 @@ complete and required CI is green. Do not resolve a human thread without their a
 
 Report batch branch/worktree, current head, selected verdicts, verification counts/run URLs, visual
 acceptance and preview link with `nuke=true`. Separate CI, unresolved findings and human approval.
-Do not claim completion while any required gate remains open; give a named waiting/blocker state.
+Do not claim completion while any required gate remains open (including "awaiting final-head PR
+review" or open final-head findings); give a named waiting/blocker state and record it on the PR.
 Never edit cache markers, screenshot baselines, disable tests or put place facts into specs.

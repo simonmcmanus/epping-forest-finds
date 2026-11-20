@@ -2205,9 +2205,6 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main", tilted = false) {
 
 // The dark green of a group's count chip; group footprints reuse it at low opacity.
 const MARKER_COUNT_CHIP_COLOR = "#233d30";
-// A group draws a footprint only when another group's seed is within this many collision-box
-// widths of its own on screen.
-const FOOTPRINT_NEIGHBOUR_BOX_WIDTHS = 2.5;
 // How far a footprint extends beyond its members' hull (ground plane, CSS px), with rounded corners.
 const FOOTPRINT_PADDING_CSS_PX = 6;
 const FOOTPRINT_FILL_ALPHA = 0.11;
@@ -2258,44 +2255,17 @@ function groupFootprintPoints(items, toFlat, project, padding) {
   return projected;
 }
 
-// Which group markers draw a footprint, and its outline: [{ marker, points }]. Only a group
-// (more than one item) with another group's seed within FOOTPRINT_NEIGHBOUR_BOX_WIDTHS collision
-// boxes on screen qualifies, so an isolated group and every lone pin draw none. Neighbours come
-// from a grid of that distance (3x3 cells), never all pairs; hulls are built for qualifiers only.
-// `only` optionally limits which markers get an outline (neighbours still count).
+// Which group markers draw a footprint, and its outline: [{ marker, points }]. Every group (more
+// than one item) with a valid hull qualifies, whatever its neighbours on screen; lone pins draw
+// none. `only` optionally limits which markers get an outline, so hulls are built only for groups
+// that will paint.
 function markerFootprints(markers, toFlat, project = p => p, only = null) {
-  const dpr = pixelRatio();
-  const reach = markerCollisionBox(dpr).width * FOOTPRINT_NEIGHBOUR_BOX_WIDTHS;
-  const grid = new Map();
-  const groups = [];
+  const padding = FOOTPRINT_PADDING_CSS_PX * pixelRatio();
+  const result = [];
   for (const marker of markers) {
     if (marker.items.length < 2) continue;
-    groups.push(marker);
-    const key = Math.floor(marker.screenPt.x / reach) * 4194304 + Math.floor(marker.screenPt.y / reach);
-    const bucket = grid.get(key);
-    if (bucket) bucket.push(marker);
-    else grid.set(key, [marker]);
-  }
-  const result = [];
-  if (groups.length < 2) return result;
-  for (const marker of groups) {
     if (only && !only.has(marker)) continue;
-    const cx = Math.floor(marker.screenPt.x / reach), cy = Math.floor(marker.screenPt.y / reach);
-    let near = false;
-    for (let dx = -1; dx <= 1 && !near; dx++) {
-      for (let dy = -1; dy <= 1 && !near; dy++) {
-        const bucket = grid.get((cx + dx) * 4194304 + cy + dy);
-        if (!bucket) continue;
-        for (const other of bucket) {
-          if (other !== marker && Math.hypot(other.screenPt.x - marker.screenPt.x, other.screenPt.y - marker.screenPt.y) <= reach) {
-            near = true;
-            break;
-          }
-        }
-      }
-    }
-    if (!near) continue;
-    const points = groupFootprintPoints(marker.items, toFlat, project, FOOTPRINT_PADDING_CSS_PX * dpr);
+    const points = groupFootprintPoints(marker.items, toFlat, project, padding);
     if (points) result.push({ marker, points });
   }
   return result;
