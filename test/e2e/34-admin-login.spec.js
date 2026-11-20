@@ -32,7 +32,8 @@ test.describe("Admin login", () => {
     await page.goto("/admin");
     await page.getByLabel("Admin password").fill(password);
     await page.click("#loginBtn");
-    await expect(page.locator("#adminApp")).toBeVisible();
+    await expect(page.locator("#loginScreen")).toBeHidden();
+    await expect(page.locator("#adminStats")).toContainText("location pings");
 
     const storage = await page.evaluate(() => JSON.stringify({
       session: Object.entries(sessionStorage),
@@ -47,7 +48,10 @@ test.describe("Admin login", () => {
     await page.goto("/admin");
     await page.getByLabel("Admin password").fill(password);
     await page.click("#loginBtn");
-    await expect(page.locator("#adminApp")).toBeVisible();
+    // #adminApp counts as visible even while the login screen covers it, so wait for the sign-in to have finished
+    // (login screen gone, data shown); only then has the session been kept for a reload to find.
+    await expect(page.locator("#loginScreen")).toBeHidden();
+    await expect(page.locator("#adminStats")).toContainText("location pings");
   }
 
   test("a reload keeps the admin signed in without asking for the password", async ({ page }) => {
