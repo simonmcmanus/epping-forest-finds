@@ -171,8 +171,8 @@ so. Never claim completion while required checks, actionable findings or human a
   establishes intermittency, not that the PR is innocent.
 - "Green" CI, waiting-state ownership, the no-CI rule, description/visual reconciliation and base
   staleness are defined once in `.claude/skills/team/SKILL.md` section 5.
-- A periodic open-PR sweep follows up PRs whose lead session ended; it only reads, comments and marks
-  ready, never pushes, approves or merges. See `.claude/skills/team/SKILL.md` section 7.
+- A periodic open-PR sweep follows up PRs whose lead session ended; it only reads, edits the sticky
+  `<!-- ready-gate -->` comment in place and marks ready, never pushes, approves or merges. See `.claude/skills/team/SKILL.md` section 7.
 - Flaky tests: preserve the first failure, rerun failed jobs once per head, file one deduplicated
   issue per test and repair flakes; never skip, quarantine or loosen. See `docs/agents/testing.md`
   "Flaky tests".
