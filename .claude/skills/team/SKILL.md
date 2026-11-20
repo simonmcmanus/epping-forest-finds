@@ -119,11 +119,13 @@ head. The two review jobs run on drafts on every push, so the final-head review 
 not a post-ready step. Never mark ready while local reviews, local verification or draft-run CI are open.
 
 "Ready" therefore means the local gate plus all draft-run CI green on the exact head; human approval
-is separate and is what arms auto-merge (`.github/workflows/auto-merge.yml`, which also needs the
+is separate and is what arms auto-merge (`.github/workflows/auto-merge.yml`, which arms auto-merge or merges directly if already mergeable, and also needs the
 agent's APPROVE on that head). Agents (lead, steward, sweep, implementers) never approve, merge or arm
 auto-merge. The sweep marking a PR ready can lead to auto-merge only after a human has approved.
 Caveat: PRs opened through the owner's account cannot be approved by that same account (GitHub forbids
-self-approval), so a human approval may be impossible on them.
+self-approval), so a human approval may be impossible on them. When the PR is authored by the
+approver's own account, record in the sticky ready-gate comment (and the sweep in its outcome) the
+blocker "awaiting human approval from a different account" rather than treating the gate as stuck.
 
 **Ready gate comment.** The lead keeps one sticky PR comment starting with `<!-- ready-gate -->`.
 Create it once; every later turn find it by that marker (`pull_request_read` method `get_comments`; create it with

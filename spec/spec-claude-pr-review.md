@@ -83,12 +83,43 @@ Only verified addressed threads may then be resolved; a push alone is not proof.
 Human threads and decisions remain human-owned. Workflow/guidance/dependency
 changes go through the normal reviewed branch rather than an unattended bot fixer.
 
-`main` should require CI, **Claude PR review**, and human approval with stale
-approvals dismissed after a push. Workflow code cannot itself configure or prove
+`main` should require CI and two approving reviews (one person, one the
+**Claude PR review** agent APPROVE) with stale approvals dismissed after a push. Workflow code cannot itself configure or prove
 the repository's live branch protection. Same-repository workflow changes can
 change the workflow, so they require human review; no fork code receives these
 credentials. A setup or policy error is a reported blocker, never a reason to
 skip the current-head gate.
+
+## Auto-merge workflow
+
+`.github/workflows/auto-merge.yml` merges a PR once the current head has both
+approvals. It runs on `pull_request_review` (submitted), on `workflow_run` when
+CI completes, and on `pull_request_target` `ready_for_review` (so the
+default-branch copy runs; it never checks out PR code). Only same-repository,
+open, non-draft PRs whose head SHA still matches the event are considered.
+
+Conditions, all on the current head: a human `APPROVED` review whose
+`author_association` is OWNER, MEMBER or COLLABORATOR, and a `github-actions[bot]`
+`APPROVED` review carrying `CLAUDE_FINAL_REVIEW:<head>:<base>` with `<base>`
+equal to the PR's live base SHA. The latest review per reviewer wins, so a later
+change request or dismissal cancels an earlier approval.
+
+It first tries native auto-merge. GitHub rejects that when the PR is already
+mergeable (the usual case when the human approves last), so it then squash-merges
+directly with the same GitHub App token and `--match-head-commit`. "Already
+enabled" from a racing event counts as success. Branch protection still gates
+every merge. Agents never approve, arm or merge.
+
+Limitation: PRs opened through the owner's account cannot be approved by that
+account, so the human approval may be impossible; a different account must
+approve, or the PR is merged manually.
+
+Repository settings required (not enforced by the file): Allow auto-merge on;
+the `main` ruleset requiring two approvals, status checks and stale-approval
+dismissal; the GitHub App secrets `CACHE_VERSION_APP_ID` and
+`CACHE_VERSION_APP_PRIVATE_KEY`. CI's `pull_request` trigger deliberately
+omits `ready_for_review`: the review runs on drafts, so marking ready does not
+re-run the paid review.
 
 ## Specialist record on the PR
 
