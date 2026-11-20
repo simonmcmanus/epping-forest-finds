@@ -104,7 +104,7 @@ rebase, amend, force-push, approve or merge the PR.
 
 Every batch turn ends with the lead evaluating the ready gate and recording exactly one outcome:
 (a) gate satisfied: mark the PR ready (`update_pull_request` with `draft: false`); or (b) gate open:
-post or update a short PR comment (or description line) naming the blocker or waiting state (for
+update the sticky Ready gate comment (below) naming the single blocker or waiting state (for
 example "open finding X", "CI pending on <sha>", "CI failed <job>") and leave the PR draft. Never
 leave a PR draft with no stated reason. A waiting state must also name the next action and its owner.
 The lead may not end its session on "CI pending" unless it stays subscribed and handles the
@@ -117,6 +117,24 @@ the aggregate head, required local verification complete, and every CI job that 
 E2E, visual, builds, Netlify) green on the exact head. `Claude PR review` and `Inspect final PR head`
 skip on drafts, so they are not required before marking ready; marking ready triggers them. Never
 mark ready while local reviews, local verification or draft-run CI are open.
+
+**Ready gate comment.** The lead keeps one sticky PR comment starting with `<!-- ready-gate -->`.
+Create it once; every later turn find it by that marker (`get_comments`) and edit it in place with
+`update_issue_comment`, never a new comment per push. It is the recorded outcome in (b) and is also
+updated when the gate is satisfied. Content:
+
+- head SHA it describes;
+- checklist: each selected specialist with reviewed SHA vs current head; local verification; each
+  draft-run CI job on the exact head (green as defined below); unresolved threads; base staleness
+  decision; visual-review reconciliation;
+- the single named blocker with next action and owner (or "gate satisfied, marked ready");
+- note that `Claude PR review` and `Inspect final PR head` skip on drafts and run after ready
+  ("awaiting final-head PR review").
+
+The lead updates it at the end of every batch turn; the section 7 sweep reads it.
+
+PR body rule: any description you write or rewrite keeps the template's `Specialist review` table
+(updating status, reviewed SHA and verdict) and the preview-links block verbatim (see the `pr` skill).
 
 **Green** (defined here once) means the latest attempt of every required draft-run job on the exact
 current head SHA is `success`, and, if an earlier attempt of that job failed or was cancelled, the PR
@@ -192,8 +210,8 @@ Never edit cache markers, screenshot baselines, disable tests or put place facts
 ## 7. Open-PR sweep
 
 A periodic pass (scheduled task or `/loop`) over every open PR, so a PR whose lead session ended is
-still followed up. Per PR collect: head SHA, draft state, check runs on that SHA, the last PR comment
-recording an outcome, and base staleness against current `main`. Classify:
+still followed up. Per PR collect: head SHA, draft state, check runs on that SHA, the sticky `<!-- ready-gate -->`
+comment (the recorded outcome), and base staleness against current `main`. Classify:
 
 - satisfied: the PR carries a lead outcome comment naming the CURRENT head SHA that records local
   review and verification complete with no open findings and the PR description reconciled with the

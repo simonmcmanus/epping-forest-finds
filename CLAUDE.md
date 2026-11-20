@@ -14,7 +14,8 @@ in the main session. Only skip it for read-only questions.
 - CI owns `js/app-cache-version.js`, `js/data-cache-version.js` and screenshot baselines. Never edit them.
 - Tests assert user-visible behaviour, never source text. Prove a regression test fails before the fix.
 - Never report completion while required checks, findings or human approval remain outstanding.
-- Preserve the PR's preview-links block when rewriting a PR description.
+- Preserve the PR's preview-links block and the template's `Specialist review` table when rewriting a PR description.
+- Keep one sticky `<!-- ready-gate -->` PR comment, edited in place, naming the outstanding blocker (see `/team` section 5).
 - Push the PR as a draft as soon as the batch is implemented and committed, so the Netlify preview
   deploys and can be tried. Draft status skips the final-head CI review jobs; that is expected. Every
   batch turn ends by evaluating the /team gate: satisfied, mark ready; open, comment the named blocker
