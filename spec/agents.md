@@ -171,8 +171,8 @@ so. Never claim completion while required checks, actionable findings or human a
   establishes intermittency, not that the PR is innocent.
 - "Green" CI, waiting-state ownership, the no-CI rule, description/visual reconciliation and base
   staleness are defined once in `.claude/skills/team/SKILL.md` section 5.
-- A periodic open-PR sweep follows up PRs whose lead session ended; it only reads, comments and marks
-  ready, never pushes, approves or merges. See `.claude/skills/team/SKILL.md` section 7.
+- A periodic open-PR sweep follows up PRs whose lead session ended; it only reads, comments, files
+  deduplicated follow-up issues and marks ready, never pushes, approves or merges. See `.claude/skills/team/SKILL.md` section 7.
 - A PR's in-scope work is finished without prompting; follow-up work not specific to the request is
   filed as a deduplicated GitHub issue and linked from the PR. See `.claude/skills/team/SKILL.md`
   section 5a.

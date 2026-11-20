@@ -39,8 +39,8 @@ agents; report the next action to the lead. No agent should race a per-comment a
    finding with the reason; avoid repeated status commentary.
 5. Scope triage (`team/SKILL.md` section 5a): list every open in-scope item (valid findings of any
    severity, unchecked description or test-plan items, human asks) and separately every follow-up
-   not specific to the PR's request, each with evidence and a suggested issue title. Never leave an
-   in-scope item as "optional"; the lead repairs it. The lead files issues for follow-ups (you have
+   not specific to the PR's request, each with evidence and a suggested issue title. Never leave a valid
+   in-scope item as "optional"; the lead repairs it (invalid findings are declined per step 4). The lead files issues for follow-ups (you have
    no issue tools).
 6. Report current head, CI result/run URL/counts, new actions, named blockers and whether human
    approval is still required. If no action is possible, return one concise waiting state; the lead
