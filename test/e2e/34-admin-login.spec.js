@@ -593,6 +593,67 @@ test.describe("Admin login", () => {
     expect(await state()).toEqual(["true", "false", "false"]);
   });
 
+  test("Navigation is its own page: map controls, legend and stats are hidden, the hash is set, and the heading takes focus", async ({ page }) => {
+    await signInOnPhone(page);
+    await page.click("#communityBtn");
+    await expect(page.locator("#adminCommunity")).toBeVisible();
+    await page.click("#navigationBtn");
+    await expect(page.locator("#adminNavigation")).toBeVisible();
+    await expect(page).toHaveURL(/#navigation$/);
+    await expect(page.getByRole("heading", { name: "Navigation", level: 2 })).toBeFocused();
+    await expect(page.locator("#adminNavigationSub")).toContainText("Users");
+    for (const sel of [".admin-map-controls", ".admin-legend", "#adminStats", "#adminCanvas", "#adminCommunity", "#adminAccess", "#adminClickDetails"]) {
+      await expect(page.locator(sel), sel).toBeHidden();
+    }
+    await expect(page.locator("#communityBtn")).toHaveAttribute("aria-expanded", "false");
+    // The page sits beside the map's slot, not on top of the map controls.
+    const nav = await page.locator("#adminNavigation").boundingBox();
+    const side = await page.locator(".admin-sidebar").boundingBox();
+    expect(nav.y).toBeGreaterThanOrEqual(side.y + side.height - 1);
+  });
+
+  test("the Navigation page is restored by Back, Forward, and a reload after signing in again", async ({ page }) => {
+    await signInOnPhone(page);
+    await page.click("#heatmapBtn");
+    await expect(page).toHaveURL(/#heatmap$/);
+    await page.click("#navigationBtn");
+    await expect(page.locator("#adminNavigation")).toBeVisible();
+    await page.goBack();
+    await expect(page.locator("#adminNavigation")).toBeHidden();
+    await expect(page.locator("#heatmapBtn")).toHaveAttribute("aria-pressed", "true");
+    await expect(page.locator(".admin-map-controls")).toBeVisible();
+    await page.goForward();
+    await expect(page.locator("#adminNavigation")).toBeVisible();
+    await expect(page.locator("#navigationBtn")).toHaveAttribute("aria-pressed", "true");
+    await page.reload();
+    await page.getByLabel("Admin password").fill("secret");
+    await page.click("#loginBtn");
+    await expect(page.locator("#adminNavigation")).toBeVisible();
+    await expect(page.locator(".admin-map-controls")).toBeHidden();
+  });
+
+  test("logging out from the Navigation page returns to the map view with no hash at the next sign-in", async ({ page }) => {
+    await signInOnPhone(page);
+    await page.click("#navigationBtn");
+    await page.click("#logoutBtn");
+    await expect(page.locator("#loginScreen")).toBeVisible();
+    expect(new URL(page.url()).hash).toBe("");
+    await page.getByLabel("Admin password").fill("secret");
+    await page.click("#loginBtn");
+    await expect(page.locator("#adminNavigation")).toBeHidden();
+    await expect(page.locator("#tracksBtn")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  test("opening Community from the Navigation page returns to the map and shows the panel", async ({ page }) => {
+    await signInOnPhone(page);
+    await page.click("#navigationBtn");
+    await page.click("#communityBtn");
+    await expect(page.locator("#adminNavigation")).toBeHidden();
+    await expect(page.locator("#adminCommunity")).toBeVisible();
+    const canvas = await page.locator("#adminCanvas").boundingBox();
+    expect(canvas.width).toBeGreaterThan(300);
+  });
+
   test("overlay panels take focus, close on Escape and give focus back to their button", async ({ page }) => {
     await signInOnPhone(page);
     for (const [btn, panel] of [["#communityBtn", "#adminCommunity"], ["#accessBtn", "#adminAccess"]]) {

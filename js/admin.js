@@ -192,7 +192,8 @@ let allData = { locations: [], clicks: [], navigation: [] };
 let lastMeta = null;
 let selectedUid = null; // null = show all users
 let selectedClickKey = null;
-let viewMode = "tracks"; // "tracks" | "heatmap" (the Navigation view is a panel over the map, not a map mode)
+let viewMode = "tracks"; // "tracks" | "heatmap" (the last map view; the Navigation page is a separate page-level view, not a map mode)
+let navigationOpen = false; // true while the Navigation page is shown instead of the map
 
 let adminMap = {
   loaded: false,
@@ -1660,8 +1661,7 @@ function navigationDestinationsHtml(journeys) {
 
 function navigationViewHtml() {
   const journeys = navigationJourneysForView();
-  const head = `<h2>Navigation${selectedUid ? " (selected user)" : ""}</h2>`;
-  if (!journeys.length) return `${head}<p class="nav-empty">No navigation journeys in this window.</p>`;
+  if (!journeys.length) return `<p class="nav-empty nav-empty-state">No navigation journeys in this window${selectedUid ? " for the selected user" : ""}.</p>`;
   const s = summariseNavJourneys(journeys);
   const rows = groupJourneysByDay(journeys);
   const pct = (v) => (v === null ? "n/a" : `${Math.round(v * 100)}%`);
@@ -1681,7 +1681,7 @@ function navigationViewHtml() {
     : `${md.toFixed(2)}x means the walk was ${Math.round(Math.abs(md - 1) * 100)}% ${md < 1 ? "shorter" : "longer"} than the shortest route.`;
   const ratio = (v) => (v === null ? "n/a" : `${v.toFixed(2)}x`);
   const panel = (cls, title, legend, svg, table, note) => `<section class="nav-panel ${cls}"><h3>${title}</h3>${note ? `<p class="nav-note">${escapeHtml(note)}</p>` : ""}<ul class="nav-legend">${legend}</ul>${svg}${table}</section>`;
-  return `${head}<ul class="nav-cards">${cards}</ul><p class="nav-note">Started and completed count journeys, not people. Distance includes abandoned walks.</p><div class="nav-grid">`
+  return `<ul class="nav-cards">${cards}</ul><p class="nav-note">Started and completed count journeys, not people. Distance includes abandoned walks.</p><div class="nav-grid">`
     + navigationDestinationsHtml(journeys)
     + panel("nav-panel-wide", "Started, completed and completion rate by day",
       `${swatch("started", "Started")}${swatch("completed", "Completed")}<li><span class="nav-swatch nav-swatch-line" style="background:var(--nav-rate)"></span>Completion rate (right axis, 0-100%)</li>`,
@@ -1700,7 +1700,12 @@ function navigationViewHtml() {
 
 function refreshNavigationView() {
   const el = document.getElementById("adminNavigation");
-  if (el && !el.hidden) el.innerHTML = navigationViewHtml();
+  const body = document.getElementById("adminNavigationBody");
+  if (!el || !body || el.hidden) return;
+  body.innerHTML = navigationViewHtml();
+  const sub = document.getElementById("adminNavigationSub");
+  const windowText = Number.isFinite(lastMeta?.windowDays) ? `the last ${lastMeta.windowDays} days` : "all loaded history";
+  if (sub) sub.textContent = `Navigation journeys over ${windowText}, for ${selectedUid ? `user ${selectedUid.slice(0, 8)}` : "all users"}. Choose a user in the Users list to filter these figures.`;
 }
 
 // ---- Boot ----
@@ -1782,6 +1787,7 @@ async function adminBoot() {
     updateStats();
     refreshClickDetails();
     refreshScrollCues();
+    applyView(hashView(), { focusHeading: hashView() === "navigation" });
     requestAnimationFrame(render);
   }
 
@@ -1804,6 +1810,7 @@ async function adminBoot() {
     selectedClickKey = null;
     // Nothing from this session may reappear at the next sign-in: close every panel and empty what they held.
     closeOverlayPanels();
+    resetView();
     resetAccessPanel();
     communityToken++;
     communityBody.textContent = "";
@@ -1855,12 +1862,45 @@ async function adminBoot() {
 
   const navigationBtn = document.getElementById("navigationBtn");
   const navigationPanel = document.getElementById("adminNavigation");
-  function showMapView(mode) {
-    viewMode = mode;
+  const mapArea = document.querySelector(".admin-map-area");
+  const VIEW_HASHES = ["tracks", "heatmap", "navigation"];
+  const hashView = () => {
+    const name = location.hash.replace(/^#/, "");
+    return VIEW_HASHES.includes(name) ? name : "tracks";
+  };
+  const currentView = () => (navigationOpen ? "navigation" : viewMode);
+
+  // Show one view: the Navigation page (map UI and every overlay panel hidden or closed) or a map view.
+  function applyView(name, { focusHeading = false } = {}) {
+    if (name === "navigation") {
+      closeOverlayPanels();
+      navigationOpen = true;
+      mapArea.hidden = true;
+      navigationPanel.hidden = false;
+      setActiveView("navigation");
+      refreshNavigationView();
+      if (focusHeading) document.getElementById("adminNavigationTitle").focus({ preventScroll: true });
+      return;
+    }
+    const wasNavigation = navigationOpen;
+    navigationOpen = false;
+    viewMode = name;
     navigationPanel.hidden = true;
-    setActiveView(mode);
+    mapArea.hidden = false;
+    setActiveView(name);
+    if (wasNavigation) { invalidateMapFit(); syncSheetInset(); }
     render();
   }
+  // Clicks go through the hash so the browser's Back and Forward restore the view.
+  function goToView(name, opts) {
+    applyView(name, opts);
+    if (location.hash !== `#${name}`) location.hash = name;
+  }
+  function resetView() {
+    applyView("tracks");
+    if (location.hash) history.replaceState(null, "", location.pathname + location.search);
+  }
+  function showMapView(mode) { goToView(mode); }
   function setActiveView(name) {
     for (const [key, btn] of [["tracks", tracksBtn], ["heatmap", heatmapBtn], ["navigation", navigationBtn]]) {
       btn.classList.toggle("active", key === name);
@@ -1868,11 +1908,14 @@ async function adminBoot() {
     }
   }
   heatmapBtn.addEventListener("click", () => showMapView("heatmap"));
-  navigationBtn.addEventListener("click", () => {
-    navigationPanel.hidden = false;
-    setActiveView("navigation");
-    refreshNavigationView();
+  navigationBtn.addEventListener("click", () => goToView("navigation", { focusHeading: true }));
+  window.addEventListener("hashchange", () => {
+    if (adminApp.hidden) return;
+    const name = hashView();
+    if (name !== currentView()) applyView(name, { focusHeading: name === "navigation" });
   });
+  // Panels live on the map, so opening one from the Navigation page returns to the last map view first.
+  function leaveNavigationForMap() { if (navigationOpen) goToView(viewMode); }
 
   // ---- Community panel ----
   let communityToken = 0;
@@ -1988,6 +2031,7 @@ async function adminBoot() {
   }
 
   communityBtn.addEventListener("click", () => {
+    leaveNavigationForMap();
     closeOverlayPanels("community");
     communityPanel.hidden = false;
     syncPanelButtons();
@@ -2074,6 +2118,7 @@ async function adminBoot() {
   }
 
   document.getElementById("accessBtn").addEventListener("click", () => {
+    leaveNavigationForMap();
     const wasOpen = !accessPanel.hidden;
     closeOverlayPanels("access");
     accessPanel.hidden = false;

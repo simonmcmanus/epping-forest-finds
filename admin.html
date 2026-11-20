@@ -85,7 +85,6 @@
         </div>
 
         <div id="adminStats" class="admin-stats"></div>
-        <section id="adminNavigation" class="admin-nav-view" aria-label="Navigation trends" hidden></section>
         <section id="adminCommunity" class="admin-click-details" role="region" aria-label="Community stats" hidden>
           <button id="adminCommunityClose" class="admin-click-details-close" type="button" aria-label="Close Community stats (Esc)" title="Esc closes" aria-keyshortcuts="Escape">×</button>
           <p id="adminCommunityStatus" class="admin-community-status" role="status"></p>
@@ -104,6 +103,15 @@
           <div id="adminClickDetailsBody"></div>
         </section>
       </div>
+
+      <!-- Navigation page: a page-level view beside the map, never an overlay on it. -->
+      <section id="adminNavigation" class="admin-nav-view" aria-labelledby="adminNavigationTitle" hidden>
+        <header class="admin-page-head">
+          <h2 id="adminNavigationTitle" class="admin-page-title" tabindex="-1">Navigation</h2>
+          <p id="adminNavigationSub" class="admin-page-sub"></p>
+        </header>
+        <div id="adminNavigationBody" class="admin-nav-body"></div>
+      </section>
     </div>
 
   </div>
