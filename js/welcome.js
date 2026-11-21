@@ -206,13 +206,36 @@ function closeWelcome() {
 }
 
 // First run: once the map has booted. Polls cheaply for up to a minute, then gives up (the next open tries again).
+// Other first-run prompts go first so two never stack: the consent / map-setup card (#consentBanner) and
+// the guided setup dialog (#onboardingOverlay). While either is up we keep waiting (that wait does not use
+// up the minute), and the sheet opens only after both have been gone for a short quiet moment, so it never
+// lands between the reader answering one and the next appearing.
+const WELCOME_QUIET_MS = 1000;
+
+function welcomeFirstRunPromptUp() {
+  return ["consentBanner", "onboardingOverlay"].some((id) => {
+    const el = document.getElementById(id);
+    return Boolean(el && !el.hidden);
+  });
+}
+
 function welcomeScheduleFirstRun() {
   if (welcomeHasBeenSeen()) return;
   const started = Date.now();
+  let sawPrompt = false;
+  let quietSince = 0;
   const check = () => {
     let ready = false;
     try { ready = state.dataLoaded === true && routerBooting === false; } catch {}
-    if (ready) { if (!welcomeHasBeenSeen() && !welcomeRoot) openWelcome(); return; }
+    if (ready) {
+      if (welcomeFirstRunPromptUp()) { sawPrompt = true; quietSince = 0; setTimeout(check, 250); return; }
+      if (sawPrompt) {
+        if (!quietSince) quietSince = Date.now();
+        if (Date.now() - quietSince < WELCOME_QUIET_MS) { setTimeout(check, 250); return; }
+      }
+      if (!welcomeHasBeenSeen() && !welcomeRoot) openWelcome();
+      return;
+    }
     if (Date.now() - started < 60000) setTimeout(check, 250);
   };
   setTimeout(check, 250);

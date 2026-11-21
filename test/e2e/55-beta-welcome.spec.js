@@ -6,9 +6,16 @@ const FEATURES_URL = "**/api/features**";
 const answer = (community) => (route) =>
   route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ community }) });
 
-// A brand-new visitor: no ff-welcome-v1 key, and no stored Community answer unless a test sets one.
+// A new tester for the welcome: no ff-welcome-v1 key, and no stored Community answer unless a test sets one.
+// The first-run consent card and guided setup are already answered, because the welcome waits behind them
+// (their own tests below leave them unanswered).
 async function openAsNewVisitor(page, { community = false } = {}) {
   await mockCowApi(page);
+  await page.addInitScript(() => {
+    localStorage.setItem("ff-location-v1", "declined");
+    localStorage.setItem("ff-track-v1", "0");
+    localStorage.setItem("forest-finds-onboarding-v1", "done");
+  });
   await page.route(FEATURES_URL, answer(community));
   await gotoAndWaitForMap(page, "/nearby");
 }
@@ -31,7 +38,55 @@ test.describe("Beta welcome sheet", () => {
     expect(await page.evaluate(() => state.dataLoaded)).toBe(true);
   });
 
-  test("Skip closes the welcome and it does not return on reload", async ({ page }) => {
+  test("the welcome waits behind the first-run map-setup card and opens once that card is dismissed", async ({ page }) => {
+    await mockCowApi(page);
+    await page.route(FEATURES_URL, answer(false));
+    await page.addInitScript(() => {
+      localStorage.removeItem("ff-track-v1");
+      localStorage.removeItem("ff-cookie-consent");
+    });
+    await page.goto("/nearby");
+    const card = page.locator("#consentBanner");
+    await expect(card).toBeVisible();
+    await page.waitForFunction(() => state.dataLoaded === true);
+    // Well past the welcome's first poll: the card is still up, so the sheet must not be.
+    await page.waitForTimeout(1500);
+    await expect(card).toBeVisible();
+    await expect(dialog(page)).toHaveCount(0);
+    // Each answer can lead to the next question or to the map-setup hint in the same card; the welcome
+    // stays out of the way until the card is finally dismissed.
+    for (let i = 0; i < 4 && (await card.isVisible()); i += 1) {
+      await page.locator("#consentBannerDecline").press("Enter");
+      await expect(dialog(page)).toHaveCount(0);
+    }
+    await expect(card).toBeHidden();
+    await expect(dialog(page)).toBeVisible();
+  });
+
+  test("the welcome also waits behind the guided map setup and opens once that is closed", async ({ page }) => {
+    await mockCowApi(page);
+    await page.route(FEATURES_URL, answer(false));
+    await page.addInitScript(() => {
+      localStorage.removeItem("ff-track-v1");
+      localStorage.removeItem("ff-cookie-consent");
+    });
+    await page.goto("/nearby");
+    await page.locator("#consentBannerDecline").click();
+    await page.locator("#filterToggle").click();
+    const setup = page.getByRole("dialog", { name: "Set up Epping Forest Finds" });
+    await expect(setup).toBeVisible();
+    await page.waitForFunction(() => state.dataLoaded === true);
+    // Take the consent card out of the picture so only the guided setup is holding the welcome back.
+    await page.evaluate(() => { document.getElementById("consentBanner").hidden = true; });
+    await page.waitForTimeout(2000);
+    await expect(setup).toBeVisible();
+    await expect(dialog(page)).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(setup).toBeHidden();
+    await expect(dialog(page)).toBeVisible();
+  });
+
+  test("Skip closes the welcome and it does not return on reload",async ({ page }) => {
     await openAsNewVisitor(page);
     await expect(dialog(page)).toBeVisible();
     await page.getByRole("button", { name: "Skip" }).click();
