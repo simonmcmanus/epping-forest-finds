@@ -2777,12 +2777,18 @@ function communityRenderAccount(account, note = "") {
     : (Native.isNative ? "" : `<a href="/api/auth/login?return=/community">Sign in to take your points with you</a>`);
   const signedIn = Boolean(account && account.signedIn);
   recover.hidden = signedIn;
-  if (!signedIn) {
+  // The disclosure carries the browser's code, so while signed in it is not kept in the page at all.
+  if (signedIn) recover.innerHTML = "";
+  else if (!recover.innerHTML.trim()) recover.innerHTML = communityRecoveryHtml();
+  // The code is the device id, so it is shown only when this account has its own saved device on this browser.
+  // Without one (a failed link on a shared browser) the id in use would be another account's.
+  const own = signedIn && account.account ? communityAccountDevices()[account.account] : "";
+  if (!own) {
     copyRow.hidden = true;
     copyRow.innerHTML = "";
   } else if (copyRow.hidden) {
     // Drawn once per sign-in so a "Copied." message is not wiped by a later render of the same account.
-    copyRow.innerHTML = `<p class="community-recover-text">Keep a copy of your code somewhere safe to get your points back on a new phone.</p>
+    copyRow.innerHTML = `<p class="community-recover-text">Your points are saved to your account. As a spare, keep this code somewhere safe to get them back on a new phone. Anyone with the code can act as you, so keep it private.</p>
       <div class="community-recover-code"><code>${escapeHtml(communityRecoveryCode())}</code><button type="button" class="community-chip" data-action="community-copy-code">Copy</button></div>
       <p class="community-recover-status" role="status"></p>`;
     copyRow.hidden = false;
@@ -2799,7 +2805,9 @@ function communityResetAccount() {
   line.classList.remove("community-account-quiet");
   line.innerHTML = `<span class="community-skel-text" aria-hidden="true"></span>`;
   host.querySelector('[data-account="note"]').innerHTML = "";
-  host.querySelector('[data-account="recover"]').hidden = true;
+  const recover = host.querySelector('[data-account="recover"]');
+  recover.hidden = true;
+  recover.innerHTML = "";
   const copyRow = host.querySelector('[data-account="copy"]');
   copyRow.hidden = true;
   copyRow.innerHTML = "";

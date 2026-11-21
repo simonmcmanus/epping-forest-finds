@@ -87,6 +87,34 @@ test.describe("Community sign-in", () => {
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(code);
   });
 
+  test("on a shared browser a second account whose device could not be linked is not shown the first account's recovery code", async ({ page }) => {
+    const first = "aaaa1111bbbb2222cccc3333";
+    await page.addInitScript((id) => {
+      localStorage.setItem("ff-community-device-v1", id);
+      localStorage.setItem("ff-community-account-devices-v1", JSON.stringify({ "acct-aaaa": id }));
+      localStorage.setItem("ff-community-account-v1", JSON.stringify({ signedIn: true, name: "Ada", account: "acct-aaaa" }));
+    }, first);
+    await page.route(ME_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: true, name: "Ben", account: "acct-bbbb" }) })
+    );
+    let links = 0;
+    await page.route(LINK_URL, (route) => {
+      links += 1;
+      // The first account owns the browser's own id (409); the fresh id offered next then fails too.
+      return route.fulfill(links === 1
+        ? { status: 409, contentType: "application/json", body: JSON.stringify({ error: "This device is already linked to another account." }) }
+        : { status: 500, contentType: "application/json", body: JSON.stringify({ error: "Couldn't link this device right now." }) });
+    });
+    await setup(page, "/community");
+    const account = page.locator("#communityAccount");
+    await expect(account).toContainText("Signed in as Ben");
+    await expect.poll(() => links).toBe(2);
+    await expect(account.locator(".community-account-note")).toContainText("Couldn't link this device right now.");
+    await expect(account.locator("[data-account='copy']")).toBeHidden();
+    await expect(account.getByRole("button", { name: "Copy" })).toBeHidden();
+    expect((await account.textContent()).replace(/[\s-]+/g, "")).not.toContain(first);
+  });
+
   test("a signed-out visitor sees the back-up disclosure and no copy row under the account line", async ({ page }) => {
     await page.route(ME_URL, (route) =>
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: false }) })
