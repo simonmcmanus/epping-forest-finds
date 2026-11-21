@@ -93,6 +93,25 @@ test("the reset script targets the local branch directory by default, never the 
   assert.doesNotMatch(out.stdout, /"community"|"report-photos"/);
 });
 
+test("the default reset clears the local Community store the running app writes to (BRANCH env, not git branch)", async () => {
+  const { openStore, communityLocalDir } = require("../netlify/functions/lib/community-store");
+  const branch = `reset-test-${process.pid}-${Date.now()}`;
+  const dir = communityLocalDir({ BRANCH: branch });
+  const saved = process.env.BRANCH;
+  try {
+    process.env.BRANCH = branch;
+    await openStore({}).put("reports/r1", { deviceId: "device-a" });
+    assert.equal(fs.readdirSync(dir).length, 1);
+    const out = runScript([], `${RESET_CONFIRMATION}\n`, { BRANCH: branch });
+    assert.equal(out.status, 0, out.stderr);
+    assert.deepEqual(fs.readdirSync(dir), []);
+    assert.match(out.stdout, /"records":\s*1/);
+  } finally {
+    if (saved === undefined) delete process.env.BRANCH; else process.env.BRANCH = saved;
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("the reset script refuses a production run without a terminal, before asking or deleting anything", () => {
   const out = runScript(["--production"], `${RESET_CONFIRMATION}\n`, { NETLIFY_SITE_ID: "x", NETLIFY_AUTH_TOKEN: "y" });
   assert.notEqual(out.status, 0);

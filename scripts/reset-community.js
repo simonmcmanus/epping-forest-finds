@@ -5,7 +5,6 @@
 const fs = require("fs");
 const path = require("path");
 const readline = require("readline");
-const { execFileSync } = require("child_process");
 const { communityStoreName, communityLocalDir, branchName } = require("../netlify/functions/lib/community-store");
 const { photoStoreName } = require("../netlify/functions/lib/report-photo");
 const { resetCommunityData, RESET_CONFIRMATION } = require("../netlify/functions/lib/community-reset");
@@ -14,8 +13,8 @@ const USAGE = `Usage: node scripts/reset-community.js [options]
 
 Deletes every Community record and report photo from one store. GitHub issues are not touched.
 
-Targets (default is the local dev store of the current git branch):
-  (no flags)          data/tracking/community/<current git branch>
+Targets (default is the local store the running app uses):
+  (no flags)          data/tracking/community/<BRANCH>  (BRANCH env var, default "dev")
   --branch <name>     the deploy-preview stores for that branch (community-<name>, report-photos-<name>);
                       needs NETLIFY_SITE_ID and NETLIFY_AUTH_TOKEN in the environment
   --production        the PRODUCTION stores "community" and "report-photos"; needs an interactive terminal
@@ -42,14 +41,8 @@ function parseArgs(argv) {
   return opts;
 }
 
-function currentGitBranch() {
-  try {
-    return execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], { cwd: path.join(__dirname, ".."), encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] }).trim() || "dev";
-  } catch { return "dev"; }
-}
-
 // Pure: decide which store to clear. Never reads credentials values, only reports whether they exist.
-function resolveTarget(opts, env = process.env, gitBranch = currentGitBranch) {
+function resolveTarget(opts, env = process.env) {
   if (opts.production && (opts.branch || opts.dataDir)) throw new Error("--production cannot be combined with --branch or --data-dir");
   if (opts.production) return { kind: "blobs", production: true, community: "community", photos: "report-photos" };
   if (opts.branch) {
@@ -59,7 +52,7 @@ function resolveTarget(opts, env = process.env, gitBranch = currentGitBranch) {
     if (community === "community") throw new Error("Refusing: that resolves to the production store. Use --production.");
     return { kind: "blobs", production: false, community, photos: photoStoreName(scoped), branch: branchName(scoped) };
   }
-  const dir = opts.dataDir ? path.resolve(opts.dataDir) : communityLocalDir({ CONTEXT: "local", BRANCH: gitBranch() });
+  const dir = opts.dataDir ? path.resolve(opts.dataDir) : communityLocalDir(env);
   return { kind: "local", production: false, dir };
 }
 
