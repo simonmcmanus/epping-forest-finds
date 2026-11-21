@@ -724,10 +724,10 @@ moving the real GPS fix:
   `formatWalkingRadius()` is what every user-facing radius label goes through.
   At either zoom limit, one consistent crimson garnet light sits exactly on the clear
   circle's boundary, independently of the inset decorative rim. Its hue is deliberately
-  cooler (about 348 degrees) than the orange-leaning terracotta selected and error reds
+  cooler (about 350 degrees) than the orange-leaning terracotta selected and error reds
   (about 10 degrees), so it reads as a lit boundary rather than a stock error state; it is
-  also separate from the gold rim. A 2.5 CSS px core (#BE2842) carries one 0.8 CSS px pale
-  specular (#FFC8BA at 60% of the light) on its inner lip, readable at 76-82% opacity, over
+  also separate from the gold rim. A 2.5 CSS px core (#B42840) carries one 0.8 CSS px pale
+  specular (#FFC8BA at 50% of the light) on its inner lip, deliberately translucent (56-60% opacity) so it reads as a soft light rather than a hard stroke, over
   a garnet halo that runs from #AA233C beside the core on the inner side to a deeper #961E36
   outside, so it holds over both light and dark terrain; the halo varies only slightly to
   avoid a flashing appearance.
@@ -735,7 +735,7 @@ moving the real GPS fix:
   (smoothstep) falloff flat and tilted (tilt composites its stacked strokes to that exact
   coverage), leaving the centre clear. A 120ms arrival makes brief wheel attempts visible. Held input
   breathes slowly over 1500ms (500ms gathering, 1000ms settling), with a narrow halo gain
-  of 20–26% of core opacity. Reduced motion uses a steady 79% core and static halo.
+  of 18–23% of core opacity. Reduced motion uses a steady 60% core and static halo.
   The radius stays fixed. Backing off or ending a pinch fades over 260ms with a smooth
   cosine release; re-entry preserves brightness and halo phase. Wheel feedback remains
   continuous across normal notches: the list still settles at 220ms, but the light has its

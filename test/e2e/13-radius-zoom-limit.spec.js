@@ -97,6 +97,7 @@ test.describe("Radius zoom limit feedback", () => {
         const [coreR, coreG, coreB] = peak.core;
         expect(coreR, "the limit core is a strong red").toBeGreaterThan(150);
         expect(coreB, "crimson-leaning garnet, not the orange-leaning error red").toBeGreaterThan(coreG);
+        expect(coreG, "a deep garnet at the translucent peak, not the paler rose of the earlier look").toBeLessThan(70);
         await advance(1000);
         const trough = await page.evaluate(() => window.__sampleRim());
         expect(trough.red).toBeGreaterThan(before.red);
