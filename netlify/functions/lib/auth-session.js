@@ -60,8 +60,10 @@ function sessionFrom(event, now = Date.now()) {
 }
 
 // Only same-site paths may be used after sign-in, so ?return= cannot send people off-site.
+// Control characters are refused too: browsers strip tabs and newlines when parsing URLs, so
+// "/\t/evil.example" would become "//evil.example", an off-site URL.
 function safeReturnPath(value) {
-  return typeof value === "string" && /^\/(?![/\\])/.test(value) && value.length < 200 ? value : DEFAULT_RETURN;
+  return typeof value === "string" && /^\/(?![/\\])/.test(value) && !/[\x00-\x1f\x7f]/.test(value) && value.length < 200 ? value : DEFAULT_RETURN;
 }
 
 function baseUrl(event) {

@@ -357,6 +357,16 @@ test("login remembers only a same-site return path", async () => {
   });
 });
 
+test("sign-in never returns to a path carrying a control character, even after a leading slash", async () => {
+  await withAuthEnv(async () => {
+    for (const bad of ["/\t/evil.example", "/\n/evil.example", "/\r/evil.example", "/\x00community", "/community\x0a", "/\x7fcommunity"]) {
+      const attempt = await startLogin(bad);
+      assert.strictEqual(auth.verify(cookieValue(attempt.stateCookie), KEY).ret, "/community", `${JSON.stringify(bad)} falls back to /community`);
+      assert.strictEqual(auth.safeReturnPath(bad), "/community", `${JSON.stringify(bad)} is not a safe return path`);
+    }
+  });
+});
+
 test("callback: a good sign-in exchanges the code, sets a signed session cookie and returns to where it started", async () => {
   await withAuthEnv(async (calls) => {
     const { state, stateCookie } = await startLogin("/community");
