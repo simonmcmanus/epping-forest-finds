@@ -248,7 +248,7 @@ async function fillSettingsAccount() {
   if (merge === "merged") { try { await Promise.all([communityRefreshScore(true), communityRefreshLog()]); } catch {} }
 }
 
-// The Tester ID lookup, shared with the beta welcome sheet (js/welcome.js). status: "loading" | "ready" | "failed".
+// The Tester ID lookup, also read by the Settings Tester ID row only. status: "loading" | "ready" | "failed".
 const testerIdState = { status: "loading", id: "", promise: null };
 
 function loadTesterId() {

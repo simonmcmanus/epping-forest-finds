@@ -105,15 +105,20 @@ test("every route netlify.toml serves the app on is behind the gate", async () =
     .filter((rule) => rule.to === "/app.html" && rule.from)
     .map((rule) => rule.from);
   assert.ok(appRoutes.includes("/community"), "the parse should find the app's own routes");
-  assert.ok(appRoutes.includes("/beta"), "the beta sign-up path is served by the app");
-  assert.deepEqual(appRoutes.filter((route) => route !== "/beta" && !gated.has(route)), [], "an app route that is not gated would open the alpha");
+  assert.ok(!appRoutes.includes("/beta"), "the beta sign-up path is a standalone static page, not an app screen");
+  assert.deepEqual(appRoutes.filter((route) => !gated.has(route)), [], "an app route that is not gated would open the alpha");
   assert.ok(gated.has("/app.html"), "the app's own entry page is gated as well");
 });
 
-test("/beta is open to anyone with the link: the gate is not configured for it, while the app screens stay gated", async () => {
+test("/beta is a standalone page behind the same gate: the key opens it, nobody else gets in", async () => {
   const gate = await loadGate();
-  assert.ok(!gate.config.path.includes("/beta"), "/beta is not gated");
-  assert.ok(gate.config.path.includes("/nearby"), "the other app screens stay gated");
-  const blocked = await visit("https://site.example/nearby", { secrets: "longhorn" });
+  for (const route of ["/beta", "/beta/", "/beta/index.html"]) {
+    assert.ok(gate.config.path.includes(route), `${route} runs the gate`);
+  }
+  const blocked = await visit("https://site.example/beta", { secrets: "longhorn" });
   assert.equal(blocked.headers.get("location"), "/");
+  const viaLink = await visit("https://site.example/beta?k=longhorn", { secrets: "longhorn" });
+  assert.equal(viaLink.headers.get("location"), "/beta");
+  assert.ok(cookieHeader(viaLink).includes("ef_alpha=longhorn"), "the key sets the cookie the gated /nearby then accepts");
+  assert.deepEqual(await visit("https://site.example/beta", { secrets: "longhorn", cookie: "ef_alpha=longhorn" }), PASS_THROUGH);
 });

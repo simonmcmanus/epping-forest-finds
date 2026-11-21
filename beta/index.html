@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#24382f">
+  <meta name="robots" content="noindex">
+  <title>Join the beta | Epping Forest Finds</title>
+  <!-- A standalone page: it loads none of the app's CSS, JS or icons (spec/spec-community.md "Beta sign-up page"). -->
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f4f1e8;
+      --card: #ffffff;
+      --text: #1f2a24;
+      --muted: #55625a;
+      --accent: #2f5d46;
+      --accent-text: #ffffff;
+      --line: #cfd6cc;
+      --focus: #1a5fb4;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #16201b;
+        --card: #1f2c25;
+        --text: #eef1ec;
+        --muted: #aab6ae;
+        --accent: #7fc29b;
+        --accent-text: #10201a;
+        --line: #36473d;
+        --focus: #8ab4f8;
+      }
+    }
+    * { box-sizing: border-box; }
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font: 1rem/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      overflow-wrap: anywhere;
+    }
+    main { max-width: 32rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+    h1 { font-size: 1.6rem; line-height: 1.2; margin: 0 0 .5rem; }
+    h2 { font-size: 1.15rem; margin: 0 0 .5rem; }
+    p { margin: 0 0 1rem; }
+    .lede { color: var(--muted); }
+    .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 1rem; margin: 0 0 1rem; }
+    .btn {
+      display: flex; align-items: center; justify-content: center;
+      width: 100%; min-height: 44px; padding: .65rem 1rem;
+      border: 0; border-radius: 10px;
+      background: var(--accent); color: var(--accent-text);
+      font: inherit; font-weight: 600; text-align: center; text-decoration: none; cursor: pointer;
+    }
+    .btn-quiet { background: transparent; color: var(--text); border: 1px solid var(--line); }
+    .btn + .btn { margin-top: .75rem; }
+    .btn:focus-visible, a:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+    .tester-id {
+      display: block; margin: .25rem 0 1rem; padding: .6rem .75rem;
+      border: 1px solid var(--line); border-radius: 8px;
+      font: 600 1.5rem/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: .08em; text-align: center; user-select: all;
+    }
+    .status { min-height: 1.5rem; margin: 0 0 1rem; color: var(--muted); }
+    .status:empty { min-height: 0; margin: 0; }
+    .steps { margin: 0 0 1.25rem; padding-left: 1.25rem; color: var(--muted); }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main id="main">
+    <h1>Join the Epping Forest Finds beta</h1>
+    <p class="lede">Three quick steps: sign in, send your Tester ID to Simon, then carry on to the map.</p>
+    <ol class="steps">
+      <li>Sign in</li>
+      <li>Send your Tester ID to Simon</li>
+      <li>Go to the map</li>
+    </ol>
+
+    <p id="status" class="status" role="status" aria-live="polite"></p>
+
+    <section id="signInStep" class="card" aria-labelledby="signInHeading">
+      <h2 id="signInHeading">1. Sign in</h2>
+      <p>Signing in keeps your Community points with you on any device.</p>
+      <a id="signIn" class="btn" href="/api/auth/login?return=/beta">Sign in</a>
+      <button id="recheck" class="btn btn-quiet" type="button" hidden>Try again</button>
+    </section>
+
+    <section id="sendStep" class="card" aria-labelledby="sendHeading" hidden>
+      <h2 id="sendHeading">2. Send your Tester ID to Simon</h2>
+      <p id="signedInAs"></p>
+      <p id="testerIdLabel">Your Tester ID</p>
+      <strong id="testerId" class="tester-id" aria-labelledby="testerIdLabel">…</strong>
+      <button id="send" class="btn" type="button" hidden>Send my Tester ID to Simon</button>
+      <button id="retryId" class="btn btn-quiet" type="button" hidden>Try again</button>
+      <a id="continue" class="btn btn-quiet" href="/nearby" hidden>Continue to the map</a>
+    </section>
+  </main>
+
+  <script>
+    (function () {
+      "use strict";
+      var DEVICE_KEY = "ff-community-device-v1";
+      var MAIL_TO = "mcmanus.simon@gmail.com";
+      var SUBJECT = "Epping Forest Finds beta: my Tester ID";
+      var NEXT = "/nearby";
+      var $ = function (id) { return document.getElementById(id); };
+      var volatileDeviceId = null;
+      var keptOnDevice = true;
+
+      // The same device id js/community.js makes and keeps (communityPrimaryDeviceId), read from the same
+      // origin storage under the same key. It is never shown or sent: only its hash is.
+      function randomId() {
+        var bytes = new Uint8Array(24);
+        crypto.getRandomValues(bytes);
+        return Array.prototype.map.call(bytes, function (b) { return (b % 36).toString(36); }).join("");
+      }
+      function primaryDeviceId() {
+        try {
+          var existing = localStorage.getItem(DEVICE_KEY);
+          if (existing) return existing;
+        } catch (e) {}
+        if (volatileDeviceId) return volatileDeviceId;
+        var id = randomId();
+        var kept = false;
+        try {
+          localStorage.setItem(DEVICE_KEY, id);
+          kept = localStorage.getItem(DEVICE_KEY) === id;
+        } catch (e) {}
+        if (!kept) { volatileDeviceId = id; keptOnDevice = false; }
+        return id;
+      }
+      // communityTesterId: the first 10 hex characters of the SHA-256 of the device id.
+      function testerIdOf(value) {
+        return crypto.subtle.digest("SHA-256", new TextEncoder().encode(String(value))).then(function (bytes) {
+          return Array.prototype.map.call(new Uint8Array(bytes), function (b) { return b.toString(16).padStart(2, "0"); }).join("").slice(0, 10);
+        });
+      }
+
+      var statusEl = $("status");
+      function say(text) { statusEl.textContent = text; }
+      function show(el, on) { el.hidden = !on; }
+      function goOn() { location.replace(NEXT); }
+
+      var currentId = "";
+
+      function loadTesterId() {
+        say("Getting your Tester ID…");
+        $("testerId").textContent = "…";
+        show($("send"), false);
+        show($("retryId"), false);
+        var done = function (id) {
+          if (!id) return failed();
+          currentId = id;
+          $("testerId").textContent = id;
+          say(keptOnDevice ? "" : "This browser can't remember your Tester ID, so keep this tab open until you have sent it.");
+          show($("send"), true);
+        };
+        var failed = function () {
+          currentId = "";
+          $("testerId").textContent = "…";
+          say("We couldn't get your Tester ID. Try again.");
+          show($("retryId"), true);
+        };
+        try { testerIdOf(primaryDeviceId()).then(done, failed); } catch (e) { failed(); }
+      }
+
+      function openMail() {
+        var href = "mailto:" + MAIL_TO + "?subject=" + encodeURIComponent(SUBJECT) + "&body=" + encodeURIComponent(currentId);
+        var link = document.createElement("a");
+        link.href = href;
+        link.hidden = true;
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        say("Your email app should have opened. Send the message, then continue to the map.");
+        show($("continue"), true);
+      }
+
+      function sendId() {
+        if (!currentId) return;
+        if (typeof navigator.share !== "function") return openMail();
+        var text = "Hi Simon, please add my Tester ID to the Epping Forest Finds beta: " + currentId;
+        navigator.share({ title: SUBJECT, text: text }).then(goOn, function (error) {
+          if (error && error.name === "AbortError") return say("Not sent. Tap Send when you're ready.");
+          openMail();
+        });
+      }
+
+      function showSignedOut(note) {
+        show($("signInStep"), true);
+        show($("sendStep"), false);
+        show($("recheck"), Boolean(note));
+        say(note || "");
+      }
+
+      function showSignedIn(name) {
+        show($("signInStep"), false);
+        show($("sendStep"), true);
+        $("signedInAs").textContent = "Signed in as " + name + ".";
+        loadTesterId();
+      }
+
+      function checkSignedIn() {
+        say("Checking who is signed in…");
+        show($("signInStep"), false);
+        fetch("/api/auth/me", { cache: "no-store", credentials: "same-origin" })
+          .then(function (response) { if (!response.ok) throw new Error("me"); return response.json(); })
+          .then(function (me) {
+            if (me && me.signedIn) showSignedIn(me.name || "your account");
+            else showSignedOut("");
+          })
+          .catch(function () { showSignedOut("We couldn't check whether you're signed in. Check your connection and try again."); });
+      }
+
+      // Sign-in is a plain link (it works without JavaScript). With JavaScript it first checks that the
+      // provider is set up, so a missing configuration is explained here rather than on a bare error page.
+      $("signIn").addEventListener("click", function (event) {
+        if (event.ctrlKey || event.metaKey || event.shiftKey || event.button) return;
+        event.preventDefault();
+        var href = $("signIn").getAttribute("href");
+        fetch(href, { redirect: "manual", credentials: "same-origin" }).then(function (response) {
+          if (response.type === "opaqueredirect" || response.ok) location.href = href;
+          else if (response.status === 503) say("Sign-in isn't set up yet. Please tell Simon.");
+          else say("Sign-in isn't available right now. Please try again in a moment.");
+        }, function () { say("We couldn't reach sign-in. Check your connection and try again."); });
+      });
+      $("send").addEventListener("click", sendId);
+      $("retryId").addEventListener("click", loadTesterId);
+      $("recheck").addEventListener("click", checkSignedIn);
+
+      checkSignedIn();
+    })();
+  </script>
+</body>
+</html>

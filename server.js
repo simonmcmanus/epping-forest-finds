@@ -249,7 +249,7 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  if (["/nearby/search", "/nearby/filter", "/settings", "/feedback", "/community", "/beta"].includes(url.pathname)) {
+  if (["/nearby/search", "/nearby/filter", "/settings", "/feedback", "/community"].includes(url.pathname)) {
     const appFile = path.join(ROOT, "app.html");
     if (!fs.existsSync(appFile)) { send(res, 404, "App not found"); return; }
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });

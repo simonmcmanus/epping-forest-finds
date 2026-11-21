@@ -58,7 +58,6 @@ const APP_SHELL = [
   "./js/event-alert.js",
   "./js/heads-up.js",
   "./js/settings.js",
-  "./js/welcome.js",
   "./js/report.js",
   "./js/tracker.js",
   "./js/outbox.js",
@@ -241,7 +240,7 @@ const ALL_DATA_URLS = [...new Set([...DATA_SHELL, ...DATA_CACHE_OPPORTUNISTIC])]
 // server.js), so it is deliberately left to the network like any other unrecognised path.
 // Anything else -- the homepage, the reports, the terms page -- is a network page the app
 // cache must not answer for.
-const APP_SCREEN_PATHS = new Set(["/nearby", "/nearby/search", "/nearby/filter", "/settings", "/feedback", "/community", "/beta"]);
+const APP_SCREEN_PATHS = new Set(["/nearby", "/nearby/search", "/nearby/filter", "/settings", "/feedback", "/community"]);
 // Every one of these five (plus app.html itself) returns byte-identical content -- they're the
 // same static file, reached by different client-side routes layered on top of it -- so answering
 // them all from the one shared "./app.html" key (see the navigate branch in the fetch handler

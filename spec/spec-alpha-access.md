@@ -47,7 +47,7 @@ restriction has to be real even though the secret is shared.
 | --- | --- | --- |
 | `/` | Marketing homepage (`index.html`) | No |
 | `/nearby`, `/nearby/search`, `/nearby/filter`, `/settings`, `/feedback`, `/community` | The map application's five screens, each its own URL (see spec.md "Routing") | Yes |
-| `/beta` | The same map, opened for beta testers: the beta welcome sheet (spec-community.md "Beta welcome sheet") shows only here | No (open to anyone with the link; the edge gate is not configured for it) |
+| `/beta` | The standalone beta sign-up page (`beta/index.html`, spec-community.md "Beta sign-up page"): not an app screen, loads no app code | Yes (same gate; its last step sends the tester to the gated `/nearby`, so an ungated page would bounce testers who lack the key) |
 | `/app` | Bare redirect (301) to `/nearby` — the app's old entry point, kept working for old links and bookmarks | No (nothing to gate; it carries no content) |
 | `/app.html` | The underlying file every screen path rewrites to | Yes |
 | `/nearby/<slug>` | Category pages (spec-marketing.md § "Category pages"), **not** gated — the gate's `path` list names the bare `/nearby`, `/nearby/search` and `/nearby/filter` paths exactly, so a category page nested one segment deeper is never caught by it | No |
@@ -97,7 +97,7 @@ what keeps the installed app able to reach `/js`, `/css` and `/data`.
 ## 3. The gate
 
 `netlify/edge-functions/alpha-gate.js`, configured for `/nearby`, `/nearby/search`,
-`/nearby/filter`, `/settings`, `/feedback`, `/community` and `/app.html`. `/beta` is deliberately not in this list: it is open, with no alpha secret.
+`/nearby/filter`, `/settings`, `/feedback`, `/community`, `/app.html`, and the standalone `/beta` page (`/beta`, `/beta/`, `/beta/index.html`), so the `?k=` key sets the cookie there too.
 
 ### 3.1 Secrets
 
@@ -175,7 +175,7 @@ would be served the app instead of the new homepage, and the homepage would be
 invisible to exactly the people most likely to look.
 
 The handler is now scoped to the app's own routes (`/nearby`, `/nearby/search`,
-`/nearby/filter`, `/settings`, `/feedback`, `/community`, `/app.html`; `/beta` is open and not gated). Navigations to anything else
+`/nearby/filter`, `/settings`, `/feedback`, `/community`, `/app.html`, `/beta`, `/beta/`, `/beta/index.html`). Navigations to anything else
 — the homepage, the reports, the terms, `/app` itself — fall through to the
 network and are not served from the app cache.
 
@@ -204,7 +204,7 @@ feature branch.
 `netlify.toml`:
 
 - An edge function declaration binding `alpha-gate` to each of `/nearby`,
-  `/nearby/search`, `/nearby/filter`, `/settings`, `/feedback`, `/community` and to `/app.html`, and no declaration for `/beta` (open, not gated).
+  `/nearby/search`, `/nearby/filter`, `/settings`, `/feedback`, `/community` to `/app.html`, and to `/beta`, `/beta/` and `/beta/index.html` (the standalone sign-up page; there is no `/app.html` rewrite for it).
 - A 200 rewrite from each of those five screen paths to `/app.html`, so every
   pretty URL serves the same file.
 - `/app` is a separate 301 redirect to `/nearby` — not a rewrite, and not bound

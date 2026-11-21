@@ -41,6 +41,20 @@
   function = "alpha-gate"
   path = "/app.html"
 
+# /beta is a standalone static page (beta/index.html), not an app screen. It is gated like the app because
+# its last step sends the tester on to the gated /nearby.
+[[edge_functions]]
+  function = "alpha-gate"
+  path = "/beta"
+
+[[edge_functions]]
+  function = "alpha-gate"
+  path = "/beta/"
+
+[[edge_functions]]
+  function = "alpha-gate"
+  path = "/beta/index.html"
+
 # CORS for the iOS/Android app, whose pages are served from the app bundle rather than this site.
 # Only the two native WebView origins are allowed; admin and sign-in routes are never opened.
 # See spec/spec-native.md "Networking".
@@ -109,11 +123,6 @@
 
 [[redirects]]
   from = "/community"
-  to = "/app.html"
-  status = 200
-
-[[redirects]]
-  from = "/beta"
   to = "/app.html"
   status = 200
 
