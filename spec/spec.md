@@ -272,6 +272,7 @@ nothing to do with the Nearby view underneath them. Implemented by the router in
 | `/settings` | Settings |
 | `/feedback` | Feedback form (a sub-page of Community) |
 | `/community` | Community (contributions, add a missing tree) |
+| `/beta` | The Nearby map, plus the beta welcome sheet at step 1 on every visit (`spec-community.md` "Beta welcome sheet"); no other path opens that sheet |
 | `/nearby#tree=<key>` | a selected tree; likewise `cow`, `path`, `water`, `road`, `railway`, on top of whichever screen's path it was selected from. A selected `place` (landmark) does this too, *unless* it has its own `/find/<slug>/` page (below), in which case selecting it navigates there instead — see that row |
 | `/nearby#near=<lat>,<lon>` | the Nearby view's browse anchor (tap-to-relocate, or an expanded cluster's centre) — shareable and restored on a fresh load, same as a selection |
 | `/nearby/<slug>` | The same app, served at its own URL and pre-filtered to one category (a subfilter's own slug, e.g. `pubs`, or a whole top-level group's, e.g. `food`) — a `/nearby/<slug>` category page (`spec-marketing.md` § "Category pages") is itself an instance of this app, not a separate page linking to it. `<slug>` is never `filter` or `search`: those two are the screens below, not categories |

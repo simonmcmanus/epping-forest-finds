@@ -170,7 +170,7 @@ function settingsFormHtml() {
       <h3 class="settings-section-title">About</h3>
       <p class="settings-description">App version: <span id="appVersionDisplay" class="app-version-display">${escapeHtml(state.swVersion || APP_VERSION)}</span></p>
       ${Native.isNative ? "" : appUpdateStatusHtml()}
-      <p class="settings-description">Tester ID: <code id="testerIdDisplay" class="tester-id">…</code> <button type="button" id="testerIdCopy" class="settings-btn" hidden>Copy</button><br><span class="report-note">Give this to Simon to try early features.</span></p>
+      <p class="settings-description">Tester ID: <code id="testerIdDisplay" class="tester-id">…</code> <button type="button" id="testerIdCopy" class="settings-btn" hidden>Copy</button> <button type="button" id="testerIdRetry" class="settings-btn" hidden>Retry</button><br><span id="testerIdStatus" class="report-note">Getting your Tester ID…</span> <span class="report-note">Give this to Simon to try early features.</span></p>
       <p class="settings-description">Vibe coded by <a href="https://simonmcmanus.com" target="_blank" rel="noopener noreferrer">Simon McManus</a></p>
       <p id="dataUpdateNote" class="report-note"${state.dataUpdateAvailable ? "" : " hidden"}>New map data has been downloaded. <button id="dataUpdateReloadButton" class="inline-text-button" type="button">Reload now</button> to see it.</p>
       ${Native.data ? nativeDataHtml() : ""}
@@ -248,19 +248,51 @@ async function fillSettingsAccount() {
   if (merge === "merged") { try { await Promise.all([communityRefreshScore(true), communityRefreshLog()]); } catch {} }
 }
 
-async function fillTesterId() {
+// The Tester ID lookup, shared with the beta welcome sheet (js/welcome.js). status: "loading" | "ready" | "failed".
+const testerIdState = { status: "loading", id: "", promise: null };
+
+function loadTesterId() {
+  if (testerIdState.status === "ready") return Promise.resolve(testerIdState.id);
+  if (testerIdState.promise) return testerIdState.promise;
+  testerIdState.status = "loading";
+  testerIdState.promise = (async () => {
+    let id = "";
+    try { id = await communityTesterId(communityPrimaryDeviceId()); } catch {}
+    testerIdState.id = id;
+    testerIdState.status = id ? "ready" : "failed";
+    testerIdState.promise = null;
+    return id;
+  })();
+  return testerIdState.promise;
+}
+
+async function fillTesterId(bind = true) {
   const display = document.getElementById("testerIdDisplay");
   if (!display) return;
-  let id = "";
-  try { id = await communityTesterId(communityPrimaryDeviceId()); } catch {}
-  if (!id) { display.textContent = "unavailable"; return; }
-  display.textContent = id;
+  const status = document.getElementById("testerIdStatus");
   const copy = document.getElementById("testerIdCopy");
-  if (!copy) return;
-  copy.hidden = false;
-  copy.addEventListener("click", async () => {
-    try { await navigator.clipboard.writeText(id); copy.textContent = "Copied"; } catch { copy.textContent = "Select and copy it"; }
-  });
+  const retry = document.getElementById("testerIdRetry");
+  if (bind && retry) retry.addEventListener("click", () => fillTesterId(false));
+  if (bind && copy) {
+    copy.addEventListener("click", async () => {
+      try { await navigator.clipboard.writeText(testerIdState.id); copy.textContent = "Copied"; } catch { copy.textContent = "Select and copy it"; }
+    });
+  }
+  display.textContent = "…";
+  if (copy) copy.hidden = true;
+  if (retry) retry.hidden = true;
+  if (status) status.textContent = "Getting your Tester ID…";
+  const id = await loadTesterId();
+  if (!display.isConnected) return; // the screen was left while we waited
+  if (!id) {
+    display.textContent = "…";
+    if (status) status.textContent = "We couldn't get your Tester ID. Try again";
+    if (retry) retry.hidden = false;
+    return;
+  }
+  display.textContent = id;
+  if (status) status.textContent = "";
+  if (copy) copy.hidden = false;
 }
 
 function bindSettingsHandlers() {
