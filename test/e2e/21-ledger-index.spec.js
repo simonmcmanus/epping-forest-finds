@@ -55,6 +55,11 @@ test.describe("the Ledger listing", () => {
     await expect(page).toHaveURL(/\/reports\/epping-forest-ledger-\d{4}-\d{2}-\d{2}\.html$/);
   });
 
+  test("invites sign-up for the community features and weekly Ledger updates", async ({ page }) => {
+    await page.goto("/reports/");
+    await expect(page.locator("aside.note")).toContainText("community features and weekly Ledger updates");
+  });
+
   test("fits a phone screen without sideways scrolling", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/reports/");
