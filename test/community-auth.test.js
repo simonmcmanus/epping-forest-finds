@@ -462,7 +462,7 @@ test("callback without configuration answers 503", async () => {
   }, { env: {} });
 });
 
-test("logout clears the session cookie and only returns to a same-site path", async () => {
+test("logout without sign-in configured clears the cookie and only returns to a same-site path", async () => {
   await withAuthEnv(async () => {
     const result = await logout.handler({ queryStringParameters: { return: "/community" }, headers: HOST });
     assert.strictEqual(result.statusCode, 302);
@@ -470,6 +470,24 @@ test("logout clears the session cookie and only returns to a same-site path", as
     const cleared = cookieNamed(result, "ff_session");
     assert.ok(cleared.includes("Max-Age=0") && cleared.includes("HttpOnly") && cleared.includes("Secure"));
     assert.strictEqual((await logout.handler({ queryStringParameters: { return: "https://evil.example" }, headers: HOST })).headers.Location, "/community");
+  }, { env: {} });
+});
+
+test("logout with sign-in configured also ends the provider session, so the next sign-in asks who you are", async () => {
+  await withAuthEnv(async () => {
+    const result = await logout.handler({ queryStringParameters: { return: "/community" }, headers: HOST });
+    assert.strictEqual(result.statusCode, 302);
+    assert.strictEqual(result.headers["Cache-Control"], "no-store");
+    const cleared = cookieNamed(result, "ff_session");
+    assert.ok(cleared.includes("Max-Age=0") && cleared.includes("HttpOnly") && cleared.includes("Secure"));
+    const location = new URL(result.headers.Location);
+    assert.strictEqual(`${location.origin}${location.pathname}`, "https://tenant.example.auth0.test/v2/logout");
+    assert.strictEqual(location.searchParams.get("client_id"), "client-id-1");
+    assert.strictEqual(location.searchParams.get("returnTo"), "https://example.test/community");
+    assert.strictEqual(location.searchParams.get("federated"), null, "an upstream sign-in such as Google is left alone");
+    // An off-site return value cannot turn the sign-out into an open redirect.
+    const evil = await logout.handler({ queryStringParameters: { return: "https://evil.example" }, headers: HOST });
+    assert.strictEqual(new URL(evil.headers.Location).searchParams.get("returnTo"), "https://example.test/community");
   });
 });
 
