@@ -1,15 +1,15 @@
 /**
- * Subscribable iCalendar feed of the events the app shows on its map, served at /calendar.ics
- * (redirect in netlify.toml). Google Calendar can subscribe with "From URL".
+ * Subscribable iCalendar feed of upcoming dated forest events (data/forest-events.json), served at
+ * /calendar.ics (redirect in netlify.toml). Google Calendar can subscribe with "From URL".
  *
- * The data is already public at /data/events.json, so this path is deliberately outside the alpha gate.
+ * The feed carries only what is in that committed file, so this path is deliberately outside the alpha gate.
  * See spec/spec-data-fetching.md, "Calendar feed".
  */
 
 "use strict";
 
 const { buildCalendarFeed } = require("./lib/calendar-feed.js");
-const eventsData = require("../../data/events.json");
+const forestEvents = require("../../data/forest-events.json");
 
 exports.handler = async (event) => {
   const method = (event && event.httpMethod) || "GET";
@@ -26,6 +26,6 @@ exports.handler = async (event) => {
       "Content-Type": "text/calendar; charset=utf-8",
       "Cache-Control": "public, max-age=3600",
     },
-    body: buildCalendarFeed(eventsData, { nowMs: Date.now() }),
+    body: buildCalendarFeed(forestEvents, { nowMs: Date.now() }),
   };
 };

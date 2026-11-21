@@ -1,59 +1,72 @@
 /**
  * Builds the iCalendar (.ics) feed served at /calendar.ics. Pure: no I/O.
  *
- * The feed holds exactly the events the app shows on its map. The visibility rules below are a Node copy
- * of js/normalize.js (finiteCoordinate, eventTimeWindow, isEventPast, isEventTooFarAhead,
- * normalizeEventLocations), which a browser script cannot be required from. Keep them, and
- * EVENT_DEFAULT_DURATION_MS (also in scripts/prune_past_events.js), in sync with js/normalize.js;
- * test/calendar-feed.test.js has a parity test that fails if they drift.
+ * Source is data/forest-events.json (`entries`). An entry is included when it has a `date`
+ * (YYYY-MM-DD) that is today or later by the UK calendar date. `startTime` is UK local time
+ * (GMT or BST); an entry with no start time is an all-day event. There is no coordinate
+ * requirement and no look-ahead window.
  *
  * See spec/spec-data-fetching.md, "Calendar feed".
  */
 
 "use strict";
 
-const EVENT_DEFAULT_DURATION_MS = 24 * 60 * 60 * 1000;
-const EVENT_SHOW_AHEAD_MS = 7 * 24 * 60 * 60 * 1000;
 const UID_DOMAIN = "eppingforestfinds.uk";
+const DEFAULT_DURATION_MS = 60 * 60 * 1000; // timed entries carry no end time
+const DAY_MS = 24 * 60 * 60 * 1000;
 
-function finiteCoordinate(value) {
-  if (value === null || value === undefined || typeof value === "boolean") return null;
-  if (typeof value === "string" && value.trim() === "") return null;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
+const londonParts = new Intl.DateTimeFormat("en-GB", {
+  timeZone: "Europe/London",
+  hourCycle: "h23",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+});
+
+function londonFields(ms) {
+  const f = {};
+  for (const part of londonParts.formatToParts(new Date(ms))) f[part.type] = part.value;
+  return f;
 }
 
-function eventTimeWindow(event) {
-  const starts = event && event.startsAt ? new Date(event.startsAt).getTime() : NaN;
-  if (!Number.isFinite(starts)) return null;
-  const endsRaw = event && event.endsAt ? new Date(event.endsAt).getTime() : NaN;
-  const ends = Number.isFinite(endsRaw) ? endsRaw : starts + EVENT_DEFAULT_DURATION_MS;
-  return { starts, ends };
+/** Today's date in the UK as YYYY-MM-DD. */
+function ukDate(ms) {
+  const f = londonFields(ms);
+  return `${f.year}-${f.month}-${f.day}`;
 }
 
-/** Events the app would show at nowMs, in data order, with their resolved time window and coordinates. */
-function visibleEvents(data, nowMs) {
-  const input = Array.isArray(data && data.events) ? data.events : [];
-  const shown = [];
-  input.forEach((item, index) => {
-    const lat = finiteCoordinate(item && (item.lat ?? item.latitude));
-    const lon = finiteCoordinate(item && (item.lon ?? item.lng ?? item.longitude));
-    if (lat == null || lon == null) return;
-    const window = eventTimeWindow(item);
-    if (!window || window.ends < nowMs) return;
-    if (window.starts > nowMs + EVENT_SHOW_AHEAD_MS) return;
-    shown.push({
-      id: (item && item.id) || `event-${index + 1}`,
-      name: (item && item.name) || "Forest event",
-      description: (item && item.description) || null,
-      sourceUrl: (item && item.sourceUrl) || null,
-      lat,
-      lon,
-      starts: window.starts,
-      ends: window.ends,
-    });
-  });
-  return shown;
+/** UTC milliseconds for a UK wall-clock date and HH:MM, correct on both sides of a clock change. */
+function londonWallTimeToUtc(date, time) {
+  const [y, mo, d] = date.split("-").map(Number);
+  const [h, mi] = time.split(":").map(Number);
+  const wallAsUtc = Date.UTC(y, mo - 1, d, h, mi);
+  let guess = wallAsUtc;
+  for (let i = 0; i < 2; i += 1) {
+    const f = londonFields(guess);
+    const shown = Date.UTC(+f.year, +f.month - 1, +f.day, +f.hour, +f.minute);
+    guess += wallAsUtc - shown;
+  }
+  return guess;
+}
+
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** Upcoming dated entries, in data order. */
+function upcomingEntries(data, nowMs) {
+  const entries = Array.isArray(data && data.entries) ? data.entries : [];
+  const today = ukDate(nowMs);
+  return entries.filter(
+    (entry) =>
+      entry &&
+      typeof entry.date === "string" &&
+      DATE_RE.test(entry.date) &&
+      !Number.isNaN(Date.parse(entry.date)) &&
+      entry.date >= today
+  );
 }
 
 function formatUtc(ms) {
@@ -89,6 +102,20 @@ function foldLine(line) {
   return lines.join("\r\n");
 }
 
+function compactDate(date) {
+  return date.replace(/-/g, "");
+}
+
+function nextDate(date) {
+  return new Date(Date.parse(date) + DAY_MS).toISOString().slice(0, 10);
+}
+
+function finite(value) {
+  if (value === null || value === undefined || value === "" || typeof value === "boolean") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
 function buildCalendarFeed(data, { nowMs = Date.now() } = {}) {
   const lines = [
     "BEGIN:VCALENDAR",
@@ -98,25 +125,32 @@ function buildCalendarFeed(data, { nowMs = Date.now() } = {}) {
     "METHOD:PUBLISH",
     "X-WR-CALNAME:Epping Forest Finds events",
   ];
-  for (const event of visibleEvents(data, nowMs)) {
-    const description = [event.description, event.sourceUrl].filter(Boolean).join("\n");
-    lines.push(
-      "BEGIN:VEVENT",
-      `UID:${event.id}@${UID_DOMAIN}`,
-      `DTSTAMP:${formatUtc(nowMs)}`,
-      `DTSTART:${formatUtc(event.starts)}`,
-      `DTEND:${formatUtc(event.ends)}`,
-      `SUMMARY:${escapeText(event.name)}`
-    );
+  for (const entry of upcomingEntries(data, nowMs)) {
+    lines.push("BEGIN:VEVENT", `UID:${entry.id}@${UID_DOMAIN}`, `DTSTAMP:${formatUtc(nowMs)}`);
+    if (typeof entry.startTime === "string" && TIME_RE.test(entry.startTime)) {
+      const start = londonWallTimeToUtc(entry.date, entry.startTime);
+      lines.push(`DTSTART:${formatUtc(start)}`, `DTEND:${formatUtc(start + DEFAULT_DURATION_MS)}`);
+    } else {
+      lines.push(`DTSTART;VALUE=DATE:${compactDate(entry.date)}`, `DTEND;VALUE=DATE:${compactDate(nextDate(entry.date))}`);
+    }
+    lines.push(`SUMMARY:${escapeText(entry.title || "Forest event")}`);
+    const sources = (Array.isArray(entry.sources) ? entry.sources : []).filter((s) => s && s.url);
+    const description = [entry.body, ...sources.map((s) => (s.label ? `${s.label} ${s.url}` : s.url))]
+      .filter(Boolean)
+      .join("\n");
     if (description) lines.push(`DESCRIPTION:${escapeText(description)}`);
-    if (event.sourceUrl) lines.push(`URL:${event.sourceUrl}`);
-    lines.push(`GEO:${event.lat};${event.lon}`, "END:VEVENT");
+    if (sources.length) lines.push(`URL:${sources[0].url}`);
+    if (entry.place) lines.push(`LOCATION:${escapeText(entry.place)}`);
+    const lat = finite(entry.lat);
+    const lon = finite(entry.lon);
+    if (lat !== null && lon !== null) lines.push(`GEO:${lat};${lon}`);
+    lines.push("END:VEVENT");
   }
   lines.push("END:VCALENDAR");
   return lines.map(foldLine).join("\r\n") + "\r\n";
 }
 
 exports.buildCalendarFeed = buildCalendarFeed;
-exports.visibleEvents = visibleEvents;
+exports.upcomingEntries = upcomingEntries;
 exports.foldLine = foldLine;
 exports.escapeText = escapeText;
