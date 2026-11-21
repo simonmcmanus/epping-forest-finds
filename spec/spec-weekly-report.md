@@ -377,7 +377,7 @@ recommended because unauthenticated calls from the shared GitHub runner IPs
 got HTTP 403 in ledger runs #54 and #56). The script sends a descriptive
 User-Agent and each section (line status, bus stop lookup, stop disruptions)
 fails soft: a failure prints a `TfL check failed: <section> (<reason>)` line
-to stderr and never counts as "no disruption". Whether the key and
+to stderr (or, for one town or batch of stops, a line naming just that part, keeping the rest) and never counts as "no disruption". The ledger then sets the report's about note to a plain-English "rail and bus disruption information was not available, check TfL before travelling" and mentions the failure in the pull request body. Whether the key and
 User-Agent fully stop the 403s is not yet confirmed; the next ledger run will
 show. Most weeks prints no findings at all, which is the
 correct result (good service, no disrupted stops), not a gap to research

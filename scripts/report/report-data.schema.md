@@ -124,7 +124,8 @@ one cannot be fetched the script prints `TfL check failed: <section> (HTTP
 <status>)` to stderr, still prints the other sections' findings, and exits 0
 so stdout stays a valid JSON list. An empty `[]` together with a "TfL check
 failed" line means the check did not run, not that service is good: say so in
-the PR run notes and keep the report's coverage note.
+the pull request body and set `about_note` to a plain-English note that rail and
+bus disruption information was not available (check TfL before travelling).
 
 Extend `report-data.json`'s `"findings"` array with its output before adding
 anything the week's own research turned up -- it's a floor, not a

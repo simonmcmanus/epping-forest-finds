@@ -285,10 +285,13 @@ jobs:
               way as structured_findings.py's output. Most weeks it prints
               an empty list -- that is correct (good service, no disrupted
               stops), not a failure, and needs no further research. If it
-              prints a "TfL check failed" line on stderr, a section could
-              not be fetched: say so in the pull request body's run notes
-              and keep the report's existing coverage note -- never treat a
-              failed check as good service. See step 2c.
+              prints a "TfL check failed" line on stderr, part of the check
+              could not be fetched, so an empty list does not mean good
+              service. Set report-data.json's "about_note" to a plain-English
+              coverage note (no file names or pull request talk) saying rail
+              and bus disruption information was not available and to check
+              TfL before travelling, and mention the failure in the pull
+              request body. See step 2c and step 6.
             - scripts/report/render_report.py -- turns a small JSON file
               into the finished report page (design, map, point-count stats
               -- all of it). You do NOT hand-write the report's HTML or SVG
@@ -347,9 +350,11 @@ jobs:
                   live check, not a hand-researched file, so there is
                   nothing to keep current here and no sourceNotes entry to
                   update. If it prints a "TfL check failed" line on
-                  stderr, say so in the pull request body's run notes and
-                  keep the report's existing coverage note -- never treat a
-                  failed check as good service.
+                  stderr, set report-data.json's "about_note" to: "Rail and bus disruption information was not available for this edition, so check TfL before travelling on the Central line or the Chingford branch."
+                  (adjust only the wording, keep it plain English with no
+                  file names or pull request talk), and mention the failure
+                  in the pull request body. Never imply there is no
+                  disruption when the check failed.
 
                   Your job this run is also to keep those three files
                   current, the same way scripts/business_watch.py keeps
@@ -888,7 +893,10 @@ jobs:
                about the report's coverage, in plain language, only if there
                is something a reader would actually want to know that week.
                It is not a changelog and not a status report on the tooling.
-               Leave it out if there is nothing to say.
+               Leave it out if there is nothing to say. The one required use:
+               when tfl_transit_status.py printed "TfL check failed", say in
+               plain English that rail and bus disruption information was not
+               available and to check TfL before travelling (see step 2c).
 
                The report already carries its own "written by AI, tell us if
                it is wrong" note and its own advert for the app -- do not add

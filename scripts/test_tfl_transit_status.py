@@ -5,6 +5,8 @@ import io
 import json
 import os
 import sys
+import http.client
+import socket
 import unittest
 import urllib.error
 from pathlib import Path
@@ -226,6 +228,106 @@ class RequestHeaderTests(unittest.TestCase):
                 self.assertNotIn("app_key", request.full_url)
         for request in self.requests_for(" abc123 "):
             self.assertIn("app_key=abc123", request.full_url)
+
+
+class FailureDescriptionTests(unittest.TestCase):
+    def test_stop_disruptions_only_failure_keeps_line_findings(self):
+        findings, stderr = run_main(fake_network(
+            line=DISRUPTED_CENTRAL, disruption=http_403("u")))
+        self.assertEqual([f["place"] for f in findings], ["Central line"])
+        self.assertIn("TfL check failed: stop disruptions (HTTP 403)", stderr)
+
+    def test_timeout_is_described_as_timed_out(self):
+        _, stderr = run_main(fake_network(line=socket.timeout("slow")))
+        self.assertIn("TfL check failed: line status (timed out)", stderr)
+
+    def test_invalid_json_is_described_plainly(self):
+        def urlopen(request, timeout=None):
+            response = FakeResponse(None)
+            response.read = lambda: b"<html>not json</html>"
+            return response
+        findings, stderr = run_main(urlopen)
+        self.assertEqual(findings, [])
+        self.assertIn("line status (unexpected response)", stderr)
+        self.assertNotIn("<html>", stderr)
+
+    def test_no_disruption_request_after_bus_stop_lookup_failure(self):
+        seen = []
+        run_main(fake_network(line=[], lookup=http_403("u"), seen=seen))
+        self.assertTrue(seen)
+        self.assertFalse([r for r in seen if "/Disruption" in r.full_url])
+
+    def test_error_output_never_leaks_key_or_url(self):
+        secret = "s3cr3t-key-123"
+        url = "https://api.tfl.gov.uk/Line/central,weaver/Status?app_key=" + secret
+        for line, lookup in (
+            (http_403(url), urllib.error.URLError(f"cannot reach {url}")),
+            (urllib.error.URLError(f"cannot reach {url}"), http.client.IncompleteRead(secret.encode())),
+        ):
+            _, stderr = run_main(fake_network(line=line, lookup=lookup), env={"TFL_APP_KEY": secret})
+            self.assertIn("TfL check failed", stderr)
+            self.assertNotIn(secret, stderr)
+            self.assertNotIn("http", stderr.lower().replace("(http 403)", ""))
+            self.assertNotIn("api.tfl.gov.uk", stderr)
+
+    def test_wrong_shape_200_responses_exit_cleanly_with_failure_lines(self):
+        error_body = {"$type": "Tfl.Api.Presentation.Entities.ApiError", "message": "nope"}
+        findings, stderr = run_main(fake_network(line=error_body, lookup=[1, 2], disruption=error_body))
+        self.assertEqual(findings, [])
+        self.assertIn("line status (unexpected response)", stderr)
+        self.assertIn("bus stop lookup (unexpected response)", stderr)
+        # a dict where a list of disruptions is expected
+        findings, stderr = run_main(fake_network(line=[], disruption=error_body))
+        self.assertEqual(findings, [])
+        self.assertIn("stop disruptions (unexpected response)", stderr)
+
+    def test_incomplete_read_is_caught(self):
+        _, stderr = run_main(fake_network(line=http.client.IncompleteRead(b"x")))
+        self.assertIn("TfL check failed: line status (unexpected response)", stderr)
+
+
+class PartialResultTests(unittest.TestCase):
+    def test_one_failing_town_keeps_other_towns_stops_and_names_the_town(self):
+        first_town = tfl_transit_status.TOWNS[0]
+        seen = []
+
+        def urlopen(request, timeout=None):
+            url = request.full_url
+            seen.append(url)
+            if "/Line/" in url:
+                return FakeResponse([])
+            if "/Disruption" in url:
+                return FakeResponse(STOP_DISRUPTION)
+            if f"lat={first_town['lat']}&" in url:
+                raise http_403(url)
+            return FakeResponse(STOP_LOOKUP)
+
+        findings, stderr = run_main(urlopen)
+        self.assertEqual([f["place"] for f in findings], ["Loughton Station"])
+        self.assertIn(f"bus stop lookup for {first_town['name']} (HTTP 403)", stderr)
+        self.assertEqual(stderr.count("TfL check failed"), 1)
+        self.assertTrue([u for u in seen if "/Disruption" in u])
+
+    def test_one_failing_disruption_batch_keeps_other_batches(self):
+        many = {"stopPoints": [{"id": f"49{n:07d}"} for n in range(25)]}
+        calls = []
+
+        def urlopen(request, timeout=None):
+            url = request.full_url
+            if "/Line/" in url:
+                return FakeResponse([])
+            if "/Disruption" in url:
+                calls.append(url)
+                if len(calls) == 1:
+                    raise http_403(url)
+                return FakeResponse(STOP_DISRUPTION)
+            return FakeResponse(many)
+
+        findings, stderr = run_main(urlopen)
+        self.assertGreaterEqual(len(calls), 2)
+        self.assertEqual(len(findings), len(calls) - 1)
+        self.assertIn("stop disruptions batch 1 of", stderr)
+        self.assertIn("(HTTP 403)", stderr)
 
 
 if __name__ == "__main__":

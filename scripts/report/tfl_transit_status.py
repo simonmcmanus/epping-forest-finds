@@ -34,6 +34,7 @@ Prints a JSON list of findings to stdout, ready to extend
 report-data.json's "findings" array -- the same contract as
 structured_findings.py.
 """
+import http.client
 import json
 import os
 import sys
@@ -91,29 +92,61 @@ def _get_json(url):
         return json.loads(response.read().decode("utf-8"))
 
 
+def _expect(payload, kind):
+    if not isinstance(payload, kind):
+        raise ValueError("unexpected response shape")
+    return payload
+
+
 def fetch_line_statuses(lines=LINES):
     ids = ",".join(line["id"] for line in lines)
-    return _get_json(f"{BASE_URL}/Line/{ids}/Status?detail=true")
+    return _expect(_get_json(f"{BASE_URL}/Line/{ids}/Status?detail=true"), list)
 
 
-def fetch_bus_stop_ids(towns=TOWNS, radius_m=STOP_SCAN_RADIUS_M):
+def fetch_bus_stop_ids(towns=TOWNS, radius_m=STOP_SCAN_RADIUS_M, failures=None):
+    """With `failures` (a list), a town whose search fails is reported there
+    and the other towns' stops are kept; if every town failed the first error
+    is raised so the whole section counts as failed. Without it, any error
+    propagates."""
     ids = set()
+    errors = []
     for town in towns:
-        data = _get_json(
-            f"{BASE_URL}/StopPoint?lat={town['lat']}&lon={town['lon']}"
-            f"&stopTypes=NaptanPublicBusCoachTram&radius={radius_m}"
-        )
-        for stop in data.get("stopPoints", []):
-            if stop.get("id"):
-                ids.add(stop["id"])
+        try:
+            data = _expect(_get_json(
+                f"{BASE_URL}/StopPoint?lat={town['lat']}&lon={town['lon']}"
+                f"&stopTypes=NaptanPublicBusCoachTram&radius={radius_m}"
+            ), dict)
+            for stop in _expect(data.get("stopPoints", []), list):
+                if stop.get("id"):
+                    ids.add(stop["id"])
+        except FETCH_ERRORS as error:
+            if failures is None:
+                raise
+            errors.append((town, error))
+    if errors and len(errors) == len(towns):
+        raise errors[0][1]
+    for town, error in errors:
+        failures.append(f"bus stop lookup for {town.get('name', 'one town')} ({_describe_failure(error)})")
     return sorted(ids)
 
 
-def fetch_stop_disruptions(stop_ids, batch_size=STOP_IDS_PER_REQUEST):
+def fetch_stop_disruptions(stop_ids, batch_size=STOP_IDS_PER_REQUEST, failures=None):
+    """Same partial-results rule as fetch_bus_stop_ids, per batch of stops."""
     disruptions = []
-    for start in range(0, len(stop_ids), batch_size):
+    errors = []
+    starts = list(range(0, len(stop_ids), batch_size))
+    for number, start in enumerate(starts, 1):
         batch = stop_ids[start:start + batch_size]
-        disruptions += _get_json(f"{BASE_URL}/StopPoint/{','.join(batch)}/Disruption")
+        try:
+            disruptions += _expect(_get_json(f"{BASE_URL}/StopPoint/{','.join(batch)}/Disruption"), list)
+        except FETCH_ERRORS as error:
+            if failures is None:
+                raise
+            errors.append((number, error))
+    if errors and len(errors) == len(starts):
+        raise errors[0][1]
+    for number, error in errors:
+        failures.append(f"stop disruptions batch {number} of {len(starts)} ({_describe_failure(error)})")
     return disruptions
 
 
@@ -179,25 +212,31 @@ def stop_disruption_findings(disruptions_json):
     return findings
 
 
+# Everything a section can plausibly raise: network/HTTP errors, timeouts,
+# bad JSON, a payload of the wrong shape, and truncated reads.
+FETCH_ERRORS = (
+    urllib.error.URLError, TimeoutError, OSError, ValueError,
+    AttributeError, KeyError, TypeError, http.client.HTTPException,
+)
+
+
 def _describe_failure(error):
+    """A fixed plain string only -- never the URL, app key or response body,
+    all of which can end up in exception text."""
     if isinstance(error, urllib.error.HTTPError):
         return f"HTTP {error.code}"
-    if isinstance(error, json.JSONDecodeError):
-        return "invalid JSON response"
-    if isinstance(error, (TimeoutError, OSError)) and not isinstance(error, urllib.error.URLError):
-        return f"{type(error).__name__}: {error}"
-    reason = getattr(error, "reason", error)
-    return f"network error: {reason}"
-
-
-FETCH_ERRORS = (urllib.error.URLError, TimeoutError, OSError, ValueError)
+    if isinstance(error, TimeoutError) or isinstance(getattr(error, "reason", None), TimeoutError):
+        return "timed out"
+    if isinstance(error, (urllib.error.URLError, OSError)):
+        return "network error"
+    return "unexpected response"
 
 
 def collect_with_failures():
     """Returns (findings, failures). `failures` is a list of
-    "<section> (<reason>)" strings, one per section that could not be
-    fetched. A failed section contributes no findings, but that is not the
-    same as "no disruption"."""
+    "<section> (<reason>)" strings, one per section (or part of one) that
+    could not be fetched. A failed section contributes no findings, but that
+    is not the same as "no disruption"."""
     findings = []
     failures = []
 
@@ -207,14 +246,14 @@ def collect_with_failures():
         failures.append(f"line status ({_describe_failure(error)})")
 
     try:
-        stop_ids = fetch_bus_stop_ids()
+        stop_ids = fetch_bus_stop_ids(failures=failures)
     except FETCH_ERRORS as error:
         stop_ids = None
         failures.append(f"bus stop lookup ({_describe_failure(error)})")
 
     if stop_ids is not None:
         try:
-            findings += stop_disruption_findings(fetch_stop_disruptions(stop_ids))
+            findings += stop_disruption_findings(fetch_stop_disruptions(stop_ids, failures=failures))
         except FETCH_ERRORS as error:
             failures.append(f"stop disruptions ({_describe_failure(error)})")
 
