@@ -58,6 +58,7 @@ const APP_SHELL = [
   "./js/event-alert.js",
   "./js/heads-up.js",
   "./js/settings.js",
+  "./js/welcome.js",
   "./js/report.js",
   "./js/tracker.js",
   "./js/outbox.js",
