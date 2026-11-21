@@ -128,7 +128,7 @@ test.describe("the marketing homepage", () => {
       await page.keyboard.press("Enter");
       await expect(stories.locator('a[href="/nearby/legends/"]')).toBeVisible();
       await expect(stories.locator('[data-inventory-key="literature"]')).toBeHidden();
-      await expect(page.locator(".hero .cta-note")).toContainText("launch news");
+      await expect(page.locator(".hero .cta-note")).toHaveText("Sign up to get access to the community features and weekly Ledger updates.");
     } finally { await context.close(); }
   });
 
@@ -192,7 +192,7 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator(".hero-sub")).toHaveText(`A free, offline map of Epping Forest. Find ${trees} veteran trees, forest paths, pubs and grazing cattle.`);
     await expect(page.locator("#signupForm")).toBeVisible();
     await expect(page.locator("#find-trees")).toContainText("Search veteran trees by tag, common or Latin name");
-    await expect(page.locator(".signup-intro")).toContainText("opportunities to take part as an early tester");
+    await expect(page.locator(".signup-intro")).toContainText("access to the community features");
 
     await context.close();
   });
@@ -329,11 +329,12 @@ test.describe("the marketing homepage", () => {
     await expect(page.locator("#find-trees > .tag-intro + .tag-story")).toHaveCount(1);
   });
 
-  test("invites early testers to sign up and offers weekly ledger updates", async ({ page }) => {
+  test("offers community access and weekly ledger updates", async ({ page }) => {
     await page.goto("/");
     await page.getByRole("link", { name: "Keep me in the loop", exact: true }).click();
-    await expect(page.locator(".cta-note")).toContainText("launch news");
-    await expect(page.locator(".signup-intro")).toContainText("opportunities to take part as an early tester");
+    await expect(page.locator(".cta-note")).toHaveText("Sign up to get access to the community features and weekly Ledger updates.");
+    await expect(page.locator(".signup-intro")).toContainText("access to the community features");
+    await expect(page.locator("main")).not.toContainText(/launch news|early tester|when they launch/i);
     await expect(page.locator(".signup-intro")).toContainText("weekly Epping Forest Ledger updates");
     await expect(page.getByRole("button", { name: "Email me updates" })).toBeVisible();
     await expect(page.locator("#signupConsent")).toContainText("By choosing “Email me updates”, you agree to receive emails from Epping Forest Finds");
@@ -342,8 +343,8 @@ test.describe("the marketing homepage", () => {
 
   test("highlights the map inventory then the Ledger before signup", async ({ page }) => {
     await page.goto("/");
-    await expect(page.locator(".signup-intro")).toContainText("weekly Epping Forest Ledger updates when they launch");
-    await expect(page.locator("#signupConsent")).toContainText("weekly Epping Forest Ledger updates when they launch");
+    await expect(page.locator(".signup-intro")).toContainText("weekly Epping Forest Ledger updates.");
+    await expect(page.locator("#signupConsent")).toContainText("weekly Epping Forest Ledger updates.");
     await expect(page.locator(".hero + .counts + .ledger + .signup")).toHaveCount(1);
     await expect(page.locator(".signup .card-icon")).toHaveAttribute("src", "assets/home/mail.png");
     await expect(page.locator(".ledger .card-icon")).toHaveAttribute("src", "assets/home/ledger.png");
