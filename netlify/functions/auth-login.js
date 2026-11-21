@@ -29,6 +29,7 @@ exports.handler = async (event) => {
     redirect_uri: `${auth.baseUrl(event)}/api/auth/callback`,
     scope: "openid profile",
     state,
+    prompt: "login",
   }).toString();
   return {
     statusCode: 302,
