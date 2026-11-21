@@ -15061,6 +15061,34 @@ test("a verified tree scores 1 point, and 1 more when another device independent
   assert.equal(both.overlay["tree:1"].s, "confirmed");
 });
 
+test("the first verified nearby-tree adventure earns a one-time 10-point bonus", () => {
+  const adventureTargets = new Map([
+    ["tree:1", { lat: 51.64, lon: 0.01 }],
+    ["tree:2", { lat: 51.641, lon: 0.01 }],
+  ]);
+  const first = communityConsensus.computeCommunityState([
+    communityReport({ deviceId: "device-aaaa", adventure: true }),
+    communityReport({ deviceId: "device-aaaa", target: "tree:2", targetLat: 51.641, lat: 51.641, adventure: true }),
+  ], [], null, { adventureTargets });
+  const scores = first.scores["device-aaaa"];
+  assert.equal(scores.points, communityPointsConfig.POINTS.adventure + communityPointsConfig.POINTS.verify);
+  assert.equal(scores.verified, 2);
+});
+
+test("an adventure bonus requires a registered veteran tree target", () => {
+  const state = communityConsensus.computeCommunityState([
+    communityReport({ target: "tree:999999", adventure: true }),
+  ], [], null, { adventureTargets: new Map([["tree:1", { lat: 51.64, lon: 0.01 }]]) });
+  assert.equal(state.scores["device-aaaa"].points, communityPointsConfig.POINTS.verify);
+});
+
+test("an adventure bonus fails closed when register targets are unavailable", () => {
+  const state = communityConsensus.computeCommunityState([
+    communityReport({ target: "tree:999999", targetLat: 51.64, targetLon: 0.01, adventure: true }),
+  ]);
+  assert.equal(state.scores["device-aaaa"].points, communityPointsConfig.POINTS.verify);
+});
+
 test("conflicting reports are held for review rather than shown", () => {
   const { overlay, conflicts } = communityConsensus.computeCommunityState([
     communityReport({ status: "VERIFIED", deviceId: "device-aaaa" }),
@@ -15260,6 +15288,61 @@ test("a rebuild stores each person's score in a small shard that one lookup can 
   assert.equal(score.points, communityPointsConfig.POINTS.verify + communityPointsConfig.POINTS.verifyConfirmed);
   assert.equal((await communityComputed.loadScore(store, "device-nobody")).points, 0);
   assert.match(communityComputed.scoreShard("device-aaaa"), /^[0-9a-f]{2}$/);
+});
+
+test("a rebuild without a register map never awards the adventure bonus to a forged claim", async () => {
+  const store = memoryStore();
+  await store.put("reports/1", communityReport({ id: "report-adventure-forged", adventure: true, targetLat: 51.64, targetLon: 0.01, lat: 51.64, lon: 0.01 }));
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const computed = await communityComputed.rebuildComputed(store);
+    assert.deepEqual(computed.adventureReports, []);
+  } finally { console.warn = warn; }
+  const points = (await communityComputed.loadScore(store, "device-aaaa")).points;
+  assert.ok(points < communityPointsConfig.POINTS.adventure, "only the normal points, no +10");
+});
+
+test("a register outage with no adventure claims still publishes the rest of the snapshot and skips the register", async () => {
+  const store = memoryStore({ computed: { generatedAt: 10, overlay: {}, conflicts: [] } });
+  await store.put("reports/1", communityReport({ id: "report-plain-1" }));
+  let fetches = 0;
+  const computed = await communityComputed.rebuildComputed(store, { fetchJson: async () => { fetches += 1; throw new Error("offline"); } });
+  assert.equal(fetches, 0, "no register download without adventure claims");
+  assert.equal(computed.reportCount, 1);
+  assert.ok((await store.get("computed")).generatedAt > 10);
+});
+
+test("a register outage with an adventure claim keeps earned awards, withholds new ones and does not throw", async () => {
+  const earned = communityReport({ id: "report-adventure-earned", deviceId: "device-aaaa", adventure: true });
+  const fresh = communityReport({ id: "report-adventure-fresh", deviceId: "device-bbbb", adventure: true });
+  const store = memoryStore({ computed: { generatedAt: 10, overlay: {}, conflicts: [], adventureReports: [earned.id] } });
+  await store.put("reports/1", earned);
+  await store.put("reports/2", fresh);
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const computed = await communityComputed.rebuildComputed(store, { fetchJson: async () => { throw new Error("offline"); } });
+    assert.deepEqual(computed.adventureReports, [earned.id]);
+  } finally { console.warn = warn; }
+  assert.ok((await communityComputed.loadScore(store, "device-aaaa")).points >= communityPointsConfig.POINTS.adventure);
+  assert.ok((await communityComputed.loadScore(store, "device-bbbb")).points < communityPointsConfig.POINTS.adventure);
+});
+
+test("a deletion rebuild succeeds and preserves known adventure awards during a register outage", async () => {
+  const report = communityReport({ id: "report-adventure-preserve", adventure: true });
+  const store = memoryStore({ computed: { generatedAt: 10, overlay: {}, conflicts: [], adventureReports: [report.id] } });
+  await store.put("reports/1", report);
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const computed = await communityComputed.rebuildComputed(store, {
+      strict: true,
+      fetchJson: async () => { throw new Error("offline"); },
+    });
+    assert.deepEqual(computed.adventureReports, [report.id]);
+  } finally { console.warn = warn; }
+  assert.equal((await communityComputed.loadScore(store, report.deviceId)).points, communityPointsConfig.POINTS.adventure);
 });
 
 test("in production a request serves an old snapshot, however old, instead of rebuilding inline", async () => {
@@ -16291,6 +16374,12 @@ test("register records are found by position in the public tree chunks, and a fa
 test("optimistic points mirror the server's configured values for a verify and a new tree", () => {
   assert.equal(app.COMMUNITY_POINTS.verify, communityPointsConfig.POINTS.verify);
   assert.equal(app.COMMUNITY_POINTS.newTree, communityPointsConfig.POINTS.newTree);
+  assert.equal(app.COMMUNITY_POINTS.adventure, communityPointsConfig.POINTS.adventure);
+});
+
+test("a fresh adventure verify adds ten points before the server knows", () => {
+  const local = { "tree:1": { id: "a", status: "VERIFIED", adventure: true, ts: 1000 } };
+  assert.equal(JSON.stringify(app.communityPendingScore(local, 0)), JSON.stringify({ points: 10, verified: 1 }));
 });
 
 test("a fresh verify adds a point and a verified count before the server knows", () => {

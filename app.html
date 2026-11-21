@@ -52,6 +52,7 @@
   <link rel="stylesheet" href="css/map-ui.css">
   <link rel="stylesheet" href="css/onboarding.css">
   <link rel="stylesheet" href="css/tracking.css">
+  <link rel="stylesheet" href="css/adventure.css">
 </head>
 <body>
   <div class="app">
@@ -168,6 +169,23 @@
         <a id="settingsToggle" href="/settings" class="close settings-toggle" aria-label="Settings" aria-current="false"><span class="nav-content"><svg class="app-icon nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg><span class="nav-label">Settings</span></span></a>
       </nav>
 
+      <!-- First-location veteran tree invitation. It lives outside the inspector so the desktop
+           panel's overflow/transition styles cannot clip or squash the fixed-position card. -->
+      <div id="adventureBanner" class="adventure-banner" role="dialog" aria-labelledby="adventureTitle" aria-describedby="adventureMessage adventureTag" hidden>
+        <div class="adventure-banner-art"><img src="data/icons/trees/logo.png" alt=""><span id="adventureDirection" class="adventure-direction" role="img" hidden>↑</span></div>
+        <div class="adventure-banner-copy">
+          <span class="adventure-eyebrow">A tree worth finding</span>
+          <strong id="adventureTitle" class="adventure-title">Find the nearest veteran tree</strong>
+          <p id="adventureMessage"></p>
+          <div id="adventureTag" class="adventure-tag" hidden></div>
+          <div id="adventureMeta" class="adventure-meta"></div>
+        </div>
+        <div class="adventure-banner-actions">
+          <button id="adventureDismiss" class="onboarding-skip-btn" type="button">Not now</button>
+          <button id="adventureStart" class="button" type="button">Start walk</button>
+        </div>
+      </div>
+
       <aside id="inspector" class="inspector" aria-live="polite">
         <div id="inspectorDragHandle" class="inspector-drag-handle" role="separator" aria-orientation="horizontal" aria-label="Drag to resize panel" aria-valuemin="20" aria-valuemax="85" aria-valuenow="50" tabindex="0"></div>
         <!-- Lives in the inspector chrome rather than in the Nearby list's own HTML so the way
@@ -249,6 +267,7 @@
   <script src="js/tracker.js"></script>
   <script src="js/outbox.js"></script>
   <script src="js/community.js"></script>
+  <script src="js/adventure.js"></script>
   <script src="js/nav.js"></script>
   <script src="js/routing.js"></script>
   <script src="js/loader.js"></script>

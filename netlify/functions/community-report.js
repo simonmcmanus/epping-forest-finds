@@ -44,6 +44,7 @@ exports.handler = async (event) => {
     accuracy: input.accuracy == null ? undefined : Number(input.accuracy),
     newLat: input.newLat == null ? undefined : Number(input.newLat),
     newLon: input.newLon == null ? undefined : Number(input.newLon),
+    adventure: input.adventure === true,
     note: typeof input.note === "string" ? input.note.slice(0, 500) : undefined,
     ts: Date.now(),
   };
