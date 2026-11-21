@@ -97,7 +97,7 @@ Epping Forest." so the first line leads.
 > See the latest reported cattle locations from their GPS collars. Positions refresh while online; offline, you’ll see the last saved positions, which may be out of date.
 
 **Everything else you need out there**
-> 9,162 paths and bridleways. 1,309 pubs, cafés and shops. 1,597 car parks,
+> 9,162 paths and bridleways. 1,311 pubs, cafés and shops. 1,597 car parks,
 > benches, toilets and gates. 1,106 bus stops and stations. All within walking
 > distance of the forest.
 
@@ -136,7 +136,7 @@ The counts in §3.4 are real values from the current checkout:
 | --- | --- |
 | 24,906 veteran trees | `data/trees/index.json` → `recordCount` |
 | 9,162 paths | feature count, `data/local-paths.geojson` |
-| 1,309 food & drink | feature count, `data/local-landmarks-food.geojson` |
+| 1,311 food & drink | feature count, `data/local-landmarks-food.geojson` |
 | 1,597 facilities | feature count, `data/local-landmarks-facilities.geojson` |
 | 1,106 transport | feature count, `data/local-landmarks-transport.geojson` |
 
@@ -293,7 +293,9 @@ Sections, in order:
    The tree-data answer credits the City of London, acknowledges possible
    inaccuracies, and explains that the trial will investigate and improve the
    data and report findings back to the City of London. The visible answer and
-   JSON-LD use the same wording.
+   JSON-LD use the same wording. It also states that Epping Forest Finds is not
+   associated with the City of London and that the City of London has not
+   confirmed it will update its own data from our updates.
    Each question links to its own stable fragment: `#faq-offline`, `#faq-free`,
    `#faq-tree-data`, `#faq-cattle` and `#faq-coverage`. Direct links scroll to
    the answer with breathing room above it and highlight the targeted row in

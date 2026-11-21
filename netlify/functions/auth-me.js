@@ -11,9 +11,10 @@ exports.handler = async (event) => {
     // After a merge the account is the one this login was merged into; a store failure falls back to its own.
     try { account = await accountOf(openStore(event), session); } catch { account = accountKey(session.sub); }
   }
+  const picture = session ? auth.safePicture(session.picture) : "";
   return {
     statusCode: 200,
     headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
-    body: JSON.stringify(session ? { signedIn: true, name: session.name, account } : { signedIn: false }),
+    body: JSON.stringify(session ? { signedIn: true, name: session.name, ...(picture ? { picture } : {}), account } : { signedIn: false }),
   };
 };

@@ -41,6 +41,8 @@ test.describe("the marketing homepage", () => {
     await expect(answer).toContainText("some of the data may not be completely accurate");
     await expect(answer).toContainText("working to understand the issues and improve the data");
     await expect(answer).toContainText("report our findings back to the City of London");
+    await expect(answer).toContainText("not associated with the City of London");
+    await expect(answer).toContainText("has not confirmed");
     const data = JSON.parse(await page.locator('script[type="application/ld+json"]').textContent());
     const question = data["@graph"].find(item => item["@type"] === "FAQPage").mainEntity
       .find(item => item.name === "Where does the tree data come from?");

@@ -137,7 +137,8 @@ function tiltRampedAnchor(isSelected, useFinalBrowseState = false) {
   if (useFinalBrowseState) return to;
   const progress = nearbyOriginTransitionEasedProgress();
   if (progress == null) return to;
-  const from = nearbyPivotAnchorFraction(state.nearbyOriginTransition.fromBrowsing);
+  const slide = state.nearbyOriginTransition;
+  const from = slide.fromPivot != null ? slide.fromPivot : nearbyPivotAnchorFraction(slide.fromBrowsing);
   return from + (to - from) * progress;
 }
 

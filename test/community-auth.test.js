@@ -357,6 +357,16 @@ test("login remembers only a same-site return path", async () => {
   });
 });
 
+test("sign-in never returns to a path carrying a control character, even after a leading slash", async () => {
+  await withAuthEnv(async () => {
+    for (const bad of ["/\t/evil.example", "/\n/evil.example", "/\r/evil.example", "/\x00community", "/community\x0a", "/\x7fcommunity"]) {
+      const attempt = await startLogin(bad);
+      assert.strictEqual(auth.verify(cookieValue(attempt.stateCookie), KEY).ret, "/community", `${JSON.stringify(bad)} falls back to /community`);
+      assert.strictEqual(auth.safeReturnPath(bad), "/community", `${JSON.stringify(bad)} is not a safe return path`);
+    }
+  });
+});
+
 test("callback: a good sign-in exchanges the code, sets a signed session cookie and returns to where it started", async () => {
   await withAuthEnv(async (calls) => {
     const { state, stateCookie } = await startLogin("/community");
@@ -389,6 +399,42 @@ test("callback: an email address from the provider never becomes the display nam
     const result = await callback.handler(callbackEvent({ code: "c", state }, `ff_auth_state=${encodeURIComponent(cookieValue(stateCookie))}`));
     assert.strictEqual(auth.verify(cookieValue(cookieNamed(result, "ff_session")), KEY).name, "Walker");
   }, { fetchImpl: providerOk({ sub: "auth0|e", name: "sam@example.com", email: "sam@example.com" }) });
+});
+
+async function signInWith(profile) {
+  let result;
+  await withAuthEnv(async () => {
+    const { state, stateCookie } = await startLogin();
+    const cb = await callback.handler(callbackEvent({ code: "c", state }, `ff_auth_state=${encodeURIComponent(cookieValue(stateCookie))}`));
+    const cookie = `ff_session=${encodeURIComponent(cookieValue(cookieNamed(cb, "ff_session")))}`;
+    result = JSON.parse((await meHandler.handler({ headers: { cookie } })).body);
+  }, { fetchImpl: providerOk({ sub: "auth0|p", name: "Sam Walker", email: "sam@example.com", ...profile }) });
+  return result;
+}
+
+test("sign-in keeps the provider's https profile picture and /api/auth/me returns it", async () => {
+  const me = await signInWith({ picture: "https://lh3.example.test/a/photo=s96" });
+  assert.strictEqual(me.signedIn, true);
+  assert.strictEqual(me.picture, "https://lh3.example.test/a/photo=s96");
+  assert.strictEqual(JSON.stringify(me).includes("sam@example.com"), false, "no email address is returned");
+});
+
+test("sign-in drops a profile picture that is not a short https URL, and me then has no picture key", async () => {
+  const bad = ["http://img.example.test/a.png", "javascript:alert(1)", "data:image/png;base64,AAAA", "https://img.example.test/" + "a".repeat(300), "", 42, undefined];
+  for (const picture of bad) {
+    const me = await signInWith({ picture });
+    assert.strictEqual(me.signedIn, true, `signed in with picture ${String(picture).slice(0, 20)}`);
+    assert.strictEqual("picture" in me, false, `dropped ${String(picture).slice(0, 20)}`);
+  }
+  const edge = "https://img.example.test/" + "a".repeat(300 - "https://img.example.test/".length);
+  assert.strictEqual(edge.length, 300);
+  assert.strictEqual((await signInWith({ picture: edge })).picture, edge, "exactly 300 characters is kept");
+});
+
+test("an email-like name is still never used when a picture is present", async () => {
+  const me = await signInWith({ name: "sam@example.com", nickname: "sam@example.com", picture: "https://img.example.test/a.png" });
+  assert.strictEqual(me.name, "Walker");
+  assert.strictEqual(me.picture, "https://img.example.test/a.png");
 });
 
 test("callback refuses a missing code, a missing or mismatched state, an expired or forged state cookie, without calling the provider", async () => {
@@ -452,7 +498,7 @@ test("callback without configuration answers 503", async () => {
   }, { env: {} });
 });
 
-test("logout clears the session cookie and only returns to a same-site path", async () => {
+test("logout without sign-in configured clears the cookie and only returns to a same-site path", async () => {
   await withAuthEnv(async () => {
     const result = await logout.handler({ queryStringParameters: { return: "/community" }, headers: HOST });
     assert.strictEqual(result.statusCode, 302);
@@ -460,6 +506,24 @@ test("logout clears the session cookie and only returns to a same-site path", as
     const cleared = cookieNamed(result, "ff_session");
     assert.ok(cleared.includes("Max-Age=0") && cleared.includes("HttpOnly") && cleared.includes("Secure"));
     assert.strictEqual((await logout.handler({ queryStringParameters: { return: "https://evil.example" }, headers: HOST })).headers.Location, "/community");
+  }, { env: {} });
+});
+
+test("logout with sign-in configured also ends the provider session, so the next sign-in asks who you are", async () => {
+  await withAuthEnv(async () => {
+    const result = await logout.handler({ queryStringParameters: { return: "/community" }, headers: HOST });
+    assert.strictEqual(result.statusCode, 302);
+    assert.strictEqual(result.headers["Cache-Control"], "no-store");
+    const cleared = cookieNamed(result, "ff_session");
+    assert.ok(cleared.includes("Max-Age=0") && cleared.includes("HttpOnly") && cleared.includes("Secure"));
+    const location = new URL(result.headers.Location);
+    assert.strictEqual(`${location.origin}${location.pathname}`, "https://tenant.example.auth0.test/v2/logout");
+    assert.strictEqual(location.searchParams.get("client_id"), "client-id-1");
+    assert.strictEqual(location.searchParams.get("returnTo"), "https://example.test/community");
+    assert.strictEqual(location.searchParams.get("federated"), null, "an upstream sign-in such as Google is left alone");
+    // An off-site return value cannot turn the sign-out into an open redirect.
+    const evil = await logout.handler({ queryStringParameters: { return: "https://evil.example" }, headers: HOST });
+    assert.strictEqual(new URL(evil.headers.Location).searchParams.get("returnTo"), "https://example.test/community");
   });
 });
 

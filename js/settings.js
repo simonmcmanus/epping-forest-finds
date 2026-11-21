@@ -215,7 +215,7 @@ function settingsAccountHtml(account, note = "") {
     return `<p class="settings-description">Signing in is not available in the app yet. Your Community points are kept on this device.</p>${noteHtml}`;
   }
   if (account && account.signedIn) {
-    return `<p class="settings-description">Signed in as <strong>${escapeHtml(account.name)}</strong>. Your points follow you to any device you sign in on.</p>
+    return `<p class="settings-description">${accountAvatarHtml(account)}Signed in as <strong>${escapeHtml(account.name)}</strong>. Your points follow you to any device you sign in on.</p>
       <a id="settingsSignOut" class="settings-btn settings-btn-link" href="/api/auth/logout?return=/settings">Sign out</a>
       <p class="settings-description">Used a different login on another device? Sign in with it here to bring its points and devices into this account.</p>
       <a id="settingsMerge" class="settings-btn settings-btn-link" href="/api/auth/login?return=/settings&amp;merge=1">Merge another sign-in</a>${noteHtml}`;
