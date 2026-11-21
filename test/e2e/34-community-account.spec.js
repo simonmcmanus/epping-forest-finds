@@ -67,6 +67,36 @@ test.describe("Community sign-in", () => {
     await expect.poll(() => links).toBe(1);
   });
 
+  test("a signed-in visitor can copy their recovery code from under the Sign out line", async ({ page, context }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+    await page.route(ME_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: true, name: "Sam Walker", account: "acct-sam" }) })
+    );
+    await page.route(LINK_URL, (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true }) }));
+    await setup(page, "/community");
+    const account = page.locator("#communityAccount");
+    await expect(account).toContainText("Signed in as Sam Walker");
+    const copy = account.getByRole("button", { name: "Copy" });
+    await expect(copy).toBeVisible();
+    const signOut = await account.locator("a[href^='/api/auth/logout']").boundingBox();
+    const copyBox = await copy.boundingBox();
+    expect(copyBox.y).toBeGreaterThan(signOut.y);
+    await copy.click();
+    await expect(account.getByRole("status").filter({ hasText: "Copied." })).toBeVisible();
+    const code = await page.evaluate(() => communityRecoveryCode());
+    expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(code);
+  });
+
+  test("a signed-out visitor sees the back-up disclosure and no copy row under the account line", async ({ page }) => {
+    await page.route(ME_URL, (route) =>
+      route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: false }) })
+    );
+    await setup(page, "/community");
+    await expect(page.locator("#communityAccount")).toContainText("Sign in to take your points with you");
+    await expect(page.locator("#communityAccount [data-account='copy']")).toBeHidden();
+    await expect(page.locator("#communityAccount .community-recover")).toBeVisible();
+  });
+
   test("Sign in leaves the app for the login page instead of opening a screen", async ({ page }) => {
     await page.route(ME_URL, (route) =>
       route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ signedIn: false }) })
