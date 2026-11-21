@@ -14,6 +14,30 @@ test.describe("Settings screen", () => {
     await expect(page.locator("#settingsToggle")).toHaveClass(/screen-active/);
   });
 
+  test("the Account section comes before Reminders", async ({ page }) => {
+    const titles = await page.locator(".settings-section-title").allTextContents();
+    expect(titles.indexOf("Account")).toBeGreaterThan(-1);
+    expect(titles.indexOf("Account")).toBeLessThan(titles.indexOf("Reminders"));
+  });
+
+  test("the Account section offers a link to sign up for early access", async ({ page }) => {
+    const account = page.locator("#settingsAccount");
+    await expect(account.getByText("Get early access to the community features and weekly Ledger updates by email.")).toBeVisible();
+    const link = account.getByRole("link", { name: "Sign up for early access" });
+    await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute("href", "/#signup");
+  });
+
+  test("the early access link opens the homepage signup in a new tab and leaves the app on Settings", async ({ page }) => {
+    const link = page.locator("#settingsAccount").getByRole("link", { name: "Sign up for early access" });
+    const [popup] = await Promise.all([page.waitForEvent("popup", { timeout: 5000 }), link.click()]);
+    await popup.waitForURL(/\/#signup$/);
+    await popup.waitForLoadState("domcontentloaded");
+    expect(popup.url()).toMatch(/\/#signup$/);
+    await expect(popup.locator("#signup")).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe("/settings");
+  });
+
   test("settings screen shows a walking radius slider", async ({ page }) => {
     await expect(page.locator("#settingsWalkMins")).toHaveAttribute("type", "range");
   });
