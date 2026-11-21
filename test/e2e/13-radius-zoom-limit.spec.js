@@ -218,7 +218,7 @@ test.describe("Radius zoom limit feedback", () => {
       await page.clock.fastForward(380);
       const lit = await sample();
       expect(lit.red).toBeGreaterThan(before.red + 500);
-      if (tilted) expect(lit.redOverBlue, "the radar wash must not turn the rose edge purple").toBeGreaterThan(20);
+      if (tilted) expect(lit.redOverBlue, "the radar wash must not turn the limit edge purple").toBeGreaterThan(20);
       await page.evaluate(() => els.canvas.dispatchEvent(new Event("gestureend", { bubbles: true, cancelable: true })));
       await page.clock.fastForward(280);
       expect((await sample()).red).toBeLessThan(before.red + 100);

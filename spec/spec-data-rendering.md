@@ -722,13 +722,16 @@ moving the real GPS fix:
   attribute (`roundWalkingMinutes`). Sub-minute radii are shown in seconds ("15 sec"); everywhere
   else the continuous minutes value is rounded to the nearest whole minute for display —
   `formatWalkingRadius()` is what every user-facing radius label goes through.
-  At either zoom limit, one consistent rose-red (#D85669) light sits exactly on the clear
-  circle's boundary, independently of the inset decorative rim. The 4 CSS px core stays
-  readable at 76–82% opacity; the halo varies only slightly to avoid a flashing appearance.
-  It feathers approximately 6 CSS px inward and 20 CSS px outward, including under tilt,
+  At either zoom limit, one consistent vermilion light sits exactly on the clear
+  circle's boundary, independently of the inset decorative rim. It is drawn from the app's warm
+  palette, not a stock pink-red: a 2.5 CSS px core (#CE4642, kin to the terracotta selected and
+  error reds yet distinct from both and from the gold rim) with a 1 CSS px pale coral highlight
+  (#FAA896 at half strength) threaded through it, readable at 76–82% opacity, over a deeper
+  garnet halo (#B03039); the halo varies only slightly to avoid a flashing appearance.
+  It feathers approximately 6 CSS px inward and 20 CSS px outward on an eased (smoothstep) falloff, including under tilt,
   leaving the centre clear. A 120ms arrival makes brief wheel attempts visible. Held input
   breathes slowly over 1500ms (500ms gathering, 1000ms settling), with a narrow halo gain
-  of 16–21% of core opacity. Reduced motion uses a steady 79% core and static halo.
+  of 20–26% of core opacity. Reduced motion uses a steady 79% core and static halo.
   The radius stays fixed. Backing off or ending a pinch fades over 260ms with a smooth
   cosine release; re-entry preserves brightness and halo phase. Wheel feedback remains
   continuous across normal notches: the list still settles at 220ms, but the light has its

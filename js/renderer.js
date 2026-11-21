@@ -1252,8 +1252,15 @@ const WALKING_RADIUS_LIMIT_ATTACK_MS = 120;
 const WALKING_RADIUS_LIMIT_RELEASE_MS = 260;
 const WALKING_RADIUS_LIMIT_BREATH_MS = 1500;
 const WALKING_RADIUS_LIMIT_INHALE_MS = 500;
-// One restrained rose-red hue, distinct from error red and the decorative rim's gold.
-const WALKING_RADIUS_LIMIT_ROSE = "216, 86, 105";
+// Limit light, drawn from the app's own warm palette rather than a stock pink-red: a vermilion
+// core (#CE4642, a cooler, brighter sibling of --selected terracotta and --status-error), a
+// pale coral highlight threaded through it, and a deeper garnet halo (#B03039) so the glow
+// falls off in a darker, richer tone. Distinct from error red and the decorative rim's gold.
+const WALKING_RADIUS_LIMIT_CORE = "206, 70, 66";
+const WALKING_RADIUS_LIMIT_HIGHLIGHT = "250, 168, 150";
+const WALKING_RADIUS_LIMIT_HALO = "176, 48, 57";
+// Smoothstep-style falloff (1 at the edge, 0 at the reach) so the halo has no visible band.
+const WALKING_RADIUS_LIMIT_FALLOFF = [0, 0.15, 0.3, 0.45, 0.6, 0.75, 0.9, 1].map(t => [t, (1 - t) * (1 - t) * (1 + 2 * t)]);
 
 let _walkingRadiusLimitFrame = null;
 let _walkingRadiusLimitReleaseTimer = null;
@@ -1333,12 +1340,15 @@ function drawWalkingRadiusLimitFeedback(ctx, center, radiusPx, tilted, dpr) {
   ctx.save();
   const lightAt = feedback.active ? now : feedback.releasedAt;
   const breath = reducedMotion ? 0.5 : walkingRadiusLimitBreath(lightAt - feedback.phaseStartedAt);
-  drawWalkingRadiusLimitHalo(ctx, center, radiusPx, tilted, dpr, opacity * (0.16 + 0.05 * breath));
+  drawWalkingRadiusLimitHalo(ctx, center, radiusPx, tilted, dpr, opacity * (0.2 + 0.06 * breath));
   ctx.beginPath();
   if (tilted) traceGroundCirclePath(ctx, center, radiusPx);
   else ctx.arc(center.x, center.y, radiusPx, 0, Math.PI * 2);
-  ctx.lineWidth = 4 * dpr;
-  ctx.strokeStyle = `rgba(${WALKING_RADIUS_LIMIT_ROSE}, ${opacity})`;
+  ctx.lineWidth = 2.5 * dpr;
+  ctx.strokeStyle = `rgba(${WALKING_RADIUS_LIMIT_CORE}, ${opacity})`;
+  ctx.stroke();
+  ctx.lineWidth = 1 * dpr;
+  ctx.strokeStyle = `rgba(${WALKING_RADIUS_LIMIT_HIGHLIGHT}, ${opacity * 0.5})`;
   ctx.stroke();
   ctx.restore();
 }
@@ -1350,9 +1360,10 @@ function drawWalkingRadiusLimitHalo(ctx, center, radiusPx, tilted, dpr, opacity)
   const outer = Math.min(20 * dpr, radiusPx * 0.45);
   if (!tilted) {
     const glow = ctx.createRadialGradient(center.x, center.y, radiusPx - inner, center.x, center.y, radiusPx + outer);
-    glow.addColorStop(0, `rgba(${WALKING_RADIUS_LIMIT_ROSE}, 0)`);
-    glow.addColorStop(inner / (inner + outer), `rgba(${WALKING_RADIUS_LIMIT_ROSE}, ${opacity})`);
-    glow.addColorStop(1, `rgba(${WALKING_RADIUS_LIMIT_ROSE}, 0)`);
+    const edge = inner / (inner + outer);
+    const halo = a => `rgba(${WALKING_RADIUS_LIMIT_HALO}, ${opacity * a})`;
+    for (const [t, a] of WALKING_RADIUS_LIMIT_FALLOFF) glow.addColorStop(edge * (1 - t), halo(a));
+    for (const [t, a] of WALKING_RADIUS_LIMIT_FALLOFF) if (t > 0) glow.addColorStop(edge + (1 - edge) * t, halo(a));
     ctx.beginPath();
     ctx.arc(center.x, center.y, radiusPx + outer, 0, Math.PI * 2);
     ctx.fillStyle = glow;
@@ -1369,7 +1380,7 @@ function drawWalkingRadiusLimitHalo(ctx, center, radiusPx, tilted, dpr, opacity)
     traceGroundCirclePath(ctx, center, radiusPx);
     for (let step = shoulder.steps; step >= 1; step--) {
       ctx.lineWidth = 2 * shoulder.reach * step / shoulder.steps;
-      ctx.strokeStyle = `rgba(${WALKING_RADIUS_LIMIT_ROSE}, ${opacity * 1.2 / shoulder.steps})`;
+      ctx.strokeStyle = `rgba(${WALKING_RADIUS_LIMIT_HALO}, ${opacity * 1.2 / shoulder.steps})`;
       ctx.stroke();
     }
     ctx.restore();
