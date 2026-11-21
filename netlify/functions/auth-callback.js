@@ -56,6 +56,8 @@ exports.handler = async (event) => {
       return back(event, pending.ret, [auth.mergeResultCookie(outcome, secure), cleared]);
     }
     const session = { sub: String(user.sub), name: auth.displayName(user), exp: Date.now() + auth.SESSION_MS };
+    const picture = auth.safePicture(user.picture);
+    if (picture) session.picture = picture;
     return back(event, pending.ret, [auth.sessionCookie(session, secure), cleared]);
   } catch {
     return back(event, "/community?signin=failed", [cleared]);

@@ -243,7 +243,7 @@ function buildIndexHtml(files) {
     ${body}
   </section>
   <aside class="note">
-    <p>Sign up for launch news, to take part as an early tester, and for weekly Ledger updates when they launch.</p>
+    <p>Sign up to get access to the community features and weekly Ledger updates.</p>
     <a class="app-cta" href="${SITE_ORIGIN}/#signup">Keep me in the loop →</a>
   </aside>
 </main>
