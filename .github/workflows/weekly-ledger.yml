@@ -149,6 +149,11 @@ jobs:
           # happened. Keep the prompt free of ${{ }}; add anything it needs
           # here and refer to it as a shell variable.
           RUN_NUMBER: ${{ github.run_number }}
+          # Optional TfL API key for scripts/report/tfl_transit_status.py.
+          # Unauthenticated calls from shared runner IPs got HTTP 403 in runs
+          # #54 and #56. An unset secret resolves to an empty string, which
+          # the script treats as no key.
+          TFL_APP_KEY: ${{ secrets.TFL_APP_KEY }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.WEEKLY_LEDGER_PAT }}
@@ -279,8 +284,11 @@ jobs:
               whatever it prints to report-data.json's "findings" the same
               way as structured_findings.py's output. Most weeks it prints
               an empty list -- that is correct (good service, no disrupted
-              stops), not a failure, and needs no further research. See
-              step 2c.
+              stops), not a failure, and needs no further research. If it
+              prints a "TfL check failed" line on stderr, a section could
+              not be fetched: say so in the pull request body's run notes
+              and keep the report's existing coverage note -- never treat a
+              failed check as good service. See step 2c.
             - scripts/report/render_report.py -- turns a small JSON file
               into the finished report page (design, map, point-count stats
               -- all of it). You do NOT hand-write the report's HTML or SVG
@@ -338,7 +346,10 @@ jobs:
                   output to report-data.json's "findings" too -- it is a
                   live check, not a hand-researched file, so there is
                   nothing to keep current here and no sourceNotes entry to
-                  update.
+                  update. If it prints a "TfL check failed" line on
+                  stderr, say so in the pull request body's run notes and
+                  keep the report's existing coverage note -- never treat a
+                  failed check as good service.
 
                   Your job this run is also to keep those three files
                   current, the same way scripts/business_watch.py keeps

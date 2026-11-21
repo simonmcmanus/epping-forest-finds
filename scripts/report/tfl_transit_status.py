@@ -17,9 +17,15 @@ existing empty-section wording covers that, the same as an empty week for
 road closures or events. See spec/spec-weekly-report.md.
 
 Network: Transport for London's own public transport data feed
-(api.tfl.gov.uk). No key or registration needed. An optional TFL_APP_KEY
-environment variable raises the shared rate limit but changes nothing about
-the data returned -- see .env.example.
+(api.tfl.gov.uk). A key is optional but recommended: the weekly ledger runs
+from shared GitHub runner IPs and TfL answered some of those unauthenticated
+calls with HTTP 403. An optional TFL_APP_KEY environment variable is sent as
+app_key; it changes nothing about the data returned -- see .env.example.
+
+Each section (line status, bus stop lookup, stop disruptions) fails soft: if
+one cannot be fetched a "TfL check failed: <section> (<reason>)" line goes to
+stderr, the other sections' findings are still printed, and the exit code
+stays 0. A failed section is NOT "no disruption" -- callers must read stderr.
 
 Usage:
     python3 scripts/report/tfl_transit_status.py
@@ -31,6 +37,7 @@ structured_findings.py.
 import json
 import os
 import sys
+import urllib.error
 import urllib.parse
 import urllib.request
 from pathlib import Path
@@ -43,6 +50,7 @@ else:
 
 BASE_URL = "https://api.tfl.gov.uk"
 REQUEST_TIMEOUT_S = 20
+USER_AGENT = "epping-forest-finds-ledger/1.0 (+https://github.com/simonmcmanus/epping-forest-finds)"
 
 # The two lines that actually serve the forest's own stations. Chingford is
 # served by London Overground's "Weaver" line, not Greater Anglia -- an
@@ -72,10 +80,13 @@ STOP_SOURCE = {"label": "TfL service status", "url": "https://tfl.gov.uk/status-
 
 
 def _get_json(url):
-    key = os.environ.get("TFL_APP_KEY")
+    key = (os.environ.get("TFL_APP_KEY") or "").strip()
     if key:
         url = f"{url}{'&' if '?' in url else '?'}app_key={urllib.parse.quote(key)}"
-    request = urllib.request.Request(url, headers={"accept": "application/json"})
+    request = urllib.request.Request(
+        url,
+        headers={"accept": "application/json", "User-Agent": USER_AGENT},
+    )
     with urllib.request.urlopen(request, timeout=REQUEST_TIMEOUT_S) as response:
         return json.loads(response.read().decode("utf-8"))
 
@@ -168,14 +179,56 @@ def stop_disruption_findings(disruptions_json):
     return findings
 
 
+def _describe_failure(error):
+    if isinstance(error, urllib.error.HTTPError):
+        return f"HTTP {error.code}"
+    if isinstance(error, json.JSONDecodeError):
+        return "invalid JSON response"
+    if isinstance(error, (TimeoutError, OSError)) and not isinstance(error, urllib.error.URLError):
+        return f"{type(error).__name__}: {error}"
+    reason = getattr(error, "reason", error)
+    return f"network error: {reason}"
+
+
+FETCH_ERRORS = (urllib.error.URLError, TimeoutError, OSError, ValueError)
+
+
+def collect_with_failures():
+    """Returns (findings, failures). `failures` is a list of
+    "<section> (<reason>)" strings, one per section that could not be
+    fetched. A failed section contributes no findings, but that is not the
+    same as "no disruption"."""
+    findings = []
+    failures = []
+
+    try:
+        findings += line_status_findings(fetch_line_statuses())
+    except FETCH_ERRORS as error:
+        failures.append(f"line status ({_describe_failure(error)})")
+
+    try:
+        stop_ids = fetch_bus_stop_ids()
+    except FETCH_ERRORS as error:
+        stop_ids = None
+        failures.append(f"bus stop lookup ({_describe_failure(error)})")
+
+    if stop_ids is not None:
+        try:
+            findings += stop_disruption_findings(fetch_stop_disruptions(stop_ids))
+        except FETCH_ERRORS as error:
+            failures.append(f"stop disruptions ({_describe_failure(error)})")
+
+    return findings, failures
+
+
 def collect():
-    line_findings = line_status_findings(fetch_line_statuses())
-    stop_findings = stop_disruption_findings(fetch_stop_disruptions(fetch_bus_stop_ids()))
-    return line_findings + stop_findings
+    return collect_with_failures()[0]
 
 
 def main():
-    findings = collect()
+    findings, failures = collect_with_failures()
+    for failure in failures:
+        print(f"TfL check failed: {failure}", file=sys.stderr)
     json.dump(findings, sys.stdout, indent=2)
     sys.stdout.write("\n")
 

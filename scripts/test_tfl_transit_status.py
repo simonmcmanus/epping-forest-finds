@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
 """Unit tests for scripts/report/tfl_transit_status.py. Run: python3 scripts/test_tfl_transit_status.py"""
+import contextlib
+import io
+import json
+import os
 import sys
 import unittest
+import urllib.error
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from scripts.report import tfl_transit_status  # noqa: E402
 from scripts.report.tfl_transit_status import (  # noqa: E402
     line_status_findings,
     stop_disruption_findings,
@@ -116,6 +123,109 @@ class StopDisruptionFindingsTests(unittest.TestCase):
     def test_disruption_with_no_named_stop_falls_back_to_the_area(self):
         findings = stop_disruption_findings([{"description": "A stop is suspended nearby."}])
         self.assertEqual(findings[0]["place"], "Epping Forest area")
+
+
+class FakeResponse:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def read(self):
+        return json.dumps(self.payload).encode("utf-8")
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+def http_403(url):
+    return urllib.error.HTTPError(url, 403, "Forbidden", {}, None)
+
+
+DISRUPTED_CENTRAL = [{
+    "id": "central", "name": "Central",
+    "lineStatuses": [{"statusSeverity": 6, "statusSeverityDescription": "Severe Delays", "reason": "Signal failure."}],
+}]
+STOP_LOOKUP = {"stopPoints": [{"id": "490000001"}]}
+STOP_DISRUPTION = [{"description": "Stop closed.", "affectedStops": [{"commonName": "Loughton Station"}]}]
+
+
+def fake_network(line=None, lookup=STOP_LOOKUP, disruption=STOP_DISRUPTION, seen=None):
+    """Stands in for urlopen. A section given an Exception instance fails."""
+    def urlopen(request, timeout=None):
+        url = request.full_url
+        if seen is not None:
+            seen.append(request)
+        if "/Line/" in url:
+            payload = line
+        elif "/Disruption" in url:
+            payload = disruption
+        else:
+            payload = lookup
+        if isinstance(payload, Exception):
+            raise payload
+        return FakeResponse(payload)
+    return urlopen
+
+
+def run_main(urlopen, env=None):
+    out, err = io.StringIO(), io.StringIO()
+    with mock.patch.dict(os.environ, env or {}, clear=False), \
+            mock.patch("urllib.request.urlopen", urlopen), \
+            contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+        tfl_transit_status.main()
+    return json.loads(out.getvalue()), err.getvalue()
+
+
+class FailSoftTests(unittest.TestCase):
+    def test_line_status_403_still_returns_bus_stop_findings_and_reports_failure(self):
+        findings, stderr = run_main(fake_network(line=http_403("https://api.tfl.gov.uk/Line/x")))
+        self.assertEqual([f["place"] for f in findings], ["Loughton Station"])
+        self.assertIn("TfL check failed: line status (HTTP 403)", stderr)
+
+    def test_bus_stop_failure_still_returns_line_findings_and_reports_failure(self):
+        findings, stderr = run_main(fake_network(
+            line=DISRUPTED_CENTRAL, lookup=urllib.error.URLError("connection refused")))
+        self.assertEqual([f["place"] for f in findings], ["Central line"])
+        self.assertIn("TfL check failed: bus stop lookup", stderr)
+
+    def test_all_sections_failing_prints_empty_list_and_names_each_failure(self):
+        err = http_403("u")
+        findings, stderr = run_main(fake_network(line=err, lookup=err))
+        self.assertEqual(findings, [])
+        self.assertIn("line status (HTTP 403)", stderr)
+        self.assertIn("bus stop lookup (HTTP 403)", stderr)
+
+    def test_healthy_run_reports_no_failure(self):
+        findings, stderr = run_main(fake_network(line=DISRUPTED_CENTRAL))
+        self.assertEqual(len(findings), 2)
+        self.assertEqual(stderr, "")
+
+
+class RequestHeaderTests(unittest.TestCase):
+    def requests_for(self, key):
+        seen = []
+        env = {"TFL_APP_KEY": key} if key is not None else {}
+        with mock.patch.dict(os.environ, env, clear=False):
+            if key is None:
+                os.environ.pop("TFL_APP_KEY", None)
+            run_main(fake_network(line=[], seen=seen))
+        return seen
+
+    def test_requests_carry_a_descriptive_user_agent(self):
+        requests = self.requests_for(None)
+        self.assertTrue(requests)
+        for request in requests:
+            self.assertIn("epping-forest-finds", request.get_header("User-agent"))
+            self.assertEqual(request.get_header("Accept"), "application/json")
+
+    def test_app_key_sent_only_when_non_blank(self):
+        for blank in (None, "", "   "):
+            for request in self.requests_for(blank):
+                self.assertNotIn("app_key", request.full_url)
+        for request in self.requests_for(" abc123 "):
+            self.assertIn("app_key=abc123", request.full_url)
 
 
 if __name__ == "__main__":

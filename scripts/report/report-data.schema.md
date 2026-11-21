@@ -108,7 +108,9 @@ python3 scripts/report/structured_findings.py --as-of 2026-10-10
 `scripts/report/tfl_transit_status.py` prints findings in the same shape from
 a live check instead of a hand-researched file: the Central line, the Weaver
 line (London Overground's Chingford branch), and bus stop disruptions around
-the coverage settlements. No arguments, no key required:
+the coverage settlements. No arguments. `TFL_APP_KEY` is optional but
+recommended (unauthenticated calls from shared GitHub runner IPs got HTTP 403
+in ledger runs #54 and #56; whether the key fixes that is not yet confirmed):
 
 ```
 python3 scripts/report/tfl_transit_status.py
@@ -116,6 +118,13 @@ python3 scripts/report/tfl_transit_status.py
 
 Most weeks this prints `[]` -- good service and no disrupted stops is the
 common case, not a failure.
+
+Each section (line status, bus stop lookup, stop disruptions) fails soft. If
+one cannot be fetched the script prints `TfL check failed: <section> (HTTP
+<status>)` to stderr, still prints the other sections' findings, and exits 0
+so stdout stays a valid JSON list. An empty `[]` together with a "TfL check
+failed" line means the check did not run, not that service is good: say so in
+the PR run notes and keep the report's coverage note.
 
 Extend `report-data.json`'s `"findings"` array with its output before adding
 anything the week's own research turned up -- it's a floor, not a
