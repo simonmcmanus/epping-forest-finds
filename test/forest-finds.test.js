@@ -3909,10 +3909,12 @@ test("the radius edge breathes while held at either zoom limit and fades on back
   ctx.rect = () => {};
   let edge = null, pathRadius = null, feedbackRadius = null;
   ctx.arc = (x, y, radius) => { if (edge == null) edge = radius; pathRadius = radius; };
-  ctx.stroke = () => { feedbackRadius = pathRadius; };
+  // The core is the first stroke of the feedback; the specular lip that follows sits just inside it.
+  ctx.stroke = () => { if (feedbackRadius == null) feedbackRadius = pathRadius; };
   const paint = () => {
     edge = null;
     isolated.drawWalkingRadius(ctx);
+    feedbackRadius = null;
     const { center, radiusPx, tilted, dpr } = isolated.walkingRadiusScreenGeometry();
     isolated.drawWalkingRadiusLimitFeedback(ctx, center, radiusPx, tilted, dpr);
     return isolated.walkingRadiusLimitOpacity();

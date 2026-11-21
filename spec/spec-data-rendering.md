@@ -722,14 +722,18 @@ moving the real GPS fix:
   attribute (`roundWalkingMinutes`). Sub-minute radii are shown in seconds ("15 sec"); everywhere
   else the continuous minutes value is rounded to the nearest whole minute for display —
   `formatWalkingRadius()` is what every user-facing radius label goes through.
-  At either zoom limit, one consistent vermilion light sits exactly on the clear
-  circle's boundary, independently of the inset decorative rim. It is drawn from the app's warm
-  palette, not a stock pink-red: a 2.5 CSS px core (#CE4642, kin to the terracotta selected and
-  error reds yet distinct from both and from the gold rim) with a 1 CSS px pale coral highlight
-  (#FAA896 at half strength) threaded through it, readable at 76–82% opacity, over a deeper
-  garnet halo (#B03039); the halo varies only slightly to avoid a flashing appearance.
-  It feathers approximately 6 CSS px inward and 20 CSS px outward on an eased (smoothstep) falloff, including under tilt,
-  leaving the centre clear. A 120ms arrival makes brief wheel attempts visible. Held input
+  At either zoom limit, one consistent crimson garnet light sits exactly on the clear
+  circle's boundary, independently of the inset decorative rim. Its hue is deliberately
+  cooler (about 348 degrees) than the orange-leaning terracotta selected and error reds
+  (about 10 degrees), so it reads as a lit boundary rather than a stock error state; it is
+  also separate from the gold rim. A 2.5 CSS px core (#BE2842) carries one 0.8 CSS px pale
+  specular (#FFC8BA at 60% of the light) on its inner lip, readable at 76-82% opacity, over
+  a garnet halo that runs from #AA233C beside the core on the inner side to a deeper #961E36
+  outside, so it holds over both light and dark terrain; the halo varies only slightly to
+  avoid a flashing appearance.
+  It feathers approximately 6 CSS px inward and 20 CSS px outward on the same eased
+  (smoothstep) falloff flat and tilted (tilt composites its stacked strokes to that exact
+  coverage), leaving the centre clear. A 120ms arrival makes brief wheel attempts visible. Held input
   breathes slowly over 1500ms (500ms gathering, 1000ms settling), with a narrow halo gain
   of 20–26% of core opacity. Reduced motion uses a steady 79% core and static halo.
   The radius stays fixed. Backing off or ending a pinch fades over 260ms with a smooth

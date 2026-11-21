@@ -36,7 +36,7 @@ test.describe("Radius zoom limit feedback", () => {
             const alpha = (x) => ctx.getImageData(x, 80, 1, 1).data[3];
             let brightest = 0;
             for (let x = 120; x < 159; x++) if (alpha(x) > alpha(brightest)) brightest = x;
-            return { red, brightest, edgeAlpha: Math.max(alpha(139), alpha(140)), nearAlpha: alpha(145), farAlpha: alpha(155), outsideAlpha: alpha(159), innerAlpha: alpha(130), outerAlpha: alpha(149), centreAlpha: alpha(80), image: canvas.toDataURL() };
+            return { red, brightest, edgeAlpha: Math.max(alpha(139), alpha(140)), nearAlpha: alpha(145), farAlpha: alpha(155), outsideAlpha: alpha(159), innerAlpha: alpha(130), outerAlpha: alpha(149), centreAlpha: alpha(80), core: Array.from(ctx.getImageData(140, 80, 1, 1).data), image: canvas.toDataURL() };
           };
         }, limit);
         const before = await page.evaluate(() => window.__sampleRim());
@@ -94,6 +94,9 @@ test.describe("Radius zoom limit feedback", () => {
         expect(peak.outerAlpha).toBeGreaterThan(peak.innerAlpha);
         expect(peak.farAlpha).toBeGreaterThanOrEqual(peak.outsideAlpha);
         expect(peak.centreAlpha).toBe(0);
+        const [coreR, coreG, coreB] = peak.core;
+        expect(coreR, "the limit core is a strong red").toBeGreaterThan(150);
+        expect(coreB, "crimson-leaning garnet, not the orange-leaning error red").toBeGreaterThan(coreG);
         await advance(1000);
         const trough = await page.evaluate(() => window.__sampleRim());
         expect(trough.red).toBeGreaterThan(before.red);
