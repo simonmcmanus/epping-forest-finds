@@ -118,7 +118,9 @@ Cow requests use a fixed center coordinate (not user location) and refresh every
 ## Events
 
 Events (fairs, guided walks, markets — anything at a fixed location with a start/end time) are
-sourced from `data/events.json` and merged into `state.landmarks` exactly like folklore
+sourced from `data/events.json` (a generated copy of the located, upcoming dated entries in
+`data/forest-events.json`, written by `scripts/generate-map-events.js` in the weekly ledger run;
+the app's rules below are unchanged) and merged into `state.landmarks` exactly like folklore
 locations, so they get clustering, search, filtering, routing and the inspector's place-detail
 view for free rather than a parallel code path. **Events is a default-on filter category**, like
 Trees and Cows, shown as its own top-level group (not a subfilter of something else) with the

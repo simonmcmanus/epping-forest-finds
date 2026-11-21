@@ -339,7 +339,10 @@ The accepted `lat`/`lon` are stored with a `locationSource`. Coordinates are
 never typed by hand or recalled from memory, and existing coordinates are never
 overwritten. A dated entry that no candidate resolves is marked
 `locationStatus: "unlocated"` and reported as unlocated; the run may correct
-its `place` to a venue the source names and run the script again. An entry
+its `place` to a venue the source names and run the script again. Only entries
+dated today (UK date) or later are located. After locating, `node
+scripts/generate-map-events.js` regenerates `data/events.json` from the located,
+upcoming entries. An entry
 marked `needsReverification` is a research gap being surfaced honestly, not a
 finding ready to print; `scripts/report/structured_findings.py` (below)
 carries that caveat into the finding's own body text rather than dropping it.

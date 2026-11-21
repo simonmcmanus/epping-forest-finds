@@ -335,7 +335,14 @@ jobs:
                   address or venue name that the source actually names,
                   and run the script again. Never type coordinates in from
                   memory and never invent a place the source does not
-                  name; an entry that stays unlocated stays unlocated. Each file's
+                  name; an entry that stays unlocated stays unlocated.
+                  Finally run
+
+                    node scripts/generate-map-events.js
+
+                  so data/events.json, the map's events, is regenerated
+                  from the located, upcoming entries and committed with
+                  the other data changes. Each file's
                   "sourceNotes" records which upstream sources are worth
                   building real automation against (the free Street Manager
                   roadworks API for England; the City of London's Epping
