@@ -171,7 +171,6 @@ function settingsFormHtml() {
       <p class="settings-description">App version: <span id="appVersionDisplay" class="app-version-display">${escapeHtml(state.swVersion || APP_VERSION)}</span></p>
       ${Native.isNative ? "" : appUpdateStatusHtml()}
       <p class="settings-description">Tester ID: <code id="testerIdDisplay" class="tester-id">…</code> <button type="button" id="testerIdCopy" class="settings-btn" hidden>Copy</button> <button type="button" id="testerIdRetry" class="settings-btn" hidden>Retry</button><br><span id="testerIdStatus" class="report-note">Getting your Tester ID…</span> <span class="report-note">Give this to Simon to try early features.</span></p>
-      <button type="button" id="welcomeReopen" class="settings-btn">Show the beta welcome again</button>
       <p class="settings-description">Vibe coded by <a href="https://simonmcmanus.com" target="_blank" rel="noopener noreferrer">Simon McManus</a></p>
       <p id="dataUpdateNote" class="report-note"${state.dataUpdateAvailable ? "" : " hidden"}>New map data has been downloaded. <button id="dataUpdateReloadButton" class="inline-text-button" type="button">Reload now</button> to see it.</p>
       ${Native.data ? nativeDataHtml() : ""}
@@ -273,8 +272,6 @@ async function fillTesterId(bind = true) {
   const status = document.getElementById("testerIdStatus");
   const copy = document.getElementById("testerIdCopy");
   const retry = document.getElementById("testerIdRetry");
-  const reopen = document.getElementById("welcomeReopen");
-  if (bind && reopen) reopen.addEventListener("click", () => { if (typeof openWelcome === "function") openWelcome(reopen); });
   if (bind && retry) retry.addEventListener("click", () => fillTesterId(false));
   if (bind && copy) {
     copy.addEventListener("click", async () => {

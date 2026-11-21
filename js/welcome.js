@@ -1,10 +1,11 @@
-// Epping Forest Finds — Beta welcome: the one-time sheet new testers see over the map. The Tester ID
+// Epping Forest Finds — Beta welcome: the sheet beta testers see over the map at /beta. The Tester ID
 // lookup it shares with Settings lives in js/settings.js. See spec/spec-community.md "Beta welcome sheet".
 //
 // A classic script loaded before js/app.js (see app.html). It never gates the app: the sheet is shown
 // after the map has booted, sits over the bottom of the screen without covering the map's gestures, and
-// can be skipped at every step. Only the first-run scheduler at the bottom runs at load.
+// can be skipped at every step. Only the /beta scheduler at the bottom runs at load.
 
+const WELCOME_PATH = "/beta";
 const WELCOME_KEY = "ff-welcome-v1";
 const WELCOME_STEPS = 3;
 const WELCOME_MAILTO = "mcmanus.simon@gmail.com";
@@ -14,10 +15,6 @@ let welcomeShownThisSession = false;
 let welcomeRoot = null;
 let welcomeStep = 1;
 let welcomeOpener = null;
-
-function welcomeHasBeenSeen() {
-  try { return localStorage.getItem(WELCOME_KEY) !== null; } catch { return welcomeShownThisSession; }
-}
 
 function welcomeMarkSeen() {
   try { localStorage.setItem(WELCOME_KEY, "1"); } catch {}
@@ -205,7 +202,7 @@ function closeWelcome() {
   }
 }
 
-// First run: once the map has booted. Polls cheaply for up to a minute, then gives up (the next open tries again).
+// On /beta only, every visit: once the map has booted. Polls cheaply for up to a minute, then gives up (the next open tries again).
 // Other first-run prompts go first so two never stack: the consent / map-setup card (#consentBanner) and
 // the guided setup dialog (#onboardingOverlay). While either is up we keep waiting (that wait does not use
 // up the minute), and the sheet opens only after both have been gone for a short quiet moment, so it never
@@ -220,7 +217,7 @@ function welcomeFirstRunPromptUp() {
 }
 
 function welcomeScheduleFirstRun() {
-  if (welcomeHasBeenSeen()) return;
+  if (window.location.pathname !== WELCOME_PATH) return;
   const started = Date.now();
   let sawPrompt = false;
   let quietSince = 0;
@@ -233,7 +230,7 @@ function welcomeScheduleFirstRun() {
         if (!quietSince) quietSince = Date.now();
         if (Date.now() - quietSince < WELCOME_QUIET_MS) { setTimeout(check, 250); return; }
       }
-      if (!welcomeHasBeenSeen() && !welcomeRoot) openWelcome();
+      if (!welcomeRoot) openWelcome();
       return;
     }
     if (Date.now() - started < 60000) setTimeout(check, 250);

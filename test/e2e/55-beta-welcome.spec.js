@@ -6,10 +6,10 @@ const FEATURES_URL = "**/api/features**";
 const answer = (community) => (route) =>
   route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ community }) });
 
-// A new tester for the welcome: no ff-welcome-v1 key, and no stored Community answer unless a test sets one.
+// The beta sign-up flow lives only at /beta. A new tester for the welcome: no ff-welcome-v1 key, and no stored Community answer unless a test sets one.
 // The first-run consent card and guided setup are already answered, because the welcome waits behind them
 // (their own tests below leave them unanswered).
-async function openAsNewVisitor(page, { community = false } = {}) {
+async function openAsNewVisitor(page, { community = false, path = "/beta" } = {}) {
   await mockCowApi(page);
   await page.addInitScript(() => {
     localStorage.setItem("ff-location-v1", "declined");
@@ -17,7 +17,7 @@ async function openAsNewVisitor(page, { community = false } = {}) {
     localStorage.setItem("forest-finds-onboarding-v1", "done");
   });
   await page.route(FEATURES_URL, answer(community));
-  await gotoAndWaitForMap(page, "/nearby");
+  await gotoAndWaitForMap(page, path);
 }
 
 const dialog = (page) => page.getByRole("dialog", { name: "Thanks for testing Epping Forest Finds" });
@@ -45,7 +45,7 @@ test.describe("Beta welcome sheet", () => {
       localStorage.removeItem("ff-track-v1");
       localStorage.removeItem("ff-cookie-consent");
     });
-    await page.goto("/nearby");
+    await page.goto("/beta");
     const card = page.locator("#consentBanner");
     await expect(card).toBeVisible();
     await page.waitForFunction(() => state.dataLoaded === true);
@@ -70,7 +70,7 @@ test.describe("Beta welcome sheet", () => {
       localStorage.removeItem("ff-track-v1");
       localStorage.removeItem("ff-cookie-consent");
     });
-    await page.goto("/nearby");
+    await page.goto("/beta");
     await page.locator("#consentBannerDecline").click();
     await page.locator("#filterToggle").click();
     const setup = page.getByRole("dialog", { name: "Set up Epping Forest Finds" });
@@ -86,14 +86,28 @@ test.describe("Beta welcome sheet", () => {
     await expect(dialog(page)).toBeVisible();
   });
 
-  test("Skip closes the welcome and it does not return on reload",async ({ page }) => {
+  test("Skip closes the welcome, and visiting /beta again opens it at step 1", async ({ page }) => {
     await openAsNewVisitor(page);
     await expect(dialog(page)).toBeVisible();
-    await page.getByRole("button", { name: "Skip" }).click();
+    await page.getByRole("button", { name: "Next" }).click();
+    await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
-    await gotoAndWaitForMap(page, "/nearby");
+    await gotoAndWaitForMap(page, "/beta");
+    await expect(dialog(page)).toBeVisible();
+    await expect(page.getByText("Step 1 of 3")).toBeVisible();
+  });
+
+  test("other paths never show the welcome, even on a fresh profile", async ({ page }) => {
+    await openAsNewVisitor(page, { path: "/nearby" });
+    await page.waitForTimeout(2000);
     await expect(page.locator("#mapCanvas")).toBeVisible();
     await expect(page.getByRole("dialog", { name: /Thanks for testing/ })).toHaveCount(0);
+  });
+
+  test("/beta is served as the app, not a 404", async ({ page }) => {
+    const response = await page.request.get("/beta");
+    expect(response.status()).toBe(200);
+    expect(await response.text()).toContain('id="mapCanvas"');
   });
 
   test("step 2 shows the Tester ID and Send opens an email with the ID but never the device id", async ({ page }) => {
@@ -144,13 +158,10 @@ test.describe("Beta welcome sheet", () => {
     await expect(page.locator("#mapCanvas")).toBeFocused();
   });
 
-  test("Settings can show the beta welcome again at step 1", async ({ page }) => {
-    await openAsNewVisitor(page);
-    await page.getByRole("button", { name: "Skip" }).click();
-    await page.click("#settingsToggle");
-    await page.getByRole("button", { name: "Show the beta welcome again" }).click();
-    await expect(dialog(page)).toBeVisible();
-    await expect(page.getByText("Step 1 of 3")).toBeVisible();
+  test("Settings no longer offers to show the beta welcome again", async ({ page }) => {
+    await openAsNewVisitor(page, { path: "/settings" });
+    await expect(page.getByText("Tester ID:")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Show the beta welcome again" })).toHaveCount(0);
   });
 
   test("at 320px wide the page does not scroll sideways with the welcome open", async ({ page }) => {
