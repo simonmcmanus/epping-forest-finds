@@ -14,7 +14,7 @@ const MAX_STEP_SHARE = 0.4;
 test.use({ geolocation: FOREST_LOCATION, permissions: ["geolocation"] });
 test.beforeEach(async ({ page }) => { await page.emulateMedia({ reducedMotion: "no-preference" }); });
 
-test("in 3D tilt, tapping a group about 600m behind the user flies without a cut, shows both places at the wide shot, then zooms in on the group", async ({ page }) => {
+test("in 3D tilt, tapping a group about 6.7km behind the user flies without a cut, shows both places at the wide shot, then zooms in on the group", async ({ page }) => {
   await setup(page, "/nearby");
   await page.evaluate(() => {
     state.map3dEnabled = true;
@@ -29,10 +29,10 @@ test("in 3D tilt, tapping a group about 600m behind the user flies without a cut
   await waitForUiToSettle(page);
   expect(await page.evaluate(() => tiltActive()), "3D tilt is on").toBe(true);
 
-  // Two trees about 600m south of the user, behind a north-facing camera.
+  // Two trees about 6.7km south of the user, behind a north-facing camera.
   const result = await page.evaluate(async () => {
     const user = state.userLocation;
-    const lat = user.latitude - 0.0054;
+    const lat = user.latitude - 0.06;
     const lon = user.longitude;
     const make = (id, la) => ({ id, commonName: "Oak", latitude: la, longitude: lon, point: projectLonLat(lon, la) });
     const oak1 = make("e2e-wide-oak1", lat);
@@ -49,18 +49,38 @@ test("in 3D tilt, tapping a group about 600m behind the user flies without a cut
     });
     const startScale = state.viewport.scale;
     const frames = [sample()];
-    focusNearbyOnClusterGroup({ itemType: "tree", items: [oak1, oak2] });
-    let still = 0;
-    await new Promise((resolve) => {
-      const tick = () => {
+    // Frames are driven by hand at 60fps with the app's clock following them, so the sampled steps do not
+    // depend on how fast this machine draws (a loaded runner may manage only a few real frames a second).
+    const queued = [];
+    let nextId = 0;
+    const realRaf = window.requestAnimationFrame;
+    const realCaf = window.cancelAnimationFrame;
+    const realNow = performance.now;
+    const clockStart = realNow.call(performance);
+    let now = 1000;
+    performance.now = () => clockStart + (now - 1000);
+    window.requestAnimationFrame = (fn) => { nextId += 1; queued.push({ id: nextId, fn }); return nextId; };
+    window.cancelAnimationFrame = (id) => { const at = queued.findIndex((q) => q.id === id); if (at >= 0) queued.splice(at, 1); };
+    try {
+      focusNearbyOnClusterGroup({ itemType: "tree", items: [oak1, oak2] });
+      let still = 0;
+      for (let i = 0; i < 600 && still < 10; i += 1) {
+        const frame = queued.shift();
+        if (!frame) break;
+        const isCameraTick = frame.id === state.viewportAnimationFrame;
+        if (isCameraTick) now += 16;
+        frame.fn(now);
+        if (!isCameraTick) continue;
+        prepareCanvasForDraw();
         frames.push(sample());
         const moving = state.viewportAnimationTo != null || state.nearbyOriginTransition != null;
         still = moving ? 0 : still + 1;
-        if (still >= 10 || frames.length > 600) resolve(undefined);
-        else requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
-    });
+      }
+    } finally {
+      performance.now = realNow;
+      window.requestAnimationFrame = realRaf;
+      window.cancelAnimationFrame = realCaf;
+    }
     const r = bestVisibleCanvasRect();
     return { frames, startScale, rect: { x: r.x, y: r.y, width: r.width, height: r.height } };
   });
@@ -78,6 +98,9 @@ test("in 3D tilt, tapping a group about 600m behind the user flies without a cut
       const a = frames[i - 1][key];
       const b = frames[i][key];
       if (!finite(a) || !finite(b)) continue;
+      // A point off the screen at both ends of a frame cannot be seen to cut (a far group starts thousands
+      // of pixels below the view, where the tilt magnifies every step).
+      if (!inRect(a) && !inRect(b)) continue;
       const step = Math.hypot(a.x - b.x, a.y - b.y);
       expect(step, `frame ${i}: the ${key} steps ${step.toFixed(0)}px (bound ${bound.toFixed(0)}px)`).toBeLessThan(bound);
     }
