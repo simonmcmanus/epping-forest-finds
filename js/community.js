@@ -2756,6 +2756,15 @@ function communityDismissSignin() {
   communityRenderAccount(communityReadAccount());
 }
 
+// The signed-in person's provider picture as a small round icon, or "" when there is none. Only an https address
+// is used (the server checks too), the image is loaded from the provider's host without sending a referrer, and
+// if it fails to load it removes itself so the text beside it stays.
+function accountAvatarHtml(account) {
+  const url = account && typeof account.picture === "string" ? account.picture : "";
+  if (!/^https:\/\//i.test(url) || url.length > 300) return "";
+  return `<img class="account-avatar" src="${escapeHtml(url)}" alt="" width="36" height="36" loading="lazy" referrerpolicy="no-referrer" onerror="this.remove()">`;
+}
+
 // Writes into the account section drawn once by communityAccountHtml: the sentence, any note, and whether the
 // backup disclosure applies (signed out only). `null` puts it back to its loading state.
 function communityRenderAccount(account, note = "") {
@@ -2769,7 +2778,7 @@ function communityRenderAccount(account, note = "") {
   line.classList.toggle("community-account-quiet", !(account && account.signedIn));
   // No sign-in inside the native app: see settingsAccountHtml (js/app.js).
   line.innerHTML = account && account.signedIn
-    ? `<span class="community-account-copy">Signed in as <strong>${escapeHtml(account.name)}</strong>.</span><a href="/api/auth/logout?return=/community">Sign out</a>`
+    ? `<span class="community-account-copy">${accountAvatarHtml(account)}Signed in as <strong>${escapeHtml(account.name)}</strong>.</span><a href="/api/auth/logout?return=/community">Sign out</a>`
     : (Native.isNative ? "" : `<a href="/api/auth/login?return=/community">Sign in to take your points with you</a>`);
   recover.hidden = Boolean(account && account.signedIn);
 }

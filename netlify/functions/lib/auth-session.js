@@ -98,7 +98,16 @@ function displayName(user) {
   return (usable || "Walker").trim().slice(0, 40);
 }
 
+// The provider's profile picture is an image address the page will load, so only a short https URL is kept.
+// Anything else (http, javascript:, data:, too long, not a string) is dropped: "" means no picture.
+const PICTURE_MAX = 300;
+function safePicture(value) {
+  if (typeof value !== "string" || value.length > PICTURE_MAX || /[\x00-\x20\x7f"'<>\\]/.test(value)) return "";
+  try { return new URL(value).protocol === "https:" ? value : ""; } catch { return ""; }
+}
+
 module.exports = {
+  safePicture,
   SESSION_MS,
   mergeResultCookie,
   authConfig,

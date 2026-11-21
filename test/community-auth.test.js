@@ -401,6 +401,42 @@ test("callback: an email address from the provider never becomes the display nam
   }, { fetchImpl: providerOk({ sub: "auth0|e", name: "sam@example.com", email: "sam@example.com" }) });
 });
 
+async function signInWith(profile) {
+  let result;
+  await withAuthEnv(async () => {
+    const { state, stateCookie } = await startLogin();
+    const cb = await callback.handler(callbackEvent({ code: "c", state }, `ff_auth_state=${encodeURIComponent(cookieValue(stateCookie))}`));
+    const cookie = `ff_session=${encodeURIComponent(cookieValue(cookieNamed(cb, "ff_session")))}`;
+    result = JSON.parse((await meHandler.handler({ headers: { cookie } })).body);
+  }, { fetchImpl: providerOk({ sub: "auth0|p", name: "Sam Walker", email: "sam@example.com", ...profile }) });
+  return result;
+}
+
+test("sign-in keeps the provider's https profile picture and /api/auth/me returns it", async () => {
+  const me = await signInWith({ picture: "https://lh3.example.test/a/photo=s96" });
+  assert.strictEqual(me.signedIn, true);
+  assert.strictEqual(me.picture, "https://lh3.example.test/a/photo=s96");
+  assert.strictEqual(JSON.stringify(me).includes("sam@example.com"), false, "no email address is returned");
+});
+
+test("sign-in drops a profile picture that is not a short https URL, and me then has no picture key", async () => {
+  const bad = ["http://img.example.test/a.png", "javascript:alert(1)", "data:image/png;base64,AAAA", "https://img.example.test/" + "a".repeat(300), "", 42, undefined];
+  for (const picture of bad) {
+    const me = await signInWith({ picture });
+    assert.strictEqual(me.signedIn, true, `signed in with picture ${String(picture).slice(0, 20)}`);
+    assert.strictEqual("picture" in me, false, `dropped ${String(picture).slice(0, 20)}`);
+  }
+  const edge = "https://img.example.test/" + "a".repeat(300 - "https://img.example.test/".length);
+  assert.strictEqual(edge.length, 300);
+  assert.strictEqual((await signInWith({ picture: edge })).picture, edge, "exactly 300 characters is kept");
+});
+
+test("an email-like name is still never used when a picture is present", async () => {
+  const me = await signInWith({ name: "sam@example.com", nickname: "sam@example.com", picture: "https://img.example.test/a.png" });
+  assert.strictEqual(me.name, "Walker");
+  assert.strictEqual(me.picture, "https://img.example.test/a.png");
+});
+
 test("callback refuses a missing code, a missing or mismatched state, an expired or forged state cookie, without calling the provider", async () => {
   await withAuthEnv(async (calls) => {
     const { state, stateCookie } = await startLogin("/community");
