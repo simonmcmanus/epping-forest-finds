@@ -14,6 +14,20 @@ test.describe("Settings screen", () => {
     await expect(page.locator("#settingsToggle")).toHaveClass(/screen-active/);
   });
 
+  test("the Account section comes before Reminders", async ({ page }) => {
+    const titles = await page.locator(".settings-section-title").allTextContents();
+    expect(titles.indexOf("Account")).toBeGreaterThan(-1);
+    expect(titles.indexOf("Account")).toBeLessThan(titles.indexOf("Reminders"));
+  });
+
+  test("the Account section offers a link to sign up for early access", async ({ page }) => {
+    const account = page.locator("#settingsAccount");
+    await expect(account.getByText("Get early access to the community features and weekly Ledger updates by email.")).toBeVisible();
+    const link = account.getByRole("link", { name: "Sign up for early access" });
+    await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute("href", "/#signup");
+  });
+
   test("settings screen shows a walking radius slider", async ({ page }) => {
     await expect(page.locator("#settingsWalkMins")).toHaveAttribute("type", "range");
   });
