@@ -722,13 +722,20 @@ moving the real GPS fix:
   attribute (`roundWalkingMinutes`). Sub-minute radii are shown in seconds ("15 sec"); everywhere
   else the continuous minutes value is rounded to the nearest whole minute for display —
   `formatWalkingRadius()` is what every user-facing radius label goes through.
-  At either zoom limit, one consistent rose-red (#D85669) light sits exactly on the clear
-  circle's boundary, independently of the inset decorative rim. The 4 CSS px core stays
-  readable at 76–82% opacity; the halo varies only slightly to avoid a flashing appearance.
-  It feathers approximately 6 CSS px inward and 20 CSS px outward, including under tilt,
-  leaving the centre clear. A 120ms arrival makes brief wheel attempts visible. Held input
+  At either zoom limit, one consistent crimson garnet light sits exactly on the clear
+  circle's boundary, independently of the inset decorative rim. Its hue is deliberately
+  cooler (about 350 degrees) than the orange-leaning terracotta selected and error reds
+  (about 10 degrees), so it reads as a lit boundary rather than a stock error state; it is
+  also separate from the gold rim. A 2.5 CSS px core (#B42840) carries one 0.8 CSS px pale
+  specular (#FFC8BA at 50% of the light) on its inner lip, deliberately translucent (56-60% opacity) so it reads as a soft light rather than a hard stroke, over
+  a garnet halo that runs from #AA233C beside the core on the inner side to a deeper #961E36
+  outside, so it holds over both light and dark terrain; the halo varies only slightly to
+  avoid a flashing appearance.
+  It feathers approximately 6 CSS px inward and 20 CSS px outward on the same eased
+  (smoothstep) falloff flat and tilted (tilt composites its stacked strokes to that exact
+  coverage), leaving the centre clear. A 120ms arrival makes brief wheel attempts visible. Held input
   breathes slowly over 1500ms (500ms gathering, 1000ms settling), with a narrow halo gain
-  of 16–21% of core opacity. Reduced motion uses a steady 79% core and static halo.
+  of 18–23% of core opacity. Reduced motion uses a steady 60% core and static halo.
   The radius stays fixed. Backing off or ending a pinch fades over 260ms with a smooth
   cosine release; re-entry preserves brightness and halo phase. Wheel feedback remains
   continuous across normal notches: the list still settles at 220ms, but the light has its
