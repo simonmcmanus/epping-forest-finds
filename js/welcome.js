@@ -1,9 +1,8 @@
-// Epping Forest Finds — Beta welcome: the sheet beta testers see over the map at /beta. The Tester ID
+// Epping Forest Finds — Beta welcome: the full-screen welcome beta testers see over the map at /beta. The Tester ID
 // lookup it shares with Settings lives in js/settings.js. See spec/spec-community.md "Beta welcome sheet".
 //
 // A classic script loaded before js/app.js (see app.html). It never gates the app: the sheet is shown
-// after the map has booted, sits over the bottom of the screen without covering the map's gestures, and
-// can be skipped at every step. Only the /beta scheduler at the bottom runs at load.
+// after the map has booted, covers the whole screen, and can only be left by finishing the last step. Only the /beta scheduler at the bottom runs at load.
 
 const WELCOME_PATH = "/beta";
 const WELCOME_KEY = "ff-welcome-v1";
@@ -47,9 +46,10 @@ function welcomeSend() {
 }
 
 const WELCOME_CSS = `
-#betaWelcome { position: fixed; inset: auto 0 0 0; z-index: 130; display: flex; justify-content: center; padding: 0 8px calc(8px + var(--safe-bottom, 0px)); pointer-events: none; box-sizing: border-box; }
-#betaWelcome .welcome-sheet { pointer-events: auto; box-sizing: border-box; width: 100%; max-width: 440px; max-height: 78vh; overflow-y: auto; overflow-x: hidden; padding: 16px; display: grid; gap: 10px; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); }
-#betaWelcome h2 { margin: 0; font-size: 1.15rem; outline: none; }
+#betaWelcome { position: fixed; inset: 0; z-index: 130; box-sizing: border-box; background: var(--surface); color: var(--ink); }
+#betaWelcome .welcome-sheet { box-sizing: border-box; width: 100%; height: 100%; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; padding: calc(16px + var(--safe-top, 0px)) 16px calc(16px + var(--safe-bottom, 0px)); }
+#betaWelcome .welcome-body { box-sizing: border-box; width: 100%; max-width: 440px; margin: 0 auto; display: grid; gap: 12px; }
+#betaWelcome h2 { margin: 0; font-size: 1.3rem; outline: none; }
 #betaWelcome p { margin: 0; overflow-wrap: anywhere; }
 #betaWelcome ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; font-size: 0.9rem; }
 #betaWelcome .welcome-id { font: 700 1.4rem/1.3 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; letter-spacing: 0.04em; overflow-wrap: anywhere; }
@@ -61,11 +61,10 @@ const WELCOME_CSS = `
 
 function welcomeStepHtml() {
   const counter = `<p class="report-note">Step ${welcomeStep} of ${WELCOME_STEPS}</p>`;
-  const skip = `<button type="button" class="settings-btn" data-welcome="skip">Skip</button>`;
   if (welcomeStep === 1) {
     return `${counter}<h2 id="welcomeHeading" tabindex="-1">Thanks for testing Epping Forest Finds</h2>
       <p class="settings-description">The beta is the map of trees and places, and it works offline. Community is where testers check trees and send feedback.</p>
-      <div class="welcome-actions"><button type="button" class="button" data-welcome="next">Next</button>${skip}</div>`;
+      <div class="welcome-actions"><button type="button" class="button" data-welcome="next">Next</button></div>`;
   }
   if (welcomeStep === 2) {
     const state = testerIdState.status;
@@ -96,7 +95,7 @@ function welcomeStepHtml() {
 function welcomeRender() {
   if (!welcomeRoot) return;
   const sheet = welcomeRoot.querySelector(".welcome-sheet");
-  sheet.innerHTML = welcomeStepHtml();
+  sheet.innerHTML = `<div class="welcome-body">${welcomeStepHtml()}</div>`;
   sheet.setAttribute("aria-labelledby", "welcomeHeading");
   const heading = document.getElementById("welcomeHeading");
   if (heading) heading.focus({ preventScroll: true });
@@ -110,7 +109,7 @@ function welcomeRefreshStep2() {
   const active = document.activeElement;
   const focusedAction = active && welcomeRoot.contains(active) ? active.getAttribute("data-welcome") : null;
   const sheet = welcomeRoot.querySelector(".welcome-sheet");
-  sheet.innerHTML = welcomeStepHtml();
+  sheet.innerHTML = `<div class="welcome-body">${welcomeStepHtml()}</div>`;
   sheet.setAttribute("aria-labelledby", "welcomeHeading");
   const target = (focusedAction && sheet.querySelector(`[data-welcome="${focusedAction}"]`)) || document.getElementById("welcomeHeading");
   if (target) target.focus({ preventScroll: true });
@@ -131,11 +130,6 @@ function welcomeFocusable() {
 
 function welcomeKeydown(event) {
   if (!welcomeRoot) return;
-  if (event.key === "Escape") {
-    event.preventDefault();
-    closeWelcome();
-    return;
-  }
   if (event.key !== "Tab") return;
   const items = welcomeFocusable();
   const heading = document.getElementById("welcomeHeading");
@@ -153,7 +147,7 @@ async function welcomeClick(event) {
   const action = button.getAttribute("data-welcome");
   if (action === "next" && welcomeStep < WELCOME_STEPS) { welcomeStep += 1; welcomeRender(); }
   else if (action === "back" && welcomeStep > 1) { welcomeStep -= 1; welcomeRender(); }
-  else if (action === "skip" || action === "finish") closeWelcome();
+  else if (action === "finish") closeWelcome();
   else if (action === "send") welcomeSend();
   else if (action === "retry") {
     testerIdState.status = "loading";
@@ -205,7 +199,7 @@ function closeWelcome() {
 // On /beta only, every visit: once the map has booted. Polls cheaply for up to a minute, then gives up (the next open tries again).
 // Other first-run prompts go first so two never stack: the consent / map-setup card (#consentBanner) and
 // the guided setup dialog (#onboardingOverlay). While either is up we keep waiting (that wait does not use
-// up the minute), and the sheet opens only after both have been gone for a short quiet moment, so it never
+// up the minute), and the welcome opens only after both have been gone for a short quiet moment, so it never
 // lands between the reader answering one and the next appearing.
 const WELCOME_QUIET_MS = 1000;
 

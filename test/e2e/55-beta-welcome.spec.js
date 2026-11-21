@@ -28,13 +28,11 @@ async function goToStep2(page) {
   await expect(page.getByRole("dialog", { name: "Your Tester ID" })).toBeVisible();
 }
 
-test.describe("Beta welcome sheet", () => {
-  test("a new visitor sees the welcome after the map loads and the map stays usable behind it", async ({ page }) => {
+test.describe("Beta welcome", () => {
+  test("a new visitor sees the welcome after the map loads, over the map", async ({ page }) => {
     await openAsNewVisitor(page);
     await expect(dialog(page)).toBeVisible();
     await expect(page.getByText("Step 1 of 3")).toBeVisible();
-    await expect(page.locator("#mapCanvas")).toBeVisible();
-    await expect(page.locator("#nearbyToggle")).toBeVisible();
     expect(await page.evaluate(() => state.dataLoaded)).toBe(true);
   });
 
@@ -86,15 +84,52 @@ test.describe("Beta welcome sheet", () => {
     await expect(dialog(page)).toBeVisible();
   });
 
-  test("Skip closes the welcome, and visiting /beta again opens it at step 1", async ({ page }) => {
+  test("there is no way to leave the welcome without finishing it, and finishing closes it for good until the next visit", async ({ page }) => {
     await openAsNewVisitor(page);
     await expect(dialog(page)).toBeVisible();
-    await page.getByRole("button", { name: "Next" }).click();
+    await expect(page.getByRole("button", { name: "Skip" })).toHaveCount(0);
     await page.keyboard.press("Escape");
+    await expect(dialog(page)).toBeVisible();
+    await page.getByRole("button", { name: "Next" }).click();
+    await expect(page.getByRole("button", { name: "Skip" })).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Your Tester ID" })).toBeVisible();
+    // The map stays covered: a tap at the middle of the screen lands on the welcome, not the map.
+    const covered = await page.evaluate(() => {
+      const el = document.elementFromPoint(window.innerWidth / 2, window.innerHeight / 2);
+      return Boolean(el && el.closest('[role="dialog"]'));
+    });
+    expect(covered).toBe(true);
+    await page.getByRole("button", { name: "Next" }).click();
+    await page.getByRole("button", { name: "Start exploring" }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(page.locator("#mapCanvas")).toBeFocused();
     await gotoAndWaitForMap(page, "/beta");
     await expect(dialog(page)).toBeVisible();
     await expect(page.getByText("Step 1 of 3")).toBeVisible();
+  });
+
+  test("the welcome fills the whole phone screen and covers the map", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 780 });
+    await openAsNewVisitor(page);
+    await expect(dialog(page)).toBeVisible();
+    const result = await page.evaluate(() => {
+      const dlg = document.querySelector('[role="dialog"][aria-labelledby]');
+      const box = dlg ? dlg.getBoundingClientRect() : null;
+      const map = document.getElementById("mapCanvas");
+      const mapBox = map ? map.getBoundingClientRect() : null;
+      const hit = mapBox ? document.elementFromPoint(mapBox.left + mapBox.width / 2, mapBox.top + mapBox.height / 2) : null;
+      return {
+        width: box ? box.width : 0,
+        height: box ? box.height : 0,
+        vw: window.innerWidth,
+        vh: window.innerHeight,
+        insideDialog: Boolean(hit && dlg && dlg.contains(hit)),
+      };
+    });
+    expect(result.width).toBeGreaterThanOrEqual(result.vw);
+    expect(result.height).toBeGreaterThanOrEqual(result.vh * 0.95);
+    expect(result.insideDialog).toBe(true);
   });
 
   test("other paths never show the welcome, even on a fresh profile", async ({ page }) => {
@@ -149,13 +184,22 @@ test.describe("Beta welcome sheet", () => {
     await expect(page.locator("#welcomeTesterStatus")).toHaveText("You're on the list. Community is on for you.");
   });
 
-  test("Escape closes the welcome and puts focus back on the map", async ({ page }) => {
+  test("the welcome opens with focus on its heading", async ({ page }) => {
     await openAsNewVisitor(page);
     await expect(dialog(page)).toBeVisible();
     await expect(page.getByRole("heading", { name: "Thanks for testing Epping Forest Finds" })).toBeFocused();
-    await page.keyboard.press("Escape");
-    await expect(page.getByRole("dialog")).toHaveCount(0);
-    await expect(page.locator("#mapCanvas")).toBeFocused();
+  });
+
+  test("Next stays available on step 2 when the Tester ID cannot be made", async ({ page }) => {
+    await page.addInitScript(() => {
+      SubtleCrypto.prototype.digest = () => Promise.reject(new Error("unavailable"));
+    });
+    await openAsNewVisitor(page);
+    await goToStep2(page);
+    const step = page.getByRole("dialog", { name: "Your Tester ID" });
+    await expect(step.getByRole("button", { name: "Retry" })).toBeVisible();
+    await step.getByRole("button", { name: "Next" }).click();
+    await expect(page.getByRole("dialog", { name: "What feedback helps" })).toBeVisible();
   });
 
   test("Settings no longer offers to show the beta welcome again", async ({ page }) => {
@@ -250,7 +294,9 @@ test.describe("Beta welcome snapshots", () => {
   test("snapshot: settings Tester ID retry after the lookup fails", async ({ page }) => {
     await failTesterId(page);
     await openAsNewVisitor(page);
-    await page.getByRole("button", { name: "Skip" }).click();
+    await page.getByRole("button", { name: "Next" }).click();
+    await page.getByRole("dialog", { name: "Your Tester ID" }).getByRole("button", { name: "Next" }).click();
+    await page.getByRole("button", { name: "Start exploring" }).click();
     await page.click("#settingsToggle");
     await expect(page.locator("#testerIdStatus")).toContainText("We couldn't get your Tester ID. Try again");
     const retry = page.getByRole("button", { name: "Retry" });

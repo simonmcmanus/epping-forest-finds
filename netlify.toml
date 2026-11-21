@@ -39,10 +39,6 @@
 
 [[edge_functions]]
   function = "alpha-gate"
-  path = "/beta"
-
-[[edge_functions]]
-  function = "alpha-gate"
   path = "/app.html"
 
 # CORS for the iOS/Android app, whose pages are served from the app bundle rather than this site.

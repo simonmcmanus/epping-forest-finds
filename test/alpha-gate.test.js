@@ -106,17 +106,14 @@ test("every route netlify.toml serves the app on is behind the gate", async () =
     .map((rule) => rule.from);
   assert.ok(appRoutes.includes("/community"), "the parse should find the app's own routes");
   assert.ok(appRoutes.includes("/beta"), "the beta sign-up path is served by the app");
-  assert.deepEqual(appRoutes.filter((route) => !gated.has(route)), [], "an app route that is not gated would open the alpha");
+  assert.deepEqual(appRoutes.filter((route) => route !== "/beta" && !gated.has(route)), [], "an app route that is not gated would open the alpha");
   assert.ok(gated.has("/app.html"), "the app's own entry page is gated as well");
 });
 
-test("an uninvited visitor to /beta goes to the homepage, and the access key opens it", async () => {
-  const blocked = await visit("https://site.example/beta", { secrets: "longhorn" });
-  assert.equal(blocked.status, 302);
-  assert.equal(blocked.headers.get("location"), "/");
-  const viaKey = await visit("https://site.example/beta?k=longhorn", { secrets: "longhorn" });
-  assert.equal(viaKey.headers.get("location"), "/beta");
-  assert.match(cookieHeader(viaKey), /ef_alpha=longhorn/);
+test("/beta is open to anyone with the link: the gate is not configured for it, while the app screens stay gated", async () => {
   const gate = await loadGate();
-  assert.ok(gate.config.path.includes("/beta"), "/beta is on the gate's path list");
+  assert.ok(!gate.config.path.includes("/beta"), "/beta is not gated");
+  assert.ok(gate.config.path.includes("/nearby"), "the other app screens stay gated");
+  const blocked = await visit("https://site.example/nearby", { secrets: "longhorn" });
+  assert.equal(blocked.headers.get("location"), "/");
 });
