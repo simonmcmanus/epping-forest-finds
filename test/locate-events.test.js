@@ -31,7 +31,7 @@ function stubFetch(answers) {
 const noSleep = async () => {};
 
 function entry(extra) {
-  return { id: "e1", title: "T", place: "Some Hall, Loughton", date: "2026-12-05", body: "A fair.", ...extra };
+  return { id: "e1", title: "T", place: "Some Hall, Loughton", date: "2099-12-05", body: "A fair.", ...extra };
 }
 
 test("a place that geocodes inside the forest area is written with its source", async () => {
@@ -111,4 +111,22 @@ test("the written file keeps two-space JSON with a trailing newline, and dry run
   const written = fs.readFileSync(file, "utf8");
   assert.strictEqual(written, JSON.stringify(JSON.parse(written), null, 2) + "\n");
   assert.strictEqual(JSON.parse(written).entries[0].lat, 51.65);
+});
+
+test("a past event is untouched and never geocoded, while today's event is located", async () => {
+  const fetch = stubFetch({ "Some Hall, Loughton": INSIDE });
+  const nowMs = Date.parse("2026-12-05T23:30:00Z"); // 23:30 GMT: still 5 December in London
+  const data = { entries: [entry({ id: "old", date: "2026-12-04" }), entry({ id: "today", date: "2026-12-05" })] };
+  const result = await locateEvents(data, { fetch, sleep: noSleep, nowMs });
+  assert.deepStrictEqual(data.entries[0], entry({ id: "old", date: "2026-12-04" }));
+  assert.deepStrictEqual(result.located, ["today"]);
+  assert.strictEqual(fetch.calls.length, 1);
+});
+
+test("the UK date decides whether an event is past, not the UTC date", async () => {
+  const fetch = stubFetch({ "Some Hall, Loughton": INSIDE });
+  const nowMs = Date.parse("2026-07-05T23:30:00Z"); // 00:30 BST on 6 July
+  const data = { entries: [entry({ date: "2026-07-05" })] };
+  await locateEvents(data, { fetch, sleep: noSleep, nowMs });
+  assert.strictEqual(fetch.calls.length, 0);
 });

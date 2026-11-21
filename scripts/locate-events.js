@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Finds a real map location for each dated event in data/forest-events.json that has none.
+ * Finds a real map location for each dated event (today or later, UK date) in data/forest-events.json that has none.
  * Candidates (the place field, then venue phrases in the body) are geocoded with OpenStreetMap
  * Nominatim and accepted only inside the forest area. Coordinates are never typed or guessed.
  *
@@ -11,6 +11,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
+const { ukDate } = require("./lib/uk-time.js");
 
 const AREA_BOUNDS = { minLat: 51.54, maxLat: 51.78, minLon: -0.05, maxLon: 0.20 };
 const USER_AGENT = "EppingForestFinds/1.0 (+https://www.eppingforestfinds.uk)";
@@ -42,8 +43,8 @@ function candidateQueries(entry) {
   return [...new Set(list)].slice(0, MAX_QUERIES);
 }
 
-function needsLocation(entry) {
-  return Boolean(entry.date) && !(Number.isFinite(entry.lat) && Number.isFinite(entry.lon));
+function needsLocation(entry, today) {
+  return Boolean(entry.date) && entry.date >= today && !(Number.isFinite(entry.lat) && Number.isFinite(entry.lon));
 }
 
 const round6 = (n) => Math.round(n * 1e6) / 1e6;
@@ -64,11 +65,12 @@ async function geocode(query, fetchFn) {
 async function locateEvents(data, options = {}) {
   const fetchFn = options.fetch || globalThis.fetch;
   const sleep = options.sleep || ((ms) => new Promise((r) => setTimeout(r, ms)));
+  const today = ukDate(options.nowMs === undefined ? Date.now() : options.nowMs);
   const located = [];
   const unlocated = [];
   let first = true;
   for (const entry of data.entries || []) {
-    if (!needsLocation(entry)) continue;
+    if (!needsLocation(entry, today)) continue;
     let found = null;
     for (const query of candidateQueries(entry)) {
       if (!first) await sleep(DELAY_MS);
