@@ -1,10 +1,68 @@
+/* Admin dashboard styles. Independent surface: nothing here comes from the app's CSS.
+   Dark forest shell (top bar, sidebar, map) with a light Navigation view. */
+
 :root {
+  /* Dark shell surfaces */
+  --bg-map: #1a2420;
+  --surface-1: #1e2d27;
+  --surface-2: #24382f;
+  --surface-raised: rgba(255, 255, 255, 0.08);
+  --surface-raised-hover: rgba(255, 255, 255, 0.16);
+  --surface-glass: rgba(10, 16, 13, 0.78);
+  --surface-panel: rgba(14, 22, 18, 0.96);
+  --border-dark: rgba(255, 255, 255, 0.16);
+  --border-dark-soft: rgba(255, 255, 255, 0.08);
+  /* Text on dark (all >= 4.5:1 on the surfaces above) */
+  --text-hi: #ffffff;
+  --text-mid: rgba(255, 255, 255, 0.84);
+  --text-low: rgba(255, 255, 255, 0.66);
+  /* Light surfaces (login, Navigation view) */
   --ink: #17221e;
   --muted: #5d6a62;
   --line: #d7ded8;
   --paper: #eef2ea;
+  --card: #ffffff;
+  /* Colour roles */
   --tree: #2f6f4e;
+  --accent: #4fc97e;
+  --accent-ink: #0b1a12;
+  --danger: #b3261e;
+  --focus-ring: rgba(79, 201, 126, 0.75);
+  --focus-ring-light: #1f5a3c;
+  --tree-dark: #265b40;
+  --line-strong: #aab5ad;
+  --accent-hover: #75d99a;
+  --accent-press: #3fb36a;
+  --accent-soft: rgba(79, 201, 126, 0.2);
+  --accent-soft-hover: rgba(79, 201, 126, 0.3);
+  --accent-soft-press: rgba(79, 201, 126, 0.4);
+  --link: #8fe3b0;
+  --link-hover: #b4f3cd;
+  --warn-text: #f8dc9a;
+  --env-prod-bg: rgba(79, 201, 126, 0.22);
+  --env-prod-border: rgba(79, 201, 126, 0.55);
+  --env-preview-bg: rgba(232, 169, 60, 0.22);
+  --env-preview-border: rgba(232, 169, 60, 0.55);
+  --glass-blur: 8px;
+  /* Shape, spacing, type, depth */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --fs-xs: 0.75rem;
+  --fs-sm: 0.8125rem;
+  --fs-base: 0.875rem;
+  --fs-md: 1rem;
+  --fs-lg: 1.25rem;
+  --shadow-sm: 0 1px 3px rgba(19, 31, 25, 0.12);
   --shadow: 0 8px 30px rgba(19, 31, 25, 0.14);
+  --shadow-panel: 0 12px 32px rgba(0, 0, 0, 0.4);
+  --ease: 0.15s ease;
+  --tap: 44px;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
@@ -25,16 +83,32 @@
 button:focus-visible,
 a:focus-visible,
 input:focus-visible,
+textarea:focus-visible,
 [role="button"]:focus-visible {
-  outline: 3px solid rgba(79, 201, 126, 0.6);
+  outline: 3px solid var(--focus-ring);
   outline-offset: 2px;
 }
+
+/* Light surfaces need a darker ring to keep 3:1 against the paper and card colours. */
+.login-screen button:focus-visible,
+.login-screen input:focus-visible,
+.admin-nav-view :focus-visible {
+  outline-color: var(--focus-ring-light);
+}
+
+#adminCanvas:focus { outline: none; }
 
 html, body {
   height: 100%;
   margin: 0;
-  background: #1a2420;
+  background: var(--bg-map);
   color: var(--ink);
+}
+
+button:disabled { opacity: 0.55; cursor: not-allowed; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
 }
 
 /* --- Login screen (fixed overlay so admin app fills viewport behind it) --- */
@@ -46,71 +120,94 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #1a2420;
-  padding: 20px;
+  background: var(--bg-map);
+  padding: var(--sp-4);
 }
 
-.login-screen[hidden] {
-  display: none;
-}
+.login-screen[hidden] { display: none; }
 
 .login-card {
-  background: #fff;
-  border-radius: 16px;
-  padding: 32px 28px;
+  background: var(--card);
+  border-radius: var(--radius-lg);
+  padding: 32px 28px 28px;
   width: 100%;
-  max-width: 340px;
+  max-width: 360px;
   box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.login-logo {
+  display: block;
+  width: 64px;
+  height: 64px;
+  margin: 0 auto var(--sp-3);
+  border-radius: var(--radius-md);
 }
 
 .login-title {
-  margin: 0 0 6px;
-  font-size: 1.2rem;
+  margin: 0 0 var(--sp-1);
+  font-size: var(--fs-lg);
   font-weight: 900;
   color: var(--ink);
 }
 
 .login-sub {
-  margin: 0 0 22px;
-  font-size: 0.84rem;
+  margin: 0 0 var(--sp-5);
+  font-size: var(--fs-base);
   color: var(--muted);
 }
 
 .login-input {
   width: 100%;
+  min-height: var(--tap);
   padding: 10px 14px;
   border: 1.5px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   font: inherit;
-  font-size: 0.9rem;
+  font-size: var(--fs-md);
+  text-align: center;
   color: var(--ink);
   background: var(--paper);
-  margin-bottom: 12px;
-  transition: border-color 0.15s;
+  margin-bottom: var(--sp-3);
+  transition: border-color var(--ease), background var(--ease);
 }
+
+.login-input:hover { border-color: var(--line-strong); }
+.login-input[aria-invalid="true"] { border-color: var(--danger); }
 
 .login-input:focus-visible {
   border-color: var(--tree);
-  outline: 3px solid rgba(79, 201, 126, 0.6);
+  background: var(--card);
+  outline: 3px solid var(--focus-ring-light);
   outline-offset: 2px;
 }
 
 .login-btn {
   width: 100%;
+  min-height: var(--tap);
   padding: 11px;
   background: var(--tree);
   color: #fff;
   border: none;
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   font: inherit;
-  font-size: 0.92rem;
+  font-size: var(--fs-md);
   font-weight: 700;
   cursor: pointer;
-  transition: opacity 0.15s;
+  transition: background var(--ease), transform var(--ease);
 }
 
-.login-btn:hover { opacity: 0.88; }
-.login-error { color: #c0392b; font-size: 0.82rem; margin-top: 8px; }
+.login-btn:hover { background: var(--tree-dark); }
+.login-btn:active { transform: translateY(1px); }
+
+.login-error {
+  min-height: 1.3em;
+  margin: var(--sp-3) 0 0;
+  color: var(--danger);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  line-height: 1.3;
+}
 
 /* --- Admin app shell --- */
 
@@ -120,57 +217,171 @@ html, body {
   flex-direction: column;
 }
 
+.admin-app[hidden] { display: none; }
+
 .admin-topbar {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 10px 16px;
-  background: #24382f;
-  color: #fff;
+  gap: var(--sp-4);
+  padding: var(--sp-2) var(--sp-4);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border-dark-soft);
+  color: var(--text-hi);
   flex-shrink: 0;
-  flex-wrap: wrap;
+}
+
+.admin-brand {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-width: 0;
+}
+
+.admin-brand-mark {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
 }
 
 .admin-topbar-title {
-  font-size: 0.9rem;
+  font-size: var(--fs-base);
   font-weight: 800;
-  color: rgba(255,255,255,0.9);
-  margin-right: auto;
+  color: var(--text-hi);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .admin-env-badge {
-  font-size: 0.7rem;
+  flex-shrink: 0;
+  font-size: var(--fs-xs);
   font-weight: 700;
-  padding: 3px 9px;
-  border-radius: 6px;
-  background: rgba(255,255,255,0.15);
-  border: 1px solid rgba(255,255,255,0.3);
-  color: rgba(255,255,255,0.85);
+  padding: 2px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-dark);
+  color: var(--text-mid);
   letter-spacing: 0.02em;
+}
+
+.admin-env-badge[hidden] { display: none; }
+.admin-env-badge.env-prod { background: var(--env-prod-bg); border-color: var(--env-prod-border); color: var(--link-hover); }
+.admin-env-badge.env-preview { background: var(--env-preview-bg); border-color: var(--env-preview-border); color: var(--warn-text); }
+
+.admin-nav {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-4);
+  min-width: 0;
   margin-right: auto;
 }
 
-.admin-env-badge.env-prod { background: rgba(79,201,126,0.25); border-color: rgba(79,201,126,0.5); color: #a8f0c6; }
-.admin-env-badge.env-preview { background: rgba(232,169,60,0.25); border-color: rgba(232,169,60,0.5); color: #f5d58a; }
-
-.admin-btn {
-  padding: 6px 14px;
-  border-radius: 8px;
-  border: 1.5px solid rgba(255,255,255,0.25);
-  background: rgba(255,255,255,0.1);
-  color: #fff;
-  font: inherit;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.15s;
+/* Views: a segmented control with a clear selected state. */
+.admin-tabs {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  background: rgba(0, 0, 0, 0.28);
+  border-radius: var(--radius-md);
 }
 
-.admin-btn:hover { background: rgba(255,255,255,0.2); }
-.admin-btn.active { background: rgba(255,255,255,0.28); border-color: rgba(255,255,255,0.5); }
+.admin-tabs .admin-btn {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-mid);
+}
+
+.admin-tabs .admin-btn:hover { background: var(--surface-raised); color: var(--text-hi); }
+
+.admin-tabs .admin-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.admin-panel-btns { display: flex; gap: var(--sp-2); }
+
+/* A panel button stays lit while its panel is open, with a bar under its label so colour is not the only cue; hover and press still show. */
+.admin-panel-btns .admin-btn[aria-expanded="true"] {
+  position: relative;
+  background: var(--accent-soft);
+  border-color: var(--accent);
+}
+.admin-panel-btns .admin-btn[aria-expanded="true"]::after {
+  content: "";
+  position: absolute;
+  left: 25%;
+  right: 25%;
+  bottom: 3px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.admin-panel-btns .admin-btn[aria-expanded="true"]:hover { background: var(--accent-soft-hover); }
+.admin-panel-btns .admin-btn[aria-expanded="true"]:active { background: var(--accent-soft-press); }
+.admin-actions { display: flex; gap: var(--sp-1); flex-shrink: 0; }
+
+.admin-btn {
+  min-height: 34px;
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-dark);
+  background: var(--surface-raised);
+  color: var(--text-hi);
+  font: inherit;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--ease), border-color var(--ease), color var(--ease);
+}
+
+.admin-btn:hover { background: var(--surface-raised-hover); }
+.admin-btn:active { background: rgba(255, 255, 255, 0.24); }
+
+/* Utility actions are quieter than views and panels. */
+.admin-actions .admin-btn {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text-mid);
+}
+
+.admin-actions .admin-btn:hover { background: var(--surface-raised); color: var(--text-hi); }
+
+.admin-btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 700;
+}
+
+.admin-btn-primary:hover { background: var(--accent-hover); }
+.admin-btn-primary:active { background: var(--accent-press); }
+
+/* A disabled control does not react to hover or press. */
+.admin-btn:disabled:hover, .admin-btn:disabled:active { background: var(--surface-raised); }
+.admin-actions .admin-btn:disabled:hover, .admin-actions .admin-btn:disabled:active { background: transparent; }
+.admin-btn-primary:disabled:hover, .admin-btn-primary:disabled:active { background: var(--accent); }
+
+/* Refresh failure notice: a thin warning strip under the top bar, zero height while empty. */
+.admin-refresh-status {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0 var(--sp-4);
+  background: var(--surface-2);
+  color: var(--warn-text);
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.admin-refresh-status:not(:empty) { padding-top: var(--sp-1); padding-bottom: var(--sp-2); border-bottom: 1px solid var(--border-dark-soft); }
+/* One hairline under the bar and strip together, not two. */
+.admin-topbar:has(+ .admin-refresh-status:not(:empty)) { border-bottom-color: transparent; }
 
 .admin-body {
   flex: 1;
+  min-height: 0;
   display: flex;
   overflow: hidden;
 }
@@ -180,19 +391,19 @@ html, body {
 .admin-sidebar {
   width: 230px;
   flex-shrink: 0;
-  background: #1e2d27;
+  background: var(--surface-1);
   display: flex;
   flex-direction: column;
   overflow: hidden;
 }
 
 .admin-sidebar-title {
-  padding: 12px 14px 8px;
-  font-size: 0.7rem;
+  padding: var(--sp-3) var(--sp-4) var(--sp-2);
+  font-size: var(--fs-xs);
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(255,255,255,0.45);
+  color: var(--text-low);
 }
 
 .admin-user-list {
@@ -205,14 +416,25 @@ html, body {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 9px 14px;
+  width: 100%;
+  padding: 10px var(--sp-4);
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid var(--border-dark-soft);
+  border-left: 3px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
   cursor: pointer;
-  border-bottom: 1px solid rgba(255,255,255,0.05);
-  transition: background 0.12s;
+  transition: background var(--ease);
 }
 
-.admin-user-item:hover { background: rgba(255,255,255,0.07); }
-.admin-user-item.selected { background: rgba(255,255,255,0.12); }
+.admin-user-item:hover { background: var(--surface-raised); }
+.admin-user-item:active { background: rgba(255, 255, 255, 0.14); }
+.admin-user-item.selected { background: rgba(255, 255, 255, 0.13); border-left-color: var(--accent); }
+.admin-user-item.selected .admin-user-meta { color: var(--text-mid); }
+.admin-user-item:focus-visible { outline-offset: -3px; }
 
 .admin-user-dot {
   width: 11px;
@@ -222,16 +444,17 @@ html, body {
 }
 
 .admin-user-label {
-  font-size: 0.78rem;
-  color: rgba(255,255,255,0.75);
+  font-size: var(--fs-sm);
+  color: var(--text-hi);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .admin-user-meta {
-  font-size: 0.68rem;
-  color: rgba(255,255,255,0.4);
+  margin-left: auto;
+  font-size: var(--fs-xs);
+  color: var(--text-low);
   white-space: nowrap;
 }
 
@@ -239,8 +462,9 @@ html, body {
 
 .admin-map-area {
   flex: 1;
+  min-width: 0;
   position: relative;
-  background: #1a2420;
+  background: var(--bg-map);
   overflow: hidden;
 }
 
@@ -253,190 +477,96 @@ html, body {
   touch-action: none;
 }
 
-#adminCanvas.dragging {
-  cursor: grabbing;
-}
+#adminCanvas.dragging { cursor: grabbing; }
 
 .admin-map-controls {
   position: absolute;
-  top: 12px;
-  left: 12px;
+  top: var(--sp-3);
+  left: var(--sp-3);
   display: flex;
   gap: 6px;
-  background: rgba(0,0,0,0.48);
-  border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 8px;
+  background: var(--surface-glass);
+  border: 1px solid var(--border-dark);
+  border-radius: var(--radius-md);
   padding: 6px;
-  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
 }
 
 .admin-map-control {
-  min-width: 30px;
-  height: 30px;
-  border: 1px solid rgba(255,255,255,0.22);
-  border-radius: 6px;
-  background: rgba(255,255,255,0.12);
-  color: #fff;
+  min-width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-dark);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text-hi);
   font: inherit;
-  font-size: 0.84rem;
+  font-size: var(--fs-base);
   font-weight: 800;
   cursor: pointer;
+  transition: background var(--ease);
 }
 
-.admin-map-control:hover {
-  background: rgba(255,255,255,0.22);
-}
+.admin-map-control:hover { background: var(--surface-raised-hover); }
+.admin-map-control:active { background: rgba(255, 255, 255, 0.26); }
+.admin-map-control.reset { min-width: 56px; font-size: var(--fs-xs); }
 
-.admin-map-control.reset {
-  min-width: 54px;
-  font-size: 0.72rem;
+/* Stats and legend share one glass style. */
+.admin-stats,
+.admin-legend {
+  position: absolute;
+  background: var(--surface-glass);
+  border: 1px solid var(--border-dark);
+  border-radius: var(--radius-md);
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
+  color: var(--text-mid);
 }
 
 .admin-stats {
-  position: absolute;
-  bottom: 12px;
-  right: 12px;
-  background: rgba(255,255,255,0.12);
-  border-radius: 8px;
-  padding: 8px 12px;
-  font-size: 0.72rem;
-  color: rgba(255,255,255,0.7);
-  line-height: 1.6;
+  bottom: var(--sp-3);
+  right: var(--sp-3);
+  max-width: calc(100% - 24px);
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-base);
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.92);
+  line-height: 1.5;
   pointer-events: none;
 }
 
-.admin-stats strong { color: #fff; }
+.admin-stats:empty { display: none; }
+.admin-stats strong { color: var(--text-hi); font-weight: 800; }
+.admin-stats em { font-style: normal; color: var(--warn-text); }
 
-.admin-click-details {
-  position: absolute;
-  left: 12px;
-  bottom: 12px;
-  width: min(360px, calc(100% - 24px));
-  max-height: min(420px, calc(100% - 86px));
-  overflow-y: auto;
-  background: rgba(14, 22, 18, 0.92);
-  border: 1px solid rgba(255,255,255,0.14);
-  border-radius: 8px;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.35);
-  color: rgba(255,255,255,0.84);
-  padding: 14px;
-  backdrop-filter: blur(8px);
-}
-
-.admin-click-details[hidden] {
-  display: none;
-}
-
-.admin-click-details-close {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 26px;
-  height: 26px;
-  border: 1px solid rgba(255,255,255,0.18);
-  border-radius: 6px;
-  background: rgba(255,255,255,0.1);
-  color: #fff;
-  font: inherit;
-  font-size: 1rem;
-  line-height: 1;
-  cursor: pointer;
-}
-
-.admin-click-details-close:hover {
-  background: rgba(255,255,255,0.2);
-}
-
-.admin-click-title {
-  margin: 0 34px 4px 0;
-  color: #fff;
-  font-size: 0.96rem;
-  font-weight: 900;
-}
-
-.admin-click-subtitle {
-  margin: 0 34px 12px 0;
-  color: rgba(255,255,255,0.56);
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.admin-click-summary {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  margin-bottom: 12px;
-}
-
-.admin-click-summary-item {
-  background: rgba(255,255,255,0.08);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 7px;
-  padding: 8px;
-}
-
-.admin-click-summary-value {
-  display: block;
-  color: #fff;
-  font-size: 1.1rem;
-  font-weight: 900;
-}
-
-.admin-click-summary-label {
-  display: block;
-  color: rgba(255,255,255,0.52);
-  font-size: 0.68rem;
-}
-
-.admin-click-meta {
-  display: grid;
-  gap: 6px;
-  margin: 0 0 12px;
-  font-size: 0.74rem;
-}
-
-.admin-click-meta-row {
+.admin-stats-row {
   display: flex;
-  gap: 8px;
-  justify-content: space-between;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px var(--sp-3);
 }
 
-.admin-click-meta-label {
-  color: rgba(255,255,255,0.48);
+.admin-stats-row + .admin-stats-row { margin-top: 2px; }
+.admin-stats-label { color: var(--text-low); font-weight: 700; text-transform: uppercase; font-size: var(--fs-xs); letter-spacing: 0.06em; }
+.admin-stat-chip { white-space: nowrap; }
+.admin-stat-chip.wrap { white-space: normal; }
+
+.admin-legend {
+  top: var(--sp-3);
+  right: var(--sp-3);
+  padding: 6px 10px;
+  font-size: var(--fs-xs);
+  line-height: 1.7;
+  pointer-events: none;
 }
 
-.admin-click-meta-value {
-  color: rgba(255,255,255,0.82);
-  text-align: right;
-  overflow-wrap: anywhere;
-}
-
-.admin-click-recent-title {
-  margin: 10px 0 6px;
-  color: rgba(255,255,255,0.7);
-  font-size: 0.7rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-.admin-click-recent-list {
-  display: grid;
-  gap: 6px;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.admin-click-recent-list li {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 6px 0;
-  border-top: 1px solid rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.68);
-  font-size: 0.72rem;
+.admin-legend-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 6px;
+  vertical-align: middle;
 }
 
 .admin-empty {
@@ -445,29 +575,377 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.88rem;
-  color: rgba(255,255,255,0.35);
+  font-size: var(--fs-base);
+  color: var(--text-low);
 }
 
-.admin-legend {
+/* --- Overlay panels (Community, Access, tap details): one sheet style over the dark map and the light Navigation view --- */
+
+.admin-click-details {
   position: absolute;
-  top: 12px;
-  right: 12px;
-  background: rgba(0,0,0,0.55);
-  border-radius: 8px;
-  padding: 8px 12px;
-  font-size: 0.72rem;
-  color: rgba(255,255,255,0.75);
-  line-height: 1.8;
+  z-index: 5;
+  /* A bottom-left sheet: the controls and legend stay clear at the top, and --stats-clear (set from the stats bar's height) keeps it above the stats. */
+  left: var(--sp-3);
+  bottom: var(--stats-clear, var(--sp-3));
+  width: min(400px, calc(100% - 24px));
+  max-height: max(160px, calc(100% - 112px - var(--stats-clear, var(--sp-3))));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--surface-panel);
+  border: 1px solid var(--border-dark);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-panel);
+  color: var(--text-mid);
+  padding: var(--sp-4);
+  font-size: var(--fs-sm);
+  line-height: 1.45;
+  -webkit-backdrop-filter: blur(var(--glass-blur));
+  backdrop-filter: blur(var(--glass-blur));
 }
 
-.admin-legend-dot {
-  display: inline-block;
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  margin-right: 5px;
-  vertical-align: middle;
+.admin-click-details[hidden] { display: none; }
+
+.admin-panel-title {
+  margin: 0 40px var(--sp-3) 0;
+  color: var(--text-hi);
+  font-size: var(--fs-md);
+  font-weight: 800;
+  line-height: 1.3;
+}
+
+.admin-click-details h4 {
+  margin: var(--sp-4) 0 var(--sp-2);
+  color: var(--text-low);
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.admin-click-details p { margin: 0 0 var(--sp-3); }
+.admin-click-details a { color: var(--link); text-underline-offset: 2px; }
+.admin-click-details a:hover { color: var(--link-hover); }
+
+.admin-click-details-close {
+  position: absolute;
+  top: var(--sp-2);
+  right: var(--sp-2);
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border-dark);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text-hi);
+  font: inherit;
+  font-size: var(--fs-lg);
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--ease);
+}
+
+.admin-click-details-close:hover { background: var(--surface-raised-hover); }
+
+/* Pointer users get a visible "Esc" cue on the close buttons (phones and touch keep the plain cross). */
+@media (hover: hover) and (pointer: fine) and (min-width: 721px) {
+  .admin-click-details-close { width: auto; min-width: 32px; padding: 0 var(--sp-2); display: inline-flex; align-items: center; gap: 6px; }
+  .admin-click-details-close::before { content: "Esc"; color: var(--text-low); font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.04em; }
+  .admin-panel-title, .admin-click-title { margin-right: 84px; }
+}
+
+.admin-panel-help { color: var(--text-low); font-size: var(--fs-xs); line-height: 1.5; }
+
+.admin-panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-2);
+}
+
+.admin-panel-status {
+  display: block;
+  min-height: 1.4em;
+  margin: var(--sp-2) 0 var(--sp-3);
+  color: var(--text-hi);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+/* Live regions stay rendered while empty (zero height, no margin) so screen readers reliably announce the first text written to them. */
+.admin-panel-status:empty { min-height: 0; margin: 0; }
+
+.admin-click-details .admin-community-status {
+  margin: 0;
+  color: var(--text-hi);
+  font-size: var(--fs-sm);
+  overflow-wrap: anywhere;
+}
+
+.admin-click-details .admin-community-status:not(:empty) { margin-bottom: var(--sp-2); }
+/* Keep status and help text clear of the close button (wider with its Esc cue on fine pointers, a 44px target on phones). */
+@media (hover: hover) and (pointer: fine) and (min-width: 721px) {
+  .admin-click-details .admin-community-status, .admin-click-details .admin-panel-help { margin-right: 84px; }
+}
+.admin-retry-btn { margin: 0 0 var(--sp-3); }
+.admin-retry-btn[hidden] { display: none; }
+
+.admin-panel-links { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-3); }
+
+.admin-community-asof { color: var(--text-low); font-size: var(--fs-xs); }
+
+.admin-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-2);
+  margin: 0 0 var(--sp-2);
+  padding: 0;
+  list-style: none;
+}
+
+.admin-stat-card {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--surface-raised);
+  border: 1px solid var(--border-dark-soft);
+  border-radius: var(--radius-md);
+  padding: var(--sp-2) var(--sp-3);
+}
+
+.admin-stat-value { color: var(--text-hi); font-size: var(--fs-lg); font-weight: 800; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.admin-stat-label { color: var(--text-low); font-size: var(--fs-xs); line-height: 1.3; }
+
+.admin-click-details table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.admin-click-details table th,
+.admin-click-details table td { padding: 6px 0; border-bottom: 1px solid var(--border-dark-soft); font-size: var(--fs-sm); font-weight: 400; vertical-align: top; }
+.admin-click-details table th { text-align: left; color: var(--text-mid); padding-right: var(--sp-3); }
+.admin-click-details table td { text-align: right; color: var(--text-hi); font-weight: 700; }
+.admin-click-details table tr:last-child th,
+.admin-click-details table tr:last-child td { border-bottom: 0; }
+
+#adminAccessList {
+  display: block;
+  width: 100%;
+  min-height: 180px;
+  margin: 0 0 var(--sp-3);
+  padding: var(--sp-3);
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--border-dark);
+  border-radius: var(--radius-md);
+  color: var(--text-hi);
+  font: 0.8125rem/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  resize: vertical;
+  transition: border-color var(--ease);
+}
+
+#adminAccessList:disabled { opacity: 0.55; cursor: not-allowed; }
+#adminAccessList:hover { border-color: rgba(255, 255, 255, 0.3); }
+#adminAccessList:disabled:hover { border-color: var(--border-dark); }
+#adminAccessList:focus-visible { border-color: var(--accent); }
+#adminAccessList::placeholder { color: var(--text-low); }
+
+.admin-access-actions { display: flex; align-items: center; gap: var(--sp-3); margin: 0; }
+#adminAccessStatus { flex: 1; min-width: 0; color: var(--text-hi); font-size: var(--fs-sm); overflow-wrap: anywhere; }
+
+.admin-click-title {
+  margin: 0 40px 4px 0;
+  color: var(--text-hi);
+  font-size: var(--fs-md);
+  font-weight: 800;
+}
+
+.admin-click-subtitle {
+  margin: 0 40px var(--sp-3) 0;
+  color: var(--text-low);
+  font-size: var(--fs-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.admin-click-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-2);
+  margin-bottom: var(--sp-3);
+}
+
+.admin-click-summary-item {
+  background: var(--surface-raised);
+  border: 1px solid var(--border-dark-soft);
+  border-radius: var(--radius-md);
+  padding: var(--sp-2) var(--sp-3);
+}
+
+.admin-click-summary-value { display: block; color: var(--text-hi); font-size: var(--fs-lg); font-weight: 800; }
+.admin-click-summary-label { display: block; color: var(--text-low); font-size: var(--fs-xs); }
+
+.admin-click-meta { display: grid; gap: 6px; margin: 0 0 var(--sp-3); font-size: var(--fs-xs); }
+.admin-click-meta-row { display: flex; gap: var(--sp-2); justify-content: space-between; }
+.admin-click-meta-label { color: var(--text-low); }
+.admin-click-meta-value { color: var(--text-hi); text-align: right; overflow-wrap: anywhere; }
+
+.admin-click-recent-title {
+  margin: var(--sp-3) 0 6px;
+  color: var(--text-low);
+  font-size: var(--fs-xs);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.admin-click-recent-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+
+.admin-click-recent-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 6px 0;
+  border-top: 1px solid var(--border-dark-soft);
+  color: var(--text-mid);
+  font-size: var(--fs-xs);
+}
+
+/* --- Narrow laptops, tablets, landscape phones: two-row top bar (brand and utility actions, then the views and panels) so nothing overlaps --- */
+
+@media (max-width: 1099px) {
+  .admin-topbar {
+    flex-wrap: wrap;
+    gap: var(--sp-1) var(--sp-2);
+  }
+
+  .admin-brand { order: 1; flex: 1 1 0; }
+  .admin-actions { order: 2; }
+  .admin-nav {
+    order: 3;
+    flex: 1 0 100%;
+    margin-right: 0;
+  }
+}
+
+/* --- Phone: compact top bar, user chips on top, map and views at full width --- */
+
+/* Touch devices up to 1099px wide (tablets, landscape phones) get 44px tap targets in the top bar; fine-pointer desktops keep 34px. */
+@media (max-width: 1099px) and (pointer: coarse) {
+  .admin-topbar .admin-btn { min-height: var(--tap); }
+}
+
+@media (max-width: 720px) {
+  .admin-topbar { padding: 4px var(--sp-2); }
+
+  /* The title would truncate to "Epping F…", so it is read out but not drawn; the icon and environment badge identify the page. */
+  .admin-topbar-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+  /* All five view and panel controls fit on one row at 390px, so nothing is hidden off to the side. */
+  .admin-nav {
+    gap: var(--sp-1);
+    padding: 2px;
+    overflow-x: auto;
+    scroll-padding-inline: 28px; /* focus and scrollIntoView stop clear of the 28px fade */
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .admin-nav::-webkit-scrollbar { display: none; }
+  .admin-tabs, .admin-panel-btns { flex-shrink: 0; }
+  .admin-panel-btns { gap: var(--sp-1); }
+  /* The row scrolls, which would clip an outside ring, so the ring is drawn inside the button here. */
+  .admin-nav .admin-btn:focus-visible { outline-offset: -3px; }
+
+  .admin-btn { min-height: var(--tap); min-width: var(--tap); padding: 6px 8px; font-size: var(--fs-sm); }
+  .admin-nav .admin-btn { font-size: var(--fs-xs); }
+  .admin-tabs .admin-btn { padding: 6px 7px; }
+
+  .admin-body { flex-direction: column; }
+
+  .admin-sidebar {
+    width: 100%;
+    flex-direction: row;
+    align-items: stretch;
+    border-bottom: 1px solid var(--border-dark-soft);
+  }
+
+  .admin-sidebar-title {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+  }
+
+  .admin-user-list {
+    display: flex;
+    gap: var(--sp-2);
+    padding: 6px var(--sp-2);
+    overflow-x: auto;
+    overflow-y: hidden;
+    scroll-padding-inline: 28px;
+    scrollbar-width: none;
+  }
+  .admin-user-list::-webkit-scrollbar { display: none; }
+
+  .admin-user-item {
+    width: auto;
+    flex-shrink: 0;
+    min-height: var(--tap);
+    padding: 6px 12px;
+    border: 1px solid var(--border-dark);
+    border-radius: 999px;
+    background: var(--surface-raised);
+  }
+
+  .admin-user-item.selected { border-color: var(--accent); background: var(--accent-soft); }
+  .admin-user-meta { margin-left: 0; }
+
+  .admin-map-control { min-width: var(--tap); height: var(--tap); }
+  .admin-map-control.reset { min-width: 64px; }
+  .admin-map-controls { top: var(--sp-2); left: var(--sp-2); }
+
+  .admin-legend { top: var(--sp-2); right: var(--sp-2); padding: 4px 8px; line-height: 1.5; }
+
+  .admin-stats {
+    left: var(--sp-2);
+    right: var(--sp-2);
+    bottom: var(--sp-2);
+    max-width: none;
+    padding: 6px 10px;
+    font-size: var(--fs-sm);
+    line-height: 1.4;
+  }
+
+  .admin-click-details {
+    left: var(--sp-2);
+    right: var(--sp-2);
+    bottom: var(--stats-clear, var(--sp-2));
+    width: auto;
+    max-height: max(160px, calc(100% - 136px - var(--stats-clear, var(--sp-2))));
+  }
+
+  .admin-click-details-close { width: var(--tap); height: var(--tap); top: 4px; right: 4px; }
+  .admin-panel-title, .admin-click-title { margin-right: 52px; }
+  .admin-click-details .admin-community-status, .admin-click-details .admin-panel-help { margin-right: 52px; }
+}
+
+/* Scroll cues: a soft fade at an edge of the nav row and user strip while more is hidden there (classes set from js/admin.js). Masks never intercept taps. */
+@media (max-width: 720px) {
+  .admin-user-list.cue-end, .admin-nav.cue-end {
+    -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  }
+  .admin-user-list.cue-start, .admin-nav.cue-start {
+    -webkit-mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to left, #000 calc(100% - 28px), transparent);
+  }
+  .admin-user-list.cue-start.cue-end, .admin-nav.cue-start.cue-end {
+    -webkit-mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to right, transparent, #000 28px, #000 calc(100% - 28px), transparent);
+  }
 }
 
 /* --- Navigation view (trend charts) --- */
@@ -475,16 +953,17 @@ html, body {
 .admin-nav-view {
   --nav-started: #5b8de8;
   --nav-completed: #2f6f4e;
-  --nav-rate: #e8a93c;
-  --nav-lt5: #4fc97e;
+  --nav-rate: #a35a00;
+  --nav-lt5: #2f9e5f;
   --nav-b5to15: #5b8de8;
-  --nav-b15to30: #e8a93c;
+  --nav-b15to30: #b8650a;
   --nav-gt30: #e05f4f;
-  position: absolute;
-  inset: 0;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
-  padding: 16px;
+  padding: var(--sp-5);
   background: var(--paper);
   color: var(--ink);
   font-size: 0.85rem;
@@ -492,15 +971,35 @@ html, body {
 }
 
 .admin-nav-view[hidden] { display: none; }
-.admin-nav-view h2 { margin: 0 0 12px; font-size: 1.1rem; }
-.admin-nav-view h3 { margin: 20px 0 6px; font-size: 0.95rem; }
-.nav-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; margin: 0; padding: 0; list-style: none; }
-.nav-card { background: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
-.nav-card-label { display: block; color: var(--muted); font-size: 0.72rem; }
-.nav-card-value { display: block; font-size: 1.15rem; font-weight: 800; }
-.nav-chart { display: block; width: 100%; max-width: 520px; height: auto; background: #fff; border: 1px solid var(--line); border-radius: 8px; }
+.admin-nav-view > * { max-width: 1400px; margin-left: auto; margin-right: auto; }
+.admin-map-area[hidden] { display: none; }
+.admin-page-head { margin-bottom: var(--sp-4); }
+.admin-page-title { margin: 0 0 var(--sp-1); font-size: var(--fs-lg); font-weight: 800; letter-spacing: -0.01em; }
+.admin-page-title:focus { outline: none; }
+.admin-page-title:focus-visible { outline: 2px solid var(--focus-ring-light); outline-offset: 3px; border-radius: var(--radius-sm); }
+.admin-page-sub { margin: 0; color: var(--muted); font-size: var(--fs-base); line-height: 1.45; }
+.nav-empty-state { padding: var(--sp-5) var(--sp-4); background: var(--card); border: 1px dashed var(--line-strong); border-radius: var(--radius-md); color: var(--muted); text-align: center; }
+.admin-nav-view h3 { margin: 0 0 var(--sp-1); font-size: var(--fs-md); font-weight: 700; }
+.nav-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; padding: 0; list-style: none; }
+.nav-card { display: flex; flex-direction: column; justify-content: center; gap: 2px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: 10px 8px; }
+.nav-card-value { font-size: 1.5rem; font-weight: 800; line-height: 1.2; }
+.nav-card-label { color: var(--muted); font-size: 0.72rem; line-height: 1.3; overflow-wrap: anywhere; }
+.nav-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--sp-4); margin-top: var(--sp-5); }
+@media (max-width: 720px) {
+  .admin-nav-view { padding: var(--sp-4) var(--sp-3) var(--sp-5); }
+  /* Seven cards in two columns would leave the last one alone beside a gap. */
+  .nav-cards .nav-card:last-child:nth-child(odd) { grid-column: 1 / -1; }
+}
+.nav-panel { min-width: 0; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius-md); box-shadow: var(--shadow-sm); padding: var(--sp-3) 14px; }
+@media (min-width: 1100px) {
+  .nav-cards { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .nav-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .nav-panel-wide { grid-column: 1 / -1; }
+}
+.nav-chart { display: block; width: 100%; height: auto; }
 .nav-chart text { font-size: 12px; fill: var(--muted); }
-.nav-chart .nav-axis { stroke: var(--line); stroke-width: 1; }
+.nav-chart .nav-axis { stroke: var(--muted); stroke-width: 1; }
+.nav-chart .nav-grid-line { stroke: var(--line); stroke-width: 1; }
 .nav-chart .nav-ref { stroke: var(--muted); stroke-width: 1; stroke-dasharray: 4 3; }
 .nav-bar-started { fill: var(--nav-started); }
 .nav-bar-completed { fill: var(--nav-completed); }
@@ -508,15 +1007,27 @@ html, body {
 .nav-bar-b5to15 { fill: var(--nav-b5to15); }
 .nav-bar-b15to30 { fill: var(--nav-b15to30); }
 .nav-bar-gt30 { fill: var(--nav-gt30); }
-.nav-line { fill: none; stroke: var(--nav-rate); stroke-width: 2; }
+.nav-line { fill: none; stroke: var(--nav-rate); stroke-width: 2.5; }
 .nav-dot { fill: var(--nav-rate); }
 .nav-line-detour { stroke: var(--nav-completed); }
 .nav-dot-detour { fill: var(--nav-completed); }
-.nav-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 6px 0 0; padding: 0; list-style: none; font-size: 0.75rem; }
-.nav-swatch { display: inline-block; width: 10px; height: 10px; margin-right: 4px; border-radius: 2px; }
+.nav-legend { display: flex; flex-wrap: wrap; justify-content: flex-start; gap: 4px 14px; margin: 0 0 6px; padding: 0; list-style: none; font-size: 0.78rem; color: var(--muted); }
+.nav-swatch { display: inline-block; width: 10px; height: 10px; margin-right: 5px; border-radius: 2px; }
 .nav-swatch-line { height: 3px; vertical-align: middle; }
-.nav-table-wrap { overflow-x: auto; margin-top: 8px; }
-.nav-trend-table { border-collapse: collapse; width: 100%; font-size: 0.75rem; }
-.nav-trend-table th, .nav-trend-table td { padding: 3px 6px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
-.nav-trend-table th:first-child, .nav-trend-table td:first-child { text-align: left; }
+.nav-swatch.nav-bar-started { background: var(--nav-started); }
+.nav-swatch.nav-bar-completed { background: var(--nav-completed); }
+.nav-swatch.nav-bar-lt5 { background: var(--nav-lt5); }
+.nav-swatch.nav-bar-b5to15 { background: var(--nav-b5to15); }
+.nav-swatch.nav-bar-b15to30 { background: var(--nav-b15to30); }
+.nav-swatch.nav-bar-gt30 { background: var(--nav-gt30); }
+.nav-table-wrap { overflow-x: auto; margin-top: 10px; }
+.nav-trend-table { border-collapse: collapse; width: 100%; font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+.nav-trend-table th, .nav-trend-table td { padding: 4px 8px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; font-weight: 400; }
+.nav-trend-table thead th { color: var(--muted); font-weight: 600; }
+.nav-trend-table th:first-child, .nav-trend-table td:first-child { position: sticky; left: 0; background: var(--card); text-align: left; }
 .nav-empty { margin: 0; }
+.nav-note { margin: 0 0 8px; color: var(--muted); font-size: 0.78rem; }
+.nav-dest-table th:first-child { min-width: 180px; }
+.nav-dest-name { display: block; }
+.nav-dest-bar { display: block; height: 6px; margin-top: 3px; background: var(--line); border-radius: 3px; }
+.nav-dest-bar > span { display: block; height: 100%; background: var(--nav-started); border-radius: 3px; }

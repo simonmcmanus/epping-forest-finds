@@ -316,7 +316,7 @@ function tiltProjectOffsets(dxCss, dyCss, tiltDeg, perspectivePx) {
   const sin = Math.sin(rad);
   const cos = Math.cos(rad);
   const scale = tiltDepthScale(dyCss, sin, perspectivePx);
-  return { dx: dxCss * scale, dy: dyCss * cos * scale, scale, clipped: false };
+  return { dx: dxCss * scale, dy: dyCss * cos * scale, scale };
 }
 
 // The perspective scale for a point dyCss px from the pivot (positive is behind it). Ahead of
@@ -388,7 +388,7 @@ function tiltProjection() {
 // three agree by construction rather than by three copies of the same arithmetic.
 function tiltProjectScreenPoint(flat) {
   const cam = tiltProjection();
-  if (!cam) return { x: flat.x, y: flat.y, scale: 1, clipped: false };
+  if (!cam) return { x: flat.x, y: flat.y, scale: 1 };
   const dxCss = (flat.x - cam.originX) / cam.dpr;
   const dyCss = (flat.y - cam.originY) / cam.dpr;
   const scale = tiltDepthScale(dyCss, cam.sin, cam.perspectivePx);
@@ -396,7 +396,6 @@ function tiltProjectScreenPoint(flat) {
     x: cam.originX + dxCss * scale * cam.dpr,
     y: cam.originY + dyCss * cam.cos * scale * cam.dpr,
     scale,
-    clipped: false,
   };
 }
 

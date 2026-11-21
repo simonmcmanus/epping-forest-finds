@@ -67,3 +67,80 @@ test("summary reports the median time to arrive over completed journeys", () => 
   assert.equal(s.medianArriveMinutes, 10);
   assert.equal(M.summariseNavJourneys([journey(D1, null)]).medianArriveMinutes, null);
 });
+
+// ---- topDestinationsThisWeek ----
+const NOW = Date.parse("2026-11-10T12:00:00Z");
+const DAY = 24 * 60 * MIN;
+const dest = (id, name, lat = 51.5, lng = 0.1) => ({ target: { id, name, type: "place", targetLat: lat, targetLng: lng } });
+
+test("topDestinationsThisWeek leaves out a journey that started 8 days ago", () => {
+  const rows = M.topDestinationsThisWeek([
+    journey(NOW - 8 * DAY, 5, dest("a", "Fictional Pond")),
+    journey(NOW - 2 * DAY, 5, dest("b", "Fictional Gate")),
+  ], { now: NOW });
+  assert.deepEqual(rows.map((r) => r.name), ["Fictional Gate"]);
+});
+
+test("topDestinationsThisWeek adds up the same destination across journeys", () => {
+  const rows = M.topDestinationsThisWeek([
+    journey(NOW - 3 * DAY, 4, dest("a", "Fictional Pond")),
+    journey(NOW - 2 * DAY, null, dest("a", "Fictional Pond")),
+    journey(NOW - 1 * DAY, 8, dest("a", "Fictional Pond")),
+  ], { now: NOW });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].started, 3);
+  assert.equal(rows[0].completed, 2);
+  assert.equal(rows[0].completionRate, 2 / 3);
+  assert.equal(rows[0].share, 1);
+});
+
+test("topDestinationsThisWeek orders ties on started by completed, then name", () => {
+  const rows = M.topDestinationsThisWeek([
+    journey(NOW - DAY, null, dest("a", "Alpha Glade")),
+    journey(NOW - DAY, null, dest("a", "Alpha Glade")),
+    journey(NOW - DAY, 3, dest("b", "Beta Hollow")),
+    journey(NOW - DAY, null, dest("b", "Beta Hollow")),
+    journey(NOW - DAY, 3, dest("c", "Aardvark Mound")),
+    journey(NOW - DAY, 3, dest("c", "Aardvark Mound")),
+    journey(NOW - DAY, 3, dest("d", "Zed Mound")),
+    journey(NOW - DAY, 3, dest("d", "Zed Mound")),
+  ], { now: NOW });
+  assert.deepEqual(rows.map((r) => r.name), ["Aardvark Mound", "Zed Mound", "Beta Hollow", "Alpha Glade"]);
+});
+
+test("topDestinationsThisWeek shows at most 5 of 7 destinations, most started first", () => {
+  const js = [];
+  for (let i = 0; i < 7; i++) for (let k = 0; k <= i; k++) js.push(journey(NOW - DAY, 3, dest(`d${i}`, `Place ${i}`)));
+  const rows = M.topDestinationsThisWeek(js, { now: NOW });
+  assert.equal(rows.length, 5);
+  assert.deepEqual(rows.map((r) => r.started), [7, 6, 5, 4, 3]);
+  assert.equal(rows[0].share, 1);
+  assert.equal(M.topDestinationsThisWeek(js, { now: NOW, limit: 2 }).length, 2);
+});
+
+test("topDestinationsThisWeek takes the median time from completed journeys only", () => {
+  const rows = M.topDestinationsThisWeek([
+    journey(NOW - DAY, 4, dest("a", "Fictional Pond")),
+    journey(NOW - DAY, 10, dest("a", "Fictional Pond")),
+    journey(NOW - DAY, null, dest("a", "Fictional Pond")),
+    journey(NOW - DAY, null, dest("b", "Fictional Gate")),
+  ], { now: NOW });
+  assert.equal(rows[0].medianMinutesToArrive, 7);
+  assert.equal(rows[1].medianMinutesToArrive, null);
+});
+
+test("topDestinationsThisWeek groups by rounded coordinates without an id, and names unnamed places", () => {
+  const noId = (lat, lng) => ({ target: { id: null, name: null, targetLat: lat, targetLng: lng } });
+  const rows = M.topDestinationsThisWeek([
+    journey(NOW - DAY, 3, noId(51.500001, 0.1)),
+    journey(NOW - DAY, 3, noId(51.500002, 0.1)),
+  ], { now: NOW });
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].started, 2);
+  assert.equal(rows[0].name, "Unnamed place");
+});
+
+test("topDestinationsThisWeek gives an empty list for no journeys", () => {
+  assert.deepEqual(M.topDestinationsThisWeek([], { now: NOW }), []);
+  assert.deepEqual(M.topDestinationsThisWeek(undefined, { now: NOW }), []);
+});

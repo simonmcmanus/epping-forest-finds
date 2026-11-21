@@ -91,7 +91,7 @@ Use one task branch/worktree from `origin/main` per batch. Sequential scoped age
 batch worktree with exclusive ownership; concurrent agents must own disjoint files and use separate
 worktrees when isolation is needed. Never edit the same hot file concurrently (`app.html`,
 `js/app.js`, `sw.js`, `spec/*.md`, `test/forest-finds.test.js`). Do not stack on an open PR.
-The lead alone assembles/reviews the aggregate delta, pushes the batch as a draft PR once implemented and checked, and marks it ready once gates pass.
+The lead alone assembles/reviews the aggregate delta, pushes the batch as a draft PR once implemented and checked, and, at the end of every batch turn, either marks it ready (local gate plus draft-run CI green on the exact head) or records the named blocker on the PR and leaves it draft.
 
 The lead supplies immutable base/head SHAs, branch/worktree, requirements, file ownership, relevant
 spec headings, risk triggers and test/artifact paths. Reports name findings, reviewed SHA and evidence;
@@ -169,6 +169,13 @@ so. Never claim completion while required checks, actionable findings or human a
   remains a failure; a visual mismatch requires a current-head decision. Compare failing test IDs,
   project and error signatures CI-to-CI before calling any failure pre-existing. A passing rerun
   establishes intermittency, not that the PR is innocent.
+- "Green" CI, waiting-state ownership, the no-CI rule, description/visual reconciliation and base
+  staleness are defined once in `.claude/skills/team/SKILL.md` section 5.
+- A periodic open-PR sweep follows up PRs whose lead session ended; it only reads, comments and marks
+  ready, never pushes, approves or merges. See `.claude/skills/team/SKILL.md` section 7.
+- Flaky tests: preserve the first failure, rerun failed jobs once per head, file one deduplicated
+  issue per test and repair flakes; never skip, quarantine or loosen. See `docs/agents/testing.md`
+  "Flaky tests".
 - Unit evidence is local until confirmed by CI. Do not describe a task as complete while checks,
   actionable findings or required human approval remain outstanding. Waiting on a person is a
   named waiting state, not a reason to busy-poll or claim completion.
@@ -198,5 +205,5 @@ Every pull request, whichever agent opens it, follows `.github/pull_request_temp
 - **Visual changes:** when a PR changes any `toHaveScreenshot()` baseline, list each changed snapshot by name in the PR body and embed its before and after images as Markdown images (`![before](...)`, `![after](...)`). Link each image to the file at the commit it came from, for example `https://raw.githubusercontent.com/<owner>/<repo>/<sha>/test/e2e/__screenshots__/<name>.png`, so the images need no separate hosting. Take them from the CI `Visual snapshots (desktop + mobile)` artifact or from the committed baselines before and after the change.
 - **Baselines:** every PR run publishes each changed snapshot's committed baseline, actual render and diff to the `visual-diffs` branch and writes them into a `Failing visual snapshots` table in the PR description. Snapshot publication never commits into the PR branch, so binary baselines cannot conflict between feature branches. After a source change reaches `main`, the `Update Snapshots` workflow regenerates the canonical files and commits them directly to `main` through the protected-branch GitHub App path, which triggers CI against the updated baselines.
 - **Preview link:** keep the Netlify block between `<!-- preview-links:start -->` and `<!-- preview-links:end -->` in the PR body. When you rewrite a description, copy that block back verbatim. Netlify fills it in once the deploy preview is ready.
-- **Lifecycle:** push the PR as a draft as soon as the batch is implemented and committed, so the Netlify preview deploys; draft status holds back the CI review jobs, which is expected. Keep the draft through repair rounds. The lead marks it ready for review (`gh pr ready` or `update_pull_request` with `draft: false`) only once the `/team` gate is satisfied: no open blockers/majors on the aggregate head, required verification complete. Never open or leave a PR ready while that gate is open.
+- **Lifecycle:** push the PR as a draft as soon as the batch is implemented and committed, so the Netlify preview deploys; draft status skips `Claude PR review` and `Inspect final PR head`, which is expected. Every batch turn ends with exactly one recorded outcome: gate satisfied, so mark ready (`gh pr ready` or `update_pull_request` with `draft: false`); or gate open, so post or update a PR comment naming the blocker or waiting state (open finding, "CI pending on <sha>", "CI failed <job>") and leave it draft. Never leave a draft PR with no stated reason. The gate is the local gate plus draft-run CI: no open blockers/majors from local reviewers on the aggregate head, required local verification complete, and unit, E2E, visual, build and Netlify jobs green on the exact head. The skipped final-head jobs are not required before ready; marking ready triggers them. Never mark ready while local reviews, local verification or draft-run CI are open. After ready, the state is "awaiting final-head PR review": its blockers/majors trigger a repair round, and completion is not claimed until it is green on the current head (human approval is separate). Re-draft is unavailable through the GitHub MCP tools in cloud sessions, so a ready PR stays ready during repairs and the open findings are the named blocker.
 - **Spec and tests:** follow the Spec Synchronisation and Testing sections above.

@@ -185,6 +185,11 @@
       "evaluated": "2026-10-10"
     },
     {
+      "source": "https://www.eventbrite.co.uk/o/9768889881 (Eventbrite organiser page, 'Epping Forest')",
+      "note": "The weekly run checks this organiser page every run as a public page, plus each upcoming event's detail page; there is no API option (see the Eventbrite organiser note above). It was not fetchable from the authoring session's network, so reachability from the workflow is unverified. If blocked, treat it as an access limitation, not as proof of no events.",
+      "evaluated": "2026-11-19"
+    },
+    {
       "source": "cityoflondon.gov.uk/.../whats-new-in-epping-forest",
       "note": "Good general-interest page (reminders, long-running works, car park/riding/fishing notices -- see data/forest-notices.json) but it's a single long page with no dates on most items and no RSS feed, so it suits a human skim better than automated diffing.",
       "evaluated": "2026-10-10"

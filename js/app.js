@@ -4327,11 +4327,6 @@ function directionArrowAngleForWorldPoint(targetPoint, fallbackAngle, previousAn
 
   const origin = worldToScreenForOverlayTilted(state.userLocation.point);
   const target = worldToScreenForOverlayTilted(targetPoint);
-  // A clipped target is behind the camera's near plane. Its clamped coordinates are only a
-  // safety bound, not a real screen position; hold the last valid projected direction so the
-  // arrow does not jump to an artificial angle or back to a flat bearing at the clip boundary.
-  // The same hold handles a user point clipped while browsing around a distant anchor.
-  if (origin.clipped || target.clipped) return Number.isFinite(previousAngle) ? previousAngle : fallbackAngle;
   const dx = target.x - origin.x;
   const dy = target.y - origin.y;
   if (!Number.isFinite(dx) || !Number.isFinite(dy) || Math.hypot(dx, dy) < 0.001) return fallbackAngle;
@@ -6060,8 +6055,7 @@ function alignHeadingUpNavigationViewport(options = {}) {
   let wideFramingMove = false;
   if (options.animate && options.stagePanThenZoom && tiltActive() && previousScale > 0) {
     const shown = tiltProjectScreenPoint(worldToScreenFlat(userPoint));
-    const pivotOutOfTiltedView = shown.clipped
-      || !Number.isFinite(shown.x) || !Number.isFinite(shown.y)
+    const pivotOutOfTiltedView = !Number.isFinite(shown.x) || !Number.isFinite(shown.y)
       || shown.x < focusRect.x || shown.x > focusRect.x + focusRect.width
       || shown.y < focusRect.y || shown.y > focusRect.y + focusRect.height;
     wideFramingMove = pivotOutOfTiltedView || !panIsAlreadyOnScreen;
@@ -7747,7 +7741,7 @@ function worldToScreenForOverlayTilted(point) {
 // Projects a raw canvas-pixel point through the active tilt perspective.
 // Used to place radar/overlay elements in the same 3D space as the terrain canvas.
 function projectCanvasPoint(px, py) {
-  if (!tiltActive() || !state.userLocation) return { x: px, y: py, scale: 1, clipped: false };
+  if (!tiltActive() || !state.userLocation) return { x: px, y: py, scale: 1 };
   return tiltProjectScreenPoint({ x: px, y: py });
 }
 
@@ -7778,6 +7772,8 @@ function screenToWorld(x, y) {
       // are unboundedly far away) would unproject to an infinite or negative-distance
       // world point. Clamping to the row the far clip projects to keeps the inverse
       // finite and consistent with the forward projection's own draw distance.
+      // Ahead of the pivot the closed form above holds; behind it the forward scale is eased
+      // (see tiltDepthScale), so tiltUnprojectDy bisects on the forward map instead.
       const farClip = tiltFarClipCssPx();
       const yRelMin = Number.isFinite(farClip)
         ? -farClip * c * (perspective / (perspective + farClip * s))

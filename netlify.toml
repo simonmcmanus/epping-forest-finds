@@ -146,6 +146,12 @@
   force = true
 
 [[redirects]]
+  from = "/api/admin/session"
+  to = "/.netlify/functions/admin-session"
+  status = 200
+  force = true
+
+[[redirects]]
   from = "/api/admin/tracks"
   to = "/.netlify/functions/track"
   status = 200
