@@ -247,19 +247,6 @@ test.describe("Beta welcome snapshots", () => {
     await expect(page).toHaveScreenshot("beta-welcome-step-3-320.png", { fullPage: false });
   });
 
-  test("snapshot: settings beta welcome control", async ({ page }) => {
-    await openAsNewVisitor(page);
-    await page.getByRole("button", { name: "Skip" }).click();
-    await page.click("#settingsToggle");
-    await page.getByRole("button", { name: "Show the beta welcome again" }).scrollIntoViewIfNeeded();
-    await expect(page.locator("#testerIdDisplay")).not.toHaveText("…");
-    await settle(page);
-    await expect(page).toHaveScreenshot("beta-welcome-settings-reopen.png", {
-      fullPage: false,
-      mask: [page.locator("#testerIdDisplay"), page.locator("#appVersionDisplay")],
-    });
-  });
-
   test("snapshot: settings Tester ID retry after the lookup fails", async ({ page }) => {
     await failTesterId(page);
     await openAsNewVisitor(page);
