@@ -22,6 +22,8 @@ async function skipOnboarding(page) {
   await page.addInitScript(() => {
     localStorage.setItem("forest-finds-onboarding-v1", "done");
     // Community is gated per person (js/community.js communityEnabled); specs run with it on unless they say otherwise.
+    // The one-time beta welcome sheet (js/welcome.js) is for new testers; other specs start past it.
+    localStorage.setItem("ff-welcome-v1", "1");
     if (!localStorage.getItem("ff-features-v1")) localStorage.setItem("ff-features-v1", JSON.stringify({ community: true }));
   });
 }
