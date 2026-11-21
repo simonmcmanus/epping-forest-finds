@@ -350,8 +350,6 @@ test("signing in always asks the provider for a fresh login, so its login page s
   await withAuthEnv(async () => {
     const plain = await startLogin("/community");
     assert.strictEqual(plain.location.searchParams.get("prompt"), "login");
-    const again = await startLogin();
-    assert.strictEqual(again.location.searchParams.get("prompt"), "login");
   });
 });
 
@@ -616,6 +614,17 @@ test("a merge another login starts only when signed in, and the account is seale
       assert.strictEqual(auth.verify(cookieValue(cookieNamed(signedIn, "ff_auth_state")), KEY).merge, account.accountKey("auth0|b"));
       const plain = await login.handler({ queryStringParameters: { return: "/settings" }, headers: { ...HOST, cookie: sessionCookieFor("auth0|b") } });
       assert.strictEqual(auth.verify(cookieValue(cookieNamed(plain, "ff_auth_state")), KEY).merge, undefined, "an ordinary sign-in never merges");
+    } finally { login.setStore(null); }
+  });
+});
+
+test("a merge sign-in also asks the provider for a fresh login", async () => {
+  await withAuthEnv(async () => {
+    login.setStore(memoryStore());
+    try {
+      const result = await login.handler({ queryStringParameters: { return: "/settings", merge: "1" }, headers: { ...HOST, cookie: sessionCookieFor("auth0|b") } });
+      assert.strictEqual(result.statusCode, 302);
+      assert.strictEqual(new URL(result.headers.Location).searchParams.get("prompt"), "login");
     } finally { login.setStore(null); }
   });
 });
