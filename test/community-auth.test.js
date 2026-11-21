@@ -346,6 +346,15 @@ test("login redirects to the provider with a fresh state that is also in a signe
   });
 });
 
+test("signing in always asks the provider for a fresh login, so its login page shows even after sign-out", async () => {
+  await withAuthEnv(async () => {
+    const plain = await startLogin("/community");
+    assert.strictEqual(plain.location.searchParams.get("prompt"), "login");
+    const again = await startLogin();
+    assert.strictEqual(again.location.searchParams.get("prompt"), "login");
+  });
+});
+
 test("login remembers only a same-site return path", async () => {
   await withAuthEnv(async () => {
     const own = await startLogin("/community#top");
