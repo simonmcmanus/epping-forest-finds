@@ -55,18 +55,22 @@ function londonWallTimeToUtc(date, time) {
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
 
-/** Upcoming dated entries, in data order. */
+function isRealDate(date) {
+  if (!DATE_RE.test(date)) return false;
+  const [y, m, d] = date.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d)).toISOString().slice(0, 10) === date;
+}
+
+/** Upcoming dated entries in data order, each with a usable `id` (positional fallback when missing). */
 function upcomingEntries(data, nowMs) {
   const entries = Array.isArray(data && data.entries) ? data.entries : [];
   const today = ukDate(nowMs);
-  return entries.filter(
-    (entry) =>
-      entry &&
-      typeof entry.date === "string" &&
-      DATE_RE.test(entry.date) &&
-      !Number.isNaN(Date.parse(entry.date)) &&
-      entry.date >= today
-  );
+  const kept = [];
+  entries.forEach((entry, index) => {
+    if (!entry || typeof entry.date !== "string" || !isRealDate(entry.date) || entry.date < today) return;
+    kept.push({ ...entry, id: entry.id || `dated-entry-${index + 1}` });
+  });
+  return kept;
 }
 
 function formatUtc(ms) {

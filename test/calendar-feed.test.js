@@ -39,6 +39,26 @@ test("today counts by the UK calendar date, not UTC", () => {
   assert.deepStrictEqual(uids(text), ["today"]);
 });
 
+test("an impossible calendar date is left out and a real leap day is kept", () => {
+  const text = feed([
+    entry({ id: "feb30", date: "2028-02-30" }),
+    entry({ id: "feb31", date: "2028-02-31" }),
+    entry({ id: "notleap", date: "2027-02-29" }),
+    entry({ id: "leap", date: "2028-02-29" }),
+  ]);
+  assert.deepStrictEqual(uids(text), ["leap"]);
+  assert.match(text, /DTSTART;VALUE=DATE:20280229\r\n/);
+});
+
+test("an entry with no id still gets a well-formed UID", () => {
+  const text = feed([entry({ id: undefined }), entry({ id: "" }), entry({ id: "kept" })]);
+  const found = uids(text);
+  assert.strictEqual(found.length, 3);
+  assert.strictEqual(found[2], "kept");
+  assert.strictEqual(new Set(found).size, 3, "fallback UIDs are distinct");
+  for (const uid of found) assert.ok(uid && !uid.includes("undefined"));
+});
+
 test("an entry with no start time is an all-day event", () => {
   const text = feed([entry({ date: "2026-12-31" })]);
   assert.match(text, /DTSTART;VALUE=DATE:20261231\r\n/);
