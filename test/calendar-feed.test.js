@@ -69,7 +69,7 @@ test("commas, semicolons and newlines in text are escaped", () => {
     { events: [{ id: "x", name: "Tea, cake; and more", description: "Line one\nLine two \\ end", lat: 51, lon: 0, startsAt: iso(NOW + HOUR) }] },
     { nowMs: NOW }
   );
-  assert.match(text, /SUMMARY:Tea\\, cake\; and more\r\n/);
+  assert.match(text, /SUMMARY:Tea\\, cake\\; and more\r\n/);
   assert.match(unfold(text), /DESCRIPTION:Line one\\nLine two \\\\ end\r\n/);
 });
 
@@ -141,4 +141,15 @@ test("a HEAD request is accepted and other methods are refused", async () => {
   const res = await calendar.handler({ httpMethod: "POST" });
   assert.strictEqual(res.statusCode, 405);
   assert.strictEqual(res.headers.Allow, "GET, HEAD");
+});
+
+test("semicolons and commas in the name and description are escaped in the feed", () => {
+  const text = unfold(
+    buildCalendarFeed(
+      { events: [{ id: "x", name: "Fair; stalls, music", description: "Bring a coat; bring, friends", lat: 51, lon: 0, startsAt: iso(NOW + HOUR) }] },
+      { nowMs: NOW }
+    )
+  );
+  assert.ok(text.includes("SUMMARY:Fair\u005C; stalls\\, music\r\n"), "SUMMARY escapes ; and ,");
+  assert.ok(text.includes("DESCRIPTION:Bring a coat\u005C; bring\\, friends\r\n"), "DESCRIPTION escapes ; and ,");
 });

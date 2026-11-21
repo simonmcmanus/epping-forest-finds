@@ -63,7 +63,7 @@ function formatUtc(ms) {
 function escapeText(value) {
   return String(value)
     .replace(/\\/g, "\\\\")
-    .replace(/;/g, "\;")
+    .replace(/;/g, "\\;")
     .replace(/,/g, "\\,")
     .replace(/\r\n|\r|\n/g, "\\n");
 }
