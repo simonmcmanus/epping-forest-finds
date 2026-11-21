@@ -251,8 +251,8 @@ Sections, in order:
    row. Load these supporting images lazily. The navigation caption explains
    that routes try to favour scenic forest paths and alleyways, without
    guaranteeing them. The screenshots are interim real captures from the app
-   (`app-search.jpg`, `app-nearby-route.png`, `app-tree-age.png`), scaled to
-   600px wide. Each is framed as a
+   (`app-search.jpg`, `app-nearby-route.png`, `app-tree-age.png`), at
+   iPhone 18 Pro Max screen size (1320x2868 px) and scaled down by CSS. Each is framed as a
    phone with a 4px dark-green rounded border and no card around it; its white
    caption card, exactly the phone's width, tucks behind the bottom of the
    phone, and the three caption cards stretch to a common height on wide
