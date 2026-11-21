@@ -93,6 +93,7 @@ test.describe("Selection and Inspector", () => {
 
     test("walking, map and share controls stay aligned", async ({ page }) => {
       await page.evaluate(() => showTreeDetails({ ...state.selected.item, girthMetres: 4, comments: "A veteran tree with a broad crown and a hollowing trunk." }, 420, "Tree record"));
+      await waitForUiToSettle(page);
       const controls = page.locator("#inspectorBody .walk-chip, #inspectorBody .detail-map-link--icon");
       await expect(controls).toHaveCount(3);
       const heights = await controls.evaluateAll((items) => items.map((item) => item.getBoundingClientRect().height));
@@ -100,7 +101,11 @@ test.describe("Selection and Inspector", () => {
     });
 
     test("missing tree tags have a clear fallback and single measurements stay compact", async ({ page }) => {
-      const show = async (tagNumber) => page.evaluate((tagNumber) => showTreeDetails({ ...state.selected.item, tagNumber, nationalDatabaseTagNumber: null, girthMetres: 0 }, 420, "Tree record"), tagNumber);
+      // Each record slides in over the previous one: let that land before reading the panel.
+      const show = async (tagNumber) => {
+        await page.evaluate((tagNumber) => showTreeDetails({ ...state.selected.item, tagNumber, nationalDatabaseTagNumber: null, girthMetres: 0 }, 420, "Tree record"), tagNumber);
+        await waitForUiToSettle(page);
+      };
       for (const tag of [null, "0", ""]) {
         await show(tag);
         await expect(page.locator("#inspectorBody .tree-tag dd")).toHaveText("No tag recorded");
@@ -124,6 +129,8 @@ test.describe("Selection and Inspector", () => {
     test("estimated start year stays inline when it fits and wraps on a narrow screen", async ({ page }) => {
       await page.setViewportSize({ width: 1280, height: 900 });
       await page.evaluate(() => showTreeDetails({ ...state.selected.item, girthMetres: 4 }, null, "Tree record"));
+      // The inspector slides the new record in over ~310 ms; measure only once that has landed.
+      await waitForUiToSettle(page);
       const age = page.locator("#inspectorBody .tree-age-value");
       const year = page.locator("#inspectorBody .tree-measurements small");
       await expect(age).toBeVisible();
@@ -131,6 +138,7 @@ test.describe("Selection and Inspector", () => {
       const wideYear = await year.boundingBox();
       expect(wideYear.x).toBeGreaterThanOrEqual(wideAge.x + wideAge.width);
       await page.setViewportSize({ width: 320, height: 720 });
+      await waitForUiToSettle(page);
       const narrowAge = await age.boundingBox();
       const narrowYear = await year.boundingBox();
       expect(narrowYear.y).toBeGreaterThanOrEqual(narrowAge.y + narrowAge.height - 2);

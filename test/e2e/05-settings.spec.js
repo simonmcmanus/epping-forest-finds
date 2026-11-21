@@ -185,7 +185,13 @@ test.describe("Settings screen", () => {
     });
     await expect(page.locator("#updateBanner")).toBeVisible();
     await expect(page.locator("#updateBanner")).toHaveClass(/is-visible/);
-    await page.waitForFunction(() => window.__updateBannerTransitionRuns >= 1);
+    // Wait for the entrance to have settled rather than for its transitionrun event. The worker's own
+    // DATA_UPDATED can show the banner first, so the entrance may already have run before the listener
+    // above was attached and the event would never arrive.
+    await expect.poll(() => page.evaluate(() => {
+      const banner = document.getElementById("updateBanner");
+      return banner.getAnimations({ subtree: true }).length === 0 && getComputedStyle(banner).opacity === "1";
+    })).toBe(true);
     await expect(page.locator("#updateBanner")).toContainText("New map data");
     const entranceTransitionRuns = await page.evaluate(() => window.__updateBannerTransitionRuns);
     await page.evaluate(() => { window.__reloadMarker = true; });

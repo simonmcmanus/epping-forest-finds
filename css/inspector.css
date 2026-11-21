@@ -988,9 +988,10 @@ button.settings-toggle.has-update::after {
   cursor: pointer;
 }
 
-.walk-radius-floor-note {
-  color: #b3492f;
-  font-weight: 700;
+.walk-radius-floor-note,
+.walk-radius-floor-notice {
+  color: var(--muted);
+  font-weight: 600;
 }
 
 .settings-refresh {
@@ -2264,9 +2265,11 @@ dd {
 }
 
 .walk-radius-floor-notice {
-  color: #b3492f;
-  font-weight: 700;
   animation: walk-radius-floor-pop 0.22s ease both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .walk-radius-floor-notice { animation: none; }
 }
 
 .named-tree {
@@ -2608,6 +2611,17 @@ button.community-badge-chip:focus-visible { outline: 2px solid var(--tree); outl
 .update-banner-text span {
   font-size: 0.8rem;
   color: var(--muted);
+}
+
+.update-banner-versions {
+  font-size: 0.68rem;
+  color: var(--muted);
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+}
+
+.update-banner-versions:empty {
+  display: none;
 }
 
 .update-banner button {

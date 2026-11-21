@@ -56,6 +56,15 @@ const HEADING_UP_NAV_ANIMATION_MS = 500; // standard duration for heading-up ali
 const MIN_HEADING_UP_ANIMATION_MS = 200; // floor for animateToHeadingUpNavigationViewport's duration
 const DEFAULT_VIEWPORT_ANIMATION_MS = 480; // generic fallback duration for the low-level viewport animators when nothing else is specified
 const MIN_VIEWPORT_ANIMATION_MS = 180; // floor for moveCamera's duration
+// Widest a staged cluster tap in 3D tilt may pull the camera out, as a share of the scale it started
+// at (0.35 = about 1.5 doublings). The wide framing shows the old and new places together, but the
+// tilt compresses distance toward the horizon, so an unbounded zoom-out for a far group would climb
+// toward the sky and leave the user's position a speck. Past this the camera frames the group and
+// accepts that the old place is off the edge. See alignHeadingUpNavigationViewport().
+const STAGED_WIDE_FRAMING_MIN_SCALE_RATIO = 0.35;
+const STAGED_WIDE_FRAMING_LEG_SHARE = 0.4; // share of the move given to the pan out to the wide framing; the rest is the zoom in
+const STAGED_WIDE_FRAMING_STEP = 0.93; // geometric step while searching for the tightest framing that shows both places
+const STAGED_WIDE_FRAMING_EDGE_SHARE = 0.08; // margin kept clear of the visible rect's edge, as a share of its shorter side
 const STAGED_PAN_FULL_LEG_SHARE = 0.4; // share of a staged cluster-tap move given to its pan leg when the pan covers the reference distance -- see alignHeadingUpNavigationViewport()
 const STAGED_PAN_REFERENCE_SHORT_SIDE_SHARE = 0.25; // pan distance, as a share of the focus rect's shorter side, that earns the full pan-leg share
 const FIRST_LOAD_REVEAL_ANIMATION_MS = 700; // the first-time "reveal the map" animation, in all its variants (fit to user+items, centered-on-user)
@@ -70,6 +79,11 @@ const TILT_PERSPECTIVE_MAX_PX = 2600;   // ceiling so very tall viewports (table
 const TILT_ROTATEX_MAX = 75;       // max rotateX deg — the angle the horizon and tilt fit are calibrated to (see tiltPerspectivePx)
 const TILT_GENTLE_ROTATEX_MAX = 64; // visible depth while keeping the surrounding map in view
 const TILT_GENTLE_BETA_MAX = 60;    // reach the default tilt at a normal viewing angle
+const TILT_LIMIT_EASE_START = 0.6;  // share of the pitch range where the tilt starts easing into its cap -- see tiltEaseIntoLimit()
+const TILT_LIMIT_BOUNCE_DEG = 4;    // peak amplitude of the bounce past the cap; it peaks at roughly 1.5 degrees -- see tiltLimitBounceDeg()
+const TILT_LIMIT_BOUNCE_RATE = 7;   // decay of that bounce (1/s)
+const TILT_LIMIT_BOUNCE_OMEGA = 2 * Math.PI * 1.4; // bounce frequency (rad/s)
+const TILT_LIMIT_BOUNCE_SECONDS = 0.9; // the bounce is over (and the plane rests on the cap) after this long
 // Precomputed once: calibrating tiltPerspectivePx() against this fixed reference
 // angle (rather than the live, ever-changing tiltRotateXDeg()) keeps the camera
 // distance from collapsing at low/mid tilt angles -- see tiltPerspectivePx().
@@ -84,7 +98,8 @@ const TILT_HORIZON_REFERENCE_TAN = Math.tan(TILT_ROTATEX_MAX * Math.PI / 180);
 // redraw for (see tiltRenderStale). Small enough that no drift is visible, large enough that
 // sensor noise on a phone held still doesn't repaint the map every frame.
 const TILT_RENDER_STALE_DEG = 0.05;
-const TILT_NEAR_PLANE_RATIO = 0.98; // fraction of the camera distance the near clip sits at — see tiltProjectOffsets
+const TILT_BEHIND_MAX_SCALE = 3;   // ceiling on the perspective magnification of anything behind the camera -- see tiltDepthScale
+const TILT_BEHIND_KNEE_RATIO = 0.5; // share of that ceiling's depth where the true curve starts easing onto it
 // Perspective scale below which ground is deep enough into the horizon haze to be
 // invisible, and so not worth drawing. Bounds how much world the draw loop walks in 3D
 // ("to the horizon" must not mean "every road in the dataset"). The clip lands this
@@ -387,6 +402,7 @@ const state = {
   backgroundedUserLocation: null,
   tiltBetaTarget: 0,
   tiltBetaSmoothed: 0,
+  tiltLimitBounceSeconds: null, // seconds since the tilt last reached its cap; null when no bounce is running
   // Full 3D is fixed off (see FULL_3D_ENABLED): gentle tilt is the only tilt.
   map3dEnabled: FULL_3D_ENABLED,
   // rotateX angle baked into the main canvas by the last draw() -- see tiltRenderStale().
@@ -431,6 +447,11 @@ const state = {
   overviewOutsideRadiusFallback: false,
   clusterZoomed: false,
   clusterExpanded: null,
+  // The expanded group a place was just picked from (map tap or list), kept only while that place stays
+  // selected so the group's other members can stay on the map, dimmed (selectionSiblingLookup, js/renderer.js).
+  // Never written to history: Back restores the group from the entry's own snapshot. Cleared wherever the
+  // selection is replaced from outside the group or ends.
+  selectionCluster: null,
   // The radius in effect just before a cluster tap grew it to cover the group's own members
   // (focusNearbyOnClusterGroup) -- restored by exitClusterExpansion (js/nav.js) wherever
   // clusterExpanded is cleared, so leaving that exact-membership view leaves its radius behind
@@ -547,6 +568,11 @@ const SELECTION_ROUTES = [
 // they must not write a history entry: routeApplyDepth covers applyRoute(), routerBooting
 // covers the boot sequence, which puts the app on the screen the launch URL asked for.
 let routeApplyDepth = 0;
+// applyRouteFromUrl applies ?show= / category paths before it resolves the route itself. While it does,
+// the filter change's own camera refit is held (routeDefersFilterRefit) and only run afterwards if the
+// route turned out to be the screen already showing (filterRefitDeferred), so one navigation is one move.
+let routeDefersFilterRefit = false;
+let filterRefitDeferred = false;
 let routerBooting = true;
 // /find/<slug>/ landings start with a server-rendered place panel, but unlike /nearby/<slug>/
 // landings they do not use _serverRenderedNearbyList. Keep their initial selection pending so
@@ -1058,8 +1084,15 @@ const LOCATION_GLIDE_EPSILON = 1e-7;
 
 function applyLocationFix(position, { preserveSelection = false } = {}) {
   const { latitude, longitude, accuracy, speed } = position.coords;
+  const enteringTilt = !hasRealLocation();
   const previousPoint = state.userLocation && state.userLocation.point;
   state.userLocation = ingestLocationFix(latitude, longitude, accuracy, performance.now(), speed);
+  if (enteringTilt) {
+    // Orientation can settle while location permission/the first fix is pending. The
+    // visible map was flat then: ease from that view, retaining the latest sensor target.
+    state.tiltBetaSmoothed = 0;
+    startCompassSmoothing();
+  }
   const point = state.userLocation.point;
   state.userInMapArea = pointInsideBounds(point, state.bounds);
   const nearestTrees = nearestTreesTo(latitude, longitude, state.nearestItemsCount);
@@ -1075,7 +1108,10 @@ function applyLocationFix(position, { preserveSelection = false } = {}) {
   // A selected destination can also opt in to staying open while a real fix replaces the
   // High Beach stand-in, so the route can be drawn from the newly shared position.
   if (!preserveSelection && !communityScreenOpen()
-      && !["settings", "report"].includes(state.selected?.type)) state.selected = null;
+      && !["settings", "report"].includes(state.selected?.type)) {
+    state.selected = null;
+    clearSelectionClusterRecord();
+  }
   if (typeof communityNudgeCheck === "function") setTimeout(communityNudgeCheck, 0);
   return { latitude, longitude, previousPoint };
 }
@@ -1633,14 +1669,18 @@ function zoomAlongTween(fromScale, toScale, eased) {
 // sideways during every zoom, which reads as jitter. When the two views differ in scale, they
 // agree on one world point (the zoom's invariant point); the offsets are then
 // `offset0 + world0 * (scale0 - scale)`, which keeps that point still while everything zooms about
-// it and lands exactly on both ends. A near-equal scale is a pure pan, so the offsets are blended
-// directly.
+// it and lands exactly on both ends. A near-equal scale is a pure pan, so scale and offsets are all
+// blended linearly on the same curve: a geometric scale beside linear offsets would shift a world
+// point by `world * (geometric - linear scale)`, which is tiny for a point near the origin but
+// thousands of pixels for the far-off mercator coordinates heading-up uses, flinging the user
+// marker off-screen mid-move. Linear and geometric differ by under 0.03% at the 5% threshold.
 function viewportAlongTween(from, to, eased) {
-  const scale = zoomAlongTween(from.scale, to.scale, eased);
   const ratio = from.scale > 0 && to.scale > 0 ? to.scale / from.scale : 1;
   if (!(Math.abs(Math.log(ratio)) >= VIEWPORT_TWEEN_ZOOM_ABOUT_POINT_MIN_LOG_RATIO)) {
-    return { scale, tx: from.tx + (to.tx - from.tx) * eased, ty: from.ty + (to.ty - from.ty) * eased };
+    const linearScale = from.scale + (to.scale - from.scale) * eased;
+    return { scale: linearScale, tx: from.tx + (to.tx - from.tx) * eased, ty: from.ty + (to.ty - from.ty) * eased };
   }
+  const scale = zoomAlongTween(from.scale, to.scale, eased);
   const worldX = (to.tx - from.tx) / (from.scale - to.scale);
   const worldY = (to.ty - from.ty) / (from.scale - to.scale);
   return {
@@ -1692,11 +1732,68 @@ function zoomAwareDurationMs(baseMs, zoomRatio) {
   return Math.min(Math.max(baseMs, ZOOM_DURATION_MAX_MS), baseMs * (1 + ZOOM_DURATION_PER_DOUBLING * extraDoublings));
 }
 
+// The heading-up rotation as worldToScreenFlat applies it, for a move that pivots on `point`. Not
+// rotating (no heading, or no user) is the identity, so the helpers below reduce to raw screen space.
+function headingUpRotationFor(point) {
+  const rotation = navigationMapRotationDegrees();
+  const rotating = Boolean(rotation) && Boolean(state.userLocation) && Boolean(point);
+  const radians = rotating ? toRadians(rotation) : 0;
+  return { rotating, cos: Math.cos(radians), sin: Math.sin(radians) };
+}
+
+function rotateHeadingUp(x, y, rotation) {
+  return { x: x * rotation.cos - y * rotation.sin, y: x * rotation.sin + y * rotation.cos };
+}
+
+// Where the tilt draws a heading-up offset `w` (canvas px, from the camera origin): the same arithmetic as
+// tiltProjectScreenPoint, applied to the offset alone. Its result depends only on `w`, never on where the
+// origin sits, which is what lets the solve below run in closed form.
+function headingUpTiltedOffset(w) {
+  const cam = tiltProjection();
+  if (!cam) return w;
+  const dxCss = w.x / cam.dpr;
+  const dyCss = w.y / cam.dpr;
+  const scale = tiltDepthScale(dyCss, cam.sin, cam.perspectivePx);
+  return { x: dxCss * scale * cam.dpr, y: dyCss * cam.cos * scale * cam.dpr };
+}
+
+// The offset, in canvas px, from the camera origin to a world point under `viewport`, after the heading-up
+// rotation about the origin's own offset (the rotation pivots on the origin, so only the difference matters).
+function headingUpOffsetFor(viewport, point, rotation, origin) {
+  const o = origin || point;
+  return rotateHeadingUp((point.x - o.x) * viewport.scale, (point.y - o.y) * viewport.scale, rotation);
+}
+
+// Where a world point is drawn on screen (heading-up and tilted) under `viewport`, for a camera origin at
+// `origin`: the origin's raw screen point plus the tilted rotated offset. Mirrors worldToScreen.
+function headingUpScreenPointAt(viewport, point, rotation, origin) {
+  const o = origin || point;
+  const originScreen = { x: o.x * viewport.scale + viewport.tx, y: o.y * viewport.scale + viewport.ty };
+  const drawn = headingUpTiltedOffset(headingUpOffsetFor(viewport, point, rotation, o));
+  return { x: originScreen.x + drawn.x, y: originScreen.y + drawn.y };
+}
+
+// The translation that draws `point` at `screen` (on screen, heading-up and tilted) at `scale`, with the
+// camera origin at `origin`. The drawn position is origin-screen + tiltedOffset(offset), and the offset
+// does not depend on the translation, so the origin's screen point is `screen - tiltedOffset(offset)`
+// and the translation follows from it. Closed-form, no iteration.
+function headingUpTranslationFor(point, rotation, scale, origin, screen) {
+  const o = origin || point;
+  const drawn = headingUpTiltedOffset(headingUpOffsetFor({ scale }, point, rotation, o));
+  const originScreen = { x: screen.x - drawn.x, y: screen.y - drawn.y };
+  return { x: originScreen.x - o.x * scale, y: originScreen.y - o.y * scale };
+}
+
 // The single owner of an in-flight camera move. Every tween goes through here: it decides whether the
 // request is a repeat of the move already running (ignored), and otherwise replaces that move.
 // The queueing of animated Nearby refits that arrive mid-move stays with the refit path
 // (alignHeadingUpNavigationViewport -> deferAnimatedNearbyRefit) until its callers migrate.
 // `options.reason` is a diagnostic label only; it changes nothing about the move.
+// Eased progress of the camera tween in flight, written by its tick before each draw. A wide-shot first
+// leg drives the browse-origin slide with it (nearbyOriginSlideProgress), so the origin and the camera
+// move as one.
+let _viewportTweenEased = 0;
+
 function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
   let safeDuration = Math.max(MIN_VIEWPORT_ANIMATION_MS, Number(durationMs) || DEFAULT_VIEWPORT_ANIMATION_MS);
   const cinematic = Boolean(options.cinematic);
@@ -1755,14 +1852,37 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
   const zoomOutRatio = arc
     ? clamp(0.10 + (centreDistancePx / 900) * 0.045, 0.10, 0.24)
     : 0;
+  // options.pivotWorldPoint (a deliberate arc only): the world point the framings are built around
+  // (the user, in heading-up). Its screen position is eased directly between where it sits now and
+  // where the target puts it, so the pivot travels straight and never overshoots; the camera centre
+  // is derived from it. Without it the centre is eased, which flings a user-pivoted marker.
+  const pivot = deliberateArc && options.pivotWorldPoint
+    && Number.isFinite(options.pivotWorldPoint.x) && Number.isFinite(options.pivotWorldPoint.y)
+    ? options.pivotWorldPoint : null;
+  // The pivot is eased where the user actually sees it (heading-up and tilted), in drawn screen space,
+  // never in raw un-rotated screen space. The camera origin itself slides during a browse -> selection
+  // move (cameraOriginPoint eases from the browse point to the user), and the heading-up rotation pivots
+  // on that origin, so where a point is drawn depends on the origin of the frame. Both ends are therefore
+  // read as drawn: start is where the pivot is drawn now, end is where the target draws it once the
+  // origin has landed. Each frame then solves the translation against the live origin, so the pivot
+  // follows its eased path while the origin slides under it. Easing a pivot that starts off the canvas
+  // in raw space (assuming origin = pivot and no rotation) swung the whole map during that slide: the
+  // selected place flew off the top of the screen and back.
+  const pivotRotation = pivot ? headingUpRotationFor(pivot) : null;
+  const pivotFromScreen = pivot ? worldToScreen(pivot) : null;
+  const pivotToScreen = pivot
+    ? headingUpScreenPointAt(targetViewport, pivot, pivotRotation, cameraOriginPoint(true)) : null;
   const cinematicScaleFloor = cinematic && state.baseFitScale > 0
     ? state.baseFitScale * 0.92
     : deliberateArc ? Math.min(from.scale, targetViewport.scale) * 0.8 : 0;
 
+  // Reduced motion: a deliberate (user-triggered) move lands on the target at once, as one move,
+  // with no tween to wait for.
   if (
-    Math.abs(from.scale - targetViewport.scale) < 0.000001
+    (options.deliberate && !cinematic && prefersReducedMotion())
+    || (Math.abs(from.scale - targetViewport.scale) < 0.000001
     && Math.abs(from.tx - targetViewport.tx) < 0.5
-    && Math.abs(from.ty - targetViewport.ty) < 0.5
+    && Math.abs(from.ty - targetViewport.ty) < 0.5)
   ) {
     state.viewport.scale = targetViewport.scale;
     state.viewport.tx = targetViewport.tx;
@@ -1795,6 +1915,7 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
   state.locationRevealFocusPoint = cinematic ? { x: focusPoint.x, y: focusPoint.y } : null;
   state.viewportAnimationDuration = safeDuration;
   _tweenOwnedBySlide = ownedBySlide;
+  _viewportTweenEased = 0;
 
   const tick = (timestamp) => {
     // Keep the timestamp through rendering so a thrown frame cannot hide a stranded camera.
@@ -1819,16 +1940,28 @@ function moveCamera(targetViewport, durationMs, onComplete, options = {}) {
       const baseScale = zoomAlongTween(from.scale, targetViewport.scale, eased);
       const zoomArc = Math.sin(Math.PI * eased) * zoomOutRatio;
       state.viewport.scale = Math.max(cinematicScaleFloor, baseScale * (1 - zoomArc));
-      const centreX = fromCenter.x + (targetCenter.x - fromCenter.x) * eased;
-      const centreY = fromCenter.y + (targetCenter.y - fromCenter.y) * eased;
-      state.viewport.tx = focusPoint.x - centreX * state.viewport.scale;
-      state.viewport.ty = focusPoint.y - centreY * state.viewport.scale;
+      if (pivot) {
+        const screenX = pivotFromScreen.x + (pivotToScreen.x - pivotFromScreen.x) * eased;
+        const screenY = pivotFromScreen.y + (pivotToScreen.y - pivotFromScreen.y) * eased;
+        const translation = headingUpTranslationFor(
+          pivot, pivotRotation, state.viewport.scale, cameraOriginPoint(),
+          { x: screenX, y: screenY },
+        );
+        state.viewport.tx = translation.x;
+        state.viewport.ty = translation.y;
+      } else {
+        const centreX = fromCenter.x + (targetCenter.x - fromCenter.x) * eased;
+        const centreY = fromCenter.y + (targetCenter.y - fromCenter.y) * eased;
+        state.viewport.tx = focusPoint.x - centreX * state.viewport.scale;
+        state.viewport.ty = focusPoint.y - centreY * state.viewport.scale;
+      }
     } else {
       const frame = viewportAlongTween(state.viewportAnimationFrom, state.viewportAnimationTo, eased);
       state.viewport.scale = frame.scale;
       state.viewport.tx = frame.tx;
       state.viewport.ty = frame.ty;
     }
+    _viewportTweenEased = eased;
     requestDraw();
 
     if (progress >= 1) {
@@ -2117,7 +2250,13 @@ function setOverviewFilters(nextFilters, { persist = true, render = true, railTa
   }
   if (isOverviewScreenActive() && (!state.filterScreenOpen || mapSetupModalActive())) {
     selectOverview();
-    ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS, deliberate: true });
+    if (routeDefersFilterRefit) {
+      // The route being applied (applyRouteFromUrl) frames its own destination under these filters;
+      // fitting the old screen here first left a tween running that the route's fit then fought.
+      filterRefitDeferred = true;
+    } else {
+      ensureOverviewTargetsVisible({ animate: true, durationMs: OVERVIEW_REFIT_ANIMATION_MS, deliberate: true });
+    }
   }
   requestDraw();
 }
@@ -2250,7 +2389,7 @@ function openFilterSetup() {
   showOnboarding({ mode: "filters" }).then((result) => {
     state.filterScreenOpen = false;
     const saved = Array.isArray(result.filters) && applyStagedFilterSet(result.filters);
-    if (!saved && openedOverUrl) history.replaceState(history.state, "", openedOverUrl);
+    if (!saved && openedOverUrl) writeHistoryEntry("replaceState", history.state, openedOverUrl);
     updateFilterUi();
     if (window.location.pathname === ROUTE_PATHS[ROUTE_FILTERS]) {
       replaceHashInPlace("");
@@ -2329,6 +2468,7 @@ function applyFeatureGates() {
 function openCommunity() {
   if (typeof trackGaScreenView === "function") trackGaScreenView("Community");
   exitClusterExpansion();
+  clearSelectionClusterRecord();
   state.selected = { type: "community", item: null };
   setInspectorSelectionChrome({ emoji: appIconHtml("tree", "app-icon title-icon"), showBack: true, preserveNavHighlight: true });
   setNavScreenActive(els.reportToggle);
@@ -3064,7 +3204,7 @@ function syncRailUrl() {
   if (routeApplyDepth > 0 || routerBooting) return;
   const url = `${NEARBY_PATH}${searchStringForPath(NEARBY_PATH)}${window.location.hash}`;
   if (`${window.location.pathname}${window.location.search}${window.location.hash}` === url) return;
-  history.replaceState(history.state, "", url);
+  writeHistoryEntry("replaceState", history.state, url);
 }
 
 // Saves a filter set: the reader's own choice, which persists and moves a view (a landing or an old ?show=
@@ -3905,7 +4045,8 @@ function startCompassSmoothing() {
     _tiltProjectionCache = undefined;
     _nearbyRenderOriginCache = undefined;
     const hasHeading = Number.isFinite(state.compassHeadingTarget) && Number.isFinite(state.compassHeading);
-    const hasBetaWork = Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) >= 0.05;
+    const hasBetaWork = Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) >= 0.05
+      || state.tiltLimitBounceSeconds != null;
     if (!hasHeading && !hasBetaWork) {
       state.compassAnimationFrame = null;
       state.compassAnimationFrameRequestedAt = null;
@@ -3934,7 +4075,9 @@ function startCompassSmoothing() {
     // through the whole 0-12deg dead zone quickly, so a fast filter here reads as the
     // collapsing map pins snapping to size rather than easing in.
     const betaDiff = state.tiltBetaTarget - state.tiltBetaSmoothed;
+    const previousBeta = state.tiltBetaSmoothed;
     state.tiltBetaSmoothed += betaDiff * (1 - Math.exp(-4 * dt));
+    tiltAdvanceLimitBounce(previousBeta, state.tiltBetaSmoothed, dt);
 
     const tiltNeedsFullRedraw = tiltRenderStale();
     // Beta-only tilt is supported before the compass has a usable heading. The map overlay
@@ -3975,7 +4118,8 @@ function startCompassSmoothing() {
       : 0;
     const lastEventAge = state.compassLastEventAt == null ? Infinity : (timestamp - state.compassLastEventAt);
     const sensorIsActive = lastEventAge < HEADING_UP_SENSOR_ACTIVE_MS;
-    const betaSettled = Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) < 0.1;
+    const betaSettled = Math.abs(state.tiltBetaTarget - state.tiltBetaSmoothed) < 0.1
+      && state.tiltLimitBounceSeconds == null;
     if (!hasHeading && betaSettled) {
       if (tiltActive()) requestDraw();
       state.compassAnimationFrame = null;
@@ -4120,7 +4264,7 @@ function ensureLocationWatch() {
       updateOverviewDirectionArrows();
       updateSelectedDetailFields();
       if (navigationAnchorActive()) {
-        const vpChanged = alignHeadingUpNavigationViewport();
+        const vpChanged = alignHeadingUpNavigationViewport({ gpsFollow: true });
         keepOverviewCenteredOnUser(previousPoint);
         updateCompassOverlay();
         updateHeadingUpCanvasRotationTransform();
@@ -4183,11 +4327,6 @@ function directionArrowAngleForWorldPoint(targetPoint, fallbackAngle, previousAn
 
   const origin = worldToScreenForOverlayTilted(state.userLocation.point);
   const target = worldToScreenForOverlayTilted(targetPoint);
-  // A clipped target is behind the camera's near plane. Its clamped coordinates are only a
-  // safety bound, not a real screen position; hold the last valid projected direction so the
-  // arrow does not jump to an artificial angle or back to a flat bearing at the clip boundary.
-  // The same hold handles a user point clipped while browsing around a distant anchor.
-  if (origin.clipped || target.clipped) return Number.isFinite(previousAngle) ? previousAngle : fallbackAngle;
   const dx = target.x - origin.x;
   const dy = target.y - origin.y;
   if (!Number.isFinite(dx) || !Number.isFinite(dy) || Math.hypot(dx, dy) < 0.001) return fallbackAngle;
@@ -4264,6 +4403,17 @@ function roadNavTarget(road) {
 const HEADING_UP_ANCHOR_SELECTED = 0.62; // user anchored below center so destination shows above
 const HEADING_UP_ANCHOR_NEARBY = 0.5; // flat/2D nearby: dead centre, so the walking-radius circle -- the only thing this view's camera frames -- is centred in the available map space
 const HEADING_UP_ANCHOR_SELECTED_TILT = 0.88; // at max tilt (full 3D), user sits near the bottom edge with a small gap so the view isn't obscured by anything behind
+// Vector length (metres, user to the averaged target point; see selectedNavigationTargetDistanceMetres) at
+// which a selected destination's bearing is trusted fully by headingUpAnchorFraction's
+// behind-the-user mirroring. About four times typical phone GPS accuracy (~10 m): closer than that the
+// bearing is mostly noise, so the mirroring fades out linearly towards zero metres instead of flipping the
+// anchor between top and bottom from one nearby tap to the next.
+const HEADING_UP_MIRROR_FULL_DISTANCE_METRES = 40;
+// Highest the mirroring may lift the user on screen: the flat heading-up anchor mirrored. Flat view
+// already mirrors to exactly this, so the floor changes nothing there; under tilt the mirror used to
+// push the user toward the horizon (anchor as low as 0.12), which only made the framing flip between
+// destinations. Far destinations behind still get the room below the user that the mirror exists for.
+const HEADING_UP_MIRRORED_ANCHOR_FLOOR = 1 - HEADING_UP_ANCHOR_SELECTED;
 const HEADING_UP_ANCHOR_NEARBY_TILT = 0.94;   // at max tilt (full 3D), you sit right down at the bottom edge: a heads-up view is about what is in front of you, and every pixel spent on the ground behind you is a pixel not spent on where you are walking
 const HEADING_UP_SCALE_EPSILON = 0.000001; // Ignore sub-pixel scale noise between successive fits.
 const HEADING_UP_POSITION_PX_THRESHOLD = 0.5; // Ignore half-pixel translation jitter between frames.
@@ -4494,7 +4644,11 @@ function startCameraOriginTransition() {
   const pinsHiddenOrLeaving = (typeof markerGroupingPaused === "function" && markerGroupingPaused())
     || (typeof mapPinFadeTarget === "function" && mapPinFadeTarget() < 1)
     || currentOpacity < PIN_ALPHA_VISIBLE_MIN;
+  // A pick from an expanded group keeps its members on the map, so there is no outgoing set to fade
+  // and nothing for the camera move to wait for. Read raw, not through selectionClusterGroup(): the
+  // pick sets the record just before state.selected changes, so the validated reader cannot see it yet.
   state.selectionTransition.outgoingIconLookup = !hasRealSelection() && !pinsHiddenOrLeaving
+    && !state.selectionCluster
     && typeof activeIconLookup === "function"
     ? activeIconLookup()
     : null;
@@ -4552,13 +4706,10 @@ function computeNearbyRenderOriginPoint() {
   if (!origin || !origin.point) return null;
   const transition = state.nearbyOriginTransition;
   if (!transition) return origin.point;
-  const progress = clamp((performance.now() - transition.startedAt) / transition.durationMs, 0, 1);
-  if (progress >= 1) return origin.point;
   // Same cubic ease-in-out moveCamera uses, so a slide feels like every other camera
   // move in the app rather than like a second, differently-tuned animation system.
-  const eased = progress < 0.5
-    ? 4 * progress * progress * progress
-    : 1 - Math.pow(-2 * progress + 2, 3) / 2;
+  const eased = nearbyOriginSlideProgress(transition);
+  if (eased == null || eased >= 1) return origin.point;
   return {
     x: transition.fromX + (origin.point.x - transition.fromX) * eased,
     y: transition.fromY + (origin.point.y - transition.fromY) * eased,
@@ -4626,6 +4777,18 @@ function nearbyOriginSlideHoldsPause() {
 function nearbyOriginTransitionEasedProgress() {
   const transition = state.nearbyOriginTransition;
   if (!transition) return null;
+  return nearbyOriginSlideProgress(transition);
+}
+
+// A slide whose wide-shot first leg is flying (transition.wideLegTween) is paced by that tween, so the
+// camera origin crosses from the old place to the group exactly as the camera pulls out; otherwise by
+// its own clock. Null once it has run out.
+function wideLegSlideFlying(transition) {
+  return Boolean(transition.wideLegTween) && state.viewportAnimationTo === transition.wideLegTween;
+}
+
+function nearbyOriginSlideProgress(transition) {
+  if (transition.wideLegTween) return wideLegSlideFlying(transition) ? _viewportTweenEased : null;
   const progress = clamp((performance.now() - transition.startedAt) / transition.durationMs, 0, 1);
   if (progress >= 1) return null;
   return progress < 0.5
@@ -4710,7 +4873,29 @@ function headingUpAnchorFraction(isSelected, useFinalBrowseState = false) {
   if (!isSelected) return aheadAnchor;
   const offset = selectedNavigationTargetBearingOffsetRadians();
   if (offset == null) return aheadAnchor;
-  return 0.5 + (aheadAnchor - 0.5) * Math.cos(offset);
+  const weight = clamp(selectedNavigationTargetDistanceMetres() / HEADING_UP_MIRROR_FULL_DISTANCE_METRES, 0, 1);
+  const factor = 1 + (Math.cos(offset) - 1) * weight;
+  return Math.max(HEADING_UP_MIRRORED_ANCHOR_FLOOR, 0.5 + (aheadAnchor - 0.5) * factor);
+}
+
+// Metres from the navigation origin to the averaged selected-target point: the same vector
+// selectedNavigationTargetBearingOffsetRadians resolves the bearing of, so the mirroring weight
+// and the bearing it weights always describe the same vector (a short vector means an unreliable
+// bearing). For a straight line to a destination the user is one of the averaged points, so this is
+// half the distance to the destination.
+function selectedNavigationTargetDistanceMetres() {
+  if (!state.userLocation) return 0;
+  const points = selectedNavigationTargetPoints();
+  if (!points.length) return 0;
+  let sumX = 0;
+  let sumY = 0;
+  for (const point of points) {
+    sumX += point.x;
+    sumY += point.y;
+  }
+  const target = unprojectPoint({ x: sumX / points.length, y: sumY / points.length });
+  const origin = unprojectPoint(navigationOriginPoint());
+  return distanceMetres(origin.latitude, origin.longitude, target.latitude, target.longitude);
 }
 
 // Signed-magnitude offset (radians) of the selected navigation target's bearing from
@@ -4890,12 +5075,26 @@ function balancedNavigationAnchorY(focusRect, anchorFraction) {
   return top + usable * aheadRatio;
 }
 
+// A routed line (three or more points) is balanced by its ahead/behind extents, which for a route lying
+// behind the user puts them at the very top of the rect -- the same horizon-pinning the mirrored anchor
+// is floored against. Under tilt the same floor (HEADING_UP_MIRRORED_ANCHOR_FLOOR) therefore applies to
+// the balanced position, ramped in with the tilt (rotateX is exactly 0 at the tilt threshold
+// and continuous, and the ramp is normalised so the largest offered tilt gets the whole floor), so crossing the threshold never steps the user across the map; flat view keeps the
+// balanced position untouched.
+function floorTiltedFocusY(y, focusRect) {
+  // Normalised by the largest rotateX this build offers (the gentle 64 of the 75 full-3D degrees while
+  // full 3D is off), so the app's real maximum tilt reaches the whole floor rather than 64/75 of it.
+  const offeredMax = state.map3dEnabled ? TILT_ROTATEX_MAX : TILT_GENTLE_ROTATEX_MAX;
+  const ramp = Math.min(1, tiltRotateXDeg() / offeredMax);
+  return Math.max(y, focusRect.y + focusRect.height * HEADING_UP_MIRRORED_ANCHOR_FLOOR * ramp);
+}
+
 function navigationFocusPoint(focusRect = bestVisibleCanvasRect()) {
   const anchor = headingUpAnchorFraction(selectedNavigationHeadingUpActive());
   return {
     x: focusRect.x + focusRect.width / 2,
     y: selectedNavigationHeadingUpActive()
-      ? balancedNavigationAnchorY(focusRect, anchor)
+      ? floorTiltedFocusY(balancedNavigationAnchorY(focusRect, anchor), focusRect)
       : focusRect.y + focusRect.height * anchor,
   };
 }
@@ -5245,7 +5444,7 @@ function maxScaleForHeadingUpPoints(points, focus, focusRect, options = {}) {
       // Behind the pivot the projection magnifies rather than compresses (the point is
       // closer to the camera), so this is the same bottom-edge inequality with a
       // denominator that grows with depth -- always bounded, and never anywhere near the
-      // near-plane singularity tiltProjectOffsets clips at.
+      // magnification ceiling tiltDepthScale eases onto.
       const availableBelow = bottom - focus.y - behindBuffer;
       maxScale = Math.min(maxScale, availableBelow / (rotatedY * (tiltCos + availableBelow * k)));
       // Deliberately falls through to the horizontal constraint below rather than
@@ -5636,9 +5835,68 @@ function deferAnimatedNearbyRefit(options) {
     }
     const next = pendingNearbyRefitOptions;
     pendingNearbyRefitOptions = null;
+    // A queued GPS follow holds still under a secondary screen, as a plain fix does.
+    if (next.queuedGpsFollow && (secondaryScreenActive() || state.searchScreenOpen)) return;
     alignHeadingUpNavigationViewport(next);
   };
   pendingNearbyRefitFrame = requestAnimationFrame(retry);
+}
+
+function wideFramingVisibility(fromPoint, toPoint, focusRect) {
+  // Judged where the first leg lands, with the origin on the group (the slide eases the origin there over
+  // that leg), so the clip and the projected positions are solved against the final browse-state camera.
+  const live = tiltProjection();
+  const perspectivePx = live ? tiltPerspectivePx(true) : 0;
+  const sin = live ? live.sin : 0;
+  const cos = live ? live.cos : 1;
+  const dpr = live ? live.dpr : 1;
+  // Same projection the draw uses (tiltDepthScale): points behind the camera are magnified up to a
+  // ceiling rather than clipped, so there is no near-plane cut-off to test here.
+  const tilted = (w) => {
+    if (!live) return w;
+    const dyCss = w.y / dpr;
+    const scale = tiltDepthScale(dyCss, sin, perspectivePx);
+    return { x: (w.x / dpr) * scale * dpr, y: dyCss * cos * scale * dpr };
+  };
+  const rotation = headingUpRotationFor(toPoint);
+  const margin = Math.min(focusRect.width, focusRect.height) * STAGED_WIDE_FRAMING_EDGE_SHARE;
+  // The camera origin has reached the group by the time the first leg lands (nearbyOriginSlideProgress).
+  const origin = toPoint;
+  const shows = (viewport, point) => {
+    const drawn = tilted(headingUpOffsetFor(viewport, point, rotation, origin));
+    if (!drawn) return false;
+    const at = {
+      x: origin.x * viewport.scale + viewport.tx + drawn.x,
+      y: origin.y * viewport.scale + viewport.ty + drawn.y,
+    };
+    return Number.isFinite(at.x) && Number.isFinite(at.y)
+      && at.x >= focusRect.x + margin && at.x <= focusRect.x + focusRect.width - margin
+      && at.y >= focusRect.y + margin && at.y <= focusRect.y + focusRect.height - margin;
+  };
+  return (viewport) => shows(viewport, fromPoint) && shows(viewport, toPoint);
+}
+
+function wideFramingViewport(fromPoint, toPoint, focus, focusY, focusRect, startScale, minScale) {
+  const showsBoth = wideFramingVisibility(fromPoint, toPoint, focusRect);
+  const viewportAbout = (pivot, scale) => ({
+    scale,
+    tx: focus.x - pivot.x * scale,
+    ty: focusY - pivot.y * scale,
+  });
+  const shares = [0.5, 0.4, 0.6, 0.3, 0.7, 0.2, 0.8, 0.1, 0.9];
+  const floor = Math.min(minScale, startScale);
+  for (let scale = startScale; ; scale = Math.max(scale * STAGED_WIDE_FRAMING_STEP, floor)) {
+    for (const share of shares) {
+      const pivot = {
+        x: fromPoint.x + (toPoint.x - fromPoint.x) * share,
+        y: fromPoint.y + (toPoint.y - fromPoint.y) * share,
+      };
+      const viewport = viewportAbout(pivot, scale);
+      if (showsBoth(viewport)) return viewport;
+    }
+    if (scale <= floor) break;
+  }
+  return viewportAbout(toPoint, floor);
 }
 
 function alignHeadingUpNavigationViewport(options = {}) {
@@ -5658,6 +5916,9 @@ function alignHeadingUpNavigationViewport(options = {}) {
     // stopped on the earlier tween's framing until some later un-animated tick snapped it right.
     // Queue it instead and run it once the in-flight move has landed.
     if (options.animate) deferAnimatedNearbyRefit(options);
+    // A GPS fix landing mid-move must not restart or snap the move, but the framing it asks for is
+    // not dropped either: once the move has landed, one short ease carries the camera onto the fix.
+    else if (options.gpsFollow && !pendingNearbyRefitOptions) deferAnimatedNearbyRefit({ animate: true, durationMs: 300, queuedGpsFollow: true });
     return false;
   }
   if (state.clusterZoomed) return false;
@@ -5725,7 +5986,7 @@ function alignHeadingUpNavigationViewport(options = {}) {
   // Use maxScale directly: heading-up mode always fits all targets in the
   // rotated focus rect. Math.min would leave scale too low when the map
   // was previously at a wider zoom (e.g. walking-radius level on first load).
-  let targetScale = resolveHeadingUpTargetScale(maxScale, previousScale, Boolean(options.force));
+  let targetScale = resolveHeadingUpTargetScale(maxScale, options.landSlide && maxScale > 0 ? 0 : previousScale, Boolean(options.force));
   // A browse-origin slide that started from a different zoom carries the zoom change with it, on the
   // slide's own curve, so the map zooms and pans as one move instead of snapping to the final scale and
   // then sliding. Un-animated per-frame calls only: an animated call already hands the whole move to a tween.
@@ -5761,6 +6022,8 @@ function alignHeadingUpNavigationViewport(options = {}) {
   // zoom-out/pan/zoom-in tour existed for and was abandoned over (see focusNearbyOnClusterGroup's
   // own comment); staging still isn't the answer for it, so this falls back to the plain single
   // ease below instead, the same path a far jump already took before stagePanThenZoom existed.
+  // (In 3D tilt a pivot outside the tilted view is the one exception, handled below: it gets a
+  // pull-out and pan first, then the zoom-in.)
   const panDistancePx = Number.isFinite(previousScale) && previousScale > 0
     ? Math.hypot(
       (focus.x - userPoint.x * previousScale) - previousTx,
@@ -5769,7 +6032,56 @@ function alignHeadingUpNavigationViewport(options = {}) {
     : Infinity;
   const panIsAlreadyOnScreen = panDistancePx <= Math.hypot(focusRect.width, focusRect.height);
 
-  if (options.animate && options.stagePanThenZoom && panIsAlreadyOnScreen) {
+  // In 3D tilt the flat distance above says nothing about whether the new pivot is in view: a
+  // point behind the tilted camera (past its near plane) or outside the visible rect is not on
+  // screen however short its flat distance. A tap whose group is out of view, or too far to pan to
+  // at today's scale, takes the wide-framing move instead: pan and zoom out only as far as needed
+  // to show both the old place and the new one (never past STAGED_WIDE_FRAMING_MIN_SCALE_RATIO),
+  // then zoom in on the group. The ring's slide is paced by that first leg, so the camera origin
+  // eases to the group and is on it where the leg lands; wideFramingViewport solves for that landing.
+  let wideFramingMove = false;
+  if (options.animate && options.stagePanThenZoom && tiltActive() && previousScale > 0) {
+    const shown = tiltProjectScreenPoint(worldToScreenFlat(userPoint));
+    const pivotOutOfTiltedView = !Number.isFinite(shown.x) || !Number.isFinite(shown.y)
+      || shown.x < focusRect.x || shown.x > focusRect.x + focusRect.width
+      || shown.y < focusRect.y || shown.y > focusRect.y + focusRect.height;
+    wideFramingMove = pivotOutOfTiltedView || !panIsAlreadyOnScreen;
+    // The pan leg keeps today's scale with the camera origin on the group; if that leaves the place the
+    // camera is leaving behind the near plane or off the rect (a user behind a group ahead of them), it is
+    // not a plain pan but a wide shot.
+    if (!wideFramingMove) {
+      const fromPoint = cameraOriginPoint(false) || userPoint;
+      const panViewport = {
+        scale: previousScale,
+        tx: focus.x - userPoint.x * previousScale,
+        ty: focusY - userPoint.y * previousScale,
+      };
+      wideFramingMove = !wideFramingVisibility(fromPoint, userPoint, focusRect)(panViewport);
+    }
+  }
+
+  if (wideFramingMove) {
+    const fromPoint = cameraOriginPoint(false) || userPoint;
+    const wideScale = Math.min(previousScale, targetScale);
+    const wide = wideFramingViewport(
+      fromPoint, userPoint, focus, focusY, focusRect,
+      Math.max(wideScale, previousScale * STAGED_WIDE_FRAMING_MIN_SCALE_RATIO),
+      previousScale * STAGED_WIDE_FRAMING_MIN_SCALE_RATIO,
+    );
+    const totalMs = options.durationMs || HEADING_UP_NAV_ANIMATION_MS;
+    const outMs = Math.max(MIN_VIEWPORT_ANIMATION_MS, Math.round(totalMs * STAGED_WIDE_FRAMING_LEG_SHARE));
+    const zoomMs = Math.max(MIN_VIEWPORT_ANIMATION_MS, totalMs - outMs);
+    const slide = state.nearbyOriginTransition;
+    const started = moveCamera(wide, outMs, () => {
+      // The origin has landed on the group with the first leg; the zoom-in leg is timed as if no slide ran.
+      if (slide && state.nearbyOriginTransition === slide) {
+        state.nearbyOriginTransition = null;
+        _nearbyRenderOriginCache = undefined;
+      }
+      moveCamera(targetViewport, zoomMs);
+    });
+    if (started === "started" && slide && state.nearbyOriginTransition === slide) slide.wideLegTween = wide;
+  } else if (options.animate && options.stagePanThenZoom && panIsAlreadyOnScreen) {
     const panViewport = {
       scale: previousScale,
       tx: focus.x - userPoint.x * previousScale,
@@ -5853,9 +6165,10 @@ function animateToHeadingUpNavigationViewport(durationMs = HEADING_UP_NAV_ANIMAT
   const focusRect = bestVisibleCanvasRect({ assumeInspectorOpen: Boolean(options.assumeInspectorOpen) });
   const focus = navigationFocusPoint(focusRect);
   const maxScale = maxHeadingUpNavigationScale(focus, focusRect);
-  // Use maxScale directly so the viewport always zooms to fit the selected
-  // target, even when coming from a wider zoom (e.g. walking-radius overview).
-  const targetScale = maxScale;
+  // Fit the selected target even when coming from a wider zoom (e.g. walking-radius overview), at the
+  // same buffered scale every other route to this state lands on (alignHeadingUpNavigationViewport with
+  // force), so the compass follow that comes next finds nothing left to correct.
+  const targetScale = resolveHeadingUpTargetScale(maxScale, state.viewport.scale, true);
   // force: true, matching maxScale being used directly above rather than through
   // resolveHeadingUpTargetScale -- this is a fresh selection, not the compass follow, so
   // the camera's own placement should not ease from wherever a previous selection last
@@ -5866,7 +6179,7 @@ function animateToHeadingUpNavigationViewport(durationMs = HEADING_UP_NAV_ANIMAT
     scale: targetScale,
     tx: focus.x - userPoint.x * targetScale,
     ty: focusY - userPoint.y * targetScale,
-  }, safeDuration, undefined, { deliberate: Boolean(options.deliberate) });
+  }, safeDuration, undefined, { deliberate: Boolean(options.deliberate), pivotWorldPoint: userPoint });
 }
 
 function prepareCanvasForDraw() {
@@ -5888,10 +6201,19 @@ function prepareCanvasForDraw() {
     // origin to the final one, and this one forced fit puts the camera on it, so the walking-radius
     // circle (which the slide exists to hold still) does not twitch as it lands. No later frames are
     // needed: the pins' own fade (markerGroupingPaused) carries the reveal.
-    const fading = nearbyRevealInProgress();
-    if (!fading) state.nearbyOriginTransition = null;
-    alignHeadingUpNavigationViewport({ animate: false, force: true });
-    if (fading) requestDraw();
+    if (wideLegSlideFlying(state.nearbyOriginTransition)) {
+      // The wide shot's first leg carries the origin across with the camera (nearbyOriginSlideProgress),
+      // and the tween owns the camera, so there is nothing to align or drop until it lands.
+      requestDraw();
+    } else {
+      const fading = nearbyRevealInProgress();
+      if (!fading) state.nearbyOriginTransition = null;
+      // The landing frame fits exactly: a scale already within the settle band of the fit would otherwise be
+      // kept, leaving the camera wherever the slide's last drawn frame happened to be (a slow frame stops
+      // short), so the same browse point framed a percent differently from one run to the next.
+      alignHeadingUpNavigationViewport({ animate: false, force: true, landSlide: !fading });
+      if (fading) requestDraw();
+    }
   }
   // The canvas size no longer depends on heading-up or tilt (see resizeCanvas), so nothing here
   // resizes it.
@@ -7406,7 +7728,7 @@ function worldToScreenForOverlayTilted(point) {
 // Projects a raw canvas-pixel point through the active tilt perspective.
 // Used to place radar/overlay elements in the same 3D space as the terrain canvas.
 function projectCanvasPoint(px, py) {
-  if (!tiltActive() || !state.userLocation) return { x: px, y: py, scale: 1, clipped: false };
+  if (!tiltActive() || !state.userLocation) return { x: px, y: py, scale: 1 };
   return tiltProjectScreenPoint({ x: px, y: py });
 }
 
@@ -7437,14 +7759,15 @@ function screenToWorld(x, y) {
       // are unboundedly far away) would unproject to an infinite or negative-distance
       // world point. Clamping to the row the far clip projects to keeps the inverse
       // finite and consistent with the forward projection's own draw distance.
+      // Ahead of the pivot the closed form above holds; behind it the forward scale is eased
+      // (see tiltDepthScale), so tiltUnprojectDy bisects on the forward map instead.
       const farClip = tiltFarClipCssPx();
       const yRelMin = Number.isFinite(farClip)
         ? -farClip * c * (perspective / (perspective + farClip * s))
         : -Infinity;
       const y_clamped = Math.max(y_rel, yRelMin);
-      const dy = y_clamped * perspective / (c * perspective + y_clamped * s);
-      const dz = dy * s;
-      const scale = perspective / (perspective - dz);
+      const dy = tiltUnprojectDy(y_clamped, s, c, perspective);
+      const scale = tiltDepthScale(dy, s, perspective);
       const dx = x_rel / scale;
 
       // Convert back to screen pixels, accounting for the un-projected values

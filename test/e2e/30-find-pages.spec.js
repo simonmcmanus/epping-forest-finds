@@ -434,11 +434,11 @@ test.describe("generated find/nearby pages", () => {
       await expect(body.locator('h3.detail-section-heading:has-text("Related")')).toHaveCount(1);
       // Category/group links are the same .nearest-item card as the nearest-tree/cow entries, not
       // a different pill style -- one consistent list under each heading.
-      await expect(body.locator('a.nearest-item[href^="/nearby/pubs/#near="]')).toHaveCount(1);
-      await expect(body.locator('a.nearest-item[href^="/nearby/food/#near="]')).toHaveCount(1);
-      // Carries the business's own position via the near= hash (see the dedicated test below),
-      // so this is a prefix match rather than an exact href.
-      await expect(body.locator('a.nearest-item[href^="/nearby/trees/#near="]')).toHaveCount(1);
+      await expect(body.locator('a.nearest-item[href^="/nearby/pubs/"][href*="#near="]')).toHaveCount(1);
+      await expect(body.locator('a.nearest-item[href^="/nearby/food/"][href*="#near="]')).toHaveCount(1);
+      // Carries the business's own position via the near= hash (see the dedicated test below) and the
+      // reader's walking radius as ?radius=, so these match on the category path and the hash rather than an exact href.
+      await expect(body.locator('a.nearest-item[href^="/nearby/trees/"][href*="#near="]')).toHaveCount(1);
       // "N locations within N min walk" lives in the Nearest section too now, as the same card
       // style -- not the separate top-row pill it used to be.
       const walkCard = body.locator("button.nearest-item[data-action='walk-radius']");
@@ -492,7 +492,7 @@ test.describe("generated find/nearby pages", () => {
       // for both pushState and a real navigation.
       await page.evaluate(() => { window.__noReloadMarker = "still-here"; });
       await page.locator('#inspectorBody a.nearest-item[href^="/nearby/trees/"]').click();
-      await expect(page).toHaveURL(/\/nearby\/trees\/#near=/);
+      await expect(page).toHaveURL(/\/nearby\/trees\/\?radius=[\d.]+#near=/);
       const markerSurvived = await page.evaluate(() => window.__noReloadMarker).catch(() => null);
       expect(markerSurvived).toBe("still-here");
     });
@@ -511,15 +511,20 @@ test.describe("generated find/nearby pages", () => {
       const href = await treesLink.getAttribute("href");
       // The place's name rides along as label=, so the target can say whose spot it is showing.
       const expectedHash = new URLSearchParams({ near: `${placeCoords.latitude},${placeCoords.longitude}`, label: placeName }).toString();
-      expect(href).toBe(`/nearby/trees/#${expectedHash}`);
+      // The reader's own walking radius rides along as ?radius= (see nearbySectionsHtml), so the
+      // category page opens at the ring the card's count describes, not the 30-minute landing default.
+      const radius = await page.evaluate(() => state.walkingDistanceMinutes);
+      expect(href).toBe(`/nearby/trees/?radius=${radius}#${expectedHash}`);
 
       await treesLink.click();
-      await expect(page).toHaveURL(new RegExp(`/nearby/trees/#near=${placeCoords.latitude}%2C${placeCoords.longitude}`));
+      await expect(page).toHaveURL(new RegExp(`/nearby/trees/\\?radius=${radius}#near=${placeCoords.latitude}%2C${placeCoords.longitude}`));
       const anchor = await page.evaluate(() => ({
         latitude: state.nearbyAnchor && Number(state.nearbyAnchor.latitude.toFixed(6)),
         longitude: state.nearbyAnchor && Number(state.nearbyAnchor.longitude.toFixed(6)),
       }));
       expect(anchor).toEqual(placeCoords);
+      // The reader's own radius is what the category page opens at, not the 30-minute landing default.
+      await expect.poll(() => page.evaluate(() => state.walkingDistanceMinutes)).toBe(radius);
     });
 
     test("the nearest-cow link carries the business's own position via the near= hash, and the live view anchors Nearby there", async ({ page }) => {
@@ -538,10 +543,11 @@ test.describe("generated find/nearby pages", () => {
       const href = await cowsLink.getAttribute("href");
       // The place's name rides along as label=, so the target can say whose spot it is showing.
       const expectedHash = new URLSearchParams({ near: `${placeCoords.latitude},${placeCoords.longitude}`, label: placeName }).toString();
-      expect(href).toBe(`/nearby/cows/#${expectedHash}`);
+      const radius = await page.evaluate(() => state.walkingDistanceMinutes);
+      expect(href).toBe(`/nearby/cows/?radius=${radius}#${expectedHash}`);
 
       await cowsLink.click();
-      await expect(page).toHaveURL(new RegExp(`/nearby/cows/#near=${placeCoords.latitude}%2C${placeCoords.longitude}`));
+      await expect(page).toHaveURL(new RegExp(`/nearby/cows/\\?radius=${radius}#near=${placeCoords.latitude}%2C${placeCoords.longitude}`));
       const anchor = await page.evaluate(() => ({
         latitude: state.nearbyAnchor && Number(state.nearbyAnchor.latitude.toFixed(6)),
         longitude: state.nearbyAnchor && Number(state.nearbyAnchor.longitude.toFixed(6)),

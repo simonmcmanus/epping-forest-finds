@@ -364,6 +364,12 @@ function drawFrame() {
 }
 
 function drawOverlay() {
+  // A terrain/compass repaint already refreshes this layer. Coalesce the feedback's
+  // pending frame so a held limit does not build the same overlay twice per frame.
+  if (_walkingRadiusLimitFrame != null) {
+    cancelAnimationFrame(_walkingRadiusLimitFrame);
+    _walkingRadiusLimitFrame = null;
+  }
   clearTimeout(_selectedIconMotionTimer);
   _selectedIconMotionTimer = null;
   _selectedIconMotionDrawn = false;
@@ -387,6 +393,12 @@ function drawOverlay() {
     : (typeof worldToScreenForOverlay === "function" ? worldToScreenForOverlay : worldToScreen);
   if (isTilted) drawUserRadarOverlayTilted(ctx);
   else drawUserRadarOverlay(ctx, toScreen);
+  // Keep the limit colour above the radar wash, below the pins and labels.
+  const radiusGeometry = walkingRadiusScreenGeometry(true);
+  if (radiusGeometry) {
+    const { center, radiusPx, tilted, dpr } = radiusGeometry;
+    drawWalkingRadiusLimitFeedback(ctx, center, radiusPx, tilted, dpr);
+  }
   if (useOverlayForPins) {
     // Keep the blue dot behind location pins in heading-up/tilted mode too.
     drawUser(ctx, toScreen, isTilted, "dot");
@@ -1233,6 +1245,137 @@ function drawWalkingRadiusDimming(ctx, center, radiusPx, tilted, cone) {
 const NEARBY_RIM_HIGHLIGHT = "rgba(255, 250, 235, 0.55)";
 const NEARBY_RIM_SHADOW = "rgba(20, 30, 24, 0.16)";
 
+// The feedback stays on the actual radius boundary. Only its light breathes: the
+// radius and camera never move to suggest that more zoom is available.
+const _walkingRadiusLimitFeedback = { active: false, startedAt: null, phaseStartedAt: null, from: 0, releasedAt: null, releaseOpacity: 0 };
+const WALKING_RADIUS_LIMIT_ATTACK_MS = 120;
+const WALKING_RADIUS_LIMIT_RELEASE_MS = 260;
+const WALKING_RADIUS_LIMIT_BREATH_MS = 1500;
+const WALKING_RADIUS_LIMIT_INHALE_MS = 500;
+// One restrained rose-red hue, distinct from error red and the decorative rim's gold.
+const WALKING_RADIUS_LIMIT_ROSE = "216, 86, 105";
+
+let _walkingRadiusLimitFrame = null;
+let _walkingRadiusLimitReleaseTimer = null;
+
+function requestWalkingRadiusLimitDraw() {
+  if (_walkingRadiusLimitFrame != null || document.visibilityState === "hidden") return;
+  _walkingRadiusLimitFrame = requestAnimationFrame(() => {
+    _walkingRadiusLimitFrame = null;
+    drawOverlay();
+  });
+}
+
+function setWalkingRadiusLimitFeedback(active, { delayMs = 0 } = {}) {
+  const feedback = _walkingRadiusLimitFeedback;
+  clearTimeout(_walkingRadiusLimitReleaseTimer);
+  _walkingRadiusLimitReleaseTimer = null;
+  if (!active && delayMs > 0 && feedback.active && document.visibilityState !== "hidden") {
+    _walkingRadiusLimitReleaseTimer = setTimeout(() => {
+      _walkingRadiusLimitReleaseTimer = null;
+      setWalkingRadiusLimitFeedback(false);
+    }, delayMs);
+    return;
+  }
+  if (feedback.active === active) return;
+  const now = performance.now();
+  const opacity = walkingRadiusLimitOpacity(now);
+  feedback.active = active;
+  if (active) {
+    // A new attempt during release resumes the held light's phase as well as its
+    // brightness; otherwise its halo would snap dimmer while the core stayed still.
+    feedback.phaseStartedAt = opacity > 0 && feedback.releasedAt != null
+      ? feedback.phaseStartedAt + now - feedback.releasedAt
+      : now;
+    feedback.startedAt = now;
+    feedback.from = opacity;
+    feedback.releasedAt = null;
+  } else {
+    feedback.releasedAt = now;
+    feedback.releaseOpacity = opacity;
+  }
+  requestWalkingRadiusLimitDraw();
+}
+
+function walkingRadiusLimitBreath(elapsed) {
+  const phase = Math.max(0, elapsed) % WALKING_RADIUS_LIMIT_BREATH_MS;
+  const t = phase < WALKING_RADIUS_LIMIT_INHALE_MS
+    ? phase / WALKING_RADIUS_LIMIT_INHALE_MS
+    : (WALKING_RADIUS_LIMIT_BREATH_MS - phase) / (WALKING_RADIUS_LIMIT_BREATH_MS - WALKING_RADIUS_LIMIT_INHALE_MS);
+  return (1 - Math.cos(Math.PI * t)) / 2;
+}
+
+function walkingRadiusLimitOpacity(now = performance.now()) {
+  const feedback = _walkingRadiusLimitFeedback;
+  if (feedback.startedAt == null) return 0;
+  if (!feedback.active) {
+    const t = clamp((now - feedback.releasedAt) / WALKING_RADIUS_LIMIT_RELEASE_MS, 0, 1);
+    if (t >= 1) return 0;
+    return feedback.releaseOpacity * (1 + Math.cos(Math.PI * t)) / 2;
+  }
+  const elapsed = Math.max(0, now - feedback.startedAt);
+  const reducedMotion = _iconMotionPreference?.matches ?? window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  const breath = walkingRadiusLimitBreath(now - feedback.phaseStartedAt);
+  const target = reducedMotion ? 0.79 : 0.76 + 0.06 * breath;
+  return feedback.from + (target - feedback.from) * easeOutCubic(clamp(elapsed / WALKING_RADIUS_LIMIT_ATTACK_MS, 0, 1));
+}
+
+function drawWalkingRadiusLimitFeedback(ctx, center, radiusPx, tilted, dpr) {
+  const feedback = _walkingRadiusLimitFeedback;
+  const now = performance.now();
+  const reducedMotion = _iconMotionPreference?.matches ?? window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+  if ((feedback.active && (!reducedMotion || now - feedback.startedAt < WALKING_RADIUS_LIMIT_ATTACK_MS))
+      || (!feedback.active && feedback.releasedAt != null && now - feedback.releasedAt < WALKING_RADIUS_LIMIT_RELEASE_MS)) {
+    requestWalkingRadiusLimitDraw();
+  }
+  const opacity = walkingRadiusLimitOpacity(now);
+  if (opacity <= 0) return;
+  ctx.save();
+  const lightAt = feedback.active ? now : feedback.releasedAt;
+  const breath = reducedMotion ? 0.5 : walkingRadiusLimitBreath(lightAt - feedback.phaseStartedAt);
+  drawWalkingRadiusLimitHalo(ctx, center, radiusPx, tilted, dpr, opacity * (0.16 + 0.05 * breath));
+  ctx.beginPath();
+  if (tilted) traceGroundCirclePath(ctx, center, radiusPx);
+  else ctx.arc(center.x, center.y, radiusPx, 0, Math.PI * 2);
+  ctx.lineWidth = 4 * dpr;
+  ctx.strokeStyle = `rgba(${WALKING_RADIUS_LIMIT_ROSE}, ${opacity})`;
+  ctx.stroke();
+  ctx.restore();
+}
+
+// Most of the light falls outside the clear circle. Keep the same asymmetry under
+// perspective: clipping each shoulder at the exact projected edge avoids a second ring.
+function drawWalkingRadiusLimitHalo(ctx, center, radiusPx, tilted, dpr, opacity) {
+  const inner = Math.min(6 * dpr, radiusPx * 0.3);
+  const outer = Math.min(20 * dpr, radiusPx * 0.45);
+  if (!tilted) {
+    const glow = ctx.createRadialGradient(center.x, center.y, radiusPx - inner, center.x, center.y, radiusPx + outer);
+    glow.addColorStop(0, `rgba(${WALKING_RADIUS_LIMIT_ROSE}, 0)`);
+    glow.addColorStop(inner / (inner + outer), `rgba(${WALKING_RADIUS_LIMIT_ROSE}, ${opacity})`);
+    glow.addColorStop(1, `rgba(${WALKING_RADIUS_LIMIT_ROSE}, 0)`);
+    ctx.beginPath();
+    ctx.arc(center.x, center.y, radiusPx + outer, 0, Math.PI * 2);
+    ctx.fillStyle = glow;
+    ctx.fill();
+    return;
+  }
+  for (const shoulder of [{ outside: true, reach: outer, steps: 20 }, { outside: false, reach: inner, steps: 12 }]) {
+    ctx.save();
+    ctx.beginPath();
+    if (shoulder.outside) ctx.rect(0, 0, state.canvasLogicalWidth, state.canvasLogicalHeight);
+    traceGroundCirclePath(ctx, center, radiusPx);
+    ctx.clip(shoulder.outside ? "evenodd" : "nonzero");
+    ctx.beginPath();
+    traceGroundCirclePath(ctx, center, radiusPx);
+    for (let step = shoulder.steps; step >= 1; step--) {
+      ctx.lineWidth = 2 * shoulder.reach * step / shoulder.steps;
+      ctx.strokeStyle = `rgba(${WALKING_RADIUS_LIMIT_ROSE}, ${opacity * 1.2 / shoulder.steps})`;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
 function drawWalkingRadiusRimHighlight(ctx, center, radiusPx, tilted, dpr) {
   const lineWidth = Math.max(1.5 * dpr, radiusPx * 0.012);
   const inset = lineWidth * 1.2;
@@ -1250,7 +1393,7 @@ function drawWalkingRadiusRimHighlight(ctx, center, radiusPx, tilted, dpr) {
   ctx.restore();
 }
 
-function drawWalkingRadius(ctx) {
+function walkingRadiusScreenGeometry(overlay = false) {
   // The *rendered* origin, so the circle stays still on screen while a browse-origin slide moves
   // the map behind it (nearbyRenderOriginPoint, index.html).
   const originPoint = nearbyRenderOriginPoint();
@@ -1270,13 +1413,21 @@ function drawWalkingRadius(ctx) {
     && state.locationRevealFocusPoint
     && Number.isFinite(state.locationRevealFocusPoint.x)
     && Number.isFinite(state.locationRevealFocusPoint.y);
-  const projectedOrigin = worldToScreenFlat(originPoint);
+  const tilted = typeof tiltActive === "function" && tiltActive();
+  const projectedOrigin = overlay && !tilted ? worldToScreenForOverlay(originPoint) : worldToScreenFlat(originPoint);
   const center = holdingRevealFocus
     ? state.locationRevealFocusPoint
     : projectedOrigin;
   const edge = worldToScreenFlat({ x: originPoint.x + walkingRadiusWorldUnits(), y: originPoint.y });
-  const radiusPx = Math.max(8, Math.hypot(edge.x - projectedOrigin.x, edge.y - projectedOrigin.y));
-  const tilted = typeof tiltActive === "function" && tiltActive();
+  const flatOrigin = worldToScreenFlat(originPoint);
+  const radiusPx = Math.max(8, Math.hypot(edge.x - flatOrigin.x, edge.y - flatOrigin.y));
+  return { center, radiusPx, tilted, dpr };
+}
+
+function drawWalkingRadius(ctx) {
+  const geometry = walkingRadiusScreenGeometry();
+  if (!geometry) return;
+  const { center, radiusPx, tilted, dpr } = geometry;
 
   drawWalkingRadiusDimming(ctx, center, radiusPx, tilted, nearbyUserCone(center, radiusPx, tilted));
   drawWalkingRadiusRimHighlight(ctx, center, radiusPx, tilted, dpr);
@@ -1627,6 +1778,7 @@ function resetMarkerGroupMemory() {
 // Memory belongs to one kind of lookup, so a narrowed one (an expanded cluster's members, search
 // results, a held transition) never overwrites the main map's.
 function markerMemoryKey() {
+  if (selectionClusterGroup()) return "siblings";
   if (state.selectionTransition && state.selectionTransition.mapHeld) return "held";
   if (state.searchScreenOpen && state.searchHighlightResults.length) return "search";
   if (state.clusterExpanded) return "expanded";
@@ -2053,9 +2205,6 @@ function buildMapMarkers(lookup, toScreen, memoryKey = "main", tilted = false) {
 
 // The dark green of a group's count chip; group footprints reuse it at low opacity.
 const MARKER_COUNT_CHIP_COLOR = "#233d30";
-// A group draws a footprint only when another group's seed is within this many collision-box
-// widths of its own on screen.
-const FOOTPRINT_NEIGHBOUR_BOX_WIDTHS = 2.5;
 // How far a footprint extends beyond its members' hull (ground plane, CSS px), with rounded corners.
 const FOOTPRINT_PADDING_CSS_PX = 6;
 const FOOTPRINT_FILL_ALPHA = 0.11;
@@ -2102,48 +2251,21 @@ function groupFootprintPoints(items, toFlat, project, padding) {
     }
   }
   const projected = footprintConvexHull(padded).map(project);
-  if (projected.length < 3 || projected.some(p => !p || p.clipped)) return null;
+  if (projected.length < 3 || projected.some(p => !p)) return null;
   return projected;
 }
 
-// Which group markers draw a footprint, and its outline: [{ marker, points }]. Only a group
-// (more than one item) with another group's seed within FOOTPRINT_NEIGHBOUR_BOX_WIDTHS collision
-// boxes on screen qualifies, so an isolated group and every lone pin draw none. Neighbours come
-// from a grid of that distance (3x3 cells), never all pairs; hulls are built for qualifiers only.
-// `only` optionally limits which markers get an outline (neighbours still count).
+// Which group markers draw a footprint, and its outline: [{ marker, points }]. Every group (more
+// than one item) with a valid hull qualifies, whatever its neighbours on screen; lone pins draw
+// none. `only` optionally limits which markers get an outline, so hulls are built only for groups
+// that will paint.
 function markerFootprints(markers, toFlat, project = p => p, only = null) {
-  const dpr = pixelRatio();
-  const reach = markerCollisionBox(dpr).width * FOOTPRINT_NEIGHBOUR_BOX_WIDTHS;
-  const grid = new Map();
-  const groups = [];
+  const padding = FOOTPRINT_PADDING_CSS_PX * pixelRatio();
+  const result = [];
   for (const marker of markers) {
     if (marker.items.length < 2) continue;
-    groups.push(marker);
-    const key = Math.floor(marker.screenPt.x / reach) * 4194304 + Math.floor(marker.screenPt.y / reach);
-    const bucket = grid.get(key);
-    if (bucket) bucket.push(marker);
-    else grid.set(key, [marker]);
-  }
-  const result = [];
-  if (groups.length < 2) return result;
-  for (const marker of groups) {
     if (only && !only.has(marker)) continue;
-    const cx = Math.floor(marker.screenPt.x / reach), cy = Math.floor(marker.screenPt.y / reach);
-    let near = false;
-    for (let dx = -1; dx <= 1 && !near; dx++) {
-      for (let dy = -1; dy <= 1 && !near; dy++) {
-        const bucket = grid.get((cx + dx) * 4194304 + cy + dy);
-        if (!bucket) continue;
-        for (const other of bucket) {
-          if (other !== marker && Math.hypot(other.screenPt.x - marker.screenPt.x, other.screenPt.y - marker.screenPt.y) <= reach) {
-            near = true;
-            break;
-          }
-        }
-      }
-    }
-    if (!near) continue;
-    const points = groupFootprintPoints(marker.items, toFlat, project, FOOTPRINT_PADDING_CSS_PX * dpr);
+    const points = groupFootprintPoints(marker.items, toFlat, project, padding);
     if (points) result.push({ marker, points });
   }
   return result;
@@ -2709,6 +2831,9 @@ function groupOpacity(marker) {
   return best;
 }
 
+// How strongly the other members of the selected place's group stay drawn. Static, so reduced motion needs no variant.
+const SELECTION_SIBLING_OPACITY = 0.45;
+
 // While a location is selected the Nearby pins give way to the selected destination.
 function pinsHiddenBySelection(tilted) {
   if (tilted) return selectedNavigationMapModeActive();
@@ -2766,7 +2891,12 @@ function drawGroupFootprints(ctx, markers, visible, reveal, tilted, toScreen, op
 // up, across all categories; faces cannot overlap, so this only orders tails, chips and labels.
 function drawMapMarkers(ctx, markers, toScreen, tilted = false, options = {}) {
   _drawnMarkerSpecs = [];
-  if (!markers.length || (pinsHiddenBySelection(tilted) && !options.allowSelectionExit)) return;
+  const siblingsShown = !options.allowSelectionExit && Boolean(selectionClusterGroup());
+  if (!markers.length || (pinsHiddenBySelection(tilted) && !options.allowSelectionExit && !siblingsShown)) return;
+  if (siblingsShown) {
+    // Dimmed members of the group the selected place came from; reaches footprints and faces alike.
+    options = { ...options, markerOpacity: () => SELECTION_SIBLING_OPACITY };
+  }
   // The outgoing selection set is not part of the radius hide: it is a separate, short handoff.
   const gestureOpacity = options.allowSelectionExit ? 1 : framePinFade();
   if (gestureOpacity < PIN_ALPHA_VISIBLE_MIN) return;
@@ -3034,8 +3164,63 @@ function selectedNavigationMapModeActive() {
   );
 }
 
+function clusterGroupHasItem(group, item) {
+  if (!group || !item) return false;
+  return Object.values(clusterItemsByType(group)).some(items => items.includes(item));
+}
+
+// The group a selected place was picked from, while that context still applies: a real selection
+// that is itself a member. Anything else (selection ended, replaced from outside) drops the record.
+//
+// Called several times a frame, so the membership scan is remembered per (record, selected place). The
+// record and the selection are still read on every call, so a replaced record or a changed selection
+// recomputes and a ended one returns null; group objects are replaced, never edited in place.
+let _selectionClusterCheck = null;
+function selectionClusterGroup() {
+  const group = state.selectionCluster;
+  if (!group || !hasRealSelection()) return null;
+  const item = state.selected.item;
+  if (_selectionClusterCheck && _selectionClusterCheck.group === group && _selectionClusterCheck.item === item) {
+    return _selectionClusterCheck.member ? group : null;
+  }
+  const member = clusterGroupHasItem(group, item);
+  _selectionClusterCheck = { group, item, member };
+  return member ? group : null;
+}
+
+// Forgets the group the selected place came from. Every path that ends or replaces the selection calls
+// this (or clearSelectionForNearby, which does); the one deliberate raw read is startCameraOriginTransition.
+function clearSelectionClusterRecord() {
+  state.selectionCluster = null;
+}
+
+// While a place picked from an expanded group is selected, the group's other members stay on the
+// map (dimmed, see SELECTION_SIBLING_OPACITY) so the place reads as one of the group. The selected
+// place itself is drawn by the selection overlay, so it is left out here.
+let _siblingLookupCache = null;
+function selectionSiblingLookup() {
+  const group = selectionClusterGroup();
+  if (!group) return null;
+  const selectedItem = state.selected.item;
+  if (_siblingLookupCache && _siblingLookupCache.group === group && _siblingLookupCache.selectedItem === selectedItem) {
+    return _siblingLookupCache.result;
+  }
+  const result = {
+    tree: new Set(), landmark: new Set(), cow: new Set(), path: new Set(), water: new Set(),
+    outOfRadius: new Set(),
+  };
+  for (const [itemType, items] of Object.entries(clusterItemsByType(group))) {
+    if (!result[itemType]) continue;
+    for (const item of items) if (item !== selectedItem) result[itemType].add(item);
+  }
+  _siblingLookupCache = { group, selectedItem, result };
+  return result;
+}
+
 function activeIconLookup() {
   if (state.selected && state.selected.type === "community") return COMMUNITY_EMPTY_ICON_LOOKUP;
+  const siblings = selectionSiblingLookup();
+  if (siblings) return siblings;
   // Selection is a two-point map from its first frame. The camera can keep moving while the
   // route/destination overlay catches up, but Nearby pins must not leak through the handoff.
   if (hasRealSelection() && state.selectionTransition.mapHeld) return SELECTED_NAVIGATION_EMPTY_ICON_LOOKUP;

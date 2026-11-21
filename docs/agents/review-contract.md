@@ -63,6 +63,11 @@ as a review of the new head. Shared contracts, architecture, broad conflict reso
 dependency impact require the full selected set again. The final gate records the current head and
 the evidence/invalidation decisions on which it relies.
 
+For a repair review, supply both the previous reviewed SHA and current SHA, the intervening delta,
+open finding IDs and affected dependencies. Review that delta and recheck affected findings against
+the original requirements. Do not resend unchanged diffs or rerun unaffected specialists. A new
+reviewer without the previous evidence, or uncertain impact, requires the full applicable range.
+
 Batch validated findings into one repair round. The lead records an attempt before dispatching;
 count real repair attempts, not prose comments. Stop after three unsuccessful rounds on one batch
 and report the remaining issues. Never push to use CI as a substitute for the local gate.
@@ -70,10 +75,10 @@ and report the remaining issues. Never push to use CI as a substitute for the lo
 ## PR status and one repair owner
 
 The lead collects status deterministically: head SHA, checks with run URLs, unresolved thread IDs,
-review state, visual decision and preview state. Compare this tuple with the previous snapshot.
-Dispatch the steward only on an actionable change (new finding, completed failure, conflict, or a
-new head requiring reconciliation), not for unchanged running/pending states or waiting human
-approval. Fetch detailed logs only for failing jobs. Keep a bounded safety check for missed events;
+review state, draft/ready state, visual decision and preview state. `Claude PR review` and `Inspect final PR head` skip on drafts; that is expected, not a failure, and they are not required before marking ready (marking ready triggers them). A draft PR must carry a stated blocker or waiting reason; a ready PR with open final-head findings stays ready and reports them as the named blocker. Compare this tuple with the previous snapshot.
+Dispatch the steward only on an actionable change (the list in `team/SKILL.md` section 6), not for
+unchanged running/pending states or waiting human approval. The periodic open-PR sweep
+(`team/SKILL.md` section 7) applies the same rule to PRs whose lead session has ended. Fetch detailed logs only for failing jobs. Keep a bounded safety check for missed events;
 if subscriptions are unavailable, report that and use the platform's supported wait/poll facility.
 Do not claim a permanent event subscription exists merely because the playbook requests one.
 
@@ -86,8 +91,34 @@ affected review is complete. Never resolve another person's thread without their
 Compare base/head CI failures by test ID, project and error signature. A red check on both commits
 can contain different failures. One passing rerun proves intermittency, not that the change is
 unrelated. Unknown base evidence remains unknown; record a blocker rather than dismissing it.
+Flaky-test handling is in `docs/agents/testing.md` "Flaky tests". Classify each failure as
+regression, intermittent, pre-existing-with-evidence or unknown.
+"Green", including the flake-record condition and the no-CI rule, is defined once in
+`team/SKILL.md` section 5.
+
 Human approval, CI success, local review findings and visual acceptance are separate fields. A
 waiting state is not completion; avoid repeated LLM wakeups while waiting on a person.
+
+## Model routing and compact briefs
+
+| Task | Route |
+| --- | --- |
+| Status collection and comparison | Run `scripts/pr-status.js`; no model needed for unchanged status |
+| Lead-specified test execution, receipt checks and mechanical documentation/data checks | Existing Haiku `test-runner`, within its tools; lead runs other commands directly |
+| Correctness, spec/test adequacy, security and specialist verdicts, including documentation/data changes | Sonnet `reviewer` and only specialists with a concrete changed risk |
+| Unresolved judgment after a concrete failed attempt | Lead may escalate with the question and evidence |
+
+Mechanical checks verify explicit rules (for example, a supplied schema or link checklist); they
+do not decide whether requirements are adequate or a change is safe. Escalate ambiguity to Sonnet.
+Combine these checks with an existing execution task rather than adding a second model pass.
+
+Keep the initial review brief to about 500 words, excluding necessary findings. Supply immutable
+base/head SHAs, requirements, changed paths, relevant spec headings, risk triggers and evidence
+paths/receipts. Point to diffs, source and logs rather than pasting whole files, full CI logs or prior
+conversations. Reviewers read the diff first, then relevant line ranges and callers; expand context
+whenever needed to establish a reachable path. Compact context must not omit changed files or
+required verification. Specialists receive their risk question and dependencies, not every other
+specialist's briefing. Reports follow the findings format above and omit a narration of the diff.
 
 ## Cost measurement
 

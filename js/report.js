@@ -9,6 +9,7 @@ function openReportModal() {
   if (typeof trackGaScreenView === "function") trackGaScreenView("Report");
   // See the matching comment in openFiltersScreen.
   exitClusterExpansion();
+  clearSelectionClusterRecord();
   state.selected = { type: "report", item: null };
   setInspectorSelectionChrome({ emoji: appIconHtml("feedback", "app-icon title-icon"), showBack: true, preserveNavHighlight: true });
   setNavScreenActive(els.reportToggle);
